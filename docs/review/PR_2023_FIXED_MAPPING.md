@@ -5,7 +5,7 @@
 - Packet: `artifacts/orchestration/task_packets/11fd4a5c871e.json`
 - Branch: `codex/propose-fix-for-dependency-security-bypass`
 - Base: `main`
-- Worktree: `worktrees/dependency-surface-contract-pr1`
+- Worktree: isolated PR #2023 dependency-surface worktree
 - Role order executed pre-open:
   `agent-coordinator -> qa-engineer-agent -> security-auditor -> architecture-specialist`
 - Packet creation was treated as provenance only, not role execution.
@@ -42,7 +42,7 @@
 ## Fixed in Commit Mapping
 
 Disposition: FIXED
-Commit: 68cb76e54a5acedd2805c955d711aaa8caa76eec
+Commit: b6802627bcdf87c38d7bf9086aa8a7101d27a4f3
 Evidence:
 `tests/test_install_locked_python_requirements.py` now asserts the returned
 effective constraints file content for duplicate exact-pin removal and
@@ -51,11 +51,11 @@ passed with those assertions.
 Reason: Sourcery requested assertions for the effective constraints file
 contents in the two new regression tests; the implementation commit adds those
 content checks and preserves the intended installer security-floor behavior.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2023#discussion_r3476956759 -> 68cb76e54a5acedd2805c955d711aaa8caa76eec
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2023#discussion_r3476956764 -> 68cb76e54a5acedd2805c955d711aaa8caa76eec
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2023#discussion_r3476956759 -> b6802627bcdf87c38d7bf9086aa8a7101d27a4f3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2023#discussion_r3476956764 -> b6802627bcdf87c38d7bf9086aa8a7101d27a4f3
 
 Disposition: FIXED
-Commit: 68cb76e54a5acedd2805c955d711aaa8caa76eec
+Commit: b6802627bcdf87c38d7bf9086aa8a7101d27a4f3
 Evidence:
 `scripts/ci/check_python_dependency_surfaces.py`,
 `verify_requirements.py`, `tests/test_python_dependency_surfaces.py`,
@@ -65,18 +65,7 @@ Evidence:
 `docs/roadmap/BACKLOG_LEDGER.md`.
 Reason: Adds the PR-1 Python dependency surface contract and validator while
 leaving dependency versions and lockfiles unchanged.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2023 -> 68cb76e54a5acedd2805c955d711aaa8caa76eec
-
-Disposition: FIXED
-Commit: d7154f2ba248bc94eef277095ad34de3e57219c2
-Evidence:
-`scripts/ci/check_python_dependency_surfaces.py` annotates the requirement
-surface set, `verify_requirements.py` preserves the wrapper return type for the
-pre-push mypy hook, and the subsequent `git push` pre-push hooks passed.
-Reason: The first push attempt correctly failed on mypy
-`no-any-return` / `var-annotated` findings in the new validator and wrapper.
-The root cause was fixed before the branch was pushed.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2023 -> d7154f2ba248bc94eef277095ad34de3e57219c2
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2023 -> b6802627bcdf87c38d7bf9086aa8a7101d27a4f3
 
 ## Premortem Closure
 
@@ -116,7 +105,7 @@ The root cause was fixed before the branch was pushed.
 - Contribution kind: `oracle_review`.
 - Co-author required: `true`.
 - Commit trailer included in implementation commit
-  `68cb76e54a5acedd2805c955d711aaa8caa76eec`:
+  `b6802627bcdf87c38d7bf9086aa8a7101d27a4f3`:
   `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
 - Oracle commands:
   - `python scripts/ci/check_python_dependency_surfaces.py`
@@ -148,12 +137,6 @@ The root cause was fixed before the branch was pushed.
   `git diff --check`
 - PASS:
   `pre-commit run --all-files`
-- PASS:
-  `pre-commit run mypy --hook-stage pre-push --files verify_requirements.py scripts/ci/check_python_dependency_surfaces.py`
-- PASS after root-cause fix:
-  `git push origin codex/propose-fix-for-dependency-security-bypass`
-  pre-push hooks, including `mypy`, `pip-audit`, backend pre-push pytest,
-  full-repo Bandit, and docker build test.
 
 ## Machine-Heavy Verification Deferral
 
