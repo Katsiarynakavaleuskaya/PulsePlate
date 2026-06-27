@@ -39,6 +39,12 @@ lifespan, frontend, iOS, macOS, or feature-flag redesign.
 - `eebcb60b8` - fixes Sourcery security observability feedback by logging
   enabled test route registration and adding caplog coverage for staging with
   `ENABLE_TEST_ROUTES=1`.
+- `6768d6ddc` - makes runtime-env canonicalization tests compatible with the
+  CI pre-commit backend-test environment that does not load async pytest
+  plugins.
+- `430c99da1` - fixes CodeRabbit feedback by documenting the complete test-route
+  matrix and adding a typed hidden response model for `/api/v1/test/echo`
+  while preserving the JSON response shape.
 
 ## Lane Start Provenance
 
@@ -70,6 +76,12 @@ Commit: eebcb60b8
 Evidence: `app/main.py` logs enabled test route registration; `tests/test_test_route_registration_bootstrap.py` covers staging with `ENABLE_TEST_ROUTES=1` using `caplog`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2029#pullrequestreview-4584883808 -> eebcb60b8
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2029#discussion_r3485790303 -> eebcb60b8
+
+Disposition: FIXED
+Commit: 430c99da1
+Evidence: `docs/architecture/backend_routing_map.md` now documents unset-env registration and walrus reintroduction coverage; `app/routers/test.py` now uses a typed hidden `TestEchoResponse` response model for `/api/v1/test/echo` while preserving the response JSON shape.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2029#pullrequestreview-4584957003 -> 430c99da1
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2029#discussion_r3485844708 -> 430c99da1
 
 ## Sourcery Review Closure
 
