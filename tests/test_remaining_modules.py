@@ -51,6 +51,24 @@ def test_root_npm_security_override_smoke() -> None:
     )
 
 
+def test_verify_requirements_wrapper_smoke(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep the compatibility wrapper covered in the deterministic smoke lane."""
+
+    import verify_requirements
+
+    observed_argv: list[str] | None = None
+
+    def fake_validator(argv: list[str] | None = None) -> int:
+        nonlocal observed_argv
+        observed_argv = argv
+        return 23
+
+    monkeypatch.setattr(verify_requirements, "check_python_dependency_surfaces", fake_validator)
+
+    assert verify_requirements.main(["--repo-root", "/tmp/example"]) == 23
+    assert observed_argv == ["--repo-root", "/tmp/example"]
+
+
 def _write_ragas_bootstrap_dataset(path: Path) -> None:
     """Keep eval runner smoke fixtures deterministic in the fast lane."""
 

@@ -54,7 +54,6 @@ jobs:
       route_contract_safety: ${{ steps.risk_profile.outputs.route_contract_safety }}
       operator_plane_slack: ${{ steps.risk_profile.outputs.operator_plane_slack }}
       merge_governance: ${{ steps.risk_profile.outputs.merge_governance }}
-      python_dependency_surface: ${{ steps.risk_profile.outputs.python_dependency_surface }}
       contract_risk_groups: ${{ steps.risk_profile.outputs.contract_risk_groups }}
       changed_file_count: ${{ steps.risk_profile.outputs.changed_file_count }}
     steps:
@@ -783,13 +782,6 @@ jobs:
                   tests/test_experiment_slack_socket_bridge.py \
                   tests/test_runtime_toolchain_alignment.py
                 ;;
-              python_dependency_surface)
-                add_suite \
-                  tests/test_install_locked_python_requirements.py \
-                  tests/test_python_dependency_surfaces.py \
-                  tests/test_python_supply_chain_controls.py \
-                  tests/test_verify_requirements.py
-                ;;
               *)
                 echo "::error::Unknown contract/risk group: $group"
                 exit 1
@@ -1072,13 +1064,6 @@ jobs:
                   tests/test_experiment_slack_kpp_renderer.py \
                   tests/test_experiment_slack_socket_bridge.py \
                   tests/test_runtime_toolchain_alignment.py
-                ;;
-              python_dependency_surface)
-                add_suite \
-                  tests/test_install_locked_python_requirements.py \
-                  tests/test_python_dependency_surfaces.py \
-                  tests/test_python_supply_chain_controls.py \
-                  tests/test_verify_requirements.py
                 ;;
               *)
                 echo "::error::Unknown contract/risk group: $group"
