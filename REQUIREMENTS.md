@@ -1,49 +1,16 @@
 # Requirements Management Guide
 
-## 📦 File Structure
+This is the quick-start guide. The canonical dependency-surface contract is
+`docs/contracts/PYTHON_DEPENDENCY_SURFACES.md`; operational regeneration and
+security details live in `docs/DEPENDENCY_MANAGEMENT.md`.
 
-### Production Dependencies
+Executable validation lives in `scripts/ci/check_python_dependency_surfaces.py`.
+`verify_requirements.py` is a compatibility wrapper for that validator.
 
-**`requirements.txt`** - Canonical source for production packages
-- All production dependencies with exact versions
-- Used in production deployments
-- Updated by Dependabot
+## Shared Install Profiles
 
-**`requirements-rag-vector.txt`** - Optional vector runtime profile
-- Exact versions for the opt-in FastEmbed/ONNX RAG vector stack
-- Installed only when a job or runtime explicitly selects the `rag-vector` profile
+Use the locked installer for shared runtime and CI installs:
 
-**`requirements-test.txt`** - Test-only dependency profile
-- Keeps pytest/coverage tooling plus `pgvector` for postgres-vector contract tests
-- Does not pull the optional FastEmbed/ONNX vector runtime stack
-
-### Development Dependencies
-
-**`requirements-dev.txt`** - Development and testing tools
-```bash
--r requirements.txt  # Includes all production deps
-pytest==9.1.1
-pytest-cov==7.1.0
-...
-```
-
-**`requirements-all.txt`** - All dependencies (prod + dev)
-```bash
--r requirements.txt  # Includes production deps
-pytest>=9.1.1      # Dev tools with minimum versions
-...
-```
-
-**`constraints.txt`** - Minimum and bounded versions for reproducible dev resolution
-```bash
-pytest>=9.1.1
-black>=26.5.0
-...
-```
-
-## 🚀 Installation
-
-### Production Environment
 ```bash
 python scripts/ci/install_locked_python_requirements.py \
   --requirements-profile runtime \
@@ -51,104 +18,49 @@ python scripts/ci/install_locked_python_requirements.py \
   --constraints-file constraints.txt
 ```
 
-### Development Environment (with locked dev requirements and constraints)
-```bash
-python scripts/ci/install_locked_python_requirements.py \
-  --requirements-profile runtime-dev \
-  --requirements-file requirements.txt \
-  --dev-requirements-file requirements-dev.txt \
-  --constraints-file constraints.txt
-```
+Supported shared profiles are:
 
-### All Dependencies (flexible versions)
-```bash
-PIP_INDEX_URL="${PULSEPLATE_PYTHON_INDEX_URL:?approved private package proxy required}" \
-  python -m pip install -r requirements-all.txt -c constraints.txt
-```
+- `runtime`
+- `runtime-dev`
+- `runtime-test`
+- `ci-test`
+- `ci-lite`
+- `rag-vector`
 
-## ✅ Verification
+`requirements-rag-vector.txt` is the optional vector runtime profile. It carries
+the opt-in FastEmbed/ONNX RAG vector stack and is installed only when a job or
+runtime explicitly selects the `rag-vector` profile.
 
-Check consistency between requirements files:
+`requirements-test.txt` keeps pytest/coverage tooling plus `pgvector` for
+postgres-vector contract tests. It does not pull the optional FastEmbed/ONNX
+vector runtime stack.
+
+Local/manual profiles (`requirements-data.txt`, `requirements-evals.txt`, and
+`requirements-rag-vector-cpu.txt`) are not shared GitHub Actions
+`requirements-profile` values.
+
+## Noncanonical Aggregate Files
+
+`requirements-lock.txt` is a dependency-graph reconciliation aggregate, not a
+shared install authority.
+
+`requirements-all.txt` is a legacy flexible local convenience file, not a
+compiled lockfile and not a security floor source.
+
+## Verification
+
 ```bash
 python verify_requirements.py
+python scripts/ci/check_python_dependency_surfaces.py
 ```
 
-This script ensures:
-- `requirements-dev.txt` doesn't override `requirements.txt` versions
-- `requirements-all.txt` uses `-r requirements.txt` (not duplicate pins)
-- No version conflicts between files
+The validator checks that every root `requirements*.in` / `requirements*.txt`
+surface is registered, compiled lockfiles still carry their pip-compile
+provenance, local/manual surfaces stay out of shared install routing, and
+security/dependency-submission coverage remains documented.
 
-## 🔄 Updating Dependencies
+## Regeneration
 
-### Update Production Dependency
-1. Dependabot creates PR with updated `requirements.txt`
-2. Review and merge PR
-3. Verify with `python verify_requirements.py`
-
-### Regenerate lockfiles (pip-tools)
-
-This repo uses `pip-compile` (pip-tools) to generate pinned `requirements*.txt`.
-To avoid environment drift, run this with the pinned Python from `.python-version` / `.tool-versions`.
-
-```bash
-# Include setuptools/pip/wheel in lockfile for security fixes (--allow-unsafe)
-export PIP_INDEX_URL="${PULSEPLATE_PYTHON_INDEX_URL:?approved private package proxy required}"
-export PIP_TRUSTED_HOST="${PULSEPLATE_PYTHON_TRUSTED_HOST:-}"
-pip-compile --allow-unsafe --no-emit-index-url --output-file=requirements.txt requirements.in
-pip-compile --allow-unsafe --no-emit-index-url --output-file=requirements-rag-vector.txt requirements-rag-vector.in
-pip-compile --allow-unsafe --no-emit-index-url --constraint=requirements.txt --output-file=requirements-dev.txt requirements-dev.in
-pip-compile --allow-unsafe --no-emit-index-url --output-file=requirements-test.txt requirements-test.in
-pip-compile --allow-unsafe --no-emit-index-url --output-file=requirements-ci-lite.txt requirements-ci-lite.in
-pip-compile --allow-unsafe --no-emit-index-url --output-file=requirements-lock.txt requirements-dev.in requirements.in
-```
-
-### Update Dev Dependency
-1. Update version in `requirements-dev.in`
-2. Update constraint in `constraints.txt` (if needed)
-3. Regenerate `requirements-dev.txt`, `requirements-test.txt`, and
-   `requirements-ci-lite.txt` with `pip-compile --allow-unsafe --no-emit-index-url`
-4. Run `python verify_requirements.py`
-5. Test through the approved proxy:
-   `python scripts/ci/install_locked_python_requirements.py --requirements-file requirements.txt --dev-requirements-file requirements-dev.txt --requirements-profile runtime-dev --constraints-file constraints.txt --preflight-only`
-
-## 🛡️ Best Practices
-
-1. **Single Source of Truth**: `requirements.txt` is canonical for production
-2. **Use `-r` Reference**: Avoid duplicating pins in `requirements-all.txt`
-3. **Constraints for Reproducibility**: Use `constraints.txt` for minimum/bounded dev versions
-4. **Verify Before Commit**: Always run `verify_requirements.py`
-5. **CI/CD**: GitHub Actions uses `requirements-dev.txt` for testing
-
-## 📋 Common Commands
-
-```bash
-# Create/update virtualenv
-python -m venv .venv
-source .venv/bin/activate
-
-# Install for development
-python scripts/ci/install_locked_python_requirements.py \
-  --requirements-file requirements.txt \
-  --dev-requirements-file requirements-dev.txt \
-  --requirements-profile runtime-dev \
-  --constraints-file constraints.txt
-
-# Install for production
-python scripts/ci/install_locked_python_requirements.py \
-  --requirements-file requirements.txt \
-  --requirements-profile runtime \
-  --constraints-file constraints.txt
-
-# Verify consistency
-python verify_requirements.py
-
-# Update all to latest (within constraints)
-PIP_INDEX_URL="${PULSEPLATE_PYTHON_INDEX_URL:?approved private package proxy required}" \
-  python -m pip install -U -r requirements-all.txt -c constraints.txt
-```
-
-## 🔗 References
-
-- [pip Requirements Files](https://pip.pypa.io/en/stable/reference/requirements-file-format/)
-- [pip Constraints Files](https://pip.pypa.io/en/stable/user_guide/#constraints-files)
-- [Python Packaging User Guide](https://packaging.python.org/)
+Use the commands in `docs/DEPENDENCY_MANAGEMENT.md` for lockfile regeneration.
+Do not regenerate lockfiles as part of dependency-surface documentation or
+validator-only PRs.

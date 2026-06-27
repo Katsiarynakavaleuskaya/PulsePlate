@@ -454,19 +454,6 @@ def _requirement_line_package_name(line: str) -> str | None:
     return re.sub(r"[-_.]+", "-", match.group(1))
 
 
-def _collect_exact_requirement_pin_names(lines: Sequence[str]) -> set[str]:
-    """Return normalized package names for exact pins from requirement-like lines."""
-    exact_pin_names: set[str] = set()
-    for line in lines:
-        stripped = line.split("#", 1)[0].strip().lower()
-        if "==" not in stripped or "===" in stripped or ";" in stripped:
-            continue
-        package_name = _requirement_line_package_name(stripped)
-        if package_name is not None:
-            exact_pin_names.add(package_name)
-    return exact_pin_names
-
-
 def _load_exact_requirement_pins(requirement_file: Path) -> set[str]:
     """Read one requirement surface once and collect exact pins."""
     return _collect_exact_requirement_pins(
@@ -1011,7 +998,7 @@ def effective_constraints_file_for_requirement(
     requirement_file: Path,
     constraints_file: Path | None,
 ) -> Iterator[Path | None]:
-    """Yield constraints with entries removed for exact-pinned requirement packages."""
+    """Yield constraints with duplicate exact pins removed for one requirement file."""
     validated_constraints_file = validate_constraints_file(constraints_file)
     if validated_constraints_file is None:
         yield None
@@ -1019,8 +1006,7 @@ def effective_constraints_file_for_requirement(
 
     requirement_lines = requirement_file.read_text(encoding="utf-8").splitlines()
     requirement_exact_pins = _collect_exact_requirement_pins(requirement_lines)
-    requirement_exact_pin_names = _collect_exact_requirement_pin_names(requirement_lines)
-    if not requirement_exact_pin_names:
+    if not requirement_exact_pins:
         yield validated_constraints_file
         return
 
@@ -1032,10 +1018,6 @@ def effective_constraints_file_for_requirement(
     for line in constraint_lines:
         normalized_line = line.split("#", 1)[0].strip().lower()
         if normalized_line and normalized_line in requirement_exact_pins:
-            removed_redundant_constraint = True
-            continue
-        constraint_package_name = _requirement_line_package_name(line)
-        if constraint_package_name in requirement_exact_pin_names:
             removed_redundant_constraint = True
             continue
         filtered_constraint_lines.append(line)

@@ -1208,13 +1208,10 @@ def test_repo_dev_quality_emergency_wheels_are_selected_from_active_manifest(
     assert not any(filename.startswith("ruff-") for _url, filename, _sha256 in observed_downloads)
 
 
-def _assert_uses_effective_constraints(command: list[str]) -> None:
+def _assert_uses_default_constraints(command: list[str]) -> None:
     assert "--constraint" in command
     constraint_path = Path(command[command.index("--constraint") + 1])
-    assert constraint_path != installer.DEFAULT_CONSTRAINTS_FILE
-    assert constraint_path.parent == installer.DEFAULT_CONSTRAINTS_FILE.parent
-    assert constraint_path.name.startswith(".constraints.effective-")
-    assert constraint_path.suffix == installer.DEFAULT_CONSTRAINTS_FILE.suffix
+    assert constraint_path == installer.DEFAULT_CONSTRAINTS_FILE
 
 
 def _pip26_no_candidate_runtimeerror_like_run_command(package: str, version: str) -> RuntimeError:
@@ -1687,7 +1684,7 @@ def test_effective_constraints_file_for_requirement_filters_duplicate_exact_pin(
         assert effective_constraints.read_text(encoding="utf-8") == "httpx>=0.28.1\n"
 
 
-def test_effective_constraints_file_for_requirement_filters_floor_for_exact_pin(
+def test_effective_constraints_file_for_requirement_keeps_floor_for_exact_pin(
     tmp_path: Path,
 ) -> None:
     requirements = tmp_path / "requirements.txt"
@@ -1702,9 +1699,31 @@ def test_effective_constraints_file_for_requirement_filters_floor_for_exact_pin(
         requirements,
         constraints,
     ) as effective_constraints:
-        assert effective_constraints is not None
-        assert effective_constraints != constraints
-        assert effective_constraints.read_text(encoding="utf-8") == "httpx>=0.28.1\n"
+        assert effective_constraints == constraints
+        assert effective_constraints.read_text(encoding="utf-8") == (
+            "openai>=2.8.1\nhttpx>=0.28.1\n"
+        )
+
+
+def test_effective_constraints_file_for_requirement_keeps_security_floor_for_lower_exact_pin(
+    tmp_path: Path,
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("cryptography==47.0.0\n", encoding="utf-8")
+    constraints = tmp_path / "constraints.txt"
+    constraints.write_text(
+        "cryptography>=48.0.1\nrequests>=2.33.0\n",
+        encoding="utf-8",
+    )
+
+    with installer.effective_constraints_file_for_requirement(
+        requirements,
+        constraints,
+    ) as effective_constraints:
+        assert effective_constraints == constraints
+        assert effective_constraints.read_text(encoding="utf-8") == (
+            "cryptography>=48.0.1\nrequests>=2.33.0\n"
+        )
 
 
 def test_effective_constraints_file_keeps_floor_for_marker_qualified_exact_pin(
@@ -1788,7 +1807,7 @@ def test_install_from_proxy_omits_duplicate_exact_constraint_for_same_requiremen
     assert "--constraint" not in observed_commands[0]
 
 
-def test_install_from_proxy_omits_redundant_floor_constraint_for_exact_pin(
+def test_install_from_proxy_preserves_floor_constraint_for_exact_pin(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -1812,7 +1831,10 @@ def test_install_from_proxy_omits_redundant_floor_constraint_for_exact_pin(
     )
 
     assert len(observed_commands) == 1
-    assert "--constraint" not in observed_commands[0]
+    assert "--constraint" in observed_commands[0]
+    constraint_path = Path(observed_commands[0][observed_commands[0].index("--constraint") + 1])
+    assert constraint_path == constraints
+    assert constraint_path.read_text(encoding="utf-8") == "openai>=2.8.1\n"
 
 
 def test_build_wheelhouse_preserves_non_duplicate_constraints(
@@ -4004,21 +4026,21 @@ def test_main_runs_download_install_and_static_guard_without_pip_self_upgrade(
     assert str(requirements) in download_command
     assert "--index-url" in download_command
     assert APPROVED_PROXY_URL in download_command
-    _assert_uses_effective_constraints(download_command)
+    _assert_uses_default_constraints(download_command)
 
     staging_install_command = observed_commands[1]
     assert staging_install_command[:4] == ["staging-python", "-m", "pip", "install"]
     assert "--no-index" in staging_install_command
     assert "--find-links" in staging_install_command
     assert str(wheelhouse_dir) in staging_install_command
-    _assert_uses_effective_constraints(staging_install_command)
+    _assert_uses_default_constraints(staging_install_command)
 
     install_command = observed_commands[2]
     assert install_command[:4] == ["python", "-m", "pip", "install"]
     assert "--no-index" in install_command
     assert "--find-links" in install_command
     assert str(wheelhouse_dir) in install_command
-    _assert_uses_effective_constraints(install_command)
+    _assert_uses_default_constraints(install_command)
     assert observed_guard_python == ["staging-python"]
 
 
@@ -4298,7 +4320,7 @@ def test_main_runs_direct_proxy_install_and_static_guard(
     assert "--index-url" in staging_install_command
     assert APPROVED_PROXY_URL in staging_install_command
     assert str(requirements) in staging_install_command
-    _assert_uses_effective_constraints(staging_install_command)
+    _assert_uses_default_constraints(staging_install_command)
 
     install_command = observed_commands[1]
     assert install_command[:4] == ["python", "-m", "pip", "install"]
