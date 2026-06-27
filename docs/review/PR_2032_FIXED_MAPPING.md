@@ -35,14 +35,19 @@
 
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
-- No review threads have been resolved yet for PR #2032.
+- Resolved review threads mapped with disposition proof: 6.
 - [x] Pre-open premortem findings dispositioned.
 - [x] Experiment Runner oracle-only governance evidence recorded.
 - [x] Local focused gates, `make validate-changed`, and
   `pre-commit run --all-files` passed before PR open.
-- [ ] Post-open `qa-engineer-agent -> bug-hunter -> security-auditor`, Codex
-  Security diff scan / finding discovery, and `pulseplate-pr-review` remain
-  required before any readiness claim.
+- [x] Post-open `qa-engineer-agent -> bug-hunter -> security-auditor`
+  completed.
+- [x] Codex Security diff scan for head
+  `f28857f55e010c85d94dc4bdea8869239f69a362` completed; one finding was
+  fixed in `e1531a004f`.
+- [ ] Fresh Codex Security diff scan for the new material head after
+  `e1531a004f` remains required before any readiness claim.
+- [ ] `pulseplate-pr-review` remains required before any readiness claim.
 - [ ] CodeRabbit, Sourcery, and Cubic current-head actionables must be
   checked and dispositioned after bot review completes.
 - [ ] Strict merge-readiness wrapper with auth and the mandatory wait-window
@@ -73,6 +78,26 @@ Reason: Closes CodeRabbit actionables by rejecting duplicate source route owners
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2032#discussion_r3486601869 -> bc7fb204e06cd69606f558c5ecb30f97d0d2b8e0
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2032#discussion_r3486601870 -> bc7fb204e06cd69606f558c5ecb30f97d0d2b8e0
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2032#pullrequestreview-4585986171 -> bc7fb204e06cd69606f558c5ecb30f97d0d2b8e0
+
+Disposition: FIXED
+Commit: e1531a004f2d4fadbb98260e1b996e664f80fc15
+Evidence: Codex Security scan
+`4ccd9f2f-38f2-4f24-a669-8148cfea44d6` reported finding
+`csf_c6ff5339238662d1a8e3b294`; sealed report:
+`/private/var/folders/bw/12x002vn67v2bvjpbhbtm8480000gn/T/codex-security-scans-kx1ykF/dependency-cleanup-faraday-runtime-drift/f28857f55e010c85d94dc4bdea8869239f69a362_20260627T193438Z_sxo3irk9/report.md`;
+`app/bootstrap/pro_contracts.py` now requires same-endpoint existing PRO
+contract routes to preserve `require_pro_tier`; `tests/test_pro_contracts_bootstrap.py`
+adds a regression for direct same-endpoint routes without router-level
+dependencies. Focused
+`python -m pytest tests/test_pro_contracts_bootstrap.py tests/test_main_paywall_bootstrap.py -q`
+passed (`160 passed`, one known Starlette/httpx2 warning), `ruff check` passed,
+and `mypy app/bootstrap/pro_contracts.py --no-incremental --cache-dir=/dev/null`
+passed.
+Reason: Closes Codex Security finding "PRO contract bootstrap accepts
+same-endpoint routes without paid-tier dependency" by validating the effective
+route dependency metadata before treating existing PRO contract routes as
+canonical.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2032 -> e1531a004f2d4fadbb98260e1b996e664f80fc15
 
 Disposition: DEFERRED
 Evidence: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-fastapi-compatibility-gates`
@@ -140,10 +165,24 @@ Reason: Starlette emits `StarletteDeprecationWarning` because `starlette.testcli
     - Evidence:
       `tests/test_trivy_ignore_policy_expiry.py::test_faraday_fastlane_suppression_tracks_1_10_6_scanner_lag`
       uses the specific `# CVE-2026-54297` policy block and passed.
-- Post-open `security-auditor` pass: pending.
-- Codex Security diff scan / finding discovery: pending; run once for the
-  material PR head and do not rerun unless the head changes materially or the
-  operator requests it.
+- Post-open `security-auditor` pass: completed for the pushed
+  `f28857f55e010c85d94dc4bdea8869239f69a362` head; no additional
+  security/correctness findings beyond the Codex Security discovery item below.
+- Codex Security diff scan / finding discovery:
+  - Scan: `4ccd9f2f-38f2-4f24-a669-8148cfea44d6`
+  - Scanned head: `f28857f55e010c85d94dc4bdea8869239f69a362`
+  - Report:
+    `/private/var/folders/bw/12x002vn67v2bvjpbhbtm8480000gn/T/codex-security-scans-kx1ykF/dependency-cleanup-faraday-runtime-drift/f28857f55e010c85d94dc4bdea8869239f69a362_20260627T193438Z_sxo3irk9/report.md`
+  - Finding `csf_c6ff5339238662d1a8e3b294`:
+    - Disposition: FIXED
+    - Commit: e1531a004f2d4fadbb98260e1b996e664f80fc15
+    - Evidence:
+      `app/bootstrap/pro_contracts.py` now checks `route_has_dependency_call`
+      for `require_pro_tier`; `tests/test_pro_contracts_bootstrap.py`
+      reproduces and rejects same-endpoint direct routes without the
+      router-level PRO dependency.
+  - New material head after `e1531a004f` requires one fresh current-head
+    Codex Security diff scan before readiness.
 - `pulseplate-pr-review`: pending.
 
 ## Experiment Runner Evidence
@@ -211,6 +250,12 @@ Reason: Starlette emits `StarletteDeprecationWarning` because `starlette.testcli
   `VENV_PYTHON=<repo>/.venv/bin/python DEV_PYTHON=<repo>/.venv/bin/python make validate-changed`.
 - PASS: pre-push hooks during `git push`, including `mypy`, `pip-audit`,
   backend pre-push pytest, full-repo Bandit, and docker build test.
+- PASS: Codex Security finding fix focused pytest:
+  `python -m pytest tests/test_pro_contracts_bootstrap.py tests/test_main_paywall_bootstrap.py -q`
+  (`160 passed`, one known Starlette/httpx2 warning).
+- PASS: Codex Security finding fix `ruff check app/bootstrap/pro_contracts.py tests/test_pro_contracts_bootstrap.py`.
+- PASS: Codex Security finding fix
+  `mypy app/bootstrap/pro_contracts.py --no-incremental --cache-dir=/dev/null`.
 
 ## Machine-Heavy Verification Deferral
 
