@@ -81,22 +81,8 @@ Reason: Closes CodeRabbit actionables by rejecting duplicate source route owners
 
 Disposition: FIXED
 Commit: e1531a004f2d4fadbb98260e1b996e664f80fc15
-Evidence: Codex Security scan
-`4ccd9f2f-38f2-4f24-a669-8148cfea44d6` reported finding
-`csf_c6ff5339238662d1a8e3b294`; sealed report:
-`/private/var/folders/bw/12x002vn67v2bvjpbhbtm8480000gn/T/codex-security-scans-kx1ykF/dependency-cleanup-faraday-runtime-drift/f28857f55e010c85d94dc4bdea8869239f69a362_20260627T193438Z_sxo3irk9/report.md`;
-`app/bootstrap/pro_contracts.py` now requires same-endpoint existing PRO
-contract routes to preserve `require_pro_tier`; `tests/test_pro_contracts_bootstrap.py`
-adds a regression for direct same-endpoint routes without router-level
-dependencies. Focused
-`python -m pytest tests/test_pro_contracts_bootstrap.py tests/test_main_paywall_bootstrap.py -q`
-passed (`160 passed`, one known Starlette/httpx2 warning), `ruff check` passed,
-and `mypy app/bootstrap/pro_contracts.py --no-incremental --cache-dir=/dev/null`
-passed.
-Reason: Closes Codex Security finding "PRO contract bootstrap accepts
-same-endpoint routes without paid-tier dependency" by validating the effective
-route dependency metadata before treating existing PRO contract routes as
-canonical.
+Evidence: Codex Security scan `4ccd9f2f-38f2-4f24-a669-8148cfea44d6` reported finding `csf_c6ff5339238662d1a8e3b294`; sealed report path `/private/var/folders/bw/12x002vn67v2bvjpbhbtm8480000gn/T/codex-security-scans-kx1ykF/dependency-cleanup-faraday-runtime-drift/f28857f55e010c85d94dc4bdea8869239f69a362_20260627T193438Z_sxo3irk9/report.md`; `app/bootstrap/pro_contracts.py` now requires same-endpoint existing PRO contract routes to preserve `require_pro_tier`; `tests/test_pro_contracts_bootstrap.py` adds a regression for direct same-endpoint routes without router-level dependencies. Focused `python -m pytest tests/test_pro_contracts_bootstrap.py tests/test_main_paywall_bootstrap.py -q` passed (`160 passed`, one known Starlette/httpx2 warning), `ruff check` passed, and `mypy app/bootstrap/pro_contracts.py --no-incremental --cache-dir=/dev/null` passed.
+Reason: Closes Codex Security finding "PRO contract bootstrap accepts same-endpoint routes without paid-tier dependency" by validating the effective route dependency metadata before treating existing PRO contract routes as canonical.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2032 -> e1531a004f2d4fadbb98260e1b996e664f80fc15
 
 Disposition: DEFERRED
