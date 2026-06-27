@@ -391,6 +391,7 @@ def collect_review_context(
     changed_files = [entry.path for entry in changed_file_stats]
     scoped_agents = discover_scoped_agents(repo_root=repo_root, changed_files=changed_files)
 
+    fixed_mapping: dict[str, Any]
     if pr_number is None:
         fixed_mapping = {
             "path": str(repo_root / "docs" / "review" / "PR_<N>_FIXED_MAPPING.md"),
@@ -425,7 +426,11 @@ def collect_review_context(
                 )
             if degraded_reasons:
                 fixed_mapping_degraded_reason = " ".join(degraded_reasons)
-                fixed_mapping.setdefault("errors", []).append(fixed_mapping_degraded_reason)
+                fixed_mapping_errors = fixed_mapping.get("errors")
+                if not isinstance(fixed_mapping_errors, list):
+                    fixed_mapping_errors = []
+                    fixed_mapping["errors"] = fixed_mapping_errors
+                fixed_mapping_errors.append(fixed_mapping_degraded_reason)
                 warnings.append(fixed_mapping_degraded_reason)
 
     review_source_status = [
