@@ -83,22 +83,8 @@ def _write_valid_contract_repo(root: Path) -> None:
         )
 
     _write_python_setup_action(root)
-    (root / surfaces.PIP_AUDIT_HELPER).write_text(
-        "\n".join(
-            surface.lockfile
-            for surface in surfaces.DEPENDENCY_SURFACES
-            if surface.pip_audit_required
-        ),
-        encoding="utf-8",
-    )
-    (root / surfaces.DEPENDENCY_SUBMISSION_WORKFLOW).write_text(
-        "\n".join(
-            surface.lockfile
-            for surface in surfaces.DEPENDENCY_SURFACES
-            if surface.dependency_submission_required
-        ),
-        encoding="utf-8",
-    )
+    _write_pip_audit_helper(root)
+    _write_dependency_submission_workflow(root)
 
 
 def _write_python_setup_action(root: Path, extra_case_labels: tuple[str, ...] = ()) -> None:
@@ -119,6 +105,68 @@ def _write_python_setup_action(root: Path, extra_case_labels: tuple[str, ...] = 
             f"{case_lines}\n"
             "            *) ;;\n"
             "          esac\n"
+        ),
+        encoding="utf-8",
+    )
+
+
+def _write_pip_audit_helper(
+    root: Path,
+    *,
+    omitted: tuple[str, ...] = (),
+    comments: tuple[str, ...] = (),
+) -> None:
+    audited_lockfiles = [
+        surface.lockfile
+        for surface in surfaces.DEPENDENCY_SURFACES
+        if surface.pip_audit_required and surface.lockfile not in omitted
+    ]
+    lines = [
+        "#!/usr/bin/env bash",
+        "# Comments are not audit coverage.",
+        *(f"# {comment}" for comment in comments),
+        'manifests=("requirements.txt")',
+        *(
+            f'manifests+=("{lockfile}")'
+            for lockfile in audited_lockfiles
+            if lockfile != "requirements.txt"
+        ),
+    ]
+    (root / surfaces.PIP_AUDIT_HELPER).write_text("\n".join(lines), encoding="utf-8")
+
+
+def _write_dependency_submission_workflow(
+    root: Path,
+    *,
+    omitted: tuple[str, ...] = (),
+    trigger_paths: tuple[str, ...] = (),
+) -> None:
+    submitted_lockfiles = [
+        surface.lockfile
+        for surface in surfaces.DEPENDENCY_SURFACES
+        if surface.dependency_submission_required and surface.lockfile not in omitted
+    ]
+    path_filters = [*trigger_paths, *submitted_lockfiles]
+    path_filter_lines = "\n".join(f'      - "{path}"' for path in sorted(set(path_filters)))
+    copied_lockfiles = "\n".join(f"            {lockfile} \\" for lockfile in submitted_lockfiles)
+    (root / surfaces.DEPENDENCY_SUBMISSION_WORKFLOW).write_text(
+        "\n".join(
+            (
+                "name: Python Dependency Submission",
+                "on:",
+                "  pull_request:",
+                "    paths:",
+                path_filter_lines,
+                "jobs:",
+                "  dependency-submission:",
+                "    steps:",
+                "      - name: Prepare dependency graph root",
+                "        run: |",
+                '          graph_root="${RUNNER_TEMP}/dependency-root"',
+                "          cp \\",
+                copied_lockfiles,
+                '            "${graph_root}/"',
+            )
         ),
         encoding="utf-8",
     )
@@ -191,11 +239,7 @@ def test_dependency_surface_contract_rejects_missing_pip_audit_coverage(
     tmp_path: Path,
 ) -> None:
     _write_valid_contract_repo(tmp_path)
-    audit_helper = tmp_path / surfaces.PIP_AUDIT_HELPER
-    audit_helper.write_text(
-        audit_helper.read_text(encoding="utf-8").replace("requirements-data.txt\n", ""),
-        encoding="utf-8",
-    )
+    _write_pip_audit_helper(tmp_path, omitted=("requirements-data.txt",))
 
     errors = surfaces.validate_repo(tmp_path)
 
@@ -208,10 +252,41 @@ def test_dependency_surface_contract_rejects_missing_dependency_submission_cover
     tmp_path: Path,
 ) -> None:
     _write_valid_contract_repo(tmp_path)
-    submission_workflow = tmp_path / surfaces.DEPENDENCY_SUBMISSION_WORKFLOW
-    submission_workflow.write_text(
-        submission_workflow.read_text(encoding="utf-8").replace("requirements-dev.txt\n", ""),
-        encoding="utf-8",
+    _write_dependency_submission_workflow(tmp_path, omitted=("requirements-dev.txt",))
+
+    errors = surfaces.validate_repo(tmp_path)
+
+    assert errors == [
+        f"{surfaces.DEPENDENCY_SUBMISSION_WORKFLOW}: missing dependency submission coverage "
+        "for requirements-dev.txt."
+    ]
+
+
+def test_dependency_surface_contract_ignores_pip_audit_comment_mentions(
+    tmp_path: Path,
+) -> None:
+    _write_valid_contract_repo(tmp_path)
+    _write_pip_audit_helper(
+        tmp_path,
+        omitted=("requirements-data.txt",),
+        comments=("requirements-data.txt is mentioned here but not audited.",),
+    )
+
+    errors = surfaces.validate_repo(tmp_path)
+
+    assert errors == [
+        f"{surfaces.PIP_AUDIT_HELPER}: missing pip-audit coverage for requirements-data.txt."
+    ]
+
+
+def test_dependency_surface_contract_ignores_dependency_submission_trigger_only_mentions(
+    tmp_path: Path,
+) -> None:
+    _write_valid_contract_repo(tmp_path)
+    _write_dependency_submission_workflow(
+        tmp_path,
+        omitted=("requirements-dev.txt",),
+        trigger_paths=("requirements-dev.txt",),
     )
 
     errors = surfaces.validate_repo(tmp_path)

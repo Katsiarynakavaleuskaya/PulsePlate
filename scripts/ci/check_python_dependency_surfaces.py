@@ -48,6 +48,10 @@ PROFILE_CASE_RE = re.compile(
     re.S | re.M,
 )
 CASE_ARM_RE = re.compile(r"(?m)^\s*(?P<label>[A-Za-z0-9_-]+)\)(?:\s|$)")
+PIP_AUDIT_MANIFEST_RE = re.compile(r"^\s*manifests(?:\+)?=\((?P<body>.*)\)\s*(?:#.*)?$")
+SHELL_QUOTED_LOCKFILE_RE = re.compile(
+    r"(?P<quote>['\"])(?P<value>requirements[-A-Za-z0-9_]*\.txt)(?P=quote)"
+)
 
 
 @dataclass(frozen=True)
@@ -232,6 +236,43 @@ def _is_requirement_line(line: str) -> bool:
     return True
 
 
+def _pip_audit_manifest_entries(script_text: str) -> set[str]:
+    """Return lockfiles listed in the pip-audit manifest array."""
+    entries: set[str] = set()
+    for raw_line in script_text.splitlines():
+        match = PIP_AUDIT_MANIFEST_RE.match(raw_line)
+        if match is None:
+            continue
+        entries.update(
+            token_match.group("value")
+            for token_match in SHELL_QUOTED_LOCKFILE_RE.finditer(match.group("body"))
+        )
+    return entries
+
+
+def _dependency_submission_cp_entries(workflow_text: str) -> set[str]:
+    """Return lockfiles copied into dependency-submission graph roots."""
+    entries: set[str] = set()
+    in_cp_block = False
+    for raw_line in workflow_text.splitlines():
+        stripped = raw_line.strip()
+        if not in_cp_block and re.fullmatch(r"cp(?:\s+\\)?", stripped):
+            in_cp_block = True
+            continue
+        if not in_cp_block:
+            continue
+
+        token = stripped.removesuffix("\\").strip().strip("'\"")
+        if token.startswith("${") or token.startswith("$"):
+            in_cp_block = stripped.endswith("\\")
+            continue
+        if re.fullmatch(r"requirements[-A-Za-z0-9_]*\.txt", token):
+            entries.add(token)
+        if not stripped.endswith("\\"):
+            in_cp_block = False
+    return entries
+
+
 def _require_exact_lock_entries(
     *,
     repo_root: Path,
@@ -309,13 +350,12 @@ def _validate_shared_profiles(repo_root: Path, errors: list[str]) -> None:
 def _validate_security_coverage(repo_root: Path, errors: list[str]) -> None:
     audit_text = _read_text(repo_root, PIP_AUDIT_HELPER)
     dependency_submission_text = _read_text(repo_root, DEPENDENCY_SUBMISSION_WORKFLOW)
+    audited_lockfiles = _pip_audit_manifest_entries(audit_text)
+    submitted_lockfiles = _dependency_submission_cp_entries(dependency_submission_text)
     for surface in DEPENDENCY_SURFACES:
-        if surface.pip_audit_required and surface.lockfile not in audit_text:
+        if surface.pip_audit_required and surface.lockfile not in audited_lockfiles:
             errors.append(f"{PIP_AUDIT_HELPER}: missing pip-audit coverage for {surface.lockfile}.")
-        if (
-            surface.dependency_submission_required
-            and surface.lockfile not in dependency_submission_text
-        ):
+        if surface.dependency_submission_required and surface.lockfile not in submitted_lockfiles:
             errors.append(
                 f"{DEPENDENCY_SUBMISSION_WORKFLOW}: missing dependency submission coverage for "
                 f"{surface.lockfile}."
