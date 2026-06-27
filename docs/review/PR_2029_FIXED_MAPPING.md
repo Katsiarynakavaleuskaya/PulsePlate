@@ -180,6 +180,8 @@ merge-readiness remain mandatory before readiness claims.
 
 ## Local Validation Evidence
 
+- PASS: `python3 scripts/orchestration/check_preflight.py`
+- PASS: `python3 scripts/orchestration/check_agent_consistency.py`
 - PASS: `python3 scripts/ci/check_legacy_growth_guard.py`
 - PASS: `pytest -q tests/test_test_router.py tests/test_legacy_runtime_env_canonicalization.py tests/test_legacy_growth_guard.py tests/test_openapi_namespace_guards.py tests/test_route_family_bootstrap.py tests/test_test_route_registration_bootstrap.py`
 - PASS: `make openapi-check`
