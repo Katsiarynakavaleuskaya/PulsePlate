@@ -100,6 +100,17 @@ Reason: Fixes CodeRabbit type-hint and broad substring profile-routing findings.
   - Disposition: gate-pending, not a code defect.
   - Evidence: current-head CI and strict merge-readiness wrapper remain required
     below before any readiness claim.
+- Bug-hunter finding: dependency coverage validator could false-pass missing
+  real pip-audit or dependency-submission coverage when filenames remained in
+  comments or workflow trigger filters.
+  - Disposition: FIXED
+  - Commit: `0f7cc83d3f9d815948cb974494d616ba6d13f102`
+  - Evidence:
+    `scripts/ci/check_python_dependency_surfaces.py` now parses concrete
+    `manifests=(...)` / `manifests+=(...)` shell entries and dependency graph
+    `cp` entries; `tests/test_python_dependency_surfaces.py` covers comment-only
+    and trigger-only filename mentions; focused pytest, validator/wrapper,
+    `make validate-changed`, and `pre-commit run --all-files` passed.
 
 ## Experiment Runner Evidence
 
@@ -131,6 +142,8 @@ Reason: Fixes CodeRabbit type-hint and broad substring profile-routing findings.
   `python verify_requirements.py`
 - PASS:
   `python -m pytest -q tests/test_python_dependency_surfaces.py -p no:cacheprovider`
+- PASS:
+  `python -m pytest -q tests/test_python_dependency_surfaces.py tests/test_verify_requirements.py tests/test_install_locked_python_requirements.py tests/test_python_supply_chain_controls.py`
 - PASS:
   `python -m py_compile scripts/ci/check_python_dependency_surfaces.py verify_requirements.py tests/test_python_dependency_surfaces.py tests/test_verify_requirements.py`
 - PASS:
