@@ -279,7 +279,9 @@ def _dependency_submission_cp_entries(workflow_text: str) -> set[str]:
 
 def _dependency_submission_trigger_paths(workflow_text: str) -> dict[str, set[str]]:
     """Return dependency-submission workflow path-filter entries by trigger event."""
-    paths_by_event = {event: set() for event in DEPENDENCY_SUBMISSION_TRIGGER_EVENTS}
+    paths_by_event: dict[str, set[str]] = {
+        event: set() for event in DEPENDENCY_SUBMISSION_TRIGGER_EVENTS
+    }
     in_on_section = False
     current_event: str | None = None
     in_paths = False
