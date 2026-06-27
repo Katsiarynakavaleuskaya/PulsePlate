@@ -65,6 +65,17 @@ Reason: Fixes CodeRabbit type-hint and broad substring profile-routing findings.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2023#discussion_r3485708117 -> 0f7cc83d395a89538f1552eb0808d620987855de
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2023#pullrequestreview-4584612071 -> 2026a39107dd670408cba17e23b5f3a22ced684e
 
+Disposition: FIXED
+Commit: 06c43b1a8c8e61319b207c3533ff0d72c8b681c5
+Evidence: `scripts/ci/check_python_dependency_surfaces.py`, `tests/test_python_dependency_surfaces.py`, and `docs/review/PR_2023_FIXED_MAPPING.md`; focused pytest, validator CLI, `make validate-changed`, and `pre-commit run --all-files` passed.
+Reason: Fixes CodeRabbit repo-root installer profile loading, root pip-audit omission fixture coverage, and premature merge-readiness checkbox findings.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2023#discussion_r3485708116 -> 06c43b1a8c8e61319b207c3533ff0d72c8b681c5
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2023#pullrequestreview-4584754862 -> 06c43b1a8c8e61319b207c3533ff0d72c8b681c5
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2023#discussion_r3485730425 -> 06c43b1a8c8e61319b207c3533ff0d72c8b681c5
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2023#pullrequestreview-4584792915 -> 06c43b1a8c8e61319b207c3533ff0d72c8b681c5
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2023#discussion_r3485798676 -> 06c43b1a8c8e61319b207c3533ff0d72c8b681c5
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2023#pullrequestreview-4584895557 -> 06c43b1a8c8e61319b207c3533ff0d72c8b681c5
+
 ## Premortem Closure
 
 - Artifact: `docs/review/PR_2023_PREMORTEM.md`
