@@ -9,12 +9,17 @@ from __future__ import annotations
 import argparse
 from dataclasses import asdict, dataclass
 import json
+import re
 
 DEGRADED_STATUSES = frozenset(
     {"degraded", "unavailable", "rate_limited", "usage_limit_reached", "auth_missing", "partial"}
 )
 BLOCKING_STATUSES = frozenset(
     {"fallback_finding", "failed_required_check", "unresolved_threads", "actionable_bot_comments"}
+)
+_SECRETISH_RE = re.compile(
+    r"(?i)(ghp_[a-z0-9_]+|ghs_[a-z0-9_.-]+|sk-[a-z0-9_-]+|"
+    r"\b(?:token|secret|password|api[_-]?key|github_token|gh_token)\b\s*[:=]\s*[^\s]+)"
 )
 
 
@@ -27,6 +32,12 @@ class ReviewSourceStatus:
     blocking: bool
     reason: str
     evidence: str
+
+
+def redact_review_source_text(value: str) -> str:
+    """Redact token-like values from advisory review-source metadata."""
+
+    return _SECRETISH_RE.sub("<redacted>", value)
 
 
 def build_review_source_status(
@@ -51,6 +62,8 @@ def build_review_source_status(
             normalized_status = "unavailable"
     source_degraded = degraded or normalized_status in DEGRADED_STATUSES
     source_blocking = blocking or normalized_status in BLOCKING_STATUSES
+    redacted_reason = redact_review_source_text(reason)
+    redacted_evidence = redact_review_source_text(evidence)
 
     return asdict(
         ReviewSourceStatus(
@@ -59,8 +72,8 @@ def build_review_source_status(
             source_degraded=source_degraded,
             fallback_required=source_degraded or source_blocking,
             blocking=source_blocking,
-            reason=reason,
-            evidence=evidence,
+            reason=redacted_reason,
+            evidence=redacted_evidence,
         )
     )
 

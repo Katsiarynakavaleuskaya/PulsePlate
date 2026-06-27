@@ -58,3 +58,15 @@ def test_review_source_status_schema_matches_helper_shape() -> None:
 
     assert set(schema["required"]) == set(status)
     assert schema["additionalProperties"] is False
+
+
+def test_review_source_status_redacts_reason_and_evidence() -> None:
+    status = build_review_source_status(
+        source="coderabbit",
+        status="rate_limited",
+        reason="GH_TOKEN=ghs_abc.def",
+        evidence="api_key=secret123",
+    )
+
+    assert status["reason"] == "<redacted>"
+    assert status["evidence"] == "<redacted>"

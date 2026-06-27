@@ -409,18 +409,22 @@ def collect_review_context(
             fixed_mapping["local_head_sha"] = local_head_sha
             fixed_mapping["pr_head_sha"] = pr_metadata_head
             repo_path = str(fixed_mapping.get("repo_path") or "")
-            fixed_mapping["present_in_pr_diff"] = repo_path in changed_files
+            present_in_pr_diff = repo_path in changed_files
+            fixed_mapping["present_in_pr_diff"] = present_in_pr_diff
+            degraded_reasons: list[str] = []
             if local_head_sha != pr_metadata_head:
-                fixed_mapping_degraded_reason = (
+                degraded_reasons.append(
                     "Fixed-mapping artifact was read from local HEAD "
                     f"{local_head_sha[:12]}, but GitHub PR metadata/diff is at head "
                     f"{pr_metadata_head[:12]}; push local commits or run from a matching "
                     "checkout before treating mapping evidence as current PR truth."
                 )
-                if repo_path and repo_path not in changed_files:
-                    fixed_mapping_degraded_reason += (
-                        f" Artifact `{repo_path}` is not present in the PR head diff."
-                    )
+            if repo_path and not present_in_pr_diff:
+                degraded_reasons.append(
+                    f"Artifact `{repo_path}` is not present in the PR head diff."
+                )
+            if degraded_reasons:
+                fixed_mapping_degraded_reason = " ".join(degraded_reasons)
                 fixed_mapping.setdefault("errors", []).append(fixed_mapping_degraded_reason)
                 warnings.append(fixed_mapping_degraded_reason)
 
@@ -480,7 +484,7 @@ def collect_review_context(
     }
 
 
-def _parse_args() -> argparse.Namespace:
+def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Collect advisory read-only context for PulsePlate PR review skill."
     )
@@ -491,11 +495,11 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--repo-root", default=str(REPO_ROOT), help="Repo root path")
     parser.add_argument("--output", help="Write JSON to file", default=None)
 
-    return parser.parse_args()
+    return parser.parse_args(argv)
 
 
-def main() -> int:
-    args = _parse_args()
+def main(argv: list[str] | None = None) -> int:
+    args = _parse_args(argv)
     context = collect_review_context(
         repo_root=Path(args.repo_root),
         pr_number=args.pr,
@@ -513,7 +517,7 @@ def main() -> int:
 
     if context["warnings"]:
         for warning in context["warnings"]:
-            print(f"WARNING: {warning}")
+            print(f"WARNING: {warning}", file=sys.stderr)
     return 0
 
 
