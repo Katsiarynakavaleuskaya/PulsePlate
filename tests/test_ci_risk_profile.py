@@ -31,6 +31,7 @@ def test_empty_changed_files_uses_default_risk_profile() -> None:
     assert profile.route_contract_safety is False
     assert profile.operator_plane_slack is False
     assert profile.merge_governance is False
+    assert profile.python_dependency_surface is False
     assert profile.contract_risk_groups == ()
 
 
@@ -181,6 +182,36 @@ def test_governance_tests_hit_merge_governance_group() -> None:
     assert profile.backend_shared is True
     assert profile.merge_governance is True
     assert profile.contract_risk_groups == ("merge_governance",)
+
+
+@pytest.mark.parametrize(
+    "changed_file",
+    (
+        "verify_requirements.py",
+        "requirements-test.in",
+        "tests/test_verify_requirements.py",
+    ),
+)
+def test_python_dependency_surfaces_hit_dependency_surface_group(
+    changed_file: str,
+) -> None:
+    profile = risk_profile.build_risk_profile([changed_file])
+
+    assert profile.python_dependency_surface is True
+    assert profile.run_backend_blocking is True
+    assert profile.run_security is True
+    assert profile.contract_risk_groups == ("python_dependency_surface",)
+
+
+def test_privileged_python_dependency_script_keeps_full_contract_groups() -> None:
+    profile = risk_profile.build_risk_profile(
+        ["scripts/ci/check_python_dependency_surfaces.py"],
+    )
+
+    assert profile.workflow_privileged is True
+    assert profile.python_dependency_surface is True
+    assert profile.run_backend_blocking is True
+    assert profile.contract_risk_groups == risk_profile.ALL_RISK_GROUPS
 
 
 def test_billing_router_change_hits_billing_and_openapi_groups() -> None:
@@ -448,6 +479,7 @@ def test_cli_writes_github_outputs(
     assert "run_main_ci_diagnostic=false" in written
     assert "billing_entitlement=true" in written
     assert "operator_plane_slack=false" in written
+    assert "python_dependency_surface=false" in written
 
 
 def test_collect_changed_files_fails_fast_on_git_timeout(

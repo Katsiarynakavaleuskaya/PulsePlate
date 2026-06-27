@@ -1720,10 +1720,17 @@ def test_contract_risk_suite_blocks_stay_in_sync_and_cover_slack_operator_plane(
         "tests/test_experiment_slack_socket_bridge.py",
         "tests/test_runtime_toolchain_alignment.py",
     )
+    expected_python_dependency_surface_targets = (
+        "tests/test_install_locked_python_requirements.py",
+        "tests/test_python_dependency_surfaces.py",
+        "tests/test_python_supply_chain_controls.py",
+        "tests/test_verify_requirements.py",
+    )
 
     assert test_pr_groups == test_feature_groups
     assert set(ci_risk_profile.ALL_RISK_GROUPS).issubset(test_pr_groups)
     assert test_pr_groups["operator_plane_slack"] == expected_slack_operator_targets
+    assert test_pr_groups["python_dependency_surface"] == expected_python_dependency_surface_targets
     assert "tests/test_bmi_compat_router.py" in test_pr_groups["route_contract_safety"]
     assert "tests/test_legacy_bmi_shims.py" in test_pr_groups["route_contract_safety"]
 

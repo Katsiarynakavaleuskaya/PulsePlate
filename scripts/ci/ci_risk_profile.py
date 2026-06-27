@@ -25,6 +25,7 @@ ALL_RISK_GROUPS: tuple[str, ...] = (
     "route_contract_safety",
     "operator_plane_slack",
     "merge_governance",
+    "python_dependency_surface",
 )
 
 # Root-level backend modules that influence shared runtime or security posture
@@ -192,6 +193,21 @@ RISK_GROUP_PATTERNS: dict[str, tuple[str, ...]] = {
         "tests/test_experiment_slack_socket_bridge.py",
         "tests/test_runtime_toolchain_alignment.py",
     ),
+    "python_dependency_surface": (
+        "constraints.txt",
+        "REQUIREMENTS.md",
+        "docs/DEPENDENCY_MANAGEMENT.md",
+        "docs/contracts/PYTHON_DEPENDENCY_SURFACES.md",
+        "requirements*.in",
+        "requirements*.txt",
+        "scripts/ci/check_python_dependency_surfaces.py",
+        "scripts/ci/install_locked_python_requirements.py",
+        "tests/test_install_locked_python_requirements.py",
+        "tests/test_python_dependency_surfaces.py",
+        "tests/test_python_supply_chain_controls.py",
+        "tests/test_verify_requirements.py",
+        "verify_requirements.py",
+    ),
 }
 
 
@@ -216,6 +232,7 @@ class RiskProfile:
     route_contract_safety: bool
     operator_plane_slack: bool
     merge_governance: bool
+    python_dependency_surface: bool
     contract_risk_groups: tuple[str, ...]
 
     def to_outputs(self) -> dict[str, str]:
@@ -237,6 +254,7 @@ class RiskProfile:
             "route_contract_safety": _bool_text(self.route_contract_safety),
             "operator_plane_slack": _bool_text(self.operator_plane_slack),
             "merge_governance": _bool_text(self.merge_governance),
+            "python_dependency_surface": _bool_text(self.python_dependency_surface),
             "contract_risk_groups": ",".join(self.contract_risk_groups),
             "changed_file_count": str(len(self.changed_files)),
         }
@@ -341,6 +359,7 @@ def build_risk_profile(changed_files: list[str] | tuple[str, ...]) -> RiskProfil
             route_contract_safety=False,
             operator_plane_slack=False,
             merge_governance=False,
+            python_dependency_surface=False,
             contract_risk_groups=(),
         )
 
@@ -370,6 +389,7 @@ def build_risk_profile(changed_files: list[str] | tuple[str, ...]) -> RiskProfil
     run_backend_blocking = (
         workflow_privileged
         or backend_shared
+        or group_hits["python_dependency_surface"]
         or group_hits["openapi_contract"]
         or group_hits["food_catalog"]
         or group_hits["operator_plane_slack"]
@@ -396,6 +416,7 @@ def build_risk_profile(changed_files: list[str] | tuple[str, ...]) -> RiskProfil
         route_contract_safety=group_hits["route_contract_safety"],
         operator_plane_slack=group_hits["operator_plane_slack"],
         merge_governance=group_hits["merge_governance"],
+        python_dependency_surface=group_hits["python_dependency_surface"],
         contract_risk_groups=selected_groups,
     )
 
