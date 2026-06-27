@@ -761,6 +761,7 @@ def test_repo_emergency_manifest_tracks_current_active_fallback_set() -> None:
     assert artifacts, "Emergency wheel manifest should track at least one fallback artifact."
     assert {package for package, _version in ci_lite_emergency_pairs} >= {
         "alembic",
+        "aiosqlite",
         "annotated-doc",
         "annotated-types",
         "anyio",
@@ -772,6 +773,7 @@ def test_repo_emergency_manifest_tracks_current_active_fallback_set() -> None:
         "pydantic-core",
         "python-multipart",
         "requests",
+        "starlette",
         "wrapt",
     }
     assert ci_lite_emergency_pairs <= requirements_ci_lite_pins
@@ -3253,6 +3255,139 @@ def test_install_from_proxy_with_emergency_fallback_accepts_pip26_no_candidate_s
     assert observed_find_links == [None, tmp_path / "wheelhouse"]
 
 
+def test_install_from_proxy_with_emergency_fallback_accepts_package_scoped_retry_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("aiosqlite==0.22.1\n", encoding="utf-8")
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "generated_at": "2026-06-27",
+                "expires_at": "2099-12-31",
+                "artifacts": [
+                    {
+                        "package": "aiosqlite",
+                        "version": "0.22.1",
+                        "filename": "aiosqlite-0.22.1-py3-none-any.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/aiosqlite-0.22.1.whl",
+                        "sha256": "b" * 64,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    observed_find_links: list[Path | None] = []
+    health_packages: list[str] = []
+
+    def fake_install_from_proxy(**kwargs: object) -> None:
+        find_links_dir = kwargs["find_links_dir"]
+        observed_find_links.append(None if find_links_dir is None else Path(find_links_dir))
+        if find_links_dir is None:
+            raise RuntimeError(
+                "Command failed: python -m pip install stub: exit 1\n"
+                "WARNING: Retrying after connection broken by "
+                "'ReadTimeoutError(\"HTTPSConnectionPool(host='packages.pulseplate.app', "
+                "port=443): Read timed out. (read timeout=60.0)\")': "
+                "/root/pulseplate/+simple/aiosqlite/\n"
+                "ERROR: Could not find a version that satisfies the requirement "
+                "aiosqlite==0.22.1 (from versions: none)\n"
+                "ERROR: No matching distribution found for aiosqlite==0.22.1"
+            )
+
+    def allow_health(*, index_url: str, package: str, trusted_host: str | None) -> None:
+        assert index_url == APPROVED_PROXY_URL
+        assert trusted_host is None
+        health_packages.append(package)
+
+    def fake_stage_emergency_artifacts(**kwargs: object) -> list[Path]:
+        assert [artifact["package"] for artifact in kwargs["artifacts"]] == ["aiosqlite"]
+        wheelhouse_dir = Path(kwargs["wheelhouse_dir"])
+        staged = [wheelhouse_dir / "aiosqlite-0.22.1-py3-none-any.whl"]
+        for destination in staged:
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes(b"wheel-bytes")
+        return staged
+
+    monkeypatch.setattr(installer, "install_from_proxy", fake_install_from_proxy)
+    monkeypatch.setattr(installer, "_require_private_index_project_health", allow_health)
+    monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
+
+    installer.install_from_proxy_with_emergency_fallback(
+        python_executable="python",
+        requirement_files=[requirements],
+        constraints_file=None,
+        index_url=APPROVED_PROXY_URL,
+        trusted_host=None,
+        emergency_wheelhouse_dir=tmp_path / "wheelhouse",
+        emergency_wheel_manifest=manifest,
+    )
+
+    assert health_packages == ["aiosqlite"]
+    assert observed_find_links == [None, tmp_path / "wheelhouse"]
+
+
+def test_install_from_proxy_with_emergency_fallback_rejects_same_line_network_resolver_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("requests==2.33.0\n", encoding="utf-8")
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "generated_at": "2026-06-27",
+                "expires_at": "2099-12-31",
+                "artifacts": [
+                    {
+                        "package": "requests",
+                        "version": "2.33.0",
+                        "filename": "requests-2.33.0-py3-none-any.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/requests-2.33.0.whl",
+                        "sha256": "b" * 64,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    stage_calls = {"count": 0}
+
+    def fail_same_line_network_resolver(**kwargs: object) -> None:
+        assert kwargs["find_links_dir"] is None
+        raise RuntimeError(
+            "Command failed: python -m pip install: exit 1\n"
+            "ERROR: 521 Server Error while resolving requests==2.33.0; "
+            "No matching distribution found for requests==2.33.0"
+        )
+
+    def fake_stage_emergency_artifacts(**_kwargs: object) -> list[Path]:
+        stage_calls["count"] += 1
+        return [tmp_path / "wheelhouse" / "requests-2.33.0-py3-none-any.whl"]
+
+    monkeypatch.setattr(installer, "install_from_proxy", fail_same_line_network_resolver)
+    monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
+
+    with pytest.raises(RuntimeError, match="521 Server Error"):
+        installer.install_from_proxy_with_emergency_fallback(
+            python_executable="python",
+            requirement_files=[requirements],
+            constraints_file=None,
+            index_url=APPROVED_PROXY_URL,
+            trusted_host=None,
+            emergency_wheelhouse_dir=tmp_path / "wheelhouse",
+            emergency_wheel_manifest=manifest,
+        )
+
+    assert stage_calls["count"] == 0
+
+
 def test_install_from_proxy_with_emergency_fallback_does_not_treat_package_name_as_network(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -4811,6 +4946,53 @@ def test_run_dependency_floor_preflight_allows_exact_emergency_artifact_after_pr
 
     assert observed_downloads == [
         ("https://files.pythonhosted.org/packages/example/cryptography-46.0.7.whl", "b" * 64)
+    ]
+
+
+def test_repo_starlette_floor_preflight_uses_active_emergency_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        installer,
+        "load_dependency_security_floors",
+        lambda: {"starlette": "1.3.1"},
+    )
+    observed_downloads: list[tuple[str, str]] = []
+
+    def fail_version_check(
+        *,
+        index_url: str,
+        package: str,
+        version: str,
+        trusted_host: str | None,
+    ) -> bool:
+        assert (index_url, package, version, trusted_host) == (
+            APPROVED_PROXY_URL,
+            "starlette",
+            "1.3.1",
+            None,
+        )
+        raise RuntimeError("proxy health check failed after read timeout")
+
+    def fake_download(*, url: str, destination: Path, expected_sha256: str) -> None:
+        observed_downloads.append((url, expected_sha256))
+        destination.write_bytes(b"wheel-bytes")
+
+    monkeypatch.setattr(installer, "_private_index_project_has_version", fail_version_check)
+    monkeypatch.setattr(installer, "_download_with_sha256", fake_download)
+
+    installer.run_dependency_floor_preflight(
+        python_executable="python",
+        index_url=APPROVED_PROXY_URL,
+        trusted_host=None,
+        emergency_wheel_manifest=_repo_emergency_manifest_path(),
+    )
+
+    assert observed_downloads == [
+        (
+            "https://files.pythonhosted.org/packages/ec/bb/2799cc2ede3ed41131f8975621e7213dfc7ef4acbbaadfa440f32500c370/starlette-1.3.1-py3-none-any.whl",
+            "c7372aae11c3c3f26a42df7bd626cec2f47d03483d261d369516a615a53714c6",
+        )
     ]
 
 

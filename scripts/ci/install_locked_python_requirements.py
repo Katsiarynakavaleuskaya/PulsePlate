@@ -1204,8 +1204,25 @@ def _resolver_miss_error(runtime_error: RuntimeError, *, package: str, version: 
     requirement_text = f"{package}=={version}"
     package_name = package.lower()
     normalized_requirement = requirement_text.lower()
+    package_name_variants = {package_name, package_name.replace("-", "_")}
+
+    def line_mentions_requested_project(line: str) -> bool:
+        normalized_line = line.replace("\\", "/")
+        return any(
+            re.search(rf"(?:/|\+simple/){re.escape(variant)}(?:/|['\" )]|$)", normalized_line)
+            is not None
+            for variant in package_name_variants
+        )
+
+    def line_has_transport_failure(line: str) -> bool:
+        scrubbed_line = line
+        for variant in package_name_variants:
+            scrubbed_line = re.sub(re.escape(variant), "", scrubbed_line, flags=re.IGNORECASE)
+        return _pip_upgrade_network_failure(scrubbed_line)
 
     def line_mentions_only_requested_package(line: str) -> bool:
+        if line_has_transport_failure(line):
+            return line_mentions_requested_project(line)
         if normalized_requirement in line:
             return True
         if re.fullmatch(rf"\s*{re.escape(package_name)}\s*", line):
