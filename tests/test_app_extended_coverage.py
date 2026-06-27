@@ -35,8 +35,7 @@ class TestLifespanEvents:
         os.environ["API_KEY"] = "test_key"
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
-    @pytest.mark.asyncio
-    async def test_lifespan_startup_success(self, monkeypatch: pytest.MonkeyPatch):
+    def test_lifespan_startup_success(self, monkeypatch: pytest.MonkeyPatch):
         """Test successful lifespan startup."""
         from app import lifespan
         import legacy_app
@@ -46,16 +45,20 @@ class TestLifespanEvents:
         mock_start = Mock(return_value=AsyncMock())
         patch_background_update_callables(monkeypatch, start=mock_start)
 
+        async def run_lifespan() -> None:
+            async with lifespan(mock_app):
+                pass
+
         with (
             patch.object(legacy_app, "init_db", return_value=None),
             patch.object(legacy_app, "validate_template_dir", return_value=None),
         ):
-            async with lifespan(mock_app):
-                # Verify startup was called
-                mock_start.assert_called_once_with(update_interval_hours=24)
+            asyncio.run(run_lifespan())
 
-    @pytest.mark.asyncio
-    async def test_lifespan_startup_failure(self, monkeypatch: pytest.MonkeyPatch):
+        # Verify startup was called
+        mock_start.assert_called_once_with(update_interval_hours=24)
+
+    def test_lifespan_startup_failure(self, monkeypatch: pytest.MonkeyPatch):
         """Test lifespan startup with failure."""
         from app import lifespan
         import legacy_app
@@ -65,16 +68,20 @@ class TestLifespanEvents:
         mock_start = Mock(side_effect=Exception("Startup failed"))
         patch_background_update_callables(monkeypatch, start=mock_start)
 
+        async def run_lifespan() -> None:
+            # Should not raise exception, just log error
+            async with lifespan(mock_app):
+                pass
+
         with (
             patch.object(legacy_app, "init_db", return_value=None),
             patch.object(legacy_app, "validate_template_dir", return_value=None),
         ):
-            # Should not raise exception, just log error
-            async with lifespan(mock_app):
-                mock_start.assert_called_once_with(update_interval_hours=24)
+            asyncio.run(run_lifespan())
 
-    @pytest.mark.asyncio
-    async def test_lifespan_shutdown_success(self, monkeypatch: pytest.MonkeyPatch):
+        mock_start.assert_called_once_with(update_interval_hours=24)
+
+    def test_lifespan_shutdown_success(self, monkeypatch: pytest.MonkeyPatch):
         """Test successful lifespan shutdown."""
         from app import lifespan
         import legacy_app
@@ -89,14 +96,17 @@ class TestLifespanEvents:
             patch.object(legacy_app, "init_db", return_value=None),
             patch.object(legacy_app, "validate_template_dir", return_value=None),
         ):
-            async with lifespan(mock_app):
-                pass
 
-            # Verify shutdown was called
-            mock_stop.assert_called_once()
+            async def run_lifespan() -> None:
+                async with lifespan(mock_app):
+                    pass
 
-    @pytest.mark.asyncio
-    async def test_lifespan_shutdown_failure(self, monkeypatch: pytest.MonkeyPatch):
+            asyncio.run(run_lifespan())
+
+        # Verify shutdown was called
+        mock_stop.assert_called_once()
+
+    def test_lifespan_shutdown_failure(self, monkeypatch: pytest.MonkeyPatch):
         """Test lifespan shutdown with failure."""
         from app import lifespan
         import legacy_app
@@ -111,11 +121,15 @@ class TestLifespanEvents:
             patch.object(legacy_app, "init_db", return_value=None),
             patch.object(legacy_app, "validate_template_dir", return_value=None),
         ):
-            # Should not raise exception, just log error
-            async with lifespan(mock_app):
-                pass
 
-            mock_stop.assert_called_once()
+            async def run_lifespan() -> None:
+                # Should not raise exception, just log error
+                async with lifespan(mock_app):
+                    pass
+
+            asyncio.run(run_lifespan())
+
+        mock_stop.assert_called_once()
 
 
 class TestAPIEndpoints:
