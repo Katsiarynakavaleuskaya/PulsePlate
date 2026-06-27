@@ -93,6 +93,9 @@ Evidence: `scripts/orchestration/pr_review_context.py` evaluates fixed-mapping P
 - `pre-commit run mypy --hook-stage pre-push --files scripts/orchestration/pr_review_context.py`
 - `git diff --check`
 - Pre-push hooks from `git push origin feat/orchestration-review-fallback-learning-loop`
+- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_install_locked_python_requirements.py`
+- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_install_locked_python_requirements.py -k 'same_line_network_resolver or mixed_network_resolver_failure or timeout_plus_resolver_miss or does_not_treat_package_name_as_network'`
+- Codex Security finalizer + report validation for current-head scan `70fed327-6258-406f-9765-a09c4e39ee10`
 - Full `make verify` was attempted but stopped at `verify-env` because this isolated worktree has no local `.venv`; this PR does not claim merge readiness from local gates alone.
 
 ## Post-Open Review Evidence
@@ -100,7 +103,10 @@ Evidence: `scripts/orchestration/pr_review_context.py` evaluates fixed-mapping P
 - `qa-engineer-agent`: PASS after fixing review-source/fixed-mapping governance validation in `d3fd0fdec`.
 - `bug-hunter`: PASS after fixing JSON stdout hygiene, stale fixed-mapping degradation, schema enum/path constraints, and local-path rejection in `4d6deb2b3`.
 - `security-auditor`: PASS after fixing GitHub token-family redaction and URI/path rejection in `f8dcd8740`.
-- Codex Security diff scan / finding discovery: PASS on current head `34d2f2cf`, scan `2392ac75-a730-4d2a-94a2-4cc281de9c07`, 9/9 coverage rows closed, 0 reportable findings, report `/private/var/folders/bw/12x002vn67v2bvjpbhbtm8480000gn/T/codex-security-scans-Hmdu7f/orchestration-review-fallback-learning-loop/34d2f2cf86ecba74d3fbdf1b79c38d3101f9e145_20260627T092340Z_rmh8spid/report.md`.
+- Codex Security diff scan / finding discovery: PASS on current local head `eea77402a`, scan `70fed327-6258-406f-9765-a09c4e39ee10`, 12/12 coverage rows closed, 0 reportable findings, report `/private/var/folders/bw/12x002vn67v2bvjpbhbtm8480000gn/T/codex-security-scans-Hmdu7f/orchestration-review-fallback-learning-loop/eea77402add4c4041946c755cd9ee3e9c0ceed6d_20260627T133202Z_4_osq3j1/report.md`.
+- Codex Security candidate disposition: FIXED.
+  Commit: `eea77402add4c4041946c755cd9ee3e9c0ceed6d`
+  Evidence: `scripts/ci/install_locked_python_requirements.py` now keeps same-line network diagnostics in strict resolver-miss rejection after stripping only the requested package/requirement text; `tests/test_install_locked_python_requirements.py::test_install_from_proxy_with_emergency_fallback_rejects_same_line_network_resolver_failure` proves Cloudflare/521 plus resolver miss on one line does not stage emergency fallback artifacts.
 - `pulseplate-pr-review`: completed on current head `34d2f2cf`; review-source status clean, no blocking findings.
 - `pulseplate-pr-review` note disposition: NOT-A-BUG.
   Evidence: PR plan explicitly locks the four governance blocks into one intentional PR, and local scoped gates (`make validate-changed`, `pre-commit run --all-files`, pre-push hooks) passed. The note is a review-planning signal for large diff size, not a defect in the current implementation.
