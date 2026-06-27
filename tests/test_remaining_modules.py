@@ -1159,8 +1159,7 @@ class TestInsightApplicationServiceFastLane:
             ),
         )
 
-    @pytest.mark.asyncio
-    async def test_maybe_promote_knowledge_candidates_awaits_async_store(self) -> None:
+    def test_maybe_promote_knowledge_candidates_awaits_async_store(self) -> None:
         """Async stores must be awaited before the response path continues."""
 
         from app.services.insight_application_service import _maybe_promote_knowledge_candidates
@@ -1174,16 +1173,17 @@ class TestInsightApplicationServiceFastLane:
                 observed["candidates"] = candidates
                 return []
 
-        await _maybe_promote_knowledge_candidates(
-            knowledge_store=_AsyncStore(),
-            candidates=[candidate],
-            verification_bundle=self._verification_bundle(),
+        asyncio.run(
+            _maybe_promote_knowledge_candidates(
+                knowledge_store=_AsyncStore(),
+                candidates=[candidate],
+                verification_bundle=self._verification_bundle(),
+            )
         )
 
         assert observed["candidates"] == [candidate]
 
-    @pytest.mark.asyncio
-    async def test_maybe_promote_knowledge_candidates_logs_and_swallows_store_errors(
+    def test_maybe_promote_knowledge_candidates_logs_and_swallows_store_errors(
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -1205,18 +1205,19 @@ class TestInsightApplicationServiceFastLane:
             raising=True,
         )
 
-        await _maybe_promote_knowledge_candidates(
-            knowledge_store=_BrokenStore(),
-            candidates=[cast(KnowledgeFactCandidate, SimpleNamespace(fact_key="fact-1"))],
-            verification_bundle=self._verification_bundle(),
+        asyncio.run(
+            _maybe_promote_knowledge_candidates(
+                knowledge_store=_BrokenStore(),
+                candidates=[cast(KnowledgeFactCandidate, SimpleNamespace(fact_key="fact-1"))],
+                verification_bundle=self._verification_bundle(),
+            )
         )
 
         assert warnings
         assert "Knowledge promotion failed" in str(warnings[0][0][0])
         assert warnings[0][1]["exc_info"] is True
 
-    @pytest.mark.asyncio
-    async def test_maybe_promote_knowledge_candidates_times_out_async_store(
+    def test_maybe_promote_knowledge_candidates_times_out_async_store(
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -1247,18 +1248,19 @@ class TestInsightApplicationServiceFastLane:
             raising=True,
         )
 
-        await _maybe_promote_knowledge_candidates(
-            knowledge_store=_SlowStore(),
-            candidates=[cast(KnowledgeFactCandidate, SimpleNamespace(fact_key="fact-1"))],
-            verification_bundle=self._verification_bundle(),
+        asyncio.run(
+            _maybe_promote_knowledge_candidates(
+                knowledge_store=_SlowStore(),
+                candidates=[cast(KnowledgeFactCandidate, SimpleNamespace(fact_key="fact-1"))],
+                verification_bundle=self._verification_bundle(),
+            )
         )
 
         assert warnings
         assert "Knowledge promotion timed out" in str(warnings[0][0][0])
         assert warnings[0][1]["exc_info"] is True
 
-    @pytest.mark.asyncio
-    async def test_traced_retriever_uses_prepared_recursive_rollout_policy(
+    def test_traced_retriever_uses_prepared_recursive_rollout_policy(
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -1302,19 +1304,21 @@ class TestInsightApplicationServiceFastLane:
             raising=True,
         )
 
-        rag_result = await _traced_retrieve_and_validate_rag(
-            "hello",
-            max_chunks=3,
-            philo_validation_enabled=True,
-            recursive_rollout_policy=RecursiveRolloutPolicy(
-                use_rag=True,
-                recursive_rag_enabled=True,
-                recursive_rag_optimization_enabled=False,
+        rag_result = asyncio.run(
+            _traced_retrieve_and_validate_rag(
+                "hello",
+                max_chunks=3,
+                philo_validation_enabled=True,
+                recursive_rollout_policy=RecursiveRolloutPolicy(
+                    use_rag=True,
+                    recursive_rag_enabled=True,
+                    recursive_rag_optimization_enabled=False,
+                ),
+                subject_id=123,
+                knowledge_policy=None,
+                user_tier="VIP",
+                route_path="/api/v1/insight",
             ),
-            subject_id=123,
-            knowledge_policy=None,
-            user_tier="VIP",
-            route_path="/api/v1/insight",
         )
 
         assert getattr(rag_result, "hops", None) == 2
@@ -1322,8 +1326,7 @@ class TestInsightApplicationServiceFastLane:
         assert observed["kwargs"]["recursive_rag_enabled"] is True
         assert observed["kwargs"]["optimization_enabled"] is False
 
-    @pytest.mark.asyncio
-    async def test_generate_traced_insight_uses_prepared_recursive_policy_in_feature_flags(
+    def test_generate_traced_insight_uses_prepared_recursive_policy_in_feature_flags(
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -1387,23 +1390,25 @@ class TestInsightApplicationServiceFastLane:
             raising=True,
         )
 
-        result = await generate_traced_insight(
-            runtime=_Runtime(),
-            text="hello",
-            lang=None,
-            provider=SimpleNamespace(name="fake-provider"),
-            use_rag=True,
-            philo_validation_enabled=False,
-            recursive_rag_enabled=False,
-            route_path="/api/v1/insight",
-            route_type="deep_reasoning",
-            user_tier="VIP",
-            subject_id=None,
-            knowledge_policy=None,
-            recursive_rollout_policy=RecursiveRolloutPolicy(
+        result = asyncio.run(
+            generate_traced_insight(
+                runtime=_Runtime(),
+                text="hello",
+                lang=None,
+                provider=SimpleNamespace(name="fake-provider"),
                 use_rag=True,
-                recursive_rag_enabled=True,
-                recursive_rag_optimization_enabled=False,
+                philo_validation_enabled=False,
+                recursive_rag_enabled=False,
+                route_path="/api/v1/insight",
+                route_type="deep_reasoning",
+                user_tier="VIP",
+                subject_id=None,
+                knowledge_policy=None,
+                recursive_rollout_policy=RecursiveRolloutPolicy(
+                    use_rag=True,
+                    recursive_rag_enabled=True,
+                    recursive_rag_optimization_enabled=False,
+                ),
             ),
         )
 
@@ -1503,8 +1508,7 @@ class TestInsightApplicationServiceFastLane:
         assert feature_flags["rag_recursive"] is False
         assert feature_flags["rag_recursive_optimization"] is False
 
-    @pytest.mark.asyncio
-    async def test_execute_insight_request_builds_legacy_recursive_fallback_in_fast_lane(
+    def test_execute_insight_request_builds_legacy_recursive_fallback_in_fast_lane(
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -1576,15 +1580,17 @@ class TestInsightApplicationServiceFastLane:
             raising=True,
         )
 
-        response = await execute_insight_request(
-            SimpleNamespace(text="hello"),
-            route_path="/api/v1/insight",
-            user_tier="VIP",
-            input_guard=lambda text: None,
-            provider_loader=lambda: None,
-            transparency_loader=lambda: ("ai_generated_insight", "Wellness only."),
-            response_factory=lambda **payload: dict(payload),
-            source_item_factory=lambda **payload: dict(payload),
+        response = asyncio.run(
+            execute_insight_request(
+                SimpleNamespace(text="hello"),
+                route_path="/api/v1/insight",
+                user_tier="VIP",
+                input_guard=lambda text: None,
+                provider_loader=lambda: None,
+                transparency_loader=lambda: ("ai_generated_insight", "Wellness only."),
+                response_factory=lambda **payload: dict(payload),
+                source_item_factory=lambda **payload: dict(payload),
+            )
         )
 
         generate_kwargs = cast(dict[str, object], observed["generate_kwargs"])
@@ -1601,8 +1607,7 @@ class TestInsightApplicationServiceFastLane:
         assert generate_kwargs["recursive_rag_optimization_enabled"] is False
         assert response["rag_used"] is True
 
-    @pytest.mark.asyncio
-    async def test_maybe_promote_knowledge_candidates_times_out_sync_store(
+    def test_maybe_promote_knowledge_candidates_times_out_sync_store(
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -1630,10 +1635,12 @@ class TestInsightApplicationServiceFastLane:
             raising=True,
         )
 
-        await _maybe_promote_knowledge_candidates(
-            knowledge_store=_SlowSyncStore(),
-            candidates=[cast(KnowledgeFactCandidate, SimpleNamespace(fact_key="fact-1"))],
-            verification_bundle=self._verification_bundle(),
+        asyncio.run(
+            _maybe_promote_knowledge_candidates(
+                knowledge_store=_SlowSyncStore(),
+                candidates=[cast(KnowledgeFactCandidate, SimpleNamespace(fact_key="fact-1"))],
+                verification_bundle=self._verification_bundle(),
+            )
         )
 
         assert warnings
@@ -2573,8 +2580,7 @@ class TestVerificationRegistryCoverageTail:
 
         assert merged == rag_bundle
 
-    @pytest.mark.asyncio
-    async def test_runtime_rewrite_provenance_records_rewrite_prompt_trim(self) -> None:
+    def test_runtime_rewrite_provenance_records_rewrite_prompt_trim(self) -> None:
         from core.insight.philosophical_runtime import PhilosophicalRuntime
 
         class _Provider:
@@ -2590,17 +2596,19 @@ class TestVerificationRegistryCoverageTail:
         runtime = PhilosophicalRuntime()
         provider = _Provider()
 
-        result = await runtime.generate_insight(
-            text="How much protein should I eat for recovery? " + ("nutrition " * 700),
-            lang="en",
-            provider=provider,
-            use_rag=False,
-            philo_validation_enabled=False,
-            recursive_rag_enabled=False,
-            philosophy_router_enabled=True,
-            philosophy_phase12_enabled=True,
-            philosophy_linguistic_enabled=True,
-            philosophy_pragmatic_enabled=False,
+        result = asyncio.run(
+            runtime.generate_insight(
+                text="How much protein should I eat for recovery? " + ("nutrition " * 700),
+                lang="en",
+                provider=provider,
+                use_rag=False,
+                philo_validation_enabled=False,
+                recursive_rag_enabled=False,
+                philosophy_router_enabled=True,
+                philosophy_phase12_enabled=True,
+                philosophy_linguistic_enabled=True,
+                philosophy_pragmatic_enabled=False,
+            )
         )
 
         assert provider.calls == 2
