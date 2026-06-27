@@ -9,7 +9,7 @@ import sys
 import pytest
 from pathlib import Path
 from fastapi.testclient import TestClient
-from typing import cast, Iterator
+from typing import Any, cast, Iterator
 from starlette.types import ASGIApp
 
 # Enable faulthandler for debugging hangs/deadlocks (CI only to avoid noise)
@@ -185,7 +185,8 @@ def reset_environment() -> Iterator[None]:  # sourcery skip: use-contextlib-supp
     # which causes "Table already defined" cascade failures in subsequent tests.
     # See: tests/conftest.py for metadata.clear() strategy for xdist workers.
     fastapi_app = sys.modules.get("app")
-    if fastapi_app is not None and hasattr(fastapi_app, "app"):
+    app_instance = _loaded_module_attr(fastapi_app, "app")
+    if app_instance is not None:
         # Simple pass-through that accepts any non-empty API key
         def mock_get_api_key(api_key: str = "") -> str:
             if not api_key or len(api_key.strip()) < 3:
@@ -195,10 +196,10 @@ def reset_environment() -> Iterator[None]:  # sourcery skip: use-contextlib-supp
             return api_key
 
         # Override the dependency
-        if hasattr(fastapi_app.app, "dependency_overrides"):
-            get_api_key = getattr(fastapi_app, "get_api_key", None)
+        if hasattr(app_instance, "dependency_overrides"):
+            get_api_key = _loaded_module_attr(fastapi_app, "get_api_key")
             if get_api_key is not None:
-                fastapi_app.app.dependency_overrides[get_api_key] = mock_get_api_key
+                app_instance.dependency_overrides[get_api_key] = mock_get_api_key
 
     yield
 
@@ -207,13 +208,12 @@ def reset_environment() -> Iterator[None]:  # sourcery skip: use-contextlib-supp
     os.environ.update(old_env)
 
     # Clear dependency overrides (use sys.modules.get to avoid re-import)
-    fastapi_app = sys.modules.get("app")
-    if (
-        fastapi_app is not None
-        and hasattr(fastapi_app, "app")
-        and hasattr(fastapi_app.app, "dependency_overrides")
-    ):
-        fastapi_app.app.dependency_overrides.clear()
+    app_instance = _loaded_module_attr(
+        sys.modules.get("app"),
+        "app",
+    )
+    if app_instance is not None and hasattr(app_instance, "dependency_overrides"):
+        app_instance.dependency_overrides.clear()
 
     # CRITICAL: Do NOT delete modules from sys.modules
     # This causes dual-Base issues, module identity chaos, and unpredictable test failures.
@@ -291,6 +291,16 @@ def test_environment():  # sourcery skip: dict-assign-update-to-union
     # Restore environment
     os.environ.clear()
     os.environ.update(old_env)
+
+
+def _loaded_module_attr(module: object | None, name: str) -> Any | None:
+    """Read an already-loaded module attribute without invoking module __getattr__."""
+    if module is None:
+        return None
+    namespace = getattr(module, "__dict__", None)
+    if not isinstance(namespace, dict):
+        return None
+    return namespace.get(name)
 
 
 @pytest.fixture
