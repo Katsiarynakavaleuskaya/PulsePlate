@@ -2,15 +2,18 @@
 
 <!-- markdownlint-disable MD013 -->
 
-**Status:** PR-2 sandboxed candidate-patch builder layer. Repo-only governance contract. No runtime impact.
+**Status:** PR-3 human-approved non-draft PR promotion tooling. Repo-only governance contract. No runtime impact.
 
 **Scope:** Define the authority boundary between a promoted `creative_research`
-output, a PR-1 implementation specification, and PR-2 local candidate-patch
-generation. This document authorizes only isolated local candidate-patch
-generation/evaluation through the PR-2 contract. It does not authorize shared
-worktree writes, branch creation, push, PR creation, review-thread resolution,
-merge, release, product runtime AI, OpenAPI/client changes, public multi-tenant
-use, or Slack/GitHub authority expansion.
+output, a PR-1 implementation specification, PR-2 local candidate-patch
+generation, and PR-3 human-approved non-draft PR handoff tooling. PR-2
+authorizes only isolated local candidate-patch generation/evaluation. PR-3
+authorizes only the separate local promotion tool that can create a new
+`experiment/*` branch, push it without force, and open a non-draft PR after
+isolated validation and explicit TTY approval. It does not authorize draft PRs,
+shared worktree mutation, existing branch modification, review-thread
+resolution, merge, release, product runtime AI, OpenAPI/client changes, public
+multi-tenant use, or Slack/GitHub authority expansion.
 
 ---
 
@@ -21,8 +24,8 @@ use, or Slack/GitHub authority expansion.
 | `research` | Produces hypotheses, scorecards, falsifiers, and promote/defer/discard decisions inside `creative_research`. | Existing governed source only. |
 | `code-specification` | Converts a promoted research output into a typed future implementation specification. | Allowed as the closed PR-0 `CreativeCodeCandidatePacket` plus PR-1 `CreativeCodeSpecificationBundle`. |
 | `candidate-patch` | Produces isolated candidate patches for local evaluation. | Allowed only through PR-2 `CreativeCodePatchBuildRequest` and `CreativeCodePatchResult` artifacts in sandboxed workspaces. |
-| `repository-write` | Writes to shared worktrees, creates branches, pushes, opens PRs, marks ready for review, resolves review threads, or merges. | Forbidden. |
-| `promotion` | Promotes a candidate into canonical repo behavior through human review, PR governance, and merge gates. | Forbidden. Future promotion requires a separate operator-approved gate. |
+| `repository-write` | Writes to shared worktrees, creates branches, pushes, opens PRs, marks ready for review, resolves review threads, or merges. | Forbidden except the PR-3 promoter's narrowly validated new `experiment/*` branch push and non-draft PR creation. |
+| `promotion` | Promotes a candidate into canonical repo behavior through human review, PR governance, and merge gates. | PR-3 opens the review handoff only. Canonical behavior still requires normal PR review and merge gates. |
 
 PR-0 sets:
 
@@ -35,9 +38,10 @@ promotion_allowed=false
 ```
 
 PR-1 adds only a local specification-bundle layer. PR-2 opens only local
-sandboxed candidate-patch generation/evaluation. Repository-write, promotion,
-product runtime, OpenAPI/client, semantic-cache, review-thread, merge, release,
-and Slack/GitHub authority flags remain closed.
+sandboxed candidate-patch generation/evaluation. PR-3 adds a separate
+human-approved non-draft PR creation lane. Product runtime, OpenAPI/client,
+semantic-cache, review-thread, merge, release, and Slack/GitHub authority flags
+remain closed.
 
 ---
 
@@ -68,8 +72,19 @@ The PR-2 local candidate-patch handoff artifacts are:
 - `scripts/orchestration/creative_code_patch_executor.py`
 - `scripts/orchestration/creative_code_patch_builder.py`
 
-The packet, bundle, request, result, and local `candidate.patch` may describe or
-contain an implementation candidate, but they are not:
+The PR-3 human-approved non-draft PR promotion artifacts are:
+
+- `docs/orchestration/contracts/CREATIVE_CODE_PR_PROMOTION_CONTRACT.md`
+- `docs/orchestration/contracts/creative_code_pr_promotion_plan.v1.schema.json`
+- `docs/orchestration/contracts/creative_code_pr_promotion_validation.v1.schema.json`
+- `docs/orchestration/contracts/creative_code_pr_promotion_approval.v1.schema.json`
+- `docs/orchestration/contracts/creative_code_pr_promotion_receipt.v1.schema.json`
+- `scripts/orchestration/creative_code_pr_promotion_contract.py`
+- `scripts/orchestration/creative_code_pr_promotion.py`
+
+The packet, bundle, request, result, local `candidate.patch`, plan, validation,
+approval, receipt, and generated PR body may describe or contain an
+implementation candidate, but they are not:
 
 - a repo-write instruction;
 - merge-readiness evidence;
@@ -109,7 +124,8 @@ PR-0 is a contract-only start point.
   workspaces with exact source-bundle fingerprint binding, exact `origin/main`
   base SHA, fixed Codex CLI argv/env, strict patch policy validation, direct
   Experiment Runner candidate-mode evaluation, and sanitized result metadata.
-- PR-3: allow human-approved draft PR promotion under a separate operator exception.
+- PR-3: allow human-approved non-draft PR creation from one accepted PR-2 patch
+  under a separate plan -> validation -> approval -> receipt contract.
 - PR-4: add candidate evaluation telemetry and rejection taxonomy.
 - PR-5: add review-disposition integration without review-thread resolution authority.
 - PR-6: run the first governed applied creative-code candidate through normal PR governance.
@@ -129,9 +145,11 @@ Minimum future telemetry fields are defined now for the later train and must not
 
 ## Rollback
 
-Rollback is removal of the PR-2 patch-builder files and references, plus the
-existing PR-1/PR-0 contract files if the whole train is being reverted. Because
-PR-2 does not add runtime behavior, providers, workflows, external app settings,
-OpenAPI/client changes, semantic-cache activation, or shared repository-write
-automation, rollback does not require data migration, OpenAPI regeneration,
-Slack/GitHub App changes, or release coordination.
+Rollback is removal of the PR-3 promotion files and references. If reverting the
+whole train, also remove the PR-2 patch-builder files and existing PR-1/PR-0
+contract files. Because PR-3 adds no product runtime behavior, providers,
+workflows, external app settings, OpenAPI/client changes, semantic-cache
+activation, Slack/GitHub App changes, or DB state, rollback does not require
+data migration, OpenAPI regeneration, external app changes, or release
+coordination. Any already opened promoted candidate PR remains normal GitHub
+state and is closed or branch-deleted manually if needed.

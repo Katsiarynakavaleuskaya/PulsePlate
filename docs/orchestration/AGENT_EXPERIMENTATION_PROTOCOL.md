@@ -55,6 +55,7 @@ Current governed sub-lane:
 
 - `docs/orchestration/CREATIVE_RESEARCH_SUBLANE_PROTOCOL.md`
 - `docs/orchestration/GOVERNED_CREATIVE_CODE_EXECUTION_CONTRACT.md`
+- `docs/orchestration/contracts/CREATIVE_CODE_PR_PROMOTION_CONTRACT.md`
 - `docs/orchestration/JUDGMENT_ADJUDICATION_SUBLANE_PROTOCOL.md`
 
 ---
@@ -121,6 +122,12 @@ Rules:
   must not auto-run experiments by default, create PRs, resolve review threads,
   claim merge readiness, or replace the local Experiment Runner evidence
   artifact.
+- Creative-code PR promotion is allowed only through the PR-3
+  `CreativeCodePRPromotion` contract after an accepted PR-2 patch result,
+  isolated validation, and explicit TTY approval. It may open a new non-draft
+  `experiment/*` PR but must not create drafts, update existing branches,
+  resolve review threads, claim merge readiness, merge, release, or replace the
+  mandatory oracle-only governance evidence for the actual PR diff.
 - Live Socket Mode smoke procedure is manual-only and bounded: it validates
   runtime secret presence, operator allowlists, Socket Mode credential
   connectivity, and bot authentication without starting the long-running

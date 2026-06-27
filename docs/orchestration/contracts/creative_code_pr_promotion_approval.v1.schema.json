@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pulseplate.local/contracts/creative_code_pr_promotion_approval.v1.schema.json",
+  "title": "CreativeCodePRPromotionApproval",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "policy_version",
+    "promotion_id",
+    "approval_id",
+    "plan_fingerprint",
+    "validation_fingerprint",
+    "decision",
+    "approved_by_login",
+    "confirmed_patch_fingerprint",
+    "confirmed_base_commit_sha",
+    "confirmed_target_branch",
+    "confirmation_mode",
+    "unattended_approval"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "artifact_type": { "const": "creative_code_pr_promotion_approval" },
+    "policy_version": { "const": "creative-code-pr-promotion-pr3" },
+    "promotion_id": { "$ref": "#/$defs/promotion_id" },
+    "approval_id": { "$ref": "#/$defs/safe_id" },
+    "plan_fingerprint": { "$ref": "#/$defs/sha256" },
+    "validation_fingerprint": { "$ref": "#/$defs/sha256" },
+    "decision": { "const": "approve_non_draft_pr_creation" },
+    "approved_by_login": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 39,
+      "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$"
+    },
+    "confirmed_patch_fingerprint": { "$ref": "#/$defs/sha256" },
+    "confirmed_base_commit_sha": { "$ref": "#/$defs/git_sha" },
+    "confirmed_target_branch": { "$ref": "#/$defs/experiment_branch" },
+    "confirmation_mode": { "const": "interactive_tty" },
+    "unattended_approval": { "const": false }
+  },
+  "$defs": {
+    "safe_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "promotion_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 96,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$"
+    },
+    "sha256": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+    "git_sha": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+    "experiment_branch": {
+      "type": "string",
+      "maxLength": 80,
+      "pattern": "^experiment/[a-z0-9][a-z0-9._-]{0,68}$"
+    }
+  }
+}

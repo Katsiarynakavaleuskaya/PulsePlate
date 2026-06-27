@@ -10930,8 +10930,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Governed creative-code execution lane (PR-0 through PR-6)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (research-to-implementation leverage with closed authority)
-  - Target PR: PR-0 `feat/experiment-runner-creative-code-authority-pr0` -> PR-1 `codex/creative-code-specification-pr1` -> PR-2 -> PR-3 -> PR-4 -> PR-5 -> PR-6
-  - Status: PR-0 merged baseline; PR-1 merged as a repo-only specification-bundle control-plane layer; PR-2 active as a local sandboxed candidate-patch builder; PR-3 through PR-6 remain gated future work
+  - Target PR: PR-0 `feat/experiment-runner-creative-code-authority-pr0` -> PR-1 `codex/creative-code-specification-pr1` -> PR-2 `#2022` -> PR-3 `codex/creative-code-human-approved-pr-promotion-pr3` -> PR-4 -> PR-5 -> PR-6
+  - Status: PR-0 merged baseline; PR-1 merged as a repo-only specification-bundle control-plane layer; PR-2 merged in PR `#2022` as a local sandboxed candidate-patch builder; PR-3 active as human-approved non-draft PR promotion tooling; PR-4 through PR-6 remain gated future work
   - Dependencies:
     - [P1: Creative research eval lane under governed experimentation epic](#ledger-p1-creative-research-eval-lane)
     - [P1: Governed agent experimentation lane (PR1-PR6 orchestration epic)](#ledger-p1-agent-experimentation-lane)
@@ -10947,6 +10947,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/orchestration/contracts/CREATIVE_CODE_PATCH_BUILDER_CONTRACT.md`
     - `docs/orchestration/contracts/creative_code_patch_request.v1.schema.json`
     - `docs/orchestration/contracts/creative_code_patch_result.v1.schema.json`
+    - `docs/orchestration/contracts/CREATIVE_CODE_PR_PROMOTION_CONTRACT.md`
+    - `docs/orchestration/contracts/creative_code_pr_promotion_plan.v1.schema.json`
+    - `docs/orchestration/contracts/creative_code_pr_promotion_validation.v1.schema.json`
+    - `docs/orchestration/contracts/creative_code_pr_promotion_approval.v1.schema.json`
+    - `docs/orchestration/contracts/creative_code_pr_promotion_receipt.v1.schema.json`
     - `scripts/orchestration/creative_code_contract.py`
     - `scripts/orchestration/creative_code_specification.py`
     - `scripts/orchestration/creative_code_spec_pipeline.py`
@@ -10955,13 +10960,16 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `scripts/orchestration/creative_code_patch_workspace.py`
     - `scripts/orchestration/creative_code_patch_executor.py`
     - `scripts/orchestration/creative_code_patch_builder.py`
+    - `scripts/orchestration/creative_code_pr_promotion_contract.py`
+    - `scripts/orchestration/creative_code_pr_promotion.py`
     - `tests/test_creative_code_contract.py`
     - `tests/test_creative_code_patch_builder.py`
+    - `tests/test_creative_code_pr_promotion.py`
   - PR train:
     - PR-0: closed authority contract, schema, reference packet, validator, and tests; no model calls, patches, workflows, Slack/GitHub settings, or `experiment_runner.py` changes.
     - PR-1: emit deterministic implementation specification bundles from promoted creative research, with skeptic reviews, synthesis, telemetry summary, safe local artifact I/O, and fingerprint-only rejection indexes; no candidate patches, provider calls, repo writes, runtime truth, review-thread disposition authority, or merge-readiness evidence.
     - PR-2: generate isolated candidate patches only in sandboxed evaluation workspaces with exact PR-1 bundle fingerprint binding, exact `origin/main` base SHA, human admission, fixed Codex CLI argv/env, strict patch policy validation, direct Experiment Runner candidate-mode evaluation, and sanitized result metadata.
-    - PR-3: allow human-approved draft PR promotion under a separate operator exception.
+    - PR-3: allow human-approved non-draft PR creation from one accepted PR-2 patch through separate plan, isolated validation, TTY approval, promotion checkout, new `experiment/*` branch, GitHub readback, and local sanitized receipt; no real promoted candidate PR is opened during PR-3 tooling implementation.
     - PR-4: add candidate evaluation telemetry and rejection taxonomy.
     - PR-5: add review-disposition integration without review-thread resolution authority.
     - PR-6: run the first governed applied creative-code candidate through normal PR governance.
@@ -10978,8 +10986,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - PR-0 keeps `gate_status=closed` and all repository-write/promotion authority flags false
     - PR-1 emits only validated `CreativeCodeSpecificationBundle` artifacts from validated PR-0 packets, with complete skeptic-review coverage and deterministic synthesis
     - PR-2 emits only validated local `CreativeCodePatchBuildRequest`, local `candidate.patch`, and sanitized `CreativeCodePatchResult` artifacts; it does not write the shared repo, open PRs, resolve review threads, promote candidates, or store raw Codex/prompt/oracle output in sanitized results
+    - PR-3 emits strict local promotion plan, validation, approval, and receipt artifacts; validates fresh oracle, `pre-commit run --all-files`, and `make validate-changed` in isolated checkouts; requires exact TTY approval; creates only new non-draft `experiment/*` PRs; and never resolves review threads, edits fixed mappings, claims merge readiness, merges, releases, or expands Slack/GitHub App authority
     - Creative-code packets require promoted `creative_research` provenance, sandboxing, human review, fallback, repo-relative paths, and disjoint mutable/oracle surfaces
-    - Future PRs cannot emit telemetry, generate patches, open PRs, or expand Slack/GitHub authority until their separate gates land
+    - Future PRs cannot emit telemetry, generate patches beyond PR-2, open candidate PRs beyond the PR-3 contract, or expand Slack/GitHub authority until their separate gates land
     - No PR in the train treats creative-code output as canonical product truth, scientific verified discovery, merge-readiness evidence, or review-thread disposition authority
 
 <a id="ledger-p2-creative-research-domain-typing"></a>

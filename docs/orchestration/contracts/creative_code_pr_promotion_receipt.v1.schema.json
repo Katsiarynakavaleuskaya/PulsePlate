@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pulseplate.local/contracts/creative_code_pr_promotion_receipt.v1.schema.json",
+  "title": "CreativeCodePRPromotionReceipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "policy_version",
+    "promotion_id",
+    "receipt_id",
+    "plan_fingerprint",
+    "validation_fingerprint",
+    "approval_id",
+    "source_result_id",
+    "patch_fingerprint",
+    "repository",
+    "base_branch",
+    "head_branch",
+    "commit_sha",
+    "pull_request_number",
+    "pull_request_url",
+    "pull_request_state",
+    "pull_request_draft",
+    "review_cycle_started",
+    "approved_by_login",
+    "human_commit_author",
+    "runner_commit_author",
+    "runner_coauthor_trailer_present",
+    "ready_for_review_operation_used",
+    "merge_ready",
+    "sanitized",
+    "partial_failure"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "artifact_type": { "const": "creative_code_pr_promotion_receipt" },
+    "policy_version": { "const": "creative-code-pr-promotion-pr3" },
+    "promotion_id": { "$ref": "#/$defs/promotion_id" },
+    "receipt_id": { "$ref": "#/$defs/safe_id" },
+    "plan_fingerprint": { "$ref": "#/$defs/sha256" },
+    "validation_fingerprint": { "$ref": "#/$defs/sha256" },
+    "approval_id": { "$ref": "#/$defs/safe_id" },
+    "source_result_id": { "$ref": "#/$defs/safe_id" },
+    "patch_fingerprint": { "$ref": "#/$defs/sha256" },
+    "repository": { "const": "Katsiarynakavaleuskaya/PulsePlate" },
+    "base_branch": { "const": "main" },
+    "head_branch": { "$ref": "#/$defs/experiment_branch" },
+    "commit_sha": { "$ref": "#/$defs/git_sha" },
+    "pull_request_number": { "type": "integer", "minimum": 0, "maximum": 999999 },
+    "pull_request_url": {
+      "type": "string",
+      "pattern": "^(|https://github\\.com/Katsiarynakavaleuskaya/PulsePlate/pull/[0-9]+)$"
+    },
+    "pull_request_state": { "enum": ["open", "partial_failure"] },
+    "pull_request_draft": { "const": false },
+    "review_cycle_started": { "type": "boolean" },
+    "approved_by_login": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 39,
+      "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$"
+    },
+    "human_commit_author": { "const": true },
+    "runner_commit_author": { "const": false },
+    "runner_coauthor_trailer_present": { "const": true },
+    "ready_for_review_operation_used": { "const": false },
+    "merge_ready": { "const": false },
+    "sanitized": { "const": true },
+    "partial_failure": {
+      "type": ["string", "null"],
+      "maxLength": 120,
+      "not": {
+        "pattern": "(diff --git|raw[_ -]?(prompt|response|context|patch)|chain[_ -]?of[_ -]?thought|/Users/|/private/var/|/tmp/|sk-[A-Za-z0-9_-]{12,}|gh[psoru]_|github_pat_|xox[abprs]-)"
+      }
+    }
+  },
+  "$defs": {
+    "safe_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "promotion_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 96,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$"
+    },
+    "sha256": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+    "git_sha": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+    "experiment_branch": {
+      "type": "string",
+      "maxLength": 80,
+      "pattern": "^experiment/[a-z0-9][a-z0-9._-]{0,68}$"
+    }
+  }
+}

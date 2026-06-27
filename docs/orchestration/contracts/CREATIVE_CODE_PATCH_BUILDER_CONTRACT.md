@@ -6,6 +6,9 @@ PR-2 opens only isolated local candidate-patch generation and evaluation. It
 does not authorize shared repository writes, branch creation, push, PR creation,
 review-thread disposition, merge readiness, promotion, product runtime AI,
 OpenAPI/client changes, Slack/GitHub authority, or public multi-tenant use.
+PR-3 consumes accepted PR-2 results through a separate
+`CreativeCodePRPromotion` contract; PR-2 result artifacts themselves still keep
+`promotion_ready=false`.
 
 ## Artifacts
 
@@ -110,6 +113,12 @@ PR-2 candidate evaluation artifacts are local evidence for the builder only.
 They are not PR Experiment Runner oracle-only governance evidence, fixed-mapping
 evidence, review disposition evidence, merge-readiness evidence, product runtime
 truth, or promotion authority.
+
+PR-3 may later validate and promote an accepted PR-2 result only through
+`docs/orchestration/contracts/CREATIVE_CODE_PR_PROMOTION_CONTRACT.md`. That
+separate lane requires a promotion plan, isolated pre-open validation, explicit
+TTY approval, new `experiment/*` branch, non-draft PR creation, and GitHub
+readback. It does not change PR-2 authority.
 
 ## Sanitized Result
 

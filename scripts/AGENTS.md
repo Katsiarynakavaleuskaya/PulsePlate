@@ -44,6 +44,14 @@
   but that result is not the mandatory PR oracle-only governance evidence and
   must not be used as fixed-mapping, review-disposition, or merge-readiness
   proof.
+- PR-3 creative-code PR promotion artifacts stay local under
+  `artifacts/orchestration/creative_code/promotions/`. The promoter CLI
+  `creative_code_pr_promotion.py` may only plan, validate, TTY-approve, and
+  promote one accepted PR-2 patch into a new non-draft `experiment/*` PR. It
+  must not open drafts, update existing branches, force-push, request reviews,
+  submit reviews, resolve review threads, edit fixed mappings, claim merge
+  readiness, merge, release, call Slack/GitHub App authority paths, or call
+  `experiment_pipeline.py`, `experiment_promote.py`, or notification wrappers.
 - `experiment_notify.py` follows the notification contract in
   `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`: local artifact output
   is the default, SMTP email and Slack delivery are explicit opt-in only, and no
