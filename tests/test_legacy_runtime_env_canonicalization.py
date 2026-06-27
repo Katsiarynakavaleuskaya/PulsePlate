@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import importlib
 from types import ModuleType
 
@@ -20,6 +21,16 @@ def _reload_legacy_app() -> ModuleType:
     import legacy_app
 
     return importlib.reload(legacy_app)
+
+
+def _reload_canonical_main() -> ModuleType:
+    """Reload canonical bootstrap after env changes."""
+
+    import app.main as app_main
+    import legacy_app
+
+    importlib.reload(legacy_app)
+    return importlib.reload(app_main)
 
 
 @pytest.fixture(autouse=True)
@@ -57,27 +68,26 @@ def test_legacy_app_skips_local_dotenv_in_env_production(
     assert calls == []
 
 
-def test_legacy_app_staging_test_router_respects_environment_flag(
+def test_canonical_bootstrap_staging_test_router_respects_environment_flag(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("ENVIRONMENT", "staging")
 
-    app_module = _reload_legacy_app()
+    app_module = _reload_canonical_main()
     assert not any(
         getattr(route, "path", "") == "/api/v1/test/health"
         for route in getattr(app_module.app, "routes", [])
     )
 
     monkeypatch.setenv("ENABLE_TEST_ROUTES", "1")
-    app_module = _reload_legacy_app()
+    app_module = _reload_canonical_main()
     assert any(
         getattr(route, "path", "") == "/api/v1/test/health"
         for route in getattr(app_module.app, "routes", [])
     )
 
 
-@pytest.mark.asyncio
-async def test_debug_env_uses_environment_when_app_env_missing(
+def test_debug_env_uses_environment_when_app_env_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("ENVIRONMENT", "production")
@@ -85,20 +95,19 @@ async def test_debug_env_uses_environment_when_app_env_missing(
     app_module = _reload_legacy_app()
 
     with pytest.raises(HTTPException) as exc_info:
-        await app_module.debug_env()
+        asyncio.run(app_module.debug_env())
 
     assert exc_info.value.status_code == 404
 
 
-@pytest.mark.asyncio
-async def test_health_prefers_environment_over_app_env(
+def test_health_prefers_environment_over_app_env(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("ENVIRONMENT", "production")
     monkeypatch.setenv("APP_ENV", "local")
 
     health_module = importlib.import_module("app.routers.health")
-    response = await health_module.health()
+    response = asyncio.run(health_module.health())
     assert response["environment"] == "production"
 
 

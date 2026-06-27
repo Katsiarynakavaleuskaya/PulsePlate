@@ -798,6 +798,87 @@ def test_legacy_growth_guard_rejects_walrus_import_function_alias_bodyfat_router
     ]
 
 
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        (
+            textwrap.dedent("""
+                from app.routers import test as test_router
+
+                app.include_router(test_router.router)
+                """),
+            [
+                "legacy_app.py: unexpected legacy route growth: "
+                "registration:include_router:test_router.router",
+                "legacy_app.py: unexpected app.routers import growth: "
+                "router_import:app.routers:test -> test_router",
+            ],
+        ),
+        (
+            textwrap.dedent("""
+                from app.routers.test import router as canonical_test_router
+
+                app.include_router(canonical_test_router)
+                """),
+            [
+                "legacy_app.py: unexpected legacy route growth: "
+                "registration:include_router:canonical_test_router",
+                "legacy_app.py: unexpected app.routers import growth: "
+                "router_import:app.routers.test:router -> canonical_test_router",
+            ],
+        ),
+        (
+            textwrap.dedent("""
+                import app.routers.test as test_router
+
+                app.include_router(test_router.router)
+                """),
+            [
+                "legacy_app.py: unexpected legacy route growth: "
+                "registration:include_router:test_router.router",
+                "legacy_app.py: unexpected app.routers import growth: "
+                "router_import:import:app.routers.test -> test_router",
+            ],
+        ),
+        (
+            textwrap.dedent("""
+                import importlib
+
+                test_router = importlib.import_module("app.routers.test")
+                app.include_router(test_router.router)
+                """),
+            [
+                "legacy_app.py: unexpected legacy route growth: "
+                "registration:include_router:test_router.router",
+                "legacy_app.py: unexpected app.routers import growth: "
+                "router_import:dynamic:app.routers.test -> test_router",
+            ],
+        ),
+        (
+            textwrap.dedent("""
+                from importlib import import_module
+
+                if (test_router := import_module("app.routers.test")):
+                    app.include_router(test_router.router)
+                """),
+            [
+                "legacy_app.py: unexpected legacy route growth: "
+                "registration:include_router:test_router.router",
+                "legacy_app.py: unexpected app.routers import growth: "
+                "router_import:dynamic:app.routers.test -> test_router",
+            ],
+        ),
+    ],
+)
+def test_legacy_growth_guard_rejects_reintroduced_test_router_registration(
+    source: str,
+    expected: list[str],
+) -> None:
+    errors = legacy_guard.validate_legacy_growth(source)
+
+    assert errors == expected
+
+
 def test_legacy_growth_guard_rejects_nested_dynamic_bodyfat_router_registration() -> None:
     source = textwrap.dedent("""
         import importlib

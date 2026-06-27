@@ -6,11 +6,14 @@ Keep imports deterministic: do NOT use importlib exec_module, do NOT mutate sys.
 
 from __future__ import annotations
 
+import logging
+import os
 from typing import Any, Awaitable, Callable, cast
 
 import legacy_app as _legacy_module
 from fastapi import APIRouter, Depends, FastAPI
 from fastapi.responses import HTMLResponse
+from settings import get_runtime_env_name
 
 from legacy_app import (
     _install_openapi_builder,
@@ -68,9 +71,16 @@ from app.routers.restaurants import (
 )
 from app.routers.shoplist_export import router as shoplist_export_router
 from app.routers.shoplist_export_routes import SHOPLIST_ROUTE_SPECS
+from app.routers.test import (
+    TEST_ROUTE_SPECS,
+    _ensure_non_production as ensure_test_routes_non_production,
+    router as test_router,
+)
 from app.routers.vip_registration import register_vip_routes
 from app.schemas.direct_api_root import DirectApiRootProbe
 from app.utils.feature_flags import is_vip_module_enabled
+
+logger = logging.getLogger(__name__)
 
 app: FastAPI = _legacy_app
 VIP_MODULE_ENABLED: bool = bool(getattr(_legacy_module, "VIP_MODULE_ENABLED", False))
@@ -115,6 +125,10 @@ _BMI_COMPAT_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = tuple(
 _BODYFAT_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = tuple(
     (path, method.upper(), include_in_schema)
     for path, method, include_in_schema in BODYFAT_ROUTE_SPECS
+)
+_TEST_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = tuple(
+    (path, method.upper(), include_in_schema)
+    for path, method, include_in_schema in TEST_ROUTE_SPECS
 )
 _LEGACY_EXPORT_ALIAS_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = tuple(
     (path, method.upper(), include_in_schema)
@@ -261,6 +275,25 @@ def _bodyfat_route_members() -> tuple[RouteMemberContract, ...]:
             include_in_schema=include_in_schema,
         )
         for path, method, include_in_schema in _BODYFAT_ROUTE_SPECS
+    )
+
+
+def _test_route_members() -> tuple[RouteMemberContract, ...]:
+    return tuple(
+        RouteMemberContract(
+            path=path,
+            method=method,
+            include_in_schema=include_in_schema,
+            required_dependencies=(ensure_test_routes_non_production,),
+        )
+        for path, method, include_in_schema in _TEST_ROUTE_SPECS
+    )
+
+
+def _test_routes_enabled_for_registration() -> bool:
+    env = get_runtime_env_name()
+    return env in {"local", "dev", "development", "test", "testing", "ci"} or (
+        env == "staging" and os.getenv("ENABLE_TEST_ROUTES") == "1"
     )
 
 
@@ -783,6 +816,27 @@ def _include_bodyfat_router_if_needed(target_app: FastAPI) -> None:
     )
 
 
+def _include_test_router_if_enabled(target_app: FastAPI) -> None:
+    """Register non-production test routes as one hidden canonical family."""
+
+    if not _test_routes_enabled_for_registration():
+        return
+
+    logger.info(
+        "Test routes enabled for registration",
+        extra={
+            "runtime_env": get_runtime_env_name(),
+            "enable_test_routes": os.getenv("ENABLE_TEST_ROUTES"),
+        },
+    )
+    ensure_route_family_registered(
+        target_app,
+        family_name="Test",
+        routers=(test_router,),
+        members=_test_route_members(),
+    )
+
+
 def _include_restaurant_moderation_router_if_needed(target_app: FastAPI) -> None:
     """Register restaurant moderation route as one protected atomic family."""
 
@@ -952,6 +1006,7 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
     _register_bmi_routes(app)
     _include_bmi_compat_router_if_needed(app)
     _include_bodyfat_router_if_needed(app)
+    _include_test_router_if_enabled(app)
     _include_plan_export_routers_if_needed(app)
     _include_shoplist_export_router_if_needed(app)
     _include_legacy_export_alias_router_if_needed(app)

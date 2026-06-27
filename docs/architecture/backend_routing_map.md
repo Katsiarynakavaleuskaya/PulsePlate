@@ -220,13 +220,33 @@ Runtime effect:
   canonical OpenAPI builder still filters `/api/v1/bodyfat` out of published
   `/openapi.json`; generated client/OpenAPI artifacts are unchanged.
 
-### Test router (non-production env)
+### Test router (canonical bootstrap-owned, non-production env)
 
-Anchor (stable): `legacy_app.py -> include test router only in non-prod env`
+Anchor (stable): `app/main.py -> _include_test_router_if_enabled(app)` owns
+`app/routers/test.py`.
 
-Evidence: `legacy_app.py:890-902`
+Evidence:
+- `app/bootstrap/route_family.py:26` — shared `RouteMemberContract` for exact static
+  route-family members.
+- `app/bootstrap/route_family.py:87` — shared `ensure_route_family_registered(...)` guard.
+- `app/routers/test.py` — owns `TEST_ROUTE_SPECS`, source route handlers, hidden
+  `include_in_schema=False` metadata, and request-time `_ensure_non_production()`.
+- `app/main.py` — registers the test route family only when
+  `get_runtime_env_name()` resolves to `unset/local/dev/development/test/testing/ci`,
+  or `staging` with exact `ENABLE_TEST_ROUTES=1`.
+- `legacy_app.py` does not import or include `app.routers.test`; the legacy growth
+  guard rejects direct, aliased, module-qualified, dynamic, and walrus
+  re-registration there.
 
-- Included only in local/dev/test (or staging with explicit `ENABLE_TEST_ROUTES=1`)
+Runtime effect:
+- `POST /api/v1/test/rate-limit`
+- `GET /api/v1/test/health`
+- `POST /api/v1/test/echo`
+
+OpenAPI effect:
+- Source `APIRoute.include_in_schema` is `False`.
+- Final public `app.openapi()` does not expose `/api/v1/test/*`; generated
+  client/OpenAPI artifacts are unchanged.
 
 ## OpenAPI generation behavior (important)
 

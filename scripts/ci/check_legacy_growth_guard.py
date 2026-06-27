@@ -110,7 +110,6 @@ ALLOWED_LEGACY_ROUTE_FACTS = frozenset(
         LegacyFact("registration", "include_router", "nutrition_log.router", ""),
         LegacyFact("registration", "include_router", "legacy_nutrition_alias_router", ""),
         LegacyFact("registration", "include_router", "business_router", ""),
-        LegacyFact("registration", "include_router", "test_router.router", ""),
     }
 )
 
@@ -118,7 +117,6 @@ ALLOWED_ROUTER_IMPORT_FACTS = frozenset(
     {
         LegacyFact("router_import", "app.routers", "bayes_adherence", ""),
         LegacyFact("router_import", "app.routers", "nutrition_log", ""),
-        LegacyFact("router_import", "app.routers", "test", "test_router"),
         LegacyFact("router_import", "app.routers", "vip", "_vip_mod"),
         LegacyFact("router_import", "app.routers.api_key", "api_key_header", ""),
         LegacyFact("router_import", "app.routers.bmi", "bmi_calculate_handler", ""),

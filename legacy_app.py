@@ -957,20 +957,6 @@ except ImportError as e:  # pragma: no cover
 # Premium week router registration is now handled in
 # app.routers.pro_registration.register_pro_routes() for centralized registration.
 
-# Conditionally include test router for non-production environments
-# Reuse _app_env defined earlier (line 302) to avoid duplication
-# Exclude staging from test endpoints for security (staging may be externally accessible)
-if _app_env in {"local", "dev", "development", "test", "testing", "ci"} or (
-    _app_env == "staging" and os.getenv("ENABLE_TEST_ROUTES") == "1"
-):
-    try:
-        from app.routers import test as test_router
-
-        app.include_router(test_router.router)
-        logger.info("Test endpoints enabled for environment: %s", _app_env or "local")
-    except ImportError:
-        logger.debug("Test router not available")
-
 # Provide a stable alias for plan_export to support tests that reload it dynamically
 with suppress(Exception):
     import importlib as _importlib

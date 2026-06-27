@@ -4,17 +4,22 @@ Additional comprehensive tests for main.py to achieve 97% coverage.
 Tests lifespan events, API endpoints, error handling, and edge cases.
 """
 
+import asyncio
 import os
 from typing import cast
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
+from fastapi import FastAPI, Response
+from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 
 # Import the canonical FastAPI app (registers metrics, etc.)
+import app.main as app_main
 from app.main import app
 from app.middleware.api_tiers import TEST_KEY_VIP
+from app.routers import test as test_router
 from tests import test_restaurant_postgres_read as restaurant_pg_tests
 from tests import test_restaurant_shadow_parity as restaurant_parity_tests
 from tests import test_restaurants_router as restaurant_router_tests
@@ -30,8 +35,7 @@ class TestLifespanEvents:
         os.environ["API_KEY"] = "test_key"
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
 
-    @pytest.mark.asyncio
-    async def test_lifespan_startup_success(self, monkeypatch: pytest.MonkeyPatch):
+    def test_lifespan_startup_success(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test successful lifespan startup."""
         from app import lifespan
         import legacy_app
@@ -41,16 +45,20 @@ class TestLifespanEvents:
         mock_start = Mock(return_value=AsyncMock())
         patch_background_update_callables(monkeypatch, start=mock_start)
 
+        async def run_lifespan() -> None:
+            async with lifespan(mock_app):
+                pass
+
         with (
             patch.object(legacy_app, "init_db", return_value=None),
             patch.object(legacy_app, "validate_template_dir", return_value=None),
         ):
-            async with lifespan(mock_app):
-                # Verify startup was called
-                mock_start.assert_called_once_with(update_interval_hours=24)
+            asyncio.run(run_lifespan())
 
-    @pytest.mark.asyncio
-    async def test_lifespan_startup_failure(self, monkeypatch: pytest.MonkeyPatch):
+        # Verify startup was called
+        mock_start.assert_called_once_with(update_interval_hours=24)
+
+    def test_lifespan_startup_failure(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test lifespan startup with failure."""
         from app import lifespan
         import legacy_app
@@ -60,16 +68,20 @@ class TestLifespanEvents:
         mock_start = Mock(side_effect=Exception("Startup failed"))
         patch_background_update_callables(monkeypatch, start=mock_start)
 
+        async def run_lifespan() -> None:
+            # Should not raise exception, just log error
+            async with lifespan(mock_app):
+                pass
+
         with (
             patch.object(legacy_app, "init_db", return_value=None),
             patch.object(legacy_app, "validate_template_dir", return_value=None),
         ):
-            # Should not raise exception, just log error
-            async with lifespan(mock_app):
-                mock_start.assert_called_once_with(update_interval_hours=24)
+            asyncio.run(run_lifespan())
 
-    @pytest.mark.asyncio
-    async def test_lifespan_shutdown_success(self, monkeypatch: pytest.MonkeyPatch):
+        mock_start.assert_called_once_with(update_interval_hours=24)
+
+    def test_lifespan_shutdown_success(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test successful lifespan shutdown."""
         from app import lifespan
         import legacy_app
@@ -84,14 +96,17 @@ class TestLifespanEvents:
             patch.object(legacy_app, "init_db", return_value=None),
             patch.object(legacy_app, "validate_template_dir", return_value=None),
         ):
-            async with lifespan(mock_app):
-                pass
 
-            # Verify shutdown was called
-            mock_stop.assert_called_once()
+            async def run_lifespan() -> None:
+                async with lifespan(mock_app):
+                    pass
 
-    @pytest.mark.asyncio
-    async def test_lifespan_shutdown_failure(self, monkeypatch: pytest.MonkeyPatch):
+            asyncio.run(run_lifespan())
+
+        # Verify shutdown was called
+        mock_stop.assert_called_once()
+
+    def test_lifespan_shutdown_failure(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test lifespan shutdown with failure."""
         from app import lifespan
         import legacy_app
@@ -106,11 +121,15 @@ class TestLifespanEvents:
             patch.object(legacy_app, "init_db", return_value=None),
             patch.object(legacy_app, "validate_template_dir", return_value=None),
         ):
-            # Should not raise exception, just log error
-            async with lifespan(mock_app):
-                pass
 
-            mock_stop.assert_called_once()
+            async def run_lifespan() -> None:
+                # Should not raise exception, just log error
+                async with lifespan(mock_app):
+                    pass
+
+            asyncio.run(run_lifespan())
+
+        mock_stop.assert_called_once()
 
 
 class TestAPIEndpoints:
@@ -172,6 +191,32 @@ class TestAPIEndpoints:
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "ok"
+
+
+def test_test_route_registration_disabled_in_production_for_ci_diff_coverage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.delenv("ENVIRONMENT", raising=False)
+    monkeypatch.setenv("ENABLE_TEST_ROUTES", "1")
+    target_app = FastAPI()
+
+    app_main._include_test_router_if_enabled(target_app)
+
+    assert not any(
+        isinstance(route, APIRoute) and str(route.path).startswith("/api/v1/test/")
+        for route in target_app.routes
+    )
+
+
+def test_test_echo_handler_returns_typed_response_for_ci_diff_coverage() -> None:
+    response = Response()
+
+    payload = asyncio.run(test_router.test_echo({"hello": "world"}, response))
+
+    assert payload.echo == {"hello": "world"}
+    assert payload.metadata.endpoint == "echo"
+    assert response.headers["X-Test-Timestamp"] == payload.metadata.timestamp
 
 
 class TestBMIEndpoints:
