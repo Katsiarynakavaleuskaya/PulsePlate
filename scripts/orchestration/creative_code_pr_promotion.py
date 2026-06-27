@@ -399,7 +399,6 @@ class GitTransport:
             [
                 "push",
                 "--porcelain",
-                f"--force-with-lease=refs/heads/{branch}:",
                 "origin",
                 f"HEAD:refs/heads/{branch}",
             ],
@@ -1247,6 +1246,7 @@ def promote(
     pr_url = ""
     commit_sha = "0" * 40
     partial_failure: str | None = None
+    commit_identity_verified = False
     try:
         checkout = _prepare_checkout(
             promotion_dir=promotion_dir,
@@ -1281,6 +1281,7 @@ def promote(
             expected_name=human_name,
             expected_email=human_email,
         )
+        commit_identity_verified = True
         if git.remote_branch_exists(branch):
             raise CreativeCodePRPromotionError("target experiment branch appeared before push.")
         git.push_new_branch(cwd=checkout, branch=branch)
@@ -1330,7 +1331,7 @@ def promote(
     except Exception as exc:
         if partial_failure is None:
             partial_failure = exc.__class__.__name__
-        if commit_sha != "0" * 40:
+        if commit_sha != "0" * 40 and commit_identity_verified:
             receipt = build_creative_code_pr_promotion_receipt(
                 promotion_id=promotion_id,
                 plan_fingerprint=plan_fp,

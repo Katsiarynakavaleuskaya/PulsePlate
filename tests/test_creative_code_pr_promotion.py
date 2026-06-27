@@ -198,11 +198,13 @@ class FakeGit:
         remote_exists: bool = False,
         remote_exists_sequence: list[bool] | None = None,
         identity: tuple[str, str] | None = ("Katsiarynakavaleuskaya", "human@example.test"),
+        verify_identity_failure: bool = False,
     ) -> None:
         self.base_sha = base_sha
         self.remote_exists = remote_exists
         self.remote_exists_sequence = list(remote_exists_sequence or [])
         self.identity = identity
+        self.verify_identity_failure = verify_identity_failure
         self.committed = False
         self.calls: list[list[str]] = []
 
@@ -243,6 +245,8 @@ class FakeGit:
         expected_email: str,
     ) -> None:
         self.calls.append(["verify_commit_identity", expected_name, expected_email])
+        if self.verify_identity_failure:
+            raise CreativeCodePRPromotionError("promotion commit identity mismatch.")
         if self.identity != (expected_name, expected_email):
             raise CreativeCodePRPromotionError("promotion commit identity mismatch.")
 
@@ -755,6 +759,15 @@ def test_github_transport_forbids_draft_ready_review_merge_and_auth_token() -> N
             creative_code_pr_promotion._reject_forbidden_gh_args(args)
 
 
+def test_git_transport_contains_no_force_push_flag() -> None:
+    source = (REPO_ROOT / "scripts/orchestration/creative_code_pr_promotion.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert "--force" not in source
+    assert "--force-with-lease" not in source
+
+
 def test_no_pipeline_promote_or_notify_imports() -> None:
     source = (REPO_ROOT / "scripts/orchestration/creative_code_pr_promotion.py").read_text(
         encoding="utf-8"
@@ -875,6 +888,61 @@ def test_promote_rejects_non_human_git_identity_before_mutation(
         )
 
     assert not any("commit" in call or "push_new_branch" in call for call in git.calls)
+    assert not any(call[:2] == ["pr", "create"] for call in github.calls)
+
+
+def test_promote_identity_verification_failure_writes_no_receipt_or_remote_mutation(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    _repo, run_id, _result = _make_patch_run(monkeypatch, tmp_path)
+    planned = creative_code_pr_promotion.plan(
+        patch_run=run_id,
+        promotion_id="promotion-pr3-identity-verify",
+        git=FakeGit(),
+    )
+    plan = planned["plan"]
+    validation = build_creative_code_pr_promotion_validation(
+        promotion_id="promotion-pr3-identity-verify",
+        plan_fingerprint=promotion_plan_fingerprint(plan),
+        patch_fingerprint=plan["patch_fingerprint"],
+        base_commit_sha=plan["base_commit_sha"],
+        oracle_commands_configured=1,
+        oracle_commands_executed=1,
+    )
+    approval = build_creative_code_pr_promotion_approval(
+        promotion_id="promotion-pr3-identity-verify",
+        plan_fingerprint=promotion_plan_fingerprint(plan),
+        validation_fingerprint=validation["validation_fingerprint"],
+        approved_by_login="Katsiarynakavaleuskaya",
+        confirmed_patch_fingerprint=plan["patch_fingerprint"],
+        confirmed_base_commit_sha=plan["base_commit_sha"],
+        confirmed_target_branch=plan["target_head_branch"],
+    )
+    promotion_dir = Path(planned["promotion_dir"])
+    _write_json(promotion_dir / creative_code_pr_promotion.VALIDATION_FILE, validation)
+    _write_json(promotion_dir / creative_code_pr_promotion.APPROVAL_FILE, approval)
+
+    def fake_prepare(**kwargs: Any) -> Path:
+        checkout = promotion_dir / kwargs["dirname"]
+        checkout.mkdir(exist_ok=True)
+        return checkout
+
+    monkeypatch.setattr(creative_code_pr_promotion, "_prepare_checkout", fake_prepare)
+    monkeypatch.setattr(creative_code_pr_promotion, "_apply_patch_and_verify", lambda **_: None)
+    monkeypatch.setattr(creative_code_pr_promotion, "_destroy_checkout", lambda *_: True)
+
+    git = FakeGit(verify_identity_failure=True)
+    github = FakeGitHub()
+    with pytest.raises(CreativeCodePRPromotionError, match="identity mismatch"):
+        creative_code_pr_promotion.promote(
+            promotion_id="promotion-pr3-identity-verify",
+            git=git,
+            github=github,
+        )
+
+    assert not (promotion_dir / creative_code_pr_promotion.RECEIPT_FILE).exists()
+    assert not any(call[:1] == ["push_new_branch"] for call in git.calls)
     assert not any(call[:2] == ["pr", "create"] for call in github.calls)
 
 
