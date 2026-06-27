@@ -3159,7 +3159,7 @@ def test_install_from_proxy_with_emergency_fallback_retries_with_find_links_afte
     monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
 
     installer.install_from_proxy_with_emergency_fallback(
-        python_executable="python",
+        python_executable=sys.executable,
         requirement_files=[requirements],
         constraints_file=None,
         index_url=APPROVED_PROXY_URL,
@@ -3233,7 +3233,7 @@ def test_install_from_proxy_with_emergency_fallback_accepts_one_requested_resolv
     monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
 
     installer.install_from_proxy_with_emergency_fallback(
-        python_executable="python",
+        python_executable=sys.executable,
         requirement_files=[requirements],
         constraints_file=None,
         index_url=APPROVED_PROXY_URL,
@@ -3300,7 +3300,7 @@ def test_install_from_proxy_with_emergency_fallback_accepts_pip26_no_candidate_s
     monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
 
     installer.install_from_proxy_with_emergency_fallback(
-        python_executable="python",
+        python_executable=sys.executable,
         requirement_files=[requirements],
         constraints_file=None,
         index_url=APPROVED_PROXY_URL,
@@ -3376,7 +3376,7 @@ def test_install_from_proxy_with_emergency_fallback_accepts_package_scoped_retry
     monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
 
     installer.install_from_proxy_with_emergency_fallback(
-        python_executable="python",
+        python_executable=sys.executable,
         requirement_files=[requirements],
         constraints_file=None,
         index_url=APPROVED_PROXY_URL,
@@ -3664,7 +3664,7 @@ def test_install_from_proxy_with_emergency_fallback_batches_degraded_proxy_artif
     monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
 
     installer.install_from_proxy_with_emergency_fallback(
-        python_executable="python",
+        python_executable=sys.executable,
         requirement_files=[requirements],
         constraints_file=None,
         index_url=APPROVED_PROXY_URL,
