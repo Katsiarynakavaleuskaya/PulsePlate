@@ -724,6 +724,17 @@ def test_backend_hook_maps_authz_contract_helper_to_static_contract_test(
     assert "Backend tests passed" in output
 
 
+def test_backend_hook_uses_helper_test_mapping_table() -> None:
+    hook_text = (REPO_ROOT / "scripts" / "run-backend-tests-pre-commit.sh").read_text(
+        encoding="utf-8"
+    )
+
+    assert "PYTHON_HELPER_SOURCE_FILES" in hook_text
+    assert "PYTHON_HELPER_TEST_TARGETS" in hook_text
+    assert '"tests/security/_api_authz_contracts.py"' in hook_text
+    assert '"tests/security/test_api_authz_contract_static.py"' in hook_text
+
+
 def test_pre_commit_config_runs_backend_hook_for_frontend_package_manifests() -> None:
     config_text = (REPO_ROOT / ".pre-commit-config.yaml").read_text(encoding="utf-8")
 

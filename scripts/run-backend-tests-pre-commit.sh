@@ -141,6 +141,12 @@ else
 fi
 
 declare -a EXTRA_TEST_FILES=()
+declare -a PYTHON_HELPER_SOURCE_FILES=(
+    "tests/security/_api_authz_contracts.py"
+)
+declare -a PYTHON_HELPER_TEST_TARGETS=(
+    "tests/security/test_api_authz_contract_static.py"
+)
 
 add_extra_tests_for_changed_files() {
     while IFS= read -r file; do
@@ -155,6 +161,21 @@ add_extra_tests_for_changed_files() {
 }
 
 add_extra_tests_for_changed_files
+
+add_helper_tests_for_python_change() {
+    local file="$1"
+    local index
+    local target
+    for index in "${!PYTHON_HELPER_SOURCE_FILES[@]}"; do
+        if [ "${PYTHON_HELPER_SOURCE_FILES[$index]}" != "$file" ]; then
+            continue
+        fi
+        target="${PYTHON_HELPER_TEST_TARGETS[$index]}"
+        [ -f "$target" ] && FOUND_FOR_FILE+=("$target")
+        return 0
+    done
+    return 1
+}
 
 if [ -z "$PYTHON_CHANGES" ] && [ ${#EXTRA_TEST_FILES[@]} -eq 0 ]; then
     if [ "$BRANCH_DIFF_MODE" = "1" ] && [ "$BRANCH_DIFF_BASE_RESOLVED" = "1" ]; then
@@ -213,10 +234,10 @@ if [ -n "$PYTHON_CHANGES" ]; then
         # Per-file test discovery
         declare -a FOUND_FOR_FILE=()
 
-        # Helper modules under tests/ need an executable test target, not direct
-        # pytest collection of the helper itself.
-        if [[ $file == tests/security/_api_authz_contracts.py ]]; then
-            [ -f "tests/security/test_api_authz_contract_static.py" ] && FOUND_FOR_FILE+=("tests/security/test_api_authz_contract_static.py")
+        # Helper modules under tests/ need executable test targets, not direct
+        # pytest collection of the helpers themselves.
+        if add_helper_tests_for_python_change "$file"; then
+            :
         # If the file is in tests/ directory, add it directly (but exclude conftest.py)
         elif [[ $file == tests/* ]] && [[ $file == *.py ]] && [[ ! $(basename "$file") == conftest.py ]]; then
             [ -f "$file" ] && FOUND_FOR_FILE+=("$file")
