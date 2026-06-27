@@ -7,7 +7,7 @@ Should NOT be included in production builds.
 
 import os
 from datetime import datetime, timezone
-from typing import Dict, Any
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel
@@ -51,6 +51,20 @@ class TestResponse(BaseModel):
     message: str
     timestamp: str
     request_id: str | None = None
+
+
+class TestEchoMetadata(BaseModel):
+    """Metadata returned by the test echo endpoint."""
+
+    timestamp: str
+    endpoint: str
+
+
+class TestEchoResponse(BaseModel):
+    """Echo response model for hidden test endpoints."""
+
+    echo: dict[str, Any]
+    metadata: TestEchoMetadata
 
 
 @router.post("/rate-limit", response_model=TestResponse, include_in_schema=False)
@@ -97,8 +111,8 @@ async def test_health(response: Response) -> TestResponse:
     )
 
 
-@router.post("/echo", include_in_schema=False)
-async def test_echo(data: Dict[str, Any], response: Response) -> Dict[str, Any]:
+@router.post("/echo", response_model=TestEchoResponse, include_in_schema=False)
+async def test_echo(data: dict[str, Any], response: Response) -> TestEchoResponse:
     """
     Echo endpoint that returns the received data.
 
@@ -108,9 +122,12 @@ async def test_echo(data: Dict[str, Any], response: Response) -> Dict[str, Any]:
         data: Any JSON data to echo back
 
     Returns:
-        Dict containing the echoed data and metadata
+        TestEchoResponse containing the echoed data and metadata
     """
     timestamp = datetime.now(timezone.utc).isoformat()
     response.headers["X-Test-Timestamp"] = timestamp
 
-    return {"echo": data, "metadata": {"timestamp": timestamp, "endpoint": "echo"}}
+    return TestEchoResponse(
+        echo=data,
+        metadata=TestEchoMetadata(timestamp=timestamp, endpoint="echo"),
+    )

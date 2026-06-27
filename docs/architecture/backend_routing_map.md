@@ -232,10 +232,11 @@ Evidence:
 - `app/routers/test.py` — owns `TEST_ROUTE_SPECS`, source route handlers, hidden
   `include_in_schema=False` metadata, and request-time `_ensure_non_production()`.
 - `app/main.py` — registers the test route family only when
-  `get_runtime_env_name()` resolves to `local/dev/development/test/testing/ci`, or
-  `staging` with exact `ENABLE_TEST_ROUTES=1`.
+  `get_runtime_env_name()` resolves to `unset/local/dev/development/test/testing/ci`,
+  or `staging` with exact `ENABLE_TEST_ROUTES=1`.
 - `legacy_app.py` does not import or include `app.routers.test`; the legacy growth
-  guard rejects direct, aliased, module-qualified, and dynamic re-registration there.
+  guard rejects direct, aliased, module-qualified, dynamic, and walrus
+  re-registration there.
 
 Runtime effect:
 - `POST /api/v1/test/rate-limit`
