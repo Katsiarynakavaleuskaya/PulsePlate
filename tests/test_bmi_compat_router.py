@@ -12,6 +12,7 @@ from pydantic import ValidationError
 
 import app.main as app_main
 from app.effective_routes import (
+    is_api_route_candidate,
     iter_effective_route_candidates,
     route_endpoint,
     route_include_in_schema,
@@ -27,7 +28,9 @@ def _post_routes_for(path: str) -> list[Any]:
     return [
         route
         for route in iter_effective_route_candidates(app_main.app.routes)
-        if route_path(route) == path and "POST" in route_methods(route)
+        if is_api_route_candidate(route)
+        and route_path(route) == path
+        and "POST" in route_methods(route)
     ]
 
 

@@ -215,7 +215,8 @@ class TestHealthAndMonitoringEndpoints:
         assert getattr(endpoint, "__module__", None) == "app.routers.favicon"
         assert getattr(endpoint, "__name__", None) == "favicon"
         assert route_include_in_schema(route) is False
-        dependant = getattr(route, "dependant", None)
+        source_route = getattr(route, "original_route", route)
+        dependant = getattr(source_route, "dependant", None)
         assert not getattr(dependant, "dependencies", ())
 
         response = client.get("/favicon.ico")

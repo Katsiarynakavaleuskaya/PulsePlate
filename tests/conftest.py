@@ -525,14 +525,23 @@ def client(app: FastAPI) -> Generator[TestClient, None, None]:
 # --- VIP shoplist test fixtures ---
 
 
-def _iter_route_dependencies(route: object) -> Iterable[Callable]:
+def _iter_route_dependencies(route: object) -> Iterable[Callable[..., object]]:
     """
     RU: Извлекаем callables зависимостей, навешанных на маршрут (route.dependencies).
     EN: Extract dependency callables attached at route level.
     """
-    for dep in getattr(route, "dependencies", []) or []:
-        fn = getattr(dep, "dependency", None)
-        if callable(fn):
+    seen_dependencies: set[int] = set()
+    for candidate_route in (route, getattr(route, "original_route", None)):
+        if candidate_route is None:
+            continue
+        for dep in getattr(candidate_route, "dependencies", []) or []:
+            fn = getattr(dep, "dependency", None)
+            if not callable(fn):
+                continue
+            dependency_id = id(fn)
+            if dependency_id in seen_dependencies:
+                continue
+            seen_dependencies.add(dependency_id)
             yield fn
 
 

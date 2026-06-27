@@ -301,8 +301,8 @@ the mandatory wait-window.
 - [ ] Sourcery PASS / no actionables confirmed.
 - [ ] Cubic PASS / no actionables confirmed.
 - [ ] Post-open role passes complete.
-- [x] Codex Security diff scan / finding discovery complete once for the
+- [ ] Codex Security diff scan / finding discovery complete once for the
   material PR head.
-- [x] `pulseplate-pr-review` complete.
+- [ ] `pulseplate-pr-review` complete.
 - [ ] Strict merge-readiness wrapper with auth passes.
 - [ ] Mandatory wait-window satisfied.

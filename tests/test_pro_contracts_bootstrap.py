@@ -10,6 +10,7 @@ from app.bootstrap.pro_contracts import register_pro_contract_routes
 from app.effective_routes import (
     iter_effective_route_candidates,
     route_matches_path_method,
+    route_path,
 )
 
 
@@ -29,7 +30,7 @@ def test_register_pro_contract_routes_idempotent(client: TestClient) -> None:
     register_pro_contract_routes(app.app)
 
     # Verify routes exist
-    paths = {getattr(r, "path", None) for r in iter_effective_route_candidates(app.app.routes)}
+    paths = {route_path(route) for route in iter_effective_route_candidates(app.app.routes)}
     assert "/api/v1/pro/nutrition/targets" in paths
     assert "/api/v1/pro/nutrition/plate" in paths
 
