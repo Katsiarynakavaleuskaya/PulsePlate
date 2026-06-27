@@ -26,6 +26,11 @@ Disposition: FIXED
 Commit: acdc769a7ee1a2420d5a6cfc58cf33d6ffdc2a57
 Evidence: This CodeRabbit aggregate review listed the second review batch; its inline findings are mapped below and fixed by complete `ghs_` redaction, clean unreadable-file CLI errors, repo-relative fixed-mapping evidence, and SHA-independent fixed-mapping diff membership checks.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2028#pullrequestreview-4585161591 -> 76a29907ed837bf559c66af0004577c197056f62
+Disposition: FIXED
+Commit: 76a29907ed837bf559c66af0004577c197056f62
+Evidence: `tests/test_install_locked_python_requirements.py` now uses `sys.executable` for direct-proxy emergency-fallback tests so manifest runtime-tag selection stays in-process; focused pytest for the five fallback cases passed.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2028#discussion_r3485646667 -> acdc769a7ee1a2420d5a6cfc58cf33d6ffdc2a57
 Disposition: FIXED
 Commit: acdc769a7ee1a2420d5a6cfc58cf33d6ffdc2a57
