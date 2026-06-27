@@ -56,6 +56,10 @@ def test_review_pattern_oracle_schema_matches_helper_shape() -> None:
     assert set(schema["required"]) == set(report)
     assert schema["properties"]["schema_version"]["const"] == report["schema_version"]
     assert schema["properties"]["oracle_ids"]["items"]["enum"] == report["oracle_ids"]
+    assert (
+        schema["properties"]["matches"]["items"]["properties"]["oracle_id"]["enum"]
+        == report["oracle_ids"]
+    )
     allowed_match_keys = set(schema["properties"]["matches"]["items"]["properties"])
     for match in report["matches"]:
         assert set(match) == allowed_match_keys

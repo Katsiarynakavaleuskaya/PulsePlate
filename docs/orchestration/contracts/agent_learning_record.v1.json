@@ -20,7 +20,13 @@
     "source": { "type": "string", "minLength": 1 },
     "pattern": { "type": "string", "minLength": 1 },
     "severity": { "enum": ["low", "medium", "high", "critical"] },
-    "affected_surfaces": { "type": "array", "items": { "type": "string" } },
+    "affected_surfaces": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^(?!/)(?!~(?:/|$))(?!(?:tmp|var|Users|Volumes|private)(?:/|$))(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
+      }
+    },
     "root_cause": { "type": "string", "minLength": 1 },
     "required_oracle": {
       "enum": [
@@ -32,7 +38,10 @@
         "review_source_degraded"
       ]
     },
-    "promotion_target": { "type": "string", "minLength": 1 },
+    "promotion_target": {
+      "type": "string",
+      "pattern": "^(?!/)(?!~(?:/|$))(?!(?:tmp|var|Users|Volumes|private)(?:/|$))(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
+    },
     "dedupe_fingerprint": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
     "redaction_status": { "enum": ["clean", "redacted"] },
     "human_review_required": { "const": true }

@@ -42,7 +42,16 @@
         "type": "object",
         "required": ["oracle_id", "title", "matched_terms", "required_evidence"],
         "properties": {
-          "oracle_id": { "type": "string", "minLength": 1 },
+          "oracle_id": {
+            "enum": [
+              "schema_validator_parity",
+              "fail_closed_security_edge",
+              "deterministic_content_oracle",
+              "canonical_route_ownership_guard",
+              "evidence_hygiene_mapping_timing",
+              "review_source_degraded"
+            ]
+          },
           "title": { "type": "string", "minLength": 1 },
           "matched_terms": { "type": "array", "items": { "type": "string" } },
           "required_evidence": { "type": "array", "items": { "type": "string" } },

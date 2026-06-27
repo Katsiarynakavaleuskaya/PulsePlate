@@ -210,3 +210,5 @@ def test_agent_learning_record_schema_matches_extractor_shape() -> None:
     assert schema["properties"]["human_review_required"]["const"] is True
     assert record["severity"] in schema["properties"]["severity"]["enum"]
     assert schema["properties"]["required_oracle"]["enum"] == list(REVIEW_PATTERN_ORACLE_IDS)
+    assert "pattern" in schema["properties"]["affected_surfaces"]["items"]
+    assert "pattern" in schema["properties"]["promotion_target"]
