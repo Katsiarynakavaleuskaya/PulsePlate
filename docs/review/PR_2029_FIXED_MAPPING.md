@@ -36,6 +36,9 @@ lifespan, frontend, iOS, macOS, or feature-flag redesign.
 - `929fda5791333fae2c0eff31f911408e5a38bc55` - moves test route
   registration to canonical bootstrap, removes legacy ownership, adds guards
   and focused tests, and records routing-map evidence.
+- `eebcb60b8` - fixes Sourcery security observability feedback by logging
+  enabled test route registration and adding caplog coverage for staging with
+  `ENABLE_TEST_ROUTES=1`.
 
 ## Lane Start Provenance
 
@@ -62,7 +65,36 @@ lifespan, frontend, iOS, macOS, or feature-flag redesign.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: eebcb60b8
+Evidence: `app/main.py` logs enabled test route registration; `tests/test_test_route_registration_bootstrap.py` covers staging with `ENABLE_TEST_ROUTES=1` using `caplog`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2029#pullrequestreview-4584883808 -> eebcb60b8
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2029#discussion_r3485790303 -> eebcb60b8
+
+## Sourcery Review Closure
+
+Disposition: FIXED
+
+Thread: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2029#discussion_r3485790303
+
+Commit: `eebcb60b8`
+
+Evidence: `app/main.py` now emits `Test routes enabled for registration`
+when `_include_test_router_if_enabled(...)` actually registers the hidden test
+route family, including structured `runtime_env` and `enable_test_routes`
+fields. `tests/test_test_route_registration_bootstrap.py` covers staging with
+`ENABLE_TEST_ROUTES=1` using `caplog` and verifies both logged fields while
+preserving route registration invariants.
+
+Validation:
+
+- PASS: `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_test_route_registration_bootstrap.py`
+- PASS: `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_test_router.py tests/test_legacy_runtime_env_canonicalization.py tests/test_legacy_growth_guard.py tests/test_openapi_namespace_guards.py tests/test_route_family_bootstrap.py tests/test_test_route_registration_bootstrap.py`
+- PASS: `python3 scripts/ci/check_legacy_growth_guard.py`
+- PASS: `make openapi-check`
+- PASS: `git diff --exit-code -- app/static/openapi.json frontend/src/api/openapi.json frontend/src/api/schema.ts`
+- PASS: `pre-commit run --all-files`
+- PASS: `make validate-changed`
 
 ## Post-open Role Review Evidence
 
