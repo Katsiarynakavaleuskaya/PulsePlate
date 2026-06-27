@@ -11,7 +11,40 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2028#discussion_r3485646667 -> acdc769a7ee1a2420d5a6cfc58cf33d6ffdc2a57
+Disposition: FIXED
+Commit: acdc769a7ee1a2420d5a6cfc58cf33d6ffdc2a57
+Evidence: `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md` now lists the machine-consumed `.v1` JSON contracts and explicitly leaves scoped validation as narrative-only advisory policy.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2028#discussion_r3485646668 -> acdc769a7ee1a2420d5a6cfc58cf33d6ffdc2a57
+Disposition: FIXED
+Commit: acdc769a7ee1a2420d5a6cfc58cf33d6ffdc2a57
+Evidence: `scripts/orchestration/agent_lesson_promoter.py` now validates loaded records through `validate_agent_learning_record()` before proposal emission; `tests/test_agent_learning_loop.py` covers file-load full-contract validation and extra-property rejection.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2028#discussion_r3485646669 -> acdc769a7ee1a2420d5a6cfc58cf33d6ffdc2a57
+Disposition: FIXED
+Commit: acdc769a7ee1a2420d5a6cfc58cf33d6ffdc2a57
+Evidence: `scripts/orchestration/skill_router.py` removes the bare `oracle` lexeme from the review-pattern semantic group; `tests/test_skill_router.py` proves generic Experiment Runner oracle text no longer routes `pulseplate-review-pattern-oracles`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2028#discussion_r3485755463 -> acdc769a7ee1a2420d5a6cfc58cf33d6ffdc2a57
+Disposition: FIXED
+Commit: acdc769a7ee1a2420d5a6cfc58cf33d6ffdc2a57
+Evidence: `scripts/orchestration/agent_learning_loop.py` checks the `ghs_` token pattern before the generic GitHub-token branch; `tests/test_agent_learning_loop.py` proves `ghs_abc-def.ghi` is fully redacted.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2028#discussion_r3485755465 -> acdc769a7ee1a2420d5a6cfc58cf33d6ffdc2a57
+Disposition: FIXED
+Commit: acdc769a7ee1a2420d5a6cfc58cf33d6ffdc2a57
+Evidence: `scripts/orchestration/agent_lesson_promoter.py` catches `OSError` with malformed input errors; `tests/test_agent_learning_loop.py` covers unreadable record-file CLI failure.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2028#discussion_r3485755469 -> acdc769a7ee1a2420d5a6cfc58cf33d6ffdc2a57
+Disposition: FIXED
+Commit: acdc769a7ee1a2420d5a6cfc58cf33d6ffdc2a57
+Evidence: `scripts/orchestration/pr_review_context.py` emits repo-relative fixed-mapping evidence via `repo_path`; `tests/test_pr_review_context.py` proves no-PR-number evidence avoids local workspace paths.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2028#discussion_r3485755472 -> acdc769a7ee1a2420d5a6cfc58cf33d6ffdc2a57
+Disposition: FIXED
+Commit: acdc769a7ee1a2420d5a6cfc58cf33d6ffdc2a57
+Evidence: `scripts/orchestration/pr_review_context.py` evaluates fixed-mapping PR-diff membership whenever diff data is available, independent of SHA parity; `tests/test_pr_review_context.py` covers the missing-SHA parity branch.
 
 ## Premortem Evidence
 - Disposition: FIXED
@@ -31,7 +64,10 @@
 - `python3 scripts/orchestration/check_preflight.py`
 - `python3 scripts/orchestration/check_agent_consistency.py`
 - `python3 -m py_compile` for changed orchestration CLIs/helpers
+- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest tests/test_agent_learning_loop.py tests/test_skill_router.py tests/test_pr_review_context.py -q`
 - Focused pytest for review oracles, review-source status, PR review context/reporting, skill routing, task bootstrap, skill install/mirror, and symlink integrity
+- Focused flake8 for changed Python files
+- Focused mypy with `--explicit-package-bases` for changed orchestration scripts
 - `make validate-changed`
 - `pre-commit run --all-files`
 - `pre-commit run mypy --hook-stage pre-push --files scripts/orchestration/pr_review_context.py`
