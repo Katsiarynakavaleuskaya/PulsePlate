@@ -92,7 +92,8 @@ def test_hidden_mutating_test_routes_are_classified_as_non_production() -> None:
         assert contract.principal_source is PrincipalSource.INTERNAL_OPTIONAL
         assert contract.ownership_policy is OwnershipPolicy.INTERNAL_OPTIONAL
         assert contract.exposure is ApiExposure.HIDDEN_RUNTIME
-        assert EXPECTED_DEPENDENCY_BY_AUTH_CLASS[contract.auth_class] is not None
+        expected_dependency = EXPECTED_DEPENDENCY_BY_AUTH_CLASS[contract.auth_class]
+        assert expected_dependency is not None
 
 
 def test_contract_exposure_matches_live_openapi_visibility(contract_app: FastAPI) -> None:
