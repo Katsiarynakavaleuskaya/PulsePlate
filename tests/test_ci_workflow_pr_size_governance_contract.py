@@ -1728,16 +1728,32 @@ def test_contract_risk_suite_blocks_stay_in_sync_and_cover_slack_operator_plane(
     assert "tests/test_legacy_bmi_shims.py" in test_pr_groups["route_contract_safety"]
 
 
-def test_pr_contract_risk_suite_disables_xdist_plugin_under_coverage() -> None:
+def test_contract_risk_suites_use_bounded_coverage_batches() -> None:
     workflow = _load_ci_workflow()
-    step = _job_step_by_name(
-        workflow,
-        job_id="test-pr",
-        step_name="Contract and risk suites",
-    )
-    run_script = step["run"]
-    assert isinstance(run_script, str)
-    assert "python -m coverage run --append -m pytest -q \\\n  -p no:xdist" in run_script
+    for job_id in ("test-pr", "test-feature"):
+        step = _job_step_by_name(
+            workflow,
+            job_id=job_id,
+            step_name="Contract and risk suites",
+        )
+        run_script = step["run"]
+        assert isinstance(run_script, str)
+        assert "contract_batch_size=24" in run_script
+        assert "for ((batch_start=0;" in run_script
+        assert "batch_targets=(" in run_script
+        assert "python -m coverage run --append -m pytest -q" in run_script
+        assert "-p no:xdist" in run_script
+        assert '"${batch_targets[@]}"' in run_script
+        assert '--junitxml="${junit_path}"' in run_script
+
+        upload_step = _job_step_by_name(
+            workflow,
+            job_id=job_id,
+            step_name="Upload JUnit test report",
+        )
+        upload_with = upload_step["with"]
+        assert isinstance(upload_with, dict)
+        assert "tests/contract-results*.xml" in str(upload_with["path"])
 
 
 def test_ci_workflow_declares_canonical_main_and_feature_push_jobs() -> None:

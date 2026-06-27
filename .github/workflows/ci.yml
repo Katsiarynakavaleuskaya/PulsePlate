@@ -963,11 +963,21 @@ jobs:
           printf 'Selected contract/risk suites:\n'
           printf '  - %s\n' "${SELECTED_TARGETS[@]}"
 
-          python -m coverage run --append -m pytest -q \
-            -p no:xdist \
-            "${SELECTED_TARGETS[@]}" \
-            --junitxml=tests/contract-results.xml \
-            -o junit_family=legacy
+          contract_batch_size=24
+          contract_batch_index=0
+          for ((batch_start=0; batch_start<${#SELECTED_TARGETS[@]}; batch_start+=contract_batch_size)); do
+            contract_batch_index=$((contract_batch_index + 1))
+            batch_targets=("${SELECTED_TARGETS[@]:batch_start:contract_batch_size}")
+            junit_path="tests/contract-results-${contract_batch_index}.xml"
+            printf 'Running contract/risk suite batch %s (%s target(s)):\n' \
+              "$contract_batch_index" "${#batch_targets[@]}"
+            printf '  - %s\n' "${batch_targets[@]}"
+            python -m coverage run --append -m pytest -q \
+              -p no:xdist \
+              "${batch_targets[@]}" \
+              --junitxml="${junit_path}" \
+              -o junit_family=legacy
+          done
 
       - name: Finalize coverage artifacts
         env:
@@ -997,7 +1007,7 @@ jobs:
           name: junit-${{ env.PYTHON_VERSION }}
           path: |
             tests/smoke-results.xml
-            tests/contract-results.xml
+            tests/contract-results*.xml
           if-no-files-found: ignore
           retention-days: 7
 
@@ -1246,11 +1256,21 @@ jobs:
           printf 'Selected contract/risk suites:\n'
           printf '  - %s\n' "${SELECTED_TARGETS[@]}"
 
-          python -m coverage run --append -m pytest -q \
-            -p no:xdist \
-            "${SELECTED_TARGETS[@]}" \
-            --junitxml=tests/contract-results.xml \
-            -o junit_family=legacy
+          contract_batch_size=24
+          contract_batch_index=0
+          for ((batch_start=0; batch_start<${#SELECTED_TARGETS[@]}; batch_start+=contract_batch_size)); do
+            contract_batch_index=$((contract_batch_index + 1))
+            batch_targets=("${SELECTED_TARGETS[@]:batch_start:contract_batch_size}")
+            junit_path="tests/contract-results-${contract_batch_index}.xml"
+            printf 'Running contract/risk suite batch %s (%s target(s)):\n' \
+              "$contract_batch_index" "${#batch_targets[@]}"
+            printf '  - %s\n' "${batch_targets[@]}"
+            python -m coverage run --append -m pytest -q \
+              -p no:xdist \
+              "${batch_targets[@]}" \
+              --junitxml="${junit_path}" \
+              -o junit_family=legacy
+          done
 
       - name: Finalize coverage artifacts
         env:
@@ -1280,7 +1300,7 @@ jobs:
           name: junit-${{ env.PYTHON_VERSION }}
           path: |
             tests/smoke-results.xml
-            tests/contract-results.xml
+            tests/contract-results*.xml
           if-no-files-found: ignore
           retention-days: 7
 

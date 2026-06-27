@@ -5,6 +5,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -66,10 +67,14 @@ def _run_openapi_pipeline(repo_root: Path) -> None:
     We retry once, but still fail-closed with stdout/stderr tail if persistent.
     """
     last_process: subprocess.CompletedProcess[str] | None = None
+    env = os.environ.copy()
+    env["DEV_PYTHON"] = sys.executable
+    env["VENV_PYTHON"] = sys.executable
     for _attempt in range(1, _OPENAPI_PIPELINE_ATTEMPTS + 1):
         process = subprocess.run(
             _OPENAPI_MAKE_CMD,
             cwd=repo_root,
+            env=env,
             text=True,
             capture_output=True,
             check=False,
@@ -94,6 +99,46 @@ def _run_openapi_pipeline(repo_root: Path) -> None:
             ]
         )
     )
+
+
+def test_openapi_pipeline_uses_current_python_for_make(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Worktree runs must not fall back to an unrelated ``python3`` on PATH."""
+
+    calls: list[dict[str, object]] = []
+
+    def fake_run(
+        args: list[str],
+        *,
+        cwd: Path,
+        env: dict[str, str],
+        text: bool,
+        capture_output: bool,
+        check: bool,
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append(
+            {
+                "args": args,
+                "cwd": cwd,
+                "env": env,
+                "text": text,
+                "capture_output": capture_output,
+                "check": check,
+            }
+        )
+        return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    _run_openapi_pipeline(tmp_path)
+
+    assert len(calls) == 1
+    env = calls[0]["env"]
+    assert isinstance(env, dict)
+    assert env["DEV_PYTHON"] == sys.executable
+    assert env["VENV_PYTHON"] == sys.executable
 
 
 def test_openapi_and_schema_ts_are_deterministic() -> None:
