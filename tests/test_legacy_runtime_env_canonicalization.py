@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import importlib
 from types import ModuleType
 
@@ -86,8 +87,7 @@ def test_canonical_bootstrap_staging_test_router_respects_environment_flag(
     )
 
 
-@pytest.mark.asyncio
-async def test_debug_env_uses_environment_when_app_env_missing(
+def test_debug_env_uses_environment_when_app_env_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("ENVIRONMENT", "production")
@@ -95,20 +95,19 @@ async def test_debug_env_uses_environment_when_app_env_missing(
     app_module = _reload_legacy_app()
 
     with pytest.raises(HTTPException) as exc_info:
-        await app_module.debug_env()
+        asyncio.run(app_module.debug_env())
 
     assert exc_info.value.status_code == 404
 
 
-@pytest.mark.asyncio
-async def test_health_prefers_environment_over_app_env(
+def test_health_prefers_environment_over_app_env(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("ENVIRONMENT", "production")
     monkeypatch.setenv("APP_ENV", "local")
 
     health_module = importlib.import_module("app.routers.health")
-    response = await health_module.health()
+    response = asyncio.run(health_module.health())
     assert response["environment"] == "production"
 
 
