@@ -23,6 +23,11 @@ blocker.
   contract test AST-structured instead of regex-based, centralizing safe loaded
   module attribute lookup in `conftest.py`, and replacing the one-off shell
   branch with a portable helper-to-test mapping table.
+- `1e9ba3b4d` - address CodeRabbit review feedback by keeping merge-readiness
+  checkboxes unchecked until the final cycle, making helper-test routing
+  fail-closed when a mapped target is missing, anchoring the static contract
+  source path from `__file__`, and covering missing helper targets with a
+  focused hook-resolver test.
 
 ## Lane Start Provenance
 
@@ -88,6 +93,7 @@ blocker.
 - [x] Fixed in commit mapping artifact created after GitHub assigned PR number
   `#2033`.
 - [x] Post-open Sourcery review was fixed and mapped.
+- [x] Post-open CodeRabbit actionable comments were fixed and mapped.
 - [x] Post-open QA, bug-hunter, and security-auditor role passes completed.
 - [x] Codex Security diff scan completed with 0 findings.
 - [ ] Current-head bot comments and CI are fixed or dispositioned before merge
@@ -105,10 +111,34 @@ Evidence: `conftest.py` now uses `_loaded_module_attr(...)` for setup and teardo
 Evidence: `scripts/run-backend-tests-pre-commit.sh` now keeps helper module routing in `PYTHON_HELPER_SOURCE_FILES` / `PYTHON_HELPER_TEST_TARGETS`, avoiding a one-off inline branch while remaining portable to macOS bash.
 Evidence: focused validation passed with `.venv/bin/python -m pytest -q tests/security/test_api_authz_contract_static.py tests/test_pre_commit_hook_python_resolver.py::test_backend_hook_maps_authz_contract_helper_to_static_contract_test tests/test_pre_commit_hook_python_resolver.py::test_backend_hook_uses_helper_test_mapping_table`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2033#pullrequestreview-4586033467 -> 1e9ba3b4d
+Disposition: FIXED
+Commit: 1e9ba3b4d
+Evidence: `docs/review/PR_2033_FIXED_MAPPING.md` keeps merge-readiness checklist items unchecked until the final merge cycle.
+Evidence: `scripts/run-backend-tests-pre-commit.sh` now exits with an error if a mapped helper test target is missing.
+Evidence: `tests/security/test_api_authz_contract_static.py` resolves `_api_authz_contracts.py` from `__file__`.
+Evidence: focused validation passed with `<repo-root>/.venv/bin/python -m pytest -q tests/security/test_api_authz_contract_static.py tests/test_pre_commit_hook_python_resolver.py::test_backend_hook_maps_authz_contract_helper_to_static_contract_test tests/test_pre_commit_hook_python_resolver.py::test_backend_hook_fails_closed_for_missing_helper_test_target tests/test_pre_commit_hook_python_resolver.py::test_backend_hook_uses_helper_test_mapping_table`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2033#discussion_r3486633092 -> 1e9ba3b4d
+Disposition: FIXED
+Commit: 1e9ba3b4d
+Evidence: `docs/review/PR_2033_FIXED_MAPPING.md` merge-readiness checklist entries remain `[ ]` until the final merge cycle.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2033#discussion_r3486633093 -> 1e9ba3b4d
+Disposition: FIXED
+Commit: 1e9ba3b4d
+Evidence: `scripts/run-backend-tests-pre-commit.sh` now fails closed with `Missing mapped pytest target for helper file ...` when the configured helper target is absent.
+Evidence: `tests/test_pre_commit_hook_python_resolver.py::test_backend_hook_fails_closed_for_missing_helper_test_target` covers the failure path.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2033#discussion_r3486633096 -> 1e9ba3b4d
+Disposition: FIXED
+Commit: 1e9ba3b4d
+Evidence: `tests/security/test_api_authz_contract_static.py` uses `Path(__file__).with_name("_api_authz_contracts.py")` before parsing the contract source.
+
 ## Review Tool Status
 
-- CodeRabbit emitted a rate-limit notice, not a review finding; it is not used
-  as approval evidence.
+- CodeRabbit emitted actionable review comments; they were fixed in
+  `1e9ba3b4d` and mapped above.
 - ChatGPT Codex connector emitted a usage-limit notice, not a review finding;
   it is not used as approval evidence.
 
