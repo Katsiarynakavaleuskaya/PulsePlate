@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 from dataclasses import dataclass
 from pathlib import Path
+import re
 import sys
 
 from packaging.requirements import InvalidRequirement
@@ -37,13 +38,16 @@ FORBIDDEN_LOCK_TOKENS = (
     "--editable",
     "\n-e ",
 )
-FORBIDDEN_SHARED_PROFILE_TOKENS = (
-    "requirements-data",
-    "requirements-evals",
-    "rag-vector-cpu)",
-    "data)",
-    "evals)",
+FORBIDDEN_SHARED_PROFILE_NAMES = (
+    "rag-vector-cpu",
+    "data",
+    "evals",
 )
+PROFILE_CASE_RE = re.compile(
+    r'case "\$selected_profile" in(?P<body>.*?)(?:^\s*\*\)|^\s*esac)',
+    re.S | re.M,
+)
+CASE_ARM_RE = re.compile(r"(?m)^\s*(?P<label>[A-Za-z0-9_-]+)\)(?:\s|$)")
 
 
 @dataclass(frozen=True)
@@ -211,6 +215,14 @@ def _load_installer_profiles() -> tuple[str, ...]:
     return tuple(REQUIREMENTS_PROFILES)
 
 
+def _shared_profile_case_labels(action_text: str) -> set[str]:
+    """Return exact requirements-profile case labels from the setup action."""
+    match = PROFILE_CASE_RE.search(action_text)
+    if match is None:
+        return set()
+    return {case_match.group("label") for case_match in CASE_ARM_RE.finditer(match.group("body"))}
+
+
 def _is_requirement_line(line: str) -> bool:
     stripped = line.strip()
     if not stripped or stripped.startswith("#"):
@@ -280,14 +292,17 @@ def _validate_shared_profiles(repo_root: Path, errors: list[str]) -> None:
         errors.append(f"Registry names unsupported installer profiles: {unsupported}.")
 
     action_text = _read_text(repo_root, PYTHON_SETUP_ACTION)
+    action_profile_labels = _shared_profile_case_labels(action_text)
+    if not action_profile_labels:
+        errors.append(f"{PYTHON_SETUP_ACTION}: missing requirements-profile case routing.")
     for profile in sorted(registry_profiles):
-        if profile not in action_text:
+        if profile not in action_profile_labels:
             errors.append(f"{PYTHON_SETUP_ACTION}: missing shared profile {profile!r}.")
-    for token in FORBIDDEN_SHARED_PROFILE_TOKENS:
-        if token in action_text:
+    for profile in FORBIDDEN_SHARED_PROFILE_NAMES:
+        if profile in action_profile_labels:
             errors.append(
                 f"{PYTHON_SETUP_ACTION}: local/manual dependency surface leaked into shared "
-                f"profile routing via {token!r}."
+                f"profile routing via {profile!r}."
             )
 
 

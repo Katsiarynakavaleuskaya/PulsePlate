@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import pytest
+
 import verify_requirements
 
 
-def test_verify_requirements_delegates_to_dependency_surface_validator(monkeypatch) -> None:
+def test_verify_requirements_delegates_to_dependency_surface_validator(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     observed_argv: list[str] | None = None
 
     def fake_validator(argv: list[str] | None = None) -> int:

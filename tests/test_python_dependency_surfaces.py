@@ -82,10 +82,7 @@ def _write_valid_contract_repo(root: Path) -> None:
             encoding="utf-8",
         )
 
-    (root / surfaces.PYTHON_SETUP_ACTION).write_text(
-        "runtime runtime-dev runtime-test ci-test ci-lite rag-vector\n",
-        encoding="utf-8",
-    )
+    _write_python_setup_action(root)
     (root / surfaces.PIP_AUDIT_HELPER).write_text(
         "\n".join(
             surface.lockfile
@@ -99,6 +96,29 @@ def _write_valid_contract_repo(root: Path) -> None:
             surface.lockfile
             for surface in surfaces.DEPENDENCY_SURFACES
             if surface.dependency_submission_required
+        ),
+        encoding="utf-8",
+    )
+
+
+def _write_python_setup_action(root: Path, extra_case_labels: tuple[str, ...] = ()) -> None:
+    profile_labels = (
+        "runtime",
+        "runtime-dev",
+        "runtime-test",
+        "ci-test",
+        "ci-lite",
+        "rag-vector",
+        *extra_case_labels,
+    )
+    case_lines = "\n".join(f"            {profile}) ;;" for profile in profile_labels)
+    (root / surfaces.PYTHON_SETUP_ACTION).write_text(
+        (
+            "# Mention requirements-data, requirements-evals, and rag-vector-cpu in a comment.\n"
+            'case "$selected_profile" in\n'
+            f"{case_lines}\n"
+            "            *) ;;\n"
+            "          esac\n"
         ),
         encoding="utf-8",
     )
@@ -133,15 +153,23 @@ def test_dependency_surface_contract_rejects_local_manual_shared_profile(
     tmp_path: Path,
 ) -> None:
     _write_valid_contract_repo(tmp_path)
-    (tmp_path / surfaces.PYTHON_SETUP_ACTION).write_text(
-        "runtime ci-lite rag-vector requirements-data data)\n",
-        encoding="utf-8",
-    )
+    _write_python_setup_action(tmp_path, extra_case_labels=("data", "evals", "rag-vector-cpu"))
 
     errors = surfaces.validate_repo(tmp_path)
 
-    assert any("requirements-data" in error for error in errors)
-    assert any("data)" in error for error in errors)
+    assert any("'data'" in error for error in errors)
+    assert any("'evals'" in error for error in errors)
+    assert any("'rag-vector-cpu'" in error for error in errors)
+
+
+def test_dependency_surface_contract_ignores_local_manual_names_outside_profile_cases(
+    tmp_path: Path,
+) -> None:
+    _write_valid_contract_repo(tmp_path)
+
+    errors = surfaces.validate_repo(tmp_path)
+
+    assert errors == []
 
 
 def test_dependency_surface_contract_rejects_missing_doc_mirror(tmp_path: Path) -> None:
