@@ -7,11 +7,14 @@ from __future__ import annotations
 
 from fastapi import FastAPI
 
+from app.bootstrap.route_family import route_has_dependency_call
 from app.effective_routes import (
     iter_effective_route_candidates,
+    route_endpoint,
     route_endpoint_for_path_method,
-    route_ownership_counts,
+    route_matches_path_method,
 )
+from app.middleware.api_tiers import require_pro_tier
 
 _TARGETS_ROUTE_PATH = "/api/v1/pro/nutrition/targets"
 _PLATE_ROUTE_PATH = "/api/v1/pro/nutrition/plate"
@@ -23,11 +26,20 @@ def _canonical_route_state(
     path: str,
     endpoint: object,
 ) -> bool:
-    expected_count, foreign_count = route_ownership_counts(routes, path, "POST", endpoint)
+    matching_routes = [route for route in routes if route_matches_path_method(route, path, "POST")]
+    expected_routes = [route for route in matching_routes if route_endpoint(route) is endpoint]
+    expected_count = len(expected_routes)
+    foreign_count = len(matching_routes) - expected_count
     if foreign_count or expected_count > 1:
         raise RuntimeError(
             f"Duplicate {path} route detected with a different PRO contract handler."
         )
+    if expected_count == 1:
+        route = expected_routes[0]
+        if not route_has_dependency_call(route, require_pro_tier):
+            raise RuntimeError(
+                f"Existing {path} route does not preserve PRO contract required dependency."
+            )
     return expected_count == 1
 
 
