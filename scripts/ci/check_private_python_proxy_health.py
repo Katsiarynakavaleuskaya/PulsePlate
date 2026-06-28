@@ -199,17 +199,17 @@ def validate_index_url(
         )
     if hostname in BLOCKED_PUBLIC_HOSTS:
         raise ValueError(f"public_index_url: public package host is forbidden: {hostname}")
+    if "pulseplate.app" == hostname:
+        raise ValueError("unexpected_packages_host: marketing apex is not the package proxy")
     if hostname != expected_host and not allow_dev_host:
         raise ValueError(f"unexpected_packages_host: expected {expected_host}, got {hostname}")
-    if hostname == expected_host and path != DEFAULT_SIMPLE_ROOT_PATH:
+    if path != DEFAULT_SIMPLE_ROOT_PATH:
         raise ValueError(
             "unexpected_index_path: expected canonical devpi simple root "
             f"{DEFAULT_SIMPLE_ROOT_PATH}"
         )
     if parsed.query or parsed.fragment:
         raise ValueError("invalid_index_url: query and fragment are not allowed")
-    if "pulseplate.app" == hostname:
-        raise ValueError("unexpected_packages_host: marketing apex is not the package proxy")
     return normalized.rstrip("/") + "/"
 
 

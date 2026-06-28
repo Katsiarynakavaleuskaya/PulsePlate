@@ -48,6 +48,22 @@ def test_validate_index_url_normalizes_approved_host() -> None:
     assert checker.validate_index_url(f"  {APPROVED_INDEX.rstrip('/')}  ") == APPROVED_INDEX
 
 
+def test_validate_index_url_allow_dev_host_still_requires_simple_root() -> None:
+    with pytest.raises(ValueError, match="unexpected_index_path"):
+        checker.validate_index_url(
+            "https://devpi.local/simple/",
+            allow_dev_host=True,
+        )
+
+    assert (
+        checker.validate_index_url(
+            "https://devpi.local/root/pulseplate/+simple/",
+            allow_dev_host=True,
+        )
+        == "https://devpi.local/root/pulseplate/+simple/"
+    )
+
+
 def test_project_page_url_uses_normalized_simple_project_page() -> None:
     assert (
         checker.project_page_url(APPROVED_INDEX, "Pydantic_Core")

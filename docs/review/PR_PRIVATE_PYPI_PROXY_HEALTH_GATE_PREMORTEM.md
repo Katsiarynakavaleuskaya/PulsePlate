@@ -76,9 +76,9 @@ body.
 python3 scripts/orchestration/check_preflight.py
 python3 scripts/orchestration/check_agent_consistency.py
 PYTHONPATH= python3 -I -S scripts/ci/check_private_python_proxy_health.py --help
-python -m pytest -q tests/test_private_python_proxy_health.py
-python -m pytest -q tests/test_private_python_proxy_workflow_contract.py
-python -m pytest -q tests/test_python_supply_chain_controls.py
+.venv/bin/python -m pytest -q tests/test_private_python_proxy_health.py
+.venv/bin/python -m pytest -q tests/test_private_python_proxy_workflow_contract.py
+.venv/bin/python -m pytest -q tests/test_python_supply_chain_controls.py
 python3 scripts/ci/check_private_python_proxy_health.py \
   --requirements-file requirements.txt \
   --requirements-file requirements-ci-lite.txt \
