@@ -9,6 +9,14 @@ from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 
 from legacy_app import _get_api_key_dynamic
+from app.effective_routes import (
+    iter_effective_route_candidates,
+    route_endpoint,
+    route_include_in_schema,
+    route_methods,
+    route_path,
+    route_responses,
+)
 from app.main import app
 from app.routers import plan_export
 import settings
@@ -191,19 +199,20 @@ def test_export_routes_are_registered_but_hidden_from_public_openapi() -> None:
     for (method, path), include_in_schema in expected_routes.items():
         matching_routes = [
             route
-            for route in app.routes
-            if isinstance(route, APIRoute)
-            and route.path == path
-            and method in (route.methods or set())
+            for route in iter_effective_route_candidates(app.routes)
+            if route_path(route) == path and method in route_methods(route)
         ]
         assert len(matching_routes) == 1
         route = matching_routes[0]
+        source_route = getattr(route, "original_route", route)
+        assert isinstance(source_route, APIRoute)
+        endpoint = route_endpoint(route)
         flattened_calls = _flatten_dependency_calls(route)
 
-        assert route.endpoint.__module__ == "app.routers.plan_export"
-        assert route.include_in_schema is include_in_schema
-        assert 429 in route.responses
-        assert "request" in inspect.signature(route.endpoint).parameters
+        assert getattr(endpoint, "__module__", None) == "app.routers.plan_export"
+        assert route_include_in_schema(route) is include_in_schema
+        assert 429 in route_responses(route)
+        assert "request" in inspect.signature(endpoint).parameters
         assert _contains_dependency(flattened_calls, _get_api_key_dynamic)
         if path in {plan_export.WEEK_EXPORT_CSV_PATH, plan_export.WEEK_EXPORT_PDF_PATH}:
             assert _contains_dependency(flattened_calls, plan_export._require_valid_token)
