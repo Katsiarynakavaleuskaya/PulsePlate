@@ -18,6 +18,7 @@ import shutil
 import subprocess  # nosec B404: fixed git/gh subprocess wrappers only (remove-by: 2026-07-31, ref: PR-3)
 import sys
 import tempfile
+from urllib.parse import urlparse
 from typing import Any, Protocol, cast
 
 from core.evidence.fingerprints import fingerprint_payload
@@ -88,6 +89,27 @@ SUCCESS_PLAN_OUTPUT = "PASS: creative-code PR promotion plan complete"
 SUCCESS_VALIDATE_OUTPUT = "PASS: creative-code PR promotion validation complete"
 SUCCESS_APPROVE_OUTPUT = "PASS: creative-code PR promotion approval complete"
 SUCCESS_PROMOTE_OUTPUT = "PASS: creative-code PR promotion complete"
+
+
+def _origin_remote_targets_pulseplate(remote_url: str) -> bool:
+    """Return whether an origin URL resolves exactly to the PulsePlate GitHub repo."""
+    expected_owner, expected_repo = TARGET_REPOSITORY.split("/", 1)
+
+    if remote_url.startswith("git@github.com:"):
+        path = remote_url.removeprefix("git@github.com:")
+    else:
+        parsed = urlparse(remote_url)
+        if parsed.scheme not in {"https", "ssh"}:
+            return False
+        if parsed.hostname != "github.com":
+            return False
+        if parsed.scheme == "ssh" and parsed.username not in {None, "git"}:
+            return False
+        path = parsed.path.lstrip("/")
+
+    if path.endswith(".git"):
+        path = path[:-4]
+    return path == f"{expected_owner}/{expected_repo}"
 
 SAFE_PROMOTION_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$")
 SAFE_SLUG_RE = re.compile(r"[^a-z0-9]+")
@@ -1001,8 +1023,8 @@ def _prepare_checkout(
         git.run(["checkout", "--detach", base_commit_sha], cwd=checkout)
         if promotion_remote:
             remote_url = git.remote_url()
-            if "Katsiarynakavaleuskaya/PulsePlate" not in remote_url:
-                raise CreativeCodePRPromotionError("origin remote must target PulsePlate.")
+            if not _origin_remote_targets_pulseplate(remote_url):
+                raise CreativeCodePRPromotionError("origin remote must target GitHub PulsePlate.")
             git.run(["remote", "set-url", "origin", remote_url], cwd=checkout)
         else:
             git.run(["remote", "set-url", "--push", "origin", "DISABLED"], cwd=checkout)

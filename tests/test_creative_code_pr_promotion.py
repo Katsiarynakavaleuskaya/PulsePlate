@@ -199,12 +199,14 @@ class FakeGit:
         remote_exists_sequence: list[bool] | None = None,
         identity: tuple[str, str] | None = ("Katsiarynakavaleuskaya", "human@example.test"),
         verify_identity_failure: bool = False,
+        remote_url: str = "git@github.com:Katsiarynakavaleuskaya/PulsePlate.git",
     ) -> None:
         self.base_sha = base_sha
         self.remote_exists = remote_exists
         self.remote_exists_sequence = list(remote_exists_sequence or [])
         self.identity = identity
         self.verify_identity_failure = verify_identity_failure
+        self._remote_url = remote_url
         self.committed = False
         self.calls: list[list[str]] = []
 
@@ -225,7 +227,7 @@ class FakeGit:
         return False
 
     def remote_url(self) -> str:
-        return "git@github.com:Katsiarynakavaleuskaya/PulsePlate.git"
+        return self._remote_url
 
     def human_identity(self) -> tuple[str, str]:
         self.calls.append(["human_identity"])
@@ -279,6 +281,43 @@ class FakeGit:
         elif "commit" in args:
             self.committed = True
         return subprocess.CompletedProcess(args=args, returncode=0, stdout=stdout, stderr="")
+
+
+def test_origin_remote_validation_rejects_spoofed_host() -> None:
+    assert not creative_code_pr_promotion._origin_remote_targets_pulseplate(
+        "ssh://git@evil.example/Katsiarynakavaleuskaya/PulsePlate.git"
+    )
+
+
+def test_origin_remote_validation_accepts_github_forms() -> None:
+    assert creative_code_pr_promotion._origin_remote_targets_pulseplate(
+        "git@github.com:Katsiarynakavaleuskaya/PulsePlate.git"
+    )
+    assert creative_code_pr_promotion._origin_remote_targets_pulseplate(
+        "https://github.com/Katsiarynakavaleuskaya/PulsePlate.git"
+    )
+    assert creative_code_pr_promotion._origin_remote_targets_pulseplate(
+        "ssh://git@github.com/Katsiarynakavaleuskaya/PulsePlate.git"
+    )
+
+
+def test_prepare_checkout_rejects_spoofed_promotion_remote(tmp_path: Path) -> None:
+    promotion_dir = tmp_path / "promotion"
+    promotion_dir.mkdir()
+    git = FakeGit(
+        remote_url="ssh://git@evil.example/Katsiarynakavaleuskaya/PulsePlate.git"
+    )
+
+    with pytest.raises(CreativeCodePRPromotionError, match="origin remote"):
+        creative_code_pr_promotion._prepare_checkout(
+            promotion_dir=promotion_dir,
+            dirname="promotion_checkout",
+            base_commit_sha="a" * 40,
+            git=git,
+            promotion_remote=True,
+        )
+
+    assert ["remote", "set-url", "origin", git.remote_url()] not in git.calls
 
 
 class FakeGates:
