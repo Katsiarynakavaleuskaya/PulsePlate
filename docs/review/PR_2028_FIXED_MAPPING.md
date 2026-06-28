@@ -94,6 +94,11 @@ Evidence: `scripts/orchestration/pr_review_context.py` compares local mapping ev
 Disposition: FIXED.
 Evidence: `scripts/orchestration/agent_learning_loop.py` revalidates redacted stored fields and recomputes `dedupe_fingerprint` / `lesson_id`; `docs/orchestration/contracts/review_source_status.v1.json` enumerates statuses in parity with `REVIEW_SOURCE_STATUSES`; `scripts/orchestration/pr_review_context.py` redacts command diagnostics. `tests/test_agent_learning_loop.py`, `tests/test_review_source_status.py`, and `tests/test_pr_review_context.py` cover all three regressions.
 
+- `pulseplate-pr-review` dry-run pass: advisory `note` on large-diff risk above the review-risk threshold.
+Disposition: NOT-A-BUG.
+Evidence: PR body records a non-template split justification plus `Operator approval: approved`, `Emergency exception: approved`, and `Privileged scope exception: approved`; PR labels include `scope/operator-approved`, `scope/emergency-approved`, and `scope/privileged-approved`; `python3 scripts/ci/check_pr_size_governance.py --base-sha 47997f59caeba4a140fcc25e835f5563c3c641de --head-sha c92a2b32e497af667201f70e5e0485faaa54cff7 --event-path <tmp event with live PR body and labels>` passed with `PR scope governance: OK (>30 files) because an operator-approved emergency exception is documented.`.
+Reason: The large-diff note is valid review-planning signal, but the intentionally broad one-PR governance contract is operator-approved and locally validated by the repository size-governance gate.
+
 ## Premortem Evidence
 - Disposition: FIXED
 - Evidence: `scripts/orchestration/agent_learning_loop.py`, `tests/test_agent_learning_loop.py`, `docs/orchestration/REVIEW_SOURCE_DEGRADATION_POLICY.md`, `scripts/orchestration/pr_review_report.py`, `tests/test_pr_review_report.py`, and `docs/orchestration/SCOPED_VALIDATION_POLICY.md` cover learning-record validation, degraded-source advisory semantics, and scoped-validation boundaries.
