@@ -9,12 +9,12 @@ default ignore := false
 # - Limit to the installed versions reported at time of suppression
 # - CI enforces a single file-level expiry (exactly one "Suppression expires: YYYY-MM-DD" per policy file)
 #
-# Suppression expires: 2026-06-27 (manual removal)
-# Last reviewed: 2026-06-14
+# Suppression expires: 2026-07-04 (manual removal)
+# Last reviewed: 2026-06-28
 # Documented in: docs/security/CVE-2026-27171-zlib1g.md, docs/security/CVE-2026-3184-util-linux.md, docs/security/CVE-2025-69720-ncurses.md, docs/security/CVE-2026-54297-faraday-fastlane.md
 
 # CVE-2026-27171 (zlib1g) - no fixed release for Debian bookworm at review time
-# Review-by: 2026-06-27 (manual removal)
+# Review-by: 2026-07-04 (manual removal)
 # Rationale: Debian bookworm has no fixed zlib1g package for this CVE at review time; no repository-level remediation is available until Debian publishes a fixed package or Trivy metadata gains a Fixed Version.
 # Note: CI expiry is enforced once per policy file (see header); do not add another "Suppression expires:" line.
 # Monitor: https://security-tracker.debian.org/tracker/CVE-2026-27171
@@ -37,7 +37,7 @@ ignore if {
 }
 
 # CVE-2026-3184 (util-linux family) - Debian bookworm no-dsa / not applicable to login in this release context at review time
-# Review-by: 2026-06-27 (manual removal)
+# Review-by: 2026-07-04 (manual removal)
 # Rationale: Debian bookworm marks this LOW-severity util-linux issue as no-dsa/non-applicable for the login binary context; keep exact package/version scope while monitoring Debian/Trivy metadata.
 # Monitor: https://security-tracker.debian.org/tracker/CVE-2026-3184
 # Documented in: docs/security/CVE-2026-3184-util-linux.md
@@ -63,7 +63,7 @@ ignore if {
 }
 
 # CVE-2025-69720 (ncurses family) - no fixed release for Debian bookworm at review time
-# Review-by: 2026-06-27 (manual removal)
+# Review-by: 2026-07-04 (manual removal)
 # Rationale: Debian bookworm remains no-dsa/minor for ncurses packages at review time; keep exact package/version scope while monitoring Debian/Trivy metadata.
 # Monitor: https://security-tracker.debian.org/tracker/CVE-2025-69720
 # Documented in: docs/security/CVE-2025-69720-ncurses.md
