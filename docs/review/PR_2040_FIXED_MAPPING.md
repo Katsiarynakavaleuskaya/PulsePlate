@@ -20,6 +20,7 @@
 - [x] CodeRabbit no-actionables at PR open.
 - [x] QA pass completed; typed-test finding fixed.
 - [x] Bug-hunter pass completed; no actionable bug findings.
+- [x] Current-head `lint` backend-tests finding fixed: changed-file creative research runtime tests now use sync wrappers instead of `pytest-asyncio`-dependent `async def`.
 - [x] Local focused tests, `make validate-changed`, and `pre-commit run --all-files` passed.
 - [x] Pre-push hooks passed, including mypy, pip-audit, backend tests, full-repo Bandit, and docker build test.
 - [ ] Current-head CI complete before readiness language.
@@ -40,12 +41,14 @@
 - `python3 scripts/orchestration/role_dispatch_bridge.py --packet artifacts/orchestration/task_packets/dfc28f8b69f1.json --mode runtime --implementation-owner qa-engineer-agent --pretty`: PASS.
 - Role passes: `agent-coordinator`, `qa-engineer-agent`, `bug-hunter`: no remaining blocking findings after the typed-test hygiene fix.
 - `./.venv/bin/python -m pytest tests/test_app_basic_combined.py tests/test_app_vip_comprehensive_97.py tests/test_vip_production_simple.py tests/test_creative_research_pilot_api.py tests/test_legacy_export_aliases.py tests/test_test_router.py tests/test_legacy_runtime_env_canonicalization.py tests/test_test_route_registration_bootstrap.py tests/test_vip_api.py tests/test_route_patch_helper.py tests/test_metrics.py -q`: PASS, 167 passed.
+- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest tests/test_creative_research_pilot_api.py -q`: PASS, 23 passed.
+- `VENV_PYTHON="/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python" BRANCH_DIFF_MODE=1 bash scripts/run-backend-tests-pre-commit.sh`: PASS, 188 selected tests.
 - `./.venv/bin/python -m pytest tests/test_test_route_registration_bootstrap.py tests/test_creative_code_pr_promotion.py -q`: PASS, 46 passed.
 - `./.venv/bin/python -m flake8 .`: PASS after fixing CI-lint F401/F402 findings.
 - `./.venv/bin/python -m mypy app/middleware/metrics.py --no-incremental --cache-dir=/dev/null`: PASS.
 - `./.venv/bin/python -m mypy tests/test_vip_api.py tests/test_vip_production_simple.py --no-incremental --cache-dir=/dev/null`: PASS.
-- `make validate-changed`: PASS after commit; selected the changed test/helper files and passed.
-- `pre-commit run --all-files`: PASS.
+- `make validate-changed`: PASS after current-head lint backend-tests fix; selected the changed test/helper files and passed.
+- `pre-commit run --all-files`: PASS after current-head lint backend-tests fix.
 - Pre-push hooks: mypy, pip-audit, backend tests, full-repo Bandit, and docker build test PASS.
 
 ## Merge Readiness
