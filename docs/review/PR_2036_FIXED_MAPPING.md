@@ -56,6 +56,7 @@ Out of scope:
 
 - `eb99d3145` - `ci(deps): add private Python proxy health gate`
 - `bc9c1868f` - `fix(ci): harden private proxy health gate`
+- `c49b6de37` - `fix(ci): close proxy health review findings`
 
 ## Discussion Thread Pass
 
@@ -73,16 +74,27 @@ Out of scope:
 ## Fixed in Commit Mapping
 
 Disposition: FIXED
-Commit: `eb99d3145`
+Commit: eb99d3145
 Evidence: `scripts/ci/check_private_python_proxy_health.py`, `.github/workflows/ci.yml`, `tests/test_private_python_proxy_health.py`, `tests/test_private_python_proxy_workflow_contract.py`, `tests/test_python_supply_chain_controls.py`, `RUNBOOK_AGENT.md`, `docs/DEPENDENCY_MANAGEMENT.md`, `docs/security/PRIVATE_PYTHON_PROXY_HEALTH_GATE.md`, `docs/roadmap/BACKLOG_LEDGER.md`, and `docs/review/PR_PRIVATE_PYPI_PROXY_HEALTH_GATE_PREMORTEM.md`.
 Reason: Adds the private proxy health checker, early CI job, exact-pin mirror parity checks, URL/credential policy, and docs for the packages-host contract.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036 -> eb99d3145
 
 Disposition: FIXED
-Commit: `bc9c1868f`
+Commit: bc9c1868f
 Evidence: `scripts/ci/check_private_python_proxy_health.py`, `.github/workflows/ci.yml`, `tests/test_private_python_proxy_health.py`, `tests/test_private_python_proxy_workflow_contract.py`, and `tests/test_python_supply_chain_controls.py`.
 Reason: Closes post-open review-agent findings by making protected credentials main-only and `.netrc`-based, enforcing the canonical same-host simple root, disabling checkout credential persistence in the health job, including `requirements-test.txt` / CI-tool representative projects, rejecting root devpi credentials, and strengthening log redaction.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036 -> bc9c1868f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#discussion_r3487777902 -> bc9c1868f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#discussion_r3487777905 -> bc9c1868f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#discussion_r3487777910 -> bc9c1868f
+
+Disposition: FIXED
+Commit: c49b6de37
+Evidence: `scripts/ci/check_private_python_proxy_health.py`, `tests/test_private_python_proxy_health.py`, `tests/test_private_python_proxy_workflow_contract.py`, `docs/DEPENDENCY_MANAGEMENT.md`, `RUNBOOK_AGENT.md`, and `docs/security/PRIVATE_PYTHON_PROXY_HEALTH_GATE.md`.
+Reason: Closes review findings by making exact-pin parsing fail closed on extra specifiers and conflicting pins, documenting the complete checker reason-code matrix, adding a docs Phase1 evidence anchor, and adding deterministic coverage that `pydantic-core` stays out of the fast proxy probe.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#discussion_r3487777907 -> c49b6de37
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#discussion_r3487777909 -> c49b6de37
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#discussion_r3487777911 -> c49b6de37
 
 ## Local Validation
 
@@ -106,7 +118,8 @@ Validated on the rebased mapping head:
   `PULSEPLATE_PYTHON_INDEX_URL='https://packages.pulseplate.app/root/pulseplate/+simple/' python3 scripts/ci/install_locked_python_requirements.py --preflight-only`
 - PASS:
   `.venv/bin/python -m pytest -q tests/test_private_python_proxy_health.py tests/test_private_python_proxy_workflow_contract.py tests/test_python_supply_chain_controls.py`
-  - Result: `103 passed`; one existing Starlette/httpx2 deprecation warning.
+  - Result after review fixes: `105 passed`; one existing Starlette/httpx2
+    deprecation warning.
 - PASS: `make validate-changed`
   - Selected:
     `tests/test_private_python_proxy_health.py`,
