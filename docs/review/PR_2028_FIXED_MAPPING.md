@@ -80,6 +80,10 @@ Evidence: This mapping no longer embeds a self-stale local-head SHA and records 
 Disposition: FIXED.
 Evidence: The Experiment Runner note now limits itself to the relevant fact: no current-head Experiment Runner result artifact is present locally.
 
+- `security-auditor` post-open pass: BLOCK on raw local path exposure in unreadable learning-record errors and fixed-mapping context JSON.
+Disposition: FIXED.
+Evidence: `scripts/orchestration/agent_lesson_promoter.py` emits a generic unreadable-record error for `OSError`, and `scripts/orchestration/pr_review_context.py` emits only `repo_path` for fixed-mapping artifacts. `tests/test_agent_learning_loop.py` and `tests/test_pr_review_context.py` assert local `tmp_path` and `/etc/...` paths are absent from CLI errors and context payloads.
+
 ## Premortem Evidence
 - Disposition: FIXED
 - Evidence: `scripts/orchestration/agent_learning_loop.py`, `tests/test_agent_learning_loop.py`, `docs/orchestration/REVIEW_SOURCE_DEGRADATION_POLICY.md`, `scripts/orchestration/pr_review_report.py`, `tests/test_pr_review_report.py`, and `docs/orchestration/SCOPED_VALIDATION_POLICY.md` cover learning-record validation, degraded-source advisory semantics, and scoped-validation boundaries.

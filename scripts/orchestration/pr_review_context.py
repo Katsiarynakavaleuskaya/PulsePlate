@@ -144,7 +144,6 @@ def collect_fixed_mapping_state(repo_root: Path, pr_number: int) -> dict[str, An
     path = repo_root / "docs" / "review" / f"PR_{pr_number}_FIXED_MAPPING.md"
     if not path.exists():
         return {
-            "path": str(path),
             "repo_path": rel_path,
             "exists": False,
             "entries": {},
@@ -177,7 +176,6 @@ def collect_fixed_mapping_state(repo_root: Path, pr_number: int) -> dict[str, An
             entries[parsed[0]] = parsed[1]
 
     return {
-        "path": str(path),
         "repo_path": rel_path,
         "exists": True,
         "entries": entries,
@@ -394,7 +392,6 @@ def collect_review_context(
     fixed_mapping: dict[str, Any]
     if pr_number is None:
         fixed_mapping = {
-            "path": str(repo_root / "docs" / "review" / "PR_<N>_FIXED_MAPPING.md"),
             "repo_path": "docs/review/PR_<N>_FIXED_MAPPING.md",
             "exists": False,
             "errors": ["No PR number provided for fixed-mapping lookup."],

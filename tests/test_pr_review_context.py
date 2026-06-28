@@ -15,7 +15,9 @@ def test_collect_fixed_mapping_state_reports_missing_artifact(tmp_path: Path) ->
     state = review_ctx.collect_fixed_mapping_state(repo_root=tmp_path, pr_number=123)
 
     assert state["exists"] is False
-    assert state["path"].endswith("docs/review/PR_123_FIXED_MAPPING.md")
+    assert "path" not in state
+    assert state["repo_path"] == "docs/review/PR_123_FIXED_MAPPING.md"
+    assert str(tmp_path) not in json.dumps(state, sort_keys=True)
     assert state["entries"] == {}
     assert any("missing" in item.lower() for item in state["errors"])
 
@@ -263,6 +265,8 @@ def test_collect_review_context_uses_repo_relative_mapping_evidence_without_pr_n
     )
 
     by_source = {item["source"]: item for item in context["review_source_status"]}
+    assert "path" not in context["fixed_mapping"]
+    assert str(tmp_path) not in json.dumps(context["fixed_mapping"], sort_keys=True)
     assert by_source["fixed_mapping_artifact"]["evidence"] == "docs/review/PR_<N>_FIXED_MAPPING.md"
     assert str(tmp_path) not in by_source["fixed_mapping_artifact"]["evidence"]
 

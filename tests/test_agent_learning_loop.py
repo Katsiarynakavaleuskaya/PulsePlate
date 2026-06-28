@@ -319,7 +319,29 @@ def test_agent_lesson_promoter_cli_reports_unreadable_record_file(tmp_path: Path
 
     assert result.returncode != 0
     assert "Invalid learning record input:" in result.stderr
-    assert str(missing) in result.stderr
+    assert str(missing) not in result.stderr
+    assert "unable to read record file" in result.stderr
+
+
+def test_agent_lesson_promoter_cli_redacts_system_absolute_record_path() -> None:
+    missing = "/etc/pulseplate-missing-record.json"
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "scripts/orchestration/agent_lesson_promoter.py",
+            "--record",
+            missing,
+        ],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode != 0
+    assert "Invalid learning record input:" in result.stderr
+    assert missing not in result.stderr
+    assert "unable to read record file" in result.stderr
 
 
 def test_agent_learning_record_schema_matches_extractor_shape() -> None:

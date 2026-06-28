@@ -15,6 +15,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from scripts.orchestration.agent_learning_loop import (
     build_learning_promotion_proposal,
+    redact_learning_text,
     validate_agent_learning_record,
 )
 
@@ -42,8 +43,12 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         proposal = promote_agent_lesson_record(_load_record(args.record))
-    except (OSError, ValueError) as exc:
-        raise SystemExit(f"Invalid learning record input: {exc}") from exc
+    except OSError as exc:
+        raise SystemExit("Invalid learning record input: unable to read record file.") from exc
+    except ValueError as exc:
+        raise SystemExit(
+            f"Invalid learning record input: {redact_learning_text(str(exc))}"
+        ) from exc
     print(json.dumps(proposal, indent=2, sort_keys=True))
     return 0
 
