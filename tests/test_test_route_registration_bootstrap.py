@@ -10,6 +10,12 @@ from fastapi.testclient import TestClient
 
 import app.main as app_main
 from app.bootstrap.route_family import route_has_dependency_call
+from app.effective_routes import (
+    iter_effective_route_candidates,
+    route_include_in_schema,
+    route_methods,
+    route_path,
+)
 
 _EXPECTED_TEST_ROUTE_KEYS = {
     (path, method) for path, method, _include_in_schema in app_main._TEST_ROUTE_SPECS
@@ -38,19 +44,19 @@ def _set_runtime_env(
         monkeypatch.setenv("ENABLE_TEST_ROUTES", enable_test_routes)
 
 
-def _test_routes(target_app: FastAPI) -> list[APIRoute]:
+def _test_routes(target_app: FastAPI) -> list[object]:
     return [
         route
-        for route in target_app.routes
-        if isinstance(route, APIRoute) and str(route.path) in _EXPECTED_TEST_ROUTE_PATHS
+        for route in iter_effective_route_candidates(target_app.routes)
+        if route_path(route) in _EXPECTED_TEST_ROUTE_PATHS
     ]
 
 
 def _registered_test_route_counts(target_app: FastAPI) -> Counter[tuple[str, str]]:
     counts: Counter[tuple[str, str]] = Counter()
     for route in _test_routes(target_app):
-        for method in getattr(route, "methods", None) or set():
-            key = (str(route.path), str(method).upper())
+        for method in route_methods(route):
+            key = (route_path(route), method)
             if key in _EXPECTED_TEST_ROUTE_KEYS:
                 counts[key] += 1
     return counts
@@ -62,20 +68,20 @@ def _assert_test_routes_registered_once(target_app: FastAPI) -> None:
     assert all(count == 1 for count in counts.values())
 
     for route in _test_routes(target_app):
-        assert route.include_in_schema is False
+        assert route_include_in_schema(route) is False
         assert route_has_dependency_call(route, app_main.ensure_test_routes_non_production)
 
 
 def _stub_test_router_without_dependencies() -> APIRouter:
     router = APIRouter()
 
-    for path, method, include_in_schema in app_main._TEST_ROUTE_SPECS:
+    for spec_path, method, include_in_schema in app_main._TEST_ROUTE_SPECS:
 
-        async def _handler(route_path: str = path) -> dict[str, str]:
-            return {"path": route_path}
+        async def _handler(current_route_path: str = spec_path) -> dict[str, str]:
+            return {"path": current_route_path}
 
         router.add_api_route(
-            path,
+            spec_path,
             _handler,
             methods=[method],
             include_in_schema=include_in_schema,
@@ -221,13 +227,13 @@ def test_test_route_registration_rejects_partial_existing_family() -> None:
 def test_test_route_registration_rejects_foreign_handlers() -> None:
     target_app = FastAPI()
 
-    for path, method, include_in_schema in app_main._TEST_ROUTE_SPECS:
+    for spec_path, method, include_in_schema in app_main._TEST_ROUTE_SPECS:
 
-        async def _foreign_test_route(route_path: str = path) -> dict[str, str]:
-            return {"path": route_path}
+        async def _foreign_test_route(current_route_path: str = spec_path) -> dict[str, str]:
+            return {"path": current_route_path}
 
         target_app.add_api_route(
-            path,
+            spec_path,
             _foreign_test_route,
             methods=[method],
             include_in_schema=include_in_schema,

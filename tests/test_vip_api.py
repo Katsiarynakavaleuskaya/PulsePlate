@@ -9,6 +9,8 @@ EN: Tests for VIP API endpoints
 import pytest
 from fastapi.testclient import TestClient
 
+from tests._route_patch import find_route_endpoint, patch_endpoint_global
+
 
 def test_vip_health(client: TestClient, vip_headers: dict[str, str]) -> None:
     """Test VIP health endpoint returns 200"""
@@ -23,8 +25,6 @@ def test_vip_health(client: TestClient, vip_headers: dict[str, str]) -> None:
 def test_deprecated_weekly_plan_handles_dict_plan(
     monkeypatch: pytest.MonkeyPatch, client: TestClient, vip_headers: dict[str, str]
 ) -> None:
-    from fastapi.routing import APIRoute
-
     def fake_make_weekly_menu(*, profile: object) -> dict[str, object]:
         return {
             "week_start": "2026-01-01",
@@ -35,24 +35,20 @@ def test_deprecated_weekly_plan_handles_dict_plan(
             "adherence_score": 0,
         }
 
-    deprecated_route = next(
-        (
-            r
-            for r in client.app.routes
-            if isinstance(r, APIRoute)
-            and r.path == "/api/v1/vip/weekly-plan"
-            and "POST" in (r.methods or set())
-        ),
-        None,
+    deprecated_endpoint = find_route_endpoint(
+        app=client.app,
+        path="/api/v1/vip/weekly-plan",
+        method="POST",
     )
-    assert deprecated_route is not None, "POST /api/v1/vip/weekly-plan route not found"
     # NOTE: String-based module patching (e.g. "app.routers.vip.make_weekly_menu") can be flaky
     # under dual-module / reload / shim-import behavior. Patch the registered route handler globals
     # for determinism (see docs/ENGINEERING_LESSONS.md).
-    monkeypatch.setitem(
-        deprecated_route.endpoint.__globals__, "make_weekly_menu", fake_make_weekly_menu
+    patch_endpoint_global(
+        monkeypatch=monkeypatch,
+        endpoint=deprecated_endpoint,
+        name="make_weekly_menu",
+        value=fake_make_weekly_menu,
     )
-    assert deprecated_route.endpoint.__globals__["make_weekly_menu"] is fake_make_weekly_menu
 
     payload = {
         "sex": "female",

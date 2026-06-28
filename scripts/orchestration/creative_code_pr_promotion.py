@@ -44,12 +44,9 @@ from scripts.orchestration.creative_code_patch_workspace import (
     read_json,
     resolve_run_dir as resolve_patch_run_dir,
     resolve_run_file as resolve_patch_run_file,
-    run_git,
-    shared_tree_status,
     write_json_atomic,
 )
 from scripts.orchestration.creative_code_pr_promotion_contract import (
-    APPROVAL_DECISION,
     RUNNER_COAUTHOR,
     TARGET_BASE_BRANCH,
     TARGET_REPOSITORY,

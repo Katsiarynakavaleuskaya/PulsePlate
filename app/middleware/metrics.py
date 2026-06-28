@@ -37,7 +37,8 @@ logger = logging.getLogger(__name__)
 EXCLUDED_ROUTE_TEMPLATES: set[str] = {"/metrics", "/health", "/ready", "/health/db"}
 
 # Bounded route cache config.
-# Cache key is endpoint_id (id(endpoint)) to avoid holding strong refs to callables.
+# Cache key is (id(request.app), id(endpoint)) to avoid holding strong refs while
+# keeping same-handler route templates isolated across FastAPI app instances.
 ROUTE_CACHE_MAX_SIZE: int = 1024
 # If set (seconds), cached entries expire after TTL. None = no expiry.
 ROUTE_CACHE_TTL_S: float | None = None
@@ -304,8 +305,9 @@ def _excluded_by_path(request: Request) -> bool:
     return path in EXCLUDED_ROUTE_TEMPLATES
 
 
+_RouteCacheKey = tuple[int, int]
 _RouteCacheEntry = tuple[str, float]
-_ROUTE_CACHE: "OrderedDict[int, _RouteCacheEntry]" = OrderedDict()
+_ROUTE_CACHE: "OrderedDict[_RouteCacheKey, _RouteCacheEntry]" = OrderedDict()
 _ROUTE_CACHE_LOCK = Lock()
 _ROUTE_CACHE_EVICTIONS: int = 0
 _ROUTE_CACHE_EXPIRED: int = 0
@@ -316,34 +318,38 @@ def _now_monotonic() -> float:
     return monotonic()
 
 
-def _route_cache_get(endpoint_id: int) -> str | None:
+def _route_cache_key(request: Request, endpoint: object) -> _RouteCacheKey:
+    return (id(request.app), id(endpoint))
+
+
+def _route_cache_get(cache_key: _RouteCacheKey) -> str | None:
     ttl_s = ROUTE_CACHE_TTL_S
     now = _now_monotonic()
     with _ROUTE_CACHE_LOCK:
-        entry = _ROUTE_CACHE.get(endpoint_id)
+        entry = _ROUTE_CACHE.get(cache_key)
         if entry is None:
             return None
         value, inserted_at = entry
         if ttl_s is not None and (now - inserted_at) > ttl_s:
             global _ROUTE_CACHE_EXPIRED
-            _ROUTE_CACHE.pop(endpoint_id, None)
+            _ROUTE_CACHE.pop(cache_key, None)
             _ROUTE_CACHE_EXPIRED += 1
             return None
 
         # Mark as most-recently-used.
-        _ROUTE_CACHE.move_to_end(endpoint_id, last=True)
+        _ROUTE_CACHE.move_to_end(cache_key, last=True)
         return value
 
 
-def _route_cache_set(endpoint_id: int, value: str) -> None:
+def _route_cache_set(cache_key: _RouteCacheKey, value: str) -> None:
     max_size = ROUTE_CACHE_MAX_SIZE
     if max_size <= 0:
         return
 
     now = _now_monotonic()
     with _ROUTE_CACHE_LOCK:
-        _ROUTE_CACHE[endpoint_id] = (value, now)
-        _ROUTE_CACHE.move_to_end(endpoint_id, last=True)
+        _ROUTE_CACHE[cache_key] = (value, now)
+        _ROUTE_CACHE.move_to_end(cache_key, last=True)
         if len(_ROUTE_CACHE) > max_size:
             global _ROUTE_CACHE_EVICTIONS
             _ROUTE_CACHE.popitem(last=False)
@@ -382,17 +388,16 @@ def _route_template(request: Request) -> str:
     if endpoint is None:
         return "unknown"
 
-    # Check cache first (key is endpoint object id for stability)
-    endpoint_id = id(endpoint)
-    cached = _route_cache_get(endpoint_id)
-    if cached is not None:
-        return cached
-
     # Find the APIRoute that matches this endpoint
     router = getattr(request.app, "router", None)
     routes = getattr(router, "routes", None)
     if routes is None:
         return "unknown"
+
+    cache_key = _route_cache_key(request, endpoint)
+    cached = _route_cache_get(cache_key)
+    if cached is not None:
+        return cached
 
     # Collect all candidate routes for this endpoint
     candidates: list[str] = []
@@ -414,7 +419,7 @@ def _route_template(request: Request) -> str:
         result = max(candidates, key=len)
 
     # Cache result for future requests
-    _route_cache_set(endpoint_id, result)
+    _route_cache_set(cache_key, result)
     return result
 
 

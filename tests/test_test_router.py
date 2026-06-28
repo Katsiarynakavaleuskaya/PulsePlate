@@ -6,6 +6,7 @@ from datetime import datetime
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from app.effective_routes import iter_effective_route_candidates, route_path
 import settings as app_settings
 
 
@@ -33,8 +34,8 @@ def _import_fresh_app() -> FastAPI:
     runtime_env = app_settings.get_runtime_env_name()
     if runtime_env == "staging" and os.getenv("ENABLE_TEST_ROUTES") == "1":
         has_test_routes = any(
-            getattr(route, "path", "").startswith("/api/v1/test/")
-            for route in getattr(app, "routes", [])
+            route_path(route).startswith("/api/v1/test/")
+            for route in iter_effective_route_candidates(getattr(app, "routes", []))
         )
         assert has_test_routes, (
             "Test router routes are missing after legacy_app reload. "

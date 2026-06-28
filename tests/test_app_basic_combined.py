@@ -8,6 +8,7 @@ from fastapi import FastAPI
 
 import app
 import pytest
+from app.effective_routes import iter_effective_route_candidates, route_path
 from app.bootstrap.direct_api_root import LEGACY_BMI_WEB_ROUTE
 from tests.helpers.module_resolve import resolve_module
 
@@ -39,14 +40,12 @@ class TestAppImport:
             "/ws",
         }
         package_paths = {
-            getattr(route, "path", None) or getattr(route, "path_format", "")
-            for route in app.app.routes
+            route_path(route) for route in iter_effective_route_candidates(app.app.routes)
         }
         from app.main import app as main_app
 
         main_paths = {
-            getattr(route, "path", None) or getattr(route, "path_format", "")
-            for route in main_app.routes
+            route_path(route) for route in iter_effective_route_candidates(main_app.routes)
         }
 
         assert additive_paths.issubset(package_paths)
@@ -76,8 +75,7 @@ class TestAppImport:
 
         package_app = app.app
         route_paths = {
-            getattr(route, "path", None) or getattr(route, "path_format", "")
-            for route in package_app.routes
+            route_path(route) for route in iter_effective_route_candidates(package_app.routes)
         }
 
         assert package_app is replacement_app
@@ -101,10 +99,7 @@ class TestAppVIPIntegration:
         assert fastapi_app is not None
 
         # The app should be created and standard routes present
-        paths = {
-            getattr(route, "path", None) or getattr(route, "path_format", "")
-            for route in fastapi_app.routes
-        }
+        paths = {route_path(route) for route in iter_effective_route_candidates(fastapi_app.routes)}
         # Check for health endpoint (both unversioned and versioned)
         assert "/health" in paths or "/api/v1/health" in paths
 

@@ -10,6 +10,11 @@ from httpx import Response
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 import pytest
 
+from app.effective_routes import (
+    iter_effective_route_candidates,
+    route_include_in_schema,
+    route_path,
+)
 from app.middleware.api_tiers import SubscriptionTier, TEST_KEY_VIP
 from app.schemas.creative_research import (
     CreativeResearchPilotInput,
@@ -138,8 +143,8 @@ def test_creative_research_route_is_hidden_from_openapi() -> None:
     from app.main import app
 
     runtime_routes = {
-        str(getattr(route, "path", "")): getattr(route, "include_in_schema", True)
-        for route in app.routes
+        route_path(route): route_include_in_schema(route)
+        for route in iter_effective_route_candidates(app.routes)
     }
 
     assert ROUTE_PATH in runtime_routes
@@ -362,8 +367,7 @@ def test_creative_research_invalid_provider_payload_returns_503(
     assert _json_body(response) == {"detail": "creative_research_provider_invalid_response"}
 
 
-@pytest.mark.asyncio
-async def test_runtime_missing_transparency_registry_fails_closed(
+def test_runtime_missing_transparency_registry_fails_closed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Missing transparency metadata must stop the runtime before quota consumption."""
@@ -379,14 +383,13 @@ async def test_runtime_missing_transparency_registry_fails_closed(
     from app.services.creative_research_runtime import run_creative_research_pilot_task
 
     with pytest.raises(HTTPException) as exc_info:
-        await run_creative_research_pilot_task(_task_payload())
+        asyncio.run(run_creative_research_pilot_task(_task_payload()))
 
     assert exc_info.value.status_code == 503
     assert exc_info.value.detail == "transparency_registry_unavailable"
 
 
-@pytest.mark.asyncio
-async def test_runtime_incomplete_transparency_registry_fails_closed(
+def test_runtime_incomplete_transparency_registry_fails_closed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Incomplete transparency metadata must fail closed before provider use."""
@@ -399,14 +402,13 @@ async def test_runtime_incomplete_transparency_registry_fails_closed(
     from app.services.creative_research_runtime import run_creative_research_pilot_task
 
     with pytest.raises(HTTPException) as exc_info:
-        await run_creative_research_pilot_task(_task_payload())
+        asyncio.run(run_creative_research_pilot_task(_task_payload()))
 
     assert exc_info.value.status_code == 503
     assert exc_info.value.detail == "transparency_registry_incomplete"
 
 
-@pytest.mark.asyncio
-async def test_runtime_non_auto_safe_mode_fails_closed(
+def test_runtime_non_auto_safe_mode_fails_closed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The service must reject unsupported execution modes before provider use."""
@@ -433,14 +435,13 @@ async def test_runtime_non_auto_safe_mode_fails_closed(
     from app.services.creative_research_runtime import run_creative_research_pilot_task
 
     with pytest.raises(HTTPException) as exc_info:
-        await run_creative_research_pilot_task(task)
+        asyncio.run(run_creative_research_pilot_task(task))
 
     assert exc_info.value.status_code == 503
     assert exc_info.value.detail == "agent_execution_review_required"
 
 
-@pytest.mark.asyncio
-async def test_runtime_non_vip_api_key_fails_closed(
+def test_runtime_non_vip_api_key_fails_closed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The service must reject non-VIP keys before quota or provider work."""
@@ -457,14 +458,13 @@ async def test_runtime_non_vip_api_key_fails_closed(
     from app.services.creative_research_runtime import run_creative_research_pilot_task
 
     with pytest.raises(HTTPException) as exc_info:
-        await run_creative_research_pilot_task(_task_payload())
+        asyncio.run(run_creative_research_pilot_task(_task_payload()))
 
     assert exc_info.value.status_code == 403
     assert exc_info.value.detail == "creative_research_vip_required"
 
 
-@pytest.mark.asyncio
-async def test_runtime_llm_gate_failure_returns_503(
+def test_runtime_llm_gate_failure_returns_503(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Privileged-action audit failures must fail closed before quota/provider work."""
@@ -480,14 +480,13 @@ async def test_runtime_llm_gate_failure_returns_503(
     from app.services.creative_research_runtime import run_creative_research_pilot_task
 
     with pytest.raises(HTTPException) as exc_info:
-        await run_creative_research_pilot_task(_task_payload())
+        asyncio.run(run_creative_research_pilot_task(_task_payload()))
 
     assert exc_info.value.status_code == 503
     assert exc_info.value.detail == "llm_generation_unavailable"
 
 
-@pytest.mark.asyncio
-async def test_runtime_provider_none_returns_503(
+def test_runtime_provider_none_returns_503(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A missing provider instance must fail closed with stable detail."""
@@ -505,14 +504,13 @@ async def test_runtime_provider_none_returns_503(
     from app.services.creative_research_runtime import run_creative_research_pilot_task
 
     with pytest.raises(HTTPException) as exc_info:
-        await run_creative_research_pilot_task(_task_payload())
+        asyncio.run(run_creative_research_pilot_task(_task_payload()))
 
     assert exc_info.value.status_code == 503
     assert exc_info.value.detail == "LLM provider not available"
 
 
-@pytest.mark.asyncio
-async def test_runtime_provider_exception_returns_503(
+def test_runtime_provider_exception_returns_503(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Unexpected provider failures must map to the stable unavailable detail."""
@@ -537,14 +535,13 @@ async def test_runtime_provider_exception_returns_503(
     from app.services.creative_research_runtime import run_creative_research_pilot_task
 
     with pytest.raises(HTTPException) as exc_info:
-        await run_creative_research_pilot_task(_task_payload())
+        asyncio.run(run_creative_research_pilot_task(_task_payload()))
 
     assert exc_info.value.status_code == 503
     assert exc_info.value.detail == "creative_research_generation_unavailable"
 
 
-@pytest.mark.asyncio
-async def test_runtime_empty_provider_payload_returns_503(
+def test_runtime_empty_provider_payload_returns_503(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Non-string or empty provider payloads must fail closed."""
@@ -569,7 +566,7 @@ async def test_runtime_empty_provider_payload_returns_503(
     from app.services.creative_research_runtime import run_creative_research_pilot_task
 
     with pytest.raises(HTTPException) as exc_info:
-        await run_creative_research_pilot_task(_task_payload())
+        asyncio.run(run_creative_research_pilot_task(_task_payload()))
 
     assert exc_info.value.status_code == 503
     assert exc_info.value.detail == "creative_research_provider_invalid_response"
