@@ -203,22 +203,22 @@ Validated on the rebased mapping head:
   - Combined proxy + route guard suite: `205 passed`; one existing
     Starlette/httpx2 deprecation warning.
 - PASS:
-  `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_legacy_export_aliases.py::test_legacy_export_alias_routes_are_hidden_shim_owned_and_protected tests/test_test_router.py tests/test_vip_api.py::test_deprecated_weekly_plan_handles_dict_plan`
+  `.venv/bin/python -m pytest -q tests/test_legacy_export_aliases.py::test_legacy_export_alias_routes_are_hidden_shim_owned_and_protected tests/test_test_router.py tests/test_vip_api.py::test_deprecated_weekly_plan_handles_dict_plan`
   - Fresh CI failure pack after commit `651ea0fc7`: `9 passed`; one existing
     Starlette/httpx2 deprecation warning.
 - PASS:
-  `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_legacy_export_aliases.py tests/test_test_router.py tests/test_vip_api.py`
+  `.venv/bin/python -m pytest -q tests/test_legacy_export_aliases.py tests/test_test_router.py tests/test_vip_api.py`
   - Affected remaining route guard files: `39 passed`; one existing
     Starlette/httpx2 deprecation warning.
 - PASS:
-  `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_private_python_proxy_health.py tests/test_private_python_proxy_workflow_contract.py tests/test_python_supply_chain_controls.py tests/test_env_guards.py tests/test_bmi_registration_router_coverage.py tests/test_legacy_weekly_plan_alias_api.py tests/test_restaurant_moderation_bootstrap.py tests/test_test_router.py tests/test_test_route_registration_bootstrap.py tests/test_app_basic_combined.py tests/test_app_vip_comprehensive_97.py tests/test_legacy_export_aliases.py tests/test_vip_api.py`
+  `.venv/bin/python -m pytest -q tests/test_private_python_proxy_health.py tests/test_private_python_proxy_workflow_contract.py tests/test_python_supply_chain_controls.py tests/test_env_guards.py tests/test_bmi_registration_router_coverage.py tests/test_legacy_weekly_plan_alias_api.py tests/test_restaurant_moderation_bootstrap.py tests/test_test_router.py tests/test_test_route_registration_bootstrap.py tests/test_app_basic_combined.py tests/test_app_vip_comprehensive_97.py tests/test_legacy_export_aliases.py tests/test_vip_api.py`
   - Expanded proxy + route guard suite: passed; one existing Starlette/httpx2
     deprecation warning.
 - PASS:
   `.venv/bin/ruff check tests/test_env_guards.py tests/test_bmi_registration_router_coverage.py tests/test_legacy_weekly_plan_alias_api.py tests/test_restaurant_moderation_bootstrap.py tests/test_test_router.py tests/test_test_route_registration_bootstrap.py tests/test_app_basic_combined.py tests/test_app_vip_comprehensive_97.py tests/test_private_python_proxy_health.py tests/test_private_python_proxy_workflow_contract.py tests/test_python_supply_chain_controls.py`
 - PASS: `git diff --check`
 - PASS:
-  `VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python make validate-changed`
+  `VENV_PYTHON=.venv/bin/python make validate-changed`
   - Result after commit `651ea0fc7`: backend tests passed; one existing
     Starlette/httpx2 deprecation warning.
   - Note: `make validate-changed` did not select
