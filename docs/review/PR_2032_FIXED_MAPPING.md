@@ -128,6 +128,12 @@ Evidence: Codex Security scan `4ccd9f2f-38f2-4f24-a669-8148cfea44d6` reported fi
 Reason: Closes Codex Security finding "PRO contract bootstrap accepts same-endpoint routes without paid-tier dependency" by validating the effective route dependency metadata before treating existing PRO contract routes as canonical.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2032 -> e1531a004f2d4fadbb98260e1b996e664f80fc15
 
+Disposition: FIXED
+Commit: 011d49016c02f11456e3cbbd2956361e00c5fc5f
+Evidence: `tests/test_main_paywall_bootstrap.py` now covers the current-head `diff-coverage` tail for effective route original-route fallbacks, duplicate WebSocket path detection through effective routes, PRO contract source-router absence, PRO contract existing-handler dependency preservation, billing source-router absence, and billing idempotency. Focused pytest passed (`6 passed`), `ruff check tests/test_main_paywall_bootstrap.py` passed, the local focused route/bootstrap coverage bundle passed, and `diff-cover coverage.xml --compare-branch origin/main --fail-under 97` reported 100% diff coverage for `app/bootstrap/pro_contracts.py`, `app/bootstrap/route_family.py`, `app/effective_routes.py`, `app/main.py`, `app/middleware/metrics.py`, `app/routers/billing.py`, and `app/routers/vip_registration.py`. `make validate-changed` and `pre-commit run --all-files` passed.
+Reason: Closes current-head `diff-coverage` failure by covering the remaining route/bootstrap guard branches instead of weakening the coverage gate or widening dependency/proxy scope.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2032 -> 011d49016c02f11456e3cbbd2956361e00c5fc5f
+
 Disposition: DEFERRED
 Evidence: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-fastapi-compatibility-gates`
 Reason: Starlette emits `StarletteDeprecationWarning` because `starlette.testclient` still uses the deprecated `httpx` backend when `httpx2` is absent; this PR tracks the migration decision instead of suppressing the warning broadly.
@@ -333,6 +339,12 @@ Reason: Starlette emits `StarletteDeprecationWarning` because `starlette.testcli
 - PASS: `pulseplate-pr-review` dry-run report completed; only advisory
   large-diff-risk note dispositioned as `NOT-A-BUG` with operator-approved
   split rationale and validation evidence.
+- PASS: current-head diff-coverage tail fix focused pytest
+  (`6 passed`), `ruff check tests/test_main_paywall_bootstrap.py`, local
+  focused route/bootstrap coverage bundle, and matching `diff-cover` command
+  (`100%` diff coverage for the changed app route/bootstrap files).
+- PASS: current-head diff-coverage tail fix `make validate-changed`.
+- PASS: current-head diff-coverage tail fix `pre-commit run --all-files`.
 
 ## Machine-Heavy Verification Deferral
 
