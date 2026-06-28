@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
 from typing import Generator, cast
 
 from fastapi import APIRouter, Depends, FastAPI, Response, WebSocket
@@ -20,6 +21,7 @@ from app.bootstrap.route_family import (
 from app.effective_routes import (
     is_api_route_candidate,
     iter_effective_route_candidates,
+    route_endpoint,
     route_endpoint_for_path_method,
     route_methods,
     route_path,
@@ -1048,6 +1050,30 @@ def test_route_endpoint_for_path_method_rejects_duplicate_source_routes() -> Non
         route_endpoint_for_path_method(router.routes, "/api/v1/source/duplicate", "POST")
 
 
+def test_effective_route_helpers_read_original_route_fallback() -> None:
+    async def _handler() -> dict[str, str]:
+        return {"status": "ok"}
+
+    route = SimpleNamespace(
+        original_route=SimpleNamespace(path="/api/v1/source/original", endpoint=_handler)
+    )
+
+    assert route_path(route) == "/api/v1/source/original"
+    assert route_endpoint(route) is _handler
+
+
+def test_duplicate_ws_guard_uses_effective_route_paths() -> None:
+    app = FastAPI()
+
+    async def _websocket_endpoint(websocket: WebSocket) -> None:
+        await websocket.close()
+
+    app.add_api_websocket_route("/ws", _websocket_endpoint)
+
+    with pytest.raises(RuntimeError, match="Duplicate /ws route detected"):
+        app_main._assert_no_duplicate_ws_route(app)
+
+
 def test_bmi_registration_defaults_to_free_route_only_and_caches(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1533,6 +1559,50 @@ def test_pro_contract_registration_rejects_foreign_existing_handlers() -> None:
         register_pro_contract_routes(app)
 
 
+def test_pro_contract_registration_rejects_source_router_without_expected_routes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import app.bootstrap.pro_contracts as pro_contracts_module
+
+    monkeypatch.setattr(
+        pro_contracts_module,
+        "route_endpoint_for_path_method",
+        lambda _routes, _path, _method: None,
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="PRO contract router does not define the expected route family",
+    ):
+        pro_contracts_module.register_pro_contract_routes(FastAPI())
+
+
+def test_pro_contract_registration_rejects_existing_handlers_without_pro_dependency() -> None:
+    from app.bootstrap.pro_contracts import register_pro_contract_routes
+    from app.routers.pro_nutrition_contracts import pro_nutrition_plate, pro_nutrition_targets
+
+    app = FastAPI()
+    app.add_api_route(
+        "/api/v1/pro/nutrition/targets",
+        pro_nutrition_targets,
+        methods=["POST"],
+    )
+    app.add_api_route(
+        "/api/v1/pro/nutrition/plate",
+        pro_nutrition_plate,
+        methods=["POST"],
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match=(
+            "Existing /api/v1/pro/nutrition/targets route does not preserve "
+            "PRO contract required dependency"
+        ),
+    ):
+        register_pro_contract_routes(app)
+
+
 def test_billing_registration_rejects_foreign_existing_handlers() -> None:
     from app.routers.billing import register_billing_routes
 
@@ -1567,6 +1637,37 @@ def test_billing_registration_rejects_partial_existing_canonical_state() -> None
 
     with pytest.raises(RuntimeError, match="Partial billing routes detected"):
         billing_module.register_billing_routes(app)
+
+
+def test_billing_registration_rejects_source_router_without_expected_routes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.routers import billing as billing_module
+
+    monkeypatch.setattr(
+        billing_module,
+        "route_endpoint_for_path_method",
+        lambda _routes, _path, _method: None,
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="Billing router does not define the expected route family",
+    ):
+        billing_module.register_billing_routes(FastAPI())
+
+
+def test_billing_registration_is_idempotent_when_both_canonical_routes_exist() -> None:
+    from app.routers import billing as billing_module
+
+    app = FastAPI()
+    app.include_router(billing_module.billing_router)
+    app.include_router(billing_module.router)
+
+    assert billing_module.register_billing_routes(app) is billing_module.router
+    counts = _bmi_route_counts(app)
+    assert counts[("POST", "/api/v1/billing/apple/verify-receipt")] == 1
+    assert counts[("POST", "/api/v1/pro/payments/ru-by/manual-intent")] == 1
 
 
 def test_vip_route_registration_rejects_missing_fitchef_insight_route(
