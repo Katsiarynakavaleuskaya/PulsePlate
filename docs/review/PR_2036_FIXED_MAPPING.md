@@ -59,6 +59,7 @@ Out of scope:
 - `c49b6de37` - `fix(ci): close proxy health review findings`
 - `13c220165` - `fix(ci): redact netrc parser diagnostics`
 - `987139987` - `fix(ci): require exact netrc proxy credentials`
+- `cddea300b` - `fix(ci): align proxy health parity with installs`
 
 ## Discussion Thread Pass
 
@@ -95,6 +96,7 @@ Commit: c49b6de37
 Evidence: `scripts/ci/check_private_python_proxy_health.py`, `tests/test_private_python_proxy_health.py`, `tests/test_private_python_proxy_workflow_contract.py`, `docs/DEPENDENCY_MANAGEMENT.md`, `RUNBOOK_AGENT.md`, and `docs/security/PRIVATE_PYTHON_PROXY_HEALTH_GATE.md`.
 Reason: Closes review findings by making exact-pin parsing fail closed on extra specifiers and conflicting pins, documenting the complete checker reason-code matrix, adding a docs Phase1 evidence anchor, and adding deterministic coverage that `pydantic-core` stays out of the fast proxy probe.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#pullrequestreview-4587443285 -> c49b6de37
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#discussion_r3487778312 -> c49b6de37
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#discussion_r3487777907 -> c49b6de37
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#discussion_r3487777909 -> c49b6de37
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#discussion_r3487777911 -> c49b6de37
@@ -113,6 +115,24 @@ Reason: Closes the latest CodeRabbit exact-machine `.netrc` and test-fixture fin
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#pullrequestreview-4587510947 -> 987139987
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#discussion_r3487852990 -> 987139987
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#discussion_r3487852992 -> 987139987
+
+Disposition: FIXED
+Commit: cddea300b
+Evidence: `.github/workflows/ci.yml`, `scripts/ci/check_private_python_proxy_health.py`, `tests/test_private_python_proxy_health.py`, `tests/test_private_python_proxy_workflow_contract.py`, and `tests/test_python_supply_chain_controls.py`.
+Reason: Closes the latest connector findings by aligning protected-main proxy source with downstream vars-only setup jobs, rejecting `root` before writing `.netrc`, and requiring exact pinned wheel artifacts rather than sdist/zip links for mirror parity.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#discussion_r3487778311 -> cddea300b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#discussion_r3487806508 -> cddea300b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#discussion_r3487806509 -> cddea300b
+
+Disposition: NOT-A-BUG
+Evidence: `scripts/ci/check_private_python_proxy_health.py` supports exact-host `.netrc` authentication through `--netrc-file`/`PULSEPLATE_PYTHON_NETRC`, and `.github/workflows/ci.yml` writes protected read-only devpi credentials to `$HOME/.netrc` only on protected main. The checker intentionally does not implement a `PULSEPLATE_PYTHON_TRUSTED_HOST` TLS bypass because this gate verifies the canonical HTTPS packages origin before pip install; a cert/TLS failure is proxy health evidence, not a condition to skip.
+Reason: The valid auth portion is implemented. Mirroring pip's trusted-host bypass in the stdlib probe would weaken the packages-origin health contract this PR is adding.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#discussion_r3487778314
+
+Disposition: NOT-A-BUG
+Evidence: `tests/test_private_python_proxy_health.py::test_main_default_projects_exclude_large_pydantic_core_probe` pins the default fast probe list to `aiosqlite`, `cryptography`, `requests`, `pytest-xdist`, `hypothesis`, and `pgvector`; `docs/review/PR_2036_FIXED_MAPPING.md` records the operator decision that `pydantic-core` is too large for the fast health gate. Native/security representative parity is covered by `cryptography`.
+Reason: `pydantic-core` remains intentionally out of the default fail-fast job so the health gate diagnoses proxy/mirror health instead of becoming another large-page timeout. It can still be supplied explicitly with `--project pydantic-core` for manual parity checks.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#discussion_r3487806510
 
 ## Local Validation
 
@@ -136,7 +156,7 @@ Validated on the rebased mapping head:
   `PULSEPLATE_PYTHON_INDEX_URL='https://packages.pulseplate.app/root/pulseplate/+simple/' python3 scripts/ci/install_locked_python_requirements.py --preflight-only`
 - PASS:
   `.venv/bin/python -m pytest -q tests/test_private_python_proxy_health.py tests/test_private_python_proxy_workflow_contract.py tests/test_python_supply_chain_controls.py`
-  - Result after review fixes: `109 passed`; one existing Starlette/httpx2
+  - Result after review fixes: `110 passed`; one existing Starlette/httpx2
     deprecation warning.
 - PASS: `make validate-changed`
   - Selected:
