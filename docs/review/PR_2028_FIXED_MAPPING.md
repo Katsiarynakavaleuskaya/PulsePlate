@@ -6,11 +6,13 @@
 - Starter: `scripts/orchestration/start_pr_lane.sh`
 - Branch: `feat/orchestration-review-fallback-learning-loop`
 - Current base: `origin/main` at `47997f59caeba4a140fcc25e835f5563c3c641de`
-- Final pushed head: mirrored in the PR body after push.
+- Current PR head: GitHub current-head checks are the source of truth after each push.
 
 ## Discussion Thread Pass
-- [x] Discussion-thread pass completed for known CodeRabbit/Sourcery review batches.
-- [x] Fixed in commit mapping refreshed after the `origin/main` rebase.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+- Known CodeRabbit/Sourcery review batches and post-open role findings are dispositioned below.
+- Fixed in commit mapping was refreshed after the `origin/main` rebase.
 - [ ] Current-head CI, bot/review state, strict merge-readiness checks, and wait-window are still pending.
 
 ## Fixed in Commit Mapping
@@ -97,9 +99,10 @@ Evidence: `scripts/orchestration/agent_learning_loop.py` revalidates redacted st
 - Evidence: `scripts/orchestration/agent_learning_loop.py`, `tests/test_agent_learning_loop.py`, `docs/orchestration/REVIEW_SOURCE_DEGRADATION_POLICY.md`, `scripts/orchestration/pr_review_report.py`, `tests/test_pr_review_report.py`, and `docs/orchestration/SCOPED_VALIDATION_POLICY.md` cover learning-record validation, degraded-source advisory semantics, and scoped-validation boundaries.
 
 ## Experiment Runner Evidence
+- Not applicable: current refresh only repaired Phase2 body and size-governance proof text after rebase; no new Experiment Runner decision input was used.
 - Status: historical accepted oracle-only evidence from the original lane.
 - Current-head authority: not claimed after the latest rebase.
-- Note: no current-head Experiment Runner result artifact is present locally to cite as current-head evidence.
+- Note: no current-head Experiment Runner result artifact is present locally to cite as current-head evidence, and rejected artifacts from other lanes are not reused.
 
 ## Validation Evidence
 - `python3 scripts/orchestration/check_preflight.py` with explicit linked-worktree `GIT_DIR` and `GIT_WORK_TREE`.
