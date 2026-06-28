@@ -3,33 +3,42 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, FastAPI
-from fastapi.routing import APIRoute
 import pytest
 
 from app.bootstrap.route_family import route_has_dependency_call
+from app.effective_routes import (
+    is_api_route_candidate,
+    iter_effective_route_candidates,
+    route_methods,
+    route_path,
+)
 from app.middleware.api_tiers import require_pro_tier
 from app.routers.bmi_registration import register_bmi_routes
 
 
-def _http_routes(app: FastAPI) -> list[APIRoute]:
-    return [route for route in app.routes if isinstance(route, APIRoute)]
+def _http_routes(app: FastAPI) -> list[object]:
+    return [
+        route
+        for route in iter_effective_route_candidates(app.routes)
+        if is_api_route_candidate(route)
+    ]
 
 
 def _route_counts(app: FastAPI) -> dict[tuple[str, str], int]:
     counts: dict[tuple[str, str], int] = {}
     for route in _http_routes(app):
-        for method in sorted((route.methods or set()) - {"HEAD", "OPTIONS"}):
-            key = (method, route.path)
+        for method in sorted(route_methods(route) - {"HEAD", "OPTIONS"}):
+            key = (method, route_path(route))
             counts[key] = counts.get(key, 0) + 1
     return counts
 
 
-def _route(app: FastAPI, method: str, path: str) -> APIRoute:
+def _route(app: FastAPI, method: str, path: str) -> object:
     method = method.upper()
     return next(
         route
         for route in _http_routes(app)
-        if route.path == path and method in (route.methods or set())
+        if route_path(route) == path and method in route_methods(route)
     )
 
 

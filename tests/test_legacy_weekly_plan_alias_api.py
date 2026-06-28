@@ -7,9 +7,14 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
-from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 
+from app.effective_routes import (
+    iter_effective_route_candidates,
+    route_endpoint,
+    route_methods,
+    route_path,
+)
 import legacy_app
 
 
@@ -77,16 +82,15 @@ def test_legacy_weekly_alias_matches_canonical_vip_menu(
     vip_route = next(
         (
             route
-            for route in client.app.routes
-            if isinstance(route, APIRoute)
-            and route.path == "/api/v1/vip/menu/weekly/plan"
-            and "POST" in (route.methods or set())
+            for route in iter_effective_route_candidates(client.app.routes)
+            if route_path(route) == "/api/v1/vip/menu/weekly/plan"
+            and "POST" in route_methods(route)
         ),
         None,
     )
     assert vip_route is not None, "POST /api/v1/vip/menu/weekly/plan route not found"
     monkeypatch.setitem(
-        vip_route.endpoint.__globals__,
+        route_endpoint(vip_route).__globals__,
         "make_weekly_menu",
         _fake_weekly_menu_builder,
     )

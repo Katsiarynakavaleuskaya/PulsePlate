@@ -8,6 +8,8 @@ import os
 
 from fastapi import FastAPI
 
+from app.effective_routes import iter_effective_route_candidates, route_path
+
 
 def test_testing_env_enabled() -> None:
     """Guard: TESTING must be set before legacy_app import."""
@@ -18,7 +20,7 @@ def test_export_pdf_route_registered() -> None:
     """Guard: export/pdf route must be registered when TESTING=true."""
     import app
 
-    paths = {r.path for r in app.app.routes}
+    paths = {route_path(route) for route in iter_effective_route_candidates(app.app.routes)}
     assert "/api/v1/export/pdf" in paths, "Export PDF route not registered"
 
 
