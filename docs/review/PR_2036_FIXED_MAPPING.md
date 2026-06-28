@@ -1,0 +1,135 @@
+# PR 2036 Fixed Mapping
+
+PR: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036
+Title: `ci(deps): add private PyPI proxy health gate and mirror parity contract`
+Branch: `codex/private-python-proxy-health-gate`
+
+## Summary
+
+This PR adds an early, stdlib-only private Python proxy health/parity gate for
+`PULSEPLATE_PYTHON_INDEX_URL`. The gate fails before expensive Python setup when
+the canonical packages host is down, a project page is empty, credentials are
+embedded in the index URL, a public package index is used, or exact locked pins
+are missing from representative Simple API project pages.
+
+In scope:
+
+- `scripts/ci/check_private_python_proxy_health.py`
+- early `private_python_proxy_health` CI job
+- URL, credential, project-page, `.netrc`, and exact-pin parity tests
+- dependency/runbook/security/backlog documentation for the packages host
+
+Out of scope:
+
+- Cloudflare, DigitalOcean, or devpi origin configuration changes
+- Starlette/httpx2 migration
+- dependency lock refresh
+- public PyPI fallback
+- emergency wheel manifest retirement
+- marketing apex changes
+- application runtime changes
+
+## Lane Start Provenance
+
+- Worktree: `worktrees/private-python-proxy-health-gate-rebased`
+- Branch: `codex/private-python-proxy-health-gate-rebased`
+- PR branch published as: `codex/private-python-proxy-health-gate`
+- Packet: `artifacts/orchestration/task_packets/f4c7e75bb9f3.json`
+- Packet creation was treated as provenance only, not role execution.
+- Pre-open role/review evidence was collected before the initial PR open.
+- Post-open `bug-hunter` and `security-auditor` findings were fixed before this
+  mapping artifact was added.
+
+## Operator Recovery
+
+- The operator recovered the DigitalOcean/devpi origin for
+  `packages.pulseplate.app` out of band before the repo PR was finalized.
+- Canonical project-page probe uses:
+  `https://packages.pulseplate.app/root/pulseplate/+simple/<project>/`
+- `pydantic-core` is intentionally not a default fast-gate probe because its
+  Simple API page can be large enough to turn the health job into a timeout
+  test. Native/security coverage is represented by `cryptography`; pure Python
+  and CI-tool coverage are represented by `aiosqlite`, `requests`,
+  `pytest-xdist`, `hypothesis`, and `pgvector`.
+
+## Implementation Commits
+
+- `eb99d3145` - `ci(deps): add private Python proxy health gate`
+- `bc9c1868f` - `fix(ci): harden private proxy health gate`
+
+## Discussion Thread Pass
+
+- [x] Discussion-thread pass completed for local/review-agent findings known at
+  mapping time.
+- [x] Fixed in commit mapping completed for post-open review-agent findings.
+- [x] Machine-heavy local `make verify` deferral documented.
+- [x] Post-open `bug-hunter` findings fixed.
+- [x] Post-open `security-auditor` findings fixed.
+- [ ] CodeRabbit, Sourcery, Cubic, and current-head CI must be checked again
+  after the rebased head is pushed.
+- [ ] Strict merge-readiness wrapper with auth and the mandatory wait-window
+  remain required before merge.
+
+## Fixed in Commit Mapping
+
+Disposition: FIXED
+Commit: `eb99d3145`
+Evidence: `scripts/ci/check_private_python_proxy_health.py`, `.github/workflows/ci.yml`, `tests/test_private_python_proxy_health.py`, `tests/test_private_python_proxy_workflow_contract.py`, `tests/test_python_supply_chain_controls.py`, `RUNBOOK_AGENT.md`, `docs/DEPENDENCY_MANAGEMENT.md`, `docs/security/PRIVATE_PYTHON_PROXY_HEALTH_GATE.md`, `docs/roadmap/BACKLOG_LEDGER.md`, and `docs/review/PR_PRIVATE_PYPI_PROXY_HEALTH_GATE_PREMORTEM.md`.
+Reason: Adds the private proxy health checker, early CI job, exact-pin mirror parity checks, URL/credential policy, and docs for the packages-host contract.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036 -> eb99d3145
+
+Disposition: FIXED
+Commit: `bc9c1868f`
+Evidence: `scripts/ci/check_private_python_proxy_health.py`, `.github/workflows/ci.yml`, `tests/test_private_python_proxy_health.py`, `tests/test_private_python_proxy_workflow_contract.py`, and `tests/test_python_supply_chain_controls.py`.
+Reason: Closes post-open review-agent findings by making protected credentials main-only and `.netrc`-based, enforcing the canonical same-host simple root, disabling checkout credential persistence in the health job, including `requirements-test.txt` / CI-tool representative projects, rejecting root devpi credentials, and strengthening log redaction.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036 -> bc9c1868f
+
+## Local Validation
+
+Full local `make verify` was not run under the operator-approved machine-heavy
+CI/tooling exception. The required local bundle for this PR is the focused proxy
+health suite, supply-chain workflow guards, live proxy preflight, `make
+validate-changed`, and `pre-commit run --all-files`, followed by current-head CI
+parity after push.
+
+Validated on the rebased mapping head:
+
+- PASS: `python3 -m py_compile scripts/ci/check_private_python_proxy_health.py`
+- PASS: `PYTHONPATH= python3 -I -S scripts/ci/check_private_python_proxy_health.py --help`
+- PASS:
+  `PULSEPLATE_PYTHON_INDEX_URL='https://packages.pulseplate.app/root/pulseplate/+simple/' python3 scripts/ci/check_private_python_proxy_health.py --requirements-file requirements.txt --requirements-file requirements-ci-lite.txt --requirements-file requirements-test.txt --project aiosqlite --project cryptography --project requests --project pytest-xdist --project hypothesis --project pgvector`
+  - `aiosqlite==0.22.1`, `cryptography==48.0.1`,
+    `requests==2.33.0`, `pytest-xdist==3.8.0`,
+    `hypothesis==6.155.7`, and `pgvector==0.4.2` were found on
+    non-empty project pages.
+- PASS:
+  `PULSEPLATE_PYTHON_INDEX_URL='https://packages.pulseplate.app/root/pulseplate/+simple/' python3 scripts/ci/install_locked_python_requirements.py --preflight-only`
+- PASS:
+  `.venv/bin/python -m pytest -q tests/test_private_python_proxy_health.py tests/test_private_python_proxy_workflow_contract.py tests/test_python_supply_chain_controls.py`
+  - Result: `103 passed`; one existing Starlette/httpx2 deprecation warning.
+- PASS: `make validate-changed`
+  - Selected:
+    `tests/test_private_python_proxy_health.py`,
+    `tests/test_private_python_proxy_workflow_contract.py`, and
+    `tests/test_python_supply_chain_controls.py`.
+- PASS: `pre-commit run --all-files`
+
+## Security Notes
+
+- No credentialed index URLs are allowed.
+- Public PyPI, TestPyPI, and pythonhosted index URLs remain blocked for the
+  canonical private proxy path.
+- Authenticated protected-branch reads use read-only `.netrc` credentials, not
+  inline Basic Auth URLs.
+- Root devpi credentials are rejected.
+- Emergency wheels remain a time-boxed mirror-lag exception only, not a fallback
+  for a dead origin.
+
+## Merge Readiness
+
+- Current-head CI: pending after rebased push.
+- CodeRabbit / Sourcery / Cubic actionables: pending after rebased push.
+- Strict merge wrapper: pending.
+
+Do not call this PR green, ready, or mergeable until all current-head checks,
+review-thread disposition, and strict merge-readiness gates pass.
