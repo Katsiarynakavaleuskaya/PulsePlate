@@ -898,7 +898,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
       `_require_private_index_health_unless_package_scoped_retry`, and
       `_stage_emergency_artifacts`) plus `.github/actions/python-setup/action.yml`
       shared CI wiring. Exact fallback stays manifest-pinned and either
-      proxy-health gated or backed by pip's package-scoped approved-project retry evidence.
+      proxy-health gated or backed by pip or health-probe package-scoped
+      approved-project retry/timeout evidence.
   - DoD:
     - [ ] Approved private proxy serves every still-active `scripts/ci/emergency_python_wheels.json` entry without manifest fallbacks
     - [ ] `scripts/ci/emergency_python_wheels.json` is removed from canonical CI/Docker paths

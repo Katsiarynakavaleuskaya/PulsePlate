@@ -472,7 +472,7 @@ def _constraint_line_repeats_exact_min_floor(
     *,
     exact_versions_by_package: dict[str, set[str]],
 ) -> bool:
-    """Return True for package>=version constraints already enforced by package==version."""
+    """Return True for package>=version floors already enforced by an exact pin."""
     stripped = line.split("#", 1)[0].strip().lower()
     if (
         not stripped
@@ -487,7 +487,26 @@ def _constraint_line_repeats_exact_min_floor(
     if match is None:
         return False
     package = re.sub(r"[-_.]+", "-", match.group(1))
-    return match.group(2) in exact_versions_by_package.get(package, set())
+    floor_version = match.group(2)
+    return any(
+        _version_satisfies_lower_bound(exact_version, floor_version)
+        for exact_version in exact_versions_by_package.get(package, set())
+    )
+
+
+def _version_satisfies_lower_bound(exact_version: str, floor_version: str) -> bool:
+    """Return True when an exact requirement version satisfies a lower-bound floor."""
+    try:
+        from packaging.version import Version
+    except Exception:  # noqa: BLE001 - installer can run before project deps are installed.
+        try:
+            from pip._vendor.packaging.version import Version
+        except Exception:  # noqa: BLE001 - keep non-PEP440 shapes fail-closed.
+            return exact_version == floor_version
+    try:
+        return Version(exact_version) >= Version(floor_version)
+    except Exception:  # noqa: BLE001 - malformed/nonstandard versions keep the floor.
+        return exact_version == floor_version
 
 
 def _requirement_line_package_name(line: str) -> str | None:
@@ -1278,6 +1297,17 @@ def _package_scoped_proxy_retry_failure(runtime_error: RuntimeError, *, package:
     )
 
 
+def _package_scoped_health_probe_failure(runtime_error: RuntimeError, *, package: str) -> bool:
+    """Return True when the approved-proxy health probe failed only on this package path."""
+    return any(
+        "approved python package proxy health check failed before emergency fallback"
+        in line.lower()
+        and _line_mentions_requested_project(line, package=package)
+        and _line_has_transport_failure_excluding_package_name(line, package=package)
+        for line in str(runtime_error).splitlines()
+    )
+
+
 def _pip_upgrade_resolver_miss(runtime_error: RuntimeError) -> bool:
     """Return True when pip failed because the pip spec is absent from the proxy."""
     message = str(runtime_error).lower()
@@ -1983,11 +2013,16 @@ def _require_private_index_health_unless_package_scoped_retry(
     """Keep generic fallback health-gated while accepting exact package retry evidence."""
     if _package_scoped_proxy_retry_failure(exc, package=package):
         return
-    _require_private_index_project_health(
-        index_url=index_url,
-        package=package,
-        trusted_host=trusted_host,
-    )
+    try:
+        _require_private_index_project_health(
+            index_url=index_url,
+            package=package,
+            trusted_host=trusted_host,
+        )
+    except RuntimeError as health_exc:
+        if _package_scoped_health_probe_failure(health_exc, package=package):
+            return
+        raise
 
 
 def build_wheelhouse_with_emergency_fallback(
