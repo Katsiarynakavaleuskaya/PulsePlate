@@ -18,6 +18,8 @@ In scope:
 - early `private_python_proxy_health` CI job
 - URL, credential, project-page, `.netrc`, and exact-pin parity tests
 - dependency/runbook/security/backlog documentation for the packages host
+- test-only effective-route guard updates for the current `test-main`
+  `_IncludedRouter` fallout blocking this PR
 
 Out of scope:
 
@@ -62,6 +64,7 @@ Out of scope:
 - `cddea300b` - `fix(ci): align proxy health parity with installs`
 - `c75462056` - `docs(review): map connector review fixes`
 - `991399674` - `docs(runbook): fix private proxy triage headings`
+- `51fecbb9f` - `test(api): align route guards with effective routes`
 
 ## Discussion Thread Pass
 
@@ -142,6 +145,14 @@ Evidence: `RUNBOOK_AGENT.md`; local `npx --yes markdownlint-cli2 RUNBOOK_AGENT.m
 Reason: Closes the current-head Docs Phase1 markdownlint failure by converting private-proxy triage pseudo-headings from bold paragraphs to real markdown headings.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/28322567502/job/83906990954 -> 991399674
 
+Disposition: FIXED
+Commit: 51fecbb9f
+Evidence: `tests/test_env_guards.py`, `tests/test_bmi_registration_router_coverage.py`, `tests/test_legacy_weekly_plan_alias_api.py`, `tests/test_restaurant_moderation_bootstrap.py`, `tests/test_test_router.py`, `tests/test_test_route_registration_bootstrap.py`, `tests/test_app_basic_combined.py`, and `tests/test_app_vip_comprehensive_97.py`.
+Reason: Expands this PR to cover the current `test-main` route/effective-route fallout by replacing stale raw `FastAPI.routes` assumptions with `app.effective_routes` helpers. This is test-only and does not change production route registration, OpenAPI, dependencies, or proxy behavior.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/28322758721/job/83907568569 -> 51fecbb9f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/28322758721/job/83907568573 -> 51fecbb9f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/28322758721/job/83907568565 -> 51fecbb9f
+
 ## Local Validation
 
 Full local `make verify` was not run under the operator-approved machine-heavy
@@ -176,6 +187,17 @@ Validated on the rebased mapping head:
   `npx --yes markdownlint-cli2 RUNBOOK_AGENT.md docs/DEPENDENCY_MANAGEMENT.md docs/security/PRIVATE_PYTHON_PROXY_HEALTH_GATE.md`
   - Result after current-head Docs Phase1 failure triage: `Summary: 0
     error(s)`.
+- PASS:
+  `.venv/bin/python -m pytest -q tests/test_env_guards.py tests/test_bmi_registration_router_coverage.py tests/test_legacy_weekly_plan_alias_api.py tests/test_restaurant_moderation_bootstrap.py tests/test_test_router.py tests/test_test_route_registration_bootstrap.py tests/test_app_basic_combined.py tests/test_app_vip_comprehensive_97.py`
+  - Result after effective-route test expansion: `95 passed`; one existing
+    Starlette/httpx2 deprecation warning.
+- PASS:
+  `.venv/bin/python -m pytest -q tests/test_private_python_proxy_health.py tests/test_private_python_proxy_workflow_contract.py tests/test_python_supply_chain_controls.py tests/test_env_guards.py tests/test_bmi_registration_router_coverage.py tests/test_legacy_weekly_plan_alias_api.py tests/test_restaurant_moderation_bootstrap.py tests/test_test_router.py tests/test_test_route_registration_bootstrap.py tests/test_app_basic_combined.py tests/test_app_vip_comprehensive_97.py`
+  - Combined proxy + route guard suite: `205 passed`; one existing
+    Starlette/httpx2 deprecation warning.
+- PASS:
+  `.venv/bin/ruff check tests/test_env_guards.py tests/test_bmi_registration_router_coverage.py tests/test_legacy_weekly_plan_alias_api.py tests/test_restaurant_moderation_bootstrap.py tests/test_test_router.py tests/test_test_route_registration_bootstrap.py tests/test_app_basic_combined.py tests/test_app_vip_comprehensive_97.py tests/test_private_python_proxy_health.py tests/test_private_python_proxy_workflow_contract.py tests/test_python_supply_chain_controls.py`
+- PASS: `git diff --check`
 
 ## Security Notes
 
