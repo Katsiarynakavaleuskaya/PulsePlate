@@ -157,7 +157,9 @@ def basic_auth_from_netrc(hostname: str, *, netrc_file: Path | None = None) -> s
     try:
         credentials = netrc.netrc(str(netrc_file)).authenticators(hostname)
     except (netrc.NetrcParseError, OSError) as exc:
-        raise ValueError(f"netrc_error: unable to read credentials for {hostname}: {exc}") from exc
+        raise ValueError(
+            f"netrc_error: unable to read credentials for {hostname}: {type(exc).__name__}"
+        ) from exc
     if credentials is None:
         return None
 

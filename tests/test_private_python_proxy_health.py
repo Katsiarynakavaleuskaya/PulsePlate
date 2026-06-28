@@ -144,6 +144,22 @@ def test_main_default_projects_exclude_large_pydantic_core_probe(
     assert "private_python_proxy_health ok=true" in capsys.readouterr().out
 
 
+def test_main_failure_path_redacts_credentialed_index_url(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    result = checker.main(
+        [
+            "--index-url",
+            "https://root:secret@packages.pulseplate.app/root/pulseplate/+simple/",  # pragma: allowlist secret
+        ]
+    )
+
+    stderr = capsys.readouterr().err
+    assert result == 1
+    assert "credentialed_index_url" in stderr
+    assert "root:secret" not in stderr
+
+
 def test_probe_project_passes_when_exact_pin_is_present(monkeypatch: pytest.MonkeyPatch) -> None:
     def fake_fetch(
         url: str,
@@ -375,6 +391,23 @@ def test_netrc_rejects_root_devpi_credentials(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="root_devpi_credentials"):
         checker.basic_auth_from_netrc("packages.pulseplate.app", netrc_file=netrc_file)
+
+
+def test_netrc_parse_errors_do_not_echo_raw_parser_text(tmp_path: Path) -> None:
+    netrc_file = tmp_path / ".netrc"
+    netrc_file.write_text(
+        "machine packages.pulseplate.app login pulseplate-ci password leaked-token extra\n",  # pragma: allowlist secret
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError) as exc_info:
+        checker.basic_auth_from_netrc("packages.pulseplate.app", netrc_file=netrc_file)
+
+    message = str(exc_info.value)
+    assert "netrc_error" in message
+    assert "NetrcParseError" in message
+    assert "leaked-token" not in message
+    assert "extra" not in message
 
 
 def test_diagnostics_redact_inline_credentials() -> None:
