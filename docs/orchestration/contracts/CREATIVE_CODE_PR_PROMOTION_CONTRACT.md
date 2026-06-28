@@ -175,8 +175,10 @@ Rules:
 - maximum length 80;
 - existing branch blocks;
 - final branch absence recheck immediately before push;
+- push uses an atomic create-only remote-ref lease (`--force-with-lease=refs/heads/<branch>:`)
+  so a branch that appears after the final absence check is rejected before mutation;
 - push result must report a new branch;
-- no force push;
+- no force update to an existing branch;
 - no update to an existing branch;
 - no auto-rebase.
 

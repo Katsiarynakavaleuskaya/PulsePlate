@@ -399,6 +399,7 @@ class GitTransport:
             [
                 "push",
                 "--porcelain",
+                f"--force-with-lease=refs/heads/{branch}:",
                 "origin",
                 f"HEAD:refs/heads/{branch}",
             ],

@@ -759,13 +759,46 @@ def test_github_transport_forbids_draft_ready_review_merge_and_auth_token() -> N
             creative_code_pr_promotion._reject_forbidden_gh_args(args)
 
 
-def test_git_transport_contains_no_force_push_flag() -> None:
+def test_git_transport_uses_create_only_lease_without_force_push() -> None:
     source = (REPO_ROOT / "scripts/orchestration/creative_code_pr_promotion.py").read_text(
         encoding="utf-8"
     )
 
-    assert "--force" not in source
-    assert "--force-with-lease" not in source
+    assert '"--force",' not in source
+    assert "--force-with-lease=refs/heads/{branch}:" in source
+
+
+def test_git_transport_push_new_branch_uses_atomic_create_only_lease(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, list[str]] = {}
+
+    def fake_run(
+        self: creative_code_pr_promotion.GitTransport,
+        args: list[str],
+        *,
+        cwd: Path,
+        input_text: str | None = None,
+        check: bool = True,
+        timeout_seconds: int = 600,
+    ) -> subprocess.CompletedProcess[str]:
+        captured["args"] = args
+        return subprocess.CompletedProcess(args=args, returncode=0, stdout="[new branch]", stderr="")
+
+    monkeypatch.setattr(creative_code_pr_promotion.GitTransport, "run", fake_run)
+
+    creative_code_pr_promotion.GitTransport().push_new_branch(
+        cwd=REPO_ROOT,
+        branch="experiment/create-only",
+    )
+
+    assert captured["args"] == [
+        "push",
+        "--porcelain",
+        "--force-with-lease=refs/heads/experiment/create-only:",
+        "origin",
+        "HEAD:refs/heads/experiment/create-only",
+    ]
 
 
 def test_no_pipeline_promote_or_notify_imports() -> None:
