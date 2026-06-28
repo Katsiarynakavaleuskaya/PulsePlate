@@ -71,6 +71,7 @@ Out of scope:
 - `c82e9a408` - `test(api): use effective routes for runtime env guard`
 - `46052bf4c` - `test(api): use effective routes in remaining main guards`
 - `b909b4aa4` - `test(api): make creative runtime tests hook compatible`
+- `622c3f906` - `fix(ci): keep dev proxy root validation fail closed`
 
 ## Discussion Thread Pass
 
@@ -188,6 +189,14 @@ Commit: b909b4aa4
 Evidence: `tests/test_creative_research_pilot_api.py`.
 Reason: Closes the fresh rebased `lint` failure by converting creative-research runtime `async def` tests to sync tests using `asyncio.run(...)`, matching the repo pre-commit policy for tests selected by `scripts/run-backend-tests-pre-commit.sh`. This is test-only and does not change runtime behavior.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/28329596895/job/83925422497 -> b909b4aa4
+
+Disposition: FIXED
+Commit: 622c3f906
+Evidence: `scripts/ci/check_private_python_proxy_health.py`, `tests/test_private_python_proxy_health.py`, and `docs/review/PR_PRIVATE_PYPI_PROXY_HEALTH_GATE_PREMORTEM.md`.
+Reason: Closes the latest CodeRabbit findings by keeping `--allow-dev-host` fail-closed on the canonical `/root/pulseplate/+simple/` path while only relaxing hostname mismatch, adding a regression test for that path policy, and replacing bare pytest validation commands with `.venv/bin/python -m pytest`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#pullrequestreview-4587883265 -> 622c3f906
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#discussion_r3488276787 -> 622c3f906
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#discussion_r3488276791 -> 622c3f906
 
 ## Local Validation
 
