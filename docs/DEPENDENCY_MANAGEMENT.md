@@ -206,6 +206,30 @@ Canonical contract for shared CI/Docker/bootstrap paths:
 
 **Note**: The temporary wheelhouse is no longer the final control. The repo now fails closed unless dependency resolution goes through the approved private proxy. Artifact quarantine and promotion review still live outside the repo as infrastructure controls.
 
+### Private proxy health and mirror parity gate
+
+`scripts/ci/check_private_python_proxy_health.py` is the cheap, stdlib-only
+health gate for the approved private proxy. It runs before dependency-heavy CI
+jobs that call `.github/actions/python-setup`, because that composite action
+itself depends on the proxy being healthy.
+
+The gate checks the same contract that pip consumes:
+
+- `PULSEPLATE_PYTHON_INDEX_URL` must be a credential-free HTTPS simple-index
+  root for `packages.pulseplate.app`.
+- Public PyPI/TestPyPI/pythonhosted hosts and inline Basic Auth URLs are
+  rejected.
+- The probe uses canonical project pages such as
+  `https://packages.pulseplate.app/root/pulseplate/+simple/aiosqlite/`, not the
+  host root, marketing apex, or a second appended `/simple`.
+- Representative project pages must be non-empty Simple API pages and include
+  exact locked artifacts from the configured requirements files.
+- `origin_unhealthy` / timeout / HTTP 521/522 means operator recovery for
+  Cloudflare/DigitalOcean/devpi, not a repo lockfile or Starlette/httpx fix.
+- `mirror_lag_exact_pin_missing` means the origin is reachable but the mirror is
+  missing an exact locked artifact; emergency wheels remain a time-boxed bridge
+  only for listed exact pins.
+
 ## Canonical Clean-Clone Bootstrap For Local Verify
 
 For this repo, the canonical local path is still the Makefile bootstrap:

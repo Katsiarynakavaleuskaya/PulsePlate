@@ -1,0 +1,238 @@
+from __future__ import annotations
+
+from pathlib import Path
+import socket
+from urllib.error import HTTPError
+
+import pytest
+
+from scripts.ci import check_private_python_proxy_health as checker
+
+APPROVED_INDEX = "https://packages.pulseplate.app/root/pulseplate/+simple/"
+
+
+def simple_page(project: str, version: str) -> bytes:
+    normalized = checker.normalize_project_name(project)
+    wheel_project = normalized.replace("-", "_")
+    return (
+        f'<html><body><a href="../../+f/abc/{wheel_project}-{version}-py3-none-any.whl">'
+        f"{wheel_project}-{version}-py3-none-any.whl</a></body></html>"
+    ).encode()
+
+
+def test_validate_index_url_rejects_unsafe_sources() -> None:
+    with pytest.raises(ValueError, match="missing_index_url"):
+        checker.validate_index_url("")
+    with pytest.raises(ValueError, match="non_https_index_url"):
+        checker.validate_index_url("http://packages.pulseplate.app/root/pulseplate/+simple/")
+    with pytest.raises(ValueError, match="credentialed_index_url"):
+        checker.validate_index_url(
+            "https://user:token@packages.pulseplate.app/root/pulseplate/+simple/"  # pragma: allowlist secret
+        )
+    with pytest.raises(ValueError, match="public_index_url"):
+        checker.validate_index_url("https://pypi.org/simple/")
+    with pytest.raises(ValueError, match="unexpected_packages_host"):
+        checker.validate_index_url("https://pulseplate.app/")
+
+
+def test_validate_index_url_normalizes_approved_host() -> None:
+    assert checker.validate_index_url(f"  {APPROVED_INDEX.rstrip('/')}  ") == APPROVED_INDEX
+
+
+def test_project_page_url_uses_normalized_simple_project_page() -> None:
+    assert (
+        checker.project_page_url(APPROVED_INDEX, "Pydantic_Core")
+        == "https://packages.pulseplate.app/root/pulseplate/+simple/pydantic-core/"
+    )
+
+
+def test_parse_exact_pins_normalizes_names(tmp_path: Path) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text(
+        "\n".join(
+            [
+                "aiosqlite==0.22.1",
+                "pydantic_core==2.41.5 ; python_version >= '3.13'",
+                "requests[security]==2.33.0  # comment",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    assert checker.parse_exact_pins([requirements]) == {
+        "aiosqlite": "0.22.1",
+        "pydantic-core": "2.41.5",
+        "requests": "2.33.0",
+    }
+
+
+def test_probe_project_passes_when_exact_pin_is_present(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_fetch(url: str, *, timeout_seconds: float, max_bytes: int) -> tuple[int, bytes]:
+        assert url == f"{APPROVED_INDEX}aiosqlite/"
+        assert timeout_seconds == 1
+        assert max_bytes == 1000
+        return 200, simple_page("aiosqlite", "0.22.1")
+
+    monkeypatch.setattr(checker, "fetch_project_page", fake_fetch)
+
+    result = checker.probe_project(
+        index_url=APPROVED_INDEX,
+        project="aiosqlite",
+        expected_version="0.22.1",
+        timeout_seconds=1,
+        max_bytes=1000,
+        retries=0,
+    )
+
+    assert result.ok is True
+    assert result.reason == "ok"
+
+
+def test_probe_project_accepts_truncated_page_when_exact_pin_is_already_seen(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    body = simple_page("pydantic-core", "2.41.5") + b"x" * 10
+    monkeypatch.setattr(
+        checker,
+        "fetch_project_page",
+        lambda url, *, timeout_seconds, max_bytes: (200, body),
+    )
+
+    result = checker.probe_project(
+        index_url=APPROVED_INDEX,
+        project="pydantic-core",
+        expected_version="2.41.5",
+        timeout_seconds=1,
+        max_bytes=len(body) - 1,
+        retries=0,
+    )
+
+    assert result.ok is True
+    assert result.reason == "ok"
+
+
+@pytest.mark.parametrize(
+    ("status", "reason"),
+    [
+        (401, "auth_or_access_denied"),
+        (403, "auth_or_access_denied"),
+        (404, "project_page_not_found"),
+        (521, "origin_unhealthy"),
+    ],
+)
+def test_probe_project_classifies_http_errors(
+    monkeypatch: pytest.MonkeyPatch,
+    status: int,
+    reason: str,
+) -> None:
+    def fake_fetch(url: str, *, timeout_seconds: float, max_bytes: int) -> tuple[int, bytes]:
+        raise HTTPError(url, status, "error", hdrs=None, fp=None)
+
+    monkeypatch.setattr(checker, "fetch_project_page", fake_fetch)
+
+    result = checker.probe_project(
+        index_url=APPROVED_INDEX,
+        project="aiosqlite",
+        expected_version="0.22.1",
+        timeout_seconds=1,
+        max_bytes=1000,
+        retries=0,
+    )
+
+    assert result.ok is False
+    assert result.reason == reason
+    assert result.status == status
+
+
+@pytest.mark.parametrize(
+    ("body", "reason"),
+    [
+        (b"", "empty_project_page"),
+        (b"<html><body>no links here</body></html>", "simple_page_malformed"),
+        (simple_page("aiosqlite", "0.22.0"), "mirror_lag_exact_pin_missing"),
+        (b"<html>Cloudflare Error 521 web server is down</html>", "origin_unhealthy"),
+    ],
+)
+def test_probe_project_classifies_unhealthy_or_non_parity_pages(
+    monkeypatch: pytest.MonkeyPatch,
+    body: bytes,
+    reason: str,
+) -> None:
+    monkeypatch.setattr(
+        checker,
+        "fetch_project_page",
+        lambda url, *, timeout_seconds, max_bytes: (200, body),
+    )
+
+    result = checker.probe_project(
+        index_url=APPROVED_INDEX,
+        project="aiosqlite",
+        expected_version="0.22.1",
+        timeout_seconds=1,
+        max_bytes=1000,
+        retries=0,
+    )
+
+    assert result.ok is False
+    assert result.reason == reason
+
+
+def test_probe_project_classifies_timeouts_after_bounded_retries(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    attempts = 0
+
+    def fake_fetch(url: str, *, timeout_seconds: float, max_bytes: int) -> tuple[int, bytes]:
+        nonlocal attempts
+        attempts += 1
+        raise socket.timeout("timed out")
+
+    monkeypatch.setattr(checker, "fetch_project_page", fake_fetch)
+
+    result = checker.probe_project(
+        index_url=APPROVED_INDEX,
+        project="aiosqlite",
+        expected_version="0.22.1",
+        timeout_seconds=1,
+        max_bytes=1000,
+        retries=1,
+    )
+
+    assert attempts == 2
+    assert result.ok is False
+    assert result.reason == "tls_or_connect_timeout"
+
+
+def test_check_health_fails_when_project_missing_from_requirements(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        checker,
+        "fetch_project_page",
+        lambda url, *, timeout_seconds, max_bytes: (200, simple_page("requests", "2.33.0")),
+    )
+
+    summary = checker.check_health(
+        index_url=APPROVED_INDEX,
+        projects=["requests"],
+        pins={},
+        expected_host="packages.pulseplate.app",
+        allow_dev_host=False,
+        timeout_seconds=1,
+        max_bytes=1000,
+        retries=0,
+    )
+
+    assert summary.ok is False
+    assert summary.results[0].reason == "missing_exact_pin_in_requirements"
+
+
+def test_diagnostics_redact_inline_credentials() -> None:
+    redacted = checker.redact_text(
+        "failed https://root:secret@packages.pulseplate.app/root/pulseplate/+simple/"  # pragma: allowlist secret
+        " Authorization=secret-token"
+    )
+
+    assert "root:secret" not in redacted
+    assert "secret-token" not in redacted
+    assert "packages.pulseplate.app" in redacted
