@@ -226,7 +226,7 @@ rich==14.3.3
     # via
     #   bandit
     #   pip-audit
-ruff==0.15.19
+ruff==0.15.20
     # via -r requirements-dev.in
 sortedcontainers==2.4.0
     # via
@@ -260,6 +260,10 @@ yamllint==1.38.0
     # via -r requirements-dev.in
 
 # The following packages are considered to be unsafe in a requirements file:
+pip==26.1.2
+    # via
+    #   pip-api
+    #   pip-tools
 setuptools==78.1.1
     # via
     #   -c requirements.txt
