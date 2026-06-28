@@ -96,7 +96,7 @@ Evidence: `scripts/orchestration/agent_learning_loop.py` revalidates redacted st
 
 - `pulseplate-pr-review` dry-run pass: advisory `note` on large-diff risk above the review-risk threshold.
 Disposition: NOT-A-BUG.
-Evidence: PR body records a non-template split justification plus `Operator approval: approved`, `Emergency exception: approved`, and `Privileged scope exception: approved`; PR labels include `scope/operator-approved`, `scope/emergency-approved`, and `scope/privileged-approved`; `python3 scripts/ci/check_pr_size_governance.py --base-sha 47997f59caeba4a140fcc25e835f5563c3c641de --head-sha c92a2b32e497af667201f70e5e0485faaa54cff7 --event-path <tmp event with live PR body and labels>` passed with `PR scope governance: OK (>30 files) because an operator-approved emergency exception is documented.`.
+Evidence: PR body records a non-template split justification plus `Operator approval: approved`, `Emergency exception: approved`, and `Privileged scope exception: approved`; PR labels include `scope/operator-approved`, `scope/emergency-approved`, and `scope/privileged-approved`; `python3 scripts/ci/check_pr_size_governance.py --base-sha 47997f59caeba4a140fcc25e835f5563c3c641de --head-sha HEAD --event-path <tmp event with live PR body and labels>` passed with `PR scope governance: OK (>30 files) because an operator-approved emergency exception is documented.`.
 Reason: The large-diff note is valid review-planning signal, but the intentionally broad one-PR governance contract is operator-approved and locally validated by the repository size-governance gate.
 
 ## Premortem Evidence
