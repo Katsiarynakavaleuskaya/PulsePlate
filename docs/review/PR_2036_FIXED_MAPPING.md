@@ -73,6 +73,7 @@ Out of scope:
 - `fa32e3dc1` - `docs(review): map proxy health path policy fix`
 - `8c234a854` - `ci(deps): tighten proxy parity review fixes`
 - `9853e679d` - `test(ci): align main shard proxy source contract`
+- `3c0790303` - `fix(ci): cover pydantic-core emergency wheels for main matrix`
 
 ## Rebased Main Baseline
 
@@ -221,6 +222,13 @@ Evidence: `tests/test_ci_workflow_pr_size_governance_contract.py`.
 Reason: Closes the current-head `test-main (3.11, 60)` contract failure after commit `8c234a854` by updating the sharded main-runner governance test to the same vars-only protected proxy endpoint contract and asserting that secret-backed devpi credentials remain confined to the `.netrc`-driven setup step.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/28334015038/job/83937051776 -> 9853e679d
 
+Disposition: FIXED
+Commit: 3c0790303
+Evidence: `scripts/ci/emergency_python_wheels.json`, `tests/test_install_locked_python_requirements.py`, and `.secrets.baseline`.
+Reason: Closes the current-head `test-main` install failures caused by package-scoped timeouts on the large `pydantic-core` Simple API project page. `pydantic-core==2.46.4` was already pinned in the backend/test dependency profiles and already had a time-boxed emergency wheel for `cp313`; this adds the missing exact `cp311` and `cp312` Linux wheels with sha256 verification so the existing emergency-wheel bridge can cover the full main matrix without adding a public PyPI fallback or changing runtime dependencies.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/28334719617/job/83938875035 -> 3c0790303
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/28334719617/job/83938875023 -> 3c0790303
+
 ## Local Validation
 
 Full local `make verify` was not run under the operator-approved machine-heavy
@@ -254,6 +262,10 @@ Validated on the rebased mapping head:
   `.venv/bin/python -m pytest -q tests/test_ci_workflow_pr_size_governance_contract.py::test_main_branch_python_sharded_runner_preserves_required_check_policy tests/test_private_python_proxy_workflow_contract.py tests/test_python_supply_chain_controls.py::test_canonical_ci_and_docker_use_supply_chain_guardrails tests/test_python_supply_chain_controls.py::test_proxy_backed_workflows_support_vars_or_secrets`
   - Result after current-head `test-main (3.11, 60)` contract failure:
     `17 passed`; one existing Starlette/httpx2 deprecation warning.
+- PASS:
+  `.venv/bin/python -m pytest -q tests/test_install_locked_python_requirements.py::test_repo_emergency_manifest_tracks_current_active_fallback_set tests/test_install_locked_python_requirements.py::test_repo_ci_lite_main_mirror_lag_emergency_wheels_are_selected tests/test_install_locked_python_requirements.py::test_repo_pydantic_core_emergency_fallback_covers_main_python_matrix tests/test_python_supply_chain_controls.py::test_canonical_ci_and_docker_use_supply_chain_guardrails`
+  - Result after current-head `test-main` pydantic-core project-page timeout:
+    `6 passed`; one existing Starlette/httpx2 deprecation warning.
 - PASS: `make validate-changed`
   - Selected:
     `tests/test_private_python_proxy_health.py`,
