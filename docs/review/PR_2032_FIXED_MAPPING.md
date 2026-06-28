@@ -35,7 +35,7 @@
 
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
-- Resolved review threads mapped with disposition proof: 6.
+- Resolved review threads mapped with disposition proof: 15.
 - [x] Pre-open premortem findings dispositioned.
 - [x] Experiment Runner oracle-only governance evidence recorded.
 - [x] Local focused gates, `make validate-changed`, and
@@ -45,7 +45,7 @@
 - [x] Codex Security diff scan for head
   `f28857f55e010c85d94dc4bdea8869239f69a362` completed; one finding was
   fixed in `e1531a004f`.
-- [x] Fresh Codex Security diff scan for current head
+- [x] Fresh Codex Security diff scan for the then-current material head
   `89eac881f07996ca56c36f161134c8bdd906f716` completed with no findings.
 - [x] `pulseplate-pr-review` completed; advisory large-diff note dispositioned.
 - [ ] CodeRabbit, Sourcery, and Cubic current-head actionables must be
@@ -74,10 +74,35 @@ Disposition: FIXED
 Commit: bc7fb204e06cd69606f558c5ecb30f97d0d2b8e0
 Evidence: `app/effective_routes.py`, `app/middleware/metrics.py`, `app/routers/billing.py`, `app/routers/vip_registration.py`, `tests/test_main_paywall_bootstrap.py`, `tests/test_metrics.py`, focused CodeRabbit regression tests, full `tests/test_main_paywall_bootstrap.py tests/test_metrics.py`, `ruff`, `mypy`, `pre-commit run --all-files`, and `make validate-changed` all passed.
 Reason: Closes CodeRabbit actionables by rejecting duplicate source route owners, failing closed on missing FitChef insight POST routes, rejecting partial preexisting billing route state, and normalizing metrics route labels before caching.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2032#pullrequestreview-4585864676 -> bc7fb204e06cd69606f558c5ecb30f97d0d2b8e0
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2032#discussion_r3486513876 -> bc7fb204e06cd69606f558c5ecb30f97d0d2b8e0
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2032#discussion_r3486601869 -> bc7fb204e06cd69606f558c5ecb30f97d0d2b8e0
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2032#discussion_r3486601870 -> bc7fb204e06cd69606f558c5ecb30f97d0d2b8e0
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2032#pullrequestreview-4585986171 -> bc7fb204e06cd69606f558c5ecb30f97d0d2b8e0
+
+Disposition: FIXED
+Commit: 66027f7577bdd10aaecf7d8fe1ebfa885f1ae610
+Evidence: `docs/review/PR_2032_FIXED_MAPPING.md`, `tests/conftest.py`, `tests/test_app_endpoints_combined.py`, `tests/test_bmi_compat_router.py`, `tests/test_pro_contracts_bootstrap.py`, focused route/effective-route regression tests, `pre-commit run --all-files`, and `make validate-changed` all passed.
+Reason: Closes CodeRabbit follow-up comments by keeping merge-readiness checkboxes open until the final merge cycle, reading favicon dependencies from the underlying route, filtering BMI route counts to API route candidates, resolving PRO paths through `route_path`, and reading effective-route dependencies from `original_route`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2032#pullrequestreview-4586349782 -> 66027f7577bdd10aaecf7d8fe1ebfa885f1ae610
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2032#discussion_r3486863218 -> 66027f7577bdd10aaecf7d8fe1ebfa885f1ae610
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2032#discussion_r3486863220 -> 66027f7577bdd10aaecf7d8fe1ebfa885f1ae610
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2032#discussion_r3486863224 -> 66027f7577bdd10aaecf7d8fe1ebfa885f1ae610
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2032#discussion_r3486863228 -> 66027f7577bdd10aaecf7d8fe1ebfa885f1ae610
+
+Disposition: FIXED
+Commit: cbcd5beeb127e16bb7bc85021b521fc3ad982eda
+Evidence: `trivy/ignore-policy.rego`, `docs/security/CVE-2026-27171-zlib1g.md`, `docs/security/CVE-2026-3184-util-linux.md`, `docs/security/CVE-2025-69720-ncurses.md`, `python scripts/ci/check_trivy_ignore_policy_expiry.py`, `tests/test_trivy_ignore_policy_expiry.py`, `make validate-changed`, and `pre-commit run --all-files` all passed.
+Reason: Refreshes the Trivy OS-package suppression review window after verifying Debian bookworm still has no repo-level fixed package path for the affected zlib/ncurses entries and still marks the util-linux context as not actionable for this image.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2032 -> cbcd5beeb127e16bb7bc85021b521fc3ad982eda
+
+Disposition: FIXED
+Commit: 60fab8312bdf5925b0f43574ffc11f55502a5121
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md`, `scripts/ci/install_locked_python_requirements.py`, `tests/test_install_locked_python_requirements.py`, focused package-scoped retry fallback regression test, full dependency/supply-chain guard pytest bundle, `make validate-changed`, and `pre-commit run --all-files` all passed.
+Reason: Closes latest CodeRabbit actionables by removing stale Ruff emergency-fallback inventory text and normalizing package-scoped pip retry diagnostics before matching uppercase transport markers.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2032#pullrequestreview-4587099721 -> 60fab8312bdf5925b0f43574ffc11f55502a5121
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2032#discussion_r3487417552 -> 60fab8312bdf5925b0f43574ffc11f55502a5121
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2032#discussion_r3487417553 -> 60fab8312bdf5925b0f43574ffc11f55502a5121
 
 Disposition: FIXED
 Commit: e1531a004f2d4fadbb98260e1b996e664f80fc15
