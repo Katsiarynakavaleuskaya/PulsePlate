@@ -33,8 +33,11 @@ BLOCKED_PUBLIC_HOSTS = frozenset(
 )
 PROJECT_NAME_RE = re.compile(r"[-_.]+")
 PIN_RE = re.compile(
-    r"^\s*([A-Za-z0-9][A-Za-z0-9._-]*)(?:\[[^\]]+\])?\s*==\s*([A-Za-z0-9][A-Za-z0-9._+!~-]*)"
+    r"^\s*([A-Za-z0-9][A-Za-z0-9._-]*)(?:\[[^\]]+\])?\s*==\s*"
+    r"([A-Za-z0-9][A-Za-z0-9._+!~-]*)"
+    r"(?:\s+--hash(?:=|\s+)[A-Za-z0-9:]+)*\s*$"
 )
+PACKAGE_REQUIREMENT_RE = re.compile(r"^\s*[A-Za-z0-9][A-Za-z0-9._-]*(?:\[[^\]]+\])?\s*")
 ORIGIN_UNHEALTHY_STATUSES = {500, 502, 503, 504, 520, 521, 522, 523, 524}
 CLOUDFLARE_ORIGIN_MARKERS = (
     "error 521",
@@ -225,9 +228,18 @@ def parse_exact_pins(requirements_files: Iterable[Path]) -> dict[str, str]:
                 continue
             match = PIN_RE.match(line)
             if not match:
+                if PACKAGE_REQUIREMENT_RE.match(line):
+                    raise ValueError(f"non_exact_pin: {path}:{raw_line}")
                 continue
             package, version = match.groups()
-            pins.setdefault(normalize_project_name(package), version)
+            normalized_package = normalize_project_name(package)
+            previous_version = pins.get(normalized_package)
+            if previous_version is not None and previous_version != version:
+                raise ValueError(
+                    "conflicting_exact_pins: "
+                    f"{normalized_package} has both {previous_version} and {version}"
+                )
+            pins[normalized_package] = version
     return pins
 
 

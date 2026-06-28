@@ -237,6 +237,25 @@ The gate checks the same contract that pip consumes:
 - `mirror_lag_exact_pin_missing` means the origin is reachable but the mirror is
   missing an exact locked artifact; emergency wheels remain a time-boxed bridge
   only for listed exact pins.
+- `auth_or_access_denied` means the project page requires credentials or the
+  CI `.netrc` principal lacks read access; rotate/fix non-root devpi CI
+  credentials instead of embedding credentials in the URL.
+- `project_page_not_found` means the package is not present at the canonical
+  devpi project page; verify the normalized project name and mirror sync.
+- `redirect_not_allowed` means the proxy path drifted or is redirecting away
+  from the approved simple root; fix DNS/devpi routing rather than following
+  the redirect.
+- `http_error` covers non-2xx HTTP responses outside the explicit origin/auth
+  classes; inspect edge/origin logs for the packages hostname.
+- `empty_project_page` / `simple_page_malformed` means the project page is
+  reachable but not a usable Simple API project page; inspect devpi project-page
+  generation and mirror state.
+- `simple_page_truncated` means the page exceeded the bounded read before the
+  exact pin was observed; choose a smaller representative package for the fast
+  gate or investigate oversized mirror pages.
+- `missing_exact_pin_in_requirements` means the probe list and requirements
+  files disagree; update the checker inputs instead of treating it as an origin
+  outage.
 
 ## Canonical Clean-Clone Bootstrap For Local Verify
 

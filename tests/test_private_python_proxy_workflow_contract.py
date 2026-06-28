@@ -67,6 +67,7 @@ def test_private_proxy_health_job_is_stdlib_fail_fast_gate() -> None:
     assert "--project pytest-xdist" in run_blocks
     assert "--project hypothesis" in run_blocks
     assert "--project pgvector" in run_blocks
+    assert "--project pydantic-core" not in run_blocks
 
 
 def test_private_proxy_health_uses_vars_for_pull_request_context() -> None:

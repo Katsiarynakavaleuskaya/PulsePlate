@@ -12,6 +12,11 @@ or dependency lockfiles.
 
 ## Protected Contract
 
+Evidence anchor: `scripts/ci/check_private_python_proxy_health.py:591` defines
+the default representative project set, and
+`tests/test_private_python_proxy_workflow_contract.py:62` validates the CI
+health job command contract.
+
 - `PULSEPLATE_PYTHON_INDEX_URL` must stay credential-free.
 - The default packages host is `packages.pulseplate.app`.
 - Public package hosts such as `pypi.org`, `test.pypi.org`, and

@@ -58,6 +58,7 @@ def test_parse_exact_pins_normalizes_names(tmp_path: Path) -> None:
                 "aiosqlite==0.22.1",
                 "pydantic_core==2.41.5 ; python_version >= '3.13'",
                 "requests[security]==2.33.0  # comment",
+                "cryptography==48.0.1 --hash=sha256:abc123 --hash sha256:def456",
             ]
         ),
         encoding="utf-8",
@@ -67,7 +68,80 @@ def test_parse_exact_pins_normalizes_names(tmp_path: Path) -> None:
         "aiosqlite": "0.22.1",
         "pydantic-core": "2.41.5",
         "requests": "2.33.0",
+        "cryptography": "48.0.1",
     }
+
+
+def test_parse_exact_pins_rejects_extra_specifiers(tmp_path: Path) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("aiosqlite==0.22.1,<1\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="non_exact_pin"):
+        checker.parse_exact_pins([requirements])
+
+
+def test_parse_exact_pins_rejects_conflicting_repeated_pins(tmp_path: Path) -> None:
+    first = tmp_path / "requirements.txt"
+    second = tmp_path / "requirements-test.txt"
+    first.write_text("requests==2.33.0\n", encoding="utf-8")
+    second.write_text("requests==2.33.1\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="conflicting_exact_pins: requests"):
+        checker.parse_exact_pins([first, second])
+
+
+def test_main_default_projects_exclude_large_pydantic_core_probe(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    captured_projects: list[str] = []
+
+    def fake_check_health(
+        *,
+        index_url: str,
+        projects: list[str],
+        pins: dict[str, str],
+        expected_host: str,
+        allow_dev_host: bool,
+        timeout_seconds: float,
+        max_bytes: int,
+        retries: int,
+        netrc_file: Path | None = None,
+    ) -> checker.HealthSummary:
+        captured_projects.extend(projects)
+        return checker.HealthSummary(
+            ok=True,
+            index_url=APPROVED_INDEX,
+            host="packages.pulseplate.app",
+            results=(),
+        )
+
+    monkeypatch.setattr(
+        checker,
+        "parse_exact_pins",
+        lambda requirements_files: {
+            "aiosqlite": "0.22.1",
+            "cryptography": "48.0.1",
+            "requests": "2.33.0",
+            "pytest-xdist": "3.8.0",
+            "hypothesis": "6.155.7",
+            "pgvector": "0.4.2",
+            "pydantic-core": "2.41.5",
+        },
+    )
+    monkeypatch.setattr(checker, "check_health", fake_check_health)
+
+    assert checker.main(["--index-url", APPROVED_INDEX]) == 0
+    assert captured_projects == [
+        "aiosqlite",
+        "cryptography",
+        "requests",
+        "pytest-xdist",
+        "hypothesis",
+        "pgvector",
+    ]
+    assert "pydantic-core" not in captured_projects
+    assert "private_python_proxy_health ok=true" in capsys.readouterr().out
 
 
 def test_probe_project_passes_when_exact_pin_is_present(monkeypatch: pytest.MonkeyPatch) -> None:

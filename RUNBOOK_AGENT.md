@@ -411,6 +411,11 @@ interpreter itself. Evidence: `scripts/ci/check_local_verify_environment.py`.
    - `empty_project_page` / `simple_page_malformed`: inspect devpi project-page generation or mirror sync.
    - `mirror_lag_exact_pin_missing`: sync the mirror; the emergency wheel manifest is allowed only as a time-boxed exact-pin bridge.
    - `missing_exact_pin_in_requirements`: fix the checker input list or lockfile selection.
+   - `auth_or_access_denied`: fix non-root `.netrc`/devpi read credentials; do not embed auth in `PULSEPLATE_PYTHON_INDEX_URL`.
+   - `project_page_not_found`: verify the normalized project page and mirror sync for that package.
+   - `redirect_not_allowed`: fix DNS/devpi route drift so the canonical simple root is served directly.
+   - `http_error`: inspect Cloudflare/origin logs for non-2xx package-host responses not covered above.
+   - `simple_page_truncated`: use a smaller representative fast-gate package or investigate oversized mirror pages before raising timeouts.
 4. **Preflight without full install:** from repo root with venv active,
    `python3 scripts/ci/install_locked_python_requirements.py --preflight-only`
    (reads the same index + optional `scripts/ci/emergency_python_wheels.json` per policy).
