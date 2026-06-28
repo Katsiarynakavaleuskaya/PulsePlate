@@ -1216,7 +1216,13 @@ def load_dependency_security_floors(
     return floors
 
 
-def _resolver_miss_error(runtime_error: RuntimeError, *, package: str, version: str) -> bool:
+def _resolver_miss_error(
+    runtime_error: RuntimeError,
+    *,
+    package: str,
+    version: str,
+    ignored_transport_packages: Sequence[str] = (),
+) -> bool:
     """Return True when pip failed because package floor is unavailable on index."""
     message = str(runtime_error)
     normalized_message = message.lower()
@@ -1224,9 +1230,15 @@ def _resolver_miss_error(runtime_error: RuntimeError, *, package: str, version: 
     package_name = _normalized_package_name(package)
     normalized_requirement = requirement_text.lower()
 
-    def line_mentions_only_requested_package(line: str) -> bool:
+    def line_mentions_requested_or_ignored_project(line: str) -> bool:
+        return _line_mentions_requested_project(line, package=package) or any(
+            _line_mentions_requested_project(line, package=ignored_package)
+            for ignored_package in ignored_transport_packages
+        )
+
+    def line_mentions_only_requested_or_ignored_package(line: str) -> bool:
         if _line_has_transport_failure_excluding_package_name(line, package=package):
-            return _line_mentions_requested_project(line, package=package)
+            return line_mentions_requested_or_ignored_project(line)
         if normalized_requirement in line:
             return True
         if re.fullmatch(rf"\s*{re.escape(package_name)}\s*", line):
@@ -1236,7 +1248,7 @@ def _resolver_miss_error(runtime_error: RuntimeError, *, package: str, version: 
     network_diagnostics = "\n".join(
         line
         for line in normalized_message.splitlines()
-        if not line_mentions_only_requested_package(line)
+        if not line_mentions_only_requested_or_ignored_package(line)
     )
     if _pip_upgrade_network_failure(network_diagnostics):
         return False
@@ -1985,6 +1997,7 @@ def _artifacts_with_resolver_miss(
     exc: RuntimeError,
     *,
     requested_artifacts: Sequence[dict[str, str]],
+    ignored_transport_packages: Sequence[str] = (),
 ) -> list[dict[str, str]]:
     """Return requested emergency artifacts named by the resolver miss output."""
     return [
@@ -1994,6 +2007,7 @@ def _artifacts_with_resolver_miss(
             exc,
             package=artifact["package"],
             version=artifact["version"],
+            ignored_transport_packages=ignored_transport_packages,
         )
     ]
 
@@ -2065,6 +2079,7 @@ def build_wheelhouse_with_emergency_fallback(
             resolver_miss_artifacts = _artifacts_with_resolver_miss(
                 exc,
                 requested_artifacts=remaining_artifacts,
+                ignored_transport_packages=[package for package, _version in staged_artifact_keys],
             )
             if not resolver_miss_artifacts:
                 raise
@@ -2129,6 +2144,7 @@ def install_from_proxy_with_emergency_fallback(
             resolver_miss_artifacts = _artifacts_with_resolver_miss(
                 exc,
                 requested_artifacts=remaining_artifacts,
+                ignored_transport_packages=[package for package, _version in staged_artifact_keys],
             )
             if not resolver_miss_artifacts:
                 raise
