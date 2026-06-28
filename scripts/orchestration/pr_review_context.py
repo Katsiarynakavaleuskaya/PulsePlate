@@ -407,14 +407,15 @@ def collect_review_context(
         if fixed_mapping.get("exists"):
             repo_path = str(fixed_mapping.get("repo_path") or "")
             degraded_reasons: list[str] = []
-            if pr_metadata_head and local_head_sha:
+            effective_pr_head = pr_metadata_head or diff_head
+            if effective_pr_head and local_head_sha:
                 fixed_mapping["local_head_sha"] = local_head_sha
-                fixed_mapping["pr_head_sha"] = pr_metadata_head
-            if pr_metadata_head and local_head_sha and local_head_sha != pr_metadata_head:
+                fixed_mapping["pr_head_sha"] = effective_pr_head
+            if effective_pr_head and local_head_sha and local_head_sha != effective_pr_head:
                 degraded_reasons.append(
                     "Fixed-mapping artifact was read from local HEAD "
-                    f"{local_head_sha[:12]}, but GitHub PR metadata/diff is at head "
-                    f"{pr_metadata_head[:12]}; push local commits or run from a matching "
+                    f"{local_head_sha[:12]}, but PR metadata/diff is at head "
+                    f"{effective_pr_head[:12]}; push local commits or run from a matching "
                     "checkout before treating mapping evidence as current PR truth."
                 )
             if repo_path and not diff_warnings:

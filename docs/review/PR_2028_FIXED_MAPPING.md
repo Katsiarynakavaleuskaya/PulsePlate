@@ -84,6 +84,10 @@ Evidence: The Experiment Runner note now limits itself to the relevant fact: no 
 Disposition: FIXED.
 Evidence: `scripts/orchestration/agent_lesson_promoter.py` emits a generic unreadable-record error for `OSError`, and `scripts/orchestration/pr_review_context.py` emits only `repo_path` for fixed-mapping artifacts. `tests/test_agent_learning_loop.py` and `tests/test_pr_review_context.py` assert local `tmp_path` and `/etc/...` paths are absent from CLI errors and context payloads.
 
+- `cursor-specialist-agent` post-open pass: BLOCK on fixed-mapping parity when PR metadata is unavailable but an explicit diff head is provided, and on review-pattern oracle token-family redaction before hashing.
+Disposition: FIXED.
+Evidence: `scripts/orchestration/pr_review_context.py` compares local mapping evidence against `pr_metadata_head or diff_head`; `scripts/orchestration/review_pattern_oracles.py` redacts `github_pat_...` and full `ghs_...` tokens before fingerprinting. `tests/test_pr_review_context.py` and `tests/test_review_pattern_oracles.py` cover both regressions.
+
 ## Premortem Evidence
 - Disposition: FIXED
 - Evidence: `scripts/orchestration/agent_learning_loop.py`, `tests/test_agent_learning_loop.py`, `docs/orchestration/REVIEW_SOURCE_DEGRADATION_POLICY.md`, `scripts/orchestration/pr_review_report.py`, `tests/test_pr_review_report.py`, and `docs/orchestration/SCOPED_VALIDATION_POLICY.md` cover learning-record validation, degraded-source advisory semantics, and scoped-validation boundaries.

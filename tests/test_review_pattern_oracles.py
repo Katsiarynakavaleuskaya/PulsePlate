@@ -42,6 +42,19 @@ def test_review_pattern_oracles_are_deterministic() -> None:
     assert match_review_pattern_oracles(**kwargs) == match_review_pattern_oracles(**kwargs)
 
 
+def test_review_pattern_oracles_redact_token_families_before_fingerprinting() -> None:
+    report_a = match_review_pattern_oracles(
+        text="security review ghs_abc-def.ghi schema",
+        changed_paths=["docs/orchestration/contracts/review_pattern_oracles.v1.json"],
+    )
+    report_b = match_review_pattern_oracles(
+        text="security review github_pat_secretsecret schema",
+        changed_paths=["docs/orchestration/contracts/review_pattern_oracles.v1.json"],
+    )
+
+    assert report_a["input_fingerprint"] == report_b["input_fingerprint"]
+
+
 def test_review_pattern_oracle_schema_matches_helper_shape() -> None:
     report = match_review_pattern_oracles(
         text="review source degraded schema validator",

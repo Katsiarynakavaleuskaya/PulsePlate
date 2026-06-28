@@ -15,7 +15,9 @@ import re
 ORACLE_SCHEMA_VERSION = "review_pattern_oracles.v1"
 AUTHORITY_BOUNDARY = "proposal_only_non_canonical"
 _SECRETISH_RE = re.compile(
-    r"(?i)\b(token|secret|password|api[_-]?key|github_token|gh_token)\b\s*[:=]\s*([^\s]+)"
+    r"(?i)(github_pat_[a-z0-9_]+|ghs_[a-z0-9_.-]+|gh[opru]_[a-z0-9_]+|"
+    r"ghp_[a-z0-9_]+|sk-[a-z0-9_-]+|"
+    r"\b(?:token|secret|password|api[_-]?key|github_token|gh_token)\b\s*[:=]\s*[^\s]+)"
 )
 REVIEW_PATTERN_ORACLE_IDS: tuple[str, ...] = (
     "schema_validator_parity",
@@ -79,7 +81,7 @@ DEFAULT_ORACLES: tuple[ReviewPatternOracle, ...] = (
 def redact_review_text(value: str) -> str:
     """Redact obvious secret-like assignments from oracle inputs."""
 
-    return _SECRETISH_RE.sub(lambda match: f"{match.group(1)}=<redacted>", value)
+    return _SECRETISH_RE.sub("<redacted>", value)
 
 
 def match_review_pattern_oracles(

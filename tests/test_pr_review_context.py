@@ -319,6 +319,57 @@ def test_collect_review_context_degrades_mapping_absent_from_pr_diff_without_sha
     assert any("not present in the PR head diff" in warning for warning in context["warnings"])
 
 
+def test_collect_review_context_degrades_mapping_against_explicit_head_without_metadata(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mapping = tmp_path / "docs" / "review" / "PR_2028_FIXED_MAPPING.md"
+    mapping.parent.mkdir(parents=True)
+    mapping.write_text(
+        "\n".join(
+            [
+                "# PR 2028 - Fixed in Commit Mapping",
+                "",
+                "## Fixed in Commit Mapping",
+                "- No actionable review comments",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(review_ctx, "collect_pr_metadata", lambda **kwargs: (None, []))
+    monkeypatch.setattr(
+        review_ctx,
+        "collect_scope_diff",
+        lambda **kwargs: (
+            [
+                review_ctx.DiffStats(
+                    path="docs/review/PR_2028_FIXED_MAPPING.md",
+                    additions=1,
+                    deletions=0,
+                )
+            ],
+            {"files": 1, "additions": 1, "deletions": 0, "changed_lines": 1},
+            [],
+        ),
+    )
+    monkeypatch.setattr(review_ctx, "collect_local_head_sha", lambda repo_root: ("local-head", []))
+
+    context = review_ctx.collect_review_context(
+        repo_root=tmp_path,
+        pr_number=2028,
+        repo="owner/repo",
+        base_ref="base-sha",
+        head_ref="remote-head",
+    )
+
+    assert context["fixed_mapping"]["local_head_sha"] == "local-head"
+    assert context["fixed_mapping"]["pr_head_sha"] == "remote-head"
+    assert any(
+        "local-head" in warning and "remote-head" in warning for warning in context["warnings"]
+    )
+
+
 def test_main_writes_json_to_stdout_and_warnings_to_stderr(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
