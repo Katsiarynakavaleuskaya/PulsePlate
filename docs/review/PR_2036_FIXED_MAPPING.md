@@ -66,6 +66,9 @@ Out of scope:
 - `991399674` - `docs(runbook): fix private proxy triage headings`
 - `51fecbb9f` - `test(api): align route guards with effective routes`
 - `651ea0fc7` - `test(api): cover effective routes in remaining guards`
+- `54669d629` - `docs(review): map remaining route guard fix`
+- `fa3437b08` - `docs(review): remove local path evidence`
+- `58c5881e2` - `test(api): use effective routes for runtime env guard`
 
 ## Discussion Thread Pass
 
@@ -160,6 +163,18 @@ Evidence: `tests/test_legacy_export_aliases.py`, `tests/test_test_router.py`, an
 Reason: Closes the next current-head `test-main (3.11, 60)` failure by moving the remaining raw route-table assertions to effective route helpers and making the test-router reload helper resilient when earlier tests remove `app.main` from `sys.modules`. This remains test-only and does not change runtime route registration.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/28326828744/job/83918253209 -> 651ea0fc7
 
+Disposition: FIXED
+Commit: fa3437b08
+Evidence: `docs/review/PR_2036_FIXED_MAPPING.md` and `tests/guards/test_security_devtooling_regression_guards.py::test_changed_docs_do_not_add_local_users_absolute_paths`.
+Reason: Closes the current-head local-path leakage failure by replacing absolute local validation command paths with repo-relative commands.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/28327495533/job/83919976404 -> fa3437b08
+
+Disposition: FIXED
+Commit: 58c5881e2
+Evidence: `tests/test_legacy_runtime_env_canonicalization.py`.
+Reason: Closes the current-head `test-main (3.11, 60)` failure by using effective route helpers for the staging test-router route assertion and making canonical bootstrap reload resilient to prior `sys.modules` cleanup. This remains test-only and does not change runtime route registration.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/28327987035/job/83921248754 -> 58c5881e2
+
 ## Local Validation
 
 Full local `make verify` was not run under the operator-approved machine-heavy
@@ -224,6 +239,23 @@ Validated on the rebased mapping head:
   - Note: `make validate-changed` did not select
     `tests/test_legacy_export_aliases.py` or `tests/test_vip_api.py`, so those
     files were covered by the focused pytest commands above.
+- PASS:
+  `.venv/bin/python -m pytest -q tests/guards/test_security_devtooling_regression_guards.py::test_changed_docs_do_not_add_local_users_absolute_paths`
+  - Result after commit `fa3437b08`: passed; one existing Starlette/httpx2
+    deprecation warning.
+- PASS:
+  `.venv/bin/python -m pytest -q tests/test_legacy_runtime_env_canonicalization.py tests/test_test_router.py`
+  - Result after commit `58c5881e2`: `13 passed`; one existing Starlette/httpx2
+    deprecation warning.
+- PASS:
+  `.venv/bin/ruff check tests/test_legacy_runtime_env_canonicalization.py tests/test_test_router.py`
+- PASS:
+  `VENV_PYTHON=.venv/bin/python make validate-changed`
+  - Result after commit `58c5881e2`: backend tests passed; one existing
+    Starlette/httpx2 deprecation warning.
+  - Note: `make validate-changed` did not select
+    `tests/test_legacy_runtime_env_canonicalization.py`, so that file was
+    covered by the focused pytest command above.
 
 ## Security Notes
 
