@@ -3088,6 +3088,7 @@ def test_install_from_proxy_with_emergency_fallback_retries_with_find_links_afte
         assert index_url == APPROVED_PROXY_URL
         assert package == "cryptography"
         assert trusted_host is None
+        health_packages.append(package)
 
     def fake_stage_emergency_artifacts(**kwargs: object) -> list[Path]:
         assert [artifact["package"] for artifact in kwargs["artifacts"]] == ["cryptography"]
@@ -3111,6 +3112,7 @@ def test_install_from_proxy_with_emergency_fallback_retries_with_find_links_afte
         emergency_wheel_manifest=manifest,
     )
 
+    assert health_packages == ["cryptography"]
     assert observed_find_links == [None, tmp_path / "wheelhouse"]
 
 
@@ -3327,8 +3329,68 @@ def test_install_from_proxy_with_emergency_fallback_accepts_package_scoped_retry
         emergency_wheel_manifest=manifest,
     )
 
-    assert health_packages == ["aiosqlite"]
+    assert health_packages == []
     assert observed_find_links == [None, tmp_path / "wheelhouse"]
+
+
+def test_install_from_proxy_with_emergency_fallback_keeps_health_gate_for_plain_resolver_miss(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("aiosqlite==0.22.1\n", encoding="utf-8")
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "generated_at": "2026-06-27",
+                "expires_at": "2099-12-31",
+                "artifacts": [
+                    {
+                        "package": "aiosqlite",
+                        "version": "0.22.1",
+                        "filename": "aiosqlite-0.22.1-py3-none-any.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/aiosqlite-0.22.1.whl",
+                        "sha256": "b" * 64,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    stage_calls = {"count": 0}
+
+    def fail_plain_resolver_miss(**kwargs: object) -> None:
+        assert kwargs["find_links_dir"] is None
+        raise _resolver_miss_runtimeerror_like_run_command("aiosqlite", "0.22.1")
+
+    def fail_health(*, index_url: str, package: str, trusted_host: str | None) -> None:
+        assert index_url == APPROVED_PROXY_URL
+        assert package == "aiosqlite"
+        assert trusted_host is None
+        raise RuntimeError("proxy health check failed after retry budget")
+
+    def fake_stage_emergency_artifacts(**_kwargs: object) -> list[Path]:
+        stage_calls["count"] += 1
+        return [tmp_path / "wheelhouse" / "aiosqlite-0.22.1-py3-none-any.whl"]
+
+    monkeypatch.setattr(installer, "install_from_proxy", fail_plain_resolver_miss)
+    monkeypatch.setattr(installer, "_require_private_index_project_health", fail_health)
+    monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
+
+    with pytest.raises(RuntimeError, match="proxy health check failed"):
+        installer.install_from_proxy_with_emergency_fallback(
+            python_executable="python",
+            requirement_files=[requirements],
+            constraints_file=None,
+            index_url=APPROVED_PROXY_URL,
+            trusted_host=None,
+            emergency_wheelhouse_dir=tmp_path / "wheelhouse",
+            emergency_wheel_manifest=manifest,
+        )
+
+    assert stage_calls["count"] == 0
 
 
 def test_install_from_proxy_with_emergency_fallback_rejects_same_line_network_resolver_failure(

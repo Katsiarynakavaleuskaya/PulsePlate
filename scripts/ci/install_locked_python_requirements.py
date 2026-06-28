@@ -1202,27 +1202,12 @@ def _resolver_miss_error(runtime_error: RuntimeError, *, package: str, version: 
     message = str(runtime_error)
     normalized_message = message.lower()
     requirement_text = f"{package}=={version}"
-    package_name = package.lower()
+    package_name = _normalized_package_name(package)
     normalized_requirement = requirement_text.lower()
-    package_name_variants = {package_name, package_name.replace("-", "_")}
-
-    def line_mentions_requested_project(line: str) -> bool:
-        normalized_line = line.replace("\\", "/")
-        return any(
-            re.search(rf"(?:/|\+simple/){re.escape(variant)}(?:/|['\" )]|$)", normalized_line)
-            is not None
-            for variant in package_name_variants
-        )
-
-    def line_has_transport_failure(line: str) -> bool:
-        scrubbed_line = line
-        for variant in package_name_variants:
-            scrubbed_line = re.sub(re.escape(variant), "", scrubbed_line, flags=re.IGNORECASE)
-        return _pip_upgrade_network_failure(scrubbed_line)
 
     def line_mentions_only_requested_package(line: str) -> bool:
-        if line_has_transport_failure(line):
-            return line_mentions_requested_project(line)
+        if _line_has_transport_failure_excluding_package_name(line, package=package):
+            return _line_mentions_requested_project(line, package=package)
         if normalized_requirement in line:
             return True
         if re.fullmatch(rf"\s*{re.escape(package_name)}\s*", line):
@@ -1253,6 +1238,44 @@ def _resolver_miss_error(runtime_error: RuntimeError, *, package: str, version: 
 
     missing_package_line = re.compile(rf"^\s*{re.escape(package_name)}\s*$", re.MULTILINE)
     return bool(missing_package_line.search(normalized_message))
+
+
+def _normalized_package_name(package: str) -> str:
+    """Return the normalized package spelling used by simple-index paths."""
+    return re.sub(r"[-_.]+", "-", package).lower()
+
+
+def _package_name_variants(package: str) -> set[str]:
+    """Return package spellings commonly emitted in pip/simple-index output."""
+    package_name = _normalized_package_name(package)
+    return {package_name, package_name.replace("-", "_")}
+
+
+def _line_mentions_requested_project(line: str, *, package: str) -> bool:
+    """Return True when a diagnostic line points at the requested simple project."""
+    normalized_line = line.lower().replace("\\", "/")
+    return any(
+        re.search(rf"(?:/|\+simple/){re.escape(variant)}(?:/|['\" )]|$)", normalized_line)
+        is not None
+        for variant in _package_name_variants(package)
+    )
+
+
+def _line_has_transport_failure_excluding_package_name(line: str, *, package: str) -> bool:
+    """Detect transport failures without treating package spelling as a network marker."""
+    scrubbed_line = line
+    for variant in _package_name_variants(package):
+        scrubbed_line = re.sub(re.escape(variant), "", scrubbed_line, flags=re.IGNORECASE)
+    return _pip_upgrade_network_failure(scrubbed_line)
+
+
+def _package_scoped_proxy_retry_failure(runtime_error: RuntimeError, *, package: str) -> bool:
+    """Return True when pip's own retry log proves a package-scoped proxy timeout."""
+    return any(
+        _line_mentions_requested_project(line, package=package)
+        and _line_has_transport_failure_excluding_package_name(line, package=package)
+        for line in str(runtime_error).splitlines()
+    )
 
 
 def _pip_upgrade_resolver_miss(runtime_error: RuntimeError) -> bool:
@@ -1950,6 +1973,23 @@ def _emergency_artifact_key(artifact: dict[str, str]) -> tuple[str, str]:
     return (artifact["package"].lower(), artifact["version"].lower())
 
 
+def _require_private_index_health_unless_package_scoped_retry(
+    *,
+    exc: RuntimeError,
+    index_url: str,
+    package: str,
+    trusted_host: str | None,
+) -> None:
+    """Keep generic fallback health-gated while accepting exact package retry evidence."""
+    if _package_scoped_proxy_retry_failure(exc, package=package):
+        return
+    _require_private_index_project_health(
+        index_url=index_url,
+        package=package,
+        trusted_host=trusted_host,
+    )
+
+
 def build_wheelhouse_with_emergency_fallback(
     *,
     python_executable: str,
@@ -1994,7 +2034,8 @@ def build_wheelhouse_with_emergency_fallback(
             if not resolver_miss_artifacts:
                 raise
             for artifact in resolver_miss_artifacts:
-                _require_private_index_project_health(
+                _require_private_index_health_unless_package_scoped_retry(
+                    exc=exc,
                     index_url=index_url,
                     package=artifact["package"],
                     trusted_host=trusted_host,
@@ -2057,7 +2098,8 @@ def install_from_proxy_with_emergency_fallback(
             if not resolver_miss_artifacts:
                 raise
             for artifact in resolver_miss_artifacts:
-                _require_private_index_project_health(
+                _require_private_index_health_unless_package_scoped_retry(
+                    exc=exc,
                     index_url=index_url,
                     package=artifact["package"],
                     trusted_host=trusted_host,

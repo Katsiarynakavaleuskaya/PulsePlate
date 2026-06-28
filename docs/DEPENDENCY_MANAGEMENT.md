@@ -196,6 +196,10 @@ Canonical contract for shared CI/Docker/bootstrap paths:
   repo-approved fallback set (including `aiosqlite 0.22.1`,
   `starlette 1.3.1`, `pillow 12.2.0`, and other active bootstrap/runtime
   wheels) with pinned `sha256` digests until the approved proxy catches up.
+- The installer may use an exact manifest wheel after pip reports both an exact
+  resolver miss and a package-scoped retry/timeout against that approved simple
+  project path. Plain resolver misses remain proxy-health gated; generic proxy
+  outages remain fail-closed.
 - Production-target Docker workflows pass `PULSEPLATE_REQUIREMENTS_FILE=requirements-docker-runtime.txt`
   so the backend image stays on the Docker runtime surface instead of `requirements-ci-lite.txt`.
 
