@@ -71,6 +71,7 @@ Out of scope:
 - `200cb39c6` - `test(api): use effective routes for runtime env guard`
 - `85e73495e` - `fix(ci): keep dev proxy root validation fail closed`
 - `fa32e3dc1` - `docs(review): map proxy health path policy fix`
+- `8c234a854` - `ci(deps): tighten proxy parity review fixes`
 
 ## Rebased Main Baseline
 
@@ -206,6 +207,13 @@ Reason: Closes the latest CodeRabbit findings by keeping `--allow-dev-host` fail
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#discussion_r3488276787 -> 85e73495e
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#discussion_r3488276791 -> 85e73495e
 
+Disposition: FIXED
+Commit: 8c234a854
+Evidence: `scripts/ci/check_private_python_proxy_health.py`, `.github/workflows/ci.yml`, `tests/test_private_python_proxy_health.py`, `tests/test_private_python_proxy_workflow_contract.py`, and `tests/test_python_supply_chain_controls.py`.
+Reason: Closes the latest connector review findings by requiring compatible Linux x86_64 wheel tags for exact pinned wheels across the GitHub Python targets and by making protected `test-main` use the same vars-only package proxy endpoint that the health gate probes. Endpoint and trusted-host values remain credential-free; read-only devpi credentials stay in `.netrc`/secrets.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#discussion_r3488408160 -> 8c234a854
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#discussion_r3488408161 -> 8c234a854
+
 ## Local Validation
 
 Full local `make verify` was not run under the operator-approved machine-heavy
@@ -219,17 +227,22 @@ Validated on the rebased mapping head:
 - PASS: `python3 -m py_compile scripts/ci/check_private_python_proxy_health.py`
 - PASS: `PYTHONPATH= python3 -I -S scripts/ci/check_private_python_proxy_health.py --help`
 - PASS:
-  `PULSEPLATE_PYTHON_INDEX_URL='https://packages.pulseplate.app/root/pulseplate/+simple/' python3 scripts/ci/check_private_python_proxy_health.py --requirements-file requirements.txt --requirements-file requirements-ci-lite.txt --requirements-file requirements-test.txt --project aiosqlite --project cryptography --project requests --project pytest-xdist --project hypothesis --project pgvector`
+  `python scripts/ci/check_private_python_proxy_health.py --index-url https://packages.pulseplate.app/root/pulseplate/+simple/ --requirements-file requirements.txt --requirements-file requirements-ci-lite.txt --requirements-file requirements-test.txt --python-version 3.11 --python-version 3.12 --python-version 3.13 --project aiosqlite --project cryptography --project requests --project pytest-xdist --project hypothesis --project pgvector`
   - `aiosqlite==0.22.1`, `cryptography==48.0.1`,
     `requests==2.33.0`, `pytest-xdist==3.8.0`,
     `hypothesis==6.155.7`, and `pgvector==0.4.2` were found on
-    non-empty project pages.
+    non-empty project pages with compatible wheel artifacts for the GitHub
+    Python targets.
 - PASS:
   `PULSEPLATE_PYTHON_INDEX_URL='https://packages.pulseplate.app/root/pulseplate/+simple/' python3 scripts/ci/install_locked_python_requirements.py --preflight-only`
 - PASS:
   `.venv/bin/python -m pytest -q tests/test_private_python_proxy_health.py tests/test_private_python_proxy_workflow_contract.py tests/test_python_supply_chain_controls.py`
   - Result after review fixes: `110 passed`; one existing Starlette/httpx2
     deprecation warning.
+- PASS:
+  `.venv/bin/python -m pytest -q tests/test_private_python_proxy_health.py tests/test_private_python_proxy_workflow_contract.py tests/test_python_supply_chain_controls.py::test_canonical_ci_and_docker_use_supply_chain_guardrails tests/test_python_supply_chain_controls.py::test_proxy_backed_workflows_support_vars_or_secrets`
+  - Result after latest connector review fixes: `47 passed`; one existing
+    Starlette/httpx2 deprecation warning.
 - PASS: `make validate-changed`
   - Selected:
     `tests/test_private_python_proxy_health.py`,
