@@ -12,8 +12,13 @@ from typing import Any
 from urllib.parse import urlparse
 
 from fastapi import FastAPI
-from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
+
+from app.effective_routes import (
+    is_api_route_candidate,
+    iter_effective_route_candidates,
+    route_endpoint,
+)
 
 
 def _disable_limiter_instance(limiter_instance: object) -> None:
@@ -49,10 +54,10 @@ def disable_rate_limiting_for_test_app(app_instance: FastAPI) -> None:
     # RU: Некоторые reload-тесты оставляют limiter, захваченный декоратором маршрута.
     # EN: Reload-heavy tests can leave a route decorator bound to a stale limiter instance.
     seen_limiters: set[int] = set()
-    for route in app_instance.routes:
-        if not isinstance(route, APIRoute):
+    for route in iter_effective_route_candidates(app_instance.routes):
+        if not is_api_route_candidate(route):
             continue
-        endpoint = getattr(route, "endpoint", None)
+        endpoint = route_endpoint(route)
         if endpoint is None or not callable(endpoint):
             continue
         closure_nonlocals = inspect.getclosurevars(endpoint).nonlocals
@@ -103,10 +108,10 @@ def override_rate_limit_identity_for_test_app(
             raising=False,
         )
 
-    for route in app_instance.routes:
-        if not isinstance(route, APIRoute):
+    for route in iter_effective_route_candidates(app_instance.routes):
+        if not is_api_route_candidate(route):
             continue
-        endpoint = getattr(route, "endpoint", None)
+        endpoint = route_endpoint(route)
         if endpoint is None or not callable(endpoint):
             continue
         closure_nonlocals = inspect.getclosurevars(endpoint).nonlocals

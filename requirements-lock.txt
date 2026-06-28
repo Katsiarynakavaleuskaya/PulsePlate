@@ -112,7 +112,7 @@ execnet==2.1.2
     # via pytest-xdist
 faker==40.23.0
     # via -r requirements-dev.in
-fastapi==0.136.1
+fastapi==0.138.1
     # via
     #   -c requirements.txt
     #   -r requirements.in
@@ -338,13 +338,13 @@ pycparser==2.23
     # via
     #   -c requirements.txt
     #   cffi
-pydantic==2.12.5
+pydantic==2.13.4
     # via
     #   -c requirements.txt
     #   -r requirements.in
     #   fastapi
     #   openai
-pydantic-core==2.41.5
+pydantic-core==2.46.4
     # via
     #   -c requirements.txt
     #   pydantic
@@ -424,7 +424,7 @@ rich==15.0.0
     # via
     #   bandit
     #   pip-audit
-ruff==0.15.18
+ruff==0.15.19
     # via -r requirements-dev.in
 six==1.17.0
     # via

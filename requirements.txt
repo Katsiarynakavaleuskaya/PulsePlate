@@ -44,7 +44,7 @@ dnspython==2.8.0
     # via email-validator
 email-validator==2.3.0
     # via -r requirements.in
-fastapi==0.136.1
+fastapi==0.138.1
     # via -r requirements.in
 fonttools==4.61.1
     # via matplotlib
@@ -136,12 +136,12 @@ pyarrow==23.0.1
     # via -r requirements.in
 pycparser==2.23
     # via cffi
-pydantic==2.12.5
+pydantic==2.13.4
     # via
     #   -r requirements.in
     #   fastapi
     #   openai
-pydantic-core==2.41.5
+pydantic-core==2.46.4
     # via pydantic
 pygments==2.20.0
     # via -r requirements.in

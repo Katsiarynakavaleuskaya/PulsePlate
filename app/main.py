@@ -31,6 +31,13 @@ from app.bootstrap.food_search import register_food_search_backend
 from app.bootstrap.metrics import register_metrics
 from app.bootstrap.pro_contracts import register_pro_contract_routes
 from app.bootstrap.public_discovery import SITEMAP_ROUTE_PATH, serve_public_sitemap
+from app.effective_routes import (
+    iter_effective_route_candidates,
+    route_endpoint,
+    route_include_in_schema,
+    route_methods,
+    route_path,
+)
 from app.bootstrap.route_family import RouteMemberContract, ensure_route_family_registered
 from app.bootstrap.telemetry import register_request_telemetry
 from app.bootstrap.tracing import register_tracing
@@ -308,13 +315,17 @@ def _has_route(
     EN: Keeps additive bootstrap idempotent for reload-path rehydration.
     """
     method_name = method.upper() if method else None
-    for route in target_app.routes:
-        if getattr(route, "path", None) != path:
+    for route in _effective_app_routes(target_app):
+        if route_path(route) != path:
             continue
-        methods = getattr(route, "methods", None) or set()
+        methods = route_methods(route)
         if method_name is None or method_name in methods:
             return True
     return False
+
+
+def _effective_app_routes(target_app: FastAPI) -> tuple[object, ...]:
+    return tuple(iter_effective_route_candidates(target_app.routes))
 
 
 def _route_has_endpoint(
@@ -329,13 +340,12 @@ def _route_has_endpoint(
     EN: Path/method alone is insufficient — wrong handler means wrong contract.
     """
     method_name = method.upper()
-    for route in target_app.routes:
-        if getattr(route, "path", None) != path:
+    for route in _effective_app_routes(target_app):
+        if route_path(route) != path:
             continue
-        methods = getattr(route, "methods", None) or set()
-        if method_name not in methods:
+        if method_name not in route_methods(route):
             continue
-        if getattr(route, "endpoint", None) is endpoint:
+        if route_endpoint(route) is endpoint:
             return True
     return False
 
@@ -347,7 +357,7 @@ def _assert_no_duplicate_ws_route(target_app: FastAPI | None = None) -> None:
     EN: Separate guard preserves the legacy fail-fast contract for tests/runtime.
     """
     current_app = target_app or app
-    existing_paths = {getattr(route, "path", None) for route in current_app.routes}
+    existing_paths = {route_path(route) for route in _effective_app_routes(current_app)}
     for path in _WS_ROUTE_PATHS:
         if path in existing_paths:
             raise RuntimeError(
@@ -391,14 +401,10 @@ def _include_legal_router_if_needed(target_app: FastAPI) -> None:
     for path, endpoint in expected_endpoints.items():
         matching_routes = [
             route
-            for route in target_app.routes
-            if getattr(route, "path", None) == path
-            and "GET" in (getattr(route, "methods", None) or set())
+            for route in _effective_app_routes(target_app)
+            if route_path(route) == path and "GET" in route_methods(route)
         ]
-        if (
-            len(matching_routes) != 1
-            or getattr(matching_routes[0], "endpoint", None) is not endpoint
-        ):
+        if len(matching_routes) != 1 or route_endpoint(matching_routes[0]) is not endpoint:
             raise RuntimeError(f"Duplicate {path} route detected with a different legal handler.")
 
 
@@ -439,16 +445,12 @@ def _include_health_router_if_needed(target_app: FastAPI) -> None:
     for path, endpoint in expected_endpoints.items():
         matching_routes = [
             route
-            for route in target_app.routes
-            if getattr(route, "path", None) == path
-            and "GET" in (getattr(route, "methods", None) or set())
+            for route in _effective_app_routes(target_app)
+            if route_path(route) == path and "GET" in route_methods(route)
         ]
-        if (
-            len(matching_routes) != 1
-            or getattr(matching_routes[0], "endpoint", None) is not endpoint
-        ):
+        if len(matching_routes) != 1 or route_endpoint(matching_routes[0]) is not endpoint:
             raise RuntimeError(f"Duplicate {path} route detected with a different health handler.")
-        if getattr(matching_routes[0], "include_in_schema", True):
+        if route_include_in_schema(matching_routes[0]):
             raise RuntimeError(
                 f"Existing {path} route does not preserve hidden OpenAPI visibility."
             )
@@ -472,28 +474,28 @@ def _include_favicon_router_if_needed(target_app: FastAPI) -> None:
         raise RuntimeError("Favicon router does not define the expected route.")
 
     favicon_routes = [
-        route for route in target_app.routes if getattr(route, "path", None) == FAVICON_ROUTE_PATH
+        route
+        for route in _effective_app_routes(target_app)
+        if route_path(route) == FAVICON_ROUTE_PATH
     ]
     if not favicon_routes:
         target_app.include_router(favicon_router)
         return
 
-    matching_routes = [
-        route for route in favicon_routes if "GET" in (getattr(route, "methods", None) or set())
-    ]
+    matching_routes = [route for route in favicon_routes if "GET" in route_methods(route)]
     if not matching_routes:
         raise RuntimeError("Partial favicon route registration detected.")
 
     if (
         len(favicon_routes) != 1
         or len(matching_routes) != 1
-        or getattr(matching_routes[0], "endpoint", None) is not expected_endpoint
+        or route_endpoint(matching_routes[0]) is not expected_endpoint
     ):
         raise RuntimeError(
             "Duplicate /favicon.ico route detected with a different favicon handler."
         )
 
-    if getattr(matching_routes[0], "include_in_schema", True):
+    if route_include_in_schema(matching_routes[0]):
         raise RuntimeError(
             "Existing /favicon.ico route does not preserve hidden OpenAPI visibility."
         )
@@ -532,17 +534,16 @@ def _include_admin_operations_router_if_needed(target_app: FastAPI) -> None:
         raise RuntimeError("Admin operations router does not define the expected route family.")
 
     admin_routes = [
-        route for route in target_app.routes if getattr(route, "path", None) in expected_paths
+        route for route in _effective_app_routes(target_app) if route_path(route) in expected_paths
     ]
     if not admin_routes:
         target_app.include_router(admin_operations_router)
         return
 
     admin_paths_present = {
-        str(getattr(route, "path", ""))
+        route_path(route)
         for route in admin_routes
-        if expected_methods_by_path[str(getattr(route, "path", ""))]
-        in (getattr(route, "methods", None) or set())
+        if expected_methods_by_path[route_path(route)] in route_methods(route)
     }
     if admin_paths_present != expected_paths:
         existing = ", ".join(sorted(admin_paths_present))
@@ -552,9 +553,9 @@ def _include_admin_operations_router_if_needed(target_app: FastAPI) -> None:
             f"Existing: {existing or '<none>'}; missing: {missing or '<none>'}."
         )
 
-    for route in admin_routes:
-        path = str(getattr(route, "path", ""))
-        methods = getattr(route, "methods", None) or set()
+    for registered_route in admin_routes:
+        path = route_path(registered_route)
+        methods = route_methods(registered_route)
         expected_method = expected_methods_by_path[path]
         if expected_method not in methods:
             raise RuntimeError("Partial admin operations route registration detected.")
@@ -565,18 +566,14 @@ def _include_admin_operations_router_if_needed(target_app: FastAPI) -> None:
     for (path, method), endpoint in expected_endpoints.items():
         matching_routes = [
             route
-            for route in target_app.routes
-            if getattr(route, "path", None) == path
-            and method in (getattr(route, "methods", None) or set())
+            for route in _effective_app_routes(target_app)
+            if route_path(route) == path and method in route_methods(route)
         ]
-        if (
-            len(matching_routes) != 1
-            or getattr(matching_routes[0], "endpoint", None) is not endpoint
-        ):
+        if len(matching_routes) != 1 or route_endpoint(matching_routes[0]) is not endpoint:
             raise RuntimeError(
                 f"Duplicate {path} route detected with a different admin operations handler."
             )
-        if getattr(matching_routes[0], "include_in_schema", True):
+        if route_include_in_schema(matching_routes[0]):
             raise RuntimeError(
                 f"Existing {path} route does not preserve hidden OpenAPI visibility."
             )
@@ -622,17 +619,16 @@ def _include_bmi_compat_router_if_needed(target_app: FastAPI) -> None:
         raise RuntimeError("BMI compatibility router does not define the expected route family.")
 
     bmi_compat_routes = [
-        route for route in target_app.routes if getattr(route, "path", None) in expected_paths
+        route for route in _effective_app_routes(target_app) if route_path(route) in expected_paths
     ]
     if not bmi_compat_routes:
         target_app.include_router(bmi_compat_router)
         return
 
     bmi_compat_paths_present = {
-        str(getattr(route, "path", ""))
+        route_path(route)
         for route in bmi_compat_routes
-        if expected_methods_by_path[str(getattr(route, "path", ""))]
-        in (getattr(route, "methods", None) or set())
+        if expected_methods_by_path[route_path(route)] in route_methods(route)
     }
     if bmi_compat_paths_present != expected_paths:
         existing = ", ".join(sorted(bmi_compat_paths_present))
@@ -642,9 +638,9 @@ def _include_bmi_compat_router_if_needed(target_app: FastAPI) -> None:
             f"Existing: {existing or '<none>'}; missing: {missing or '<none>'}."
         )
 
-    for route in bmi_compat_routes:
-        path = str(getattr(route, "path", ""))
-        methods = getattr(route, "methods", None) or set()
+    for registered_route in bmi_compat_routes:
+        path = route_path(registered_route)
+        methods = route_methods(registered_route)
         expected_method = expected_methods_by_path[path]
         if expected_method not in methods:
             raise RuntimeError("Partial BMI compatibility route registration detected.")
@@ -655,21 +651,14 @@ def _include_bmi_compat_router_if_needed(target_app: FastAPI) -> None:
     for (path, method), endpoint in expected_endpoints.items():
         matching_routes = [
             route
-            for route in target_app.routes
-            if getattr(route, "path", None) == path
-            and method in (getattr(route, "methods", None) or set())
+            for route in _effective_app_routes(target_app)
+            if route_path(route) == path and method in route_methods(route)
         ]
-        if (
-            len(matching_routes) != 1
-            or getattr(matching_routes[0], "endpoint", None) is not endpoint
-        ):
+        if len(matching_routes) != 1 or route_endpoint(matching_routes[0]) is not endpoint:
             raise RuntimeError(
                 f"Duplicate {path} route detected with a different BMI compatibility handler."
             )
-        if (
-            getattr(matching_routes[0], "include_in_schema", True)
-            is not expected_visibility[(path, method)]
-        ):
+        if route_include_in_schema(matching_routes[0]) is not expected_visibility[(path, method)]:
             raise RuntimeError(
                 f"Existing {path} route does not preserve BMI compatibility OpenAPI visibility."
             )
@@ -718,17 +707,16 @@ def _include_legacy_export_alias_router_if_needed(target_app: FastAPI) -> None:
         raise RuntimeError("Legacy export alias router does not define the expected route family.")
 
     legacy_export_alias_routes = [
-        route for route in target_app.routes if getattr(route, "path", None) in expected_paths
+        route for route in _effective_app_routes(target_app) if route_path(route) in expected_paths
     ]
     if not legacy_export_alias_routes:
         target_app.include_router(legacy_export_aliases_router)
         return
 
     legacy_export_alias_paths_present = {
-        str(getattr(route, "path", ""))
+        route_path(route)
         for route in legacy_export_alias_routes
-        if expected_methods_by_path[str(getattr(route, "path", ""))]
-        in (getattr(route, "methods", None) or set())
+        if expected_methods_by_path[route_path(route)] in route_methods(route)
     }
     if legacy_export_alias_paths_present != expected_paths:
         existing = ", ".join(sorted(legacy_export_alias_paths_present))
@@ -738,9 +726,9 @@ def _include_legacy_export_alias_router_if_needed(target_app: FastAPI) -> None:
             f"Existing: {existing or '<none>'}; missing: {missing or '<none>'}."
         )
 
-    for route in legacy_export_alias_routes:
-        path = str(getattr(route, "path", ""))
-        methods = getattr(route, "methods", None) or set()
+    for registered_route in legacy_export_alias_routes:
+        path = route_path(registered_route)
+        methods = route_methods(registered_route)
         expected_method = expected_methods_by_path[path]
         if expected_method not in methods:
             raise RuntimeError("Partial legacy export alias route registration detected.")
@@ -751,21 +739,17 @@ def _include_legacy_export_alias_router_if_needed(target_app: FastAPI) -> None:
     for (path, method), endpoint in expected_endpoints.items():
         matching_routes = [
             route
-            for route in target_app.routes
-            if getattr(route, "path", None) == path
-            and method in (getattr(route, "methods", None) or set())
+            for route in _effective_app_routes(target_app)
+            if route_path(route) == path and method in route_methods(route)
         ]
         if len(matching_routes) != 1 or not _is_same_legacy_export_alias_endpoint(
-            getattr(matching_routes[0], "endpoint", None),
+            route_endpoint(matching_routes[0]),
             endpoint,
         ):
             raise RuntimeError(
                 f"Duplicate {path} route detected with a different legacy export alias handler."
             )
-        if (
-            getattr(matching_routes[0], "include_in_schema", True)
-            is not expected_visibility[(path, method)]
-        ):
+        if route_include_in_schema(matching_routes[0]) is not expected_visibility[(path, method)]:
             raise RuntimeError(
                 f"Existing {path} route does not preserve legacy export alias OpenAPI visibility."
             )
@@ -863,8 +847,8 @@ def _internalize_users_openapi_surface(target_app: FastAPI) -> None:
     entrypoint instead of introducing new runtime behavior in legacy_app.py.
     """
 
-    for route in target_app.routes:
-        if str(getattr(route, "path", "")).startswith("/api/v1/users"):
+    for route in _effective_app_routes(target_app):
+        if route_path(route).startswith("/api/v1/users"):
             setattr(route, "include_in_schema", False)
 
     if target_app.openapi_tags:

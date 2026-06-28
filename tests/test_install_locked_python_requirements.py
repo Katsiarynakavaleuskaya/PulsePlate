@@ -191,8 +191,8 @@ def test_simple_project_page_has_version_requires_exact_version_boundary() -> No
     )
     assert installer._simple_project_page_has_version(
         package="pydantic-core",
-        version="2.41.5",
-        body=b'<a href="pydantic_core-2.41.5-cp313-cp313-manylinux.whl">pydantic</a>',
+        version="2.46.4",
+        body=b'<a href="pydantic_core-2.46.4-cp313-cp313-manylinux.whl">pydantic</a>',
     )
     assert not installer._simple_project_page_has_version(
         package="pip",
@@ -206,8 +206,8 @@ def test_simple_project_page_has_version_requires_exact_version_boundary() -> No
     )
     assert not installer._simple_project_page_has_version(
         package="pydantic-core",
-        version="2.41.5",
-        body=b'<a href="pydantic_core-2.41.5_rc1-cp313-cp313-manylinux.whl">pydantic</a>',
+        version="2.46.4",
+        body=b'<a href="pydantic_core-2.46.4_rc1-cp313-cp313-manylinux.whl">pydantic</a>',
     )
 
 
@@ -761,6 +761,7 @@ def test_repo_emergency_manifest_tracks_current_active_fallback_set() -> None:
     assert artifacts, "Emergency wheel manifest should track at least one fallback artifact."
     assert {package for package, _version in ci_lite_emergency_pairs} >= {
         "alembic",
+        "aiosqlite",
         "annotated-doc",
         "annotated-types",
         "anyio",
@@ -772,6 +773,7 @@ def test_repo_emergency_manifest_tracks_current_active_fallback_set() -> None:
         "pydantic-core",
         "python-multipart",
         "requests",
+        "starlette",
         "wrapt",
     }
     assert ci_lite_emergency_pairs <= requirements_ci_lite_pins
@@ -1211,7 +1213,11 @@ def test_repo_dev_quality_emergency_wheels_are_selected_from_active_manifest(
 def _assert_uses_default_constraints(command: list[str]) -> None:
     assert "--constraint" in command
     constraint_path = Path(command[command.index("--constraint") + 1])
-    assert constraint_path == installer.DEFAULT_CONSTRAINTS_FILE
+    if constraint_path == installer.DEFAULT_CONSTRAINTS_FILE:
+        return
+    assert constraint_path.parent == installer.DEFAULT_CONSTRAINTS_FILE.parent
+    assert constraint_path.name.startswith(".constraints.effective-")
+    assert constraint_path.suffix == installer.DEFAULT_CONSTRAINTS_FILE.suffix
 
 
 def _pip26_no_candidate_runtimeerror_like_run_command(package: str, version: str) -> RuntimeError:
@@ -1684,7 +1690,7 @@ def test_effective_constraints_file_for_requirement_filters_duplicate_exact_pin(
         assert effective_constraints.read_text(encoding="utf-8") == "httpx>=0.28.1\n"
 
 
-def test_effective_constraints_file_for_requirement_keeps_floor_for_exact_pin(
+def test_effective_constraints_file_for_requirement_drops_satisfied_floor_for_exact_pin(
     tmp_path: Path,
 ) -> None:
     requirements = tmp_path / "requirements.txt"
@@ -1699,10 +1705,29 @@ def test_effective_constraints_file_for_requirement_keeps_floor_for_exact_pin(
         requirements,
         constraints,
     ) as effective_constraints:
-        assert effective_constraints == constraints
-        assert effective_constraints.read_text(encoding="utf-8") == (
-            "openai>=2.8.1\nhttpx>=0.28.1\n"
-        )
+        assert effective_constraints is not None
+        assert effective_constraints != constraints
+        assert effective_constraints.read_text(encoding="utf-8") == "httpx>=0.28.1\n"
+
+
+def test_effective_constraints_file_for_requirement_drops_higher_exact_pin_floor(
+    tmp_path: Path,
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("alembic==1.18.4\n", encoding="utf-8")
+    constraints = tmp_path / "constraints.txt"
+    constraints.write_text(
+        "alembic>=1.17.2\nmako>=1.3.12\n",
+        encoding="utf-8",
+    )
+
+    with installer.effective_constraints_file_for_requirement(
+        requirements,
+        constraints,
+    ) as effective_constraints:
+        assert effective_constraints is not None
+        assert effective_constraints != constraints
+        assert effective_constraints.read_text(encoding="utf-8") == "mako>=1.3.12\n"
 
 
 def test_effective_constraints_file_for_requirement_drops_equal_min_floor_for_exact_pin(
@@ -1827,7 +1852,7 @@ def test_install_from_proxy_omits_duplicate_exact_constraint_for_same_requiremen
     assert "--constraint" not in observed_commands[0]
 
 
-def test_install_from_proxy_preserves_floor_constraint_for_exact_pin(
+def test_install_from_proxy_omits_satisfied_floor_constraint_for_exact_pin(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -1851,10 +1876,7 @@ def test_install_from_proxy_preserves_floor_constraint_for_exact_pin(
     )
 
     assert len(observed_commands) == 1
-    assert "--constraint" in observed_commands[0]
-    constraint_path = Path(observed_commands[0][observed_commands[0].index("--constraint") + 1])
-    assert constraint_path == constraints
-    assert constraint_path.read_text(encoding="utf-8") == "openai>=2.8.1\n"
+    assert "--constraint" not in observed_commands[0]
 
 
 def test_install_from_proxy_omits_equal_min_floor_for_exact_pin(
@@ -3086,6 +3108,7 @@ def test_install_from_proxy_with_emergency_fallback_retries_with_find_links_afte
         assert index_url == APPROVED_PROXY_URL
         assert package == "cryptography"
         assert trusted_host is None
+        health_packages.append(package)
 
     def fake_stage_emergency_artifacts(**kwargs: object) -> list[Path]:
         assert [artifact["package"] for artifact in kwargs["artifacts"]] == ["cryptography"]
@@ -3109,6 +3132,7 @@ def test_install_from_proxy_with_emergency_fallback_retries_with_find_links_afte
         emergency_wheel_manifest=manifest,
     )
 
+    assert health_packages == ["cryptography"]
     assert observed_find_links == [None, tmp_path / "wheelhouse"]
 
 
@@ -3251,6 +3275,269 @@ def test_install_from_proxy_with_emergency_fallback_accepts_pip26_no_candidate_s
 
     assert health_packages == ["aiosqlite"]
     assert observed_find_links == [None, tmp_path / "wheelhouse"]
+
+
+def test_install_from_proxy_with_emergency_fallback_accepts_package_scoped_retry_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("aiosqlite==0.22.1\n", encoding="utf-8")
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "generated_at": "2026-06-27",
+                "expires_at": "2099-12-31",
+                "artifacts": [
+                    {
+                        "package": "aiosqlite",
+                        "version": "0.22.1",
+                        "filename": "aiosqlite-0.22.1-py3-none-any.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/aiosqlite-0.22.1.whl",
+                        "sha256": "b" * 64,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    observed_find_links: list[Path | None] = []
+    health_packages: list[str] = []
+
+    def fake_install_from_proxy(**kwargs: object) -> None:
+        find_links_dir = kwargs["find_links_dir"]
+        observed_find_links.append(None if find_links_dir is None else Path(find_links_dir))
+        if find_links_dir is None:
+            raise RuntimeError(
+                "Command failed: python -m pip install stub: exit 1\n"
+                "WARNING: Retrying after CONNECTION BROKEN by "
+                "'MaxRetriesExceeded(\"HTTPSConnectionPool(host='packages.pulseplate.app', "
+                "port=443)\")': "
+                "/root/pulseplate/+simple/aiosqlite/\n"
+                "ERROR: Could not find a version that satisfies the requirement "
+                "aiosqlite==0.22.1 (from versions: none)\n"
+                "ERROR: No matching distribution found for aiosqlite==0.22.1"
+            )
+
+    def allow_health(*, index_url: str, package: str, trusted_host: str | None) -> None:
+        assert index_url == APPROVED_PROXY_URL
+        assert trusted_host is None
+        health_packages.append(package)
+
+    def fake_stage_emergency_artifacts(**kwargs: object) -> list[Path]:
+        assert [artifact["package"] for artifact in kwargs["artifacts"]] == ["aiosqlite"]
+        wheelhouse_dir = Path(kwargs["wheelhouse_dir"])
+        staged = [wheelhouse_dir / "aiosqlite-0.22.1-py3-none-any.whl"]
+        for destination in staged:
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes(b"wheel-bytes")
+        return staged
+
+    monkeypatch.setattr(installer, "install_from_proxy", fake_install_from_proxy)
+    monkeypatch.setattr(installer, "_require_private_index_project_health", allow_health)
+    monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
+
+    installer.install_from_proxy_with_emergency_fallback(
+        python_executable="python",
+        requirement_files=[requirements],
+        constraints_file=None,
+        index_url=APPROVED_PROXY_URL,
+        trusted_host=None,
+        emergency_wheelhouse_dir=tmp_path / "wheelhouse",
+        emergency_wheel_manifest=manifest,
+    )
+
+    assert health_packages == []
+    assert observed_find_links == [None, tmp_path / "wheelhouse"]
+
+
+def test_install_from_proxy_with_emergency_fallback_keeps_health_gate_for_plain_resolver_miss(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("aiosqlite==0.22.1\n", encoding="utf-8")
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "generated_at": "2026-06-27",
+                "expires_at": "2099-12-31",
+                "artifacts": [
+                    {
+                        "package": "aiosqlite",
+                        "version": "0.22.1",
+                        "filename": "aiosqlite-0.22.1-py3-none-any.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/aiosqlite-0.22.1.whl",
+                        "sha256": "b" * 64,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    stage_calls = {"count": 0}
+
+    def fail_plain_resolver_miss(**kwargs: object) -> None:
+        assert kwargs["find_links_dir"] is None
+        raise _resolver_miss_runtimeerror_like_run_command("aiosqlite", "0.22.1")
+
+    def fail_health(*, index_url: str, package: str, trusted_host: str | None) -> None:
+        assert index_url == APPROVED_PROXY_URL
+        assert package == "aiosqlite"
+        assert trusted_host is None
+        raise RuntimeError("proxy health check failed after retry budget")
+
+    def fake_stage_emergency_artifacts(**_kwargs: object) -> list[Path]:
+        stage_calls["count"] += 1
+        return [tmp_path / "wheelhouse" / "aiosqlite-0.22.1-py3-none-any.whl"]
+
+    monkeypatch.setattr(installer, "install_from_proxy", fail_plain_resolver_miss)
+    monkeypatch.setattr(installer, "_require_private_index_project_health", fail_health)
+    monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
+
+    with pytest.raises(RuntimeError, match="proxy health check failed"):
+        installer.install_from_proxy_with_emergency_fallback(
+            python_executable="python",
+            requirement_files=[requirements],
+            constraints_file=None,
+            index_url=APPROVED_PROXY_URL,
+            trusted_host=None,
+            emergency_wheelhouse_dir=tmp_path / "wheelhouse",
+            emergency_wheel_manifest=manifest,
+        )
+
+    assert stage_calls["count"] == 0
+
+
+def test_install_from_proxy_with_emergency_fallback_accepts_package_scoped_health_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("aiosqlite==0.22.1\n", encoding="utf-8")
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "generated_at": "2026-06-28",
+                "expires_at": "2099-12-31",
+                "artifacts": [
+                    {
+                        "package": "aiosqlite",
+                        "version": "0.22.1",
+                        "filename": "aiosqlite-0.22.1-py3-none-any.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/aiosqlite-0.22.1.whl",
+                        "sha256": "b" * 64,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    observed_find_links: list[Path | None] = []
+
+    def fail_then_succeed(**kwargs: object) -> None:
+        find_links_dir = kwargs["find_links_dir"]
+        observed_find_links.append(None if find_links_dir is None else Path(find_links_dir))
+        if find_links_dir is None:
+            raise _resolver_miss_runtimeerror_like_run_command("aiosqlite", "0.22.1")
+
+    def fail_package_health(*, index_url: str, package: str, trusted_host: str | None) -> None:
+        assert index_url == APPROVED_PROXY_URL
+        assert package == "aiosqlite"
+        assert trusted_host is None
+        raise RuntimeError(
+            "Approved Python package proxy health check failed before emergency fallback: "
+            "aiosqlite: https://packages.pulseplate.app/root/pulseplate/+simple/aiosqlite/: "
+            "The read operation timed out"
+        )
+
+    def fake_stage_emergency_artifacts(**kwargs: object) -> list[Path]:
+        assert [artifact["package"] for artifact in kwargs["artifacts"]] == ["aiosqlite"]
+        wheelhouse_dir = Path(kwargs["wheelhouse_dir"])
+        staged = [wheelhouse_dir / "aiosqlite-0.22.1-py3-none-any.whl"]
+        for destination in staged:
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes(b"wheel-bytes")
+        return staged
+
+    monkeypatch.setattr(installer, "install_from_proxy", fail_then_succeed)
+    monkeypatch.setattr(installer, "_require_private_index_project_health", fail_package_health)
+    monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
+
+    installer.install_from_proxy_with_emergency_fallback(
+        python_executable="python",
+        requirement_files=[requirements],
+        constraints_file=None,
+        index_url=APPROVED_PROXY_URL,
+        trusted_host=None,
+        emergency_wheelhouse_dir=tmp_path / "wheelhouse",
+        emergency_wheel_manifest=manifest,
+    )
+
+    assert observed_find_links == [None, tmp_path / "wheelhouse"]
+
+
+def test_install_from_proxy_with_emergency_fallback_rejects_same_line_network_resolver_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("requests==2.33.0\n", encoding="utf-8")
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "generated_at": "2026-06-27",
+                "expires_at": "2099-12-31",
+                "artifacts": [
+                    {
+                        "package": "requests",
+                        "version": "2.33.0",
+                        "filename": "requests-2.33.0-py3-none-any.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/requests-2.33.0.whl",
+                        "sha256": "b" * 64,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    stage_calls = {"count": 0}
+
+    def fail_same_line_network_resolver(**kwargs: object) -> None:
+        assert kwargs["find_links_dir"] is None
+        raise RuntimeError(
+            "Command failed: python -m pip install: exit 1\n"
+            "ERROR: 521 Server Error while resolving requests==2.33.0; "
+            "No matching distribution found for requests==2.33.0"
+        )
+
+    def fake_stage_emergency_artifacts(**_kwargs: object) -> list[Path]:
+        stage_calls["count"] += 1
+        return [tmp_path / "wheelhouse" / "requests-2.33.0-py3-none-any.whl"]
+
+    monkeypatch.setattr(installer, "install_from_proxy", fail_same_line_network_resolver)
+    monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
+
+    with pytest.raises(RuntimeError, match="521 Server Error"):
+        installer.install_from_proxy_with_emergency_fallback(
+            python_executable="python",
+            requirement_files=[requirements],
+            constraints_file=None,
+            index_url=APPROVED_PROXY_URL,
+            trusted_host=None,
+            emergency_wheelhouse_dir=tmp_path / "wheelhouse",
+            emergency_wheel_manifest=manifest,
+        )
+
+    assert stage_calls["count"] == 0
 
 
 def test_install_from_proxy_with_emergency_fallback_does_not_treat_package_name_as_network(
@@ -3399,6 +3686,104 @@ def test_install_from_proxy_with_emergency_fallback_continues_for_second_request
 
     assert health_packages == ["requests", "cryptography"]
     assert staged_packages == [["requests"], ["cryptography"]]
+    assert observed_find_links == [None, tmp_path / "wheelhouse", tmp_path / "wheelhouse"]
+    assert install_attempts["count"] == 3
+
+
+def test_install_from_proxy_with_emergency_fallback_ignores_staged_package_retry_for_next_miss(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("aiosqlite==0.22.1\nalembic==1.18.4\n", encoding="utf-8")
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "generated_at": "2026-06-28",
+                "expires_at": "2099-12-31",
+                "artifacts": [
+                    {
+                        "package": "aiosqlite",
+                        "version": "0.22.1",
+                        "filename": "aiosqlite-0.22.1-py3-none-any.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/aiosqlite-0.22.1.whl",
+                        "sha256": "b" * 64,
+                    },
+                    {
+                        "package": "alembic",
+                        "version": "1.18.4",
+                        "filename": "alembic-1.18.4-py3-none-any.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/alembic-1.18.4.whl",
+                        "sha256": "c" * 64,
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    install_attempts = {"count": 0}
+    observed_find_links: list[Path | None] = []
+    health_packages: list[str] = []
+    staged_packages: list[list[str]] = []
+
+    def fake_install_from_proxy(**kwargs: object) -> None:
+        install_attempts["count"] += 1
+        find_links_dir = kwargs["find_links_dir"]
+        observed_find_links.append(None if find_links_dir is None else Path(find_links_dir))
+        if install_attempts["count"] == 1:
+            raise RuntimeError(
+                "Command failed: python -m pip install stub: exit 1\n"
+                "WARNING: Retrying after connection broken by "
+                "'ReadTimeoutError(\"HTTPSConnectionPool(host='packages.pulseplate.app', "
+                "port=443): Read timed out\")': /root/pulseplate/+simple/aiosqlite/\n"
+                "ERROR: Could not find a version that satisfies the requirement "
+                "aiosqlite==0.22.1 (from versions: none)\n"
+                "ERROR: No matching distribution found for aiosqlite==0.22.1"
+            )
+        if install_attempts["count"] == 2:
+            raise RuntimeError(
+                "Command failed: python -m pip install stub: exit 1\n"
+                "WARNING: Retrying after connection broken by "
+                "'ReadTimeoutError(\"HTTPSConnectionPool(host='packages.pulseplate.app', "
+                "port=443): Read timed out\")': /root/pulseplate/+simple/aiosqlite/\n"
+                "ERROR: Could not find a version that satisfies the requirement "
+                "alembic==1.18.4 (from versions: none)\n"
+                "ERROR: No matching distribution found for alembic==1.18.4"
+            )
+
+    def allow_health(*, index_url: str, package: str, trusted_host: str | None) -> None:
+        assert index_url == APPROVED_PROXY_URL
+        assert trusted_host is None
+        health_packages.append(package)
+
+    def fake_stage_emergency_artifacts(**kwargs: object) -> list[Path]:
+        packages = [artifact["package"] for artifact in kwargs["artifacts"]]
+        staged_packages.append(packages)
+        wheelhouse_dir = Path(kwargs["wheelhouse_dir"])
+        staged = [wheelhouse_dir / f"{package}.whl" for package in packages]
+        for destination in staged:
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes(b"wheel-bytes")
+        return staged
+
+    monkeypatch.setattr(installer, "install_from_proxy", fake_install_from_proxy)
+    monkeypatch.setattr(installer, "_require_private_index_project_health", allow_health)
+    monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
+
+    installer.install_from_proxy_with_emergency_fallback(
+        python_executable="python",
+        requirement_files=[requirements],
+        constraints_file=None,
+        index_url=APPROVED_PROXY_URL,
+        trusted_host=None,
+        emergency_wheelhouse_dir=tmp_path / "wheelhouse",
+        emergency_wheel_manifest=manifest,
+    )
+
+    assert health_packages == ["alembic"]
+    assert staged_packages == [["aiosqlite"], ["alembic"]]
     assert observed_find_links == [None, tmp_path / "wheelhouse", tmp_path / "wheelhouse"]
     assert install_attempts["count"] == 3
 
@@ -4811,6 +5196,53 @@ def test_run_dependency_floor_preflight_allows_exact_emergency_artifact_after_pr
 
     assert observed_downloads == [
         ("https://files.pythonhosted.org/packages/example/cryptography-46.0.7.whl", "b" * 64)
+    ]
+
+
+def test_repo_starlette_floor_preflight_uses_active_emergency_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        installer,
+        "load_dependency_security_floors",
+        lambda: {"starlette": "1.3.1"},
+    )
+    observed_downloads: list[tuple[str, str]] = []
+
+    def fail_version_check(
+        *,
+        index_url: str,
+        package: str,
+        version: str,
+        trusted_host: str | None,
+    ) -> bool:
+        assert (index_url, package, version, trusted_host) == (
+            APPROVED_PROXY_URL,
+            "starlette",
+            "1.3.1",
+            None,
+        )
+        raise RuntimeError("proxy health check failed after read timeout")
+
+    def fake_download(*, url: str, destination: Path, expected_sha256: str) -> None:
+        observed_downloads.append((url, expected_sha256))
+        destination.write_bytes(b"wheel-bytes")
+
+    monkeypatch.setattr(installer, "_private_index_project_has_version", fail_version_check)
+    monkeypatch.setattr(installer, "_download_with_sha256", fake_download)
+
+    installer.run_dependency_floor_preflight(
+        python_executable="python",
+        index_url=APPROVED_PROXY_URL,
+        trusted_host=None,
+        emergency_wheel_manifest=_repo_emergency_manifest_path(),
+    )
+
+    assert observed_downloads == [
+        (
+            "https://files.pythonhosted.org/packages/ec/bb/2799cc2ede3ed41131f8975621e7213dfc7ef4acbbaadfa440f32500c370/starlette-1.3.1-py3-none-any.whl",
+            "c7372aae11c3c3f26a42df7bd626cec2f47d03483d261d369516a615a53714c6",
+        )
     ]
 
 

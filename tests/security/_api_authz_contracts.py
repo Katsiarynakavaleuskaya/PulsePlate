@@ -10,6 +10,10 @@ from fastapi import FastAPI
 from fastapi.dependencies.models import Dependant
 from fastapi.routing import APIRoute
 
+from app.effective_routes import (
+    is_api_route_candidate,
+    iter_effective_route_candidates,
+)
 from app.middleware.api_tiers import require_pro_tier, require_vip_tier
 from app.bootstrap.metrics import _metrics_api_key_guard
 from app.routers.api_key import api_key_header
@@ -725,8 +729,12 @@ CONTRACT_BY_KEY: dict[RouteKey, ApiAuthzContract] = {
 }
 
 
-def _load_routes(app: FastAPI) -> list[APIRoute]:
-    return [route for route in app.routes if isinstance(route, APIRoute)]
+def _load_routes(app: FastAPI) -> list[Any]:
+    return [
+        route
+        for route in iter_effective_route_candidates(app.routes)
+        if is_api_route_candidate(route)
+    ]
 
 
 def _route_keys(route: APIRoute) -> set[RouteKey]:

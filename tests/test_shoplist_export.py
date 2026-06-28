@@ -9,6 +9,14 @@ from typing import List
 import pytest
 
 import app.main as app_main
+from app.effective_routes import (
+    iter_effective_route_candidates,
+    route_endpoint,
+    route_include_in_schema,
+    route_methods,
+    route_path,
+    route_responses,
+)
 from app.bootstrap.route_family import route_has_dependency_call
 from app.routers import shoplist_export as export
 
@@ -49,18 +57,17 @@ def test_shoplist_export_route_registration_contract() -> None:
     for path, method, include_in_schema in app_main._SHOPLIST_ROUTE_SPECS:
         matching_routes = [
             route
-            for route in app_main.app.routes
-            if getattr(route, "path", None) == path
-            and method in (getattr(route, "methods", None) or set())
+            for route in iter_effective_route_candidates(app_main.app.routes)
+            if route_path(route) == path and method in route_methods(route)
         ]
         assert len(matching_routes) == 1
 
         route = matching_routes[0]
-        endpoint = getattr(route, "endpoint", None)
+        endpoint = route_endpoint(route)
         assert endpoint.__module__ == "app.routers.shoplist_export"
         assert "request" in inspect.signature(endpoint).parameters
-        assert getattr(route, "include_in_schema", True) is include_in_schema
-        assert 429 in (getattr(route, "responses", None) or {})
+        assert route_include_in_schema(route) is include_in_schema
+        assert 429 in route_responses(route)
         assert route_has_dependency_call(
             route,
             app_main._legacy_module._get_api_key_dynamic,

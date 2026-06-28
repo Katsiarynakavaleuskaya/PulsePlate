@@ -14,12 +14,22 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from app.effective_routes import (
+    iter_effective_route_candidates,
+    route_endpoint,
+    route_endpoint_for_path_method,
+    route_methods,
+    route_ownership_counts,
+    route_path,
+)
+
 if TYPE_CHECKING:
     from fastapi import FastAPI
 
 __all__ = ["register_vip_routes"]
 
 _FITCHEF_STRUCTURED_VIP_ROUTE_PATH = "/api/v1/vip/fitchef/insight"
+_FITCHEF_INSIGHT_ROUTE_PATH = "/api/v1/insight/fitchef"
 
 
 def _has_route(app: FastAPI, path: str, method: str) -> bool:
@@ -27,9 +37,8 @@ def _has_route(app: FastAPI, path: str, method: str) -> bool:
 
     method_name = method.upper()
     return any(
-        getattr(route, "path", None) == path
-        and method_name in (getattr(route, "methods", None) or set())
-        for route in app.routes
+        route_path(route) == path and method_name in route_methods(route)
+        for route in iter_effective_route_candidates(app.routes)
     )
 
 
@@ -38,23 +47,35 @@ def _route_has_endpoint(app: FastAPI, path: str, method: str, endpoint: object) 
 
     method_name = method.upper()
     return any(
-        getattr(route, "path", None) == path
-        and method_name in (getattr(route, "methods", None) or set())
-        and getattr(route, "endpoint", None) is endpoint
-        for route in app.routes
+        route_path(route) == path
+        and method_name in route_methods(route)
+        and route_endpoint(route) is endpoint
+        for route in iter_effective_route_candidates(app.routes)
     )
+
+
+def _canonical_route_present(app: FastAPI, path: str, method: str, endpoint: object) -> bool:
+    expected_count, foreign_count = route_ownership_counts(
+        app.routes,
+        path,
+        method,
+        endpoint,
+    )
+    if foreign_count or expected_count > 1:
+        raise RuntimeError(f"Duplicate {path} route detected with a different handler.")
+    return expected_count == 1
 
 
 def _router_endpoint(router: Any, path: str, method: str) -> object | None:
     """Return the endpoint a router would register for path/method."""
 
     method_name = method.upper()
-    for route in getattr(router, "routes", []) or []:
-        if getattr(route, "path", None) != path:
+    for route in iter_effective_route_candidates(getattr(router, "routes", []) or []):
+        if route_path(route) != path:
             continue
-        if method_name not in (getattr(route, "methods", None) or set()):
+        if method_name not in route_methods(route):
             continue
-        return getattr(route, "endpoint", None)
+        return route_endpoint(route)
     return None
 
 
@@ -84,7 +105,6 @@ def register_vip_routes(app: FastAPI) -> None:
     if not is_vip_module_enabled():
         return
 
-    existing_paths = {getattr(route, "path", None) for route in app.routes}
     fitchef_structured_endpoint = _router_endpoint(
         fitchef_structured_vip_router,
         _FITCHEF_STRUCTURED_VIP_ROUTE_PATH,
@@ -104,14 +124,21 @@ def register_vip_routes(app: FastAPI) -> None:
             )
         else:
             app.include_router(fitchef_structured_vip_router)
-            existing_paths = {getattr(route, "path", None) for route in app.routes}
 
-    if (
-        hasattr(fitchef_insight_router, "routes")
-        and "/api/v1/insight/fitchef" not in existing_paths
+    fitchef_insight_endpoint = route_endpoint_for_path_method(
+        getattr(fitchef_insight_router, "routes", []) or [],
+        _FITCHEF_INSIGHT_ROUTE_PATH,
+        "POST",
+    )
+    if fitchef_insight_endpoint is None:
+        raise RuntimeError("FitChef insight router does not define the expected POST route.")
+    if not _canonical_route_present(
+        app,
+        _FITCHEF_INSIGHT_ROUTE_PATH,
+        "POST",
+        fitchef_insight_endpoint,
     ):
         app.include_router(fitchef_insight_router)
-        existing_paths = {getattr(route, "path", None) for route in app.routes}
 
     from app.routers import vip as vip_module
     from app.routers.api_key import api_key_header

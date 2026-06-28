@@ -193,9 +193,14 @@ Canonical contract for shared CI/Docker/bootstrap paths:
 - Ambient overrides such as `PIP_INDEX_URL` / `PIP_EXTRA_INDEX_URL` are rejected for canonical installs.
 - Time-boxed exceptions must stay exact and manifest-driven. Current example:
   `scripts/ci/emergency_python_wheels.json` currently carries a broader,
-  repo-approved fallback set (including `cryptography 46.0.7`, `pillow 12.2.0`,
-  and other active bootstrap/runtime wheels) with pinned `sha256` digests until the
-  approved proxy catches up.
+  repo-approved fallback set (including `aiosqlite 0.22.1`,
+  `starlette 1.3.1`, `pillow 12.2.0`, and other active bootstrap/runtime
+  wheels) with pinned `sha256` digests until the approved proxy catches up.
+- The installer may use an exact manifest wheel after pip reports both an exact
+  resolver miss and either a package-scoped retry/timeout against that approved
+  simple project path or a package-scoped approved-proxy health-probe timeout.
+  Plain resolver misses without package-scoped proxy evidence remain
+  proxy-health gated; generic proxy outages remain fail-closed.
 - Production-target Docker workflows pass `PULSEPLATE_REQUIREMENTS_FILE=requirements-docker-runtime.txt`
   so the backend image stays on the Docker runtime surface instead of `requirements-ci-lite.txt`.
 

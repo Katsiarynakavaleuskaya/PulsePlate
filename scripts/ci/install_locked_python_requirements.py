@@ -472,7 +472,7 @@ def _constraint_line_repeats_exact_min_floor(
     *,
     exact_versions_by_package: dict[str, set[str]],
 ) -> bool:
-    """Return True for package>=version constraints already enforced by package==version."""
+    """Return True for package>=version floors already enforced by an exact pin."""
     stripped = line.split("#", 1)[0].strip().lower()
     if (
         not stripped
@@ -487,7 +487,26 @@ def _constraint_line_repeats_exact_min_floor(
     if match is None:
         return False
     package = re.sub(r"[-_.]+", "-", match.group(1))
-    return match.group(2) in exact_versions_by_package.get(package, set())
+    floor_version = match.group(2)
+    return any(
+        _version_satisfies_lower_bound(exact_version, floor_version)
+        for exact_version in exact_versions_by_package.get(package, set())
+    )
+
+
+def _version_satisfies_lower_bound(exact_version: str, floor_version: str) -> bool:
+    """Return True when an exact requirement version satisfies a lower-bound floor."""
+    try:
+        from packaging.version import Version
+    except Exception:  # noqa: BLE001 - installer can run before project deps are installed.
+        try:
+            from pip._vendor.packaging.version import Version
+        except Exception:  # noqa: BLE001 - keep non-PEP440 shapes fail-closed.
+            return exact_version == floor_version
+    try:
+        return bool(Version(exact_version) >= Version(floor_version))
+    except Exception:  # noqa: BLE001 - malformed/nonstandard versions keep the floor.
+        return exact_version == floor_version
 
 
 def _requirement_line_package_name(line: str) -> str | None:
@@ -1197,15 +1216,29 @@ def load_dependency_security_floors(
     return floors
 
 
-def _resolver_miss_error(runtime_error: RuntimeError, *, package: str, version: str) -> bool:
+def _resolver_miss_error(
+    runtime_error: RuntimeError,
+    *,
+    package: str,
+    version: str,
+    ignored_transport_packages: Sequence[str] = (),
+) -> bool:
     """Return True when pip failed because package floor is unavailable on index."""
     message = str(runtime_error)
     normalized_message = message.lower()
     requirement_text = f"{package}=={version}"
-    package_name = package.lower()
+    package_name = _normalized_package_name(package)
     normalized_requirement = requirement_text.lower()
 
-    def line_mentions_only_requested_package(line: str) -> bool:
+    def line_mentions_requested_or_ignored_project(line: str) -> bool:
+        return _line_mentions_requested_project(line, package=package) or any(
+            _line_mentions_requested_project(line, package=ignored_package)
+            for ignored_package in ignored_transport_packages
+        )
+
+    def line_mentions_only_requested_or_ignored_package(line: str) -> bool:
+        if _line_has_transport_failure_excluding_package_name(line, package=package):
+            return line_mentions_requested_or_ignored_project(line)
         if normalized_requirement in line:
             return True
         if re.fullmatch(rf"\s*{re.escape(package_name)}\s*", line):
@@ -1215,7 +1248,7 @@ def _resolver_miss_error(runtime_error: RuntimeError, *, package: str, version: 
     network_diagnostics = "\n".join(
         line
         for line in normalized_message.splitlines()
-        if not line_mentions_only_requested_package(line)
+        if not line_mentions_only_requested_or_ignored_package(line)
     )
     if _pip_upgrade_network_failure(network_diagnostics):
         return False
@@ -1236,6 +1269,55 @@ def _resolver_miss_error(runtime_error: RuntimeError, *, package: str, version: 
 
     missing_package_line = re.compile(rf"^\s*{re.escape(package_name)}\s*$", re.MULTILINE)
     return bool(missing_package_line.search(normalized_message))
+
+
+def _normalized_package_name(package: str) -> str:
+    """Return the normalized package spelling used by simple-index paths."""
+    return re.sub(r"[-_.]+", "-", package).lower()
+
+
+def _package_name_variants(package: str) -> set[str]:
+    """Return package spellings commonly emitted in pip/simple-index output."""
+    package_name = _normalized_package_name(package)
+    return {package_name, package_name.replace("-", "_")}
+
+
+def _line_mentions_requested_project(line: str, *, package: str) -> bool:
+    """Return True when a diagnostic line points at the requested simple project."""
+    normalized_line = line.lower().replace("\\", "/")
+    return any(
+        re.search(rf"(?:/|\+simple/){re.escape(variant)}(?:/|['\" )]|$)", normalized_line)
+        is not None
+        for variant in _package_name_variants(package)
+    )
+
+
+def _line_has_transport_failure_excluding_package_name(line: str, *, package: str) -> bool:
+    """Detect transport failures without treating package spelling as a network marker."""
+    scrubbed_line = line.lower()
+    for variant in _package_name_variants(package):
+        scrubbed_line = re.sub(re.escape(variant), "", scrubbed_line, flags=re.IGNORECASE)
+    return _pip_upgrade_network_failure(scrubbed_line)
+
+
+def _package_scoped_proxy_retry_failure(runtime_error: RuntimeError, *, package: str) -> bool:
+    """Return True when pip's own retry log proves a package-scoped proxy timeout."""
+    return any(
+        _line_mentions_requested_project(line, package=package)
+        and _line_has_transport_failure_excluding_package_name(line, package=package)
+        for line in str(runtime_error).splitlines()
+    )
+
+
+def _package_scoped_health_probe_failure(runtime_error: RuntimeError, *, package: str) -> bool:
+    """Return True when the approved-proxy health probe failed only on this package path."""
+    return any(
+        "approved python package proxy health check failed before emergency fallback"
+        in line.lower()
+        and _line_mentions_requested_project(line, package=package)
+        and _line_has_transport_failure_excluding_package_name(line, package=package)
+        for line in str(runtime_error).splitlines()
+    )
 
 
 def _pip_upgrade_resolver_miss(runtime_error: RuntimeError) -> bool:
@@ -1915,6 +1997,7 @@ def _artifacts_with_resolver_miss(
     exc: RuntimeError,
     *,
     requested_artifacts: Sequence[dict[str, str]],
+    ignored_transport_packages: Sequence[str] = (),
 ) -> list[dict[str, str]]:
     """Return requested emergency artifacts named by the resolver miss output."""
     return [
@@ -1924,6 +2007,7 @@ def _artifacts_with_resolver_miss(
             exc,
             package=artifact["package"],
             version=artifact["version"],
+            ignored_transport_packages=ignored_transport_packages,
         )
     ]
 
@@ -1931,6 +2015,28 @@ def _artifacts_with_resolver_miss(
 def _emergency_artifact_key(artifact: dict[str, str]) -> tuple[str, str]:
     """Return a stable key for already-staged emergency artifacts."""
     return (artifact["package"].lower(), artifact["version"].lower())
+
+
+def _require_private_index_health_unless_package_scoped_retry(
+    *,
+    exc: RuntimeError,
+    index_url: str,
+    package: str,
+    trusted_host: str | None,
+) -> None:
+    """Keep generic fallback health-gated while accepting exact package retry evidence."""
+    if _package_scoped_proxy_retry_failure(exc, package=package):
+        return
+    try:
+        _require_private_index_project_health(
+            index_url=index_url,
+            package=package,
+            trusted_host=trusted_host,
+        )
+    except RuntimeError as health_exc:
+        if _package_scoped_health_probe_failure(health_exc, package=package):
+            return
+        raise
 
 
 def build_wheelhouse_with_emergency_fallback(
@@ -1973,11 +2079,13 @@ def build_wheelhouse_with_emergency_fallback(
             resolver_miss_artifacts = _artifacts_with_resolver_miss(
                 exc,
                 requested_artifacts=remaining_artifacts,
+                ignored_transport_packages=[package for package, _version in staged_artifact_keys],
             )
             if not resolver_miss_artifacts:
                 raise
             for artifact in resolver_miss_artifacts:
-                _require_private_index_project_health(
+                _require_private_index_health_unless_package_scoped_retry(
+                    exc=exc,
                     index_url=index_url,
                     package=artifact["package"],
                     trusted_host=trusted_host,
@@ -2036,11 +2144,13 @@ def install_from_proxy_with_emergency_fallback(
             resolver_miss_artifacts = _artifacts_with_resolver_miss(
                 exc,
                 requested_artifacts=remaining_artifacts,
+                ignored_transport_packages=[package for package, _version in staged_artifact_keys],
             )
             if not resolver_miss_artifacts:
                 raise
             for artifact in resolver_miss_artifacts:
-                _require_private_index_project_health(
+                _require_private_index_health_unless_package_scoped_retry(
+                    exc=exc,
                     index_url=index_url,
                     package=artifact["package"],
                     trusted_host=trusted_host,

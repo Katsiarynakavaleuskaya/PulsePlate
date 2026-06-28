@@ -21,6 +21,11 @@ from fastapi.testclient import TestClient
 from sqlalchemy import text
 from sqlalchemy.exc import OperationalError, ProgrammingError, UnboundExecutionError
 
+from app.effective_routes import (
+    is_api_route_candidate,
+    iter_effective_route_candidates,
+    route_endpoint,
+)
 import core.recipe_synth as recipe_synth
 from core.test_guards import EXTERNAL_HTTP_BLOCKED_IN_TESTS_MESSAGE
 from tests._client import make_test_client
@@ -520,27 +525,37 @@ def client(app: FastAPI) -> Generator[TestClient, None, None]:
 # --- VIP shoplist test fixtures ---
 
 
-def _iter_route_dependencies(route: APIRoute) -> Iterable[Callable]:
+def _iter_route_dependencies(route: object) -> Iterable[Callable[..., object]]:
     """
     RU: Извлекаем callables зависимостей, навешанных на маршрут (route.dependencies).
     EN: Extract dependency callables attached at route level.
     """
-    for dep in getattr(route, "dependencies", []) or []:
-        fn = getattr(dep, "dependency", None)
-        if callable(fn):
+    seen_dependencies: set[int] = set()
+    for candidate_route in (route, getattr(route, "original_route", None)):
+        if candidate_route is None:
+            continue
+        for dep in getattr(candidate_route, "dependencies", []) or []:
+            fn = getattr(dep, "dependency", None)
+            if not callable(fn):
+                continue
+            dependency_id = id(fn)
+            if dependency_id in seen_dependencies:
+                continue
+            seen_dependencies.add(dependency_id)
             yield fn
 
 
-def _find_route_by_endpoint_name(app: FastAPI, endpoint_name: str) -> APIRoute | None:
+def _find_route_by_endpoint_name(app: FastAPI, endpoint_name: str) -> object | None:
     """
     RU: Находим маршрут по имени endpoint-функции.
     EN: Find route by endpoint function name.
     """
-    for route in app.routes:
-        if isinstance(route, APIRoute):
-            endpoint = getattr(route, "endpoint", None)
-            if callable(endpoint) and getattr(endpoint, "__name__", "") == endpoint_name:
-                return route
+    for route in iter_effective_route_candidates(app.routes):
+        if not is_api_route_candidate(route):
+            continue
+        endpoint = route_endpoint(route)
+        if callable(endpoint) and getattr(endpoint, "__name__", "") == endpoint_name:
+            return route
     return None
 
 

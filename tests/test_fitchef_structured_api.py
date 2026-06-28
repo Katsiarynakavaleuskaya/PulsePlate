@@ -16,6 +16,7 @@ from fastapi import APIRouter, FastAPI, HTTPException
 from fastapi.testclient import TestClient
 from httpx import Response
 
+from app.effective_routes import iter_effective_route_candidates, route_methods, route_path
 from app.schemas.fitchef import (
     FitChefDistortionSimulatorInput,
     FitChefDistortionSimulatorResult,
@@ -829,9 +830,8 @@ def test_canonical_bootstrap_registers_structured_route_idempotently(
     def _register_vip_routes(target_app: FastAPI) -> None:
         vip_registration_calls.append(target_app)
         if not any(
-            getattr(route, "path", None) == "/api/v1/vip/fitchef/insight"
-            and "POST" in (getattr(route, "methods", None) or set())
-            for route in target_app.routes
+            route_path(route) == "/api/v1/vip/fitchef/insight" and "POST" in route_methods(route)
+            for route in iter_effective_route_candidates(target_app.routes)
         ):
             target_app.include_router(_make_router("/api/v1/vip/fitchef/insight"))
 
@@ -843,15 +843,13 @@ def test_canonical_bootstrap_registers_structured_route_idempotently(
 
     structured_routes = [
         route
-        for route in app.routes
-        if getattr(route, "path", None) == "/api/v1/pro/fitchef/explain"
-        and "POST" in (getattr(route, "methods", None) or set())
+        for route in iter_effective_route_candidates(app.routes)
+        if route_path(route) == "/api/v1/pro/fitchef/explain" and "POST" in route_methods(route)
     ]
     vip_structured_routes = [
         route
-        for route in app.routes
-        if getattr(route, "path", None) == "/api/v1/vip/fitchef/insight"
-        and "POST" in (getattr(route, "methods", None) or set())
+        for route in iter_effective_route_candidates(app.routes)
+        if route_path(route) == "/api/v1/vip/fitchef/insight" and "POST" in route_methods(route)
     ]
     assert len(structured_routes) == 1
     assert len(vip_structured_routes) == 1
@@ -908,8 +906,7 @@ class TestFitChefStructuredRuntimeCoverage:
             },
         )
 
-    @pytest.mark.asyncio
-    async def test_runtime_rag_gate_failure_returns_503(self) -> None:
+    def test_runtime_rag_gate_failure_returns_503(self) -> None:
         """Structured RAG gate failures must fail closed."""
 
         from app.services import fitchef_runtime
@@ -924,13 +921,12 @@ class TestFitChefStructuredRuntimeCoverage:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            await fitchef_runtime.run_distortion_simulator_task(self._distortion_task())
+            asyncio.run(fitchef_runtime.run_distortion_simulator_task(self._distortion_task()))
 
         assert exc_info.value.status_code == 503
         assert exc_info.value.detail == "rag_retrieval_unavailable"
 
-    @pytest.mark.asyncio
-    async def test_runtime_builds_sanitized_sources_and_confidence(self) -> None:
+    def test_runtime_builds_sanitized_sources_and_confidence(self) -> None:
         """Structured runtime should preserve sources, confidence, and warning flags."""
 
         from app.services import fitchef_runtime
@@ -978,7 +974,7 @@ class TestFitChefStructuredRuntimeCoverage:
         )
         self.monkeypatch.setattr("llm.get_provider", lambda: mock_provider)
 
-        result = await fitchef_runtime.run_distortion_simulator_task(self._distortion_task())
+        result = asyncio.run(fitchef_runtime.run_distortion_simulator_task(self._distortion_task()))
 
         assert result.confidence == pytest.approx(0.93, 0.01)
         assert len(result.sources) == 1
@@ -987,8 +983,7 @@ class TestFitChefStructuredRuntimeCoverage:
         assert "source_content_sanitized" in result.warnings
         assert "source_content_redacted" in result.warnings
 
-    @pytest.mark.asyncio
-    async def test_runtime_rag_retrieval_failure_adds_warning(self) -> None:
+    def test_runtime_rag_retrieval_failure_adds_warning(self) -> None:
         """Structured runtime should keep working when RAG retrieval degrades."""
 
         from app.services import fitchef_runtime
@@ -1015,12 +1010,11 @@ class TestFitChefStructuredRuntimeCoverage:
         )
         self.monkeypatch.setattr("llm.get_provider", lambda: mock_provider)
 
-        result = await fitchef_runtime.run_distortion_simulator_task(self._distortion_task())
+        result = asyncio.run(fitchef_runtime.run_distortion_simulator_task(self._distortion_task()))
 
         assert "rag_retrieval_failed" in result.warnings
 
-    @pytest.mark.asyncio
-    async def test_runtime_missing_transparency_registry_fails_closed(self) -> None:
+    def test_runtime_missing_transparency_registry_fails_closed(self) -> None:
         """Structured runtime should fail when no transparency notice is available."""
 
         from app.services import fitchef_runtime
@@ -1031,13 +1025,12 @@ class TestFitChefStructuredRuntimeCoverage:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            await fitchef_runtime.run_distortion_simulator_task(self._distortion_task())
+            asyncio.run(fitchef_runtime.run_distortion_simulator_task(self._distortion_task()))
 
         assert exc_info.value.status_code == 503
         assert exc_info.value.detail == "transparency_registry_unavailable"
 
-    @pytest.mark.asyncio
-    async def test_runtime_incomplete_transparency_registry_fails_closed(self) -> None:
+    def test_runtime_incomplete_transparency_registry_fails_closed(self) -> None:
         """Structured runtime should fail when transparency metadata is incomplete."""
 
         from app.services import fitchef_runtime
@@ -1048,13 +1041,12 @@ class TestFitChefStructuredRuntimeCoverage:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            await fitchef_runtime.run_distortion_simulator_task(self._distortion_task())
+            asyncio.run(fitchef_runtime.run_distortion_simulator_task(self._distortion_task()))
 
         assert exc_info.value.status_code == 503
         assert exc_info.value.detail == "transparency_registry_incomplete"
 
-    @pytest.mark.asyncio
-    async def test_runtime_missing_structured_notice_does_not_fallback(self) -> None:
+    def test_runtime_missing_structured_notice_does_not_fallback(self) -> None:
         """Structured runtime must not fall back to the generic transparency notice."""
 
         from app.services import fitchef_runtime
@@ -1070,13 +1062,12 @@ class TestFitChefStructuredRuntimeCoverage:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            await fitchef_runtime.run_distortion_simulator_task(self._distortion_task())
+            asyncio.run(fitchef_runtime.run_distortion_simulator_task(self._distortion_task()))
 
         assert exc_info.value.status_code == 503
         assert exc_info.value.detail == "transparency_registry_unavailable"
 
-    @pytest.mark.asyncio
-    async def test_runtime_llm_gate_failure_returns_503(self) -> None:
+    def test_runtime_llm_gate_failure_returns_503(self) -> None:
         """Structured runtime must fail closed on LLM audit-gate errors."""
 
         from app.services import fitchef_runtime
@@ -1095,13 +1086,12 @@ class TestFitChefStructuredRuntimeCoverage:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            await fitchef_runtime.run_distortion_simulator_task(self._distortion_task())
+            asyncio.run(fitchef_runtime.run_distortion_simulator_task(self._distortion_task()))
 
         assert exc_info.value.status_code == 503
         assert exc_info.value.detail == "llm_generation_unavailable"
 
-    @pytest.mark.asyncio
-    async def test_runtime_empty_provider_response_returns_503(self) -> None:
+    def test_runtime_empty_provider_response_returns_503(self) -> None:
         """Structured runtime must reject empty provider payloads."""
 
         from app.services import fitchef_runtime
@@ -1120,13 +1110,12 @@ class TestFitChefStructuredRuntimeCoverage:
         self.monkeypatch.setattr("llm.get_provider", lambda: mock_provider)
 
         with pytest.raises(HTTPException) as exc_info:
-            await fitchef_runtime.run_distortion_simulator_task(self._distortion_task())
+            asyncio.run(fitchef_runtime.run_distortion_simulator_task(self._distortion_task()))
 
         assert exc_info.value.status_code == 503
         assert exc_info.value.detail == "LLM provider returned empty response"
 
-    @pytest.mark.asyncio
-    async def test_runtime_provider_timeout_returns_504(self) -> None:
+    def test_runtime_provider_timeout_returns_504(self) -> None:
         """Structured runtime should convert provider timeouts into 504s."""
 
         from app.services import fitchef_runtime
@@ -1152,13 +1141,12 @@ class TestFitChefStructuredRuntimeCoverage:
         self.monkeypatch.setattr("app.services.fitchef_runtime.asyncio.wait_for", _timeout)
 
         with pytest.raises(HTTPException) as exc_info:
-            await fitchef_runtime.run_distortion_simulator_task(self._distortion_task())
+            asyncio.run(fitchef_runtime.run_distortion_simulator_task(self._distortion_task()))
 
         assert exc_info.value.status_code == 504
         assert exc_info.value.detail == "LLM provider call timed out"
 
-    @pytest.mark.asyncio
-    async def test_runtime_provider_import_error_returns_503_without_quota_debit(self) -> None:
+    def test_runtime_provider_import_error_returns_503_without_quota_debit(self) -> None:
         """ImportError from provider resolution must map to the stable 503 detail."""
 
         from app.services import fitchef_runtime
@@ -1179,14 +1167,13 @@ class TestFitChefStructuredRuntimeCoverage:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            await fitchef_runtime.run_distortion_simulator_task(self._distortion_task())
+            asyncio.run(fitchef_runtime.run_distortion_simulator_task(self._distortion_task()))
 
         assert exc_info.value.status_code == 503
         assert exc_info.value.detail == "LLM provider not available"
         assert quota_calls == []
 
-    @pytest.mark.asyncio
-    async def test_runtime_provider_none_returns_503_without_quota_debit(self) -> None:
+    def test_runtime_provider_none_returns_503_without_quota_debit(self) -> None:
         """A missing configured provider must fail before quota consumption."""
 
         from app.services import fitchef_runtime
@@ -1204,14 +1191,13 @@ class TestFitChefStructuredRuntimeCoverage:
         self.monkeypatch.setattr("llm.get_provider", lambda: None)
 
         with pytest.raises(HTTPException) as exc_info:
-            await fitchef_runtime.run_distortion_simulator_task(self._distortion_task())
+            asyncio.run(fitchef_runtime.run_distortion_simulator_task(self._distortion_task()))
 
         assert exc_info.value.status_code == 503
         assert exc_info.value.detail == "LLM provider not available"
         assert quota_calls == []
 
-    @pytest.mark.asyncio
-    async def test_runtime_generation_failure_returns_structured_unavailable(self) -> None:
+    def test_runtime_generation_failure_returns_structured_unavailable(self) -> None:
         """Unexpected structured draft failures should map to the stable unavailable detail."""
 
         from app.services import fitchef_runtime
@@ -1237,13 +1223,12 @@ class TestFitChefStructuredRuntimeCoverage:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            await fitchef_runtime.run_distortion_simulator_task(self._distortion_task())
+            asyncio.run(fitchef_runtime.run_distortion_simulator_task(self._distortion_task()))
 
         assert exc_info.value.status_code == 503
         assert exc_info.value.detail == "fitchef_distortion_simulator_unavailable"
 
-    @pytest.mark.asyncio
-    async def test_identity_runtime_uses_vip_quota_and_cbt_retrieval_target(self) -> None:
+    def test_identity_runtime_uses_vip_quota_and_cbt_retrieval_target(self) -> None:
         """Identity-loop runtime should stay VIP-only while retrieving CBT context."""
 
         from app.services import fitchef_runtime
@@ -1293,7 +1278,7 @@ class TestFitChefStructuredRuntimeCoverage:
         )
         self.monkeypatch.setattr("llm.get_provider", lambda: mock_provider)
 
-        result = await fitchef_runtime.run_identity_loop_mapper_task(self._identity_task())
+        result = asyncio.run(fitchef_runtime.run_identity_loop_mapper_task(self._identity_task()))
 
         assert result.scenario == "identity_loop_mapper"
         assert result.identity_loop.belief.startswith("If dinner slips")
@@ -1304,8 +1289,7 @@ class TestFitChefStructuredRuntimeCoverage:
         assert retrieval_calls[0]["kwargs"]["user_tier"] == "VIP"
         assert result.sources[0].file == "docs/cbt/identity_loop.md"
 
-    @pytest.mark.asyncio
-    async def test_identity_runtime_supports_async_provider_generate(self) -> None:
+    def test_identity_runtime_supports_async_provider_generate(self) -> None:
         """Structured runtime should await async provider.generate implementations."""
 
         from app.services import fitchef_runtime
@@ -1336,13 +1320,12 @@ class TestFitChefStructuredRuntimeCoverage:
         )
         self.monkeypatch.setattr("llm.get_provider", lambda: AsyncProvider())
 
-        result = await fitchef_runtime.run_identity_loop_mapper_task(self._identity_task())
+        result = asyncio.run(fitchef_runtime.run_identity_loop_mapper_task(self._identity_task()))
 
         assert result.identity_loop.belief.startswith("If dinner slips")
         assert result.quota_state == "consumed"
 
-    @pytest.mark.asyncio
-    async def test_identity_runtime_generation_failure_returns_stable_detail(self) -> None:
+    def test_identity_runtime_generation_failure_returns_stable_detail(self) -> None:
         """Unexpected identity draft failures should map to the stable unavailable detail."""
 
         from app.services import fitchef_runtime
@@ -1368,7 +1351,7 @@ class TestFitChefStructuredRuntimeCoverage:
         )
 
         with pytest.raises(HTTPException) as exc_info:
-            await fitchef_runtime.run_identity_loop_mapper_task(self._identity_task())
+            asyncio.run(fitchef_runtime.run_identity_loop_mapper_task(self._identity_task()))
 
         assert exc_info.value.status_code == 503
         assert exc_info.value.detail == "fitchef_identity_loop_mapper_unavailable"
