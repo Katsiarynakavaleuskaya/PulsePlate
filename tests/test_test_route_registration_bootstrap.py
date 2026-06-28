@@ -75,13 +75,13 @@ def _assert_test_routes_registered_once(target_app: FastAPI) -> None:
 def _stub_test_router_without_dependencies() -> APIRouter:
     router = APIRouter()
 
-    for path, method, include_in_schema in app_main._TEST_ROUTE_SPECS:
+    for spec_path, method, include_in_schema in app_main._TEST_ROUTE_SPECS:
 
-        async def _handler(route_path: str = path) -> dict[str, str]:
-            return {"path": route_path}
+        async def _handler(current_route_path: str = spec_path) -> dict[str, str]:
+            return {"path": current_route_path}
 
         router.add_api_route(
-            path,
+            spec_path,
             _handler,
             methods=[method],
             include_in_schema=include_in_schema,
@@ -227,13 +227,13 @@ def test_test_route_registration_rejects_partial_existing_family() -> None:
 def test_test_route_registration_rejects_foreign_handlers() -> None:
     target_app = FastAPI()
 
-    for path, method, include_in_schema in app_main._TEST_ROUTE_SPECS:
+    for spec_path, method, include_in_schema in app_main._TEST_ROUTE_SPECS:
 
-        async def _foreign_test_route(route_path: str = path) -> dict[str, str]:
-            return {"path": route_path}
+        async def _foreign_test_route(current_route_path: str = spec_path) -> dict[str, str]:
+            return {"path": current_route_path}
 
         target_app.add_api_route(
-            path,
+            spec_path,
             _foreign_test_route,
             methods=[method],
             include_in_schema=include_in_schema,
