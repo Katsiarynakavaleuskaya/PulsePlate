@@ -72,6 +72,7 @@ Out of scope:
 - `85e73495e` - `fix(ci): keep dev proxy root validation fail closed`
 - `fa32e3dc1` - `docs(review): map proxy health path policy fix`
 - `8c234a854` - `ci(deps): tighten proxy parity review fixes`
+- `9853e679d` - `test(ci): align main shard proxy source contract`
 
 ## Rebased Main Baseline
 
@@ -214,6 +215,12 @@ Reason: Closes the latest connector review findings by requiring compatible Linu
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#discussion_r3488408160 -> 8c234a854
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#discussion_r3488408161 -> 8c234a854
 
+Disposition: FIXED
+Commit: 9853e679d
+Evidence: `tests/test_ci_workflow_pr_size_governance_contract.py`.
+Reason: Closes the current-head `test-main (3.11, 60)` contract failure after commit `8c234a854` by updating the sharded main-runner governance test to the same vars-only protected proxy endpoint contract and asserting that secret-backed devpi credentials remain confined to the `.netrc`-driven setup step.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/28334015038/job/83937051776 -> 9853e679d
+
 ## Local Validation
 
 Full local `make verify` was not run under the operator-approved machine-heavy
@@ -243,6 +250,10 @@ Validated on the rebased mapping head:
   `.venv/bin/python -m pytest -q tests/test_private_python_proxy_health.py tests/test_private_python_proxy_workflow_contract.py tests/test_python_supply_chain_controls.py::test_canonical_ci_and_docker_use_supply_chain_guardrails tests/test_python_supply_chain_controls.py::test_proxy_backed_workflows_support_vars_or_secrets`
   - Result after latest connector review fixes: `47 passed`; one existing
     Starlette/httpx2 deprecation warning.
+- PASS:
+  `.venv/bin/python -m pytest -q tests/test_ci_workflow_pr_size_governance_contract.py::test_main_branch_python_sharded_runner_preserves_required_check_policy tests/test_private_python_proxy_workflow_contract.py tests/test_python_supply_chain_controls.py::test_canonical_ci_and_docker_use_supply_chain_guardrails tests/test_python_supply_chain_controls.py::test_proxy_backed_workflows_support_vars_or_secrets`
+  - Result after current-head `test-main (3.11, 60)` contract failure:
+    `17 passed`; one existing Starlette/httpx2 deprecation warning.
 - PASS: `make validate-changed`
   - Selected:
     `tests/test_private_python_proxy_health.py`,
