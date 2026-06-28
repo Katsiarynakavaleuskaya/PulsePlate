@@ -1,6 +1,7 @@
 """Tests for the test router endpoints."""
 
 import os
+import sys
 from datetime import datetime
 
 import pytest
@@ -23,10 +24,13 @@ def _import_fresh_app() -> FastAPI:
     # Reloading re-reads env and re-wires routers without mutating sys.modules.
     import importlib
 
-    import app.main as app_main
+    import app as app_pkg
     import legacy_app
 
     importlib.reload(legacy_app)
+    if "app.main" not in sys.modules and hasattr(app_pkg, "main"):
+        delattr(app_pkg, "main")
+    app_main = importlib.import_module("app.main")
     app_main = importlib.reload(app_main)
 
     app = app_main.app  # canonical app instance after env-driven wiring
