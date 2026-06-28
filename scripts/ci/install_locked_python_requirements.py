@@ -504,7 +504,7 @@ def _version_satisfies_lower_bound(exact_version: str, floor_version: str) -> bo
         except Exception:  # noqa: BLE001 - keep non-PEP440 shapes fail-closed.
             return exact_version == floor_version
     try:
-        return Version(exact_version) >= Version(floor_version)
+        return bool(Version(exact_version) >= Version(floor_version))
     except Exception:  # noqa: BLE001 - malformed/nonstandard versions keep the floor.
         return exact_version == floor_version
 
