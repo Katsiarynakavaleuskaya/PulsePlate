@@ -11,9 +11,7 @@ from scripts.ci import check_private_python_proxy_health as checker
 APPROVED_INDEX = "https://packages.pulseplate.app/root/pulseplate/+simple/"
 
 
-def simple_page(project: str, version: str) -> bytes:
-    normalized = checker.normalize_project_name(project)
-    wheel_project = normalized.replace("-", "_")
+def simple_page(wheel_project: str, version: str) -> bytes:
     return (
         f'<html><body><a href="../../+f/abc/{wheel_project}-{version}-py3-none-any.whl">'
         f"{wheel_project}-{version}-py3-none-any.whl</a></body></html>"
@@ -116,10 +114,9 @@ def test_main_default_projects_exclude_large_pydantic_core_probe(
             results=(),
         )
 
-    monkeypatch.setattr(
-        checker,
-        "parse_exact_pins",
-        lambda requirements_files: {
+    def fake_parse_exact_pins(requirements_files: list[Path]) -> dict[str, str]:
+        assert requirements_files
+        return {
             "aiosqlite": "0.22.1",
             "cryptography": "48.0.1",
             "requests": "2.33.0",
@@ -127,8 +124,9 @@ def test_main_default_projects_exclude_large_pydantic_core_probe(
             "hypothesis": "6.155.7",
             "pgvector": "0.4.2",
             "pydantic-core": "2.41.5",
-        },
-    )
+        }
+
+    monkeypatch.setattr(checker, "parse_exact_pins", fake_parse_exact_pins)
     monkeypatch.setattr(checker, "check_health", fake_check_health)
 
     assert checker.main(["--index-url", APPROVED_INDEX]) == 0
@@ -192,12 +190,18 @@ def test_probe_project_passes_when_exact_pin_is_present(monkeypatch: pytest.Monk
 def test_probe_project_accepts_truncated_page_when_exact_pin_is_already_seen(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    body = simple_page("pydantic-core", "2.41.5") + b"x" * 10
-    monkeypatch.setattr(
-        checker,
-        "fetch_project_page",
-        lambda url, *, timeout_seconds, max_bytes, authorization_header=None: (200, body),
-    )
+    body = simple_page("pydantic_core", "2.41.5") + b"x" * 10
+
+    def fake_fetch_project_page(
+        url: str,
+        *,
+        timeout_seconds: float,
+        max_bytes: int,
+        authorization_header: str | None = None,
+    ) -> tuple[int, bytes]:
+        return 200, body
+
+    monkeypatch.setattr(checker, "fetch_project_page", fake_fetch_project_page)
 
     result = checker.probe_project(
         index_url=APPROVED_INDEX,
@@ -265,11 +269,16 @@ def test_probe_project_classifies_unhealthy_or_non_parity_pages(
     body: bytes,
     reason: str,
 ) -> None:
-    monkeypatch.setattr(
-        checker,
-        "fetch_project_page",
-        lambda url, *, timeout_seconds, max_bytes, authorization_header=None: (200, body),
-    )
+    def fake_fetch_project_page(
+        url: str,
+        *,
+        timeout_seconds: float,
+        max_bytes: int,
+        authorization_header: str | None = None,
+    ) -> tuple[int, bytes]:
+        return 200, body
+
+    monkeypatch.setattr(checker, "fetch_project_page", fake_fetch_project_page)
 
     result = checker.probe_project(
         index_url=APPROVED_INDEX,
@@ -319,14 +328,16 @@ def test_probe_project_classifies_timeouts_after_bounded_retries(
 def test_check_health_fails_when_project_missing_from_requirements(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(
-        checker,
-        "fetch_project_page",
-        lambda url, *, timeout_seconds, max_bytes, authorization_header=None: (
-            200,
-            simple_page("requests", "2.33.0"),
-        ),
-    )
+    def fake_fetch_project_page(
+        url: str,
+        *,
+        timeout_seconds: float,
+        max_bytes: int,
+        authorization_header: str | None = None,
+    ) -> tuple[int, bytes]:
+        return 200, simple_page("requests", "2.33.0")
+
+    monkeypatch.setattr(checker, "fetch_project_page", fake_fetch_project_page)
 
     summary = checker.check_health(
         index_url=APPROVED_INDEX,
@@ -391,6 +402,16 @@ def test_netrc_rejects_root_devpi_credentials(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="root_devpi_credentials"):
         checker.basic_auth_from_netrc("packages.pulseplate.app", netrc_file=netrc_file)
+
+
+def test_netrc_requires_exact_machine_entry(tmp_path: Path) -> None:
+    netrc_file = tmp_path / ".netrc"
+    netrc_file.write_text(
+        "default login pulseplate-ci password default-token\n",  # pragma: allowlist secret
+        encoding="utf-8",
+    )
+
+    assert checker.basic_auth_from_netrc("packages.pulseplate.app", netrc_file=netrc_file) is None
 
 
 def test_netrc_parse_errors_do_not_echo_raw_parser_text(tmp_path: Path) -> None:
