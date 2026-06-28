@@ -6,10 +6,18 @@ from typing import Any
 
 import pytest
 from fastapi import APIRouter, Depends, FastAPI
-from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 
 from app.bootstrap.route_family import route_has_dependency_call
+from app.effective_routes import (
+    is_api_route_candidate,
+    iter_effective_route_candidates,
+    route_endpoint,
+    route_include_in_schema,
+    route_methods,
+    route_path,
+    route_responses,
+)
 import app.main as app_main
 from app.routers import restaurants
 
@@ -63,13 +71,13 @@ def _submission_row(status: str = "approved") -> dict[str, Any]:
     }
 
 
-def _matching_moderation_routes(target_app: FastAPI) -> list[APIRoute]:
+def _matching_moderation_routes(target_app: FastAPI) -> list[object]:
     return [
         route
-        for route in target_app.routes
-        if isinstance(route, APIRoute)
-        and route.path == _STATUS_PATH
-        and "PATCH" in (route.methods or set())
+        for route in iter_effective_route_candidates(target_app.routes)
+        if is_api_route_candidate(route)
+        and route_path(route) == _STATUS_PATH
+        and "PATCH" in route_methods(route)
     ]
 
 
@@ -121,10 +129,11 @@ def test_restaurant_moderation_registration_is_canonical_and_idempotent() -> Non
     routes = _matching_moderation_routes(app)
     assert len(routes) == 1
     route = routes[0]
-    assert route.endpoint.__module__ == "app.routers.restaurants"
-    assert route.endpoint.__qualname__ == "review_restaurant_submission"
-    assert route.include_in_schema is False
-    assert set(route.responses) == {404, 422}
+    endpoint = route_endpoint(route)
+    assert endpoint.__module__ == "app.routers.restaurants"
+    assert endpoint.__qualname__ == "review_restaurant_submission"
+    assert route_include_in_schema(route) is False
+    assert set(route_responses(route)) == {404, 422}
     assert route_has_dependency_call(route, app_main._legacy_module._get_api_key_dynamic)
     assert _STATUS_PATH not in app.openapi().get("paths", {})
 
@@ -134,8 +143,8 @@ def test_live_app_keeps_restaurant_moderation_route_hidden_and_protected() -> No
 
     assert len(routes) == 1
     route = routes[0]
-    assert route.include_in_schema is False
-    assert set(route.responses) == {404, 422}
+    assert route_include_in_schema(route) is False
+    assert set(route_responses(route)) == {404, 422}
     assert route_has_dependency_call(route, app_main._legacy_module._get_api_key_dynamic)
     assert _STATUS_PATH not in app_main.app.openapi().get("paths", {})
 
