@@ -17,6 +17,7 @@ DEGRADED_STATUSES = frozenset(
 BLOCKING_STATUSES = frozenset(
     {"fallback_finding", "failed_required_check", "unresolved_threads", "actionable_bot_comments"}
 )
+REVIEW_SOURCE_STATUSES = frozenset({"available"}) | DEGRADED_STATUSES | BLOCKING_STATUSES
 _SECRETISH_RE = re.compile(
     r"(?i)(github_pat_[a-z0-9_]+|gh[opsru]_[a-z0-9_]+|ghp_[a-z0-9_]+|"
     r"ghs_[a-z0-9_.-]+|sk-[a-z0-9_-]+|"
@@ -69,6 +70,9 @@ def build_review_source_status(
             normalized_status = "degraded"
         else:
             normalized_status = "unavailable"
+    if normalized_status not in REVIEW_SOURCE_STATUSES:
+        allowed = ", ".join(sorted(REVIEW_SOURCE_STATUSES))
+        raise ValueError(f"status must be one of: {allowed}.")
     source_degraded = degraded or normalized_status in DEGRADED_STATUSES
     source_blocking = blocking or normalized_status in BLOCKING_STATUSES
     redacted_reason = redact_review_source_text(reason)

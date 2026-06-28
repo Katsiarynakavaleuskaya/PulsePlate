@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 from scripts.orchestration.review_source_status import (
+    REVIEW_SOURCE_STATUSES,
     build_review_source_status,
     summarize_degraded_sources,
 )
@@ -58,6 +59,16 @@ def test_review_source_status_schema_matches_helper_shape() -> None:
 
     assert set(schema["required"]) == set(status)
     assert schema["additionalProperties"] is False
+    assert schema["properties"]["status"]["enum"] == sorted(REVIEW_SOURCE_STATUSES)
+
+
+def test_review_source_status_rejects_unknown_status() -> None:
+    try:
+        build_review_source_status(source="coderabbit", status="rate-limitd")
+    except ValueError as exc:
+        assert "status must be one of" in str(exc)
+    else:  # pragma: no cover - assertion branch
+        raise AssertionError("unknown status should fail closed")
 
 
 def test_review_source_status_redacts_reason_and_evidence() -> None:

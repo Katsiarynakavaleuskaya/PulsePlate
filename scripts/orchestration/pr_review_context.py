@@ -27,6 +27,13 @@ SCHEMA_VERSION = "1.0.0"
 AGENTS_BASENAME = "AGENTS.md"
 
 DIFF_NUMSTAT_RE = re.compile(r"^(\d+|-)\t(\d+|-)\t(.*)$")
+LOCAL_PATH_RE = re.compile(
+    r"(?i)(file://)?("
+    r"/(?:Users|private|var|tmp|Volumes|etc|opt)/[^\s,)]+|"
+    r"~[\\/][^\s,)]+|"
+    r"[A-Za-z]:[\\/][^\s,)]+"
+    r")"
+)
 MAPPING_SECTION_RE = re.compile(r"^#{2,3}\s+Fixed in Commit Mapping\s*$", re.IGNORECASE)
 MAPPING_COMMENT_RE = re.compile(r"^\s*-\s*(https://github\.com/\S+)\s*$")
 MAPPING_MAPPED_RE = re.compile(
@@ -50,6 +57,11 @@ def _binary(name: str) -> str:
     return path
 
 
+def _redact_command_diagnostic(value: str, *, repo_root: Path) -> str:
+    redacted = value.replace(str(repo_root), "<repo-root>")
+    return LOCAL_PATH_RE.sub("<redacted-path>", redacted)
+
+
 def _run_command(
     args: list[str],
     *,
@@ -64,7 +76,9 @@ def _run_command(
         capture_output=True,
     )
     if check and completed.returncode != 0:
-        raise RuntimeError(f"Command failed ({shlex.join(args)}): {completed.stderr.strip()}")
+        command = _redact_command_diagnostic(shlex.join(args), repo_root=cwd)
+        stderr = _redact_command_diagnostic(completed.stderr.strip(), repo_root=cwd)
+        raise RuntimeError(f"Command failed ({command}): {stderr}")
     return completed
 
 

@@ -222,6 +222,57 @@ def test_agent_lesson_promoter_rejects_malformed_records() -> None:
         promote_agent_lesson_record(record)
 
 
+def test_agent_lesson_promoter_rejects_tampered_record_fingerprint() -> None:
+    record = extract_agent_lesson_record(
+        source="review",
+        pattern="degraded review source",
+        severity="medium",
+        affected_surfaces=["docs/orchestration"],
+        root_cause="source unavailable",
+        required_oracle="review_source_degraded",
+        promotion_target="docs/orchestration/REVIEW_SOURCE_DEGRADATION_POLICY.md",
+    )
+
+    record["dedupe_fingerprint"] = "sha256:" + ("0" * 64)
+
+    with pytest.raises(ValueError, match="dedupe_fingerprint does not match"):
+        promote_agent_lesson_record(record)
+
+
+def test_agent_lesson_promoter_rejects_unredacted_stored_text() -> None:
+    record = extract_agent_lesson_record(
+        source="review",
+        pattern="degraded review source",
+        severity="medium",
+        affected_surfaces=["docs/orchestration"],
+        root_cause="source unavailable",
+        required_oracle="review_source_degraded",
+        promotion_target="docs/orchestration/REVIEW_SOURCE_DEGRADATION_POLICY.md",
+    )
+
+    record["source"] = "review token=abc"
+
+    with pytest.raises(ValueError, match="source must be redacted"):
+        promote_agent_lesson_record(record)
+
+
+def test_agent_lesson_promoter_rejects_tampered_lesson_id() -> None:
+    record = extract_agent_lesson_record(
+        source="review",
+        pattern="degraded review source",
+        severity="medium",
+        affected_surfaces=["docs/orchestration"],
+        root_cause="source unavailable",
+        required_oracle="review_source_degraded",
+        promotion_target="docs/orchestration/REVIEW_SOURCE_DEGRADATION_POLICY.md",
+    )
+
+    record["lesson_id"] = "lesson-000000000000"
+
+    with pytest.raises(ValueError, match="lesson_id does not match"):
+        promote_agent_lesson_record(record)
+
+
 def test_agent_lesson_promoter_cli_rejects_malformed_records() -> None:
     record = extract_agent_lesson_record(
         source="review",

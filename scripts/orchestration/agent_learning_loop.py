@@ -100,6 +100,34 @@ def _dedupe_ordered(values: list[str]) -> list[str]:
     return ordered
 
 
+def _learning_record_fingerprint(
+    *,
+    source: str,
+    pattern: str,
+    severity: str,
+    affected_surfaces: list[str],
+    root_cause: str,
+    required_oracle: str,
+    promotion_target: str,
+) -> str:
+    normalized = "\n".join(
+        [
+            source,
+            pattern,
+            severity,
+            *affected_surfaces,
+            root_cause,
+            required_oracle,
+            promotion_target,
+        ]
+    )
+    return f"sha256:{sha256(normalized.encode('utf-8')).hexdigest()}"
+
+
+def _lesson_id_for_fingerprint(fingerprint: str) -> str:
+    return f"lesson-{fingerprint.removeprefix('sha256:')[:12]}"
+
+
 def build_agent_learning_record(
     *,
     source: str,
@@ -127,19 +155,16 @@ def build_agent_learning_record(
         field_name="promotion_target",
     )
     normalized_required_oracle = _normalize_required_oracle(required_oracle)
-    normalized = "\n".join(
-        [
-            redacted_source,
-            redacted_pattern,
-            normalized_severity,
-            *redacted_surfaces,
-            redacted_root_cause,
-            normalized_required_oracle,
-            normalized_promotion_target,
-        ]
+    fingerprint = _learning_record_fingerprint(
+        source=redacted_source,
+        pattern=redacted_pattern,
+        severity=normalized_severity,
+        affected_surfaces=redacted_surfaces,
+        root_cause=redacted_root_cause,
+        required_oracle=normalized_required_oracle,
+        promotion_target=normalized_promotion_target,
     )
-    fingerprint = f"sha256:{sha256(normalized.encode('utf-8')).hexdigest()}"
-    lesson_id = f"lesson-{fingerprint.removeprefix('sha256:')[:12]}"
+    lesson_id = _lesson_id_for_fingerprint(fingerprint)
     redaction_status = (
         "redacted"
         if any(
@@ -199,6 +224,17 @@ def validate_agent_learning_record(record: dict[str, Any]) -> dict[str, Any]:
         field_name="promotion_target",
     )
 
+    source = _required_text("source")
+    pattern = _required_text("pattern")
+    root_cause = _required_text("root_cause")
+    for field_name, value in (
+        ("source", source),
+        ("pattern", pattern),
+        ("root_cause", root_cause),
+    ):
+        if redact_learning_text(value) != value:
+            raise ValueError(f"{field_name} must be redacted before validation.")
+
     redaction_status = _required_text("redaction_status")
     if redaction_status not in VALID_REDACTION_STATUSES:
         allowed = ", ".join(sorted(VALID_REDACTION_STATUSES))
@@ -207,17 +243,32 @@ def validate_agent_learning_record(record: dict[str, Any]) -> dict[str, Any]:
     fingerprint = _required_text("dedupe_fingerprint")
     if not _FINGERPRINT_RE.match(fingerprint):
         raise ValueError("dedupe_fingerprint must match sha256:<64 lowercase hex chars>.")
+    expected_fingerprint = _learning_record_fingerprint(
+        source=source,
+        pattern=pattern,
+        severity=severity,
+        affected_surfaces=affected_surfaces,
+        root_cause=root_cause,
+        required_oracle=required_oracle,
+        promotion_target=promotion_target,
+    )
+    if fingerprint != expected_fingerprint:
+        raise ValueError("dedupe_fingerprint does not match normalized learning record.")
+
+    lesson_id = _required_text("lesson_id")
+    if lesson_id != _lesson_id_for_fingerprint(fingerprint):
+        raise ValueError("lesson_id does not match dedupe_fingerprint.")
 
     if record.get("human_review_required") is not True:
         raise ValueError("human_review_required must be true.")
 
     return {
-        "lesson_id": _required_text("lesson_id"),
-        "source": _required_text("source"),
-        "pattern": _required_text("pattern"),
+        "lesson_id": lesson_id,
+        "source": source,
+        "pattern": pattern,
         "severity": severity,
         "affected_surfaces": affected_surfaces,
-        "root_cause": _required_text("root_cause"),
+        "root_cause": root_cause,
         "required_oracle": required_oracle,
         "promotion_target": promotion_target,
         "dedupe_fingerprint": fingerprint,

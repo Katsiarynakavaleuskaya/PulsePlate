@@ -13,7 +13,22 @@
   ],
   "properties": {
     "source": { "type": "string", "minLength": 1 },
-    "status": { "type": "string", "minLength": 1 },
+    "status": {
+      "type": "string",
+      "enum": [
+        "actionable_bot_comments",
+        "auth_missing",
+        "available",
+        "degraded",
+        "failed_required_check",
+        "fallback_finding",
+        "partial",
+        "rate_limited",
+        "unavailable",
+        "unresolved_threads",
+        "usage_limit_reached"
+      ]
+    },
     "source_degraded": { "type": "boolean" },
     "fallback_required": { "type": "boolean" },
     "blocking": { "type": "boolean" },

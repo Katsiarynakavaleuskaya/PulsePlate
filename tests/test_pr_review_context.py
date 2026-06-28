@@ -70,6 +70,31 @@ def test_collect_scope_diff_parses_numstat_lines(
     assert summary["changed_lines"] == 15
 
 
+def test_run_command_redacts_local_paths_in_failures(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        del args, kwargs
+        return subprocess.CompletedProcess(
+            args=[],
+            returncode=1,
+            stdout="",
+            stderr=f"fatal: cannot read {tmp_path}/secret.txt and /etc/pulseplate.conf",
+        )
+
+    monkeypatch.setattr(review_ctx.subprocess, "run", fake_run)
+
+    with pytest.raises(RuntimeError) as excinfo:
+        review_ctx._run_command(["/usr/bin/git", "-C", str(tmp_path), "status"], cwd=tmp_path)
+
+    message = str(excinfo.value)
+    assert str(tmp_path) not in message
+    assert "/etc/pulseplate.conf" not in message
+    assert "<repo-root>" in message
+    assert "<redacted-path>" in message
+
+
 def test_collect_review_context_missing_pr_metadata_and_mapping(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
