@@ -45,7 +45,7 @@ CLOUDFLARE_ORIGIN_MARKERS = (
     "origin is unreachable",
     "web server is down",
 )
-VERSION_BOUNDARY = r"(?=(?:-|\.tar\.gz|\.zip|\.whl|[\"'#<]))"
+WHEEL_ARTIFACT_SUFFIX = r"(?:-[^\"'<>\s]+)?\.whl(?=[\"'#<])"
 
 
 class NoRedirect(HTTPRedirectHandler):
@@ -265,8 +265,8 @@ def simple_page_has_exact_pin(
     """Return True when the page advertises the exact pinned package version."""
     text = body.decode("utf-8", errors="ignore").lower()
     patterns = (
-        rf"{re.escape(normalized_project)}-{re.escape(expected_version)}{VERSION_BOUNDARY}",
-        rf"{re.escape(normalized_project.replace('-', '_'))}-{re.escape(expected_version)}{VERSION_BOUNDARY}",
+        rf"{re.escape(normalized_project)}-{re.escape(expected_version)}{WHEEL_ARTIFACT_SUFFIX}",
+        rf"{re.escape(normalized_project.replace('-', '_'))}-{re.escape(expected_version)}{WHEEL_ARTIFACT_SUFFIX}",
     )
     return any(re.search(pattern, text) for pattern in patterns)
 

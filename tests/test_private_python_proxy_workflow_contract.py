@@ -130,12 +130,17 @@ def test_private_proxy_health_main_auth_is_netrc_only() -> None:
         "if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'"
         in protected_resolver
     )
-    assert "secrets.PULSEPLATE_PYTHON_INDEX_URL" in protected_resolver
+    assert (
+        "PULSEPLATE_PROTECTED_PYTHON_INDEX_URL: ${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}"
+        in protected_resolver
+    )
+    assert "secrets.PULSEPLATE_PYTHON_INDEX_URL" not in protected_resolver
     assert "secrets.DEVPI_CI_USER" in protected_auth
     assert "secrets.DEVPI_CI_PASSWORD" in protected_auth
     assert "://$DEVPI_CI_USER" not in protected_auth
     assert "://$DEVPI_CI_PASSWORD" not in protected_auth
     assert "$HOME/.netrc" in protected_auth
+    assert "[Rr][Oo][Oo][Tt]" in protected_auth
     assert "Root devpi credentials are forbidden" in protected_auth
 
 

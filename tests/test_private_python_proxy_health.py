@@ -18,6 +18,13 @@ def simple_page(wheel_project: str, version: str) -> bytes:
     ).encode()
 
 
+def source_page(project: str, version: str) -> bytes:
+    return (
+        f'<html><body><a href="../../+f/abc/{project}-{version}.tar.gz">'
+        f"{project}-{version}.tar.gz</a></body></html>"
+    ).encode()
+
+
 def test_validate_index_url_rejects_unsafe_sources() -> None:
     with pytest.raises(ValueError, match="missing_index_url"):
         checker.validate_index_url("")
@@ -185,6 +192,33 @@ def test_probe_project_passes_when_exact_pin_is_present(monkeypatch: pytest.Monk
 
     assert result.ok is True
     assert result.reason == "ok"
+
+
+def test_probe_project_requires_exact_pinned_wheel_artifact(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_fetch(
+        url: str,
+        *,
+        timeout_seconds: float,
+        max_bytes: int,
+        authorization_header: str | None = None,
+    ) -> tuple[int, bytes]:
+        return 200, source_page("aiosqlite", "0.22.1")
+
+    monkeypatch.setattr(checker, "fetch_project_page", fake_fetch)
+
+    result = checker.probe_project(
+        index_url=APPROVED_INDEX,
+        project="aiosqlite",
+        expected_version="0.22.1",
+        timeout_seconds=1,
+        max_bytes=1000,
+        retries=0,
+    )
+
+    assert result.ok is False
+    assert result.reason == "mirror_lag_exact_pin_missing"
 
 
 def test_probe_project_accepts_truncated_page_when_exact_pin_is_already_seen(

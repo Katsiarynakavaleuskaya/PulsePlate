@@ -813,6 +813,12 @@ def test_private_proxy_health_protected_credentials_are_main_only_netrc() -> Non
     branch_resolver = workflow_text.split("- name: Resolve branch diagnostic package proxy", 1)[
         1
     ].split("- name: Resolve protected main package proxy", 1,)[0]
+    protected_resolver = workflow_text.split(
+        "- name: Resolve protected main package proxy",
+        1,
+    )[
+        1
+    ].split("- name: Configure protected main package proxy authentication", 1,)[0]
     protected_auth = workflow_text.split(
         "- name: Configure protected main package proxy authentication",
         1,
@@ -827,11 +833,17 @@ def test_private_proxy_health_protected_credentials_are_main_only_netrc() -> Non
     assert "DEVPI_CI_PASSWORD:" not in branch_resolver
     assert (
         "if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'"
-        in protected_auth
+        in protected_resolver
     )
+    assert (
+        "PULSEPLATE_PROTECTED_PYTHON_INDEX_URL: ${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}"
+        in protected_resolver
+    )
+    assert "secrets.PULSEPLATE_PYTHON_INDEX_URL" not in protected_resolver
     assert "secrets.DEVPI_CI_USER" in protected_auth
     assert "secrets.DEVPI_CI_PASSWORD" in protected_auth
     assert "$HOME/.netrc" in protected_auth
+    assert "[Rr][Oo][Oo][Tt]" in protected_auth
     assert "Root devpi credentials are forbidden" in protected_auth
 
 
