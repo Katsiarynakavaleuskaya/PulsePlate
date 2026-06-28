@@ -227,9 +227,9 @@ class TestAppVIPComprehensive97:
         assert hasattr(app, "app")
         # Check for presence of basic routes (safely)
         if app.app is not None and hasattr(app.app, "routes"):
-            route_paths = [
+            route_paths = {
                 route_path(route) for route in iter_effective_route_candidates(app.app.routes)
-            ]
+            }
             assert "/" in route_paths
             assert "/health" in route_paths
             assert "/api/v1/health" in route_paths

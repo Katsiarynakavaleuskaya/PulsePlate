@@ -8,9 +8,13 @@ from fastapi import FastAPI
 
 import app
 import pytest
-from app.effective_routes import iter_effective_route_candidates, route_path
 from app.bootstrap.direct_api_root import LEGACY_BMI_WEB_ROUTE
+from app.effective_routes import iter_effective_route_candidates, route_path
 from tests.helpers.module_resolve import resolve_module
+
+
+def _route_paths(fastapi_app: FastAPI) -> set[str]:
+    return {route_path(route) for route in iter_effective_route_candidates(fastapi_app.routes)}
 
 
 class TestAppImport:
@@ -39,14 +43,10 @@ class TestAppImport:
             "/api/v1/pro/cbt/insight",
             "/ws",
         }
-        package_paths = {
-            route_path(route) for route in iter_effective_route_candidates(app.app.routes)
-        }
+        package_paths = _route_paths(app.app)
         from app.main import app as main_app
 
-        main_paths = {
-            route_path(route) for route in iter_effective_route_candidates(main_app.routes)
-        }
+        main_paths = _route_paths(main_app)
 
         assert additive_paths.issubset(package_paths)
         assert additive_paths.issubset(main_paths)
@@ -74,9 +74,7 @@ class TestAppImport:
         monkeypatch.setattr(legacy_module, "app", replacement_app)
 
         package_app = app.app
-        route_paths = {
-            route_path(route) for route in iter_effective_route_candidates(package_app.routes)
-        }
+        route_paths = _route_paths(package_app)
 
         assert package_app is replacement_app
         assert main_module.app is replacement_app
@@ -99,7 +97,7 @@ class TestAppVIPIntegration:
         assert fastapi_app is not None
 
         # The app should be created and standard routes present
-        paths = {route_path(route) for route in iter_effective_route_candidates(fastapi_app.routes)}
+        paths = _route_paths(fastapi_app)
         # Check for health endpoint (both unversioned and versioned)
         assert "/health" in paths or "/api/v1/health" in paths
 
