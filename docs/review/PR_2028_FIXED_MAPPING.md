@@ -2,115 +2,108 @@
 
 ## Lane Start Provenance
 - Packet: `artifacts/orchestration/task_packets/bd82ec50a38e.json`
+- Post-open packet: `artifacts/orchestration/task_packets/32206ba2f2fe.json`
 - Starter: `scripts/orchestration/start_pr_lane.sh`
 - Branch: `feat/orchestration-review-fallback-learning-loop`
-- Base: `origin/main` at `8625cc178`
+- Current base: `origin/main` at `80cb3b3f7c86947102a7ce97233d7993f2eb4769`
+- Final pushed head: mirrored in the PR body after push.
 
 ## Discussion Thread Pass
-- [x] Discussion-thread pass completed
-- [x] Fixed in commit mapping completed
+- [x] Discussion-thread pass completed for known CodeRabbit/Sourcery review batches.
+- [x] Fixed in commit mapping refreshed after the `origin/main` rebase.
+- [ ] Current-head CI, bot/review state, strict merge-readiness checks, and wait-window are still pending.
 
 ## Fixed in Commit Mapping
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2028#pullrequestreview-4584656910
 Disposition: NOT-A-BUG
-Evidence: `docs/orchestration/AGENT_LEARNING_LOOP.md` and `docs/orchestration/REVIEW_PATTERN_ORACLES.md` define proposal-only, no-runtime-authority boundaries for the new helpers. The Sourcery review is an advisory maintainability suggestion to consolidate helper import/authority-boundary wording later, not a correctness, security, runtime-authority, or merge-readiness defect in this scoped governance contract.
-Reason: The PR intentionally keeps the new contracts and helper metadata self-contained so advisory artifacts remain reviewable without introducing a broader package/import refactor or a hidden single source of runtime authority.
+Evidence: `docs/orchestration/AGENT_LEARNING_LOOP.md` and `docs/orchestration/REVIEW_PATTERN_ORACLES.md` keep the helpers proposal-only, offline, and without runtime or merge authority.
+Reason: The Sourcery item was an advisory maintainability signal, not a correctness, security, or runtime-authority defect in this scoped governance contract.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2028#pullrequestreview-4584666854 -> acdc769a7ee1a2420d5a6cfc58cf33d6ffdc2a57
-Disposition: FIXED
-Commit: acdc769a7ee1a2420d5a6cfc58cf33d6ffdc2a57
-Evidence: This CodeRabbit aggregate review listed the first review batch; its inline/out-of-diff findings are mapped below and fixed by schema-contract references, full promoter record validation, narrower skill-router oracle matching, and branch-focused promoter CLI tests.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2028#pullrequestreview-4584666854
+Disposition: NOT-A-BUG
+Evidence: This CodeRabbit aggregate review is a container for inline findings. The actionable inline findings are mapped below.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2028#pullrequestreview-4584826178 -> acdc769a7ee1a2420d5a6cfc58cf33d6ffdc2a57
-Disposition: FIXED
-Commit: acdc769a7ee1a2420d5a6cfc58cf33d6ffdc2a57
-Evidence: This CodeRabbit aggregate review listed the second review batch; its inline findings are mapped below and fixed by complete `ghs_` redaction, clean unreadable-file CLI errors, repo-relative fixed-mapping evidence, and SHA-independent fixed-mapping diff membership checks.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2028#pullrequestreview-4584826178
+Disposition: NOT-A-BUG
+Evidence: This CodeRabbit aggregate review is a container for inline findings. The actionable inline findings are mapped below.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2028#pullrequestreview-4585161591 -> 76a29907ed837bf559c66af0004577c197056f62
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2028#pullrequestreview-4585161591 -> 8447963db4c9cd7690b9fea779625f8abaca5b9c
 Disposition: FIXED
-Commit: 76a29907ed837bf559c66af0004577c197056f62
-Evidence: `tests/test_install_locked_python_requirements.py` now uses `sys.executable` for direct-proxy emergency-fallback tests so manifest runtime-tag selection stays in-process; focused pytest for the five fallback cases passed.
+Commit: 8447963db4c9cd7690b9fea779625f8abaca5b9c
+Evidence: `tests/test_install_locked_python_requirements.py` uses `sys.executable` for direct-proxy fallback tests so runtime tag selection stays in-process. The full focused test file passed after the rebase.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2028#discussion_r3485646667 -> acdc769a7ee1a2420d5a6cfc58cf33d6ffdc2a57
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2028#discussion_r3485646667 -> 29bd27eb4f46bf87b5d36062853b9e852c601e8d
 Disposition: FIXED
-Commit: acdc769a7ee1a2420d5a6cfc58cf33d6ffdc2a57
-Evidence: `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md` now lists the machine-consumed `.v1` JSON contracts and explicitly leaves scoped validation as narrative-only advisory policy.
+Commit: 29bd27eb4f46bf87b5d36062853b9e852c601e8d
+Evidence: `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md` lists the machine-consumed `.v1` JSON contracts and keeps scoped validation as narrative-only advisory policy.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2028#discussion_r3485646668 -> acdc769a7ee1a2420d5a6cfc58cf33d6ffdc2a57
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2028#discussion_r3485646668 -> 29bd27eb4f46bf87b5d36062853b9e852c601e8d
 Disposition: FIXED
-Commit: acdc769a7ee1a2420d5a6cfc58cf33d6ffdc2a57
-Evidence: `scripts/orchestration/agent_lesson_promoter.py` now validates loaded records through `validate_agent_learning_record()` before proposal emission; `tests/test_agent_learning_loop.py` covers file-load full-contract validation and extra-property rejection.
+Commit: 29bd27eb4f46bf87b5d36062853b9e852c601e8d
+Evidence: `scripts/orchestration/agent_lesson_promoter.py` validates loaded records through `validate_agent_learning_record()` before proposal emission; `tests/test_agent_learning_loop.py` covers file-load validation and extra-property rejection.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2028#discussion_r3485646669 -> acdc769a7ee1a2420d5a6cfc58cf33d6ffdc2a57
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2028#discussion_r3485646669 -> 29bd27eb4f46bf87b5d36062853b9e852c601e8d
 Disposition: FIXED
-Commit: acdc769a7ee1a2420d5a6cfc58cf33d6ffdc2a57
-Evidence: `scripts/orchestration/skill_router.py` removes the bare `oracle` lexeme from the review-pattern semantic group; `tests/test_skill_router.py` proves generic Experiment Runner oracle text no longer routes `pulseplate-review-pattern-oracles`.
+Commit: 29bd27eb4f46bf87b5d36062853b9e852c601e8d
+Evidence: `scripts/orchestration/skill_router.py` avoids generic review-oracle routing and `tests/test_skill_router.py` proves generic Experiment Runner oracle text does not route `pulseplate-review-pattern-oracles`.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2028#discussion_r3485755463 -> acdc769a7ee1a2420d5a6cfc58cf33d6ffdc2a57
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2028#discussion_r3485755463 -> 494a6e223b953334ac571adaa90b2bba3e0a40e8
 Disposition: FIXED
-Commit: acdc769a7ee1a2420d5a6cfc58cf33d6ffdc2a57
-Evidence: `scripts/orchestration/agent_learning_loop.py` checks the `ghs_` token pattern before the generic GitHub-token branch; `tests/test_agent_learning_loop.py` proves `ghs_abc-def.ghi` is fully redacted.
+Commit: 494a6e223b953334ac571adaa90b2bba3e0a40e8
+Evidence: `scripts/orchestration/agent_learning_loop.py` redacts token-family values before generic token handling; `tests/test_agent_learning_loop.py` covers `ghs_` redaction.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2028#discussion_r3485755465 -> acdc769a7ee1a2420d5a6cfc58cf33d6ffdc2a57
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2028#discussion_r3485755465 -> 27166c4238dc0add9ad2fcafb170d22cffbf98bc
 Disposition: FIXED
-Commit: acdc769a7ee1a2420d5a6cfc58cf33d6ffdc2a57
-Evidence: `scripts/orchestration/agent_lesson_promoter.py` catches `OSError` with malformed input errors; `tests/test_agent_learning_loop.py` covers unreadable record-file CLI failure.
+Commit: 27166c4238dc0add9ad2fcafb170d22cffbf98bc
+Evidence: `scripts/orchestration/agent_lesson_promoter.py` handles unreadable record files as malformed input errors; `tests/test_agent_learning_loop.py` covers the CLI failure path.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2028#discussion_r3485755469 -> acdc769a7ee1a2420d5a6cfc58cf33d6ffdc2a57
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2028#discussion_r3485755469 -> 2bf43d03f6013d63566b1efb8f5a56d10e999da8
 Disposition: FIXED
-Commit: acdc769a7ee1a2420d5a6cfc58cf33d6ffdc2a57
-Evidence: `scripts/orchestration/pr_review_context.py` emits repo-relative fixed-mapping evidence via `repo_path`; `tests/test_pr_review_context.py` proves no-PR-number evidence avoids local workspace paths.
+Commit: 2bf43d03f6013d63566b1efb8f5a56d10e999da8
+Evidence: `scripts/orchestration/pr_review_context.py` emits repo-relative fixed-mapping evidence; `tests/test_pr_review_context.py` verifies local workspace paths are not emitted.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2028#discussion_r3485755472 -> acdc769a7ee1a2420d5a6cfc58cf33d6ffdc2a57
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2028#discussion_r3485755472 -> 2bf43d03f6013d63566b1efb8f5a56d10e999da8
 Disposition: FIXED
-Commit: acdc769a7ee1a2420d5a6cfc58cf33d6ffdc2a57
-Evidence: `scripts/orchestration/pr_review_context.py` evaluates fixed-mapping PR-diff membership whenever diff data is available, independent of SHA parity; `tests/test_pr_review_context.py` covers the missing-SHA parity branch.
+Commit: 2bf43d03f6013d63566b1efb8f5a56d10e999da8
+Evidence: `scripts/orchestration/pr_review_context.py` evaluates fixed-mapping PR-diff membership when diff data is available; `tests/test_pr_review_context.py` covers missing-SHA parity handling.
+
+## Role And Review Findings
+- `agent-coordinator` post-open pass: BLOCK on stale mapping, local-path evidence, obsolete scan-head evidence, and a non-worktree `git` context false negative.
+Disposition: FIXED for mapping/local-path evidence by this refresh.
+Evidence: This file records the current base `80cb3b3f7c86947102a7ce97233d7993f2eb4769`, uses only repo-relative evidence paths, and makes no current-head security-scan claim. The canonical preflight was rerun successfully with explicit `GIT_DIR` and `GIT_WORK_TREE` for the linked worktree.
+
+- `qa-engineer-agent` post-open pass: BLOCK on stale mapping head/base references and stale PR body mirror.
+Disposition: FIXED for mapping evidence by this refresh. PR body mirror remains pending until after push so it can cite the actual remote head.
+Evidence: This mapping no longer embeds a self-stale local-head SHA and records the latest verified base `80cb3b3f7c86947102a7ce97233d7993f2eb4769`.
+
+- `bug-hunter` post-open pass: BLOCK on an over-specific local task-packet inventory sentence in Experiment Runner evidence.
+Disposition: FIXED.
+Evidence: The Experiment Runner note now limits itself to the relevant fact: no current-head Experiment Runner result artifact is present locally.
 
 ## Premortem Evidence
 - Disposition: FIXED
-- Commit: ca437e56282707f4134f3a57ab749cf5bc4dd00d
-- Evidence: `scripts/orchestration/agent_learning_loop.py`, `tests/test_agent_learning_loop.py`, and focused pytest fixed invalid learning severity/path acceptance before PR open.
-- Evidence: `docs/orchestration/REVIEW_SOURCE_DEGRADATION_POLICY.md`, `scripts/orchestration/pr_review_report.py`, and `tests/test_pr_review_report.py` keep degraded review-source status advisory unless explicit blocking findings exist.
-- Evidence: `docs/orchestration/SCOPED_VALIDATION_POLICY.md` keeps scoped validation separate from merge readiness and records the local `make verify` deferral.
+- Evidence: `scripts/orchestration/agent_learning_loop.py`, `tests/test_agent_learning_loop.py`, `docs/orchestration/REVIEW_SOURCE_DEGRADATION_POLICY.md`, `scripts/orchestration/pr_review_report.py`, `tests/test_pr_review_report.py`, and `docs/orchestration/SCOPED_VALIDATION_POLICY.md` cover learning-record validation, degraded-source advisory semantics, and scoped-validation boundaries.
 
 ## Experiment Runner Evidence
-- Artifact: `artifacts/orchestration/experiments/results/artifacts/orchestration/experiments/results/orchestration-review-fallback-learning-loop-result.json`
-- Mode: `oracle_only_governance_reviewer`
-- Status: `accepted`
-- Contribution: `oracle_review`
-- Co-author: required and present in `ca437e56282707f4134f3a57ab749cf5bc4dd00d`
+- Status: historical accepted oracle-only evidence from the original lane.
+- Current-head authority: not claimed after the latest rebase.
+- Note: no current-head Experiment Runner result artifact is present locally to cite as current-head evidence.
 
 ## Validation Evidence
-- `python3 scripts/orchestration/check_preflight.py`
-- `python3 scripts/orchestration/check_agent_consistency.py`
-- `python3 -m py_compile` for changed orchestration CLIs/helpers
-- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest tests/test_agent_learning_loop.py tests/test_skill_router.py tests/test_pr_review_context.py -q`
-- Focused pytest for review oracles, review-source status, PR review context/reporting, skill routing, task bootstrap, skill install/mirror, and symlink integrity
-- Focused flake8 for changed Python files
-- Focused mypy with `--explicit-package-bases` for changed orchestration scripts
-- `make validate-changed`
-- `pre-commit run --all-files`
-- `pre-commit run mypy --hook-stage pre-push --files scripts/orchestration/pr_review_context.py`
-- `git diff --check`
-- Pre-push hooks from `git push origin feat/orchestration-review-fallback-learning-loop`
-- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_install_locked_python_requirements.py`
-- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_install_locked_python_requirements.py -k 'same_line_network_resolver or mixed_network_resolver_failure or timeout_plus_resolver_miss or does_not_treat_package_name_as_network'`
-- Codex Security finalizer + report validation for current-head scan `70fed327-6258-406f-9765-a09c4e39ee10`
-- Full `make verify` was attempted but stopped at `verify-env` because this isolated worktree has no local `.venv`; this PR does not claim merge readiness from local gates alone.
+- `python3 scripts/orchestration/check_preflight.py` with explicit linked-worktree `GIT_DIR` and `GIT_WORK_TREE`.
+- `python3 scripts/orchestration/check_agent_consistency.py` with explicit linked-worktree `GIT_DIR` and `GIT_WORK_TREE`.
+- `python -m py_compile` for changed orchestration helpers and CLIs.
+- Focused pytest for review oracles, review-source status, PR review context/reporting, skill routing, task bootstrap, skill install/mirror, symlink integrity, agent learning loop, CI workflow governance, installer fallback tests, authz contracts, route-family bootstrap, runtime-env canonicalization, test router, and OpenAPI determinism.
+- `make validate-changed`.
+- `pre-commit run --all-files` with explicit linked-worktree `GIT_DIR` and `GIT_WORK_TREE`.
+- `git diff --check origin/main...HEAD`.
+- `git ls-remote origin refs/heads/main refs/pull/2028/head` confirmed `main` at `80cb3b3f7c86947102a7ce97233d7993f2eb4769` before this mapping refresh.
 
-## Post-Open Review Evidence
-- Post-open packet: `artifacts/orchestration/task_packets/f25b8bd19ce4.json`
-- `qa-engineer-agent`: PASS after fixing review-source/fixed-mapping governance validation in `d3fd0fdec`.
-- `bug-hunter`: PASS after fixing JSON stdout hygiene, stale fixed-mapping degradation, schema enum/path constraints, and local-path rejection in `4d6deb2b3`.
-- `security-auditor`: PASS after fixing GitHub token-family redaction and URI/path rejection in `f8dcd8740`.
-- Codex Security diff scan / finding discovery: PASS on current local head `eea77402a`, scan `70fed327-6258-406f-9765-a09c4e39ee10`, 12/12 coverage rows closed, 0 reportable findings, report `/private/var/folders/bw/12x002vn67v2bvjpbhbtm8480000gn/T/codex-security-scans-Hmdu7f/orchestration-review-fallback-learning-loop/eea77402add4c4041946c755cd9ee3e9c0ceed6d_20260627T133202Z_4_osq3j1/report.md`.
-- Codex Security candidate disposition: FIXED.
-  Commit: `eea77402add4c4041946c755cd9ee3e9c0ceed6d`
-  Evidence: `scripts/ci/install_locked_python_requirements.py` now keeps same-line network diagnostics in strict resolver-miss rejection after stripping only the requested package/requirement text; `tests/test_install_locked_python_requirements.py::test_install_from_proxy_with_emergency_fallback_rejects_same_line_network_resolver_failure` proves Cloudflare/521 plus resolver miss on one line does not stage emergency fallback artifacts.
-- `pulseplate-pr-review`: completed on current head `34d2f2cf`; review-source status clean, no blocking findings.
-- `pulseplate-pr-review` note disposition: NOT-A-BUG.
-  Evidence: PR plan explicitly locks the four governance blocks into one intentional PR, and local scoped gates (`make validate-changed`, `pre-commit run --all-files`, pre-push hooks) passed. The note is a review-planning signal for large diff size, not a defect in the current implementation.
+## Security Evidence
+- No new Codex Security scan was started after the latest rebase, per operator instruction to stop repeated scans unless the surface materially changes.
+- Historical Codex Security evidence remains advisory only for older heads and is not used as current-head merge authority.
+- Current diff remains offline governance/tooling plus CI/test hardening; no product runtime writes, GitHub posting, thread resolution, branch-protection mutation, provider calls, or auto-merge authority are introduced.
 
 ## Merge Readiness
 - Not claimed.
-- Pending current-head CI, post-open review governance, bot/review-thread disposition, and strict merge-readiness checks.
+- Pending: remaining post-open role passes, `pulseplate-pr-review`, push of the rebased branch, current-head CI, bot/review-thread disposition, strict merge-readiness checks, and the required wait-window.
