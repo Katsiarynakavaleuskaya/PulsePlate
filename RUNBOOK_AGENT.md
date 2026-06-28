@@ -395,13 +395,13 @@ interpreter itself. Evidence: `scripts/ci/check_local_verify_environment.py`.
 
 **Canonical contract:** see `docs/DEPENDENCY_MANAGEMENT.md` and `scripts/ci/install_locked_python_requirements.py`. Installs must use the approved proxy; public PyPI hosts are blocked for the canonical installer path.
 
-**Symptoms**
+### Symptoms
 
 - `curl` / browser to `…/simple/<package>/` returns **521** (often Cloudflare origin down) or **5xx**.
 - `pip` / `make venv-sync` reports *No matching distribution* for a pin that exists on PyPI.
 - CI Python setup fails at preflight or locked install.
 
-**Operator checks (dev-operator / SRE)**
+### Operator checks (dev-operator / SRE)
 
 1. Confirm env is set: `test -n "$PULSEPLATE_PYTHON_INDEX_URL"` and points to the approved devpi simple-index root. Canonical shape: `https://packages.pulseplate.app/root/pulseplate/+simple/`. Keep this URL credential-free; authenticated CI reads use rotated non-root `DEVPI_CI_USER` / `DEVPI_CI_PASSWORD` secrets through the temporary `.netrc` created by `.github/actions/python-setup/action.yml`. Root credentials are forbidden for CI.
 2. **HTTP probe** (bounded so a hung origin cannot stall triage): `curl -sS --connect-timeout 5 --max-time 10 -o /dev/null -w '%{http_code}\n' "${PULSEPLATE_PYTHON_INDEX_URL%/}/aiosqlite/"` — expect **200** when healthy. Use the **PEP 503 project page path** under the configured simple-index root (here `aiosqlite`) — probing the bare host or adding another `/simple` does not exercise the same project page that pip consumes and can return misleading results. For authenticated private-read checks, prefer the installer preflight below because it uses `.netrc` and redacts inline URL credentials defensively.
@@ -424,7 +424,7 @@ interpreter itself. Evidence: `scripts/ci/check_local_verify_environment.py`.
    - When the proxy itself is fully unhealthy (true Cloudflare 521 / origin down) → the emergency manifest **cannot keep installs going on its own** for unlisted pins. Do **not** present it as a "521 fallback" to operators. The only correct operator paths in that case are: (a) restore the *packages* origin per the SRE/infra section below, or (b) use an out-of-band complete offline wheelhouse (not part of this PR's scope). This is also the reason `ledger-p1-private-pypi-proxy-mirror-parity` exists — see `docs/roadmap/BACKLOG_LEDGER.md`.
    - Any change to the manifest must pass `tests/test_python_supply_chain_controls.py` and installer tests; security review applies.
 
-**SRE / infra (scoped fix for 521)**
+### SRE / infra (scoped fix for 521)
 
 > **Important hostname split.** A 521 on `pulseplate.app` (the public marketing
 > site) may be **intentional release gating** — the operator can hold that origin
