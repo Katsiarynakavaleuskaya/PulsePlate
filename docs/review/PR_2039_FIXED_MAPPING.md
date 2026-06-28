@@ -51,9 +51,9 @@ Reason: `route_endpoint_for_path_method(...)` is the canonical effective-route l
 - `python3 scripts/orchestration/role_dispatch_bridge.py --packet artifacts/orchestration/task_packets/eda0af18b627.json --pretty`: dispatch order confirmed.
 - Role passes: `agent-coordinator`, `qa-engineer-agent`, `bug-hunter`: no blocking findings.
 - Premortem: `artifacts/orchestration/premortem/pr2039-vip-effective-route-hotfix-premortem.md`; findings fixed or process-dispositioned.
-- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest tests/test_vip_coverage_boost_fixed.py::TestVIPCoverageBoostFixed::test_vip_regions_missing_function -q`: 1 passed.
-- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest tests/test_vip_coverage_boost_fixed.py -q`: 8 passed.
-- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m ruff check tests/test_vip_coverage_boost_fixed.py`: PASS.
+- `./.venv/bin/python -m pytest tests/test_vip_coverage_boost_fixed.py::TestVIPCoverageBoostFixed::test_vip_regions_missing_function -q`: 1 passed.
+- `./.venv/bin/python -m pytest tests/test_vip_coverage_boost_fixed.py -q`: 8 passed.
+- `./.venv/bin/python -m ruff check tests/test_vip_coverage_boost_fixed.py`: PASS.
 - `git diff --check`: PASS.
 - `make validate-changed`: selected `tests/test_vip_coverage_boost_fixed.py`; 8 passed.
 - `pre-commit run --all-files`: PASS.
