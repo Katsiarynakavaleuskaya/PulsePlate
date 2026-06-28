@@ -1263,7 +1263,7 @@ def _line_mentions_requested_project(line: str, *, package: str) -> bool:
 
 def _line_has_transport_failure_excluding_package_name(line: str, *, package: str) -> bool:
     """Detect transport failures without treating package spelling as a network marker."""
-    scrubbed_line = line
+    scrubbed_line = line.lower()
     for variant in _package_name_variants(package):
         scrubbed_line = re.sub(re.escape(variant), "", scrubbed_line, flags=re.IGNORECASE)
     return _pip_upgrade_network_failure(scrubbed_line)

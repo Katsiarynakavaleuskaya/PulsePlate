@@ -3292,9 +3292,9 @@ def test_install_from_proxy_with_emergency_fallback_accepts_package_scoped_retry
         if find_links_dir is None:
             raise RuntimeError(
                 "Command failed: python -m pip install stub: exit 1\n"
-                "WARNING: Retrying after connection broken by "
-                "'ReadTimeoutError(\"HTTPSConnectionPool(host='packages.pulseplate.app', "
-                "port=443): Read timed out. (read timeout=60.0)\")': "
+                "WARNING: Retrying after CONNECTION BROKEN by "
+                "'MaxRetriesExceeded(\"HTTPSConnectionPool(host='packages.pulseplate.app', "
+                "port=443)\")': "
                 "/root/pulseplate/+simple/aiosqlite/\n"
                 "ERROR: Could not find a version that satisfies the requirement "
                 "aiosqlite==0.22.1 (from versions: none)\n"

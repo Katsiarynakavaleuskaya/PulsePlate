@@ -888,7 +888,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
       `certifi 2026.1.4`, `jiter 0.12.0`, `requests 2.33.0`, `protobuf 6.33.5`,
       `pydantic-core 2.46.4`, `wrapt 2.0.1`,
       `cryptography 48.0.1`, `python-multipart 0.0.31`, `pillow 12.2.0`, `faker 40.15.0`,
-      `hypothesis 6.152.4`, `mypy 2.1.0`, `aiosqlite 0.22.1`, `starlette 1.3.1`, `ruff 0.15.13`,
+      `hypothesis 6.152.4`, `mypy 2.1.0`, `aiosqlite 0.22.1`, `starlette 1.3.1`,
       and `types-pyyaml 6.0.12.20260408`.
     - `sentence-transformers 5.5.1` was removed from the emergency manifest
       after the approved private proxy served `sentence-transformers==5.6.0`.
