@@ -17,7 +17,7 @@
 
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
-- [x] Sourcery review comment disposition recorded.
+- [x] Sourcery and CodeRabbit review comment dispositions recorded.
 - [x] Local focused tests, `make validate-changed`, and `pre-commit run --all-files` passed.
 - [x] Pre-push hooks passed, including `pip-audit`, backend tests, and full-repo Bandit.
 - [ ] Current-head CI complete before readiness language.
@@ -40,6 +40,13 @@ Disposition: NOT-A-BUG
 Evidence: `app/effective_routes.py:15`, `app/effective_routes.py:67`, `app/effective_routes.py:73`, `app/effective_routes.py:77`, `tests/test_vip_coverage_boost_fixed.py:109`, `tests/test_vip_coverage_boost_fixed.py:115`, `AGENTS.md:65`
 Reason: `route_endpoint_for_path_method(...)` is the canonical effective-route lookup helper; it intentionally receives the app route table and expands included-router contexts internally via `iter_effective_route_candidates(...)`. Missing routes still return `None` and preserve the test assertion message; duplicate routes intentionally fail closed because duplicate FastAPI method/path registrations are forbidden by repo policy.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2039#pullrequestreview-4587776067
+
+Disposition: FIXED
+Commit: 6aebe9a23
+Evidence: `docs/review/PR_2039_FIXED_MAPPING.md:61`, `docs/review/PR_2039_FIXED_MAPPING.md:62`, `docs/review/PR_2039_FIXED_MAPPING.md:63`
+Reason: Validation evidence now uses repo-relative `./.venv/bin/python` commands instead of absolute local machine paths.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2039#discussion_r3488160515 -> 6aebe9a23
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2039#pullrequestreview-4587781951 -> 6aebe9a23
 
 ## Validation Evidence
 
