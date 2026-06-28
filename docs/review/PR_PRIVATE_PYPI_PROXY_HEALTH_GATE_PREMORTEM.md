@@ -82,10 +82,13 @@ python -m pytest -q tests/test_python_supply_chain_controls.py
 python3 scripts/ci/check_private_python_proxy_health.py \
   --requirements-file requirements.txt \
   --requirements-file requirements-ci-lite.txt \
+  --requirements-file requirements-test.txt \
   --project aiosqlite \
-  --project pydantic-core \
   --project cryptography \
-  --project requests
+  --project requests \
+  --project pytest-xdist \
+  --project hypothesis \
+  --project pgvector
 python3 scripts/ci/install_locked_python_requirements.py --preflight-only
 make validate-changed
 pre-commit run --all-files

@@ -186,6 +186,11 @@ Canonical contract for shared CI/Docker/bootstrap paths:
 
 - `PULSEPLATE_PYTHON_INDEX_URL` is mandatory and must point to the approved private package proxy simple-index root. For devpi this is the credential-free URL `https://packages.pulseplate.app/root/pulseplate/+simple/`.
 - GitHub Actions authenticated installs must keep the index URL credential-free and use rotated non-root CI read credentials through `.netrc`. The composite `python-setup` action creates that temporary `.netrc` only when both `DEVPI_CI_USER` and `DEVPI_CI_PASSWORD` secrets are present, then removes it with an `always()` cleanup step.
+- The early proxy health gate uses repository `vars` only for pull-request and
+  non-main branch diagnostics. On `main` pushes, it may create a temporary
+  `.netrc` from non-root `DEVPI_CI_USER` / `DEVPI_CI_PASSWORD` secrets before
+  probing project pages, so the gate exercises the same authenticated read
+  boundary without embedding credentials in the URL.
 - Root credentials are forbidden for CI. The devpi root password is an operator break-glass/admin credential only and must be rotated out of band if exposed.
 - Repository variables must stay credential-free. They may hold only non-secret diagnostic package-proxy values; never store Basic Auth URLs, upload credentials, or root credentials in repository `vars`.
 - `PULSEPLATE_PYTHON_TRUSTED_HOST` is optional and should only be set when the approved proxy requires it. Keep it unset for the `packages.pulseplate.app` devpi host while normal TLS verification succeeds.
@@ -223,7 +228,10 @@ The gate checks the same contract that pip consumes:
   `https://packages.pulseplate.app/root/pulseplate/+simple/aiosqlite/`, not the
   host root, marketing apex, or a second appended `/simple`.
 - Representative project pages must be non-empty Simple API pages and include
-  exact locked artifacts from the configured requirements files.
+  exact locked artifacts from the configured requirements files. The CI gate
+  includes `requirements.txt`, `requirements-ci-lite.txt`, and
+  `requirements-test.txt` because `ci-test` jobs install both CI-lite and
+  test-only pinned surfaces.
 - `origin_unhealthy` / timeout / HTTP 521/522 means operator recovery for
   Cloudflare/DigitalOcean/devpi, not a repo lockfile or Starlette/httpx fix.
 - `mirror_lag_exact_pin_missing` means the origin is reachable but the mirror is

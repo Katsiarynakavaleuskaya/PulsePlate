@@ -448,6 +448,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
       - name: Setup Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
@@ -484,8 +486,38 @@ jobs:
             echo "PULSEPLATE_PYTHON_TRUSTED_HOST=$resolved_trusted_host"
           } >> "$GITHUB_ENV"
 
-      - name: Resolve protected package proxy
-        if: github.event_name != 'pull_request'
+      - name: Resolve branch diagnostic package proxy
+        if: github.event_name != 'pull_request' && github.ref != 'refs/heads/main'
+        env:
+          PULSEPLATE_BRANCH_PYTHON_INDEX_URL: ${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}
+          PULSEPLATE_BRANCH_PYTHON_TRUSTED_HOST: ${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
+        run: |
+          set -euo pipefail
+          resolved_index="${PULSEPLATE_BRANCH_PYTHON_INDEX_URL:-}"
+          resolved_trusted_host="${PULSEPLATE_BRANCH_PYTHON_TRUSTED_HOST:-}"
+          if [[ -z "$resolved_index" ]]; then
+            echo "::error::Set repository variable PULSEPLATE_PYTHON_INDEX_URL to a credential-free diagnostic package proxy for branch proxy health diagnostics."
+            exit 1
+          fi
+          case "$resolved_index" in
+            *://*@*)
+              echo "::error::Repository variable PULSEPLATE_PYTHON_INDEX_URL must be credential-free; use DEVPI_CI_USER/DEVPI_CI_PASSWORD secrets for authenticated package proxy access."
+              exit 1
+              ;;
+          esac
+          case "$resolved_index$resolved_trusted_host" in
+            *$'\n'*|*$'\r'*)
+              echo "::error::Resolved Python package proxy settings must be single-line values."
+              exit 1
+              ;;
+          esac
+          {
+            echo "PULSEPLATE_PYTHON_INDEX_URL=$resolved_index"
+            echo "PULSEPLATE_PYTHON_TRUSTED_HOST=$resolved_trusted_host"
+          } >> "$GITHUB_ENV"
+
+      - name: Resolve protected main package proxy
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         env:
           PULSEPLATE_PROTECTED_PYTHON_INDEX_URL: ${{ secrets.PULSEPLATE_PYTHON_INDEX_URL || vars.PULSEPLATE_PYTHON_INDEX_URL }}
           PULSEPLATE_PROTECTED_PYTHON_TRUSTED_HOST: ${{ secrets.PULSEPLATE_PYTHON_TRUSTED_HOST || vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
@@ -514,16 +546,53 @@ jobs:
             echo "PULSEPLATE_PYTHON_TRUSTED_HOST=$resolved_trusted_host"
           } >> "$GITHUB_ENV"
 
+      - name: Configure protected main package proxy authentication
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        env:
+          DEVPI_CI_USER: ${{ secrets.DEVPI_CI_USER }}
+          DEVPI_CI_PASSWORD: ${{ secrets.DEVPI_CI_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${DEVPI_CI_USER:-}" && -z "${DEVPI_CI_PASSWORD:-}" ]]; then
+            exit 0
+          fi
+          if [[ -z "${DEVPI_CI_USER:-}" || -z "${DEVPI_CI_PASSWORD:-}" ]]; then
+            echo "::error::Set both DEVPI_CI_USER and DEVPI_CI_PASSWORD, or neither."
+            exit 1
+          fi
+          case "$DEVPI_CI_USER$DEVPI_CI_PASSWORD" in
+            *[[:space:]]*)
+              echo "::error::DEVPI_CI_USER and DEVPI_CI_PASSWORD must not contain whitespace."
+              exit 1
+              ;;
+          esac
+          case "$DEVPI_CI_USER" in
+            [Rr][Oo][Tt])
+              echo "::error::Root devpi credentials are forbidden for CI package probes."
+              exit 1
+              ;;
+          esac
+          if [[ -e "$HOME/.netrc" ]]; then
+            echo "::error::Refusing to overwrite an existing .netrc."
+            exit 1
+          fi
+          umask 077
+          printf 'machine packages.pulseplate.app\n  login %s\n  password %s\n' \
+            "$DEVPI_CI_USER" "$DEVPI_CI_PASSWORD" > "$HOME/.netrc"
+
       - name: Check private Python proxy health
         run: |
           set -euo pipefail
           python3 scripts/ci/check_private_python_proxy_health.py \
             --requirements-file requirements.txt \
             --requirements-file requirements-ci-lite.txt \
+            --requirements-file requirements-test.txt \
             --project aiosqlite \
-            --project pydantic-core \
             --project cryptography \
-            --project requests
+            --project requests \
+            --project pytest-xdist \
+            --project hypothesis \
+            --project pgvector
 
   lint:
     needs: [private_python_proxy_health]

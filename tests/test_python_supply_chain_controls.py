@@ -797,7 +797,7 @@ def test_proxy_backed_workflows_support_vars_or_secrets(workflow_path: str) -> N
 def test_pr_diagnostic_proxy_vars_must_stay_credential_free() -> None:
     workflow_text = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
     pr_resolver = workflow_text.split("- name: Resolve PR diagnostic package proxy", 1)[1].split(
-        "- name: Resolve protected package proxy",
+        "- name: Resolve branch diagnostic package proxy",
         1,
     )[0]
 
@@ -806,6 +806,33 @@ def test_pr_diagnostic_proxy_vars_must_stay_credential_free() -> None:
     assert "*://*@*)" in pr_resolver
     assert "must be credential-free" in pr_resolver
     assert "DEVPI_CI_USER/DEVPI_CI_PASSWORD" in pr_resolver
+
+
+def test_private_proxy_health_protected_credentials_are_main_only_netrc() -> None:
+    workflow_text = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    branch_resolver = workflow_text.split("- name: Resolve branch diagnostic package proxy", 1)[
+        1
+    ].split("- name: Resolve protected main package proxy", 1,)[0]
+    protected_auth = workflow_text.split(
+        "- name: Configure protected main package proxy authentication",
+        1,
+    )[1].split("- name: Check private Python proxy health", 1,)[0]
+
+    assert (
+        "if: github.event_name != 'pull_request' && github.ref != 'refs/heads/main'"
+        in branch_resolver
+    )
+    assert "secrets." not in branch_resolver
+    assert "DEVPI_CI_USER:" not in branch_resolver
+    assert "DEVPI_CI_PASSWORD:" not in branch_resolver
+    assert (
+        "if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'"
+        in protected_auth
+    )
+    assert "secrets.DEVPI_CI_USER" in protected_auth
+    assert "secrets.DEVPI_CI_PASSWORD" in protected_auth
+    assert "$HOME/.netrc" in protected_auth
+    assert "Root devpi credentials are forbidden" in protected_auth
 
 
 def test_private_proxy_docs_use_devpi_shape_without_real_credentials() -> None:

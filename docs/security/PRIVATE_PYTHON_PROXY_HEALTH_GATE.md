@@ -17,11 +17,18 @@ or dependency lockfiles.
 - Public package hosts such as `pypi.org`, `test.pypi.org`, and
   `files.pythonhosted.org` are rejected for the canonical index URL.
 - Inline Basic Auth URLs are rejected. Authenticated reads use non-root CI
-  credentials through temporary `.netrc` handling in `.github/actions/python-setup`.
+  credentials through temporary `.netrc` handling. Pull-request and non-main
+  branch diagnostics use repository `vars` only; protected `main` checks may
+  create a temporary `.netrc` from non-root `DEVPI_CI_USER` /
+  `DEVPI_CI_PASSWORD` secrets before probing project pages.
 - The checker probes Simple API project pages under the configured simple root,
   for example `root/pulseplate/+simple/aiosqlite/`.
+- Same-host wrong roots such as `https://packages.pulseplate.app/` or
+  `https://packages.pulseplate.app/simple/` are rejected because they do not
+  exercise the canonical devpi root `root/pulseplate/+simple/`.
 - HTTP 200 is not enough. Representative pages must include exact versions from
-  the pinned requirements files.
+  the pinned requirements files, including the CI-lite and test-only pins used
+  by `ci-test` jobs.
 
 ## Failure Classes
 
@@ -54,10 +61,13 @@ Use focused validation for this machine-heavy CI/tooling lane:
 python3 scripts/ci/check_private_python_proxy_health.py \
   --requirements-file requirements.txt \
   --requirements-file requirements-ci-lite.txt \
+  --requirements-file requirements-test.txt \
   --project aiosqlite \
-  --project pydantic-core \
   --project cryptography \
-  --project requests
+  --project requests \
+  --project pytest-xdist \
+  --project hypothesis \
+  --project pgvector
 python3 scripts/ci/install_locked_python_requirements.py --preflight-only
 python -m pytest -q tests/test_private_python_proxy_health.py
 python -m pytest -q tests/test_private_python_proxy_workflow_contract.py

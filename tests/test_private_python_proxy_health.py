@@ -33,6 +33,10 @@ def test_validate_index_url_rejects_unsafe_sources() -> None:
         checker.validate_index_url("https://pypi.org/simple/")
     with pytest.raises(ValueError, match="unexpected_packages_host"):
         checker.validate_index_url("https://pulseplate.app/")
+    with pytest.raises(ValueError, match="unexpected_index_path"):
+        checker.validate_index_url("https://packages.pulseplate.app/")
+    with pytest.raises(ValueError, match="unexpected_index_path"):
+        checker.validate_index_url("https://packages.pulseplate.app/simple/")
 
 
 def test_validate_index_url_normalizes_approved_host() -> None:
@@ -67,10 +71,17 @@ def test_parse_exact_pins_normalizes_names(tmp_path: Path) -> None:
 
 
 def test_probe_project_passes_when_exact_pin_is_present(monkeypatch: pytest.MonkeyPatch) -> None:
-    def fake_fetch(url: str, *, timeout_seconds: float, max_bytes: int) -> tuple[int, bytes]:
+    def fake_fetch(
+        url: str,
+        *,
+        timeout_seconds: float,
+        max_bytes: int,
+        authorization_header: str | None = None,
+    ) -> tuple[int, bytes]:
         assert url == f"{APPROVED_INDEX}aiosqlite/"
         assert timeout_seconds == 1
         assert max_bytes == 1000
+        assert authorization_header is None
         return 200, simple_page("aiosqlite", "0.22.1")
 
     monkeypatch.setattr(checker, "fetch_project_page", fake_fetch)
@@ -95,7 +106,7 @@ def test_probe_project_accepts_truncated_page_when_exact_pin_is_already_seen(
     monkeypatch.setattr(
         checker,
         "fetch_project_page",
-        lambda url, *, timeout_seconds, max_bytes: (200, body),
+        lambda url, *, timeout_seconds, max_bytes, authorization_header=None: (200, body),
     )
 
     result = checker.probe_project(
@@ -125,7 +136,13 @@ def test_probe_project_classifies_http_errors(
     status: int,
     reason: str,
 ) -> None:
-    def fake_fetch(url: str, *, timeout_seconds: float, max_bytes: int) -> tuple[int, bytes]:
+    def fake_fetch(
+        url: str,
+        *,
+        timeout_seconds: float,
+        max_bytes: int,
+        authorization_header: str | None = None,
+    ) -> tuple[int, bytes]:
         raise HTTPError(url, status, "error", hdrs=None, fp=None)
 
     monkeypatch.setattr(checker, "fetch_project_page", fake_fetch)
@@ -161,7 +178,7 @@ def test_probe_project_classifies_unhealthy_or_non_parity_pages(
     monkeypatch.setattr(
         checker,
         "fetch_project_page",
-        lambda url, *, timeout_seconds, max_bytes: (200, body),
+        lambda url, *, timeout_seconds, max_bytes, authorization_header=None: (200, body),
     )
 
     result = checker.probe_project(
@@ -182,7 +199,13 @@ def test_probe_project_classifies_timeouts_after_bounded_retries(
 ) -> None:
     attempts = 0
 
-    def fake_fetch(url: str, *, timeout_seconds: float, max_bytes: int) -> tuple[int, bytes]:
+    def fake_fetch(
+        url: str,
+        *,
+        timeout_seconds: float,
+        max_bytes: int,
+        authorization_header: str | None = None,
+    ) -> tuple[int, bytes]:
         nonlocal attempts
         attempts += 1
         raise socket.timeout("timed out")
@@ -209,7 +232,10 @@ def test_check_health_fails_when_project_missing_from_requirements(
     monkeypatch.setattr(
         checker,
         "fetch_project_page",
-        lambda url, *, timeout_seconds, max_bytes: (200, simple_page("requests", "2.33.0")),
+        lambda url, *, timeout_seconds, max_bytes, authorization_header=None: (
+            200,
+            simple_page("requests", "2.33.0"),
+        ),
     )
 
     summary = checker.check_health(
@@ -227,12 +253,64 @@ def test_check_health_fails_when_project_missing_from_requirements(
     assert summary.results[0].reason == "missing_exact_pin_in_requirements"
 
 
+def test_check_health_uses_netrc_for_authenticated_project_pages(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    netrc_file = tmp_path / ".netrc"
+    netrc_file.write_text(
+        "machine packages.pulseplate.app\n  login pulseplate-ci\n  password read-only-token\n",  # pragma: allowlist secret
+        encoding="utf-8",
+    )
+    seen_headers: list[str | None] = []
+
+    def fake_fetch(
+        url: str,
+        *,
+        timeout_seconds: float,
+        max_bytes: int,
+        authorization_header: str | None = None,
+    ) -> tuple[int, bytes]:
+        seen_headers.append(authorization_header)
+        return 200, simple_page("aiosqlite", "0.22.1")
+
+    monkeypatch.setattr(checker, "fetch_project_page", fake_fetch)
+
+    summary = checker.check_health(
+        index_url=APPROVED_INDEX,
+        projects=["aiosqlite"],
+        pins={"aiosqlite": "0.22.1"},
+        expected_host="packages.pulseplate.app",
+        allow_dev_host=False,
+        timeout_seconds=1,
+        max_bytes=1000,
+        retries=0,
+        netrc_file=netrc_file,
+    )
+
+    assert summary.ok is True
+    assert seen_headers == ["Basic cHVsc2VwbGF0ZS1jaTpyZWFkLW9ubHktdG9rZW4="]
+
+
+def test_netrc_rejects_root_devpi_credentials(tmp_path: Path) -> None:
+    netrc_file = tmp_path / ".netrc"
+    netrc_file.write_text(
+        "machine packages.pulseplate.app\n  login root\n  password not-used\n",  # pragma: allowlist secret
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="root_devpi_credentials"):
+        checker.basic_auth_from_netrc("packages.pulseplate.app", netrc_file=netrc_file)
+
+
 def test_diagnostics_redact_inline_credentials() -> None:
     redacted = checker.redact_text(
         "failed https://root:secret@packages.pulseplate.app/root/pulseplate/+simple/"  # pragma: allowlist secret
-        " Authorization=secret-token"
+        " Authorization=secret-token Authorization: Bearer abc123 token: abc123"  # pragma: allowlist secret
     )
 
     assert "root:secret" not in redacted
     assert "secret-token" not in redacted
+    assert "Bearer" not in redacted
+    assert "abc123" not in redacted
     assert "packages.pulseplate.app" in redacted

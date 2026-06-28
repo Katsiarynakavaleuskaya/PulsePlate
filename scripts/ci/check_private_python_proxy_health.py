@@ -4,8 +4,10 @@
 from __future__ import annotations
 
 import argparse
+import base64
 from dataclasses import dataclass
 import json
+import netrc
 import os
 from pathlib import Path
 import re
@@ -14,11 +16,13 @@ import ssl
 import sys
 from typing import Any, Iterable, Sequence
 from urllib.error import HTTPError, URLError
-from urllib.parse import ParseResult, quote, urlparse
+from urllib.parse import quote, urlparse
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 INDEX_ENV_VAR = "PULSEPLATE_PYTHON_INDEX_URL"
+NETRC_ENV_VAR = "PULSEPLATE_PYTHON_NETRC"
 DEFAULT_PACKAGES_HOST = "packages.pulseplate.app"
+DEFAULT_SIMPLE_ROOT_PATH = "/root/pulseplate/+simple/"
 BLOCKED_PUBLIC_HOSTS = frozenset(
     {
         "pypi.org",
@@ -127,11 +131,40 @@ def redact_text(value: str) -> str:
         value,
     )
     redacted = re.sub(
-        r"(?i)(authorization|password|token|secret|devpi_ci_password)=\S+",
-        r"\1=<redacted>",
+        r"(?i)\bauthorization\s*[:=]\s*(?:bearer|basic)?\s*\S+",
+        "Authorization=<redacted>",
+        redacted,
+    )
+    redacted = re.sub(
+        r"(?i)\b(password|token|secret|devpi_ci_password)\s*[:=]\s*\S+",
+        lambda match: f"{match.group(1)}=<redacted>",
         redacted,
     )
     return redacted
+
+
+def basic_auth_from_netrc(hostname: str, *, netrc_file: Path | None = None) -> str | None:
+    """Return a Basic Authorization header from .netrc for hostname, if present."""
+    if netrc_file is None:
+        env_path = os.environ.get(NETRC_ENV_VAR, "").strip()
+        netrc_file = Path(env_path) if env_path else Path.home() / ".netrc"
+    if not netrc_file.exists():
+        return None
+
+    try:
+        credentials = netrc.netrc(str(netrc_file)).authenticators(hostname)
+    except (netrc.NetrcParseError, OSError) as exc:
+        raise ValueError(f"netrc_error: unable to read credentials for {hostname}: {exc}") from exc
+    if credentials is None:
+        return None
+
+    login, _, password = credentials
+    if not login or not password:
+        raise ValueError(f"netrc_error: incomplete credentials for {hostname}")
+    if login.strip().lower() == "root":
+        raise ValueError("root_devpi_credentials: root devpi credentials are forbidden")
+    token = base64.b64encode(f"{login}:{password}".encode("utf-8")).decode("ascii")
+    return f"Basic {token}"
 
 
 def validate_index_url(
@@ -149,6 +182,7 @@ def validate_index_url(
 
     parsed = urlparse(normalized)
     hostname = (parsed.hostname or "").rstrip(".").lower()
+    path = parsed.path.rstrip("/") + "/"
     if parsed.scheme != "https":
         raise ValueError("non_https_index_url: private proxy index URL must use https")
     if not hostname:
@@ -161,6 +195,11 @@ def validate_index_url(
         raise ValueError(f"public_index_url: public package host is forbidden: {hostname}")
     if hostname != expected_host and not allow_dev_host:
         raise ValueError(f"unexpected_packages_host: expected {expected_host}, got {hostname}")
+    if hostname == expected_host and path != DEFAULT_SIMPLE_ROOT_PATH:
+        raise ValueError(
+            "unexpected_index_path: expected canonical devpi simple root "
+            f"{DEFAULT_SIMPLE_ROOT_PATH}"
+        )
     if parsed.query or parsed.fragment:
         raise ValueError("invalid_index_url: query and fragment are not allowed")
     if "pulseplate.app" == hostname:
@@ -241,10 +280,14 @@ def fetch_project_page(
     *,
     timeout_seconds: float,
     max_bytes: int,
+    authorization_header: str | None = None,
 ) -> tuple[int, bytes]:
     """Fetch a project page with redirects disabled and bounded reads."""
     opener = build_opener(NoRedirect)
-    request = Request(url, headers={"User-Agent": "PulsePlate-private-proxy-health/1"})
+    headers = {"User-Agent": "PulsePlate-private-proxy-health/1"}
+    if authorization_header:
+        headers["Authorization"] = authorization_header
+    request = Request(url, headers=headers)
     with opener.open(request, timeout=timeout_seconds) as response:
         status = int(getattr(response, "status", response.getcode()))
         body = response.read(max_bytes + 1)
@@ -259,6 +302,7 @@ def probe_project(
     timeout_seconds: float,
     max_bytes: int,
     retries: int,
+    authorization_header: str | None = None,
 ) -> ProbeResult:
     """Probe one canonical Simple API project page."""
     normalized_project = normalize_project_name(project)
@@ -271,6 +315,7 @@ def probe_project(
                 url,
                 timeout_seconds=timeout_seconds,
                 max_bytes=max_bytes,
+                authorization_header=authorization_header,
             )
         except HTTPError as exc:
             reason = classify_http_error(exc)
@@ -442,6 +487,7 @@ def check_health(
     timeout_seconds: float,
     max_bytes: int,
     retries: int,
+    netrc_file: Path | None = None,
 ) -> HealthSummary:
     """Run health checks for representative projects."""
     validated_index = validate_index_url(
@@ -451,6 +497,7 @@ def check_health(
     )
     parsed = urlparse(validated_index)
     host = (parsed.hostname or "").rstrip(".").lower()
+    authorization_header = basic_auth_from_netrc(host, netrc_file=netrc_file)
     results = tuple(
         probe_project(
             index_url=validated_index,
@@ -459,6 +506,7 @@ def check_health(
             timeout_seconds=timeout_seconds,
             max_bytes=max_bytes,
             retries=retries,
+            authorization_header=authorization_header,
         )
         for project in projects
     )
@@ -483,6 +531,12 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         default=[],
         help="Pinned requirements file used to find exact project versions. Repeatable.",
+    )
+    parser.add_argument(
+        "--netrc-file",
+        type=Path,
+        default=None,
+        help=f"Optional .netrc file for authenticated project-page probes. Defaults to ${NETRC_ENV_VAR} or ~/.netrc.",
     )
     parser.add_argument(
         "--project",
@@ -536,10 +590,18 @@ def emit_text(summary: HealthSummary) -> None:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    projects = args.project or ["aiosqlite", "pydantic-core", "cryptography", "requests"]
+    projects = args.project or [
+        "aiosqlite",
+        "cryptography",
+        "requests",
+        "pytest-xdist",
+        "hypothesis",
+        "pgvector",
+    ]
     requirements_files = args.requirements_file or [
         Path("requirements.txt"),
         Path("requirements-ci-lite.txt"),
+        Path("requirements-test.txt"),
     ]
     try:
         pins = parse_exact_pins(requirements_files)
@@ -552,6 +614,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             timeout_seconds=args.timeout,
             max_bytes=args.max_bytes,
             retries=args.retries,
+            netrc_file=args.netrc_file,
         )
     except Exception as exc:
         message = redact_text(str(exc))
