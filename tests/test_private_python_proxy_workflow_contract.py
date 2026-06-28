@@ -64,6 +64,9 @@ def test_private_proxy_health_job_is_stdlib_fail_fast_gate() -> None:
     assert "pip install" not in run_blocks
     assert "continue-on-error" not in run_blocks
     assert "--requirements-file requirements-test.txt" in run_blocks
+    assert "--python-version 3.11" in run_blocks
+    assert "--python-version 3.12" in run_blocks
+    assert "--python-version 3.13" in run_blocks
     assert "--project pytest-xdist" in run_blocks
     assert "--project hypothesis" in run_blocks
     assert "--project pgvector" in run_blocks
@@ -142,6 +145,35 @@ def test_private_proxy_health_main_auth_is_netrc_only() -> None:
     assert "$HOME/.netrc" in protected_auth
     assert "[Rr][Oo][Oo][Tt]" in protected_auth
     assert "Root devpi credentials are forbidden" in protected_auth
+
+
+def test_test_main_uses_same_protected_proxy_source_as_health_gate() -> None:
+    workflow_text = CI_WORKFLOW.read_text(encoding="utf-8")
+    test_main_section = workflow_text.split("  test-main:", 1)[1].split(
+        "\n  diff-coverage:",
+        1,
+    )[0]
+    protected_resolver = test_main_section.split(
+        "- name: Resolve protected package proxy",
+        1,
+    )[
+        1
+    ].split("- name: Setup Python environment", 1)[0]
+
+    assert (
+        "PULSEPLATE_PROTECTED_PYTHON_INDEX_URL: ${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}"
+        in protected_resolver
+    )
+    assert (
+        "PULSEPLATE_PROTECTED_PYTHON_TRUSTED_HOST: ${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}"
+        in protected_resolver
+    )
+    assert "secrets.PULSEPLATE_PYTHON_INDEX_URL" not in protected_resolver
+    assert "secrets.PULSEPLATE_PYTHON_TRUSTED_HOST" not in protected_resolver
+    assert (
+        "Set PULSEPLATE_PYTHON_INDEX_URL repository variable for protected test-main runs."
+        in protected_resolver
+    )
 
 
 def test_python_setup_jobs_depend_on_private_proxy_health_gate() -> None:

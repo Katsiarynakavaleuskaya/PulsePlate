@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import base64
 from dataclasses import dataclass
+import html
 import json
 import netrc
 import os
@@ -16,7 +17,7 @@ import ssl
 import sys
 from typing import Any, Iterable, Sequence
 from urllib.error import HTTPError, URLError
-from urllib.parse import quote, urlparse
+from urllib.parse import quote, unquote, urlparse
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 INDEX_ENV_VAR = "PULSEPLATE_PYTHON_INDEX_URL"
@@ -45,7 +46,11 @@ CLOUDFLARE_ORIGIN_MARKERS = (
     "origin is unreachable",
     "web server is down",
 )
-WHEEL_ARTIFACT_SUFFIX = r"(?:-[^\"'<>\s]+)?\.whl(?=[\"'#<])"
+WHEEL_FILENAME_RE = re.compile(
+    r"(?P<filename>[A-Za-z0-9][A-Za-z0-9_.!+~-]*-[^\"'<>\s/]+\.whl)(?=[\"'#<\s]|$)",
+    re.IGNORECASE,
+)
+PYTHON_VERSION_RE = re.compile(r"^(?:cp)?(?P<major>3)(?:\.?)(?P<minor>\d{1,2})$")
 
 
 class NoRedirect(HTTPRedirectHandler):
@@ -246,6 +251,31 @@ def parse_exact_pins(requirements_files: Iterable[Path]) -> dict[str, str]:
     return pins
 
 
+def normalize_target_python_version(version: str) -> str:
+    """Normalize a Python version such as 3.11 or cp311 into a wheel cp tag."""
+    normalized = version.strip().lower()
+    match = PYTHON_VERSION_RE.match(normalized)
+    if not match:
+        raise ValueError(f"invalid_python_version: expected 3.x or cp3x, got {version!r}")
+    return f"cp{match.group('major')}{match.group('minor')}"
+
+
+def default_target_python_versions() -> tuple[str, ...]:
+    """Return the current interpreter as the default wheel compatibility target."""
+    return (f"cp{sys.version_info.major}{sys.version_info.minor}",)
+
+
+def normalize_target_python_versions(versions: Sequence[str] | None) -> tuple[str, ...]:
+    """Return unique normalized target Python cp tags."""
+    raw_versions = versions or default_target_python_versions()
+    tags: list[str] = []
+    for version in raw_versions:
+        tag = normalize_target_python_version(version)
+        if tag not in tags:
+            tags.append(tag)
+    return tuple(tags)
+
+
 def simple_page_has_project_link(*, body: bytes, normalized_project: str) -> bool:
     """Return True when a response body looks like a Simple API project page."""
     text = body.decode("utf-8", errors="ignore").lower()
@@ -256,19 +286,112 @@ def simple_page_has_project_link(*, body: bytes, normalized_project: str) -> boo
     return "href=" in text and any(marker in text for marker in package_markers)
 
 
+def exact_pin_wheel_filenames(
+    *,
+    body: bytes,
+    normalized_project: str,
+    expected_version: str,
+) -> tuple[str, ...]:
+    """Return exact-version wheel filenames advertised on a Simple API project page."""
+    text = html.unescape(body.decode("utf-8", errors="ignore"))
+    expected_prefixes = (
+        f"{normalized_project}-{expected_version}-".lower(),
+        f"{normalized_project.replace('-', '_')}-{expected_version}-".lower(),
+    )
+    filenames: list[str] = []
+    seen: set[str] = set()
+    for match in WHEEL_FILENAME_RE.finditer(text):
+        filename = unquote(match.group("filename")).lower()
+        if not filename.startswith(expected_prefixes) or filename in seen:
+            continue
+        seen.add(filename)
+        filenames.append(filename)
+    return tuple(filenames)
+
+
+def _platform_tag_is_linux_x86_64(platform_tag: str) -> bool:
+    if platform_tag == "any":
+        return True
+    return platform_tag.endswith("_x86_64") and platform_tag.startswith(("manylinux", "linux"))
+
+
+def _wheel_cp_number(cp_tag: str) -> int | None:
+    if not cp_tag.startswith("cp") or not cp_tag[2:].isdigit():
+        return None
+    return int(cp_tag[2:])
+
+
+def _python_tag_matches_target(
+    *,
+    python_tag: str,
+    abi_tags: Sequence[str],
+    target_python_tag: str,
+) -> bool:
+    if "none" in abi_tags and python_tag == "py3":
+        return True
+    if "none" in abi_tags and python_tag.startswith("py3") and python_tag[2:].isdigit():
+        return python_tag[2:] == target_python_tag[2:]
+    if not python_tag.startswith("cp"):
+        return False
+    target_number = _wheel_cp_number(target_python_tag)
+    wheel_number = _wheel_cp_number(python_tag)
+    if target_number is None or wheel_number is None:
+        return False
+    if "abi3" in abi_tags:
+        return target_number >= wheel_number
+    return python_tag == target_python_tag and target_python_tag in abi_tags
+
+
+def wheel_is_compatible_with_targets(
+    filename: str,
+    *,
+    target_python_versions: Sequence[str] | None = None,
+) -> bool:
+    """Return True when a wheel filename is installable on GitHub Ubuntu targets."""
+    target_python_tags = normalize_target_python_versions(target_python_versions)
+    wheel_name = filename.rsplit("/", 1)[-1].lower()
+    if not wheel_name.endswith(".whl"):
+        return False
+    parts = wheel_name[:-4].split("-")
+    if len(parts) < 5:
+        return False
+
+    python_tags = parts[-3].split(".")
+    abi_tags = parts[-2].split(".")
+    platform_tags = parts[-1].split(".")
+    if not any(_platform_tag_is_linux_x86_64(tag) for tag in platform_tags):
+        return False
+
+    return any(
+        _python_tag_matches_target(
+            python_tag=python_tag,
+            abi_tags=abi_tags,
+            target_python_tag=target_python_tag,
+        )
+        for python_tag in python_tags
+        for target_python_tag in target_python_tags
+    )
+
+
 def simple_page_has_exact_pin(
     *,
     body: bytes,
     normalized_project: str,
     expected_version: str,
+    target_python_versions: Sequence[str] | None = None,
 ) -> bool:
-    """Return True when the page advertises the exact pinned package version."""
-    text = body.decode("utf-8", errors="ignore").lower()
-    patterns = (
-        rf"{re.escape(normalized_project)}-{re.escape(expected_version)}{WHEEL_ARTIFACT_SUFFIX}",
-        rf"{re.escape(normalized_project.replace('-', '_'))}-{re.escape(expected_version)}{WHEEL_ARTIFACT_SUFFIX}",
+    """Return True when the page advertises a compatible exact-version wheel."""
+    return any(
+        wheel_is_compatible_with_targets(
+            filename,
+            target_python_versions=target_python_versions,
+        )
+        for filename in exact_pin_wheel_filenames(
+            body=body,
+            normalized_project=normalized_project,
+            expected_version=expected_version,
+        )
     )
-    return any(re.search(pattern, text) for pattern in patterns)
 
 
 def body_has_cloudflare_origin_error(body: bytes) -> bool:
@@ -318,6 +441,7 @@ def probe_project(
     max_bytes: int,
     retries: int,
     authorization_header: str | None = None,
+    target_python_versions: Sequence[str] | None = None,
 ) -> ProbeResult:
     """Probe one canonical Simple API project page."""
     normalized_project = normalize_project_name(project)
@@ -439,11 +563,12 @@ def probe_project(
                 status=status,
                 bytes_read=len(body),
             )
-        if not simple_page_has_exact_pin(
+        exact_wheels = exact_pin_wheel_filenames(
             body=body,
             normalized_project=normalized_project,
             expected_version=expected_version,
-        ):
+        )
+        if not exact_wheels:
             if len(body) > max_bytes:
                 return ProbeResult(
                     project=project,
@@ -464,6 +589,24 @@ def probe_project(
                 reason="mirror_lag_exact_pin_missing",
                 status=status,
                 bytes_read=len(body),
+            )
+        if not simple_page_has_exact_pin(
+            body=body,
+            normalized_project=normalized_project,
+            expected_version=expected_version,
+            target_python_versions=target_python_versions,
+        ):
+            targets = ",".join(normalize_target_python_versions(target_python_versions))
+            return ProbeResult(
+                project=project,
+                normalized_project=normalized_project,
+                project_url=url,
+                expected_version=expected_version,
+                ok=False,
+                reason="mirror_lag_compatible_wheel_missing",
+                status=status,
+                bytes_read=len(body),
+                detail=f"no compatible Linux x86_64 wheel for {targets}",
             )
         return ProbeResult(
             project=project,
@@ -503,6 +646,7 @@ def check_health(
     max_bytes: int,
     retries: int,
     netrc_file: Path | None = None,
+    target_python_versions: Sequence[str] | None = None,
 ) -> HealthSummary:
     """Run health checks for representative projects."""
     validated_index = validate_index_url(
@@ -522,6 +666,7 @@ def check_health(
             max_bytes=max_bytes,
             retries=retries,
             authorization_header=authorization_header,
+            target_python_versions=target_python_versions,
         )
         for project in projects
     )
@@ -558,6 +703,12 @@ def build_parser() -> argparse.ArgumentParser:
         action="append",
         default=[],
         help="Representative project to probe. Repeatable.",
+    )
+    parser.add_argument(
+        "--python-version",
+        action="append",
+        default=[],
+        help="GitHub Ubuntu Python target version for wheel tag parity, e.g. 3.11. Repeatable.",
     )
     parser.add_argument(
         "--expected-host",
@@ -630,6 +781,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             max_bytes=args.max_bytes,
             retries=args.retries,
             netrc_file=args.netrc_file,
+            target_python_versions=args.python_version,
         )
     except Exception as exc:
         message = redact_text(str(exc))

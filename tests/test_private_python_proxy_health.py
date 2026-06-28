@@ -25,6 +25,10 @@ def source_page(project: str, version: str) -> bytes:
     ).encode()
 
 
+def wheel_page(filename: str) -> bytes:
+    return (f'<html><body><a href="../../+f/abc/{filename}">{filename}</a></body></html>').encode()
+
+
 def test_validate_index_url_rejects_unsafe_sources() -> None:
     with pytest.raises(ValueError, match="missing_index_url"):
         checker.validate_index_url("")
@@ -69,6 +73,28 @@ def test_project_page_url_uses_normalized_simple_project_page() -> None:
         checker.project_page_url(APPROVED_INDEX, "Pydantic_Core")
         == "https://packages.pulseplate.app/root/pulseplate/+simple/pydantic-core/"
     )
+
+
+def test_wheel_compatibility_accepts_linux_abi3_for_all_github_targets() -> None:
+    assert checker.wheel_is_compatible_with_targets(
+        "cryptography-48.0.1-cp39-abi3-manylinux_2_28_x86_64.whl",
+        target_python_versions=["3.11", "3.12", "3.13"],
+    )
+
+
+def test_wheel_compatibility_rejects_exact_version_for_wrong_platform() -> None:
+    assert not checker.wheel_is_compatible_with_targets(
+        "cryptography-48.0.1-cp311-abi3-win_amd64.whl",
+        target_python_versions=["3.11", "3.12", "3.13"],
+    )
+
+
+def test_wheel_compatibility_rejects_invalid_target_version() -> None:
+    with pytest.raises(ValueError, match="invalid_python_version"):
+        checker.wheel_is_compatible_with_targets(
+            "aiosqlite-0.22.1-py3-none-any.whl",
+            target_python_versions=["python-3.11"],
+        )
 
 
 def test_parse_exact_pins_normalizes_names(tmp_path: Path) -> None:
@@ -128,8 +154,10 @@ def test_main_default_projects_exclude_large_pydantic_core_probe(
         max_bytes: int,
         retries: int,
         netrc_file: Path | None = None,
+        target_python_versions: list[str] | None = None,
     ) -> checker.HealthSummary:
         captured_projects.extend(projects)
+        assert target_python_versions == []
         return checker.HealthSummary(
             ok=True,
             index_url=APPROVED_INDEX,
@@ -235,6 +263,35 @@ def test_probe_project_requires_exact_pinned_wheel_artifact(
 
     assert result.ok is False
     assert result.reason == "mirror_lag_exact_pin_missing"
+
+
+def test_probe_project_requires_compatible_exact_pinned_wheel(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_fetch(
+        url: str,
+        *,
+        timeout_seconds: float,
+        max_bytes: int,
+        authorization_header: str | None = None,
+    ) -> tuple[int, bytes]:
+        return 200, wheel_page("cryptography-48.0.1-cp311-abi3-win_amd64.whl")
+
+    monkeypatch.setattr(checker, "fetch_project_page", fake_fetch)
+
+    result = checker.probe_project(
+        index_url=APPROVED_INDEX,
+        project="cryptography",
+        expected_version="48.0.1",
+        timeout_seconds=1,
+        max_bytes=1000,
+        retries=0,
+        target_python_versions=["3.11", "3.12", "3.13"],
+    )
+
+    assert result.ok is False
+    assert result.reason == "mirror_lag_compatible_wheel_missing"
+    assert "cp311,cp312,cp313" in result.detail
 
 
 def test_probe_project_accepts_truncated_page_when_exact_pin_is_already_seen(

@@ -697,8 +697,10 @@ def test_canonical_ci_and_docker_use_supply_chain_guardrails() -> None:
         "requirements.txt|requirements-ci-lite.txt|requirements-docker-runtime.txt" in docker_text
     )
     assert '--requirements-file "${PULSEPLATE_REQUIREMENTS_FILE}"' in docker_text
-    assert APPROVED_PROXY_ENV_EXPRESSION in ci_text
-    assert APPROVED_TRUSTED_HOST_EXPRESSION in ci_text
+    assert APPROVED_PR_PROXY_ENV_EXPRESSION in ci_text
+    assert APPROVED_PR_TRUSTED_HOST_EXPRESSION in ci_text
+    assert "secrets.PULSEPLATE_PYTHON_INDEX_URL" not in ci_text
+    assert "secrets.PULSEPLATE_PYTHON_TRUSTED_HOST" not in ci_text
     assert APPROVED_PROXY_ENV_EXPRESSION in security_text
     assert APPROVED_PROXY_ENV_EXPRESSION in nightly_text
     assert "PULSEPLATE_PYTHON_INDEX_URL: ${PULSEPLATE_PYTHON_INDEX_URL:?" in compose_text

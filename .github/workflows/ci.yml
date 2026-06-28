@@ -587,6 +587,9 @@ jobs:
             --requirements-file requirements.txt \
             --requirements-file requirements-ci-lite.txt \
             --requirements-file requirements-test.txt \
+            --python-version 3.11 \
+            --python-version 3.12 \
+            --python-version 3.13 \
             --project aiosqlite \
             --project cryptography \
             --project requests \
@@ -1394,14 +1397,14 @@ jobs:
       - name: Resolve protected package proxy
         if: github.event_name != 'pull_request'
         env:
-          PULSEPLATE_PROTECTED_PYTHON_INDEX_URL: ${{ secrets.PULSEPLATE_PYTHON_INDEX_URL || vars.PULSEPLATE_PYTHON_INDEX_URL }}
-          PULSEPLATE_PROTECTED_PYTHON_TRUSTED_HOST: ${{ secrets.PULSEPLATE_PYTHON_TRUSTED_HOST || vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
+          PULSEPLATE_PROTECTED_PYTHON_INDEX_URL: ${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}
+          PULSEPLATE_PROTECTED_PYTHON_TRUSTED_HOST: ${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
         run: |
           set -euo pipefail
           resolved_index="${PULSEPLATE_PROTECTED_PYTHON_INDEX_URL:-}"
           resolved_trusted_host="${PULSEPLATE_PROTECTED_PYTHON_TRUSTED_HOST:-}"
           if [[ -z "$resolved_index" ]]; then
-            echo "::error::Set PULSEPLATE_PYTHON_INDEX_URL secret or repository variable for protected test-main runs."
+            echo "::error::Set PULSEPLATE_PYTHON_INDEX_URL repository variable for protected test-main runs."
             exit 1
           fi
           case "$resolved_index" in
