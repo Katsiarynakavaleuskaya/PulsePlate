@@ -56,22 +56,29 @@ Out of scope:
 
 ## Implementation Commits
 
-- `64a63bd50` - `ci(deps): add private Python proxy health gate`
-- `8feca0507` - `fix(ci): harden private proxy health gate`
-- `185a82296` - `fix(ci): close proxy health review findings`
-- `11af0855f` - `fix(ci): redact netrc parser diagnostics`
-- `5471e5949` - `fix(ci): require exact netrc proxy credentials`
-- `7048629ea` - `fix(ci): align proxy health parity with installs`
-- `a3364112d` - `docs(review): map connector review fixes`
-- `b5289244c` - `docs(runbook): fix private proxy triage headings`
-- `47248ef36` - `test(api): align route guards with effective routes`
-- `ce7af2d8c` - `test(api): cover effective routes in remaining guards`
-- `44f9ee8d2` - `docs(review): map remaining route guard fix`
-- `505693623` - `docs(review): remove local path evidence`
-- `c82e9a408` - `test(api): use effective routes for runtime env guard`
-- `46052bf4c` - `test(api): use effective routes in remaining main guards`
-- `b909b4aa4` - `test(api): make creative runtime tests hook compatible`
-- `622c3f906` - `fix(ci): keep dev proxy root validation fail closed`
+- `f71f6e365` - `ci(deps): add private Python proxy health gate`
+- `6b9a69726` - `fix(ci): harden private proxy health gate`
+- `4cfa01319` - `fix(ci): close proxy health review findings`
+- `acf7e3006` - `fix(ci): redact netrc parser diagnostics`
+- `923fdf954` - `fix(ci): require exact netrc proxy credentials`
+- `ad216afb3` - `fix(ci): align proxy health parity with installs`
+- `a616c9661` - `docs(review): map connector review fixes`
+- `b3634fbf6` - `docs(runbook): fix private proxy triage headings`
+- `af5c800da` - `test(api): align route guards with effective routes`
+- `db259f772` - `test(api): cover effective routes in remaining guards`
+- `2f9b72aa5` - `docs(review): map remaining route guard fix`
+- `2e2253efd` - `docs(review): remove local path evidence`
+- `200cb39c6` - `test(api): use effective routes for runtime env guard`
+- `85e73495e` - `fix(ci): keep dev proxy root validation fail closed`
+- `fa32e3dc1` - `docs(review): map proxy health path policy fix`
+
+## Rebased Main Baseline
+
+- `9a3ce49ac` - `fix(routes): align runtime route introspection with effective routes (#2040)`
+
+The pre-rebase fixes for `tests/test_creative_research_pilot_api.py` and
+`tests/test_vip_production_simple.py` were dropped during the rebase because
+the same patches are now part of merged main via #2040.
 
 ## Discussion Thread Pass
 
@@ -89,52 +96,52 @@ Out of scope:
 ## Fixed in Commit Mapping
 
 Disposition: FIXED
-Commit: 64a63bd50
+Commit: f71f6e365
 Evidence: `scripts/ci/check_private_python_proxy_health.py`, `.github/workflows/ci.yml`, `tests/test_private_python_proxy_health.py`, `tests/test_private_python_proxy_workflow_contract.py`, `tests/test_python_supply_chain_controls.py`, `RUNBOOK_AGENT.md`, `docs/DEPENDENCY_MANAGEMENT.md`, `docs/security/PRIVATE_PYTHON_PROXY_HEALTH_GATE.md`, `docs/roadmap/BACKLOG_LEDGER.md`, and `docs/review/PR_PRIVATE_PYPI_PROXY_HEALTH_GATE_PREMORTEM.md`.
 Reason: Adds the private proxy health checker, early CI job, exact-pin mirror parity checks, URL/credential policy, and docs for the packages-host contract.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036 -> 64a63bd50
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036 -> f71f6e365
 
 Disposition: FIXED
-Commit: 8feca0507
+Commit: 6b9a69726
 Evidence: `scripts/ci/check_private_python_proxy_health.py`, `.github/workflows/ci.yml`, `tests/test_private_python_proxy_health.py`, `tests/test_private_python_proxy_workflow_contract.py`, and `tests/test_python_supply_chain_controls.py`.
 Reason: Closes post-open review-agent findings by making protected credentials main-only and `.netrc`-based, enforcing the canonical same-host simple root, disabling checkout credential persistence in the health job, including `requirements-test.txt` / CI-tool representative projects, rejecting root devpi credentials, and strengthening log redaction.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036 -> 8feca0507
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#discussion_r3487777902 -> 8feca0507
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#discussion_r3487777905 -> 8feca0507
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#discussion_r3487777910 -> 8feca0507
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036 -> 6b9a69726
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#discussion_r3487777902 -> 6b9a69726
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#discussion_r3487777905 -> 6b9a69726
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#discussion_r3487777910 -> 6b9a69726
 
 Disposition: FIXED
-Commit: 185a82296
+Commit: 4cfa01319
 Evidence: `scripts/ci/check_private_python_proxy_health.py`, `tests/test_private_python_proxy_health.py`, `tests/test_private_python_proxy_workflow_contract.py`, `docs/DEPENDENCY_MANAGEMENT.md`, `RUNBOOK_AGENT.md`, and `docs/security/PRIVATE_PYTHON_PROXY_HEALTH_GATE.md`.
 Reason: Closes review findings by making exact-pin parsing fail closed on extra specifiers and conflicting pins, documenting the complete checker reason-code matrix, adding a docs Phase1 evidence anchor, and adding deterministic coverage that `pydantic-core` stays out of the fast proxy probe.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#pullrequestreview-4587443285 -> 185a82296
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#discussion_r3487778312 -> 185a82296
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#discussion_r3487777907 -> 185a82296
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#discussion_r3487777909 -> 185a82296
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#discussion_r3487777911 -> 185a82296
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#pullrequestreview-4587443285 -> 4cfa01319
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#discussion_r3487778312 -> 4cfa01319
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#discussion_r3487777907 -> 4cfa01319
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#discussion_r3487777909 -> 4cfa01319
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#discussion_r3487777911 -> 4cfa01319
 
 Disposition: FIXED
-Commit: 11af0855f
+Commit: acf7e3006
 Evidence: `scripts/ci/check_private_python_proxy_health.py` and `tests/test_private_python_proxy_health.py`.
 Reason: Closes the latest CodeRabbit netrc diagnostic finding by replacing raw parser exception text with the exception class name while preserving exception chaining, and adds CLI failure-path plus netrc parser-redaction tests.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#pullrequestreview-4587464897 -> 11af0855f
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#discussion_r3487801734 -> 11af0855f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#pullrequestreview-4587464897 -> acf7e3006
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#discussion_r3487801734 -> acf7e3006
 
 Disposition: FIXED
-Commit: 5471e5949
+Commit: 923fdf954
 Evidence: `scripts/ci/check_private_python_proxy_health.py` and `tests/test_private_python_proxy_health.py`.
 Reason: Closes the latest CodeRabbit exact-machine `.netrc` and test-fixture findings by rejecting `.netrc default` fallback for proxy credentials and decoupling Simple API HTML fixtures from production normalization helpers.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#pullrequestreview-4587510947 -> 5471e5949
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#discussion_r3487852990 -> 5471e5949
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#discussion_r3487852992 -> 5471e5949
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#pullrequestreview-4587510947 -> 923fdf954
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#discussion_r3487852990 -> 923fdf954
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#discussion_r3487852992 -> 923fdf954
 
 Disposition: FIXED
-Commit: 7048629ea
+Commit: ad216afb3
 Evidence: `.github/workflows/ci.yml`, `scripts/ci/check_private_python_proxy_health.py`, `tests/test_private_python_proxy_health.py`, `tests/test_private_python_proxy_workflow_contract.py`, and `tests/test_python_supply_chain_controls.py`.
 Reason: Closes the latest connector findings by aligning protected-main proxy source with downstream vars-only setup jobs, rejecting `root` before writing `.netrc`, and requiring exact pinned wheel artifacts rather than sdist/zip links for mirror parity.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#discussion_r3487778311 -> 7048629ea
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#discussion_r3487806508 -> 7048629ea
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#discussion_r3487806509 -> 7048629ea
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#discussion_r3487778311 -> ad216afb3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#discussion_r3487806508 -> ad216afb3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#discussion_r3487806509 -> ad216afb3
 
 Disposition: NOT-A-BUG
 Evidence: `scripts/ci/check_private_python_proxy_health.py` supports exact-host `.netrc` authentication through `--netrc-file`/`PULSEPLATE_PYTHON_NETRC`, and `.github/workflows/ci.yml` writes protected read-only devpi credentials to `$HOME/.netrc` only on protected main. The checker intentionally does not implement a `PULSEPLATE_PYTHON_TRUSTED_HOST` TLS bypass because this gate verifies the canonical HTTPS packages origin before pip install; a cert/TLS failure is proxy health evidence, not a condition to skip.
@@ -147,56 +154,57 @@ Reason: `pydantic-core` remains intentionally out of the default fail-fast job s
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#discussion_r3487806510
 
 Disposition: FIXED
-Commit: b5289244c
+Commit: b3634fbf6
 Evidence: `RUNBOOK_AGENT.md`; local `npx --yes markdownlint-cli2 RUNBOOK_AGENT.md docs/DEPENDENCY_MANAGEMENT.md docs/security/PRIVATE_PYTHON_PROXY_HEALTH_GATE.md` returned `Summary: 0 error(s)`.
 Reason: Closes the current-head Docs Phase1 markdownlint failure by converting private-proxy triage pseudo-headings from bold paragraphs to real markdown headings.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/28322567502/job/83906990954 -> b5289244c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/28322567502/job/83906990954 -> b3634fbf6
 
 Disposition: FIXED
-Commit: 47248ef36
+Commit: af5c800da
 Evidence: `tests/test_env_guards.py`, `tests/test_bmi_registration_router_coverage.py`, `tests/test_legacy_weekly_plan_alias_api.py`, `tests/test_restaurant_moderation_bootstrap.py`, `tests/test_test_router.py`, `tests/test_test_route_registration_bootstrap.py`, `tests/test_app_basic_combined.py`, and `tests/test_app_vip_comprehensive_97.py`.
 Reason: Expands this PR to cover the current `test-main` route/effective-route fallout by replacing stale raw `FastAPI.routes` assumptions with `app.effective_routes` helpers. This is test-only and does not change production route registration, OpenAPI, dependencies, or proxy behavior.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/28322758721/job/83907568569 -> 47248ef36
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/28322758721/job/83907568573 -> 47248ef36
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/28322758721/job/83907568565 -> 47248ef36
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/28322758721/job/83907568569 -> af5c800da
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/28322758721/job/83907568573 -> af5c800da
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/28322758721/job/83907568565 -> af5c800da
 
 Disposition: FIXED
-Commit: ce7af2d8c
+Commit: db259f772
 Evidence: `tests/test_legacy_export_aliases.py`, `tests/test_test_router.py`, and `tests/test_vip_api.py`.
 Reason: Closes the next current-head `test-main (3.11, 60)` failure by moving the remaining raw route-table assertions to effective route helpers and making the test-router reload helper resilient when earlier tests remove `app.main` from `sys.modules`. This remains test-only and does not change runtime route registration.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/28326828744/job/83918253209 -> ce7af2d8c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/28326828744/job/83918253209 -> db259f772
 
 Disposition: FIXED
-Commit: 505693623
+Commit: 2e2253efd
 Evidence: `docs/review/PR_2036_FIXED_MAPPING.md` and `tests/guards/test_security_devtooling_regression_guards.py::test_changed_docs_do_not_add_local_users_absolute_paths`.
 Reason: Closes the current-head local-path leakage failure by replacing absolute local validation command paths with repo-relative commands.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/28327495533/job/83919976404 -> 505693623
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/28327495533/job/83919976404 -> 2e2253efd
 
 Disposition: FIXED
-Commit: c82e9a408
+Commit: 200cb39c6
 Evidence: `tests/test_legacy_runtime_env_canonicalization.py`.
 Reason: Closes the current-head `test-main (3.11, 60)` failure by using effective route helpers for the staging test-router route assertion and making canonical bootstrap reload resilient to prior `sys.modules` cleanup. This remains test-only and does not change runtime route registration.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/28327987035/job/83921248754 -> c82e9a408
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/28327987035/job/83921248754 -> 200cb39c6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/28332173757/job/83932133556 -> 200cb39c6
 
 Disposition: FIXED
-Commit: 46052bf4c
-Evidence: `tests/test_creative_research_pilot_api.py` and `tests/test_vip_production_simple.py`; current `origin/main` commit `2ad8ed133` already covers the same effective-route pattern in `tests/test_vip_coverage_boost_fixed.py`.
-Reason: Closes the next current-head `test-main (3.11, 60)` failure by using effective route helpers for the remaining raw route-table assertions in creative-research and VIP weekly-plan tests while preserving the current-main VIP regions fix. This remains test-only and does not change runtime route registration.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/28328650754/job/83922958256 -> 46052bf4c
+Commit: 9a3ce49ac
+Evidence: `tests/test_creative_research_pilot_api.py`, `tests/test_vip_production_simple.py`, and merged main PR #2040.
+Reason: The pre-rebase fix for the remaining creative-research and VIP raw route-table assertions is now included through merged main commit `9a3ce49ac`; this PR is rebased on that commit and preserves the upstream test-only route-introspection fix.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/28328650754/job/83922958256 -> 9a3ce49ac
 
 Disposition: FIXED
-Commit: b909b4aa4
-Evidence: `tests/test_creative_research_pilot_api.py`.
-Reason: Closes the fresh rebased `lint` failure by converting creative-research runtime `async def` tests to sync tests using `asyncio.run(...)`, matching the repo pre-commit policy for tests selected by `scripts/run-backend-tests-pre-commit.sh`. This is test-only and does not change runtime behavior.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/28329596895/job/83925422497 -> b909b4aa4
+Commit: 9a3ce49ac
+Evidence: `tests/test_creative_research_pilot_api.py` and merged main PR #2040.
+Reason: The pre-rebase lint-hook compatibility fix for creative-research runtime tests is now included through merged main commit `9a3ce49ac`; this PR is rebased on that commit and no longer carries the dropped duplicate commit.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/28329596895/job/83925422497 -> 9a3ce49ac
 
 Disposition: FIXED
-Commit: 622c3f906
+Commit: 85e73495e
 Evidence: `scripts/ci/check_private_python_proxy_health.py`, `tests/test_private_python_proxy_health.py`, and `docs/review/PR_PRIVATE_PYPI_PROXY_HEALTH_GATE_PREMORTEM.md`.
 Reason: Closes the latest CodeRabbit findings by keeping `--allow-dev-host` fail-closed on the canonical `/root/pulseplate/+simple/` path while only relaxing hostname mismatch, adding a regression test for that path policy, and replacing bare pytest validation commands with `.venv/bin/python -m pytest`.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#pullrequestreview-4587883265 -> 622c3f906
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#discussion_r3488276787 -> 622c3f906
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#discussion_r3488276791 -> 622c3f906
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#pullrequestreview-4587883265 -> 85e73495e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#discussion_r3488276787 -> 85e73495e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#discussion_r3488276791 -> 85e73495e
 
 ## Local Validation
 
@@ -242,7 +250,7 @@ Validated on the rebased mapping head:
     Starlette/httpx2 deprecation warning.
 - PASS:
   `.venv/bin/python -m pytest -q tests/test_legacy_export_aliases.py::test_legacy_export_alias_routes_are_hidden_shim_owned_and_protected tests/test_test_router.py tests/test_vip_api.py::test_deprecated_weekly_plan_handles_dict_plan`
-  - Fresh CI failure pack after commit `ce7af2d8c`: `9 passed`; one existing
+  - Fresh CI failure pack after commit `db259f772`: `9 passed`; one existing
     Starlette/httpx2 deprecation warning.
 - PASS:
   `.venv/bin/python -m pytest -q tests/test_legacy_export_aliases.py tests/test_test_router.py tests/test_vip_api.py`
@@ -257,41 +265,60 @@ Validated on the rebased mapping head:
 - PASS: `git diff --check`
 - PASS:
   `VENV_PYTHON=.venv/bin/python make validate-changed`
-  - Result after commit `ce7af2d8c`: backend tests passed; one existing
+  - Result after commit `db259f772`: backend tests passed; one existing
     Starlette/httpx2 deprecation warning.
   - Note: `make validate-changed` did not select
     `tests/test_legacy_export_aliases.py` or `tests/test_vip_api.py`, so those
     files were covered by the focused pytest commands above.
 - PASS:
   `.venv/bin/python -m pytest -q tests/guards/test_security_devtooling_regression_guards.py::test_changed_docs_do_not_add_local_users_absolute_paths`
-  - Result after commit `505693623`: passed; one existing Starlette/httpx2
+  - Result after commit `2e2253efd`: passed; one existing Starlette/httpx2
     deprecation warning.
 - PASS:
   `.venv/bin/python -m pytest -q tests/test_legacy_runtime_env_canonicalization.py tests/test_test_router.py`
-  - Result after commit `c82e9a408`: `13 passed`; one existing Starlette/httpx2
+  - Result after commit `200cb39c6`: `13 passed`; one existing Starlette/httpx2
     deprecation warning.
+- PASS:
+  `.venv/bin/python -m pytest -q tests/test_legacy_runtime_env_canonicalization.py::test_canonical_bootstrap_staging_test_router_respects_environment_flag`
+  - Fresh rebased check for main run `28332173757` / job `83932133556`:
+    `1 passed`; one existing Starlette/httpx2 deprecation warning.
+- PASS:
+  `VENV_PYTHON=.venv/bin/python make validate-changed`
+  - Rebased refresh after merged #2040: backend tests passed for
+    `tests/test_app_basic_combined.py`,
+    `tests/test_app_vip_comprehensive_97.py`,
+    `tests/test_legacy_export_aliases.py`,
+    `tests/test_legacy_runtime_env_canonicalization.py`,
+    `tests/test_private_python_proxy_health.py`,
+    `tests/test_private_python_proxy_workflow_contract.py`,
+    `tests/test_python_supply_chain_controls.py`,
+    `tests/test_test_route_registration_bootstrap.py`, and
+    `tests/test_test_router.py`; one existing Starlette/httpx2 deprecation
+    warning.
+- PASS: `pre-commit run --all-files`
+  - Rebased refresh after merged #2040: all hooks passed.
 - PASS:
   `.venv/bin/ruff check tests/test_legacy_runtime_env_canonicalization.py tests/test_test_router.py`
 - PASS:
   `VENV_PYTHON=.venv/bin/python make validate-changed`
-  - Result after commit `c82e9a408`: backend tests passed; one existing
+  - Result after commit `200cb39c6`: backend tests passed; one existing
     Starlette/httpx2 deprecation warning.
   - Note: `make validate-changed` did not select
     `tests/test_legacy_runtime_env_canonicalization.py`, so that file was
     covered by the focused pytest command above.
 - PASS:
   `.venv/bin/python -m pytest -q tests/test_creative_research_pilot_api.py::test_creative_research_route_is_hidden_from_openapi tests/test_vip_production_simple.py::TestVIPProductionMode::test_weekly_menu_generation_error_handling tests/test_vip_coverage_boost_fixed.py::TestVIPCoverageBoostFixed::test_vip_regions_missing_function`
-  - Result after commit `46052bf4c`: `3 passed`; one existing Starlette/httpx2
+  - Result after commit `9a3ce49ac`: `3 passed`; one existing Starlette/httpx2
     deprecation warning.
 - PASS:
   `.venv/bin/python -m pytest -q tests/test_creative_research_pilot_api.py tests/test_vip_production_simple.py tests/test_vip_coverage_boost_fixed.py`
-  - Result after commit `46052bf4c`: `39 passed`; one existing Starlette/httpx2
+  - Result after commit `9a3ce49ac`: `39 passed`; one existing Starlette/httpx2
     deprecation warning.
 - PASS:
   `.venv/bin/ruff check tests/test_creative_research_pilot_api.py tests/test_vip_production_simple.py tests/test_vip_coverage_boost_fixed.py`
 - PASS: `git diff --check`
 - PASS: `make validate-changed`
-  - Result after commit `46052bf4c`: backend tests passed; one existing
+  - Result after commit `9a3ce49ac`: backend tests passed; one existing
     Starlette/httpx2 deprecation warning.
   - Selected after rebase:
     `tests/test_creative_research_pilot_api.py`,
@@ -300,15 +327,15 @@ Validated on the rebased mapping head:
     pytest command above.
 - PASS:
   `.venv/bin/python -m pytest -q tests/test_creative_research_pilot_api.py`
-  - Result after commit `b909b4aa4`: `23 passed`; one existing Starlette/httpx2
+  - Result after commit `9a3ce49ac`: `23 passed`; one existing Starlette/httpx2
     deprecation warning.
 - PASS: `.venv/bin/ruff check tests/test_creative_research_pilot_api.py`
 - PASS:
   `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")" BRANCH_DIFF_MODE=1 bash scripts/run-backend-tests-pre-commit.sh`
-  - Result after commit `b909b4aa4`: backend tests passed; one existing
+  - Result after commit `9a3ce49ac`: backend tests passed; one existing
     Starlette/httpx2 deprecation warning.
 - PASS: `make validate-changed`
-  - Result after commit `b909b4aa4`: backend tests passed; one existing
+  - Result after commit `9a3ce49ac`: backend tests passed; one existing
     Starlette/httpx2 deprecation warning.
 
 ## Security Notes
