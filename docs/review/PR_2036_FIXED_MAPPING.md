@@ -60,6 +60,8 @@ Out of scope:
 - `13c220165` - `fix(ci): redact netrc parser diagnostics`
 - `987139987` - `fix(ci): require exact netrc proxy credentials`
 - `cddea300b` - `fix(ci): align proxy health parity with installs`
+- `c75462056` - `docs(review): map connector review fixes`
+- `991399674` - `docs(runbook): fix private proxy triage headings`
 
 ## Discussion Thread Pass
 
@@ -134,6 +136,12 @@ Evidence: `tests/test_private_python_proxy_health.py::test_main_default_projects
 Reason: `pydantic-core` remains intentionally out of the default fail-fast job so the health gate diagnoses proxy/mirror health instead of becoming another large-page timeout. It can still be supplied explicitly with `--project pydantic-core` for manual parity checks.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036#discussion_r3487806510
 
+Disposition: FIXED
+Commit: 991399674
+Evidence: `RUNBOOK_AGENT.md`; local `npx --yes markdownlint-cli2 RUNBOOK_AGENT.md docs/DEPENDENCY_MANAGEMENT.md docs/security/PRIVATE_PYTHON_PROXY_HEALTH_GATE.md` returned `Summary: 0 error(s)`.
+Reason: Closes the current-head Docs Phase1 markdownlint failure by converting private-proxy triage pseudo-headings from bold paragraphs to real markdown headings.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/28322567502/job/83906990954 -> 991399674
+
 ## Local Validation
 
 Full local `make verify` was not run under the operator-approved machine-heavy
@@ -164,6 +172,10 @@ Validated on the rebased mapping head:
     `tests/test_private_python_proxy_workflow_contract.py`, and
     `tests/test_python_supply_chain_controls.py`.
 - PASS: `pre-commit run --all-files`
+- PASS:
+  `npx --yes markdownlint-cli2 RUNBOOK_AGENT.md docs/DEPENDENCY_MANAGEMENT.md docs/security/PRIVATE_PYTHON_PROXY_HEALTH_GATE.md`
+  - Result after current-head Docs Phase1 failure triage: `Summary: 0
+    error(s)`.
 
 ## Security Notes
 
