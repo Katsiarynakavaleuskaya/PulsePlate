@@ -13,6 +13,7 @@ import pytest
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 
+from app.effective_routes import route_endpoint_for_path_method
 from app.middleware import api_tiers
 
 
@@ -105,15 +106,11 @@ class TestVIPCoverageBoostFixed:
         flakiness if the suite ends up with multiple loaded module instances.
         """
         app = _get_app()
-        endpoint = None
-        for route in getattr(app, "routes", []):
-            if getattr(route, "path", None) != "/api/v1/vip/regions":
-                continue
-            methods = getattr(route, "methods", None) or set()
-            if "GET" not in methods:
-                continue
-            endpoint = getattr(route, "endpoint", None)
-            break
+        endpoint = route_endpoint_for_path_method(
+            getattr(app, "routes", []),
+            "/api/v1/vip/regions",
+            "GET",
+        )
 
         assert endpoint is not None, "VIP regions route endpoint not found"
         monkeypatch.setitem(getattr(endpoint, "__globals__", {}), "get_available_regions", None)
