@@ -117,6 +117,12 @@ Reason: Closes current-head Docker build failure where pip 26 retried the alread
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2032 -> b11aaaaae56d611813a3a82819606295848d2baa
 
 Disposition: FIXED
+Commit: 40b85c12b635a39fe3aebafe714cc083a6983065
+Evidence: `tests/test_fitchef_structured_api.py`, focused `TestFitChefStructuredRuntimeCoverage` pytest, `rg` no `pytest.mark.asyncio` / `async def test_` in the selected file, exact backend-tests hook command, `ruff check`, `make validate-changed`, and `pre-commit run --all-files` all passed.
+Reason: Closes current-head CI `lint` failure from the pre-commit `backend-tests` hook, which runs selected tests without `pytest-asyncio`. The selected FitChef runtime coverage tests now remain synchronous and call runtime coroutines through `asyncio.run(...)`, matching the repository async-test hook policy.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2032 -> 40b85c12b635a39fe3aebafe714cc083a6983065
+
+Disposition: FIXED
 Commit: e1531a004f2d4fadbb98260e1b996e664f80fc15
 Evidence: Codex Security scan `4ccd9f2f-38f2-4f24-a669-8148cfea44d6` reported finding `csf_c6ff5339238662d1a8e3b294`; sealed report path `/private/var/folders/bw/12x002vn67v2bvjpbhbtm8480000gn/T/codex-security-scans-kx1ykF/dependency-cleanup-faraday-runtime-drift/f28857f55e010c85d94dc4bdea8869239f69a362_20260627T193438Z_sxo3irk9/report.md`; `app/bootstrap/pro_contracts.py` now requires same-endpoint existing PRO contract routes to preserve `require_pro_tier`; `tests/test_pro_contracts_bootstrap.py` adds a regression for direct same-endpoint routes without router-level dependencies. Focused `python -m pytest tests/test_pro_contracts_bootstrap.py tests/test_main_paywall_bootstrap.py -q` passed (`160 passed`, one known Starlette/httpx2 warning), `ruff check` passed, and `mypy app/bootstrap/pro_contracts.py --no-incremental --cache-dir=/dev/null` passed.
 Reason: Closes Codex Security finding "PRO contract bootstrap accepts same-endpoint routes without paid-tier dependency" by validating the effective route dependency metadata before treating existing PRO contract routes as canonical.
@@ -309,6 +315,10 @@ Reason: Starlette emits `StarletteDeprecationWarning` because `starlette.testcli
   `tests/test_install_locked_python_requirements.py tests/test_python_supply_chain_controls.py tests/test_trivy_ignore_policy_expiry.py`,
   `ruff check`, pre-push mypy, `make validate-changed`, and
   `pre-commit run --all-files`.
+- PASS: current-head lint failure regression:
+  `tests/test_fitchef_structured_api.py::TestFitChefStructuredRuntimeCoverage`
+  (`15 passed`), no selected async pytest functions, exact backend-tests hook
+  command, `make validate-changed`, and `pre-commit run --all-files`.
 - PASS: pre-push hooks during `git push`, including `mypy`, `pip-audit`,
   backend pre-push pytest, full-repo Bandit, and docker build test.
 - PASS: Codex Security finding fix focused pytest:
