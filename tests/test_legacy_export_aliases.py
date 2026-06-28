@@ -14,9 +14,9 @@ import pytest
 import app as app_pkg
 from app.effective_routes import (
     iter_effective_route_candidates,
+    route_endpoint,
     route_include_in_schema,
-    route_methods,
-    route_path,
+    route_matches_path_method,
     route_responses,
 )
 import app.main as app_main
@@ -29,7 +29,7 @@ def _matching_routes(path: str, method: str) -> list[object]:
     return [
         route
         for route in iter_effective_route_candidates(app_main.app.routes)
-        if route_path(route) == path and method in route_methods(route)
+        if route_matches_path_method(route, path, method)
     ]
 
 
@@ -53,17 +53,18 @@ def test_legacy_export_alias_routes_are_hidden_shim_owned_and_protected() -> Non
 
         assert len(matching_routes) == 1
         route = matching_routes[0]
-        endpoint = getattr(route, "endpoint", None)
+        endpoint = route_endpoint(route)
         assert getattr(endpoint, "__module__", "") == "app.routers.legacy_export_aliases"
         assert route_include_in_schema(route) is include_in_schema
         assert path not in openapi_paths
         assert 429 in route_responses(route)
         assert "request" in inspect.signature(endpoint).parameters
-        assert any(
-            _is_legacy_api_key_dependency(dependency) for dependency in route.dependencies
-        ), (
+        dependencies = getattr(route, "dependencies", None)
+        if dependencies is None:
+            dependencies = getattr(getattr(route, "original_route", None), "dependencies", [])
+        assert any(_is_legacy_api_key_dependency(dependency) for dependency in dependencies), (
             f"Expected legacy API-key dependency on {method} {path}, "
-            f"got {[getattr(dependency, 'dependency', dependency) for dependency in route.dependencies]}"
+            f"got {[getattr(dependency, 'dependency', dependency) for dependency in dependencies]}"
         )
 
 

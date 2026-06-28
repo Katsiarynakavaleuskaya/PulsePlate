@@ -433,7 +433,172 @@ jobs:
           set -euo pipefail
           python scripts/ci/check_pr_merge_readiness.py --event-path "$GITHUB_EVENT_PATH"
 
+  private_python_proxy_health:
+    name: Private Python proxy health
+    needs: [changes]
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+    env:
+      # PR diagnostic runs execute code from the pull request checkout. Keep
+      # proxy env empty until the guarded resolver selects vars-only values.
+      PULSEPLATE_PYTHON_INDEX_URL: ""
+      PULSEPLATE_PYTHON_TRUSTED_HOST: ""
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Setup Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Resolve PR diagnostic package proxy
+        if: github.event_name == 'pull_request'
+        env:
+          PULSEPLATE_PR_PYTHON_INDEX_URL: ${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}
+          PULSEPLATE_PR_PYTHON_TRUSTED_HOST: ${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
+        run: |
+          set -euo pipefail
+          resolved_index="${PULSEPLATE_PR_PYTHON_INDEX_URL:-}"
+          resolved_trusted_host="${PULSEPLATE_PR_PYTHON_TRUSTED_HOST:-}"
+          if [[ -z "$resolved_index" ]]; then
+            echo "::error::Set repository variable PULSEPLATE_PYTHON_INDEX_URL to a credential-free diagnostic package proxy for PR proxy health diagnostics."
+            exit 1
+          fi
+          case "$resolved_index" in
+            *://*@*)
+              echo "::error::Repository variable PULSEPLATE_PYTHON_INDEX_URL must be credential-free; use DEVPI_CI_USER/DEVPI_CI_PASSWORD secrets for authenticated package proxy access."
+              exit 1
+              ;;
+          esac
+          case "$resolved_index$resolved_trusted_host" in
+            *$'\n'*|*$'\r'*)
+              echo "::error::Resolved Python package proxy settings must be single-line values."
+              exit 1
+              ;;
+          esac
+          {
+            echo "PULSEPLATE_PYTHON_INDEX_URL=$resolved_index"
+            echo "PULSEPLATE_PYTHON_TRUSTED_HOST=$resolved_trusted_host"
+          } >> "$GITHUB_ENV"
+
+      - name: Resolve branch diagnostic package proxy
+        if: github.event_name != 'pull_request' && github.ref != 'refs/heads/main'
+        env:
+          PULSEPLATE_BRANCH_PYTHON_INDEX_URL: ${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}
+          PULSEPLATE_BRANCH_PYTHON_TRUSTED_HOST: ${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
+        run: |
+          set -euo pipefail
+          resolved_index="${PULSEPLATE_BRANCH_PYTHON_INDEX_URL:-}"
+          resolved_trusted_host="${PULSEPLATE_BRANCH_PYTHON_TRUSTED_HOST:-}"
+          if [[ -z "$resolved_index" ]]; then
+            echo "::error::Set repository variable PULSEPLATE_PYTHON_INDEX_URL to a credential-free diagnostic package proxy for branch proxy health diagnostics."
+            exit 1
+          fi
+          case "$resolved_index" in
+            *://*@*)
+              echo "::error::Repository variable PULSEPLATE_PYTHON_INDEX_URL must be credential-free; use DEVPI_CI_USER/DEVPI_CI_PASSWORD secrets for authenticated package proxy access."
+              exit 1
+              ;;
+          esac
+          case "$resolved_index$resolved_trusted_host" in
+            *$'\n'*|*$'\r'*)
+              echo "::error::Resolved Python package proxy settings must be single-line values."
+              exit 1
+              ;;
+          esac
+          {
+            echo "PULSEPLATE_PYTHON_INDEX_URL=$resolved_index"
+            echo "PULSEPLATE_PYTHON_TRUSTED_HOST=$resolved_trusted_host"
+          } >> "$GITHUB_ENV"
+
+      - name: Resolve protected main package proxy
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        env:
+          PULSEPLATE_PROTECTED_PYTHON_INDEX_URL: ${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}
+          PULSEPLATE_PROTECTED_PYTHON_TRUSTED_HOST: ${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
+        run: |
+          set -euo pipefail
+          resolved_index="${PULSEPLATE_PROTECTED_PYTHON_INDEX_URL:-}"
+          resolved_trusted_host="${PULSEPLATE_PROTECTED_PYTHON_TRUSTED_HOST:-}"
+          if [[ -z "$resolved_index" ]]; then
+            echo "::error::Set PULSEPLATE_PYTHON_INDEX_URL repository variable for protected proxy health diagnostics."
+            exit 1
+          fi
+          case "$resolved_index" in
+            *://*@*)
+              echo "::error::PULSEPLATE_PYTHON_INDEX_URL must be credential-free; use DEVPI_CI_USER/DEVPI_CI_PASSWORD secrets for authenticated package proxy access."
+              exit 1
+              ;;
+          esac
+          case "$resolved_index$resolved_trusted_host" in
+            *$'\n'*|*$'\r'*)
+              echo "::error::Resolved Python package proxy settings must be single-line values."
+              exit 1
+              ;;
+          esac
+          {
+            echo "PULSEPLATE_PYTHON_INDEX_URL=$resolved_index"
+            echo "PULSEPLATE_PYTHON_TRUSTED_HOST=$resolved_trusted_host"
+          } >> "$GITHUB_ENV"
+
+      - name: Configure protected main package proxy authentication
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        env:
+          DEVPI_CI_USER: ${{ secrets.DEVPI_CI_USER }}
+          DEVPI_CI_PASSWORD: ${{ secrets.DEVPI_CI_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${DEVPI_CI_USER:-}" && -z "${DEVPI_CI_PASSWORD:-}" ]]; then
+            exit 0
+          fi
+          if [[ -z "${DEVPI_CI_USER:-}" || -z "${DEVPI_CI_PASSWORD:-}" ]]; then
+            echo "::error::Set both DEVPI_CI_USER and DEVPI_CI_PASSWORD, or neither."
+            exit 1
+          fi
+          case "$DEVPI_CI_USER$DEVPI_CI_PASSWORD" in
+            *[[:space:]]*)
+              echo "::error::DEVPI_CI_USER and DEVPI_CI_PASSWORD must not contain whitespace."
+              exit 1
+              ;;
+          esac
+          case "$DEVPI_CI_USER" in
+            [Rr][Oo][Oo][Tt])
+              echo "::error::Root devpi credentials are forbidden for CI package probes."
+              exit 1
+              ;;
+          esac
+          if [[ -e "$HOME/.netrc" ]]; then
+            echo "::error::Refusing to overwrite an existing .netrc."
+            exit 1
+          fi
+          umask 077
+          printf 'machine packages.pulseplate.app\n  login %s\n  password %s\n' \
+            "$DEVPI_CI_USER" "$DEVPI_CI_PASSWORD" > "$HOME/.netrc"
+
+      - name: Check private Python proxy health
+        run: |
+          set -euo pipefail
+          python3 scripts/ci/check_private_python_proxy_health.py \
+            --requirements-file requirements.txt \
+            --requirements-file requirements-ci-lite.txt \
+            --requirements-file requirements-test.txt \
+            --python-version 3.11 \
+            --python-version 3.12 \
+            --python-version 3.13 \
+            --project aiosqlite \
+            --project cryptography \
+            --project requests \
+            --project pytest-xdist \
+            --project hypothesis \
+            --project pgvector
+
   lint:
+    needs: [private_python_proxy_health]
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -458,7 +623,7 @@ jobs:
           SKIP: no-commit-to-branch
 
   security:
-    needs: [changes]
+    needs: [changes, private_python_proxy_health]
     if: github.event_name != 'pull_request' || needs.changes.outputs.run_security == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -520,7 +685,7 @@ jobs:
 
   openapi-sync:
     name: OpenAPI sync (backend -> frontend artifacts)
-    needs: [changes]
+    needs: [changes, private_python_proxy_health]
     if: github.event_name != 'pull_request' || needs.changes.outputs.run_openapi_sync == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -565,7 +730,7 @@ jobs:
   # Tier 1 PR testing: critical smoke + contract/risk suites
   test-pr:
     if: github.event_name == 'pull_request' && needs.changes.outputs.run_backend_blocking == 'true'
-    needs: [changes, pr_scope_guard]
+    needs: [changes, pr_scope_guard, private_python_proxy_health]
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
@@ -839,7 +1004,7 @@ jobs:
   # Fast testing for feature branches (single Python version)
   test-feature:
     if: github.event_name == 'push' && (startsWith(github.ref, 'refs/heads/feat/') || startsWith(github.ref, 'refs/heads/fix/') || startsWith(github.ref, 'refs/heads/feature/')) && needs.changes.outputs.run_backend_blocking == 'true'
-    needs: [changes]
+    needs: [changes, private_python_proxy_health]
     runs-on: ubuntu-latest
     timeout-minutes: 90
     permissions:
@@ -1169,7 +1334,7 @@ jobs:
 
   # Comprehensive testing for main branch
   test-main:
-    needs: [changes]
+    needs: [changes, private_python_proxy_health]
     if: github.ref == 'refs/heads/main' || (github.event_name == 'pull_request' && needs.changes.outputs.run_main_ci_diagnostic == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: ${{ matrix.timeout-minutes }}
@@ -1232,14 +1397,14 @@ jobs:
       - name: Resolve protected package proxy
         if: github.event_name != 'pull_request'
         env:
-          PULSEPLATE_PROTECTED_PYTHON_INDEX_URL: ${{ secrets.PULSEPLATE_PYTHON_INDEX_URL || vars.PULSEPLATE_PYTHON_INDEX_URL }}
-          PULSEPLATE_PROTECTED_PYTHON_TRUSTED_HOST: ${{ secrets.PULSEPLATE_PYTHON_TRUSTED_HOST || vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
+          PULSEPLATE_PROTECTED_PYTHON_INDEX_URL: ${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}
+          PULSEPLATE_PROTECTED_PYTHON_TRUSTED_HOST: ${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
         run: |
           set -euo pipefail
           resolved_index="${PULSEPLATE_PROTECTED_PYTHON_INDEX_URL:-}"
           resolved_trusted_host="${PULSEPLATE_PROTECTED_PYTHON_TRUSTED_HOST:-}"
           if [[ -z "$resolved_index" ]]; then
-            echo "::error::Set PULSEPLATE_PYTHON_INDEX_URL secret or repository variable for protected test-main runs."
+            echo "::error::Set PULSEPLATE_PYTHON_INDEX_URL repository variable for protected test-main runs."
             exit 1
           fi
           case "$resolved_index" in
@@ -1444,7 +1609,7 @@ jobs:
   diff-coverage:
     name: diff-coverage
     if: github.event_name == 'pull_request' && needs.changes.outputs.run_backend_blocking == 'true'
-    needs: [changes, pr_scope_guard, test-pr]
+    needs: [changes, pr_scope_guard, private_python_proxy_health, test-pr]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:

@@ -395,25 +395,36 @@ interpreter itself. Evidence: `scripts/ci/check_local_verify_environment.py`.
 
 **Canonical contract:** see `docs/DEPENDENCY_MANAGEMENT.md` and `scripts/ci/install_locked_python_requirements.py`. Installs must use the approved proxy; public PyPI hosts are blocked for the canonical installer path.
 
-**Symptoms**
+### Symptoms
 
 - `curl` / browser to `…/simple/<package>/` returns **521** (often Cloudflare origin down) or **5xx**.
 - `pip` / `make venv-sync` reports *No matching distribution* for a pin that exists on PyPI.
 - CI Python setup fails at preflight or locked install.
 
-**Operator checks (dev-operator / SRE)**
+### Operator checks (dev-operator / SRE)
 
 1. Confirm env is set: `test -n "$PULSEPLATE_PYTHON_INDEX_URL"` and points to the approved devpi simple-index root. Canonical shape: `https://packages.pulseplate.app/root/pulseplate/+simple/`. Keep this URL credential-free; authenticated CI reads use rotated non-root `DEVPI_CI_USER` / `DEVPI_CI_PASSWORD` secrets through the temporary `.netrc` created by `.github/actions/python-setup/action.yml`. Root credentials are forbidden for CI.
 2. **HTTP probe** (bounded so a hung origin cannot stall triage): `curl -sS --connect-timeout 5 --max-time 10 -o /dev/null -w '%{http_code}\n' "${PULSEPLATE_PYTHON_INDEX_URL%/}/aiosqlite/"` — expect **200** when healthy. Use the **PEP 503 project page path** under the configured simple-index root (here `aiosqlite`) — probing the bare host or adding another `/simple` does not exercise the same project page that pip consumes and can return misleading results. For authenticated private-read checks, prefer the installer preflight below because it uses `.netrc` and redacts inline URL credentials defensively.
-3. **Preflight without full install:** from repo root with venv active,
+3. **Mirror parity health gate:** from repo root, run the stdlib-only checker before expensive local or CI dependency work:
+   `python3 scripts/ci/check_private_python_proxy_health.py --requirements-file requirements.txt --requirements-file requirements-ci-lite.txt --requirements-file requirements-test.txt --project aiosqlite --project cryptography --project requests --project pytest-xdist --project hypothesis --project pgvector`. It validates the credential-free canonical simple-index root, rejects public, wrong-root, or credentialed indexes, probes canonical project pages, and verifies exact locked pins are present across runtime, CI-lite, and test-only `ci-test` surfaces. In protected CI, authenticated project-page reads use `.netrc`; pull-request and non-main branch diagnostics use repository vars only. Failure classes are intentionally distinct:
+   - `tls_or_connect_timeout` / `origin_unhealthy` / HTTP 521/522: recover Cloudflare/DigitalOcean/devpi origin first.
+   - `empty_project_page` / `simple_page_malformed`: inspect devpi project-page generation or mirror sync.
+   - `mirror_lag_exact_pin_missing`: sync the mirror; the emergency wheel manifest is allowed only as a time-boxed exact-pin bridge.
+   - `missing_exact_pin_in_requirements`: fix the checker input list or lockfile selection.
+   - `auth_or_access_denied`: fix non-root `.netrc`/devpi read credentials; do not embed auth in `PULSEPLATE_PYTHON_INDEX_URL`.
+   - `project_page_not_found`: verify the normalized project page and mirror sync for that package.
+   - `redirect_not_allowed`: fix DNS/devpi route drift so the canonical simple root is served directly.
+   - `http_error`: inspect Cloudflare/origin logs for non-2xx package-host responses not covered above.
+   - `simple_page_truncated`: use a smaller representative fast-gate package or investigate oversized mirror pages before raising timeouts.
+4. **Preflight without full install:** from repo root with venv active,
    `python3 scripts/ci/install_locked_python_requirements.py --preflight-only`
    (reads the same index + optional `scripts/ci/emergency_python_wheels.json` per policy).
-4. **Scope of `scripts/ci/emergency_python_wheels.json`** — this manifest is **not a 521 fallback**. It is a **mirror-lag fallback for the exact, listed wheels only** (sha256-only, `files.pythonhosted.org` URLs, TTL `expires_at`). The installer (`install_from_proxy_with_emergency_fallback`) retries with the **same** `--index-url` and only adds `--find-links` for wheels whose exact pins are listed here, so any unlisted dependency in `requirements*.txt` / `requirements-ci-lite.txt` still requires a working `--index-url`. Therefore:
+5. **Scope of `scripts/ci/emergency_python_wheels.json`** — this manifest is **not a 521 fallback**. It is a **mirror-lag fallback for the exact, listed wheels only** (sha256-only, `files.pythonhosted.org` URLs, TTL `expires_at`). The installer (`install_from_proxy_with_emergency_fallback`) retries with the **same** `--index-url` and only adds `--find-links` for wheels whose exact pins are listed here, so any unlisted dependency in `requirements*.txt` / `requirements-ci-lite.txt` still requires a working `--index-url`. Therefore:
    - When the proxy returns 200 but **lags** for one of the listed pins → the emergency manifest can keep installs going; this is the supported case.
    - When the proxy itself is fully unhealthy (true Cloudflare 521 / origin down) → the emergency manifest **cannot keep installs going on its own** for unlisted pins. Do **not** present it as a "521 fallback" to operators. The only correct operator paths in that case are: (a) restore the *packages* origin per the SRE/infra section below, or (b) use an out-of-band complete offline wheelhouse (not part of this PR's scope). This is also the reason `ledger-p1-private-pypi-proxy-mirror-parity` exists — see `docs/roadmap/BACKLOG_LEDGER.md`.
    - Any change to the manifest must pass `tests/test_python_supply_chain_controls.py` and installer tests; security review applies.
 
-**SRE / infra (scoped fix for 521)**
+### SRE / infra (scoped fix for 521)
 
 > **Important hostname split.** A 521 on `pulseplate.app` (the public marketing
 > site) may be **intentional release gating** — the operator can hold that origin

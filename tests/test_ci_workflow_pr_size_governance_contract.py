@@ -1952,19 +1952,13 @@ def test_main_branch_python_sharded_runner_preserves_required_check_policy() -> 
     )
     assert protected_proxy_step["if"] == "github.event_name != 'pull_request'"
     assert protected_proxy_step["env"] == {
-        "PULSEPLATE_PROTECTED_PYTHON_INDEX_URL": (
-            "${{ secrets.PULSEPLATE_PYTHON_INDEX_URL || vars.PULSEPLATE_PYTHON_INDEX_URL }}"
-        ),
-        "PULSEPLATE_PROTECTED_PYTHON_TRUSTED_HOST": (
-            "${{ secrets.PULSEPLATE_PYTHON_TRUSTED_HOST || vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}"
-        ),
+        "PULSEPLATE_PROTECTED_PYTHON_INDEX_URL": "${{ vars.PULSEPLATE_PYTHON_INDEX_URL }}",
+        "PULSEPLATE_PROTECTED_PYTHON_TRUSTED_HOST": ("${{ vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}"),
     }
     protected_proxy_script = protected_proxy_step["run"]
     assert "PULSEPLATE_PROTECTED_PYTHON_INDEX_URL" in protected_proxy_script
     assert 'if [[ -z "$resolved_index" ]]; then' in protected_proxy_script
-    assert "Set PULSEPLATE_PYTHON_INDEX_URL secret or repository variable" in (
-        protected_proxy_script
-    )
+    assert "Set PULSEPLATE_PYTHON_INDEX_URL repository variable" in protected_proxy_script
     assert "exit 1" in protected_proxy_script
     assert "*://*@*)" in protected_proxy_script
     assert "PULSEPLATE_PYTHON_INDEX_URL must be credential-free" in protected_proxy_script
@@ -1972,6 +1966,14 @@ def test_main_branch_python_sharded_runner_preserves_required_check_policy() -> 
     assert "*$'\\n'*|*$'\\r'*)" in protected_proxy_script
     assert "must be single-line values" in protected_proxy_script
     assert "$GITHUB_ENV" in protected_proxy_script
+
+    setup_python_step = next(step for step in steps if step["name"] == "Setup Python environment")
+    assert setup_python_step["env"] == {
+        "DEVPI_CI_USER": "${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_USER || '' }}",
+        "DEVPI_CI_PASSWORD": (
+            "${{ github.event_name != 'pull_request' && secrets.DEVPI_CI_PASSWORD || '' }}"
+        ),
+    }
 
     matrix = test_main["strategy"]["matrix"]["include"]
     assert isinstance(matrix, list)

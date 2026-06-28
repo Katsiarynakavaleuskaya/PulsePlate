@@ -826,6 +826,42 @@ def test_repo_ci_lite_main_mirror_lag_emergency_wheels_are_selected(
     } == expected_artifacts
 
 
+@pytest.mark.parametrize(
+    ("python_tag", "expected_fragment"),
+    [
+        ("cp311", "pydantic_core-2.46.4-cp311-cp311-manylinux_2_17_x86_64"),
+        ("cp312", "pydantic_core-2.46.4-cp312-cp312-manylinux_2_17_x86_64"),
+        ("cp313", "pydantic_core-2.46.4-cp313-cp313-manylinux_2_17_x86_64"),
+    ],
+)
+def test_repo_pydantic_core_emergency_fallback_covers_main_python_matrix(
+    monkeypatch: pytest.MonkeyPatch,
+    python_tag: str,
+    expected_fragment: str,
+) -> None:
+    monkeypatch.setattr(
+        installer,
+        "_supported_wheel_tags_for_python",
+        lambda _python_executable: {
+            f"{python_tag}-{python_tag}-manylinux_2_17_x86_64",
+            f"{python_tag}-{python_tag}-manylinux2014_x86_64",
+        },
+    )
+
+    artifacts = installer.emergency_artifacts_requested_by_surfaces(
+        requirement_files=[REPO_ROOT / "requirements-ci-lite.txt"],
+        constraints_file=REPO_ROOT / "constraints.txt",
+        manifest_path=_repo_emergency_manifest_path(),
+        python_executable=f"/opt/python/{python_tag}/bin/python",
+    )
+    pydantic_core_artifacts = [
+        artifact for artifact in artifacts if artifact["package"] == "pydantic-core"
+    ]
+
+    assert [artifact["version"] for artifact in pydantic_core_artifacts] == ["2.46.4"]
+    assert expected_fragment in pydantic_core_artifacts[0]["filename"]
+
+
 def test_emergency_artifacts_requested_by_surfaces_filters_incompatible_wheel_tags(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

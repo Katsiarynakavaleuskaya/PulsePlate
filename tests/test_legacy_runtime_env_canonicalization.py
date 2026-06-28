@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import importlib
+import sys
 from types import ModuleType
 
 import dotenv
@@ -28,11 +29,21 @@ def _reload_legacy_app() -> ModuleType:
 def _reload_canonical_main() -> ModuleType:
     """Reload canonical bootstrap after env changes."""
 
-    import app.main as app_main
+    import app as app_pkg
     import legacy_app
 
     importlib.reload(legacy_app)
+    if "app.main" not in sys.modules and hasattr(app_pkg, "main"):
+        delattr(app_pkg, "main")
+    app_main = importlib.import_module("app.main")
     return importlib.reload(app_main)
+
+
+def _has_test_health_route(app_module: ModuleType) -> bool:
+    return any(
+        route_path(route) == "/api/v1/test/health"
+        for route in iter_effective_route_candidates(getattr(app_module.app, "routes", []))
+    )
 
 
 @pytest.fixture(autouse=True)
@@ -76,17 +87,11 @@ def test_canonical_bootstrap_staging_test_router_respects_environment_flag(
     monkeypatch.setenv("ENVIRONMENT", "staging")
 
     app_module = _reload_canonical_main()
-    assert not any(
-        route_path(route) == "/api/v1/test/health"
-        for route in iter_effective_route_candidates(getattr(app_module.app, "routes", []))
-    )
+    assert not _has_test_health_route(app_module)
 
     monkeypatch.setenv("ENABLE_TEST_ROUTES", "1")
     app_module = _reload_canonical_main()
-    assert any(
-        route_path(route) == "/api/v1/test/health"
-        for route in iter_effective_route_candidates(getattr(app_module.app, "routes", []))
-    )
+    assert _has_test_health_route(app_module)
 
 
 def test_debug_env_uses_environment_when_app_env_missing(

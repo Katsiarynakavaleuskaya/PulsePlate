@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 import app.main as app_main
 from app.bootstrap.route_family import route_has_dependency_call
 from app.effective_routes import (
+    is_api_route_candidate,
     iter_effective_route_candidates,
     route_include_in_schema,
     route_methods,
@@ -48,7 +49,7 @@ def _test_routes(target_app: FastAPI) -> list[object]:
     return [
         route
         for route in iter_effective_route_candidates(target_app.routes)
-        if route_path(route) in _EXPECTED_TEST_ROUTE_PATHS
+        if is_api_route_candidate(route) and route_path(route) in _EXPECTED_TEST_ROUTE_PATHS
     ]
 
 

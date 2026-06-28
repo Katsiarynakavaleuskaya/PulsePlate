@@ -186,6 +186,11 @@ Canonical contract for shared CI/Docker/bootstrap paths:
 
 - `PULSEPLATE_PYTHON_INDEX_URL` is mandatory and must point to the approved private package proxy simple-index root. For devpi this is the credential-free URL `https://packages.pulseplate.app/root/pulseplate/+simple/`.
 - GitHub Actions authenticated installs must keep the index URL credential-free and use rotated non-root CI read credentials through `.netrc`. The composite `python-setup` action creates that temporary `.netrc` only when both `DEVPI_CI_USER` and `DEVPI_CI_PASSWORD` secrets are present, then removes it with an `always()` cleanup step.
+- The early proxy health gate uses repository `vars` only for pull-request and
+  non-main branch diagnostics. On `main` pushes, it may create a temporary
+  `.netrc` from non-root `DEVPI_CI_USER` / `DEVPI_CI_PASSWORD` secrets before
+  probing project pages, so the gate exercises the same authenticated read
+  boundary without embedding credentials in the URL.
 - Root credentials are forbidden for CI. The devpi root password is an operator break-glass/admin credential only and must be rotated out of band if exposed.
 - Repository variables must stay credential-free. They may hold only non-secret diagnostic package-proxy values; never store Basic Auth URLs, upload credentials, or root credentials in repository `vars`.
 - `PULSEPLATE_PYTHON_TRUSTED_HOST` is optional and should only be set when the approved proxy requires it. Keep it unset for the `packages.pulseplate.app` devpi host while normal TLS verification succeeds.
@@ -205,6 +210,52 @@ Canonical contract for shared CI/Docker/bootstrap paths:
   so the backend image stays on the Docker runtime surface instead of `requirements-ci-lite.txt`.
 
 **Note**: The temporary wheelhouse is no longer the final control. The repo now fails closed unless dependency resolution goes through the approved private proxy. Artifact quarantine and promotion review still live outside the repo as infrastructure controls.
+
+### Private proxy health and mirror parity gate
+
+`scripts/ci/check_private_python_proxy_health.py` is the cheap, stdlib-only
+health gate for the approved private proxy. It runs before dependency-heavy CI
+jobs that call `.github/actions/python-setup`, because that composite action
+itself depends on the proxy being healthy.
+
+The gate checks the same contract that pip consumes:
+
+- `PULSEPLATE_PYTHON_INDEX_URL` must be a credential-free HTTPS simple-index
+  root for `packages.pulseplate.app`.
+- Public PyPI/TestPyPI/pythonhosted hosts and inline Basic Auth URLs are
+  rejected.
+- The probe uses canonical project pages such as
+  `https://packages.pulseplate.app/root/pulseplate/+simple/aiosqlite/`, not the
+  host root, marketing apex, or a second appended `/simple`.
+- Representative project pages must be non-empty Simple API pages and include
+  exact locked artifacts from the configured requirements files. The CI gate
+  includes `requirements.txt`, `requirements-ci-lite.txt`, and
+  `requirements-test.txt` because `ci-test` jobs install both CI-lite and
+  test-only pinned surfaces.
+- `origin_unhealthy` / timeout / HTTP 521/522 means operator recovery for
+  Cloudflare/DigitalOcean/devpi, not a repo lockfile or Starlette/httpx fix.
+- `mirror_lag_exact_pin_missing` means the origin is reachable but the mirror is
+  missing an exact locked artifact; emergency wheels remain a time-boxed bridge
+  only for listed exact pins.
+- `auth_or_access_denied` means the project page requires credentials or the
+  CI `.netrc` principal lacks read access; rotate/fix non-root devpi CI
+  credentials instead of embedding credentials in the URL.
+- `project_page_not_found` means the package is not present at the canonical
+  devpi project page; verify the normalized project name and mirror sync.
+- `redirect_not_allowed` means the proxy path drifted or is redirecting away
+  from the approved simple root; fix DNS/devpi routing rather than following
+  the redirect.
+- `http_error` covers non-2xx HTTP responses outside the explicit origin/auth
+  classes; inspect edge/origin logs for the packages hostname.
+- `empty_project_page` / `simple_page_malformed` means the project page is
+  reachable but not a usable Simple API project page; inspect devpi project-page
+  generation and mirror state.
+- `simple_page_truncated` means the page exceeded the bounded read before the
+  exact pin was observed; choose a smaller representative package for the fast
+  gate or investigate oversized mirror pages.
+- `missing_exact_pin_in_requirements` means the probe list and requirements
+  files disagree; update the checker inputs instead of treating it as an origin
+  outage.
 
 ## Canonical Clean-Clone Bootstrap For Local Verify
 
