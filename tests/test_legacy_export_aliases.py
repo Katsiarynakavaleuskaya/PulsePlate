@@ -12,6 +12,13 @@ from fastapi.testclient import TestClient
 import pytest
 
 import app as app_pkg
+from app.effective_routes import (
+    iter_effective_route_candidates,
+    route_include_in_schema,
+    route_methods,
+    route_path,
+    route_responses,
+)
 import app.main as app_main
 import legacy_app
 
@@ -21,9 +28,8 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 def _matching_routes(path: str, method: str) -> list[object]:
     return [
         route
-        for route in app_main.app.routes
-        if getattr(route, "path", None) == path
-        and method in (getattr(route, "methods", None) or set())
+        for route in iter_effective_route_candidates(app_main.app.routes)
+        if route_path(route) == path and method in route_methods(route)
     ]
 
 
@@ -49,9 +55,9 @@ def test_legacy_export_alias_routes_are_hidden_shim_owned_and_protected() -> Non
         route = matching_routes[0]
         endpoint = getattr(route, "endpoint", None)
         assert getattr(endpoint, "__module__", "") == "app.routers.legacy_export_aliases"
-        assert getattr(route, "include_in_schema", True) is include_in_schema
+        assert route_include_in_schema(route) is include_in_schema
         assert path not in openapi_paths
-        assert 429 in getattr(route, "responses", {})
+        assert 429 in route_responses(route)
         assert "request" in inspect.signature(endpoint).parameters
         assert any(
             _is_legacy_api_key_dependency(dependency) for dependency in route.dependencies
@@ -174,15 +180,15 @@ def test_legacy_export_alias_route_resolves_rebound_helper(
 def test_legacy_export_aliases_absent_when_export_gate_is_disabled() -> None:
     code = """
 import json
+from app.effective_routes import iter_effective_route_candidates, route_methods, route_path
 import app.main as app_main
 
 counts = {}
 for path, method, _include in app_main._LEGACY_EXPORT_ALIAS_ROUTE_SPECS:
     counts[f"{method} {path}"] = sum(
         1
-        for route in app_main.app.routes
-        if getattr(route, "path", None) == path
-        and method in (getattr(route, "methods", None) or set())
+        for route in iter_effective_route_candidates(app_main.app.routes)
+        if route_path(route) == path and method in route_methods(route)
     )
 print(json.dumps({"enabled": app_main._legacy_module.EXPORTS_ENABLED, "counts": counts}))
 """

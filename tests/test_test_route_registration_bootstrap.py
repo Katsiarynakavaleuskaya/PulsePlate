@@ -10,6 +10,12 @@ from fastapi.testclient import TestClient
 
 import app.main as app_main
 from app.bootstrap.route_family import route_has_dependency_call
+from app.effective_routes import (
+    iter_effective_route_candidates,
+    route_include_in_schema,
+    route_methods,
+    route_path,
+)
 
 _EXPECTED_TEST_ROUTE_KEYS = {
     (path, method) for path, method, _include_in_schema in app_main._TEST_ROUTE_SPECS
@@ -38,19 +44,19 @@ def _set_runtime_env(
         monkeypatch.setenv("ENABLE_TEST_ROUTES", enable_test_routes)
 
 
-def _test_routes(target_app: FastAPI) -> list[APIRoute]:
+def _test_routes(target_app: FastAPI) -> list[object]:
     return [
         route
-        for route in target_app.routes
-        if isinstance(route, APIRoute) and str(route.path) in _EXPECTED_TEST_ROUTE_PATHS
+        for route in iter_effective_route_candidates(target_app.routes)
+        if route_path(route) in _EXPECTED_TEST_ROUTE_PATHS
     ]
 
 
 def _registered_test_route_counts(target_app: FastAPI) -> Counter[tuple[str, str]]:
     counts: Counter[tuple[str, str]] = Counter()
     for route in _test_routes(target_app):
-        for method in getattr(route, "methods", None) or set():
-            key = (str(route.path), str(method).upper())
+        for method in route_methods(route):
+            key = (route_path(route), method)
             if key in _EXPECTED_TEST_ROUTE_KEYS:
                 counts[key] += 1
     return counts
@@ -62,7 +68,7 @@ def _assert_test_routes_registered_once(target_app: FastAPI) -> None:
     assert all(count == 1 for count in counts.values())
 
     for route in _test_routes(target_app):
-        assert route.include_in_schema is False
+        assert route_include_in_schema(route) is False
         assert route_has_dependency_call(route, app_main.ensure_test_routes_non_production)
 
 

@@ -15,6 +15,7 @@ from fastapi.testclient import TestClient
 
 import app
 from app.bootstrap.metrics import register_metrics
+from app.effective_routes import iter_effective_route_candidates, route_methods, route_path
 
 # Use conftest.py client fixture (don't define local one to avoid bypassing test setup)
 
@@ -45,9 +46,8 @@ def _get_metrics_get_routes(app_instance: FastAPI) -> list[object]:
 
     return [
         route
-        for route in app_instance.routes
-        if getattr(route, "path", None) == "/metrics"
-        and "GET" in (getattr(route, "methods", None) or set())
+        for route in iter_effective_route_candidates(app_instance.routes)
+        if route_path(route) == "/metrics" and "GET" in route_methods(route)
     ]
 
 
@@ -490,6 +490,50 @@ def test_metrics_route_template_normalizes_trailing_slash_before_cache() -> None
     assert _route_template(request) == "/api/v1/slash"
 
 
+def test_metrics_route_template_cache_is_app_scoped() -> None:
+    from starlette.requests import Request
+
+    import app.middleware.metrics as metrics_mod
+
+    with metrics_mod._ROUTE_CACHE_LOCK:
+        metrics_mod._ROUTE_CACHE.clear()
+
+    async def _shared_route() -> dict[str, str]:
+        return {"status": "ok"}
+
+    first_app = FastAPI()
+    second_app = FastAPI()
+    first_app.add_api_route("/api/v1/cache/first", _shared_route, methods=["GET"])
+    second_app.add_api_route("/api/v1/cache/second", _shared_route, methods=["GET"])
+
+    def _request(app_instance: FastAPI, path: str) -> Request:
+        return Request(
+            {
+                "type": "http",
+                "method": "GET",
+                "path": path,
+                "raw_path": path.encode(),
+                "query_string": b"",
+                "headers": [],
+                "client": ("testclient", 123),
+                "server": ("testserver", 80),
+                "scheme": "http",
+                "http_version": "1.1",
+                "app": app_instance,
+                "endpoint": _shared_route,
+            }
+        )
+
+    assert (
+        metrics_mod._route_template(_request(first_app, "/api/v1/cache/first"))
+        == "/api/v1/cache/first"
+    )
+    assert (
+        metrics_mod._route_template(_request(second_app, "/api/v1/cache/second"))
+        == "/api/v1/cache/second"
+    )
+
+
 def test_metrics_middleware_noop_when_metrics_unavailable(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -648,7 +692,7 @@ def test_route_cache_disabled_when_max_size_zero(monkeypatch: pytest.MonkeyPatch
     monkeypatch.setattr(metrics_mod, "ROUTE_CACHE_MAX_SIZE", 0)
 
     # Call _route_cache_set (should return early at line 193)
-    metrics_mod._route_cache_set(123, "/api/v1/test")
+    metrics_mod._route_cache_set((1, 123), "/api/v1/test")
 
     # Cache should remain empty
     stats = metrics_mod._route_cache_stats()
@@ -676,17 +720,17 @@ def test_route_cache_ttl_expiry(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(metrics_mod, "_now_monotonic", lambda: t["v"])
 
     # Add entry at t=1000.0
-    endpoint_id = 999
-    metrics_mod._route_cache_set(endpoint_id, "/api/v1/test")
+    cache_key = (1, 999)
+    metrics_mod._route_cache_set(cache_key, "/api/v1/test")
 
     # Should be cached (delta=0.0 < 0.01)
-    assert metrics_mod._route_cache_get(endpoint_id) == "/api/v1/test"
+    assert metrics_mod._route_cache_get(cache_key) == "/api/v1/test"
 
     # Advance time beyond TTL (delta=0.02 > 0.01)
     t["v"] = 1000.02
 
     # Should be expired (returns None, increments _ROUTE_CACHE_EXPIRED)
-    assert metrics_mod._route_cache_get(endpoint_id) is None
+    assert metrics_mod._route_cache_get(cache_key) is None
     stats = metrics_mod._route_cache_stats()
     assert stats["expired"] >= 1
 
@@ -708,9 +752,9 @@ def test_route_cache_eviction_on_overflow(monkeypatch: pytest.MonkeyPatch) -> No
         metrics_mod._ROUTE_CACHE.clear()
 
     # Add 3 entries (should evict first)
-    metrics_mod._route_cache_set(1, "/route1")
-    metrics_mod._route_cache_set(2, "/route2")
-    metrics_mod._route_cache_set(3, "/route3")  # Should trigger eviction
+    metrics_mod._route_cache_set((1, 1), "/route1")
+    metrics_mod._route_cache_set((1, 2), "/route2")
+    metrics_mod._route_cache_set((1, 3), "/route3")  # Should trigger eviction
 
     # Check stats
     stats = metrics_mod._route_cache_stats()

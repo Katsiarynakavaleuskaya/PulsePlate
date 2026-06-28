@@ -10,6 +10,11 @@ from httpx import Response
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 import pytest
 
+from app.effective_routes import (
+    iter_effective_route_candidates,
+    route_include_in_schema,
+    route_path,
+)
 from app.middleware.api_tiers import SubscriptionTier, TEST_KEY_VIP
 from app.schemas.creative_research import (
     CreativeResearchPilotInput,
@@ -138,8 +143,8 @@ def test_creative_research_route_is_hidden_from_openapi() -> None:
     from app.main import app
 
     runtime_routes = {
-        str(getattr(route, "path", "")): getattr(route, "include_in_schema", True)
-        for route in app.routes
+        route_path(route): route_include_in_schema(route)
+        for route in iter_effective_route_candidates(app.routes)
     }
 
     assert ROUTE_PATH in runtime_routes

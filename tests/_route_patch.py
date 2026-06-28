@@ -19,6 +19,13 @@ from typing import Any, Callable, Iterable, cast
 
 import pytest
 
+from app.effective_routes import (
+    iter_effective_route_candidates,
+    route_endpoint,
+    route_methods,
+    route_path,
+)
+
 
 @dataclass(frozen=True)
 class RouteMatch:
@@ -43,19 +50,14 @@ def find_route_endpoint(*, app: Any, path: str, method: str) -> Callable[..., An
     wanted_method = _norm_method(method)
 
     matches: list[RouteMatch] = []
-    for r in getattr(app, "routes", []) or []:
-        r_path = getattr(r, "path", None)
-        r_methods = getattr(r, "methods", None)
-        r_endpoint = getattr(r, "endpoint", None)
-
+    for r in iter_effective_route_candidates(getattr(app, "routes", []) or []):
+        r_path = route_path(r)
         if r_path != path:
             continue
-        if not r_methods:
-            continue
-
-        methods = tuple(sorted({_norm_method(m) for m in cast(Iterable[str], r_methods)}))
+        methods = tuple(sorted({_norm_method(m) for m in route_methods(r)}))
         if wanted_method not in methods:
             continue
+        r_endpoint = route_endpoint(r)
         if not callable(r_endpoint):
             continue
 

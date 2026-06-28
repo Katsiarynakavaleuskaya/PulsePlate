@@ -8,6 +8,8 @@ import dotenv
 import pytest
 from fastapi import HTTPException
 
+from app.effective_routes import iter_effective_route_candidates, route_path
+
 
 def _reload_legacy_app() -> ModuleType:
     """Reload legacy_app after env changes.
@@ -75,15 +77,15 @@ def test_canonical_bootstrap_staging_test_router_respects_environment_flag(
 
     app_module = _reload_canonical_main()
     assert not any(
-        getattr(route, "path", "") == "/api/v1/test/health"
-        for route in getattr(app_module.app, "routes", [])
+        route_path(route) == "/api/v1/test/health"
+        for route in iter_effective_route_candidates(getattr(app_module.app, "routes", []))
     )
 
     monkeypatch.setenv("ENABLE_TEST_ROUTES", "1")
     app_module = _reload_canonical_main()
     assert any(
-        getattr(route, "path", "") == "/api/v1/test/health"
-        for route in getattr(app_module.app, "routes", [])
+        route_path(route) == "/api/v1/test/health"
+        for route in iter_effective_route_candidates(getattr(app_module.app, "routes", []))
     )
 
 
