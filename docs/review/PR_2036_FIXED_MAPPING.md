@@ -70,6 +70,7 @@ Out of scope:
 - `505693623` - `docs(review): remove local path evidence`
 - `c82e9a408` - `test(api): use effective routes for runtime env guard`
 - `46052bf4c` - `test(api): use effective routes in remaining main guards`
+- `b909b4aa4` - `test(api): make creative runtime tests hook compatible`
 
 ## Discussion Thread Pass
 
@@ -182,6 +183,12 @@ Evidence: `tests/test_creative_research_pilot_api.py` and `tests/test_vip_produc
 Reason: Closes the next current-head `test-main (3.11, 60)` failure by using effective route helpers for the remaining raw route-table assertions in creative-research and VIP weekly-plan tests while preserving the current-main VIP regions fix. This remains test-only and does not change runtime route registration.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/28328650754/job/83922958256 -> 46052bf4c
 
+Disposition: FIXED
+Commit: b909b4aa4
+Evidence: `tests/test_creative_research_pilot_api.py`.
+Reason: Closes the fresh rebased `lint` failure by converting creative-research runtime `async def` tests to sync tests using `asyncio.run(...)`, matching the repo pre-commit policy for tests selected by `scripts/run-backend-tests-pre-commit.sh`. This is test-only and does not change runtime behavior.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/28329596895/job/83925422497 -> b909b4aa4
+
 ## Local Validation
 
 Full local `make verify` was not run under the operator-approved machine-heavy
@@ -282,6 +289,18 @@ Validated on the rebased mapping head:
     `tests/test_vip_production_simple.py`, and the PR proxy/route guard suite.
     `tests/test_vip_coverage_boost_fixed.py` was still covered by the focused
     pytest command above.
+- PASS:
+  `.venv/bin/python -m pytest -q tests/test_creative_research_pilot_api.py`
+  - Result after commit `b909b4aa4`: `23 passed`; one existing Starlette/httpx2
+    deprecation warning.
+- PASS: `.venv/bin/ruff check tests/test_creative_research_pilot_api.py`
+- PASS:
+  `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")" BRANCH_DIFF_MODE=1 bash scripts/run-backend-tests-pre-commit.sh`
+  - Result after commit `b909b4aa4`: backend tests passed; one existing
+    Starlette/httpx2 deprecation warning.
+- PASS: `make validate-changed`
+  - Result after commit `b909b4aa4`: backend tests passed; one existing
+    Starlette/httpx2 deprecation warning.
 
 ## Security Notes
 
