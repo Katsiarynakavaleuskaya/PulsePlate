@@ -185,6 +185,8 @@ def test_schemas_reject_control_char_paths_and_chain_of_thought_markers() -> Non
     ]["not"]["pattern"]
     for pattern in (feedback_leak_pattern, launch_reason_pattern, launch_excerpt_pattern):
         assert re.search(pattern, "chain-of-thought must never be serialized")
+        assert re.search(pattern, "local runner path /home/runner/work/repo/.env")
+        assert re.search(pattern, "windows path C:\\Users\\example\\secret.txt")
 
 
 def test_feedback_disposition_and_launch_packets_validate() -> None:
@@ -269,6 +271,7 @@ def test_json_duplicate_keys_and_unknown_fields_are_rejected(tmp_path: Path) -> 
         "raw_body: please keep the original review body",
         "credential GH_TOKEN leaked in review text",
         "see local file /Users/example/private.txt",
+        "see local CI file /home/runner/work/repo/.env",
     ],
 )
 def test_raw_body_secret_and_local_path_leakage_are_rejected(excerpt: str) -> None:
@@ -301,6 +304,45 @@ def test_head_sha_drift_blocks_repair_launch() -> None:
         match="head SHA drift is present",
     ):
         build_creative_code_repair_launch_packet(packet)
+
+
+def test_disposition_packet_rejects_drifted_repair_records() -> None:
+    packet = build_creative_code_review_disposition_packet(
+        feedback_records=[classify_feedback_record(_record())],
+        source_context=_source_context(),
+        expected_head_sha="a" * 40,
+        actual_head_sha="a" * 40,
+    )
+    packet["actual_head_sha"] = "b" * 40
+    packet["head_sha_drift"] = True
+    packet["packet_id"] = "pending"
+    packet["idempotency_key"] = "pending"
+    packet["packet_id"], packet["idempotency_key"], _fingerprint = (
+        disposition_contract_cli._packet_identity(packet)
+    )
+
+    with pytest.raises(
+        CreativeCodeReviewDispositionContractError,
+        match="classification must be head_sha_drift",
+    ):
+        validate_creative_code_review_disposition_packet(packet)
+
+
+def test_repair_launch_packet_rejects_nested_source_packet_mismatch() -> None:
+    packet = build_creative_code_review_disposition_packet(
+        feedback_records=[classify_feedback_record(_record())],
+        source_context=_source_context(),
+        expected_head_sha="a" * 40,
+        actual_head_sha="a" * 40,
+    )
+    launch = build_creative_code_repair_launch_packet(packet)
+    launch["target_pr1_specification"]["source_packet_id"] = "different-packet"
+
+    with pytest.raises(
+        CreativeCodeReviewDispositionContractError,
+        match="source_packet_id must match source_disposition_packet_id",
+    ):
+        validate_creative_code_repair_launch_packet(launch)
 
 
 def test_local_pr_review_context_collect_classify_launch_and_summarize(
@@ -568,6 +610,8 @@ def test_collect_stdout_rejects_unsafe_source_context_before_printing(
     captured = capsys.readouterr()
     assert "GH_TOKEN" not in captured.out
     assert "creative_code_review_feedback_collection" not in captured.out
+    assert "GH_TOKEN" not in captured.err
+    assert "creative_code_review_feedback_collection" not in captured.err
 
 
 @pytest.mark.parametrize(

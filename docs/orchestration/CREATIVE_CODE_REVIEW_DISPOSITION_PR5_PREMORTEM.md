@@ -113,8 +113,10 @@ Closure:
   repair: `scripts/orchestration/creative_code_review_disposition_contract.py:1003`.
 - [x] FIXED. Repair launch raises on drift:
   `scripts/orchestration/creative_code_review_disposition_contract.py:1160`.
-- [x] TESTED. Drift blocks launch:
-  `tests/test_creative_code_review_disposition.py:209`.
+- [x] TESTED. Drift blocks launch and drifted repair records are rejected:
+  `test_head_sha_drift_blocks_repair_launch` and
+  `test_disposition_packet_rejects_drifted_repair_records` in
+  `tests/test_creative_code_review_disposition.py`.
 
 ### PM-PR5-004 Artifact Output Escapes Local Artifact Root
 
@@ -136,7 +138,8 @@ Closure:
 - [x] FIXED. Text output rejects final symlinks and uses temp-and-replace:
   `scripts/orchestration/creative_code_review_disposition.py:129`.
 - [x] TESTED. Existing symlink output is rejected and the outside target remains
-  unchanged: `tests/test_creative_code_review_disposition.py:327`.
+  unchanged: `test_summary_output_rejects_existing_symlink` in
+  `tests/test_creative_code_review_disposition.py`.
 
 ### PM-PR5-005 Multi-Candidate Launch Identity Drift
 

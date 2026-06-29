@@ -50,8 +50,9 @@ LEAK_TEXT_RE = re.compile(
     r"(diff --git|^\+\+\+ |^--- |@@ |candidate\.patch|candidate_patch|"
     r"raw[_ -]?(body|prompt|response|context|patch)|review[_ -]?thread[_ -]?body|"
     r"pull[_ -]?request[_ -]?body|chain[_ -]?of[_ -]?thought|"
-    r"provider[_ -]?payload|oracle[_ -]?(stdout|stderr)|file://|/Users/|"
-    r"/private/var/|/var/folders/|/tmp/|~[/\\]|[A-Za-z]:[\\/]|\.venv/|"
+    r"provider[_ -]?payload|oracle[_ -]?(stdout|stderr)|file://|"
+    r"/(?:Users|home|private/var|var/folders|tmp|etc|opt|usr|Volumes|mnt|root|"
+    r"workspace|workspaces)(?:/|$)|~[/\\]|[A-Za-z]:[\\/]|\.venv/|"
     r"\.git/|worktrees([:/._-]|$)|github_pat_|gh[psoru]_|xox[abprs]-|"
     r"sk-[A-Za-z0-9_-]{12,}|GH_TOKEN|GITHUB_TOKEN)",
     re.IGNORECASE | re.MULTILINE,
@@ -1076,6 +1077,20 @@ def validate_creative_code_review_disposition_packet(payload: Mapping[str, Any])
     if not isinstance(raw_records, list):
         raise CreativeCodeReviewDispositionContractError("feedback_records must be an array.")
     records = [validate_creative_code_review_feedback_record(record) for record in raw_records]
+    if head_sha_drift:
+        for index, record in enumerate(records):
+            classification = record["classification"]
+            if classification != {
+                "candidate_disposition": "out_of_scope",
+                "reason_code": "head_sha_drift",
+                "requires_human_decision": True,
+                "requires_repair": False,
+                "repair_priority": 0,
+            }:
+                raise CreativeCodeReviewDispositionContractError(
+                    f"feedback_records[{index}].classification must be head_sha_drift "
+                    "when packet head SHA drift is present."
+                )
     summary = payload["summary"]
     if not isinstance(summary, dict):
         raise CreativeCodeReviewDispositionContractError("summary must be a JSON object.")
@@ -1341,6 +1356,13 @@ def validate_creative_code_repair_launch_packet(payload: Mapping[str, Any]) -> d
     if normalized["target_pr1_specification"]["allowed"] != bool(candidates):
         raise CreativeCodeReviewDispositionContractError(
             "target_pr1_specification.allowed must match repair candidate presence."
+        )
+    if (
+        normalized["target_pr1_specification"]["source_packet_id"]
+        != normalized["source_disposition_packet_id"]
+    ):
+        raise CreativeCodeReviewDispositionContractError(
+            "target_pr1_specification.source_packet_id must match source_disposition_packet_id."
         )
     launch_id, idempotency_key = _launch_identity(normalized)
     if normalized["launch_id"] != launch_id:

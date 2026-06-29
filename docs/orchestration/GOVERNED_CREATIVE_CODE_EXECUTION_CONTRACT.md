@@ -166,6 +166,8 @@ evidence, product runtime truth, or release evidence.
 
 PR-5 review-disposition artifacts are defined by:
 
+- `CreativeCodeReviewFeedbackCollection` local collection output, validated by
+  `validate_creative_code_review_feedback_collection(...)`.
 - `docs/orchestration/contracts/CREATIVE_CODE_REVIEW_DISPOSITION_CONTRACT.md`
 - `docs/orchestration/CREATIVE_CODE_REVIEW_DISPOSITION_PR5_PREMORTEM.md`
 - `docs/orchestration/contracts/creative_code_review_feedback_record.v1.schema.json`
