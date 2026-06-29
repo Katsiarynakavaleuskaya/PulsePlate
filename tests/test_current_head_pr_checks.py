@@ -17,6 +17,7 @@ CANONICAL_FALLBACK_JOB_IDS = {
     "docs_phase1_gates",
     "pr_body_phase2_gates",
     "merge_readiness_gate",
+    "private_python_proxy_health",
     "lint",
     "security",
     "openapi-sync",
@@ -1042,6 +1043,38 @@ def test_status_context_expected_is_treated_as_pending() -> None:
     )
 
     assert entry.state == "pending"
+
+
+def test_skipped_check_run_is_failed_for_required_and_fallback_gates() -> None:
+    entry = current_head_checks._normalize_node(
+        {
+            "__typename": "CheckRun",
+            "name": "lint",
+            "status": "COMPLETED",
+            "conclusion": "SKIPPED",
+            "startedAt": "2026-06-29T05:05:00Z",
+            "completedAt": "2026-06-29T05:05:30Z",
+            "detailsUrl": "https://example.invalid/skipped",
+            "checkSuite": {"workflowRun": {"workflow": {"name": "CI"}}},
+        }
+    )
+
+    assert entry.state == "failed"
+    assert current_head_checks._is_blocking_fallback_advisory(entry, set()) is True
+
+
+def test_private_python_proxy_health_blocks_fallback_mode() -> None:
+    entry = current_head_checks.CheckEntry(
+        name="Private Python proxy health",
+        source_kind="check_run",
+        state="failed",
+        timestamp="2026-06-29T05:05:30Z",
+        details_url="https://example.invalid/proxy-health",
+        workflow_name="CI",
+        conclusion="FAILURE",
+    )
+
+    assert current_head_checks._is_blocking_fallback_advisory(entry, set()) is True
 
 
 def test_main_passes_for_draft_pr_without_strict_checks(

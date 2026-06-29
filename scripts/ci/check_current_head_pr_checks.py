@@ -40,6 +40,7 @@ CANONICAL_FALLBACK_CI_CHECK_NAMES = {
     "Docs Phase1 gates",
     "PR Body Phase2 gates",
     "Merge readiness gate",
+    "Private Python proxy health",
     "lint",
     "security",
     "OpenAPI sync (backend -> frontend artifacts)",
@@ -339,6 +340,7 @@ def _normalize_node(node: dict[str, Any]) -> CheckEntry:
             "ACTION_REQUIRED",
             "STALE",
             "STARTUP_FAILURE",
+            "SKIPPED",
         }:
             state = "failed"
         else:
