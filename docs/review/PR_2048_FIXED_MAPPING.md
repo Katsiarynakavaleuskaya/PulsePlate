@@ -79,6 +79,10 @@ Artifact: `artifacts/orchestration/experiments/results/pr5-review-disposition-or
 
 ## Fixed in Commit Mapping
 
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: CodeRabbit inline review comments were fixed by the mapped commits below.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2048#discussion_r3492802024 -> 80ee8112d
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2048#discussion_r3492802031 -> 80ee8112d
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2048#discussion_r3492802037 -> c1707c0af
