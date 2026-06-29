@@ -44,6 +44,8 @@ this PR.
 - Branch: `codex/creative-code-telemetry-rejection-taxonomy-pr4`
 - Initial packet: `artifacts/orchestration/task_packets/d1fee07492a7.json`
 - Refreshed packet after fast-forward: `artifacts/orchestration/task_packets/24a9d90008fd.json`
+- Packet: `artifacts/orchestration/task_packets/d1fee07492a7.json`
+- Packet: `artifacts/orchestration/task_packets/24a9d90008fd.json`
 - Pre-implementation role order executed:
   `agent-coordinator -> security-auditor -> qa-engineer-agent -> cursor-specialist-agent -> architecture-specialist`
 - Packet creation was treated as provenance/routing only; role passes were
@@ -51,6 +53,8 @@ this PR.
 
 ## Discussion Thread Pass
 
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 - [x] Fixed in commit mapping artifact created after GitHub assigned PR number
   `#2044`.
 - [x] Initial PR open: no GitHub review threads existed and none were resolved.
@@ -65,7 +69,7 @@ this PR.
 
 ## Fixed in Commit Mapping
 
-- No actionable GitHub review comments exist at artifact creation.
+- No actionable review comments
 
 ## Pre-Open Premortem Closure
 
