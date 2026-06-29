@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import os
 from pathlib import Path
 import subprocess
@@ -436,8 +437,7 @@ def test_activate_subscription_ios_empty_receipt_data_returns_422(
     ]
 
 
-@pytest.mark.asyncio
-async def test_activate_subscription_async_delegates_to_sync_for_non_ios_source(
+def test_activate_subscription_async_delegates_to_sync_for_non_ios_source(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """activate_subscription_async delegates to sync activate_subscription for non-iOS (line 1193)."""
@@ -467,16 +467,19 @@ async def test_activate_subscription_async_delegates_to_sync_for_non_ios_source(
     payload = ActivateSubscriptionRequest.model_validate(
         _manual_payload(source="erip_qr", source_reference="ERIP-QR-99999"),
     )
-    result = await payments_activation.activate_subscription_async(
-        payload=payload,
-        user_id=42,
-    )
+
+    async def _run_activation() -> SubscriptionActivationResponse:
+        return await payments_activation.activate_subscription_async(
+            payload=payload,
+            user_id=42,
+        )
+
+    result = asyncio.run(_run_activation())
     assert result == expected
     assert result.activation_id == "delegated-activation-1"
 
 
-@pytest.mark.asyncio
-async def test_activate_subscription_async_trims_ios_receipt_before_reverify(
+def test_activate_subscription_async_trims_ios_receipt_before_reverify(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     observed: dict[str, str] = {}
@@ -519,10 +522,14 @@ async def test_activate_subscription_async_trims_ios_receipt_before_reverify(
     payload = ActivateSubscriptionRequest.model_validate(
         _ios_payload(receipt_data="  base64_receipt_blob_trimmed  ")
     )
-    result = await payments_activation.activate_subscription_async(
-        payload=payload,
-        user_id=42,
-    )
+
+    async def _run_activation() -> SubscriptionActivationResponse:
+        return await payments_activation.activate_subscription_async(
+            payload=payload,
+            user_id=42,
+        )
+
+    result = asyncio.run(_run_activation())
 
     assert observed == {
         "verified_receipt_data": "base64_receipt_blob_trimmed",
