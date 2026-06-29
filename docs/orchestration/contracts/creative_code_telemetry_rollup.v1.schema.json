@@ -36,10 +36,10 @@
     "event_count": { "type": "integer", "minimum": 0, "maximum": 1000000 },
     "funnel": { "$ref": "#/$defs/funnel" },
     "rates": { "$ref": "#/$defs/rates" },
-    "rejections_by_class": { "$ref": "#/$defs/count_map" },
-    "failures_by_class": { "$ref": "#/$defs/count_map" },
-    "events_by_stage": { "$ref": "#/$defs/count_map" },
-    "events_by_status": { "$ref": "#/$defs/count_map" },
+    "rejections_by_class": { "$ref": "#/$defs/taxonomy_count_map" },
+    "failures_by_class": { "$ref": "#/$defs/taxonomy_count_map" },
+    "events_by_stage": { "$ref": "#/$defs/stage_count_map" },
+    "events_by_status": { "$ref": "#/$defs/status_count_map" },
     "source_artifacts": {
       "type": "array",
       "items": { "$ref": "#/$defs/source_artifact" }
@@ -60,16 +60,69 @@
     "sanitized": { "const": true }
   },
   "$defs": {
-    "count_map": {
+    "count_value": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1000000
+    },
+    "taxonomy_count_map": {
       "type": "object",
-      "additionalProperties": {
-        "type": "integer",
-        "minimum": 0,
-        "maximum": 1000000
-      },
       "propertyNames": {
-        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$"
-      }
+        "enum": [
+          "approval_missing",
+          "base_drift",
+          "branch_exists",
+          "duplicate_variant",
+          "github_transport_failed",
+          "guard_failure",
+          "infra_flake",
+          "invalid_input",
+          "leak_detected",
+          "lineage_mismatch",
+          "malformed_artifact",
+          "metric_regression",
+          "oom",
+          "patch_drift",
+          "policy_violation",
+          "pr_readback_failed",
+          "review_blocker",
+          "specification_rejected",
+          "timeout",
+          "unchanged_result",
+          "unknown",
+          "unsafe_authority"
+        ]
+      },
+      "additionalProperties": { "$ref": "#/$defs/count_value" }
+    },
+    "stage_count_map": {
+      "type": "object",
+      "propertyNames": {
+        "enum": [
+          "artifact_read_error",
+          "patch_evaluation",
+          "pr_open",
+          "promotion_approval",
+          "promotion_plan",
+          "promotion_validation",
+          "specification"
+        ]
+      },
+      "additionalProperties": { "$ref": "#/$defs/count_value" }
+    },
+    "status_count_map": {
+      "type": "object",
+      "propertyNames": {
+        "enum": [
+          "accepted",
+          "blocked",
+          "not_applicable",
+          "opened",
+          "promoted",
+          "rejected"
+        ]
+      },
+      "additionalProperties": { "$ref": "#/$defs/count_value" }
     },
     "funnel": {
       "type": "object",

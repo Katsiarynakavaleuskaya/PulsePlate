@@ -167,7 +167,12 @@ def _safe_root_label(path: Path) -> str:
 def _iter_json_files(root: Path) -> list[Path]:
     if not root.exists():
         return []
-    return sorted(path for path in root.rglob("*.json") if path.is_file())
+    json_files: list[Path] = []
+    for path in sorted(root.rglob("*.json")):
+        _reject_symlink_components(path, label="artifact JSON")
+        if path.is_file():
+            json_files.append(path)
+    return json_files
 
 
 def _source_fingerprint(payload: dict[str, Any]) -> str:
@@ -399,7 +404,7 @@ def _load_spec_event(path: Path) -> dict[str, Any] | None:
         payload = read_creative_code_specification_bundle(path)
         return event_from_specification_bundle(payload)
     except CreativeCodeSpecificationError:
-        return None
+        return safe_read_error_event(path)
     except CreativeCodeTelemetryContractError:
         raise
 

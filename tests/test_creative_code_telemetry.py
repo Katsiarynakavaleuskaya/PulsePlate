@@ -217,6 +217,14 @@ def test_reference_taxonomy_and_schemas_are_closed() -> None:
     assert rollup_schema["$defs"]["funnel"]["additionalProperties"] is False
     assert taxonomy_schema["$defs"]["taxonomy_class"]["additionalProperties"] is False
     assert "github_transport_failed" in event_schema["$defs"]["taxonomy_code"]["enum"]
+    assert taxonomy_schema["properties"]["classes"]["const"] == reference_taxonomy["classes"]
+    taxonomy_codes = {row["code"] for row in reference_taxonomy["classes"]}
+    assert (
+        set(rollup_schema["$defs"]["taxonomy_count_map"]["propertyNames"]["enum"]) == taxonomy_codes
+    )
+    assert rollup_schema["properties"]["rejections_by_class"]["$ref"].endswith("taxonomy_count_map")
+    assert rollup_schema["properties"]["events_by_stage"]["$ref"].endswith("stage_count_map")
+    assert rollup_schema["properties"]["events_by_status"]["$ref"].endswith("status_count_map")
     unsafe_text_pattern = re.compile(
         event_schema["$defs"]["safe_id"]["not"]["pattern"],
         re.IGNORECASE,
@@ -425,6 +433,56 @@ def test_malformed_patch_artifact_becomes_safe_error_event(
     assert event["failure_class"] == "malformed_artifact"
     assert event["taxonomy_codes"] == ["malformed_artifact"]
     assert str(bad_result) not in json.dumps(event, sort_keys=True)
+
+
+def test_malformed_spec_artifact_becomes_safe_error_event_by_default(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    _, spec_runs, patch_runs, promotions, _ = _configure_artifact_roots(monkeypatch, tmp_path)
+    (patch_runs / "empty").mkdir(parents=True)
+    (promotions / "empty").mkdir(parents=True)
+    bad_bundle = spec_runs / "bad-run" / "bundle.json"
+    bad_bundle.parent.mkdir(parents=True)
+    bad_bundle.write_text('{"bundle_type":"x","bundle_type":"y"}', encoding="utf-8")
+
+    events = creative_code_telemetry.collect_events(
+        spec_runs_dir=spec_runs,
+        patch_runs_dir=patch_runs,
+        promotions_dir=promotions,
+    )
+
+    assert len(events) == 1
+    event = events[0]
+    assert event["lane_stage"] == "artifact_read_error"
+    assert event["source_artifact_type"] == "creative_code_artifact_read_error"
+    assert event["failure_class"] == "malformed_artifact"
+    assert event["taxonomy_codes"] == ["malformed_artifact"]
+    assert str(bad_bundle) not in json.dumps(event, sort_keys=True)
+
+
+def test_artifact_json_symlinks_are_rejected(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    _, spec_runs, patch_runs, promotions, _ = _configure_artifact_roots(monkeypatch, tmp_path)
+    (patch_runs / "empty").mkdir(parents=True)
+    (promotions / "empty").mkdir(parents=True)
+    outside = tmp_path / "outside.json"
+    outside.write_text(json.dumps(_reference_bundle()), encoding="utf-8")
+    link = spec_runs / "linked-run" / "bundle.json"
+    link.parent.mkdir(parents=True)
+    try:
+        link.symlink_to(outside)
+    except OSError as exc:
+        pytest.skip(f"symlinks unavailable: {exc}")
+
+    with pytest.raises(creative_code_telemetry.CreativeCodeTelemetryError, match="symlinks"):
+        creative_code_telemetry.collect_events(
+            spec_runs_dir=spec_runs,
+            patch_runs_dir=patch_runs,
+            promotions_dir=promotions,
+        )
 
 
 def test_artifact_roots_must_stay_inside_creative_code_root(
