@@ -1058,7 +1058,7 @@ def test_status_context_expected_is_treated_as_pending() -> None:
     assert entry.state == "pending"
 
 
-def test_skipped_check_run_is_failed_for_required_and_fallback_gates() -> None:
+def test_skipped_canonical_check_run_is_failed_for_required_and_fallback_gates() -> None:
     entry = current_head_checks._normalize_node(
         {
             "__typename": "CheckRun",
@@ -1074,6 +1074,42 @@ def test_skipped_check_run_is_failed_for_required_and_fallback_gates() -> None:
 
     assert entry.state == "failed"
     assert current_head_checks._is_blocking_fallback_advisory(entry, set()) is True
+
+
+def test_skipped_docker_publish_is_non_blocking_release_only_fallback() -> None:
+    entry = current_head_checks._normalize_node(
+        {
+            "__typename": "CheckRun",
+            "name": "publish",
+            "status": "COMPLETED",
+            "conclusion": "SKIPPED",
+            "startedAt": "2026-06-29T19:12:16Z",
+            "completedAt": "2026-06-29T19:12:16Z",
+            "detailsUrl": "https://example.invalid/publish-skipped",
+            "checkSuite": {"workflowRun": {"workflow": {"name": "Docker Build and Push"}}},
+        }
+    )
+
+    assert entry.state == "failed"
+    assert current_head_checks._is_blocking_fallback_advisory(entry, {"constraints.txt"}) is False
+    assert (
+        current_head_checks._format_entry(entry)
+        == "- publish: skipped [Docker Build and Push] -> https://example.invalid/publish-skipped"
+    )
+
+
+def test_failed_docker_publish_still_blocks_attached_docker_fallback_surface() -> None:
+    entry = current_head_checks.CheckEntry(
+        name="publish",
+        source_kind="check_run",
+        state="failed",
+        timestamp="2026-06-29T19:12:16Z",
+        details_url="https://example.invalid/publish-failed",
+        workflow_name="Docker Build and Push",
+        conclusion="FAILURE",
+    )
+
+    assert current_head_checks._is_blocking_fallback_advisory(entry, {"constraints.txt"}) is True
 
 
 def test_private_python_proxy_health_blocks_fallback_mode() -> None:
