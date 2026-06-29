@@ -114,6 +114,10 @@ class CreativeCodePRPromotionError(ValueError):
     """Raised when the PR-3 promotion CLI fails closed."""
 
 
+class TemporaryUploadBranchAmbiguousError(CreativeCodePRPromotionError):
+    """Raised after a temp upload push returns success without create-only proof."""
+
+
 class ApprovalInput(Protocol):
     def isatty(self) -> bool: ...
 
@@ -486,7 +490,9 @@ class GitTransport:
         )
         push_output = f"{process.stdout}\n{process.stderr}"
         if "[new branch]" not in push_output:
-            raise CreativeCodePRPromotionError("temporary upload push did not create a new branch.")
+            raise TemporaryUploadBranchAmbiguousError(
+                "temporary upload push did not create a new branch; cleanup required."
+            )
 
 
 def _reject_forbidden_gh_args(args: list[str]) -> None:
@@ -1420,7 +1426,11 @@ def promote(
         )
         if git.remote_branch_exists(temp_upload_branch):
             raise CreativeCodePRPromotionError("temporary upload branch already exists.")
-        git.push_upload_branch(cwd=checkout, branch=temp_upload_branch)
+        try:
+            git.push_upload_branch(cwd=checkout, branch=temp_upload_branch)
+        except TemporaryUploadBranchAmbiguousError:
+            temp_upload_pushed = True
+            raise
         temp_upload_pushed = True
         if git.remote_branch_exists(branch):
             raise CreativeCodePRPromotionError(

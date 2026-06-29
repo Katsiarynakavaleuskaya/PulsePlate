@@ -379,6 +379,14 @@ class FailingCreateRefGitHub(FakeGitHub):
         raise CreativeCodePRPromotionError("target ref already exists")
 
 
+class AmbiguousUploadGit(FakeGit):
+    def push_upload_branch(self, *, cwd: Path, branch: str) -> None:
+        self.calls.append(["push_upload_branch", branch])
+        raise creative_code_pr_promotion.TemporaryUploadBranchAmbiguousError(
+            "temporary upload push did not create a new branch; cleanup required."
+        )
+
+
 class TimeoutDeleteGitHub(FakeGitHub):
     def delete_branch_ref(self, *, branch: str) -> bool:
         self.calls.append(["api", "delete-ref", branch])
@@ -833,6 +841,50 @@ def test_git_transport_contains_no_force_push_flag() -> None:
 
     assert "--force" not in source
     assert "--force-with-lease" not in source
+
+
+def test_git_transport_ambiguous_upload_push_raises_cleanup_signal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: list[list[str]] = []
+
+    def fake_run(
+        self: creative_code_pr_promotion.GitTransport,
+        args: list[str],
+        *,
+        cwd: Path,
+        input_text: str | None = None,
+        check: bool = True,
+        timeout_seconds: int = 600,
+    ) -> subprocess.CompletedProcess[str]:
+        captured.append(args)
+        return subprocess.CompletedProcess(
+            args=args,
+            returncode=0,
+            stdout="= refs/heads/experiment/promotion-upload-race\t[up to date]\n",
+            stderr="",
+        )
+
+    monkeypatch.setattr(creative_code_pr_promotion.GitTransport, "run", fake_run)
+
+    with pytest.raises(
+        creative_code_pr_promotion.TemporaryUploadBranchAmbiguousError,
+        match="cleanup required",
+    ):
+        creative_code_pr_promotion.GitTransport(git_binary="/bin/true").push_upload_branch(
+            cwd=REPO_ROOT,
+            branch="experiment/promotion-upload-race-aaaaaaaa-bbbbbbbbbb",
+        )
+
+    assert captured == [
+        [
+            "push",
+            "--porcelain",
+            "origin",
+            "HEAD:refs/heads/experiment/promotion-upload-race-aaaaaaaa-bbbbbbbbbb",
+        ]
+    ]
+    assert not any("--force" in token for command in captured for token in command)
 
 
 def test_github_transport_create_branch_ref_uses_atomic_create_ref(
@@ -1312,6 +1364,67 @@ def test_promote_create_ref_failure_cleans_temporary_upload_ref(
     temp_upload_branch = upload_calls[0][1]
     assert github.created_refs == [(plan["target_head_branch"], "b" * 40)]
     assert github.deleted_refs == [temp_upload_branch]
+    assert not any(call[:2] == ["pr", "create"] for call in github.calls)
+
+
+def test_promote_cleans_ambiguous_temp_upload_push(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    _repo, run_id, _result = _make_patch_run(monkeypatch, tmp_path)
+    planned = creative_code_pr_promotion.plan(
+        patch_run=run_id,
+        promotion_id="promotion-pr3-ambiguous-upload",
+        git=FakeGit(),
+    )
+    plan = planned["plan"]
+    validation = build_creative_code_pr_promotion_validation(
+        promotion_id="promotion-pr3-ambiguous-upload",
+        plan_fingerprint=promotion_plan_fingerprint(plan),
+        patch_fingerprint=plan["patch_fingerprint"],
+        base_commit_sha=plan["base_commit_sha"],
+        oracle_commands_configured=1,
+        oracle_commands_executed=1,
+    )
+    approval = build_creative_code_pr_promotion_approval(
+        promotion_id="promotion-pr3-ambiguous-upload",
+        plan_fingerprint=promotion_plan_fingerprint(plan),
+        validation_fingerprint=validation["validation_fingerprint"],
+        approved_by_login="Katsiarynakavaleuskaya",
+        confirmed_patch_fingerprint=plan["patch_fingerprint"],
+        confirmed_base_commit_sha=plan["base_commit_sha"],
+        confirmed_target_branch=plan["target_head_branch"],
+    )
+    promotion_dir = Path(planned["promotion_dir"])
+    _write_json(promotion_dir / creative_code_pr_promotion.VALIDATION_FILE, validation)
+    _write_json(promotion_dir / creative_code_pr_promotion.APPROVAL_FILE, approval)
+
+    def fake_prepare(**kwargs: Any) -> Path:
+        checkout = promotion_dir / kwargs["dirname"]
+        checkout.mkdir(exist_ok=True)
+        return checkout
+
+    monkeypatch.setattr(creative_code_pr_promotion, "_prepare_checkout", fake_prepare)
+    monkeypatch.setattr(creative_code_pr_promotion, "_apply_patch_and_verify", lambda **_: None)
+    monkeypatch.setattr(creative_code_pr_promotion, "_destroy_checkout", lambda *_: True)
+
+    git = AmbiguousUploadGit()
+    github = FakeGitHub()
+    with pytest.raises(
+        creative_code_pr_promotion.TemporaryUploadBranchAmbiguousError,
+        match="cleanup required",
+    ):
+        creative_code_pr_promotion.promote(
+            promotion_id="promotion-pr3-ambiguous-upload",
+            git=git,
+            github=github,
+        )
+
+    upload_calls = [call for call in git.calls if call[:1] == ["push_upload_branch"]]
+    assert len(upload_calls) == 1
+    temp_upload_branch = upload_calls[0][1]
+    assert github.deleted_refs == [temp_upload_branch]
+    assert not github.created_refs
     assert not any(call[:2] == ["pr", "create"] for call in github.calls)
 
 
