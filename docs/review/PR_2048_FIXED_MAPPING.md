@@ -39,6 +39,9 @@ Experiment Runner implementation change is authorized by this PR.
   schemas, docs, tests, and pre-open governance evidence.
 - `49de6b759` - fix post-open QA findings for collection artifact validation
   and JSON-schema GitHub URL anchoring.
+- `f364cd8a5` - fix post-open bug-hunter findings for unsafe GitHub URL
+  suffixes, top-level raw body fixture rejection, and schema classification
+  parity.
 
 ## Lane Start Provenance
 
@@ -62,7 +65,7 @@ Artifact: `artifacts/orchestration/experiments/results/pr5-review-disposition-or
 - [ ] Codex Security diff scan / finding discovery completed or explicitly
   dispositioned.
 - [x] Post-open `qa-engineer-agent` pass completed.
-- [ ] Post-open `bug-hunter` pass completed.
+- [x] Post-open `bug-hunter` pass completed.
 - [ ] Post-open `security-auditor` pass completed.
 - [ ] `pulseplate-pr-review` completed.
 - [ ] Current-head CI complete before readiness language.
@@ -96,6 +99,20 @@ URLs the way Python validation does. Commit `49de6b759` adds
 `validate_creative_code_review_feedback_collection`, routes collection artifacts
 through the contract CLI, end-anchors the schema GitHub URL pattern, and covers
 both cases in `tests/test_creative_code_review_disposition.py`.
+
+Role: `bug-hunter`
+
+Disposition: FIXED
+
+Commit: `f364cd8a5`
+
+Evidence: The post-open bug-hunter pass found that GitHub URL values could
+allowlist unsafe suffixes before leak checks, top-level raw GitHub `body` fields
+were not rejected in fixtures, and the feedback-record JSON schema allowed
+classification states Python rejects. Commit `f364cd8a5` tightens the GitHub URL
+grammar and secret-first URL validation, recursively rejects raw body fields in
+fixtures, adds schema `allOf` parity constraints for repair classification, and
+covers all three scenarios in `tests/test_creative_code_review_disposition.py`.
 
 ## Pre-Open Role Findings
 
@@ -156,7 +173,7 @@ each scenario `[x]` only with file/test/doc evidence.
 
 - `python3 scripts/orchestration/check_preflight.py` - PASS
 - `python3 scripts/orchestration/check_agent_consistency.py` - PASS
-- repo-resolved `.venv/bin/python -m pytest tests/test_creative_code_review_disposition.py -q` - PASS, 24 passed
+- repo-resolved `.venv/bin/python -m pytest tests/test_creative_code_review_disposition.py -q` - PASS, 28 passed
 - repo-resolved `.venv/bin/python -m pytest tests/test_creative_code_telemetry.py tests/test_pr_review_report.py -q` - PASS, 24 passed
 - `make validate-changed` - PASS
 - `pre-commit run --all-files` - PASS
