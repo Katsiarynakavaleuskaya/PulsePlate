@@ -196,11 +196,12 @@ Canonical contract for shared CI/Docker/bootstrap paths:
 - `PULSEPLATE_PYTHON_TRUSTED_HOST` is optional and should only be set when the approved proxy requires it. Keep it unset for the `packages.pulseplate.app` devpi host while normal TLS verification succeeds.
 - Public package hosts such as `pypi.org`, `files.pythonhosted.org`, and `test.pypi.org` are rejected by the shared installer.
 - Ambient overrides such as `PIP_INDEX_URL` / `PIP_EXTRA_INDEX_URL` are rejected for canonical installs.
-- Time-boxed exceptions must stay exact and manifest-driven. Current example:
-  `scripts/ci/emergency_python_wheels.json` currently carries a broader,
-  repo-approved fallback set (including `aiosqlite 0.22.1`,
-  `starlette 1.3.1`, `pillow 12.2.0`, and other active bootstrap/runtime
-  wheels) with pinned `sha256` digests until the approved proxy catches up.
+- Time-boxed exceptions must stay exact and manifest-driven. The emergency
+  wheel path is currently retired: `scripts/ci/emergency_python_wheels.json`
+  remains as an empty compatibility marker so rollback code paths and CI/Docker
+  references do not churn in the same PR. Reintroducing entries requires
+  security sign-off, exact package/version/filename metadata, pinned `sha256`,
+  expiry, package-scoped mirror evidence, and a removal plan.
 - The installer may use an exact manifest wheel after pip reports both an exact
   resolver miss and either a package-scoped retry/timeout against that approved
   simple project path or a package-scoped approved-proxy health-probe timeout.
@@ -253,6 +254,16 @@ The gate checks the same contract that pip consumes:
 - `simple_page_truncated` means the page exceeded the bounded read before the
   exact pin was observed; choose a smaller representative package for the fast
   gate or investigate oversized mirror pages.
+
+`scripts/ci/check_emergency_wheel_mirror_parity.py` is the companion all-entry
+manifest parity gate. It is narrower than dependency installation and broader
+than the representative health probe: for each active emergency manifest
+artifact, it validates the metadata and then checks the approved private
+project page for that exact wheel filename across the configured Python target
+tags. It fails closed for missing filenames, incompatible wheels, invalid
+hashes, wrong artifact hosts, unhealthy project pages, or active expired
+entries. When the manifest is the retired empty marker, it succeeds with
+`retired=true` and does not fetch project pages.
 - `missing_exact_pin_in_requirements` means the probe list and requirements
   files disagree; update the checker inputs instead of treating it as an origin
   outage.

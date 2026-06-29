@@ -597,6 +597,22 @@ jobs:
             --project hypothesis \
             --project pgvector
 
+      - name: Emergency wheel mirror parity
+        run: |
+          set -euo pipefail
+          python3 scripts/ci/check_emergency_wheel_mirror_parity.py \
+            --manifest scripts/ci/emergency_python_wheels.json \
+            --python-version 3.11 \
+            --python-version 3.12 \
+            --python-version 3.13 \
+            --format text
+
+      - name: Cleanup protected main package proxy authentication
+        if: always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        run: |
+          set -euo pipefail
+          rm -f "$HOME/.netrc"
+
   lint:
     needs: [private_python_proxy_health]
     runs-on: ubuntu-latest

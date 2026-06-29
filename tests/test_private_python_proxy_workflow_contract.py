@@ -72,6 +72,42 @@ def test_private_proxy_health_job_is_stdlib_fail_fast_gate() -> None:
     assert "--project pgvector" in run_blocks
     assert "--project pydantic-core" not in run_blocks
 
+    step_names = [step.get("name") for step in steps if isinstance(step, dict)]
+    assert step_names.index("Check private Python proxy health") < step_names.index(
+        "Emergency wheel mirror parity"
+    )
+    assert step_names.index("Emergency wheel mirror parity") < step_names.index(
+        "Cleanup protected main package proxy authentication"
+    )
+    parity_step = next(
+        step
+        for step in steps
+        if isinstance(step, dict) and step.get("name") == "Emergency wheel mirror parity"
+    )
+    parity_run = str(parity_step.get("run", ""))
+    assert "scripts/ci/check_emergency_wheel_mirror_parity.py" in parity_run
+    assert "--manifest scripts/ci/emergency_python_wheels.json" in parity_run
+    assert "--python-version 3.11" in parity_run
+    assert "--python-version 3.12" in parity_run
+    assert "--python-version 3.13" in parity_run
+    assert "--format text" in parity_run
+    assert parity_step.get("continue-on-error") is None
+
+    cleanup_step = next(
+        step
+        for step in steps
+        if (
+            isinstance(step, dict)
+            and step.get("name") == "Cleanup protected main package proxy authentication"
+        )
+    )
+    assert (
+        cleanup_step.get("if")
+        == "always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'"
+    )
+    assert 'rm -f "$HOME/.netrc"' in str(cleanup_step.get("run", ""))
+    assert cleanup_step.get("continue-on-error") is None
+
 
 def test_private_proxy_health_uses_vars_for_pull_request_context() -> None:
     workflow_text = CI_WORKFLOW.read_text(encoding="utf-8")
