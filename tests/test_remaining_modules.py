@@ -69,6 +69,98 @@ def test_verify_requirements_wrapper_smoke(monkeypatch: pytest.MonkeyPatch) -> N
     assert observed_argv == ["--repo-root", "/tmp/example"]
 
 
+def test_execution_sandbox_network_marker_smoke() -> None:
+    """Keep network-disable env handling covered in the CI smoke coverage artifact."""
+
+    from app.security import execution_sandbox as sandbox
+
+    assert sandbox.SANDBOX_DISABLE_NETWORK_ENV == "AGENT_EXECUTION_SANDBOX_DISABLE_NETWORK"
+    sanitized = sandbox.sanitize_sandbox_env({sandbox.SANDBOX_DISABLE_NETWORK_ENV.lower(): "YES"})
+    assert sanitized[sandbox.SANDBOX_DISABLE_NETWORK_ENV] == "1"
+    assert sandbox._network_disable_requested(sanitized) is True
+
+    with pytest.raises(PermissionError, match=sandbox.SANDBOX_DISABLE_NETWORK_ENV):
+        sandbox.sanitize_sandbox_env({sandbox.SANDBOX_DISABLE_NETWORK_ENV: "0"})
+
+
+def test_execution_sandbox_unshare_resolution_smoke(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Cover fail-closed and successful unshare resolver branches in the smoke lane."""
+
+    from app.security import execution_sandbox as sandbox
+
+    monkeypatch.setattr(sandbox.os, "name", "nt", raising=False)
+    with pytest.raises(RuntimeError, match="POSIX unshare"):
+        sandbox._resolve_unshare_binary()
+
+    monkeypatch.setattr(sandbox.os, "name", "posix", raising=False)
+    monkeypatch.setattr(sandbox.shutil, "which", lambda _binary: None)
+    with pytest.raises(RuntimeError, match="unshare on PATH"):
+        sandbox._resolve_unshare_binary()
+
+    not_executable = tmp_path / "unshare-dir"
+    not_executable.mkdir()
+    monkeypatch.setattr(sandbox.shutil, "which", lambda _binary: str(not_executable))
+    with pytest.raises(RuntimeError, match="executable file"):
+        sandbox._resolve_unshare_binary()
+
+    executable = tmp_path / "unshare"
+    executable.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    executable.chmod(0o755)
+    monkeypatch.setattr(sandbox.shutil, "which", lambda _binary: str(executable))
+    assert sandbox._resolve_unshare_binary() == str(executable.resolve())
+
+
+def test_execution_sandbox_argv_network_wrapping_smoke(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Exercise both argv branches used by sandbox subprocess launch."""
+
+    from app.security import execution_sandbox as sandbox
+
+    assert sandbox._build_sandbox_argv(
+        binary_path="/usr/bin/python3",
+        args=("-c", "pass"),
+        env={},
+    ) == ("/usr/bin/python3", "-c", "pass")
+
+    monkeypatch.setattr(sandbox, "_resolve_unshare_binary", lambda: "/usr/bin/unshare")
+    assert sandbox._build_sandbox_argv(
+        binary_path="/usr/bin/python3",
+        args=("-c", "pass"),
+        env={sandbox.SANDBOX_DISABLE_NETWORK_ENV: "1"},
+    ) == ("/usr/bin/unshare", "--net", "--map-root-user", "/usr/bin/python3", "-c", "pass")
+
+
+def test_run_local_sandbox_builds_effective_argv_smoke(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Run a tiny allowed command so the smoke coverage artifact covers argv construction."""
+
+    from app.security import execution_sandbox as sandbox
+    from app.security import agent_control_plane as cp
+
+    monkeypatch.setenv(sandbox.SANDBOX_ENABLED_ENV, "true")
+    monkeypatch.setenv(sandbox.SANDBOX_ROOT_ENV, str(tmp_path))
+    monkeypatch.setenv(sandbox.SANDBOX_ALLOWED_BINARIES_ENV, "python3")
+    monkeypatch.setenv(cp.ALLOWLIST_ENV, "sandbox.exec:local://sandbox")
+
+    result = sandbox.run_local_sandbox(
+        sandbox.SandboxRequest(
+            binary="python3",
+            args=("-c", "print('sandbox-smoke')"),
+            cwd=tmp_path,
+        )
+    )
+
+    assert result.returncode == 0
+    assert result.stdout.strip() == "sandbox-smoke"
+    assert result.stderr == ""
+
+
 def _write_ragas_bootstrap_dataset(path: Path) -> None:
     """Keep eval runner smoke fixtures deterministic in the fast lane."""
 
