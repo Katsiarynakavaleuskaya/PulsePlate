@@ -1381,6 +1381,7 @@ def promote(
     temp_upload_pushed = False
     partial_failure: str | None = None
     commit_identity_verified = False
+    target_ref_created = False
     try:
         checkout = _prepare_checkout(
             promotion_dir=promotion_dir,
@@ -1426,17 +1427,14 @@ def promote(
         )
         if git.remote_branch_exists(temp_upload_branch):
             raise CreativeCodePRPromotionError("temporary upload branch already exists.")
-        try:
-            git.push_upload_branch(cwd=checkout, branch=temp_upload_branch)
-        except TemporaryUploadBranchAmbiguousError:
-            temp_upload_pushed = True
-            raise
         temp_upload_pushed = True
+        git.push_upload_branch(cwd=checkout, branch=temp_upload_branch)
         if git.remote_branch_exists(branch):
             raise CreativeCodePRPromotionError(
                 "target experiment branch appeared before ref create."
             )
         github.create_branch_ref(branch=branch, commit_sha=commit_sha)
+        target_ref_created = True
         _cleanup_temp_upload_ref(github, branch=temp_upload_branch)
         temp_upload_pushed = False
         body = _render_pr_body(
@@ -1485,7 +1483,7 @@ def promote(
     except Exception as exc:
         if partial_failure is None:
             partial_failure = exc.__class__.__name__
-        if commit_sha != "0" * 40 and commit_identity_verified:
+        if target_ref_created and commit_sha != "0" * 40 and commit_identity_verified:
             receipt = build_creative_code_pr_promotion_receipt(
                 promotion_id=promotion_id,
                 plan_fingerprint=plan_fp,

@@ -387,6 +387,12 @@ class AmbiguousUploadGit(FakeGit):
         )
 
 
+class TimeoutUploadGit(FakeGit):
+    def push_upload_branch(self, *, cwd: Path, branch: str) -> None:
+        self.calls.append(["push_upload_branch", branch])
+        raise subprocess.TimeoutExpired(cmd="git push", timeout=600)
+
+
 class TimeoutDeleteGitHub(FakeGitHub):
     def delete_branch_ref(self, *, branch: str) -> bool:
         self.calls.append(["api", "delete-ref", branch])
@@ -1370,6 +1376,7 @@ def test_promote_create_ref_failure_cleans_temporary_upload_ref(
     assert github.created_refs == [(plan["target_head_branch"], "b" * 40)]
     assert github.deleted_refs == [temp_upload_branch]
     assert not any(call[:2] == ["pr", "create"] for call in github.calls)
+    assert not (promotion_dir / creative_code_pr_promotion.RECEIPT_FILE).exists()
 
 
 def test_promote_cleans_ambiguous_temp_upload_push(
@@ -1431,6 +1438,66 @@ def test_promote_cleans_ambiguous_temp_upload_push(
     assert github.deleted_refs == [temp_upload_branch]
     assert not github.created_refs
     assert not any(call[:2] == ["pr", "create"] for call in github.calls)
+    assert not (promotion_dir / creative_code_pr_promotion.RECEIPT_FILE).exists()
+
+
+def test_promote_cleans_temp_upload_after_push_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    _repo, run_id, _result = _make_patch_run(monkeypatch, tmp_path)
+    planned = creative_code_pr_promotion.plan(
+        patch_run=run_id,
+        promotion_id="promotion-pr3-timeout-upload",
+        git=FakeGit(),
+    )
+    plan = planned["plan"]
+    validation = build_creative_code_pr_promotion_validation(
+        promotion_id="promotion-pr3-timeout-upload",
+        plan_fingerprint=promotion_plan_fingerprint(plan),
+        patch_fingerprint=plan["patch_fingerprint"],
+        base_commit_sha=plan["base_commit_sha"],
+        oracle_commands_configured=1,
+        oracle_commands_executed=1,
+    )
+    approval = build_creative_code_pr_promotion_approval(
+        promotion_id="promotion-pr3-timeout-upload",
+        plan_fingerprint=promotion_plan_fingerprint(plan),
+        validation_fingerprint=validation["validation_fingerprint"],
+        approved_by_login="Katsiarynakavaleuskaya",
+        confirmed_patch_fingerprint=plan["patch_fingerprint"],
+        confirmed_base_commit_sha=plan["base_commit_sha"],
+        confirmed_target_branch=plan["target_head_branch"],
+    )
+    promotion_dir = Path(planned["promotion_dir"])
+    _write_json(promotion_dir / creative_code_pr_promotion.VALIDATION_FILE, validation)
+    _write_json(promotion_dir / creative_code_pr_promotion.APPROVAL_FILE, approval)
+
+    def fake_prepare(**kwargs: Any) -> Path:
+        checkout = promotion_dir / kwargs["dirname"]
+        checkout.mkdir(exist_ok=True)
+        return checkout
+
+    monkeypatch.setattr(creative_code_pr_promotion, "_prepare_checkout", fake_prepare)
+    monkeypatch.setattr(creative_code_pr_promotion, "_apply_patch_and_verify", lambda **_: None)
+    monkeypatch.setattr(creative_code_pr_promotion, "_destroy_checkout", lambda *_: True)
+
+    git = TimeoutUploadGit()
+    github = FakeGitHub()
+    with pytest.raises(subprocess.TimeoutExpired):
+        creative_code_pr_promotion.promote(
+            promotion_id="promotion-pr3-timeout-upload",
+            git=git,
+            github=github,
+        )
+
+    upload_calls = [call for call in git.calls if call[:1] == ["push_upload_branch"]]
+    assert len(upload_calls) == 1
+    temp_upload_branch = upload_calls[0][1]
+    assert github.deleted_refs == [temp_upload_branch]
+    assert not github.created_refs
+    assert not any(call[:2] == ["pr", "create"] for call in github.calls)
+    assert not (promotion_dir / creative_code_pr_promotion.RECEIPT_FILE).exists()
 
 
 def test_promote_rejects_approval_artifact_cross_mismatch(

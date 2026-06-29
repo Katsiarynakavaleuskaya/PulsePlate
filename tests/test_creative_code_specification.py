@@ -44,6 +44,14 @@ UNSAFE_LOCAL_PATH_TEXTS = (
     "Use /workspace/project/.env as runtime input.",
     "Write output to /tmp/pulseplate.sock.",
     "Load ~/.ssh/config for GitHub access.",
+    'Use "/home/runner/.ssh/id_rsa" in the prompt.',
+    "Read `/etc/passwd` for credentials.",
+    "See (/tmp) before cleanup.",
+    "Files in /tmp, then clean up.",
+    "Files in /tmp; then clean up.",
+    r"Read C:\Users\alice\.ssh\id_ed25519.",
+    "Read C:/Users/alice/.ssh/id_ed25519.",
+    r"Use \\server\share\secrets.txt.",
 )
 
 

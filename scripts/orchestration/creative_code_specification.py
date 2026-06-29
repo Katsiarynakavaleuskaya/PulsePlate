@@ -48,11 +48,13 @@ SECRET_RE = re.compile(
     re.IGNORECASE,
 )
 UNSAFE_LOCAL_ABSOLUTE_PATH_RE = re.compile(
-    r"(^|[\s:=,(])(?:"
-    r"/(?:users|home|etc|workspace)(?:/|$|[\s:;,.)\]])|"
-    r"/tmp(?:/|$|[A-Za-z0-9._-])|"
-    r"/(?:private/var|var/folders)(?:/|$|[\s:;,.)\]])|"
-    r"~[/\\](?:\.ssh(?:[/\\]|$|[\s:;,.)\]])|[^ \t\r\n]*)?"
+    r"(^|[\s:=,(\[{'\"`<])(?:"
+    r"/(?:users|home|etc|workspace|tmp)(?:/|$|[\s:;,.)\]}'\"`>])|"
+    r"/(?:private/var|var/folders)(?:/|$|[\s:;,.)\]}'\"`>])|"
+    r"~[/\\](?:\.ssh(?:[/\\]|$|[\s:;,.)\]}'\"`>])|[^ \t\r\n]*)?|"
+    r"[A-Za-z]:[/\\](?:Users|Documents and Settings|Windows|Temp|tmp)"
+    r"(?:[/\\]|$|[\s:;,.)\]}'\"`>])|"
+    r"\\\\[^\\/\s]+[/\\][^\\/\s]+"
     r")",
     re.IGNORECASE,
 )
