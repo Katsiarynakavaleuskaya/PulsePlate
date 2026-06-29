@@ -59,7 +59,7 @@ this PR.
   `#2044`.
 - [x] Initial PR open: no GitHub review threads existed and none were resolved.
 - [x] Post-open `qa-engineer-agent` pass completed.
-- [ ] Post-open `bug-hunter` pass completed.
+- [x] Post-open `bug-hunter` pass completed.
 - [ ] Post-open `security-auditor` pass completed.
 - [ ] Codex Security diff scan / finding discovery completed or explicitly
   dispositioned.
@@ -124,6 +124,19 @@ pending external gate. That is not caused by the local creative-code telemetry
 diff and remains a current-head CI monitoring item, not a PR-owned code defect.
 This artifact still does not claim merge readiness while current-head CI is
 pending or red.
+
+Role: `bug-hunter`
+
+Disposition: FIXED
+
+Commit: `4b1ee2921`
+
+Evidence: The bug-hunter pass found that malformed local artifacts with the
+same basename under different run directories could collide because
+`artifact_read_error` identity used only the basename. Commit `4b1ee2921`
+derives read-error identity from a containment-checked creative-code-root
+relative locator fingerprint without emitting the raw locator, with coverage in
+`tests/test_creative_code_telemetry.py::test_malformed_artifacts_with_same_basename_keep_distinct_identities`.
 
 ## Pre-Open Premortem Closure
 
