@@ -869,7 +869,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [x] P1: Retire runtime-effective emergency wheel manifest entries after approved mirror sync
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (security / supply-chain / CI blocker)
-  - Target PR: `PR-TBD` (`codex/retire-emergency-wheel-fallbacks`)
+  - Target PR: PR #2046 (`codex/retire-emergency-wheel-fallbacks`)
   - Status: Runtime-effective fallback retired in this PR; `scripts/ci/emergency_python_wheels.json` remains as an empty compatibility marker instead of deleting CI/Docker references in the same lane.
   - Area: security / CI / dependencies
   - Reason (EN): The repo carried a time-boxed exact-wheel emergency bridge while the approved private Python proxy caught up to patched locked releases. After PR #2036 and the 2026-06-29 mirror-parity proof, representative proxy health was `ok=true` and all 34 previously active emergency wheel filenames were present on the approved private proxy (`missing=0`). The broad cleanup path remains intentionally out of scope: the manifest file stays as an empty retired marker so rollback-compatible installer, CI, and Docker references do not churn in this infra PR. (RU: репозиторий временно держал exact-wheel emergency bridge, пока одобренный приватный Python proxy догонял исправленные lockfile-релизы. После PR #2036 и mirror-parity proof от 2026-06-29 representative health был `ok=true`, и все 34 ранее активных emergency wheel filename присутствовали в одобренном приватном proxy (`missing=0`). Широкое удаление compatibility path оставлено вне scope: manifest остаётся пустым retired marker, чтобы не смешивать rollback-compatible installer/CI/Docker references с этим infra PR.)
@@ -895,7 +895,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [x] P1: Remove temporary `pillow 12.2.0` emergency wheel fallback after approved mirror sync
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (security / supply-chain / CI blocker)
-  - Target PR: `PR-TBD` (`codex/retire-emergency-wheel-fallbacks`)
+  - Target PR: PR #2046 (`codex/retire-emergency-wheel-fallbacks`)
   - Status: Runtime-effective fallback retired by the empty emergency manifest marker on `2026-06-29`; advisory cleanup remains separate follow-up scope if needed.
   - Area: security / CI / dependencies
   - Reason (EN): `feat/rag-hardening-followthrough` must stay on the patched exact release `pillow 12.2.0`, but current-head CI and Docker installs showed the approved private index lagged that upstream release and exposed only `12.1.1`. `PR #1415` therefore adds a time-boxed exact-wheel fallback with pinned `sha256` digests instead of a vulnerable repin or a broad public-index bypass. Remove this fallback as soon as the approved mirror serves `12.2.0` natively. (RU: ветка должна остаться на исправленном точном релизе `pillow 12.2.0`, но CI/Docker показали отставание приватного зеркала и наличие только `12.1.1`. Поэтому `PR #1415` добавляет временный exact-wheel fallback с pinned `sha256`, а не уязвимый репин и не широкий bypass на публичный индекс. Удалить fallback сразу после того, как одобренное зеркало начнёт отдавать `12.2.0` нативно.)
@@ -914,7 +914,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [x] P1: Remove temporary `mako 1.3.12` emergency wheel fallback after approved mirror sync
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (security / supply-chain / CI blocker)
-  - Target PR: `PR-TBD` (`codex/retire-emergency-wheel-fallbacks`)
+  - Target PR: PR #2046 (`codex/retire-emergency-wheel-fallbacks`)
   - Status: Runtime-effective fallback retired by the empty emergency manifest marker on `2026-06-29`; advisory cleanup remains separate follow-up scope if needed.
   - Area: security / CI / dependencies
   - Reason (EN): `fix/mako-security-floor` started on the patched exact release `mako 1.3.11`, but current-head CI showed the approved private index still exposed only `1.3.10` during locked binary installs. `PR #1440` therefore added a time-boxed exact-wheel fallback with pinned `sha256` digests instead of a vulnerable repin or a broad public-index bypass. `PR #1697` refreshes the active floor to `mako 1.3.12` after a newer `pip-audit` advisory. Remove this fallback as soon as the approved mirror serves `1.3.12` natively. (RU: ветка `fix/mako-security-floor` стартовала с исправленного релиза `mako 1.3.11`, но current-head CI показал, что приватное зеркало всё ещё отдаёт только `1.3.10` при locked binary install. Поэтому `PR #1440` добавил временный exact-wheel fallback с pinned `sha256`, а не уязвимый репин и не широкий bypass на публичный индекс. `PR #1697` обновляет активный floor до `mako 1.3.12` после нового `pip-audit` advisory. Удалить fallback сразу после того, как одобренное зеркало начнёт отдавать `1.3.12` нативно.)

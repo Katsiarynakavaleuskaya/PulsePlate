@@ -171,6 +171,55 @@ def test_active_manifest_fails_when_simple_page_hash_mismatches(
     assert [result.reason for result in summary.results] == ["mirror_sha256_mismatch"]
 
 
+def test_active_manifest_fails_when_simple_page_hash_is_missing(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    manifest = _write_manifest(tmp_path, _active_payload())
+
+    def fake_fetch(_url: str, **_kwargs: object) -> tuple[int, bytes]:
+        return (200, f'<html><a href="{WHEEL_FILENAME}">wheel</a></html>'.encode())
+
+    monkeypatch.setattr(parity.proxy_health, "fetch_project_page", fake_fetch)
+
+    summary = parity.check_parity(
+        manifest=manifest,
+        index_url=APPROVED_INDEX_URL,
+        timeout_seconds=1.0,
+        max_bytes=10_000,
+        target_python_versions=("cp311",),
+    )
+
+    assert summary.ok is False
+    assert [result.reason for result in summary.results] == ["simple_page_sha256_missing"]
+
+
+def test_active_manifest_fails_when_simple_page_hash_is_malformed(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    manifest = _write_manifest(tmp_path, _active_payload())
+
+    def fake_fetch(_url: str, **_kwargs: object) -> tuple[int, bytes]:
+        return (
+            200,
+            f'<html><a href="{WHEEL_FILENAME}#sha256=not-a-digest">wheel</a></html>'.encode(),
+        )
+
+    monkeypatch.setattr(parity.proxy_health, "fetch_project_page", fake_fetch)
+
+    summary = parity.check_parity(
+        manifest=manifest,
+        index_url=APPROVED_INDEX_URL,
+        timeout_seconds=1.0,
+        max_bytes=10_000,
+        target_python_versions=("cp311",),
+    )
+
+    assert summary.ok is False
+    assert [result.reason for result in summary.results] == ["simple_page_sha256_invalid"]
+
+
 def test_active_manifest_rejects_expired_artifacts(tmp_path: Path) -> None:
     manifest = _write_manifest(tmp_path, _active_payload())
     payload = _active_payload()
