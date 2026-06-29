@@ -30,13 +30,20 @@ configuration change is included. `.pre-commit-config.yaml` remains pinned to
 
 ## Lane Start Provenance
 
-- Base branch: `main`
-- Branch: `codex/deps-ruff-0-15-20-refresh`
-- Packet: `artifacts/orchestration/task_packets/505b1519b2ff.json`
-- Current `main` CI run `28386708528` completed successfully before edits.
-- Pre-implementation role order executed:
+Base branch: `main`
+
+Branch: `codex/deps-ruff-0-15-20-refresh`
+
+Packet: artifacts/orchestration/task_packets/505b1519b2ff.json
+
+Starter: scripts/orchestration/start_pr_lane.sh
+
+Current `main` CI run `28386708528` completed successfully before edits.
+
+Pre-implementation role order executed:
   `agent-coordinator -> architecture-specialist -> security-auditor -> qa-engineer-agent -> bug-hunter -> cursor-specialist-agent`
-- Packet creation was routing/provenance only; role passes were executed
+
+Packet creation was routing/provenance only; role passes were executed
   explicitly before implementation.
 
 ## Premortem Evidence
@@ -49,9 +56,9 @@ validation notes.
 
 ## Experiment Runner Evidence
 
-Packet: `artifacts/orchestration/experiments/artifacts/orchestration/experiments/ruff-0-15-20-replacement-oracle-packet.json`
+Artifact: artifacts/orchestration/experiments/results/ruff-0-15-20-replacement-oracle-result.json
 
-Result: `artifacts/orchestration/experiments/results/ruff-0-15-20-replacement-oracle-result.json`
+Packet: `artifacts/orchestration/experiments/artifacts/orchestration/experiments/ruff-0-15-20-replacement-oracle-packet.json`
 
 Status: accepted.
 
@@ -60,8 +67,8 @@ Contribution: `oracle_review`; commit `f31e5e642` includes
 
 ## Discussion Thread Pass
 
-- [x] Discussion-thread pass initialized.
-- [x] Fixed in commit mapping artifact created after PR number allocation.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 - [ ] CodeRabbit actionable review comments dispositioned.
 - [ ] Codex Security diff scan / finding discovery completed or explicitly
   dispositioned.
@@ -74,8 +81,7 @@ Contribution: `oracle_review`; commit `f31e5e642` includes
 
 ## Fixed in Commit Mapping
 
-No review-thread mappings yet. Initial artifact created after GitHub assigned PR
-number `#2050`.
+- No actionable review comments
 
 ## Validation Evidence
 
