@@ -32,6 +32,14 @@ VERSION_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._+!~-]*$")
 ProjectPageCache = dict[str, tuple[int, bytes] | Exception]
 
 
+class SimplePageValidationError(ValueError):
+    """Validation failure with a stable parity reason code."""
+
+    def __init__(self, reason: str, detail: str) -> None:
+        super().__init__(detail)
+        self.reason = reason
+
+
 class _SimplePageHrefParser(HTMLParser):
     """Collect anchor hrefs from a Python Simple API project page."""
 
@@ -205,9 +213,27 @@ def _sha256_from_fragment(fragment: str) -> str | None:
             continue
         digest = unquote(value).strip().lower()
         if SHA256_RE.fullmatch(digest) is None:
-            raise ValueError("invalid sha256 fragment")
+            raise SimplePageValidationError(
+                "simple_page_sha256_invalid",
+                "invalid sha256 fragment",
+            )
         return digest
     return None
+
+
+def _href_uses_private_proxy(*, href: str, project_url: str) -> bool:
+    parsed_href = urlparse(href)
+    if not parsed_href.scheme and not parsed_href.netloc:
+        return True
+
+    parsed_project = urlparse(project_url)
+    if parsed_href.username is not None or parsed_href.password is not None:
+        return False
+    return (
+        parsed_href.scheme == parsed_project.scheme
+        and (parsed_href.hostname or "").rstrip(".").lower()
+        == (parsed_project.hostname or "").rstrip(".").lower()
+    )
 
 
 def _exact_pin_wheel_sha256s(
@@ -215,6 +241,7 @@ def _exact_pin_wheel_sha256s(
     body: bytes,
     normalized_project: str,
     expected_version: str,
+    project_url: str,
 ) -> dict[str, str | None]:
     """Return exact-version wheel filename -> advertised Simple API sha256."""
 
@@ -231,11 +258,52 @@ def _exact_pin_wheel_sha256s(
         filename = unquote(Path(parsed.path).name).lower()
         if not filename.endswith(".whl") or not filename.startswith(expected_prefixes):
             continue
+        if not _href_uses_private_proxy(href=href, project_url=project_url):
+            raise SimplePageValidationError(
+                "simple_page_artifact_host_unapproved",
+                f"{filename}: Simple API href must be relative or same-host private proxy link",
+            )
         digest = _sha256_from_fragment(parsed.fragment)
         if filename in wheel_hashes and wheel_hashes[filename] != digest:
-            raise ValueError(f"{filename}: conflicting sha256 fragments")
+            raise SimplePageValidationError(
+                "simple_page_sha256_invalid",
+                f"{filename}: conflicting sha256 fragments",
+            )
         wheel_hashes[filename] = digest
     return wheel_hashes
+
+
+def _target_python_coverage_errors(
+    *,
+    artifacts: Sequence[EmergencyWheelArtifact],
+    target_python_versions: Sequence[str],
+) -> tuple[str, ...]:
+    target_tags = proxy_health.normalize_target_python_versions(target_python_versions)
+    artifacts_by_pin: dict[tuple[str, str], list[EmergencyWheelArtifact]] = {}
+    for artifact in artifacts:
+        artifacts_by_pin.setdefault((artifact.normalized_package, artifact.version), []).append(
+            artifact
+        )
+
+    errors: list[str] = []
+    for (normalized_package, version), pinned_artifacts in sorted(artifacts_by_pin.items()):
+        missing_targets = [
+            target_tag
+            for target_tag in target_tags
+            if not any(
+                proxy_health.wheel_is_compatible_with_targets(
+                    artifact.filename,
+                    target_python_versions=(target_tag,),
+                )
+                for artifact in pinned_artifacts
+            )
+        ]
+        if missing_targets:
+            errors.append(
+                "python_target_coverage_missing: "
+                f"{normalized_package}=={version} missing {','.join(missing_targets)}"
+            )
+    return tuple(errors)
 
 
 def _manifest_is_retired_marker(payload: dict[str, object]) -> bool:
@@ -466,13 +534,14 @@ def probe_artifact(
             body=body,
             normalized_project=artifact.normalized_package,
             expected_version=artifact.version,
+            project_url=project_url,
         )
-    except ValueError as exc:
+    except SimplePageValidationError as exc:
         return ArtifactResult(
             artifact=artifact,
             project_url=project_url,
             ok=False,
-            reason="simple_page_sha256_invalid",
+            reason=exc.reason,
             status=status,
             bytes_read=len(body),
             detail=str(exc),
@@ -555,13 +624,18 @@ def check_parity(
         )
         for artifact in artifacts
     )
+    errors = _target_python_coverage_errors(
+        artifacts=artifacts,
+        target_python_versions=target_python_versions,
+    )
     return ParitySummary(
-        ok=all(result.ok for result in results),
+        ok=all(result.ok for result in results) and not errors,
         retired=False,
         manifest=str(manifest),
         index_url=validated_index,
         host=host,
         results=results,
+        errors=errors,
     )
 
 

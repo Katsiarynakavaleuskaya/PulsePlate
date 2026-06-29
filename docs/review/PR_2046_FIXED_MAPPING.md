@@ -52,8 +52,8 @@ wires the checker into the existing private proxy health job.
 - [x] Codex Security diff scan / finding discovery completed; candidate
   `CS-2046-001` fixed below.
 - [x] `pulseplate-pr-review` completed; advisory large-diff note recorded below.
-- [ ] CodeRabbit, Sourcery, Cubic, current-head CI, and strict merge-readiness
-  wrapper remain required before merge.
+- [ ] Latest review fixes, current-head CI, and strict merge-readiness wrapper
+  remain required before merge.
 
 ## Fixed in Commit Mapping
 
@@ -148,6 +148,6 @@ Reason: CodeRabbit found closed ledger items still using `PR-TBD` target metadat
 
 Not merge-ready yet. Post-open role passes, Codex Security diff scan/finding
 discovery, and `pulseplate-pr-review` are completed with actions/dispositions
-recorded above. The CodeRabbit follow-up fix and mapping still need to be pushed,
-review-thread disposition rechecked, and current-head CI rerun before any
-merge-readiness claim.
+recorded above. Latest review fixes still need to be pushed, review-thread
+disposition and strict merge-readiness must be rechecked, and current-head CI
+must rerun before any merge-readiness claim.

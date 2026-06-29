@@ -55,8 +55,8 @@ PR rather than deferred.
 | --- | --- | --- |
 | Representative health is not all-entry parity. | FIXED | `scripts/ci/check_emergency_wheel_mirror_parity.py`; `.github/workflows/ci.yml` step `Emergency wheel mirror parity`. |
 | Empty manifest could silently disable fallback by accident. | FIXED | `install_locked_python_requirements.py` accepts only the dated `Retired:` marker; `tests/test_install_locked_python_requirements.py` covers valid and malformed empty markers. |
-| Future active entries could fetch or trust public artifacts. | FIXED | Parity checker validates artifact URL host/shape and never downloads artifact URLs; `tests/test_emergency_wheel_mirror_parity.py` rejects wrong hosts. |
-| ABI-specific missing wheels could be masked. | FIXED | Parity checker validates exact filenames and wheel compatibility; active pre-retirement manifest proof showed `artifacts=34 missing=0`. |
+| Future active entries could fetch or trust public artifacts. | FIXED | Parity checker validates artifact URL host/shape, rejects public-host Simple API hrefs, and never downloads artifact URLs; `tests/test_emergency_wheel_mirror_parity.py` rejects wrong hosts and public Simple hrefs. |
+| ABI-specific missing wheels could be masked. | FIXED | Parity checker validates exact filenames, wheel compatibility, and per-target Python coverage; active pre-retirement manifest proof showed `artifacts=34 missing=0`. |
 | Protected-main `.netrc` could linger. | FIXED | `.github/workflows/ci.yml` cleanup step uses `always()` and removes `$HOME/.netrc`. |
 | Active expired entries could be ignored. | FIXED | Parity checker raises on active expired artifacts; dedicated test covers the failure. |
 
@@ -69,6 +69,7 @@ Oracle-only governance reviewer result:
 - Contribution kind: `commit_decision`
 - Co-author trailer required:
   `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`
+- Evidence: implementation commit `9af0917c1` includes the required trailer.
 
 ## Validation Plan
 

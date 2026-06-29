@@ -220,6 +220,66 @@ def test_active_manifest_fails_when_simple_page_hash_is_malformed(
     assert [result.reason for result in summary.results] == ["simple_page_sha256_invalid"]
 
 
+def test_active_manifest_rejects_public_simple_page_artifact_href(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    manifest = _write_manifest(tmp_path, _active_payload())
+
+    def fake_fetch(_url: str, **_kwargs: object) -> tuple[int, bytes]:
+        return (
+            200,
+            (
+                '<html><a href="'
+                f"https://files.pythonhosted.org/packages/example/{WHEEL_FILENAME}"
+                f'#sha256={"a" * 64}">wheel</a></html>'
+            ).encode(),
+        )
+
+    monkeypatch.setattr(parity.proxy_health, "fetch_project_page", fake_fetch)
+
+    summary = parity.check_parity(
+        manifest=manifest,
+        index_url=APPROVED_INDEX_URL,
+        timeout_seconds=1.0,
+        max_bytes=10_000,
+        target_python_versions=("cp311",),
+    )
+
+    assert summary.ok is False
+    assert [result.reason for result in summary.results] == ["simple_page_artifact_host_unapproved"]
+
+
+def test_active_manifest_requires_abi_wheels_for_each_target_python(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    wheel_filename = "example_pkg-1.0.0-cp311-cp311-manylinux_2_17_x86_64.whl"
+    manifest = _write_manifest(tmp_path, _active_payload(filename=wheel_filename))
+
+    def fake_fetch(_url: str, **_kwargs: object) -> tuple[int, bytes]:
+        return (
+            200,
+            f'<html><a href="{wheel_filename}#sha256={"a" * 64}">wheel</a></html>'.encode(),
+        )
+
+    monkeypatch.setattr(parity.proxy_health, "fetch_project_page", fake_fetch)
+
+    summary = parity.check_parity(
+        manifest=manifest,
+        index_url=APPROVED_INDEX_URL,
+        timeout_seconds=1.0,
+        max_bytes=10_000,
+        target_python_versions=("cp311", "cp312", "cp313"),
+    )
+
+    assert summary.ok is False
+    assert [result.reason for result in summary.results] == ["ok"]
+    assert summary.errors == (
+        "python_target_coverage_missing: example-pkg==1.0.0 missing cp312,cp313",
+    )
+
+
 def test_active_manifest_rejects_expired_artifacts(tmp_path: Path) -> None:
     manifest = _write_manifest(tmp_path, _active_payload())
     payload = _active_payload()
