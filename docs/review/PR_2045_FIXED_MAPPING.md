@@ -19,11 +19,19 @@ Reason: Creative-code spec text now rejects quoted/bracketed local absolute path
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2045#discussion_r3491453900 -> 3b59eac46ce1ee1a4127758fe37b70e92d131f34
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2045#discussion_r3491453906 -> 3b59eac46ce1ee1a4127758fe37b70e92d131f34
 
+Disposition: FIXED
+Commit: da1297e74e90b44b9c68a30717e214705ec0dab5
+Evidence: `tests/test_remaining_modules.py:148`, `tests/test_remaining_modules.py:154`
+Reason: The sandbox smoke test now derives the allowed Python binary from `sys.executable` and passes that same runtime binary name to `SandboxRequest`, avoiding runner-dependent hardcoding.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2045#discussion_r3491861380 -> da1297e74e90b44b9c68a30717e214705ec0dab5
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2045#pullrequestreview-4592023976 -> da1297e74e90b44b9c68a30717e214705ec0dab5
+
 ## Validation Evidence
 - `python3 scripts/orchestration/check_preflight.py` - PASS
 - `python3 scripts/orchestration/check_agent_consistency.py` - PASS
 - `$VENV_PYTHON -m py_compile app/security/execution_sandbox.py scripts/orchestration/experiment_runner.py scripts/orchestration/creative_code_specification.py scripts/orchestration/creative_code_pr_promotion.py` - PASS
 - `$VENV_PYTHON -m pytest -q tests/test_execution_sandbox.py tests/test_experiment_runner.py tests/test_creative_code_specification.py tests/test_creative_code_pr_promotion.py` - PASS
+- `$VENV_PYTHON -m pytest -q tests/test_remaining_modules.py::test_run_local_sandbox_builds_effective_argv_smoke tests/test_execution_sandbox.py` - PASS
 - `make validate-changed` - PASS
 - `pre-commit run --all-files` - PASS
 - Codex Security diff scan `274fb734-5910-4e0f-b346-32705ea518a2` - zero findings
