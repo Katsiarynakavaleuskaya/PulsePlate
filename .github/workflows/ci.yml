@@ -576,9 +576,15 @@ jobs:
             echo "::error::Refusing to overwrite an existing .netrc."
             exit 1
           fi
+          if [[ -z "${RUNNER_TEMP:-}" ]]; then
+            echo "::error::RUNNER_TEMP is required for protected main .netrc cleanup."
+            exit 1
+          fi
+          marker="$RUNNER_TEMP/pulseplate-private-proxy-health-netrc-created"
           umask 077
           printf 'machine packages.pulseplate.app\n  login %s\n  password %s\n' \
             "$DEVPI_CI_USER" "$DEVPI_CI_PASSWORD" > "$HOME/.netrc"
+          touch "$marker"
 
       - name: Check private Python proxy health
         run: |
@@ -611,7 +617,10 @@ jobs:
         if: always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         run: |
           set -euo pipefail
-          rm -f "$HOME/.netrc"
+          marker="${RUNNER_TEMP:-}/pulseplate-private-proxy-health-netrc-created"
+          if [[ -n "${RUNNER_TEMP:-}" && -f "$marker" ]]; then
+            rm -f "$HOME/.netrc" "$marker"
+          fi
 
   lint:
     needs: [private_python_proxy_health]

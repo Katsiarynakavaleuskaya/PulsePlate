@@ -105,7 +105,10 @@ def test_private_proxy_health_job_is_stdlib_fail_fast_gate() -> None:
         cleanup_step.get("if")
         == "always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'"
     )
-    assert 'rm -f "$HOME/.netrc"' in str(cleanup_step.get("run", ""))
+    cleanup_run = str(cleanup_step.get("run", ""))
+    assert "pulseplate-private-proxy-health-netrc-created" in cleanup_run
+    assert '[[ -n "${RUNNER_TEMP:-}" && -f "$marker" ]]' in cleanup_run
+    assert 'rm -f "$HOME/.netrc" "$marker"' in cleanup_run
     assert cleanup_step.get("continue-on-error") is None
 
 
@@ -179,6 +182,8 @@ def test_private_proxy_health_main_auth_is_netrc_only() -> None:
     assert "://$DEVPI_CI_USER" not in protected_auth
     assert "://$DEVPI_CI_PASSWORD" not in protected_auth
     assert "$HOME/.netrc" in protected_auth
+    assert "pulseplate-private-proxy-health-netrc-created" in protected_auth
+    assert 'touch "$marker"' in protected_auth
     assert "[Rr][Oo][Oo][Tt]" in protected_auth
     assert "Root devpi credentials are forbidden" in protected_auth
 

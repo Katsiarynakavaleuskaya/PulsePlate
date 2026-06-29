@@ -98,7 +98,8 @@ def test_active_manifest_requires_exact_filename_on_private_project_page(
             200,
             (
                 f'<html><a href="{WHEEL_FILENAME}#sha256={"a" * 64}">wheel</a>'
-                '<a href="example_pkg-1.0.0-cp311-cp311-manylinux_2_17_x86_64.whl">'
+                '<a href="example_pkg-1.0.0-cp311-cp311-manylinux_2_17_x86_64.whl'
+                f'#sha256={"b" * 64}">'
                 "wheel</a></html>"
             ).encode(),
         )
@@ -142,6 +143,32 @@ def test_active_manifest_fails_when_exact_filename_is_missing(
 
     assert summary.ok is False
     assert [result.reason for result in summary.results] == ["mirror_lag_exact_filename_missing"]
+
+
+def test_active_manifest_fails_when_simple_page_hash_mismatches(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    manifest = _write_manifest(tmp_path, _active_payload())
+
+    def fake_fetch(_url: str, **_kwargs: object) -> tuple[int, bytes]:
+        return (
+            200,
+            f'<html><a href="{WHEEL_FILENAME}#sha256={"b" * 64}">wheel</a></html>'.encode(),
+        )
+
+    monkeypatch.setattr(parity.proxy_health, "fetch_project_page", fake_fetch)
+
+    summary = parity.check_parity(
+        manifest=manifest,
+        index_url=APPROVED_INDEX_URL,
+        timeout_seconds=1.0,
+        max_bytes=10_000,
+        target_python_versions=("cp311",),
+    )
+
+    assert summary.ok is False
+    assert [result.reason for result in summary.results] == ["mirror_sha256_mismatch"]
 
 
 def test_active_manifest_rejects_expired_artifacts(tmp_path: Path) -> None:

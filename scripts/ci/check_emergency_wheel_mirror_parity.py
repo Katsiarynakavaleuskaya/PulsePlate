@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 from dataclasses import dataclass
 from datetime import date
+from html.parser import HTMLParser
 import json
 import os
 from pathlib import Path
@@ -29,6 +30,21 @@ ALLOWED_ARTIFACT_HOSTS = frozenset({"files.pythonhosted.org"})
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 VERSION_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._+!~-]*$")
 ProjectPageCache = dict[str, tuple[int, bytes] | Exception]
+
+
+class _SimplePageHrefParser(HTMLParser):
+    """Collect anchor hrefs from a Python Simple API project page."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.hrefs: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag.lower() != "a":
+            return
+        for name, value in attrs:
+            if name.lower() == "href" and value:
+                self.hrefs.append(value)
 
 
 @dataclass(frozen=True)
@@ -180,6 +196,46 @@ def _validate_artifact_url(url: str, *, filename: str) -> None:
         raise ValueError(f"{filename}: artifact URL query and fragment are forbidden")
     if unquote(Path(parsed.path).name) != filename:
         raise ValueError(f"{filename}: artifact URL basename must match filename")
+
+
+def _sha256_from_fragment(fragment: str) -> str | None:
+    for field in fragment.split("&"):
+        name, separator, value = field.partition("=")
+        if separator != "=" or name.lower() != "sha256":
+            continue
+        digest = unquote(value).strip().lower()
+        if SHA256_RE.fullmatch(digest) is None:
+            raise ValueError("invalid sha256 fragment")
+        return digest
+    return None
+
+
+def _exact_pin_wheel_sha256s(
+    *,
+    body: bytes,
+    normalized_project: str,
+    expected_version: str,
+) -> dict[str, str | None]:
+    """Return exact-version wheel filename -> advertised Simple API sha256."""
+
+    parser = _SimplePageHrefParser()
+    parser.feed(body.decode("utf-8", errors="ignore"))
+    parser.close()
+    expected_prefixes = (
+        f"{normalized_project}-{expected_version}-".lower(),
+        f"{normalized_project.replace('-', '_')}-{expected_version}-".lower(),
+    )
+    wheel_hashes: dict[str, str | None] = {}
+    for href in parser.hrefs:
+        parsed = urlparse(href)
+        filename = unquote(Path(parsed.path).name).lower()
+        if not filename.endswith(".whl") or not filename.startswith(expected_prefixes):
+            continue
+        digest = _sha256_from_fragment(parsed.fragment)
+        if filename in wheel_hashes and wheel_hashes[filename] != digest:
+            raise ValueError(f"{filename}: conflicting sha256 fragments")
+        wheel_hashes[filename] = digest
+    return wheel_hashes
 
 
 def _manifest_is_retired_marker(payload: dict[str, object]) -> bool:
@@ -402,6 +458,41 @@ def probe_artifact(
             project_url=project_url,
             ok=False,
             reason="mirror_lag_exact_filename_missing",
+            status=status,
+            bytes_read=len(body),
+        )
+    try:
+        exact_wheel_hashes = _exact_pin_wheel_sha256s(
+            body=body,
+            normalized_project=artifact.normalized_package,
+            expected_version=artifact.version,
+        )
+    except ValueError as exc:
+        return ArtifactResult(
+            artifact=artifact,
+            project_url=project_url,
+            ok=False,
+            reason="simple_page_sha256_invalid",
+            status=status,
+            bytes_read=len(body),
+            detail=str(exc),
+        )
+    mirrored_sha256 = exact_wheel_hashes.get(artifact.filename.lower())
+    if mirrored_sha256 is None:
+        return ArtifactResult(
+            artifact=artifact,
+            project_url=project_url,
+            ok=False,
+            reason="simple_page_sha256_missing",
+            status=status,
+            bytes_read=len(body),
+        )
+    if mirrored_sha256 != artifact.sha256:
+        return ArtifactResult(
+            artifact=artifact,
+            project_url=project_url,
+            ok=False,
+            reason="mirror_sha256_mismatch",
             status=status,
             bytes_read=len(body),
         )
