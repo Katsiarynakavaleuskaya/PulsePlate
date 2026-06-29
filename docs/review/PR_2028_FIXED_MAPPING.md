@@ -5,7 +5,7 @@
 - Post-open packet: `artifacts/orchestration/task_packets/32206ba2f2fe.json`
 - Starter: `scripts/orchestration/start_pr_lane.sh`
 - Branch: `feat/orchestration-review-fallback-learning-loop`
-- Current base: `origin/main` at `c1dc21f45f615b3262d30cf32e4077920f10a16e`
+- Current base: `origin/main` at `b28bad895ece063d5bfddc95aa326cd19b73cd13`
 - Current PR head: GitHub current-head checks are the source of truth after each push.
 
 ## Discussion Thread Pass
@@ -29,54 +29,54 @@ Evidence: This CodeRabbit aggregate review is a container for inline findings. T
 Disposition: NOT-A-BUG
 Evidence: This CodeRabbit aggregate review is a container for inline findings. The actionable inline findings are mapped below.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2028#pullrequestreview-4585161591 -> 12464406ba7703f6591bb3c3a8f9376425b51e43
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2028#pullrequestreview-4585161591 -> fcf95d264897749599bab4ce047ddd918e6ee261
 Disposition: FIXED
-Commit: 12464406ba7703f6591bb3c3a8f9376425b51e43
+Commit: fcf95d264897749599bab4ce047ddd918e6ee261
 Evidence: `tests/test_install_locked_python_requirements.py` uses `sys.executable` for direct-proxy fallback tests so runtime tag selection stays in-process. The full focused test file passed after the rebase.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2028#discussion_r3485646667 -> 63500759f884b458c670f99a55e3d2ec8f205c03
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2028#discussion_r3485646667 -> ef9a91ce96d17493ab126a0b493f808038a8320d
 Disposition: FIXED
-Commit: 63500759f884b458c670f99a55e3d2ec8f205c03
+Commit: ef9a91ce96d17493ab126a0b493f808038a8320d
 Evidence: `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md` lists the machine-consumed `.v1` JSON contracts and keeps scoped validation as narrative-only advisory policy.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2028#discussion_r3485646668 -> 63500759f884b458c670f99a55e3d2ec8f205c03
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2028#discussion_r3485646668 -> ef9a91ce96d17493ab126a0b493f808038a8320d
 Disposition: FIXED
-Commit: 63500759f884b458c670f99a55e3d2ec8f205c03
+Commit: ef9a91ce96d17493ab126a0b493f808038a8320d
 Evidence: `scripts/orchestration/agent_lesson_promoter.py` validates loaded records through `validate_agent_learning_record()` before proposal emission; `tests/test_agent_learning_loop.py` covers file-load validation and extra-property rejection.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2028#discussion_r3485646669 -> 63500759f884b458c670f99a55e3d2ec8f205c03
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2028#discussion_r3485646669 -> ef9a91ce96d17493ab126a0b493f808038a8320d
 Disposition: FIXED
-Commit: 63500759f884b458c670f99a55e3d2ec8f205c03
+Commit: ef9a91ce96d17493ab126a0b493f808038a8320d
 Evidence: `scripts/orchestration/skill_router.py` avoids generic review-oracle routing and `tests/test_skill_router.py` proves generic Experiment Runner oracle text does not route `pulseplate-review-pattern-oracles`.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2028#discussion_r3485755463 -> 0680eeaf5d004da98b48b443117b77f18c647fe1
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2028#discussion_r3485755463 -> aa45557cf2f1aac75f51b96a743dfb14395a35cb
 Disposition: FIXED
-Commit: 0680eeaf5d004da98b48b443117b77f18c647fe1
+Commit: aa45557cf2f1aac75f51b96a743dfb14395a35cb
 Evidence: `scripts/orchestration/agent_learning_loop.py` redacts token-family values before generic token handling; `tests/test_agent_learning_loop.py` covers `ghs_` redaction.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2028#discussion_r3485755465 -> f333c798484e881b48ba374535dec22df6bee3f8
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2028#discussion_r3485755465 -> 239e927f7176b6ff8ed8151e9508b162ebb273ed
 Disposition: FIXED
-Commit: f333c798484e881b48ba374535dec22df6bee3f8
+Commit: 239e927f7176b6ff8ed8151e9508b162ebb273ed
 Evidence: `scripts/orchestration/agent_lesson_promoter.py` handles unreadable record files as malformed input errors; `tests/test_agent_learning_loop.py` covers the CLI failure path.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2028#discussion_r3485755469 -> e459e7daad6ea889b4e8822bd2951585f1709934
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2028#discussion_r3485755469 -> ec61a3f40baca892e82447b5777f886843a2868c
 Disposition: FIXED
-Commit: e459e7daad6ea889b4e8822bd2951585f1709934
+Commit: ec61a3f40baca892e82447b5777f886843a2868c
 Evidence: `scripts/orchestration/pr_review_context.py` emits repo-relative fixed-mapping evidence; `tests/test_pr_review_context.py` verifies local workspace paths are not emitted.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2028#discussion_r3485755472 -> e459e7daad6ea889b4e8822bd2951585f1709934
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2028#discussion_r3485755472 -> ec61a3f40baca892e82447b5777f886843a2868c
 Disposition: FIXED
-Commit: e459e7daad6ea889b4e8822bd2951585f1709934
+Commit: ec61a3f40baca892e82447b5777f886843a2868c
 Evidence: `scripts/orchestration/pr_review_context.py` evaluates fixed-mapping PR-diff membership when diff data is available; `tests/test_pr_review_context.py` covers missing-SHA parity handling.
 
 ## Role And Review Findings
 - `agent-coordinator` post-open pass: BLOCK on stale mapping, local-path evidence, obsolete scan-head evidence, and a non-worktree `git` context false negative.
 Disposition: FIXED for mapping/local-path evidence by this refresh.
-Evidence: This file records the current base `c1dc21f45f615b3262d30cf32e4077920f10a16e`, uses only repo-relative evidence paths, and makes no current-head security-scan claim. The canonical preflight was rerun successfully with explicit `GIT_DIR` and `GIT_WORK_TREE` for the linked worktree.
+Evidence: This file records the current base `b28bad895ece063d5bfddc95aa326cd19b73cd13`, uses only repo-relative evidence paths, and makes no current-head security-scan claim. The canonical preflight was rerun successfully in the linked worktree.
 
 - `qa-engineer-agent` post-open pass: BLOCK on stale mapping head/base references and stale PR body mirror.
 Disposition: FIXED for mapping evidence by this refresh. PR body mirror remains pending until after push so it can cite the actual remote head.
-Evidence: This mapping no longer embeds a self-stale local-head SHA and records the latest verified base `c1dc21f45f615b3262d30cf32e4077920f10a16e`.
+Evidence: This mapping no longer embeds a self-stale local-head SHA and records the latest verified base `b28bad895ece063d5bfddc95aa326cd19b73cd13`.
 
 - `bug-hunter` post-open pass: BLOCK on an over-specific local task-packet inventory sentence in Experiment Runner evidence.
 Disposition: FIXED.
@@ -96,7 +96,7 @@ Evidence: `scripts/orchestration/agent_learning_loop.py` revalidates redacted st
 
 - `pulseplate-pr-review` dry-run pass: advisory `note` on large-diff risk above the review-risk threshold.
 Disposition: NOT-A-BUG.
-Evidence: The rebased dry-run report generated at `2026-06-28T17:01:23Z` reports the same advisory large-diff note over 42 files / 2979 changed lines. PR body records a non-template split justification plus `Operator approval: approved`, `Emergency exception: approved`, and `Privileged scope exception: approved`; PR labels include `scope/operator-approved`, `scope/emergency-approved`, and `scope/privileged-approved`; `python3 scripts/ci/check_pr_size_governance.py --base-sha c1dc21f45f615b3262d30cf32e4077920f10a16e --head-sha HEAD --event-path <tmp event with live PR body and labels>` passed with `PR scope governance: OK (>30 files) because an operator-approved emergency exception is documented.`.
+Evidence: The latest dry-run report will be refreshed after local gates on the current rebase. PR body records a non-template split justification plus `Operator approval: approved`, `Emergency exception: approved`, and `Privileged scope exception: approved`; PR labels include `scope/operator-approved`, `scope/emergency-approved`, and `scope/privileged-approved`.
 Reason: The large-diff note is valid review-planning signal, but the intentionally broad one-PR governance contract is operator-approved and locally validated by the repository size-governance gate.
 
 ## Premortem Evidence
@@ -117,7 +117,7 @@ Reason: The large-diff note is valid review-planning signal, but the intentional
 - `make validate-changed`.
 - `pre-commit run --all-files` with explicit linked-worktree `GIT_DIR` and `GIT_WORK_TREE`.
 - `git diff --check origin/main...HEAD`.
-- `gh api repos/Katsiarynakavaleuskaya/PulsePlate/branches/main --jq .commit.sha` confirmed `main` at `c1dc21f45f615b3262d30cf32e4077920f10a16e` before this mapping refresh.
+- `git fetch --prune origin` confirmed `origin/main` at `b28bad895ece063d5bfddc95aa326cd19b73cd13` before this mapping refresh.
 
 ## Security Evidence
 - No new Codex Security scan was started after the latest rebase, per operator instruction to stop repeated scans unless the surface materially changes.
