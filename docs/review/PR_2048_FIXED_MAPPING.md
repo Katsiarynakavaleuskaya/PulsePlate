@@ -42,6 +42,8 @@ Experiment Runner implementation change is authorized by this PR.
 - `f364cd8a5` - fix post-open bug-hunter findings for unsafe GitHub URL
   suffixes, top-level raw body fixture rejection, and schema classification
   parity.
+- `2378bddc8` - fix post-open security-auditor findings for stdout output
+  validation and schema-only leak/path parity.
 
 ## Lane Start Provenance
 
@@ -66,7 +68,7 @@ Artifact: `artifacts/orchestration/experiments/results/pr5-review-disposition-or
   dispositioned.
 - [x] Post-open `qa-engineer-agent` pass completed.
 - [x] Post-open `bug-hunter` pass completed.
-- [ ] Post-open `security-auditor` pass completed.
+- [x] Post-open `security-auditor` pass completed.
 - [ ] `pulseplate-pr-review` completed.
 - [ ] Current-head CI complete before readiness language.
 - [ ] Strict merge-readiness checks run after the final review/check cycle.
@@ -113,6 +115,28 @@ classification states Python rejects. Commit `f364cd8a5` tightens the GitHub URL
 grammar and secret-first URL validation, recursively rejects raw body fields in
 fixtures, adds schema `allOf` parity constraints for repair classification, and
 covers all three scenarios in `tests/test_creative_code_review_disposition.py`.
+
+Role: `security-auditor`
+
+Disposition: FIXED
+
+Commit: `2378bddc8`
+
+Evidence: The post-open security-auditor pass found that stdout collection
+output could print unsafe fixture/source metadata before the unsafe-value check,
+and that schema-only consumers could admit newline-delimited local paths and
+`chain-of-thought` markers that Python rejects. Commit `2378bddc8` validates
+collections before stdout/file output, moves the output leak guard ahead of
+printing, adds schema newline path guards, mirrors the `chain[_ -]?of[_ -]?thought`
+denylist across feedback and repair-launch schemas, and covers these scenarios
+in `tests/test_creative_code_review_disposition.py`.
+
+Disposition: NOT-A-BUG
+
+Evidence: The operator explicitly instructed that the Codex Security diff scan
+must not be rerun because it had already been done once for this lane. This
+artifact records the post-open security-auditor findings and fixes without
+claiming a fresh Codex Security rerun.
 
 ## Pre-Open Role Findings
 
@@ -173,7 +197,7 @@ each scenario `[x]` only with file/test/doc evidence.
 
 - `python3 scripts/orchestration/check_preflight.py` - PASS
 - `python3 scripts/orchestration/check_agent_consistency.py` - PASS
-- repo-resolved `.venv/bin/python -m pytest tests/test_creative_code_review_disposition.py -q` - PASS, 28 passed
+- repo-resolved `.venv/bin/python -m pytest tests/test_creative_code_review_disposition.py -q` - PASS, 30 passed
 - repo-resolved `.venv/bin/python -m pytest tests/test_creative_code_telemetry.py tests/test_pr_review_report.py -q` - PASS, 24 passed
 - `make validate-changed` - PASS
 - `pre-commit run --all-files` - PASS
