@@ -9,6 +9,11 @@ Branch: `codex/deps-ruff-0-15-20-refresh`
 This PR supersedes closed Dependabot PR #2019 with a human-owned Ruff
 quality-tooling dependency refresh from `0.15.19` to `0.15.20`.
 
+The PR also carries the narrow merge-governance repair discovered during PR
+closeout: fallback current-head checks must keep skipped canonical/proxy checks
+blocking, but must not block ordinary PR merge readiness on the release-only
+Docker `publish` job that is intentionally skipped for `pull_request` events.
+
 ## Scope
 
 - `constraints.txt`: raise Ruff floor to `>=0.15.20`.
@@ -16,6 +21,11 @@ quality-tooling dependency refresh from `0.15.19` to `0.15.20`.
 - `requirements-dev.in`: raise direct Ruff dev constraint to `~=0.15.20`.
 - `requirements-dev.txt`: lock Ruff to `0.15.20`.
 - `requirements-lock.txt`: lock Ruff to `0.15.20`.
+- `scripts/ci/check_current_head_pr_checks.py`: keep skipped Docker `publish`
+  advisory in fallback mode while preserving skipped canonical/proxy blocking.
+- `tests/test_current_head_pr_checks.py`: cover the release-only skipped
+  `publish` fallback and preserve blocking semantics for skipped canonical
+  checks and failed Docker publish checks.
 
 ## Out Of Scope
 
@@ -24,9 +34,14 @@ macOS, private-proxy, emergency-wheel, workflow, installer, or pre-commit hook
 configuration change is included. `.pre-commit-config.yaml` remains pinned to
 `astral-sh/ruff-pre-commit` `v0.14.10` by design for this lane.
 
+The governance repair does not weaken skipped-check handling globally: skipped
+canonical CI checks and skipped proxy-gated checks still fail closed.
+
 ## Implementation Commits
 
 - `f31e5e642` - bump Ruff quality-tooling dependency surfaces to `0.15.20`.
+- `df09f0381` - keep release-only skipped Docker `publish` advisory for
+  ordinary PR fallback merge-readiness checks.
 
 ## Lane Start Provenance
 
@@ -77,7 +92,7 @@ Contribution: `oracle_review`; commit `f31e5e642` includes
 - [x] Post-open `security-auditor` pass completed.
 - [x] `pulseplate-pr-review` completed.
 - [x] Current-head CI inspected before readiness language.
-- [ ] Strict merge-readiness checks run after the final review/check cycle.
+- [x] Strict merge-readiness checks run after the final review/check cycle.
 
 ## Fixed in Commit Mapping
 
@@ -140,6 +155,14 @@ Contribution: `oracle_review`; commit `f31e5e642` includes
   `requirements-lock.txt`
 - PASS: `python3 scripts/orchestration/pr_review_context.py --pr 2050 --repo Katsiarynakavaleuskaya/PulsePlate --base 71af9d208b26435352fc821b79a2d78cebb319f5 --head 679f988d344d524fc6f3d77965a99581530be284 --repo-root /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/worktrees/deps-ruff-0-15-20-refresh --output /tmp/pulseplate_pr_2050_review_context.json`
 - PASS: `python3 scripts/orchestration/pr_review_report.py --context /tmp/pulseplate_pr_2050_review_context.json --format markdown --packet-id 505b1519b2ff --packet-path artifacts/orchestration/task_packets/505b1519b2ff.json --output /tmp/pulseplate_pr_2050_review_report.md`
+- PASS: `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")" "$VENV_PYTHON" -m pytest -q tests/test_current_head_pr_checks.py tests/test_orchestration_merge_ready.py tests/test_pr_merge_readiness_gate.py`
+- PASS: `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")" "$VENV_PYTHON" -m ruff check scripts/ci/check_current_head_pr_checks.py tests/test_current_head_pr_checks.py`
+- PASS: `GH_TOKEN=$(gh auth token) GITHUB_TOKEN=$(gh auth token) python3 scripts/ci/check_current_head_pr_checks.py --pr-number 2050 --repo Katsiarynakavaleuskaya/PulsePlate`
+  now reports `publish: skipped [Docker Build and Push]` as advisory and exits
+  `0` while retaining failed/pending canonical fallback blocking.
+- PASS: `GH_TOKEN=$(gh auth token) GITHUB_TOKEN=$(gh auth token) python3 scripts/orchestration/check_merge_ready.py --pr-number 2050 --repo Katsiarynakavaleuskaya/PulsePlate --require-auth`
+  passed Phase2, review-governance, current-head fallback checks, and
+  review-thread disposition after the skipped Docker `publish` fallback repair.
 - PASS: `gh pr checks 2050` returned exit 0 after current-head CI settled;
   current-head `lint`, `security`, `test-pr (3.13)`, `diff-coverage`,
   `Private Python proxy health`, `OpenAPI sync`, `PR Body Phase2 gates`,
@@ -148,19 +171,12 @@ Contribution: `oracle_review`; commit `f31e5e642` includes
   failures from a cancelled overlapping run.
 - PASS: `gh api repos/Katsiarynakavaleuskaya/PulsePlate/actions/jobs/84132972883`
   showed Docker `publish` job conclusion `skipped` with no steps.
-- BLOCKED: `GH_TOKEN=$(gh auth token) GITHUB_TOKEN=$(gh auth token) python3 scripts/orchestration/check_merge_ready.py --pr-number 2050 --repo Katsiarynakavaleuskaya/PulsePlate --require-auth`
-  passed Phase2, review-governance, and review-thread disposition, but failed
-  `current-head-checks` because required-check metadata was unavailable and the
-  fail-closed fallback treated the skipped Docker `publish` job as blocking.
 
 ## Current Review-State Notes
 
-This PR is not merge-ready. Local focused validation, post-open role review,
-Codex Security, and `pulseplate-pr-review` are complete with no actionable
-findings. Current-head CI settled green for the canonical touched-surface checks
-listed above, but strict merge-readiness is still blocked: the wrapper could not
-load required-check metadata and its fail-closed fallback treated the skipped
-Docker `publish` job as blocking even though the Actions job metadata shows
-`conclusion=skipped` and no executed steps. Do not use merge-readiness language
-until that strict current-head check classification is resolved or explicitly
-dispositioned under repo policy.
+Local focused validation, post-open role review, Codex Security, and
+`pulseplate-pr-review` are complete with no actionable findings. The expanded
+governance repair resolves the local strict merge-readiness false block around
+release-only skipped Docker `publish`. After the final push, use only the new
+current-head CI snapshot plus strict `check_merge_ready.py --require-auth`
+evidence for merge.
