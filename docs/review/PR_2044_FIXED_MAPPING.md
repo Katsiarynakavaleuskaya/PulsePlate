@@ -58,7 +58,7 @@ this PR.
 - [x] Fixed in commit mapping artifact created after GitHub assigned PR number
   `#2044`.
 - [x] Initial PR open: no GitHub review threads existed and none were resolved.
-- [ ] Post-open `qa-engineer-agent` pass completed.
+- [x] Post-open `qa-engineer-agent` pass completed.
 - [ ] Post-open `bug-hunter` pass completed.
 - [ ] Post-open `security-auditor` pass completed.
 - [ ] Codex Security diff scan / finding discovery completed or explicitly
@@ -70,6 +70,60 @@ this PR.
 ## Fixed in Commit Mapping
 
 - No actionable review comments
+
+## Post-Open Role Findings
+
+Role: `qa-engineer-agent`
+
+Disposition: FIXED
+
+Commit: `013642ce8`
+
+Evidence: The QA pass found that collector file discovery could follow
+symlinked JSON descendants inside otherwise valid artifact roots. Commit
+`013642ce8` rejects symlink components for JSON artifacts in
+`scripts/orchestration/creative_code_telemetry.py` and covers the case in
+`tests/test_creative_code_telemetry.py::test_artifact_json_symlinks_are_rejected`.
+
+Disposition: FIXED
+
+Commit: `013642ce8`
+
+Evidence: The QA pass found malformed PR-1 specification artifacts were
+silently dropped by default. Commit `013642ce8` emits the same safe
+`artifact_read_error` event for malformed specification artifacts as for
+malformed PR-2/PR-3 artifacts, with coverage in
+`tests/test_creative_code_telemetry.py::test_malformed_spec_artifact_becomes_safe_error_event_by_default`.
+
+Disposition: FIXED
+
+Commit: `013642ce8`
+
+Evidence: The QA pass found schema-only false-green risk in the rejection
+taxonomy and rollup count-map schemas. Commit `013642ce8` locks the taxonomy
+schema to the exact reference class list and restricts rollup count maps to
+taxonomy, stage, and status keys, with assertions in
+`tests/test_creative_code_telemetry.py::test_reference_taxonomy_and_schemas_are_closed`.
+
+Disposition: FIXED
+
+Commit: `340f9f80c`
+
+Evidence: The QA pass found the PR #2044 fixed-mapping artifact was missing
+from the tracked branch at the reviewed head and did not match the Phase 2
+parser shape in the local draft. Commit `414bad0b2` added the canonical
+artifact, and commit `340f9f80c` aligned the artifact with exact
+discussion-thread and fixed-mapping parser requirements. Validation:
+`scripts/orchestration/review_mapping_artifact.py::validate_mapping_artifact_text`
+returns no errors for `docs/review/PR_2044_FIXED_MAPPING.md`.
+
+Disposition: NOT-A-BUG
+
+Evidence: The QA pass reported current-head Private Python proxy health as a
+pending external gate. That is not caused by the local creative-code telemetry
+diff and remains a current-head CI monitoring item, not a PR-owned code defect.
+This artifact still does not claim merge readiness while current-head CI is
+pending or red.
 
 ## Pre-Open Premortem Closure
 
