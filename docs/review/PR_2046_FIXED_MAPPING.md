@@ -108,6 +108,31 @@ Reason: CodeRabbit found closed ledger items still using `PR-TBD` target metadat
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2046#discussion_r3493341332 -> f80f8be31
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2046#pullrequestreview-4593728060 -> f80f8be31
 
+Disposition: FIXED
+Commit: fc4693402
+Evidence: `docs/review/PR_2046_FIXED_MAPPING.md` now states that latest review fixes, current-head CI, and strict merge-readiness remain required instead of listing the prior CodeRabbit follow-up as pending after its proof had already landed.
+Reason: CodeRabbit found the merge-readiness wording stale after the earlier CodeRabbit follow-up fix and validation evidence were recorded.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2046#discussion_r3494015559 -> fc4693402
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2046#pullrequestreview-4594556627 -> fc4693402
+
+Disposition: FIXED
+Commit: fc4693402
+Evidence: `scripts/ci/check_emergency_wheel_mirror_parity.py` rejects public-host Simple API artifact hrefs with `simple_page_artifact_host_unapproved`; `tests/test_emergency_wheel_mirror_parity.py` covers a `files.pythonhosted.org` project-page href.
+Reason: Codex review found a false-green path where an active manifest could pass if the private Simple page linked directly to a public artifact URL.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2046#discussion_r3494045529 -> fc4693402
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2046#pullrequestreview-4594593543 -> fc4693402
+
+Disposition: FIXED
+Commit: fc4693402
+Evidence: `scripts/ci/check_emergency_wheel_mirror_parity.py` now groups active artifacts by package/version and requires every configured Python target to have compatible wheel coverage; `tests/test_emergency_wheel_mirror_parity.py` covers a cp311-only wheel failing `cp312,cp313` coverage.
+Reason: Codex review found the prior compatibility check accepted any target match instead of proving coverage for every configured target.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2046#discussion_r3494045535 -> fc4693402
+
+Disposition: NOT-A-BUG
+Evidence: `git show --no-patch --format=full 9af0917c1` shows the required `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>` trailer on the implementation commit; `docs/review/PR_EMERGENCY_WHEEL_MIRROR_PARITY_PREMORTEM.md` now records that evidence.
+Reason: Codex review referenced stale reviewed commit `1b54dfa`; the current branch history already carries the required Experiment Runner attribution on `9af0917c1`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2046#discussion_r3494045538
+
 ## Validation Evidence
 
 - `python3 scripts/orchestration/check_preflight.py --path ...` PASS.
@@ -143,11 +168,16 @@ Reason: CodeRabbit found closed ledger items still using `PR-TBD` target metadat
 - `python -m pytest -q tests/test_emergency_wheel_mirror_parity.py tests/test_private_python_proxy_workflow_contract.py tests/test_install_locked_python_requirements.py tests/test_python_supply_chain_controls.py` PASS after CodeRabbit fixes.
 - `make validate-changed` PASS after CodeRabbit fixes.
 - `pre-commit run --all-files` PASS after CodeRabbit fixes.
+- `.venv/bin/python -m pytest -q tests/test_emergency_wheel_mirror_parity.py` PASS after mirror parity review fixes (`11 passed`; known Starlette/TestClient deprecation warning only).
+- `.venv/bin/ruff check scripts/ci/check_emergency_wheel_mirror_parity.py tests/test_emergency_wheel_mirror_parity.py` PASS.
+- `.venv/bin/ruff format --check scripts/ci/check_emergency_wheel_mirror_parity.py tests/test_emergency_wheel_mirror_parity.py` PASS.
+- Commit hook pre-commit subset PASS for `fc4693402`, including changed-file backend tests.
 
 ## Merge Readiness
 
 Not merge-ready yet. Post-open role passes, Codex Security diff scan/finding
 discovery, and `pulseplate-pr-review` are completed with actions/dispositions
-recorded above. Latest review fixes still need to be pushed, review-thread
-disposition and strict merge-readiness must be rechecked, and current-head CI
-must rerun before any merge-readiness claim.
+recorded above. The latest review fixes and mapping still need to be pushed,
+review-thread disposition and strict merge-readiness must be rechecked, open
+review threads must be resolved only after this disposition evidence is present,
+and current-head CI must rerun before any merge-readiness claim.
