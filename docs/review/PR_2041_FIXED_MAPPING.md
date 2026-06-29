@@ -17,7 +17,7 @@
 
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
-- [x] CodeRabbit completed with no actionable review comments.
+- [x] CodeRabbit completed with no inline review findings; advisory docstring-coverage warning dispositioned below.
 - [x] Sourcery review was rate-limited and did not report actionable diff findings.
 - [x] No GitHub review threads are present on PR #2041 as of the mapping refresh.
 - [x] Local full `make verify` intentionally not run per repo local machine-budget policy.
@@ -26,7 +26,10 @@
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2041#issuecomment-4831510073
+Disposition: NOT-A-BUG
+Evidence: `pre-commit run --all-files` and current-head `lint` passed for the diff; this PR changes a small CI helper and regression tests only.
+Reason: CodeRabbit's docstring-coverage pre-merge warning is advisory and not a repository-required gate for this narrow CI-security hotfix. Adding docstring churn would not strengthen the security invariant under review.
 
 ## Experiment Runner Evidence
 
@@ -57,7 +60,7 @@
 - `python3 scripts/orchestration/role_dispatch_bridge.py --packet artifacts/orchestration/task_packets/baf06a17a0dc.json --pretty`: PASS.
 - `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 2041 --body ''`: PASS.
 - Live PR #2041 review threads query: no review threads.
-- CodeRabbit review comment: no actionable comments generated.
+- CodeRabbit review comment: no inline review findings; advisory docstring-coverage warning dispositioned as NOT-A-BUG in this artifact.
 - Experiment Runner oracle artifact `artifacts/orchestration/experiments/results/exp-2b9d5820b474.json`: accepted; oracle commands `check_agent_consistency.py` and `check_pr_body_phase2_gates.py --pr-number 2041 --body ''` returned 0.
 - Current code patch adds `Private Python proxy health` to the canonical fallback CI check list and treats GitHub `CheckRun` conclusion `SKIPPED` as failed.
 - Current tests cover skipped check-run normalization and private proxy health fallback blocking.
@@ -71,7 +74,7 @@
 ## Merge Readiness
 
 - [ ] Current-head CI is passing for PR #2041.
-- [x] CodeRabbit completed with no actionable comments.
+- [x] CodeRabbit completed with no inline findings; advisory docstring-coverage warning dispositioned as NOT-A-BUG.
 - [ ] Sourcery/Cubic no-actionables confirmed on the final PR head where available.
 - [x] Review threads and bot actionables are dispositioned for the current observed PR state.
 - [ ] `check_merge_ready.py --require-auth` passes for PR #2041.
