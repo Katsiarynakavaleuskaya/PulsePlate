@@ -182,6 +182,19 @@ def _source_fingerprint(payload: dict[str, Any]) -> str:
     return fingerprint
 
 
+def _artifact_locator_fingerprint(path: Path) -> str:
+    _reject_symlink_components(path, label="artifact read error source")
+    root = CREATIVE_CODE_ROOT.resolve(strict=False)
+    resolved = path.resolve(strict=False)
+    if not _is_relative_to(resolved, root):
+        raise CreativeCodeTelemetryError(
+            "artifact read error source must stay under creative-code artifacts."
+        )
+    locator = resolved.relative_to(root).as_posix()
+    locator_fingerprint = _source_fingerprint({"artifact_locator": locator})
+    return _source_fingerprint({"artifact_locator_fingerprint": locator_fingerprint})
+
+
 def _taxonomy_from_failure(failure_class: str | None) -> list[str]:
     if failure_class is None:
         return []
@@ -378,9 +391,7 @@ def event_from_promotion_receipt(receipt: dict[str, Any]) -> dict[str, Any]:
 
 
 def safe_read_error_event(path: Path) -> dict[str, Any]:
-    path_fingerprint = fingerprint_payload(
-        {"artifact_name_fingerprint": fingerprint_payload({"artifact_name": path.name})}
-    )
+    path_fingerprint = _artifact_locator_fingerprint(path)
     source_id = path_fingerprint.removeprefix("sha256:")[:24]
     return cast(
         dict[str, Any],

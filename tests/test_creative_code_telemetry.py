@@ -435,6 +435,36 @@ def test_malformed_patch_artifact_becomes_safe_error_event(
     assert str(bad_result) not in json.dumps(event, sort_keys=True)
 
 
+def test_malformed_artifacts_with_same_basename_keep_distinct_identities(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    _, spec_runs, patch_runs, promotions, _ = _configure_artifact_roots(monkeypatch, tmp_path)
+    (spec_runs / "empty").mkdir(parents=True)
+    (promotions / "empty").mkdir(parents=True)
+    for run_id in ("run-a", "run-b"):
+        bad_result = patch_runs / run_id / "result.json"
+        bad_result.parent.mkdir(parents=True)
+        bad_result.write_text('{"result_type":"x","result_type":"y"}', encoding="utf-8")
+
+    events = creative_code_telemetry.collect_events(
+        spec_runs_dir=spec_runs,
+        patch_runs_dir=patch_runs,
+        promotions_dir=promotions,
+    )
+    rollup = build_creative_code_telemetry_rollup(events, input_roots=["patch_runs"])
+
+    assert len(events) == 2
+    assert len({event["event_id"] for event in events}) == 2
+    assert len({event["source_artifact_id"] for event in events}) == 2
+    assert len({event["source_fingerprint"] for event in events}) == 2
+    assert rollup["event_count"] == 2
+    assert len(rollup["source_artifacts"]) == 2
+    emitted = json.dumps({"events": events, "rollup": rollup}, sort_keys=True)
+    assert str(tmp_path) not in emitted
+    assert "/Users/" not in emitted
+
+
 def test_malformed_spec_artifact_becomes_safe_error_event_by_default(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
