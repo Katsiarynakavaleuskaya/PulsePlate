@@ -77,18 +77,18 @@ Disposition: FIXED
 Commit: 24270cb8c
 Evidence: `scripts/ci/check_emergency_wheel_mirror_parity.py` compares Simple API `#sha256` fragments to manifest hashes; `tests/test_emergency_wheel_mirror_parity.py` covers digest mismatch failure.
 Reason: Post-open qa-engineer-agent found exact filename parity without mirrored digest parity.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2046 -> 24270cb8c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2046#discussion_r3491263033 -> 24270cb8c
 
 Disposition: FIXED
 Commit: 24270cb8c
 Evidence: `.github/workflows/ci.yml` creates `pulseplate-private-proxy-health-netrc-created` only when protected-main auth writes `.netrc`; cleanup removes `.netrc` only when that marker exists; `tests/test_private_python_proxy_workflow_contract.py` enforces the marker contract.
 Reason: Post-open qa-engineer-agent found protected-main cleanup could delete a pre-existing runner `.netrc` after the configure step refused overwrite.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2046 -> 24270cb8c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2046#discussion_r3491263044 -> 24270cb8c
 
 Disposition: NOT-A-BUG
 Evidence: `scripts/ci/check_emergency_wheel_mirror_parity.py` intentionally fails closed with `simple_page_truncated` before trusting a partial Simple API page; this is documented in validation as a proxy health signal rather than a filename miss.
 Reason: Post-open qa-engineer-agent classified truncation-before-visible-filename as a false-red risk only; the fail-closed behavior is intentional for supply-chain parity.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2046
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2046#discussion_r3491263041
 
 ## Validation Evidence
 
