@@ -129,10 +129,10 @@ Reason: Closes Codex Security finding "PRO contract bootstrap accepts same-endpo
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2032 -> e1531a004f2d4fadbb98260e1b996e664f80fc15
 
 Disposition: FIXED
-Commit: 011d49016c02f11456e3cbbd2956361e00c5fc5f
+Commit: 011d4901626e50533c0b96be20e776b99f59aa23
 Evidence: `tests/test_main_paywall_bootstrap.py` now covers the current-head `diff-coverage` tail for effective route original-route fallbacks, duplicate WebSocket path detection through effective routes, PRO contract source-router absence, PRO contract existing-handler dependency preservation, billing source-router absence, and billing idempotency. Focused pytest passed (`6 passed`), `ruff check tests/test_main_paywall_bootstrap.py` passed, the local focused route/bootstrap coverage bundle passed, and `diff-cover coverage.xml --compare-branch origin/main --fail-under 97` reported 100% diff coverage for `app/bootstrap/pro_contracts.py`, `app/bootstrap/route_family.py`, `app/effective_routes.py`, `app/main.py`, `app/middleware/metrics.py`, `app/routers/billing.py`, and `app/routers/vip_registration.py`. `make validate-changed` and `pre-commit run --all-files` passed.
 Reason: Closes current-head `diff-coverage` failure by covering the remaining route/bootstrap guard branches instead of weakening the coverage gate or widening dependency/proxy scope.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2032 -> 011d49016c02f11456e3cbbd2956361e00c5fc5f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2032 -> 011d4901626e50533c0b96be20e776b99f59aa23
 
 Disposition: DEFERRED
 Evidence: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-fastapi-compatibility-gates`
