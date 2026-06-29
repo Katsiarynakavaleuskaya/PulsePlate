@@ -35,15 +35,19 @@ Experiment Runner implementation change is authorized by this PR.
 
 ## Implementation Commits
 
-- `fcd7b9b31` - add PR-5 local creative-code review disposition contracts, CLI,
+- `2239cd71d` - add PR-5 local creative-code review disposition contracts, CLI,
   schemas, docs, tests, and pre-open governance evidence.
-- `49de6b759` - fix post-open QA findings for collection artifact validation
+- `d22397a7d` - fix post-open QA findings for collection artifact validation
   and JSON-schema GitHub URL anchoring.
-- `f364cd8a5` - fix post-open bug-hunter findings for unsafe GitHub URL
+- `94cbc62f8` - fix post-open bug-hunter findings for unsafe GitHub URL
   suffixes, top-level raw body fixture rejection, and schema classification
   parity.
-- `2378bddc8` - fix post-open security-auditor findings for stdout output
+- `636472624` - fix post-open security-auditor findings for stdout output
   validation and schema-only leak/path parity.
+- `80ee8112d` - fix CodeRabbit review findings for broad local-path leak
+  guards, drifted packet rejection, launch source traceability, stale premortem
+  anchors, feedback-collection inventory, stderr leak assertions, and unused
+  import cleanup.
 
 ## Lane Start Provenance
 
@@ -63,8 +67,8 @@ Artifact: `artifacts/orchestration/experiments/results/pr5-review-disposition-or
 
 - [x] Discussion-thread pass completed.
 - [x] Fixed in commit mapping completed.
-- [ ] CodeRabbit actionable review comments dispositioned.
-- [ ] Codex Security diff scan / finding discovery completed or explicitly
+- [x] CodeRabbit actionable review comments dispositioned.
+- [x] Codex Security diff scan / finding discovery completed or explicitly
   dispositioned.
 - [x] Post-open `qa-engineer-agent` pass completed.
 - [x] Post-open `bug-hunter` pass completed.
@@ -75,7 +79,12 @@ Artifact: `artifacts/orchestration/experiments/results/pr5-review-disposition-or
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2048#discussion_r3492802024 -> `80ee8112d`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2048#discussion_r3492802031 -> `80ee8112d`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2048#discussion_r3492802037 -> `PENDING_MAPPING_COMMIT`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2048#discussion_r3492802044 -> `80ee8112d`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2048#discussion_r3492802053 -> `80ee8112d`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2048#discussion_r3492802069 -> `80ee8112d`
 
 ## Initial Review-State Notes
 
@@ -92,12 +101,12 @@ Role: `qa-engineer-agent`
 
 Disposition: FIXED
 
-Commit: `49de6b759`
+Commit: `d22397a7d`
 
 Evidence: The post-open QA pass found that `collect` emitted
 `creative_code_review_feedback_collection` artifacts that the contract validator
 rejected, and that the feedback-record JSON schema did not end-anchor GitHub
-URLs the way Python validation does. Commit `49de6b759` adds
+URLs the way Python validation does. Commit `d22397a7d` adds
 `validate_creative_code_review_feedback_collection`, routes collection artifacts
 through the contract CLI, end-anchors the schema GitHub URL pattern, and covers
 both cases in `tests/test_creative_code_review_disposition.py`.
@@ -106,12 +115,12 @@ Role: `bug-hunter`
 
 Disposition: FIXED
 
-Commit: `f364cd8a5`
+Commit: `94cbc62f8`
 
 Evidence: The post-open bug-hunter pass found that GitHub URL values could
 allowlist unsafe suffixes before leak checks, top-level raw GitHub `body` fields
 were not rejected in fixtures, and the feedback-record JSON schema allowed
-classification states Python rejects. Commit `f364cd8a5` tightens the GitHub URL
+classification states Python rejects. Commit `94cbc62f8` tightens the GitHub URL
 grammar and secret-first URL validation, recursively rejects raw body fields in
 fixtures, adds schema `allOf` parity constraints for repair classification, and
 covers all three scenarios in `tests/test_creative_code_review_disposition.py`.
@@ -120,16 +129,44 @@ Role: `security-auditor`
 
 Disposition: FIXED
 
-Commit: `2378bddc8`
+Commit: `636472624`
 
 Evidence: The post-open security-auditor pass found that stdout collection
 output could print unsafe fixture/source metadata before the unsafe-value check,
 and that schema-only consumers could admit newline-delimited local paths and
-`chain-of-thought` markers that Python rejects. Commit `2378bddc8` validates
+`chain-of-thought` markers that Python rejects. Commit `636472624` validates
 collections before stdout/file output, moves the output leak guard ahead of
 printing, adds schema newline path guards, mirrors the `chain[_ -]?of[_ -]?thought`
 denylist across feedback and repair-launch schemas, and covers these scenarios
 in `tests/test_creative_code_review_disposition.py`.
+
+Role: `CodeRabbit`
+
+Disposition: FIXED
+
+Commit: `80ee8112d`
+
+Evidence: CodeRabbit found that schema-only consumers could preserve `/home/...`
+local paths, premortem proof anchors were stale, drifted disposition packets and
+repair-launch packets could validate with contradictory source state, and the CLI
+had an unused import. Commit `80ee8112d` broadens the local-path denylist in
+feedback and repair-launch schemas plus Python validation, adds drifted-packet and
+nested launch-source mismatch checks, updates premortem proof anchors to stable
+test names, removes the unused CLI import, and covers the new cases in
+`tests/test_creative_code_review_disposition.py`.
+
+Role: `CodeRabbit`
+
+Disposition: FIXED
+
+Commit: `80ee8112d`
+
+Evidence: CodeRabbit also flagged two review-body nitpicks: stderr needed the
+same collection leak assertions as stdout, and the governance inventory omitted
+`CreativeCodeReviewFeedbackCollection`. Commit `80ee8112d` adds stderr assertions
+to `test_collect_stdout_rejects_unsafe_source_context_before_printing` and adds
+the collection artifact to
+`docs/orchestration/GOVERNED_CREATIVE_CODE_EXECUTION_CONTRACT.md`.
 
 Disposition: NOT-A-BUG
 
@@ -156,7 +193,7 @@ Role: `qa-engineer-agent`
 
 Disposition: FIXED
 
-Commit: `fcd7b9b31`
+Commit: `2239cd71d`
 
 Evidence: The QA pass found that GitHub fixture ingestion rejected only
 `raw_body` but still accepted raw `body` fields. The implementation now rejects
@@ -167,7 +204,7 @@ Role: `bug-hunter`
 
 Disposition: FIXED
 
-Commit: `fcd7b9b31`
+Commit: `2239cd71d`
 
 Evidence: The bug-hunter pass found non-deterministic repair-launch identity
 ordering and a summary-output symlink overwrite risk. The implementation now
@@ -179,7 +216,7 @@ Role: `security-auditor`
 
 Disposition: FIXED
 
-Commit: `fcd7b9b31`
+Commit: `2239cd71d`
 
 Evidence: The security-auditor pass required the PR-5 lane to remain local,
 read-only, and free of mutation authority. The contracts and tests keep GitHub
@@ -199,7 +236,7 @@ gitignored provenance only.
 
 Disposition: FIXED
 
-Commit: `fcd7b9b31`
+Commit: `2239cd71d`
 
 Evidence: `docs/orchestration/CREATIVE_CODE_REVIEW_DISPOSITION_PR5_PREMORTEM.md`
 records real PR-5 failure scenarios `PM-PR5-001` through `PM-PR5-008` and marks
@@ -209,7 +246,7 @@ each scenario `[x]` only with file/test/doc evidence.
 
 - `python3 scripts/orchestration/check_preflight.py` - PASS
 - `python3 scripts/orchestration/check_agent_consistency.py` - PASS
-- repo-resolved `.venv/bin/python -m pytest tests/test_creative_code_review_disposition.py -q` - PASS, 30 passed
+- repo-resolved `.venv/bin/python -m pytest tests/test_creative_code_review_disposition.py -q` - PASS, 33 passed after rebasing onto `origin/main` `3a88c987f`
 - repo-resolved `.venv/bin/python -m pytest tests/test_creative_code_telemetry.py tests/test_pr_review_report.py -q` - PASS, 24 passed
 - `make validate-changed` - PASS
 - `pre-commit run --all-files` - PASS
