@@ -37,6 +37,8 @@ Experiment Runner implementation change is authorized by this PR.
 
 - `fcd7b9b31` - add PR-5 local creative-code review disposition contracts, CLI,
   schemas, docs, tests, and pre-open governance evidence.
+- `49de6b759` - fix post-open QA findings for collection artifact validation
+  and JSON-schema GitHub URL anchoring.
 
 ## Lane Start Provenance
 
@@ -59,7 +61,7 @@ Artifact: `artifacts/orchestration/experiments/results/pr5-review-disposition-or
 - [ ] CodeRabbit actionable review comments dispositioned.
 - [ ] Codex Security diff scan / finding discovery completed or explicitly
   dispositioned.
-- [ ] Post-open `qa-engineer-agent` pass completed.
+- [x] Post-open `qa-engineer-agent` pass completed.
 - [ ] Post-open `bug-hunter` pass completed.
 - [ ] Post-open `security-auditor` pass completed.
 - [ ] `pulseplate-pr-review` completed.
@@ -78,6 +80,22 @@ issue-level Codex and CodeRabbit comments reported review/usage limits, and
 the Sourcery review reported a weekly diff-character limit. These are not code
 actionables, but bot review completion remains pending before any merge-readiness
 claim.
+
+## Post-Open Role Findings
+
+Role: `qa-engineer-agent`
+
+Disposition: FIXED
+
+Commit: `49de6b759`
+
+Evidence: The post-open QA pass found that `collect` emitted
+`creative_code_review_feedback_collection` artifacts that the contract validator
+rejected, and that the feedback-record JSON schema did not end-anchor GitHub
+URLs the way Python validation does. Commit `49de6b759` adds
+`validate_creative_code_review_feedback_collection`, routes collection artifacts
+through the contract CLI, end-anchors the schema GitHub URL pattern, and covers
+both cases in `tests/test_creative_code_review_disposition.py`.
 
 ## Pre-Open Role Findings
 
@@ -138,10 +156,11 @@ each scenario `[x]` only with file/test/doc evidence.
 
 - `python3 scripts/orchestration/check_preflight.py` - PASS
 - `python3 scripts/orchestration/check_agent_consistency.py` - PASS
-- repo-resolved `.venv/bin/python -m pytest tests/test_creative_code_review_disposition.py -q` - PASS, 23 passed
+- repo-resolved `.venv/bin/python -m pytest tests/test_creative_code_review_disposition.py -q` - PASS, 24 passed
 - repo-resolved `.venv/bin/python -m pytest tests/test_creative_code_telemetry.py tests/test_pr_review_report.py -q` - PASS, 24 passed
 - `make validate-changed` - PASS
 - `pre-commit run --all-files` - PASS
+- `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 2048 --body <current PR body>` - PASS
 - Pre-push hook - PASS (`mypy`, `pip-audit`, backend pytest, full-repo bandit,
   docker build test)
 - Experiment Runner oracle-only governance review
