@@ -53,6 +53,7 @@ CANONICAL_FALLBACK_CI_CHECK_NAMES = {
 }
 DOCKER_FALLBACK_WORKFLOW_NAMES = {"Docker Build and Push"}
 SECURITY_FALLBACK_CHECK_NAMES = {"security-scan"}
+DOCKER_RELEASE_ONLY_FALLBACK_CHECK_NAMES = {"publish"}
 DOCKER_SURFACE_PREFIXES = {
     ".dockerignore",
     ".trivyignore",
@@ -430,6 +431,12 @@ def _path_touches_any(paths: set[str], prefixes: set[str]) -> bool:
 
 def _is_blocking_fallback_advisory(entry: CheckEntry, changed_paths: set[str]) -> bool:
     """Return whether fallback merge gating must block on this advisory entry."""
+    if (
+        entry.workflow_name in DOCKER_FALLBACK_WORKFLOW_NAMES
+        and entry.name in DOCKER_RELEASE_ONLY_FALLBACK_CHECK_NAMES
+        and entry.conclusion == "SKIPPED"
+    ):
+        return False
     if entry.state not in {"pending", "failed"}:
         return False
     if entry.source_kind == "status_context":
@@ -507,9 +514,10 @@ def _suppress_stale_latest_entries_with_newer_workflow_activity(
 
 def _format_entry(entry: CheckEntry) -> str:
     """Render one check entry for terminal output."""
+    display_state = "skipped" if entry.conclusion == "SKIPPED" else entry.state
     source = f" [{entry.workflow_name}]" if entry.workflow_name else ""
     url = f" -> {entry.details_url}" if entry.details_url else ""
-    return f"- {entry.name}: {entry.state}{source}{url}"
+    return f"- {entry.name}: {display_state}{source}{url}"
 
 
 def _print_entries(title: str, entries: list[CheckEntry]) -> None:
