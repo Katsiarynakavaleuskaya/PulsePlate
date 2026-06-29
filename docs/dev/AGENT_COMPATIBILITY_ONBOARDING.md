@@ -123,4 +123,8 @@ navigation in [`AGENTS.md`](../../AGENTS.md) and [`RUNBOOK_AGENT.md`](../../RUNB
 
 - `pytest -q tests/test_repo_policy_guards.py` for the cheapest policy sanity check
 - `make test-fast` for the deterministic smoke subset
-- `make verify` only for the full PR gate
+- Local agent default: `check_preflight`, `check_agent_consistency`, focused
+  tests for the touched surface, `make validate-changed`, and
+  `pre-commit run --all-files`; GitHub current-head CI owns the full/heavy PR
+  signal. Do not run full local `make verify` unless a human explicitly
+  overrides the local machine-budget rule for a single invocation.
