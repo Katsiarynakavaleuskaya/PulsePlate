@@ -101,6 +101,11 @@ Reason: Post-open qa-engineer-agent classified truncation-before-visible-filenam
   the unchanged manifest with `artifacts=34 missing=0`; later reruns showed
   current proxy read-timeout flakiness on large project pages, not filename
   misses.
+- Active `origin/main` manifest parity with digest comparison: full run reached
+  `artifacts=34` with 22 `ok` and 12 transient proxy health failures
+  (`tls_or_connect_timeout` / `origin_unhealthy`); immediate failed-artifact
+  subset retry passed with `artifacts=12 missing=0`, proving no remaining exact
+  filename or `#sha256` parity gaps on the failed set.
 - `python3 scripts/ci/install_locked_python_requirements.py --preflight-only` PASS with the approved proxy.
 - `make venv-sync` PASS.
 - `make validate-changed` PASS.
