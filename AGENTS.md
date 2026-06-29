@@ -2,33 +2,43 @@
 
 ## 🚫 Hard Gates (Non-negotiable)
 
-An agent MUST NOT claim a PR is "green", "ready", or "mergeable" unless ALL pass locally:
+**Local full-verify budget rule:** agents MUST NOT run full local `make verify`
+in this PulsePlate checkout by default. The unsharded full suite exceeds the
+operator's acceptable local machine budget. Run local `make verify` only when a
+human explicitly overrides this rule for a single invocation.
 
-```bash
-make verify   # runs: verify-env → lint → typecheck → test-fast → diff-cov (≥97%)
-```
+**Machine-heavy PR exception compatibility label:** the former
+operator-approved exception is now the repository-wide local default: agents
+do not run `make verify` by default. Merge evidence still requires the narrow
+local bundle (`make validate-changed`, `pre-commit run --all-files`, and focused
+tests) plus canonical current-head CI parity across `lint`,
+required/current-head checks, the relevant `test-main` matrix,
+`diff-coverage` ≥97%, security/governance checks, and
+`check_merge_ready.py --require-auth`.
 
-Or individually:
+An agent MUST NOT claim a PR is "green", "ready", or "mergeable" unless BOTH
+the local narrow bundle and GitHub current-head CI are green:
 
-- `make lint` — flake8 checks
-- `make typecheck` — mypy with no cache (`--no-incremental --cache-dir=/dev/null`)
-- `make test-fast` — deterministic smoke subset (`tests/edges` + `tests/test_remaining_modules.py`)
-- `make diff-cov` — diff-cover ≥97% against origin/main
+Local required bundle:
 
-**Machine-heavy PR exception (operator-approved only):** when a coordinator-owned
-CI/tooling PR would require a full local project run that is known to exceed the
-operator's acceptable machine budget, agents MUST NOT run full local
-`make verify` by default. The PR may use GitHub current-head CI as the heavy
-signal only when the PR body and `docs/review/PR_<N>_FIXED_MAPPING.md` document
-the deferral, all PR-scoped local gates pass (`check_preflight`,
-`check_agent_consistency`, focused tests, `make validate-changed`,
-`pre-commit run --all-files`), and canonical current-head CI parity is green:
-`lint`, required/current-head checks for the touched PR surface, relevant `test-main` matrix,
-`diff-coverage` at ≥97%, applicable security/governance checks, and
-`check_merge_ready.py --require-auth`. This exception does not permit ignored
-failures, weakened coverage, `continue-on-error`, or merge-ready claims while
-local narrow gates, review threads, canonical CI parity, or required CI are
-pending.
+- `python3 scripts/orchestration/check_preflight.py`
+- `python3 scripts/orchestration/check_agent_consistency.py`
+- focused tests for the touched surface
+- `make validate-changed`
+- `pre-commit run --all-files`
+
+GitHub current-head heavy signal:
+
+- `lint` — includes flake8 and other CI lint surfaces
+- typecheck / required backend checks for the touched PR surface
+- `test-fast` / relevant `test-main` matrix jobs
+- `diff-coverage` at ≥97%
+- applicable security/governance checks
+- `check_merge_ready.py --require-auth` / CI merge-readiness equivalent
+
+This policy does not permit ignored failures, weakened coverage,
+`continue-on-error`, skipped hooks, or merge-ready claims while local narrow
+gates, review threads, canonical current-head CI, or required CI are pending.
 
 `verify-env` (the first step of `make verify`) also rejects **present** broken
 `.venv/bin` console scripts for flake8/pytest/mypy/coverage/diff-cover (stale
@@ -50,9 +60,9 @@ dead interpreter. Missing scripts are OK; see
 1. Paste raw output lines showing the failure
 2. Provide `file:line:error` pointers
 3. Do NOT write "готово", "green", "mergeable"
-4. Fix the issue first, then re-run the failed required gate (`make verify` for
-   normal PRs, or the documented narrow gate for an operator-approved
-   machine-heavy PR)
+4. Fix the issue first, then re-run the failed required gate. Locally this means
+   the narrow bundle above; full `make verify` remains a GitHub CI/heavy-runner
+   signal unless a human explicitly overrides the local budget rule.
 
 **Current-PR defect handling (hard rule):**
 
@@ -1169,7 +1179,9 @@ Source of truth:
 
 **Scope discipline for architectural remediation:**
 
-- **Remediation PR must fix violations and restore invariants** — guards green, `make verify` green, no obvious dead imports (ruff/mypy).
+- **Remediation PR must fix violations and restore invariants** — guards green,
+  local narrow gates green, GitHub current-head CI green, and no obvious dead
+  imports (ruff/mypy).
 - **Allowed in remediation PR:**
   - Fixing tests that fail due to eliminated violations (legacy paths, duplicate modules, BMI math outside engine)
   - Updating imports to canonical paths
@@ -1996,9 +2008,8 @@ git grep -nE "spec_from_file_location|exec_module|sys\.modules\[" -- scripts || 
 - ✅ Remediation PR merged (PR #535)
 - ✅ PR-A cleanup merged
 - ✅ Backend guards green
-- ✅ `make verify` passes, unless the documented machine-heavy PR exception
-  applies; then PR-scoped narrow gates and canonical current-head CI parity are
-  mandatory instead of the full local project run
+- ✅ local narrow gates pass, and GitHub current-head CI provides the full
+  lint/typecheck/test/diff-coverage signal
 
 **Rationale:** Frontend audit requires stable backend contracts. Premature frontend changes create technical debt and alignment issues.
 
@@ -2055,9 +2066,8 @@ Rationale: prevents micro-PR fragmentation for flow-level outcomes while preserv
 - ✅ if `worktrees/` was tracked by mistake, cleanup uses `git rm -r --cached worktrees`
   (index-only) after explicit confirmation
 - ✅ `pre-commit run --all-files` is green
-- ✅ `make verify` is green, unless the documented machine-heavy PR exception
-  applies; then PR-scoped narrow gates and canonical current-head CI parity are
-  mandatory instead of the full local project run
+- ✅ local narrow gates are green, and GitHub current-head CI provides the full
+  lint/typecheck/test/diff-coverage signal
 - ✅ no generated/local artifacts are tracked
 
 ---

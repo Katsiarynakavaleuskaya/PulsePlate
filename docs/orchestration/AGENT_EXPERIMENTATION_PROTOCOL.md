@@ -520,7 +520,7 @@ Accepted sequence for this initiative:
 1. PR1: governance foundation
 2. PR2: deterministic bootstrap tooling
 3. PR3: runner MVP
-4. PR4: promotion automation + telemetry
+4. PR4: private-loop telemetry and rejection taxonomy
 5. PR5: CV docs/eval lane
 6. PR6: first applied `LLM/RAG reliability` optimization PR
 

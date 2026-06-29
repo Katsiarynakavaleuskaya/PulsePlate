@@ -1,0 +1,162 @@
+{
+  "artifact_type": "creative_code_rejection_taxonomy",
+  "classes": [
+    {
+      "code": "approval_missing",
+      "likely_owner": "human-operator",
+      "retryability": "operator_review",
+      "severity": "medium",
+      "stage": "promotion_approval"
+    },
+    {
+      "code": "base_drift",
+      "likely_owner": "dev-operator",
+      "retryability": "retryable",
+      "severity": "medium",
+      "stage": "promotion_plan"
+    },
+    {
+      "code": "branch_exists",
+      "likely_owner": "dev-operator",
+      "retryability": "operator_review",
+      "severity": "medium",
+      "stage": "promotion_plan"
+    },
+    {
+      "code": "duplicate_variant",
+      "likely_owner": "architecture-specialist",
+      "retryability": "retryable",
+      "severity": "medium",
+      "stage": "specification"
+    },
+    {
+      "code": "github_transport_failed",
+      "likely_owner": "dev-operator",
+      "retryability": "retryable",
+      "severity": "medium",
+      "stage": "pr_open"
+    },
+    {
+      "code": "guard_failure",
+      "likely_owner": "qa-engineer-agent",
+      "retryability": "operator_review",
+      "severity": "high",
+      "stage": "patch_evaluation"
+    },
+    {
+      "code": "infra_flake",
+      "likely_owner": "dev-operator",
+      "retryability": "retryable",
+      "severity": "medium",
+      "stage": "patch_evaluation"
+    },
+    {
+      "code": "invalid_input",
+      "likely_owner": "agent-coordinator",
+      "retryability": "operator_review",
+      "severity": "medium",
+      "stage": "specification"
+    },
+    {
+      "code": "leak_detected",
+      "likely_owner": "security-auditor",
+      "retryability": "not_retryable",
+      "severity": "high",
+      "stage": "artifact_read_error"
+    },
+    {
+      "code": "lineage_mismatch",
+      "likely_owner": "architecture-specialist",
+      "retryability": "not_retryable",
+      "severity": "high",
+      "stage": "promotion_validation"
+    },
+    {
+      "code": "malformed_artifact",
+      "likely_owner": "dev-operator",
+      "retryability": "operator_review",
+      "severity": "medium",
+      "stage": "artifact_read_error"
+    },
+    {
+      "code": "metric_regression",
+      "likely_owner": "qa-engineer-agent",
+      "retryability": "operator_review",
+      "severity": "high",
+      "stage": "patch_evaluation"
+    },
+    {
+      "code": "oom",
+      "likely_owner": "dev-operator",
+      "retryability": "retryable",
+      "severity": "high",
+      "stage": "patch_evaluation"
+    },
+    {
+      "code": "patch_drift",
+      "likely_owner": "security-auditor",
+      "retryability": "not_retryable",
+      "severity": "high",
+      "stage": "promotion_validation"
+    },
+    {
+      "code": "policy_violation",
+      "likely_owner": "security-auditor",
+      "retryability": "not_retryable",
+      "severity": "high",
+      "stage": "patch_evaluation"
+    },
+    {
+      "code": "pr_readback_failed",
+      "likely_owner": "dev-operator",
+      "retryability": "retryable",
+      "severity": "medium",
+      "stage": "pr_open"
+    },
+    {
+      "code": "review_blocker",
+      "likely_owner": "qa-engineer-agent",
+      "retryability": "operator_review",
+      "severity": "high",
+      "stage": "specification"
+    },
+    {
+      "code": "specification_rejected",
+      "likely_owner": "agent-coordinator",
+      "retryability": "operator_review",
+      "severity": "medium",
+      "stage": "specification"
+    },
+    {
+      "code": "timeout",
+      "likely_owner": "dev-operator",
+      "retryability": "retryable",
+      "severity": "medium",
+      "stage": "patch_evaluation"
+    },
+    {
+      "code": "unchanged_result",
+      "likely_owner": "dev-operator",
+      "retryability": "retryable",
+      "severity": "medium",
+      "stage": "patch_evaluation"
+    },
+    {
+      "code": "unknown",
+      "likely_owner": "agent-coordinator",
+      "retryability": "operator_review",
+      "severity": "medium",
+      "stage": "artifact_read_error"
+    },
+    {
+      "code": "unsafe_authority",
+      "likely_owner": "security-auditor",
+      "retryability": "not_retryable",
+      "severity": "high",
+      "stage": "specification"
+    }
+  ],
+  "policy_version": "creative-code-telemetry-pr4",
+  "sanitized": true,
+  "schema_version": "1.0"
+}

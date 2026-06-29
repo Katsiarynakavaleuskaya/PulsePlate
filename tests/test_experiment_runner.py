@@ -111,6 +111,7 @@ def _base_packet(
     oracle_command: str,
     experiment_id: str = "exp-test",
     runner_mode: str = "candidate_patch",
+    network_budget: int = 1,
 ) -> dict[str, Any]:
     return {
         "schema_version": "1.0",
@@ -124,7 +125,7 @@ def _base_packet(
             "wall_clock_seconds": 5,
             "retry_budget": 1,
             "max_changed_files": 1,
-            "network_budget": 0,
+            "network_budget": network_budget,
             "benchmark_budget": 1,
             "test_budget": 1,
             "stop_condition": "Stop on timeout.",
@@ -557,6 +558,82 @@ def test_non_python_oracle_path_prefix_does_not_validate_python_env(
         )
         is None
     )
+
+
+def test_run_oracles_passes_network_disable_marker_for_zero_budget(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    packet = _validate_packet(
+        _base_packet(
+            mutable_path="core/rag/allowed.py",
+            oracle_command="git --version",
+            network_budget=0,
+        )
+    )
+    captured_requests: list[SandboxRequest] = []
+
+    def _capture_request(
+        request: SandboxRequest,
+        **_kwargs: object,
+    ) -> SandboxResult:
+        captured_requests.append(request)
+        return SandboxResult(
+            argv=("git", "--version"),
+            returncode=0,
+            stdout="git version 2.0\n",
+            stderr="",
+            timed_out=False,
+            truncated=False,
+            cwd=str(tmp_path),
+        )
+
+    monkeypatch.setattr(experiment_runner.sandbox, "run_local_sandbox", _capture_request)
+
+    results, failure_class = experiment_runner._run_oracles(packet, tmp_path)
+
+    assert failure_class is None
+    assert results[0]["returncode"] == 0
+    assert captured_requests[0].env == {experiment_runner.sandbox.SANDBOX_DISABLE_NETWORK_ENV: "1"}
+
+
+def test_run_oracles_omits_network_disable_marker_for_positive_budget(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    packet = _base_packet(
+        mutable_path="core/rag/allowed.py",
+        oracle_command="git --version",
+    )
+    packet["budgets"] = {
+        **_packet_budgets(packet),
+        "network_budget": 1,
+    }
+    validated_packet = _validate_packet(packet)
+    captured_requests: list[SandboxRequest] = []
+
+    def _capture_request(
+        request: SandboxRequest,
+        **_kwargs: object,
+    ) -> SandboxResult:
+        captured_requests.append(request)
+        return SandboxResult(
+            argv=("git", "--version"),
+            returncode=0,
+            stdout="git version 2.0\n",
+            stderr="",
+            timed_out=False,
+            truncated=False,
+            cwd=str(tmp_path),
+        )
+
+    monkeypatch.setattr(experiment_runner.sandbox, "run_local_sandbox", _capture_request)
+
+    results, failure_class = experiment_runner._run_oracles(validated_packet, tmp_path)
+
+    assert failure_class is None
+    assert results[0]["returncode"] == 0
+    assert captured_requests[0].env is None
 
 
 def test_temporary_sandbox_env_prepends_python_path_and_restores_env(
@@ -1139,6 +1216,20 @@ def test_classify_oracle_failure_matches_only_standalone_oom_markers() -> None:
 
     assert experiment_runner._classify_oracle_failure(noisy_result) == "guard_failure"
     assert experiment_runner._classify_oracle_failure(oom_result) == "oom"
+
+
+def test_classify_oracle_failure_maps_unshare_setup_to_infra_flake() -> None:
+    result = SandboxResult(
+        argv=("unshare", "--net", "python3"),
+        returncode=1,
+        stdout="",
+        stderr="unshare: unshare failed: Operation not permitted",
+        timed_out=False,
+        truncated=False,
+        cwd="/tmp",
+    )
+
+    assert experiment_runner._classify_oracle_failure(result) == "infra_flake"
 
 
 def test_evaluate_candidate_allows_first_oracle_on_one_second_budget(

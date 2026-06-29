@@ -647,6 +647,12 @@ def vip_headers() -> dict[str, str]:
 
 
 @pytest.fixture
+def manual_billing_headers(api_key: str) -> dict[str, str]:
+    """Return canonical app transport headers for manual billing routes."""
+    return {"X-API-Key": api_key}
+
+
+@pytest.fixture
 def export_client(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> TestClient:
     """Client configured for export endpoints with API key env."""
     monkeypatch.setenv("API_KEY", "test_key")

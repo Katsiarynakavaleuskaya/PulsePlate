@@ -115,14 +115,7 @@ def test_pop_app_get_api_key_overrides_scans_canonical_app() -> None:
 
 def test_manual_intent_rejects_invalid_transport_key_behaviorally(
     client: TestClient,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from app.routers import billing
-
-    def _reject_transport_key(_: str) -> str:
-        raise HTTPException(status_code=401, detail="transport key rejected")
-
-    monkeypatch.setattr(billing, "_get_app_get_api_key", lambda: _reject_transport_key)
     response = client.post(
         "/api/v1/pro/payments/ru-by/manual-intent",
         headers={"X-API-Key": "bad-key"},
@@ -177,17 +170,20 @@ def test_manual_intent_rejects_env_configured_pro_key_without_app_validator_over
     assert session_response.status_code == 403
 
 
-def test_manual_intent_rejects_transport_key_when_app_validator_is_missing(
+def test_manual_intent_rejects_transport_key_when_configured_app_validator_rejects(
     app: FastAPI,
     pro_headers: dict[str, str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import app as app_module
+    from app.routers import billing
+
+    def _reject_app_api_key(_: str) -> str:
+        raise HTTPException(status_code=403, detail="Invalid API Key")
 
     original_overrides = _pop_app_get_api_key_overrides(app)
 
     try:
-        monkeypatch.setattr(app_module, "get_api_key", None)
+        monkeypatch.setattr(billing, "validate_app_api_key", _reject_app_api_key)
 
         with TestClient(app) as isolated_client:
             response = isolated_client.post(
@@ -214,10 +210,11 @@ def test_manual_billing_validator_fails_closed_when_app_validator_missing(
 ) -> None:
     from app.routers import billing
 
-    monkeypatch.setattr(billing, "_get_effective_app_get_api_key", lambda: None)
+    monkeypatch.setenv("API_KEY", "test_key")
 
     validator = billing._get_effective_manual_billing_key_validator()
 
+    assert validator("test_key") == "test_key"
     with pytest.raises(HTTPException) as exc_info:
         validator("env-configured-pro-key")
 
@@ -225,13 +222,61 @@ def test_manual_billing_validator_fails_closed_when_app_validator_missing(
     assert exc_info.value.detail == "Invalid API Key"
 
 
+def test_manual_intent_uses_configured_api_key_not_app_dependency_override(
+    app: FastAPI,
+    manual_billing_headers: dict[str, str],
+    pro_headers: dict[str, str],
+) -> None:
+    def _override(api_key: str = "") -> str:
+        return api_key
+
+    original_overrides = _pop_app_get_api_key_overrides(app)
+    for app_target in _iter_app_override_targets(app):
+        app_target.dependency_overrides[_APP_GET_API_KEY] = _override
+
+    try:
+        with TestClient(app) as isolated_client:
+            rejected = isolated_client.post(
+                "/api/v1/pro/payments/ru-by/manual-intent",
+                headers=pro_headers,
+                json={
+                    "source": "erip_qr",
+                    "plan": "pro_monthly",
+                    "client_event_id": "evt-dependency-override-rejected",
+                    "external_txn_id": "dependency-override-rejected",
+                    "amount_minor": 1999,
+                    "currency": "BYN",
+                },
+            )
+            accepted = isolated_client.post(
+                "/api/v1/pro/payments/ru-by/manual-intent",
+                headers=manual_billing_headers,
+                json={
+                    "source": "erip_qr",
+                    "plan": "pro_monthly",
+                    "client_event_id": "evt-configured-api-key-accepted",
+                    "external_txn_id": "configured-api-key-accepted",
+                    "amount_minor": 1999,
+                    "currency": "BYN",
+                },
+            )
+    finally:
+        for app_target in _iter_app_override_targets(app):
+            app_target.dependency_overrides.pop(_APP_GET_API_KEY, None)
+        _restore_dependency_overrides(original_overrides)
+
+    assert rejected.status_code == 401, rejected.text
+    assert _json(rejected)["detail"] == "API key required for billing verification"
+    assert accepted.status_code == 201, accepted.text
+
+
 def test_manual_intent_happy_path(
     client: TestClient,
-    pro_headers: dict[str, str],
+    manual_billing_headers: dict[str, str],
 ) -> None:
     response = client.post(
         "/api/v1/pro/payments/ru-by/manual-intent",
-        headers=pro_headers,
+        headers=manual_billing_headers,
         json={
             "source": "erip_qr",
             "plan": "pro_monthly",
@@ -251,13 +296,13 @@ def test_manual_intent_happy_path(
     assert payload["intent_id"] == payload["activation_id"]
 
 
-def test_manual_intent_vip_headers_are_tier_compatible(
+def test_manual_intent_supports_vip_plan_with_app_transport_key(
     client: TestClient,
-    vip_headers: dict[str, str],
+    manual_billing_headers: dict[str, str],
 ) -> None:
     response = client.post(
         "/api/v1/pro/payments/ru-by/manual-intent",
-        headers=vip_headers,
+        headers=manual_billing_headers,
         json={
             "source": "swift_manual",
             "plan": "vip_monthly",
@@ -279,11 +324,11 @@ def test_manual_intent_vip_headers_are_tier_compatible(
 
 def test_manual_intent_rejects_ios_source(
     client: TestClient,
-    pro_headers: dict[str, str],
+    manual_billing_headers: dict[str, str],
 ) -> None:
     response = client.post(
         "/api/v1/pro/payments/ru-by/manual-intent",
-        headers=pro_headers,
+        headers=manual_billing_headers,
         json={
             "source": "ios_app_store",
             "plan": "pro_monthly",
@@ -532,7 +577,7 @@ def test_payment_request_models_cover_normalization_error_branches() -> None:
 
 def test_manual_intent_idempotent_replay_returns_200(
     client: TestClient,
-    pro_headers: dict[str, str],
+    manual_billing_headers: dict[str, str],
 ) -> None:
     payload = {
         "source": "swift_manual",
@@ -544,12 +589,12 @@ def test_manual_intent_idempotent_replay_returns_200(
     }
     first = client.post(
         "/api/v1/pro/payments/ru-by/manual-intent",
-        headers=pro_headers,
+        headers=manual_billing_headers,
         json=payload,
     )
     second = client.post(
         "/api/v1/pro/payments/ru-by/manual-intent",
-        headers=pro_headers,
+        headers=manual_billing_headers,
         json=payload,
     )
     assert first.status_code == 201, first.text
@@ -559,11 +604,11 @@ def test_manual_intent_idempotent_replay_returns_200(
 
 def test_manual_intent_conflict_returns_409(
     client: TestClient,
-    pro_headers: dict[str, str],
+    manual_billing_headers: dict[str, str],
 ) -> None:
     first = client.post(
         "/api/v1/pro/payments/ru-by/manual-intent",
-        headers=pro_headers,
+        headers=manual_billing_headers,
         json={
             "source": "erip_qr",
             "plan": "vip_monthly",
@@ -575,7 +620,7 @@ def test_manual_intent_conflict_returns_409(
     )
     conflict = client.post(
         "/api/v1/pro/payments/ru-by/manual-intent",
-        headers=pro_headers,
+        headers=manual_billing_headers,
         json={
             "source": "erip_qr",
             "plan": "vip_monthly",
