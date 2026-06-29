@@ -607,6 +607,7 @@ def test_repo_agents_skills_mirror_points_to_codex_skill_sources() -> None:
 
     expected_skills = (
         "pulseplate-ai-reports",
+        "pulseplate-agent-learning-loop",
         "pulseplate-agent-product",
         "pulseplate-app-store-release",
         "pulseplate-backend-endpoints",
@@ -621,6 +622,7 @@ def test_repo_agents_skills_mirror_points_to_codex_skill_sources() -> None:
         "pulseplate-playwright-e2e",
         "pulseplate-pr-review",
         "pulseplate-premortem-risk-review",
+        "pulseplate-review-pattern-oracles",
         "pulseplate-web-launch-site",
         "pulseplate-workflow",
     )
@@ -631,7 +633,11 @@ def test_repo_agents_skills_mirror_points_to_codex_skill_sources() -> None:
 
         assert source_skill.is_dir(), f"{skill_name} source directory must exist"
         assert (source_skill / "SKILL.md").exists(), f"{skill_name} source must include SKILL.md"
-        if skill_name == "pulseplate-pr-review":
+        if skill_name in {
+            "pulseplate-agent-learning-loop",
+            "pulseplate-pr-review",
+            "pulseplate-review-pattern-oracles",
+        }:
             assert (
                 mirrored_skill.is_dir()
             ), f"{skill_name} mirror is required for PR-review workflow"

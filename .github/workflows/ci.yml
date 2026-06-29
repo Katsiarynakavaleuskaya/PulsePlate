@@ -617,6 +617,11 @@ jobs:
           requirements-profile: ci-lite
           install-mode: direct-proxy
 
+      - name: Setup Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version-file: ${{ env.FRONTEND_NODE_VERSION_FILE }}
+
       - name: Pre-commit (lint/format/security quick checks)
         run: pre-commit run --all-files --show-diff-on-failure
         env:
@@ -920,6 +925,7 @@ jobs:
                   tests/test_paywall_exposure_ledger_service.py \
                   tests/test_production_runtime_invariants.py \
                   tests/test_pro_vip_route_dependency_guard.py \
+                  tests/test_route_family_bootstrap.py \
                   tests/test_semantic_cache_bounded_insight_experiment_contract.py \
                   tests/test_semantic_cache_backend_selection_contract.py \
                   tests/test_philosophy_admission_dry_run_report.py \
@@ -963,11 +969,21 @@ jobs:
           printf 'Selected contract/risk suites:\n'
           printf '  - %s\n' "${SELECTED_TARGETS[@]}"
 
-          python -m coverage run --append -m pytest -q \
-            -p no:xdist \
-            "${SELECTED_TARGETS[@]}" \
-            --junitxml=tests/contract-results.xml \
-            -o junit_family=legacy
+          contract_batch_size=24
+          contract_batch_index=0
+          for ((batch_start=0; batch_start<${#SELECTED_TARGETS[@]}; batch_start+=contract_batch_size)); do
+            contract_batch_index=$((contract_batch_index + 1))
+            batch_targets=("${SELECTED_TARGETS[@]:batch_start:contract_batch_size}")
+            junit_path="tests/contract-results-${contract_batch_index}.xml"
+            printf 'Running contract/risk suite batch %s (%s target(s)):\n' \
+              "$contract_batch_index" "${#batch_targets[@]}"
+            printf '  - %s\n' "${batch_targets[@]}"
+            python -m coverage run --append -m pytest -q \
+              -p no:xdist \
+              "${batch_targets[@]}" \
+              --junitxml="${junit_path}" \
+              -o junit_family=legacy
+          done
 
       - name: Finalize coverage artifacts
         env:
@@ -997,7 +1013,7 @@ jobs:
           name: junit-${{ env.PYTHON_VERSION }}
           path: |
             tests/smoke-results.xml
-            tests/contract-results.xml
+            tests/contract-results*.xml
           if-no-files-found: ignore
           retention-days: 7
 
@@ -1203,6 +1219,7 @@ jobs:
                   tests/test_paywall_exposure_ledger_service.py \
                   tests/test_production_runtime_invariants.py \
                   tests/test_pro_vip_route_dependency_guard.py \
+                  tests/test_route_family_bootstrap.py \
                   tests/test_semantic_cache_bounded_insight_experiment_contract.py \
                   tests/test_semantic_cache_backend_selection_contract.py \
                   tests/test_philosophy_admission_dry_run_report.py \
@@ -1246,11 +1263,21 @@ jobs:
           printf 'Selected contract/risk suites:\n'
           printf '  - %s\n' "${SELECTED_TARGETS[@]}"
 
-          python -m coverage run --append -m pytest -q \
-            -p no:xdist \
-            "${SELECTED_TARGETS[@]}" \
-            --junitxml=tests/contract-results.xml \
-            -o junit_family=legacy
+          contract_batch_size=24
+          contract_batch_index=0
+          for ((batch_start=0; batch_start<${#SELECTED_TARGETS[@]}; batch_start+=contract_batch_size)); do
+            contract_batch_index=$((contract_batch_index + 1))
+            batch_targets=("${SELECTED_TARGETS[@]:batch_start:contract_batch_size}")
+            junit_path="tests/contract-results-${contract_batch_index}.xml"
+            printf 'Running contract/risk suite batch %s (%s target(s)):\n' \
+              "$contract_batch_index" "${#batch_targets[@]}"
+            printf '  - %s\n' "${batch_targets[@]}"
+            python -m coverage run --append -m pytest -q \
+              -p no:xdist \
+              "${batch_targets[@]}" \
+              --junitxml="${junit_path}" \
+              -o junit_family=legacy
+          done
 
       - name: Finalize coverage artifacts
         env:
@@ -1280,7 +1307,7 @@ jobs:
           name: junit-${{ env.PYTHON_VERSION }}
           path: |
             tests/smoke-results.xml
-            tests/contract-results.xml
+            tests/contract-results*.xml
           if-no-files-found: ignore
           retention-days: 7
 

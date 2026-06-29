@@ -1,8 +1,10 @@
 """Tests for the test router endpoints."""
 
+import importlib
 import os
 import sys
 from datetime import datetime
+from types import ModuleType
 
 import pytest
 from fastapi import FastAPI
@@ -10,6 +12,28 @@ from fastapi.testclient import TestClient
 
 from app.effective_routes import iter_effective_route_candidates, route_path
 import settings as app_settings
+
+
+def _import_or_reload_module(name: str) -> ModuleType:
+    module = sys.modules.get(name)
+    if module is not None:
+        return importlib.reload(module)
+
+    parent_name, _, child_name = name.rpartition(".")
+    if parent_name and child_name:
+        parent_module = importlib.import_module(parent_name)
+        stale_child = getattr(parent_module, child_name, None)
+        if getattr(stale_child, "__name__", None) == name:
+            delattr(parent_module, child_name)
+
+    return importlib.import_module(name)
+
+
+def _has_test_routes(app: FastAPI) -> bool:
+    return any(
+        route_path(route).startswith("/api/v1/test/")
+        for route in iter_effective_route_candidates(getattr(app, "routes", []))
+    )
 
 
 def _import_fresh_app() -> FastAPI:
@@ -22,26 +46,15 @@ def _import_fresh_app() -> FastAPI:
     # `app.main` decides whether to include the test router during canonical bootstrap.
     # In CI, it may already be imported under a different APP_ENV/ENABLE_TEST_ROUTES state.
     # Reloading re-reads env and re-wires routers without mutating sys.modules.
-    import importlib
-
-    import app as app_pkg
-    import legacy_app
-
-    importlib.reload(legacy_app)
-    if "app.main" not in sys.modules and hasattr(app_pkg, "main"):
-        delattr(app_pkg, "main")
-    app_main = importlib.import_module("app.main")
-    app_main = importlib.reload(app_main)
+    _import_or_reload_module("legacy_app")
+    app_main = _import_or_reload_module("app.main")
 
     app = app_main.app  # canonical app instance after env-driven wiring
 
     # Fail fast with a clear message if staging claims test routes should exist but doesn't.
     runtime_env = app_settings.get_runtime_env_name()
     if runtime_env == "staging" and os.getenv("ENABLE_TEST_ROUTES") == "1":
-        has_test_routes = any(
-            route_path(route).startswith("/api/v1/test/")
-            for route in iter_effective_route_candidates(getattr(app, "routes", []))
-        )
+        has_test_routes = _has_test_routes(app)
         assert has_test_routes, (
             "Test router routes are missing after legacy_app reload. "
             "runtime_env="

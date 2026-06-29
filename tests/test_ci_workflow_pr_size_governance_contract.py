@@ -47,6 +47,20 @@ CHECKOUT_NODE24_SHA = "".join(
         "83dd",
     )
 )
+SETUP_NODE_NODE24_SHA = "".join(
+    (
+        "53b8",
+        "3947",
+        "a5a9",
+        "8c8d",
+        "1131",
+        "30e5",
+        "6537",
+        "7fae",
+        "1a50",
+        "d02f",
+    )
+)
 PATHS_FILTER_NODE24_SHA = "".join(
     (
         "fbd0",
@@ -1726,18 +1740,35 @@ def test_contract_risk_suite_blocks_stay_in_sync_and_cover_slack_operator_plane(
     assert test_pr_groups["operator_plane_slack"] == expected_slack_operator_targets
     assert "tests/test_bmi_compat_router.py" in test_pr_groups["route_contract_safety"]
     assert "tests/test_legacy_bmi_shims.py" in test_pr_groups["route_contract_safety"]
+    assert "tests/test_route_family_bootstrap.py" in test_pr_groups["route_contract_safety"]
 
 
-def test_pr_contract_risk_suite_disables_xdist_plugin_under_coverage() -> None:
+def test_contract_risk_suites_use_bounded_coverage_batches() -> None:
     workflow = _load_ci_workflow()
-    step = _job_step_by_name(
-        workflow,
-        job_id="test-pr",
-        step_name="Contract and risk suites",
-    )
-    run_script = step["run"]
-    assert isinstance(run_script, str)
-    assert "python -m coverage run --append -m pytest -q \\\n  -p no:xdist" in run_script
+    for job_id in ("test-pr", "test-feature"):
+        step = _job_step_by_name(
+            workflow,
+            job_id=job_id,
+            step_name="Contract and risk suites",
+        )
+        run_script = step["run"]
+        assert isinstance(run_script, str)
+        assert "contract_batch_size=24" in run_script
+        assert "for ((batch_start=0;" in run_script
+        assert "batch_targets=(" in run_script
+        assert "python -m coverage run --append -m pytest -q" in run_script
+        assert "-p no:xdist" in run_script
+        assert '"${batch_targets[@]}"' in run_script
+        assert '--junitxml="${junit_path}"' in run_script
+
+        upload_step = _job_step_by_name(
+            workflow,
+            job_id=job_id,
+            step_name="Upload JUnit test report",
+        )
+        upload_with = upload_step["with"]
+        assert isinstance(upload_with, dict)
+        assert "tests/contract-results*.xml" in str(upload_with["path"])
 
 
 def test_ci_workflow_declares_canonical_main_and_feature_push_jobs() -> None:
@@ -1883,6 +1914,22 @@ def test_ci_lint_all_files_pre_commit_uses_full_history_checkout() -> None:
         step_name="Pre-commit (lint/format/security quick checks)",
     )
     assert "pre-commit run --all-files" in pre_commit_step["run"]
+
+
+def test_ci_lint_all_files_pre_commit_uses_project_node_version() -> None:
+    workflow = _load_ci_workflow()
+
+    setup_node_step = _job_step_by_name(workflow, job_id="lint", step_name="Setup Node.js")
+    assert setup_node_step["uses"] == f"actions/setup-node@{SETUP_NODE_NODE24_SHA}"
+    assert setup_node_step["with"]["node-version-file"] == "${{ env.FRONTEND_NODE_VERSION_FILE }}"
+
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+    lint_steps = jobs["lint"]["steps"]
+    step_names = [step.get("name") for step in lint_steps]
+    assert step_names.index("Setup Node.js") < step_names.index(
+        "Pre-commit (lint/format/security quick checks)"
+    )
 
 
 def test_main_branch_python_sharded_runner_preserves_required_check_policy() -> None:

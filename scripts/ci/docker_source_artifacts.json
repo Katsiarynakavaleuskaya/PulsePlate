@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-06-14",
-  "review_by": "2026-06-28",
+  "generated_at": "2026-06-29",
+  "review_by": "2026-07-13",
   "reason": "Emergency Docker source-artifact pin for SQLite runtime remediation. This makes the upstream fetch explicit in CI/local preparation instead of performing hidden live downloads inside Docker builds.",
   "artifacts": [
     {

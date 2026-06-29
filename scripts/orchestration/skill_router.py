@@ -248,6 +248,38 @@ SEMANTIC_LEXEME_GROUPS: tuple[SemanticLexemeGroup, ...] = (
         skill_boosts=(("docs-sync", 2), ("agents-md", 1)),
     ),
     SemanticLexemeGroup(
+        group_id="orchestration.review_pattern_oracles",
+        label="Review pattern oracle governance",
+        rationale=(
+            "Review-pattern oracle requests should use offline deterministic helpers "
+            "without changing review-thread or merge-readiness authority."
+        ),
+        keywords=(
+            "review pattern oracle",
+            "review-pattern oracle",
+            "recurring review pattern",
+            "validator parity",
+            "fixed mapping hygiene",
+        ),
+        skill_boosts=(("pulseplate-review-pattern-oracles", 4), ("pulseplate-pr-review", 1)),
+    ),
+    SemanticLexemeGroup(
+        group_id="orchestration.agent_learning_loop",
+        label="Agent learning loop proposals",
+        rationale=(
+            "Agent learning-loop work must stay proposal-only until promoted by "
+            "reviewed repo diffs."
+        ),
+        keywords=(
+            "agent learning loop",
+            "learning-loop",
+            "durable lesson",
+            "recurring failure mode",
+            "promote lesson",
+        ),
+        skill_boosts=(("pulseplate-agent-learning-loop", 4), ("docs-sync", 1)),
+    ),
+    SemanticLexemeGroup(
         group_id="research.connector.youtube",
         label="YouTube transcript research",
         rationale=(
@@ -680,7 +712,11 @@ def _apply_semantic_group_boosts(
         group_is_research_connector = group.group_id.startswith("research.connector.")
         if group_is_research_connector and not research_lane:
             continue
-        if group.group_id == "orchestration.explainability" and not orchestration_lane:
+        if (
+            group.group_id.startswith("orchestration.")
+            and not orchestration_lane
+            and task_classification["label"] not in {"pr_governance", "review"}
+        ):
             continue
         for skill, boost in group.skill_boosts:
             if skill in required_skill_names:
@@ -1067,6 +1103,43 @@ SKILL_RULES: tuple[SkillRule, ...] = (
             "cubic",
             "review comments",
             "fixed mapping",
+        ),
+    ),
+    SkillRule(
+        skill="pulseplate-review-pattern-oracles",
+        category="repo-tracked",
+        rationale=(
+            "Recurring PR review-pattern work should use offline deterministic oracles "
+            "as advisory planning evidence only."
+        ),
+        min_score=6,
+        domain_weights={"orchestration": 2, "qa": 1, "security": 1},
+        path_prefixes=("docs/orchestration/", "scripts/orchestration/", "tests/"),
+        keywords=(
+            "review pattern oracle",
+            "review-pattern oracle",
+            "recurring review pattern",
+            "validator parity",
+            "fixed mapping hygiene",
+            "fail-closed edge",
+        ),
+    ),
+    SkillRule(
+        skill="pulseplate-agent-learning-loop",
+        category="repo-tracked",
+        rationale=(
+            "Agent learning-loop work must emit redacted proposal-only artifacts "
+            "until reviewed repo diffs promote them."
+        ),
+        min_score=6,
+        domain_weights={"orchestration": 2, "qa": 1},
+        path_prefixes=("docs/orchestration/", "scripts/orchestration/", "tools/codex_skills/"),
+        keywords=(
+            "agent learning loop",
+            "learning-loop",
+            "durable lesson",
+            "recurring failure mode",
+            "promote lesson",
         ),
     ),
     SkillRule(

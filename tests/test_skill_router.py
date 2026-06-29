@@ -1534,6 +1534,53 @@ def test_skill_router_exposes_stable_explanation_schema() -> None:
     assert per_skill["docs-sync"]["bucket"] == "recommended"
 
 
+def test_skill_router_routes_review_oracle_and_learning_loop_skills() -> None:
+    """Review-pattern and learning-loop requests should route repo-tracked helpers."""
+
+    decision = route_skills(
+        goal=(
+            "Add review pattern oracle metadata and an agent learning loop for "
+            "recurring validator parity lessons"
+        ),
+        task_class="Orchestration",
+        candidate_paths=[
+            "scripts/orchestration/review_pattern_oracles.py",
+            "tools/codex_skills/pulseplate-agent-learning-loop/SKILL.md",
+        ],
+        domain="orchestration",
+    )
+
+    recommended = {item["skill"] for item in decision["recommended"]}
+    assert "pulseplate-review-pattern-oracles" in recommended
+    assert "pulseplate-agent-learning-loop" in recommended
+    assert any(
+        item["group_id"] == "orchestration.review_pattern_oracles"
+        for item in decision["explanation"]["semantic_groups"]
+    )
+    assert any(
+        item["group_id"] == "orchestration.agent_learning_loop"
+        for item in decision["explanation"]["semantic_groups"]
+    )
+
+
+def test_skill_router_does_not_route_review_oracles_from_generic_oracle_text() -> None:
+    """Generic experiment-runner oracle wording must not boost review-pattern helpers."""
+
+    decision = route_skills(
+        goal="Run Experiment Runner oracle-only evidence for this orchestration lane",
+        task_class="Orchestration",
+        candidate_paths=["scripts/orchestration/experiment_runner.py"],
+        domain="orchestration",
+    )
+
+    recommended = {item["skill"] for item in decision["recommended"]}
+    assert "pulseplate-review-pattern-oracles" not in recommended
+    assert not any(
+        item["group_id"] == "orchestration.review_pattern_oracles"
+        for item in decision["explanation"]["semantic_groups"]
+    )
+
+
 def test_match_lexeme_terms_requires_token_boundaries() -> None:
     """Lexeme matching should not trigger on connector names embedded in larger tokens."""
 

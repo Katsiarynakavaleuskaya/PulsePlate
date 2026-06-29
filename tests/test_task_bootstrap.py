@@ -237,6 +237,30 @@ def test_task_bootstrap_adds_automation_metadata_defaults() -> None:
         "future_gate_required",
     ):
         assert reason in embedding_admission["reason_codes"]
+    assert packet["review_pattern_oracles"] == {
+        "schema_version": "review_pattern_oracles.v1",
+        "helper": "scripts/orchestration/review_pattern_oracles.py",
+        "contract": "docs/orchestration/contracts/review_pattern_oracles.v1.json",
+        "compact_ids": [
+            "schema_validator_parity",
+            "fail_closed_security_edge",
+            "deterministic_content_oracle",
+            "canonical_route_ownership_guard",
+            "evidence_hygiene_mapping_timing",
+            "review_source_degraded",
+        ],
+        "authority_boundary": "proposal_only_non_canonical",
+        "side_effects_allowed": False,
+        "posting_allowed": False,
+        "thread_resolution_allowed": False,
+        "merge_readiness_authority": False,
+    }
+    assert packet["review_source_degradation_policy"]["source_degraded_is_blocking"] is False
+    assert packet["review_source_degradation_policy"]["posting_allowed"] is False
+    assert packet["agent_learning_loop"]["schema_version"] == "agent_learning_record.v1"
+    assert packet["agent_learning_loop"]["extractor"].endswith("agent_lesson_extractor.py")
+    assert packet["agent_learning_loop"]["promoter"].endswith("agent_lesson_promoter.py")
+    assert packet["agent_learning_loop"]["runtime_authority"] is False
     assert packet["skill_routing"]["envelope_mode_hint"] == "docs_only"
     _docs_paths = ["docs/ENGINEERING_LESSONS.md"]
     _norm_docs = repo_relative_paths([p.strip() for p in _docs_paths if p.strip()])

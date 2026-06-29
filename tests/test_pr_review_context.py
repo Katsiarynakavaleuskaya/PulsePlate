@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
+import json
 
 import pytest
 
@@ -14,7 +15,9 @@ def test_collect_fixed_mapping_state_reports_missing_artifact(tmp_path: Path) ->
     state = review_ctx.collect_fixed_mapping_state(repo_root=tmp_path, pr_number=123)
 
     assert state["exists"] is False
-    assert state["path"].endswith("docs/review/PR_123_FIXED_MAPPING.md")
+    assert "path" not in state
+    assert state["repo_path"] == "docs/review/PR_123_FIXED_MAPPING.md"
+    assert str(tmp_path) not in json.dumps(state, sort_keys=True)
     assert state["entries"] == {}
     assert any("missing" in item.lower() for item in state["errors"])
 
@@ -67,6 +70,31 @@ def test_collect_scope_diff_parses_numstat_lines(
     assert summary["changed_lines"] == 15
 
 
+def test_run_command_redacts_local_paths_in_failures(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        del args, kwargs
+        return subprocess.CompletedProcess(
+            args=[],
+            returncode=1,
+            stdout="",
+            stderr=f"fatal: cannot read {tmp_path}/secret.txt and /etc/pulseplate.conf",
+        )
+
+    monkeypatch.setattr(review_ctx.subprocess, "run", fake_run)
+
+    with pytest.raises(RuntimeError) as excinfo:
+        review_ctx._run_command(["/usr/bin/git", "-C", str(tmp_path), "status"], cwd=tmp_path)
+
+    message = str(excinfo.value)
+    assert str(tmp_path) not in message
+    assert "/etc/pulseplate.conf" not in message
+    assert "<repo-root>" in message
+    assert "<redacted-path>" in message
+
+
 def test_collect_review_context_missing_pr_metadata_and_mapping(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -96,3 +124,297 @@ def test_collect_review_context_missing_pr_metadata_and_mapping(
     assert any("Cannot read PR metadata" in warning for warning in context["warnings"])
     assert any("Fixed-mapping artifact is missing" in warning for warning in context["warnings"])
     assert context["fixed_mapping"]["exists"] is False
+    by_source = {item["source"]: item for item in context["review_source_status"]}
+    assert by_source["github_pr_metadata"]["status"] == "unavailable"
+    assert by_source["github_pr_metadata"]["source_degraded"] is True
+    assert by_source["github_pr_metadata"]["fallback_required"] is True
+    assert by_source["github_pr_metadata"]["blocking"] is False
+    assert by_source["fixed_mapping_artifact"]["blocking"] is False
+
+
+def test_collect_review_context_degrades_local_only_fixed_mapping(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mapping = tmp_path / "docs" / "review" / "PR_2028_FIXED_MAPPING.md"
+    mapping.parent.mkdir(parents=True)
+    mapping.write_text(
+        "\n".join(
+            [
+                "# PR 2028 - Fixed in Commit Mapping",
+                "",
+                "## Fixed in Commit Mapping",
+                "- No actionable review comments",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    def fake_pr_metadata(
+        *, repo: str, pr_number: int, repo_root: Path
+    ) -> tuple[dict[str, object], list[str]]:
+        del repo, pr_number, repo_root
+        return {
+            "number": 2028,
+            "base_sha": "base-sha",
+            "head_sha": "remote-head-sha",
+        }, []
+
+    def fake_scope_diff(
+        *, repo_root: Path, base_sha: str | None, head_sha: str | None
+    ) -> tuple[list[review_ctx.DiffStats], dict[str, int], list[str]]:
+        del repo_root, base_sha, head_sha
+        return (
+            [
+                review_ctx.DiffStats(
+                    path="scripts/orchestration/pr_review_context.py", additions=1, deletions=0
+                )
+            ],
+            {"files": 1, "additions": 1, "deletions": 0, "changed_lines": 1},
+            [],
+        )
+
+    monkeypatch.setattr(review_ctx, "collect_pr_metadata", fake_pr_metadata)
+    monkeypatch.setattr(review_ctx, "collect_scope_diff", fake_scope_diff)
+    monkeypatch.setattr(
+        review_ctx, "collect_local_head_sha", lambda repo_root: ("local-head-sha", [])
+    )
+
+    context = review_ctx.collect_review_context(
+        repo_root=tmp_path,
+        pr_number=2028,
+        repo="owner/repo",
+    )
+
+    assert any(
+        "Fixed-mapping artifact was read from local HEAD" in warning
+        for warning in context["warnings"]
+    )
+    assert context["fixed_mapping"]["local_head_sha"] == "local-head-sha"
+    assert context["fixed_mapping"]["pr_head_sha"] == "remote-head-sha"
+    assert context["fixed_mapping"]["present_in_pr_diff"] is False
+    assert any(
+        "not present in the PR head diff" in error for error in context["fixed_mapping"]["errors"]
+    )
+    by_source = {item["source"]: item for item in context["review_source_status"]}
+    assert by_source["fixed_mapping_artifact"]["source_degraded"] is True
+    assert by_source["fixed_mapping_artifact"]["fallback_required"] is True
+    assert by_source["fixed_mapping_artifact"]["blocking"] is False
+
+
+def test_collect_review_context_degrades_mapping_absent_from_pr_diff_even_when_heads_match(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mapping = tmp_path / "docs" / "review" / "PR_2028_FIXED_MAPPING.md"
+    mapping.parent.mkdir(parents=True)
+    mapping.write_text(
+        "\n".join(
+            [
+                "# PR 2028 - Fixed in Commit Mapping",
+                "",
+                "## Fixed in Commit Mapping",
+                "- No actionable review comments",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    def fake_pr_metadata(
+        *, repo: str, pr_number: int, repo_root: Path
+    ) -> tuple[dict[str, object], list[str]]:
+        del repo, pr_number, repo_root
+        return {
+            "number": 2028,
+            "base_sha": "base-sha",
+            "head_sha": "matching-head-sha",
+        }, []
+
+    monkeypatch.setattr(review_ctx, "collect_pr_metadata", fake_pr_metadata)
+    monkeypatch.setattr(
+        review_ctx,
+        "collect_scope_diff",
+        lambda **kwargs: (
+            [
+                review_ctx.DiffStats(
+                    path="scripts/orchestration/pr_review_context.py", additions=1, deletions=0
+                )
+            ],
+            {"files": 1, "additions": 1, "deletions": 0, "changed_lines": 1},
+            [],
+        ),
+    )
+    monkeypatch.setattr(
+        review_ctx,
+        "collect_local_head_sha",
+        lambda repo_root: ("matching-head-sha", []),
+    )
+
+    context = review_ctx.collect_review_context(
+        repo_root=tmp_path,
+        pr_number=2028,
+        repo="owner/repo",
+    )
+
+    assert context["fixed_mapping"]["present_in_pr_diff"] is False
+    assert any("not present in the PR head diff" in warning for warning in context["warnings"])
+    by_source = {item["source"]: item for item in context["review_source_status"]}
+    assert by_source["fixed_mapping_artifact"]["source_degraded"] is True
+
+
+def test_collect_review_context_uses_repo_relative_mapping_evidence_without_pr_number(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(review_ctx, "infer_repo_name", lambda repo_root: None)
+    monkeypatch.setattr(
+        review_ctx,
+        "collect_scope_diff",
+        lambda **kwargs: (
+            [
+                review_ctx.DiffStats(
+                    path="scripts/orchestration/pr_review_context.py", additions=1, deletions=0
+                )
+            ],
+            {"files": 1, "additions": 1, "deletions": 0, "changed_lines": 1},
+            [],
+        ),
+    )
+
+    context = review_ctx.collect_review_context(
+        repo_root=tmp_path,
+        pr_number=None,
+        repo=None,
+        base_ref="base",
+        head_ref="head",
+    )
+
+    by_source = {item["source"]: item for item in context["review_source_status"]}
+    assert "path" not in context["fixed_mapping"]
+    assert str(tmp_path) not in json.dumps(context["fixed_mapping"], sort_keys=True)
+    assert by_source["fixed_mapping_artifact"]["evidence"] == "docs/review/PR_<N>_FIXED_MAPPING.md"
+    assert str(tmp_path) not in by_source["fixed_mapping_artifact"]["evidence"]
+
+
+def test_collect_review_context_degrades_mapping_absent_from_pr_diff_without_sha_parity(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mapping = tmp_path / "docs" / "review" / "PR_2028_FIXED_MAPPING.md"
+    mapping.parent.mkdir(parents=True)
+    mapping.write_text(
+        "\n".join(
+            [
+                "# PR 2028 - Fixed in Commit Mapping",
+                "",
+                "## Fixed in Commit Mapping",
+                "- No actionable review comments",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        review_ctx,
+        "collect_pr_metadata",
+        lambda **kwargs: ({"number": 2028, "base_sha": "base-sha", "head_sha": ""}, []),
+    )
+    monkeypatch.setattr(
+        review_ctx,
+        "collect_scope_diff",
+        lambda **kwargs: (
+            [
+                review_ctx.DiffStats(
+                    path="scripts/orchestration/pr_review_context.py", additions=1, deletions=0
+                )
+            ],
+            {"files": 1, "additions": 1, "deletions": 0, "changed_lines": 1},
+            [],
+        ),
+    )
+    monkeypatch.setattr(review_ctx, "collect_local_head_sha", lambda repo_root: ("", []))
+
+    context = review_ctx.collect_review_context(
+        repo_root=tmp_path,
+        pr_number=2028,
+        repo="owner/repo",
+    )
+
+    assert context["fixed_mapping"]["present_in_pr_diff"] is False
+    assert any("not present in the PR head diff" in warning for warning in context["warnings"])
+
+
+def test_collect_review_context_degrades_mapping_against_explicit_head_without_metadata(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mapping = tmp_path / "docs" / "review" / "PR_2028_FIXED_MAPPING.md"
+    mapping.parent.mkdir(parents=True)
+    mapping.write_text(
+        "\n".join(
+            [
+                "# PR 2028 - Fixed in Commit Mapping",
+                "",
+                "## Fixed in Commit Mapping",
+                "- No actionable review comments",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(review_ctx, "collect_pr_metadata", lambda **kwargs: (None, []))
+    monkeypatch.setattr(
+        review_ctx,
+        "collect_scope_diff",
+        lambda **kwargs: (
+            [
+                review_ctx.DiffStats(
+                    path="docs/review/PR_2028_FIXED_MAPPING.md",
+                    additions=1,
+                    deletions=0,
+                )
+            ],
+            {"files": 1, "additions": 1, "deletions": 0, "changed_lines": 1},
+            [],
+        ),
+    )
+    monkeypatch.setattr(review_ctx, "collect_local_head_sha", lambda repo_root: ("local-head", []))
+
+    context = review_ctx.collect_review_context(
+        repo_root=tmp_path,
+        pr_number=2028,
+        repo="owner/repo",
+        base_ref="base-sha",
+        head_ref="remote-head",
+    )
+
+    assert context["fixed_mapping"]["local_head_sha"] == "local-head"
+    assert context["fixed_mapping"]["pr_head_sha"] == "remote-head"
+    assert any(
+        "local-head" in warning and "remote-head" in warning for warning in context["warnings"]
+    )
+
+
+def test_main_writes_json_to_stdout_and_warnings_to_stderr(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    def fake_context(**kwargs: object) -> dict[str, object]:
+        del kwargs
+        return {
+            "schema_version": "1.0.0",
+            "warnings": ["degraded source"],
+        }
+
+    monkeypatch.setattr(review_ctx, "collect_review_context", fake_context)
+    monkeypatch.setattr(
+        review_ctx,
+        "REPO_ROOT",
+        tmp_path,
+    )
+
+    assert review_ctx.main([]) == 0
+    captured = capsys.readouterr()
+    assert json.loads(captured.out)["warnings"] == ["degraded source"]
+    assert captured.err == "WARNING: degraded source\n"

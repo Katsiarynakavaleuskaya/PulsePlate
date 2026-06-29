@@ -279,7 +279,7 @@ def test_docker_source_artifact_manifest_pins_sqlite_source() -> None:
     )
     artifacts = manifest["artifacts"]
     assert manifest["schema_version"] == 1
-    assert manifest["review_by"] == "2026-06-28"
+    assert manifest["review_by"] == "2026-07-13"
     assert len(artifacts) == 1
 
     artifact = artifacts[0]

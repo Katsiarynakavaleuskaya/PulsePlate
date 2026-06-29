@@ -10,17 +10,30 @@ import os
 import shutil
 import shlex
 import subprocess  # nosec B404: fixed command execution only, bounded to internal helper paths (remove-by: 2026-12-31, ref: ledger-p2-pulseplate-pr-review-context-collector)
+import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from scripts.orchestration.review_source_status import build_review_source_status
+
 SCHEMA_VERSION = "1.0.0"
 
 AGENTS_BASENAME = "AGENTS.md"
 
 DIFF_NUMSTAT_RE = re.compile(r"^(\d+|-)\t(\d+|-)\t(.*)$")
+LOCAL_PATH_RE = re.compile(
+    r"(?i)(file://)?("
+    r"/(?:Users|private|var|tmp|Volumes|etc|opt)/[^\s,)]+|"
+    r"~[\\/][^\s,)]+|"
+    r"[A-Za-z]:[\\/][^\s,)]+"
+    r")"
+)
 MAPPING_SECTION_RE = re.compile(r"^#{2,3}\s+Fixed in Commit Mapping\s*$", re.IGNORECASE)
 MAPPING_COMMENT_RE = re.compile(r"^\s*-\s*(https://github\.com/\S+)\s*$")
 MAPPING_MAPPED_RE = re.compile(
@@ -44,6 +57,11 @@ def _binary(name: str) -> str:
     return path
 
 
+def _redact_command_diagnostic(value: str, *, repo_root: Path) -> str:
+    redacted = value.replace(str(repo_root), "<repo-root>")
+    return LOCAL_PATH_RE.sub("<redacted-path>", redacted)
+
+
 def _run_command(
     args: list[str],
     *,
@@ -58,7 +76,9 @@ def _run_command(
         capture_output=True,
     )
     if check and completed.returncode != 0:
-        raise RuntimeError(f"Command failed ({shlex.join(args)}): {completed.stderr.strip()}")
+        command = _redact_command_diagnostic(shlex.join(args), repo_root=cwd)
+        stderr = _redact_command_diagnostic(completed.stderr.strip(), repo_root=cwd)
+        raise RuntimeError(f"Command failed ({command}): {stderr}")
     return completed
 
 
@@ -134,10 +154,11 @@ def _parse_mapping_entry(line: str) -> tuple[str, str] | tuple[str, None] | None
 
 
 def collect_fixed_mapping_state(repo_root: Path, pr_number: int) -> dict[str, Any]:
+    rel_path = f"docs/review/PR_{pr_number}_FIXED_MAPPING.md"
     path = repo_root / "docs" / "review" / f"PR_{pr_number}_FIXED_MAPPING.md"
     if not path.exists():
         return {
-            "path": str(path),
+            "repo_path": rel_path,
             "exists": False,
             "entries": {},
             "no_actionable": False,
@@ -169,7 +190,7 @@ def collect_fixed_mapping_state(repo_root: Path, pr_number: int) -> dict[str, An
             entries[parsed[0]] = parsed[1]
 
     return {
-        "path": str(path),
+        "repo_path": rel_path,
         "exists": True,
         "entries": entries,
         "no_actionable": no_actionable,
@@ -270,6 +291,20 @@ def collect_scope_diff(
     )
 
 
+def collect_local_head_sha(repo_root: Path) -> tuple[str, list[str]]:
+    """Return local HEAD SHA, with advisory warnings when unavailable."""
+
+    git_binary = _binary("git")
+    try:
+        completed = _run_command(
+            [git_binary, "-C", str(repo_root), "rev-parse", "HEAD"],
+            cwd=repo_root,
+        )
+    except RuntimeError as exc:
+        return "", [f"Unable to read local HEAD for review-source parity: {exc}"]
+    return completed.stdout.strip(), []
+
+
 def discover_scoped_agents(repo_root: Path, changed_files: list[str]) -> list[str]:
     discovered: list[str] = []
     for raw in changed_files:
@@ -368,16 +403,77 @@ def collect_review_context(
     changed_files = [entry.path for entry in changed_file_stats]
     scoped_agents = discover_scoped_agents(repo_root=repo_root, changed_files=changed_files)
 
+    fixed_mapping: dict[str, Any]
     if pr_number is None:
         fixed_mapping = {
-            "path": str(repo_root / "docs" / "review" / "PR_<N>_FIXED_MAPPING.md"),
+            "repo_path": "docs/review/PR_<N>_FIXED_MAPPING.md",
             "exists": False,
             "errors": ["No PR number provided for fixed-mapping lookup."],
         }
+        fixed_mapping_degraded_reason = ""
     else:
         fixed_mapping = collect_fixed_mapping_state(repo_root=repo_root, pr_number=pr_number)
         if not fixed_mapping.get("exists"):
             warnings.append("Fixed-mapping artifact is missing for this PR.")
+        local_head_sha, local_head_warnings = collect_local_head_sha(repo_root)
+        warnings.extend(local_head_warnings)
+        fixed_mapping_degraded_reason = ""
+        if fixed_mapping.get("exists"):
+            repo_path = str(fixed_mapping.get("repo_path") or "")
+            degraded_reasons: list[str] = []
+            effective_pr_head = pr_metadata_head or diff_head
+            if effective_pr_head and local_head_sha:
+                fixed_mapping["local_head_sha"] = local_head_sha
+                fixed_mapping["pr_head_sha"] = effective_pr_head
+            if effective_pr_head and local_head_sha and local_head_sha != effective_pr_head:
+                degraded_reasons.append(
+                    "Fixed-mapping artifact was read from local HEAD "
+                    f"{local_head_sha[:12]}, but PR metadata/diff is at head "
+                    f"{effective_pr_head[:12]}; push local commits or run from a matching "
+                    "checkout before treating mapping evidence as current PR truth."
+                )
+            if repo_path and not diff_warnings:
+                present_in_pr_diff = repo_path in changed_files
+                fixed_mapping["present_in_pr_diff"] = present_in_pr_diff
+                if not present_in_pr_diff:
+                    degraded_reasons.append(
+                        f"Artifact `{repo_path}` is not present in the PR head diff."
+                    )
+            if degraded_reasons:
+                fixed_mapping_degraded_reason = " ".join(degraded_reasons)
+                fixed_mapping_errors = fixed_mapping.get("errors")
+                if not isinstance(fixed_mapping_errors, list):
+                    fixed_mapping_errors = []
+                    fixed_mapping["errors"] = fixed_mapping_errors
+                fixed_mapping_errors.append(fixed_mapping_degraded_reason)
+                warnings.append(fixed_mapping_degraded_reason)
+
+    review_source_status = [
+        build_review_source_status(
+            source="github_pr_metadata",
+            available=pr_metadata is not None,
+            reason="" if pr_metadata is not None else "PR metadata unavailable",
+            evidence="gh api repos/<repo>/pulls/<pr>",
+        ),
+        build_review_source_status(
+            source="git_diff",
+            available=bool(changed_file_stats) or not diff_warnings,
+            degraded=bool(diff_warnings),
+            reason="; ".join(diff_warnings),
+            evidence=f"{diff_base}..{diff_head}" if diff_base and diff_head else "",
+        ),
+        build_review_source_status(
+            source="fixed_mapping_artifact",
+            available=bool(fixed_mapping.get("exists")),
+            degraded=bool(fixed_mapping_degraded_reason),
+            reason=(
+                fixed_mapping_degraded_reason
+                if fixed_mapping_degraded_reason
+                else "" if fixed_mapping.get("exists") else "Fixed-mapping artifact unavailable"
+            ),
+            evidence=str(fixed_mapping.get("repo_path") or ""),
+        ),
+    ]
 
     return {
         "schema_version": SCHEMA_VERSION,
@@ -398,6 +494,7 @@ def collect_review_context(
             "files_seen": changed_files,
         },
         "fixed_mapping": fixed_mapping,
+        "review_source_status": review_source_status,
         "test_suggestions": _suggest_tests(
             changed_files=changed_files,
             fixed_mapping_exists=bool(fixed_mapping.get("exists")),
@@ -407,7 +504,7 @@ def collect_review_context(
     }
 
 
-def _parse_args() -> argparse.Namespace:
+def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Collect advisory read-only context for PulsePlate PR review skill."
     )
@@ -418,11 +515,11 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--repo-root", default=str(REPO_ROOT), help="Repo root path")
     parser.add_argument("--output", help="Write JSON to file", default=None)
 
-    return parser.parse_args()
+    return parser.parse_args(argv)
 
 
-def main() -> int:
-    args = _parse_args()
+def main(argv: list[str] | None = None) -> int:
+    args = _parse_args(argv)
     context = collect_review_context(
         repo_root=Path(args.repo_root),
         pr_number=args.pr,
@@ -440,7 +537,7 @@ def main() -> int:
 
     if context["warnings"]:
         for warning in context["warnings"]:
-            print(f"WARNING: {warning}")
+            print(f"WARNING: {warning}", file=sys.stderr)
     return 0
 
 

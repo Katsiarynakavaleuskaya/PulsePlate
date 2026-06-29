@@ -109,7 +109,7 @@ def _copied_skill_matches_source(skill_path: Path, source_skill: Path) -> bool:
 def _read_copy_marker(marker_path: Path) -> tuple[str, str | None]:
     """Read a trusted copy marker without following symlinks or large files."""
     try:
-        marker_stat = marker_path.stat(follow_symlinks=False)
+        marker_stat = os.lstat(marker_path)
     except FileNotFoundError:
         return "", None
     except OSError:

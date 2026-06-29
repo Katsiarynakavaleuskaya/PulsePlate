@@ -3159,7 +3159,7 @@ def test_install_from_proxy_with_emergency_fallback_retries_with_find_links_afte
     monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
 
     installer.install_from_proxy_with_emergency_fallback(
-        python_executable="python",
+        python_executable=sys.executable,
         requirement_files=[requirements],
         constraints_file=None,
         index_url=APPROVED_PROXY_URL,
@@ -3233,7 +3233,7 @@ def test_install_from_proxy_with_emergency_fallback_accepts_one_requested_resolv
     monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
 
     installer.install_from_proxy_with_emergency_fallback(
-        python_executable="python",
+        python_executable=sys.executable,
         requirement_files=[requirements],
         constraints_file=None,
         index_url=APPROVED_PROXY_URL,
@@ -3300,7 +3300,7 @@ def test_install_from_proxy_with_emergency_fallback_accepts_pip26_no_candidate_s
     monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
 
     installer.install_from_proxy_with_emergency_fallback(
-        python_executable="python",
+        python_executable=sys.executable,
         requirement_files=[requirements],
         constraints_file=None,
         index_url=APPROVED_PROXY_URL,
@@ -3376,7 +3376,7 @@ def test_install_from_proxy_with_emergency_fallback_accepts_package_scoped_retry
     monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
 
     installer.install_from_proxy_with_emergency_fallback(
-        python_executable="python",
+        python_executable=sys.executable,
         requirement_files=[requirements],
         constraints_file=None,
         index_url=APPROVED_PROXY_URL,
@@ -3936,6 +3936,63 @@ def test_install_from_proxy_with_emergency_fallback_rejects_mixed_network_resolv
     with pytest.raises(RuntimeError, match="Cloudflare 521"):
         installer.install_from_proxy_with_emergency_fallback(
             python_executable="python",
+            requirement_files=[requirements],
+            constraints_file=None,
+            index_url=APPROVED_PROXY_URL,
+            trusted_host=None,
+            emergency_wheelhouse_dir=tmp_path / "wheelhouse",
+            emergency_wheel_manifest=manifest,
+        )
+
+    assert stage_calls["count"] == 0
+
+
+def test_install_from_proxy_with_emergency_fallback_rejects_same_line_network_resolver_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("requests==2.33.0\n", encoding="utf-8")
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "generated_at": "2026-04-09",
+                "expires_at": "2099-12-31",
+                "artifacts": [
+                    {
+                        "package": "requests",
+                        "version": "2.33.0",
+                        "filename": "requests-2.33.0-py3-none-any.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/requests-2.33.0.whl",
+                        "sha256": "b" * 64,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    stage_calls = {"count": 0}
+
+    def fail_same_line_mixed_network_resolver(**kwargs: object) -> None:
+        assert kwargs["find_links_dir"] is None
+        raise RuntimeError(
+            "Command failed: python -m pip install: exit 1\n"
+            "ERROR: Cloudflare 521 while resolving requests==2.33.0; "
+            "No matching distribution found for requests==2.33.0"
+        )
+
+    def fake_stage_emergency_artifacts(**_kwargs: object) -> list[Path]:
+        stage_calls["count"] += 1
+        return [tmp_path / "wheelhouse" / "requests-2.33.0-py3-none-any.whl"]
+
+    monkeypatch.setattr(installer, "install_from_proxy", fail_same_line_mixed_network_resolver)
+    monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
+
+    with pytest.raises(RuntimeError, match="Cloudflare 521"):
+        installer.install_from_proxy_with_emergency_fallback(
+            python_executable=sys.executable,
             requirement_files=[requirements],
             constraints_file=None,
             index_url=APPROVED_PROXY_URL,

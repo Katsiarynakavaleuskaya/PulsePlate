@@ -12,6 +12,21 @@ from fastapi import HTTPException
 from app.effective_routes import iter_effective_route_candidates, route_path
 
 
+def _import_or_reload_module(name: str) -> ModuleType:
+    module = sys.modules.get(name)
+    if module is not None:
+        return importlib.reload(module)
+
+    parent_name, _, child_name = name.rpartition(".")
+    if parent_name and child_name:
+        parent_module = importlib.import_module(parent_name)
+        stale_child = getattr(parent_module, child_name, None)
+        if getattr(stale_child, "__name__", None) == name:
+            delattr(parent_module, child_name)
+
+    return importlib.import_module(name)
+
+
 def _reload_legacy_app() -> ModuleType:
     """Reload legacy_app after env changes.
 
@@ -21,22 +36,14 @@ def _reload_legacy_app() -> ModuleType:
     canonical runtime helpers.
     """
 
-    import legacy_app
-
-    return importlib.reload(legacy_app)
+    return _import_or_reload_module("legacy_app")
 
 
 def _reload_canonical_main() -> ModuleType:
     """Reload canonical bootstrap after env changes."""
 
-    import app as app_pkg
-    import legacy_app
-
-    importlib.reload(legacy_app)
-    if "app.main" not in sys.modules and hasattr(app_pkg, "main"):
-        delattr(app_pkg, "main")
-    app_main = importlib.import_module("app.main")
-    return importlib.reload(app_main)
+    _import_or_reload_module("legacy_app")
+    return _import_or_reload_module("app.main")
 
 
 def _has_test_health_route(app_module: ModuleType) -> bool:
