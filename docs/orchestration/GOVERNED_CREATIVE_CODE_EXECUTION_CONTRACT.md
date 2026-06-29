@@ -2,17 +2,20 @@
 
 <!-- markdownlint-disable MD013 -->
 
-**Status:** PR-3 human-approved non-draft PR promotion tooling. Repo-only governance contract. No runtime impact.
+**Status:** PR-5 local review-disposition integration. Repo-only governance contract. No runtime impact.
 
 **Scope:** Define the authority boundary between a promoted `creative_research`
 output, a PR-1 implementation specification, PR-2 local candidate-patch
-generation, and PR-3 human-approved non-draft PR handoff tooling. PR-2
+generation, PR-3 human-approved non-draft PR handoff tooling, PR-4 telemetry,
+and PR-5 read-only review-disposition integration. PR-2
 authorizes only isolated local candidate-patch generation/evaluation. PR-3
 authorizes only the separate local promotion tool that can create a new
 `experiment/*` branch, push it without force, and open a non-draft PR after
-isolated validation and explicit TTY approval. It does not authorize draft PRs,
-shared worktree mutation, existing branch modification, review-thread
-resolution, merge, release, product runtime AI, OpenAPI/client changes, public
+isolated validation and explicit TTY approval. PR-5 may read sanitized review
+context or explicit read-only fixtures and emit local advisory disposition /
+repair-launch packets. It does not authorize draft PRs, shared worktree
+mutation, existing branch modification, review-thread resolution, fixed-mapping
+edits, merge, release, product runtime AI, OpenAPI/client changes, public
 multi-tenant use, or Slack/GitHub authority expansion.
 
 ---
@@ -129,7 +132,11 @@ PR-0 is a contract-only start point.
 - PR-4: add local candidate evaluation telemetry and rejection taxonomy over
   sanitized PR-1/PR-2/PR-3 artifacts; no public GitHub App backend, Slack beta,
   live review ingestion, or new authority.
-- PR-5: add review-disposition integration without review-thread resolution authority.
+- PR-5: add local review-disposition integration through
+  `CreativeCodeReviewFeedbackRecord` -> `CreativeCodeReviewDispositionPacket`
+  -> `CreativeCodeRepairLaunchPacket`; no review-thread resolution,
+  fixed-mapping edits, GitHub mutation, patch generation, branch writes, PR
+  creation, merge authority, or readiness claims.
 - PR-6: run the first governed applied creative-code candidate through normal PR governance.
 
 Minimum future telemetry fields are defined now for the later train and must not be emitted before PR-1:
@@ -157,15 +164,35 @@ PR-4 rollups are advisory local measurements only. They are not routing truth,
 review-thread disposition evidence, fixed-mapping evidence, merge-readiness
 evidence, product runtime truth, or release evidence.
 
+PR-5 review-disposition artifacts are defined by:
+
+- `CreativeCodeReviewFeedbackCollection` local collection output, validated by
+  `validate_creative_code_review_feedback_collection(...)`.
+- `docs/orchestration/contracts/CREATIVE_CODE_REVIEW_DISPOSITION_CONTRACT.md`
+- `docs/orchestration/CREATIVE_CODE_REVIEW_DISPOSITION_PR5_PREMORTEM.md`
+- `docs/orchestration/contracts/creative_code_review_feedback_record.v1.schema.json`
+- `docs/orchestration/contracts/creative_code_review_disposition_packet.v1.schema.json`
+- `docs/orchestration/contracts/creative_code_repair_launch_packet.v1.schema.json`
+- `scripts/orchestration/creative_code_review_disposition_contract.py`
+- `scripts/orchestration/creative_code_review_disposition.py`
+
+PR-5 packets are advisory local classification output only. They are not
+review-thread disposition evidence, fixed-mapping evidence, merge-readiness
+evidence, runtime truth, release evidence, or GitHub write authority. The only
+positive launch authority is `create_pr1_specification=true`; patch generation,
+branch writes, PR creation, review-thread resolution, fixed-mapping edits, and
+merge authority remain false.
+
 ---
 
 ## Rollback
 
-Rollback is removal of the PR-3 promotion files and references. If reverting the
-whole train, also remove the PR-2 patch-builder files and existing PR-1/PR-0
-contract files. Because PR-3 adds no product runtime behavior, providers,
-workflows, external app settings, OpenAPI/client changes, semantic-cache
-activation, Slack/GitHub App changes, or DB state, rollback does not require
-data migration, OpenAPI regeneration, external app changes, or release
-coordination. Any already opened promoted candidate PR remains normal GitHub
-state and is closed or branch-deleted manually if needed.
+Rollback is removal of the PR-5 review-disposition files and references. If
+reverting the whole train, also remove the PR-4 telemetry files, PR-3 promotion
+files, PR-2 patch-builder files, and existing PR-1/PR-0 contract files. Because
+PR-5 adds no product runtime behavior, providers, workflows, external app
+settings, OpenAPI/client changes, semantic-cache activation, Slack/GitHub App
+changes, or DB state, rollback does not require data migration, OpenAPI
+regeneration, external app changes, or release coordination. Any already opened
+promoted candidate PR remains normal GitHub state and is closed or
+branch-deleted manually if needed.

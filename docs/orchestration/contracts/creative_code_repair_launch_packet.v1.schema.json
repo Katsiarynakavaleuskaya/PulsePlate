@@ -1,0 +1,126 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pulseplate.local/contracts/creative_code_repair_launch_packet.v1.schema.json",
+  "title": "CreativeCodeRepairLaunchPacket",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "packet_type",
+    "policy_version",
+    "launch_id",
+    "idempotency_key",
+    "source_disposition_packet_id",
+    "source_disposition_packet_fingerprint",
+    "target_pr1_specification",
+    "repair_candidates",
+    "authority",
+    "sanitized"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "packet_type": { "const": "creative_code_repair_launch_packet" },
+    "policy_version": { "const": "creative-code-review-disposition-pr5" },
+    "launch_id": { "$ref": "#/$defs/safe_id" },
+    "idempotency_key": { "$ref": "#/$defs/safe_id" },
+    "source_disposition_packet_id": { "$ref": "#/$defs/safe_id" },
+    "source_disposition_packet_fingerprint": { "$ref": "#/$defs/sha256" },
+    "target_pr1_specification": { "$ref": "#/$defs/target_pr1_specification" },
+    "repair_candidates": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/repair_candidate" }
+    },
+    "authority": { "$ref": "#/$defs/authority" },
+    "sanitized": { "const": true }
+  },
+  "$defs": {
+    "safe_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "target_pr1_specification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["allowed", "reason", "source_packet_id"],
+      "properties": {
+        "allowed": { "type": "boolean" },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240,
+          "not": {
+            "pattern": "(diff --git|raw[_ -]?(body|prompt|response|context|patch)|review[_ -]?thread[_ -]?body|pull[_ -]?request[_ -]?body|chain[_ -]?of[_ -]?thought|provider[_ -]?payload|oracle[_ -]?(stdout|stderr)|/(?:Users|home|private/var|var/folders|tmp|etc|opt|usr|Volumes|mnt|root|workspace|workspaces)(?:/|$)|~[/\\\\]|[A-Za-z]:[/\\\\]|\\.venv/|\\.git/|worktrees([:/._-]|$)|GH_TOKEN|GITHUB_TOKEN|github_pat_|gh[psoru]_|sk-[A-Za-z0-9_-]{12,}|xox[abprs]-)"
+          }
+        },
+        "source_packet_id": { "$ref": "#/$defs/safe_id" }
+      }
+    },
+    "repair_candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "record_id",
+        "reason_code",
+        "repair_priority",
+        "sanitized_excerpt",
+        "source_fingerprint"
+      ],
+      "properties": {
+        "record_id": { "$ref": "#/$defs/safe_id" },
+        "reason_code": {
+          "enum": [
+            "already_addressed",
+            "documentation",
+            "fixed_mapping_governance",
+            "head_sha_drift",
+            "security_sensitive",
+            "source_degraded",
+            "test_failure",
+            "unknown",
+            "unsafe_authority"
+          ]
+        },
+        "repair_priority": { "type": "integer", "minimum": 1, "maximum": 3 },
+        "sanitized_excerpt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240,
+          "not": {
+            "pattern": "(diff --git|raw[_ -]?(body|prompt|response|context|patch)|review[_ -]?thread[_ -]?body|pull[_ -]?request[_ -]?body|chain[_ -]?of[_ -]?thought|provider[_ -]?payload|oracle[_ -]?(stdout|stderr)|/(?:Users|home|private/var|var/folders|tmp|etc|opt|usr|Volumes|mnt|root|workspace|workspaces)(?:/|$)|~[/\\\\]|[A-Za-z]:[/\\\\]|\\.venv/|\\.git/|worktrees([:/._-]|$)|GH_TOKEN|GITHUB_TOKEN|github_pat_|gh[psoru]_|sk-[A-Za-z0-9_-]{12,}|xox[abprs]-)"
+          }
+        },
+        "source_fingerprint": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "create_pr1_specification",
+        "edit_fixed_mapping",
+        "generate_patch",
+        "merge",
+        "open_pr",
+        "push",
+        "resolve_threads",
+        "write_branch"
+      ],
+      "properties": {
+        "create_pr1_specification": { "const": true },
+        "edit_fixed_mapping": { "const": false },
+        "generate_patch": { "const": false },
+        "merge": { "const": false },
+        "open_pr": { "const": false },
+        "push": { "const": false },
+        "resolve_threads": { "const": false },
+        "write_branch": { "const": false }
+      }
+    }
+  }
+}
