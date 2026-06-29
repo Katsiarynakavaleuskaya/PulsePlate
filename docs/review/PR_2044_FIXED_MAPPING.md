@@ -69,7 +69,17 @@ this PR.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: role findings and tests documented below.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2044#discussion_r3491179374 -> 4b1ee2921
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2044#discussion_r3491179379 -> 013642ce8
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2044#discussion_r3491179384 -> 013642ce8
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2044#discussion_r3491179389 -> beae974bd
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2044#discussion_r3491179397 -> 013642ce8
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2044#discussion_r3491179405 -> beae974bd
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2044#discussion_r3491179411 -> 013642ce8
 
 ## Post-Open Role Findings
 
@@ -151,6 +161,25 @@ the Python denylist and event/rollup schema safe-id denylist, with coverage in
 `tests/test_creative_code_telemetry.py::test_reference_taxonomy_and_schemas_are_closed`
 and
 `tests/test_creative_code_telemetry.py::test_event_rejects_raw_patch_leaks_and_mutating_authority`.
+
+Role: `chatgpt-codex-connector`
+
+Disposition: FIXED
+
+Commit: `beae974bd`
+
+Evidence: Review threads
+`https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2044#discussion_r3491179389`
+and
+`https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2044#discussion_r3491179405`
+found that PR-3 partial-failure receipts were collapsed into
+`github_transport_failed` and that telemetry startup imported the heavier
+promotion runtime for filename constants. Commit `beae974bd` classifies
+readback-verification partial failures as `pr_readback_failed`, keeps promotion
+artifact filename constants local to the telemetry module, and covers both with
+`tests/test_creative_code_telemetry.py::test_promotion_receipt_readback_failure_uses_specific_taxonomy`
+and
+`tests/test_creative_code_telemetry.py::test_telemetry_import_does_not_load_promotion_runtime_module`.
 
 Role: `pulseplate-pr-review`
 
