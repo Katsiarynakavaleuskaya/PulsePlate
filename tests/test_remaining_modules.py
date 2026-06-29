@@ -145,12 +145,13 @@ def test_run_local_sandbox_builds_effective_argv_smoke(
 
     monkeypatch.setenv(sandbox.SANDBOX_ENABLED_ENV, "true")
     monkeypatch.setenv(sandbox.SANDBOX_ROOT_ENV, str(tmp_path))
-    monkeypatch.setenv(sandbox.SANDBOX_ALLOWED_BINARIES_ENV, "python3")
+    python_binary = Path(sys.executable).name
+    monkeypatch.setenv(sandbox.SANDBOX_ALLOWED_BINARIES_ENV, python_binary)
     monkeypatch.setenv(cp.ALLOWLIST_ENV, "sandbox.exec:local://sandbox")
 
     result = sandbox.run_local_sandbox(
         sandbox.SandboxRequest(
-            binary="python3",
+            binary=python_binary,
             args=("-c", "print('sandbox-smoke')"),
             cwd=tmp_path,
         )
