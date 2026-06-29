@@ -42,11 +42,15 @@ Experiment Runner implementation change is authorized by this PR.
 
 - Base branch: `main`
 - Branch: `codex/creative-code-review-disposition-integration-pr5`
-- Initial packet: `artifacts/orchestration/task_packets/08a04dd8b831.json`
+- Packet: `artifacts/orchestration/task_packets/08a04dd8b831.json`
 - Pre-implementation role order executed:
   `agent-coordinator -> architecture-specialist -> security-auditor -> qa-engineer-agent -> bug-hunter -> cursor-specialist-agent`
 - Packet creation was treated as provenance/routing only; role passes were
   executed explicitly before implementation.
+
+## Experiment Runner Evidence
+
+Artifact: `artifacts/orchestration/experiments/results/pr5-review-disposition-oracle-v2-result.json`
 
 ## Discussion Thread Pass
 
