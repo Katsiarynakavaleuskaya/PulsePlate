@@ -266,7 +266,7 @@ def test_manual_intent_uses_configured_api_key_not_app_dependency_override(
         _restore_dependency_overrides(original_overrides)
 
     assert rejected.status_code == 401, rejected.text
-    assert rejected.json()["detail"] == "API key required for billing verification"
+    assert _json(rejected)["detail"] == "API key required for billing verification"
     assert accepted.status_code == 201, accepted.text
 
 
