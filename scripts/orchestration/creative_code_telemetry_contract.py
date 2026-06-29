@@ -36,8 +36,8 @@ SECRET_RE = re.compile(
 LEAK_TEXT_RE = re.compile(
     r"(diff --git|^\+\+\+ |^--- |@@ |candidate\.patch|raw[_ -]?"
     r"(prompt|response|context|patch)|candidate_patch|chain[_ -]?of[_ -]?thought|"
-    r"provider[_ -]?payload|oracle stdout|oracle stderr|/Users/|/private/var/|"
-    r"/var/folders/|/tmp/|\.venv/|\.git/|worktrees/|github_pat_|gh[psoru]_|"
+    r"provider[_ -]?payload|oracle[_ -]?(stdout|stderr)|/Users/|/private/var/|"
+    r"/var/folders/|/tmp/|\.venv/|\.git/|worktrees([:/._-]|$)|github_pat_|gh[psoru]_|"
     r"xox[abprs]-|sk-[A-Za-z0-9_-]{12,})",
     re.IGNORECASE | re.MULTILINE,
 )

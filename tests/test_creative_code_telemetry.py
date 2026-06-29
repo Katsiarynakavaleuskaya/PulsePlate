@@ -229,7 +229,20 @@ def test_reference_taxonomy_and_schemas_are_closed() -> None:
         event_schema["$defs"]["safe_id"]["not"]["pattern"],
         re.IGNORECASE,
     )
+    rollup_unsafe_text_pattern = re.compile(
+        rollup_schema["$defs"]["safe_id"]["not"]["pattern"],
+        re.IGNORECASE,
+    )
     assert unsafe_text_pattern.search("/Users/example/repo")
+    for unsafe_token in (
+        "oracle_stdout",
+        "oracle-stderr",
+        "provider_payload",
+        "GITHUB_TOKEN",
+        "worktrees:creative-code",
+    ):
+        assert unsafe_text_pattern.search(unsafe_token)
+        assert rollup_unsafe_text_pattern.search(unsafe_token)
 
 
 def test_duplicate_json_keys_fail_closed(tmp_path: Path) -> None:
@@ -243,26 +256,34 @@ def test_duplicate_json_keys_fail_closed(tmp_path: Path) -> None:
 def test_event_rejects_raw_patch_leaks_and_mutating_authority() -> None:
     source_fingerprint = "sha256:" + ("a" * 64)
 
-    with pytest.raises(CreativeCodeTelemetryContractError, match="unsafe telemetry text"):
-        build_creative_code_telemetry_event(
-            lane_stage="specification",
-            source_artifact_type="creative_code_specification",
-            source_artifact_id="candidate.patch",
-            source_fingerprint=source_fingerprint,
-            candidate_ids={
-                "source_packet_id": None,
-                "source_bundle_id": None,
-                "selected_variant_id": None,
-                "request_id": None,
-                "result_id": None,
-                "promotion_id": None,
-            },
-            status="blocked",
-            rejection_class="leak_detected",
-            failure_class="leak_detected",
-            taxonomy_codes=["leak_detected"],
-            metrics=default_metrics(),
-        )
+    for unsafe_source_artifact_id in (
+        "candidate.patch",
+        "oracle_stdout",
+        "oracle-stderr",
+        "provider_payload",
+        "GITHUB_TOKEN",
+        "worktrees:creative-code",
+    ):
+        with pytest.raises(CreativeCodeTelemetryContractError, match="unsafe telemetry text"):
+            build_creative_code_telemetry_event(
+                lane_stage="specification",
+                source_artifact_type="creative_code_specification",
+                source_artifact_id=unsafe_source_artifact_id,
+                source_fingerprint=source_fingerprint,
+                candidate_ids={
+                    "source_packet_id": None,
+                    "source_bundle_id": None,
+                    "selected_variant_id": None,
+                    "request_id": None,
+                    "result_id": None,
+                    "promotion_id": None,
+                },
+                status="blocked",
+                rejection_class="leak_detected",
+                failure_class="leak_detected",
+                taxonomy_codes=["leak_detected"],
+                metrics=default_metrics(),
+            )
 
     event = build_creative_code_telemetry_event(
         lane_stage="specification",
