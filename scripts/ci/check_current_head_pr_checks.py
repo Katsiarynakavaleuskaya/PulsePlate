@@ -53,6 +53,7 @@ CANONICAL_FALLBACK_CI_CHECK_NAMES = {
 }
 DOCKER_FALLBACK_WORKFLOW_NAMES = {"Docker Build and Push"}
 SECURITY_FALLBACK_CHECK_NAMES = {"security-scan"}
+DOCKER_PR_EXPECTED_SKIPPED_CHECK_NAMES = {"publish"}
 DOCKER_SURFACE_PREFIXES = {
     ".dockerignore",
     ".trivyignore",
@@ -441,6 +442,8 @@ def _is_blocking_fallback_advisory(entry: CheckEntry, changed_paths: set[str]) -
     if entry.workflow_name in CANONICAL_FALLBACK_WORKFLOW_NAMES:
         return entry.name in CANONICAL_FALLBACK_CI_CHECK_NAMES
     if entry.workflow_name in DOCKER_FALLBACK_WORKFLOW_NAMES:
+        if entry.conclusion == "SKIPPED" and entry.name in DOCKER_PR_EXPECTED_SKIPPED_CHECK_NAMES:
+            return False
         return entry.name in SECURITY_FALLBACK_CHECK_NAMES or _path_touches_any(
             changed_paths, DOCKER_SURFACE_PREFIXES
         )

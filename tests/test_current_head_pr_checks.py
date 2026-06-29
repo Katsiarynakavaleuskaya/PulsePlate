@@ -358,6 +358,19 @@ def test_fallback_ci_allowlist_matches_canonical_pr_workflow_jobs() -> None:
             {"docs/telemetry/docker_image_budget.production.json"},
             True,
         ),
+        (
+            current_head_checks.CheckEntry(
+                name="publish",
+                source_kind="check_run",
+                state="failed",
+                timestamp="2026-03-12T08:36:42Z",
+                details_url="https://example.invalid/docker-publish-skipped",
+                workflow_name="Docker Build and Push",
+                conclusion="SKIPPED",
+            ),
+            {"scripts/ci/emergency_python_wheels.json"},
+            False,
+        ),
     ],
 )
 def test_is_blocking_fallback_advisory(

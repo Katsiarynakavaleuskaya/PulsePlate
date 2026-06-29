@@ -172,12 +172,13 @@ Reason: Codex review referenced stale reviewed commit `1b54dfa`; the current bra
 - `.venv/bin/ruff check scripts/ci/check_emergency_wheel_mirror_parity.py tests/test_emergency_wheel_mirror_parity.py` PASS.
 - `.venv/bin/ruff format --check scripts/ci/check_emergency_wheel_mirror_parity.py tests/test_emergency_wheel_mirror_parity.py` PASS.
 - Commit hook pre-commit subset PASS for `fc4693402`, including changed-file backend tests.
+- `.venv/bin/python -m pytest -q tests/test_current_head_pr_checks.py` PASS after the local fallback classifier fix.
+- `GITHUB_TOKEN="$(gh auth token)" GH_TOKEN="$(gh auth token)" python3 scripts/orchestration/check_merge_ready.py --pr-number 2046 --repo Katsiarynakavaleuskaya/PulsePlate --require-auth` PASS locally after the fallback classifier fix; skipped PR-only release `publish` remains advisory while Docker `security-scan` remains blocking when attached.
 
 ## Merge Readiness
 
-Not merge-ready yet. Post-open role passes, Codex Security diff scan/finding
-discovery, and `pulseplate-pr-review` are completed with actions/dispositions
-recorded above. The latest review fixes and mapping still need to be pushed,
-review-thread disposition and strict merge-readiness must be rechecked, open
-review threads must be resolved only after this disposition evidence is present,
-and current-head CI must rerun before any merge-readiness claim.
+Post-open role passes, Codex Security diff scan/finding discovery, and
+`pulseplate-pr-review` are completed with actions/dispositions recorded above.
+Before merge, the latest pushed head must still have current-head CI, strict
+merge-readiness, review-thread disposition, and bot-actionable checks passing
+with no unresolved review threads.
