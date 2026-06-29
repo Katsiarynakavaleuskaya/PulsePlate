@@ -55,6 +55,12 @@ def _repo_active_emergency_artifacts() -> list[dict[str, str]]:
     return installer.load_emergency_wheel_manifest(_repo_emergency_manifest_path())
 
 
+def _repo_emergency_manifest_payload() -> dict[str, object]:
+    payload = json.loads(_repo_emergency_manifest_path().read_text(encoding="utf-8"))
+    assert isinstance(payload, dict)
+    return payload
+
+
 def _exact_requirement_pairs(contents: str) -> set[tuple[str, str]]:
     pairs: set[tuple[str, str]] = set()
     for raw_line in contents.splitlines():
@@ -65,28 +71,6 @@ def _exact_requirement_pairs(contents: str) -> set[tuple[str, str]]:
         version = version_and_markers.split(";", 1)[0].strip()
         pairs.add((package.strip(), version))
     return pairs
-
-
-def _active_manifest_artifact_version(package: str) -> str:
-    versions = [
-        item["version"].strip()
-        for item in _repo_active_emergency_artifacts()
-        if item["package"] == package
-    ]
-    assert versions, f"Active emergency wheel manifest must include {package!r}."
-    assert (
-        len(set(versions)) == 1
-    ), f"Active emergency wheel manifest must expose a single {package!r} version, found {versions!r}."
-    return versions[0]
-
-
-def _single_active_manifest_artifact(package: str) -> dict[str, str]:
-    artifacts = [item for item in _repo_active_emergency_artifacts() if item["package"] == package]
-    assert artifacts, f"Active emergency wheel manifest must include {package!r}."
-    assert (
-        len(artifacts) == 1
-    ), f"Expected a single active emergency artifact for {package!r}, found {artifacts!r}."
-    return artifacts[0]
 
 
 def _ci_linux_cp313_tags() -> set[str]:
@@ -748,39 +732,21 @@ def test_private_index_project_health_accepts_underscore_wheel_name(
     )
 
 
-def test_repo_emergency_manifest_tracks_current_active_fallback_set() -> None:
-    artifacts = {(item["package"], item["version"]) for item in _repo_active_emergency_artifacts()}
+def test_repo_emergency_manifest_is_retired_empty_compatibility_marker() -> None:
+    payload = _repo_emergency_manifest_payload()
     requirements_ci_lite = (REPO_ROOT / "requirements-ci-lite.txt").read_text(encoding="utf-8")
     requirements_ci_lite_pins = _exact_requirement_pairs(requirements_ci_lite)
-    ci_lite_emergency_pairs = {
-        pair
-        for pair in artifacts
-        if pair[0] in {package for package, _version in requirements_ci_lite_pins}
-    }
 
-    assert artifacts, "Emergency wheel manifest should track at least one fallback artifact."
-    assert {package for package, _version in ci_lite_emergency_pairs} >= {
-        "alembic",
-        "aiosqlite",
-        "annotated-doc",
-        "annotated-types",
-        "anyio",
-        "bandit",
-        "certifi",
-        "jiter",
-        "pillow",
-        "protobuf",
-        "pydantic-core",
-        "python-multipart",
-        "requests",
-        "starlette",
-        "wrapt",
-    }
-    assert ci_lite_emergency_pairs <= requirements_ci_lite_pins
+    assert payload["schema_version"] == 1
+    assert payload["generated_at"] == "2026-06-29"
+    assert isinstance(payload["reason"], str)
+    assert payload["reason"].startswith("Retired:")
+    assert payload["artifacts"] == []
+    assert _repo_active_emergency_artifacts() == []
     assert ("python-multipart", "0.0.31") in requirements_ci_lite_pins
 
 
-def test_repo_ci_lite_main_mirror_lag_emergency_wheels_are_selected(
+def test_repo_ci_lite_retired_manifest_selects_no_emergency_wheels(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -796,18 +762,6 @@ def test_repo_ci_lite_main_mirror_lag_emergency_wheels_are_selected(
         "_supported_wheel_tags_for_python",
         lambda _python_executable: _ci_linux_cp313_tags(),
     )
-    expected_artifacts = {
-        artifact["filename"]: (artifact["url"], artifact["sha256"])
-        for artifact in installer.emergency_artifacts_requested_by_surfaces(
-            requirement_files=[REPO_ROOT / "requirements-ci-lite.txt"],
-            constraints_file=REPO_ROOT / "constraints.txt",
-            manifest_path=_repo_emergency_manifest_path(),
-        )
-    }
-    hotfix_artifacts = {
-        _single_active_manifest_artifact("protobuf")["filename"],
-        _single_active_manifest_artifact("wrapt")["filename"],
-    }
 
     staged = installer.stage_emergency_wheels(
         requirement_files=[REPO_ROOT / "requirements-ci-lite.txt"],
@@ -819,11 +773,8 @@ def test_repo_ci_lite_main_mirror_lag_emergency_wheels_are_selected(
     observed_by_filename = {filename: (url, sha256) for url, filename, sha256 in observed_downloads}
     staged_by_filename = {path.name for path in staged}
 
-    assert staged_by_filename == set(expected_artifacts)
-    assert staged_by_filename >= hotfix_artifacts
-    assert {
-        filename: observed_by_filename[filename] for filename in expected_artifacts
-    } == expected_artifacts
+    assert staged_by_filename == set()
+    assert observed_by_filename == {}
 
 
 @pytest.mark.parametrize(
@@ -834,7 +785,7 @@ def test_repo_ci_lite_main_mirror_lag_emergency_wheels_are_selected(
         ("cp313", "pydantic_core-2.46.4-cp313-cp313-manylinux_2_17_x86_64"),
     ],
 )
-def test_repo_pydantic_core_emergency_fallback_covers_main_python_matrix(
+def test_repo_pydantic_core_emergency_fallback_is_retired_for_main_python_matrix(
     monkeypatch: pytest.MonkeyPatch,
     python_tag: str,
     expected_fragment: str,
@@ -858,8 +809,8 @@ def test_repo_pydantic_core_emergency_fallback_covers_main_python_matrix(
         artifact for artifact in artifacts if artifact["package"] == "pydantic-core"
     ]
 
-    assert [artifact["version"] for artifact in pydantic_core_artifacts] == ["2.46.4"]
-    assert expected_fragment in pydantic_core_artifacts[0]["filename"]
+    assert pydantic_core_artifacts == []
+    assert "2.46.4" in expected_fragment
 
 
 def test_emergency_artifacts_requested_by_surfaces_filters_incompatible_wheel_tags(
@@ -1173,14 +1124,14 @@ def test_repo_ruff_private_proxy_pin_is_not_stale_emergency_fallback() -> None:
     assert not any(package == "ruff" for package, _version in artifacts)
 
 
-def test_repo_mypy_emergency_fallback_matches_dev_requirement_surfaces() -> None:
-    expected_version = _active_manifest_artifact_version("mypy")
-
+def test_repo_mypy_dev_requirement_surfaces_no_longer_need_emergency_fallback() -> None:
     requirements_dev_in = (REPO_ROOT / "requirements-dev.in").read_text(encoding="utf-8")
     requirements_dev_txt = (REPO_ROOT / "requirements-dev.txt").read_text(encoding="utf-8")
+    artifacts = {(item["package"], item["version"]) for item in _repo_active_emergency_artifacts()}
 
-    assert ("mypy", expected_version) in _exact_requirement_pairs(requirements_dev_in)
-    assert ("mypy", expected_version) in _exact_requirement_pairs(requirements_dev_txt)
+    assert ("mypy", "2.1.0") in _exact_requirement_pairs(requirements_dev_in)
+    assert ("mypy", "2.1.0") in _exact_requirement_pairs(requirements_dev_txt)
+    assert not any(package == "mypy" for package, _version in artifacts)
 
 
 def test_repo_quality_tooling_profile_matches_dependabot_replacement_contract() -> None:
@@ -1207,12 +1158,12 @@ def test_repo_quality_tooling_profile_matches_dependabot_replacement_contract() 
     assert ("librt", "0.11.0") in _exact_requirement_pairs(requirements_dev_txt)
     assert ("ruff", expected_ruff_version) in _exact_requirement_pairs(requirements_lock_txt)
 
-    assert ("mypy", "2.1.0") in artifacts
+    assert not any(package == "mypy" for package, _version in artifacts)
     assert not any(package == "ruff" for package, _version in artifacts)
     assert not any(package == "black" for package, _version in artifacts)
 
 
-def test_repo_dev_quality_emergency_wheels_are_selected_from_active_manifest(
+def test_repo_dev_quality_emergency_wheels_are_retired_from_repo_manifest(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -1233,17 +1184,8 @@ def test_repo_dev_quality_emergency_wheels_are_selected_from_active_manifest(
     )
 
     observed_by_filename = {filename: (url, sha256) for url, filename, sha256 in observed_downloads}
-    assert {path.name for path in staged if path.name.startswith("mypy-2.1.0-")} == {
-        "mypy-2.1.0-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl",
-    }
-    assert observed_by_filename[
-        "mypy-2.1.0-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl"
-    ] == (
-        "https://files.pythonhosted.org/packages/94/21/f54be870d6dd53a82c674407e0f8eed7174b05ec78d42e5abd7b42e84fd5/mypy-2.1.0-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl",
-        "e195b817c13f02352a9c124301f9f30f078405444679b6753c1b96b6eed37285",
-    )
-    assert not any(filename.startswith("black-") for _url, filename, _sha256 in observed_downloads)
-    assert not any(filename.startswith("ruff-") for _url, filename, _sha256 in observed_downloads)
+    assert staged == []
+    assert observed_by_filename == {}
 
 
 def _assert_uses_default_constraints(command: list[str]) -> None:
@@ -2232,6 +2174,41 @@ def test_load_emergency_wheel_manifest_rejects_expired_file(tmp_path: Path) -> N
     )
 
     with pytest.raises(RuntimeError, match="expired"):
+        installer.load_emergency_wheel_manifest(manifest)
+
+
+def test_load_emergency_wheel_manifest_accepts_retired_empty_marker(tmp_path: Path) -> None:
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "generated_at": "2026-06-29",
+                "reason": "Retired: all emergency wheels are mirrored privately.",
+                "artifacts": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert installer.load_emergency_wheel_manifest(manifest) == []
+
+
+def test_load_emergency_wheel_manifest_rejects_malformed_empty_marker(tmp_path: Path) -> None:
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "generated_at": "2026-06-29",
+                "reason": "empty but not retired",
+                "artifacts": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(RuntimeError, match="retired compatibility marker"):
         installer.load_emergency_wheel_manifest(manifest)
 
 
@@ -3824,7 +3801,7 @@ def test_install_from_proxy_with_emergency_fallback_ignores_staged_package_retry
     assert install_attempts["count"] == 3
 
 
-def test_repo_ci_lite_direct_proxy_retry_stages_protobuf_then_wrapt(
+def test_repo_ci_lite_direct_proxy_retry_rejects_retired_emergency_manifest(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -3832,8 +3809,6 @@ def test_repo_ci_lite_direct_proxy_retry_stages_protobuf_then_wrapt(
     observed_find_links: list[Path | None] = []
     health_packages: list[str] = []
     staged_filenames: list[list[str]] = []
-    protobuf_artifact = _single_active_manifest_artifact("protobuf")
-    wrapt_artifact = _single_active_manifest_artifact("wrapt")
 
     def fake_install_from_proxy(**kwargs: object) -> None:
         install_attempts["count"] += 1
@@ -3870,23 +3845,21 @@ def test_repo_ci_lite_direct_proxy_retry_stages_protobuf_then_wrapt(
         lambda _python_executable: _ci_linux_cp313_tags(),
     )
 
-    installer.install_from_proxy_with_emergency_fallback(
-        python_executable="python",
-        requirement_files=[REPO_ROOT / "requirements-ci-lite.txt"],
-        constraints_file=REPO_ROOT / "constraints.txt",
-        index_url=APPROVED_PROXY_URL,
-        trusted_host=None,
-        emergency_wheelhouse_dir=tmp_path / "wheelhouse",
-        emergency_wheel_manifest=_repo_emergency_manifest_path(),
-    )
+    with pytest.raises(RuntimeError, match="protobuf"):
+        installer.install_from_proxy_with_emergency_fallback(
+            python_executable="python",
+            requirement_files=[REPO_ROOT / "requirements-ci-lite.txt"],
+            constraints_file=REPO_ROOT / "constraints.txt",
+            index_url=APPROVED_PROXY_URL,
+            trusted_host=None,
+            emergency_wheelhouse_dir=tmp_path / "wheelhouse",
+            emergency_wheel_manifest=_repo_emergency_manifest_path(),
+        )
 
-    assert health_packages == ["protobuf", "wrapt"]
-    assert staged_filenames == [
-        [protobuf_artifact["filename"]],
-        [wrapt_artifact["filename"]],
-    ]
-    assert observed_find_links == [None, tmp_path / "wheelhouse", tmp_path / "wheelhouse"]
-    assert install_attempts["count"] == 3
+    assert health_packages == []
+    assert staged_filenames == []
+    assert observed_find_links == [None]
+    assert install_attempts["count"] == 1
 
 
 def test_install_from_proxy_with_emergency_fallback_rejects_mixed_network_resolver_failure(
@@ -5292,7 +5265,7 @@ def test_run_dependency_floor_preflight_allows_exact_emergency_artifact_after_pr
     ]
 
 
-def test_repo_starlette_floor_preflight_uses_active_emergency_fallback(
+def test_repo_starlette_floor_preflight_rejects_proxy_miss_with_retired_manifest(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
@@ -5324,19 +5297,18 @@ def test_repo_starlette_floor_preflight_uses_active_emergency_fallback(
     monkeypatch.setattr(installer, "_private_index_project_has_version", fail_version_check)
     monkeypatch.setattr(installer, "_download_with_sha256", fake_download)
 
-    installer.run_dependency_floor_preflight(
-        python_executable="python",
-        index_url=APPROVED_PROXY_URL,
-        trusted_host=None,
-        emergency_wheel_manifest=_repo_emergency_manifest_path(),
-    )
-
-    assert observed_downloads == [
-        (
-            "https://files.pythonhosted.org/packages/ec/bb/2799cc2ede3ed41131f8975621e7213dfc7ef4acbbaadfa440f32500c370/starlette-1.3.1-py3-none-any.whl",
-            "c7372aae11c3c3f26a42df7bd626cec2f47d03483d261d369516a615a53714c6",
+    with pytest.raises(
+        RuntimeError,
+        match=("Dependency floor preflight failed for approved proxy: " "starlette==1.3.1"),
+    ):
+        installer.run_dependency_floor_preflight(
+            python_executable="python",
+            index_url=APPROVED_PROXY_URL,
+            trusted_host=None,
+            emergency_wheel_manifest=_repo_emergency_manifest_path(),
         )
-    ]
+
+    assert observed_downloads == []
 
 
 def test_run_dependency_floor_preflight_rejects_resolver_miss_when_proxy_health_fails(

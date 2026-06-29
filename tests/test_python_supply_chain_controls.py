@@ -681,6 +681,7 @@ def test_canonical_ci_and_docker_use_supply_chain_guardrails() -> None:
     blocked_hosts = set(locked_installer.BLOCKED_INDEX_HOSTS)
 
     assert "check_python_startup_hooks.py" in installer_text
+    assert "check_emergency_wheel_mirror_parity.py" in ci_text
     assert "--only-binary" in installer_text
     assert "PULSEPLATE_PYTHON_INDEX_URL" in installer_text
     assert any(host == ".".join(("pypi", "org")) for host in blocked_hosts)
@@ -729,6 +730,7 @@ def test_canonical_ci_and_docker_use_supply_chain_guardrails() -> None:
         < return_to_non_root_index
     )
     assert "install_locked_python_requirements.py" in dependency_docs_text
+    assert "check_emergency_wheel_mirror_parity.py" in dependency_docs_text
     assert "PULSEPLATE_PYTHON_INDEX_URL" in dependency_docs_text
     assert "Run: make venv-sync" in init_test_db_text
     build_workflow_text = (REPO_ROOT / ".github" / "workflows" / "build.yml").read_text(

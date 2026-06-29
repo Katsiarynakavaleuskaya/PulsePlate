@@ -34,6 +34,7 @@ DEFAULT_RAG_VECTOR_REQUIREMENTS_FILE = REPO_ROOT / "requirements-rag-vector.txt"
 DEFAULT_CONSTRAINTS_FILE = REPO_ROOT / "constraints.txt"
 DEFAULT_STARTUP_HOOK_GUARD_PATH = REPO_ROOT / "scripts" / "ci" / "check_python_startup_hooks.py"
 DEFAULT_EMERGENCY_WHEEL_MANIFEST = REPO_ROOT / "scripts" / "ci" / "emergency_python_wheels.json"
+RETIRED_EMERGENCY_WHEEL_MANIFEST_GENERATED_AT = "2026-06-29"
 
 DEFAULT_DEPENDENCY_SECURITY_SCHEMA = (
     REPO_ROOT / "tests" / "fixtures" / "dependency_security_schema.json"
@@ -336,6 +337,19 @@ def _normalize_artifact_sha256(artifact: dict[str, object], *, filename: str) ->
     )
 
 
+def _manifest_is_retired_marker(payload: dict[str, object]) -> bool:
+    """Return True for the empty compatibility marker used after fallback retirement."""
+    artifacts = payload.get("artifacts")
+    generated_at = payload.get("generated_at")
+    reason = payload.get("reason")
+    return (
+        artifacts == []
+        and generated_at == RETIRED_EMERGENCY_WHEEL_MANIFEST_GENERATED_AT
+        and isinstance(reason, str)
+        and reason.strip().lower().startswith("retired:")
+    )
+
+
 def load_emergency_wheel_manifest(manifest_path: Path | None) -> list[dict[str, str]]:
     """Load and validate an optional exact-wheel fallback manifest."""
     resolved_path = resolve_emergency_wheel_manifest_path(manifest_path)
@@ -356,12 +370,19 @@ def load_emergency_wheel_manifest(manifest_path: Path | None) -> list[dict[str, 
     if payload.get("schema_version") != 1:
         raise RuntimeError("Emergency wheel manifest schema_version must equal 1.")
 
+    artifacts = payload.get("artifacts")
+    if artifacts == []:
+        if _manifest_is_retired_marker(payload):
+            return []
+        raise RuntimeError(
+            "Emergency wheel manifest may be empty only as the retired compatibility marker."
+        )
+
     expires_at = payload.get("expires_at")
     if not isinstance(expires_at, str) or not expires_at.strip():
         raise RuntimeError("Emergency wheel manifest must define non-empty expires_at.")
     default_expires_at = _parse_iso_date(expires_at, field_name="expires_at")
 
-    artifacts = payload.get("artifacts")
     if not isinstance(artifacts, list) or not artifacts:
         raise RuntimeError("Emergency wheel manifest must define a non-empty artifacts list.")
 

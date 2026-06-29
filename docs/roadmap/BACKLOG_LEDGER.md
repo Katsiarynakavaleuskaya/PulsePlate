@@ -866,13 +866,13 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
       `docs/evals/PULSEPLATE_RAG_RELEASE_GATES.md`.
 
 <a id="ledger-p1-cryptography-private-index-sync"></a>
-- [ ] P1: Retire active emergency wheel manifest entries after approved mirror sync
+- [x] P1: Retire runtime-effective emergency wheel manifest entries after approved mirror sync
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (security / supply-chain / CI blocker)
-  - Target PR: `PR-TBD` (follow-up after main Docker/CD proxy unblock)
-  - Status: Active as of `16 June 2026`; PR-TBD hotfix rotates `cryptography` and `python-multipart` fallback artifacts after Safety `SFTY-20260615-*` findings.
+  - Target PR: PR #2046 (`codex/retire-emergency-wheel-fallbacks`)
+  - Status: Runtime-effective fallback retired in this PR; `scripts/ci/emergency_python_wheels.json` remains as an empty compatibility marker instead of deleting CI/Docker references in the same lane.
   - Area: security / CI / dependencies
-  - Reason (EN): The repo must stay on patched exact releases while the approved private index catches up, and the runtime-effective emergency wheel fallback set still covers multiple active bootstrap/runtime dependency surfaces (including `pip 26.1.1`, `aiosqlite 0.22.1`, `alembic 1.18.4`, `annotated-doc 0.0.4`, `annotated-types 0.7.0`, `anyio 4.12.0`, `bandit 1.9.4`, `certifi 2026.1.4`, `requests 2.33.0`, `cryptography 48.0.1`, `python-multipart 0.0.31`, `pillow 12.2.0`, `protobuf 6.33.5`, `pydantic-core 2.46.4`, `starlette 1.3.1`, `wrapt 2.0.1`, `faker 40.15.0`, `hypothesis 6.152.4`, `jiter 0.12.0`, `mypy 2.1.0`, and `types-pyyaml 6.0.12.20260408`). `PR #1378`, `PR #1418`, the main Docker/CD proxy unblock, the main CI protobuf/wrapt mirror-lag hotfix, the approved RAG/vector dependency consolidation, and the June 2026 Safety hotfix extend that time-boxed exact-wheel fallback with pinned `sha256` digests instead of a vulnerable repin or a broad public-index bypass. Retire the manifest only after the approved mirror serves every runtime-effective fallback entry natively. `transformers` was retired from the emergency fallback set after the approved private proxy served `transformers==5.12.0`; `sentence-transformers` was retired after the approved private proxy served `sentence-transformers==5.6.0`. (RU: Репозиторий должен оставаться на исправленных точных релизах, пока одобренное приватное зеркало догоняет апстрим, и runtime-effective emergency wheel fallback set всё ещё покрывает несколько активных bootstrap/runtime dependency surfaces, включая `pip 26.1.1`, `aiosqlite 0.22.1`, `alembic 1.18.4`, `annotated-doc 0.0.4`, `annotated-types 0.7.0`, `anyio 4.12.0`, `bandit 1.9.4`, `certifi 2026.1.4`, `cryptography 48.0.1`, `python-multipart 0.0.31`, `pillow 12.2.0`, `protobuf 6.33.5`, `pydantic-core 2.46.4`, `starlette 1.3.1`, `wrapt 2.0.1`, `faker 40.15.0`, `hypothesis 6.152.4`, `jiter 0.12.0`, `mypy 2.1.0` и `types-pyyaml 6.0.12.20260408`. Удалять manifest можно только после того, как одобренное приватное зеркало начнёт отдавать всё ещё активные fallback-entry нативно. `transformers` удалён из emergency fallback set после подтверждения, что одобренное приватное зеркало отдаёт `transformers==5.12.0`; `sentence-transformers` удалён после подтверждения, что одобренное приватное зеркало отдаёт `sentence-transformers==5.6.0`.)
+  - Reason (EN): The repo carried a time-boxed exact-wheel emergency bridge while the approved private Python proxy caught up to patched locked releases. After PR #2036 and the 2026-06-29 mirror-parity proof, representative proxy health was `ok=true` and all 34 previously active emergency wheel filenames were present on the approved private proxy (`missing=0`). The broad cleanup path remains intentionally out of scope: the manifest file stays as an empty retired marker so rollback-compatible installer, CI, and Docker references do not churn in this infra PR. (RU: репозиторий временно держал exact-wheel emergency bridge, пока одобренный приватный Python proxy догонял исправленные lockfile-релизы. После PR #2036 и mirror-parity proof от 2026-06-29 representative health был `ok=true`, и все 34 ранее активных emergency wheel filename присутствовали в одобренном приватном proxy (`missing=0`). Широкое удаление compatibility path оставлено вне scope: manifest остаётся пустым retired marker, чтобы не смешивать rollback-compatible installer/CI/Docker references с этим infra PR.)
   - Links:
     - `docs/security/SFTY-20260615-python-runtime-floors.md:1`
     - `docs/security/CRYPTOGRAPHY_46_0_7_PRIVATE_INDEX_ADVISORY.md:1`
@@ -882,37 +882,21 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `.github/actions/python-setup/action.yml`
     - `Dockerfile`
   - Evidence:
-    - Runtime-effective emergency manifest entries for the still-active fallback set remain pinned in
-      `scripts/ci/emergency_python_wheels.json` by package/version keys, including
-      `pip 26.1.1`, `alembic 1.18.4`, `annotated-doc 0.0.4`,
-      `annotated-types 0.7.0`, `anyio 4.12.0`, `bandit 1.9.4`,
-      `certifi 2026.1.4`, `jiter 0.12.0`, `requests 2.33.0`, `protobuf 6.33.5`,
-      `pydantic-core 2.46.4`, `wrapt 2.0.1`,
-      `cryptography 48.0.1`, `python-multipart 0.0.31`, `pillow 12.2.0`, `faker 40.15.0`,
-      `hypothesis 6.152.4`, `mypy 2.1.0`, `aiosqlite 0.22.1`, `starlette 1.3.1`,
-      and `types-pyyaml 6.0.12.20260408`.
-    - `sentence-transformers 5.5.1` was removed from the emergency manifest
-      after the approved private proxy served `sentence-transformers==5.6.0`.
-    - Installer/bootstrap fallback logic is implemented in
-      `scripts/ci/install_locked_python_requirements.py`
-      (`load_emergency_wheel_manifest`, `emergency_artifacts_requested_by_surfaces`,
-      `_require_private_index_health_unless_package_scoped_retry`, and
-      `_stage_emergency_artifacts`) plus `.github/actions/python-setup/action.yml`
-      shared CI wiring. Exact fallback stays manifest-pinned and either
-      proxy-health gated or backed by pip or health-probe package-scoped
-      approved-project retry/timeout evidence.
+    - `scripts/ci/check_emergency_wheel_mirror_parity.py` validates every active manifest entry by exact wheel filename against the approved private proxy project pages, and treats the retired empty marker as `retired=true`.
+    - `scripts/ci/emergency_python_wheels.json` now has `schema_version: 1`, `generated_at: 2026-06-29`, a retired reason, and `artifacts: []`.
+    - `scripts/ci/install_locked_python_requirements.py` still preserves the compatibility path, but `load_emergency_wheel_manifest` returns `[]` for the retired marker so no emergency wheel is runtime-effective.
   - DoD:
-    - [ ] Approved private proxy serves every still-active `scripts/ci/emergency_python_wheels.json` entry without manifest fallbacks
-    - [ ] `scripts/ci/emergency_python_wheels.json` is removed from canonical CI/Docker paths
-    - [ ] Locked install, Docker build, and `make verify` succeed with the private proxy alone
-    - [ ] Security advisories are updated to mark the emergency fallback retired
+    - [x] Approved private proxy served every previously active `scripts/ci/emergency_python_wheels.json` entry during the 2026-06-29 all-entry parity proof
+    - [x] Runtime-effective emergency fallback is retired by replacing the manifest with an empty compatibility marker
+    - [x] CI has a fail-closed all-entry parity step next to the representative private-proxy health gate
+    - [ ] Full removal of the manifest compatibility path and any advisory cleanups are separate follow-up scope
 
 <a id="ledger-p1-pillow-private-index-sync"></a>
-- [ ] P1: Remove temporary `pillow 12.2.0` emergency wheel fallback after approved mirror sync
+- [x] P1: Remove temporary `pillow 12.2.0` emergency wheel fallback after approved mirror sync
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (security / supply-chain / CI blocker)
-  - Target PR: `PR-TBD` (follow-up after `PR #1415`)
-  - Status: Active as of `13 April 2026`
+  - Target PR: PR #2046 (`codex/retire-emergency-wheel-fallbacks`)
+  - Status: Runtime-effective fallback retired by the empty emergency manifest marker on `2026-06-29`; advisory cleanup remains separate follow-up scope if needed.
   - Area: security / CI / dependencies
   - Reason (EN): `feat/rag-hardening-followthrough` must stay on the patched exact release `pillow 12.2.0`, but current-head CI and Docker installs showed the approved private index lagged that upstream release and exposed only `12.1.1`. `PR #1415` therefore adds a time-boxed exact-wheel fallback with pinned `sha256` digests instead of a vulnerable repin or a broad public-index bypass. Remove this fallback as soon as the approved mirror serves `12.2.0` natively. (RU: ветка должна остаться на исправленном точном релизе `pillow 12.2.0`, но CI/Docker показали отставание приватного зеркала и наличие только `12.1.1`. Поэтому `PR #1415` добавляет временный exact-wheel fallback с pinned `sha256`, а не уязвимый репин и не широкий bypass на публичный индекс. Удалить fallback сразу после того, как одобренное зеркало начнёт отдавать `12.2.0` нативно.)
   - Links:
@@ -922,24 +906,23 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `.github/actions/python-setup/action.yml`
     - `Dockerfile`
   - DoD:
-    - [ ] Approved private proxy serves `pillow 12.2.0` without the emergency fallback manifest
-    - [ ] `scripts/ci/emergency_python_wheels.json` no longer needs the `pillow 12.2.0` emergency entries
-    - [ ] Locked install, Docker build, and `make verify` succeed with the private proxy alone
-    - [ ] Advisory is updated to mark the emergency fallback retired
+    - [x] Approved private proxy serves `pillow 12.2.0` without a runtime-effective emergency fallback
+    - [x] `scripts/ci/emergency_python_wheels.json` no longer carries `pillow 12.2.0` emergency entries
+    - [ ] Full compatibility-path removal and advisory cleanup are separate follow-up scope
 
 <a id="ledger-p1-mako-private-index-sync"></a>
-- [ ] P1: Remove temporary `mako 1.3.12` emergency wheel fallback after approved mirror sync
+- [x] P1: Remove temporary `mako 1.3.12` emergency wheel fallback after approved mirror sync
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (security / supply-chain / CI blocker)
-  - Target PR: `PR-TBD` (follow-up after `PR #1440` / `PR #1697`)
-  - Status: Active as of `17 April 2026`; patched floor refreshed in `PR #1697`
+  - Target PR: PR #2046 (`codex/retire-emergency-wheel-fallbacks`)
+  - Status: Runtime-effective fallback retired by the empty emergency manifest marker on `2026-06-29`; advisory cleanup remains separate follow-up scope if needed.
   - Area: security / CI / dependencies
   - Reason (EN): `fix/mako-security-floor` started on the patched exact release `mako 1.3.11`, but current-head CI showed the approved private index still exposed only `1.3.10` during locked binary installs. `PR #1440` therefore added a time-boxed exact-wheel fallback with pinned `sha256` digests instead of a vulnerable repin or a broad public-index bypass. `PR #1697` refreshes the active floor to `mako 1.3.12` after a newer `pip-audit` advisory. Remove this fallback as soon as the approved mirror serves `1.3.12` natively. (RU: ветка `fix/mako-security-floor` стартовала с исправленного релиза `mako 1.3.11`, но current-head CI показал, что приватное зеркало всё ещё отдаёт только `1.3.10` при locked binary install. Поэтому `PR #1440` добавил временный exact-wheel fallback с pinned `sha256`, а не уязвимый репин и не широкий bypass на публичный индекс. `PR #1697` обновляет активный floor до `mako 1.3.12` после нового `pip-audit` advisory. Удалить fallback сразу после того, как одобренное зеркало начнёт отдавать `1.3.12` нативно.)
   - Links:
     - `docs/security/MAKO_1_3_11_PRIVATE_INDEX_ADVISORY.md:1`
     - `docs/security/GHSA-v92g-xgxw-vvmm-mako.md:1`
-    - `scripts/ci/emergency_python_wheels.json:85-90`
-    - `scripts/ci/install_locked_python_requirements.py:408-442`
+    - `scripts/ci/emergency_python_wheels.json`
+    - `scripts/ci/install_locked_python_requirements.py`
     - `.github/actions/python-setup/action.yml:70`
     - `Dockerfile:74`
   - Evidence:
@@ -949,14 +932,12 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/security/MAKO_1_3_11_PRIVATE_INDEX_ADVISORY.md:44-48` records the
       current-head CI/private-proxy lag that still exposed only `1.3.10` during
       locked installs on `17 April 2026`.
-    - `scripts/ci/emergency_python_wheels.json:85-90` is the narrow temporary
-      exact-wheel fallback entry that must be retired once the approved mirror
-      serves `1.3.12` natively.
+    - `scripts/ci/emergency_python_wheels.json` is now an empty retired marker,
+      so no `mako 1.3.12` emergency entry remains runtime-effective.
   - DoD:
-    - [ ] Approved private proxy serves `mako 1.3.12` without the emergency fallback manifest
-    - [ ] `scripts/ci/emergency_python_wheels.json` no longer needs the `mako 1.3.12` emergency entry
-    - [ ] Locked install, Docker build, and `make verify` succeed with the private proxy alone
-    - [ ] Advisory is updated to mark the emergency fallback retired
+    - [x] Approved private proxy serves `mako 1.3.12` without a runtime-effective emergency fallback
+    - [x] `scripts/ci/emergency_python_wheels.json` no longer carries a `mako 1.3.12` emergency entry
+    - [ ] Full compatibility-path removal and advisory cleanup are separate follow-up scope
 
 <a id="ledger-p1-metatron-offensive-lab-out-of-band"></a>
 - [ ] P1: METATRON-class offensive lab — out-of-band governance and operator runbook

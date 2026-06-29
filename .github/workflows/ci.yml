@@ -576,6 +576,12 @@ jobs:
             echo "::error::Refusing to overwrite an existing .netrc."
             exit 1
           fi
+          if [[ -z "${RUNNER_TEMP:-}" ]]; then
+            echo "::error::RUNNER_TEMP is required for protected main .netrc cleanup."
+            exit 1
+          fi
+          marker="$RUNNER_TEMP/pulseplate-private-proxy-health-netrc-created"
+          touch "$marker"
           umask 077
           printf 'machine packages.pulseplate.app\n  login %s\n  password %s\n' \
             "$DEVPI_CI_USER" "$DEVPI_CI_PASSWORD" > "$HOME/.netrc"
@@ -596,6 +602,25 @@ jobs:
             --project pytest-xdist \
             --project hypothesis \
             --project pgvector
+
+      - name: Emergency wheel mirror parity
+        run: |
+          set -euo pipefail
+          python3 scripts/ci/check_emergency_wheel_mirror_parity.py \
+            --manifest scripts/ci/emergency_python_wheels.json \
+            --python-version 3.11 \
+            --python-version 3.12 \
+            --python-version 3.13 \
+            --format text
+
+      - name: Cleanup protected main package proxy authentication
+        if: always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        run: |
+          set -euo pipefail
+          marker="${RUNNER_TEMP:-}/pulseplate-private-proxy-health-netrc-created"
+          if [[ -n "${RUNNER_TEMP:-}" && -f "$marker" ]]; then
+            rm -f "$HOME/.netrc" "$marker"
+          fi
 
   lint:
     needs: [private_python_proxy_health]
