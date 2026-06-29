@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pulseplate.local/contracts/creative_code_rejection_taxonomy.v1.schema.json",
+  "title": "CreativeCodeRejectionTaxonomy",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "policy_version",
+    "classes",
+    "sanitized"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "artifact_type": { "const": "creative_code_rejection_taxonomy" },
+    "policy_version": { "const": "creative-code-telemetry-pr4" },
+    "classes": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/taxonomy_class" }
+    },
+    "sanitized": { "const": true }
+  },
+  "$defs": {
+    "taxonomy_class": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "stage",
+        "severity",
+        "retryability",
+        "likely_owner"
+      ],
+      "properties": {
+        "code": {
+          "enum": [
+            "approval_missing",
+            "base_drift",
+            "branch_exists",
+            "duplicate_variant",
+            "github_transport_failed",
+            "guard_failure",
+            "infra_flake",
+            "invalid_input",
+            "leak_detected",
+            "lineage_mismatch",
+            "malformed_artifact",
+            "metric_regression",
+            "oom",
+            "patch_drift",
+            "policy_violation",
+            "pr_readback_failed",
+            "review_blocker",
+            "specification_rejected",
+            "timeout",
+            "unchanged_result",
+            "unknown",
+            "unsafe_authority"
+          ]
+        },
+        "stage": {
+          "enum": [
+            "specification",
+            "patch_evaluation",
+            "promotion_plan",
+            "promotion_validation",
+            "promotion_approval",
+            "pr_open",
+            "artifact_read_error"
+          ]
+        },
+        "severity": { "enum": ["info", "low", "medium", "high"] },
+        "retryability": {
+          "enum": ["retryable", "not_retryable", "operator_review"]
+        },
+        "likely_owner": {
+          "enum": [
+            "agent-coordinator",
+            "architecture-specialist",
+            "security-auditor",
+            "qa-engineer-agent",
+            "bug-hunter",
+            "dev-operator",
+            "human-operator"
+          ]
+        }
+      }
+    }
+  }
+}

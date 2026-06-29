@@ -126,7 +126,9 @@ PR-0 is a contract-only start point.
   Experiment Runner candidate-mode evaluation, and sanitized result metadata.
 - PR-3: allow human-approved non-draft PR creation from one accepted PR-2 patch
   under a separate plan -> validation -> approval -> receipt contract.
-- PR-4: add candidate evaluation telemetry and rejection taxonomy.
+- PR-4: add local candidate evaluation telemetry and rejection taxonomy over
+  sanitized PR-1/PR-2/PR-3 artifacts; no public GitHub App backend, Slack beta,
+  live review ingestion, or new authority.
 - PR-5: add review-disposition integration without review-thread resolution authority.
 - PR-6: run the first governed applied creative-code candidate through normal PR governance.
 
@@ -140,6 +142,20 @@ Minimum future telemetry fields are defined now for the later train and must not
 - `failure_class`
 - `human_decision`
 - `cost_metadata_available`
+
+PR-4 telemetry artifacts are defined by:
+
+- `docs/orchestration/contracts/CREATIVE_CODE_TELEMETRY_CONTRACT.md`
+- `docs/orchestration/contracts/creative_code_telemetry_event.v1.schema.json`
+- `docs/orchestration/contracts/creative_code_telemetry_rollup.v1.schema.json`
+- `docs/orchestration/contracts/creative_code_rejection_taxonomy.v1.schema.json`
+- `docs/orchestration/contracts/creative_code_rejection_taxonomy.v1.json`
+- `scripts/orchestration/creative_code_telemetry_contract.py`
+- `scripts/orchestration/creative_code_telemetry.py`
+
+PR-4 rollups are advisory local measurements only. They are not routing truth,
+review-thread disposition evidence, fixed-mapping evidence, merge-readiness
+evidence, product runtime truth, or release evidence.
 
 ---
 

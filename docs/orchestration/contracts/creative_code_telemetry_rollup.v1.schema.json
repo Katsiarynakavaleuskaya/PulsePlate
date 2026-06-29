@@ -1,0 +1,162 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pulseplate.local/contracts/creative_code_telemetry_rollup.v1.schema.json",
+  "title": "CreativeCodeTelemetryRollup",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "policy_version",
+    "input_roots",
+    "event_count",
+    "funnel",
+    "rates",
+    "rejections_by_class",
+    "failures_by_class",
+    "events_by_stage",
+    "events_by_status",
+    "source_artifacts",
+    "cost",
+    "caveats",
+    "sanitized"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "artifact_type": { "const": "creative_code_telemetry_rollup" },
+    "policy_version": { "const": "creative-code-telemetry-pr4" },
+    "input_roots": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$"
+      }
+    },
+    "event_count": { "type": "integer", "minimum": 0, "maximum": 1000000 },
+    "funnel": { "$ref": "#/$defs/funnel" },
+    "rates": { "$ref": "#/$defs/rates" },
+    "rejections_by_class": { "$ref": "#/$defs/count_map" },
+    "failures_by_class": { "$ref": "#/$defs/count_map" },
+    "events_by_stage": { "$ref": "#/$defs/count_map" },
+    "events_by_status": { "$ref": "#/$defs/count_map" },
+    "source_artifacts": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/source_artifact" }
+    },
+    "cost": { "$ref": "#/$defs/cost" },
+    "caveats": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "local_only",
+          "not_merge_readiness_evidence",
+          "not_product_runtime_truth"
+        ]
+      }
+    },
+    "sanitized": { "const": true }
+  },
+  "$defs": {
+    "count_map": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 1000000
+      },
+      "propertyNames": {
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$"
+      }
+    },
+    "funnel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "specification_bundles",
+        "variants_total",
+        "variants_selected",
+        "patch_results",
+        "patch_results_accepted",
+        "patch_results_rejected",
+        "promotion_plans",
+        "promotion_validations_passed",
+        "promotion_approvals",
+        "pull_requests_opened"
+      ],
+      "properties": {
+        "specification_bundles": { "type": "integer", "minimum": 0 },
+        "variants_total": { "type": "integer", "minimum": 0 },
+        "variants_selected": { "type": "integer", "minimum": 0 },
+        "patch_results": { "type": "integer", "minimum": 0 },
+        "patch_results_accepted": { "type": "integer", "minimum": 0 },
+        "patch_results_rejected": { "type": "integer", "minimum": 0 },
+        "promotion_plans": { "type": "integer", "minimum": 0 },
+        "promotion_validations_passed": { "type": "integer", "minimum": 0 },
+        "promotion_approvals": { "type": "integer", "minimum": 0 },
+        "pull_requests_opened": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "rate_bps": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "maximum": 10000
+    },
+    "rates": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "oracle_pass_rate_bps",
+        "human_approval_rate_bps",
+        "promotion_rate_bps",
+        "first_pass_acceptance_rate_bps"
+      ],
+      "properties": {
+        "oracle_pass_rate_bps": { "$ref": "#/$defs/rate_bps" },
+        "human_approval_rate_bps": { "$ref": "#/$defs/rate_bps" },
+        "promotion_rate_bps": { "$ref": "#/$defs/rate_bps" },
+        "first_pass_acceptance_rate_bps": { "$ref": "#/$defs/rate_bps" }
+      }
+    },
+    "safe_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "source_artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_artifact_type",
+        "source_artifact_id",
+        "source_fingerprint"
+      ],
+      "properties": {
+        "source_artifact_type": { "$ref": "#/$defs/safe_id" },
+        "source_artifact_id": { "$ref": "#/$defs/safe_id" },
+        "source_fingerprint": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "cost": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cost_metadata_available_count",
+        "token_usage_available_count",
+        "estimated_cost_usd"
+      ],
+      "properties": {
+        "cost_metadata_available_count": { "type": "integer", "minimum": 0 },
+        "token_usage_available_count": { "type": "integer", "minimum": 0 },
+        "estimated_cost_usd": { "type": "null" }
+      }
+    }
+  }
+}
