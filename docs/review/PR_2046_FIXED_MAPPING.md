@@ -101,6 +101,13 @@ Disposition: NOT-A-BUG
 Evidence: The large line count is driven by retiring the active 34-entry emergency manifest payload and adding deterministic parity tests/docs for the same narrow infra/dependency lane; `make validate-changed` and `pre-commit run --all-files` passed for the current branch.
 Reason: `pulseplate-pr-review` flagged an advisory `note` for `changed_lines > 800`; it did not identify an actionable code, security, or workflow defect.
 
+Disposition: FIXED
+Commit: f80f8be31
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md` records PR #2046 as the target PR for the closed retired emergency manifest, Pillow fallback, and Mako fallback ledger items. `tests/test_emergency_wheel_mirror_parity.py` covers `simple_page_sha256_missing` and `simple_page_sha256_invalid`.
+Reason: CodeRabbit found closed ledger items still using `PR-TBD` target metadata and requested focused branch coverage for missing/malformed Simple API `#sha256` fragments.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2046#discussion_r3493341332 -> f80f8be31
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2046#pullrequestreview-4593728060 -> f80f8be31
+
 ## Validation Evidence
 
 - `python3 scripts/orchestration/check_preflight.py --path ...` PASS.
@@ -131,10 +138,16 @@ Reason: `pulseplate-pr-review` flagged an advisory `note` for `changed_lines > 8
   `34a7d9ced`; no surviving reportable findings.
 - `pulseplate-pr-review` dry-run report completed; 1 advisory large-diff note
   classified `NOT-A-BUG` above.
+- Current-head CI PASS on `0241f897a` after merging `origin/main` with PR #2047
+  billing fix and PR #2041 proxy-skip gate fix.
+- `python -m pytest -q tests/test_emergency_wheel_mirror_parity.py tests/test_private_python_proxy_workflow_contract.py tests/test_install_locked_python_requirements.py tests/test_python_supply_chain_controls.py` PASS after CodeRabbit fixes.
+- `make validate-changed` PASS after CodeRabbit fixes.
+- `pre-commit run --all-files` PASS after CodeRabbit fixes.
 
 ## Merge Readiness
 
 Not merge-ready yet. Post-open role passes, Codex Security diff scan/finding
 discovery, and `pulseplate-pr-review` are completed with actions/dispositions
-recorded above. Current-head PR CI still had pending jobs at last check, and the
-final bot/wait-window pass remains required before any merge-readiness claim.
+recorded above. The CodeRabbit follow-up fix and mapping still need to be pushed,
+review-thread disposition rechecked, and current-head CI rerun before any
+merge-readiness claim.
