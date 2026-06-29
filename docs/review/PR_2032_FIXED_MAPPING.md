@@ -44,7 +44,7 @@
   completed.
 - [x] Codex Security diff scan for head
   `f28857f55e010c85d94dc4bdea8869239f69a362` completed; one finding was
-  fixed in `e1531a004f`.
+  fixed in `e1531a0041`.
 - [x] Fresh Codex Security diff scan for the then-current material head
   `89eac881f07996ca56c36f161134c8bdd906f716` completed with no findings.
 - [x] `pulseplate-pr-review` completed; advisory large-diff note dispositioned.
@@ -123,10 +123,10 @@ Reason: Closes current-head CI `lint` failure from the pre-commit `backend-tests
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2032 -> 40b85c12b635a39fe3aebafe714cc083a6983065
 
 Disposition: FIXED
-Commit: e1531a004f2d4fadbb98260e1b996e664f80fc15
+Commit: e1531a0041e0919dc4b4386d1f46eefb10f63083
 Evidence: Codex Security scan `4ccd9f2f-38f2-4f24-a669-8148cfea44d6` reported finding `csf_c6ff5339238662d1a8e3b294`; sealed report path `/private/var/folders/bw/12x002vn67v2bvjpbhbtm8480000gn/T/codex-security-scans-kx1ykF/dependency-cleanup-faraday-runtime-drift/f28857f55e010c85d94dc4bdea8869239f69a362_20260627T193438Z_sxo3irk9/report.md`; `app/bootstrap/pro_contracts.py` now requires same-endpoint existing PRO contract routes to preserve `require_pro_tier`; `tests/test_pro_contracts_bootstrap.py` adds a regression for direct same-endpoint routes without router-level dependencies. Focused `python -m pytest tests/test_pro_contracts_bootstrap.py tests/test_main_paywall_bootstrap.py -q` passed (`160 passed`, one known Starlette/httpx2 warning), `ruff check` passed, and `mypy app/bootstrap/pro_contracts.py --no-incremental --cache-dir=/dev/null` passed.
 Reason: Closes Codex Security finding "PRO contract bootstrap accepts same-endpoint routes without paid-tier dependency" by validating the effective route dependency metadata before treating existing PRO contract routes as canonical.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2032 -> e1531a004f2d4fadbb98260e1b996e664f80fc15
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2032 -> e1531a0041e0919dc4b4386d1f46eefb10f63083
 
 Disposition: FIXED
 Commit: 011d49016c02f11456e3cbbd2956361e00c5fc5f
@@ -210,13 +210,13 @@ Reason: Starlette emits `StarletteDeprecationWarning` because `starlette.testcli
     `/private/var/folders/bw/12x002vn67v2bvjpbhbtm8480000gn/T/codex-security-scans-kx1ykF/dependency-cleanup-faraday-runtime-drift/f28857f55e010c85d94dc4bdea8869239f69a362_20260627T193438Z_sxo3irk9/report.md`
   - Finding `csf_c6ff5339238662d1a8e3b294`:
     - Disposition: FIXED
-    - Commit: e1531a004f2d4fadbb98260e1b996e664f80fc15
+    - Commit: e1531a0041e0919dc4b4386d1f46eefb10f63083
     - Evidence:
       `app/bootstrap/pro_contracts.py` now checks `route_has_dependency_call`
       for `require_pro_tier`; `tests/test_pro_contracts_bootstrap.py`
       reproduces and rejects same-endpoint direct routes without the
       router-level PRO dependency.
-  - New material head after `e1531a004f` was covered by the current-head
+  - New material head after `e1531a0041` was covered by the current-head
     follow-up scan below.
   - Current-head follow-up scan:
     - Scan: `99c1b779-1407-4f52-b799-280e56d5bc41`
