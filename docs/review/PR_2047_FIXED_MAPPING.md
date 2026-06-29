@@ -54,8 +54,7 @@ transport-auth semantics only.
 - [x] Post-open `qa-engineer-agent` pass completed.
 - [x] Post-open `bug-hunter` pass completed.
 - [x] Post-open `security-auditor` pass completed.
-- [ ] Codex Security diff scan / finding discovery completed or explicitly
-  dispositioned.
+- [x] Codex Security diff scan / finding discovery completed.
 - [x] `pulseplate-pr-review` completed.
 - [ ] Current-head CI complete before readiness language.
 - [ ] Strict merge-readiness checks run after the final review/check cycle.
@@ -193,6 +192,17 @@ security defect, and flagged one artifact-hygiene issue: a local absolute
 Python path in the validation command. This artifact now uses the repo Python
 resolver form instead of a machine-local absolute path.
 
+Role: `Codex Security diff scan`
+
+Disposition: NOT-A-BUG
+
+Evidence: Scan `1bfc84fb-197c-4c90-bffa-25b98465f7a9` completed against
+range `5ee821e13194825fac58497e2777b56028cf3bed..d5d855472a0692f736646fd306623dc78544b835`
+with complete coverage and 0 reportable findings. The sealed report records:
+manual RU/BY billing transport auth binds to `validate_app_api_key`, rejects
+missing, blank, invalid, tier-key, and dependency-override bypass attempts,
+and preserves fail-closed behavior.
+
 ## Local Validation
 
 - `python3 scripts/orchestration/check_preflight.py --mode analyze --path app/routers/billing.py --path tests/conftest.py --path tests/test_payment_reconciliation_api.py --path tests/test_payment_source_contract_api.py --path tests/test_subscription_activation_api.py`
@@ -213,5 +223,5 @@ supplies the heavy full signal.
 - Local narrow bundle: complete.
 - Current-head GitHub CI: pending after PR open.
 - Post-open mandatory role review and `pulseplate-pr-review`: complete.
-- Codex Security scan: pending.
+- Codex Security scan: complete, 0 reportable findings.
 - Strict merge-readiness checks: pending.
