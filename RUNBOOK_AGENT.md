@@ -191,20 +191,28 @@ Rule: RUNBOOK does not duplicate checklists; it only links to the canonical sour
 ## Quality Gates (Canonical)
 
 **Before merge, verify:**
-- `make verify` green (lint → typecheck → test-fast → diff-cov)
-- Guard tests pass (architectural invariants)
-- Coverage / diff-coverage gates pass (see `AGENTS.md` for thresholds)
-- Security scans pass when applicable (see `AGENTS.md` for policy and tools)
+- Local narrow bundle passes: `check_preflight`, `check_agent_consistency`,
+  focused tests for the touched surface, `make validate-changed`, and
+  `pre-commit run --all-files`.
+- GitHub current-head CI supplies the full heavy signal: lint, typecheck /
+  required backend checks, relevant `test-main` matrix, `diff-coverage` at
+  ≥97%, applicable security/governance checks, and merge-readiness CI.
+- Guard tests pass when they are selected by the touched surface or focused
+  validation plan.
+- Security scans pass when applicable (see `AGENTS.md` for policy and tools).
 
-**Machine-heavy CI/tooling PRs:** when the operator explicitly defers full local
-`make verify`, do not run it by default. Use the coordinator-approved narrow
-bundle (`check_preflight`, `check_agent_consistency`, focused tests,
-`make validate-changed`, `pre-commit run --all-files`) and document the local
-deferral in the PR body plus fixed-mapping artifact. Merge readiness then relies
-on canonical current-head CI parity as the heavy signal: `lint`,
-required/current-head checks for the touched PR surface, relevant `test-main` matrix,
-`diff-coverage` at ≥97%, applicable security/governance checks, plus the strict
-`check_merge_ready.py --require-auth` wrapper.
+**Local full-verify budget rule:** agents must not run full local `make verify`
+in this PulsePlate checkout by default. The unsharded full suite exceeds the
+operator's acceptable local machine budget. GitHub current-head CI is the
+heavy/full-suite signal. Local `make verify` is allowed only when a human
+explicitly overrides this rule for one invocation.
+
+**Machine-heavy CI/tooling PRs:** the operator explicitly defers full local
+`make verify` by default in this checkout. Agents must use the documented narrow bundle
+and wait for canonical current-head CI parity: `lint`,
+required/current-head checks, the relevant `test-main` matrix,
+`diff-coverage` at ≥97%, security/governance checks, and
+`check_merge_ready.py --require-auth`.
 
 **This is the authoritative procedural checklist.** Thresholds/policy live in `AGENTS.md`.
 
@@ -214,10 +222,11 @@ Use this bundle when you need a strict merge claim:
 
 1. Local blocking bundle:
    - `pre-commit run --all-files`
-   - `make verify`
-   - Operator-approved machine-heavy exception: documented narrow gates plus
-     canonical current-head CI parity may replace local `make verify`; this is
-     not allowed for hiding known local failures.
+   - `make validate-changed`
+   - `check_preflight`, `check_agent_consistency`, and focused tests for the
+     touched surface
+   - Full local `make verify` is not a default agent command; GitHub
+     current-head CI owns the heavy lint/typecheck/test/diff-coverage signal.
 2. PR governance blocking bundle:
    - `python scripts/orchestration/check_merge_ready.py --pr-number <N> --repo <owner/name> --require-auth`
 3. Advisory / external signals:
@@ -283,7 +292,10 @@ Operator routing baseline before PR2 workflow consolidation:
 
 **Purpose:** Define expected behavior of quality gates on known-good input for deterministic validation.
 
-**Rationale:** EVMbench uses logic/grading oracles to objectively evaluate agent success. For PulsePlate, our quality gates (`make verify`, guard tests, merge-readiness checks) serve as oracles. Documenting known-good behavior allows us to:
+**Rationale:** EVMbench uses logic/grading oracles to objectively evaluate
+agent success. For PulsePlate, our quality gates (local narrow bundle, GitHub
+current-head CI full/heavy signal, guard tests, merge-readiness checks) serve
+as oracles. Documenting known-good behavior allows us to:
 1. Validate gate implementations (gate passes on valid input)
 2. Detect gate drift (gate fails on previously-passing input)
 3. Establish baseline for agent evaluation (agent achieves "first-run pass" if gate passes without iteration)
@@ -292,14 +304,16 @@ Operator routing baseline before PR2 workflow consolidation:
 
 | Gate | Known-Good Input | Expected Behavior | Evidence Anchor |
 |------|------------------|-------------------|-----------------|
-| `make verify` | Clean repo, all tests passing | Exit 0, no warnings | `Makefile:134` |
+| Local narrow bundle | Clean repo, touched-surface checks passing | Exit 0, no warnings | `AGENTS.md:5` |
+| GitHub current-head full CI | Current PR head, required checks passing | Required jobs PASS, no pending required jobs | `.github/workflows/ci.yml:1` |
 | `merge_readiness_gate` | PR with all checkboxes checked + valid commit mapping | Exit 0 | `scripts/ci/check_pr_merge_readiness.py:251` |
 | `dependency_security_guard` | `requirements.txt` with all deps at floor versions, no blocked packages | Test passes | `tests/test_dependency_security_guard.py:1` |
 | `pr_body_phase2_gates` | PR body with `[x]` checkboxes + `- No actionable review comments` | Exit 0 | `scripts/ci/check_pr_body_phase2_gates.py:107` |
 | `guard_tests` | Codebase with no policy violations | All guards pass | `tests/test_repo_policy_guards.py:1` |
 
 **Verification commands:**
-- `make verify`: `make verify && echo "PASS"`
+- Local narrow bundle: `python3 scripts/orchestration/check_preflight.py && python3 scripts/orchestration/check_agent_consistency.py && make validate-changed && pre-commit run --all-files`
+- GitHub current-head full CI: use the latest PR head checks and strict merge-readiness wrapper
 - `merge_readiness_gate`: `python scripts/ci/check_pr_merge_readiness.py --pr-number <N>`
 - `dependency_security_guard`: `pytest -k dependency_security_guard -q`
 - `pr_body_phase2_gates`: `python scripts/ci/check_pr_body_phase2_gates.py --body "..."`
@@ -332,7 +346,7 @@ When modifying a gate or its inputs:
 
 | Metric | Definition | Target | Evidence Anchor |
 |--------|------------|--------|-----------------|
-| **CI Fix: First-Run Pass** | PR passes `make verify` on first push | ≥70% | CI logs: first commit → green (`Makefile:134`) |
+| **CI Fix: First-Run Pass** | PR passes GitHub current-head required checks on first push | ≥70% | CI logs: first commit → green |
 | **CI Fix: Iteration Limit** | Maximum pushes to achieve green CI | ≤3 | Git log: commit count on PR branch |
 | **Merge Readiness: First-Run** | PR passes merge-readiness gate on first attempt | ≥50% | `scripts/ci/check_pr_merge_readiness.py:251` exit 0 |
 | **Guard Coverage** | All violations of same class fixed in one PR | 100% | `tests/test_repo_policy_guards.py` after PR |
@@ -357,10 +371,12 @@ This metrics section provides **quantitative targets**; the evaluation contract 
 
 ## Pre-push hygiene checklist (mandatory)
 
-## Clean-Clone Verify Parity
+## GitHub Full-Verify Parity
 
-If `make verify` fails before the real code gates because the clean-clone `.venv`
-is incomplete, use the canonical repo recovery path:
+Agents do not run full local `make verify` by default. If a human explicitly
+overrides the local budget rule for one invocation and `make verify` fails
+before the real code gates because the clean-clone `.venv` is incomplete, use
+the canonical repo recovery path:
 
 ```bash
 make venv
@@ -450,7 +466,7 @@ Run from repo root before any push/PR:
 2. `git ls-files worktrees | wc -l` → must be `0`
 3. `git check-ignore -v worktrees/` → must show an ignore rule
 4. `pre-commit run --all-files`
-5. `make verify`
+5. `make validate-changed`
 
 ## PR operating lifecycle (mandatory for coordinator-led work)
 
@@ -472,10 +488,11 @@ Use this as the canonical operating loop from branch creation to merge window:
      checks
 4. **Before each push**
    - Run `pre-commit run --all-files`
-   - Run the required local gates for the touched scope; for normal merge claims this still means `make verify`
-   - For operator-approved machine-heavy PRs, run the documented narrow bundle
-     instead and keep the PR body/fixed mapping explicit about the local
-     `make verify` deferral
+   - Run the required local narrow gates for the touched scope:
+     `check_preflight`, `check_agent_consistency`, focused tests, and
+     `make validate-changed`
+   - Do not run full local `make verify` unless a human explicitly overrides
+     the local machine-budget rule for one invocation
    - Commit hook changes separately when hooks modify files
 5. **After each push**
    - Watch the latest-head CI run, not stale `gh pr checks` history
@@ -601,8 +618,9 @@ and deleted:
    `gh pr view <PARENT_PR> --json state,mergeCommit,mergedAt`
 2. Create a new branch from `origin/main` in its own worktree.
 3. Cherry-pick the child commits onto that new branch.
-4. Re-run `pre-commit run --all-files` and `make verify` on the replacement
-   branch head before pushing.
+4. Re-run `pre-commit run --all-files`, `make validate-changed`, and focused
+   tests on the replacement branch head before pushing. GitHub current-head CI
+   supplies the full heavy signal after the replacement PR opens.
 5. Push the replacement branch and open a **replacement PR** on `main`.
 6. Create a new canonical artifact path for the replacement PR:
    `docs/review/PR_<NEW_NUMBER>_FIXED_MAPPING.md`
