@@ -1,0 +1,103 @@
+# PR 2046 Fixed Mapping
+
+PR: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2046
+Title: `ci(deps): prove private proxy mirror parity and retire emergency wheel fallbacks`
+Branch: `codex/retire-emergency-wheel-fallbacks`
+
+## Summary
+
+This PR retires the runtime-effective emergency wheel fallback manifest after
+the approved private Python proxy mirror parity proof. It keeps
+`scripts/ci/emergency_python_wheels.json` as a schema-preserving empty
+compatibility marker, adds an all-entry active-manifest parity checker, and
+wires the checker into the existing private proxy health job.
+
+## Lane Start Provenance
+
+- Base after rebase: `56638a565de03bb7d4ae9a7c8289d759650886a9`
+  (`feat(orchestration): add review fallback learning loop (#2028)`)
+- Original post-#2036 planning SHA:
+  `b28bad895ece063d5bfddc95aa326cd19b73cd13`
+- Current branch head at PR open: `9af0917c1`
+- Bootstrap packet: `artifacts/orchestration/task_packets/f0ac59f07485.json`
+- Declared role order:
+  `agent-coordinator -> dev-operator -> security-auditor -> qa-engineer-agent -> bug-hunter`
+- Experiment Runner oracle:
+  `artifacts/orchestration/experiments/results/exp-9f9bdba0070d.json`
+  (`status=accepted`, `contribution_kind=commit_decision`)
+
+## Main Baseline Checks
+
+- PR #2036 is merged:
+  https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2036
+- Current main push CI at `56638a565de03bb7d4ae9a7c8289d759650886a9`
+  completed successfully.
+- `Nightly Full Tests` completed successfully for
+  `b28bad895ece063d5bfddc95aa326cd19b73cd13` on
+  2026-06-29 (`run 28353580504`).
+
+## Discussion Thread Pass
+
+- [x] Pre-open discussion-thread pass completed for local role-agent and
+  premortem findings.
+- [x] Fixed mapping artifact created after PR number allocation.
+- [ ] Post-open review-agent pass remains required:
+  `qa-engineer-agent -> bug-hunter -> security-auditor`.
+- [ ] Codex Security diff scan / finding discovery remains required.
+- [ ] CodeRabbit, Sourcery, Cubic, current-head CI, and strict merge-readiness
+  wrapper remain required before merge.
+
+## Fixed in Commit Mapping
+
+Disposition: FIXED
+Commit: 9af0917c1
+Evidence: `scripts/ci/check_emergency_wheel_mirror_parity.py`,
+`tests/test_emergency_wheel_mirror_parity.py`,
+`tests/test_private_python_proxy_workflow_contract.py`, and
+`.github/workflows/ci.yml`.
+Reason: Adds fail-closed all-entry emergency wheel parity against the approved
+private proxy and places it after the representative proxy health step.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2046 -> 9af0917c1
+
+Disposition: FIXED
+Commit: 9af0917c1
+Evidence: `scripts/ci/install_locked_python_requirements.py`,
+`scripts/ci/emergency_python_wheels.json`, and
+`tests/test_install_locked_python_requirements.py`.
+Reason: Retires the runtime-effective emergency manifest as a dated empty
+compatibility marker and keeps arbitrary empty manifests fail-closed.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2046 -> 9af0917c1
+
+Disposition: FIXED
+Commit: 9af0917c1
+Evidence: `RUNBOOK_AGENT.md`, `docs/DEPENDENCY_MANAGEMENT.md`,
+`docs/roadmap/BACKLOG_LEDGER.md`, and
+`docs/review/PR_EMERGENCY_WHEEL_MIRROR_PARITY_PREMORTEM.md`.
+Reason: Documents representative health versus all-entry parity, records
+premortem finding closure, and marks runtime-effective emergency fallbacks
+retired while leaving full compatibility-path removal as follow-up scope.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2046 -> 9af0917c1
+
+## Validation Evidence
+
+- `python3 scripts/orchestration/check_preflight.py --path ...` PASS.
+- `python -m pytest -q tests/test_emergency_wheel_mirror_parity.py tests/test_private_python_proxy_health.py tests/test_private_python_proxy_workflow_contract.py` PASS.
+- `python -m pytest -q tests/test_install_locked_python_requirements.py tests/test_python_supply_chain_controls.py` PASS.
+- `python3 scripts/ci/check_emergency_wheel_mirror_parity.py --manifest scripts/ci/emergency_python_wheels.json --python-version 3.11 --python-version 3.12 --python-version 3.13 --format text` PASS with `retired=true artifacts=0 missing=0`.
+- Representative live proxy health PASS on rerun with `--timeout 20 --retries 2`.
+- Active pre-retirement manifest all-entry parity PASS before final rebase for
+  the unchanged manifest with `artifacts=34 missing=0`; later reruns showed
+  current proxy read-timeout flakiness on large project pages, not filename
+  misses.
+- `python3 scripts/ci/install_locked_python_requirements.py --preflight-only` PASS with the approved proxy.
+- `make venv-sync` PASS.
+- `make validate-changed` PASS.
+- `pre-commit run --all-files` PASS.
+- Push pre-push hooks PASS, including changed-file mypy, pip-audit, backend
+  tests, full-repo Bandit, and Docker build test.
+
+## Merge Readiness
+
+Not merge-ready yet. Current-head PR CI, post-open role passes, Codex Security
+diff scan/finding discovery, bot review disposition, PR body mirror refresh,
+strict merge-readiness, and mandatory wait-window remain required.
