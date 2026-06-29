@@ -171,6 +171,17 @@ def test_sanitize_sandbox_env_keeps_safe_extra_env(
     assert sanitized["PULSEPLATE_SAFE_FLAG"] == "1"
 
 
+def test_sanitize_sandbox_env_keeps_network_disable_marker() -> None:
+    sanitized = sandbox.sanitize_sandbox_env({sandbox.SANDBOX_DISABLE_NETWORK_ENV.lower(): "true"})
+
+    assert sanitized[sandbox.SANDBOX_DISABLE_NETWORK_ENV] == "1"
+
+
+def test_sanitize_sandbox_env_rejects_invalid_network_disable_marker() -> None:
+    with pytest.raises(PermissionError, match=sandbox.SANDBOX_DISABLE_NETWORK_ENV):
+        sandbox.sanitize_sandbox_env({sandbox.SANDBOX_DISABLE_NETWORK_ENV: "0"})
+
+
 def test_sanitize_sandbox_env_rejects_unallowlisted_extra_env_key() -> None:
     with pytest.raises(PermissionError, match="not allowlisted"):
         sandbox.sanitize_sandbox_env({"SAFE_FLAG": "1"})
@@ -190,6 +201,51 @@ def test_resolve_allowed_binary_rejects_missing_binary(
     monkeypatch.setattr(sandbox.shutil, "which", lambda _binary: None)
     with pytest.raises(RuntimeError, match="not found on PATH"):
         sandbox.resolve_allowed_binary("python3", allowed_binaries=("python3",))
+
+
+def test_build_sandbox_argv_wraps_unshare_when_network_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(sandbox, "_resolve_unshare_binary", lambda: "/usr/bin/unshare")
+
+    argv = sandbox._build_sandbox_argv(
+        binary_path="/usr/bin/python3",
+        args=("-c", "print('ok')"),
+        env={sandbox.SANDBOX_DISABLE_NETWORK_ENV: "1"},
+    )
+
+    assert argv == (
+        "/usr/bin/unshare",
+        "--net",
+        "--map-root-user",
+        "/usr/bin/python3",
+        "-c",
+        "print('ok')",
+    )
+
+
+def test_build_sandbox_argv_fails_closed_without_unshare(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(sandbox.os, "name", "posix", raising=False)
+    monkeypatch.setattr(sandbox.shutil, "which", lambda _binary: None)
+
+    with pytest.raises(RuntimeError, match="unshare"):
+        sandbox._build_sandbox_argv(
+            binary_path="/usr/bin/python3",
+            args=("-c", "pass"),
+            env={sandbox.SANDBOX_DISABLE_NETWORK_ENV: "1"},
+        )
+
+
+def test_build_sandbox_argv_without_network_marker_keeps_binary() -> None:
+    argv = sandbox._build_sandbox_argv(
+        binary_path="/usr/bin/python3",
+        args=("-c", "pass"),
+        env={},
+    )
+
+    assert argv == ("/usr/bin/python3", "-c", "pass")
 
 
 def test_coerce_output_decodes_bytes() -> None:

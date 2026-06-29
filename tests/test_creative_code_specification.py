@@ -25,6 +25,7 @@ from scripts.orchestration.creative_code_specification import (
     build_creative_code_specification_bundle,
     build_default_specification_variants,
     build_pending_skeptic_reviews,
+    contains_unsafe_local_absolute_path,
     read_creative_code_specification_bundle,
     validate_creative_code_specification_bundle,
 )
@@ -36,6 +37,14 @@ SCHEMA = REPO_ROOT / "docs/orchestration/contracts/creative_code_specification.v
 SPEC_MODULE = REPO_ROOT / "scripts/orchestration/creative_code_specification.py"
 PIPELINE_MODULE = REPO_ROOT / "scripts/orchestration/creative_code_spec_pipeline.py"
 REJECTION_MODULE = REPO_ROOT / "scripts/orchestration/creative_code_rejection_index.py"
+UNSAFE_LOCAL_PATH_TEXTS = (
+    "See local path /Users/example/project/.env",
+    "Read /home/runner/.ssh/id_rsa for credentials.",
+    "Inspect /etc/passwd before generating the spec.",
+    "Use /workspace/project/.env as runtime input.",
+    "Write output to /tmp/pulseplate.sock.",
+    "Load ~/.ssh/config for GitHub access.",
+)
 
 
 def _packet() -> dict[str, object]:
@@ -294,7 +303,7 @@ def test_target_surface_must_not_overlap_immutable_oracles() -> None:
         "token sk-12345678901234567890",
         "token sk-proj-1234567890abcdef",
         "token sk-svcacct-1234567890abcdef",
-        "See local path /Users/example/project/.env",
+        *UNSAFE_LOCAL_PATH_TEXTS,
         "This spec will diagnose diabetes.",
         "Open PR, push branch, and write repository after selecting the spec.",
         "Open a PR, create a pull request, push the branch, and write to the repository.",
@@ -326,12 +335,31 @@ def test_unsafe_variant_text_is_rejected(unsafe_text: str) -> None:
         "Call model and use semantic cache for this variant.",
         "Make an HTTP request to https://api.openai.com for provider scoring.",
         "Apply a repository patch and commit changes.",
-        "See local path /Users/example/project/.env",
+        *UNSAFE_LOCAL_PATH_TEXTS,
         "This spec will diagnose diabetes.",
     ],
 )
 def test_schema_safe_text_rejects_unsafe_authority_prose(unsafe_text: str) -> None:
     assert _schema_safe_text_rejects(unsafe_text)
+
+
+@pytest.mark.parametrize("unsafe_text", UNSAFE_LOCAL_PATH_TEXTS)
+def test_local_absolute_path_helper_matches_schema_pattern(unsafe_text: str) -> None:
+    assert contains_unsafe_local_absolute_path(unsafe_text) is True
+    assert _schema_safe_text_rejects(unsafe_text) is True
+
+
+@pytest.mark.parametrize(
+    "safe_text",
+    [
+        "Use docs/orchestration/contracts/creative_code_specification.v1.json.",
+        "Add tests/test_creative_code_specification.py coverage.",
+        "Review core/rag/orchestration.py without local absolute paths.",
+    ],
+)
+def test_local_absolute_path_helper_allows_repo_relative_text(safe_text: str) -> None:
+    assert contains_unsafe_local_absolute_path(safe_text) is False
+    assert _schema_safe_text_rejects(safe_text) is False
 
 
 def test_variant_tests_to_add_must_stay_under_tests() -> None:

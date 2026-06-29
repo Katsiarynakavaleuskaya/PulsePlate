@@ -478,7 +478,7 @@ def _has_effective_diff(checkout_root: Path) -> bool:
     return bool(process.stdout.strip())
 
 
-def _command_to_request(command: str) -> SandboxRequest:
+def _command_to_request(command: str, *, disable_network: bool = False) -> SandboxRequest:
     """Convert a packet oracle command string into a sandbox request."""
 
     try:
@@ -494,7 +494,8 @@ def _command_to_request(command: str) -> SandboxRequest:
             f"Oracle binary {binary!r} is not allowlisted for experiment runner. "
             f"Allowed: {allowed}"
         )
-    return SandboxRequest(binary=binary, args=tuple(argv[1:]), cwd=".")
+    request_env = {sandbox.SANDBOX_DISABLE_NETWORK_ENV: "1"} if disable_network else None
+    return SandboxRequest(binary=binary, args=tuple(argv[1:]), cwd=".", env=request_env)
 
 
 def _classify_oracle_failure(result: sandbox.SandboxResult) -> str:
@@ -503,6 +504,17 @@ def _classify_oracle_failure(result: sandbox.SandboxResult) -> str:
     if result.timed_out:
         return "timeout"
     combined_output = f"{result.stdout}\n{result.stderr}"
+    if "unshare:" in combined_output and any(
+        marker in combined_output.lower()
+        for marker in (
+            "operation not permitted",
+            "permission denied",
+            "failed to execute",
+            "invalid option",
+            "not found",
+        )
+    ):
+        return "infra_flake"
     if any(pattern.search(combined_output) for pattern in OOM_PATTERNS):
         return "oom"
     return "guard_failure"
@@ -515,7 +527,11 @@ def _run_oracles(
 
     oracle_results: list[dict[str, Any]] = []
     failure_class: str | None = None
-    requests = [_command_to_request(oracle["command"]) for oracle in packet["immutable_oracles"]]
+    disable_network = int(packet["budgets"]["network_budget"]) == 0
+    requests = [
+        _command_to_request(oracle["command"], disable_network=disable_network)
+        for oracle in packet["immutable_oracles"]
+    ]
     allowed_binaries = tuple(sorted({request.binary for request in requests}))
     path_prefix = _python_oracle_path_prefix(requests)
     total_wall_clock_seconds = int(packet["budgets"]["wall_clock_seconds"])

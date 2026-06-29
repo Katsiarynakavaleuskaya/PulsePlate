@@ -18,7 +18,9 @@ import shutil
 import subprocess  # nosec B404: fixed git/gh subprocess wrappers only (remove-by: 2026-07-31, ref: PR-3)
 import sys
 import tempfile
+import uuid
 from typing import Any, Protocol, cast
+from urllib.parse import urlparse
 
 from core.evidence.fingerprints import fingerprint_payload
 from scripts.orchestration.creative_code_patch_builder import (
@@ -88,6 +90,12 @@ SUCCESS_PROMOTE_OUTPUT = "PASS: creative-code PR promotion complete"
 
 SAFE_PROMOTION_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$")
 SAFE_SLUG_RE = re.compile(r"[^a-z0-9]+")
+COMMIT_SHA_RE = re.compile(r"^[a-f0-9]{40}$")
+SCP_GITHUB_REMOTE_RE = re.compile(
+    r"^(?:(?P<user>[A-Za-z0-9._-]+)@)?(?P<host>github\.com):(?P<path>[^?#]+)$",
+    re.IGNORECASE,
+)
+TEMP_UPLOAD_BRANCH_RE = re.compile(r"^experiment/promotion-upload-[a-z0-9][a-z0-9._-]{0,68}$")
 SECRET_ENV_SUBSTRINGS = (
     "KEY",
     "TOKEN",
@@ -222,6 +230,79 @@ def _resolve_binary(name: str) -> str:
     if not resolved.is_file() or not os.access(resolved, os.X_OK):
         raise CreativeCodePRPromotionError(f"{name} binary must resolve to an executable file.")
     return str(resolved)
+
+
+def _normalize_github_repo_path(raw_path: str) -> str:
+    path = raw_path.strip()
+    if not path or "\\" in path or "//" in path:
+        raise CreativeCodePRPromotionError("origin remote must target PulsePlate.")
+    if path.startswith("/"):
+        path = path[1:]
+    if not path or path.startswith("/") or path.endswith("/"):
+        raise CreativeCodePRPromotionError("origin remote must target PulsePlate.")
+    if path.endswith(".git"):
+        path = path[:-4]
+    parts = path.split("/")
+    if len(parts) != 2 or not all(parts):
+        raise CreativeCodePRPromotionError("origin remote must target PulsePlate.")
+    if any(part in {".", ".."} for part in parts):
+        raise CreativeCodePRPromotionError("origin remote must target PulsePlate.")
+    repository = f"{parts[0]}/{parts[1]}"
+    if repository.lower() != TARGET_REPOSITORY.lower():
+        raise CreativeCodePRPromotionError("origin remote must target PulsePlate.")
+    return repository
+
+
+def validate_pulseplate_remote_url(remote_url: str) -> str:
+    """Validate that origin points exactly at the canonical PulsePlate GitHub repo."""
+
+    candidate = remote_url.strip()
+    if not candidate or any(character.isspace() for character in candidate):
+        raise CreativeCodePRPromotionError("origin remote must target PulsePlate.")
+
+    scp_match = SCP_GITHUB_REMOTE_RE.fullmatch(candidate)
+    if scp_match:
+        if scp_match.group("user") != "git":
+            raise CreativeCodePRPromotionError("origin remote must target PulsePlate.")
+        return _normalize_github_repo_path(scp_match.group("path"))
+
+    parsed = urlparse(candidate)
+    if parsed.scheme not in {"ssh", "https"}:
+        raise CreativeCodePRPromotionError("origin remote must target PulsePlate.")
+    if parsed.hostname is None or parsed.hostname.lower() != "github.com":
+        raise CreativeCodePRPromotionError("origin remote must target PulsePlate.")
+    if parsed.query or parsed.fragment or parsed.params:
+        raise CreativeCodePRPromotionError("origin remote must target PulsePlate.")
+    try:
+        port = parsed.port
+    except ValueError as exc:
+        raise CreativeCodePRPromotionError("origin remote must target PulsePlate.") from exc
+    if port is not None:
+        raise CreativeCodePRPromotionError("origin remote must target PulsePlate.")
+    if parsed.scheme == "ssh":
+        if parsed.username != "git" or parsed.password is not None:
+            raise CreativeCodePRPromotionError("origin remote must target PulsePlate.")
+    if parsed.scheme == "https" and (parsed.username is not None or parsed.password is not None):
+        raise CreativeCodePRPromotionError("origin remote must target PulsePlate.")
+    return _normalize_github_repo_path(parsed.path)
+
+
+def _require_commit_sha(commit_sha: str, *, label: str = "commit_sha") -> str:
+    if not COMMIT_SHA_RE.fullmatch(commit_sha):
+        raise CreativeCodePRPromotionError(f"{label} must be a full lowercase commit SHA.")
+    return commit_sha
+
+
+def _require_temp_upload_branch(branch: str, *, label: str = "temporary upload branch") -> str:
+    if not TEMP_UPLOAD_BRANCH_RE.fullmatch(branch):
+        raise CreativeCodePRPromotionError(f"{label} is not a safe temporary branch.")
+    if "//" in branch or ".." in branch or branch.endswith((".", ".lock", "/")):
+        raise CreativeCodePRPromotionError(f"{label} is not a safe git ref name.")
+    return branch
+
+
+def _require_remote_ref_branch(branch: str) -> str:
+    return _require_temp_upload_branch(branch)
 
 
 def _sanitized_command_env(*, allow_github_auth: bool = False) -> dict[str, str]:
@@ -391,7 +472,8 @@ class GitTransport:
         ):
             raise CreativeCodePRPromotionError("promotion commit identity mismatch.")
 
-    def push_new_branch(self, *, cwd: Path, branch: str) -> None:
+    def push_upload_branch(self, *, cwd: Path, branch: str) -> None:
+        _require_temp_upload_branch(branch)
         process = self.run(
             [
                 "push",
@@ -404,7 +486,7 @@ class GitTransport:
         )
         push_output = f"{process.stdout}\n{process.stderr}"
         if "[new branch]" not in push_output:
-            raise CreativeCodePRPromotionError("push did not create a new branch.")
+            raise CreativeCodePRPromotionError("temporary upload push did not create a new branch.")
 
 
 def _reject_forbidden_gh_args(args: list[str]) -> None:
@@ -454,6 +536,37 @@ class GitHubTransport:
 
     def current_login(self) -> str:
         return self.run(["api", "user", "--jq", ".login"]).stdout.strip()
+
+    def create_branch_ref(self, *, branch: str, commit_sha: str) -> None:
+        branch = require_safe_branch(branch)
+        commit_sha = _require_commit_sha(commit_sha)
+        self.run(
+            [
+                "api",
+                "-X",
+                "POST",
+                f"repos/{TARGET_REPOSITORY}/git/refs",
+                "-f",
+                f"ref=refs/heads/{branch}",
+                "-f",
+                f"sha={commit_sha}",
+            ],
+            timeout_seconds=120,
+        )
+
+    def delete_branch_ref(self, *, branch: str) -> bool:
+        branch = _require_remote_ref_branch(branch)
+        process = self.run(
+            [
+                "api",
+                "-X",
+                "DELETE",
+                f"repos/{TARGET_REPOSITORY}/git/refs/heads/{branch}",
+            ],
+            check=False,
+            timeout_seconds=120,
+        )
+        return process.returncode == 0
 
     def create_pull_request(
         self,
@@ -679,6 +792,23 @@ def _derive_branch(*, selected_variant_id: str, patch_fingerprint: str) -> str:
     max_slug = 80 - len("experiment/") - len("-") - len(patch_short)
     branch = f"experiment/{slug[:max_slug].strip('-')}-{patch_short}"
     return cast(str, require_safe_branch(branch))
+
+
+def _derive_temp_upload_branch(*, target_branch: str, commit_sha: str) -> str:
+    require_safe_branch(target_branch)
+    _require_commit_sha(commit_sha)
+    target_slug = _slugify(target_branch.split("/", 1)[1])[:30].strip("-") or "candidate"
+    branch = (
+        f"experiment/promotion-upload-{target_slug}-" f"{commit_sha[:8]}-{uuid.uuid4().hex[:10]}"
+    )
+    return _require_temp_upload_branch(branch)
+
+
+def _cleanup_temp_upload_ref(github: GitHubTransport, *, branch: str) -> bool:
+    try:
+        return github.delete_branch_ref(branch=branch)
+    except (CreativeCodePRPromotionError, OSError, subprocess.SubprocessError):
+        return False
 
 
 def _render_pr_body(
@@ -998,8 +1128,7 @@ def _prepare_checkout(
         git.run(["checkout", "--detach", base_commit_sha], cwd=checkout)
         if promotion_remote:
             remote_url = git.remote_url()
-            if "Katsiarynakavaleuskaya/PulsePlate" not in remote_url:
-                raise CreativeCodePRPromotionError("origin remote must target PulsePlate.")
+            validate_pulseplate_remote_url(remote_url)
             git.run(["remote", "set-url", "origin", remote_url], cwd=checkout)
         else:
             git.run(["remote", "set-url", "--push", "origin", "DISABLED"], cwd=checkout)
@@ -1242,6 +1371,8 @@ def promote(
     )
     pr_url = ""
     commit_sha = "0" * 40
+    temp_upload_branch = ""
+    temp_upload_pushed = False
     partial_failure: str | None = None
     commit_identity_verified = False
     try:
@@ -1280,8 +1411,24 @@ def promote(
         )
         commit_identity_verified = True
         if git.remote_branch_exists(branch):
-            raise CreativeCodePRPromotionError("target experiment branch appeared before push.")
-        git.push_new_branch(cwd=checkout, branch=branch)
+            raise CreativeCodePRPromotionError(
+                "target experiment branch appeared before ref create."
+            )
+        temp_upload_branch = _derive_temp_upload_branch(
+            target_branch=branch,
+            commit_sha=commit_sha,
+        )
+        if git.remote_branch_exists(temp_upload_branch):
+            raise CreativeCodePRPromotionError("temporary upload branch already exists.")
+        git.push_upload_branch(cwd=checkout, branch=temp_upload_branch)
+        temp_upload_pushed = True
+        if git.remote_branch_exists(branch):
+            raise CreativeCodePRPromotionError(
+                "target experiment branch appeared before ref create."
+            )
+        github.create_branch_ref(branch=branch, commit_sha=commit_sha)
+        _cleanup_temp_upload_ref(github, branch=temp_upload_branch)
+        temp_upload_pushed = False
         body = _render_pr_body(
             promotion_id=promotion_id,
             result={
@@ -1346,6 +1493,8 @@ def promote(
             write_json_atomic(receipt_path, receipt)
         raise
     finally:
+        if temp_upload_pushed and temp_upload_branch:
+            _cleanup_temp_upload_ref(github, branch=temp_upload_branch)
         _destroy_checkout(promotion_dir, PROMOTION_CHECKOUT)
 
 

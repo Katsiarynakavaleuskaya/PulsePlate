@@ -31,6 +31,7 @@ SANDBOX_ROOT_ENV = "AGENT_EXECUTION_SANDBOX_ROOT"
 SANDBOX_TIMEOUT_ENV = "AGENT_EXECUTION_SANDBOX_TIMEOUT_SECONDS"
 SANDBOX_MAX_OUTPUT_ENV = "AGENT_EXECUTION_SANDBOX_MAX_OUTPUT_BYTES"
 SANDBOX_ALLOWED_BINARIES_ENV = "AGENT_EXECUTION_SANDBOX_ALLOWED_BINARIES"
+SANDBOX_DISABLE_NETWORK_ENV = "AGENT_EXECUTION_SANDBOX_DISABLE_NETWORK"
 
 DEFAULT_SANDBOX_TIMEOUT_SECONDS = 30
 DEFAULT_SANDBOX_MAX_OUTPUT_BYTES = 32_768
@@ -77,6 +78,7 @@ _EXECUTION_MODE_PRIORITY = {
 }
 _WINDOWS_PROCESS_GROUP_FLAG = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
 _STREAM_JOIN_GRACE_SECONDS: Final[float] = 0.1
+_TRUTHY_ENV_VALUES = frozenset({"1", "true", "yes", "on"})
 
 
 @dataclass(frozen=True)
@@ -246,6 +248,14 @@ def resolve_allowed_binary(binary: str, *, allowed_binaries: tuple[str, ...] | N
     return resolved
 
 
+def _sanitize_network_disable_marker(value: str, *, key: str) -> str:
+    normalized = value.strip().lower()
+    if normalized not in _TRUTHY_ENV_VALUES:
+        allowed = ", ".join(sorted(_TRUTHY_ENV_VALUES))
+        raise PermissionError(f"{key} must be an enabled marker: {allowed}.")
+    return "1"
+
+
 def sanitize_sandbox_env(extra_env: Mapping[str, str] | None = None) -> dict[str, str]:
     """Return sanitized environment for sandbox subprocess."""
 
@@ -260,6 +270,12 @@ def sanitize_sandbox_env(extra_env: Mapping[str, str] | None = None) -> dict[str
 
     for key, value in extra_env.items():
         upper = key.upper()
+        if upper == SANDBOX_DISABLE_NETWORK_ENV:
+            sanitized[SANDBOX_DISABLE_NETWORK_ENV] = _sanitize_network_disable_marker(
+                value,
+                key=key,
+            )
+            continue
         if upper in _BLOCKED_ENV_KEYS:
             raise PermissionError(f"Loader env key is not allowed in sandbox: {key}")
         if any(token in upper for token in _SENSITIVE_ENV_TOKENS):
@@ -270,6 +286,34 @@ def sanitize_sandbox_env(extra_env: Mapping[str, str] | None = None) -> dict[str
             raise PermissionError(f"Extra env key is not allowlisted for sandbox: {key}")
         sanitized[key] = value
     return sanitized
+
+
+def _network_disable_requested(env: Mapping[str, str]) -> bool:
+    return env.get(SANDBOX_DISABLE_NETWORK_ENV) == "1"
+
+
+def _resolve_unshare_binary() -> str:
+    if os.name != "posix":
+        raise RuntimeError("Network-disabled sandbox requires POSIX unshare support.")
+    unshare_binary = shutil.which("unshare")
+    if not unshare_binary:
+        raise RuntimeError("Network-disabled sandbox requires unshare on PATH.")
+    resolved = Path(unshare_binary).expanduser().resolve(strict=True)
+    if not resolved.is_file() or not os.access(resolved, os.X_OK):
+        raise RuntimeError("unshare must resolve to an executable file.")
+    return str(resolved)
+
+
+def _build_sandbox_argv(
+    *,
+    binary_path: str,
+    args: tuple[str, ...],
+    env: Mapping[str, str],
+) -> tuple[str, ...]:
+    base_argv = (binary_path, *args)
+    if not _network_disable_requested(env):
+        return base_argv
+    return (_resolve_unshare_binary(), "--net", "--map-root-user", *base_argv)
 
 
 def resolve_effective_execution_mode(requested_mode: str | None = None) -> str:
@@ -410,7 +454,7 @@ def run_local_sandbox(
     timeout_seconds = require_sandbox_timeout_seconds()
     max_output_bytes = require_sandbox_max_output_bytes()
     env = sanitize_sandbox_env(request.env)
-    argv = (binary_path, *request.args)
+    argv = _build_sandbox_argv(binary_path=binary_path, args=request.args, env=env)
     output_budget = _SharedOutputBudget(max_bytes=max_output_bytes)
     stdout_collector = _StreamingOutputBuffer(budget=output_budget)
     stderr_collector = _StreamingOutputBuffer(budget=output_budget)

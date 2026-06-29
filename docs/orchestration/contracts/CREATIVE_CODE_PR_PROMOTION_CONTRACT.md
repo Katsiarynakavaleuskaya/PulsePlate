@@ -5,8 +5,10 @@ Status: PR-3 human-approved non-draft PR promotion tooling. No product runtime i
 PR-3 adds a local, fail-closed handoff from one accepted PR-2
 `CreativeCodePatchResult` plus exact `candidate.patch` into the normal
 PulsePlate pull-request lifecycle. It may create a new `experiment/*` branch,
-push that new branch without force, and open a non-draft PR only after isolated
-pre-open validation and explicit TTY human approval.
+upload the candidate commit through a unique temporary branch without force
+flags, atomically create the target branch with a create-ref primitive, and open
+a non-draft PR only after isolated pre-open validation and explicit TTY human
+approval.
 
 It does not authorize draft PRs, branch updates, force push, default-branch
 writes, review requests, review submissions, review-thread resolution,
@@ -50,7 +52,9 @@ accepted PR-2 patch result
 -> new experiment/* branch
 -> one human-authored commit
 -> final branch absence recheck
--> non-force push that must report a new branch
+-> non-force temporary upload branch push
+-> GitHub create-ref for the target branch
+-> best-effort temporary ref cleanup
 -> gh pr create non-draft
 -> readback verification
 -> sanitized local receipt
@@ -128,9 +132,16 @@ fixed argv, `shell=False`, bounded timeouts, and sanitized environments. The
 tool must not read token values, call `gh auth token`, mint JWTs, read GitHub App
 private keys, or generate installation tokens.
 
-Allowed GitHub mutation:
+Allowed GitHub mutations:
 
 ```bash
+gh api -X POST repos/Katsiarynakavaleuskaya/PulsePlate/git/refs \
+  -f ref=refs/heads/experiment/<derived-branch> \
+  -f sha=<created-commit-sha>
+
+gh api -X DELETE \
+  repos/Katsiarynakavaleuskaya/PulsePlate/git/refs/heads/experiment/promotion-upload-<suffix>
+
 gh pr create \
   --repo Katsiarynakavaleuskaya/PulsePlate \
   --base main \
@@ -174,10 +185,15 @@ Rules:
 - lowercase ASCII after the `experiment/` prefix;
 - maximum length 80;
 - existing branch blocks;
-- final branch absence recheck immediately before push;
-- push result must report a new branch;
-- no force push;
-- no update to an existing branch;
+- final branch absence recheck immediately before create-ref;
+- the candidate commit may be uploaded only to a unique temporary branch with a
+  normal push and no force flags;
+- target branch creation must be atomic create-only through GitHub create-ref or
+  an equivalent root-policy-compliant primitive;
+- if the target branch already exists, creation fails closed;
+- best-effort cleanup deletes only the temporary upload ref;
+- no target branch update through git push;
+- no force flags;
 - no auto-rebase.
 
 The commit is authored and committed by the local human Git configuration.
@@ -235,10 +251,11 @@ repository refs.
 
 ## Failure Handling
 
-Before push, failure destroys the local checkout and leaves no remote state.
+Before temporary upload, failure destroys the local checkout and leaves no remote state.
 
-After push but before PR creation, the tool writes a sanitized partial receipt
-if it has a commit SHA. It does not delete the remote branch.
+After target create-ref but before PR creation, the tool writes a sanitized
+partial receipt if it has a commit SHA. It does not delete the target branch.
+Temporary upload refs are cleanup-only and carry no review authority.
 
 After PR creation but failed readback, the tool writes a sanitized partial
 receipt. It does not close the PR or delete the branch.
