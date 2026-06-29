@@ -47,6 +47,17 @@ SECRET_RE = re.compile(
     r"xox[abprs]-|authorization:\s*bearer|private[_ -]?key)",
     re.IGNORECASE,
 )
+UNSAFE_LOCAL_ABSOLUTE_PATH_RE = re.compile(
+    r"(^|[\s:=,(\[{'\"`<])(?:"
+    r"/(?:users|home|etc|workspace|tmp)(?:/|$|[\s:;,.)\]}'\"`>])|"
+    r"/(?:private/var|var/folders)(?:/|$|[\s:;,.)\]}'\"`>])|"
+    r"~[/\\](?:\.ssh(?:[/\\]|$|[\s:;,.)\]}'\"`>])|[^ \t\r\n]*)?|"
+    r"[A-Za-z]:[/\\](?:Users|Documents and Settings|Windows|Temp|tmp)"
+    r"(?:[/\\]|$|[\s:;,.)\]}'\"`>])|"
+    r"\\\\[^\\/\s]+[/\\][^\\/\s]+"
+    r")",
+    re.IGNORECASE,
+)
 UNSAFE_TEXT_RE = re.compile(
     r"(candidate\.patch|diff --git|^\+\+\+ |^--- |@@ |provider[_ -]?payload|"
     r"raw[_ -]?(prompt|response|context)|chain[_ -]?of[_ -]?thought|"
@@ -332,8 +343,14 @@ def _reject_unsafe_text(value: str, *, label: str) -> None:
         raise CreativeCodeSpecificationError(f"{label} must not contain control characters.")
     if SECRET_RE.search(value) or UNSAFE_TEXT_RE.search(value):
         raise CreativeCodeSpecificationError(f"{label} contains unsafe creative-code authority.")
-    if re.search(r"(^|[\s:])(/Users/|/tmp/|/var/folders/|~[/\\])", value):
+    if contains_unsafe_local_absolute_path(value):
         raise CreativeCodeSpecificationError(f"{label} must not contain local absolute paths.")
+
+
+def contains_unsafe_local_absolute_path(value: str) -> bool:
+    """Return whether free text contains a machine-local absolute path."""
+
+    return UNSAFE_LOCAL_ABSOLUTE_PATH_RE.search(value) is not None
 
 
 def _normalize_repo_relative_path(raw_path: Any, *, label: str) -> str:

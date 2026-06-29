@@ -281,7 +281,7 @@
         },
         {
           "not": {
-            "pattern": "(^|[\\s:])(/U[s]ers/|/t[m]p/|/v[a]r/folders/|~[/\\\\])"
+            "pattern": "(^|[\\s:=,(\\[{'\\\"`<])(?:/(?:[Uu][Ss][Ee][Rr][Ss]|[Hh][Oo][Mm][Ee]|[Ee][Tt][Cc]|[Ww][Oo][Rr][Kk][Ss][Pp][Aa][Cc][Ee]|[Tt][Mm][Pp])(?:/|$|[\\s:;,.)\\]}'\\\"`>])|/(?:[Pp][Rr][Ii][Vv][Aa][Tt][Ee]/[Vv][Aa][Rr]|[Vv][Aa][Rr]/[Ff][Oo][Ll][Dd][Ee][Rr][Ss])(?:/|$|[\\s:;,.)\\]}'\\\"`>])|~[/\\\\](?:\\.ssh(?:[/\\\\]|$|[\\s:;,.)\\]}'\\\"`>])|[^ \\t\\r\\n]*)?|[A-Za-z]:[/\\\\](?:[Uu][Ss][Ee][Rr][Ss]|[Dd][Oo][Cc][Uu][Mm][Ee][Nn][Tt][Ss] [Aa][Nn][Dd] [Ss][Ee][Tt][Tt][Ii][Nn][Gg][Ss]|[Ww][Ii][Nn][Dd][Oo][Ww][Ss]|[Tt][Ee][Mm][Pp]|[Tt][Mm][Pp])(?:[/\\\\]|$|[\\s:;,.)\\]}'\\\"`>])|\\\\\\\\[^\\\\/\\s]+[/\\\\][^\\\\/\\s]+)"
           }
         }
       ]
