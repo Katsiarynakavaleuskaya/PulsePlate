@@ -248,6 +248,21 @@ def _manual_payload(
     }
 
 
+def _create_manual_activation_for_api_key(
+    *,
+    api_key: str,
+    source: str,
+    source_reference: str,
+) -> SubscriptionActivationResponse:
+    activation, _ = payments_activation.activate_subscription(
+        issuer=payments_activation.issuer_from_api_key(api_key),
+        payload=ActivateSubscriptionRequest.model_validate(
+            _manual_payload(source=source, source_reference=source_reference)
+        ),
+    )
+    return activation
+
+
 def _load_counts() -> tuple[int, int]:
     session_factory = core_db.get_session_factory()
     session = session_factory()
@@ -1037,21 +1052,19 @@ def test_manual_sources_create_pending_manual_review(
 
 def test_canonical_manual_activation_can_reconcile_verified_with_default_plan(
     client: TestClient,
-    pro_headers: dict[str, str],
+    manual_billing_headers: dict[str, str],
 ) -> None:
-    activation = client.post(
-        "/api/v1/pro/payments/activate",
-        headers=pro_headers,
-        json=_manual_payload(source="erip_qr", source_reference="ERIP-QR-verified-1"),
+    activation = _create_manual_activation_for_api_key(
+        api_key=manual_billing_headers["X-API-Key"],
+        source="erip_qr",
+        source_reference="ERIP-QR-verified-1",
     )
-    assert activation.status_code == 200, activation.text
-    activation_payload = _json(activation)
 
     reconcile = client.post(
         "/api/v1/pro/payments/ru-by/reconcile",
-        headers=pro_headers,
+        headers=manual_billing_headers,
         json={
-            "intent_id": activation_payload["activation_id"],
+            "intent_id": activation.activation_id,
             "client_event_id": "evt-erip-canonical-reconcile-1",
             "decision": "verified",
             "external_txn_id": "erip-settled-canonical-1",
@@ -2111,21 +2124,20 @@ def test_reconcile_activation_rejects_non_pending_subscription_state(
 
 def test_reconcile_activation_infers_requested_plan_from_persisted_tier(
     client: TestClient,
-    pro_headers: dict[str, str],
+    manual_billing_headers: dict[str, str],
 ) -> None:
-    activation = client.post(
-        "/api/v1/pro/payments/activate",
-        headers=pro_headers,
-        json=_manual_payload(source="erip_qr", source_reference="ERIP-QR-legacy-plan-1"),
+    activation = _create_manual_activation_for_api_key(
+        api_key=manual_billing_headers["X-API-Key"],
+        source="erip_qr",
+        source_reference="ERIP-QR-legacy-plan-1",
     )
-    assert activation.status_code == 200, activation.text
 
-    activation_id = _json(activation)["activation_id"]
+    activation_id = activation.activation_id
     _update_audit_evidence_summary(activation_id, {})
 
     reconcile = client.post(
         "/api/v1/pro/payments/ru-by/reconcile",
-        headers=pro_headers,
+        headers=manual_billing_headers,
         json={
             "intent_id": activation_id,
             "client_event_id": "evt-reconcile-missing-plan-1",

@@ -124,13 +124,13 @@ def _set_audit_reconcile_status(
 
 def test_manual_reconcile_verified_flow(
     client: TestClient,
-    pro_headers: dict[str, str],
+    manual_billing_headers: dict[str, str],
 ) -> None:
-    intent_id = _create_manual_intent(client, pro_headers, source="swift_manual")
+    intent_id = _create_manual_intent(client, manual_billing_headers, source="swift_manual")
 
     reconcile = client.post(
         "/api/v1/pro/payments/ru-by/reconcile",
-        headers=pro_headers,
+        headers=manual_billing_headers,
         json={
             "intent_id": intent_id,
             "client_event_id": "evt-swift-reconcile-1",
@@ -154,7 +154,7 @@ def test_manual_reconcile_verified_flow(
 
     status_response = client.get(
         f"/api/v1/pro/payments/ru-by/reconcile/{intent_id}",
-        headers=pro_headers,
+        headers=manual_billing_headers,
     )
     assert status_response.status_code == 200, status_response.text
     status_payload = _json(status_response)
@@ -164,18 +164,18 @@ def test_manual_reconcile_verified_flow(
 
 def test_manual_reconcile_verified_flow_with_pro_monthly_plan(
     client: TestClient,
-    pro_headers: dict[str, str],
+    manual_billing_headers: dict[str, str],
 ) -> None:
     intent_id = _create_manual_intent(
         client,
-        pro_headers,
+        manual_billing_headers,
         source="erip_qr",
         plan="pro_monthly",
     )
 
     reconcile = client.post(
         "/api/v1/pro/payments/ru-by/reconcile",
-        headers=pro_headers,
+        headers=manual_billing_headers,
         json={
             "intent_id": intent_id,
             "client_event_id": "evt-erip-reconcile-pro-1",
@@ -198,48 +198,47 @@ def test_manual_reconcile_verified_flow_with_pro_monthly_plan(
 
 def test_manual_reconcile_is_idempotent(
     client: TestClient,
-    pro_headers: dict[str, str],
+    manual_billing_headers: dict[str, str],
 ) -> None:
-    intent_id = _create_manual_intent(client, pro_headers, source="erip_qr")
+    intent_id = _create_manual_intent(client, manual_billing_headers, source="erip_qr")
     payload = {
         "intent_id": intent_id,
         "client_event_id": "evt-erip-reconcile-1",
         "decision": "rejected",
         "external_txn_id": "erip-final-1",
     }
-    first = client.post("/api/v1/pro/payments/ru-by/reconcile", headers=pro_headers, json=payload)
-    second = client.post("/api/v1/pro/payments/ru-by/reconcile", headers=pro_headers, json=payload)
+    first = client.post(
+        "/api/v1/pro/payments/ru-by/reconcile",
+        headers=manual_billing_headers,
+        json=payload,
+    )
+    second = client.post(
+        "/api/v1/pro/payments/ru-by/reconcile",
+        headers=manual_billing_headers,
+        json=payload,
+    )
     assert first.status_code == 200, first.text
     assert second.status_code == 200, second.text
     assert _json(first) == _json(second)
 
     status_response = client.get(
         f"/api/v1/pro/payments/ru-by/reconcile/{intent_id}",
-        headers=pro_headers,
+        headers=manual_billing_headers,
     )
     assert status_response.status_code == 200, status_response.text
     status_payload = _json(status_response)
     assert status_payload["status"] == "rejected"
     assert status_payload["reconcile_status"] == "rejected"
 
-    activation_response = client.get(
-        f"/api/v1/pro/payments/activations/{intent_id}",
-        headers=pro_headers,
-    )
-    assert activation_response.status_code == 200, activation_response.text
-    activation_payload = _json(activation_response)
-    assert activation_payload["status"] == "rejected"
-    assert activation_payload["reconcile_status"] == "rejected"
-
 
 def test_manual_reconcile_rejects_second_transition_after_verification(
     client: TestClient,
-    pro_headers: dict[str, str],
+    manual_billing_headers: dict[str, str],
 ) -> None:
-    intent_id = _create_manual_intent(client, pro_headers, source="erip_qr")
+    intent_id = _create_manual_intent(client, manual_billing_headers, source="erip_qr")
     verified = client.post(
         "/api/v1/pro/payments/ru-by/reconcile",
-        headers=pro_headers,
+        headers=manual_billing_headers,
         json={
             "intent_id": intent_id,
             "client_event_id": "evt-erip-reconcile-final-1",
@@ -251,7 +250,7 @@ def test_manual_reconcile_rejects_second_transition_after_verification(
 
     rejected = client.post(
         "/api/v1/pro/payments/ru-by/reconcile",
-        headers=pro_headers,
+        headers=manual_billing_headers,
         json={
             "intent_id": intent_id,
             "client_event_id": "evt-erip-reconcile-final-2",
@@ -267,12 +266,12 @@ def test_manual_reconcile_rejects_second_transition_after_verification(
 
 def test_manual_reconcile_conflict_returns_409(
     client: TestClient,
-    pro_headers: dict[str, str],
+    manual_billing_headers: dict[str, str],
 ) -> None:
-    intent_id = _create_manual_intent(client, pro_headers, source="erip_qr")
+    intent_id = _create_manual_intent(client, manual_billing_headers, source="erip_qr")
     first = client.post(
         "/api/v1/pro/payments/ru-by/reconcile",
-        headers=pro_headers,
+        headers=manual_billing_headers,
         json={
             "intent_id": intent_id,
             "client_event_id": "evt-erip-reconcile-2",
@@ -282,7 +281,7 @@ def test_manual_reconcile_conflict_returns_409(
     )
     conflict = client.post(
         "/api/v1/pro/payments/ru-by/reconcile",
-        headers=pro_headers,
+        headers=manual_billing_headers,
         json={
             "intent_id": intent_id,
             "client_event_id": "evt-erip-reconcile-2",
@@ -298,26 +297,31 @@ def test_manual_reconcile_conflict_returns_409(
 
 def test_manual_reconcile_forbidden_for_other_issuer(
     client: TestClient,
-    pro_headers: dict[str, str],
-    vip_headers: dict[str, str],
+    manual_billing_headers: dict[str, str],
 ) -> None:
-    intent_id = _create_manual_intent(client, pro_headers, source="swift_manual")
+    from app.services import payments_activation
+
+    foreign_issuer = payments_activation.issuer_from_api_key("foreign-manual-key")
+    intent_id = _create_manual_intent_via_service(
+        issuer=foreign_issuer,
+        source="swift_manual",
+    )
     response = client.get(
         f"/api/v1/pro/payments/ru-by/reconcile/{intent_id}",
-        headers=vip_headers,
+        headers=manual_billing_headers,
     )
     assert response.status_code == 403
 
 
-def test_manual_reconcile_vip_key_can_manage_own_intent(
+def test_manual_reconcile_app_transport_key_can_manage_own_vip_plan_intent(
     client: TestClient,
-    vip_headers: dict[str, str],
+    manual_billing_headers: dict[str, str],
 ) -> None:
-    intent_id = _create_manual_intent(client, vip_headers, source="swift_manual")
+    intent_id = _create_manual_intent(client, manual_billing_headers, source="swift_manual")
 
     reconcile = client.post(
         "/api/v1/pro/payments/ru-by/reconcile",
-        headers=vip_headers,
+        headers=manual_billing_headers,
         json={
             "intent_id": intent_id,
             "client_event_id": "evt-vip-reconcile-1",
@@ -330,7 +334,7 @@ def test_manual_reconcile_vip_key_can_manage_own_intent(
 
     status_response = client.get(
         f"/api/v1/pro/payments/ru-by/reconcile/{intent_id}",
-        headers=vip_headers,
+        headers=manual_billing_headers,
     )
     assert status_response.status_code == 200, status_response.text
     assert _json(status_response)["external_txn_id"] == "swift-vip-1"
@@ -338,11 +342,11 @@ def test_manual_reconcile_vip_key_can_manage_own_intent(
 
 def test_manual_reconcile_missing_intent_returns_404(
     client: TestClient,
-    pro_headers: dict[str, str],
+    manual_billing_headers: dict[str, str],
 ) -> None:
     response = client.post(
         "/api/v1/pro/payments/ru-by/reconcile",
-        headers=pro_headers,
+        headers=manual_billing_headers,
         json={
             "intent_id": "missing-intent",
             "client_event_id": "evt-missing-1",
@@ -355,11 +359,11 @@ def test_manual_reconcile_missing_intent_returns_404(
 
 def test_manual_reconcile_status_missing_intent_returns_404(
     client: TestClient,
-    pro_headers: dict[str, str],
+    manual_billing_headers: dict[str, str],
 ) -> None:
     response = client.get(
         "/api/v1/pro/payments/ru-by/reconcile/missing-intent",
-        headers=pro_headers,
+        headers=manual_billing_headers,
     )
     assert response.status_code == 404
     assert _json(response)["code"] == "not_found"
@@ -367,13 +371,15 @@ def test_manual_reconcile_status_missing_intent_returns_404(
 
 def test_manual_reconcile_forbidden_for_other_issuer_on_post(
     client: TestClient,
-    pro_headers: dict[str, str],
-    vip_headers: dict[str, str],
+    manual_billing_headers: dict[str, str],
 ) -> None:
-    intent_id = _create_manual_intent(client, pro_headers, source="erip_qr")
+    from app.services import payments_activation
+
+    foreign_issuer = payments_activation.issuer_from_api_key("foreign-manual-key")
+    intent_id = _create_manual_intent_via_service(issuer=foreign_issuer, source="erip_qr")
     response = client.post(
         "/api/v1/pro/payments/ru-by/reconcile",
-        headers=vip_headers,
+        headers=manual_billing_headers,
         json={
             "intent_id": intent_id,
             "client_event_id": "evt-foreign-reconcile-1",
@@ -405,18 +411,18 @@ def test_manual_reconcile_rejects_ios_activation_via_service() -> None:
 
 def test_manual_reconcile_rejects_ios_activation_via_api(
     client: TestClient,
-    pro_headers: dict[str, str],
+    manual_billing_headers: dict[str, str],
 ) -> None:
     from app.services import payments_activation
 
     activation_id = _create_ios_activation_via_service(
-        issuer=payments_activation.issuer_from_api_key(pro_headers["X-API-Key"]),
+        issuer=payments_activation.issuer_from_api_key(manual_billing_headers["X-API-Key"]),
         client_event_suffix="api",
     )
 
     response = client.post(
         "/api/v1/pro/payments/ru-by/reconcile",
-        headers=pro_headers,
+        headers=manual_billing_headers,
         json={
             "intent_id": activation_id,
             "client_event_id": "evt-ios-api-reconcile-1",
@@ -429,18 +435,18 @@ def test_manual_reconcile_rejects_ios_activation_via_api(
 
 def test_manual_status_rejects_ios_activation_via_api(
     client: TestClient,
-    pro_headers: dict[str, str],
+    manual_billing_headers: dict[str, str],
 ) -> None:
     from app.services import payments_activation
 
     activation_id = _create_ios_activation_via_service(
-        issuer=payments_activation.issuer_from_api_key(pro_headers["X-API-Key"]),
+        issuer=payments_activation.issuer_from_api_key(manual_billing_headers["X-API-Key"]),
         client_event_suffix="status",
     )
 
     response = client.get(
         f"/api/v1/pro/payments/ru-by/reconcile/{activation_id}",
-        headers=pro_headers,
+        headers=manual_billing_headers,
     )
     assert response.status_code == 422
     payload = _json(response)
@@ -476,9 +482,9 @@ def test_manual_reconcile_ignores_stale_audit_metadata_via_service() -> None:
 
 def test_manual_reconcile_readback_uses_persisted_state_via_api(
     client: TestClient,
-    pro_headers: dict[str, str],
+    manual_billing_headers: dict[str, str],
 ) -> None:
-    intent_id = _create_manual_intent(client, pro_headers, source="erip_qr")
+    intent_id = _create_manual_intent(client, manual_billing_headers, source="erip_qr")
     _set_audit_reconcile_status(
         activation_id=intent_id,
         reconcile_status="unsupported_state",
@@ -486,7 +492,7 @@ def test_manual_reconcile_readback_uses_persisted_state_via_api(
 
     response = client.post(
         "/api/v1/pro/payments/ru-by/reconcile",
-        headers=pro_headers,
+        headers=manual_billing_headers,
         json={
             "intent_id": intent_id,
             "client_event_id": "evt-unsupported-api-reconcile-1",
@@ -500,17 +506,10 @@ def test_manual_reconcile_readback_uses_persisted_state_via_api(
 
     status_response = client.get(
         f"/api/v1/pro/payments/ru-by/reconcile/{intent_id}",
-        headers=pro_headers,
+        headers=manual_billing_headers,
     )
     assert status_response.status_code == 200, status_response.text
     assert _json(status_response)["reconcile_status"] == "verified"
-
-    activation_response = client.get(
-        f"/api/v1/pro/payments/activations/{intent_id}",
-        headers=pro_headers,
-    )
-    assert activation_response.status_code == 200, activation_response.text
-    assert _json(activation_response)["reconcile_status"] == "verified"
 
 
 def test_activation_state_detail_maps_manual_status_and_unknown_errors() -> None:

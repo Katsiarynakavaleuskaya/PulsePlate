@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Optional, cast
+from typing import TYPE_CHECKING, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Security, status
 from fastapi.responses import JSONResponse
@@ -22,7 +22,7 @@ from app.effective_routes import (
     route_endpoint_for_path_method,
     route_ownership_counts,
 )
-from app.routers.api_key import api_key_header
+from app.routers.api_key import api_key_header, validate_app_api_key
 from app.security.rate_limit import (
     RATE_LIMIT_429_RESPONSES,
     RATE_LIMIT_APPLE_VERIFY,
@@ -95,7 +95,9 @@ def _canonical_billing_route_present(
     path: str,
     endpoint: object,
 ) -> bool:
-    expected_count, foreign_count = route_ownership_counts(routes, path, "POST", endpoint)
+    expected_count_raw, foreign_count_raw = route_ownership_counts(routes, path, "POST", endpoint)
+    expected_count = int(expected_count_raw)
+    foreign_count = int(foreign_count_raw)
     if foreign_count or expected_count > 1:
         raise RuntimeError(f"Duplicate {path} route detected with a different billing handler.")
     return expected_count == 1
@@ -277,19 +279,13 @@ def _get_effective_app_get_api_key():
 def _get_effective_manual_billing_key_validator() -> Callable[..., str]:
     """Resolve manual-route validator from the strict app-level auth surface.
 
-    RU: Manual RU/BY routes требуют transport-auth с канонического app-level validator;
-    fallback по env ключам здесь запрещён.
-    EN: Manual RU/BY routes require transport auth via the canonical app-level
-    validator; env-key fallback is forbidden on this path.
+    RU: Manual RU/BY routes требуют transport-auth через канонический configured
+    app API key; tier/dependency-override fallback здесь запрещён.
+    EN: Manual RU/BY routes require transport auth via the canonical configured
+    app API key; tier/dependency-override fallback is forbidden on this path.
     """
-    app_get_api_key = cast(Callable[[str], str] | None, _get_effective_app_get_api_key())
-    if callable(app_get_api_key):
-        return app_get_api_key
-
-    def _reject_manual_transport_key(_: str) -> str:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid API Key")
-
-    return _reject_manual_transport_key
+    validator: Callable[..., str] = validate_app_api_key
+    return validator
 
 
 def _apple_operational_error_response(
