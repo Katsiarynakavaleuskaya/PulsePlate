@@ -60,7 +60,7 @@ this PR.
 - [x] Initial PR open: no GitHub review threads existed and none were resolved.
 - [x] Post-open `qa-engineer-agent` pass completed.
 - [x] Post-open `bug-hunter` pass completed.
-- [ ] Post-open `security-auditor` pass completed.
+- [x] Post-open `security-auditor` pass completed.
 - [ ] Codex Security diff scan / finding discovery completed or explicitly
   dispositioned.
 - [ ] `pulseplate-pr-review` completed.
@@ -138,6 +138,20 @@ derives read-error identity from a containment-checked creative-code-root
 relative locator fingerprint without emitting the raw locator, with coverage in
 `tests/test_creative_code_telemetry.py::test_malformed_artifacts_with_same_basename_keep_distinct_identities`.
 
+Role: `security-auditor`
+
+Disposition: FIXED
+
+Commit: `36f63bdc9`
+
+Evidence: The security-auditor pass found the Python leak guard and JSON schemas
+admitted tokenized oracle-output labels such as `oracle_stdout` and
+`oracle-stderr`, plus other tokenized unsafe labels. Commit `36f63bdc9` aligns
+the Python denylist and event/rollup schema safe-id denylist, with coverage in
+`tests/test_creative_code_telemetry.py::test_reference_taxonomy_and_schemas_are_closed`
+and
+`tests/test_creative_code_telemetry.py::test_event_rejects_raw_patch_leaks_and_mutating_authority`.
+
 ## Pre-Open Premortem Closure
 
 Disposition: FIXED
@@ -186,8 +200,7 @@ oracle review is recorded by the canonical co-author trailer on commit
 
 ## Local Validation Evidence
 
-- `python -m pytest -q tests/test_creative_code_telemetry.py` - pass.
-- `python -m pytest -q tests/guards/test_security_devtooling_regression_guards.py::test_changed_docs_do_not_add_local_users_absolute_paths tests/test_creative_code_telemetry.py` - pass.
+- `.venv/bin/python -m pytest -q tests/test_creative_code_telemetry.py tests/guards/test_security_devtooling_regression_guards.py::test_changed_docs_do_not_add_local_users_absolute_paths` - pass.
 - `python -m pytest -q tests/test_creative_code_specification.py tests/test_creative_code_patch_builder.py tests/test_creative_code_pr_promotion.py tests/test_creative_code_telemetry.py` - pass.
 - `python -m scripts.orchestration.creative_code_telemetry_contract --validate-taxonomy docs/orchestration/contracts/creative_code_rejection_taxonomy.v1.json` - pass.
 - `python -m scripts.orchestration.creative_code_telemetry --spec-runs-dir artifacts/orchestration/creative_code/spec_runs --patch-runs-dir artifacts/orchestration/creative_code/patch_runs --promotions-dir artifacts/orchestration/creative_code/promotions --output-dir artifacts/orchestration/creative_code/telemetry` - pass; generated gitignored sidecars were cleaned.
