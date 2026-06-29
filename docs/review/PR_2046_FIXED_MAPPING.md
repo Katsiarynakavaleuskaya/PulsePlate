@@ -90,6 +90,11 @@ Evidence: `scripts/ci/check_emergency_wheel_mirror_parity.py` intentionally fail
 Reason: Post-open qa-engineer-agent classified truncation-before-visible-filename as a false-red risk only; the fail-closed behavior is intentional for supply-chain parity.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2046#discussion_r3491263041
 
+Disposition: FIXED
+Commit: 34a7d9ced
+Evidence: `.github/workflows/ci.yml` now touches `pulseplate-private-proxy-health-netrc-created` before writing `$HOME/.netrc`; `tests/test_private_python_proxy_workflow_contract.py` asserts the marker-before-write ordering.
+Reason: Codex Security candidate `CS-2046-001` found that a failure after writing `.netrc` but before marker creation could leave protected-main devpi credentials behind until runner cleanup.
+
 ## Validation Evidence
 
 - `python3 scripts/orchestration/check_preflight.py --path ...` PASS.
@@ -114,6 +119,7 @@ Reason: Post-open qa-engineer-agent classified truncation-before-visible-filenam
   tests, full-repo Bandit, and Docker build test.
 - `python -m pytest -q tests/test_emergency_wheel_mirror_parity.py tests/test_private_python_proxy_workflow_contract.py` PASS after post-open QA fixes.
 - `python3 scripts/ci/check_emergency_wheel_mirror_parity.py --manifest scripts/ci/emergency_python_wheels.json --index-url https://packages.pulseplate.app/root/pulseplate/+simple/ --python-version 3.11 --python-version 3.12 --python-version 3.13 --format text` PASS with `retired=true artifacts=0 missing=0`.
+- `python -m pytest -q tests/test_private_python_proxy_workflow_contract.py` PASS after Codex Security `CS-2046-001` fix.
 
 ## Merge Readiness
 
