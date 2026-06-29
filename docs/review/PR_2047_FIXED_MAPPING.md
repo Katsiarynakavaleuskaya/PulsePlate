@@ -61,7 +61,16 @@ transport-auth semantics only.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: NOT-A-BUG
+Evidence: docs/review/PR_2047_FIXED_MAPPING.md
+Reason: Sourcery's helper-centralization suggestion is valid cleanup but out of narrow billing-auth hotfix scope; duplicated helpers are test-only scaffolding and do not affect runtime billing behavior.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2047#pullrequestreview-4592401980
+
+Disposition: FIXED
+Commit: c7d9de8be
+Evidence: tests/test_payment_source_contract_api.py
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2047#discussion_r3492381931 -> c7d9de8be
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2047#pullrequestreview-4592628538 -> c7d9de8be
 
 ## Implementation Evidence
 
@@ -202,6 +211,28 @@ with complete coverage and 0 reportable findings. The sealed report records:
 manual RU/BY billing transport auth binds to `validate_app_api_key`, rejects
 missing, blank, invalid, tier-key, and dependency-override bypass attempts,
 and preserves fail-closed behavior.
+
+Role: `Sourcery`
+
+Disposition: NOT-A-BUG
+
+Evidence: Sourcery suggested centralizing duplicated manual activation helpers.
+The duplicated helpers are test-only scaffolding kept local to preserve the
+narrow hotfix boundary and avoid introducing a new shared helper API in this
+production billing-auth regression PR. The current diff has deterministic
+coverage for the affected manual activation and paid-route separation behavior,
+and no runtime code depends on the duplicated helpers.
+
+Role: `CodeRabbit`
+
+Disposition: FIXED
+
+Commit: `c7d9de8be`
+
+Evidence: CodeRabbit flagged a direct `rejected.json()` assertion in
+`tests/test_payment_source_contract_api.py`. Commit `c7d9de8be` replaces it
+with the shared `_json(rejected)` helper so the assertion follows the repo's
+response JSON contract guard.
 
 ## Local Validation
 
