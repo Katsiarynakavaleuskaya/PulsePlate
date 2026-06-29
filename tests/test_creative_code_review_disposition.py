@@ -126,7 +126,36 @@ def test_feedback_schema_github_url_pattern_rejects_suffixes() -> None:
 
     assert pattern.endswith("$")
     assert re.search(pattern, valid_url)
+    assert re.search(pattern, f"{valid_url}#discussion_r123")
+    assert re.search(pattern, f"{valid_url}#pullrequestreview-456")
+    assert re.search(pattern, f"{valid_url.replace('/pull/', '/issues/')}#issuecomment-789")
     assert not re.search(pattern, f"{valid_url}.evil")
+    assert not re.search(pattern, f"{valid_url}#GH_TOKEN")
+    assert not re.search(pattern, f"{valid_url}#/Users/example/private.txt")
+
+
+def test_feedback_schema_classification_matches_python_repair_invariants() -> None:
+    feedback_schema = json.loads(FEEDBACK_SCHEMA.read_text(encoding="utf-8"))
+    classification = feedback_schema["$defs"]["classification"]
+    repair_rule, non_repair_rule = classification["allOf"]
+
+    assert repair_rule["if"]["properties"]["candidate_disposition"]["enum"] == [
+        "creative_repair_candidate",
+        "security_blocker",
+    ]
+    assert repair_rule["then"]["properties"]["requires_repair"] == {"const": True}
+    assert repair_rule["then"]["properties"]["repair_priority"] == {
+        "minimum": 1,
+        "maximum": 3,
+    }
+    assert non_repair_rule["if"]["properties"]["candidate_disposition"]["enum"] == [
+        "simple_fix",
+        "not_a_bug_candidate",
+        "defer_candidate",
+        "out_of_scope",
+    ]
+    assert non_repair_rule["then"]["properties"]["requires_repair"] == {"const": False}
+    assert non_repair_rule["then"]["properties"]["repair_priority"] == {"const": 0}
 
 
 def test_feedback_disposition_and_launch_packets_validate() -> None:
@@ -451,6 +480,57 @@ def test_github_fixture_rejects_raw_body_fields(
     )
 
     assert disposition_cli.main(["collect", "--github-fixture", str(fixture_path)]) == 1
+
+
+def test_github_fixture_rejects_top_level_raw_body_field(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    _configure_cli_root(monkeypatch, tmp_path)
+    fixture_path = tmp_path / "github_fixture.json"
+    _write_json(
+        fixture_path,
+        {
+            "body": "raw pull request body is forbidden",
+            "head_sha": "a" * 40,
+            "issue_comments": [],
+            "pr_number": 2045,
+            "repository": "Katsiarynakavaleuskaya/PulsePlate",
+            "review_comments": [
+                {
+                    "body_excerpt_sanitized": "coverage guard failed in PR-5 fixture",
+                    "feedback_kind": "review_thread",
+                    "id": 2,
+                }
+            ],
+            "reviews": [],
+        },
+    )
+
+    assert disposition_cli.main(["collect", "--github-fixture", str(fixture_path)]) == 1
+
+
+@pytest.mark.parametrize(
+    "unsafe_url",
+    [
+        "https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2045#GH_TOKEN",
+        "https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2045#/Users/example/private.txt",
+    ],
+)
+def test_feedback_record_rejects_unsafe_github_url_suffixes(unsafe_url: str) -> None:
+    with pytest.raises(CreativeCodeReviewDispositionContractError):
+        build_creative_code_review_feedback_record(
+            source_kind="github_fixture",
+            source_id="review-comment:1",
+            source_fingerprint=fingerprint_payload({"source": "review-comment:1"}),
+            excerpt="coverage guard failed in PR-5 fixture",
+            feedback_kind="review_thread",
+            severity="medium",
+            source_url=unsafe_url,
+            repository="Katsiarynakavaleuskaya/PulsePlate",
+            pr_number=2045,
+            head_sha="a" * 40,
+        )
 
 
 def test_github_fixture_requires_explicit_sanitized_text(

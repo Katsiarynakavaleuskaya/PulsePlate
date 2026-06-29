@@ -36,7 +36,8 @@ SHA256_RE = re.compile(r"^sha256:[a-f0-9]{64}$")
 REPOSITORY_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 GITHUB_URL_RE = re.compile(
     r"^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/"
-    r"(?:pull|issues)/[0-9]+(?:[#/][A-Za-z0-9_./:-]+)?$"
+    r"(?:pull|issues)/[0-9]+"
+    r"(?:#(?:discussion_r[0-9]+|pullrequestreview-[0-9]+|issuecomment-[0-9]+))?$"
 )
 TIMESTAMP_RE = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")
 SECRET_RE = re.compile(
@@ -280,9 +281,13 @@ def reject_unsafe_review_value(value: Any, *, label: str) -> None:
     """Reject strings that could leak raw review bodies, secrets, or local paths."""
 
     if isinstance(value, str):
+        if SECRET_RE.search(value):
+            raise CreativeCodeReviewDispositionContractError(
+                f"{label} contains unsafe review-disposition text."
+            )
         if GITHUB_URL_RE.fullmatch(value):
             return
-        if SECRET_RE.search(value) or LEAK_TEXT_RE.search(value):
+        if LEAK_TEXT_RE.search(value):
             raise CreativeCodeReviewDispositionContractError(
                 f"{label} contains unsafe review-disposition text."
             )

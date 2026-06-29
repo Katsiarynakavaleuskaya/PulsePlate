@@ -289,11 +289,26 @@ def _github_items(payload: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
     return items
 
 
+def _reject_raw_github_body_fields(value: Any, *, label: str) -> None:
+    if isinstance(value, dict):
+        if RAW_GITHUB_BODY_FIELDS.intersection(value):
+            raise CreativeCodeReviewDispositionError(
+                f"{label} contains raw GitHub body fields, which are not allowed in fixtures."
+            )
+        for key, item in value.items():
+            _reject_raw_github_body_fields(item, label=f"{label}.{key}")
+        return
+    if isinstance(value, list):
+        for index, item in enumerate(value):
+            _reject_raw_github_body_fields(item, label=f"{label}[{index}]")
+
+
 def records_from_github_fixture(
     payload: dict[str, Any],
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     """Build sanitized feedback records from a read-only GitHub fixture."""
 
+    _reject_raw_github_body_fields(payload, label="github_fixture")
     repository = payload.get("repository")
     pr_number = payload.get("pr_number")
     head_sha = payload.get("head_sha")

@@ -70,7 +70,7 @@
       "anyOf": [
         {
           "type": "string",
-          "pattern": "^https://github\\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/(pull|issues)/[0-9]+([#/][A-Za-z0-9_./:-]+)?$"
+          "pattern": "^https://github\\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/(pull|issues)/[0-9]+(#(discussion_r[0-9]+|pullrequestreview-[0-9]+|issuecomment-[0-9]+))?$"
         },
         { "type": "null" }
       ]
@@ -166,7 +166,46 @@
         "requires_human_decision": { "const": true },
         "requires_repair": { "type": "boolean" },
         "repair_priority": { "type": "integer", "minimum": 0, "maximum": 3 }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "candidate_disposition": {
+                "enum": ["creative_repair_candidate", "security_blocker"]
+              }
+            },
+            "required": ["candidate_disposition"]
+          },
+          "then": {
+            "properties": {
+              "requires_repair": { "const": true },
+              "repair_priority": { "minimum": 1, "maximum": 3 }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "candidate_disposition": {
+                "enum": [
+                  "simple_fix",
+                  "not_a_bug_candidate",
+                  "defer_candidate",
+                  "out_of_scope"
+                ]
+              }
+            },
+            "required": ["candidate_disposition"]
+          },
+          "then": {
+            "properties": {
+              "requires_repair": { "const": false },
+              "repair_priority": { "const": 0 }
+            }
+          }
+        }
+      ]
     },
     "sanitized_excerpt": {
       "type": "object",
