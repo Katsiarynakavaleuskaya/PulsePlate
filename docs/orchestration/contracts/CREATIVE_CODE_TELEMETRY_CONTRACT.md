@@ -111,9 +111,11 @@ truth, or release evidence.
 
 ## Boundary
 
-PR-4 is a measurement layer for the private loop. Public GitHub App backend,
-public Slack beta, live review-disposition ingestion, review-thread resolution,
-and the first governed applied candidate remain later PRs.
+PR-4 is a measurement layer for the private loop. PR-5 adds a separate local,
+read-only review-disposition integration over sanitized review context or
+explicit fixtures, but PR-4 telemetry output remains non-disposition evidence.
+Public GitHub App backend, public Slack beta, review-thread resolution, and the
+first governed applied candidate remain later PRs.
 
 Rollback removes the PR-4 telemetry contracts, collector, tests, docs, and
 ledger references. Because PR-4 adds no runtime behavior, provider integration,

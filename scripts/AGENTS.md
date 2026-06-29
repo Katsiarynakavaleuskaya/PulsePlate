@@ -62,6 +62,17 @@
   branches, open PRs, resolve review threads, edit fixed mappings, claim merge
   readiness, merge, release, call providers, call product runtime, or call
   Slack/GitHub authority paths.
+- PR-5 creative-code review-disposition artifacts stay local under
+  `artifacts/orchestration/creative_code/review_disposition/`. The
+  `creative_code_review_disposition.py` CLI may only read sanitized
+  `pr_review_context.py` output or explicit read-only fixtures and emit
+  advisory feedback-record, disposition-packet, and repair-launch sidecars. It
+  must not preserve raw review bodies, PR bodies, patches, prompts, provider
+  payloads, oracle output, secrets, token values, or local absolute paths, and
+  it must not call GitHub write endpoints, resolve review threads, edit fixed
+  mappings, create branches, write branches, push, open PRs, claim merge
+  readiness, call providers, call product runtime, or call Slack/GitHub App
+  authority paths.
 - `experiment_notify.py` follows the notification contract in
   `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`: local artifact output
   is the default, SMTP email and Slack delivery are explicit opt-in only, and no

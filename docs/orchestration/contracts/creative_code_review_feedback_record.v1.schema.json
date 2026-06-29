@@ -1,0 +1,239 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pulseplate.local/contracts/creative_code_review_feedback_record.v1.schema.json",
+  "title": "CreativeCodeReviewFeedbackRecord",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "record_type",
+    "policy_version",
+    "record_id",
+    "idempotency_key",
+    "source",
+    "review_surface",
+    "feedback_kind",
+    "severity",
+    "classification",
+    "sanitized_excerpt",
+    "fingerprints",
+    "authority",
+    "sanitized"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "record_type": { "const": "creative_code_review_feedback_record" },
+    "policy_version": { "const": "creative-code-review-disposition-pr5" },
+    "record_id": { "$ref": "#/$defs/safe_id" },
+    "idempotency_key": { "$ref": "#/$defs/safe_id" },
+    "source": { "$ref": "#/$defs/source" },
+    "review_surface": { "$ref": "#/$defs/review_surface" },
+    "feedback_kind": {
+      "enum": [
+        "review_thread",
+        "bot_comment",
+        "check_annotation",
+        "security_finding",
+        "context_warning",
+        "review_source_status",
+        "unknown"
+      ]
+    },
+    "severity": { "enum": ["note", "low", "medium", "high", "critical"] },
+    "classification": { "$ref": "#/$defs/classification" },
+    "sanitized_excerpt": { "$ref": "#/$defs/sanitized_excerpt" },
+    "fingerprints": { "$ref": "#/$defs/fingerprints" },
+    "authority": { "$ref": "#/$defs/review_authority" },
+    "sanitized": { "const": true }
+  },
+  "$defs": {
+    "safe_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "git_sha_or_null": {
+      "anyOf": [{ "type": "string", "pattern": "^[a-f0-9]{40}$" }, { "type": "null" }]
+    },
+    "repo_slug_or_null": {
+      "anyOf": [
+        { "type": "string", "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$" },
+        { "type": "null" }
+      ]
+    },
+    "github_url_or_null": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^https://github\\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/(pull|issues)/[0-9]+"
+        },
+        { "type": "null" }
+      ]
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_kind",
+        "source_id",
+        "source_url",
+        "repository",
+        "pr_number",
+        "head_sha",
+        "observed_at_utc"
+      ],
+      "properties": {
+        "source_kind": {
+          "enum": [
+            "local_context",
+            "github_fixture",
+            "github_read_only",
+            "pr_review_context",
+            "pr_review_report",
+            "artifact_read_error"
+          ]
+        },
+        "source_id": { "$ref": "#/$defs/safe_id" },
+        "source_url": { "$ref": "#/$defs/github_url_or_null" },
+        "repository": { "$ref": "#/$defs/repo_slug_or_null" },
+        "pr_number": { "type": ["integer", "null"], "minimum": 1 },
+        "head_sha": { "$ref": "#/$defs/git_sha_or_null" },
+        "observed_at_utc": {
+          "anyOf": [
+            { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$" },
+            { "type": "null" }
+          ]
+        }
+      }
+    },
+    "review_surface": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "line", "side"],
+      "properties": {
+        "path": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?!/|~|[A-Za-z][A-Za-z0-9+.-]*:)(?!.*(?:^|/)\\.\\.?(?:/|$))(?!.*\\\\)(?!\\.git(?:/|$))(?!\\.venv(?:/|$))(?!artifacts(?:/|$))(?!worktrees(?:/|$)).+"
+            },
+            { "type": "null" }
+          ]
+        },
+        "line": { "type": ["integer", "null"], "minimum": 1 },
+        "side": { "enum": ["left", "right", "unknown"] }
+      }
+    },
+    "classification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "candidate_disposition",
+        "reason_code",
+        "requires_human_decision",
+        "requires_repair",
+        "repair_priority"
+      ],
+      "properties": {
+        "candidate_disposition": {
+          "enum": [
+            "simple_fix",
+            "creative_repair_candidate",
+            "not_a_bug_candidate",
+            "defer_candidate",
+            "out_of_scope",
+            "security_blocker"
+          ]
+        },
+        "reason_code": {
+          "enum": [
+            "already_addressed",
+            "documentation",
+            "fixed_mapping_governance",
+            "head_sha_drift",
+            "security_sensitive",
+            "source_degraded",
+            "test_failure",
+            "unknown",
+            "unsafe_authority"
+          ]
+        },
+        "requires_human_decision": { "const": true },
+        "requires_repair": { "type": "boolean" },
+        "repair_priority": { "type": "integer", "minimum": 0, "maximum": 3 }
+      }
+    },
+    "sanitized_excerpt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["text", "char_count", "truncated", "body_fingerprint"],
+      "properties": {
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240,
+          "not": {
+            "pattern": "(diff --git|raw[_ -]?(body|prompt|response|context|patch)|review[_ -]?thread[_ -]?body|pull[_ -]?request[_ -]?body|provider[_ -]?payload|oracle[_ -]?(stdout|stderr)|/[U]sers/|/private/var/|/tmp/|~[/\\\\]|\\.venv/|\\.git/|worktrees([:/._-]|$)|GH_TOKEN|GITHUB_TOKEN|github_pat_|gh[psoru]_|sk-[A-Za-z0-9_-]{12,}|xox[abprs]-)"
+          }
+        },
+        "char_count": { "type": "integer", "minimum": 1, "maximum": 240 },
+        "truncated": { "type": "boolean" },
+        "body_fingerprint": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "fingerprints": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_fingerprint", "record_fingerprint"],
+      "properties": {
+        "source_fingerprint": { "$ref": "#/$defs/sha256" },
+        "record_fingerprint": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "review_authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "call_product_runtime",
+        "call_provider",
+        "claim_merge_readiness",
+        "create_branch",
+        "edit_fixed_mapping",
+        "merge",
+        "modify_github_app",
+        "modify_slack",
+        "modify_workflows",
+        "open_pr",
+        "post_github_comment",
+        "push",
+        "resolve_threads",
+        "use_semantic_cache",
+        "write_branch",
+        "write_runtime"
+      ],
+      "properties": {
+        "call_product_runtime": { "const": false },
+        "call_provider": { "const": false },
+        "claim_merge_readiness": { "const": false },
+        "create_branch": { "const": false },
+        "edit_fixed_mapping": { "const": false },
+        "merge": { "const": false },
+        "modify_github_app": { "const": false },
+        "modify_slack": { "const": false },
+        "modify_workflows": { "const": false },
+        "open_pr": { "const": false },
+        "post_github_comment": { "const": false },
+        "push": { "const": false },
+        "resolve_threads": { "const": false },
+        "use_semantic_cache": { "const": false },
+        "write_branch": { "const": false },
+        "write_runtime": { "const": false }
+      }
+    }
+  }
+}

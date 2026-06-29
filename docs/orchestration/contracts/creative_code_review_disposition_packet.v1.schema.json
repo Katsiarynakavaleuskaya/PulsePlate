@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pulseplate.local/contracts/creative_code_review_disposition_packet.v1.schema.json",
+  "title": "CreativeCodeReviewDispositionPacket",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "packet_type",
+    "policy_version",
+    "packet_id",
+    "idempotency_key",
+    "source_context",
+    "expected_head_sha",
+    "actual_head_sha",
+    "head_sha_drift",
+    "feedback_records",
+    "summary",
+    "authority",
+    "sanitized"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "packet_type": { "const": "creative_code_review_disposition_packet" },
+    "policy_version": { "const": "creative-code-review-disposition-pr5" },
+    "packet_id": { "$ref": "#/$defs/safe_id" },
+    "idempotency_key": { "$ref": "#/$defs/safe_id" },
+    "source_context": { "$ref": "#/$defs/source_context" },
+    "expected_head_sha": { "$ref": "#/$defs/git_sha_or_null" },
+    "actual_head_sha": { "$ref": "#/$defs/git_sha_or_null" },
+    "head_sha_drift": { "type": "boolean" },
+    "feedback_records": {
+      "type": "array",
+      "items": {
+        "$ref": "creative_code_review_feedback_record.v1.schema.json"
+      }
+    },
+    "summary": { "$ref": "#/$defs/summary" },
+    "authority": {
+      "$ref": "creative_code_review_feedback_record.v1.schema.json#/$defs/review_authority"
+    },
+    "sanitized": { "const": true }
+  },
+  "$defs": {
+    "safe_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "git_sha_or_null": {
+      "anyOf": [{ "type": "string", "pattern": "^[a-f0-9]{40}$" }, { "type": "null" }]
+    },
+    "repo_slug_or_null": {
+      "anyOf": [
+        { "type": "string", "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$" },
+        { "type": "null" }
+      ]
+    },
+    "source_context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_kind",
+        "source_id",
+        "source_fingerprint",
+        "context_path",
+        "repository",
+        "pr_number"
+      ],
+      "properties": {
+        "source_kind": {
+          "enum": [
+            "local_context",
+            "github_fixture",
+            "github_read_only",
+            "pr_review_context",
+            "pr_review_report",
+            "artifact_read_error"
+          ]
+        },
+        "source_id": { "$ref": "#/$defs/safe_id" },
+        "source_fingerprint": { "$ref": "#/$defs/sha256" },
+        "context_path": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?!/|~|[A-Za-z][A-Za-z0-9+.-]*:)(?!.*(?:^|/)\\.\\.?(?:/|$))(?!.*\\\\)(?!\\.git(?:/|$))(?!\\.venv(?:/|$))(?!artifacts(?:/|$))(?!worktrees(?:/|$)).+"
+            },
+            { "type": "null" }
+          ]
+        },
+        "repository": { "$ref": "#/$defs/repo_slug_or_null" },
+        "pr_number": { "type": ["integer", "null"], "minimum": 1 }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "records_total",
+        "repair_candidates",
+        "not_actionable",
+        "deferred_candidates",
+        "blocked_by_head_drift",
+        "highest_repair_priority"
+      ],
+      "properties": {
+        "records_total": { "type": "integer", "minimum": 0, "maximum": 10000 },
+        "repair_candidates": { "type": "integer", "minimum": 0, "maximum": 10000 },
+        "not_actionable": { "type": "integer", "minimum": 0, "maximum": 10000 },
+        "deferred_candidates": { "type": "integer", "minimum": 0, "maximum": 10000 },
+        "blocked_by_head_drift": { "type": "integer", "minimum": 0, "maximum": 10000 },
+        "highest_repair_priority": { "type": "integer", "minimum": 0, "maximum": 3 }
+      }
+    }
+  }
+}
