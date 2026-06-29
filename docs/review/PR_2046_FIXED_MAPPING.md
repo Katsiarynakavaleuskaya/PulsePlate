@@ -19,12 +19,16 @@ wires the checker into the existing private proxy health job.
 - Original post-#2036 planning SHA:
   `b28bad895ece063d5bfddc95aa326cd19b73cd13`
 - Current branch head at PR open: `9af0917c1`
-- Bootstrap packet: `artifacts/orchestration/task_packets/f0ac59f07485.json`
+- Packet: `artifacts/orchestration/task_packets/f0ac59f07485.json`
 - Declared role order:
   `agent-coordinator -> dev-operator -> security-auditor -> qa-engineer-agent -> bug-hunter`
 - Experiment Runner oracle:
   `artifacts/orchestration/experiments/results/exp-9f9bdba0070d.json`
   (`status=accepted`, `contribution_kind=commit_decision`)
+
+## Experiment Runner Evidence
+
+- Artifact: `artifacts/orchestration/experiments/results/exp-9f9bdba0070d.json`
 
 ## Main Baseline Checks
 
@@ -38,11 +42,13 @@ wires the checker into the existing private proxy health job.
 
 ## Discussion Thread Pass
 
-- [x] Pre-open discussion-thread pass completed for local role-agent and
-  premortem findings.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+- [x] Pre-open discussion-thread pass completed for local role-agent and premortem findings.
 - [x] Fixed mapping artifact created after PR number allocation.
+- [x] Post-open qa-engineer-agent pass completed; actionable findings fixed or recorded below.
 - [ ] Post-open review-agent pass remains required:
-  `qa-engineer-agent -> bug-hunter -> security-auditor`.
+  `bug-hunter -> security-auditor`.
 - [ ] Codex Security diff scan / finding discovery remains required.
 - [ ] CodeRabbit, Sourcery, Cubic, current-head CI, and strict merge-readiness
   wrapper remain required before merge.
@@ -51,32 +57,38 @@ wires the checker into the existing private proxy health job.
 
 Disposition: FIXED
 Commit: 9af0917c1
-Evidence: `scripts/ci/check_emergency_wheel_mirror_parity.py`,
-`tests/test_emergency_wheel_mirror_parity.py`,
-`tests/test_private_python_proxy_workflow_contract.py`, and
-`.github/workflows/ci.yml`.
-Reason: Adds fail-closed all-entry emergency wheel parity against the approved
-private proxy and places it after the representative proxy health step.
+Evidence: `scripts/ci/check_emergency_wheel_mirror_parity.py`, `tests/test_emergency_wheel_mirror_parity.py`, `tests/test_private_python_proxy_workflow_contract.py`, and `.github/workflows/ci.yml`.
+Reason: Adds fail-closed all-entry emergency wheel parity against the approved private proxy and places it after the representative proxy health step.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2046 -> 9af0917c1
 
 Disposition: FIXED
 Commit: 9af0917c1
-Evidence: `scripts/ci/install_locked_python_requirements.py`,
-`scripts/ci/emergency_python_wheels.json`, and
-`tests/test_install_locked_python_requirements.py`.
-Reason: Retires the runtime-effective emergency manifest as a dated empty
-compatibility marker and keeps arbitrary empty manifests fail-closed.
+Evidence: `scripts/ci/install_locked_python_requirements.py`, `scripts/ci/emergency_python_wheels.json`, and `tests/test_install_locked_python_requirements.py`.
+Reason: Retires the runtime-effective emergency manifest as a dated empty compatibility marker and keeps arbitrary empty manifests fail-closed.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2046 -> 9af0917c1
 
 Disposition: FIXED
 Commit: 9af0917c1
-Evidence: `RUNBOOK_AGENT.md`, `docs/DEPENDENCY_MANAGEMENT.md`,
-`docs/roadmap/BACKLOG_LEDGER.md`, and
-`docs/review/PR_EMERGENCY_WHEEL_MIRROR_PARITY_PREMORTEM.md`.
-Reason: Documents representative health versus all-entry parity, records
-premortem finding closure, and marks runtime-effective emergency fallbacks
-retired while leaving full compatibility-path removal as follow-up scope.
+Evidence: `RUNBOOK_AGENT.md`, `docs/DEPENDENCY_MANAGEMENT.md`, `docs/roadmap/BACKLOG_LEDGER.md`, and `docs/review/PR_EMERGENCY_WHEEL_MIRROR_PARITY_PREMORTEM.md`.
+Reason: Documents representative health versus all-entry parity, records premortem finding closure, and marks runtime-effective emergency fallbacks retired while leaving full compatibility-path removal as follow-up scope.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2046 -> 9af0917c1
+
+Disposition: FIXED
+Commit: 24270cb8c
+Evidence: `scripts/ci/check_emergency_wheel_mirror_parity.py` compares Simple API `#sha256` fragments to manifest hashes; `tests/test_emergency_wheel_mirror_parity.py` covers digest mismatch failure.
+Reason: Post-open qa-engineer-agent found exact filename parity without mirrored digest parity.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2046 -> 24270cb8c
+
+Disposition: FIXED
+Commit: 24270cb8c
+Evidence: `.github/workflows/ci.yml` creates `pulseplate-private-proxy-health-netrc-created` only when protected-main auth writes `.netrc`; cleanup removes `.netrc` only when that marker exists; `tests/test_private_python_proxy_workflow_contract.py` enforces the marker contract.
+Reason: Post-open qa-engineer-agent found protected-main cleanup could delete a pre-existing runner `.netrc` after the configure step refused overwrite.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2046 -> 24270cb8c
+
+Disposition: NOT-A-BUG
+Evidence: `scripts/ci/check_emergency_wheel_mirror_parity.py` intentionally fails closed with `simple_page_truncated` before trusting a partial Simple API page; this is documented in validation as a proxy health signal rather than a filename miss.
+Reason: Post-open qa-engineer-agent classified truncation-before-visible-filename as a false-red risk only; the fail-closed behavior is intentional for supply-chain parity.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2046
 
 ## Validation Evidence
 
@@ -95,9 +107,11 @@ retired while leaving full compatibility-path removal as follow-up scope.
 - `pre-commit run --all-files` PASS.
 - Push pre-push hooks PASS, including changed-file mypy, pip-audit, backend
   tests, full-repo Bandit, and Docker build test.
+- `python -m pytest -q tests/test_emergency_wheel_mirror_parity.py tests/test_private_python_proxy_workflow_contract.py` PASS after post-open QA fixes.
+- `python3 scripts/ci/check_emergency_wheel_mirror_parity.py --manifest scripts/ci/emergency_python_wheels.json --index-url https://packages.pulseplate.app/root/pulseplate/+simple/ --python-version 3.11 --python-version 3.12 --python-version 3.13 --format text` PASS with `retired=true artifacts=0 missing=0`.
 
 ## Merge Readiness
 
 Not merge-ready yet. Current-head PR CI, post-open role passes, Codex Security
-diff scan/finding discovery, bot review disposition, PR body mirror refresh,
-strict merge-readiness, and mandatory wait-window remain required.
+diff scan/finding discovery, bot review disposition, current-head PR body mirror
+check, strict merge-readiness, and mandatory wait-window remain required.
