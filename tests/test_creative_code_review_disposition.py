@@ -3,12 +3,16 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import re
 from typing import Any
 
 import pytest
 
 from core.evidence.fingerprints import fingerprint_payload
 from scripts.orchestration import creative_code_review_disposition as disposition_cli
+from scripts.orchestration import (
+    creative_code_review_disposition_contract as disposition_contract_cli,
+)
 from scripts.orchestration.creative_code_review_disposition_contract import (
     CreativeCodeReviewDispositionContractError,
     build_creative_code_repair_launch_packet,
@@ -17,6 +21,7 @@ from scripts.orchestration.creative_code_review_disposition_contract import (
     classify_feedback_record,
     read_json_object,
     validate_creative_code_repair_launch_packet,
+    validate_creative_code_review_feedback_collection,
     validate_creative_code_review_disposition_packet,
     validate_creative_code_review_feedback_record,
 )
@@ -112,6 +117,16 @@ def test_review_disposition_schemas_are_closed_and_finite() -> None:
     for key, schema in launch_schema["$defs"]["authority"]["properties"].items():
         if key != "create_pr1_specification":
             assert schema["const"] is False
+
+
+def test_feedback_schema_github_url_pattern_rejects_suffixes() -> None:
+    feedback_schema = json.loads(FEEDBACK_SCHEMA.read_text(encoding="utf-8"))
+    pattern = feedback_schema["$defs"]["github_url_or_null"]["anyOf"][0]["pattern"]
+    valid_url = "https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2045"
+
+    assert pattern.endswith("$")
+    assert re.search(pattern, valid_url)
+    assert not re.search(pattern, f"{valid_url}.evil")
 
 
 def test_feedback_disposition_and_launch_packets_validate() -> None:
@@ -399,6 +414,10 @@ def test_github_fixture_collects_sanitized_feedback(
     assert collection["feedback_records"][0]["sanitized_excerpt"]["text"] == (
         "coverage guard failed in PR-5 fixture"
     )
+    assert validate_creative_code_review_feedback_collection(collection)["artifact_type"] == (
+        "creative_code_review_feedback_collection"
+    )
+    assert disposition_contract_cli.main([str(review_root / "github.json")]) == 0
 
 
 @pytest.mark.parametrize(

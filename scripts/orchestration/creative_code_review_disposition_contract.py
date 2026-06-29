@@ -22,6 +22,7 @@ SCHEMA_VERSION = "1.0"
 POLICY_VERSION = "creative-code-review-disposition-pr5"
 
 FEEDBACK_RECORD_TYPE = "creative_code_review_feedback_record"
+FEEDBACK_COLLECTION_TYPE = "creative_code_review_feedback_collection"
 DISPOSITION_PACKET_TYPE = "creative_code_review_disposition_packet"
 REPAIR_LAUNCH_PACKET_TYPE = "creative_code_repair_launch_packet"
 
@@ -178,6 +179,15 @@ PACKET_KEYS = frozenset(
         "feedback_records",
         "summary",
         "authority",
+        "sanitized",
+    }
+)
+COLLECTION_KEYS = frozenset(
+    {
+        "schema_version",
+        "artifact_type",
+        "source_context",
+        "feedback_records",
         "sanitized",
     }
 )
@@ -1119,6 +1129,29 @@ def disposition_packet_fingerprint(packet: Mapping[str, Any]) -> str:
     return cast(str, fingerprint_payload(cast(Any, _packet_identity_payload(normalized))))
 
 
+def validate_creative_code_review_feedback_collection(
+    payload: Mapping[str, Any],
+) -> dict[str, Any]:
+    label = "CreativeCodeReviewFeedbackCollection"
+    _require_exact_keys(payload, COLLECTION_KEYS, label=label)
+    raw_records = payload["feedback_records"]
+    if not isinstance(raw_records, list):
+        raise CreativeCodeReviewDispositionContractError("feedback_records must be an array.")
+    normalized = {
+        "schema_version": _require_const(payload, "schema_version", SCHEMA_VERSION, label=label),
+        "artifact_type": _require_const(
+            payload, "artifact_type", FEEDBACK_COLLECTION_TYPE, label=label
+        ),
+        "source_context": _normalize_source_context(payload["source_context"]),
+        "feedback_records": [
+            validate_creative_code_review_feedback_record(record) for record in raw_records
+        ],
+        "sanitized": _require_bool(payload, "sanitized", expected=True, label=label),
+    }
+    reject_unsafe_review_value(normalized, label=label)
+    return normalized
+
+
 def _launch_identity_payload(packet: Mapping[str, Any]) -> dict[str, Any]:
     return {
         key: packet[key] for key in sorted(REPAIR_LAUNCH_KEYS - {"launch_id", "idempotency_key"})
@@ -1317,9 +1350,13 @@ def validate_creative_code_repair_launch_packet(payload: Mapping[str, Any]) -> d
 
 def _read_artifact_by_type(path: str | Path) -> dict[str, Any]:
     payload = read_json_object(path)
-    artifact_type = payload.get("record_type") or payload.get("packet_type")
+    artifact_type = (
+        payload.get("record_type") or payload.get("artifact_type") or payload.get("packet_type")
+    )
     if artifact_type == FEEDBACK_RECORD_TYPE:
         return validate_creative_code_review_feedback_record(payload)
+    if artifact_type == FEEDBACK_COLLECTION_TYPE:
+        return validate_creative_code_review_feedback_collection(payload)
     if artifact_type == DISPOSITION_PACKET_TYPE:
         return validate_creative_code_review_disposition_packet(payload)
     if artifact_type == REPAIR_LAUNCH_PACKET_TYPE:
