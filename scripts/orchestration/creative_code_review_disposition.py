@@ -25,6 +25,7 @@ from scripts.orchestration.creative_code_review_disposition_contract import (
     reject_unsafe_review_value,
     validate_creative_code_repair_launch_packet,
     validate_creative_code_review_disposition_packet,
+    validate_creative_code_review_feedback_collection,
     validate_creative_code_review_feedback_record,
 )
 
@@ -94,11 +95,11 @@ def _resolve_output_path(raw_path: Path, *, allowed_suffixes: tuple[str, ...] = 
 
 
 def _write_json(path: Path | None, payload: dict[str, Any]) -> None:
+    reject_unsafe_review_value(payload, label="output")
     if path is None:
         print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
         return
     output = _resolve_output_path(path)
-    reject_unsafe_review_value(payload, label="output")
     if output.is_symlink():
         raise CreativeCodeReviewDispositionError("output path must not be a symlink.")
     temp_name: str | None = None
@@ -369,7 +370,7 @@ def build_collection(
     source_context: dict[str, Any],
     records: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    return {
+    collection = {
         "schema_version": "1.0",
         "artifact_type": COLLECTION_TYPE,
         "source_context": source_context,
@@ -378,6 +379,7 @@ def build_collection(
         ],
         "sanitized": True,
     }
+    return cast(dict[str, Any], validate_creative_code_review_feedback_collection(collection))
 
 
 def read_collection(path: Path) -> tuple[dict[str, Any], list[dict[str, Any]]]:

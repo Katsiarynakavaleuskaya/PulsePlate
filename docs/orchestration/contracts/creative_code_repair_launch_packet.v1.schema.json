@@ -55,7 +55,7 @@
           "minLength": 1,
           "maxLength": 240,
           "not": {
-            "pattern": "(diff --git|raw[_ -]?(body|prompt|response|context|patch)|review[_ -]?thread[_ -]?body|pull[_ -]?request[_ -]?body|provider[_ -]?payload|oracle[_ -]?(stdout|stderr)|/[U]sers/|/private/var/|/tmp/|~[/\\\\]|\\.venv/|\\.git/|worktrees([:/._-]|$)|GH_TOKEN|GITHUB_TOKEN|github_pat_|gh[psoru]_|sk-[A-Za-z0-9_-]{12,}|xox[abprs]-)"
+            "pattern": "(diff --git|raw[_ -]?(body|prompt|response|context|patch)|review[_ -]?thread[_ -]?body|pull[_ -]?request[_ -]?body|chain[_ -]?of[_ -]?thought|provider[_ -]?payload|oracle[_ -]?(stdout|stderr)|/[U]sers/|/private/var/|/tmp/|~[/\\\\]|\\.venv/|\\.git/|worktrees([:/._-]|$)|GH_TOKEN|GITHUB_TOKEN|github_pat_|gh[psoru]_|sk-[A-Za-z0-9_-]{12,}|xox[abprs]-)"
           }
         },
         "source_packet_id": { "$ref": "#/$defs/safe_id" }
@@ -92,7 +92,7 @@
           "minLength": 1,
           "maxLength": 240,
           "not": {
-            "pattern": "(diff --git|raw[_ -]?(body|prompt|response|context|patch)|review[_ -]?thread[_ -]?body|pull[_ -]?request[_ -]?body|provider[_ -]?payload|oracle[_ -]?(stdout|stderr)|/[U]sers/|/private/var/|/tmp/|~[/\\\\]|\\.venv/|\\.git/|worktrees([:/._-]|$)|GH_TOKEN|GITHUB_TOKEN|github_pat_|gh[psoru]_|sk-[A-Za-z0-9_-]{12,}|xox[abprs]-)"
+            "pattern": "(diff --git|raw[_ -]?(body|prompt|response|context|patch)|review[_ -]?thread[_ -]?body|pull[_ -]?request[_ -]?body|chain[_ -]?of[_ -]?thought|provider[_ -]?payload|oracle[_ -]?(stdout|stderr)|/[U]sers/|/private/var/|/tmp/|~[/\\\\]|\\.venv/|\\.git/|worktrees([:/._-]|$)|GH_TOKEN|GITHUB_TOKEN|github_pat_|gh[psoru]_|sk-[A-Za-z0-9_-]{12,}|xox[abprs]-)"
           }
         },
         "source_fingerprint": { "$ref": "#/$defs/sha256" }

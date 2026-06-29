@@ -158,6 +158,35 @@ def test_feedback_schema_classification_matches_python_repair_invariants() -> No
     assert non_repair_rule["then"]["properties"]["repair_priority"] == {"const": 0}
 
 
+def test_schemas_reject_control_char_paths_and_chain_of_thought_markers() -> None:
+    feedback_schema = json.loads(FEEDBACK_SCHEMA.read_text(encoding="utf-8"))
+    disposition_schema = json.loads(DISPOSITION_SCHEMA.read_text(encoding="utf-8"))
+    launch_schema = json.loads(LAUNCH_SCHEMA.read_text(encoding="utf-8"))
+
+    feedback_path_pattern = feedback_schema["$defs"]["review_surface"]["properties"]["path"][
+        "anyOf"
+    ][0]["pattern"]
+    disposition_context_path_pattern = disposition_schema["$defs"]["source_context"]["properties"][
+        "context_path"
+    ]["anyOf"][0]["pattern"]
+    unsafe_path = "safe\n/Users/example/private.txt"
+
+    assert not re.search(feedback_path_pattern, unsafe_path)
+    assert not re.search(disposition_context_path_pattern, unsafe_path)
+
+    feedback_leak_pattern = feedback_schema["$defs"]["sanitized_excerpt"]["properties"]["text"][
+        "not"
+    ]["pattern"]
+    launch_reason_pattern = launch_schema["$defs"]["target_pr1_specification"]["properties"][
+        "reason"
+    ]["not"]["pattern"]
+    launch_excerpt_pattern = launch_schema["$defs"]["repair_candidate"]["properties"][
+        "sanitized_excerpt"
+    ]["not"]["pattern"]
+    for pattern in (feedback_leak_pattern, launch_reason_pattern, launch_excerpt_pattern):
+        assert re.search(pattern, "chain-of-thought must never be serialized")
+
+
 def test_feedback_disposition_and_launch_packets_validate() -> None:
     classified = classify_feedback_record(_record())
     assert classified["classification"] == {
@@ -508,6 +537,37 @@ def test_github_fixture_rejects_top_level_raw_body_field(
     )
 
     assert disposition_cli.main(["collect", "--github-fixture", str(fixture_path)]) == 1
+
+
+def test_collect_stdout_rejects_unsafe_source_context_before_printing(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _configure_cli_root(monkeypatch, tmp_path)
+    fixture_path = tmp_path / "github_fixture.json"
+    _write_json(
+        fixture_path,
+        {
+            "head_sha": "a" * 40,
+            "issue_comments": [],
+            "pr_number": 2045,
+            "repository": "GH_TOKEN/PulsePlate",
+            "review_comments": [
+                {
+                    "body_excerpt_sanitized": "coverage guard failed in PR-5 fixture",
+                    "feedback_kind": "review_thread",
+                    "id": 2,
+                }
+            ],
+            "reviews": [],
+        },
+    )
+
+    assert disposition_cli.main(["collect", "--github-fixture", str(fixture_path)]) == 1
+    captured = capsys.readouterr()
+    assert "GH_TOKEN" not in captured.out
+    assert "creative_code_review_feedback_collection" not in captured.out
 
 
 @pytest.mark.parametrize(
