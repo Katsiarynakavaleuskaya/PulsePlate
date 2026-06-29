@@ -4,6 +4,7 @@ from collections import Counter
 import json
 from pathlib import Path
 import re
+import subprocess
 import sys
 from typing import Any
 
@@ -398,7 +399,41 @@ def test_collect_and_write_outputs_local_only_sanitized_sidecars(
 
 
 def test_telemetry_import_does_not_load_promotion_runtime_module() -> None:
-    assert "scripts.orchestration.creative_code_pr_promotion" not in sys.modules
+    probe = """
+import json
+import sys
+
+from scripts.orchestration import creative_code_telemetry
+
+runtime_module = "scripts.orchestration.creative_code_pr_promotion"
+print(json.dumps({"promotion_runtime_loaded": runtime_module in sys.modules}))
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", probe],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    stdout_tail = result.stdout[-1000:]
+    stderr_tail = result.stderr[-2000:]
+    assert result.returncode == 0, (
+        "fresh telemetry import probe failed "
+        f"returncode={result.returncode}\nstdout:\n{stdout_tail}\nstderr:\n{stderr_tail}"
+    )
+    try:
+        payload = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        raise AssertionError(
+            "fresh telemetry import probe emitted malformed JSON "
+            f"stdout:\n{stdout_tail}\nstderr:\n{stderr_tail}"
+        ) from exc
+    assert payload == {"promotion_runtime_loaded": False}, (
+        "creative_code_telemetry import loaded promotion runtime module "
+        f"in a fresh interpreter payload={payload!r}\n"
+        f"stdout:\n{stdout_tail}\nstderr:\n{stderr_tail}"
+    )
 
 
 def test_cli_accepts_repo_relative_artifact_paths(
