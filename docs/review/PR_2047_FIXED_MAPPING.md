@@ -29,8 +29,10 @@ transport-auth semantics only.
 
 ## Implementation Commits
 
-- `458cea85e` - fix manual billing transport auth and strict CI regression
+- `8eb1bd1b7` - fix manual billing transport auth and strict CI regression
   coverage.
+- `63cf62d39` - add parser-safe PR mapping evidence and adapt async tests for
+  the CI pre-commit hook environment.
 
 ## Lane Start Provenance
 
@@ -66,7 +68,7 @@ transport-auth semantics only.
 
 Disposition: FIXED
 
-Commit: `458cea85e`
+Commit: `8eb1bd1b7`
 
 Evidence: `app/routers/billing.py`, `tests/conftest.py`,
 `tests/guards/test_manual_billing_auth_contract_guard.py`,
@@ -81,11 +83,11 @@ Role: `security-auditor`
 
 Disposition: FIXED
 
-Commit: `458cea85e`
+Commit: `8eb1bd1b7`
 
 Evidence: Security review found stale CI-selected paid-route guard tests still
 expected PRO/VIP entitlement keys to authorize manual billing transport routes.
-Commit `458cea85e` updates `tests/test_paid_route_guards.py` so manual
+Commit `8eb1bd1b7` updates `tests/test_paid_route_guards.py` so manual
 transport calls use `manual_billing_headers` and paid-route entitlement tests
 seed backend state for the PRO/VIP subject explicitly.
 
@@ -93,10 +95,10 @@ Role: `bug-hunter`
 
 Disposition: FIXED
 
-Commit: `458cea85e`
+Commit: `8eb1bd1b7`
 
 Evidence: Bug-hunter found the local validation bundle initially omitted
-CI-selected billing entitlement suites. Commit `458cea85e` was validated with
+CI-selected billing entitlement suites. Commit `8eb1bd1b7` was validated with
 the expanded billing entitlement group:
 `tests/test_api_tiers_db_lookup.py`,
 `tests/test_billing_openapi_contract.py`,
@@ -111,11 +113,11 @@ the expanded billing entitlement group:
 
 Disposition: FIXED
 
-Commit: `458cea85e`
+Commit: `8eb1bd1b7`
 
 Evidence: Bug-hunter found a behavioral dependency-override regression test
 was using a local fake `get_api_key` instead of the real app dependency key.
-Commit `458cea85e` updates
+Commit `8eb1bd1b7` updates
 `tests/test_payment_source_contract_api.py::test_manual_intent_uses_configured_api_key_not_app_dependency_override`
 to install the override on `_APP_GET_API_KEY`.
 
@@ -123,11 +125,11 @@ Role: `pulseplate-premortem-risk-review`
 
 Disposition: FIXED
 
-Commit: `458cea85e`
+Commit: `8eb1bd1b7`
 
 Evidence: Premortem identified stale entitlement-header manual billing tests,
 dependency-override auth regression risk, missing final local gates, and a
-misleading test name. Commit `458cea85e` adds the guard, updates the tests,
+misleading test name. Commit `8eb1bd1b7` adds the guard, updates the tests,
 runs the expanded billing group, and renames the misleading test.
 
 Disposition: NOT-A-BUG
@@ -170,7 +172,7 @@ Role: `pulseplate-pr-review`
 
 Disposition: FIXED
 
-Commit: pending mapping/body follow-up commit
+Commit: `63cf62d39`
 
 Evidence: Dry-run report found only advisory governance items: missing mapping
 artifact in head and diff size above the review-risk threshold. This artifact
@@ -184,7 +186,7 @@ Role: `security-auditor`
 
 Disposition: FIXED
 
-Commit: pending mapping/body follow-up commit
+Commit: `63cf62d39`
 
 Evidence: Post-open security review found no actionable auth or billing
 security defect, and flagged one artifact-hygiene issue: a local absolute
@@ -210,6 +212,6 @@ supplies the heavy full signal.
 
 - Local narrow bundle: complete.
 - Current-head GitHub CI: pending after PR open.
-- Post-open mandatory role review, Codex Security scan, and
-  `pulseplate-pr-review`: pending.
+- Post-open mandatory role review and `pulseplate-pr-review`: complete.
+- Codex Security scan: pending.
 - Strict merge-readiness checks: pending.
