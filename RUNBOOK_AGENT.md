@@ -207,6 +207,13 @@ operator's acceptable local machine budget. GitHub current-head CI is the
 heavy/full-suite signal. Local `make verify` is allowed only when a human
 explicitly overrides this rule for one invocation.
 
+**Machine-heavy CI/tooling PRs:** the operator explicitly defers full local
+`make verify` by default in this checkout. Agents must use the documented narrow bundle
+and wait for canonical current-head CI parity: `lint`,
+required/current-head checks, the relevant `test-main` matrix,
+`diff-coverage` at ≥97%, security/governance checks, and
+`check_merge_ready.py --require-auth`.
+
 **This is the authoritative procedural checklist.** Thresholds/policy live in `AGENTS.md`.
 
 ### Merge-Ready Bundle (Blocking vs Advisory)

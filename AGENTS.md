@@ -7,6 +7,15 @@ in this PulsePlate checkout by default. The unsharded full suite exceeds the
 operator's acceptable local machine budget. Run local `make verify` only when a
 human explicitly overrides this rule for a single invocation.
 
+**Machine-heavy PR exception compatibility label:** the former
+operator-approved exception is now the repository-wide local default: agents
+do not run `make verify` by default. Merge evidence still requires the narrow
+local bundle (`make validate-changed`, `pre-commit run --all-files`, and focused
+tests) plus canonical current-head CI parity across `lint`,
+required/current-head checks, the relevant `test-main` matrix,
+`diff-coverage` ≥97%, security/governance checks, and
+`check_merge_ready.py --require-auth`.
+
 An agent MUST NOT claim a PR is "green", "ready", or "mergeable" unless BOTH
 the local narrow bundle and GitHub current-head CI are green:
 
