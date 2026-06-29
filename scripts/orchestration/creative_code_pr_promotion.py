@@ -252,7 +252,7 @@ def _normalize_github_repo_path(raw_path: str) -> str:
     if any(part in {".", ".."} for part in parts):
         raise CreativeCodePRPromotionError("origin remote must target PulsePlate.")
     repository = f"{parts[0]}/{parts[1]}"
-    if repository.lower() != TARGET_REPOSITORY.lower():
+    if repository != TARGET_REPOSITORY:
         raise CreativeCodePRPromotionError("origin remote must target PulsePlate.")
     return repository
 
