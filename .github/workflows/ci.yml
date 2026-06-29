@@ -581,10 +581,10 @@ jobs:
             exit 1
           fi
           marker="$RUNNER_TEMP/pulseplate-private-proxy-health-netrc-created"
+          touch "$marker"
           umask 077
           printf 'machine packages.pulseplate.app\n  login %s\n  password %s\n' \
             "$DEVPI_CI_USER" "$DEVPI_CI_PASSWORD" > "$HOME/.netrc"
-          touch "$marker"
 
       - name: Check private Python proxy health
         run: |

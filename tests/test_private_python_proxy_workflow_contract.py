@@ -184,6 +184,7 @@ def test_private_proxy_health_main_auth_is_netrc_only() -> None:
     assert "$HOME/.netrc" in protected_auth
     assert "pulseplate-private-proxy-health-netrc-created" in protected_auth
     assert 'touch "$marker"' in protected_auth
+    assert protected_auth.index('touch "$marker"') < protected_auth.index('> "$HOME/.netrc"')
     assert "[Rr][Oo][Oo][Tt]" in protected_auth
     assert "Root devpi credentials are forbidden" in protected_auth
 
