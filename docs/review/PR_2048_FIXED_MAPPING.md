@@ -79,12 +79,12 @@ Artifact: `artifacts/orchestration/experiments/results/pr5-review-disposition-or
 
 ## Fixed in Commit Mapping
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2048#discussion_r3492802024 -> `80ee8112d`
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2048#discussion_r3492802031 -> `80ee8112d`
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2048#discussion_r3492802037 -> `c1707c0af`
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2048#discussion_r3492802044 -> `80ee8112d`
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2048#discussion_r3492802053 -> `80ee8112d`
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2048#discussion_r3492802069 -> `80ee8112d`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2048#discussion_r3492802024 -> 80ee8112d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2048#discussion_r3492802031 -> 80ee8112d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2048#discussion_r3492802037 -> c1707c0af
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2048#discussion_r3492802044 -> 80ee8112d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2048#discussion_r3492802053 -> 80ee8112d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2048#discussion_r3492802069 -> 80ee8112d
 
 ## Initial Review-State Notes
 
