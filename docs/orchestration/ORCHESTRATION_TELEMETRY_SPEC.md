@@ -53,6 +53,32 @@ Required promotion fields:
 - `disposition`
 - `durable_artifact_path`
 
+### 1.3 Creative-Code Telemetry Artifacts
+
+Canonical inputs for the governed creative-code private-pilot funnel remain
+local and gitignored under:
+
+- `artifacts/orchestration/creative_code/spec_runs/`
+- `artifacts/orchestration/creative_code/patch_runs/`
+- `artifacts/orchestration/creative_code/promotions/`
+
+PR-4 adds a creative-code-specific telemetry sidecar:
+
+- Contract: `docs/orchestration/contracts/CREATIVE_CODE_TELEMETRY_CONTRACT.md`
+- Event schema:
+  `docs/orchestration/contracts/creative_code_telemetry_event.v1.schema.json`
+- Rollup schema:
+  `docs/orchestration/contracts/creative_code_telemetry_rollup.v1.schema.json`
+- Taxonomy schema:
+  `docs/orchestration/contracts/creative_code_rejection_taxonomy.v1.schema.json`
+- Reference taxonomy:
+  `docs/orchestration/contracts/creative_code_rejection_taxonomy.v1.json`
+
+This sidecar reads only sanitized PR-1/PR-2/PR-3 creative-code artifacts and
+must not read raw patches, raw prompts, raw provider payloads, oracle
+stdout/stderr, Slack payloads, GitHub API payloads, review thread bodies, PR
+bodies, secrets, token values, or local absolute paths.
+
 ---
 
 ## 2) Aggregation Output
@@ -79,6 +105,29 @@ Rollup contains:
 - `experiments.promoted_count`
 - `experiments.deferred_count`
 - `experiments.rows.<experiment_id>`
+
+### 2.2 Creative-Code Telemetry Rollup Artifact (advisory)
+
+Canonical output (local, gitignored):
+
+- `artifacts/orchestration/creative_code/telemetry/creative_code_telemetry_rollup.json`
+- `artifacts/orchestration/creative_code/telemetry/creative_code_telemetry_events.jsonl`
+- `artifacts/orchestration/creative_code/telemetry/creative_code_telemetry_summary.md`
+- `artifacts/orchestration/creative_code/telemetry/creative_code_rejection_taxonomy.v1.json`
+
+Creative-code rollups contain:
+
+- `event_count`
+- `funnel.*` counts for specification bundles, patch results, promotion plan /
+  validation / approval, and opened PR receipts
+- integer basis-point rates (`10000 = 100%`)
+- counts by stage, status, failure class, and rejection taxonomy class
+- source artifact fingerprints
+- local-only caveats
+
+The creative-code sidecar is intentionally separate from
+`telemetry_rollup.py` agent reliability scoring. It is funnel measurement, not
+automatic routing truth.
 
 ---
 
@@ -131,6 +180,12 @@ python scripts/orchestration/telemetry_rollup.py
 python scripts/orchestration/telemetry_rollup.py \
   --experiment-results-dir artifacts/orchestration/experiments/results \
   --experiment-promotions-dir artifacts/orchestration/experiments/promotions
+
+python -m scripts.orchestration.creative_code_telemetry \
+  --spec-runs-dir artifacts/orchestration/creative_code/spec_runs \
+  --patch-runs-dir artifacts/orchestration/creative_code/patch_runs \
+  --promotions-dir artifacts/orchestration/creative_code/promotions \
+  --output-dir artifacts/orchestration/creative_code/telemetry
 ```
 
 ### 5.2 Frequency
@@ -146,6 +201,10 @@ python scripts/orchestration/telemetry_rollup.py \
 - No auto-edits of `AGENT_ROUTING_GRAPH.md` / `AGENT_CAPABILITY_MATRIX.md`.
 - No storage of raw LLM outputs in telemetry rollups.
 - No remote analytics pipeline in P2.
+- No GitHub/Slack live ingestion, review-thread resolution, fixed-mapping
+  automation, merge-readiness claims, branch/PR mutation, provider calls,
+  product runtime imports, semantic-cache activation, or public platform
+  backend from creative-code telemetry.
 
 ---
 

@@ -1,0 +1,225 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pulseplate.local/contracts/creative_code_telemetry_event.v1.schema.json",
+  "title": "CreativeCodeTelemetryEvent",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "policy_version",
+    "event_id",
+    "idempotency_key",
+    "lane_stage",
+    "source_artifact_type",
+    "source_artifact_id",
+    "source_fingerprint",
+    "candidate_ids",
+    "status",
+    "rejection_class",
+    "failure_class",
+    "taxonomy_codes",
+    "metrics",
+    "cost_metadata",
+    "authority",
+    "sanitized"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "artifact_type": { "const": "creative_code_telemetry_event" },
+    "policy_version": { "const": "creative-code-telemetry-pr4" },
+    "event_id": { "$ref": "#/$defs/safe_id" },
+    "idempotency_key": { "$ref": "#/$defs/safe_id" },
+    "lane_stage": {
+      "enum": [
+        "specification",
+        "patch_evaluation",
+        "promotion_plan",
+        "promotion_validation",
+        "promotion_approval",
+        "pr_open",
+        "artifact_read_error"
+      ]
+    },
+    "source_artifact_type": {
+      "enum": [
+        "creative_code_specification",
+        "creative_code_patch_result",
+        "creative_code_pr_promotion_plan",
+        "creative_code_pr_promotion_validation",
+        "creative_code_pr_promotion_approval",
+        "creative_code_pr_promotion_receipt",
+        "creative_code_artifact_read_error"
+      ]
+    },
+    "source_artifact_id": { "$ref": "#/$defs/safe_id" },
+    "source_fingerprint": { "$ref": "#/$defs/sha256" },
+    "candidate_ids": { "$ref": "#/$defs/candidate_ids" },
+    "status": {
+      "enum": ["accepted", "rejected", "blocked", "promoted", "opened", "not_applicable"]
+    },
+    "rejection_class": { "$ref": "#/$defs/taxonomy_or_null" },
+    "failure_class": { "$ref": "#/$defs/taxonomy_or_null" },
+    "taxonomy_codes": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/taxonomy_code" }
+    },
+    "metrics": { "$ref": "#/$defs/metrics" },
+    "cost_metadata": { "$ref": "#/$defs/cost_metadata" },
+    "authority": { "$ref": "#/$defs/authority" },
+    "sanitized": { "const": true }
+  },
+  "$defs": {
+    "safe_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "not": {
+        "pattern": "(diff --git|raw[_ -]?(prompt|response|context|patch)|candidate\\.patch|candidate_patch|chain[_ -]?of[_ -]?thought|provider[_ -]?payload|oracle[_ -]?(stdout|stderr)|/[U]sers/|/private/var/|/var/folders/|/tmp/|\\.venv/|\\.git/|worktrees([:/._-]|$)|authorization:\\s*bearer|private[_ -]?key|api[_ -]?key|GH_TOKEN|GITHUB_TOKEN|sk-[A-Za-z0-9_-]{12,}|gh[psoru]_|github_pat_|xox[abprs]-)"
+      }
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "taxonomy_code": {
+      "enum": [
+        "approval_missing",
+        "base_drift",
+        "branch_exists",
+        "duplicate_variant",
+        "github_transport_failed",
+        "guard_failure",
+        "infra_flake",
+        "invalid_input",
+        "leak_detected",
+        "lineage_mismatch",
+        "malformed_artifact",
+        "metric_regression",
+        "oom",
+        "patch_drift",
+        "policy_violation",
+        "pr_readback_failed",
+        "review_blocker",
+        "specification_rejected",
+        "timeout",
+        "unchanged_result",
+        "unknown",
+        "unsafe_authority"
+      ]
+    },
+    "taxonomy_or_null": {
+      "anyOf": [{ "$ref": "#/$defs/taxonomy_code" }, { "type": "null" }]
+    },
+    "candidate_ids": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_packet_id",
+        "source_bundle_id",
+        "selected_variant_id",
+        "request_id",
+        "result_id",
+        "promotion_id"
+      ],
+      "properties": {
+        "source_packet_id": { "$ref": "#/$defs/safe_id_or_null" },
+        "source_bundle_id": { "$ref": "#/$defs/safe_id_or_null" },
+        "selected_variant_id": { "$ref": "#/$defs/safe_id_or_null" },
+        "request_id": { "$ref": "#/$defs/safe_id_or_null" },
+        "result_id": { "$ref": "#/$defs/safe_id_or_null" },
+        "promotion_id": { "$ref": "#/$defs/safe_id_or_null" }
+      }
+    },
+    "safe_id_or_null": {
+      "anyOf": [{ "$ref": "#/$defs/safe_id" }, { "type": "null" }]
+    },
+    "nullable_count": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "maximum": 1000000
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "variant_count",
+        "selected_variant_count",
+        "changed_files",
+        "diff_lines",
+        "patch_bytes",
+        "oracle_commands_configured",
+        "oracle_commands_executed",
+        "generation_attempts",
+        "promotion_plan_count",
+        "promotion_validation_passed",
+        "promotion_approval_count",
+        "pull_requests_opened"
+      ],
+      "properties": {
+        "variant_count": { "$ref": "#/$defs/nullable_count" },
+        "selected_variant_count": { "$ref": "#/$defs/nullable_count" },
+        "changed_files": { "$ref": "#/$defs/nullable_count" },
+        "diff_lines": { "$ref": "#/$defs/nullable_count" },
+        "patch_bytes": { "$ref": "#/$defs/nullable_count" },
+        "oracle_commands_configured": { "$ref": "#/$defs/nullable_count" },
+        "oracle_commands_executed": { "$ref": "#/$defs/nullable_count" },
+        "generation_attempts": { "$ref": "#/$defs/nullable_count" },
+        "promotion_plan_count": { "$ref": "#/$defs/nullable_count" },
+        "promotion_validation_passed": { "$ref": "#/$defs/nullable_count" },
+        "promotion_approval_count": { "$ref": "#/$defs/nullable_count" },
+        "pull_requests_opened": { "$ref": "#/$defs/nullable_count" }
+      }
+    },
+    "cost_metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "available",
+        "input_tokens",
+        "cached_input_tokens",
+        "output_tokens",
+        "reasoning_output_tokens",
+        "estimated"
+      ],
+      "properties": {
+        "available": { "type": "boolean" },
+        "input_tokens": { "type": ["integer", "null"], "minimum": 0 },
+        "cached_input_tokens": { "type": ["integer", "null"], "minimum": 0 },
+        "output_tokens": { "type": ["integer", "null"], "minimum": 0 },
+        "reasoning_output_tokens": { "type": ["integer", "null"], "minimum": 0 },
+        "estimated": { "type": "boolean" }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "read_only_telemetry",
+        "writes_repo",
+        "opens_pr",
+        "resolves_threads",
+        "claims_merge_readiness",
+        "merges",
+        "calls_network",
+        "calls_runtime",
+        "modifies_github_app",
+        "modifies_slack"
+      ],
+      "properties": {
+        "read_only_telemetry": { "const": true },
+        "writes_repo": { "const": false },
+        "opens_pr": { "const": false },
+        "resolves_threads": { "const": false },
+        "claims_merge_readiness": { "const": false },
+        "merges": { "const": false },
+        "calls_network": { "const": false },
+        "calls_runtime": { "const": false },
+        "modifies_github_app": { "const": false },
+        "modifies_slack": { "const": false }
+      }
+    }
+  }
+}

@@ -52,6 +52,16 @@
   submit reviews, resolve review threads, edit fixed mappings, claim merge
   readiness, merge, release, call Slack/GitHub App authority paths, or call
   `experiment_pipeline.py`, `experiment_promote.py`, or notification wrappers.
+- PR-4 creative-code telemetry artifacts stay local under
+  `artifacts/orchestration/creative_code/telemetry/`. The telemetry CLI
+  `creative_code_telemetry.py` may only read already-sanitized local PR-1/PR-2
+  / PR-3 creative-code artifacts and emit advisory event/rollup/taxonomy
+  sidecars. It must not read raw patches, prompts, provider payloads, oracle
+  stdout/stderr, Slack/GitHub payloads, review-thread bodies, PR bodies,
+  secrets, token values, or local absolute paths, and it must not create
+  branches, open PRs, resolve review threads, edit fixed mappings, claim merge
+  readiness, merge, release, call providers, call product runtime, or call
+  Slack/GitHub authority paths.
 - `experiment_notify.py` follows the notification contract in
   `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`: local artifact output
   is the default, SMTP email and Slack delivery are explicit opt-in only, and no
