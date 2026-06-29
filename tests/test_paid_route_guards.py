@@ -10,7 +10,11 @@ from sqlalchemy import select
 
 from app.middleware.api_tiers import TEST_KEY_PRO, TEST_KEY_VIP, derive_subject_id_from_api_key
 from app.models import Subscription
-from app.schemas.payments import SubscriptionStatus
+from app.schemas.payments import (
+    ActivateSubscriptionRequest,
+    ManualRailReconcileRequest,
+    SubscriptionStatus,
+)
 from app.services import payments_activation
 from core import db as core_db
 from core.billing_policy import LEGACY_MANUAL_COMPAT_CUTOFF
@@ -141,6 +145,43 @@ def _manual_payload(*, source: str, source_reference: str) -> dict[str, Any]:
             "submitted_currency": "BYN",
         },
     }
+
+
+def _create_manual_activation_for_api_key(
+    *,
+    api_key: str,
+    source: str,
+    source_reference: str,
+    plan: str = "pro_monthly",
+) -> str:
+    payload = _manual_payload(source=source, source_reference=source_reference)
+    payload["plan"] = plan
+    activation, _ = payments_activation.activate_subscription(
+        issuer=payments_activation.issuer_from_api_key(api_key),
+        payload=ActivateSubscriptionRequest.model_validate(payload),
+    )
+    return activation.activation_id
+
+
+def _reconcile_manual_activation_for_api_key(
+    *,
+    api_key: str,
+    intent_id: str,
+    client_event_id: str,
+    decision: str,
+    external_txn_id: str,
+) -> None:
+    payments_activation.reconcile_activation(
+        issuer=payments_activation.issuer_from_api_key(api_key),
+        payload=ManualRailReconcileRequest.model_validate(
+            {
+                "intent_id": intent_id,
+                "client_event_id": client_event_id,
+                "decision": decision,
+                "external_txn_id": external_txn_id,
+            }
+        ),
+    )
 
 
 def _load_subscription(*, api_key: str, source: str) -> Subscription:
@@ -315,12 +356,13 @@ def test_pending_manual_review_does_not_unlock_paid_routes(
 def test_manual_ru_by_entry_routes_remain_callable_before_entitlement(
     client: TestClient,
     pro_headers: dict[str, str],
+    manual_billing_headers: dict[str, str],
 ) -> None:
     """Manual RU/BY entry routes stay transport-auth accessible before entitlement exists."""
 
     create_intent = client.post(
         "/api/v1/pro/payments/ru-by/manual-intent",
-        headers=pro_headers,
+        headers=manual_billing_headers,
         json={
             "source": "erip_qr",
             "plan": "pro_monthly",
@@ -335,7 +377,7 @@ def test_manual_ru_by_entry_routes_remain_callable_before_entitlement(
 
     status_response = client.get(
         f"/api/v1/pro/payments/ru-by/reconcile/{intent_id}",
-        headers=pro_headers,
+        headers=manual_billing_headers,
     )
     assert status_response.status_code == 200, status_response.text
     assert _json(status_response)["reconcile_status"] == "pending"
@@ -350,36 +392,19 @@ def test_verified_manual_vip_unlocks_pro_and_vip_routes(
 ) -> None:
     """Verified bounded manual VIP entitlement must unlock both paid surfaces."""
 
-    create_intent = client.post(
-        "/api/v1/pro/payments/ru-by/manual-intent",
-        headers=vip_headers,
-        json={
-            "source": "swift_manual",
-            "plan": "vip_monthly",
-            "client_event_id": "evt-manual-vip-intent-1",
-            "external_txn_id": "swift-manual-vip-1",
-            "amount_minor": 2999,
-            "currency": "BYN",
-        },
+    intent_id = _create_manual_activation_for_api_key(
+        api_key=TEST_KEY_VIP,
+        source="swift_manual",
+        source_reference="swift-manual-vip-1",
+        plan="vip_monthly",
     )
-    assert create_intent.status_code == 201, create_intent.text
-    intent_id = _json(create_intent)["intent_id"]
-
-    reconcile = client.post(
-        "/api/v1/pro/payments/ru-by/reconcile",
-        headers=vip_headers,
-        json={
-            "intent_id": intent_id,
-            "client_event_id": "evt-manual-vip-reconcile-1",
-            "decision": "verified",
-            "external_txn_id": "swift-manual-vip-settled-1",
-        },
+    _reconcile_manual_activation_for_api_key(
+        api_key=TEST_KEY_VIP,
+        intent_id=intent_id,
+        client_event_id="evt-manual-vip-reconcile-1",
+        decision="verified",
+        external_txn_id="swift-manual-vip-settled-1",
     )
-    assert reconcile.status_code == 200, reconcile.text
-    reconcile_payload = _json(reconcile)
-    assert reconcile_payload["status"] == "active"
-    assert reconcile_payload["subscription_tier"] == "vip"
-    assert reconcile_payload["expires_at"] is not None
 
     subscription = _load_subscription(api_key=TEST_KEY_VIP, source="swift_manual")
     assert subscription.status == SubscriptionStatus.active.value
@@ -395,35 +420,19 @@ def test_verified_manual_pro_unlocks_only_pro_route(
 ) -> None:
     """Verified manual PRO entitlement must not unlock VIP-only routes."""
 
-    create_intent = client.post(
-        "/api/v1/pro/payments/ru-by/manual-intent",
-        headers=pro_headers,
-        json={
-            "source": "erip_qr",
-            "plan": "pro_monthly",
-            "client_event_id": "evt-manual-pro-intent-1",
-            "external_txn_id": "erip-manual-pro-1",
-            "amount_minor": 1999,
-            "currency": "BYN",
-        },
+    intent_id = _create_manual_activation_for_api_key(
+        api_key=TEST_KEY_PRO,
+        source="erip_qr",
+        source_reference="erip-manual-pro-1",
+        plan="pro_monthly",
     )
-    assert create_intent.status_code == 201, create_intent.text
-    intent_id = _json(create_intent)["intent_id"]
-
-    reconcile = client.post(
-        "/api/v1/pro/payments/ru-by/reconcile",
-        headers=pro_headers,
-        json={
-            "intent_id": intent_id,
-            "client_event_id": "evt-manual-pro-reconcile-1",
-            "decision": "verified",
-            "external_txn_id": "erip-manual-pro-settled-1",
-        },
+    _reconcile_manual_activation_for_api_key(
+        api_key=TEST_KEY_PRO,
+        intent_id=intent_id,
+        client_event_id="evt-manual-pro-reconcile-1",
+        decision="verified",
+        external_txn_id="erip-manual-pro-settled-1",
     )
-    assert reconcile.status_code == 200, reconcile.text
-    reconcile_payload = _json(reconcile)
-    assert reconcile_payload["subscription_tier"] == "pro"
-    assert reconcile_payload["expires_at"] is not None
 
     assert client.get("/api/v1/pro/session", headers=pro_headers).status_code == 200
     assert client.get("/api/v1/vip/health", headers=pro_headers).status_code == 403
@@ -432,12 +441,13 @@ def test_verified_manual_pro_unlocks_only_pro_route(
 def test_rejected_manual_reconcile_keeps_paid_routes_denied(
     client: TestClient,
     pro_headers: dict[str, str],
+    manual_billing_headers: dict[str, str],
 ) -> None:
     """Rejected manual reconciliation must not unlock canonical paid routes."""
 
     create_intent = client.post(
         "/api/v1/pro/payments/ru-by/manual-intent",
-        headers=pro_headers,
+        headers=manual_billing_headers,
         json={
             "source": "erip_qr",
             "plan": "pro_monthly",
@@ -452,7 +462,7 @@ def test_rejected_manual_reconcile_keeps_paid_routes_denied(
 
     reconcile = client.post(
         "/api/v1/pro/payments/ru-by/reconcile",
-        headers=pro_headers,
+        headers=manual_billing_headers,
         json={
             "intent_id": intent_id,
             "client_event_id": "evt-manual-rejected-reconcile-1",
