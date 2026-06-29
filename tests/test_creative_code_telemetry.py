@@ -4,6 +4,7 @@ from collections import Counter
 import json
 from pathlib import Path
 import re
+import sys
 from typing import Any
 
 import pytest
@@ -13,12 +14,6 @@ from scripts.orchestration import creative_code_telemetry
 from scripts.orchestration.creative_code_patch_contract import (
     build_creative_code_patch_build_request,
     build_creative_code_patch_result,
-)
-from scripts.orchestration.creative_code_pr_promotion import (
-    APPROVAL_FILE,
-    PLAN_FILE,
-    RECEIPT_FILE,
-    VALIDATION_FILE,
 )
 from scripts.orchestration.creative_code_pr_promotion_contract import (
     build_creative_code_pr_promotion_approval,
@@ -41,6 +36,10 @@ from scripts.orchestration.creative_code_telemetry_contract import (
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+PLAN_FILE = creative_code_telemetry.PLAN_FILE
+VALIDATION_FILE = creative_code_telemetry.VALIDATION_FILE
+APPROVAL_FILE = creative_code_telemetry.APPROVAL_FILE
+RECEIPT_FILE = creative_code_telemetry.RECEIPT_FILE
 REFERENCE_BUNDLE = REPO_ROOT / "docs/orchestration/contracts/creative_code_specification.v1.json"
 EVENT_SCHEMA = (
     REPO_ROOT / "docs/orchestration/contracts/creative_code_telemetry_event.v1.schema.json"
@@ -142,7 +141,11 @@ index 8f11111..8f22222 100644
     )
 
 
-def _promotion_artifacts(result: dict[str, Any]) -> dict[str, dict[str, Any]]:
+def _promotion_artifacts(
+    result: dict[str, Any],
+    *,
+    partial_failure: str | None = None,
+) -> dict[str, dict[str, Any]]:
     promotion_id = "pr4-telemetry-test"
     target_branch = "experiment/pr4-telemetry-test"
     patch_fingerprint = result["patch_summary"]["patch_fingerprint"]
@@ -191,6 +194,7 @@ def _promotion_artifacts(result: dict[str, Any]) -> dict[str, dict[str, Any]]:
         pull_request_number=2040,
         pull_request_url="https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2040",
         approved_by_login="Katsiarynakavaleuskaya",
+        partial_failure=partial_failure,
     )
     return {
         PLAN_FILE: plan,
@@ -393,6 +397,10 @@ def test_collect_and_write_outputs_local_only_sanitized_sidecars(
     assert "not merge-readiness evidence" in emitted.lower()
 
 
+def test_telemetry_import_does_not_load_promotion_runtime_module() -> None:
+    assert "scripts.orchestration.creative_code_pr_promotion" not in sys.modules
+
+
 def test_cli_accepts_repo_relative_artifact_paths(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -427,6 +435,21 @@ def test_cli_accepts_repo_relative_artifact_paths(
     assert captured.err == ""
     assert (telemetry_root / creative_code_telemetry.ROLLUP_FILE).is_file()
     assert not (root / "telemetry" / "artifacts").exists()
+
+
+def test_promotion_receipt_readback_failure_uses_specific_taxonomy() -> None:
+    receipt = _promotion_artifacts(
+        _reference_patch_result(),
+        partial_failure="created PR failed non-draft readback verification",
+    )[RECEIPT_FILE]
+
+    event = creative_code_telemetry.event_from_promotion_receipt(receipt)
+
+    assert event["status"] == "blocked"
+    assert event["rejection_class"] == "pr_readback_failed"
+    assert event["failure_class"] == "pr_readback_failed"
+    assert event["taxonomy_codes"] == ["pr_readback_failed"]
+    assert event["metrics"]["pull_requests_opened"] == 0
 
 
 def test_malformed_patch_artifact_becomes_safe_error_event(

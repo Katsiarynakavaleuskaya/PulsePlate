@@ -19,12 +19,6 @@ from scripts.orchestration.creative_code_patch_contract import (
     read_creative_code_patch_result,
     validate_creative_code_patch_result,
 )
-from scripts.orchestration.creative_code_pr_promotion import (
-    APPROVAL_FILE,
-    PLAN_FILE,
-    RECEIPT_FILE,
-    VALIDATION_FILE,
-)
 from scripts.orchestration.creative_code_pr_promotion_contract import (
     CreativeCodePRPromotionContractError,
     read_json_object as read_promotion_json_object,
@@ -62,6 +56,11 @@ ROLLUP_FILE = "creative_code_telemetry_rollup.json"
 SUMMARY_FILE = "creative_code_telemetry_summary.md"
 TAXONOMY_FILE = "creative_code_rejection_taxonomy.v1.json"
 SUCCESS_OUTPUT = "PASS: creative-code telemetry collected"
+
+PLAN_FILE = "promotion_plan.json"
+VALIDATION_FILE = "preopen_validation.json"
+APPROVAL_FILE = "promotion_approval.json"
+RECEIPT_FILE = "promotion_receipt.json"
 
 
 class CreativeCodeTelemetryError(ValueError):
@@ -366,10 +365,22 @@ def event_from_promotion_approval(approval: dict[str, Any]) -> dict[str, Any]:
     )
 
 
+def _promotion_receipt_failure_code(receipt: dict[str, Any]) -> str | None:
+    if receipt["pull_request_state"] == "open":
+        return None
+    partial_failure = str(receipt["partial_failure"] or "").lower()
+    if receipt["pull_request_url"] and (
+        "readback" in partial_failure or "verification" in partial_failure
+    ):
+        return "pr_readback_failed"
+    return "github_transport_failed"
+
+
 def event_from_promotion_receipt(receipt: dict[str, Any]) -> dict[str, Any]:
     normalized = validate_creative_code_pr_promotion_receipt(receipt)
-    status = "opened" if normalized["pull_request_state"] == "open" else "blocked"
-    taxonomy_codes = [] if status == "opened" else ["github_transport_failed"]
+    failure_code = _promotion_receipt_failure_code(normalized)
+    status = "opened" if failure_code is None else "blocked"
+    taxonomy_codes = [] if failure_code is None else [failure_code]
     return cast(
         dict[str, Any],
         build_creative_code_telemetry_event(
