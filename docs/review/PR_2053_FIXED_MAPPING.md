@@ -10,21 +10,28 @@ This PR keeps the PR #2049 review-evidence redaction narrow by replacing
 developer-local interpreter paths with explicit redacted interpreter
 placeholders. It also adds the PR #2053 canonical mapping artifact and
 refreshes the PR body governance sections so current-head governance gates have
-the required evidence.
+the required evidence. It records a durable agent-orchestration rule that the
+post-open role/security/review chain is one required pass per lane, not an
+automatic loop restarted for each new review comment.
 
 ## Scope
 
 - Preserve the existing redaction in `docs/review/PR_2049_FIXED_MAPPING.md`.
 - Add this canonical `docs/review/PR_2053_FIXED_MAPPING.md` artifact.
 - Update the existing PR #2053 body with the required governance sections.
+- Update agent orchestration instructions to cap the mandatory post-open
+  role/security/review chain at one pass per lane unless a new
+  security-relevant diff, coordinator routing update, or explicit operator
+  instruction reopens it.
 - Keep the PR limited to removing developer-local interpreter paths from PR
-  #2049 review evidence and from the live PR #2053 body.
+  #2049 review evidence, from the live PR #2053 body, and from the related
+  review-governance loop rule.
 
 ## Out Of Scope
 
 No backend, frontend, iOS, macOS, OpenAPI, runtime security, billing,
 nutrition, product behavior, CI workflow, or broad review-governance policy
-change is in scope.
+change beyond the narrow post-open loop cap is in scope.
 
 ## Lane Start Provenance
 
@@ -59,6 +66,9 @@ change is in scope.
 - [x] `pulseplate-pr-review` completed.
 - [x] Current-head CI complete before readiness language.
 - [x] Strict merge-readiness checks run after the final review/check cycle.
+- [x] Orchestration loop guard recorded: post-open security/review passes are
+  one-pass evidence for this docs-governance lane; later review comments are
+  handled by fixed-mapping disposition, not by restarting the scan/review loop.
 
 ## Fixed in Commit Mapping
 
@@ -68,6 +78,18 @@ Evidence: docs/review/PR_2049_FIXED_MAPPING.md redacts the historical interprete
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2053#discussion_r3501840232 -> 3e3b9e76102063fb55a254a91551b46c034340ea
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2053#discussion_r3501840237 -> 3e3b9e76102063fb55a254a91551b46c034340ea
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2053#discussion_r3501840244 -> 3e3b9e76102063fb55a254a91551b46c034340ea
+
+Disposition: NOT-A-BUG
+Reason: The comments cite non-current review head `2909e1cf`; the live PR #2053 head is `281af73f33cb7811b5c6dc9d0d9b52ef296b5432`, and the mapped fix/Experiment Runner commits are reachable from that head.
+Evidence: `git merge-base --is-ancestor 3e3b9e76102063fb55a254a91551b46c034340ea 281af73f33cb7811b5c6dc9d0d9b52ef296b5432` returned 0; the same ancestor check returned 0 for `394077951` and `a745d7370`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2053#discussion_r3501917343
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2053#discussion_r3501917345
+
+Disposition: NOT-A-BUG
+Reason: This docs-governance lane already completed its mandatory post-open Codex Security and `pulseplate-pr-review` passes once. Re-running those passes for each new review comment creates an unbounded review loop; operator instruction on 2026-07-01 explicitly capped the loop at one pass and prohibited another scan.
+Evidence: `AGENTS.md` and `.agents/skills/pulseplate-orchestration-dispatch/rules/packet-parsing.md` record the durable single-pass rule; canceled Codex Security scan `d5c69338-a853-49b1-92aa-6fd6b77be13f` documents that an attempted duplicate full-diff scan was stopped before execution by operator override.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2053#discussion_r3501917346
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2053#discussion_r3501917350
 
 ## Initial Review-State Notes
 
@@ -177,6 +199,24 @@ GitHub checks.
   role agents and local path-scan validation because it was already committed
   in the PR branch before this working-tree scan was opened.
 
+## Orchestration Loop Guard
+
+- Policy for this lane: post-open role passes, Codex Security diff scan /
+  finding discovery, and `pulseplate-pr-review` are executed once for the
+  docs-governance PR lane.
+- Subsequent review comments are handled through `## Fixed in Commit Mapping`
+  with `FIXED`, `NOT-A-BUG`, or `DEFERRED` dispositions and targeted local
+  gates. They do not restart the role/security/review loop unless a new
+  security-relevant code diff enters scope or the operator explicitly requests
+  another run.
+- Operator instruction on 2026-07-01: do not run another Codex Security scan
+  for PR #2053; record the orchestration single-pass guard instead.
+- Durable rule locations: `AGENTS.md`,
+  `.agents/skills/pulseplate-orchestration-dispatch/AGENTS.md`, and
+  `.agents/skills/pulseplate-orchestration-dispatch/rules/packet-parsing.md`.
+- Duplicate scan attempt `d5c69338-a853-49b1-92aa-6fd6b77be13f` was canceled
+  before execution with finding count 0 and no report artifact.
+
 ## PulsePlate PR Review
 
 - Target mode: `post-open-review`
@@ -185,10 +225,9 @@ GitHub checks.
   `docs/review/PR_2053_FIXED_MAPPING.md`, and the live PR #2053 body.
 - Findings: none requiring code/docs changes beyond the fixes already captured
   in this artifact.
-- Note: `pr_review_context.py --pr 2053` was run before commit and correctly
-  warned that `docs/review/PR_2053_FIXED_MAPPING.md` was not yet present in
-  the PR head diff. It must be rerun after commit/push as validation evidence,
-  not as a blocker for this staged self-review.
+- Note: the post-open review pass is single-pass evidence for this lane. Later
+  Codex comments are dispositioned in this artifact without restarting
+  `pulseplate-pr-review`.
 
 ## Local Validation Evidence
 

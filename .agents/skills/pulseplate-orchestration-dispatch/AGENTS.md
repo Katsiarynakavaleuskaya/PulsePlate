@@ -45,6 +45,11 @@ Full mapping: `rules/role-mapping.md`
 - An agent with `depends_on_previous: true` MUST wait for its predecessor
 - The post-open mandatory pass is always sequential: qa-engineer → bug-hunter
 - Coordinator (first) and QA pass (last) are never parallelized with others
+- The post-open role/security/review chain is one required pass per PR lane. Do
+  not rerun the full chain for each new review comment. Later comments are
+  handled through `docs/review/PR_<N>_FIXED_MAPPING.md` disposition and targeted
+  validation unless a new security-relevant diff, coordinator routing update, or
+  explicit operator instruction reopens the chain.
 
 ## Error Handling
 
