@@ -133,6 +133,8 @@ jobs:
             --image pulseplate:test \
             --blocked-debian-package apt \
             --blocked-debian-package gpgv \
+            --blocked-debian-package libacl1 \
+            --blocked-debian-package libattr1 \
             --blocked-debian-package libgnutls30 \
             --blocked-debian-package libsqlite3-0 \
             --blocked-debian-package perl-base \

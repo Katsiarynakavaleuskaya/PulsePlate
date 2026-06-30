@@ -205,7 +205,7 @@ def test_build_workflow_does_not_expose_github_token_to_pr_baseline_script() -> 
 
 
 def test_production_dockerfile_prunes_package_manager_surface() -> None:
-    """Production target removes package-manager and Perl runtime packages."""
+    """Production target removes package-manager, ACL/attr, and Perl runtime packages."""
     dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
     production_section = dockerfile.split("FROM runtime-base AS production", 1)[1]
     production_section = production_section.split("FROM production AS staging", 1)[0]
@@ -219,13 +219,37 @@ def test_production_dockerfile_prunes_package_manager_surface() -> None:
     assert "dpkg --purge --force-depends --force-remove-essential" in pruning_block
     assert "perl_module_packages=" in pruning_block
     assert "'perl-modules-*'" in pruning_block
-    for package in ("apt", "gpgv", "libgnutls30", "libsqlite3-0", "perl-base"):
+    for package in (
+        "apt",
+        "gpgv",
+        "libacl1",
+        "libattr1",
+        "libgnutls30",
+        "libsqlite3-0",
+        "perl-base",
+    ):
         assert f"        {package} \\" in pruning_block
         assert f" {package} " in pruning_block
     assert "dpkg-query -W -f='${db:Status-Abbrev}'" in pruning_block
     assert "import ssl" in pruning_block
     assert "import sqlite3" in pruning_block
     assert "expected >= 3.53.2" in pruning_block
+
+
+def test_build_workflow_blocks_removed_acl_attr_runtime_packages() -> None:
+    """Docker runtime surface guard fails if base-image ACL/attr packages return."""
+    workflow = _load_workflow(WORKFLOWS_DIR / "build.yml")
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+    build_job = jobs["build"]
+    assert isinstance(build_job, dict)
+
+    surface_step = _step_by_name(build_job, "Check Docker runtime dependency surface")
+    run_script = surface_step["run"]
+    assert isinstance(run_script, str)
+
+    for package in ("libacl1", "libattr1"):
+        assert f"--blocked-debian-package {package}" in run_script
 
 
 def test_dockerfile_builds_verified_sqlite_runtime_library() -> None:
@@ -457,6 +481,8 @@ def test_docker_runtime_surface_guard_blocks_perl_runtime_packages() -> None:
         assert f"--image {image_ref}" in run_script
         assert "--blocked-debian-package apt" in run_script
         assert "--blocked-debian-package gpgv" in run_script
+        assert "--blocked-debian-package libacl1" in run_script
+        assert "--blocked-debian-package libattr1" in run_script
         assert "--blocked-debian-package libgnutls30" in run_script
         assert "--blocked-debian-package libsqlite3-0" in run_script
         assert "--blocked-debian-package perl-base" in run_script

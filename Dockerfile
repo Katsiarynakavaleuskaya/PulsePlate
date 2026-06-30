@@ -377,12 +377,12 @@ if importlib.util.find_spec("pip") is not None:
     sys.exit(1)
 PY
 
-# RU: Убираем package-manager TLS, Debian SQLite и Perl runtime surface только из production;
+# RU: Убираем package-manager TLS, ACL/attr, Debian SQLite и Perl runtime surface только из production;
 # RU: runtime-base/development остаются с apt для dev/staging workflows. apt/gpgv/perl-base
 # RU: essential для Debian, поэтому удаление намеренно ограничено final production stage
 # RU: и проверяется fail-closed.
-# EN: Remove the package-manager TLS, Debian SQLite, and Perl runtime surface only from
-# EN: production; runtime-base/development keep apt for dev/staging workflows.
+# EN: Remove the package-manager TLS, ACL/attr, Debian SQLite, and Perl runtime
+# EN: surface only from production; runtime-base/development keep apt for dev/staging workflows.
 # EN: apt/gpgv/perl-base are Debian-essential, so this removal is intentionally limited
 # EN: to the final production stage and checked fail-closed.
 # SECURITY: production-package-pruning-start
@@ -390,12 +390,14 @@ RUN perl_module_packages="$(dpkg-query -W -f='${Package}\n' 'perl-modules-*' 2>/
     && dpkg --purge --force-depends --force-remove-essential \
         apt \
         gpgv \
+        libacl1 \
+        libattr1 \
         libgnutls30 \
         libsqlite3-0 \
         perl-base \
         ${perl_module_packages} \
     && rm -rf /var/lib/apt/lists/* /var/cache/apt/* \
-    && for package in apt gpgv libgnutls30 libsqlite3-0 perl-base ${perl_module_packages}; do \
+    && for package in apt gpgv libacl1 libattr1 libgnutls30 libsqlite3-0 perl-base ${perl_module_packages}; do \
         status="$(dpkg-query -W -f='${db:Status-Abbrev}' "${package}" 2>/dev/null || true)"; \
         if [ "${status#ii}" != "${status}" ]; then \
             echo "${package} remains installed after production package pruning" >&2; \
