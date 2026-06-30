@@ -2,21 +2,26 @@
 
 <!-- markdownlint-disable MD013 -->
 
-**Status:** PR-5 local review-disposition integration. Repo-only governance contract. No runtime impact.
+**Status:** PR-6 first applied-candidate lane. Repo-only governance contract.
+No runtime impact.
 
 **Scope:** Define the authority boundary between a promoted `creative_research`
 output, a PR-1 implementation specification, PR-2 local candidate-patch
 generation, PR-3 human-approved non-draft PR handoff tooling, PR-4 telemetry,
-and PR-5 read-only review-disposition integration. PR-2
+PR-5 read-only review-disposition integration, and the PR-6 local
+applied-candidate run-plan wrapper. PR-2
 authorizes only isolated local candidate-patch generation/evaluation. PR-3
 authorizes only the separate local promotion tool that can create a new
 `experiment/*` branch, push it without force, and open a non-draft PR after
 isolated validation and explicit TTY approval. PR-5 may read sanitized review
 context or explicit read-only fixtures and emit local advisory disposition /
-repair-launch packets. It does not authorize draft PRs, shared worktree
-mutation, existing branch modification, review-thread resolution, fixed-mapping
-edits, merge, release, product runtime AI, OpenAPI/client changes, public
-multi-tenant use, or Slack/GitHub authority expansion.
+repair-launch packets. PR-6 may validate a PR-5 repair launch packet, bind the
+first applied candidate target to `docs/prompts/cv/program.md`, and emit a
+local PR-1 / PR-2 / PR-3 / PR-4 run plan. It does not authorize draft PRs,
+shared worktree mutation, existing branch modification, review-thread
+resolution, fixed-mapping edits, merge, release, product runtime AI,
+OpenAPI/client changes, public multi-tenant use, or Slack/GitHub authority
+expansion.
 
 ---
 
@@ -42,9 +47,10 @@ promotion_allowed=false
 
 PR-1 adds only a local specification-bundle layer. PR-2 opens only local
 sandboxed candidate-patch generation/evaluation. PR-3 adds a separate
-human-approved non-draft PR creation lane. Product runtime, OpenAPI/client,
-semantic-cache, review-thread, merge, release, and Slack/GitHub authority flags
-remain closed.
+human-approved non-draft PR creation lane. PR-6 adds a local run-plan wrapper
+for the first applied candidate without adding execution authority. Product
+runtime, OpenAPI/client, semantic-cache, review-thread, merge, release, and
+Slack/GitHub authority flags remain closed.
 
 ---
 
@@ -85,9 +91,14 @@ The PR-3 human-approved non-draft PR promotion artifacts are:
 - `scripts/orchestration/creative_code_pr_promotion_contract.py`
 - `scripts/orchestration/creative_code_pr_promotion.py`
 
+The PR-6 local applied-candidate run-plan artifacts are:
+
+- `scripts/orchestration/creative_code_applied_candidate_pr6.py`
+- `artifacts/orchestration/creative_code/applied_candidates/<candidate-id>/run_plan.json`
+
 The packet, bundle, request, result, local `candidate.patch`, plan, validation,
-approval, receipt, and generated PR body may describe or contain an
-implementation candidate, but they are not:
+approval, receipt, applied-candidate run plan, and generated PR body may
+describe or contain an implementation candidate, but they are not:
 
 - a repo-write instruction;
 - merge-readiness evidence;
@@ -137,7 +148,11 @@ PR-0 is a contract-only start point.
   -> `CreativeCodeRepairLaunchPacket`; no review-thread resolution,
   fixed-mapping edits, GitHub mutation, patch generation, branch writes, PR
   creation, merge authority, or readiness claims.
-- PR-6: run the first governed applied creative-code candidate through normal PR governance.
+- PR-6: run the first governed applied creative-code candidate through normal PR
+  governance, starting from a local wrapper that validates the PR-5 launch
+  packet, binds the target surface to `docs/prompts/cv/program.md`, and emits a
+  deterministic PR-1 / PR-2 / PR-3 / PR-4 run plan before the generated
+  candidate is restricted to that prompt/program document.
 
 Minimum future telemetry fields are defined now for the later train and must not be emitted before PR-1:
 
@@ -183,16 +198,26 @@ positive launch authority is `create_pr1_specification=true`; patch generation,
 branch writes, PR creation, review-thread resolution, fixed-mapping edits, and
 merge authority remain false.
 
+PR-6 applied-candidate run plans are local operator handoff artifacts only. They
+are not patch generation authority, PR promotion authority, review-thread
+disposition evidence, fixed-mapping evidence, merge-readiness evidence, runtime
+truth, release evidence, or GitHub App/Slack authority. The first generated
+candidate target surface is exactly `docs/prompts/cv/program.md`; scripts,
+tests, review docs, governance docs, workflows, product runtime, OpenAPI,
+frontend, iOS, DB, provider settings, and semantic-cache surfaces remain
+outside generated candidate mutation authority.
+
 ---
 
 ## Rollback
 
-Rollback is removal of the PR-5 review-disposition files and references. If
-reverting the whole train, also remove the PR-4 telemetry files, PR-3 promotion
-files, PR-2 patch-builder files, and existing PR-1/PR-0 contract files. Because
-PR-5 adds no product runtime behavior, providers, workflows, external app
-settings, OpenAPI/client changes, semantic-cache activation, Slack/GitHub App
-changes, or DB state, rollback does not require data migration, OpenAPI
-regeneration, external app changes, or release coordination. Any already opened
-promoted candidate PR remains normal GitHub state and is closed or
-branch-deleted manually if needed.
+Rollback is removal of the PR-6 applied-candidate wrapper, its tests, and local
+ignored run-plan artifacts. If reverting the whole train, also remove the PR-5
+review-disposition files, PR-4 telemetry files, PR-3 promotion files, PR-2
+patch-builder files, and existing PR-1/PR-0 contract files. Because PR-6 adds no
+product runtime behavior, providers, workflows, external app settings,
+OpenAPI/client changes, semantic-cache activation, Slack/GitHub App changes, or
+DB state, rollback does not require data migration, OpenAPI regeneration,
+external app changes, or release coordination. Any already opened promoted
+candidate PR remains normal GitHub state and is closed or branch-deleted
+manually if needed.

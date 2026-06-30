@@ -804,9 +804,7 @@ def _derive_temp_upload_branch(*, target_branch: str, commit_sha: str) -> str:
     require_safe_branch(target_branch)
     _require_commit_sha(commit_sha)
     target_slug = _slugify(target_branch.split("/", 1)[1])[:30].strip("-") or "candidate"
-    branch = (
-        f"experiment/promotion-upload-{target_slug}-" f"{commit_sha[:8]}-{uuid.uuid4().hex[:10]}"
-    )
+    branch = f"experiment/promotion-upload-{target_slug}-{commit_sha[:8]}-{uuid.uuid4().hex[:10]}"
     return _require_temp_upload_branch(branch)
 
 
@@ -884,7 +882,7 @@ Approval artifact: `{approval_ref}`. Approval is TTY-bound and actor-bound.
 - `pre-commit run --all-files`
 
 ## Deferred / Follow-ups
-First real promoted candidate PR remains a separate applied-candidate stage after PR-3 merges.
+Additional applied candidates remain separate governed review lanes after this PR starts normal review.
 
 ## Experiment Runner Evidence
 Candidate evaluation is not merge-readiness evidence. Oracle-only governance evidence for this PR diff remains required before readiness claims.
