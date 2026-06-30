@@ -80,28 +80,119 @@ class HttpxAppShortcutVisitor(ast.NodeVisitor):
 
     def __init__(self, path: Path) -> None:
         self.path = path
-        self.httpx_module_aliases: set[str] = set()
-        self.imported_httpx_clients: dict[str, str] = {}
+        self._httpx_module_alias_scopes: list[set[str]] = [set()]
+        self._imported_httpx_client_scopes: list[dict[str, str]] = [{}]
         self.violations: list[Violation] = []
 
     def visit_Import(self, node: ast.Import) -> None:
         for alias in node.names:
+            bound_name = alias.asname or alias.name.split(".", maxsplit=1)[0]
+            self._drop_shadowed_name(bound_name)
             if alias.name == "httpx":
-                self.httpx_module_aliases.add(alias.asname or alias.name)
+                self.httpx_module_aliases.add(bound_name)
         self.generic_visit(node)
 
     def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
-        if node.module != "httpx":
-            self.generic_visit(node)
-            return
-
         for alias in node.names:
-            if alias.name in HTTPX_CLIENT_NAMES:
-                self.imported_httpx_clients[alias.asname or alias.name] = alias.name
+            if alias.name == "*":
+                self.httpx_module_aliases.clear()
+                self.imported_httpx_clients.clear()
+                continue
+
+            bound_name = alias.asname or alias.name
+            self._drop_shadowed_name(bound_name)
+            if node.module == "httpx" and alias.name in HTTPX_CLIENT_NAMES:
+                self.imported_httpx_clients[bound_name] = alias.name
         self.generic_visit(node)
 
+    def visit_Assign(self, node: ast.Assign) -> None:
+        self.visit(node.value)
+        for target in node.targets:
+            self._drop_shadowed_names(target)
+
+    def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
+        if node.annotation is not None:
+            self.visit(node.annotation)
+        if node.value is not None:
+            self.visit(node.value)
+        self._drop_shadowed_names(node.target)
+
+    def visit_AugAssign(self, node: ast.AugAssign) -> None:
+        self.visit(node.value)
+        self._drop_shadowed_names(node.target)
+
+    def visit_NamedExpr(self, node: ast.NamedExpr) -> None:
+        self.visit(node.value)
+        self._drop_shadowed_names(node.target)
+
+    def visit_For(self, node: ast.For) -> None:
+        self._visit_for_like(node)
+
+    def visit_AsyncFor(self, node: ast.AsyncFor) -> None:
+        self._visit_for_like(node)
+
+    def visit_With(self, node: ast.With) -> None:
+        self._visit_with_like(node)
+
+    def visit_AsyncWith(self, node: ast.AsyncWith) -> None:
+        self._visit_with_like(node)
+
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+        self._visit_function_like(node)
+
+    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+        self._visit_function_like(node)
+
+    def visit_Lambda(self, node: ast.Lambda) -> None:
+        for default in node.args.defaults:
+            self.visit(default)
+        for default in node.args.kw_defaults:
+            if default is not None:
+                self.visit(default)
+        self._push_scope()
+        self._drop_argument_names(node.args)
+        self.visit(node.body)
+        self._pop_scope()
+
+    def visit_ClassDef(self, node: ast.ClassDef) -> None:
+        for decorator in node.decorator_list:
+            self.visit(decorator)
+        for base in node.bases:
+            self.visit(base)
+        for keyword in node.keywords:
+            self.visit(keyword.value)
+        self._drop_shadowed_name(node.name)
+        self._push_scope()
+        for item in node.body:
+            self.visit(item)
+        self._pop_scope()
+
+    def visit_ExceptHandler(self, node: ast.ExceptHandler) -> None:
+        if node.type is not None:
+            self.visit(node.type)
+        if node.name:
+            self._drop_shadowed_name(node.name)
+        for item in node.body:
+            self.visit(item)
+
+    def _visit_for_like(self, node: ast.For | ast.AsyncFor) -> None:
+        self.visit(node.iter)
+        self._drop_shadowed_names(node.target)
+        for item in node.body:
+            self.visit(item)
+        for item in node.orelse:
+            self.visit(item)
+
+    def _visit_with_like(self, node: ast.With | ast.AsyncWith) -> None:
+        for item in node.items:
+            self.visit(item.context_expr)
+            if item.optional_vars is not None:
+                self._drop_shadowed_names(item.optional_vars)
+        for body_item in node.body:
+            self.visit(body_item)
+
     def visit_Call(self, node: ast.Call) -> None:
-        if any(keyword.arg == "app" for keyword in node.keywords):
+        if self._call_passes_app_argument(node):
             symbol = self._deprecated_httpx_client_symbol(node.func)
             if symbol is not None:
                 self.violations.append(
@@ -126,6 +217,79 @@ class HttpxAppShortcutVisitor(ast.NodeVisitor):
             return self.imported_httpx_clients[func.id]
 
         return None
+
+    def _call_passes_app_argument(self, node: ast.Call) -> bool:
+        return any(
+            keyword.arg == "app"
+            or (keyword.arg is None and self._literal_mapping_contains_app(keyword.value))
+            for keyword in node.keywords
+        )
+
+    def _literal_mapping_contains_app(self, node: ast.AST) -> bool:
+        if not isinstance(node, ast.Dict):
+            return False
+        return any(
+            isinstance(key, ast.Constant) and key.value == "app"
+            for key in node.keys
+            if key is not None
+        )
+
+    @property
+    def httpx_module_aliases(self) -> set[str]:
+        return self._httpx_module_alias_scopes[-1]
+
+    @property
+    def imported_httpx_clients(self) -> dict[str, str]:
+        return self._imported_httpx_client_scopes[-1]
+
+    def _push_scope(self) -> None:
+        self._httpx_module_alias_scopes.append(set(self.httpx_module_aliases))
+        self._imported_httpx_client_scopes.append(dict(self.imported_httpx_clients))
+
+    def _pop_scope(self) -> None:
+        self._httpx_module_alias_scopes.pop()
+        self._imported_httpx_client_scopes.pop()
+
+    def _visit_function_like(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> None:
+        for decorator in node.decorator_list:
+            self.visit(decorator)
+        for default in node.args.defaults:
+            self.visit(default)
+        for default in node.args.kw_defaults:
+            if default is not None:
+                self.visit(default)
+        if node.returns is not None:
+            self.visit(node.returns)
+
+        self._drop_shadowed_name(node.name)
+        self._push_scope()
+        self._drop_argument_names(node.args)
+        for item in node.body:
+            self.visit(item)
+        self._pop_scope()
+
+    def _drop_argument_names(self, args: ast.arguments) -> None:
+        for arg in (*args.posonlyargs, *args.args, *args.kwonlyargs):
+            self._drop_shadowed_name(arg.arg)
+        if args.vararg is not None:
+            self._drop_shadowed_name(args.vararg.arg)
+        if args.kwarg is not None:
+            self._drop_shadowed_name(args.kwarg.arg)
+
+    def _drop_shadowed_names(self, target: ast.AST) -> None:
+        if isinstance(target, ast.Name):
+            self._drop_shadowed_name(target.id)
+            return
+        if isinstance(target, ast.Starred):
+            self._drop_shadowed_names(target.value)
+            return
+        if isinstance(target, ast.Tuple | ast.List):
+            for element in target.elts:
+                self._drop_shadowed_names(element)
+
+    def _drop_shadowed_name(self, name: str) -> None:
+        self.httpx_module_aliases.discard(name)
+        self.imported_httpx_clients.pop(name, None)
 
 
 def _is_excluded(path: Path, repo_root: Path) -> bool:

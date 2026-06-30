@@ -170,6 +170,9 @@ def test_security_audit_helper_path_is_workflow_privileged() -> None:
         "requirements-lock.txt",
         "requirements-test.in",
         "requirements-test.txt",
+        "REQUIREMENTS.md",
+        "docs/DEPENDENCY_MANAGEMENT.md",
+        "docs/contracts/PYTHON_DEPENDENCY_SURFACES.md",
     ),
 )
 def test_python_dependency_surfaces_route_backend_blocking(changed_file: str) -> None:

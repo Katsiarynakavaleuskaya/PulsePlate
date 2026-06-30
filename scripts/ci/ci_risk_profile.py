@@ -40,7 +40,10 @@ ROOT_BACKEND_SHARED_MODULES: tuple[str, ...] = (
 BACKEND_SHARED_EXACT: tuple[str, ...] = (
     "Dockerfile",
     "Makefile",
+    "REQUIREMENTS.md",
     "constraints.txt",
+    "docs/DEPENDENCY_MANAGEMENT.md",
+    "docs/contracts/PYTHON_DEPENDENCY_SURFACES.md",
     "legacy_app.py",
     *ROOT_BACKEND_SHARED_MODULES,
     "mcp_pulseplate_server.py",
