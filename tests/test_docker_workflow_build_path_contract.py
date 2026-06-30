@@ -481,6 +481,8 @@ def test_docker_runtime_surface_guard_blocks_perl_runtime_packages() -> None:
         assert f"--image {image_ref}" in run_script
         assert "--blocked-debian-package apt" in run_script
         assert "--blocked-debian-package gpgv" in run_script
+        assert "--blocked-debian-package libacl1" in run_script
+        assert "--blocked-debian-package libattr1" in run_script
         assert "--blocked-debian-package libgnutls30" in run_script
         assert "--blocked-debian-package libsqlite3-0" in run_script
         assert "--blocked-debian-package perl-base" in run_script

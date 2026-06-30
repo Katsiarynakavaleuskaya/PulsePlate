@@ -16,6 +16,8 @@ surface guard so those packages fail closed if they return.
 
 - Add `libacl1` and `libattr1` to final production package pruning.
 - Add both packages to the Docker runtime dependency surface guard.
+- Keep the Docker Build and Push runtime-surface guard and scheduled `trivy`
+  workflow runtime-surface guard aligned.
 - Add tests that prevent broad Trivy suppression for the two CVEs/packages.
 
 ## Out Of Scope
@@ -47,12 +49,25 @@ Runner did not provide mutation, oracle, admission, or commit-decision evidence.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- Pending: post-open `bug-hunter` finding on scheduled/main `trivy.yml`
+  runtime-surface guard parity
+Disposition: FIXED
+Commit: pending
+Evidence: `.github/workflows/trivy.yml` blocks `libacl1` and `libattr1` in
+the scheduled/main Trivy production image runtime-surface guard, and
+`tests/test_docker_workflow_build_path_contract.py` asserts both Docker image
+workflows block those packages.
 
 ## Post-Open Review Evidence
 
-- Pending: `qa-engineer-agent -> bug-hunter -> security-auditor` post-open
-  role order is in progress for PR #2055.
+- PASS: `qa-engineer-agent` post-open pass found no actionable test gap; it
+  correctly kept merge acceptance blocked pending pushed mapping/current-head
+  CI.
+- FIXED: `bug-hunter` post-open pass found that scheduled/main `trivy.yml`
+  runtime-surface guard did not yet block `libacl1`/`libattr1` like
+  `build.yml`; fixed by extending the workflow guard and two-workflow test
+  assertion.
+- Pending: `security-auditor` post-open pass.
 - Pending: Codex Security diff scan / finding discovery if available.
 - Pending: `pulseplate-pr-review`.
 
