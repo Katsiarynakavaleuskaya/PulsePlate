@@ -262,6 +262,21 @@ def test_run_plan_rejects_tampered_command_execution_flag() -> None:
         pr6.validate_run_plan(tampered)
 
 
+def test_run_plan_rejects_unknown_authority_flags() -> None:
+    plan = pr6.build_run_plan(
+        launch_packet=_launch_packet(),
+        target="docs/prompts/cv/program.md",
+    )
+    tampered = deepcopy(plan)
+    tampered["authority"]["new_provider_write"] = True
+
+    with pytest.raises(
+        pr6.CreativeCodeAppliedCandidatePR6Error,
+        match="new_provider_write",
+    ):
+        pr6.validate_run_plan(tampered)
+
+
 def test_cli_plan_run_writes_run_plan(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

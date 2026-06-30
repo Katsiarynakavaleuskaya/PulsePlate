@@ -604,6 +604,10 @@ def validate_run_plan(payload: Mapping[str, Any]) -> dict[str, Any]:
     authority = payload["authority"]
     if not isinstance(authority, Mapping):
         raise CreativeCodeAppliedCandidatePR6Error("run plan authority must be an object.")
+    allowed_authority_keys = WRAPPER_TRUE_AUTHORITY_KEYS | WRAPPER_FALSE_AUTHORITY_KEYS
+    for key in authority:
+        if not isinstance(key, str) or key not in allowed_authority_keys:
+            raise CreativeCodeAppliedCandidatePR6Error(f"run plan authority {key} is not allowed.")
     for key in WRAPPER_TRUE_AUTHORITY_KEYS:
         if authority.get(key) is not True:
             raise CreativeCodeAppliedCandidatePR6Error(f"run plan authority {key} must be true.")
