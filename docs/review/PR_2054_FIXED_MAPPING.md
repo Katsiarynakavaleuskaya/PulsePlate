@@ -54,6 +54,8 @@ tracked separately in PR #2052.
 - [ ] Codex Security diff scan / finding discovery completed or explicitly
   dispositioned.
 - [ ] `pulseplate-pr-review` completed.
+- [x] Sourcery review thread resolved after FIXED disposition evidence was
+  recorded and pushed.
 - [ ] Current-head CI complete before readiness language.
 - [ ] Strict merge-readiness checks run after the final review/check cycle.
 
@@ -75,6 +77,9 @@ Evidence: `scripts/orchestration/creative_code_applied_candidate_pr6.py` now rej
 - `pre-commit run --hook-stage pre-push mypy --files scripts/orchestration/creative_code_applied_candidate_pr6.py scripts/orchestration/creative_code_patch_builder.py scripts/orchestration/creative_code_pr_promotion.py` - PASS.
 - `. .venv/bin/activate && python -m pytest -q tests/test_creative_code_applied_candidate_pr6.py` - PASS after the Sourcery authority-key fix.
 - `pre-commit run --hook-stage pre-push mypy --files scripts/orchestration/creative_code_applied_candidate_pr6.py` - PASS after the Sourcery authority-key fix.
+- GitHub review-thread pass after pushing fix/mapping commits - PASS; Sourcery
+  thread `PRRT_kwDOPi-pts6NTDMb` is resolved after FIXED disposition evidence
+  was recorded.
 - `make validate-changed` - PASS.
 - `pre-commit run --all-files` - PASS.
 - Pre-push hook - PASS after the mypy fix, including mypy, pip-audit,
@@ -93,5 +98,5 @@ merge-readiness claim is made in this artifact.
 - [ ] `pulseplate-pr-review` is complete.
 - [ ] Current-head CI is complete for the latest PR head.
 - [x] CodeRabbit, Sourcery, and Cubic actionables are fixed or dispositioned.
-- [ ] Review threads are checked and dispositioned.
+- [x] Review threads are checked and dispositioned.
 - [ ] `check_merge_ready.py --require-auth` passes.
