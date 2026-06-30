@@ -48,6 +48,14 @@ REMOVED_PRODUCTION_TOOLING_CVES = (
     "CVE-2025-9820",
     "CVE-2025-30258",
 )
+REMOVED_ACL_ATTR_CVES = (
+    "CVE-2026-54369",
+    "CVE-2026-54371",
+)
+REMOVED_ACL_ATTR_PACKAGES = (
+    "libacl1",
+    "libattr1",
+)
 
 
 def _policy_text() -> str:
@@ -198,21 +206,35 @@ def test_removed_perl_runtime_cves_are_not_suppressed_in_rego_policy() -> None:
     policy = _policy_text()
 
     assert len(re.findall(r"^# Suppression expires:", policy, flags=re.MULTILINE)) == 1
-    for cve in REMOVED_PERL_RUNTIME_CVES + REMEDIATED_SQLITE_CVES + REMOVED_PRODUCTION_TOOLING_CVES:
+    for cve in (
+        REMOVED_PERL_RUNTIME_CVES
+        + REMEDIATED_SQLITE_CVES
+        + REMOVED_PRODUCTION_TOOLING_CVES
+        + REMOVED_ACL_ATTR_CVES
+    ):
         assert cve not in policy
     assert "perl-base" not in policy
     assert "perl-modules" not in policy
     assert "libsqlite3-0" not in policy
+    for package in REMOVED_ACL_ATTR_PACKAGES:
+        assert package not in policy
 
 
 def test_remediated_container_cves_are_not_broadly_ignored_in_trivyignore() -> None:
     trivyignore = TRIVYIGNORE_PATH.read_text(encoding="utf-8")
 
     assert "CVE-2025-8058" not in trivyignore
-    for cve in REMOVED_PERL_RUNTIME_CVES + REMEDIATED_SQLITE_CVES + REMOVED_PRODUCTION_TOOLING_CVES:
+    for cve in (
+        REMOVED_PERL_RUNTIME_CVES
+        + REMEDIATED_SQLITE_CVES
+        + REMOVED_PRODUCTION_TOOLING_CVES
+        + REMOVED_ACL_ATTR_CVES
+    ):
         assert cve not in trivyignore
     assert "SQLite" not in trivyignore
     assert "libsqlite3-0" not in trivyignore
+    for package in REMOVED_ACL_ATTR_PACKAGES:
+        assert package not in trivyignore
     assert "gpgv retained as Debian system dependency" not in trivyignore
     assert "libgnutls30 is installed in the Debian production image" not in trivyignore
 
