@@ -62,7 +62,7 @@ tracked separately in PR #2052.
 ## Fixed in Commit Mapping
 
 Disposition: FIXED
-Commit: 53b495f7375ef0d6e50efb0ff2feb5edf02e03c2
+Commit: see mapping entries below
 Evidence: `scripts/orchestration/creative_code_applied_candidate_pr6.py` now rejects unknown run-plan authority keys before validating allowed true/false authority values, and `tests/test_creative_code_applied_candidate_pr6.py` covers tampered unknown authority flags.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2054#pullrequestreview-4601021548 -> 53b495f7375ef0d6e50efb0ff2feb5edf02e03c2
