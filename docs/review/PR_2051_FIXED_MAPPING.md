@@ -40,6 +40,8 @@ frontend CI repair, or private-proxy remediation is included.
 - `8c5e550c` - fix post-open CodeRabbit and bug-hunter findings by handling
   rebound httpx symbols, literal `**{"app": ...}` calls, CLI output tests, and
   dependency-doc CI risk routing.
+- `9d0dc0fb` - satisfy the pre-push mypy hook for the AST visitor default
+  argument loops without changing guard behavior.
 
 ## Lane Start Provenance
 
@@ -103,6 +105,8 @@ Evidence: `scripts/ci/check_httpx_testclient_compat.py` drops stale httpx bindin
   coverage.
 - PASS: `bug-hunter` post-open pass found dependency-doc CI risk routing and
   AST rebinding/unpack edges; fixed in `8c5e550c`.
+- PASS: pre-push mypy failure in `scripts/ci/check_httpx_testclient_compat.py`
+  was fixed in `9d0dc0fb`.
 - Current-head GitHub CI was still in progress when this artifact was added;
   no merge-readiness claim is made here.
 
