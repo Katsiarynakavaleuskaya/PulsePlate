@@ -42,6 +42,9 @@ frontend CI repair, or private-proxy remediation is included.
   dependency-doc CI risk routing.
 - `9d0dc0fb` - satisfy the pre-push mypy hook for the AST visitor default
   argument loops without changing guard behavior.
+- `08e5e7d6` - keep the httpx2-backed production canary out of the ci-lite
+  pre-commit backend hook while preserving it in `make validate-changed`,
+  pre-push, and focused pytest paths.
 
 ## Lane Start Provenance
 
@@ -86,6 +89,10 @@ commands and the shared tree stayed untouched.
   findings were fixed in `b0fa7c53`.
 - [x] Post-open `bug-hunter` pass completed and its actionable guard/routing
   findings were fixed in `8c5e550c`.
+- [x] Post-open `security-auditor` pass completed with no actionable security,
+  supply-chain, or governance findings beyond the already-known size gate.
+- [x] `pulseplate-pr-review` completed; its only finding was the advisory PR
+  size/scope governance risk already represented by `pr_scope_guard`.
 
 ## Fixed in Commit Mapping
 
@@ -107,8 +114,22 @@ Evidence: `scripts/ci/check_httpx_testclient_compat.py` drops stale httpx bindin
   AST rebinding/unpack edges; fixed in `8c5e550c`.
 - PASS: pre-push mypy failure in `scripts/ci/check_httpx_testclient_compat.py`
   was fixed in `9d0dc0fb`.
-- Current-head GitHub CI was still in progress when this artifact was added;
-  no merge-readiness claim is made here.
+- PASS: the first Codex Security diff scan for this PR completed on head
+  `654c158dfbcdeecff2061cb87cbc82155edf652a` with zero findings:
+  scan `d26ee096-a224-4d5d-9d7b-f965ed097fb8`, workspace
+  `4188db28-b3cf-4698-b9db-56b90d5b007e`.
+- NOTE: no second Codex Security scan is run after the ci-lite pre-commit fix
+  commit `08e5e7d6`; the operator explicitly prohibited repeat scans. This
+  artifact therefore does not claim a repeated current-head Codex Security
+  parity scan for `08e5e7d6`.
+- FIXED: current-head CI `lint` on `654c158d` failed because the ci-lite
+  pre-commit backend hook selected
+  `tests/compat/test_starlette_httpx2_testclient_compat.py`, where the
+  expected backend was `httpx2` but ci-lite intentionally installed only
+  `httpx`. Commit `08e5e7d6` keeps that canary on dev/test validation paths and
+  excludes it only from `PRE_COMMIT=1` ci-lite selection.
+- Current-head GitHub CI must rerun after `08e5e7d6`; no merge-readiness claim
+  is made here.
 
 ## External Review / Thread Status
 
@@ -141,6 +162,9 @@ Evidence: `scripts/ci/check_httpx_testclient_compat.py` drops stale httpx bindin
 - PASS: `.venv/bin/python -m pip_audit -r requirements-dev.txt --no-deps --disable-pip`
 - PASS: focused post-open QA tests for TestClient guard routing, dependency
   routing, pre-commit changed-test selection, and supply-chain assertions.
+- PASS after `08e5e7d6`: `.venv/bin/python -m pytest -q tests/test_pre_commit_hook_python_resolver.py -k "python_dependency_surface or httpx2_canary"`
+- PASS after `08e5e7d6`: `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")" PRE_COMMIT=1 PREPUSH_DEBUG=1 bash scripts/run-backend-tests-pre-commit.sh`
+- PASS after `08e5e7d6`: `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")" BRANCH_DIFF_MODE=1 PREPUSH_DEBUG=1 bash scripts/run-backend-tests-pre-commit.sh`
 - PASS: `make validate-changed`
 - PASS: `pre-commit run --all-files`
 - PASS: `git diff --check`
