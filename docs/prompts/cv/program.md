@@ -43,6 +43,11 @@ The implementation must not widen this prompt surface into runtime CV behavior,
 provider integration, semantic cache admission, user-facing diagnosis, or any
 client-owned product truth.
 
+Packetized offline evaluation means a bounded review artifact, fixture, or
+local candidate packet is evaluated after collection. It does not mean handling
+user image uploads inside a live request path, retaining raw images, calling a
+vision provider, or serving model decisions to users.
+
 ### Authority Flags
 
 - `patch_authority`: `false`
@@ -51,9 +56,9 @@ client-owned product truth.
 - `requires_human_review_before_patch_work`: `true`
 - `requires_backend_contract_review_for_runtime_use`: `true`
 
-These PR-0 authority flags must be preserved by downstream work. A future PR may
-only change them with explicit human review, scoped rationale, and validation
-evidence.
+These authority flags for this PR-1 implementation must be preserved by
+downstream work. A future PR may only change them with explicit human review,
+scoped rationale, and validation evidence.
 
 ### Deterministic Acceptance Criteria
 
@@ -74,6 +79,8 @@ Expected validation surfaces for that future patch are:
 
 - `tests/test_creative_code_applied_candidate_pr6.py`
 - `tests/test_creative_code_patch_builder.py`
+- `tests/test_experiment_bootstrap.py`
+- `tests/test_remaining_modules.py`
 
 ### Rollback Notes
 
