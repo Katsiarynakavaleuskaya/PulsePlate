@@ -163,11 +163,20 @@ def _build_generation_prompt(*, request: dict[str, Any], variant: dict[str, Any]
     allowed_existing = "\n".join(f"- {path}" for path in request["allowed_existing_paths"])
     allowed_new = "\n".join(f"- {path}" for path in request["allowed_new_paths"]) or "- none"
     tests_to_add = "\n".join(f"- {path}" for path in variant["tests_to_add"])
+    budgets = request["budgets"]
     return (
         "You are generating a local candidate patch inside an isolated checkout.\n"
         "Do not run network commands, read secrets, create branches, commit, push, open PRs, "
         "or edit paths outside the allowlist.\n"
-        "Implement the selected PR-1 creative-code specification only.\n\n"
+        "Implement the selected PR-1 creative-code specification only.\n"
+        "Do not run tests, package managers, broad repository searches, provider calls, or "
+        "validation commands. If inspection is needed, inspect only the allowed existing paths. "
+        "Finish immediately after the single file edit; the wrapper validates the patch.\n\n"
+        "Hard mutation budget:\n"
+        f"- max_changed_files: {budgets['max_changed_files']}\n"
+        f"- max_diff_lines: {budgets['max_diff_lines']}\n"
+        f"- max_patch_bytes: {budgets['max_patch_bytes']}\n"
+        f"- allowed_new_paths_count: {len(request['allowed_new_paths'])}\n\n"
         f"Selected variant: {variant['variant_id']}\n"
         f"Problem statement:\n{variant['problem_statement']}\n\n"
         f"Implementation steps:\n{steps}\n\n"

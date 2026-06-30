@@ -211,6 +211,26 @@ def _request_for_base(base_sha: str) -> dict[str, Any]:
     )
 
 
+def test_generation_prompt_includes_budget_and_no_test_contract() -> None:
+    bundle = _reference_bundle()
+    request = _reference_request()
+    variant = creative_code_patch_builder._selected_variant(bundle)
+
+    prompt = creative_code_patch_builder._build_generation_prompt(
+        request=request,
+        variant=variant,
+    )
+
+    assert "Hard mutation budget:" in prompt
+    assert f"- max_changed_files: {request['budgets']['max_changed_files']}" in prompt
+    assert f"- max_diff_lines: {request['budgets']['max_diff_lines']}" in prompt
+    assert f"- max_patch_bytes: {request['budgets']['max_patch_bytes']}" in prompt
+    assert "Do not run tests, package managers, broad repository searches" in prompt
+    assert "inspect only the allowed existing paths" in prompt
+    assert "Finish immediately after the single file edit" in prompt
+    assert "The wrapper will validate and export the patch." in prompt
+
+
 def test_reference_patch_contracts_validate_and_schema_is_closed() -> None:
     request = _reference_request()
     result = _reference_result()
