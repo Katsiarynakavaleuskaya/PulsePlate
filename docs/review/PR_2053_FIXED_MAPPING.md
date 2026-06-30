@@ -177,7 +177,20 @@ GitHub checks complete.
 
 ## Local Validation Evidence
 
-Pending after implementation.
+- PASS: local review-doc path scan for developer-local paths returned no
+  matches across `docs/review/PR_2049_FIXED_MAPPING.md`,
+  `docs/review/PR_2053_FIXED_MAPPING.md`, and the PR body source used for
+  `gh pr edit`.
+- PASS: `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 2053`
+- PASS: `python3 scripts/ci/check_pr_size_governance.py --base-sha "$(git merge-base origin/main HEAD)" --head-sha "$(git rev-parse HEAD)" --body "$(gh pr view 2053 --repo Katsiarynakavaleuskaya/PulsePlate --json body --jq .body)"`
+- PASS: `python3 scripts/orchestration/check_preflight.py`
+- PASS: `python3 scripts/orchestration/check_agent_consistency.py`
+- PASS: `make validate-changed`
+- PASS: `pre-commit run --all-files`
+- PASS during commit hooks for commit `394077951`: fixed-format hooks,
+  detect-secrets, backend tests, and conventional-commit check.
+- Not run: local full `make verify`, per repository budget rule and operator
+  request.
 
 ## Security Notes
 
