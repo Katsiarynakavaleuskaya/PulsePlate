@@ -91,6 +91,25 @@ Evidence: `AGENTS.md` and `.agents/skills/pulseplate-orchestration-dispatch/rule
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2053#discussion_r3501917346
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2053#discussion_r3501917350
 
+Disposition: FIXED
+Commit: 36d75cf4b98be8e923a2cc738ecf218c57b5cbaf
+Evidence: docs/review/PR_2053_FIXED_MAPPING.md removes the calendar-dated operator-instruction wording and records the instruction as part of this closeout turn instead.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2053#discussion_r3502003033 -> 36d75cf4b98be8e923a2cc738ecf218c57b5cbaf
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2053#pullrequestreview-4604292559 -> 36d75cf4b98be8e923a2cc738ecf218c57b5cbaf
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2053#discussion_r3502007175 -> 36d75cf4b98be8e923a2cc738ecf218c57b5cbaf
+
+Disposition: NOT-A-BUG
+Reason: The comments cite non-current reviewed commit `9b48fad5bd23e6eb97670e8d1631dc41fc1174e0`; the live PR #2053 head contains the mapped fix and Experiment Runner attribution commits.
+Evidence: `git merge-base --is-ancestor 3e3b9e76102063fb55a254a91551b46c034340ea HEAD` returned 0 at head `36d75cf4b98be8e923a2cc738ecf218c57b5cbaf`; the same ancestor check returned 0 for `394077951` and `a745d7370`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2053#discussion_r3502007160
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2053#discussion_r3502007164
+
+Disposition: NOT-A-BUG
+Reason: The new governance-rule files are the durable implementation of the operator-requested single-pass cap. Restarting Codex Security or `pulseplate-pr-review` for those rule-only comments would recreate the review loop this PR is explicitly fixing.
+Evidence: `AGENTS.md`, `.agents/skills/pulseplate-orchestration-dispatch/AGENTS.md`, and `.agents/skills/pulseplate-orchestration-dispatch/rules/packet-parsing.md` record the rule; `## Orchestration Loop Guard` documents that later comments use fixed-mapping disposition and targeted gates unless a new security-relevant diff or explicit operator/coordinator override reopens the chain.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2053#discussion_r3502007171
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2053#discussion_r3502007174
+
 ## Initial Review-State Notes
 
 GitHub live review evidence before implementation showed 0 review threads,
