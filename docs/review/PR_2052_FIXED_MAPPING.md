@@ -91,7 +91,7 @@ Evidence: `docs/prompts/cv/program.md` now requires missing, ambiguous, or unsaf
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2052 -> bd104ae3f96d22eca2c73d02ef763005f06a05f1
 
 Disposition: FIXED
-Commit: e1e3b93adfb38fb4cc40d1316a975d89f1cb31ad
+Commit: see mapping entries below
 Evidence: `docs/prompts/cv/program.md` now names PR-1 authority flags without confusing PR-0 wording, defines packetized offline evaluation as local bounded artifacts instead of runtime image handling, and includes `tests/test_experiment_bootstrap.py` plus `tests/test_remaining_modules.py` in the expected validation surface list.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2052#pullrequestreview-4600079997 -> e1e3b93adfb38fb4cc40d1316a975d89f1cb31ad
