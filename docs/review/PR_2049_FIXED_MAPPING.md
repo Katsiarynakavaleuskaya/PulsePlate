@@ -127,9 +127,9 @@ selected `tests/test_creative_code_telemetry.py` and ran 13 tests successfully.
 
 ## Local Validation Evidence
 
-- PASS: `env PYTHONDONTWRITEBYTECODE=1 /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_creative_code_pr_promotion.py tests/test_creative_code_telemetry.py::test_telemetry_import_does_not_load_promotion_runtime_module -p no:cacheprovider`
-- PASS: `env PYTHONDONTWRITEBYTECODE=1 /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_creative_code_telemetry.py tests/test_creative_code_pr_promotion.py -p no:cacheprovider`
-- PASS: `env PYTHONDONTWRITEBYTECODE=1 /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/guards/test_subprocess_uses_absolute_binaries.py tests/guards/test_nosec_policy_guard.py`
+- PASS: `env PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q tests/test_creative_code_pr_promotion.py tests/test_creative_code_telemetry.py::test_telemetry_import_does_not_load_promotion_runtime_module -p no:cacheprovider`
+- PASS: `env PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q tests/test_creative_code_telemetry.py tests/test_creative_code_pr_promotion.py -p no:cacheprovider`
+- PASS: `env PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q tests/guards/test_subprocess_uses_absolute_binaries.py tests/guards/test_nosec_policy_guard.py`
 - PASS: `python3 scripts/orchestration/check_preflight.py`
 - PASS: `python3 scripts/orchestration/check_agent_consistency.py`
 - PASS: `make validate-changed`
