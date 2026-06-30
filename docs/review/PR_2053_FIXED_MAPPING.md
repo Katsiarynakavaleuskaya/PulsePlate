@@ -62,7 +62,12 @@ change is in scope.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: 3e3b9e76102063fb55a254a91551b46c034340ea
+Evidence: docs/review/PR_2049_FIXED_MAPPING.md redacts the historical interpreter path with an explicit placeholder; docs/review/PR_2053_FIXED_MAPPING.md scopes Experiment Runner trailer evidence and removes stale hook proof.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2053#discussion_r3501840232 -> 3e3b9e76102063fb55a254a91551b46c034340ea
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2053#discussion_r3501840237 -> 3e3b9e76102063fb55a254a91551b46c034340ea
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2053#discussion_r3501840244 -> 3e3b9e76102063fb55a254a91551b46c034340ea
 
 ## Initial Review-State Notes
 
@@ -71,6 +76,13 @@ GitHub live review evidence before implementation showed 0 review threads,
 CodeRabbit message was quota/rate-limit guidance, and the visible Sourcery
 message was a review guide with no required code change. Those comments are
 therefore not mapped as actionable defects.
+
+After closeout commit `b268e5587`, Codex review opened three actionable
+docs-governance threads. All three were fixed in commit
+`3e3b9e76102063fb55a254a91551b46c034340ea` by
+preserving historical command truth with an explicit redacted interpreter
+placeholder, scoping Experiment Runner trailer evidence to the commits that
+actually carry the trailer, and removing stale commit-specific hook proof.
 
 ## Role Review Evidence
 
