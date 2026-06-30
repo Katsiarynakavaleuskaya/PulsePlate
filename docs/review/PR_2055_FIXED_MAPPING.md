@@ -65,6 +65,8 @@ Artifact:
 Disposition: FIXED
 Commit: see mapping entries below
 Evidence: The scheduled/manual Trivy lane now mirrors the ACL/attr blocklist and the focused workflow test checks both image refs.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2055#discussion_r3501752437
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2055#discussion_r3501752437 -> 3b8089b7c263951c0834a175da771ee189fdee3c
 
 Disposition: FIXED
@@ -76,6 +78,16 @@ Disposition: FIXED
 Commit: 75c4d3eb9bb834523a6fec63cc447565820bc8b9
 Evidence: docs/review/PR_2055_EXPERIMENT_RUNNER_EVIDENCE.md records the accepted oracle-only runner artifact and commands.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2055#discussion_r3501792740
+
+Disposition: FIXED
+Commit: e3d522d7d6c0672436d66ca607da6f385e836541
+Evidence: This canonical artifact now replaces the stale no-actionable sentinel with explicit FIXED and NOT-A-BUG disposition blocks.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2055#discussion_r3501838507
+
+Disposition: FIXED
+Commit: e3d522d7d6c0672436d66ca607da6f385e836541
+Evidence: docs/review/PR_2055_POST_OPEN_REVIEW_EVIDENCE.md and the Post-Open Review Evidence section record all mandatory post-open gates.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2055#discussion_r3501838510
 
 Disposition: NOT-A-BUG
 Evidence: Dockerfile, build.yml, trivy.yml, and tests/test_docker_workflow_build_path_contract.py keep the ACL/attr literals aligned across executable pruning, both workflow guards, and focused tests.
@@ -120,5 +132,6 @@ Not run locally:
 
 ## Current Review-State Notes
 
-This artifact replaces the stale no-actionable sentinel. Review threads remain
+This artifact replaces the stale no-actionable sentinel and maps all current
+review feedback known at the time of this closeout pass. Review threads remain
 unresolved until the final pushed mapping and strict merge-readiness checks pass.

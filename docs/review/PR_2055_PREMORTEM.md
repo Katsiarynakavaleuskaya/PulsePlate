@@ -156,7 +156,7 @@ Evidence:
 - [x] Focused Docker/Trivy tests passed locally and in CI.
 - [x] No broad Trivy ignore or fail-open scan behavior was added.
 - [x] Premortem findings are closed above.
-- [ ] Mapping artifact and PR body mirror include all current actionable
+- [x] Mapping artifact and PR body mirror include all current actionable
   comments and post-open evidence.
 - [ ] Strict merge-readiness wrapper passes after the latest commit and after
   mapped threads are resolved.
