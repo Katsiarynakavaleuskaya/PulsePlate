@@ -7,10 +7,10 @@ Branch: `codex/fix-local-path-exposure-in-documentation`
 ## Summary
 
 This PR keeps the PR #2049 review-evidence redaction narrow by replacing
-developer-local interpreter paths with repo-relative `.venv/bin/python`
-commands. It also adds the PR #2053 canonical mapping artifact and refreshes
-the PR body governance sections so current-head governance gates have the
-required evidence.
+developer-local interpreter paths with explicit redacted interpreter
+placeholders. It also adds the PR #2053 canonical mapping artifact and
+refreshes the PR body governance sections so current-head governance gates have
+the required evidence.
 
 ## Scope
 
@@ -98,7 +98,7 @@ Finding: The tracked PR #2049 mapping artifact redaction itself did not touch
 runtime behavior or introduce a new security-sensitive code path.
 
 Evidence: The branch diff is docs-only and replaces the local interpreter path
-evidence with repo-relative `.venv/bin/python` commands.
+evidence with explicit redacted interpreter placeholders.
 
 ## Premortem Finding Closure
 
@@ -115,8 +115,8 @@ Disposition: FIXED
 Finding: The fix could remove local paths from PR #2049 evidence but still
 leak them through the live PR #2053 body or the new mapping artifact.
 
-Evidence: The new artifact uses repo-relative paths only, and the PR body is
-rewritten without developer-local path strings.
+Evidence: The review artifacts use redacted interpreter placeholders and the
+PR body is rewritten without developer-local path strings.
 
 Disposition: NOT-A-BUG
 
@@ -145,8 +145,11 @@ GitHub checks.
   accepted run used bounded `network_budget=1`; the oracle commands themselves
   did not perform network access.
 - Contribution kind: `fixed_mapping_review`
-- Co-author trailer required for the implementation commit:
+- Co-author trailer required for commits materially shaped by this runner and
+  included in implementation commits `394077951` and `a745d7370`:
   `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`
+- Closeout/readiness-only commits after the runner evidence do not claim runner
+  contribution and do not require an additional trailer.
 
 ## Codex Security Diff Scan / Finding Discovery
 
@@ -189,8 +192,9 @@ GitHub checks.
 - PASS: `pre-commit run --all-files`
 - PASS: `gh pr checks 2053 --repo Katsiarynakavaleuskaya/PulsePlate`
 - PASS: `python3 scripts/orchestration/check_merge_ready.py --pr-number 2053 --repo Katsiarynakavaleuskaya/PulsePlate --require-auth`
-- PASS during commit hooks for commit `394077951`: fixed-format hooks,
-  detect-secrets, backend tests, and conventional-commit check.
+- PASS: local commit hooks ran for committed docs-governance changes
+  (fixed-format hooks, detect-secrets, backend changed-file tests, and
+  conventional-commit check).
 - Not run: local full `make verify`, per repository budget rule and operator
   request.
 
