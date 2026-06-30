@@ -96,14 +96,11 @@ commands and the shared tree stayed untouched.
 
 ## Fixed in Commit Mapping
 
-Disposition: FIXED
-
-Commit: 8c5e550c434ac2fe50362a5fad40c47e54838564
-
-Evidence: `scripts/ci/check_httpx_testclient_compat.py` drops stale httpx bindings on rebinding, scopes shadowing, and detects literal `**{"app": ...}` unpacking; `tests/test_httpx_testclient_compat_guard.py` covers rebinding, scoped rebinding, literal unpacking, and CLI output; `scripts/ci/ci_risk_profile.py` and `tests/test_ci_risk_profile.py` route dependency docs through backend/security CI risk selection.
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2051#discussion_r3498464120 -> 8c5e550c434ac2fe50362a5fad40c47e54838564
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2051#pullrequestreview-4600021572 -> 8c5e550c434ac2fe50362a5fad40c47e54838564
+Disposition: FIXED
+Commit: 8c5e550c434ac2fe50362a5fad40c47e54838564
+Evidence: `scripts/ci/check_httpx_testclient_compat.py` drops stale httpx bindings on rebinding, scopes shadowing, and detects literal `**{"app": ...}` unpacking; `tests/test_httpx_testclient_compat_guard.py` covers rebinding, scoped rebinding, literal unpacking, and CLI output; `scripts/ci/ci_risk_profile.py` and `tests/test_ci_risk_profile.py` route dependency docs through backend/security CI risk selection.
 
 ## Post-Open Review Evidence
 
