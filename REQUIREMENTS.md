@@ -33,7 +33,9 @@ runtime explicitly selects the `rag-vector` profile.
 
 `requirements-test.txt` keeps pytest/coverage tooling plus `pgvector` for
 postgres-vector contract tests. It does not pull the optional FastEmbed/ONNX
-vector runtime stack.
+vector runtime stack. It also owns `httpx2` as the Starlette TestClient
+backend for backend test lanes; runtime, Docker runtime, and CI-lite profiles
+must not install `httpx2`.
 
 Local/manual profiles (`requirements-data.txt`, `requirements-evals.txt`, and
 `requirements-rag-vector-cpu.txt`) are not shared GitHub Actions

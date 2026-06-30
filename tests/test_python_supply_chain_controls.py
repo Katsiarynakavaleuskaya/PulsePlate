@@ -114,6 +114,21 @@ DISABLED_RAGAS_EVAL_PACKAGES = (
     "datasets",
     "ragas",
 )
+HTTPX2_TESTCLIENT_BACKEND_SURFACES = (
+    "requirements-dev.in",
+    "requirements-dev.txt",
+    "requirements-test.in",
+    "requirements-test.txt",
+    "requirements-lock.txt",
+)
+HTTPX2_TESTCLIENT_RUNTIME_EXCLUDED_SURFACES = (
+    "requirements.in",
+    "requirements.txt",
+    "requirements-ci-lite.in",
+    "requirements-ci-lite.txt",
+    "requirements-docker-runtime.in",
+    "requirements-docker-runtime.txt",
+)
 DEFAULT_AND_TOOLING_REQUIREMENT_FILES = DEFAULT_INSTALL_REQUIREMENT_FILES + (
     "requirements-dev.in",
     "requirements-dev.txt",
@@ -1110,6 +1125,7 @@ def test_frontend_build_keeps_codecov_token_out_of_branch_controlled_build() -> 
 def test_test_dependency_profile_is_split_from_dev_tooling() -> None:
     requirements_test = (REPO_ROOT / "requirements-test.txt").read_text(encoding="utf-8")
 
+    assert "httpx2==" in requirements_test
     assert "pytest==9.1.1" in requirements_test
     assert "pytest-cov==7.1.0" in requirements_test
     assert "pytest-xdist==3.8.0" in requirements_test
@@ -1143,6 +1159,17 @@ def test_ci_lite_dependency_profile_excludes_ml_gpu_stack() -> None:
     assert "triton==" not in requirements_ci_lite
     assert "cuda-bindings==" not in requirements_ci_lite
     assert "nvidia-cublas-cu12==" not in requirements_ci_lite
+    assert "httpx2==" not in requirements_ci_lite
+
+
+def test_httpx2_testclient_backend_stays_dev_and_test_only() -> None:
+    for requirement_file in HTTPX2_TESTCLIENT_BACKEND_SURFACES:
+        package_names = _requirement_package_names(REPO_ROOT / requirement_file)
+        assert canonicalize_name("httpx2") in package_names
+
+    for requirement_file in HTTPX2_TESTCLIENT_RUNTIME_EXCLUDED_SURFACES:
+        package_names = _requirement_package_names(REPO_ROOT / requirement_file)
+        assert canonicalize_name("httpx2") not in package_names
 
 
 def test_runtime_dependency_profiles_pin_fastapi_pydantic_refresh() -> None:
@@ -1213,6 +1240,7 @@ def test_docker_runtime_dependency_profile_excludes_ci_and_vector_stack() -> Non
     assert "transformers==" not in requirements_runtime
     assert "torch==" not in requirements_runtime
     assert "pgvector==" not in requirements_runtime
+    assert "httpx2==" not in requirements_runtime
 
 
 def test_rag_vector_dependency_profile_contains_extracted_vector_ml_stack() -> None:
@@ -1376,6 +1404,23 @@ def test_dependency_docs_describe_eval_and_data_profiles_as_local_manual() -> No
     assert "GHSA-95ww-475f-pr4f" in ragas_setup
     assert "GHSA-w8v5-vhqr-4h9v" in ragas_setup
     assert "--no-emit-index-url --output-file=requirements-evals.txt" in ragas_setup
+
+
+def test_dependency_docs_document_httpx2_testclient_backend_boundary() -> None:
+    dependency_docs = (REPO_ROOT / "docs" / "DEPENDENCY_MANAGEMENT.md").read_text(encoding="utf-8")
+    contract_docs = (REPO_ROOT / "docs" / "contracts" / "PYTHON_DEPENDENCY_SURFACES.md").read_text(
+        encoding="utf-8"
+    )
+    requirements_guide = (REPO_ROOT / "REQUIREMENTS.md").read_text(encoding="utf-8")
+
+    for docs_text in (dependency_docs, contract_docs, requirements_guide):
+        normalized_docs = " ".join(docs_text.casefold().split())
+        assert "httpx2" in docs_text
+        assert "starlette testclient backend" in normalized_docs
+        assert "runtime, docker runtime, and ci-lite" in normalized_docs
+
+    assert "make venv-sync" in dependency_docs
+    assert "Local Development (Recommended: make venv-sync)" in dependency_docs
 
 
 def test_production_target_docker_workflows_use_runtime_requirements_profile() -> None:

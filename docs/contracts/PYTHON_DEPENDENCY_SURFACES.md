@@ -26,9 +26,9 @@ python scripts/ci/check_python_dependency_surfaces.py
 | test | `requirements-test.in` | `requirements-test.txt` | Backend test lanes | `runtime-test` and `ci-test` profiles | dependency submission, CI install preflight |
 | dev | `requirements-dev.in` | `requirements-dev.txt` | Local development tooling | `runtime-dev` profile | dependency submission, CI install preflight |
 | rag-vector | `requirements-rag-vector.in` | `requirements-rag-vector.txt` | Optional vector runtime | `rag-vector` profile | `scripts/ci_pip_audit.sh`, dependency submission |
-| rag-vector-cpu | `requirements-rag-vector-cpu.in` | `requirements-rag-vector-cpu.txt` | Local optional vector runtime | Manual local pip-sync only | `scripts/ci_pip_audit.sh`, dependency submission |
-| data | `requirements-data.in` | `requirements-data.txt` | Offline data builders | Manual local pip-sync only | `scripts/ci_pip_audit.sh`, dependency submission |
-| evals | `requirements-evals.in` | `requirements-evals.txt` | Offline eval companion | Manual local pip-sync only | `scripts/ci_pip_audit.sh`, dependency submission |
+| rag-vector-cpu | `requirements-rag-vector-cpu.in` | `requirements-rag-vector-cpu.txt` | Local optional vector runtime | Manual local locked-installer sync only | `scripts/ci_pip_audit.sh`, dependency submission |
+| data | `requirements-data.in` | `requirements-data.txt` | Offline data builders | Manual local locked-installer sync only | `scripts/ci_pip_audit.sh`, dependency submission |
+| evals | `requirements-evals.in` | `requirements-evals.txt` | Offline eval companion | Manual local locked-installer sync only | `scripts/ci_pip_audit.sh`, dependency submission |
 
 ## Noncanonical Aggregate Install Surfaces
 
@@ -56,6 +56,10 @@ Shared GitHub Actions install profiles are limited to:
 `requirements-rag-vector-cpu.txt` must remain out of shared profile routing.
 They are local/manual surfaces only, even though they are audited and submitted
 for dependency graph visibility.
+
+`httpx2` is the Starlette TestClient backend dependency. It belongs to the dev,
+test, and dev-full-lock surfaces only; it must stay out of runtime, Docker
+runtime, and CI-lite surfaces.
 
 The locked installer may elide an equal minimum floor, such as
 `package>=1.2.3`, only when the same selected requirement surface already pins
