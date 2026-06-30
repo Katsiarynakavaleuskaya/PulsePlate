@@ -493,7 +493,13 @@ Rules:
   `qa-engineer-agent -> bug-hunter -> security-auditor` pass, followed by a
   Codex Security diff scan / finding discovery when the Codex Security plugin is
   available and `pulseplate-pr-review`. These post-open passes do not replace
-  pre-open role agents.
+  pre-open role agents. This post-open chain is a single required pass for the
+  lane, not an unbounded loop. Later review or bot comments must be handled by
+  fixing or dispositioning the specific finding in `docs/review/PR_<N>_FIXED_MAPPING.md`
+  and rerunning targeted gates; do not restart the full role/Codex Security/
+  `pulseplate-pr-review` chain unless the diff gained new security-relevant code
+  surface, the coordinator records a new evidence-backed routing update, or the
+  operator explicitly requests another run.
 
 ### Mandatory PR Orchestration Gates
 
@@ -508,10 +514,13 @@ For every non-trivial PR:
   blockers, not a valid `Not applicable` reason. If the result materially shapes
   code, tests, docs, mapping, or commit decisions, use the governed co-author
   trailer.
-- After PR open, repeat the review loop through the declared post-open role
-  agents, Codex Security diff scan / finding discovery, and
-  `pulseplate-pr-review`. Fix or disposition every finding before updating
-  fixed mapping or claiming readiness.
+- After PR open, execute the declared post-open role agents, Codex Security diff
+  scan / finding discovery, and `pulseplate-pr-review` once for the lane. Fix or
+  disposition every finding before updating fixed mapping or claiming readiness.
+  Do not treat later review comments as permission to restart the full
+  scan/review chain automatically; use fixed-mapping disposition plus targeted
+  validation unless a new security-relevant diff or explicit coordinator/operator
+  override reopens that loop.
 
 ### PR Handling Lifecycle (Coordinator-Owned)
 
