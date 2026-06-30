@@ -36,6 +36,9 @@ merge automation, and merge-readiness claims remain out of scope.
   non-draft experiment PR.
 - `bd104ae3f` - fix post-open QA finding by requiring unsafe evidence
   degradation and explicit no-runtime-path test expectations.
+- `e1e3b93ad` - fix Sourcery and CodeRabbit review findings by clarifying
+  PR-1 authority flag wording, packetized offline evaluation semantics, and
+  expected bootstrap/offline validation surfaces.
 
 ## Lane Start Provenance
 
@@ -73,9 +76,9 @@ Artifact: `artifacts/orchestration/experiments/results/pr2052-oracle-only-govern
 - [x] Post-open `bug-hunter` pass completed; no actionable findings.
 - [x] Post-open `security-auditor` pass completed; no actionable findings.
 - [x] Experiment Runner oracle-only governance evidence completed.
-- [ ] Codex Security diff scan / finding discovery completed or explicitly
+- [x] Codex Security diff scan / finding discovery completed or explicitly
   dispositioned.
-- [ ] `pulseplate-pr-review` completed.
+- [x] `pulseplate-pr-review` completed.
 - [ ] Current-head CI complete before readiness language.
 - [ ] Strict merge-readiness checks run after the final review/check cycle.
 
@@ -86,6 +89,15 @@ Commit: bd104ae3f96d22eca2c73d02ef763005f06a05f1
 Evidence: `docs/prompts/cv/program.md` now requires missing, ambiguous, or unsafe evidence to produce a documented degrade state and requires tests to cover no runtime upload, retention, provider-call, or serving paths.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2052 -> bd104ae3f96d22eca2c73d02ef763005f06a05f1
+
+Disposition: FIXED
+Commit: e1e3b93adfb38fb4cc40d1316a975d89f1cb31ad
+Evidence: `docs/prompts/cv/program.md` now names PR-1 authority flags without confusing PR-0 wording, defines packetized offline evaluation as local bounded artifacts instead of runtime image handling, and includes `tests/test_experiment_bootstrap.py` plus `tests/test_remaining_modules.py` in the expected validation surface list.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2052#pullrequestreview-4600079997 -> e1e3b93adfb38fb4cc40d1316a975d89f1cb31ad
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2052#discussion_r3498516678 -> e1e3b93adfb38fb4cc40d1316a975d89f1cb31ad
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2052#pullrequestreview-4600458403 -> e1e3b93adfb38fb4cc40d1316a975d89f1cb31ad
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2052#discussion_r3498842487 -> e1e3b93adfb38fb4cc40d1316a975d89f1cb31ad
 
 ## Post-Open Role Findings
 
@@ -121,6 +133,31 @@ finding. The diff adds no dependencies, scripts, secrets, subprocesses, CI
 behavior, runtime upload, retention, provider call, serving path, hidden
 autonomy, or medical/clinical claim.
 
+### Codex Security
+
+Disposition: NOT-A-BUG
+
+Evidence: Codex Security diff scan
+`5f0e5673-b0ed-4cdc-ba18-fd61c50e6b56` completed for range
+`e92924e2ee0d703a06bd664900c615f73f3a3744..21bf5ded2eaceddd13ebcd6c83c90688f3098853`.
+The scan reviewed `docs/prompts/cv/program.md` and
+`docs/review/PR_2052_FIXED_MAPPING.md` for authority expansion, runtime upload
+or retention paths, provider-call paths, secrets or local path leakage,
+governance bypass, and false readiness claims. Reportable findings: `0`.
+
+Report: Codex Security workbench `markdownReport` artifact for scan
+`5f0e5673-b0ed-4cdc-ba18-fd61c50e6b56`.
+
+### pulseplate-pr-review
+
+Disposition: NOT-A-BUG
+
+Evidence: Repo-native `pulseplate-pr-review` dry-run report completed from
+GitHub PR metadata, the current PR diff, and this fixed-mapping artifact. The
+report found no deterministic findings, recorded no warnings, and remained
+side-effect free: no GitHub comments, review-thread resolution, merge action,
+or merge-readiness claim.
+
 ## Premortem Closure
 
 Skill: `pulseplate-premortem-risk-review`
@@ -154,8 +191,9 @@ Disposition: FIXED
 
 Evidence: This artifact records the PR-numbered Phase2 SoT after PR `#2052`
 exists, includes the Experiment Runner evidence path, maps the QA finding to
-commit `bd104ae3f`, and keeps unfinished Codex Security, pulseplate-pr-review,
-CI, and strict merge-readiness items unchecked.
+commit `bd104ae3f`, records completed Codex Security and
+`pulseplate-pr-review` passes, and keeps unfinished CI and strict
+merge-readiness items unchecked.
 
 ### PM-2052-004 - Local candidate evidence is mistaken for merge readiness
 
@@ -163,9 +201,8 @@ Disposition: NOT-A-BUG
 
 Evidence: The PR body and this artifact state that candidate evaluation and
 oracle-only governance evidence are not merge-readiness evidence. Current-head
-CI, Codex Security, pulseplate-pr-review, external bot actionables, review
-threads, and strict merge-readiness checks remain pending before any readiness
-language.
+CI, review-thread resolution, and strict merge-readiness checks remain pending
+before any readiness language.
 
 ## Validation Evidence
 
@@ -183,6 +220,10 @@ language.
   path - PASS.
 - Experiment Runner oracle-only governance result
   `artifacts/orchestration/experiments/results/pr2052-oracle-only-governance-result.json` - accepted.
+- `python3 scripts/orchestration/pr_review_context.py --pr 2052 --output /tmp/pulseplate_pr2052_review_context.json` - PASS.
+- `python3 scripts/orchestration/pr_review_report.py --context /tmp/pulseplate_pr2052_review_context.json --format markdown` - PASS; no deterministic findings.
+- Codex Security diff scan `5f0e5673-b0ed-4cdc-ba18-fd61c50e6b56` - PASS;
+  reportable findings `0`.
 
 ## Local Verification Exception
 
@@ -192,9 +233,9 @@ merge-readiness claim is made in this artifact.
 
 ## Merge Readiness
 
-- [ ] Codex Security diff scan / finding discovery is complete or dispositioned.
-- [ ] `pulseplate-pr-review` is complete.
+- [x] Codex Security diff scan / finding discovery is complete or dispositioned.
+- [x] `pulseplate-pr-review` is complete.
 - [ ] Current-head CI is complete for the latest PR head.
-- [ ] CodeRabbit, Sourcery, and Cubic actionables are fixed or dispositioned.
+- [x] CodeRabbit, Sourcery, and Cubic actionables are fixed or dispositioned.
 - [ ] Review threads are checked and dispositioned.
 - [ ] `check_merge_ready.py --require-auth` passes.
