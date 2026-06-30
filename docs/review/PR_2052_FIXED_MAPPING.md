@@ -201,8 +201,8 @@ Disposition: NOT-A-BUG
 
 Evidence: The PR body and this artifact state that candidate evaluation and
 oracle-only governance evidence are not merge-readiness evidence. Current-head
-CI, review-thread resolution, and strict merge-readiness checks remain pending
-before any readiness language.
+CI and strict merge-readiness checks remain pending before any readiness
+language.
 
 ## Validation Evidence
 
@@ -224,6 +224,9 @@ before any readiness language.
 - `python3 scripts/orchestration/pr_review_report.py --context /tmp/pulseplate_pr2052_review_context.json --format markdown` - PASS; no deterministic findings.
 - Codex Security diff scan `5f0e5673-b0ed-4cdc-ba18-fd61c50e6b56` - PASS;
   reportable findings `0`.
+- GitHub review-thread pass after pushing fix/mapping commits - PASS; Sourcery
+  and CodeRabbit threads are resolved after FIXED disposition evidence was
+  recorded.
 
 ## Local Verification Exception
 
@@ -237,5 +240,5 @@ merge-readiness claim is made in this artifact.
 - [x] `pulseplate-pr-review` is complete.
 - [ ] Current-head CI is complete for the latest PR head.
 - [x] CodeRabbit, Sourcery, and Cubic actionables are fixed or dispositioned.
-- [ ] Review threads are checked and dispositioned.
+- [x] Review threads are checked and dispositioned.
 - [ ] `check_merge_ready.py --require-auth` passes.
