@@ -126,8 +126,16 @@ HTTPX2_TESTCLIENT_RUNTIME_EXCLUDED_SURFACES = (
     "requirements.txt",
     "requirements-ci-lite.in",
     "requirements-ci-lite.txt",
+    "requirements-data.in",
+    "requirements-data.txt",
     "requirements-docker-runtime.in",
     "requirements-docker-runtime.txt",
+    "requirements-evals.in",
+    "requirements-evals.txt",
+    "requirements-rag-vector.in",
+    "requirements-rag-vector.txt",
+    "requirements-rag-vector-cpu.in",
+    "requirements-rag-vector-cpu.txt",
 )
 DEFAULT_AND_TOOLING_REQUIREMENT_FILES = DEFAULT_INSTALL_REQUIREMENT_FILES + (
     "requirements-dev.in",

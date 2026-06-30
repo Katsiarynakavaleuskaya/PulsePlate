@@ -642,6 +642,46 @@ def test_backend_hook_maps_staged_frontend_package_changes_to_governance_tests(
     assert "Backend tests passed" in output
 
 
+def test_backend_hook_maps_python_dependency_surface_to_testclient_guards(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(tmp_path, "init", "--quiet", str(repo))
+    _git(repo, "config", "user.email", "pulseplate@pm.me")
+    _git(repo, "config", "user.name", "PulsePlate Hook Resolver")
+    (repo / "scripts" / "hooks").mkdir(parents=True)
+    shutil.copy2(HOOK_RESOLVER, repo / "scripts" / "hooks" / "repo_python.sh")
+    shutil.copy2(
+        REPO_ROOT / "scripts" / "run-backend-tests-pre-commit.sh",
+        repo / "scripts" / "run-backend-tests-pre-commit.sh",
+    )
+    (repo / "requirements-test.in").write_text("pytest~=9.1.1\n", encoding="utf-8")
+    (repo / "README.md").write_text("init\n", encoding="utf-8")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "--quiet", "-m", "init")
+    (repo / "requirements-test.in").write_text(
+        "httpx2>=2.3.0,<2.4.0\npytest~=9.1.1\n",
+        encoding="utf-8",
+    )
+    _git(repo, "add", "requirements-test.in")
+    calls_file = tmp_path / "pytest-dependency-surface-args.txt"
+    fake_python = tmp_path / "fake-python-dependency-surface"
+    _write_fake_pytest_python(fake_python, calls_file)
+    env = _clean_hook_env()
+    env["VENV_PYTHON"] = str(fake_python)
+    env["PRE_COMMIT"] = "1"
+
+    output = _bash("bash scripts/run-backend-tests-pre-commit.sh", cwd=repo, env=env)
+
+    called_args = calls_file.read_text(encoding="utf-8").splitlines()
+    assert "tests/compat/test_starlette_httpx2_testclient_compat.py" in called_args
+    assert "tests/test_httpx_testclient_compat_guard.py" in called_args
+    assert "tests/test_python_dependency_surfaces.py" in called_args
+    assert "tests/test_python_supply_chain_controls.py" in called_args
+    assert "Backend tests passed" in output
+
+
 def test_backend_hook_maps_staged_frontend_package_rename_to_governance_tests(
     tmp_path: Path,
 ) -> None:

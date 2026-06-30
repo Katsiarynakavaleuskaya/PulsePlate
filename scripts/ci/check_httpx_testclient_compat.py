@@ -15,7 +15,22 @@ from pathlib import Path
 import sys
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_SCAN_PATHS = ("app", "core", "providers", "scripts", "tests")
+DEFAULT_SCAN_PATHS = (
+    "app",
+    "core",
+    "providers",
+    "scripts",
+    "tests",
+    "llm.py",
+    "main.py",
+    "mcp_pulseplate_server.py",
+    "secure_config.py",
+    "settings.py",
+    "signed_links.py",
+    # Compatibility seam is intentionally excluded below, but keep it in the
+    # default path set so the exclusion is explicit and test-covered.
+    "legacy_app.py",
+)
 HTTPX_CLIENT_NAMES = frozenset({"Client", "AsyncClient"})
 EXCLUDED_DIR_PARTS = frozenset(
     {

@@ -91,3 +91,15 @@ def test_guard_scans_current_repo_without_deprecated_httpx_app_shortcuts() -> No
     scan_paths = [REPO_ROOT / path for path in guard.DEFAULT_SCAN_PATHS]
 
     assert guard.find_violations(scan_paths, repo_root=REPO_ROOT) == []
+
+
+def test_guard_default_scan_paths_include_root_backend_modules() -> None:
+    assert {
+        "legacy_app.py",
+        "llm.py",
+        "main.py",
+        "mcp_pulseplate_server.py",
+        "secure_config.py",
+        "settings.py",
+        "signed_links.py",
+    }.issubset(set(guard.DEFAULT_SCAN_PATHS))
