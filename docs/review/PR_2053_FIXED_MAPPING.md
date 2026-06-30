@@ -110,6 +110,12 @@ Evidence: `AGENTS.md`, `.agents/skills/pulseplate-orchestration-dispatch/AGENTS.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2053#discussion_r3502007171
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2053#discussion_r3502007174
 
+Disposition: NOT-A-BUG
+Reason: The comments cite synthetic reviewed head `f5b532d877dfb5ed38993f3e56d08f17cf000e43`, not the live PR branch head. Branch-history commit ancestry is verified against the actual PR head, while final squash attribution is handled through the merge commit body.
+Evidence: Live PR #2053 head after mapping is `876f79009ffb5dbd6473fd998acec314b689c066`; `git merge-base --is-ancestor 3e3b9e76102063fb55a254a91551b46c034340ea 876f79009ffb5dbd6473fd998acec314b689c066` returned 0, and the final squash merge body must include `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2053#discussion_r3502112182
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2053#discussion_r3502112184
+
 ## Initial Review-State Notes
 
 GitHub live review evidence before implementation showed 0 review threads,
