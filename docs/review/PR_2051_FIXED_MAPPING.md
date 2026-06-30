@@ -140,6 +140,20 @@ Evidence: `scripts/ci/check_httpx_testclient_compat.py` drops stale httpx bindin
 - Cubic status was advisory/neutral at PR open; no actionable thread was mapped
   at the time of this artifact.
 
+## Scope Governance Evidence
+
+- Operator approval: approved for completing and merging this already validated
+  Starlette/httpx2 dependency-guard PR rather than splitting the final
+  three-file privileged-lane overage.
+- Privileged scope exception: approved because the extra counted files are
+  tightly coupled dependency docs, guard tests, and mandatory fixed-mapping
+  evidence for one narrow backend TestClient compatibility lane.
+- Trusted labels applied to PR #2051:
+  `scope/operator-approved`, `scope/privileged-approved`.
+- Local reproduction before approval failed with
+  `PR scope governance: FAIL (privileged CI/security/workflow PR has 18 files;
+  hard cap is 15 without operator-approved exception)`.
+
 ## Validation Evidence
 
 - PASS: red proof before dependency install reproduced
@@ -165,6 +179,7 @@ Evidence: `scripts/ci/check_httpx_testclient_compat.py` drops stale httpx bindin
 - PASS after `08e5e7d6`: `.venv/bin/python -m pytest -q tests/test_pre_commit_hook_python_resolver.py -k "python_dependency_surface or httpx2_canary"`
 - PASS after `08e5e7d6`: `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")" PRE_COMMIT=1 PREPUSH_DEBUG=1 bash scripts/run-backend-tests-pre-commit.sh`
 - PASS after `08e5e7d6`: `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")" BRANCH_DIFF_MODE=1 PREPUSH_DEBUG=1 bash scripts/run-backend-tests-pre-commit.sh`
+- PASS after scope approval: `python3 scripts/ci/check_pr_size_governance.py --base-sha "$(git merge-base origin/main HEAD)" --head-sha "$(git rev-parse HEAD)" --event-path <live-pr-event-json>`
 - PASS: `make validate-changed`
 - PASS: `pre-commit run --all-files`
 - PASS: `git diff --check`
