@@ -147,6 +147,34 @@ declare -a PYTHON_HELPER_SOURCE_FILES=(
 declare -a PYTHON_HELPER_TEST_TARGETS=(
     "tests/security/test_api_authz_contract_static.py"
 )
+declare -a PYTHON_DEPENDENCY_TESTCLIENT_SURFACE_FILES=(
+    "REQUIREMENTS.md"
+    "docs/DEPENDENCY_MANAGEMENT.md"
+    "docs/contracts/PYTHON_DEPENDENCY_SURFACES.md"
+    "requirements-dev.in"
+    "requirements-dev.txt"
+    "requirements-lock.txt"
+    "requirements-test.in"
+    "requirements-test.txt"
+    "scripts/ci/check_httpx_testclient_compat.py"
+    "scripts/ci/check_python_dependency_surfaces.py"
+    "tests/compat/test_starlette_httpx2_testclient_compat.py"
+    "tests/test_httpx_testclient_compat_guard.py"
+    "tests/test_python_supply_chain_controls.py"
+)
+
+add_python_dependency_testclient_tests() {
+    # CI lint runs the pre-commit hook from the ci-lite dependency profile,
+    # where httpx2 is deliberately absent. Keep the httpx2-backed production
+    # canary on validate-changed/pre-push/focused pytest paths, while the
+    # pre-commit hook still enforces static and dependency-surface guards.
+    if [ -z "${PRE_COMMIT:-}" ]; then
+        EXTRA_TEST_FILES+=("tests/compat/test_starlette_httpx2_testclient_compat.py")
+    fi
+    EXTRA_TEST_FILES+=("tests/test_httpx_testclient_compat_guard.py")
+    EXTRA_TEST_FILES+=("tests/test_python_dependency_surfaces.py")
+    EXTRA_TEST_FILES+=("tests/test_python_supply_chain_controls.py")
+}
 
 add_extra_tests_for_changed_files() {
     while IFS= read -r file; do
@@ -157,6 +185,12 @@ add_extra_tests_for_changed_files() {
                 EXTRA_TEST_FILES+=("tests/test_python_supply_chain_controls.py")
                 ;;
         esac
+        for dependency_file in "${PYTHON_DEPENDENCY_TESTCLIENT_SURFACE_FILES[@]}"; do
+            if [ "$file" = "$dependency_file" ]; then
+                add_python_dependency_testclient_tests
+                break
+            fi
+        done
     done <<< "$CHANGED_FILES"
 }
 
@@ -241,6 +275,9 @@ if [ -n "$PYTHON_CHANGES" ]; then
         # Helper modules under tests/ need executable test targets, not direct
         # pytest collection of the helpers themselves.
         if add_helper_tests_for_python_change "$file"; then
+            :
+        elif [ -n "${PRE_COMMIT:-}" ] && [ "$file" = "tests/compat/test_starlette_httpx2_testclient_compat.py" ]; then
+            # This canary needs httpx2, which is intentionally outside ci-lite.
             :
         # If the file is in tests/ directory, add it directly (but exclude conftest.py)
         elif [[ $file == tests/* ]] && [[ $file == *.py ]] && [[ ! $(basename "$file") == conftest.py ]]; then

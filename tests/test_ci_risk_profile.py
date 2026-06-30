@@ -162,6 +162,27 @@ def test_security_audit_helper_path_is_workflow_privileged() -> None:
     assert profile.to_outputs()["run_security"] == "true"
 
 
+@pytest.mark.parametrize(
+    "changed_file",
+    (
+        "requirements-dev.in",
+        "requirements-dev.txt",
+        "requirements-lock.txt",
+        "requirements-test.in",
+        "requirements-test.txt",
+        "REQUIREMENTS.md",
+        "docs/DEPENDENCY_MANAGEMENT.md",
+        "docs/contracts/PYTHON_DEPENDENCY_SURFACES.md",
+    ),
+)
+def test_python_dependency_surfaces_route_backend_blocking(changed_file: str) -> None:
+    profile = risk_profile.build_risk_profile([changed_file])
+
+    assert profile.backend_shared is True
+    assert profile.run_backend_blocking is True
+    assert profile.run_security is True
+
+
 def test_pull_request_template_is_workflow_privileged() -> None:
     profile = risk_profile.build_risk_profile(
         [".github/pull_request_template.md"],
