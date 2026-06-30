@@ -57,8 +57,8 @@ change is in scope.
 - [x] Post-open `web-research-agent` pass completed.
 - [x] Codex Security diff scan / finding discovery completed.
 - [x] `pulseplate-pr-review` completed.
-- [ ] Current-head CI complete before readiness language.
-- [ ] Strict merge-readiness checks run after the final review/check cycle.
+- [x] Current-head CI complete before readiness language.
+- [x] Strict merge-readiness checks run after the final review/check cycle.
 
 ## Fixed in Commit Mapping
 
@@ -124,8 +124,8 @@ Finding: A docs-only governance PR could be mistaken for a runtime security
 change and overstate merge readiness before current-head CI reruns.
 
 Evidence: Scope and out-of-scope sections explicitly exclude runtime surfaces,
-and merge readiness remains pending until local narrow gates plus current-head
-GitHub checks complete.
+and merge readiness is gated on local narrow validation plus current-head
+GitHub checks.
 
 ## Experiment Runner Evidence
 
@@ -187,6 +187,8 @@ GitHub checks complete.
 - PASS: `python3 scripts/orchestration/check_agent_consistency.py`
 - PASS: `make validate-changed`
 - PASS: `pre-commit run --all-files`
+- PASS: `gh pr checks 2053 --repo Katsiarynakavaleuskaya/PulsePlate`
+- PASS: `python3 scripts/orchestration/check_merge_ready.py --pr-number 2053 --repo Katsiarynakavaleuskaya/PulsePlate --require-auth`
 - PASS during commit hooks for commit `394077951`: fixed-format hooks,
   detect-secrets, backend tests, and conventional-commit check.
 - Not run: local full `make verify`, per repository budget rule and operator
@@ -211,6 +213,8 @@ None.
 
 ## Merge Readiness
 
-Not ready yet. Current-head CI, Codex Security diff scan / finding discovery,
-`pulseplate-pr-review`, local narrow validation, and the strict merge-readiness
-gate must run after the final PR #2053 updates.
+Ready for merge after the final current-head pass. Local narrow validation,
+Codex Security diff scan / finding discovery, `pulseplate-pr-review`,
+GitHub current-head checks, and the strict merge-readiness wrapper passed for
+the PR #2053 closeout state. Any subsequent commit requires rerunning the
+current-head checks and strict wrapper before merge.
