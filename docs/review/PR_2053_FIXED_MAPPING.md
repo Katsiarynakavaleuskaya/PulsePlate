@@ -86,7 +86,7 @@ Evidence: `git merge-base --is-ancestor 3e3b9e76102063fb55a254a91551b46c034340ea
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2053#discussion_r3501917345
 
 Disposition: NOT-A-BUG
-Reason: This docs-governance lane already completed its mandatory post-open Codex Security and `pulseplate-pr-review` passes once. Re-running those passes for each new review comment creates an unbounded review loop; operator instruction on 2026-07-01 explicitly capped the loop at one pass and prohibited another scan.
+Reason: This docs-governance lane already completed its mandatory post-open Codex Security and `pulseplate-pr-review` passes once. Re-running those passes for each new review comment creates an unbounded review loop; the operator explicitly capped the loop at one pass and prohibited another scan during this closeout turn.
 Evidence: `AGENTS.md` and `.agents/skills/pulseplate-orchestration-dispatch/rules/packet-parsing.md` record the durable single-pass rule; canceled Codex Security scan `d5c69338-a853-49b1-92aa-6fd6b77be13f` documents that an attempted duplicate full-diff scan was stopped before execution by operator override.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2053#discussion_r3501917346
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2053#discussion_r3501917350
@@ -209,8 +209,9 @@ GitHub checks.
   gates. They do not restart the role/security/review loop unless a new
   security-relevant code diff enters scope or the operator explicitly requests
   another run.
-- Operator instruction on 2026-07-01: do not run another Codex Security scan
-  for PR #2053; record the orchestration single-pass guard instead.
+- Operator instruction during this closeout turn: do not run another Codex
+  Security scan for PR #2053; record the orchestration single-pass guard
+  instead.
 - Durable rule locations: `AGENTS.md`,
   `.agents/skills/pulseplate-orchestration-dispatch/AGENTS.md`, and
   `.agents/skills/pulseplate-orchestration-dispatch/rules/packet-parsing.md`.
