@@ -26,9 +26,14 @@ from scripts.orchestration.creative_code_patch_contract import (
     validate_creative_code_patch_build_request,
     validate_creative_code_patch_result,
 )
+from scripts.orchestration import creative_code_specification
 from scripts.orchestration.creative_code_specification import (
+    build_creative_code_specification_bundle,
+    build_default_specification_variants,
+    build_pending_skeptic_reviews,
     read_creative_code_specification_bundle,
 )
+from scripts.orchestration.experiment_contract import validate_cv_context
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 REFERENCE_BUNDLE = REPO_ROOT / "docs/orchestration/contracts/creative_code_specification.v1.json"
@@ -94,6 +99,63 @@ def _patch_modules_to_repo(monkeypatch: pytest.MonkeyPatch, repo: Path) -> None:
 
 def _reference_bundle() -> dict[str, Any]:
     return read_creative_code_specification_bundle(REFERENCE_BUNDLE)
+
+
+def _fingerprint_review(review: dict[str, Any]) -> dict[str, Any]:
+    payload = {
+        key: review[key]
+        for key in sorted(
+            creative_code_specification.REVIEW_KEYS - {"review_id", "review_fingerprint"}
+        )
+    }
+    review["review_fingerprint"] = fingerprint_payload(payload)
+    return review
+
+
+def _cv_reference_bundle() -> dict[str, Any]:
+    packet = json.loads(
+        (REPO_ROOT / "docs/orchestration/contracts/creative_code_candidate.v1.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    packet["candidate_id"] = "cv-program-offline-eval-001"
+    packet["idempotency_key"] = "cv-program-offline-eval-001-v1"
+    packet["source_creative_research"] = {
+        "bundle_id": "creative-research-cv-program-offline-eval",
+        "candidate_id": "creative-research-cv-program-offline-eval-001",
+        "promotion_decision": "promote",
+        "fingerprint": "sha256:" + ("8" * 64),
+        "evidence_ref": "docs/orchestration/GOVERNED_CREATIVE_CODE_EXECUTION_CONTRACT.md",
+    }
+    packet["target_surface"] = ["docs/prompts/cv/program.md"]
+    packet["immutable_oracles"] = ["tests/test_creative_code_patch_builder.py"]
+    packet["evidence_bundle"] = {
+        "artifact_refs": [
+            "docs/orchestration/GOVERNED_CREATIVE_CODE_EXECUTION_CONTRACT.md",
+            "docs/prompts/cv/program.md",
+        ],
+        "required_tests": ["tests/test_creative_code_patch_builder.py"],
+        "negative_controls": [
+            "runtime_photo_upload_not_authorized",
+            "medical_claim_wording_rejected",
+            "raw_image_retention_not_authorized",
+        ],
+    }
+    variants = build_default_specification_variants(packet)
+    reviews: list[dict[str, Any]] = []
+    for review in build_pending_skeptic_reviews(source_packet=packet, variants=variants):
+        review = dict(review)
+        if review["variant_id"] == variants[0]["variant_id"]:
+            review["decision"] = "pass"
+            review["blockers"] = []
+        else:
+            review["blockers"] = ["non_selected_candidate_variant"]
+        reviews.append(_fingerprint_review(review))
+    return build_creative_code_specification_bundle(
+        source_packet=packet,
+        variants=variants,
+        skeptic_reviews=reviews,
+    )
 
 
 def _reference_request() -> dict[str, Any]:
@@ -818,6 +880,110 @@ def test_evaluate_writes_sanitized_result_without_runner_leaks(
     assert "/Users/example" not in encoded
     assert "sk-secret" not in encoded
     assert "diff --git leak" not in encoded
+
+
+def test_evaluate_supplies_cv_context_for_cv_candidate(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo, _ = _init_patch_repo(tmp_path, include_target_file=False)
+    (repo / "docs" / "prompts" / "cv").mkdir(parents=True)
+    (repo / "docs" / "prompts" / "cv" / "program.md").write_text(
+        "# CV Offline Evaluation Program\n",
+        encoding="utf-8",
+    )
+    _git(repo, "add", ".")
+    _git(repo, "commit", "--quiet", "-m", "add cv program")
+    base_sha = _git(repo, "rev-parse", "HEAD").stdout.strip()
+    _git(repo, "update-ref", "refs/remotes/origin/main", base_sha)
+    _patch_modules_to_repo(monkeypatch, repo)
+    run_id = "eval-cv-context"
+    run_dir = creative_code_patch_workspace.resolve_run_dir(run_id, create=True)
+    bundle = _cv_reference_bundle()
+    request = build_creative_code_patch_build_request(
+        source_bundle=bundle,
+        base_commit_sha=base_sha,
+        approval_ref="PR-2-test-approval",
+        allowed_existing_paths=["docs/prompts/cv/program.md"],
+        allowed_new_paths=[],
+        oracle_commands=["pytest -q tests/test_creative_code_patch_builder.py"],
+        metrics=["candidate patch preserves offline CV governance"],
+        budgets={
+            "generation_attempts": 1,
+            "generation_timeout_seconds": 60,
+            "evaluation_timeout_seconds": 60,
+            "max_changed_files": 1,
+            "max_diff_lines": 200,
+            "max_patch_bytes": 20000,
+        },
+    )
+    state = {
+        "run_id": run_id,
+        "request_id": request["request_id"],
+        "source_bundle_id": request["source_bundle_id"],
+        "selected_variant_id": request["selected_variant_id"],
+        "base_commit_sha": base_sha,
+        "workspace": {"origin_removed": True},
+        "candidate_patch_generated": True,
+        "checkout_destroyed": True,
+    }
+    patch_text = (
+        "diff --git a/docs/prompts/cv/program.md b/docs/prompts/cv/program.md\n"
+        "index e69de29..4b825dc 100644\n"
+        "--- a/docs/prompts/cv/program.md\n"
+        "+++ b/docs/prompts/cv/program.md\n"
+        "@@ -1 +1,2 @@\n"
+        " # CV Offline Evaluation Program\n"
+        "+Offline evaluation remains documentation-only.\n"
+    )
+    metadata = {
+        "changed_paths": ["docs/prompts/cv/program.md"],
+        "patch_fingerprint": fingerprint_payload({"candidate_patch": patch_text}),
+        "patch_bytes": len(patch_text.encode("utf-8")),
+        "diff_lines": len(patch_text.splitlines()),
+    }
+    creative_code_patch_workspace.write_json_atomic(run_dir / "request.json", request)
+    creative_code_patch_workspace.write_json_atomic(run_dir / "source_bundle.json", bundle)
+    creative_code_patch_workspace.write_json_atomic(run_dir / "state.json", state)
+    creative_code_patch_workspace.write_json_atomic(run_dir / "patch_metadata.json", metadata)
+    (run_dir / "candidate.patch").write_text(patch_text, encoding="utf-8")
+
+    def fake_evaluate_candidate(
+        packet: dict[str, Any], candidate_patch_path: Path
+    ) -> dict[str, Any]:
+        assert validate_cv_context(packet["cv_context"]) == packet["cv_context"]
+        assert packet["cv_context"]["privacy_packet"]["raw_image_retention"] == "forbidden"
+        return {
+            "experiment_id": packet["experiment_id"],
+            "runner_mode": "candidate_patch",
+            "candidate_patch": str(candidate_patch_path),
+            "status": "accepted",
+            "failure_class": None,
+            "mutated_paths": ["docs/prompts/cv/program.md"],
+            "oracle_results": [{"returncode": 0, "timed_out": False, "truncated": False}],
+            "budget_observations": {
+                "oracle_commands_configured": 1,
+                "attempts": 1,
+                "retries_consumed": 0,
+            },
+            "shared_tree_untouched": True,
+        }
+
+    monkeypatch.setattr(creative_code_patch_builder, "evaluate_candidate", fake_evaluate_candidate)
+
+    result = creative_code_patch_builder.evaluate(run_id=run_id)
+
+    assert result["status"] == "accepted"
+    packet = json.loads((run_dir / "experiment_packet.json").read_text(encoding="utf-8"))
+    assert packet["cv_context"]["dataset"]["id"] == (
+        "creative-research-cv-program-offline-eval-001"
+    )
+    assert packet["cv_context"]["uncertainty_band_policy"]["bands"] == [
+        "high",
+        "medium",
+        "low",
+        "unknown",
+    ]
 
 
 def test_evaluate_fallback_stores_error_class_not_raw_exception(
