@@ -155,7 +155,7 @@ def _normalize_target_surface(raw_target: str) -> str:
             f"target surface must be exactly {DEFAULT_TARGET_SURFACE}."
         )
     try:
-        normalized = validate_mutable_candidate_surface([target])
+        normalized = cast(list[str], validate_mutable_candidate_surface([target]))
     except ValueError as exc:
         raise CreativeCodeAppliedCandidatePR6Error(str(exc)) from exc
     if normalized != [DEFAULT_TARGET_SURFACE]:
@@ -271,7 +271,10 @@ def _validate_launch_authority(launch_packet: Mapping[str, Any]) -> None:
 
 def _validate_launch_packet(launch_packet: Mapping[str, Any]) -> dict[str, Any]:
     try:
-        normalized = validate_creative_code_repair_launch_packet(launch_packet)
+        normalized = cast(
+            dict[str, Any],
+            validate_creative_code_repair_launch_packet(launch_packet),
+        )
     except CreativeCodeReviewDispositionContractError as exc:
         raise CreativeCodeAppliedCandidatePR6Error(str(exc)) from exc
     _validate_launch_authority(normalized)
