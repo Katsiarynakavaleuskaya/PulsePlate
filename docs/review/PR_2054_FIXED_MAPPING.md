@@ -59,7 +59,12 @@ tracked separately in PR #2052.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: 53b495f7375ef0d6e50efb0ff2feb5edf02e03c2
+Evidence: `scripts/orchestration/creative_code_applied_candidate_pr6.py` now rejects unknown run-plan authority keys before validating allowed true/false authority values, and `tests/test_creative_code_applied_candidate_pr6.py` covers tampered unknown authority flags.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2054#pullrequestreview-4601021548 -> 53b495f7375ef0d6e50efb0ff2feb5edf02e03c2
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2054#discussion_r3499312204 -> 53b495f7375ef0d6e50efb0ff2feb5edf02e03c2
 
 ## Validation Evidence
 
@@ -68,6 +73,8 @@ tracked separately in PR #2052.
 - `. .venv/bin/activate && python -m pytest -q tests/test_creative_code_applied_candidate_pr6.py tests/test_creative_code_patch_builder.py tests/test_creative_code_pr_promotion.py tests/test_creative_code_specification.py tests/test_creative_code_telemetry.py` - PASS.
 - `. .venv/bin/activate && python -m pytest -q tests/test_creative_code_applied_candidate_pr6.py tests/test_creative_code_patch_builder.py tests/test_creative_code_pr_promotion.py` - PASS after the mypy fix.
 - `pre-commit run --hook-stage pre-push mypy --files scripts/orchestration/creative_code_applied_candidate_pr6.py scripts/orchestration/creative_code_patch_builder.py scripts/orchestration/creative_code_pr_promotion.py` - PASS.
+- `. .venv/bin/activate && python -m pytest -q tests/test_creative_code_applied_candidate_pr6.py` - PASS after the Sourcery authority-key fix.
+- `pre-commit run --hook-stage pre-push mypy --files scripts/orchestration/creative_code_applied_candidate_pr6.py` - PASS after the Sourcery authority-key fix.
 - `make validate-changed` - PASS.
 - `pre-commit run --all-files` - PASS.
 - Pre-push hook - PASS after the mypy fix, including mypy, pip-audit,
@@ -85,6 +92,6 @@ merge-readiness claim is made in this artifact.
 - [ ] Codex Security diff scan / finding discovery is complete or dispositioned.
 - [ ] `pulseplate-pr-review` is complete.
 - [ ] Current-head CI is complete for the latest PR head.
-- [ ] CodeRabbit, Sourcery, and Cubic actionables are fixed or dispositioned.
+- [x] CodeRabbit, Sourcery, and Cubic actionables are fixed or dispositioned.
 - [ ] Review threads are checked and dispositioned.
 - [ ] `check_merge_ready.py --require-auth` passes.
