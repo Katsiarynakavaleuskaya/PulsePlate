@@ -49,14 +49,7 @@ Runner did not provide mutation, oracle, admission, or commit-decision evidence.
 
 ## Fixed in Commit Mapping
 
-- Pending: post-open `bug-hunter` finding on scheduled/main `trivy.yml`
-  runtime-surface guard parity
-Disposition: FIXED
-Commit: pending
-Evidence: `.github/workflows/trivy.yml` blocks `libacl1` and `libattr1` in
-the scheduled/main Trivy production image runtime-surface guard, and
-`tests/test_docker_workflow_build_path_contract.py` asserts both Docker image
-workflows block those packages.
+- No actionable review comments
 
 ## Post-Open Review Evidence
 
@@ -66,7 +59,7 @@ workflows block those packages.
 - FIXED: `bug-hunter` post-open pass found that scheduled/main `trivy.yml`
   runtime-surface guard did not yet block `libacl1`/`libattr1` like
   `build.yml`; fixed by extending the workflow guard and two-workflow test
-  assertion.
+  assertion in commit `3b8089b7c1c8c73af61d2c0af07d638077ac5911`.
 - Pending: `security-auditor` post-open pass.
 - Pending: Codex Security diff scan / finding discovery if available.
 - Pending: `pulseplate-pr-review`.
