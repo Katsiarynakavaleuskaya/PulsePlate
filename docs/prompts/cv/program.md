@@ -62,9 +62,11 @@ A future authorized patch satisfies this specification only if:
 - the changed behavior remains offline-evaluation-only
 - no runtime upload, image retention, provider call, or serving path is enabled
 - output states are deterministic for identical packet inputs
-- ambiguous or missing evidence produces a documented degrade state
+- missing, ambiguous, or unsafe evidence produces a documented degrade state
 - confidence remains qualitative and does not imply medical certainty
-- tests cover the patch-builder behavior and the applied candidate fixture path
+- tests cover the patch-builder behavior, the applied candidate fixture path,
+  missing/ambiguous/unsafe evidence degradation, and the absence of runtime
+  upload, retention, provider-call, or serving paths
 - rollback can be performed by reverting the single authorized prompt/program
   change without data migration or service disablement
 
