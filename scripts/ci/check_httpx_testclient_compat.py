@@ -144,11 +144,11 @@ class HttpxAppShortcutVisitor(ast.NodeVisitor):
         self._visit_function_like(node)
 
     def visit_Lambda(self, node: ast.Lambda) -> None:
-        for default in node.args.defaults:
-            self.visit(default)
-        for default in node.args.kw_defaults:
-            if default is not None:
-                self.visit(default)
+        for positional_default in node.args.defaults:
+            self.visit(positional_default)
+        for keyword_default in node.args.kw_defaults:
+            if keyword_default is not None:
+                self.visit(keyword_default)
         self._push_scope()
         self._drop_argument_names(node.args)
         self.visit(node.body)
@@ -253,11 +253,11 @@ class HttpxAppShortcutVisitor(ast.NodeVisitor):
     def _visit_function_like(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> None:
         for decorator in node.decorator_list:
             self.visit(decorator)
-        for default in node.args.defaults:
-            self.visit(default)
-        for default in node.args.kw_defaults:
-            if default is not None:
-                self.visit(default)
+        for positional_default in node.args.defaults:
+            self.visit(positional_default)
+        for keyword_default in node.args.kw_defaults:
+            if keyword_default is not None:
+                self.visit(keyword_default)
         if node.returns is not None:
             self.visit(node.returns)
 
