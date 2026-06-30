@@ -30,6 +30,9 @@ remains as a compatibility wrapper for that validator.
 - `constraints.txt` - Additional version constraints for deterministic CI/CD builds
 
 `requirements-test.txt` keeps `pgvector` only for postgres-vector test coverage; the FastEmbed/ONNX runtime packages remain isolated in the optional vector runtime profiles (`requirements-rag-vector.txt` and `requirements-rag-vector-cpu.txt`).
+`requirements-test.txt` also owns `httpx2` as the Starlette TestClient backend
+for backend test lanes. Runtime, Docker runtime, and CI-lite profiles must not
+install `httpx2`.
 `requirements-docker-runtime.txt` is the backend image contract for production-target Docker builds and excludes CI-only tooling.
 `requirements-data.txt` and `requirements-evals.txt` are local/manual offline
 profiles only. They are not shared GitHub Actions `requirements-profile` values
@@ -99,29 +102,30 @@ cutover, or legacy route ownership.
 `constraints.txt` serves as an **additional layer of version control** for CI/CD environments:
 
 - **Purpose**: Enforces specific versions for transitive dependencies that may not be pinned in `requirements.txt`
-- **Use Case**: Ensures CI/CD builds use identical package versions even when `pip install` is used instead of `pip-sync`
+- **Use Case**: Ensures CI/CD builds use identical package versions when standard pip-compatible installs need an explicit constraints layer
 - **Content**: Manually curated version pins for critical transitive dependencies or security patches
 - **Updates**: Review and update when security vulnerabilities are discovered or when a transitive dependency introduces breaking changes
 - **Example**: If `pydantic` depends on `typing-extensions`, but the version range is too broad, `constraints.txt` can pin it to a specific tested version
 
-**Note**: When using `pip-sync` (recommended for local development), `constraints.txt` is not needed since `requirements.txt` already contains all pinned versions.
+**Note**: The canonical local refresh path is `make venv-sync`, which uses the
+locked installer path. `constraints.txt` is still for shared pip-compatible
+install contexts; it is not a substitute for the compiled lock surfaces.
 
 ## Installation
 
-### Local Development (Recommended: pip-sync)
+### Local Development (Recommended: make venv-sync)
 
-`pip-sync` ensures exact matching - it installs packages from requirements files and removes any extras not listed, guaranteeing a clean, reproducible environment.
+`make venv-sync` refreshes the repo `.venv` through the locked installer path
+and the approved private package proxy. Use it after lockfile changes or when a
+local environment has stale wrappers or missing pins.
 
 ```bash
-# Install pip-tools
-pip install pip-tools
-
-# Install production dependencies
-pip-sync requirements.txt
-
-# Install development dependencies (includes production deps)
-pip-sync requirements-dev.txt
+export PULSEPLATE_PYTHON_INDEX_URL="https://packages.pulseplate.app/root/pulseplate/+simple/"
+make venv-sync
 ```
+
+Direct `pip-sync` remains a manual/debugging tool only; do not present it as the
+canonical local refresh path in repo workflows.
 
 ### CI/CD or Standard pip Environments
 
@@ -154,7 +158,9 @@ is intentionally excluded from canonical CI lanes and the shared
 If you need vector runtime tooling on a local machine, use the local CPU lockfile:
 
 ```bash
-pip-sync requirements-rag-vector-cpu.txt
+.venv/bin/python scripts/ci/install_locked_python_requirements.py \
+  --requirements-file requirements-rag-vector-cpu.txt \
+  --require-virtualenv
 ```
 
 ### Security coverage registry for optional/manual dependency profiles
@@ -324,8 +330,8 @@ pip-compile --allow-unsafe --no-emit-index-url requirements-rag-vector-cpu.in --
 pip-compile --allow-unsafe --no-emit-index-url --output-file=requirements-data.txt requirements-data.in
 pip-compile --allow-unsafe --no-emit-index-url --output-file=requirements-evals.txt requirements-evals.in
 
-# Install updated dependencies
-pip-sync requirements-dev.txt
+# Refresh local dependencies through the locked installer path
+make venv-sync
 ```
 
 ### Update a specific dependency
@@ -333,7 +339,7 @@ pip-sync requirements-dev.txt
 ```bash
 # Update only fastapi
 pip-compile requirements.in --upgrade-package fastapi -o requirements.txt
-pip-sync requirements.txt
+make venv-sync
 ```
 
 ### Add a new dependency
@@ -344,7 +350,7 @@ echo "new-package>=1.0.0" >> requirements.in
 
 # Recompile
 pip-compile requirements.in -o requirements.txt
-pip-sync requirements.txt
+make venv-sync
 ```
 
 ## CI/CD Integration
@@ -375,9 +381,9 @@ must remain credential-free. Authenticated devpi reads use `DEVPI_CI_USER` and
 `DEVPI_CI_PASSWORD` secrets via a temporary `.netrc`. Repository variables are
 allowed only for non-secret values.
 
-### Option 2: pip-sync (For Exact Matching)
+### Option 2: pip-sync (Manual Debugging Only)
 
-For stricter environment control matching local development:
+For manual debugging outside the canonical shared installer path:
 
 ```yaml
 - name: Install dependencies
@@ -389,7 +395,7 @@ For stricter environment control matching local development:
 **Trade-offs**:
 
 - **`install_locked_python_requirements.py`**: downloads wheels first, installs hermetically with `--no-index`, and performs a static startup-hook scan before tests/bootstrap
-- **`pip-sync`**: Exact environment matching with local dev, slower (uninstalls extras), requires pip-tools dependency
+- **`pip-sync`**: Manual/debug exact matching, slower (uninstalls extras), requires pip-tools dependency
 
 ## Supply-Chain Hardening Rules
 
