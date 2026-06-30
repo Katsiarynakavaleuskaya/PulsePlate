@@ -19,6 +19,8 @@ surface guard so those packages fail closed if they return.
 - Keep the Docker Build and Push runtime-surface guard and scheduled `trivy`
   workflow runtime-surface guard aligned.
 - Add tests that prevent broad Trivy suppression for the two CVEs/packages.
+- Add PR-scoped premortem, Experiment Runner, post-open role-review, Codex
+  Security, and fixed-mapping evidence.
 
 ## Out Of Scope
 
@@ -32,6 +34,8 @@ Packet: artifacts/orchestration/task_packets/a877862dd62a.json
 
 Post-open packet: artifacts/orchestration/task_packets/8391d9018c5d.json
 
+Closeout packet: artifacts/orchestration/task_packets/acba65b177db.json
+
 Starter: raw Codex session using repo `check_preflight.py` and
 `task_bootstrap.py`; no `start_pr_lane.sh` worktree was created because this was
 opened as an urgent `main` stabilization branch from the already synced root
@@ -39,8 +43,17 @@ checkout.
 
 ## Experiment Runner Evidence
 
-Not applicable: this is a Docker image security remediation PR; Experiment
-Runner did not provide mutation, oracle, admission, or commit-decision evidence.
+Artifact:
+`artifacts/orchestration/experiments/results/pr2055-docker-trivy-acl-attr-oracle-result-network1.json`
+
+- Mode: `oracle_only_governance_reviewer`
+- Status: `accepted`
+- Experiment ID: `exp-b3113fa85180`
+- Shared tree untouched: `true`
+- Mutated paths: `[]`
+- Contribution kind: `fixed_mapping_review`
+- Co-author required: `true`
+- Evidence mirror: `docs/review/PR_2055_EXPERIMENT_RUNNER_EVIDENCE.md`
 
 ## Discussion Thread Pass
 
@@ -49,20 +62,43 @@ Runner did not provide mutation, oracle, admission, or commit-decision evidence.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: The scheduled/manual Trivy lane now mirrors the ACL/attr blocklist and the focused workflow test checks both image refs.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2055#discussion_r3501752437 -> 3b8089b7c263951c0834a175da771ee189fdee3c
+
+Disposition: FIXED
+Commit: 75c4d3eb9bb834523a6fec63cc447565820bc8b9
+Evidence: docs/review/PR_2055_PREMORTEM.md records the actual Docker/Trivy diff premortem and closed findings.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2055#discussion_r3501792733
+
+Disposition: FIXED
+Commit: 75c4d3eb9bb834523a6fec63cc447565820bc8b9
+Evidence: docs/review/PR_2055_EXPERIMENT_RUNNER_EVIDENCE.md records the accepted oracle-only runner artifact and commands.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2055#discussion_r3501792740
+
+Disposition: NOT-A-BUG
+Evidence: Dockerfile, build.yml, trivy.yml, and tests/test_docker_workflow_build_path_contract.py keep the ACL/attr literals aligned across executable pruning, both workflow guards, and focused tests.
+Reason: Sourcery centralization feedback is maintainability guidance; centralizing package lists would broaden this urgent Docker/Trivy hotfix without fixing a current security defect.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2055#pullrequestreview-4603955142
 
 ## Post-Open Review Evidence
 
 - PASS: `qa-engineer-agent` post-open pass found no actionable test gap; it
   correctly kept merge acceptance blocked pending pushed mapping/current-head
   CI.
-- FIXED: `bug-hunter` post-open pass found that scheduled/main `trivy.yml`
-  runtime-surface guard did not yet block `libacl1`/`libattr1` like
-  `build.yml`; fixed by extending the workflow guard and two-workflow test
-  assertion in commit `3b8089b7c1c8c73af61d2c0af07d638077ac5911`.
-- Pending: `security-auditor` post-open pass.
-- Pending: Codex Security diff scan / finding discovery if available.
-- Pending: `pulseplate-pr-review`.
+- PASS: `bug-hunter` post-open pass found no Docker/workflow mismatch after the
+  Trivy-lane parity fix and no Trivy suppression bypass. It kept merge blocked
+  on mapping, the false no-actionable sentinel, and stale evidence.
+- PASS: `security-auditor` post-open pass found no Docker/Trivy security blocker
+  in the `c2d9bd45` diff.
+- PASS: `architecture-specialist` found no PR #2053/#2054 contamination and no
+  need to centralize Docker package literals in this urgent PR.
+- PASS: Codex Security scan `3b9010f8-1944-456f-97d5-2933df29534e` completed as
+  `branch_diff` with 0 reportable findings and 6/6 diff-scoped surfaces closed.
+- PASS: `pulseplate-pr-review` dry-run report returned no deterministic
+  findings; all review sources were available.
+- Evidence mirror: `docs/review/PR_2055_POST_OPEN_REVIEW_EVIDENCE.md`.
 
 ## Validation Evidence
 
@@ -84,7 +120,5 @@ Not run locally:
 
 ## Current Review-State Notes
 
-This artifact records the current no-actionable review mapping state for PR
-#2055. If review threads or actionable bot comments appear, this file must be
-updated with FIXED, NOT-A-BUG, or DEFERRED disposition evidence before thread
-resolution or merge-readiness claims.
+This artifact replaces the stale no-actionable sentinel. Review threads remain
+unresolved until the final pushed mapping and strict merge-readiness checks pass.
