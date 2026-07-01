@@ -83,6 +83,11 @@ Evidence: `scripts/orchestration/creative_code_private_pilot_loop_operator.py` n
 
 Disposition: FIXED
 Commit: 8e4489f4c73ddb9d509aece5dad6e4040de8b40e
+Evidence: The Sourcery review object covered the same base-ref issue mapped above; the code fix and regression test landed after the review timestamp.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2058#pullrequestreview-4609070727 -> 8e4489f4c73ddb9d509aece5dad6e4040de8b40e
+
+Disposition: FIXED
+Commit: 8e4489f4c73ddb9d509aece5dad6e4040de8b40e
 Evidence: `_typed_artifact_refs` now scans all matching PR-5 disposition packet files before blocker counting; the regression places the actionable packet after 25 non-disposition sidecars.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2058#discussion_r3506022287 -> 8e4489f4c73ddb9d509aece5dad6e4040de8b40e
 
@@ -121,6 +126,52 @@ Commit: b4901f158704192f97a695fa443a3404e637647c
 Evidence: `_fixed_mapping_ref()` now marks fixed-mapping evidence present only when the artifact exists, is not degraded, and has either mapping entries or explicit no-actionable proof; focused tests cover stub mapping artifacts holding governance.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2058#discussion_r3506221781 -> b4901f158704192f97a695fa443a3404e637647c
 
+Disposition: FIXED
+Commit: 2c5b3bbd6a1f4a4e71310f473512bc160c153951
+Evidence: Both private-pilot JSON schemas now mirror the runtime unsafe-text denylist for local paths, raw body/review markers, provider/oracle markers, secret tokens, patch markers, and merge-ready wording. `tests/test_creative_code_private_pilot_loop.py` covers the schema denylist examples.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2058#discussion_r3506447723 -> 2c5b3bbd6a1f4a4e71310f473512bc160c153951
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2058#discussion_r3506447731 -> 2c5b3bbd6a1f4a4e71310f473512bc160c153951
+
+Disposition: FIXED
+Commit: 2c5b3bbd6a1f4a4e71310f473512bc160c153951
+Evidence: `docs/orchestration/GOVERNED_CREATIVE_CODE_EXECUTION_CONTRACT.md` now spells out the exact decision enum values instead of shorthand.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2058#discussion_r3506447738 -> 2c5b3bbd6a1f4a4e71310f473512bc160c153951
+
+Disposition: FIXED
+Commit: 2c5b3bbd6a1f4a4e71310f473512bc160c153951
+Evidence: `scripts/AGENTS.md` now narrows the operator to sanitized GitHub PR/head/check/run metadata and clarifies checklist-only candidate-plan output.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2058#discussion_r3506447773 -> 2c5b3bbd6a1f4a4e71310f473512bc160c153951
+
+Disposition: FIXED
+Commit: 2c5b3bbd6a1f4a4e71310f473512bc160c153951
+Evidence: `validate_private_pilot_state()` now requires `generated_at_utc` to be a UTC timestamp, with focused regression coverage.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2058#discussion_r3506447789 -> 2c5b3bbd6a1f4a4e71310f473512bc160c153951
+
+Disposition: FIXED
+Commit: 2c5b3bbd6a1f4a4e71310f473512bc160c153951
+Evidence: duplicate current-head checks with missing timestamps now add degraded metadata and retain the most conservative state instead of using URL ordering; focused regression coverage proves a missing-timestamp failure is not hidden.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2058#discussion_r3506447796 -> 2c5b3bbd6a1f4a4e71310f473512bc160c153951
+
+Disposition: FIXED
+Commit: 2c5b3bbd6a1f4a4e71310f473512bc160c153951
+Evidence: `validate_candidate_plan()` now requires `blocked_authority` to match `sorted(AUTHORITY_FALSE_KEYS)` exactly, aligned with schema `prefixItems`; focused regression coverage rejects reordered authority.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2058#discussion_r3506447803 -> 2c5b3bbd6a1f4a4e71310f473512bc160c153951
+
+Disposition: FIXED
+Commit: 2c5b3bbd6a1f4a4e71310f473512bc160c153951
+Evidence: `_run_command()` now bounds `gh` subprocess calls with a 60 second timeout and raises `CreativeCodePrivatePilotOperatorError` on timeout; focused regression coverage exercises the timeout path.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2058#discussion_r3506447812 -> 2c5b3bbd6a1f4a4e71310f473512bc160c153951
+
+Disposition: FIXED
+Commit: 2c5b3bbd6a1f4a4e71310f473512bc160c153951
+Evidence: the CLI boundary now catches `CreativeCodePrivatePilotContractError` and returns the stable `ERROR:` path; focused regression coverage covers a contract failure from `collect`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2058#discussion_r3506447822 -> 2c5b3bbd6a1f4a4e71310f473512bc160c153951
+
+Disposition: FIXED
+Commit: 2c5b3bbd6a1f4a4e71310f473512bc160c153951
+Evidence: the CodeRabbit review summary consisted of the nine inline actionables mapped immediately above; the code/docs/schema fixes and 58-test focused suite cover those findings.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2058#pullrequestreview-4609635945 -> 2c5b3bbd6a1f4a4e71310f473512bc160c153951
+
 ## Post-Open Review Evidence
 
 Codex Security diff scan `8269429e-360d-484e-bbfa-8c76fa73cd1f` completed
@@ -131,7 +182,7 @@ findings.
 artifact. It emitted one advisory large-diff note.
 
 Disposition: NOT-A-BUG
-Evidence: The 3,936 changed-line count is explained by one bounded operator
+Evidence: The current large diff footprint is explained by one bounded operator
 surface plus its contract, JSON schemas, documentation, and focused regression
 tests. Focused tests, regression bundle, `make validate-changed`, and
 `pre-commit run --all-files` are the validation path for this intentionally
@@ -139,10 +190,10 @@ coupled PR surface.
 Reason: Splitting the schema/contract/operator/tests would weaken review of
 the authority boundary that this PR is specifically adding.
 
-CodeRabbit reported review-capacity friction before later status completion;
-the current CodeRabbit status is pass/no code actionables. Sourcery's only
-inline actionable was fixed and mapped above; its enum/schema dedupe and
-artifact-fingerprint-cache notes are advisory tradeoffs for this first local
+CodeRabbit's latest inline actionables were fixed in
+`2c5b3bbd6a1f4a4e71310f473512bc160c153951` and mapped above. Sourcery's inline
+actionable was fixed and mapped above; its enum/schema dedupe and
+artifact-fingerprint-cache notes remain advisory tradeoffs for this first local
 operator. Cubic was skipped/advisory and did not provide actionables.
 
 ## Merge Readiness
