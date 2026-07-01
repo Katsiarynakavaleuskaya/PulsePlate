@@ -149,11 +149,9 @@ def _configure_session_bindings(
             tags = [f"env:{env_label}", f"backend:{backend}"]
             with suppress(Exception):
                 client.increment("db_fallback_active", tags=tags)
-    except (
-        Exception
-    ):  # pragma: no cover  # nosec B110: metrics are non-critical (remove-by: 2026-06-30, ref: PR-1291)
+    except Exception:  # pragma: no cover
+        logger.debug("Failed to emit DB fallback activation metric", exc_info=True)
         # Metrics collection is non-critical; failures should not affect application startup
-        pass
 
     # Set DB_FALLBACK_URL only if needed for external tools
     if not is_production:

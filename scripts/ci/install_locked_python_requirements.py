@@ -1497,7 +1497,7 @@ def _read_private_index_project_page(
             )
         elif _trusted_host_matches_url(trusted_host=trusted_host, parsed_url=parsed):
             # fmt: off
-            trusted_context = ssl._create_unverified_context()  # nosec B323: mirrors explicit operator `--trusted-host` semantics for this health probe only (remove-by: 2026-06-30, ref: PR-1738)
+            trusted_context = ssl._create_unverified_context()  # nosec B323: mirrors explicit operator `--trusted-host` semantics for this health probe only (remove-by: 2026-09-30, ref: PR-main-nightly-nosec-ttl)
             # fmt: on
             conn = http.client.HTTPSConnection(
                 parsed.hostname,

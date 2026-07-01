@@ -139,9 +139,7 @@ def record_runtime_metrics(
             )
         if rewrite_total is not None and rewrite_count > 0:
             rewrite_total.labels(route_type=route_type).inc(float(rewrite_count))
-    except (
-        Exception
-    ):  # nosec B110: telemetry must never affect request handling (remove-by: 2026-06-30, ref: PR-philosophical-runtime-foundation)
+    except Exception:
         logger.debug("Philosophical runtime metrics failed", exc_info=True)
 
 

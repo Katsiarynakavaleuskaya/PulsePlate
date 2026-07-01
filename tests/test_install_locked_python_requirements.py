@@ -279,6 +279,51 @@ def test_private_index_project_health_honors_matching_trusted_host(
     assert observed_contexts[0] is not None
 
 
+def test_private_index_project_health_uses_default_tls_for_mismatched_trusted_host(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    observed_contexts: list[object | None] = []
+
+    class FakeHTTPSConnection:
+        def __init__(
+            self,
+            _host: str,
+            *,
+            port: int | None = None,
+            timeout: int,
+            context: object | None = None,
+        ) -> None:
+            assert port is None
+            assert timeout == installer.PRIVATE_INDEX_HEALTH_TIMEOUT_SECONDS
+            observed_contexts.append(context)
+
+        def request(
+            self,
+            _method: str,
+            path: str,
+            *,
+            headers: dict[str, str],
+        ) -> None:
+            assert path == "/simple/pip/"
+            assert headers == {}
+
+        def getresponse(self) -> _FakeSimpleIndexResponse:
+            return _FakeSimpleIndexResponse()
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr(installer.http.client, "HTTPSConnection", FakeHTTPSConnection)
+
+    installer._require_private_index_project_health(
+        index_url=APPROVED_PROXY_URL,
+        package="pip",
+        trusted_host="other.example.internal",
+    )
+
+    assert observed_contexts == [None]
+
+
 def test_private_index_project_health_supports_approved_http_proxy(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

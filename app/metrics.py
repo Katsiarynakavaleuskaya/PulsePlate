@@ -246,10 +246,8 @@ def record_legacy_alias_hit(alias_route: str) -> None:
 
     try:
         counter.labels(alias_route=alias_route).inc()
-    except (
-        Exception
-    ):  # nosec B110: metrics must never affect request handling (remove-by: 2026-06-30, ref: PR-1333)
-        pass
+    except Exception:
+        logger.debug("Failed to record legacy alias metric", exc_info=True)
 
 
 def _normalize_label_value(value: object) -> str | None:
@@ -315,10 +313,8 @@ def record_food_search_meili_performance(
                 perf_state=normalized_perf_state,
                 degraded=normalized_degraded,
             ).inc()
-        except (
-            Exception
-        ):  # nosec B110: metrics must never affect request handling (remove-by: 2026-06-30, ref: PR-1333)
-            pass
+        except Exception:
+            logger.debug("Failed to record Meilisearch performance counter", exc_info=True)
 
     if processing_time_ms is None:
         return
@@ -333,10 +329,8 @@ def record_food_search_meili_performance(
             perf_state=normalized_perf_state,
             degraded=normalized_degraded,
         ).observe(processing_time_ms)
-    except (
-        Exception
-    ):  # nosec B110: metrics must never affect request handling (remove-by: 2026-06-30, ref: PR-1333)
-        pass
+    except Exception:
+        logger.debug("Failed to record Meilisearch performance histogram", exc_info=True)
 
 
 def record_food_search_meili_stage_timing(
@@ -360,7 +354,5 @@ def record_food_search_meili_stage_timing(
             strategy=_normalize_meili_strategy(strategy),
             stage=normalized_stage,
         ).observe(duration_ms)
-    except (
-        Exception
-    ):  # nosec B110: metrics must never affect request handling (remove-by: 2026-06-30, ref: PR-1333)
-        pass
+    except Exception:
+        logger.debug("Failed to record Meilisearch stage timing histogram", exc_info=True)

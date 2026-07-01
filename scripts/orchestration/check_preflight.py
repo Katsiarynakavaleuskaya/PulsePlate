@@ -10,7 +10,7 @@ Modes:
 from __future__ import annotations
 
 import shutil
-import subprocess  # nosec B404: fixed git commands only, no user input (remove-by: 2026-06-30, ref: PR-996)
+import subprocess  # nosec B404: fixed git commands only, no user input (remove-by: 2026-09-30, ref: PR-main-nightly-nosec-ttl)
 import sys
 from pathlib import Path
 
@@ -47,7 +47,7 @@ VALID_MODES = {"analyze", "execute", "merge"}
 def _run(cmd: list[str], cwd: Path | None = None) -> tuple[int, str]:
     if cmd and cmd[0] == "git":
         cmd = [GIT_EXECUTABLE, *cmd[1:]]
-    r = subprocess.run(  # nosec B603: fixed git commands only (remove-by: 2026-06-30, ref: PR-996)
+    r = subprocess.run(  # nosec B603: fixed git commands only (remove-by: 2026-09-30, ref: PR-main-nightly-nosec-ttl)
         cmd,
         cwd=cwd or ROOT,
         capture_output=True,
