@@ -96,7 +96,7 @@ RUNTIME_DOCKER_CI_LITE_REQUIREMENT_SURFACES = (
     *DOCKER_RUNTIME_REQUIREMENT_SURFACES,
 )
 PYARROW_FORBIDDEN_RUNTIME_SURFACES = (
-    *RUNTIME_CI_LITE_REQUIREMENT_SURFACES,
+    *RUNTIME_DOCKER_CI_LITE_REQUIREMENT_SURFACES,
     "requirements-lock.txt",
 )
 RUNTIME_DECLARATION_SURFACES = (
@@ -117,6 +117,10 @@ LEGACY_COMPAT_OWNER_PATHS = (
     Path("app/services/bmi_compat.py"),
 )
 LEGACY_COMPAT_TRANSITIONAL_PATHS = set(LEGACY_COMPAT_OWNER_PATHS)
+PACKAGE_IMPORT_ALIASES = {
+    "pydantic-core": ("pydantic_core",),
+    "pytest-xdist": ("xdist",),
+}
 
 
 @dataclass(frozen=True)
@@ -398,11 +402,16 @@ def _iter_python_files(repo_root: Path, paths: tuple[Path, ...]) -> tuple[Path, 
 
 
 def _top_level_import_name(module_name: str) -> str:
-    return _normalize_package_name(module_name.split(".", 1)[0].replace("_", "-"))
+    return module_name.split(".", 1)[0]
+
+
+def _package_import_names(package: str) -> frozenset[str]:
+    package_name = _normalize_package_name(package)
+    return frozenset((package_name, *PACKAGE_IMPORT_ALIASES.get(package_name, ())))
 
 
 def _imports_package(repo_root: Path, relative_path: Path, package: str) -> bool:
-    package_name = _normalize_package_name(package)
+    package_import_names = _package_import_names(package)
     try:
         tree = ast.parse(
             _read_text(repo_root, relative_path),
@@ -414,10 +423,10 @@ def _imports_package(repo_root: Path, relative_path: Path, package: str) -> bool
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             for alias in node.names:
-                if _top_level_import_name(alias.name) == package_name:
+                if _top_level_import_name(alias.name) in package_import_names:
                     return True
         if isinstance(node, ast.ImportFrom) and node.module is not None:
-            if _top_level_import_name(node.module) == package_name:
+            if _top_level_import_name(node.module) in package_import_names:
                 return True
         if (
             isinstance(node, ast.Call)
@@ -426,7 +435,7 @@ def _imports_package(repo_root: Path, relative_path: Path, package: str) -> bool
             and node.args
             and isinstance(node.args[0], ast.Constant)
             and isinstance(node.args[0].value, str)
-            and _top_level_import_name(node.args[0].value) == package_name
+            and _top_level_import_name(node.args[0].value) in package_import_names
         ):
             return True
     return False

@@ -421,14 +421,47 @@ def test_dependency_ownership_audit_rejects_pyarrow_runtime_surfaces(
     tmp_path: Path,
 ) -> None:
     _write_valid_contract_repo(tmp_path)
-    for source_file in ("requirements.in", "requirements-ci-lite.in"):
+    for source_file in (
+        "requirements.in",
+        "requirements-ci-lite.in",
+        "requirements-docker-runtime.in",
+    ):
         _append_requirement(tmp_path, source_file, "pyarrow>=20.0.0,<25.0.0")
-    for lockfile in ("requirements.txt", "requirements-ci-lite.txt", "requirements-lock.txt"):
+    for lockfile in (
+        "requirements.txt",
+        "requirements-ci-lite.txt",
+        "requirements-docker-runtime.txt",
+        "requirements-lock.txt",
+    ):
         _append_requirement(tmp_path, lockfile, "pyarrow==23.0.1")
 
     errors = surfaces.validate_repo(tmp_path)
 
     assert any("pyarrow: error:runtime_direct_no_canonical_owner" in error for error in errors)
+
+
+def test_dependency_ownership_audit_rejects_pyarrow_docker_runtime_surface(
+    tmp_path: Path,
+) -> None:
+    _write_valid_contract_repo(tmp_path)
+    _append_requirement(
+        tmp_path,
+        "requirements-docker-runtime.in",
+        "pyarrow>=20.0.0,<25.0.0",
+    )
+    _append_requirement(tmp_path, "requirements-docker-runtime.txt", "pyarrow==23.0.1")
+
+    findings = surfaces.collect_dependency_ownership_findings(tmp_path)
+    errors = surfaces.validate_repo(tmp_path)
+
+    assert any("pyarrow: error:runtime_direct_no_canonical_owner" in error for error in errors)
+    assert any(
+        finding.package == "pyarrow"
+        and finding.reason_code == "runtime_direct_no_canonical_owner"
+        and finding.surfaces
+        == ("requirements-docker-runtime.in", "requirements-docker-runtime.txt")
+        for finding in findings
+    )
 
 
 def test_dependency_ownership_audit_rejects_pandas_runtime_surfaces(
@@ -453,6 +486,20 @@ def test_dependency_ownership_audit_rejects_httpx2_runtime_surfaces(
     errors = surfaces.validate_repo(tmp_path)
 
     assert any("httpx2: error:test_dev_dependency_in_runtime" in error for error in errors)
+
+
+def test_import_evidence_uses_explicit_distribution_aliases(tmp_path: Path) -> None:
+    source_file = tmp_path / "imports.py"
+
+    source_file.write_text("import pydantic_core\n", encoding="utf-8")
+    assert surfaces._imports_package(tmp_path, Path("imports.py"), "pydantic-core")
+
+
+def test_import_evidence_does_not_blindly_normalize_underscores(tmp_path: Path) -> None:
+    source_file = tmp_path / "imports.py"
+
+    source_file.write_text("import httpx_2\n", encoding="utf-8")
+    assert not surfaces._imports_package(tmp_path, Path("imports.py"), "httpx2")
 
 
 def test_dependency_ownership_audit_accepts_reportlab_export_owner(

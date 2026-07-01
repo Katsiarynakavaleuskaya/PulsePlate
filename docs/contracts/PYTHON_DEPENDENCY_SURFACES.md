@@ -76,12 +76,17 @@ Findings use stable severity tiers:
 | `warning` | Suspicious but not safe to remove in this PR | Report only |
 | `info` | Documented owner or transitional debt | Report only |
 
-Stable reason codes include `ownership_ok`,
-`runtime_direct_no_canonical_owner`,
+Stable reason codes include `runtime_direct_no_canonical_owner`,
 `legacy_only_runtime_authority_forbidden`,
 `data_eval_dependency_in_runtime`, `test_dev_dependency_in_runtime`,
 `canonical_runtime_owner_documented`, `legacy_compat_transitional`, and
-`transitive_only_direct_runtime_candidate`.
+`transitive_only_direct_runtime_candidate`,
+`db_fallback_test_split_pending`.
+
+Import evidence uses exact top-level import names plus explicit aliases for
+known distribution/import-name splits such as `pydantic-core` /
+`pydantic_core`. It must not blindly replace underscores with hyphens for every
+module name.
 
 Legacy usage is evidence of transitional compatibility pressure, not runtime
 ownership. A production dependency must have canonical runtime ownership outside
@@ -93,7 +98,7 @@ canonical runtime ownership.
 
 | Package | First-pass rule |
 |---|---|
-| `pyarrow` | Error if present in runtime or CI-lite surfaces without canonical runtime owner evidence. Keep data/eval ownership separate. |
+| `pyarrow` | Error if present in runtime, Docker runtime, CI-lite, or aggregate lock surfaces without canonical runtime owner evidence. Keep data/eval ownership separate. |
 | `pandas` | Error if present in runtime, Docker runtime, or CI-lite surfaces. Data/eval only. |
 | `httpx2` | Error if present in runtime, Docker runtime, or CI-lite surfaces. Dev/test only. |
 | `reportlab` | Allowed as canonical runtime for export/PDF owners. |
