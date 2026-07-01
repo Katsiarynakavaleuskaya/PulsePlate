@@ -9,7 +9,8 @@ Canonical review-governance artifact for PR #2057:
   `pyarrow`, `pandas`, `httpx2`, `reportlab`, `matplotlib`, `numpy`, and
   `aiosqlite`.
 - Remove `pyarrow` from runtime, CI-lite, aggregate, and constraints surfaces
-  after confirming no canonical runtime owner.
+  after confirming no canonical runtime owner, and guard Docker runtime against
+  future `pyarrow` reintroduction.
 - Keep `pyarrow` in data dependency surfaces.
 - Preserve legacy compatibility as transitional evidence, not canonical runtime
   authority.
@@ -21,13 +22,15 @@ Canonical review-governance artifact for PR #2057:
 
 Post-open pass status:
 
-- `qa-engineer-agent`: reviewed the dependency checker, focused tests,
-  generated requirements surfaces, and docs. No actionable defect found.
+- `qa-engineer-agent`: found missing Docker-runtime `pyarrow` guard coverage
+  and an incomplete `pyarrow` docs row. Fixed in `b68239aba`; final rerun found
+  no blocking findings.
 - `bug-hunter`: reviewed pyarrow removal boundaries, warning-only severity
-  tiers, and legacy-only ownership blocking. No actionable defect found.
+  tiers, legacy-only ownership blocking, and generated requirement surfaces. No
+  blocking findings at `b68239aba`.
 - `security-auditor`: reviewed supply-chain/runtime authority boundaries,
-  local-path leakage risk, and fail-closed checker behavior. No actionable
-  defect found.
+  import-alias false-positive/negative risk, local-path leakage risk, and
+  fail-closed checker behavior. No blocking findings at `b68239aba`.
 - Codex Security diff scan `cb1de52e-4988-4fa8-a683-d214546a9a0c`: complete,
   14/14 worklist rows covered, 0 findings.
 - `pulseplate-pr-review`: repo-governance review completed; current remaining
@@ -35,16 +38,17 @@ Post-open pass status:
 
 ## Fixed in Commit Mapping
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2057#pullrequestreview-4608060018
-Disposition: NOT-A-BUG
-Evidence: Sourcery generated a reviewer guide and file-level summary for this dependency-surface PR, with no inline code-review defect requiring a code or docs change.
-Reason: This bot review is governance-relevant feedback, not an actionable implementation defect.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2057#pullrequestreview-4608060018 -> b68239aba
+Disposition: FIXED
+Evidence: `scripts/ci/check_python_dependency_surfaces.py:120`, `scripts/ci/check_python_dependency_surfaces.py:404`, `scripts/ci/check_python_dependency_surfaces.py:408`, `tests/test_python_dependency_surfaces.py:443`, `tests/test_python_dependency_surfaces.py:491`, and `docs/contracts/PYTHON_DEPENDENCY_SURFACES.md:79`.
+Reason: Sourcery's high-level feedback identified blind underscore-to-hyphen import normalization risk and a stale `ownership_ok` reason-code doc entry. Commit `b68239aba` replaced blind import normalization with explicit distribution/import aliases, added positive and negative alias tests, removed `ownership_ok`, and added Docker-runtime `pyarrow` regression coverage found by the follow-up QA pass.
 
 ## Implementing Commits
 
 - `80c56590f` - `chore(deps): enforce dependency ownership`
 - `94c903e1e` - `docs(review): add dependency ownership evidence`
 - `4131cf325` - `fix(deps): satisfy dependency checker typing`
+- `b68239aba` - `fix(deps): use explicit import ownership aliases`
 
 ## Local Validation Evidence
 
@@ -67,13 +71,14 @@ Private proxy local evidence:
 
 Current-head CI observation at artifact creation:
 
-- `PR Body Phase2 gates`: failing only because this artifact did not exist yet.
-- `Merge readiness gate`: failing only because this artifact did not exist yet.
-- `Private Python proxy health`: failing on upstream mirror `HTTP 502`
-  responses for `cryptography`, `requests`, `pytest-xdist`, `hypothesis`, and
-  `pgvector`; `aiosqlite` returned `200`.
-- `RAG Release Gates Smoke`: failing on an unrelated scheduled/smoke lane, not
-  caused by this dependency-surface diff.
+- Superseded run `28518112575` on `b68239aba` was cancelled by newer same-head
+  CI and is not current-head merge truth.
+- Current same-head run `28518269941` on `b68239aba` completed successfully:
+  `PR Body Phase2 gates`, `Merge readiness gate`, `Private Python proxy health`,
+  `lint`, `security`, `OpenAPI sync`, `test-pr (3.13)`, `coverage-pr`, and
+  `diff-coverage` passed.
+- A later governance-only mapping update must still be rechecked before merge;
+  this artifact does not replace the strict current-head merge-readiness wrapper.
 
 ## Lane Start Provenance
 
