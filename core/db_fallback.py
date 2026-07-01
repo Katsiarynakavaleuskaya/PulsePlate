@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import logging
 import os
-from contextlib import suppress
 from typing import Optional
 
 from sqlalchemy import create_engine
@@ -138,19 +137,31 @@ def _configure_session_bindings(
     # Emit an observability metric when DB fallback is activated so dashboards
     # can surface degraded states. This uses a lazy import and silently
     # no-ops if the metrics client is not available.
+    is_in_memory = ":memory:" in (fallback_url or "")
+    backend = "memory" if is_in_memory else "sqlite"
+    env_label = (env_name or os.getenv("APP_ENV") or "unknown").strip() or "unknown"
     try:  # pragma: no cover - metrics instrumentation is optional
         from core import metrics as _metrics
 
         client = getattr(_metrics, "metrics_client", None)
         if client is not None:
-            is_in_memory = ":memory:" in (fallback_url or "")
-            backend = "memory" if is_in_memory else "sqlite"
-            env_label = (env_name or os.getenv("APP_ENV") or "unknown").strip() or "unknown"
             tags = [f"env:{env_label}", f"backend:{backend}"]
-            with suppress(Exception):
+            try:
                 client.increment("db_fallback_active", tags=tags)
+            except Exception:
+                logger.debug(
+                    "Failed to increment DB fallback activation metric env=%s backend=%s",
+                    env_label,
+                    backend,
+                    exc_info=True,
+                )
     except Exception:  # pragma: no cover
-        logger.debug("Failed to emit DB fallback activation metric", exc_info=True)
+        logger.debug(
+            "Failed to emit DB fallback activation metric env=%s backend=%s",
+            env_label,
+            backend,
+            exc_info=True,
+        )
         # Metrics collection is non-critical; failures should not affect application startup
 
     # Set DB_FALLBACK_URL only if needed for external tools

@@ -45,8 +45,7 @@ Base/head root-cause evidence:
 
 ## Experiment Runner Evidence
 
-Accepted artifact:
-`artifacts/orchestration/experiments/results/exp-f00e6e23de4e.json`
+Artifact: `artifacts/orchestration/experiments/results/exp-f00e6e23de4e.json`
 
 - Mode: `oracle_only_governance_reviewer`
 - Status: `accepted`
@@ -76,12 +75,7 @@ network-disabled sandbox lacked `unshare`.
 
 ## Fixed in Commit Mapping
 
-Pre-review state: no GitHub review threads were available when this initial
-artifact was created. New bot/human comments must be added here with
-FIXED / NOT-A-BUG / DEFERRED dispositions before any thread resolution or
-merge-readiness claim.
-
-Implementation commit: `e408dbd6183963037f877b777016fa5118a238ad`
+- No actionable review comments
 
 ## Validation Evidence
 

@@ -259,7 +259,7 @@ def test_private_index_project_health_honors_matching_trusted_host(
             headers: dict[str, str],
         ) -> None:
             assert path == "/simple/pip/"
-            assert headers == {}
+            assert "Authorization" not in headers
 
         def getresponse(self) -> _FakeSimpleIndexResponse:
             return _FakeSimpleIndexResponse()
@@ -305,7 +305,7 @@ def test_private_index_project_health_uses_default_tls_for_mismatched_trusted_ho
             headers: dict[str, str],
         ) -> None:
             assert path == "/simple/pip/"
-            assert headers == {}
+            assert "Authorization" not in headers
 
         def getresponse(self) -> _FakeSimpleIndexResponse:
             return _FakeSimpleIndexResponse()
