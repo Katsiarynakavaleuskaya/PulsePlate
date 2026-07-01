@@ -283,6 +283,10 @@ def test_required_metadata_unavailable_waits_for_ci_even_when_visible_checks_pas
             _checks([_raw_check("lint", status="error", conclusion=""), _raw_check("test-main")]),
             "fix_current_pr",
         ),
+        (
+            _checks([_raw_check("lint", conclusion=""), _raw_check("test-main")]),
+            "wait_for_ci",
+        ),
     ],
 )
 def test_pending_and_failing_current_head_decisions(
@@ -290,6 +294,24 @@ def test_pending_and_failing_current_head_decisions(
     expected: str,
 ) -> None:
     assert _state(checks=checks)["decision"] == expected
+
+
+def test_duplicate_check_names_across_workflows_do_not_hide_required_failure() -> None:
+    checks = _checks(
+        [
+            _raw_check("lint", conclusion="failure", completed_at="2026-07-01T12:00:00Z"),
+            {
+                **_raw_check("lint", conclusion="success", completed_at="2026-07-01T12:05:00Z"),
+                "workflow": "advisory",
+            },
+            _raw_check("test-main"),
+        ],
+    )
+    state = _state(checks=checks)
+
+    assert checks["summary"]["current_failing"] == 1
+    assert checks["stale_diagnostics"]["superseded"] == 0
+    assert state["decision"] == "fix_current_pr"
 
 
 def test_review_capacity_friction_waits_for_review() -> None:
@@ -331,6 +353,28 @@ def test_fixed_mapping_missing_holds_for_governance() -> None:
         ),
     )
 
+    assert state["decision"] == "hold_for_governance"
+
+
+def test_degraded_fixed_mapping_evidence_holds_for_governance() -> None:
+    fixed_mapping = operator._fixed_mapping_ref(
+        {
+            "fixed_mapping": {
+                "exists": True,
+                "repo_path": "docs/review/PR_2056_FIXED_MAPPING.md",
+                "entries": {},
+                "no_actionable": True,
+                "errors": ["Fixed-mapping artifact was read from stale local HEAD."],
+            }
+        },
+        pr_number=2056,
+    )
+    state = _state(
+        blockers=_blockers(fixed_mapping_present=fixed_mapping["present"]),
+        governance_refs=_governance_refs(fixed_mapping=fixed_mapping),
+    )
+
+    assert fixed_mapping["present"] is False
     assert state["decision"] == "hold_for_governance"
 
 
@@ -511,6 +555,79 @@ def _configure_operator_root(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) ->
     return private
 
 
+def test_collect_private_pilot_state_passes_base_branch_to_review_context(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    private = _configure_operator_root(monkeypatch, tmp_path)
+    repo = private.parents[3]
+    captured: dict[str, Any] = {}
+
+    monkeypatch.setattr(
+        operator.pr_review_context,
+        "infer_repo_name",
+        lambda repo_root: "Katsiarynakavaleuskaya/PulsePlate",
+    )
+    monkeypatch.setattr(
+        operator,
+        "_gh_pr_view",
+        lambda *, pr_number, repo_root: {
+            "url": f"https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/{pr_number}",
+            "state": "OPEN",
+            "isDraft": False,
+            "baseRefName": "main",
+            "baseRefOid": "c" * 40,
+            "headRefOid": HEAD_SHA,
+        },
+    )
+
+    def fake_collect_review_context(**kwargs: Any) -> dict[str, Any]:
+        captured.update(kwargs)
+        return {
+            "review_source_status": [
+                {
+                    "source": "github_pr_metadata",
+                    "status": "available",
+                    "source_degraded": False,
+                    "blocking": False,
+                }
+            ],
+            "fixed_mapping": {
+                "exists": True,
+                "repo_path": "docs/review/PR_2056_FIXED_MAPPING.md",
+                "entries": {},
+                "no_actionable": True,
+            },
+        }
+
+    monkeypatch.setattr(
+        operator.pr_review_context, "collect_review_context", fake_collect_review_context
+    )
+    monkeypatch.setattr(
+        operator,
+        "_required_check_names",
+        lambda *, repo, base_ref, repo_root: (["lint", "test-main"], True),
+    )
+    monkeypatch.setattr(
+        operator,
+        "_current_head_raw_checks",
+        lambda *, repo, head_sha, repo_root: [_raw_check("lint"), _raw_check("test-main")],
+    )
+    monkeypatch.setattr(operator, "_typed_artifact_refs", lambda **kwargs: [])
+    monkeypatch.setattr(operator, "_artifact_refs", lambda **kwargs: [])
+
+    state_path, state = operator.collect_private_pilot_state(
+        pr_number=2056,
+        output_dir=private / "2056",
+        repo_root=repo,
+    )
+
+    assert state_path == private / "2056" / "pilot_state.json"
+    assert captured["base_ref"] == "main"
+    assert captured["head_ref"] == HEAD_SHA
+    assert state["source_pr"]["base_ref"] == "main"
+
+
 def _pr5_source_context(*, pr_number: int = 2056) -> dict[str, Any]:
     return {
         "source_kind": "github_fixture",
@@ -673,6 +790,109 @@ def test_operator_pr5_ref_discovery_ignores_valid_non_disposition_sidecars(tmp_p
     assert operator._blocker_counts_from_pr5_refs(
         repo_root=repo,
         refs=refs,
+        repository="Katsiarynakavaleuskaya/PulsePlate",
+        pr_number=2056,
+        head_sha=HEAD_SHA,
+    ) == {
+        "actionable_review_count": 1,
+        "security_blocker_count": 0,
+        "governance_blocker_count": 0,
+    }
+
+
+def test_operator_pr5_ref_discovery_scans_beyond_display_limit(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    review_root = repo / "artifacts" / "orchestration" / "creative_code" / "review_disposition"
+    review_root.mkdir(parents=True)
+    for index in range(25):
+        (review_root / f"{index:02d}_launch.json").write_text(
+            json.dumps(
+                {
+                    "schema_version": "1.0",
+                    "packet_type": "creative_code_repair_launch_packet",
+                    "sanitized": True,
+                }
+            ),
+            encoding="utf-8",
+        )
+    packet = build_creative_code_review_disposition_packet(
+        feedback_records=[
+            _pr5_record(
+                "late-actionable",
+                candidate_disposition="creative_repair_candidate",
+                reason_code="test_failure",
+                requires_repair=True,
+                repair_priority=2,
+            )
+        ],
+        source_context=_pr5_source_context(),
+        expected_head_sha=HEAD_SHA,
+        actual_head_sha=HEAD_SHA,
+        classify=False,
+    )
+    (review_root / "zz_disposition.json").write_text(
+        json.dumps(packet, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    refs = operator._typed_artifact_refs(
+        repo_root=repo,
+        pattern="review_disposition/*.json",
+        artifact_type="creative_code_review_disposition_packet",
+        type_key="packet_type",
+    )
+
+    assert [Path(ref["repo_path"]).name for ref in refs] == ["zz_disposition.json"]
+    assert (
+        operator._blocker_counts_from_pr5_refs(
+            repo_root=repo,
+            refs=refs,
+            repository="Katsiarynakavaleuskaya/PulsePlate",
+            pr_number=2056,
+            head_sha=HEAD_SHA,
+        )["actionable_review_count"]
+        == 1
+    )
+
+
+def test_operator_counts_pr5_simple_fix_as_actionable_blocker(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    packet_path = (
+        repo
+        / "artifacts"
+        / "orchestration"
+        / "creative_code"
+        / "review_disposition"
+        / "packet.json"
+    )
+    packet = build_creative_code_review_disposition_packet(
+        feedback_records=[
+            _pr5_record(
+                "simple-fix",
+                candidate_disposition="simple_fix",
+                reason_code="documentation",
+                requires_repair=False,
+                repair_priority=0,
+            )
+        ],
+        source_context=_pr5_source_context(),
+        expected_head_sha=HEAD_SHA,
+        actual_head_sha=HEAD_SHA,
+        classify=False,
+    )
+    packet_path.parent.mkdir(parents=True)
+    packet_path.write_text(json.dumps(packet, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+    assert operator._blocker_counts_from_pr5_refs(
+        repo_root=repo,
+        refs=[
+            {
+                "artifact_type": "creative_code_review_disposition_packet",
+                "repo_path": "artifacts/orchestration/creative_code/review_disposition/packet.json",
+                "exists": True,
+                "fingerprint": "sha256:" + "d" * 64,
+            }
+        ],
         repository="Katsiarynakavaleuskaya/PulsePlate",
         pr_number=2056,
         head_sha=HEAD_SHA,

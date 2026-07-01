@@ -378,7 +378,7 @@ def _typed_artifact_refs(
 ) -> list[dict[str, Any]]:
     refs: list[dict[str, Any]] = []
     root = repo_root / "artifacts" / "orchestration" / "creative_code"
-    for path in sorted(root.glob(pattern))[:20]:
+    for path in sorted(root.glob(pattern)):
         if path.is_symlink() or not path.is_file():
             continue
         try:
@@ -410,9 +410,11 @@ def _fixed_mapping_ref(context: Mapping[str, Any], *, pr_number: int) -> dict[st
     raw_mapping = context.get("fixed_mapping")
     mapping = raw_mapping if isinstance(raw_mapping, Mapping) else {}
     entries = mapping.get("entries")
+    errors = mapping.get("errors")
+    mapping_degraded = bool(errors) if isinstance(errors, list) else False
     return {
         "required": True,
-        "present": bool(mapping.get("exists")),
+        "present": bool(mapping.get("exists")) and not mapping_degraded,
         "repo_path": str(
             mapping.get("repo_path") or f"docs/review/PR_{pr_number}_FIXED_MAPPING.md"
         ),
@@ -464,7 +466,7 @@ def _blocker_counts_from_pr5_refs(
             reason_code = classification["reason_code"]
             if disposition == "security_blocker":
                 counts["security_blocker_count"] += 1
-            elif classification["requires_repair"]:
+            elif classification["requires_repair"] or disposition == "simple_fix":
                 counts["actionable_review_count"] += 1
             if reason_code in {"fixed_mapping_governance", "head_sha_drift"}:
                 counts["governance_blocker_count"] += 1
@@ -495,7 +497,7 @@ def collect_private_pilot_state(
         repo_root=repo_root,
         pr_number=pr_number,
         repo=repo,
-        base_ref=str(pr_view.get("baseRefOid") or ""),
+        base_ref=base_ref,
         head_ref=head_sha,
     )
     required_names, required_metadata_available = _required_check_names(

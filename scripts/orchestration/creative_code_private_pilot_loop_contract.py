@@ -1015,8 +1015,8 @@ def build_current_head_check_summary(
     if not SHA_RE.fullmatch(pr_head_sha):
         raise CreativeCodePrivatePilotContractError("pr_head_sha must be a 40-char SHA.")
     required_names = {name.strip() for name in required_check_names if name.strip()}
-    latest: dict[str, dict[str, Any]] = {}
-    latest_ts: dict[str, str] = {}
+    latest: dict[tuple[str, str], dict[str, Any]] = {}
+    latest_ts: dict[tuple[str, str], str] = {}
     stale = {
         "total": 0,
         "failed": 0,
@@ -1062,21 +1062,22 @@ def build_current_head_check_summary(
             "details_url": _safe_github_url_or_none(raw.get("details_url") or raw.get("url")),
             "observed_at_utc": timestamp or None,
         }
-        previous_ts = latest_ts.get(name)
+        key = (name, workflow)
+        previous_ts = latest_ts.get(key)
         if previous_ts is None or (timestamp, str(entry["details_url"] or "")) >= (
             previous_ts,
-            str((latest.get(name) or {}).get("details_url") or ""),
+            str((latest.get(key) or {}).get("details_url") or ""),
         ):
             if previous_ts is not None:
                 stale["total"] += 1
                 stale["superseded"] += 1
-                previous = latest[name]
+                previous = latest[key]
                 if _is_failing_check_state(previous["state"]):
                     stale["failed"] += 1
                 if previous["state"] == "cancelled":
                     stale["cancelled"] += 1
-            latest[name] = entry
-            latest_ts[name] = timestamp
+            latest[key] = entry
+            latest_ts[key] = timestamp
         else:
             stale["total"] += 1
             stale["superseded"] += 1
@@ -1085,8 +1086,9 @@ def build_current_head_check_summary(
             if state == "cancelled":
                 stale["cancelled"] += 1
 
-    missing_required = sorted(required_names - set(latest))
-    current = [latest[name] for name in sorted(latest)]
+    observed_names = {entry["name"] for entry in latest.values()}
+    missing_required = sorted(required_names - observed_names)
+    current = [latest[key] for key in sorted(latest)]
     summary = _check_summary_from_current(
         current,
         required_missing=len(missing_required),
@@ -1143,7 +1145,7 @@ def _check_state_from_raw(raw: Mapping[str, Any]) -> str:
     if status in {"cancelled", "canceled"}:
         return "cancelled"
     if status in {"completed"} and not conclusion:
-        return "passed"
+        return "pending"
     return "pending" if status else "failed"
 
 
