@@ -40,19 +40,46 @@ merge automation, and merge-readiness claims remain out of scope.
 
 ## Experiment Runner Evidence
 
-Not applicable: this PR contains the human-authored local wrapper and guard
-updates. The applied candidate and oracle-only Experiment Runner evidence are
-tracked separately in PR #2052.
+Artifact: `artifacts/orchestration/experiments/results/pr2054-creative-code-pr6-governance-oracle-result-network1.json`
+
+- Mode: `oracle_only_governance_reviewer`
+- Result: `accepted`
+- Experiment id: `exp-b98e9570ec2f`
+- Mutated paths: `[]`
+- Oracle command:
+  `python -m pytest -q tests/test_creative_code_applied_candidate_pr6.py tests/test_creative_code_patch_builder.py tests/test_creative_code_pr_promotion.py`
+- Oracle result: returncode `0`
+- Attribution: `coauthor_required=true`, contribution kind
+  `fixed_mapping_review`; commit trailers use
+  `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
+- Zero-network local attempt:
+  `artifacts/orchestration/experiments/results/pr2054-creative-code-pr6-governance-oracle-result.json`
+  recorded `status=rejected`, `failure_class=infra_flake`, and runner error
+  `Network-disabled sandbox requires unshare on PATH`; the accepted `network1`
+  artifact keeps the same focused oracle command and does not grant PR-6
+  product/runtime/provider/network authority.
 
 ## Discussion Thread Pass
 
 - [x] Discussion-thread pass completed.
 - [x] Fixed in commit mapping completed.
-- [ ] Post-open `qa-engineer-agent` pass completed.
-- [ ] Post-open `bug-hunter` pass completed.
-- [ ] Post-open `security-auditor` pass completed.
-- [ ] Codex Security diff scan / finding discovery completed or explicitly
-  dispositioned.
+- [x] Post-open `qa-engineer-agent` pass completed:
+  `019f1ac0-b603-7af0-a054-529c883dd993`.
+- [x] Post-open `bug-hunter` pass completed:
+  `019f1ac7-15b6-7c21-8a81-e93c72d606d9`.
+- [x] Post-open `security-auditor` pass completed:
+  `019f1ace-73fd-7fb0-a26e-408cd9b85bda`.
+- [x] Post-open `architecture-specialist` pass completed:
+  `019f1be3-472b-7540-b635-b58db403e29e`.
+- [x] Post-open `cursor-specialist-agent` pass completed:
+  `019f1be8-f0db-76a0-95da-4e8ec25f3f5b`.
+- [x] Codex Security diff scan explicitly dispositioned: workspace
+  `48af50f0-659a-4227-b229-9506b1417819` was opened for
+  `e05707bb9bbdfbdc73b17ae5626f9e59cbe1d407..fcd45bcc62522f61f9adb774569a444e38096249`,
+  but `await_codex_security_scan_start` timed out before a scanId was created;
+  `security-auditor` role pass `019f1ace-73fd-7fb0-a26e-408cd9b85bda` found no
+  direct provider, runtime, repo-write, thread-resolution, merge, or secret-read
+  path in the wrapper itself after the implemented fixes.
 - [ ] `pulseplate-pr-review` completed.
 - [x] Sourcery review thread resolved after FIXED disposition evidence was
   recorded and pushed.
@@ -68,13 +95,35 @@ Evidence: `scripts/orchestration/creative_code_applied_candidate_pr6.py` now rej
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2054#pullrequestreview-4601021548 -> 53b495f7375ef0d6e50efb0ff2feb5edf02e03c2
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2054#discussion_r3499312204 -> 53b495f7375ef0d6e50efb0ff2feb5edf02e03c2
 
+Disposition: FIXED
+Commit: `fcd45bcc62522f61f9adb774569a444e38096249`
+Evidence: `scripts/orchestration/creative_code_applied_candidate_pr6.py`
+binds output directories to `candidate_id`, emits canonical
+`candidate_packet.json`, validates nested run-plan command/artifact invariants,
+and marks PR-3 handoff authority effects. `scripts/orchestration/creative_code_patch_builder.py`
+makes the generation prompt budget-aware and rejects ambiguous `name-status`
+output. `scripts/orchestration/creative_code_patch_workspace.py` rejects
+duplicate-key creative-code artifacts. Focused tests cover these paths in
+`tests/test_creative_code_applied_candidate_pr6.py`,
+`tests/test_creative_code_patch_builder.py`, and
+`tests/test_creative_code_pr_promotion.py`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2054#pullrequestreview-4603879873 -> fcd45bcc62522f61f9adb774569a444e38096249
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2054#discussion_r3501659648 -> fcd45bcc62522f61f9adb774569a444e38096249
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2054#discussion_r3501659652 -> fcd45bcc62522f61f9adb774569a444e38096249
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2054#discussion_r3501659654 -> fcd45bcc62522f61f9adb774569a444e38096249
+
 ## Validation Evidence
 
-- `python3 scripts/orchestration/check_preflight.py --path scripts/orchestration/creative_code_applied_candidate_pr6.py --path scripts/orchestration/creative_code_patch_builder.py --path scripts/orchestration/creative_code_pr_promotion.py --path tests/test_creative_code_applied_candidate_pr6.py --path tests/test_creative_code_patch_builder.py --path docs/orchestration/GOVERNED_CREATIVE_CODE_EXECUTION_CONTRACT.md --path docs/roadmap/BACKLOG_LEDGER.md --path scripts/AGENTS.md` - PASS.
+- `python3 scripts/orchestration/check_preflight.py --path docs/orchestration/GOVERNED_CREATIVE_CODE_EXECUTION_CONTRACT.md --path scripts/orchestration/creative_code_applied_candidate_pr6.py --path scripts/orchestration/creative_code_patch_builder.py --path scripts/orchestration/creative_code_patch_workspace.py --path tests/test_creative_code_applied_candidate_pr6.py --path tests/test_creative_code_patch_builder.py --path tests/test_creative_code_pr_promotion.py` - PASS.
 - `python3 scripts/orchestration/check_agent_consistency.py` - PASS.
+- `. .venv/bin/activate && python -m pytest -q tests/test_creative_code_applied_candidate_pr6.py tests/test_creative_code_patch_builder.py tests/test_creative_code_pr_promotion.py` - PASS.
+- `pre-commit run --hook-stage pre-push mypy --files scripts/orchestration/creative_code_applied_candidate_pr6.py scripts/orchestration/creative_code_patch_builder.py scripts/orchestration/creative_code_patch_workspace.py scripts/orchestration/creative_code_pr_promotion.py` - PASS.
+- `git diff --check` - PASS.
+- Experiment Runner oracle-only governance reviewer
+  `artifacts/orchestration/experiments/results/pr2054-creative-code-pr6-governance-oracle-result-network1.json`
+  - PASS (`status=accepted`, focused pytest returncode `0`).
 - `. .venv/bin/activate && python -m pytest -q tests/test_creative_code_applied_candidate_pr6.py tests/test_creative_code_patch_builder.py tests/test_creative_code_pr_promotion.py tests/test_creative_code_specification.py tests/test_creative_code_telemetry.py` - PASS.
-- `. .venv/bin/activate && python -m pytest -q tests/test_creative_code_applied_candidate_pr6.py tests/test_creative_code_patch_builder.py tests/test_creative_code_pr_promotion.py` - PASS after the mypy fix.
-- `pre-commit run --hook-stage pre-push mypy --files scripts/orchestration/creative_code_applied_candidate_pr6.py scripts/orchestration/creative_code_patch_builder.py scripts/orchestration/creative_code_pr_promotion.py` - PASS.
 - `. .venv/bin/activate && python -m pytest -q tests/test_creative_code_applied_candidate_pr6.py` - PASS after the Sourcery authority-key fix.
 - `pre-commit run --hook-stage pre-push mypy --files scripts/orchestration/creative_code_applied_candidate_pr6.py` - PASS after the Sourcery authority-key fix.
 - GitHub review-thread pass after pushing fix/mapping commits - PASS; Sourcery
@@ -82,8 +131,6 @@ Evidence: `scripts/orchestration/creative_code_applied_candidate_pr6.py` now rej
   was recorded.
 - `make validate-changed` - PASS.
 - `pre-commit run --all-files` - PASS.
-- Pre-push hook - PASS after the mypy fix, including mypy, pip-audit,
-  backend tests, full-repo Bandit, and docker build test.
 
 ## Local Verification Exception
 
@@ -93,10 +140,10 @@ merge-readiness claim is made in this artifact.
 
 ## Merge Readiness
 
-- [ ] Post-open role passes are complete.
-- [ ] Codex Security diff scan / finding discovery is complete or dispositioned.
+- [x] Post-open role passes are complete.
+- [x] Codex Security diff scan / finding discovery is complete or dispositioned.
 - [ ] `pulseplate-pr-review` is complete.
 - [ ] Current-head CI is complete for the latest PR head.
 - [x] CodeRabbit, Sourcery, and Cubic actionables are fixed or dispositioned.
-- [x] Review threads are checked and dispositioned.
+- [ ] Review threads are checked, dispositioned, and resolved after push.
 - [ ] `check_merge_ready.py --require-auth` passes.
