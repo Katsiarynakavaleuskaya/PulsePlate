@@ -114,9 +114,12 @@ Evidence: `app/metrics.py` and `core/db_fallback.py` now include contextual debu
   with 13/13 diff-scoped rows closed and 0 reportable findings. Report:
   `/private/var/folders/bw/12x002vn67v2bvjpbhbtm8480000gn/T/codex-security-scans-Mt46cu/BMI-App_2025_clean/602fe4e3413bf6c80cc0192337b7dbfa9a390baf_20260701T090630Z_xd609rzt/report.md`.
 - PASS: `pulseplate-pr-review` dry-run report generated at
-  `/tmp/pr2056_pulseplate_pr_review.md`. It found no deterministic code,
-  security, architecture, QA, or bug-hunter blocker; its warning was limited to
-  local head `602fe4e34` not yet being pushed to the PR remote at report time.
+  `/tmp/pr2056_pulseplate_pr_review_after_push.md` after the PR remote matched
+  local head `59f156b23`. It found no deterministic code, security,
+  architecture, QA, or bug-hunter blocker; the only note was the advisory
+  large-diff planning signal, dispositioned by the combined main/nightly
+  stabilization scope, post-open role passes, Codex Security scan, and targeted
+  gates above.
 - PASS: CodeRabbit status was `SUCCESS`; Cubic completed `NEUTRAL`; Sourcery's
   high-level review was fixed in `602fe4e34`.
 
