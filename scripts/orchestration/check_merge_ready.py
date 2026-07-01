@@ -7,7 +7,7 @@ import argparse
 import json
 import os
 import shutil
-import subprocess  # nosec B404: wrapper executes fixed repo scripts only (remove-by: 2026-06-30, ref: PR-1005)
+import subprocess  # nosec B404: wrapper executes fixed repo scripts only (remove-by: 2026-09-30, ref: PR-main-nightly-nosec-ttl)
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -100,7 +100,7 @@ def _run_gate(name: str, script_path: Path, extra_args: list[str]) -> GateResult
 
     argv = [sys.executable, str(script_path), *extra_args]
     try:
-        result = subprocess.run(  # nosec B603: fixed interpreter/script paths; args validated by parser (remove-by: 2026-06-30, ref: PR-1005)
+        result = subprocess.run(  # nosec B603: fixed interpreter/script paths; args validated by parser (remove-by: 2026-09-30, ref: PR-main-nightly-nosec-ttl)
             argv,
             cwd=REPO_ROOT,
             capture_output=True,
@@ -140,7 +140,7 @@ def _fetch_pr_body(pr_number: int, repo: str) -> str:
 
     env = os.environ.copy()
     if not (env.get("GH_TOKEN") or env.get("GITHUB_TOKEN")):
-        auth_status = subprocess.run(  # nosec B603: absolute gh path with fixed auth-status argv (remove-by: 2026-06-30, ref: PR-1129)
+        auth_status = subprocess.run(  # nosec B603: absolute gh path with fixed auth-status argv (remove-by: 2026-09-30, ref: PR-main-nightly-nosec-ttl)
             [_github_cli_path(), "auth", "status"],
             cwd=REPO_ROOT,
             capture_output=True,
@@ -169,7 +169,7 @@ def _fetch_pr_body(pr_number: int, repo: str) -> str:
         "--jq",
         ".body",
     ]
-    result = subprocess.run(  # nosec B603: absolute gh path with fixed read-only argv (remove-by: 2026-06-30, ref: PR-1129)
+    result = subprocess.run(  # nosec B603: absolute gh path with fixed read-only argv (remove-by: 2026-09-30, ref: PR-main-nightly-nosec-ttl)
         argv,
         cwd=REPO_ROOT,
         capture_output=True,

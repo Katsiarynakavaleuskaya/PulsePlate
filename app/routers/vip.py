@@ -54,7 +54,7 @@ EN: Router for VIP functions - micronutrient goals, auto-repair menu, shopping l
 """
 
 # Test key constant for development mode only
-TEST_KEY = "test_key"  # nosec B105: development-only test fixture constant (remove-by: 2026-06-30, ref: PR-1056)
+TEST_KEY = "test_key"
 
 # VIP feature flag: enable/disable VIP module via env or default True
 VIP_MODULE_ENABLED = is_vip_module_enabled()

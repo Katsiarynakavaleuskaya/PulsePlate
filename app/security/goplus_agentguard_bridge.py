@@ -13,7 +13,7 @@ import json
 import os
 from pathlib import Path
 import shutil
-import subprocess  # nosec B404: Required for local Node bridge to verified scanner (remove-by: 2026-06-30, ref: PR-agentguard-upstream)
+import subprocess  # nosec B404: Required for local Node bridge to verified scanner (remove-by: 2026-09-30, ref: PR-main-nightly-nosec-ttl)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 AGENTGUARD_SCAN_SCRIPT = REPO_ROOT / "tools" / "agentguard" / "scan_text.mjs"
@@ -82,7 +82,7 @@ def scan_text_with_goplus_agentguard(
         return None
 
     try:
-        completed = subprocess.run(  # nosec B603: Static argv with shutil.which('node') and fixed repo script path only (remove-by: 2026-06-30, ref: PR-agentguard-upstream)
+        completed = subprocess.run(  # nosec B603: Static argv with shutil.which('node') and fixed repo script path only (remove-by: 2026-09-30, ref: PR-main-nightly-nosec-ttl)
             [node_binary, str(AGENTGUARD_SCAN_SCRIPT)],
             check=False,
             capture_output=True,

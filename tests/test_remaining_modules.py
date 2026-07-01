@@ -51,6 +51,82 @@ def test_root_npm_security_override_smoke() -> None:
     )
 
 
+def test_goplus_agentguard_bridge_subprocess_smoke(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Cover the bounded local Node bridge path in the deterministic smoke lane."""
+
+    from app.security import goplus_agentguard_bridge as bridge_mod
+
+    observed_call: dict[str, object] = {}
+
+    def fake_run(args: list[str], **kwargs: object) -> SimpleNamespace:
+        observed_call["args"] = args
+        observed_call["kwargs"] = kwargs
+        return SimpleNamespace(
+            returncode=0,
+            stdout=json.dumps(
+                {
+                    "risk_level": "low",
+                    "risk_tags": ["BENIGN"],
+                    "summary": "No actionable risk",
+                }
+            ),
+        )
+
+    monkeypatch.setenv(bridge_mod.TEST_RUNTIME_OPT_IN_ENV, "true")
+    monkeypatch.setattr(bridge_mod, "AGENTGUARD_SCAN_SCRIPT", Path(__file__))
+    monkeypatch.setattr(bridge_mod.shutil, "which", lambda name: "/usr/bin/node")
+    monkeypatch.setattr(bridge_mod.subprocess, "run", fake_run)
+
+    result = bridge_mod.scan_text_with_goplus_agentguard("payload", filename="payload.py")
+
+    assert result is not None
+    assert result.risk_level == "low"
+    assert result.risk_tags == ("BENIGN",)
+    assert result.summary == "No actionable risk"
+    assert observed_call["args"] == ["/usr/bin/node", str(Path(__file__))]
+    kwargs = observed_call["kwargs"]
+    assert isinstance(kwargs, dict)
+    assert kwargs["cwd"] == str(bridge_mod.REPO_ROOT)
+    assert kwargs["check"] is False
+    assert kwargs["capture_output"] is True
+    assert kwargs["text"] is True
+    assert kwargs["timeout"] == 5
+    assert json.loads(cast(str, kwargs["input"])) == {
+        "text": "payload",
+        "filename": "payload.py",
+    }
+
+
+def test_philosophical_runtime_metrics_failure_smoke(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Telemetry failures must stay non-fatal while still being diagnosable."""
+
+    from core.insight import telemetry as telemetry_mod
+
+    class _BrokenMetric:
+        def labels(self, **kwargs: object) -> "_BrokenMetric":
+            raise RuntimeError("metrics unavailable")
+
+    monkeypatch.setattr(
+        telemetry_mod,
+        "_get_metrics",
+        lambda: (_BrokenMetric(), _BrokenMetric(), _BrokenMetric(), _BrokenMetric()),
+    )
+
+    with caplog.at_level("DEBUG", logger=telemetry_mod.logger.name):
+        telemetry_mod.record_runtime_metrics(
+            route_type="RAG_FACTUAL",
+            depth_used=2,
+            tokens_saved_estimate=25,
+            rewrite_count=1,
+            fallback_reason="none",
+        )
+
+    assert "Philosophical runtime metrics failed" in caplog.text
+
+
 def test_verify_requirements_wrapper_smoke(monkeypatch: pytest.MonkeyPatch) -> None:
     """Keep the compatibility wrapper covered in the deterministic smoke lane."""
 

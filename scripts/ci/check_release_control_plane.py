@@ -30,7 +30,7 @@ REASON_ORDER = {
     "missing_rag_gate_result": 50,
     "malformed_rag_gate_result": 60,
     "invalid_rag_gate_result": 70,
-    "rag_gate_result_not_pass": 80,  # nosec B105: release gate reason code, not credential (remove-by: 2026-06-30, ref: PR-1742)
+    "rag_gate_result_not_pass": 80,  # nosec B105: release gate reason code, not credential (remove-by: 2026-09-30, ref: PR-main-nightly-nosec-ttl)
     "missing_build_equivalence": 90,
     "malformed_build_equivalence": 100,
     "invalid_build_equivalence": 110,

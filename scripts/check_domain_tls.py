@@ -11,7 +11,7 @@ import argparse
 import re
 import shutil
 import socket
-import subprocess  # nosec B404: read-only diagnostics require bounded subprocess calls (remove-by: 2026-06-30, ref: PR-WWW-TLS-OPASSIST)
+import subprocess  # nosec B404: read-only diagnostics require bounded subprocess calls (remove-by: 2026-09-30, ref: PR-main-nightly-nosec-ttl)
 from dataclasses import dataclass
 
 HTTP_TIMEOUT_SEC = 15
@@ -87,7 +87,7 @@ def _run_command(argv: list[str], *, timeout: int) -> CommandResult:
     """Execute a bounded diagnostic command and capture its text output."""
 
     try:
-        completed = subprocess.run(  # nosec B603: argv uses absolute binaries and fixed diagnostic flags (remove-by: 2026-06-30, ref: PR-WWW-TLS-OPASSIST)
+        completed = subprocess.run(  # nosec B603: argv uses absolute binaries and fixed diagnostic flags (remove-by: 2026-09-30, ref: PR-main-nightly-nosec-ttl)
             argv,
             capture_output=True,
             text=True,
