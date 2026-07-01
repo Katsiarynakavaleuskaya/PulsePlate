@@ -202,6 +202,31 @@ Commit: 08580b33a7dcdc27b5964fc52a57696e91ed0c06
 Evidence: the Codex review summary consisted of the five inline actionables mapped immediately above; the governance hardening fixes and 64-test focused suite cover those findings.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2058#pullrequestreview-4609675294 -> 08580b33a7dcdc27b5964fc52a57696e91ed0c06
 
+Disposition: FIXED
+Commit: 719571b0fea93d4a2baa7c398f548a43eb664394
+Evidence: strict branch-protection metadata now preserves the `strict` flag and a blocking merge state adds a synthetic pending required check, causing `wait_for_ci`; focused regression coverage proves a `BEHIND` strict base cannot advance.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2058#discussion_r3506663709 -> 719571b0fea93d4a2baa7c398f548a43eb664394
+
+Disposition: FIXED
+Commit: 719571b0fea93d4a2baa7c398f548a43eb664394
+Evidence: `decide_next_action()` now returns `hold_for_governance` for source PR states other than `open` or `merged`; focused regression coverage blocks closed-unmerged PRs.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2058#discussion_r3506663719 -> 719571b0fea93d4a2baa7c398f548a43eb664394
+
+Disposition: FIXED
+Commit: 719571b0fea93d4a2baa7c398f548a43eb664394
+Evidence: both private-pilot schemas now use case-covering unsafe-text patterns for raw/review/body/provider/oracle/readiness markers, and focused schema tests cover `RAW_BODY` and `Oracle_Output`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2058#discussion_r3506663726 -> 719571b0fea93d4a2baa7c398f548a43eb664394
+
+Disposition: FIXED
+Commit: 719571b0fea93d4a2baa7c398f548a43eb664394
+Evidence: `gh pr view` collection now includes `reviewDecision` and `mergeStateStatus`; blocking review decisions add review-capacity friction so candidate planning waits for review. Focused regression coverage proves `CHANGES_REQUESTED` waits.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2058#discussion_r3506663731 -> 719571b0fea93d4a2baa7c398f548a43eb664394
+
+Disposition: FIXED
+Commit: 719571b0fea93d4a2baa7c398f548a43eb664394
+Evidence: the Codex review summary consisted of the four inline actionables mapped immediately above; the live-PR-state fixes and 67-test focused suite cover those findings.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2058#pullrequestreview-4609906376 -> 719571b0fea93d4a2baa7c398f548a43eb664394
+
 ## Post-Open Review Evidence
 
 Codex Security diff scan `8269429e-360d-484e-bbfa-8c76fa73cd1f` completed
@@ -223,7 +248,8 @@ the authority boundary that this PR is specifically adding.
 CodeRabbit's latest inline actionables were fixed in
 `2c5b3bbd6a1f4a4e71310f473512bc160c153951` and mapped above. Codex's latest
 inline actionables were fixed in `08580b33a7dcdc27b5964fc52a57696e91ed0c06`
-and mapped above. Sourcery's inline actionable was fixed and mapped above; its
+and `719571b0fea93d4a2baa7c398f548a43eb664394` and mapped above. Sourcery's
+inline actionable was fixed and mapped above; its
 enum/schema dedupe and
 artifact-fingerprint-cache notes remain advisory tradeoffs for this first local
 operator. Cubic was skipped/advisory and did not provide actionables.
