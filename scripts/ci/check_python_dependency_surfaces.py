@@ -349,7 +349,7 @@ def _is_requirement_line(line: str) -> bool:
 
 
 def _normalize_package_name(package_name: str) -> str:
-    return canonicalize_name(package_name)
+    return str(canonicalize_name(package_name))
 
 
 def _requirement_package_names(repo_root: Path, relative_path: str | Path) -> set[str]:
