@@ -124,6 +124,8 @@ Evidence: `scripts/orchestration/creative_code_applied_candidate_pr6.py` binds o
   was recorded.
 - `make validate-changed` - PASS.
 - `pre-commit run --all-files` - PASS.
+- `python3 scripts/ci/check_pr_body_phase2_gates.py --body "$body" --experiment-runner-evidence-mode required`
+  with the current PR body mirror - PASS.
 
 ## Local Verification Exception
 
@@ -138,5 +140,5 @@ merge-readiness claim is made in this artifact.
 - [x] `pulseplate-pr-review` is complete.
 - [ ] Current-head CI is complete for the latest PR head.
 - [x] CodeRabbit, Sourcery, and Cubic actionables are fixed or dispositioned.
-- [ ] Review threads are checked, dispositioned, and resolved after push.
+- [x] Review threads are checked, dispositioned, and resolved after push.
 - [ ] `check_merge_ready.py --require-auth` passes.
