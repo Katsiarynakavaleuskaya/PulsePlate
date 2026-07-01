@@ -51,6 +51,7 @@ PILOT_STATE_FILE = "pilot_state.json"
 CANDIDATE_PLAN_FILE = "candidate_plan.json"
 SUCCESS_COLLECT_OUTPUT = "PASS: creative-code private-pilot state collected"
 SUCCESS_CANDIDATE_PLAN_OUTPUT = "PASS: creative-code private-pilot candidate plan emitted"
+GH_COMMAND_TIMEOUT_SECONDS = 60
 
 
 class CreativeCodePrivatePilotOperatorError(ValueError):
@@ -217,13 +218,18 @@ def _binary(name: str) -> str:
 
 
 def _run_command(args: list[str], *, cwd: Path) -> subprocess.CompletedProcess[str]:
-    completed = subprocess.run(  # nosec B603: argv uses resolved gh path with fixed read-only metadata subcommands only (remove-by: 2026-12-31, ref: PR-private-pilot-loop-operator)
-        args,
-        cwd=str(cwd),
-        text=True,
-        check=False,
-        capture_output=True,
-    )
+    try:
+        completed = subprocess.run(  # nosec B603: argv uses resolved gh path with fixed read-only metadata subcommands only (remove-by: 2026-12-31, ref: PR-private-pilot-loop-operator)
+            args,
+            cwd=str(cwd),
+            text=True,
+            check=False,
+            capture_output=True,
+            timeout=GH_COMMAND_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as exc:
+        command = shlex.join(args).replace(str(cwd), "<repo-root>")
+        raise CreativeCodePrivatePilotOperatorError(f"Command timed out ({command}).") from exc
     if completed.returncode != 0:
         command = shlex.join(args).replace(str(cwd), "<repo-root>")
         stderr = completed.stderr.strip().replace(str(cwd), "<repo-root>")
@@ -668,7 +674,7 @@ def main(argv: list[str] | None = None) -> int:
             output_path, _plan = write_candidate_plan(state_path=args.pilot_state)
             print(f"{SUCCESS_CANDIDATE_PLAN_OUTPUT}: {output_path.relative_to(REPO_ROOT)}")
             return 0
-    except CreativeCodePrivatePilotOperatorError as exc:
+    except (CreativeCodePrivatePilotOperatorError, CreativeCodePrivatePilotContractError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
     raise AssertionError(f"Unhandled command: {args.command}")

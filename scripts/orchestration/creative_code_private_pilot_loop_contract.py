@@ -496,6 +496,12 @@ def _require_optional_timestamp(value: Any, *, label: str) -> str | None:
     return value
 
 
+def _require_timestamp(value: Any, *, label: str) -> str:
+    if not isinstance(value, str) or not TIMESTAMP_RE.fullmatch(value):
+        raise CreativeCodePrivatePilotContractError(f"{label} must be a UTC timestamp.")
+    return value
+
+
 def _require_repository(value: Any, *, label: str) -> str:
     if not isinstance(value, str) or not REPOSITORY_RE.fullmatch(value):
         raise CreativeCodePrivatePilotContractError(f"{label} must be an owner/repo slug.")
@@ -624,6 +630,16 @@ def _normalize_check_summary_counts(raw_summary: Any) -> dict[str, int]:
 
 def _is_failing_check_state(state: str) -> bool:
     return state in {"failed", "cancelled", "stale"}
+
+
+def _check_state_risk_rank(state: str) -> int:
+    if _is_failing_check_state(state):
+        return 3
+    if state == "pending":
+        return 2
+    if state == "neutral":
+        return 1
+    return 0
 
 
 def _check_summary_from_current(
@@ -988,7 +1004,7 @@ def validate_private_pilot_state(
         "policy_version": POLICY_VERSION,
         "state_id": _require_id(payload, "state_id", label="state"),
         "idempotency_key": _require_id(payload, "idempotency_key", label="state"),
-        "generated_at_utc": _require_optional_timestamp(
+        "generated_at_utc": _require_timestamp(
             payload["generated_at_utc"], label="state.generated_at_utc"
         ),
         "source_pr": source_pr,
@@ -1092,9 +1108,29 @@ def build_current_head_check_summary(
             "observed_at_utc": timestamp or None,
         }
         key = (name, workflow)
+        has_previous = key in latest
         previous_ts = latest_ts.get(key)
-        if previous_ts is None or (timestamp, str(entry["details_url"] or "")) >= (
-            previous_ts,
+        if has_previous and (not timestamp or not previous_ts):
+            degraded.append(f"missing-check-timestamp:{name}")
+            previous = latest[key]
+            if _check_state_risk_rank(state) > _check_state_risk_rank(str(previous["state"])):
+                if _is_failing_check_state(str(previous["state"])):
+                    stale["failed"] += 1
+                if previous["state"] == "cancelled":
+                    stale["cancelled"] += 1
+                latest[key] = entry
+                latest_required_keys[key] = required_match_keys
+                latest_ts[key] = timestamp
+            else:
+                if _is_failing_check_state(state):
+                    stale["failed"] += 1
+                if state == "cancelled":
+                    stale["cancelled"] += 1
+            stale["total"] += 1
+            stale["superseded"] += 1
+            continue
+        if not has_previous or (timestamp, str(entry["details_url"] or "")) >= (
+            previous_ts or "",
             str((latest.get(key) or {}).get("details_url") or ""),
         ):
             if previous_ts is not None:
@@ -1413,11 +1449,11 @@ def validate_candidate_plan(payload: Mapping[str, Any]) -> dict[str, Any]:
         for index, item in enumerate(checklist_raw)
     ]
     blocked_authority = payload["blocked_authority"]
-    if not isinstance(blocked_authority, list) or sorted(blocked_authority) != sorted(
-        AUTHORITY_FALSE_KEYS
-    ):
+    expected_blocked_authority = sorted(AUTHORITY_FALSE_KEYS)
+    if not isinstance(blocked_authority, list) or blocked_authority != expected_blocked_authority:
         raise CreativeCodePrivatePilotContractError(
-            "candidate_plan.blocked_authority must list all forbidden authority flags."
+            "candidate_plan.blocked_authority must list all forbidden authority flags "
+            "in canonical sorted order."
         )
     normalized = {
         "schema_version": SCHEMA_VERSION,

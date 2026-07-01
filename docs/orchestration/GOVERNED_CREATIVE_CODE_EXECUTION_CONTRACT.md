@@ -234,10 +234,12 @@ frontend, iOS, DB, provider settings, and semantic-cache surfaces remain
 outside generated candidate mutation authority.
 
 Private-pilot loop state and candidate plans are local lifecycle artifacts only.
-They may classify the next action as wait/fix/hold/prepare, but they are not
-review-thread disposition evidence, fixed-mapping evidence, readiness evidence,
-runtime truth, release evidence, or GitHub App/Slack authority. Candidate plans
-are checklist-only and remain bound to `docs/prompts/cv/program.md`.
+They may classify the next action as `wait_for_hotfix_main`, `wait_for_review`,
+`wait_for_ci`, `fix_current_pr`, `prepare_next_candidate_plan`,
+`hold_for_governance`, or `hold_for_security`, but they are not review-thread
+disposition evidence, fixed-mapping evidence, readiness evidence, runtime truth,
+release evidence, or GitHub App/Slack authority. Candidate plans are
+checklist-only and remain bound to `docs/prompts/cv/program.md`.
 
 ---
 

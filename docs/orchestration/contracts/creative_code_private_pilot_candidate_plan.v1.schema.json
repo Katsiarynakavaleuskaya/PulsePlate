@@ -92,7 +92,7 @@
       "type": "string",
       "maxLength": 220,
       "not": {
-        "pattern": "(diff --git|raw[_ -]?(body|prompt|response|context|patch)|candidate\\.patch|candidate_patch|chain[_ -]?of[_ -]?thought|provider[_ -]?payload|oracle[_ -]?(stdout|stderr)|file://|/[U]sers/|/private/var/|/var/folders/|/tmp/|\\.venv/|\\.git/|worktrees([:/._-]|$)|authorization:\\s*bearer|private[_ -]?key|api[_ -]?key|GH_TOKEN|GITHUB_TOKEN|sk-[A-Za-z0-9_-]{12,}|gh[psoru]_|github_pat_|xox[abprs]-|merge[-_ ]?ready|ready to merge|mergeable)"
+        "pattern": "(diff --git|\\+\\+\\+ |--- |@@ |candidate\\.patch|candidate_patch|raw[_ -]?(body|prompt|response|context|patch|review|pr)|review[_ -]?thread[_ -]?body|pull[_ -]?request[_ -]?body|chain[_ -]?of[_ -]?thought|provider[_ -]?payload|oracle[_ -]?(stdout|stderr|output)|file://|/([Uu]sers|home|private/var|var/folders|tmp|etc|opt|usr|[Vv]olumes|mnt|root|workspace|workspaces)(/|$)|~[/\\\\]|[A-Za-z]:[\\\\/]|\\.venv/|\\.git/|worktrees([:/._-]|$)|authorization:\\s*bearer|private[_ -]?key|api[_ -]?key|GH_TOKEN|GITHUB_TOKEN|sk-[A-Za-z0-9_-]{12,}|gh[psoru]_|github_pat_|xox[abprs]-|merge[-_ ]?ready|ready to merge|mergeable)"
       }
     },
     "checklist_item": {

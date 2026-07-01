@@ -3,6 +3,8 @@ from __future__ import annotations
 from copy import deepcopy
 import json
 from pathlib import Path
+import re
+import subprocess
 from typing import Any
 
 import pytest
@@ -300,6 +302,38 @@ def test_name_only_required_check_conflict_blocks_on_duplicate_sources() -> None
     assert _state(checks=checks)["decision"] == "wait_for_ci"
 
 
+def test_duplicate_current_head_checks_with_missing_timestamps_fail_closed() -> None:
+    checks = build_current_head_check_summary(
+        pr_head_sha=HEAD_SHA,
+        raw_checks=[
+            {
+                **_raw_check(
+                    "lint",
+                    conclusion="success",
+                    completed_at="",
+                ),
+                "details_url": "https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/z",
+            },
+            {
+                **_raw_check(
+                    "lint",
+                    conclusion="failure",
+                    completed_at="",
+                ),
+                "details_url": "https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/a",
+            },
+            _raw_check("test-main"),
+        ],
+    )
+    state = _state(checks=checks)
+    lint_entry = next(entry for entry in checks["current"] if entry["name"] == "lint")
+
+    assert lint_entry["state"] == "failed"
+    assert "missing-check-timestamp:lint" in checks["degraded_reasons"]
+    assert checks["summary"]["current_failing"] == 1
+    assert state["decision"] == "fix_current_pr"
+
+
 @pytest.mark.parametrize(
     ("checks", "expected"),
     [
@@ -549,6 +583,22 @@ def test_candidate_plan_is_checklist_only_and_cannot_execute_train() -> None:
     assert validate_candidate_plan(plan) == plan
 
 
+def test_state_requires_generated_at_utc_timestamp() -> None:
+    payload = deepcopy(_state())
+    payload["generated_at_utc"] = None
+
+    with pytest.raises(CreativeCodePrivatePilotContractError, match="UTC timestamp"):
+        validate_private_pilot_state(payload)
+
+
+def test_candidate_plan_requires_canonical_blocked_authority_order() -> None:
+    plan = build_candidate_plan(_state())
+    plan["blocked_authority"] = list(reversed(plan["blocked_authority"]))
+
+    with pytest.raises(CreativeCodePrivatePilotContractError, match="canonical sorted order"):
+        validate_candidate_plan(plan)
+
+
 def test_candidate_plan_requires_prepare_decision() -> None:
     waiting_state = _state(
         checks=_checks([_raw_check("lint", status="in_progress"), _raw_check("test-main")])
@@ -598,6 +648,39 @@ def test_state_schema_matches_closed_contract_enums() -> None:
         {"$ref": "#/$defs/safe_text"},
         {"type": "null"},
     ]
+
+
+def test_safe_text_schema_denylist_matches_runtime_leak_markers() -> None:
+    state_schema = json.loads(
+        (
+            REPO_ROOT
+            / "docs"
+            / "orchestration"
+            / "contracts"
+            / "creative_code_private_pilot_state.v1.schema.json"
+        ).read_text(encoding="utf-8")
+    )
+    plan_schema = json.loads(
+        (
+            REPO_ROOT
+            / "docs"
+            / "orchestration"
+            / "contracts"
+            / "creative_code_private_pilot_candidate_plan.v1.schema.json"
+        ).read_text(encoding="utf-8")
+    )
+
+    unsafe_examples = [
+        "/home/runner/work/PulsePlate",
+        "C:\\Users\\runner\\work",
+        "review_thread_body",
+        "pull_request_body",
+        "oracle_output",
+    ]
+    for schema in (state_schema, plan_schema):
+        pattern = re.compile(schema["$defs"]["safe_text"]["not"]["pattern"])
+        for unsafe in unsafe_examples:
+            assert pattern.search(unsafe)
 
 
 def test_candidate_plan_schema_requires_exact_blocked_authority_set() -> None:
@@ -1164,6 +1247,46 @@ def test_operator_writes_state_and_candidate_plan_under_private_root(
     plan_path, plan = operator.write_candidate_plan(state_path=state_path)
     assert plan_path == output_dir / "candidate_plan.json"
     assert json.loads(plan_path.read_text(encoding="utf-8")) == plan
+
+
+def test_run_command_times_out_stalled_gh_call(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    def fake_run(*args: Any, **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        raise subprocess.TimeoutExpired(cmd=args[0], timeout=kwargs.get("timeout"))
+
+    monkeypatch.setattr(operator.subprocess, "run", fake_run)
+
+    with pytest.raises(operator.CreativeCodePrivatePilotOperatorError, match="timed out"):
+        operator._run_command(["/usr/bin/gh", "api", "repos/example/repo"], cwd=tmp_path)
+
+
+def test_main_returns_stable_error_for_contract_failures(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    def fail_collect(**kwargs: Any) -> tuple[Path, dict[str, Any]]:
+        raise CreativeCodePrivatePilotContractError(
+            "state.generated_at_utc must be a UTC timestamp."
+        )
+
+    monkeypatch.setattr(operator, "collect_private_pilot_state", fail_collect)
+
+    exit_code = operator.main(
+        [
+            "collect",
+            "--pr-number",
+            "2056",
+            "--output-dir",
+            str(tmp_path / "2056"),
+        ]
+    )
+    captured = capsys.readouterr()
+
+    assert exit_code == 1
+    assert "ERROR: state.generated_at_utc must be a UTC timestamp." in captured.err
 
 
 def test_operator_rejects_output_path_escape(
