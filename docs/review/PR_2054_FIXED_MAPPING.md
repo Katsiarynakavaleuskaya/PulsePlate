@@ -100,16 +100,7 @@ Evidence: `scripts/orchestration/creative_code_applied_candidate_pr6.py` now rej
 
 Disposition: FIXED
 Commit: `fcd45bcc62522f61f9adb774569a444e38096249`
-Evidence: `scripts/orchestration/creative_code_applied_candidate_pr6.py`
-binds output directories to `candidate_id`, emits canonical
-`candidate_packet.json`, validates nested run-plan command/artifact invariants,
-and marks PR-3 handoff authority effects. `scripts/orchestration/creative_code_patch_builder.py`
-makes the generation prompt budget-aware and rejects ambiguous `name-status`
-output. `scripts/orchestration/creative_code_patch_workspace.py` rejects
-duplicate-key creative-code artifacts. Focused tests cover these paths in
-`tests/test_creative_code_applied_candidate_pr6.py`,
-`tests/test_creative_code_patch_builder.py`, and
-`tests/test_creative_code_pr_promotion.py`.
+Evidence: `scripts/orchestration/creative_code_applied_candidate_pr6.py` binds output directories to `candidate_id`, emits canonical `candidate_packet.json`, validates nested run-plan command/artifact invariants, and marks PR-3 handoff authority effects; `scripts/orchestration/creative_code_patch_builder.py` makes generation prompt wording budget-aware and rejects ambiguous `name-status` output; `scripts/orchestration/creative_code_patch_workspace.py` rejects duplicate-key creative-code artifacts; focused tests cover these paths in `tests/test_creative_code_applied_candidate_pr6.py`, `tests/test_creative_code_patch_builder.py`, and `tests/test_creative_code_pr_promotion.py`.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2054#pullrequestreview-4603879873 -> fcd45bcc62522f61f9adb774569a444e38096249
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2054#discussion_r3501659648 -> fcd45bcc62522f61f9adb774569a444e38096249
