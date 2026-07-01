@@ -292,7 +292,7 @@ def _required_check_names(*, repo: str, base_ref: str, repo_root: Path) -> tuple
             context = str(item.get("context") or "").strip()
             app_id = str(item.get("app_id") or "").strip()
             if context:
-                names.add(f"app_id:{app_id}:{context}" if app_id else f"name:{context}")
+                names.add(f"app_id:{app_id}:{context}" if app_id else f"check_run:{context}")
     return sorted(names), True
 
 
@@ -352,6 +352,17 @@ def _repo_relative(path: Path, *, repo_root: Path) -> str:
     return path.resolve(strict=False).relative_to(repo_root.resolve(strict=True)).as_posix()
 
 
+def _safe_artifact_repo_path(path: Path, *, root: Path, repo_root: Path) -> str | None:
+    if path.is_symlink() or not path.is_file():
+        return None
+    try:
+        resolved_path = path.resolve(strict=True)
+        resolved_path.relative_to(root.resolve(strict=True))
+        return resolved_path.relative_to(repo_root.resolve(strict=True)).as_posix()
+    except (FileNotFoundError, ValueError):
+        return None
+
+
 def _artifact_refs(
     *,
     repo_root: Path,
@@ -366,12 +377,13 @@ def _artifact_refs(
     root = repo_root / "artifacts" / "orchestration" / "creative_code"
     refs: list[dict[str, Any]] = []
     for path in sorted(root.glob(pattern))[:limit]:
-        if path.is_symlink() or not path.is_file():
+        repo_path = _safe_artifact_repo_path(path, root=root, repo_root=repo_root)
+        if repo_path is None:
             continue
         refs.append(
             {
                 "artifact_type": artifact_type,
-                "repo_path": _repo_relative(path, repo_root=repo_root),
+                "repo_path": repo_path,
                 "exists": True,
                 "fingerprint": _artifact_fingerprint(path),
             }
@@ -389,7 +401,8 @@ def _typed_artifact_refs(
     refs: list[dict[str, Any]] = []
     root = repo_root / "artifacts" / "orchestration" / "creative_code"
     for path in sorted(root.glob(pattern)):
-        if path.is_symlink() or not path.is_file():
+        repo_path = _safe_artifact_repo_path(path, root=root, repo_root=repo_root)
+        if repo_path is None:
             continue
         try:
             payload = read_json_object(path)
@@ -397,7 +410,7 @@ def _typed_artifact_refs(
             refs.append(
                 {
                     "artifact_type": artifact_type,
-                    "repo_path": _repo_relative(path, repo_root=repo_root),
+                    "repo_path": repo_path,
                     "exists": True,
                     "fingerprint": _artifact_fingerprint(path),
                 }
@@ -408,7 +421,7 @@ def _typed_artifact_refs(
         refs.append(
             {
                 "artifact_type": artifact_type,
-                "repo_path": _repo_relative(path, repo_root=repo_root),
+                "repo_path": repo_path,
                 "exists": True,
                 "fingerprint": _artifact_fingerprint(path),
             }
@@ -422,6 +435,8 @@ def _fixed_mapping_ref(context: Mapping[str, Any], *, pr_number: int) -> dict[st
     entries = mapping.get("entries")
     errors = mapping.get("errors")
     mapping_degraded = bool(errors) if isinstance(errors, list) else False
+    if mapping.get("exists") and mapping.get("present_in_pr_diff") is not True:
+        mapping_degraded = True
     entry_count = len(entries) if isinstance(entries, Mapping) else 0
     no_actionable = bool(mapping.get("no_actionable"))
     has_disposition_proof = entry_count > 0 or no_actionable

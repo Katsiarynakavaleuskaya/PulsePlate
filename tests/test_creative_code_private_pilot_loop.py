@@ -281,6 +281,25 @@ def test_required_app_check_missing_is_not_satisfied_by_optional_same_name() -> 
     assert _state(checks=checks)["decision"] == "wait_for_ci"
 
 
+def test_app_id_less_required_check_run_is_not_satisfied_by_status_context() -> None:
+    checks = build_current_head_check_summary(
+        pr_head_sha=HEAD_SHA,
+        raw_checks=[
+            {
+                **_raw_check("build"),
+                "workflow": "status_context",
+            },
+            _raw_check("test-main"),
+        ],
+        required_check_names=("check_run:build", "name:test-main"),
+        required_metadata_available=True,
+    )
+
+    assert checks["summary"]["required_missing"] == 1
+    assert checks["overall"] == "missing"
+    assert _state(checks=checks)["decision"] == "wait_for_ci"
+
+
 def test_name_only_required_check_conflict_blocks_on_duplicate_sources() -> None:
     checks = build_current_head_check_summary(
         pr_head_sha=HEAD_SHA,
@@ -440,6 +459,29 @@ def test_degraded_fixed_mapping_evidence_holds_for_governance() -> None:
                 "entries": {},
                 "no_actionable": True,
                 "errors": ["Fixed-mapping artifact was read from stale local HEAD."],
+                "present_in_pr_diff": True,
+            }
+        },
+        pr_number=2056,
+    )
+    state = _state(
+        blockers=_blockers(fixed_mapping_present=fixed_mapping["present"]),
+        governance_refs=_governance_refs(fixed_mapping=fixed_mapping),
+    )
+
+    assert fixed_mapping["present"] is False
+    assert state["decision"] == "hold_for_governance"
+
+
+def test_fixed_mapping_without_diff_proof_holds_for_governance() -> None:
+    fixed_mapping = operator._fixed_mapping_ref(
+        {
+            "fixed_mapping": {
+                "exists": True,
+                "repo_path": "docs/review/PR_2056_FIXED_MAPPING.md",
+                "entries": {"https://github.com/example/repo/pull/1#discussion_r1": "a" * 40},
+                "no_actionable": False,
+                "errors": [],
             }
         },
         pr_number=2056,
@@ -462,6 +504,7 @@ def test_fixed_mapping_without_entries_or_no_actionable_holds_for_governance() -
                 "entries": {},
                 "no_actionable": False,
                 "errors": [],
+                "present_in_pr_diff": True,
             }
         },
         pr_number=2056,
@@ -489,6 +532,21 @@ def test_source_pr_allows_safe_slash_base_refs() -> None:
     )
 
     assert state["source_pr"]["base_ref"] == "release/1.0"
+
+
+def test_draft_source_pr_waits_for_review() -> None:
+    source = _source_pr()
+    source["draft"] = True
+    state = build_private_pilot_state(
+        generated_at_utc=GENERATED_AT,
+        source_pr=source,
+        current_head_checks=_checks(),
+        review_capacity=_review_capacity(),
+        blockers=_blockers(),
+        governance_refs=_governance_refs(),
+    )
+
+    assert state["decision"] == "wait_for_review"
 
 
 def test_hotfix_dependency_can_wait_for_main_when_required() -> None:
@@ -606,6 +664,24 @@ def test_candidate_plan_requires_prepare_decision() -> None:
 
     with pytest.raises(CreativeCodePrivatePilotContractError, match="prepare_next_candidate_plan"):
         build_candidate_plan(waiting_state)
+
+
+def test_state_rejects_duplicated_fixed_mapping_blocker_drift() -> None:
+    payload = deepcopy(_state())
+    payload["blockers"]["fixed_mapping_present"] = True
+    payload["governance_refs"]["fixed_mapping"]["present"] = False
+
+    with pytest.raises(CreativeCodePrivatePilotContractError, match="fixed_mapping_present"):
+        validate_private_pilot_state(payload)
+
+
+def test_state_rejects_fixed_mapping_present_without_proof_counts() -> None:
+    payload = deepcopy(_state())
+    payload["governance_refs"]["fixed_mapping"]["entry_count"] = 0
+    payload["governance_refs"]["fixed_mapping"]["no_actionable"] = False
+
+    with pytest.raises(CreativeCodePrivatePilotContractError, match="mapping entries"):
+        validate_private_pilot_state(payload)
 
 
 def test_operator_help_matches_documented_entrypoint(capsys: pytest.CaptureFixture[str]) -> None:
@@ -762,6 +838,7 @@ def test_collect_private_pilot_state_uses_base_sha_for_review_diff_and_branch_fo
                 "repo_path": "docs/review/PR_2056_FIXED_MAPPING.md",
                 "entries": {},
                 "no_actionable": True,
+                "present_in_pr_diff": True,
             },
         }
 
@@ -821,7 +898,7 @@ def test_required_check_names_preserve_source_identity_and_encode_branch(
 
     assert available is True
     assert "branches/release%2F1.0/protection" in captured["path"]
-    assert names == ["app_id:123:lint", "name:build", "status_context:legacy-status"]
+    assert names == ["app_id:123:lint", "check_run:build", "status_context:legacy-status"]
 
 
 def _pr5_source_context(*, pr_number: int = 2056) -> dict[str, Any]:
@@ -1048,6 +1125,44 @@ def test_operator_pr5_ref_discovery_scans_beyond_display_limit(tmp_path: Path) -
             head_sha=HEAD_SHA,
         )["actionable_review_count"]
         == 1
+    )
+
+
+def test_operator_pr5_ref_discovery_rejects_symlinked_artifact_directory(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    review_parent = repo / "artifacts" / "orchestration" / "creative_code"
+    review_parent.mkdir(parents=True)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (review_parent / "review_disposition").symlink_to(outside, target_is_directory=True)
+    packet = build_creative_code_review_disposition_packet(
+        feedback_records=[
+            _pr5_record(
+                "outside-actionable",
+                candidate_disposition="creative_repair_candidate",
+                reason_code="test_failure",
+                requires_repair=True,
+                repair_priority=2,
+            )
+        ],
+        source_context=_pr5_source_context(),
+        expected_head_sha=HEAD_SHA,
+        actual_head_sha=HEAD_SHA,
+        classify=False,
+    )
+    (outside / "packet.json").write_text(
+        json.dumps(packet, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    assert (
+        operator._typed_artifact_refs(
+            repo_root=repo,
+            pattern="review_disposition/*.json",
+            artifact_type="creative_code_review_disposition_packet",
+            type_key="packet_type",
+        )
+        == []
     )
 
 

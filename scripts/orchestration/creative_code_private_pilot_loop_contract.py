@@ -888,6 +888,25 @@ def _normalize_governance_refs(raw_refs: Any) -> dict[str, Any]:
     }
 
 
+def _validate_fixed_mapping_consistency(normalized: Mapping[str, Any]) -> None:
+    blockers = normalized["blockers"]
+    fixed_mapping = normalized["governance_refs"]["fixed_mapping"]
+    if blockers["fixed_mapping_required"] != fixed_mapping["required"]:
+        raise CreativeCodePrivatePilotContractError(
+            "blockers.fixed_mapping_required must match governance_refs.fixed_mapping.required."
+        )
+    if blockers["fixed_mapping_present"] != fixed_mapping["present"]:
+        raise CreativeCodePrivatePilotContractError(
+            "blockers.fixed_mapping_present must match governance_refs.fixed_mapping.present."
+        )
+    if fixed_mapping["present"] and not (
+        fixed_mapping["entry_count"] > 0 or fixed_mapping["no_actionable"]
+    ):
+        raise CreativeCodePrivatePilotContractError(
+            "governance_refs.fixed_mapping present requires mapping entries or no-actionable proof."
+        )
+
+
 def _normalize_external_dependencies(raw_deps: Any) -> dict[str, Any]:
     if not isinstance(raw_deps, Mapping):
         raise CreativeCodePrivatePilotContractError("external_dependencies must be a JSON object.")
@@ -942,6 +961,8 @@ def decide_next_action(state: Mapping[str, Any]) -> str:
         or checks["overall"] in {"pending", "missing", "unknown"}
     ):
         return "wait_for_ci"
+    if normalized["source_pr"]["draft"]:
+        return "wait_for_review"
     if normalized["review_capacity"]["friction"] in {"high", "blocked"}:
         return "wait_for_review"
     return "prepare_next_candidate_plan"
@@ -1019,6 +1040,7 @@ def validate_private_pilot_state(
         "authority": _normalize_authority(payload["authority"]),
         "sanitized": _require_bool(payload, "sanitized", expected=True, label="state"),
     }
+    _validate_fixed_mapping_consistency(normalized)
     if normalized["decision"] not in DECISIONS:
         raise CreativeCodePrivatePilotContractError("state.decision is unsupported.")
     expected_decision = (
@@ -1190,7 +1212,7 @@ def build_current_head_check_summary(
 
 def _normalize_required_check_spec(raw_name: str) -> str:
     value = raw_name.strip()
-    if value.startswith(("app_id:", "status_context:", "name:")):
+    if value.startswith(("app_id:", "check_run:", "status_context:", "name:")):
         return value
     return f"name:{value}"
 
@@ -1204,6 +1226,8 @@ def _required_check_display_name(spec: str) -> str:
         return spec.removeprefix("name:")
     if spec.startswith("status_context:"):
         return spec.removeprefix("status_context:")
+    if spec.startswith("check_run:"):
+        return spec.removeprefix("check_run:")
     if spec.startswith("app_id:"):
         return spec.rsplit(":", 1)[-1]
     return spec
@@ -1213,6 +1237,8 @@ def _required_check_match_keys(*, name: str, workflow: str, app_id: Any) -> set[
     keys = {f"name:{name}"}
     if workflow == "status_context":
         keys.add(f"status_context:{name}")
+    else:
+        keys.add(f"check_run:{name}")
     app_id_text = str(app_id or "").strip()
     if app_id_text:
         keys.add(f"app_id:{app_id_text}:{name}")
