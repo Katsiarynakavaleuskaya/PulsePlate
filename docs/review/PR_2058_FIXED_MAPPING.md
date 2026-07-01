@@ -58,7 +58,7 @@ network-disabled sandbox lacked `unshare`.
 - [x] Initial fixed-mapping artifact created after PR open.
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
-- [ ] Post-open `qa-engineer-agent` pass completed.
+- [x] Post-open `qa-engineer-agent` pass completed.
 - [ ] Post-open `bug-hunter` pass completed.
 - [ ] Post-open `security-auditor` pass completed.
 - [ ] Codex Security diff scan / finding discovery completed or explicitly
@@ -71,7 +71,35 @@ network-disabled sandbox lacked `unshare`.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: 3d14bd316a1c6b7f1677db489cf5182b1fd3c3e3
+Evidence: `scripts/orchestration/creative_code_private_pilot_loop_contract.py` now treats unavailable required-check metadata as `overall=unknown`, and `tests/test_creative_code_private_pilot_loop.py` covers visible green checks with missing required metadata returning `wait_for_ci`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2058#discussion_r3506022279 -> 3d14bd316a1c6b7f1677db489cf5182b1fd3c3e3
+
+Disposition: FIXED
+Commit: 8e4489f4c73ddb9d509aece5dad6e4040de8b40e
+Evidence: `scripts/orchestration/creative_code_private_pilot_loop_operator.py` now passes the base branch name to `collect_review_context`, with regression coverage in `tests/test_creative_code_private_pilot_loop.py`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2058#discussion_r3505988511 -> 8e4489f4c73ddb9d509aece5dad6e4040de8b40e
+
+Disposition: FIXED
+Commit: 8e4489f4c73ddb9d509aece5dad6e4040de8b40e
+Evidence: `_typed_artifact_refs` now scans all matching PR-5 disposition packet files before blocker counting; the regression places the actionable packet after 25 non-disposition sidecars.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2058#discussion_r3506022287 -> 8e4489f4c73ddb9d509aece5dad6e4040de8b40e
+
+Disposition: FIXED
+Commit: 8e4489f4c73ddb9d509aece5dad6e4040de8b40e
+Evidence: `_blocker_counts_from_pr5_refs` now counts `simple_fix` disposition records as actionable blockers, with focused regression coverage.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2058#discussion_r3506022292 -> 8e4489f4c73ddb9d509aece5dad6e4040de8b40e
+
+Disposition: FIXED
+Commit: 8e4489f4c73ddb9d509aece5dad6e4040de8b40e
+Evidence: `_fixed_mapping_ref` now treats degraded fixed-mapping evidence as not present/usable, causing the existing governance hold path to apply.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2058#discussion_r3506022298 -> 8e4489f4c73ddb9d509aece5dad6e4040de8b40e
+
+Disposition: FIXED
+Commit: 8e4489f4c73ddb9d509aece5dad6e4040de8b40e
+Evidence: current-head check normalization now deduplicates by check name and workflow, preserving failing required rows when an optional check shares a name.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2058#discussion_r3506022307 -> 8e4489f4c73ddb9d509aece5dad6e4040de8b40e
 
 ## Merge Readiness
 
