@@ -259,6 +259,47 @@ def test_required_metadata_unavailable_waits_for_ci_even_when_visible_checks_pas
     assert state["decision"] == "wait_for_ci"
 
 
+def test_required_app_check_missing_is_not_satisfied_by_optional_same_name() -> None:
+    checks = build_current_head_check_summary(
+        pr_head_sha=HEAD_SHA,
+        raw_checks=[
+            {
+                **_raw_check("lint"),
+                "workflow": "optional-app",
+                "app_id": "999",
+            },
+            _raw_check("test-main"),
+        ],
+        required_check_names=("app_id:123:lint", "name:test-main"),
+        required_metadata_available=True,
+    )
+
+    assert checks["summary"]["required_missing"] == 1
+    assert checks["overall"] == "missing"
+    assert _state(checks=checks)["decision"] == "wait_for_ci"
+
+
+def test_name_only_required_check_conflict_blocks_on_duplicate_sources() -> None:
+    checks = build_current_head_check_summary(
+        pr_head_sha=HEAD_SHA,
+        raw_checks=[
+            _raw_check("lint"),
+            {
+                **_raw_check("lint"),
+                "workflow": "optional-app",
+                "app_id": "999",
+            },
+            _raw_check("test-main"),
+        ],
+        required_check_names=("name:lint", "name:test-main"),
+        required_metadata_available=True,
+    )
+
+    assert checks["summary"]["required_missing"] == 1
+    assert "required-check-identity-conflict:lint" in checks["degraded_reasons"]
+    assert _state(checks=checks)["decision"] == "wait_for_ci"
+
+
 @pytest.mark.parametrize(
     ("checks", "expected"),
     [
@@ -376,6 +417,44 @@ def test_degraded_fixed_mapping_evidence_holds_for_governance() -> None:
 
     assert fixed_mapping["present"] is False
     assert state["decision"] == "hold_for_governance"
+
+
+def test_fixed_mapping_without_entries_or_no_actionable_holds_for_governance() -> None:
+    fixed_mapping = operator._fixed_mapping_ref(
+        {
+            "fixed_mapping": {
+                "exists": True,
+                "repo_path": "docs/review/PR_2056_FIXED_MAPPING.md",
+                "entries": {},
+                "no_actionable": False,
+                "errors": [],
+            }
+        },
+        pr_number=2056,
+    )
+    state = _state(
+        blockers=_blockers(fixed_mapping_present=fixed_mapping["present"]),
+        governance_refs=_governance_refs(fixed_mapping=fixed_mapping),
+    )
+
+    assert fixed_mapping["entry_count"] == 0
+    assert fixed_mapping["present"] is False
+    assert state["decision"] == "hold_for_governance"
+
+
+def test_source_pr_allows_safe_slash_base_refs() -> None:
+    source = _source_pr()
+    source["base_ref"] = "release/1.0"
+    state = build_private_pilot_state(
+        generated_at_utc=GENERATED_AT,
+        source_pr=source,
+        current_head_checks=_checks(),
+        review_capacity=_review_capacity(),
+        blockers=_blockers(),
+        governance_refs=_governance_refs(),
+    )
+
+    assert state["source_pr"]["base_ref"] == "release/1.0"
 
 
 def test_hotfix_dependency_can_wait_for_main_when_required() -> None:
@@ -506,9 +585,11 @@ def test_state_schema_matches_closed_contract_enums() -> None:
     artifact_type = schema["$defs"]["artifact_ref"]["properties"]["artifact_type"]
     details_url = schema["$defs"]["check_entry"]["properties"]["details_url"]
     external_reference = schema["$defs"]["external_dependencies"]["properties"]["reference"]
+    base_ref = schema["$defs"]["source_pr"]["properties"]["base_ref"]
 
     assert sorted(review_status["enum"]) == sorted(REVIEW_SOURCE_STATUSES)
     assert sorted(artifact_type["enum"]) == sorted(ARTIFACT_REF_TYPES)
+    assert base_ref == {"$ref": "#/$defs/git_ref"}
     assert details_url["anyOf"] == [
         {"$ref": "#/$defs/github_url"},
         {"type": "null"},
@@ -555,13 +636,14 @@ def _configure_operator_root(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) ->
     return private
 
 
-def test_collect_private_pilot_state_passes_base_branch_to_review_context(
+def test_collect_private_pilot_state_uses_base_sha_for_review_diff_and_branch_for_checks(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
     private = _configure_operator_root(monkeypatch, tmp_path)
     repo = private.parents[3]
     captured: dict[str, Any] = {}
+    required_call: dict[str, Any] = {}
 
     monkeypatch.setattr(
         operator.pr_review_context,
@@ -575,7 +657,7 @@ def test_collect_private_pilot_state_passes_base_branch_to_review_context(
             "url": f"https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/{pr_number}",
             "state": "OPEN",
             "isDraft": False,
-            "baseRefName": "main",
+            "baseRefName": "release/1.0",
             "baseRefOid": "c" * 40,
             "headRefOid": HEAD_SHA,
         },
@@ -603,11 +685,12 @@ def test_collect_private_pilot_state_passes_base_branch_to_review_context(
     monkeypatch.setattr(
         operator.pr_review_context, "collect_review_context", fake_collect_review_context
     )
-    monkeypatch.setattr(
-        operator,
-        "_required_check_names",
-        lambda *, repo, base_ref, repo_root: (["lint", "test-main"], True),
-    )
+
+    def fake_required_check_names(**kwargs: Any) -> tuple[list[str], bool]:
+        required_call.update(kwargs)
+        return (["name:lint", "name:test-main"], True)
+
+    monkeypatch.setattr(operator, "_required_check_names", fake_required_check_names)
     monkeypatch.setattr(
         operator,
         "_current_head_raw_checks",
@@ -623,9 +706,39 @@ def test_collect_private_pilot_state_passes_base_branch_to_review_context(
     )
 
     assert state_path == private / "2056" / "pilot_state.json"
-    assert captured["base_ref"] == "main"
+    assert captured["base_ref"] == "c" * 40
     assert captured["head_ref"] == HEAD_SHA
-    assert state["source_pr"]["base_ref"] == "main"
+    assert required_call["base_ref"] == "release/1.0"
+    assert state["source_pr"]["base_ref"] == "release/1.0"
+
+
+def test_required_check_names_preserve_source_identity_and_encode_branch(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    captured: dict[str, str] = {}
+
+    def fake_gh_api_json(path: str, *, repo_root: Path) -> dict[str, Any]:
+        captured["path"] = path
+        return {
+            "contexts": ["legacy-status"],
+            "checks": [
+                {"context": "lint", "app_id": 123},
+                {"context": "build"},
+            ],
+        }
+
+    monkeypatch.setattr(operator, "_gh_api_json", fake_gh_api_json)
+
+    names, available = operator._required_check_names(
+        repo="Katsiarynakavaleuskaya/PulsePlate",
+        base_ref="release/1.0",
+        repo_root=tmp_path,
+    )
+
+    assert available is True
+    assert "branches/release%2F1.0/protection" in captured["path"]
+    assert names == ["app_id:123:lint", "name:build", "status_context:legacy-status"]
 
 
 def _pr5_source_context(*, pr_number: int = 2056) -> dict[str, Any]:

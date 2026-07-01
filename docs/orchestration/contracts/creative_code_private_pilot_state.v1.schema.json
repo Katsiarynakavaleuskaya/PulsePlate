@@ -45,6 +45,13 @@
       "maxLength": 128,
       "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
     },
+    "git_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 192,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,191}$",
+      "not": { "pattern": "(^[/\\\\.]|\\.\\.|//|@\\{|\\\\|/$|\\.lock$)" }
+    },
     "safe_text": {
       "type": "string",
       "maxLength": 220,
@@ -93,7 +100,7 @@
         "url": { "anyOf": [{ "$ref": "#/$defs/github_url" }, { "type": "null" }] },
         "state": { "$ref": "#/$defs/safe_id" },
         "draft": { "type": "boolean" },
-        "base_ref": { "$ref": "#/$defs/safe_id" },
+        "base_ref": { "$ref": "#/$defs/git_ref" },
         "base_sha": { "anyOf": [{ "$ref": "#/$defs/sha" }, { "type": "null" }] },
         "head_sha": { "$ref": "#/$defs/sha" }
       }

@@ -71,6 +71,7 @@ ALLOWED_ARTIFACT_REF_PREFIXES = (
 
 ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 SAFE_TOKEN_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$")
+SAFE_GIT_REF_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,191}$")
 SHA_RE = re.compile(r"^[a-f0-9]{40}$")
 SHA256_RE = re.compile(r"^sha256:[a-f0-9]{64}$")
 REPOSITORY_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
@@ -408,6 +409,26 @@ def _require_token(payload: Mapping[str, Any], key: str, *, label: str) -> str:
     return normalized
 
 
+def _require_git_ref(payload: Mapping[str, Any], key: str, *, label: str) -> str:
+    value = payload.get(key)
+    if not isinstance(value, str):
+        raise CreativeCodePrivatePilotContractError(f"{label}.{key} must be a string.")
+    normalized = value.strip()
+    if (
+        not normalized
+        or not SAFE_GIT_REF_RE.fullmatch(normalized)
+        or normalized.startswith(("/", "."))
+        or normalized.endswith(("/", ".lock"))
+        or ".." in normalized
+        or "//" in normalized
+        or "@{" in normalized
+        or "\\" in normalized
+    ):
+        raise CreativeCodePrivatePilotContractError(f"{label}.{key} must be a safe git ref.")
+    reject_unsafe_private_pilot_value(normalized, label=f"{label}.{key}")
+    return normalized
+
+
 def _require_safe_text(
     payload: Mapping[str, Any],
     key: str,
@@ -540,7 +561,7 @@ def _normalize_source_pr(raw_source_pr: Any) -> dict[str, Any]:
         "url": _require_optional_url(raw_source_pr["url"], label="source_pr.url"),
         "state": _require_token(raw_source_pr, "state", label="source_pr"),
         "draft": _require_bool(raw_source_pr, "draft", expected=None, label="source_pr"),
-        "base_ref": _require_token(raw_source_pr, "base_ref", label="source_pr"),
+        "base_ref": _require_git_ref(raw_source_pr, "base_ref", label="source_pr"),
         "base_sha": _require_optional_sha(raw_source_pr["base_sha"], label="source_pr.base_sha"),
         "head_sha": _require_sha(raw_source_pr, "head_sha", label="source_pr"),
     }
@@ -1014,8 +1035,11 @@ def build_current_head_check_summary(
 
     if not SHA_RE.fullmatch(pr_head_sha):
         raise CreativeCodePrivatePilotContractError("pr_head_sha must be a 40-char SHA.")
-    required_names = {name.strip() for name in required_check_names if name.strip()}
+    required_specs = {
+        _normalize_required_check_spec(name) for name in required_check_names if name.strip()
+    }
     latest: dict[tuple[str, str], dict[str, Any]] = {}
+    latest_required_keys: dict[tuple[str, str], set[str]] = {}
     latest_ts: dict[tuple[str, str], str] = {}
     stale = {
         "total": 0,
@@ -1039,6 +1063,11 @@ def build_current_head_check_summary(
         conclusion_raw = str(raw.get("conclusion") or raw.get("status") or "unknown").lower()
         state = _check_state_from_raw(raw)
         timestamp = _timestamp_from_raw(raw)
+        required_match_keys = _required_check_match_keys(
+            name=name,
+            workflow=workflow,
+            app_id=raw.get("app_id") or raw.get("appId"),
+        )
         if not isinstance(head_sha, str) or not SHA_RE.fullmatch(head_sha):
             stale["total"] += 1
             stale["missing_head_sha"] += 1
@@ -1058,7 +1087,7 @@ def build_current_head_check_summary(
             "state": state,
             "conclusion": conclusion_raw[:64],
             "head_sha": head_sha,
-            "required": bool(raw.get("required")) or name in required_names,
+            "required": bool(raw.get("required")) or bool(required_match_keys & required_specs),
             "details_url": _safe_github_url_or_none(raw.get("details_url") or raw.get("url")),
             "observed_at_utc": timestamp or None,
         }
@@ -1077,6 +1106,7 @@ def build_current_head_check_summary(
                 if previous["state"] == "cancelled":
                     stale["cancelled"] += 1
             latest[key] = entry
+            latest_required_keys[key] = required_match_keys
             latest_ts[key] = timestamp
         else:
             stale["total"] += 1
@@ -1086,12 +1116,26 @@ def build_current_head_check_summary(
             if state == "cancelled":
                 stale["cancelled"] += 1
 
-    observed_names = {entry["name"] for entry in latest.values()}
-    missing_required = sorted(required_names - observed_names)
+    observed_required_specs = set().union(
+        *(keys & required_specs for keys in latest_required_keys.values())
+    )
+    missing_required = sorted(required_specs - observed_required_specs)
+    current_workflows_by_name: dict[str, set[str]] = {}
+    for entry in latest.values():
+        current_workflows_by_name.setdefault(str(entry["name"]), set()).add(str(entry["workflow"]))
+    identity_conflicts = sorted(
+        display_name
+        for spec in required_specs
+        if _required_check_spec_is_name_only(spec)
+        for display_name in [_required_check_display_name(spec)]
+        if len(current_workflows_by_name.get(display_name, set())) > 1
+    )
+    for name in identity_conflicts:
+        degraded.append(f"required-check-identity-conflict:{name}")
     current = [latest[key] for key in sorted(latest)]
     summary = _check_summary_from_current(
         current,
-        required_missing=len(missing_required),
+        required_missing=len(missing_required) + len(identity_conflicts),
     )
     overall = _overall_from_check_summary(
         summary=summary,
@@ -1106,6 +1150,37 @@ def build_current_head_check_summary(
         "summary": summary,
         "degraded_reasons": sorted(set(degraded)),
     }
+
+
+def _normalize_required_check_spec(raw_name: str) -> str:
+    value = raw_name.strip()
+    if value.startswith(("app_id:", "status_context:", "name:")):
+        return value
+    return f"name:{value}"
+
+
+def _required_check_spec_is_name_only(spec: str) -> bool:
+    return spec.startswith("name:")
+
+
+def _required_check_display_name(spec: str) -> str:
+    if spec.startswith("name:"):
+        return spec.removeprefix("name:")
+    if spec.startswith("status_context:"):
+        return spec.removeprefix("status_context:")
+    if spec.startswith("app_id:"):
+        return spec.rsplit(":", 1)[-1]
+    return spec
+
+
+def _required_check_match_keys(*, name: str, workflow: str, app_id: Any) -> set[str]:
+    keys = {f"name:{name}"}
+    if workflow == "status_context":
+        keys.add(f"status_context:{name}")
+    app_id_text = str(app_id or "").strip()
+    if app_id_text:
+        keys.add(f"app_id:{app_id_text}:{name}")
+    return keys
 
 
 def _timestamp_from_raw(raw: Mapping[str, Any]) -> str:

@@ -20,6 +20,7 @@ import subprocess  # nosec B404: bounded gh CLI metadata reads only, via resolve
 import sys
 import tempfile
 from typing import Any, Mapping, cast
+from urllib.parse import quote
 
 from scripts.orchestration import pr_review_context
 from scripts.orchestration.creative_code_private_pilot_loop_contract import (
@@ -267,8 +268,9 @@ def _gh_api_json(path: str, *, repo_root: Path) -> Any:
 
 def _required_check_names(*, repo: str, base_ref: str, repo_root: Path) -> tuple[list[str], bool]:
     try:
+        encoded_base_ref = quote(base_ref, safe="")
         payload = _gh_api_json(
-            f"repos/{repo}/branches/{base_ref}/protection/required_status_checks",
+            f"repos/{repo}/branches/{encoded_base_ref}/protection/required_status_checks",
             repo_root=repo_root,
         )
     except CreativeCodePrivatePilotOperatorError:
@@ -278,12 +280,13 @@ def _required_check_names(*, repo: str, base_ref: str, repo_root: Path) -> tuple
     names: set[str] = set()
     for item in payload.get("contexts") or []:
         if isinstance(item, str) and item.strip():
-            names.add(item.strip())
+            names.add(f"status_context:{item.strip()}")
     for item in payload.get("checks") or []:
         if isinstance(item, dict):
             context = str(item.get("context") or "").strip()
+            app_id = str(item.get("app_id") or "").strip()
             if context:
-                names.add(context)
+                names.add(f"app_id:{app_id}:{context}" if app_id else f"name:{context}")
     return sorted(names), True
 
 
@@ -302,6 +305,7 @@ def _current_head_raw_checks(*, repo: str, head_sha: str, repo_root: Path) -> li
                 {
                     "name": item.get("name") or "unknown",
                     "workflow": (app or {}).get("name") or "",
+                    "app_id": (app or {}).get("id") or "",
                     "status": item.get("status") or "",
                     "conclusion": item.get("conclusion") or "",
                     "head_sha": item.get("head_sha") or "",
@@ -412,14 +416,17 @@ def _fixed_mapping_ref(context: Mapping[str, Any], *, pr_number: int) -> dict[st
     entries = mapping.get("entries")
     errors = mapping.get("errors")
     mapping_degraded = bool(errors) if isinstance(errors, list) else False
+    entry_count = len(entries) if isinstance(entries, Mapping) else 0
+    no_actionable = bool(mapping.get("no_actionable"))
+    has_disposition_proof = entry_count > 0 or no_actionable
     return {
         "required": True,
-        "present": bool(mapping.get("exists")) and not mapping_degraded,
+        "present": bool(mapping.get("exists")) and not mapping_degraded and has_disposition_proof,
         "repo_path": str(
             mapping.get("repo_path") or f"docs/review/PR_{pr_number}_FIXED_MAPPING.md"
         ),
-        "entry_count": len(entries) if isinstance(entries, Mapping) else 0,
-        "no_actionable": bool(mapping.get("no_actionable")),
+        "entry_count": entry_count,
+        "no_actionable": no_actionable,
     }
 
 
@@ -490,6 +497,7 @@ def collect_private_pilot_state(
     pr_view = _gh_pr_view(pr_number=pr_number, repo_root=repo_root)
     head_sha = str(pr_view.get("headRefOid") or "")
     base_ref = str(pr_view.get("baseRefName") or "")
+    base_sha = str(pr_view.get("baseRefOid") or "")
     if not head_sha:
         raise CreativeCodePrivatePilotOperatorError("PR head SHA unavailable.")
 
@@ -497,7 +505,7 @@ def collect_private_pilot_state(
         repo_root=repo_root,
         pr_number=pr_number,
         repo=repo,
-        base_ref=base_ref,
+        base_ref=base_sha or base_ref,
         head_ref=head_sha,
     )
     required_names, required_metadata_available = _required_check_names(
@@ -560,7 +568,7 @@ def collect_private_pilot_state(
             "state": str(pr_view.get("state") or "unknown").lower(),
             "draft": bool(pr_view.get("isDraft")),
             "base_ref": base_ref or "main",
-            "base_sha": pr_view.get("baseRefOid") or None,
+            "base_sha": base_sha or None,
             "head_sha": head_sha,
         },
         current_head_checks=checks,
