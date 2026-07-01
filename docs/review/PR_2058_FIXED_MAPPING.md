@@ -59,7 +59,7 @@ network-disabled sandbox lacked `unshare`.
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 - [x] Post-open `qa-engineer-agent` pass completed.
-- [ ] Post-open `bug-hunter` pass completed.
+- [x] Post-open `bug-hunter` pass completed.
 - [ ] Post-open `security-auditor` pass completed.
 - [ ] Codex Security diff scan / finding discovery completed or explicitly
   dispositioned.
@@ -72,9 +72,9 @@ network-disabled sandbox lacked `unshare`.
 ## Fixed in Commit Mapping
 
 Disposition: FIXED
-Commit: 3d14bd316a1c6b7f1677db489cf5182b1fd3c3e3
+Commit: 8e4489f4c73ddb9d509aece5dad6e4040de8b40e
 Evidence: `scripts/orchestration/creative_code_private_pilot_loop_contract.py` now treats unavailable required-check metadata as `overall=unknown`, and `tests/test_creative_code_private_pilot_loop.py` covers visible green checks with missing required metadata returning `wait_for_ci`.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2058#discussion_r3506022279 -> 3d14bd316a1c6b7f1677db489cf5182b1fd3c3e3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2058#discussion_r3506022279 -> 8e4489f4c73ddb9d509aece5dad6e4040de8b40e
 
 Disposition: FIXED
 Commit: 8e4489f4c73ddb9d509aece5dad6e4040de8b40e
