@@ -82,10 +82,24 @@ Commit: 602fe4e3413bf6c80cc0192337b7dbfa9a390baf
 Evidence: `app/metrics.py` and `core/db_fallback.py` now include contextual debug logging for best-effort metric failures, and `tests/test_install_locked_python_requirements.py` no longer asserts an exact empty header dictionary in the trusted-host health-check tests.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2056#pullrequestreview-4607238059 -> 602fe4e3413bf6c80cc0192337b7dbfa9a390baf
 
+## Current-Head CI Follow-up
+
+Disposition: FIXED
+Commit: 74ccbe8b37a90897750fb3922c954321e9458be0
+Evidence: Current-head `diff-coverage` job `84504862208` failed with missing
+lines `app/security/goplus_agentguard_bridge.py:85` and
+`core/insight/telemetry.py:142`. Commit
+`74ccbe8b37a90897750fb3922c954321e9458be0` adds smoke-lane tests in
+`tests/test_remaining_modules.py` covering the bounded AgentGuard subprocess
+path and telemetry failure logging path used by the CI coverage artifact.
+
 ## Validation Evidence
 
 - PASS: `python3 scripts/orchestration/check_preflight.py`
 - PASS: `python3 scripts/orchestration/check_agent_consistency.py`
+- PASS:
+  `.venv/bin/python -m pytest tests/test_remaining_modules.py::test_goplus_agentguard_bridge_subprocess_smoke tests/test_remaining_modules.py::test_philosophical_runtime_metrics_failure_smoke -q`
+  (`2 passed`)
 - PASS:
   `.venv/bin/python -m pytest tests/guards/test_subprocess_uses_absolute_binaries.py tests/guards/test_nosec_policy_guard.py tests/test_install_locked_python_requirements.py::test_private_index_project_health_honors_matching_trusted_host tests/test_install_locked_python_requirements.py::test_private_index_project_health_uses_default_tls_for_mismatched_trusted_host -q`
   (`44 passed`)
@@ -96,7 +110,17 @@ Evidence: `app/metrics.py` and `core/db_fallback.py` now include contextual debu
   Bandit comment warnings only.
 - PASS: `make validate-changed` exited `0`; it was non-selective for this branch,
   so focused pytest and Bandit evidence above are primary.
+- PASS: Local coverage sanity for the failed diff lines exited `0`:
+  smoke coverage plus focused metrics/db fallback tests, followed by
+  `diff-cover /tmp/pr2056-coverage.xml --compare-branch origin/main --fail-under 97 ...`
+  reported 100% diff coverage for `app/metrics.py`,
+  `app/security/goplus_agentguard_bridge.py`, `core/db_fallback.py`, and
+  `core/insight/telemetry.py`.
+- PASS: `make validate-changed` in the temporary PR #2056 worktree after adding
+  smoke-lane coverage tests.
 - PASS: `pre-commit run --all-files` after Black formatted one touched line.
+- PASS: `pre-commit run --all-files` in the temporary PR #2056 worktree after
+  adding the smoke-lane coverage tests.
 - PASS: commit hook.
 - PASS: push hook, including changed-file mypy, `pip-audit`, backend pre-push
   pytest, full-repo Bandit, and Docker build test.
