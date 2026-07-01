@@ -93,6 +93,16 @@ lines `app/security/goplus_agentguard_bridge.py:85` and
 `tests/test_remaining_modules.py` covering the bounded AgentGuard subprocess
 path and telemetry failure logging path used by the CI coverage artifact.
 
+Disposition: FIXED
+Commit: 4a08a78dc43e7388d653f58dc011ad4d20ad8785
+Evidence: Current-head `pr_scope_guard` job `84509888438` failed
+`PR size governance` because the privileged CI/security PR had 16 counted files
+and the hard cap is 15 without an operator-approved exception. Commit
+`4a08a78dc43e7388d653f58dc011ad4d20ad8785` removes the proactive
+`scripts/metatron_lab/compose_guard.py` TTL refresh from this PR. Local
+`check_pr_size_governance.py` then reported 15 counted files and
+`PR scope governance: OK`.
+
 ## Validation Evidence
 
 - PASS: `python3 scripts/orchestration/check_preflight.py`
@@ -116,6 +126,9 @@ path and telemetry failure logging path used by the CI coverage artifact.
   reported 100% diff coverage for `app/metrics.py`,
   `app/security/goplus_agentguard_bridge.py`, `core/db_fallback.py`, and
   `core/insight/telemetry.py`.
+- PASS:
+  `python3 scripts/ci/check_pr_size_governance.py --base-sha 6571a4ba6181899330d0bec659328adfbb4bead0 --head-sha HEAD --body "$body"`
+  reported `Counted files: 15` and `PR scope governance: OK`.
 - PASS: `make validate-changed` in the temporary PR #2056 worktree after adding
   smoke-lane coverage tests.
 - PASS: `pre-commit run --all-files` after Black formatted one touched line.
