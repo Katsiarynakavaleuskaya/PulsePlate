@@ -16,6 +16,7 @@ import sys
 
 from packaging.requirements import InvalidRequirement
 from packaging.requirements import Requirement
+from packaging.utils import canonicalize_name
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
@@ -58,6 +59,82 @@ WORKFLOW_PATH_ENTRY_RE = re.compile(
     r"^\s*-\s*[\"']?(?P<path>requirements[-A-Za-z0-9_]*\.(?:in|txt))[\"']?\s*$"
 )
 DEPENDENCY_SUBMISSION_TRIGGER_EVENTS = ("push", "pull_request")
+
+OWNERSHIP_ERROR = "error"
+OWNERSHIP_WARNING = "warning"
+OWNERSHIP_INFO = "info"
+OWNERSHIP_SEVERITIES = (OWNERSHIP_ERROR, OWNERSHIP_WARNING, OWNERSHIP_INFO)
+
+AUDITED_OWNERSHIP_PACKAGES = (
+    "pyarrow",
+    "pandas",
+    "httpx2",
+    "reportlab",
+    "matplotlib",
+    "numpy",
+    "aiosqlite",
+)
+RUNTIME_REQUIREMENT_SURFACES = (
+    "requirements.in",
+    "requirements.txt",
+)
+CI_LITE_REQUIREMENT_SURFACES = (
+    "requirements-ci-lite.in",
+    "requirements-ci-lite.txt",
+)
+DOCKER_RUNTIME_REQUIREMENT_SURFACES = (
+    "requirements-docker-runtime.in",
+    "requirements-docker-runtime.txt",
+)
+RUNTIME_CI_LITE_REQUIREMENT_SURFACES = (
+    *RUNTIME_REQUIREMENT_SURFACES,
+    *CI_LITE_REQUIREMENT_SURFACES,
+)
+RUNTIME_DOCKER_CI_LITE_REQUIREMENT_SURFACES = (
+    *RUNTIME_REQUIREMENT_SURFACES,
+    *CI_LITE_REQUIREMENT_SURFACES,
+    *DOCKER_RUNTIME_REQUIREMENT_SURFACES,
+)
+PYARROW_FORBIDDEN_RUNTIME_SURFACES = (
+    *RUNTIME_CI_LITE_REQUIREMENT_SURFACES,
+    "requirements-lock.txt",
+)
+RUNTIME_DECLARATION_SURFACES = (
+    "requirements.in",
+    "requirements-ci-lite.in",
+    "requirements-docker-runtime.in",
+)
+CANONICAL_RUNTIME_OWNER_ROOTS = (
+    Path("app/bootstrap"),
+    Path("app/routers"),
+    Path("app/services"),
+    Path("core"),
+    Path("providers"),
+)
+LEGACY_COMPAT_OWNER_PATHS = (
+    Path("legacy_app.py"),
+    Path("bmi_visualization.py"),
+    Path("app/services/bmi_compat.py"),
+)
+LEGACY_COMPAT_TRANSITIONAL_PATHS = set(LEGACY_COMPAT_OWNER_PATHS)
+
+
+@dataclass(frozen=True)
+class DependencyOwnershipFinding:
+    """One first-pass dependency ownership audit finding."""
+
+    package: str
+    severity: str
+    reason_code: str
+    surfaces: tuple[str, ...]
+    detail: str
+
+    def to_message(self) -> str:
+        surface_text = ", ".join(self.surfaces) if self.surfaces else "repo imports"
+        return (
+            f"{self.package}: {self.severity}:{self.reason_code}: "
+            f"{self.detail} [{surface_text}]"
+        )
 
 
 @dataclass(frozen=True)
@@ -271,6 +348,116 @@ def _is_requirement_line(line: str) -> bool:
     return True
 
 
+def _normalize_package_name(package_name: str) -> str:
+    return canonicalize_name(package_name)
+
+
+def _requirement_package_names(repo_root: Path, relative_path: str | Path) -> set[str]:
+    names: set[str] = set()
+    for raw_line in _read_text(repo_root, relative_path).splitlines():
+        line = raw_line.split("#", 1)[0].strip()
+        if not _is_requirement_line(line):
+            continue
+        try:
+            requirement = Requirement(line)
+        except InvalidRequirement:
+            continue
+        names.add(_normalize_package_name(requirement.name))
+    return names
+
+
+def _surfaces_containing_package(
+    repo_root: Path,
+    package: str,
+    surfaces: tuple[str, ...],
+) -> tuple[str, ...]:
+    package_name = _normalize_package_name(package)
+    matches: list[str] = []
+    for surface in surfaces:
+        if not (repo_root / surface).is_file():
+            continue
+        if package_name in _requirement_package_names(repo_root, surface):
+            matches.append(surface)
+    return tuple(matches)
+
+
+def _iter_python_files(repo_root: Path, paths: tuple[Path, ...]) -> tuple[Path, ...]:
+    python_files: list[Path] = []
+    for relative_path in paths:
+        candidate = repo_root / relative_path
+        if candidate.is_file() and candidate.suffix == ".py":
+            python_files.append(relative_path)
+            continue
+        if candidate.is_dir():
+            python_files.extend(
+                path.relative_to(repo_root)
+                for path in sorted(candidate.rglob("*.py"))
+                if path.is_file()
+            )
+    return tuple(python_files)
+
+
+def _top_level_import_name(module_name: str) -> str:
+    return _normalize_package_name(module_name.split(".", 1)[0].replace("_", "-"))
+
+
+def _imports_package(repo_root: Path, relative_path: Path, package: str) -> bool:
+    package_name = _normalize_package_name(package)
+    try:
+        tree = ast.parse(
+            _read_text(repo_root, relative_path),
+            filename=str(relative_path),
+        )
+    except SyntaxError:
+        return False
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if _top_level_import_name(alias.name) == package_name:
+                    return True
+        if isinstance(node, ast.ImportFrom) and node.module is not None:
+            if _top_level_import_name(node.module) == package_name:
+                return True
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "import_module"
+            and node.args
+            and isinstance(node.args[0], ast.Constant)
+            and isinstance(node.args[0].value, str)
+            and _top_level_import_name(node.args[0].value) == package_name
+        ):
+            return True
+    return False
+
+
+def _package_import_evidence(
+    repo_root: Path,
+    package: str,
+    paths: tuple[Path, ...],
+) -> tuple[str, ...]:
+    return tuple(
+        str(relative_path)
+        for relative_path in _iter_python_files(repo_root, paths)
+        if _imports_package(repo_root, relative_path, package)
+    )
+
+
+def _canonical_runtime_import_evidence(repo_root: Path, package: str) -> tuple[str, ...]:
+    evidence = []
+    for relative_path in _package_import_evidence(
+        repo_root, package, CANONICAL_RUNTIME_OWNER_ROOTS
+    ):
+        if Path(relative_path) not in LEGACY_COMPAT_TRANSITIONAL_PATHS:
+            evidence.append(relative_path)
+    return tuple(evidence)
+
+
+def _legacy_compat_import_evidence(repo_root: Path, package: str) -> tuple[str, ...]:
+    return _package_import_evidence(repo_root, package, LEGACY_COMPAT_OWNER_PATHS)
+
+
 def _pip_audit_manifest_entries(script_text: str) -> set[str]:
     """Return lockfiles listed in the pip-audit manifest array."""
     entries: set[str] = set()
@@ -460,6 +647,9 @@ def _validate_docs(repo_root: Path, errors: list[str]) -> None:
             errors.append(f"{CONTRACT_DOC}: missing dependency surface {surface_file}.")
     for required_phrase in (
         "Noncanonical Aggregate Install Surfaces",
+        "Dependency Ownership Audit",
+        "legacy_compat_transitional",
+        "Legacy usage is evidence of transitional compatibility pressure",
         "requirements-all.txt",
         "requirements-lock.txt",
         "scripts/ci/check_python_dependency_surfaces.py",
@@ -477,6 +667,234 @@ def _validate_docs(repo_root: Path, errors: list[str]) -> None:
         ):
             if required_phrase not in text:
                 errors.append(f"{doc_path}: missing reference to {required_phrase}.")
+
+
+def _ownership_finding(
+    *,
+    package: str,
+    severity: str,
+    reason_code: str,
+    surfaces: tuple[str, ...],
+    detail: str,
+) -> DependencyOwnershipFinding:
+    if severity not in OWNERSHIP_SEVERITIES:
+        raise ValueError(f"Unknown dependency ownership severity: {severity}")
+    return DependencyOwnershipFinding(
+        package=package,
+        severity=severity,
+        reason_code=reason_code,
+        surfaces=surfaces,
+        detail=detail,
+    )
+
+
+def _legacy_only_runtime_authority_finding(
+    *,
+    package: str,
+    evidence: tuple[str, ...],
+) -> DependencyOwnershipFinding:
+    return _ownership_finding(
+        package=package,
+        severity=OWNERSHIP_ERROR,
+        reason_code="legacy_only_runtime_authority_forbidden",
+        surfaces=evidence,
+        detail="legacy compatibility evidence cannot create canonical runtime ownership",
+    )
+
+
+def collect_dependency_ownership_findings(
+    repo_root: Path = REPO_ROOT,
+) -> tuple[DependencyOwnershipFinding, ...]:
+    """Return first-pass audited dependency ownership findings.
+
+    This audit intentionally covers only the approved package subset. Import
+    evidence is policy context, not a generic dependency trimmer.
+    """
+
+    findings: list[DependencyOwnershipFinding] = []
+
+    pyarrow_surfaces = _surfaces_containing_package(
+        repo_root,
+        "pyarrow",
+        PYARROW_FORBIDDEN_RUNTIME_SURFACES,
+    )
+    if pyarrow_surfaces:
+        canonical_pyarrow = _canonical_runtime_import_evidence(repo_root, "pyarrow")
+        legacy_pyarrow = _legacy_compat_import_evidence(repo_root, "pyarrow")
+        if canonical_pyarrow:
+            findings.append(
+                _ownership_finding(
+                    package="pyarrow",
+                    severity=OWNERSHIP_INFO,
+                    reason_code="canonical_runtime_owner_documented",
+                    surfaces=canonical_pyarrow,
+                    detail="canonical runtime import evidence exists; do not quarantine blindly",
+                )
+            )
+        elif legacy_pyarrow:
+            findings.append(
+                _legacy_only_runtime_authority_finding(
+                    package="pyarrow",
+                    evidence=legacy_pyarrow,
+                )
+            )
+        else:
+            findings.append(
+                _ownership_finding(
+                    package="pyarrow",
+                    severity=OWNERSHIP_ERROR,
+                    reason_code="runtime_direct_no_canonical_owner",
+                    surfaces=pyarrow_surfaces,
+                    detail=(
+                        "runtime/ci-lite or aggregate surfaces include pyarrow without "
+                        "canonical app/core/provider ownership"
+                    ),
+                )
+            )
+
+    pandas_surfaces = _surfaces_containing_package(
+        repo_root,
+        "pandas",
+        RUNTIME_DOCKER_CI_LITE_REQUIREMENT_SURFACES,
+    )
+    if pandas_surfaces:
+        findings.append(
+            _ownership_finding(
+                package="pandas",
+                severity=OWNERSHIP_ERROR,
+                reason_code="data_eval_dependency_in_runtime",
+                surfaces=pandas_surfaces,
+                detail="pandas is owned by data/eval scripts and must stay out of runtime/Docker/ci-lite",
+            )
+        )
+
+    httpx2_surfaces = _surfaces_containing_package(
+        repo_root,
+        "httpx2",
+        RUNTIME_DOCKER_CI_LITE_REQUIREMENT_SURFACES,
+    )
+    if httpx2_surfaces:
+        findings.append(
+            _ownership_finding(
+                package="httpx2",
+                severity=OWNERSHIP_ERROR,
+                reason_code="test_dev_dependency_in_runtime",
+                surfaces=httpx2_surfaces,
+                detail="httpx2 is the Starlette TestClient backend and must stay test/dev-only",
+            )
+        )
+
+    reportlab_surfaces = _surfaces_containing_package(
+        repo_root,
+        "reportlab",
+        RUNTIME_DOCKER_CI_LITE_REQUIREMENT_SURFACES,
+    )
+    if reportlab_surfaces:
+        reportlab_evidence = _canonical_runtime_import_evidence(repo_root, "reportlab")
+        reportlab_legacy_evidence = _legacy_compat_import_evidence(repo_root, "reportlab")
+        if reportlab_evidence:
+            findings.append(
+                _ownership_finding(
+                    package="reportlab",
+                    severity=OWNERSHIP_INFO,
+                    reason_code="canonical_runtime_owner_documented",
+                    surfaces=reportlab_evidence,
+                    detail="export/pdf modules provide canonical runtime ownership",
+                )
+            )
+        elif reportlab_legacy_evidence:
+            findings.append(
+                _legacy_only_runtime_authority_finding(
+                    package="reportlab",
+                    evidence=reportlab_legacy_evidence,
+                )
+            )
+        else:
+            findings.append(
+                _ownership_finding(
+                    package="reportlab",
+                    severity=OWNERSHIP_ERROR,
+                    reason_code="runtime_direct_no_canonical_owner",
+                    surfaces=reportlab_surfaces,
+                    detail="reportlab is in runtime surfaces without canonical export/pdf evidence",
+                )
+            )
+
+    matplotlib_surfaces = _surfaces_containing_package(
+        repo_root,
+        "matplotlib",
+        RUNTIME_CI_LITE_REQUIREMENT_SURFACES,
+    )
+    if matplotlib_surfaces:
+        matplotlib_canonical = _canonical_runtime_import_evidence(repo_root, "matplotlib")
+        matplotlib_legacy = _legacy_compat_import_evidence(repo_root, "matplotlib")
+        if not matplotlib_canonical and matplotlib_legacy:
+            findings.append(
+                _ownership_finding(
+                    package="matplotlib",
+                    severity=OWNERSHIP_WARNING,
+                    reason_code="legacy_compat_transitional",
+                    surfaces=matplotlib_legacy,
+                    detail=(
+                        "legacy BMI visualization evidence is transitional pressure, "
+                        "not canonical runtime authority"
+                    ),
+                )
+            )
+        elif matplotlib_canonical:
+            findings.append(
+                _ownership_finding(
+                    package="matplotlib",
+                    severity=OWNERSHIP_INFO,
+                    reason_code="canonical_runtime_owner_documented",
+                    surfaces=matplotlib_canonical,
+                    detail="canonical BMI visualization owner is documented by import evidence",
+                )
+            )
+        else:
+            findings.append(
+                _ownership_finding(
+                    package="matplotlib",
+                    severity=OWNERSHIP_WARNING,
+                    reason_code="legacy_compat_transitional",
+                    surfaces=matplotlib_surfaces,
+                    detail="matplotlib remains pending the BMI visualization ownership decision",
+                )
+            )
+
+    numpy_direct_surfaces = _surfaces_containing_package(
+        repo_root,
+        "numpy",
+        RUNTIME_DECLARATION_SURFACES,
+    )
+    if numpy_direct_surfaces and not _canonical_runtime_import_evidence(repo_root, "numpy"):
+        findings.append(
+            _ownership_finding(
+                package="numpy",
+                severity=OWNERSHIP_WARNING,
+                reason_code="transitive_only_direct_runtime_candidate",
+                surfaces=numpy_direct_surfaces,
+                detail="numpy has no direct canonical runtime import evidence and may be transitive-only",
+            )
+        )
+
+    aiosqlite_surfaces = _surfaces_containing_package(
+        repo_root,
+        "aiosqlite",
+        RUNTIME_DOCKER_CI_LITE_REQUIREMENT_SURFACES,
+    )
+    if aiosqlite_surfaces:
+        findings.append(
+            _ownership_finding(
+                package="aiosqlite",
+                severity=OWNERSHIP_WARNING,
+                reason_code="db_fallback_test_split_pending",
+                surfaces=aiosqlite_surfaces,
+                detail="sqlite async fallback/test ownership needs a separate DB-surface decision",
+            )
+        )
+
+    return tuple(findings)
 
 
 def validate_repo(repo_root: Path = REPO_ROOT) -> list[str]:
@@ -509,6 +927,11 @@ def validate_repo(repo_root: Path = REPO_ROOT) -> list[str]:
     _validate_shared_profiles(repo_root, errors)
     _validate_security_coverage(repo_root, errors)
     _validate_docs(repo_root, errors)
+    errors.extend(
+        finding.to_message()
+        for finding in collect_dependency_ownership_findings(repo_root)
+        if finding.severity == OWNERSHIP_ERROR
+    )
     return errors
 
 
@@ -531,6 +954,15 @@ def main(argv: list[str] | None = None) -> int:
         for error in errors:
             print(f"- {error}")
         return 1
+
+    findings = collect_dependency_ownership_findings(args.repo_root)
+    reported_findings = [
+        finding for finding in findings if finding.severity in {OWNERSHIP_WARNING, OWNERSHIP_INFO}
+    ]
+    if reported_findings:
+        print("Python dependency ownership audit:")
+        for finding in reported_findings:
+            print(f"- {finding.to_message()}")
 
     print("PASS: Python dependency surfaces match the canonical contract.")
     return 0

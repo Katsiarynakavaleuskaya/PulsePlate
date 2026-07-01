@@ -5,7 +5,8 @@ This project uses `pip-tools` to manage dependencies with deterministic builds.
 Canonical dependency-surface ownership lives in
 `docs/contracts/PYTHON_DEPENDENCY_SURFACES.md`. The executable contract check is
 `scripts/ci/check_python_dependency_surfaces.py`; `verify_requirements.py`
-remains as a compatibility wrapper for that validator.
+remains as a legacy compatibility wrapper for that validator and is not a
+separate ownership authority.
 
 ## Files
 
@@ -74,8 +75,17 @@ CI lanes.
 `requirements-data.in` owns offline data-build dependencies for snapshot
 builders such as `scripts/build_food_db.py` and `scripts/build_recipe_db.py`.
 The compiled `requirements-data.txt` profile includes `pandas` plus explicit
-Parquet writer support through `pyarrow`, without changing the existing
-runtime, Docker, or CI-lite dependency ownership for `pyarrow`.
+Parquet writer support through `pyarrow`. Runtime, Docker runtime, CI-lite, and
+`requirements-lock.txt` must not install or legitimize `pyarrow` unless a future
+PR documents canonical app/core/provider runtime owner evidence in
+`docs/contracts/PYTHON_DEPENDENCY_SURFACES.md`.
+
+The dependency ownership audit currently enforces only the first audited subset:
+`pyarrow`, `pandas`, `httpx2`, `reportlab`, `matplotlib`, `numpy`, and
+`aiosqlite`. Legacy usage is evidence of transitional compatibility pressure,
+not runtime ownership. `legacy_app.py`, root `bmi_visualization.py`, and legacy
+BMI compatibility shims can produce `legacy_compat_transitional` evidence only;
+they cannot by themselves make a dependency canonical runtime authority.
 
 `requirements-evals.in` owns the tracked offline eval dependency surface for
 the local RAGAS companion runner. RAGAS native execution is disabled while

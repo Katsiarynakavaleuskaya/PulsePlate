@@ -61,6 +61,52 @@ for dependency graph visibility.
 test, and dev-full-lock surfaces only; it must stay out of runtime, Docker
 runtime, and CI-lite surfaces.
 
+## Dependency Ownership Audit
+
+`scripts/ci/check_python_dependency_surfaces.py` runs the first-pass dependency
+ownership audit by default. The first enforced subset is intentionally narrow:
+`pyarrow`, `pandas`, `httpx2`, `reportlab`, `matplotlib`, `numpy`, and
+`aiosqlite`.
+
+Findings use stable severity tiers:
+
+| Severity | Meaning | Default behavior |
+|---|---|---|
+| `error` | Confirmed policy violation | Fails the validator |
+| `warning` | Suspicious but not safe to remove in this PR | Report only |
+| `info` | Documented owner or transitional debt | Report only |
+
+Stable reason codes include `ownership_ok`,
+`runtime_direct_no_canonical_owner`,
+`legacy_only_runtime_authority_forbidden`,
+`data_eval_dependency_in_runtime`, `test_dev_dependency_in_runtime`,
+`canonical_runtime_owner_documented`, `legacy_compat_transitional`, and
+`transitive_only_direct_runtime_candidate`.
+
+Legacy usage is evidence of transitional compatibility pressure, not runtime
+ownership. A production dependency must have canonical runtime ownership outside
+`legacy_app.py` or be explicitly documented as a temporary
+`legacy_compat_transitional` dependency with an extraction/removal path. Root
+`bmi_visualization.py`, legacy BMI compatibility shims, and
+`app/services/bmi_compat.py` cannot by themselves promote a package to
+canonical runtime ownership.
+
+| Package | First-pass rule |
+|---|---|
+| `pyarrow` | Error if present in runtime or CI-lite surfaces without canonical runtime owner evidence. Keep data/eval ownership separate. |
+| `pandas` | Error if present in runtime, Docker runtime, or CI-lite surfaces. Data/eval only. |
+| `httpx2` | Error if present in runtime, Docker runtime, or CI-lite surfaces. Dev/test only. |
+| `reportlab` | Allowed as canonical runtime for export/PDF owners. |
+| `matplotlib` | Warning as `legacy_compat_transitional` unless a canonical BMI owner is documented. Do not remove in this PR. |
+| `numpy` | Warning as `transitive_only_direct_runtime_candidate` when directly declared without direct canonical runtime imports. It may remain transitive through `matplotlib`. |
+| `aiosqlite` | Warning pending DB fallback/test split. Do not remove in this PR. |
+
+`pyarrow` belongs to `requirements-data.in` / `requirements-data.txt` for
+offline Parquet-capable data builders unless a future PR documents canonical
+runtime owner evidence. Runtime, Docker runtime, CI-lite, and
+`requirements-lock.txt` must not carry `pyarrow` as a production/control-plane
+authority.
+
 The locked installer may elide an equal minimum floor, such as
 `package>=1.2.3`, only when the same selected requirement surface already pins
 `package==1.2.3` without markers. Lower or stricter security floors must remain
@@ -77,6 +123,7 @@ The validator fails when:
 - a compiled lockfile contains a non-exact requirement entry;
 - local/manual surfaces leak into shared `requirements-profile` routing;
 - required pip-audit or dependency-submission coverage is missing; or
+- the first audited ownership subset violates its severity-tier policy; or
 - this contract stops naming a registered surface.
 
 PRs that change Python dependency ownership, install routing, or security

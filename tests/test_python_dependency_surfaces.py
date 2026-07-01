@@ -65,6 +65,9 @@ def _write_valid_contract_repo(root: Path) -> None:
         [
             "# Python Dependency Surfaces",
             "Noncanonical Aggregate Install Surfaces",
+            "Dependency Ownership Audit",
+            "legacy_compat_transitional",
+            "Legacy usage is evidence of transitional compatibility pressure",
             "scripts/ci/check_python_dependency_surfaces.py",
             *all_surface_files,
         ]
@@ -86,6 +89,14 @@ def _write_valid_contract_repo(root: Path) -> None:
     _write_installer_profiles(root)
     _write_pip_audit_helper(root)
     _write_dependency_submission_workflow(root)
+
+
+def _append_requirement(root: Path, relative_path: str, requirement_line: str) -> None:
+    path = root / relative_path
+    path.write_text(
+        f"{path.read_text(encoding='utf-8').rstrip()}\n{requirement_line}\n",
+        encoding="utf-8",
+    )
 
 
 def _write_python_setup_action(root: Path, extra_case_labels: tuple[str, ...] = ()) -> None:
@@ -404,6 +415,125 @@ def test_dependency_surface_contract_rejects_non_exact_compiled_entry(tmp_path: 
     errors = surfaces.validate_repo(tmp_path)
 
     assert errors == ["requirements.txt: compiled entry must be exact-pinned: 'fastapi>=0.122.0'."]
+
+
+def test_dependency_ownership_audit_rejects_pyarrow_runtime_surfaces(
+    tmp_path: Path,
+) -> None:
+    _write_valid_contract_repo(tmp_path)
+    for source_file in ("requirements.in", "requirements-ci-lite.in"):
+        _append_requirement(tmp_path, source_file, "pyarrow>=20.0.0,<25.0.0")
+    for lockfile in ("requirements.txt", "requirements-ci-lite.txt", "requirements-lock.txt"):
+        _append_requirement(tmp_path, lockfile, "pyarrow==23.0.1")
+
+    errors = surfaces.validate_repo(tmp_path)
+
+    assert any("pyarrow: error:runtime_direct_no_canonical_owner" in error for error in errors)
+
+
+def test_dependency_ownership_audit_rejects_pandas_runtime_surfaces(
+    tmp_path: Path,
+) -> None:
+    _write_valid_contract_repo(tmp_path)
+    _append_requirement(tmp_path, "requirements.in", "pandas")
+    _append_requirement(tmp_path, "requirements.txt", "pandas==3.0.3")
+
+    errors = surfaces.validate_repo(tmp_path)
+
+    assert any("pandas: error:data_eval_dependency_in_runtime" in error for error in errors)
+
+
+def test_dependency_ownership_audit_rejects_httpx2_runtime_surfaces(
+    tmp_path: Path,
+) -> None:
+    _write_valid_contract_repo(tmp_path)
+    _append_requirement(tmp_path, "requirements-ci-lite.in", "httpx2>=2.3.0,<2.4.0")
+    _append_requirement(tmp_path, "requirements-ci-lite.txt", "httpx2==2.3.0")
+
+    errors = surfaces.validate_repo(tmp_path)
+
+    assert any("httpx2: error:test_dev_dependency_in_runtime" in error for error in errors)
+
+
+def test_dependency_ownership_audit_accepts_reportlab_export_owner(
+    tmp_path: Path,
+) -> None:
+    _write_valid_contract_repo(tmp_path)
+    _append_requirement(tmp_path, "requirements.in", "reportlab>=4.4.4,<5.0.0")
+    _append_requirement(tmp_path, "requirements.txt", "reportlab==4.4.10")
+    owner_path = tmp_path / "app" / "routers"
+    owner_path.mkdir(parents=True, exist_ok=True)
+    (owner_path / "plan_export.py").write_text(
+        "from reportlab.lib import colors\n", encoding="utf-8"
+    )
+
+    errors = surfaces.validate_repo(tmp_path)
+    findings = surfaces.collect_dependency_ownership_findings(tmp_path)
+
+    assert errors == []
+    assert any(
+        finding.package == "reportlab"
+        and finding.severity == surfaces.OWNERSHIP_INFO
+        and finding.reason_code == "canonical_runtime_owner_documented"
+        for finding in findings
+    )
+
+
+def test_dependency_ownership_audit_rejects_legacy_only_runtime_authority(
+    tmp_path: Path,
+) -> None:
+    _write_valid_contract_repo(tmp_path)
+    _append_requirement(tmp_path, "requirements.in", "reportlab>=4.4.4,<5.0.0")
+    _append_requirement(tmp_path, "requirements.txt", "reportlab==4.4.10")
+    (tmp_path / "legacy_app.py").write_text(
+        "from reportlab.lib import colors\n",
+        encoding="utf-8",
+    )
+
+    errors = surfaces.validate_repo(tmp_path)
+
+    assert any(
+        "reportlab: error:legacy_only_runtime_authority_forbidden" in error for error in errors
+    )
+
+
+def test_dependency_ownership_audit_reports_matplotlib_as_transitional(
+    tmp_path: Path,
+) -> None:
+    _write_valid_contract_repo(tmp_path)
+    _append_requirement(tmp_path, "requirements.in", "matplotlib>=3.10.7,<4.0.0")
+    _append_requirement(tmp_path, "requirements.txt", "matplotlib==3.10.8")
+    (tmp_path / "bmi_visualization.py").write_text("import matplotlib\n", encoding="utf-8")
+
+    errors = surfaces.validate_repo(tmp_path)
+    findings = surfaces.collect_dependency_ownership_findings(tmp_path)
+
+    assert errors == []
+    assert any(
+        finding.package == "matplotlib"
+        and finding.severity == surfaces.OWNERSHIP_WARNING
+        and finding.reason_code == "legacy_compat_transitional"
+        for finding in findings
+    )
+
+
+def test_dependency_ownership_audit_reports_numpy_as_transitive_candidate(
+    tmp_path: Path,
+) -> None:
+    _write_valid_contract_repo(tmp_path)
+    _append_requirement(tmp_path, "requirements.in", "numpy>=2.4.1,<3.0.0")
+    _append_requirement(tmp_path, "requirements.txt", "numpy==2.4.6")
+
+    errors = surfaces.validate_repo(tmp_path)
+    findings = surfaces.collect_dependency_ownership_findings(tmp_path)
+
+    assert errors == []
+    assert any(
+        finding.package == "numpy"
+        and finding.severity == surfaces.OWNERSHIP_WARNING
+        and finding.reason_code == "transitive_only_direct_runtime_candidate"
+        for finding in findings
+    )
 
 
 def test_verify_requirements_wrapper_runs_surface_validator(
