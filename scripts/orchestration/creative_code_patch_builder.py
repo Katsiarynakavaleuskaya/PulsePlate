@@ -39,6 +39,10 @@ from scripts.orchestration.creative_code_specification import (
     validate_creative_code_specification_bundle,
 )
 from scripts.orchestration.experiment_bootstrap import build_experiment_packet
+from scripts.orchestration.experiment_contract import (
+    CV_UNCERTAINTY_BANDS,
+    is_cv_experiment,
+)
 from scripts.orchestration.experiment_runner import evaluate_candidate
 
 PREPARE_SUCCESS_OUTPUT = "PASS: creative-code patch prepare complete"
@@ -159,11 +163,29 @@ def _build_generation_prompt(*, request: dict[str, Any], variant: dict[str, Any]
     allowed_existing = "\n".join(f"- {path}" for path in request["allowed_existing_paths"])
     allowed_new = "\n".join(f"- {path}" for path in request["allowed_new_paths"]) or "- none"
     tests_to_add = "\n".join(f"- {path}" for path in variant["tests_to_add"])
+    budgets = request["budgets"]
+    max_changed_files = int(budgets["max_changed_files"])
+    edit_instruction = (
+        "Finish immediately after the single allowed file edit; the wrapper validates the patch."
+        if max_changed_files == 1
+        else (
+            "Finish immediately after the allowed file edits within the max_changed_files "
+            "budget; the wrapper validates the patch."
+        )
+    )
     return (
         "You are generating a local candidate patch inside an isolated checkout.\n"
         "Do not run network commands, read secrets, create branches, commit, push, open PRs, "
         "or edit paths outside the allowlist.\n"
-        "Implement the selected PR-1 creative-code specification only.\n\n"
+        "Implement the selected PR-1 creative-code specification only.\n"
+        "Do not run tests, package managers, broad repository searches, provider calls, or "
+        "validation commands. If inspection is needed, inspect only the allowed existing paths. "
+        f"{edit_instruction}\n\n"
+        "Hard mutation budget:\n"
+        f"- max_changed_files: {max_changed_files}\n"
+        f"- max_diff_lines: {budgets['max_diff_lines']}\n"
+        f"- max_patch_bytes: {budgets['max_patch_bytes']}\n"
+        f"- allowed_new_paths_count: {len(request['allowed_new_paths'])}\n\n"
         f"Selected variant: {variant['variant_id']}\n"
         f"Problem statement:\n{variant['problem_statement']}\n\n"
         f"Implementation steps:\n{steps}\n\n"
@@ -206,12 +228,34 @@ def _add_intent_for_untracked(checkout: Path, allowed_new_paths: set[str]) -> No
 
 def _parse_name_status(output: str) -> list[tuple[str, str]]:
     entries: list[tuple[str, str]] = []
+    seen_paths: set[str] = set()
     for line in output.splitlines():
         if not line.strip():
             continue
         parts = line.split("\t")
+        if len(parts) < 2 or not parts[0]:
+            raise CreativeCodePatchBuilderError("unable to parse git name-status output.")
         status = parts[0]
-        path = parts[-1]
+        if status.startswith(("R", "C")):
+            if len(parts) != 3:
+                raise CreativeCodePatchBuilderError("unable to parse git name-status output.")
+            path = parts[2]
+        else:
+            if len(parts) != 2:
+                raise CreativeCodePatchBuilderError("unable to parse git name-status output.")
+            path = parts[1]
+        path_obj = Path(path)
+        if (
+            not path
+            or path in {".", ".."}
+            or path_obj.is_absolute()
+            or ".." in path_obj.parts
+            or "\\" in path
+        ):
+            raise CreativeCodePatchBuilderError("git name-status output contains unsafe path.")
+        if path in seen_paths:
+            raise CreativeCodePatchBuilderError("git name-status output contains duplicate path.")
+        seen_paths.add(path)
         entries.append((status, path))
     return entries
 
@@ -429,6 +473,51 @@ def _experiment_budgets(request: dict[str, Any]) -> dict[str, int]:
     }
 
 
+def _cv_context_for_candidate(
+    *,
+    selected_variant: dict[str, Any],
+    changed_paths: list[str],
+) -> dict[str, Any] | None:
+    """Build deterministic CV metadata when PR-2 evaluates a CV candidate."""
+
+    if not is_cv_experiment(
+        selected_variant["problem_statement"],
+        "Experimentation",
+        *changed_paths,
+    ):
+        return None
+    return {
+        "dataset": {
+            "id": str(selected_variant["source_candidate_id"]),
+            "version": "pr6-offline-eval",
+            "source": "creative_code_candidate_packet",
+            "license": "repo_governed_internal_evaluation",
+            "split_strategy": "offline_prompt_program_review",
+            "label_provenance": "human_reviewed_prompt_program_specification",
+        },
+        "sensor_conditions": [
+            "offline_static_prompt_program",
+            "no_runtime_photo_upload",
+        ],
+        "uncertainty_band_policy": {
+            "mode": "qualitative_only",
+            "bands": list(CV_UNCERTAINTY_BANDS),
+        },
+        "degrade_state_matrix": {
+            "high": "show_ranked_candidates",
+            "medium": "confirm_top_candidate",
+            "low": "manual_entry_required",
+            "unknown": "reject_unusable_image",
+        },
+        "privacy_packet": {
+            "raw_image_retention": "forbidden",
+            "logging_policy": "metadata_only_no_raw_images",
+            "consent_policy": "human_review_required_before_runtime_photo_ingestion",
+            "deletion_policy": "no_runtime_image_storage_created",
+        },
+    }
+
+
 def _creative_research_origin(bundle: dict[str, Any]) -> dict[str, str]:
     source = bundle["source_creative_research"]
     return {
@@ -498,6 +587,10 @@ def evaluate(*, run_id: str) -> dict[str, Any]:
         negative_controls=selected_variant["negative_controls"],
         promotion_target="audit_artifact",
         budgets=_experiment_budgets(normalized_request),
+        cv_context=_cv_context_for_candidate(
+            selected_variant=selected_variant,
+            changed_paths=changed_paths,
+        ),
         creative_research_origin=_creative_research_origin(bundle),
     )
     write_json_atomic(resolve_run_file(run_dir, EXPERIMENT_PACKET_FILE, for_write=True), packet)

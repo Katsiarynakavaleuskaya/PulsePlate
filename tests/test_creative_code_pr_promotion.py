@@ -485,6 +485,24 @@ def test_duplicate_json_keys_rejected(tmp_path: Path) -> None:
         read_json_object(duplicate)
 
 
+def test_promotion_state_rejects_duplicate_json_keys(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _patch_modules_to_repo(monkeypatch, repo)
+    promotion_dir = creative_code_pr_promotion.resolve_promotion_dir("duplicate-state", create=True)
+    state_path = promotion_dir / "promotion_state.json"
+    state_path.write_text('{"schema_version":"1.0","schema_version":"1.0"}', encoding="utf-8")
+
+    with pytest.raises(
+        creative_code_patch_workspace.CreativeCodePatchWorkspaceError,
+        match="duplicate key",
+    ):
+        creative_code_pr_promotion._load_state(promotion_dir)
+
+
 def test_bool_like_strings_and_unknown_fields_rejected() -> None:
     plan = build_creative_code_pr_promotion_plan(
         promotion_id="promotion-pr3-test",

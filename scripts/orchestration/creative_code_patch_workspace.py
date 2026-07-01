@@ -93,6 +93,59 @@ def ensure_artifact_root() -> Path:
     return root
 
 
+def ensure_creative_code_root() -> Path:
+    """Create and return the resolved creative-code artifact root."""
+
+    root_path = REPO_ROOT / "artifacts" / "orchestration" / "creative_code"
+    _reject_symlink_components(root_path, label="creative-code artifact root")
+    try:
+        root_path.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise CreativeCodePatchWorkspaceError(
+            "creative-code artifact root could not be created."
+        ) from exc
+    _reject_symlink_components(root_path, label="creative-code artifact root")
+    root = root_path.resolve(strict=True)
+    if not root.is_dir():
+        raise CreativeCodePatchWorkspaceError("creative-code artifact root must be a directory.")
+    return root
+
+
+def _resolve_creative_code_json_file(path: Path, *, for_write: bool) -> Path:
+    root = ensure_creative_code_root()
+    target = path if path.is_absolute() else root / path
+    if target.suffix != ".json":
+        raise CreativeCodePatchWorkspaceError("artifact path must be a JSON file.")
+    _reject_symlink_components(target.parent, label="artifact file parent")
+    parent_candidate = target.parent.resolve(strict=False)
+    if not _is_relative_to(parent_candidate, root):
+        raise CreativeCodePatchWorkspaceError(
+            "artifact file must stay under creative-code artifacts."
+        )
+    if for_write:
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            raise CreativeCodePatchWorkspaceError(
+                "artifact file parent could not be created."
+            ) from exc
+        _reject_symlink_components(target.parent, label="artifact file parent")
+    try:
+        parent = target.parent.resolve(strict=True)
+    except OSError as exc:
+        raise CreativeCodePatchWorkspaceError("artifact file parent must exist.") from exc
+    if not _is_relative_to(parent, root):
+        raise CreativeCodePatchWorkspaceError(
+            "artifact file must stay under creative-code artifacts."
+        )
+    if target.exists() or target.is_symlink():
+        if target.is_symlink():
+            raise CreativeCodePatchWorkspaceError("artifact file must not be a symlink.")
+        if not target.is_file():
+            raise CreativeCodePatchWorkspaceError("artifact path must be a file.")
+    return parent / target.name
+
+
 def resolve_run_dir(run_id: str, *, create: bool = False) -> Path:
     """Resolve a run directory below the creative-code patch artifact root."""
 
@@ -142,13 +195,14 @@ def resolve_run_file(run_dir: Path, filename: str, *, for_write: bool = False) -
 def write_json_atomic(path: Path, payload: Any) -> None:
     """Write JSON atomically inside an already-contained run directory."""
 
+    output = _resolve_creative_code_json_file(path, for_write=True)
     temp_name: str | None = None
     try:
         with tempfile.NamedTemporaryFile(
             "w",
             encoding="utf-8",
-            dir=str(path.parent),
-            prefix=f".{path.name}.",
+            dir=str(output.parent),
+            prefix=f".{output.name}.",
             suffix=".tmp",
             delete=False,
         ) as temp_file:
@@ -157,7 +211,7 @@ def write_json_atomic(path: Path, payload: Any) -> None:
             temp_file.write("\n")
             temp_file.flush()
             os.fsync(temp_file.fileno())
-        os.replace(temp_name, path)
+        os.replace(temp_name, output)
         temp_name = None
     finally:
         if temp_name is not None:
@@ -167,11 +221,32 @@ def write_json_atomic(path: Path, payload: Any) -> None:
                 pass
 
 
+def _reject_duplicate_json_object_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    seen: set[str] = set()
+    payload: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in seen:
+            raise CreativeCodePatchWorkspaceError(
+                f"creative-code artifact JSON has duplicate key: {key}"
+            )
+        seen.add(key)
+        payload[key] = value
+    return payload
+
+
 def read_json(path: Path) -> Any:
+    artifact = _resolve_creative_code_json_file(path, for_write=False)
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        return json.loads(
+            artifact.read_text(encoding="utf-8"),
+            object_pairs_hook=_reject_duplicate_json_object_keys,
+        )
+    except CreativeCodePatchWorkspaceError:
+        raise
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise CreativeCodePatchWorkspaceError(f"Unable to read JSON artifact: {path.name}") from exc
+        raise CreativeCodePatchWorkspaceError(
+            f"Unable to read JSON artifact: {artifact.name}"
+        ) from exc
 
 
 def resolve_git_binary() -> str:

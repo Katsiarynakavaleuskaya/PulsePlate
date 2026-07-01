@@ -73,6 +73,17 @@
   mappings, create branches, write branches, push, open PRs, claim merge
   readiness, call providers, call product runtime, or call Slack/GitHub App
   authority paths.
+- PR-6 creative-code applied-candidate run-plan artifacts stay local under
+  `artifacts/orchestration/creative_code/applied_candidates/`. The
+  `creative_code_applied_candidate_pr6.py` CLI may only validate PR-5
+  `CreativeCodeRepairLaunchPacket` inputs, bind the first applied candidate
+  target to `docs/prompts/cv/program.md`, and emit a deterministic local
+  PR-1 / PR-2 / PR-3 / PR-4 command checklist. It must not execute patch
+  generation, call Codex or providers, create or write branches, push, open PRs,
+  resolve review threads, edit fixed mappings, claim merge readiness, merge,
+  release, call product runtime, change GitHub App or Slack settings, or widen
+  the generated candidate mutation surface beyond the selected prompt/program
+  document.
 - `experiment_notify.py` follows the notification contract in
   `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`: local artifact output
   is the default, SMTP email and Slack delivery are explicit opt-in only, and no
