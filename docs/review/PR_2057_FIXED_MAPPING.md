@@ -43,12 +43,18 @@ Disposition: FIXED
 Evidence: `scripts/ci/check_python_dependency_surfaces.py:120`, `scripts/ci/check_python_dependency_surfaces.py:404`, `scripts/ci/check_python_dependency_surfaces.py:408`, `tests/test_python_dependency_surfaces.py:443`, `tests/test_python_dependency_surfaces.py:491`, and `docs/contracts/PYTHON_DEPENDENCY_SURFACES.md:79`.
 Reason: Sourcery's high-level feedback identified blind underscore-to-hyphen import normalization risk and a stale `ownership_ok` reason-code doc entry. Commit `b68239aba` replaced blind import normalization with explicit distribution/import aliases, added positive and negative alias tests, removed `ownership_ok`, and added Docker-runtime `pyarrow` regression coverage found by the follow-up QA pass.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2057#pullrequestreview-4609069626 -> c3ba71934
+Disposition: FIXED
+Evidence: `tests/test_python_supply_chain_controls.py:945`, `tests/test_python_supply_chain_controls.py:949`, `scripts/ci/check_python_dependency_surfaces.py:359`, `scripts/ci/check_python_dependency_surfaces.py:383`, and `tests/test_python_supply_chain_controls.py:319`.
+Reason: CodeRabbit's Docker-runtime `pyarrow` coverage request was valid and fixed in `c3ba71934`. Its `_requirement_package_names` signature concern was not a bug: the production helper takes `(repo_root, relative_path)` and its call site passes both arguments, while `tests/test_python_supply_chain_controls.py` defines a separate local test helper that intentionally takes a single `Path`.
+
 ## Implementing Commits
 
 - `80c56590f` - `chore(deps): enforce dependency ownership`
 - `94c903e1e` - `docs(review): add dependency ownership evidence`
 - `4131cf325` - `fix(deps): satisfy dependency checker typing`
 - `b68239aba` - `fix(deps): use explicit import ownership aliases`
+- `c3ba71934` - `test(deps): guard pyarrow out of docker runtime`
 
 ## Local Validation Evidence
 
