@@ -930,6 +930,7 @@ def test_constraints_keep_dependency_security_floors_aligned() -> None:
     constraints_path = REPO_ROOT / "constraints.txt"
     requirements_in = REPO_ROOT / "requirements.in"
     requirements_ci_lite_in = REPO_ROOT / "requirements-ci-lite.in"
+    requirements_docker_runtime_in = REPO_ROOT / "requirements-docker-runtime.in"
 
     constraints_text = constraints_path.read_text(encoding="utf-8")
     assert "flake8 removed in favor of ruff" not in constraints_text
@@ -941,9 +942,11 @@ def test_constraints_keep_dependency_security_floors_aligned() -> None:
     assert not _requirement_package_versions(constraints_path, "pyarrow")
     assert not _requirement_package_versions(requirements_in, "pyarrow")
     assert not _requirement_package_versions(requirements_ci_lite_in, "pyarrow")
+    assert not _requirement_package_versions(requirements_docker_runtime_in, "pyarrow")
     for lock_surface in (
         REPO_ROOT / "requirements.txt",
         REPO_ROOT / "requirements-ci-lite.txt",
+        REPO_ROOT / "requirements-docker-runtime.txt",
         REPO_ROOT / "requirements-lock.txt",
     ):
         assert not _requirement_package_versions(lock_surface, "pyarrow")
