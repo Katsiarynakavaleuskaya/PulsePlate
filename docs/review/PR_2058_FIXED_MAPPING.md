@@ -60,11 +60,11 @@ network-disabled sandbox lacked `unshare`.
 - [x] Fixed in commit mapping completed
 - [x] Post-open `qa-engineer-agent` pass completed.
 - [x] Post-open `bug-hunter` pass completed.
-- [ ] Post-open `security-auditor` pass completed.
-- [ ] Codex Security diff scan / finding discovery completed or explicitly
+- [x] Post-open `security-auditor` pass completed.
+- [x] Codex Security diff scan / finding discovery completed or explicitly
   dispositioned.
-- [ ] `pulseplate-pr-review` completed.
-- [ ] CodeRabbit, Sourcery, and Cubic actionables checked and dispositioned.
+- [x] `pulseplate-pr-review` completed.
+- [x] CodeRabbit, Sourcery, and Cubic actionables checked and dispositioned.
 - [ ] Review threads checked, dispositioned, and resolved if any appear.
 - [ ] Current-head CI complete before readiness language.
 - [ ] Strict merge-readiness checks run after the final review/check cycle.
@@ -100,6 +100,50 @@ Disposition: FIXED
 Commit: 8e4489f4c73ddb9d509aece5dad6e4040de8b40e
 Evidence: current-head check normalization now deduplicates by check name and workflow, preserving failing required rows when an optional check shares a name.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2058#discussion_r3506022307 -> 8e4489f4c73ddb9d509aece5dad6e4040de8b40e
+
+Disposition: FIXED
+Commit: b4901f158704192f97a695fa443a3404e637647c
+Evidence: required check metadata now preserves source identity using `status_context:<context>` and `app_id:<id>:<context>` descriptors; duplicate name-only required checks now add a blocking identity-conflict diagnostic, with focused regression coverage.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2058#discussion_r3506221759 -> b4901f158704192f97a695fa443a3404e637647c
+
+Disposition: FIXED
+Commit: b4901f158704192f97a695fa443a3404e637647c
+Evidence: `collect_private_pilot_state()` now passes the PR base SHA into `collect_review_context()` for fixed-mapping diff checks while preserving the branch name for branch-protection metadata, with focused regression coverage.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2058#discussion_r3506221767 -> b4901f158704192f97a695fa443a3404e637647c
+
+Disposition: FIXED
+Commit: b4901f158704192f97a695fa443a3404e637647c
+Evidence: `source_pr.base_ref` now uses a git-ref-safe validator and the state schema now points `base_ref` to `git_ref`, allowing safe refs such as `release/1.0` while still rejecting traversal, local paths, and unsafe ref syntax.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2058#discussion_r3506221771 -> b4901f158704192f97a695fa443a3404e637647c
+
+Disposition: FIXED
+Commit: b4901f158704192f97a695fa443a3404e637647c
+Evidence: `_fixed_mapping_ref()` now marks fixed-mapping evidence present only when the artifact exists, is not degraded, and has either mapping entries or explicit no-actionable proof; focused tests cover stub mapping artifacts holding governance.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2058#discussion_r3506221781 -> b4901f158704192f97a695fa443a3404e637647c
+
+## Post-Open Review Evidence
+
+Codex Security diff scan `8269429e-360d-484e-bbfa-8c76fa73cd1f` completed
+for the current diff scope with 2/2 discovery rows closed and 0 reportable
+findings.
+
+`pulseplate-pr-review` completed from the local gitignored review-context
+artifact. It emitted one advisory large-diff note.
+
+Disposition: NOT-A-BUG
+Evidence: The 3,936 changed-line count is explained by one bounded operator
+surface plus its contract, JSON schemas, documentation, and focused regression
+tests. Focused tests, regression bundle, `make validate-changed`, and
+`pre-commit run --all-files` are the validation path for this intentionally
+coupled PR surface.
+Reason: Splitting the schema/contract/operator/tests would weaken review of
+the authority boundary that this PR is specifically adding.
+
+CodeRabbit reported review-capacity friction before later status completion;
+the current CodeRabbit status is pass/no code actionables. Sourcery's only
+inline actionable was fixed and mapped above; its enum/schema dedupe and
+artifact-fingerprint-cache notes are advisory tradeoffs for this first local
+operator. Cubic was skipped/advisory and did not provide actionables.
 
 ## Merge Readiness
 
