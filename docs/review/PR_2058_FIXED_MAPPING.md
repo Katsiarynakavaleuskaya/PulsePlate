@@ -172,6 +172,36 @@ Commit: 2c5b3bbd6a1f4a4e71310f473512bc160c153951
 Evidence: the CodeRabbit review summary consisted of the nine inline actionables mapped immediately above; the code/docs/schema fixes and 58-test focused suite cover those findings.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2058#pullrequestreview-4609635945 -> 2c5b3bbd6a1f4a4e71310f473512bc160c153951
 
+Disposition: FIXED
+Commit: 08580b33a7dcdc27b5964fc52a57696e91ed0c06
+Evidence: app-id-less branch-protection check-run requirements now use the distinct `check_run:<context>` namespace, and status contexts no longer satisfy required check-runs; focused regression coverage proves the status-context bypass waits for CI.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2058#discussion_r3506479523 -> 08580b33a7dcdc27b5964fc52a57696e91ed0c06
+
+Disposition: FIXED
+Commit: 08580b33a7dcdc27b5964fc52a57696e91ed0c06
+Evidence: fixed-mapping evidence is now considered present only when `present_in_pr_diff` is explicitly true; missing diff proof or diff degradation keeps the operator in governance hold, with focused regression coverage.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2058#discussion_r3506479529 -> 08580b33a7dcdc27b5964fc52a57696e91ed0c06
+
+Disposition: FIXED
+Commit: 08580b33a7dcdc27b5964fc52a57696e91ed0c06
+Evidence: artifact discovery now resolves each candidate under the creative-code artifact root before reading JSON or fingerprinting, and skips symlinked artifact directories; focused regression coverage proves a symlinked PR-5 directory is ignored.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2058#discussion_r3506479535 -> 08580b33a7dcdc27b5964fc52a57696e91ed0c06
+
+Disposition: FIXED
+Commit: 08580b33a7dcdc27b5964fc52a57696e91ed0c06
+Evidence: state validation now cross-checks duplicated fixed-mapping blocker fields against `governance_refs.fixed_mapping` and rejects present mapping state without entries or no-actionable proof; focused regressions cover both drift paths.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2058#discussion_r3506479550 -> 08580b33a7dcdc27b5964fc52a57696e91ed0c06
+
+Disposition: FIXED
+Commit: 08580b33a7dcdc27b5964fc52a57696e91ed0c06
+Evidence: `decide_next_action()` now returns `wait_for_review` for draft source PRs after blockers and CI are clear; focused regression coverage prevents draft PRs from advancing to candidate-plan preparation.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2058#discussion_r3506479554 -> 08580b33a7dcdc27b5964fc52a57696e91ed0c06
+
+Disposition: FIXED
+Commit: 08580b33a7dcdc27b5964fc52a57696e91ed0c06
+Evidence: the Codex review summary consisted of the five inline actionables mapped immediately above; the governance hardening fixes and 64-test focused suite cover those findings.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2058#pullrequestreview-4609675294 -> 08580b33a7dcdc27b5964fc52a57696e91ed0c06
+
 ## Post-Open Review Evidence
 
 Codex Security diff scan `8269429e-360d-484e-bbfa-8c76fa73cd1f` completed
@@ -191,8 +221,10 @@ Reason: Splitting the schema/contract/operator/tests would weaken review of
 the authority boundary that this PR is specifically adding.
 
 CodeRabbit's latest inline actionables were fixed in
-`2c5b3bbd6a1f4a4e71310f473512bc160c153951` and mapped above. Sourcery's inline
-actionable was fixed and mapped above; its enum/schema dedupe and
+`2c5b3bbd6a1f4a4e71310f473512bc160c153951` and mapped above. Codex's latest
+inline actionables were fixed in `08580b33a7dcdc27b5964fc52a57696e91ed0c06`
+and mapped above. Sourcery's inline actionable was fixed and mapped above; its
+enum/schema dedupe and
 artifact-fingerprint-cache notes remain advisory tradeoffs for this first local
 operator. Cubic was skipped/advisory and did not provide actionables.
 
