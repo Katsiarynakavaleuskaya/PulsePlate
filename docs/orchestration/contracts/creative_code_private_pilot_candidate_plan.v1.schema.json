@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pulseplate.local/contracts/creative_code_private_pilot_candidate_plan.v1.schema.json",
+  "title": "CreativeCodePrivatePilotCandidatePlan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "policy_version",
+    "plan_id",
+    "idempotency_key",
+    "source_state_id",
+    "source_state_fingerprint",
+    "decision",
+    "target_surface",
+    "checklist",
+    "blocked_authority",
+    "authority",
+    "sanitized"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "artifact_type": { "const": "creative_code_private_pilot_candidate_plan" },
+    "policy_version": { "const": "creative-code-private-pilot-loop-operator" },
+    "plan_id": { "$ref": "#/$defs/safe_id" },
+    "idempotency_key": { "$ref": "#/$defs/safe_id" },
+    "source_state_id": { "$ref": "#/$defs/safe_id" },
+    "source_state_fingerprint": { "$ref": "#/$defs/sha256" },
+    "decision": { "const": "prepare_next_candidate_plan" },
+    "target_surface": {
+      "type": "array",
+      "prefixItems": [{ "const": "docs/prompts/cv/program.md" }],
+      "minItems": 1,
+      "maxItems": 1
+    },
+    "checklist": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/checklist_item" }
+    },
+    "blocked_authority": {
+      "type": "array",
+      "uniqueItems": true,
+      "prefixItems": [
+        { "const": "call_product_runtime" },
+        { "const": "call_provider" },
+        { "const": "change_client_runtime" },
+        { "const": "change_openapi" },
+        { "const": "claim_merge_readiness" },
+        { "const": "create_branch" },
+        { "const": "edit_fixed_mapping" },
+        { "const": "execute_pr1_specification" },
+        { "const": "execute_pr2_patch_builder" },
+        { "const": "execute_pr3_promotion" },
+        { "const": "generate_candidate" },
+        { "const": "mark_pr_ready" },
+        { "const": "merge" },
+        { "const": "modify_github_app" },
+        { "const": "modify_slack" },
+        { "const": "modify_workflows" },
+        { "const": "open_draft_pr" },
+        { "const": "open_pr" },
+        { "const": "post_github_comment" },
+        { "const": "push" },
+        { "const": "read_secrets" },
+        { "const": "release" },
+        { "const": "resolve_threads" },
+        { "const": "use_semantic_cache" },
+        { "const": "write_branch" }
+      ],
+      "minItems": 25,
+      "maxItems": 25
+    },
+    "authority": {
+      "$ref": "creative_code_private_pilot_state.v1.schema.json#/$defs/authority"
+    },
+    "sanitized": { "const": true }
+  },
+  "$defs": {
+    "safe_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "safe_text": {
+      "type": "string",
+      "maxLength": 220,
+      "not": {
+        "pattern": "(diff --git|raw[_ -]?(body|prompt|response|context|patch)|candidate\\.patch|candidate_patch|chain[_ -]?of[_ -]?thought|provider[_ -]?payload|oracle[_ -]?(stdout|stderr)|file://|/[U]sers/|/private/var/|/var/folders/|/tmp/|\\.venv/|\\.git/|worktrees([:/._-]|$)|authorization:\\s*bearer|private[_ -]?key|api[_ -]?key|GH_TOKEN|GITHUB_TOKEN|sk-[A-Za-z0-9_-]{12,}|gh[psoru]_|github_pat_|xox[abprs]-|merge[-_ ]?ready|ready to merge|mergeable)"
+      }
+    },
+    "checklist_item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "label",
+        "description",
+        "checklist_only",
+        "executes_in_operator",
+        "requires_human_gate"
+      ],
+      "properties": {
+        "label": { "$ref": "#/$defs/safe_id" },
+        "description": { "$ref": "#/$defs/safe_text" },
+        "checklist_only": { "const": true },
+        "executes_in_operator": { "const": false },
+        "requires_human_gate": { "const": true }
+      }
+    }
+  }
+}

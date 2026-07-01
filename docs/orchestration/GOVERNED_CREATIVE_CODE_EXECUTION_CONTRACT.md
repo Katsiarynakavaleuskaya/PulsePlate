@@ -2,14 +2,15 @@
 
 <!-- markdownlint-disable MD013 -->
 
-**Status:** PR-6 first applied-candidate lane. Repo-only governance contract.
-No runtime impact.
+**Status:** PR-6 first applied-candidate lane plus local private-pilot loop
+operator. Repo-only governance contract. No runtime impact.
 
 **Scope:** Define the authority boundary between a promoted `creative_research`
 output, a PR-1 implementation specification, PR-2 local candidate-patch
 generation, PR-3 human-approved non-draft PR handoff tooling, PR-4 telemetry,
-PR-5 read-only review-disposition integration, and the PR-6 local
-applied-candidate run-plan wrapper. PR-2
+PR-5 read-only review-disposition integration, the PR-6 local
+applied-candidate run-plan wrapper, and a local private-pilot lifecycle
+operator. PR-2
 authorizes only isolated local candidate-patch generation/evaluation. PR-3
 authorizes only the separate local promotion tool that can create a new
 `experiment/*` branch, push it without force, and open a non-draft PR after
@@ -17,10 +18,11 @@ isolated validation and explicit TTY approval. PR-5 may read sanitized review
 context or explicit read-only fixtures and emit local advisory disposition /
 repair-launch packets. PR-6 may validate a PR-5 repair launch packet, bind the
 first applied candidate target to `docs/prompts/cv/program.md`, and emit a
-local PR-1 / PR-2 / PR-3 / PR-4 run plan. It does not authorize draft PRs,
-shared worktree mutation, existing branch modification, review-thread
-resolution, fixed-mapping edits, merge, release, product runtime AI,
-OpenAPI/client changes, public multi-tenant use, or Slack/GitHub authority
+local PR-1 / PR-2 / PR-3 / PR-4 run plan. The private-pilot operator may read
+sanitized metadata and refs and emit next-action artifacts only. It does not
+authorize draft PRs, shared worktree mutation, existing branch modification,
+review-thread resolution, fixed-mapping edits, merge, release, product runtime
+AI, OpenAPI/client changes, public multi-tenant use, or Slack/GitHub authority
 expansion.
 
 ---
@@ -34,6 +36,7 @@ expansion.
 | `candidate-patch` | Produces isolated candidate patches for local evaluation. | Allowed only through PR-2 `CreativeCodePatchBuildRequest` and `CreativeCodePatchResult` artifacts in sandboxed workspaces. |
 | `repository-write` | Writes to shared worktrees, creates branches, pushes, opens PRs, marks ready for review, resolves review threads, or merges. | Forbidden except the PR-3 promoter's narrowly validated new `experiment/*` branch push and non-draft PR creation. |
 | `promotion` | Promotes a candidate into canonical repo behavior through human review, PR governance, and merge gates. | PR-3 opens the review handoff only. Canonical behavior still requires normal PR review and merge gates. |
+| `private-pilot-lifecycle` | Reads sanitized lifecycle metadata and emits local next-action artifacts. | Allowed only through the private-pilot loop operator; no candidate generation or GitHub write authority. |
 
 PR-0 sets:
 
@@ -48,7 +51,9 @@ promotion_allowed=false
 PR-1 adds only a local specification-bundle layer. PR-2 opens only local
 sandboxed candidate-patch generation/evaluation. PR-3 adds a separate
 human-approved non-draft PR creation lane. PR-6 adds a local run-plan wrapper
-for the first applied candidate without adding execution authority. Product
+for the first applied candidate without adding execution authority. The
+private-pilot loop operator adds local lifecycle state and checklist planning
+without adding candidate-generation or repository-write authority. Product
 runtime, OpenAPI/client, semantic-cache, review-thread, merge, release, and
 Slack/GitHub authority flags remain closed.
 
@@ -96,6 +101,16 @@ The PR-6 local applied-candidate run-plan artifacts are:
 - `scripts/orchestration/creative_code_applied_candidate_pr6.py`
 - `artifacts/orchestration/creative_code/applied_candidates/<candidate-id>/run_plan.json`
 - `artifacts/orchestration/creative_code/applied_candidates/<candidate-id>/candidate_packet.json`
+
+The private-pilot loop operator artifacts are:
+
+- `docs/orchestration/contracts/CREATIVE_CODE_PRIVATE_PILOT_LOOP_OPERATOR_CONTRACT.md`
+- `docs/orchestration/contracts/creative_code_private_pilot_state.v1.schema.json`
+- `docs/orchestration/contracts/creative_code_private_pilot_candidate_plan.v1.schema.json`
+- `scripts/orchestration/creative_code_private_pilot_loop_contract.py`
+- `scripts/orchestration/creative_code_private_pilot_loop_operator.py`
+- `artifacts/orchestration/creative_code/private_pilot/<pr-number>/pilot_state.json`
+- `artifacts/orchestration/creative_code/private_pilot/<pr-number>/candidate_plan.json`
 
 `patch_request.json` remains a PR-2 `CreativeCodePatchBuildRequest` handoff
 artifact. It is built and validated only after PR-1 emits
@@ -159,6 +174,11 @@ PR-0 is a contract-only start point.
   packet, binds the target surface to `docs/prompts/cv/program.md`, and emits a
   deterministic PR-1 / PR-2 / PR-3 / PR-4 run plan before the generated
   candidate is restricted to that prompt/program document.
+- Private-pilot loop operator: collect sanitized PR/check/review state and
+  PR-4 / PR-5 / PR-6 artifact refs, decide the next action, and optionally emit
+  a checklist-only candidate plan. It cannot execute candidate generation,
+  branch/PR operations, fixed-mapping edits, thread resolution, provider/runtime
+  calls, or Slack/GitHub App changes.
 
 Minimum future telemetry fields are defined now for the later train and must not be emitted before PR-1:
 
@@ -213,17 +233,23 @@ tests, review docs, governance docs, workflows, product runtime, OpenAPI,
 frontend, iOS, DB, provider settings, and semantic-cache surfaces remain
 outside generated candidate mutation authority.
 
+Private-pilot loop state and candidate plans are local lifecycle artifacts only.
+They may classify the next action as wait/fix/hold/prepare, but they are not
+review-thread disposition evidence, fixed-mapping evidence, readiness evidence,
+runtime truth, release evidence, or GitHub App/Slack authority. Candidate plans
+are checklist-only and remain bound to `docs/prompts/cv/program.md`.
+
 ---
 
 ## Rollback
 
-Rollback is removal of the PR-6 applied-candidate wrapper, its tests, and local
-ignored run-plan artifacts. If reverting the whole train, also remove the PR-5
-review-disposition files, PR-4 telemetry files, PR-3 promotion files, PR-2
-patch-builder files, and existing PR-1/PR-0 contract files. Because PR-6 adds no
-product runtime behavior, providers, workflows, external app settings,
-OpenAPI/client changes, semantic-cache activation, Slack/GitHub App changes, or
-DB state, rollback does not require data migration, OpenAPI regeneration,
-external app changes, or release coordination. Any already opened promoted
-candidate PR remains normal GitHub state and is closed or branch-deleted
-manually if needed.
+Rollback is removal of the private-pilot operator files, PR-6
+applied-candidate wrapper, their tests, and local ignored artifacts. If
+reverting the whole train, also remove the PR-5 review-disposition files, PR-4
+telemetry files, PR-3 promotion files, PR-2 patch-builder files, and existing
+PR-1/PR-0 contract files. Because these layers add no product runtime behavior,
+providers, workflows, external app settings, OpenAPI/client changes,
+semantic-cache activation, Slack/GitHub App changes, or DB state, rollback does
+not require data migration, OpenAPI regeneration, external app changes, or
+release coordination. Any already opened promoted candidate PR remains normal
+GitHub state and is closed or branch-deleted manually if needed.

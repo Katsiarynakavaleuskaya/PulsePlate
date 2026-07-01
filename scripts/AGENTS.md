@@ -84,6 +84,18 @@
   release, call product runtime, change GitHub App or Slack settings, or widen
   the generated candidate mutation surface beyond the selected prompt/program
   document.
+- Creative-code private-pilot loop artifacts stay local under
+  `artifacts/orchestration/creative_code/private_pilot/`. The
+  `creative_code_private_pilot_loop_operator.py` CLI may only read GitHub
+  metadata, read already-sanitized PR-4 telemetry / PR-5 review-disposition /
+  PR-6 run-plan refs, compare current-head check/run SHAs to the PR head SHA,
+  and emit `pilot_state.json` plus checklist-only `candidate_plan.json`
+  artifacts. It must not execute PR-1 / PR-2 / PR-3 commands, generate
+  candidates, create or write branches, push, open PRs, resolve review threads,
+  edit fixed mappings, claim readiness, merge, release, call providers, call
+  product runtime, change workflows, read secrets, use semantic cache, or change
+  GitHub App / Slack settings. Candidate plans remain bound to
+  `docs/prompts/cv/program.md` as the only generated candidate target surface.
 - `experiment_notify.py` follows the notification contract in
   `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`: local artifact output
   is the default, SMTP email and Slack delivery are explicit opt-in only, and no
