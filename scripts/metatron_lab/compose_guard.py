@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import shutil
-import subprocess  # nosec B404: operator-only docker compose config -q; argv from fixed tokens + docker via shutil.which (remove-by: 2026-09-30, ref: PR-main-nightly-nosec-ttl)
+import subprocess  # nosec B404: operator-only docker compose config -q; argv from fixed tokens + docker via shutil.which (remove-by: 2026-07-01, ref: PR-1366)
 import sys
 from pathlib import Path
 
@@ -43,7 +43,7 @@ def run_compose_config_q(root: Path, profile: str, docker_bin: str) -> int:
         "config",
         "-q",
     ]
-    completed = subprocess.run(  # nosec B603: no shell; argv is docker + fixed compose flags + repo compose path (remove-by: 2026-09-30, ref: PR-main-nightly-nosec-ttl)
+    completed = subprocess.run(  # nosec B603: no shell; argv is docker + fixed compose flags + repo compose path (remove-by: 2026-07-01, ref: PR-1366)
         cmd,
         cwd=str(root),
         check=False,
