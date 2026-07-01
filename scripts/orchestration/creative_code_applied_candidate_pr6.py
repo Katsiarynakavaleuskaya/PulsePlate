@@ -22,6 +22,17 @@ from core.evidence.fingerprints import (
     build_idempotency_key,
     fingerprint_payload,
 )
+from scripts.orchestration.creative_code_contract import (
+    AUTHORITY_CLASS as CANDIDATE_AUTHORITY_CLASS,
+    AUTHORITY_KEYS as CANDIDATE_AUTHORITY_KEYS,
+    AUTHORITY_TRUE_KEYS as CANDIDATE_AUTHORITY_TRUE_KEYS,
+    FUTURE_TELEMETRY_FIELDS,
+    GATE_STATUS as CANDIDATE_GATE_STATUS,
+    PACKET_TYPE as CANDIDATE_PACKET_TYPE,
+    POLICY_VERSION as CANDIDATE_POLICY_VERSION,
+    SCHEMA_VERSION as CANDIDATE_SCHEMA_VERSION,
+    validate_creative_code_candidate_packet,
+)
 from scripts.orchestration.creative_code_review_disposition_contract import (
     CreativeCodeReviewDispositionContractError,
     read_json_object,
@@ -40,6 +51,7 @@ POLICY_VERSION = "creative-code-applied-candidate-pr6"
 DEFAULT_TARGET_SURFACE = "docs/prompts/cv/program.md"
 DEFAULT_CANDIDATE_ID = "cv-program-offline-eval-001"
 RUN_PLAN_FILE = "run_plan.json"
+CANDIDATE_PACKET_FILE = "candidate_packet.json"
 
 SUCCESS_VALIDATE_OUTPUT = "PASS: creative-code applied candidate launch valid"
 SUCCESS_PLAN_OUTPUT = "PASS: creative-code applied candidate run plan complete"
@@ -94,6 +106,28 @@ WRAPPER_FALSE_AUTHORITY_KEYS = frozenset(
         "modify_workflows",
         "use_semantic_cache",
     }
+)
+COMMAND_KEYS = frozenset(
+    {
+        "label",
+        "command",
+        "checklist_only",
+        "executes_in_wrapper",
+        "authority_owner",
+        "authority_effects",
+        "requires_human_gate",
+    }
+)
+CANDIDATE_REQUIRED_TESTS = (
+    "tests/test_creative_code_applied_candidate_pr6.py",
+    "tests/test_creative_code_patch_builder.py",
+    "tests/test_experiment_bootstrap.py",
+    "tests/test_remaining_modules.py",
+)
+CANDIDATE_NEGATIVE_CONTROLS = (
+    "runtime_photo_upload_not_authorized",
+    "medical_claim_wording_rejected",
+    "raw_image_retention_not_authorized",
 )
 
 
@@ -165,8 +199,14 @@ def _normalize_target_surface(raw_target: str) -> str:
     return normalized[0]
 
 
-def _artifact_path_for_output_dir(raw_output_dir: Path, *, create: bool) -> Path:
+def _artifact_path_for_output_dir(
+    raw_output_dir: Path,
+    *,
+    candidate_id: str,
+    create: bool,
+) -> Path:
     root = _ensure_applied_candidates_root()
+    normalized_candidate_id = _normalize_candidate_id(candidate_id)
     if raw_output_dir.is_absolute():
         candidate = raw_output_dir
     elif raw_output_dir.parts[:4] == (
@@ -184,6 +224,14 @@ def _artifact_path_for_output_dir(raw_output_dir: Path, *, create: bool) -> Path
         raise CreativeCodeAppliedCandidatePR6Error(
             "output directory must stay under applied candidate artifacts."
         )
+    try:
+        relative_candidate = resolved_candidate.relative_to(root)
+    except ValueError as exc:
+        raise CreativeCodeAppliedCandidatePR6Error(
+            "output directory must stay under applied candidate artifacts."
+        ) from exc
+    if relative_candidate != Path(normalized_candidate_id):
+        raise CreativeCodeAppliedCandidatePR6Error("output directory must match candidate_id.")
     if create:
         try:
             candidate.mkdir(parents=True, exist_ok=True)
@@ -200,35 +248,91 @@ def _artifact_path_for_output_dir(raw_output_dir: Path, *, create: bool) -> Path
         raise CreativeCodeAppliedCandidatePR6Error(
             "output directory must stay under applied candidate artifacts."
         )
+    if resolved.relative_to(root) != Path(normalized_candidate_id):
+        raise CreativeCodeAppliedCandidatePR6Error("output directory must match candidate_id.")
     return resolved
 
 
-def _resolve_run_plan_file(raw_path: Path) -> Path:
+def _resolve_applied_candidate_file(
+    raw_path: Path,
+    *,
+    expected_filename: str,
+    for_write: bool,
+) -> Path:
     root = _ensure_applied_candidates_root()
     path = raw_path if raw_path.is_absolute() else REPO_ROOT / raw_path
-    _reject_symlink_components(path.parent, label="run plan parent")
+    if path.name != expected_filename:
+        raise CreativeCodeAppliedCandidatePR6Error(
+            f"applied candidate filename must be {expected_filename}."
+        )
+    _reject_symlink_components(path.parent, label="applied candidate artifact parent")
     parent = path.parent.resolve(strict=False)
     if not _is_relative_to(parent, root):
         raise CreativeCodeAppliedCandidatePR6Error(
-            "run plan path must stay under applied candidate artifacts."
+            "applied candidate artifact path must stay under applied candidate artifacts."
         )
+    if for_write:
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            raise CreativeCodeAppliedCandidatePR6Error(
+                "applied candidate artifact parent could not be created."
+            ) from exc
+        _reject_symlink_components(path.parent, label="applied candidate artifact parent")
     try:
         resolved_parent = path.parent.resolve(strict=True)
     except OSError as exc:
-        raise CreativeCodeAppliedCandidatePR6Error("run plan parent must exist.") from exc
-    if path.name != RUN_PLAN_FILE:
-        raise CreativeCodeAppliedCandidatePR6Error(f"run plan filename must be {RUN_PLAN_FILE}.")
+        raise CreativeCodeAppliedCandidatePR6Error(
+            "applied candidate artifact parent must exist."
+        ) from exc
+    if not _is_relative_to(resolved_parent, root):
+        raise CreativeCodeAppliedCandidatePR6Error(
+            "applied candidate artifact path must stay under applied candidate artifacts."
+        )
     if path.exists() or path.is_symlink():
         if path.is_symlink():
-            raise CreativeCodeAppliedCandidatePR6Error("run plan file must not be a symlink.")
+            raise CreativeCodeAppliedCandidatePR6Error(
+                "applied candidate artifact file must not be a symlink."
+            )
         if not path.is_file():
-            raise CreativeCodeAppliedCandidatePR6Error("run plan path must be a file.")
+            raise CreativeCodeAppliedCandidatePR6Error(
+                "applied candidate artifact path must be a file."
+            )
     return resolved_parent / path.name
 
 
-def _write_json_atomic(path: Path, payload: Mapping[str, Any]) -> None:
-    reject_unsafe_review_value(dict(payload), label="run_plan")
-    output = _resolve_run_plan_file(path)
+def _resolve_run_plan_file(raw_path: Path, *, for_write: bool = False) -> Path:
+    return _resolve_applied_candidate_file(
+        raw_path,
+        expected_filename=RUN_PLAN_FILE,
+        for_write=for_write,
+    )
+
+
+def _reject_duplicate_json_object_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    seen: set[str] = set()
+    payload: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in seen:
+            raise CreativeCodeAppliedCandidatePR6Error(f"run plan JSON has duplicate key: {key}")
+        seen.add(key)
+        payload[key] = value
+    return payload
+
+
+def _write_json_atomic(
+    path: Path,
+    payload: Mapping[str, Any],
+    *,
+    expected_filename: str,
+    label: str,
+) -> None:
+    reject_unsafe_review_value(dict(payload), label=label)
+    output = _resolve_applied_candidate_file(
+        path,
+        expected_filename=expected_filename,
+        for_write=True,
+    )
     temp_name: str | None = None
     try:
         with tempfile.NamedTemporaryFile(
@@ -302,13 +406,23 @@ def load_and_validate_launch_packet(path: Path, *, target: str) -> dict[str, Any
     return _validate_launch_packet(launch_packet)
 
 
-def _command(label: str, command: str) -> dict[str, Any]:
+def _command(
+    label: str,
+    command: str,
+    *,
+    authority_owner: str,
+    authority_effects: Sequence[str] = (),
+    requires_human_gate: bool = False,
+) -> dict[str, Any]:
     reject_unsafe_review_value(command, label=f"command.{label}")
     return {
         "label": label,
         "command": command,
         "checklist_only": True,
         "executes_in_wrapper": False,
+        "authority_owner": authority_owner,
+        "authority_effects": list(authority_effects),
+        "requires_human_gate": requires_human_gate,
     }
 
 
@@ -335,6 +449,7 @@ def _commands(candidate_id: str) -> dict[str, list[dict[str, Any]]]:
                         spec_run_dir,
                     ],
                 ),
+                authority_owner="creative_code_spec_pipeline_pr1",
             ),
             _command(
                 "record_skeptic_review_decisions",
@@ -343,6 +458,8 @@ def _commands(candidate_id: str) -> dict[str, list[dict[str, Any]]]:
                     f"artifacts/orchestration/creative_code/spec_runs/{candidate_id}/"
                     "skeptic_reviews.json before finalize"
                 ),
+                authority_owner="human_pr1_skeptic_review",
+                requires_human_gate=True,
             ),
             _command(
                 "finalize_specification",
@@ -356,9 +473,22 @@ def _commands(candidate_id: str) -> dict[str, list[dict[str, Any]]]:
                         f"spec_runs/{candidate_id}/bundle.json",
                     ],
                 ),
+                authority_owner="creative_code_spec_pipeline_pr1",
             ),
         ],
         "pr2_patch_builder": [
+            _command(
+                "build_patch_request_after_specification_bundle",
+                (
+                    "manual: after PR-1 bundle.json exists, build and validate "
+                    "CreativeCodePatchBuildRequest at "
+                    f"artifacts/orchestration/creative_code/applied_candidates/{candidate_id}/"
+                    "patch_request.json with source bundle "
+                    f"artifacts/orchestration/creative_code/spec_runs/{candidate_id}/bundle.json"
+                ),
+                authority_owner="human_pr2_admission",
+                requires_human_gate=True,
+            ),
             _command(
                 "prepare_patch_request",
                 _module_command(
@@ -373,6 +503,8 @@ def _commands(candidate_id: str) -> dict[str, list[dict[str, Any]]]:
                         patch_run_id,
                     ],
                 ),
+                authority_owner="creative_code_patch_builder_pr2",
+                authority_effects=("isolated_workspace_write",),
             ),
             _command(
                 "generate_patch_candidate",
@@ -380,6 +512,8 @@ def _commands(candidate_id: str) -> dict[str, list[dict[str, Any]]]:
                     "scripts.orchestration.creative_code_patch_builder",
                     ["generate", "--run-dir", patch_run_id],
                 ),
+                authority_owner="creative_code_patch_builder_pr2",
+                authority_effects=("isolated_workspace_write", "local_codex_exec"),
             ),
             _command(
                 "evaluate_patch_candidate",
@@ -387,6 +521,8 @@ def _commands(candidate_id: str) -> dict[str, list[dict[str, Any]]]:
                     "scripts.orchestration.creative_code_patch_builder",
                     ["evaluate", "--run-dir", patch_run_id],
                 ),
+                authority_owner="creative_code_patch_builder_pr2",
+                authority_effects=("isolated_workspace_write", "local_oracle_execution"),
             ),
         ],
         "pr3_promotion": [
@@ -396,6 +532,8 @@ def _commands(candidate_id: str) -> dict[str, list[dict[str, Any]]]:
                     "scripts.orchestration.creative_code_pr_promotion",
                     ["plan", "--patch-run", patch_run_id, "--promotion-id", promotion_id],
                 ),
+                authority_owner="creative_code_pr_promotion_pr3",
+                authority_effects=("git_remote_read",),
             ),
             _command(
                 "validate_promotion",
@@ -403,6 +541,8 @@ def _commands(candidate_id: str) -> dict[str, list[dict[str, Any]]]:
                     "scripts.orchestration.creative_code_pr_promotion",
                     ["validate", "--promotion-id", promotion_id],
                 ),
+                authority_owner="creative_code_pr_promotion_pr3",
+                authority_effects=("local_validation_execution",),
             ),
             _command(
                 "approve_promotion",
@@ -416,6 +556,9 @@ def _commands(candidate_id: str) -> dict[str, list[dict[str, Any]]]:
                         "Katsiarynakavaleuskaya",
                     ],
                 ),
+                authority_owner="creative_code_pr_promotion_pr3",
+                authority_effects=("requires_tty_approval",),
+                requires_human_gate=True,
             ),
             _command(
                 "promote_non_draft_pr",
@@ -423,6 +566,14 @@ def _commands(candidate_id: str) -> dict[str, list[dict[str, Any]]]:
                     "scripts.orchestration.creative_code_pr_promotion",
                     ["promote", "--promotion-id", promotion_id],
                 ),
+                authority_owner="creative_code_pr_promotion_pr3",
+                authority_effects=(
+                    "github_write",
+                    "network",
+                    "push",
+                    "open_non_draft_pr",
+                ),
+                requires_human_gate=True,
             ),
         ],
         "pr4_telemetry": [
@@ -442,6 +593,7 @@ def _commands(candidate_id: str) -> dict[str, list[dict[str, Any]]]:
                         "--strict",
                     ],
                 ),
+                authority_owner="creative_code_telemetry_pr4",
             ),
         ],
     }
@@ -451,6 +603,10 @@ def _expected_artifacts(candidate_id: str) -> dict[str, str]:
     patch_run_id = f"{candidate_id}-patch"
     promotion_id = f"{candidate_id}-promotion"
     return {
+        "pr6_run_plan": (
+            f"artifacts/orchestration/creative_code/applied_candidates/{candidate_id}/"
+            "run_plan.json"
+        ),
         "pr1_source_candidate_packet": (
             f"artifacts/orchestration/creative_code/applied_candidates/{candidate_id}/"
             "candidate_packet.json"
@@ -473,6 +629,105 @@ def _expected_artifacts(candidate_id: str) -> dict[str, str]:
             "artifacts/orchestration/creative_code/telemetry/creative_code_telemetry_rollup.json"
         ),
     }
+
+
+def _target_surface_policy() -> dict[str, Any]:
+    return {
+        "required_exact_target": DEFAULT_TARGET_SURFACE,
+        "validated_by": "validate_mutable_candidate_surface",
+        "generated_candidate_may_modify_scripts_orchestration": False,
+        "generated_candidate_may_modify_tests": False,
+        "generated_candidate_may_modify_governance_docs": False,
+    }
+
+
+def _candidate_limits(normalized_target: str) -> dict[str, Any]:
+    return {
+        "allowed_existing_paths": [normalized_target],
+        "allowed_new_paths": [],
+        "generation_attempts": 1,
+        "max_changed_files": 1,
+        "max_diff_lines": 120,
+        "max_patch_bytes": 65536,
+        "network_budget": 0,
+        "negative_controls_minimum": 2,
+        "primary_metric_required": True,
+    }
+
+
+def _allowed_next_steps() -> dict[str, bool]:
+    return {
+        "run_pr1_specification": True,
+        "prepare_pr2_patch_request": True,
+        "run_pr2_patch_builder": True,
+        "run_pr3_promotion": True,
+        "run_pr4_telemetry": True,
+    }
+
+
+def _lifecycle_checkpoints() -> list[str]:
+    return [
+        "wrapper_bootstrap",
+        "pr1_specification_bundle",
+        "pr2_accepted_patch_result",
+        "pr3_non_draft_experiment_pr",
+        "normal_pr_governance",
+        "telemetry_closeout",
+    ]
+
+
+def _candidate_source_creative_research() -> dict[str, str]:
+    source = {
+        "bundle_id": "creative-research-cv-program-offline-eval",
+        "candidate_id": "creative-research-cv-program-offline-eval-001",
+        "promotion_decision": "promote",
+        "evidence_ref": "docs/orchestration/GOVERNED_CREATIVE_CODE_EXECUTION_CONTRACT.md",
+    }
+    return {**source, "fingerprint": fingerprint_payload(source)}
+
+
+def build_candidate_packet(*, run_plan: Mapping[str, Any]) -> dict[str, Any]:
+    """Build the PR-0 candidate packet consumed by PR-1 from a validated PR-6 plan."""
+
+    normalized_plan = validate_run_plan(run_plan)
+    candidate_id = str(normalized_plan["candidate_id"])
+    packet = {
+        "schema_version": CANDIDATE_SCHEMA_VERSION,
+        "packet_type": CANDIDATE_PACKET_TYPE,
+        "candidate_id": candidate_id,
+        "idempotency_key": f"{candidate_id}-v1",
+        "policy_version": CANDIDATE_POLICY_VERSION,
+        "gate_status": CANDIDATE_GATE_STATUS,
+        "authority_class": CANDIDATE_AUTHORITY_CLASS,
+        "source_creative_research": _candidate_source_creative_research(),
+        "variant_count": 3,
+        "sandbox_required": True,
+        "human_review_required": True,
+        "fallback": (
+            "Discard the applied creative-code candidate and keep the CV offline-evaluation "
+            "program unchanged."
+        ),
+        "target_surface": list(normalized_plan["target_surface"]),
+        "immutable_oracles": list(CANDIDATE_REQUIRED_TESTS),
+        "authority": {
+            key: key in CANDIDATE_AUTHORITY_TRUE_KEYS for key in sorted(CANDIDATE_AUTHORITY_KEYS)
+        },
+        "scientific_claim_status": "hypothesis_only",
+        "evidence_bundle": {
+            "artifact_refs": [
+                "docs/orchestration/GOVERNED_CREATIVE_CODE_EXECUTION_CONTRACT.md",
+                "docs/prompts/cv/program.md",
+                "docs/review/PR_2052_FIXED_MAPPING.md",
+            ],
+            "required_tests": list(CANDIDATE_REQUIRED_TESTS),
+            "negative_controls": list(CANDIDATE_NEGATIVE_CONTROLS),
+        },
+        "future_telemetry_contract": {
+            "emit_no_earlier_than": "PR-1",
+            "minimum_fields": list(FUTURE_TELEMETRY_FIELDS),
+        },
+    }
+    return cast(dict[str, Any], validate_creative_code_candidate_packet(packet))
 
 
 def _run_plan_identity(plan: Mapping[str, Any]) -> tuple[str, str]:
@@ -525,45 +780,16 @@ def build_run_plan(
         "source_launch_packet_fingerprint": launch_fingerprint,
         "source_disposition_packet_id": normalized_launch["source_disposition_packet_id"],
         "target_surface": [normalized_target],
-        "target_surface_policy": {
-            "required_exact_target": DEFAULT_TARGET_SURFACE,
-            "validated_by": "validate_mutable_candidate_surface",
-            "generated_candidate_may_modify_scripts_orchestration": False,
-            "generated_candidate_may_modify_tests": False,
-            "generated_candidate_may_modify_governance_docs": False,
-        },
-        "candidate_limits": {
-            "allowed_existing_paths": [normalized_target],
-            "allowed_new_paths": [],
-            "generation_attempts": 1,
-            "max_changed_files": 1,
-            "max_diff_lines": 120,
-            "max_patch_bytes": 65536,
-            "network_budget": 0,
-            "negative_controls_minimum": 2,
-            "primary_metric_required": True,
-        },
-        "allowed_next_steps": {
-            "run_pr1_specification": True,
-            "prepare_pr2_patch_request": True,
-            "run_pr2_patch_builder": True,
-            "run_pr3_promotion": True,
-            "run_pr4_telemetry": True,
-        },
+        "target_surface_policy": _target_surface_policy(),
+        "candidate_limits": _candidate_limits(normalized_target),
+        "allowed_next_steps": _allowed_next_steps(),
         "expected_artifacts": _expected_artifacts(normalized_candidate_id),
         "commands": _commands(normalized_candidate_id),
         "authority": {
             **{key: True for key in sorted(WRAPPER_TRUE_AUTHORITY_KEYS)},
             **{key: False for key in sorted(WRAPPER_FALSE_AUTHORITY_KEYS)},
         },
-        "lifecycle_checkpoints": [
-            "wrapper_bootstrap",
-            "pr1_specification_bundle",
-            "pr2_accepted_patch_result",
-            "pr3_non_draft_experiment_pr",
-            "normal_pr_governance",
-            "telemetry_closeout",
-        ],
+        "lifecycle_checkpoints": _lifecycle_checkpoints(),
         "sanitized": True,
     }
     run_plan_id, idempotency_key = _run_plan_identity(plan)
@@ -601,6 +827,16 @@ def validate_run_plan(payload: Mapping[str, Any]) -> dict[str, Any]:
         raise CreativeCodeAppliedCandidatePR6Error(
             f"run plan target_surface must be [{DEFAULT_TARGET_SURFACE!r}]."
         )
+    if payload["target_surface_policy"] != _target_surface_policy():
+        raise CreativeCodeAppliedCandidatePR6Error("run plan target_surface_policy is invalid.")
+    if payload["candidate_limits"] != _candidate_limits(DEFAULT_TARGET_SURFACE):
+        raise CreativeCodeAppliedCandidatePR6Error("run plan candidate_limits are invalid.")
+    if payload["allowed_next_steps"] != _allowed_next_steps():
+        raise CreativeCodeAppliedCandidatePR6Error("run plan allowed_next_steps are invalid.")
+    if payload["expected_artifacts"] != _expected_artifacts(candidate_id):
+        raise CreativeCodeAppliedCandidatePR6Error("run plan expected_artifacts are invalid.")
+    if payload["lifecycle_checkpoints"] != _lifecycle_checkpoints():
+        raise CreativeCodeAppliedCandidatePR6Error("run plan lifecycle_checkpoints are invalid.")
     authority = payload["authority"]
     if not isinstance(authority, Mapping):
         raise CreativeCodeAppliedCandidatePR6Error("run plan authority must be an object.")
@@ -617,11 +853,16 @@ def validate_run_plan(payload: Mapping[str, Any]) -> dict[str, Any]:
     commands = payload["commands"]
     if not isinstance(commands, Mapping):
         raise CreativeCodeAppliedCandidatePR6Error("run plan commands must be an object.")
+    if commands != _commands(candidate_id):
+        raise CreativeCodeAppliedCandidatePR6Error("run plan commands are invalid.")
     for phase, rows in commands.items():
         if not isinstance(phase, str) or not isinstance(rows, list) or not rows:
             raise CreativeCodeAppliedCandidatePR6Error("run plan command phases are invalid.")
         for row in rows:
             if not isinstance(row, Mapping):
+                raise CreativeCodeAppliedCandidatePR6Error("run plan command rows are invalid.")
+            actual_command_keys = set(row)
+            if actual_command_keys != COMMAND_KEYS:
                 raise CreativeCodeAppliedCandidatePR6Error("run plan command rows are invalid.")
             if row.get("checklist_only") is not True or row.get("executes_in_wrapper") is not False:
                 raise CreativeCodeAppliedCandidatePR6Error(
@@ -649,17 +890,41 @@ def write_run_plan(
 ) -> Path:
     """Write the run plan under the local applied-candidate artifact root."""
 
-    resolved_dir = _artifact_path_for_output_dir(output_dir, create=True)
+    normalized = validate_run_plan(run_plan)
+    candidate_id = str(normalized["candidate_id"])
+    resolved_dir = _artifact_path_for_output_dir(
+        output_dir,
+        candidate_id=candidate_id,
+        create=True,
+    )
+    candidate_packet = build_candidate_packet(run_plan=normalized)
+    _write_json_atomic(
+        resolved_dir / CANDIDATE_PACKET_FILE,
+        candidate_packet,
+        expected_filename=CANDIDATE_PACKET_FILE,
+        label="candidate_packet",
+    )
     output = resolved_dir / RUN_PLAN_FILE
-    _write_json_atomic(output, validate_run_plan(run_plan))
+    _write_json_atomic(
+        output,
+        normalized,
+        expected_filename=RUN_PLAN_FILE,
+        label="run_plan",
+    )
     return output
 
 
 def read_run_plan(path: Path) -> dict[str, Any]:
     """Read and validate a previously emitted run plan."""
 
+    resolved_path = _resolve_run_plan_file(path)
     try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload = json.loads(
+            resolved_path.read_text(encoding="utf-8"),
+            object_pairs_hook=_reject_duplicate_json_object_keys,
+        )
+    except CreativeCodeAppliedCandidatePR6Error:
+        raise
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise CreativeCodeAppliedCandidatePR6Error("Unable to read run plan JSON.") from exc
     if not isinstance(payload, dict):

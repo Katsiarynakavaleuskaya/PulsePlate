@@ -95,6 +95,12 @@ The PR-6 local applied-candidate run-plan artifacts are:
 
 - `scripts/orchestration/creative_code_applied_candidate_pr6.py`
 - `artifacts/orchestration/creative_code/applied_candidates/<candidate-id>/run_plan.json`
+- `artifacts/orchestration/creative_code/applied_candidates/<candidate-id>/candidate_packet.json`
+
+`patch_request.json` remains a PR-2 `CreativeCodePatchBuildRequest` handoff
+artifact. It is built and validated only after PR-1 emits
+`spec_runs/<candidate-id>/bundle.json`, because its identity and fingerprint are
+bound to that canonical specification bundle.
 
 The packet, bundle, request, result, local `candidate.patch`, plan, validation,
 approval, receipt, applied-candidate run plan, and generated PR body may

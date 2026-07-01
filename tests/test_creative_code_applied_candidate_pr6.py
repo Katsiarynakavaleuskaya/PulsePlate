@@ -8,6 +8,7 @@ from typing import Any
 import pytest
 
 from core.evidence.fingerprints import fingerprint_payload
+from scripts.orchestration.creative_code_contract import validate_creative_code_candidate_packet
 from scripts.orchestration import creative_code_applied_candidate_pr6 as pr6
 from scripts.orchestration.creative_code_review_disposition_contract import (
     build_creative_code_repair_launch_packet,
@@ -64,6 +65,13 @@ def _configure_artifact_root(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) ->
     monkeypatch.setattr(pr6, "CREATIVE_CODE_ROOT", root)
     monkeypatch.setattr(pr6, "APPLIED_CANDIDATES_ROOT", applied)
     return applied
+
+
+def _refresh_run_plan_identity(plan: dict[str, Any]) -> dict[str, Any]:
+    run_plan_id, idempotency_key = pr6._run_plan_identity(plan)
+    plan["run_plan_id"] = run_plan_id
+    plan["idempotency_key"] = idempotency_key
+    return plan
 
 
 def test_valid_pr5_launch_packet_is_accepted(tmp_path: Path) -> None:
@@ -184,6 +192,15 @@ def test_run_plan_is_local_only_and_checklist_only() -> None:
         "record_skeptic_review_decisions",
         "finalize_specification",
     ]
+    promote = plan["commands"]["pr3_promotion"][-1]
+    assert promote["authority_owner"] == "creative_code_pr_promotion_pr3"
+    assert promote["authority_effects"] == [
+        "github_write",
+        "network",
+        "push",
+        "open_non_draft_pr",
+    ]
+    assert promote["requires_human_gate"] is True
 
 
 def test_run_plan_contains_no_raw_review_body_patch_prompt_or_secret() -> None:
@@ -228,6 +245,29 @@ def test_run_plan_writer_stays_under_local_artifact_root(
 
     assert output == applied / "cv-program-offline-eval-001" / "run_plan.json"
     assert pr6.read_run_plan(output) == plan
+    packet_path = applied / "cv-program-offline-eval-001" / "candidate_packet.json"
+    packet = json.loads(packet_path.read_text(encoding="utf-8"))
+    assert validate_creative_code_candidate_packet(packet)["candidate_id"] == (
+        "cv-program-offline-eval-001"
+    )
+
+
+def test_output_directory_must_match_candidate_id(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    _configure_artifact_root(monkeypatch, tmp_path)
+    plan = pr6.build_run_plan(
+        launch_packet=_launch_packet(),
+        target="docs/prompts/cv/program.md",
+        candidate_id="cv-program-offline-eval-001",
+    )
+
+    with pytest.raises(
+        pr6.CreativeCodeAppliedCandidatePR6Error,
+        match="candidate_id",
+    ):
+        pr6.write_run_plan(run_plan=plan, output_dir=Path("other-candidate"))
 
 
 def test_output_directory_must_stay_under_artifact_root(
@@ -247,6 +287,59 @@ def test_output_directory_must_stay_under_artifact_root(
         pr6.write_run_plan(run_plan=plan, output_dir=tmp_path / "outside")
 
 
+@pytest.mark.parametrize(
+    ("mutate", "match"),
+    [
+        (
+            lambda plan: plan["candidate_limits"].__setitem__("network_budget", 1),
+            "candidate_limits",
+        ),
+        (
+            lambda plan: plan["expected_artifacts"].__setitem__(
+                "pr1_source_candidate_packet",
+                "artifacts/orchestration/creative_code/applied_candidates/wrong/candidate_packet.json",
+            ),
+            "expected_artifacts",
+        ),
+        (
+            lambda plan: plan["commands"]["pr3_promotion"][-1].__setitem__(
+                "authority_effects",
+                [],
+            ),
+            "commands",
+        ),
+    ],
+)
+def test_run_plan_rejects_nested_tampering_after_identity_refresh(
+    mutate: Any,
+    match: str,
+) -> None:
+    plan = pr6.build_run_plan(
+        launch_packet=_launch_packet(),
+        target="docs/prompts/cv/program.md",
+    )
+    tampered = deepcopy(plan)
+    mutate(tampered)
+    _refresh_run_plan_identity(tampered)
+
+    with pytest.raises(pr6.CreativeCodeAppliedCandidatePR6Error, match=match):
+        pr6.validate_run_plan(tampered)
+
+
+def test_read_run_plan_rejects_duplicate_json_keys(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    applied = _configure_artifact_root(monkeypatch, tmp_path)
+    plan_dir = applied / "cv-program-offline-eval-001"
+    plan_dir.mkdir(parents=True)
+    plan_path = plan_dir / "run_plan.json"
+    plan_path.write_text('{"schema_version":"1.0","schema_version":"1.0"}', encoding="utf-8")
+
+    with pytest.raises(pr6.CreativeCodeAppliedCandidatePR6Error, match="duplicate key"):
+        pr6.read_run_plan(plan_path)
+
+
 def test_run_plan_rejects_tampered_command_execution_flag() -> None:
     plan = pr6.build_run_plan(
         launch_packet=_launch_packet(),
@@ -257,7 +350,7 @@ def test_run_plan_rejects_tampered_command_execution_flag() -> None:
 
     with pytest.raises(
         pr6.CreativeCodeAppliedCandidatePR6Error,
-        match="checklist-only",
+        match="commands",
     ):
         pr6.validate_run_plan(tampered)
 
@@ -302,3 +395,7 @@ def test_cli_plan_run_writes_run_plan(
     assert exit_code == 0
     assert pr6.SUCCESS_PLAN_OUTPUT in captured.out
     assert (applied / "cv-program-offline-eval-001" / "run_plan.json").is_file()
+    packet_path = applied / "cv-program-offline-eval-001" / "candidate_packet.json"
+    assert validate_creative_code_candidate_packet(
+        json.loads(packet_path.read_text(encoding="utf-8"))
+    )["target_surface"] == ["docs/prompts/cv/program.md"]

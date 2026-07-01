@@ -164,6 +164,15 @@ def _build_generation_prompt(*, request: dict[str, Any], variant: dict[str, Any]
     allowed_new = "\n".join(f"- {path}" for path in request["allowed_new_paths"]) or "- none"
     tests_to_add = "\n".join(f"- {path}" for path in variant["tests_to_add"])
     budgets = request["budgets"]
+    max_changed_files = int(budgets["max_changed_files"])
+    edit_instruction = (
+        "Finish immediately after the single allowed file edit; the wrapper validates the patch."
+        if max_changed_files == 1
+        else (
+            "Finish immediately after the allowed file edits within the max_changed_files "
+            "budget; the wrapper validates the patch."
+        )
+    )
     return (
         "You are generating a local candidate patch inside an isolated checkout.\n"
         "Do not run network commands, read secrets, create branches, commit, push, open PRs, "
@@ -171,9 +180,9 @@ def _build_generation_prompt(*, request: dict[str, Any], variant: dict[str, Any]
         "Implement the selected PR-1 creative-code specification only.\n"
         "Do not run tests, package managers, broad repository searches, provider calls, or "
         "validation commands. If inspection is needed, inspect only the allowed existing paths. "
-        "Finish immediately after the single file edit; the wrapper validates the patch.\n\n"
+        f"{edit_instruction}\n\n"
         "Hard mutation budget:\n"
-        f"- max_changed_files: {budgets['max_changed_files']}\n"
+        f"- max_changed_files: {max_changed_files}\n"
         f"- max_diff_lines: {budgets['max_diff_lines']}\n"
         f"- max_patch_bytes: {budgets['max_patch_bytes']}\n"
         f"- allowed_new_paths_count: {len(request['allowed_new_paths'])}\n\n"
@@ -219,12 +228,34 @@ def _add_intent_for_untracked(checkout: Path, allowed_new_paths: set[str]) -> No
 
 def _parse_name_status(output: str) -> list[tuple[str, str]]:
     entries: list[tuple[str, str]] = []
+    seen_paths: set[str] = set()
     for line in output.splitlines():
         if not line.strip():
             continue
         parts = line.split("\t")
+        if len(parts) < 2 or not parts[0]:
+            raise CreativeCodePatchBuilderError("unable to parse git name-status output.")
         status = parts[0]
-        path = parts[-1]
+        if status.startswith(("R", "C")):
+            if len(parts) != 3:
+                raise CreativeCodePatchBuilderError("unable to parse git name-status output.")
+            path = parts[2]
+        else:
+            if len(parts) != 2:
+                raise CreativeCodePatchBuilderError("unable to parse git name-status output.")
+            path = parts[1]
+        path_obj = Path(path)
+        if (
+            not path
+            or path in {".", ".."}
+            or path_obj.is_absolute()
+            or ".." in path_obj.parts
+            or "\\" in path
+        ):
+            raise CreativeCodePatchBuilderError("git name-status output contains unsafe path.")
+        if path in seen_paths:
+            raise CreativeCodePatchBuilderError("git name-status output contains duplicate path.")
+        seen_paths.add(path)
         entries.append((status, path))
     return entries
 

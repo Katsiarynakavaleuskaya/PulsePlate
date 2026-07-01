@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 import json
 import os
 from pathlib import Path
@@ -227,8 +228,41 @@ def test_generation_prompt_includes_budget_and_no_test_contract() -> None:
     assert f"- max_patch_bytes: {request['budgets']['max_patch_bytes']}" in prompt
     assert "Do not run tests, package managers, broad repository searches" in prompt
     assert "inspect only the allowed existing paths" in prompt
-    assert "Finish immediately after the single file edit" in prompt
+    assert "Finish immediately after the allowed file edits" in prompt
+    assert "single file edit" not in prompt
     assert "The wrapper will validate and export the patch." in prompt
+
+
+def test_generation_prompt_uses_single_file_wording_for_single_file_budget() -> None:
+    bundle = _reference_bundle()
+    request = deepcopy(_reference_request())
+    request["budgets"]["max_changed_files"] = 1
+    variant = creative_code_patch_builder._selected_variant(bundle)
+
+    prompt = creative_code_patch_builder._build_generation_prompt(
+        request=request,
+        variant=variant,
+    )
+
+    assert "Finish immediately after the single allowed file edit" in prompt
+    assert "- max_changed_files: 1" in prompt
+
+
+@pytest.mark.parametrize(
+    "name_status",
+    [
+        "M",
+        "M\t",
+        "M\tcore/rag/orchestration.py\textra",
+        "M\t../orchestration.py",
+        "M\t/abs/orchestration.py",
+        "M\tcore\\rag\\orchestration.py",
+        "M\tcore/rag/orchestration.py\nA\tcore/rag/orchestration.py",
+    ],
+)
+def test_name_status_parser_rejects_malformed_or_ambiguous_paths(name_status: str) -> None:
+    with pytest.raises(CreativeCodePatchBuilderError):
+        creative_code_patch_builder._parse_name_status(name_status)
 
 
 def test_reference_patch_contracts_validate_and_schema_is_closed() -> None:
@@ -669,6 +703,37 @@ def test_workspace_creates_detached_no_remote_checkout_and_cleanup(
     assert creative_code_patch_workspace.destroy_generation_checkout(run_dir) is True
     creative_code_patch_workspace.cleanup_run_dir("workspace-test")
     assert not run_dir.exists()
+
+
+def test_workspace_json_rejects_duplicate_keys(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo, _base_sha = _init_patch_repo(tmp_path)
+    _patch_modules_to_repo(monkeypatch, repo)
+    run_dir = creative_code_patch_workspace.resolve_run_dir("duplicate-json", create=True)
+    duplicate = run_dir / "state.json"
+    duplicate.write_text('{"schema_version":"1.0","schema_version":"1.0"}', encoding="utf-8")
+
+    with pytest.raises(
+        creative_code_patch_workspace.CreativeCodePatchWorkspaceError,
+        match="duplicate key",
+    ):
+        creative_code_patch_workspace.read_json(duplicate)
+
+
+def test_workspace_json_write_rejects_paths_outside_creative_code_artifacts(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo, _base_sha = _init_patch_repo(tmp_path)
+    _patch_modules_to_repo(monkeypatch, repo)
+
+    with pytest.raises(
+        creative_code_patch_workspace.CreativeCodePatchWorkspaceError,
+        match="creative-code artifacts",
+    ):
+        creative_code_patch_workspace.write_json_atomic(tmp_path / "outside.json", {})
 
 
 def test_patch_metadata_accepts_allowed_modified_file(
