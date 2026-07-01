@@ -52,6 +52,10 @@ CANDIDATE_PLAN_FILE = "candidate_plan.json"
 SUCCESS_COLLECT_OUTPUT = "PASS: creative-code private-pilot state collected"
 SUCCESS_CANDIDATE_PLAN_OUTPUT = "PASS: creative-code private-pilot candidate plan emitted"
 GH_COMMAND_TIMEOUT_SECONDS = 60
+STRICT_MERGE_STATE_BLOCKERS = frozenset(
+    {"BEHIND", "BLOCKED", "DIRTY", "DRAFT", "UNKNOWN", "UNSTABLE"}
+)
+REVIEW_DECISION_BLOCKERS = frozenset({"CHANGES_REQUESTED", "REVIEW_REQUIRED"})
 
 
 class CreativeCodePrivatePilotOperatorError(ValueError):
@@ -258,7 +262,7 @@ def _gh_pr_view(*, pr_number: int, repo_root: Path) -> dict[str, Any]:
             "view",
             str(pr_number),
             "--json",
-            "number,url,state,isDraft,baseRefName,baseRefOid,headRefOid",
+            "number,url,state,isDraft,baseRefName,baseRefOid,headRefOid,mergeStateStatus,reviewDecision",
         ],
         cwd=repo_root,
     )
@@ -272,7 +276,9 @@ def _gh_api_json(path: str, *, repo_root: Path) -> Any:
     return _run_json_command([gh_binary, "api", path], cwd=repo_root)
 
 
-def _required_check_names(*, repo: str, base_ref: str, repo_root: Path) -> tuple[list[str], bool]:
+def _required_check_names(
+    *, repo: str, base_ref: str, repo_root: Path
+) -> tuple[list[str], bool, bool]:
     try:
         encoded_base_ref = quote(base_ref, safe="")
         payload = _gh_api_json(
@@ -280,9 +286,9 @@ def _required_check_names(*, repo: str, base_ref: str, repo_root: Path) -> tuple
             repo_root=repo_root,
         )
     except CreativeCodePrivatePilotOperatorError:
-        return [], False
+        return [], False, False
     if not isinstance(payload, dict):
-        return [], False
+        return [], False, False
     names: set[str] = set()
     for item in payload.get("contexts") or []:
         if isinstance(item, str) and item.strip():
@@ -293,7 +299,55 @@ def _required_check_names(*, repo: str, base_ref: str, repo_root: Path) -> tuple
             app_id = str(item.get("app_id") or "").strip()
             if context:
                 names.add(f"app_id:{app_id}:{context}" if app_id else f"check_run:{context}")
-    return sorted(names), True
+    return sorted(names), True, bool(payload.get("strict"))
+
+
+def _strict_merge_state_requires_wait(*, strict_required: bool, merge_state: str) -> bool:
+    return strict_required and merge_state.upper() in STRICT_MERGE_STATE_BLOCKERS
+
+
+def _strict_merge_state_check(*, pr_url: Any, head_sha: str) -> dict[str, Any]:
+    return {
+        "name": "branch-protection-strict-update",
+        "workflow": "github_branch_protection",
+        "status": "in_progress",
+        "conclusion": "",
+        "head_sha": head_sha,
+        "details_url": pr_url if isinstance(pr_url, str) else None,
+        "required": True,
+    }
+
+
+def _github_pr_review_sources(
+    pr_view: Mapping[str, Any],
+    *,
+    strict_required: bool,
+) -> list[dict[str, Any]]:
+    sources: list[dict[str, Any]] = []
+    review_decision = str(pr_view.get("reviewDecision") or "").strip().upper()
+    if review_decision in REVIEW_DECISION_BLOCKERS:
+        sources.append(
+            {
+                "source": "github_review_decision",
+                "status": "unresolved_threads",
+                "source_degraded": True,
+                "blocking": True,
+            }
+        )
+    merge_state = str(pr_view.get("mergeStateStatus") or "").strip().upper()
+    if _strict_merge_state_requires_wait(
+        strict_required=strict_required,
+        merge_state=merge_state,
+    ):
+        sources.append(
+            {
+                "source": "github_merge_state",
+                "status": "failed_required_check",
+                "source_degraded": True,
+                "blocking": True,
+            }
+        )
+    return sources
 
 
 def _current_head_raw_checks(*, repo: str, head_sha: str, repo_root: Path) -> list[dict[str, Any]]:
@@ -529,21 +583,33 @@ def collect_private_pilot_state(
         base_ref=base_sha or base_ref,
         head_ref=head_sha,
     )
-    required_names, required_metadata_available = _required_check_names(
+    required_names, required_metadata_available, strict_required = _required_check_names(
         repo=repo,
         base_ref=base_ref,
         repo_root=repo_root,
     )
+    raw_checks = _current_head_raw_checks(repo=repo, head_sha=head_sha, repo_root=repo_root)
+    if _strict_merge_state_requires_wait(
+        strict_required=strict_required,
+        merge_state=str(pr_view.get("mergeStateStatus") or ""),
+    ):
+        raw_checks.append(_strict_merge_state_check(pr_url=pr_view.get("url"), head_sha=head_sha))
     checks = build_current_head_check_summary(
         pr_head_sha=head_sha,
-        raw_checks=_current_head_raw_checks(repo=repo, head_sha=head_sha, repo_root=repo_root),
+        raw_checks=raw_checks,
         required_check_names=required_names,
         required_metadata_available=required_metadata_available,
     )
     review_sources = context.get("review_source_status")
-    review_capacity = classify_review_capacity(
-        cast(list[Mapping[str, Any]], review_sources if isinstance(review_sources, list) else [])
+    review_source_list = cast(
+        list[Mapping[str, Any]],
+        review_sources if isinstance(review_sources, list) else [],
     )
+    review_source_list = [
+        *review_source_list,
+        *_github_pr_review_sources(pr_view, strict_required=strict_required),
+    ]
+    review_capacity = classify_review_capacity(review_source_list)
     fixed_mapping = _fixed_mapping_ref(context, pr_number=pr_number)
     pr5_refs = _typed_artifact_refs(
         repo_root=repo_root,

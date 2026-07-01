@@ -549,6 +549,21 @@ def test_draft_source_pr_waits_for_review() -> None:
     assert state["decision"] == "wait_for_review"
 
 
+def test_closed_unmerged_source_pr_holds_for_governance() -> None:
+    source = _source_pr()
+    source["state"] = "closed"
+    state = build_private_pilot_state(
+        generated_at_utc=GENERATED_AT,
+        source_pr=source,
+        current_head_checks=_checks(),
+        review_capacity=_review_capacity(),
+        blockers=_blockers(),
+        governance_refs=_governance_refs(),
+    )
+
+    assert state["decision"] == "hold_for_governance"
+
+
 def test_hotfix_dependency_can_wait_for_main_when_required() -> None:
     state = _state(
         external_dependencies={
@@ -752,6 +767,8 @@ def test_safe_text_schema_denylist_matches_runtime_leak_markers() -> None:
         "review_thread_body",
         "pull_request_body",
         "oracle_output",
+        "RAW_BODY",
+        "Oracle_Output",
     ]
     for schema in (state_schema, plan_schema):
         pattern = re.compile(schema["$defs"]["safe_text"]["not"]["pattern"])
@@ -819,6 +836,8 @@ def test_collect_private_pilot_state_uses_base_sha_for_review_diff_and_branch_fo
             "baseRefName": "release/1.0",
             "baseRefOid": "c" * 40,
             "headRefOid": HEAD_SHA,
+            "mergeStateStatus": "CLEAN",
+            "reviewDecision": "",
         },
     )
 
@@ -846,9 +865,9 @@ def test_collect_private_pilot_state_uses_base_sha_for_review_diff_and_branch_fo
         operator.pr_review_context, "collect_review_context", fake_collect_review_context
     )
 
-    def fake_required_check_names(**kwargs: Any) -> tuple[list[str], bool]:
+    def fake_required_check_names(**kwargs: Any) -> tuple[list[str], bool, bool]:
         required_call.update(kwargs)
-        return (["name:lint", "name:test-main"], True)
+        return (["name:lint", "name:test-main"], True, False)
 
     monkeypatch.setattr(operator, "_required_check_names", fake_required_check_names)
     monkeypatch.setattr(
@@ -886,19 +905,50 @@ def test_required_check_names_preserve_source_identity_and_encode_branch(
                 {"context": "lint", "app_id": 123},
                 {"context": "build"},
             ],
+            "strict": True,
         }
 
     monkeypatch.setattr(operator, "_gh_api_json", fake_gh_api_json)
 
-    names, available = operator._required_check_names(
+    names, available, strict = operator._required_check_names(
         repo="Katsiarynakavaleuskaya/PulsePlate",
         base_ref="release/1.0",
         repo_root=tmp_path,
     )
 
     assert available is True
+    assert strict is True
     assert "branches/release%2F1.0/protection" in captured["path"]
     assert names == ["app_id:123:lint", "check_run:build", "status_context:legacy-status"]
+
+
+def test_strict_branch_protection_merge_state_waits_for_ci() -> None:
+    raw_checks = [_raw_check("lint"), _raw_check("test-main")]
+    if operator._strict_merge_state_requires_wait(strict_required=True, merge_state="BEHIND"):
+        raw_checks.append(
+            operator._strict_merge_state_check(pr_url=_source_pr()["url"], head_sha=HEAD_SHA)
+        )
+    checks = build_current_head_check_summary(
+        pr_head_sha=HEAD_SHA,
+        raw_checks=raw_checks,
+        required_check_names=("name:lint", "name:test-main"),
+        required_metadata_available=True,
+    )
+    state = _state(checks=checks)
+
+    assert checks["summary"]["required_pending"] == 1
+    assert state["decision"] == "wait_for_ci"
+
+
+def test_pr_review_decision_changes_requested_waits_for_review() -> None:
+    sources = operator._github_pr_review_sources(
+        {"reviewDecision": "CHANGES_REQUESTED", "mergeStateStatus": "CLEAN"},
+        strict_required=False,
+    )
+    state = _state(review_capacity=classify_review_capacity(sources))
+
+    assert state["review_capacity"]["friction"] == "blocked"
+    assert state["decision"] == "wait_for_review"
 
 
 def _pr5_source_context(*, pr_number: int = 2056) -> dict[str, Any]:

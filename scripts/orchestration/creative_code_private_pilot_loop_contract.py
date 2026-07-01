@@ -939,9 +939,12 @@ def decide_next_action(state: Mapping[str, Any]) -> str:
     checks = normalized["current_head_checks"]
     summary = checks["summary"]
     deps = normalized["external_dependencies"]
+    source_state = str(normalized["source_pr"]["state"]).lower()
 
     if deps["hotfix_main_required"] and not deps["hotfix_main_merged"]:
         return "wait_for_hotfix_main"
+    if source_state not in {"open", "merged"}:
+        return "hold_for_governance"
     if blockers["security_blocker_count"] > 0:
         return "hold_for_security"
     if blockers["governance_blocker_count"] > 0:
