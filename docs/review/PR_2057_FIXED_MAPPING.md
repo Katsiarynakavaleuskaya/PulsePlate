@@ -48,6 +48,16 @@ Disposition: FIXED
 Evidence: `tests/test_python_supply_chain_controls.py:945`, `tests/test_python_supply_chain_controls.py:949`, `scripts/ci/check_python_dependency_surfaces.py:359`, `scripts/ci/check_python_dependency_surfaces.py:383`, and `tests/test_python_supply_chain_controls.py:319`.
 Reason: CodeRabbit's Docker-runtime `pyarrow` coverage request was valid and fixed in `c3ba71934`. Its `_requirement_package_names` signature concern was not a bug: the production helper takes `(repo_root, relative_path)` and its call site passes both arguments, while `tests/test_python_supply_chain_controls.py` defines a separate local test helper that intentionally takes a single `Path`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2057#discussion_r3505987597
+Disposition: NOT-A-BUG
+Evidence: `scripts/ci/check_python_dependency_surfaces.py:359`, `scripts/ci/check_python_dependency_surfaces.py:383`, `tests/test_python_supply_chain_controls.py:319`, `tests/test_python_supply_chain_controls.py:382`, and `tests/test_python_supply_chain_controls.py:1181`.
+Reason: The production dependency-surface helper intentionally takes `(repo_root, relative_path)`, and its production call site passes both arguments. The one-argument calls are to the separate local test helper in `tests/test_python_supply_chain_controls.py`, so they do not exercise the production helper signature and cannot raise the reported `TypeError`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2057#discussion_r3505987623 -> c3ba71934
+Disposition: FIXED
+Evidence: `tests/test_python_supply_chain_controls.py:945` and `tests/test_python_supply_chain_controls.py:949`.
+Reason: The checked-in Docker runtime requirement input and lock surfaces are now covered by repo-level `pyarrow` absence assertions.
+
 ## Implementing Commits
 
 - `80c56590f` - `chore(deps): enforce dependency ownership`
@@ -55,6 +65,7 @@ Reason: CodeRabbit's Docker-runtime `pyarrow` coverage request was valid and fix
 - `4131cf325` - `fix(deps): satisfy dependency checker typing`
 - `b68239aba` - `fix(deps): use explicit import ownership aliases`
 - `c3ba71934` - `test(deps): guard pyarrow out of docker runtime`
+- `13713f741` - `docs(review): map dependency ownership bot findings`
 
 ## Local Validation Evidence
 
