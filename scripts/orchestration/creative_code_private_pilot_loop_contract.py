@@ -640,6 +640,8 @@ def _overall_from_check_summary(
         or (not required_metadata_available and summary["current_pending"])
     ):
         return "missing" if summary["required_missing"] else "pending"
+    if not required_metadata_available:
+        return "unknown"
     if not summary["current_total"] and not summary["required_total"]:
         return "unknown"
     return "success"

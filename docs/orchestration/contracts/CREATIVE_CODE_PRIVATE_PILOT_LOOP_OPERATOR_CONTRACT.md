@@ -48,6 +48,8 @@ Allowed inputs are normalized metadata and already-sanitized local artifacts:
 - PR metadata needed to identify repository, PR number, base ref, and head SHA.
 - Current-head check summaries where every check/run is compared to the PR head
   SHA. Superseded, cancelled, or wrong-head runs remain diagnostic only.
+  Required-check metadata must fail closed: if it is unavailable, visible green
+  checks are not enough to prepare the next candidate plan.
 - Review-source status from `scripts/orchestration/pr_review_context.py`.
 - Fixed-mapping presence and entry counts, not raw mapping prose.
 - PR-4 telemetry refs under `artifacts/orchestration/creative_code/telemetry/`.

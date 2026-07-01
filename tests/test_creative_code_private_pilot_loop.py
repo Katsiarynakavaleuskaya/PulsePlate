@@ -245,6 +245,20 @@ def test_external_status_details_url_is_not_persisted() -> None:
     assert _state(checks=checks)["decision"] == "prepare_next_candidate_plan"
 
 
+def test_required_metadata_unavailable_waits_for_ci_even_when_visible_checks_pass() -> None:
+    checks = build_current_head_check_summary(
+        pr_head_sha=HEAD_SHA,
+        raw_checks=[_raw_check("lint"), _raw_check("test-main")],
+        required_check_names=(),
+        required_metadata_available=False,
+    )
+    state = _state(checks=checks)
+
+    assert state["current_head_checks"]["overall"] == "unknown"
+    assert state["current_head_checks"]["required_metadata_available"] is False
+    assert state["decision"] == "wait_for_ci"
+
+
 @pytest.mark.parametrize(
     ("checks", "expected"),
     [
