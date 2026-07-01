@@ -275,10 +275,6 @@ psycopg-binary==3.3.3
     #   psycopg
 py-serializable==2.1.0
     # via cyclonedx-python-lib
-pyarrow==23.0.1
-    # via
-    #   -c requirements.txt
-    #   -r requirements-ci-lite.in
 pycparser==2.23
     # via
     #   -c requirements.txt

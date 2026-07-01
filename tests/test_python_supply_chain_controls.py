@@ -108,6 +108,7 @@ LOCAL_MANUAL_EVAL_DATA_PACKAGES = (
     "datasets",
     "ragas",
     "pandas",
+    "pyarrow",
 )
 DISABLED_RAGAS_EVAL_PACKAGES = (
     "diskcache",
@@ -929,6 +930,7 @@ def test_constraints_keep_dependency_security_floors_aligned() -> None:
     constraints_path = REPO_ROOT / "constraints.txt"
     requirements_in = REPO_ROOT / "requirements.in"
     requirements_ci_lite_in = REPO_ROOT / "requirements-ci-lite.in"
+    requirements_docker_runtime_in = REPO_ROOT / "requirements-docker-runtime.in"
 
     constraints_text = constraints_path.read_text(encoding="utf-8")
     assert "flake8 removed in favor of ruff" not in constraints_text
@@ -937,21 +939,25 @@ def test_constraints_keep_dependency_security_floors_aligned() -> None:
     assert not _requirement_package_versions(constraints_path, "safety")
     assert _requirement_package_versions(requirements_ci_lite_in, "pip-audit") == {"2.10.1"}
 
-    constraints_pyarrow = _requirement_package_versions(constraints_path, "pyarrow")
-    assert constraints_pyarrow == {"20.0.0"}
-    assert constraints_pyarrow == _requirement_package_versions(requirements_in, "pyarrow")
-    assert constraints_pyarrow == _requirement_package_versions(
-        requirements_ci_lite_in,
-        "pyarrow",
-    )
+    assert not _requirement_package_versions(constraints_path, "pyarrow")
+    assert not _requirement_package_versions(requirements_in, "pyarrow")
+    assert not _requirement_package_versions(requirements_ci_lite_in, "pyarrow")
+    assert not _requirement_package_versions(requirements_docker_runtime_in, "pyarrow")
     for lock_surface in (
         REPO_ROOT / "requirements.txt",
         REPO_ROOT / "requirements-ci-lite.txt",
+        REPO_ROOT / "requirements-docker-runtime.txt",
         REPO_ROOT / "requirements-lock.txt",
     ):
-        pinned_versions = _requirement_package_versions(lock_surface, "pyarrow")
-        assert pinned_versions
-        assert all(Version(version) >= Version("20.0.0") for version in pinned_versions)
+        assert not _requirement_package_versions(lock_surface, "pyarrow")
+    assert _requirement_package_versions(REPO_ROOT / "requirements-data.in", "pyarrow") == {
+        "20.0.0"
+    }
+    data_lock_versions = _requirement_package_versions(
+        REPO_ROOT / "requirements-data.txt", "pyarrow"
+    )
+    assert data_lock_versions
+    assert all(Version(version) >= Version("20.0.0") for version in data_lock_versions)
 
 
 def test_ci_security_job_runs_pip_audit_from_ci_lite_toolchain() -> None:
@@ -1230,6 +1236,7 @@ def test_base_runtime_dependency_profile_excludes_vector_ml_stack() -> None:
     assert "transformers==" not in requirements_runtime
     assert "torch==" not in requirements_runtime
     assert "pgvector==" not in requirements_runtime
+    assert "pyarrow==" not in requirements_runtime
 
 
 def test_docker_runtime_dependency_profile_excludes_ci_and_vector_stack() -> None:
@@ -1390,6 +1397,11 @@ def test_dependency_docs_describe_eval_and_data_profiles_as_local_manual() -> No
     assert "scripts/build_recipe_db.py" in dependency_docs
     assert "pandas" in dependency_docs
     assert "pyarrow" in dependency_docs
+    normalized_dependency_docs = " ".join(dependency_docs.casefold().split())
+    assert "runtime, docker runtime, ci-lite, and `requirements-lock.txt`" in (
+        normalized_dependency_docs
+    )
+    assert "legacy_compat_transitional" in dependency_docs
     assert "RAGAS native execution is disabled" in dependency_docs
     assert "GHSA-95ww-475f-pr4f" in dependency_docs
     assert "GHSA-w8v5-vhqr-4h9v" in dependency_docs

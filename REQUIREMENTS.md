@@ -37,6 +37,14 @@ vector runtime stack. It also owns `httpx2` as the Starlette TestClient
 backend for backend test lanes; runtime, Docker runtime, and CI-lite profiles
 must not install `httpx2`.
 
+The dependency ownership audit in
+`scripts/ci/check_python_dependency_surfaces.py` is the canonical authority for
+the first audited subset: `pyarrow`, `pandas`, `httpx2`, `reportlab`,
+`matplotlib`, `numpy`, and `aiosqlite`. `pyarrow` is data/eval-only unless a
+future PR documents canonical runtime owner evidence; runtime, Docker runtime,
+CI-lite, and `requirements-lock.txt` must not install it. Legacy-only usage is
+`legacy_compat_transitional` evidence, not production dependency ownership.
+
 Local/manual profiles (`requirements-data.txt`, `requirements-evals.txt`, and
 `requirements-rag-vector-cpu.txt`) are not shared GitHub Actions
 `requirements-profile` values.
