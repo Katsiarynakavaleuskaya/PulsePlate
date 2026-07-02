@@ -134,6 +134,13 @@ PR_REVIEW_ARTIFACT_TEMPLATE = "docs/review/PR_<N>_FIXED_MAPPING.md"
 MERGE_READINESS_ENTRYPOINT = "scripts/orchestration/check_merge_ready.py"
 ROLE_DISPATCH_MANIFEST_ENTRYPOINT = "scripts/orchestration/role_dispatch_bridge.py"
 ROLE_DISPATCH_COMPATIBILITY_ENTRYPOINTS = ("scripts/orchestration/qoder_dispatch_bridge.py",)
+POST_OPEN_REVIEW_CHAIN_POLICY = "single_pass_per_material_diff"
+POST_OPEN_REVIEW_RERUN_ALLOWED_REASONS: tuple[str, ...] = (
+    "security_relevant_diff_changed",
+    "coordinator_evidence_backed_reroute",
+    "operator_explicit_request",
+)
+POST_OPEN_LATER_COMMENTS_HANDLING = "fixed_mapping_and_targeted_gates"
 MANDATORY_PRE_OPEN_GATES: tuple[dict[str, str], ...] = (
     {
         "gate": "custom-role-dispatch",
@@ -410,6 +417,17 @@ def _build_pr_lifecycle_contract(pr_phase: str) -> dict[str, Any]:
         "post_open_pulseplate_pr_review_required": (pr_phase == PR_PHASE_POST_OPEN_REVIEW),
         "post_open_pulseplate_pr_review": (
             POST_OPEN_PULSEPLATE_PR_REVIEW if pr_phase == PR_PHASE_POST_OPEN_REVIEW else ""
+        ),
+        "post_open_review_chain_policy": (
+            POST_OPEN_REVIEW_CHAIN_POLICY if pr_phase == PR_PHASE_POST_OPEN_REVIEW else ""
+        ),
+        "post_open_review_rerun_allowed_reasons": (
+            list(POST_OPEN_REVIEW_RERUN_ALLOWED_REASONS)
+            if pr_phase == PR_PHASE_POST_OPEN_REVIEW
+            else []
+        ),
+        "post_open_later_comments_handling": (
+            POST_OPEN_LATER_COMMENTS_HANDLING if pr_phase == PR_PHASE_POST_OPEN_REVIEW else ""
         ),
         "artifact_template": PR_REVIEW_ARTIFACT_TEMPLATE if requires_pr else "",
         "current_head_required": requires_current_head,

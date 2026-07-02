@@ -1,0 +1,164 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pulseplate.local/contracts/creative_hypothesis_packet.v1.schema.json",
+  "title": "CreativeHypothesisPacket",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "policy_version",
+    "packet_id",
+    "idempotency_key",
+    "context_map_id",
+    "context_map_fingerprint",
+    "creative_status",
+    "reason_code",
+    "hypothesis_count",
+    "hypotheses",
+    "authority",
+    "sanitized"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "artifact_type": { "const": "creative_hypothesis_packet" },
+    "policy_version": { "const": "experiment-runner-pr-creative-context-v1" },
+    "packet_id": { "$ref": "#/$defs/safe_id" },
+    "idempotency_key": { "$ref": "#/$defs/safe_id" },
+    "context_map_id": { "$ref": "#/$defs/safe_id" },
+    "context_map_fingerprint": { "$ref": "#/$defs/sha256" },
+    "creative_status": {
+      "enum": ["hypotheses_generated", "no_creative_action", "blocked"]
+    },
+    "reason_code": { "type": "string" },
+    "hypothesis_count": { "type": "integer", "minimum": 0, "maximum": 5 },
+    "hypotheses": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/hypothesis" }
+    },
+    "authority": { "$ref": "#/$defs/authority" },
+    "sanitized": { "const": true }
+  },
+  "$defs": {
+    "safe_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "repo_path": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.-][A-Za-z0-9_./-]*$",
+      "not": { "pattern": "(^/|\\.\\.|\\\\|file://|^~|^\\.git/|^\\.venv/|^worktrees/)" }
+    },
+    "repo_paths": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/repo_path" }
+    },
+    "sha256": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+    "safe_text": { "type": "string", "minLength": 1, "maxLength": 360 },
+    "analogy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_domain",
+        "analogy",
+        "target_repo_surface",
+        "why_useful",
+        "risk",
+        "requires_specialist_agent"
+      ],
+      "properties": {
+        "source_domain": {
+          "enum": [
+            "philosophy",
+            "nutrition",
+            "security",
+            "data",
+            "UX",
+            "testing",
+            "economics",
+            "biology",
+            "CBT",
+            "information_theory"
+          ]
+        },
+        "analogy": { "$ref": "#/$defs/safe_text" },
+        "target_repo_surface": { "$ref": "#/$defs/repo_path" },
+        "why_useful": { "$ref": "#/$defs/safe_text" },
+        "risk": { "$ref": "#/$defs/safe_text" },
+        "requires_specialist_agent": { "type": "boolean" }
+      }
+    },
+    "hypothesis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "hypothesis_id",
+        "hypothesis_kind",
+        "title",
+        "target_surfaces",
+        "expected_behavior",
+        "tests_or_oracles",
+        "risk_notes",
+        "cross_domain_analogies",
+        "falsifier",
+        "negative_controls",
+        "requires_human_approval",
+        "eligible_for_pr1_specification",
+        "eligible_for_pr2_patch"
+      ],
+      "properties": {
+        "hypothesis_id": { "$ref": "#/$defs/safe_id" },
+        "hypothesis_kind": {
+          "enum": [
+            "architecture",
+            "security_authority",
+            "testing_oracle",
+            "creative_protocol",
+            "scientific_stats"
+          ]
+        },
+        "title": { "$ref": "#/$defs/safe_text" },
+        "target_surfaces": { "$ref": "#/$defs/repo_paths" },
+        "expected_behavior": { "$ref": "#/$defs/safe_text" },
+        "tests_or_oracles": { "$ref": "#/$defs/repo_paths" },
+        "risk_notes": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/safe_text" }
+        },
+        "cross_domain_analogies": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/analogy" }
+        },
+        "falsifier": { "$ref": "#/$defs/safe_text" },
+        "negative_controls": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/safe_text" }
+        },
+        "requires_human_approval": { "const": true },
+        "eligible_for_pr1_specification": { "const": true },
+        "eligible_for_pr2_patch": { "const": false }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "properties": {
+        "generate_hypotheses": { "const": true },
+        "route_to_agents": { "const": true },
+        "generate_patch": { "const": false },
+        "write_branch": { "const": false },
+        "push": { "const": false },
+        "merge": { "const": false },
+        "call_provider": { "const": false },
+        "modify_workflows": { "const": false }
+      },
+      "additionalProperties": { "type": "boolean" }
+    }
+  }
+}

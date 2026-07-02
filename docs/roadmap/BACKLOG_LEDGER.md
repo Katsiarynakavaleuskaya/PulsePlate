@@ -11004,9 +11004,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
       - Priority: P1 automation leverage.
       - Owner: orchestration.
       - Target PR: separate reviewed PR `feat(orchestration): auto-attach Experiment Runner oracle evidence to PR lanes`.
-      - Reason: non-trivial PR lanes need automatic oracle-only Experiment Runner evidence attachment so role agents can consume runner decisions without granting GitHub App write authority.
-      - Scope: wire coordinator/task packets so non-trivial PR lanes can attach oracle-only evidence and expose sanitized decisions to role agents.
-      - DoD: trigger rules, artifact reuse, failure behavior, co-author attribution, rate/quota boundaries, opt-out behavior, PR-body evidence requirements, and regression tests are landed; no PR/review/thread/merge writes, workflow mutation, GitHub App settings mutation, or token minting authority is added.
+      - Reason: non-trivial PR lanes need automatic oracle-only Experiment Runner evidence and creative-context attachment so role agents can consume runner decisions and bounded hypotheses without granting GitHub App write authority.
+      - Scope: wire coordinator/task packets so non-trivial PR lanes can attach oracle-only evidence, expose sanitized decisions to role agents, and optionally consume the local creative-context packet emitted by this PR's `experiment_runner_pr_creative_context.py` CLI.
+      - DoD: trigger rules, artifact reuse, failure behavior, co-author attribution, rate/quota boundaries, opt-out behavior, PR-body evidence requirements, workflow permission review, artifact retention bounds, and regression tests are landed; no PR/review/thread/merge writes, GitHub App settings mutation, token minting authority, provider call, product runtime call, or candidate patch generation is added.
       - Links: PR #2060 establishes the private-pilot GitHub App capability gate consumed by this future automation.
   - Minimum future telemetry fields (defined now, emitted no earlier than PR-1):
     - `packet_id`

@@ -48,7 +48,11 @@ POST_OPEN_REVIEW_GUIDANCE = (
     "After the PR opens, run the mandatory post-open review gate in order: "
     "`qa-engineer-agent -> bug-hunter -> security-auditor`, then run Codex "
     "Security diff scan / finding discovery and `pulseplate-pr-review`. Fix "
-    "or disposition every finding before merge-readiness checks."
+    "or disposition every finding before merge-readiness checks. This is a "
+    "single pass per material diff; later comments go through fixed mapping "
+    "and targeted gates unless the security-relevant diff changes, the "
+    "coordinator records an evidence-backed reroute, or the operator "
+    "explicitly requests a rerun."
 )
 
 

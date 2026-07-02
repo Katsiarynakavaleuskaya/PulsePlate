@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pulseplate.local/contracts/creative_hypothesis_approval.v1.schema.json",
+  "title": "CreativeHypothesisApproval",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "policy_version",
+    "approval_id",
+    "idempotency_key",
+    "hypothesis_id",
+    "decision",
+    "approved_target_surfaces",
+    "approved_agents",
+    "approved_by",
+    "generate_patch",
+    "next_step",
+    "authority",
+    "sanitized"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "artifact_type": { "const": "creative_hypothesis_approval" },
+    "policy_version": { "const": "experiment-runner-pr-creative-context-v1" },
+    "approval_id": { "$ref": "#/$defs/safe_id" },
+    "idempotency_key": { "$ref": "#/$defs/safe_id" },
+    "hypothesis_id": { "$ref": "#/$defs/safe_id" },
+    "decision": { "enum": ["approve_for_pr1_specification", "reject", "defer"] },
+    "approved_target_surfaces": { "$ref": "#/$defs/repo_paths" },
+    "approved_agents": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/agent_slug" }
+    },
+    "approved_by": { "const": "human_operator" },
+    "generate_patch": { "const": false },
+    "next_step": { "enum": ["create_pr1_specification", "no_action", "defer"] },
+    "authority": { "$ref": "#/$defs/authority" },
+    "sanitized": { "const": true }
+  },
+  "$defs": {
+    "safe_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "repo_path": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.-][A-Za-z0-9_./-]*$",
+      "not": { "pattern": "(^/|\\.\\.|\\\\|file://|^~|^\\.git/|^\\.venv/|^worktrees/)" }
+    },
+    "repo_paths": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/repo_path" }
+    },
+    "agent_slug": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "authority": {
+      "type": "object",
+      "properties": {
+        "generate_hypotheses": { "const": true },
+        "route_to_agents": { "const": true },
+        "generate_patch": { "const": false },
+        "write_branch": { "const": false },
+        "push": { "const": false },
+        "merge": { "const": false },
+        "call_provider": { "const": false },
+        "modify_workflows": { "const": false }
+      },
+      "additionalProperties": { "type": "boolean" }
+    }
+  }
+}
