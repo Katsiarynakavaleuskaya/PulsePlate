@@ -33,6 +33,8 @@ dependency lock change is included.
 ## Implementation Commits
 
 - `f8640b5ad` - settle residual runtime dependency ownership.
+- `c5037d32c` - add PR 2059 fixed mapping.
+- `e3cd5c159` - address runtime ownership review findings.
 
 ## Lane Start Provenance
 
@@ -79,11 +81,11 @@ commands and the shared tree stayed untouched.
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed.
-- [ ] Fixed in commit mapping completed.
-- [ ] Post-open `qa-engineer-agent` pass completed.
-- [ ] Post-open `bug-hunter` pass completed.
-- [ ] Post-open `security-auditor` pass completed.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+- [x] Post-open `qa-engineer-agent` pass completed.
+- [x] Post-open `bug-hunter` pass completed.
+- [x] Post-open `security-auditor` pass completed.
 - [ ] Codex Security diff scan / finding discovery completed or explicitly
   dispositioned.
 - [ ] `pulseplate-pr-review` completed.
@@ -92,7 +94,29 @@ commands and the shared tree stayed untouched.
 
 ## Fixed in Commit Mapping
 
-- No review-thread actions yet.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2059#discussion_r3510275346 -> e3cd5c15962131cb1e2e336a8b3402ebf72dede3
+
+Disposition: FIXED
+
+Commit: e3cd5c15962131cb1e2e336a8b3402ebf72dede3
+
+Evidence: `scripts/orchestration/check_preflight.py` now compares dependency-sensitive paths with `PurePosixPath.parts`, keeps exact/descendant and broad parent-scope matching explicit, and centralizes the decision in `_touches_dependency_sensitive_path`; `tests/test_orchestration_preflight.py` covers broad `scripts` and `.github` parent scopes.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2059#discussion_r3510275358 -> e3cd5c15962131cb1e2e336a8b3402ebf72dede3
+
+Disposition: FIXED
+
+Commit: e3cd5c15962131cb1e2e336a8b3402ebf72dede3
+
+Evidence: `tests/test_python_dependency_surfaces.py` now covers partial `core/db.py` marker evidence and verifies `aiosqlite` stays at `warning:db_fallback_test_split_pending` unless the complete SQLite async fallback owner evidence is present.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2059#pullrequestreview-4614308389 -> e3cd5c15962131cb1e2e336a8b3402ebf72dede3
+
+Disposition: FIXED
+
+Commit: e3cd5c15962131cb1e2e336a8b3402ebf72dede3
+
+Evidence: `tests/test_orchestration_preflight.py` now asserts malformed proxy URL diagnostics do not echo the full inline-credential URL, `user:token`, `token@`, or the bare `token` fragment.
 
 ## Local Validation Evidence
 
@@ -104,6 +128,7 @@ commands and the shared tree stayed untouched.
 - PASS: `python3 verify_requirements.py`
 - PASS: `pytest -q tests/test_python_dependency_surfaces.py tests/test_python_supply_chain_controls.py tests/test_orchestration_preflight.py tests/test_private_python_proxy_health.py`
 - PASS: `pytest -q tests/test_core_db_enginecompat.py tests/test_core_db_async_optional.py`
+- PASS: `pytest -q tests/test_orchestration_preflight.py tests/test_python_dependency_surfaces.py`
 - PASS: `python3 scripts/ci/check_private_python_proxy_health.py --index-url https://packages.pulseplate.app/root/pulseplate/+simple/ --requirements-file requirements.txt --requirements-file requirements-ci-lite.txt --requirements-file requirements-test.txt --python-version 3.11 --python-version 3.12 --python-version 3.13`
 - PASS: `git diff --check`
 - PASS: `make validate-changed`
