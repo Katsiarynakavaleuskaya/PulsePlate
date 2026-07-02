@@ -1,0 +1,363 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pulseplate.local/contracts/github_app_private_pilot_capability_report.v1.schema.json",
+  "title": "GithubAppPrivatePilotCapabilityReport",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "policy_version",
+    "generated_at_utc",
+    "repository",
+    "permissions",
+    "capabilities",
+    "workflow_dispatch",
+    "authority",
+    "sanitized"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "artifact_type": { "const": "github_app_private_pilot_capability_report" },
+    "policy_version": { "const": "github-app-private-pilot-capability-report" },
+    "generated_at_utc": { "$ref": "#/$defs/utc_timestamp" },
+    "repository": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+    },
+    "permissions": { "$ref": "#/$defs/permissions" },
+    "capabilities": { "$ref": "#/$defs/capabilities" },
+    "workflow_dispatch": { "$ref": "#/$defs/workflow_dispatch" },
+    "authority": { "$ref": "#/$defs/authority" },
+    "sanitized": { "const": true }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "permissions": {
+            "properties": {
+              "pull_requests": { "const": "read" }
+            }
+          }
+        },
+        "required": ["permissions"]
+      },
+      "then": {
+        "properties": {
+          "capabilities": {
+            "properties": {
+              "pull_requests_read": { "const": true }
+            }
+          },
+          "authority": {
+            "properties": {
+              "read_pull_requests": { "const": true }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "permissions": {
+            "properties": {
+              "pull_requests": { "const": "none" }
+            }
+          }
+        },
+        "required": ["permissions"]
+      },
+      "then": {
+        "properties": {
+          "capabilities": {
+            "properties": {
+              "pull_requests_read": { "const": false }
+            }
+          },
+          "authority": {
+            "properties": {
+              "read_pull_requests": { "const": false }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "permissions": {
+            "properties": {
+              "checks": { "const": "read" }
+            }
+          }
+        },
+        "required": ["permissions"]
+      },
+      "then": {
+        "properties": {
+          "capabilities": {
+            "properties": {
+              "checks_read": { "const": true }
+            }
+          },
+          "authority": {
+            "properties": {
+              "read_checks": { "const": true }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "permissions": {
+            "properties": {
+              "checks": { "const": "none" }
+            }
+          }
+        },
+        "required": ["permissions"]
+      },
+      "then": {
+        "properties": {
+          "capabilities": {
+            "properties": {
+              "checks_read": { "const": false }
+            }
+          },
+          "authority": {
+            "properties": {
+              "read_checks": { "const": false }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "permissions": {
+            "properties": {
+              "actions": { "const": "none" }
+            }
+          }
+        },
+        "required": ["permissions"]
+      },
+      "then": {
+        "properties": {
+          "capabilities": {
+            "properties": {
+              "actions_read": { "const": false },
+              "workflow_dispatch": { "const": false }
+            }
+          },
+          "authority": {
+            "properties": {
+              "read_actions": { "const": false },
+              "workflow_dispatch": { "const": false }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "permissions": {
+            "properties": {
+              "actions": { "const": "write" }
+            }
+          }
+        },
+        "required": ["permissions"]
+      },
+      "then": {
+        "properties": {
+          "workflow_dispatch": {
+            "properties": {
+              "enabled": { "const": true },
+              "label": { "const": "workflow_dispatch_actions_write_optional" }
+            }
+          },
+          "capabilities": {
+            "properties": {
+              "actions_read": { "const": true },
+              "workflow_dispatch": { "const": true }
+            }
+          },
+          "authority": {
+            "properties": {
+              "read_actions": { "const": true },
+              "workflow_dispatch": { "const": true }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "workflow_dispatch": {
+            "properties": {
+              "enabled": { "const": true }
+            }
+          }
+        },
+        "required": ["workflow_dispatch"]
+      },
+      "then": {
+        "properties": {
+          "permissions": {
+            "properties": {
+              "actions": { "const": "write" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "workflow_dispatch": {
+            "properties": {
+              "enabled": { "const": false }
+            }
+          }
+        },
+        "required": ["workflow_dispatch"]
+      },
+      "then": {
+        "properties": {
+          "workflow_dispatch": {
+            "properties": {
+              "label": { "const": "manual_only" }
+            }
+          },
+          "capabilities": {
+            "properties": {
+              "workflow_dispatch": { "const": false }
+            }
+          },
+          "authority": {
+            "properties": {
+              "workflow_dispatch": { "const": false }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "utc_timestamp": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]Z$"
+    },
+    "permission_none": { "const": "none" },
+    "permission_read": { "enum": ["none", "read"] },
+    "permission_actions": { "enum": ["none", "write"] },
+    "permissions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "metadata",
+        "pull_requests",
+        "checks",
+        "contents",
+        "actions",
+        "workflows",
+        "administration",
+        "organization_administration",
+        "members",
+        "secrets"
+      ],
+      "properties": {
+        "metadata": { "const": "read" },
+        "pull_requests": { "$ref": "#/$defs/permission_read" },
+        "checks": { "$ref": "#/$defs/permission_read" },
+        "contents": { "$ref": "#/$defs/permission_none" },
+        "actions": { "$ref": "#/$defs/permission_actions" },
+        "workflows": { "$ref": "#/$defs/permission_none" },
+        "administration": { "$ref": "#/$defs/permission_none" },
+        "organization_administration": { "$ref": "#/$defs/permission_none" },
+        "members": { "$ref": "#/$defs/permission_none" },
+        "secrets": { "$ref": "#/$defs/permission_none" }
+      }
+    },
+    "capabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pull_requests_read",
+        "checks_read",
+        "metadata_read",
+        "contents_read",
+        "actions_read",
+        "workflow_dispatch"
+      ],
+      "properties": {
+        "pull_requests_read": { "type": "boolean" },
+        "checks_read": { "type": "boolean" },
+        "metadata_read": { "const": true },
+        "contents_read": { "const": false },
+        "actions_read": { "type": "boolean" },
+        "workflow_dispatch": { "type": "boolean" }
+      }
+    },
+    "workflow_dispatch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "label"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "label": {
+          "enum": [
+            "manual_only",
+            "workflow_dispatch_actions_write_optional"
+          ]
+        }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "read_pull_requests",
+        "read_checks",
+        "read_metadata",
+        "read_contents",
+        "read_actions",
+        "workflow_dispatch",
+        "write_pull_requests",
+        "write_checks",
+        "write_contents",
+        "write_workflows",
+        "write_repository_settings",
+        "admin_repository",
+        "read_secrets",
+        "mint_installation_tokens",
+        "modify_github_app"
+      ],
+      "properties": {
+        "read_pull_requests": { "type": "boolean" },
+        "read_checks": { "type": "boolean" },
+        "read_metadata": { "const": true },
+        "read_contents": { "const": false },
+        "read_actions": { "type": "boolean" },
+        "workflow_dispatch": { "type": "boolean" },
+        "write_pull_requests": { "const": false },
+        "write_checks": { "const": false },
+        "write_contents": { "const": false },
+        "write_workflows": { "const": false },
+        "write_repository_settings": { "const": false },
+        "admin_repository": { "const": false },
+        "read_secrets": { "const": false },
+        "mint_installation_tokens": { "const": false },
+        "modify_github_app": { "const": false }
+      }
+    }
+  }
+}

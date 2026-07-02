@@ -21,13 +21,14 @@ Strict schemas:
 
 - `creative_code_private_pilot_state.v1.schema.json`
 - `creative_code_private_pilot_candidate_plan.v1.schema.json`
+- `github_app_private_pilot_capability_report.v1.schema.json`
 
 Validator and CLI:
 
 ```bash
 python -m scripts.orchestration.creative_code_private_pilot_loop_contract
 python -m scripts.orchestration.creative_code_private_pilot_loop_operator --help
-python -m scripts.orchestration.creative_code_private_pilot_loop_operator collect --pr-number <N> --output-dir artifacts/orchestration/creative_code/private_pilot/<N>
+python -m scripts.orchestration.creative_code_private_pilot_loop_operator collect --pr-number <N> --output-dir artifacts/orchestration/creative_code/private_pilot/<N> [--github-app-capability-report <path>]
 python -m scripts.orchestration.creative_code_private_pilot_loop_operator status --pilot-state artifacts/orchestration/creative_code/private_pilot/<N>/pilot_state.json
 python -m scripts.orchestration.creative_code_private_pilot_loop_operator decide-next --pilot-state artifacts/orchestration/creative_code/private_pilot/<N>/pilot_state.json
 python -m scripts.orchestration.creative_code_private_pilot_loop_operator prepare-next-candidate --pilot-state artifacts/orchestration/creative_code/private_pilot/<N>/pilot_state.json
@@ -57,6 +58,10 @@ Allowed inputs are normalized metadata and already-sanitized local artifacts:
   `artifacts/orchestration/creative_code/review_disposition/`.
 - PR-6 run-plan refs under
   `artifacts/orchestration/creative_code/applied_candidates/`.
+- Optional `GitHubAppPrivatePilotCapabilityReport` local JSON. The report is a
+  sanitized operator-supplied capability snapshot only; the operator does not
+  query GitHub App settings, mint installation tokens, read private keys, or
+  mutate GitHub App permissions.
 
 The operator must not store raw PR bodies, review bodies, patches, prompts,
 provider payloads, oracle stdout/stderr, token values, local absolute paths, raw
@@ -72,6 +77,15 @@ images, or user/runtime data.
 - review capacity friction and sanitized review-source status;
 - actionable, security, governance, and fixed-mapping blocker counts;
 - governance refs for fixed mapping and PR-4 / PR-5 / PR-6 artifacts;
+- GitHub App private-pilot capability state:
+  `manual_only` / `not_checked` when no report is supplied, or a strict
+  read-only capability projection when a report is supplied. Pull requests read
+  and Checks read are required for the read-only pilot; missing either blocks
+  `prepare_next_candidate_plan` with `hold_for_governance`. Actions write is
+  not required for read-only pilot state and is represented only as optional
+  fixed workflow-dispatch capability when present. New state artifacts must
+  include this section; readers may normalize legacy v1.0 state artifacts that
+  predate the section to `manual_only` / `not_checked`.
 - optional external hotfix dependency status;
 - computed decision:
   `wait_for_hotfix_main | wait_for_review | wait_for_ci | fix_current_pr |

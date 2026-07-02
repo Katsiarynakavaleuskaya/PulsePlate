@@ -13,9 +13,14 @@ from pathlib import Path, PurePosixPath
 import re
 import argparse
 import sys
-from typing import Any
+from typing import Any, cast
 
 from core.evidence.fingerprints import build_asset_id, build_idempotency_key, fingerprint_payload
+from scripts.orchestration.github_app_private_pilot_capability import (
+    GithubAppPrivatePilotCapabilityError,
+    default_github_app_capability_state,
+    normalize_github_app_capability_state,
+)
 
 SCHEMA_VERSION = "1.0"
 POLICY_VERSION = "creative-code-private-pilot-loop-operator"
@@ -114,6 +119,7 @@ STATE_KEYS = frozenset(
         "review_capacity",
         "blockers",
         "governance_refs",
+        "github_app_capability",
         "external_dependencies",
         "decision",
         "authority",
@@ -927,6 +933,13 @@ def _normalize_external_dependencies(raw_deps: Any) -> dict[str, Any]:
     }
 
 
+def _normalize_github_app_capability(raw_capability: Any) -> dict[str, Any]:
+    try:
+        return cast(dict[str, Any], normalize_github_app_capability_state(raw_capability))
+    except GithubAppPrivatePilotCapabilityError as exc:
+        raise CreativeCodePrivatePilotContractError(str(exc)) from exc
+
+
 def decide_next_action(state: Mapping[str, Any]) -> str:
     """Return the next lifecycle action from a validated state-like mapping."""
 
@@ -968,11 +981,15 @@ def decide_next_action(state: Mapping[str, Any]) -> str:
         return "wait_for_review"
     if normalized["review_capacity"]["friction"] in {"high", "blocked"}:
         return "wait_for_review"
+    if normalized["github_app_capability"]["missing_permissions"]:
+        return "hold_for_governance"
     return "prepare_next_candidate_plan"
 
 
-def _state_identity_payload(state: Mapping[str, Any]) -> dict[str, Any]:
-    return {
+def _state_identity_payload(
+    state: Mapping[str, Any], *, legacy_without_github_app_capability: bool = False
+) -> dict[str, Any]:
+    payload = {
         "source_pr": state["source_pr"],
         "current_head_checks": state["current_head_checks"],
         "review_capacity": state["review_capacity"],
@@ -983,10 +1000,20 @@ def _state_identity_payload(state: Mapping[str, Any]) -> dict[str, Any]:
         "authority": state["authority"],
         "sanitized": True,
     }
+    if not legacy_without_github_app_capability:
+        payload["github_app_capability"] = state["github_app_capability"]
+    return payload
 
 
-def _private_pilot_identity(state: Mapping[str, Any]) -> tuple[str, str]:
-    fingerprint = fingerprint_payload(_state_identity_payload(state))
+def _private_pilot_identity(
+    state: Mapping[str, Any], *, legacy_without_github_app_capability: bool = False
+) -> tuple[str, str]:
+    fingerprint = fingerprint_payload(
+        _state_identity_payload(
+            state,
+            legacy_without_github_app_capability=legacy_without_github_app_capability,
+        )
+    )
     state_id = build_asset_id(
         asset_type=STATE_ARTIFACT_TYPE,
         rail="creative_code_private_pilot",
@@ -1017,31 +1044,47 @@ def validate_private_pilot_state(
 ) -> dict[str, Any]:
     """Validate and normalize a CreativeCodePrivatePilotState payload."""
 
-    _require_exact_keys(payload, STATE_KEYS, label="state")
-    _require_const(payload, "schema_version", SCHEMA_VERSION, label="state")
-    _require_const(payload, "artifact_type", STATE_ARTIFACT_TYPE, label="state")
-    _require_const(payload, "policy_version", POLICY_VERSION, label="state")
-    source_pr = _normalize_source_pr(payload["source_pr"])
+    legacy_without_github_app_capability = "github_app_capability" not in payload
+    raw_payload: Mapping[str, Any]
+    if legacy_without_github_app_capability:
+        allowed_legacy_keys = STATE_KEYS - {"github_app_capability"}
+        _require_exact_keys(payload, allowed_legacy_keys, label="state")
+        raw_payload = {
+            **payload,
+            "github_app_capability": default_github_app_capability_state(),
+        }
+    else:
+        _require_exact_keys(payload, STATE_KEYS, label="state")
+        raw_payload = payload
+    _require_const(raw_payload, "schema_version", SCHEMA_VERSION, label="state")
+    _require_const(raw_payload, "artifact_type", STATE_ARTIFACT_TYPE, label="state")
+    _require_const(raw_payload, "policy_version", POLICY_VERSION, label="state")
+    source_pr = _normalize_source_pr(raw_payload["source_pr"])
     normalized: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "artifact_type": STATE_ARTIFACT_TYPE,
         "policy_version": POLICY_VERSION,
-        "state_id": _require_id(payload, "state_id", label="state"),
-        "idempotency_key": _require_id(payload, "idempotency_key", label="state"),
+        "state_id": _require_id(raw_payload, "state_id", label="state"),
+        "idempotency_key": _require_id(raw_payload, "idempotency_key", label="state"),
         "generated_at_utc": _require_timestamp(
-            payload["generated_at_utc"], label="state.generated_at_utc"
+            raw_payload["generated_at_utc"], label="state.generated_at_utc"
         ),
         "source_pr": source_pr,
         "current_head_checks": _normalize_current_head_checks(
-            payload["current_head_checks"], source_head_sha=source_pr["head_sha"]
+            raw_payload["current_head_checks"], source_head_sha=source_pr["head_sha"]
         ),
-        "review_capacity": _normalize_review_capacity(payload["review_capacity"]),
-        "blockers": _normalize_blockers(payload["blockers"]),
-        "governance_refs": _normalize_governance_refs(payload["governance_refs"]),
-        "external_dependencies": _normalize_external_dependencies(payload["external_dependencies"]),
-        "decision": _require_token(payload, "decision", label="state"),
-        "authority": _normalize_authority(payload["authority"]),
-        "sanitized": _require_bool(payload, "sanitized", expected=True, label="state"),
+        "review_capacity": _normalize_review_capacity(raw_payload["review_capacity"]),
+        "blockers": _normalize_blockers(raw_payload["blockers"]),
+        "governance_refs": _normalize_governance_refs(raw_payload["governance_refs"]),
+        "github_app_capability": _normalize_github_app_capability(
+            raw_payload["github_app_capability"]
+        ),
+        "external_dependencies": _normalize_external_dependencies(
+            raw_payload["external_dependencies"]
+        ),
+        "decision": _require_token(raw_payload, "decision", label="state"),
+        "authority": _normalize_authority(raw_payload["authority"]),
+        "sanitized": _require_bool(raw_payload, "sanitized", expected=True, label="state"),
     }
     _validate_fixed_mapping_consistency(normalized)
     if normalized["decision"] not in DECISIONS:
@@ -1055,12 +1098,33 @@ def validate_private_pilot_state(
         )
     if validate_identity:
         expected_state_id, expected_idempotency_key = _private_pilot_identity(normalized)
+        if legacy_without_github_app_capability:
+            expected_legacy_state_id, expected_legacy_idempotency_key = _private_pilot_identity(
+                normalized,
+                legacy_without_github_app_capability=True,
+            )
+            if normalized["state_id"] != expected_legacy_state_id:
+                raise CreativeCodePrivatePilotContractError(
+                    "state.state_id does not match legacy payload."
+                )
+            if normalized["idempotency_key"] != expected_legacy_idempotency_key:
+                raise CreativeCodePrivatePilotContractError(
+                    "state.idempotency_key does not match legacy payload."
+                )
+            normalized["state_id"] = expected_state_id
+            normalized["idempotency_key"] = expected_idempotency_key
+            reject_unsafe_private_pilot_value(normalized, label="state")
+            return normalized
         if normalized["state_id"] != expected_state_id:
             raise CreativeCodePrivatePilotContractError("state.state_id does not match payload.")
         if normalized["idempotency_key"] != expected_idempotency_key:
             raise CreativeCodePrivatePilotContractError(
                 "state.idempotency_key does not match payload."
             )
+    elif legacy_without_github_app_capability:
+        expected_state_id, expected_idempotency_key = _private_pilot_identity(normalized)
+        normalized["state_id"] = expected_state_id
+        normalized["idempotency_key"] = expected_idempotency_key
     reject_unsafe_private_pilot_value(normalized, label="state")
     return normalized
 
@@ -1341,6 +1405,7 @@ def build_private_pilot_state(
     review_capacity: Mapping[str, Any],
     blockers: Mapping[str, Any],
     governance_refs: Mapping[str, Any],
+    github_app_capability: Mapping[str, Any] | None = None,
     external_dependencies: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build and validate a CreativeCodePrivatePilotState."""
@@ -1357,6 +1422,11 @@ def build_private_pilot_state(
         "review_capacity": dict(review_capacity),
         "blockers": dict(blockers),
         "governance_refs": dict(governance_refs),
+        "github_app_capability": dict(
+            default_github_app_capability_state()
+            if github_app_capability is None
+            else github_app_capability
+        ),
         "external_dependencies": dict(
             external_dependencies
             or {

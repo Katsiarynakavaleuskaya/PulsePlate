@@ -56,6 +56,12 @@ def test_default_policy_validates() -> None:
         "requires_repo_allowlist": True,
         "requires_installation_class_for_cross_repo": True,
         "requires_actions_write": True,
+        "private_pilot_capability_gate": "read_only_report_consumed_by_private_pilot_state",
+        "private_pilot_requires_pull_requests_read": True,
+        "private_pilot_requires_checks_read": True,
+        "private_pilot_actions_write_required_for_readonly": False,
+        "private_pilot_workflow_dispatch": "optional_actions_write_only",
+        "private_pilot_app_settings_mutation": False,
         "private_pilot_readiness_projection": "label_only_operator_evidence",
         "private_pilot_activation_evidence_loop": "redacted_manual_smoke_contract_only",
         "private_pilot_manual_smoke_operations": "local_validate_import_report_only",
@@ -85,6 +91,27 @@ def test_default_policy_validates() -> None:
 
 def test_default_co_author_guidance_validates() -> None:
     identity_check.validate_co_author_guidance()
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "match"),
+    [
+        ("private_pilot_requires_pull_requests_read", False, "pull_requests"),
+        ("private_pilot_requires_checks_read", False, "checks"),
+        ("private_pilot_actions_write_required_for_readonly", True, "actions_write"),
+        ("private_pilot_app_settings_mutation", True, "app_settings"),
+    ],
+)
+def test_rejects_private_pilot_github_app_capability_policy_drift(
+    field: str,
+    value: bool,
+    match: str,
+) -> None:
+    policy = _valid_policy()
+    policy["github_app_dispatch"][field] = value
+
+    with pytest.raises(identity_check.IdentityPolicyError, match=match):
+        identity_check.validate_identity_policy(policy)
 
 
 def test_rejects_missing_co_author_trailer() -> None:

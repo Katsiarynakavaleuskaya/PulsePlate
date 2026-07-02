@@ -462,6 +462,23 @@ def validate_identity_policy(payload: dict[str, Any]) -> dict[str, Any]:
     _require_bool(github_app_dispatch, "requires_installation_class_for_cross_repo", True)
     _require_bool(github_app_dispatch, "requires_actions_write", True)
     if (
+        github_app_dispatch.get("private_pilot_capability_gate")
+        != "read_only_report_consumed_by_private_pilot_state"
+    ):
+        raise IdentityPolicyError(
+            "github_app_dispatch.private_pilot_capability_gate must be "
+            "read_only_report_consumed_by_private_pilot_state."
+        )
+    _require_bool(github_app_dispatch, "private_pilot_requires_pull_requests_read", True)
+    _require_bool(github_app_dispatch, "private_pilot_requires_checks_read", True)
+    _require_bool(github_app_dispatch, "private_pilot_actions_write_required_for_readonly", False)
+    if github_app_dispatch.get("private_pilot_workflow_dispatch") != "optional_actions_write_only":
+        raise IdentityPolicyError(
+            "github_app_dispatch.private_pilot_workflow_dispatch must be "
+            "optional_actions_write_only."
+        )
+    _require_bool(github_app_dispatch, "private_pilot_app_settings_mutation", False)
+    if (
         github_app_dispatch.get("private_pilot_activation_evidence_loop")
         != "redacted_manual_smoke_contract_only"
     ):

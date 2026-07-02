@@ -135,6 +135,14 @@ only. It must not grant `pull_requests:write`, `contents:write`,
 `workflows:write`, administration, sensitive-store, review-thread, repository
 event dispatch, or merge permissions.
 
+The creative-code private-pilot capability gate uses a separate sanitized local
+report consumed by the private-pilot loop state. That report requires Pull
+requests read for PR/review metadata and Checks read for check-run metadata.
+Actions write is not required for read-only pilot state; when present, it is
+represented only as optional fixed workflow-dispatch capability. The report is
+not runtime auth, does not mint installation credentials, and does not mutate
+GitHub App settings.
+
 Private-pilot readiness reporting is label-only operator evidence. The Slack
 status path and local operator observability report may show whether a selected
 target is same-repo or cross-repo, whether an exact allowlist is matched, whether
