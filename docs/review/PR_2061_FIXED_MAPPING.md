@@ -40,8 +40,8 @@ app-factory refactor is included.
 
 ## Lane Start Provenance
 
+- Packet: `artifacts/orchestration/task_packets/d880f5d825dd.json`
 - Starter: `scripts/orchestration/start_pr_lane.sh`
-- Task packet: `artifacts/orchestration/task_packets/d880f5d825dd.json`
 - Role order executed pre-open:
   `agent-coordinator -> qa-engineer-agent -> bug-hunter -> security-auditor`
 - Packet creation was treated as provenance/routing only; role passes were
@@ -87,8 +87,8 @@ source.
 ## Discussion Thread Pass
 
 - [x] Initial fixed-mapping artifact created after PR open.
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 - [ ] Post-open `qa-engineer-agent` pass completed.
 - [ ] Post-open `bug-hunter` pass completed.
 - [ ] Post-open `security-auditor` pass completed.
@@ -100,6 +100,10 @@ source.
 - [ ] Strict merge-readiness checks run after the final review/check cycle.
 
 ## Fixed in Commit Mapping
+
+- No actionable review comments
+
+## Initial Mapping Evidence
 
 Disposition: NOT-A-BUG
 
