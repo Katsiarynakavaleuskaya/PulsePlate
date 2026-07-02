@@ -74,13 +74,24 @@ def test_bootstrap_sync_policy_freezes_privileged_review_patterns() -> None:
         "Dockerfile",
         ".dockerignore",
         ".trivyignore",
+        ".devcontainer/Dockerfile",
+        ".devcontainer/devcontainer.json",
+        ".devcontainer/docker-compose*.yml",
+        ".devcontainer/docker-compose*.yaml",
+        ".github/CODEOWNERS",
+        ".github/actionlint.yml",
+        ".github/actionlint.yaml",
         ".github/dependabot.yml",
         ".github/dependabot.yaml",
         "docker-compose*.yml",
         "docker-compose*.yaml",
+        "deploy/Caddyfile*",
         "deploy/docker-compose.production*.yaml",
         "deploy/docker-compose.staging.yaml",
         "frontend/Dockerfile.caddy-spa",
+        "frontend/package*.json",
+        "ios/Gemfile*",
+        "package*.json",
         "requirements*.txt",
         "requirements*.in",
         "constraints*.txt",
@@ -234,14 +245,27 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     assert requires_security_review(["Dockerfile"]) is True
     assert requires_security_review([".dockerignore"]) is True
     assert requires_security_review([".trivyignore"]) is True
+    assert requires_security_review([".devcontainer/Dockerfile"]) is True
+    assert requires_security_review([".devcontainer/devcontainer.json"]) is True
+    assert requires_security_review([".devcontainer/docker-compose.devcontainer.yml"]) is True
+    assert requires_security_review([".github/CODEOWNERS"]) is True
+    assert requires_security_review([".github/actionlint.yaml"]) is True
     assert requires_security_review([".github/dependabot.yml"]) is True
     assert requires_security_review([".github/dependabot.yaml"]) is True
     assert requires_security_review(["docker-compose.yaml"]) is True
     assert requires_security_review(["docker-compose.prod.yml"]) is True
+    assert requires_security_review(["deploy/Caddyfile"]) is True
+    assert requires_security_review(["deploy/Caddyfile.production"]) is True
     assert requires_security_review(["deploy/docker-compose.production.yaml"]) is True
     assert requires_security_review(["deploy/docker-compose.production.selfhosted.yaml"]) is True
     assert requires_security_review(["deploy/docker-compose.staging.yaml"]) is True
     assert requires_security_review(["frontend/Dockerfile.caddy-spa"]) is True
+    assert requires_security_review(["frontend/package.json"]) is True
+    assert requires_security_review(["frontend/package-lock.json"]) is True
+    assert requires_security_review(["ios/Gemfile"]) is True
+    assert requires_security_review(["ios/Gemfile.lock"]) is True
+    assert requires_security_review(["package.json"]) is True
+    assert requires_security_review(["package-lock.json"]) is True
     assert requires_security_review(["requirements.txt"]) is True
     assert requires_security_review(["requirements-ci-lite.txt"]) is True
     assert requires_security_review(["requirements.in"]) is True
@@ -256,7 +280,15 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     assert requires_security_review(["docker-compose-notes/prod.yaml"]) is False
     assert requires_security_review(["deploy/nested/docker-compose.production.yaml"]) is False
     assert requires_security_review(["deploy/docker-compose.production/archive.yaml"]) is False
+    assert requires_security_review(["deploy/nested/Caddyfile.production"]) is False
+    assert requires_security_review([".devcontainer/nested/Dockerfile"]) is False
+    assert requires_security_review([".devcontainer/docker-compose/archive.yml"]) is False
+    assert requires_security_review([".github/config/CODEOWNERS"]) is False
+    assert requires_security_review([".github/actionlint/rules.yaml"]) is False
     assert requires_security_review(["frontend/nested/Dockerfile.caddy-spa"]) is False
+    assert requires_security_review(["frontend/packages/package-lock.json"]) is False
+    assert requires_security_review(["ios/vendor/Gemfile.lock"]) is False
+    assert requires_security_review(["packages/package-lock.json"]) is False
     assert requires_security_review([".github/dependabot/nested.yaml"]) is False
 
 
@@ -269,6 +301,7 @@ def test_bootstrap_sync_policy_returns_stable_privileged_review_labels() -> None
             ".github/actions/cache/action.yml",
             " Dockerfile ",
             "deploy/docker-compose.production.selfhosted.yaml",
+            "frontend/package-lock.json",
             "requirements-ci-lite.txt",
             "docs/review/PR_1325_FIXED_MAPPING.md",
         ]
@@ -276,6 +309,7 @@ def test_bootstrap_sync_policy_returns_stable_privileged_review_labels() -> None
         ".github/actions/",
         "Dockerfile",
         "deploy/docker-compose.production*.yaml",
+        "frontend/package*.json",
         "requirements*.txt",
         "docs/review/",
     )
