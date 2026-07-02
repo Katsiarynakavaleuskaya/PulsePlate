@@ -1,0 +1,85 @@
+# PR #2060 Fixed in Commit Mapping SoT
+
+PR: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2060
+
+Branch: `codex/experiment-runner-github-app-capability-gate`
+
+## Summary
+
+This PR adds a local/orchestration-only GitHub App private-pilot capability gate.
+The gate validates a strict read-only capability report, embeds normalized
+capability state into the creative-code private-pilot operator state, and blocks
+candidate-plan preparation when a supplied report lacks Pull requests read or
+Checks read. It does not mutate GitHub App settings, mint tokens, write PRs or
+review threads, change product runtime, change workflows, or claim readiness.
+
+## Discussion Thread Pass
+
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+- [x] Post-open `qa-engineer-agent` pass completed.
+- [ ] Post-open `bug-hunter` pass completed.
+- [ ] Post-open `security-auditor` pass completed.
+- [ ] Codex Security diff scan / finding discovery completed or explicitly
+  dispositioned.
+- [ ] `pulseplate-pr-review` completed.
+- [x] CodeRabbit usage-limit comment checked and dispositioned.
+- [x] Sourcery high-level review comment checked and dispositioned.
+- [ ] Current-head CI complete before readiness language.
+- [ ] Strict merge-readiness checks run after the final review/check cycle.
+
+## Fixed in Commit Mapping
+
+Disposition: NOT-A-BUG
+Evidence: Codex connector comment reports code-review usage limits only and does not contain a code, docs, schema, security, or governance actionable.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2060#issuecomment-4861939066
+
+Disposition: NOT-A-BUG
+Evidence: CodeRabbit comment reports temporary review-limit state only and does not contain a code, docs, schema, security, or governance actionable.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2060#issuecomment-4861939191
+
+Disposition: FIXED
+Commit: c6d3e97a8d20077db5e84af636c6c26bc846ce29
+Evidence: `scripts/orchestration/github_app_private_pilot_capability.py` centralizes missing-permission/status derivation and includes mismatched field names in capability/authority diagnostics; regression coverage is in `tests/test_creative_code_private_pilot_loop.py`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2060#issuecomment-4861939596 -> c6d3e97a8d20077db5e84af636c6c26bc846ce29
+
+## Role-Agent Finding Dispositions
+
+Disposition: FIXED
+Source: post-open `qa-engineer-agent`
+Evidence: This artifact fixes the missing canonical mapping artifact that made
+`PR Body Phase2 gates` and `Merge readiness gate` fail on run `28563481298`.
+
+Disposition: FIXED
+Source: post-open `qa-engineer-agent`
+Evidence: `validate_private_pilot_state()` now normalizes legacy v1.0 states
+without `github_app_capability` to `manual_only` / `not_checked` while
+preserving legacy fingerprint validation, with regression coverage in
+`tests/test_creative_code_private_pilot_loop.py`.
+
+Disposition: FIXED
+Source: post-open `qa-engineer-agent`
+Evidence: `creative_code_private_pilot_state.v1.schema.json` now mirrors runtime
+coupling for report-present metadata read, PR/check read booleans,
+`missing_permissions`, read authority, and derived status; schema parity tests
+assert the coupling markers.
+
+## Experiment Runner Evidence
+
+- Artifact: `artifacts/orchestration/experiments/results/github_app_capability_gate_oracle_result_network1.json`
+- Experiment ID: `exp-3afd8d437b8e`
+- Mode: `oracle_only_governance_reviewer`
+- Status: accepted
+- Source diff applied: true
+- Oracles: 4/4 passed
+
+## Lane Start Provenance
+
+- Packet: `artifacts/orchestration/task_packets/9369e1e12d9e.json`
+- Starter: `scripts/orchestration/start_pr_lane.sh`
+
+## Merge Readiness
+
+Not claimed. This artifact records post-open dispositions and local evidence
+only; current-head CI, remaining role passes, security scan, bot comments, and
+strict merge-readiness checks are still required.
