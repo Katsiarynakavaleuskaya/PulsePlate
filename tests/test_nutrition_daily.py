@@ -424,6 +424,7 @@ def test_legacy_nutrition_endpoint_records_metric_and_delegates(
     response = client.get("/api/nutrition/2025-12-15", headers=pro_headers)
 
     assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/json")
     assert response.json() == {"date": "2025-12-15", "delegated": True}
     assert calls == [
         {
@@ -434,6 +435,7 @@ def test_legacy_nutrition_endpoint_records_metric_and_delegates(
             "weight_kg": 65,
             "activity": "moderate",
             "goal": "maintain",
+            "lang": "en",
         }
     ]
     after = _get_legacy_alias_metric_value()

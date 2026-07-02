@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal, cast
 
 from fastapi import APIRouter, Depends, Query
 
 from app.metrics import LEGACY_NUTRITION_DATE_ROUTE_TEMPLATE, record_legacy_alias_hit
 from app.middleware.api_tiers import require_pro_tier
 from app.routers.pro import get_daily_nutrition
+from core.meal_i18n import Language
 
 LEGACY_NUTRITION_ALIAS_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = (
     (LEGACY_NUTRITION_DATE_ROUTE_TEMPLATE, "GET", False),
@@ -38,14 +39,22 @@ async def legacy_nutrition_date_alias(
     """
     record_legacy_alias_hit(LEGACY_NUTRITION_DATE_ROUTE_TEMPLATE)
 
+    sex_value = cast(Literal["female", "male"], sex)
+    activity_value = cast(
+        Literal["sedentary", "light", "moderate", "active", "very_active"], activity
+    )
+    goal_value = cast(Literal["loss", "maintain", "gain"], goal)
+    lang_value: Language = "en"
+
     response = await get_daily_nutrition(
         date_str=date_str,
-        sex=sex,
+        sex=sex_value,
         age=age,
         height_cm=height_cm,
         weight_kg=weight_kg,
-        activity=activity,
-        goal=goal,
+        activity=activity_value,
+        goal=goal_value,
+        lang=lang_value,
     )
     # Return canonical response as-is (avoid serialization drift in shim).
     return response
