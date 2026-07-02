@@ -58,11 +58,15 @@ Evidence: `docs/review/PR_2062_FIXED_MAPPING.md` replaced the no-actionable sent
 Disposition: NOT-A-BUG
 Evidence: Sourcery posted a rate-limit notice, not actionable code-review feedback for this diff. The PR status context reports `Sourcery review` as pass, and no Sourcery code comments require code or documentation changes.
 
-- Cubic status check: https://www.cubic.dev/pr/Katsiarynakavaleuskaya/PulsePlate/pull/2062
-Disposition: NOT-A-BUG
-Evidence: Cubic exposed a neutral/skipped status check and no actionable review comments in the GitHub PR review/comment surfaces inspected for PR #2062.
-
 ## Role-Agent Finding Dispositions
+
+Disposition: NOT-A-BUG
+Source: Cubic status check
+Evidence: Cubic exposed a neutral/skipped status check and no actionable review
+comments in the GitHub PR review/comment surfaces inspected for PR #2062. Cubic
+does not produce a GitHub PR review/comment URL accepted by the canonical Fixed
+in Commit Mapping parser, so it is tracked here as status evidence rather than
+as a mapping entry.
 
 Disposition: FIXED
 Source: post-open `qa-engineer-agent`
