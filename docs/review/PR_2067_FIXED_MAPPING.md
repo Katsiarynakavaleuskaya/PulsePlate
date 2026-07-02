@@ -28,6 +28,9 @@ BOLA, dependency upgrades, or GitHub workflow edits are included.
 - `b09ea4d9d` - centralizes the privileged-surface matcher, keeps
   `security-auditor` executable for matched surfaces, adds slash-boundary
   negative tests, and syncs agent-facing docs.
+- `100b1ac42` - fixes post-open QA findings by adding deploy Compose/Caddy
+  Dockerfile and Dependabot `.yaml` privileged surfaces, making glob matching
+  segment-aware for all patterns, and restoring canonical mapping syntax.
 
 ## Lane Start Provenance
 
@@ -98,6 +101,40 @@ Future actionable human, bot, role-agent, premortem, Experiment Runner, Codex
 Security, or external-review findings must be added with disposition evidence
 before merge-readiness claims.
 
+## Post-Open Role Findings
+
+Role: `qa-engineer-agent`
+
+Disposition: FIXED
+
+Commit: `100b1ac42`
+
+Evidence: Post-open QA found that the privileged matcher missed production
+deploy control surfaces named by `deploy/AGENTS.md`. Commit `100b1ac42` adds
+`deploy/docker-compose.production*.yaml`, `deploy/docker-compose.staging.yaml`,
+and `frontend/Dockerfile.caddy-spa` to the canonical matcher, and focused tests
+cover both matched production/staging paths and nested/lookalike negative
+controls.
+
+Disposition: FIXED
+
+Commit: `100b1ac42`
+
+Evidence: Post-open QA found that `.github/dependabot.yaml` was not covered
+beside `.github/dependabot.yml`. Commit `100b1ac42` adds the YAML variant to
+the canonical matcher and asserts stable `privileged-surface:` metadata in
+`tests/test_skill_router.py`.
+
+Disposition: FIXED
+
+Commit: `100b1ac42`
+
+Evidence: Post-open QA found that this artifact failed Phase2 validation
+because `## Fixed in Commit Mapping` mixed prose with non-canonical mapping
+lines. Commit `100b1ac42` restores the parser-required checkbox labels and
+canonical `- No actionable review comments` line; local validation passed via
+`python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 2067`.
+
 ## Local Validation Evidence
 
 - `python3 scripts/orchestration/check_preflight.py` passed with the existing
@@ -107,6 +144,8 @@ before merge-readiness claims.
   `. scripts/hooks/repo_python.sh; VENV_PYTHON="$(resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/test_bootstrap_sync_policy.py tests/test_task_bootstrap.py tests/test_skill_router.py`.
 - Focused ruff passed with the repo-resolved interpreter:
   `. scripts/hooks/repo_python.sh; VENV_PYTHON="$(resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m ruff check scripts/orchestration/bootstrap_sync_policy.py scripts/orchestration/skill_router.py tests/test_bootstrap_sync_policy.py tests/test_task_bootstrap.py tests/test_skill_router.py`.
+- Phase2 artifact validation passed after the post-open QA fix:
+  `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 2067`.
 - `make validate-changed` passed after commit and selected the three changed
   test files.
 - `pre-commit run --all-files` passed.
