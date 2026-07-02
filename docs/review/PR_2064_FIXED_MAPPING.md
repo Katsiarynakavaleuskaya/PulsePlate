@@ -115,16 +115,16 @@ accepted packet used `network_budget=1` and ran the same immutable oracles.
 ## Validation Evidence
 
 Passed:
-- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_nutrition_state_registration_bootstrap.py tests/test_legacy_growth_guard.py tests/test_route_family_bootstrap.py`
-- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_bayes_adherence_api.py tests/test_nutrition_log_api.py tests/test_nutrition_log_idempotency.py tests/test_nutrition_daily.py`
-- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/security/test_api_auth_tier_contract_pack.py tests/security/test_api_bola_contract_pack.py tests/test_pro_vip_route_dependency_guard.py tests/test_paid_route_guards.py`
-- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python scripts/ci/check_legacy_growth_guard.py`
-- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python scripts/orchestration/check_preflight.py`
-- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python scripts/orchestration/check_agent_consistency.py`
-- `PATH=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH make openapi-check`
+- `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/test_nutrition_state_registration_bootstrap.py tests/test_legacy_growth_guard.py tests/test_route_family_bootstrap.py`
+- `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/test_bayes_adherence_api.py tests/test_nutrition_log_api.py tests/test_nutrition_log_idempotency.py tests/test_nutrition_daily.py`
+- `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/security/test_api_auth_tier_contract_pack.py tests/security/test_api_bola_contract_pack.py tests/test_pro_vip_route_dependency_guard.py tests/test_paid_route_guards.py`
+- `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" scripts/ci/check_legacy_growth_guard.py`
+- `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" scripts/orchestration/check_preflight.py`
+- `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" scripts/orchestration/check_agent_consistency.py`
+- `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; PATH="$(dirname "$VENV_PYTHON"):$PATH" make openapi-check`
 - `git diff --exit-code -- app/static/openapi.json frontend/src/api/openapi.json frontend/src/api/schema.ts`
-- `PATH=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH make validate-changed`
-- `PATH=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH pre-commit run --all-files`
+- `make validate-changed`
+- `pre-commit run --all-files`
 - Pre-push hooks during `git push`: mypy, pip-audit, backend tests,
   full-repo bandit, and docker build test.
 
