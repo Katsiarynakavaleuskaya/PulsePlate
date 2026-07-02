@@ -132,6 +132,7 @@ jobs:
           python3 scripts/ci/check_docker_runtime_dependency_surface.py \
             --image pulseplate:test \
             --blocked-debian-package apt \
+            --blocked-debian-package gzip \
             --blocked-debian-package gpgv \
             --blocked-debian-package libacl1 \
             --blocked-debian-package libattr1 \
@@ -550,6 +551,22 @@ jobs:
         id: image-ref
         run: |
           echo "ref=${{ env.REGISTRY }}/${{ steps.image-name.outputs.image_name }}:sha-${{ github.sha }}" >> "$GITHUB_OUTPUT"
+
+      - name: Check Docker publish runtime dependency surface
+        run: |
+          set -euo pipefail
+          python3 scripts/ci/check_docker_runtime_dependency_surface.py \
+            --image ${{ steps.image-ref.outputs.ref }} \
+            --blocked-debian-package apt \
+            --blocked-debian-package gzip \
+            --blocked-debian-package gpgv \
+            --blocked-debian-package libacl1 \
+            --blocked-debian-package libattr1 \
+            --blocked-debian-package libgnutls30 \
+            --blocked-debian-package libsqlite3-0 \
+            --blocked-debian-package perl-base \
+            --blocked-debian-prefix perl-modules- \
+            --output-json docker-publish-runtime-dependency-surface.json
 
       # Image scan fails closed on HIGH/CRITICAL findings and scanner/SARIF errors.
       # Do not change output path without updating hashFiles('trivy-image.sarif')

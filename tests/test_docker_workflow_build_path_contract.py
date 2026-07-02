@@ -205,7 +205,7 @@ def test_build_workflow_does_not_expose_github_token_to_pr_baseline_script() -> 
 
 
 def test_production_dockerfile_prunes_package_manager_surface() -> None:
-    """Production target removes package-manager, ACL/attr, and Perl runtime packages."""
+    """Production target removes package-manager, gzip, ACL/attr, and Perl runtime packages."""
     dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
     production_section = dockerfile.split("FROM runtime-base AS production", 1)[1]
     production_section = production_section.split("FROM production AS staging", 1)[0]
@@ -219,8 +219,13 @@ def test_production_dockerfile_prunes_package_manager_surface() -> None:
     assert "dpkg --purge --force-depends --force-remove-essential" in pruning_block
     assert "perl_module_packages=" in pruning_block
     assert "'perl-modules-*'" in pruning_block
+    assert (
+        "for package in apt gzip gpgv libacl1 libattr1 libgnutls30 "
+        "libsqlite3-0 perl-base ${perl_module_packages}; do"
+    ) in pruning_block
     for package in (
         "apt",
+        "gzip",
         "gpgv",
         "libacl1",
         "libattr1",
@@ -231,13 +236,17 @@ def test_production_dockerfile_prunes_package_manager_surface() -> None:
         assert f"        {package} \\" in pruning_block
         assert f" {package} " in pruning_block
     assert "dpkg-query -W -f='${db:Status-Abbrev}'" in pruning_block
+    assert "for binary in gzip gunzip zcat" in pruning_block
+    assert 'command -v "${binary}"' in pruning_block
+    assert "import gzip" in pruning_block
+    assert "gzip.compress(payload, mtime=0)" in pruning_block
     assert "import ssl" in pruning_block
     assert "import sqlite3" in pruning_block
     assert "expected >= 3.53.2" in pruning_block
 
 
 def test_build_workflow_blocks_removed_acl_attr_runtime_packages() -> None:
-    """Docker runtime surface guard fails if base-image ACL/attr packages return."""
+    """Docker runtime surface guard fails if removed packages return."""
     workflow = _load_workflow(WORKFLOWS_DIR / "build.yml")
     jobs = workflow["jobs"]
     assert isinstance(jobs, dict)
@@ -248,7 +257,7 @@ def test_build_workflow_blocks_removed_acl_attr_runtime_packages() -> None:
     run_script = surface_step["run"]
     assert isinstance(run_script, str)
 
-    for package in ("libacl1", "libattr1"):
+    for package in ("gzip", "libacl1", "libattr1"):
         assert f"--blocked-debian-package {package}" in run_script
 
 
@@ -480,6 +489,7 @@ def test_docker_runtime_surface_guard_blocks_perl_runtime_packages() -> None:
 
         assert f"--image {image_ref}" in run_script
         assert "--blocked-debian-package apt" in run_script
+        assert "--blocked-debian-package gzip" in run_script
         assert "--blocked-debian-package gpgv" in run_script
         assert "--blocked-debian-package libacl1" in run_script
         assert "--blocked-debian-package libattr1" in run_script
@@ -562,6 +572,9 @@ def test_publish_image_scan_fails_closed() -> None:
     assert isinstance(publish_steps, list)
     build_scan_step = _step_by_name(publish_job, "Build Docker image for publish scan")
     image_ref_step = _step_by_name(publish_job, "Set image ref for SBOM and image scan")
+    publish_surface_step = _step_by_name(
+        publish_job, "Check Docker publish runtime dependency surface"
+    )
     scan_step = _step_by_name(
         publish_job,
         "Run Trivy vulnerability scanner (image scan, fail-closed)",
@@ -578,8 +591,11 @@ def test_publish_image_scan_fails_closed() -> None:
         publish_job, "Set image ref for SBOM and image scan"
     )
     assert _step_index(publish_job, "Set image ref for SBOM and image scan") < _step_index(
-        publish_job, "Run Trivy vulnerability scanner (image scan, fail-closed)"
+        publish_job, "Check Docker publish runtime dependency surface"
     )
+    assert _step_index(
+        publish_job, "Check Docker publish runtime dependency surface"
+    ) < _step_index(publish_job, "Run Trivy vulnerability scanner (image scan, fail-closed)")
     assert _step_index(
         publish_job, "Run Trivy vulnerability scanner (image scan, fail-closed)"
     ) < _step_index(publish_job, "Fail when Trivy image SARIF is missing")
@@ -622,6 +638,7 @@ def test_publish_image_scan_fails_closed() -> None:
             assert step_with["push"] is False
 
     assert "GITHUB_TOKEN" not in build_scan_step.get("env", {})
+    assert "GITHUB_TOKEN" not in publish_surface_step.get("env", {})
     assert "GITHUB_TOKEN" not in scan_step.get("env", {})
     assert login_step["uses"].startswith("docker/login-action@")
     assert _step_index(publish_job, "Log in to GHCR") > _step_index(
@@ -631,6 +648,24 @@ def test_publish_image_scan_fails_closed() -> None:
     image_ref_run = image_ref_step["run"]
     assert isinstance(image_ref_run, str)
     assert "sha-${{ github.sha }}" in image_ref_run
+
+    publish_surface_run = publish_surface_step["run"]
+    assert isinstance(publish_surface_run, str)
+    assert "check_docker_runtime_dependency_surface.py" in publish_surface_run
+    assert "--image ${{ steps.image-ref.outputs.ref }}" in publish_surface_run
+    assert "--blocked-debian-package gzip" in publish_surface_run
+    for package in (
+        "apt",
+        "gpgv",
+        "libacl1",
+        "libattr1",
+        "libgnutls30",
+        "libsqlite3-0",
+        "perl-base",
+    ):
+        assert f"--blocked-debian-package {package}" in publish_surface_run
+    assert "--blocked-debian-prefix perl-modules-" in publish_surface_run
+    assert "docker-publish-runtime-dependency-surface.json" in publish_surface_run
 
     scan_step_with = scan_step["with"]
     assert isinstance(scan_step_with, dict)

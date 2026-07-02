@@ -74,6 +74,7 @@ jobs:
           python3 scripts/ci/check_docker_runtime_dependency_surface.py \
             --image pulseplate:trivy-scan-${{ github.sha }} \
             --blocked-debian-package apt \
+            --blocked-debian-package gzip \
             --blocked-debian-package gpgv \
             --blocked-debian-package libacl1 \
             --blocked-debian-package libattr1 \

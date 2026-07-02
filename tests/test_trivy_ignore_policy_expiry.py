@@ -18,6 +18,7 @@ SECURITY_DOC_ARCHIVE_TAR_PATH = (
 SECURITY_DOC_SQLITE_PATH = REPO_ROOT / "docs" / "security" / "CVE-2026-sqlite-runtime-removal.md"
 SECURITY_DOC_GPGV_24882_PATH = REPO_ROOT / "docs" / "security" / "CVE-2026-24882-gpgv.md"
 SECURITY_DOC_GPGV_24883_PATH = REPO_ROOT / "docs" / "security" / "CVE-2026-24883-gpgv.md"
+SECURITY_DOC_GZIP_PATH = REPO_ROOT / "docs" / "security" / "CVE-2026-41992-gzip.md"
 SECURITY_DOC_FARADAY_PATH = REPO_ROOT / "docs" / "security" / "CVE-2026-54297-faraday-fastlane.md"
 BACKLOG_PATH = REPO_ROOT / "docs" / "roadmap" / "BACKLOG_LEDGER.md"
 
@@ -52,6 +53,7 @@ REMOVED_ACL_ATTR_CVES = (
     "CVE-2026-54369",
     "CVE-2026-54371",
 )
+REMOVED_GZIP_CVES = ("CVE-2026-41992",)
 REMOVED_ACL_ATTR_PACKAGES = (
     "libacl1",
     "libattr1",
@@ -85,6 +87,14 @@ def _ledger_gpgv_entry() -> str:
     )
     next_item = backlog_text.find("\n- [", ledger_start + 1)
     ledger_end = next_item if next_item != -1 else len(backlog_text)
+    return backlog_text[ledger_start:ledger_end]
+
+
+def _ledger_gzip_entry() -> str:
+    backlog_text = BACKLOG_PATH.read_text(encoding="utf-8")
+    ledger_start = backlog_text.index('<a id="ledger-p1-container-gzip-cve-remediation"></a>')
+    next_anchor = backlog_text.find("<a id=", ledger_start + 1)
+    ledger_end = next_anchor if next_anchor != -1 else len(backlog_text)
     return backlog_text[ledger_start:ledger_end]
 
 
@@ -211,6 +221,7 @@ def test_removed_perl_runtime_cves_are_not_suppressed_in_rego_policy() -> None:
         + REMEDIATED_SQLITE_CVES
         + REMOVED_PRODUCTION_TOOLING_CVES
         + REMOVED_ACL_ATTR_CVES
+        + REMOVED_GZIP_CVES
     ):
         assert cve not in policy
     assert "perl-base" not in policy
@@ -218,6 +229,7 @@ def test_removed_perl_runtime_cves_are_not_suppressed_in_rego_policy() -> None:
     assert "libsqlite3-0" not in policy
     for package in REMOVED_ACL_ATTR_PACKAGES:
         assert package not in policy
+    assert "gzip" not in policy
 
 
 def test_remediated_container_cves_are_not_broadly_ignored_in_trivyignore() -> None:
@@ -229,12 +241,14 @@ def test_remediated_container_cves_are_not_broadly_ignored_in_trivyignore() -> N
         + REMEDIATED_SQLITE_CVES
         + REMOVED_PRODUCTION_TOOLING_CVES
         + REMOVED_ACL_ATTR_CVES
+        + REMOVED_GZIP_CVES
     ):
         assert cve not in trivyignore
     assert "SQLite" not in trivyignore
     assert "libsqlite3-0" not in trivyignore
     for package in REMOVED_ACL_ATTR_PACKAGES:
         assert package not in trivyignore
+    assert "gzip" not in trivyignore
     assert "gpgv retained as Debian system dependency" not in trivyignore
     assert "libgnutls30 is installed in the Debian production image" not in trivyignore
 
@@ -325,6 +339,26 @@ def test_gpgv_docs_and_backlog_record_production_package_removal() -> None:
     assert "codex/fix-main-trivy-container-cves" in ledger_entry
     assert "Final production image removes `gpgv`" in ledger_entry
     assert "do not suppress CVE-2026-24883" in ledger_entry
+
+
+def test_gzip_docs_and_backlog_record_production_package_removal() -> None:
+    doc_text = SECURITY_DOC_GZIP_PATH.read_text(encoding="utf-8")
+    ledger_entry = _ledger_gzip_entry()
+
+    assert "CVE-2026-41992" in doc_text
+    assert "RESOLVED for the production Docker target by package removal" in doc_text
+    assert "The final `production` Docker target no longer retains `gzip`" in doc_text
+    assert "`gzip`, `gunzip`, and `zcat`" in doc_text
+    assert "Python stdlib `gzip`" in doc_text
+    assert "old waiver posture" in doc_text
+    assert "Why This CVE is Suppressed" not in doc_text
+    assert "temporary, exact Trivy Rego policy suppression" not in doc_text
+
+    assert "Container image gzip CVE remediation (CVE-2026-41992)" in ledger_entry
+    assert "codex/fix-main-docker-publish-" in ledger_entry
+    assert "gzip-cve-2026-41992" in ledger_entry
+    assert "Production image removes `gzip`" in ledger_entry
+    assert "do not suppress CVE-2026-41992" in ledger_entry
 
 
 def test_faraday_fastlane_suppression_tracks_1_10_6_scanner_lag() -> None:
