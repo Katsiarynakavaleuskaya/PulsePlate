@@ -56,15 +56,29 @@ Out of scope:
 
 ## Fixed in Commit Mapping
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2066#discussion_r3516273298 -> `633eeca00`
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: See `Review Comment Dispositions` below.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2066#discussion_r3516273298 -> 633eeca00
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2066#discussion_r3516357092 -> 7d20c13e0
+
+Disposition: NOT-A-BUG
+Evidence: The implementation commit contains the required Experiment Runner trailer.
+Reason: The comment was based on stale commit interpretation; the current branch history includes the required trailer on the material implementation commit, while later mapping-only commits do not require Experiment Runner attribution.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2066#discussion_r3516357104
+
+Disposition: NOT-A-BUG
+Evidence: Existing route-family bootstrap tests exercise private `app.main` registration helpers directly, and legacy growth guard tests assert exact diagnostic strings as guard contract output.
+Reason: Exposing a public shopping-list registration helper would widen the API surface for a canonical-bootstrap-only seam, and loosening exact legacy-guard diagnostic assertions would weaken the re-growth guard contract rather than making this PR safer.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2066#pullrequestreview-4621363293
 
 ## Implementation Evidence
 
 Disposition: FIXED
-
-Commit: `ac033846008ac1157be48f64551bd0eaab0f8c7d`
-
+Commit: ac033846008ac1157be48f64551bd0eaab0f8c7d
 Evidence:
 
 - `app/main.py` imports the two shopping source routers and route specs, builds
@@ -136,12 +150,9 @@ Evidence:
 ### Sourcery Assertion Diagnostics
 
 Disposition: FIXED
-
 Comment:
 https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2066#discussion_r3516273298
-
-Commit: `633eeca00`
-
+Commit: 633eeca00
 Evidence:
 
 - `tests/test_shopping_list_registration_bootstrap.py` now includes an assertion
@@ -150,14 +161,21 @@ Evidence:
 - PASS:
   `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/test_shopping_list_registration_bootstrap.py tests/test_legacy_growth_guard.py`
 
+### Sourcery High-Level Feedback
+
+Disposition: NOT-A-BUG
+Comment:
+https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2066#pullrequestreview-4621363293
+Evidence: Existing route-family tests such as `tests/test_nutrition_state_registration_bootstrap.py`, `tests/test_business_registration_bootstrap.py`, and `tests/test_test_route_registration_bootstrap.py` exercise private `app.main` registration helpers directly; `tests/test_legacy_growth_guard.py` intentionally asserts exact guard diagnostics.
+Reason: A public shopping-list bootstrap helper would broaden the route-registration API for a private composition-root seam, while regex/substring matching for legacy growth diagnostics would make the executable guard less precise.
+
 ### Codex Experiment Runner Trailer Evidence
 
 Disposition: NOT-A-BUG
-
 Comment:
 https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2066#discussion_r3516357104
-
 Evidence:
+Reason: The current branch history already contains the required trailer on the material implementation commit.
 
 - `git log --pretty=format:'%H %s%n%b' -1 ac033846008ac1157be48f64551bd0eaab0f8c7d`
   shows the required trailer:
@@ -165,39 +183,53 @@ Evidence:
 - The later mapping-only commits do not contain material Experiment Runner
   contribution and therefore do not need the trailer.
 
+### Codex Mapping Commit Evidence
+
+Disposition: FIXED
+Comment:
+https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2066#discussion_r3516357092
+Commit: 7d20c13e0
+Evidence:
+
+- `docs/review/PR_2066_FIXED_MAPPING.md` now records the implementation proof
+  as full in-branch commit
+  `ac033846008ac1157be48f64551bd0eaab0f8c7d`.
+- Current branch history contains that implementation commit before the mapping
+  updates.
+
 ## Post-Open Role Findings
 
 ### QA Engineer Agent
 
 Disposition: NOT-A-BUG
-
 Evidence: Post-open QA found no blocking QA findings in the route-registration
 diff. It verified canonical registration, legacy import/include removal, exact
 route specs, executable duplicate/partial/auth/OpenAPI tests, legacy re-growth
 tests, and bounded scope.
+Reason: QA did not identify a defect requiring code or docs changes.
 
 ### Bug Hunter
 
 Disposition: NOT-A-BUG
-
 Evidence: Post-open bug-hunter found no escaped regression in import order, live
 route ownership, duplicate route handling, dependency detection, legacy growth
 guard coverage, or product logic scope. It also ran a live `app.main` route
 probe and extra legacy-growth probes.
+Reason: Bug-hunter did not identify a defect requiring code or docs changes.
 
 ### Security Auditor
 
 Disposition: NOT-A-BUG
-
 Evidence: Post-open security-auditor found no blocking security finding in
 paid-route authz, handler shadowing, OpenAPI exposure, legacy seam re-growth, or
 scope widening. It confirmed that the premortem closures are code/test-backed.
+Reason: Security-auditor did not identify a defect requiring code or docs changes.
 
 ## Codex Security
 
 Disposition: NOT-A-BUG
-
 Evidence:
+Reason: Codex Security completed a branch-diff scan with zero reportable findings.
 
 - Scan ID: `21647199-e9cc-44b4-b4f2-82f9ea9fa40c`
 - Mode: branch diff over
@@ -214,8 +246,8 @@ Evidence:
 ## PulsePlate PR Review
 
 Disposition: NOT-A-BUG
-
 Evidence:
+Reason: The only review note was an advisory large-diff warning; the runtime scope stayed bounded and validation passed.
 
 - Report: `/tmp/pulseplate_pr_review_report_2066.md`
 - Context: `/tmp/pulseplate_pr_review_context_2066.json`
