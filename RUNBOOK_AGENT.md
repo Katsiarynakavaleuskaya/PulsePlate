@@ -94,12 +94,9 @@ instructions still match the live contract:
 - `cybersecurity-skills` stays companion/manual-only and must not appear in
   deterministic `recommended_skills`
 - privileged-surface routing is shared by bootstrap and skill routing through
-  `scripts/orchestration/bootstrap_sync_policy.py`; matched surfaces include
-  workflow/actions, Fastlane, orchestration/CI/release scripts,
-  orchestration/review docs, Trivy/root Docker/Compose, devcontainer controls,
-  deploy Caddy/Compose, frontend Caddy Dockerfile/npm manifests, iOS Gemfile
-  manifests, GitHub CODEOWNERS/actionlint, Dependabot YAML variants,
-  requirements, and constraints manifests, and must keep `security-auditor` executable
+  `scripts/orchestration/bootstrap_sync_policy.py`; see
+  `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md` for the canonical
+  workflows/actions and matched-surface list; must keep `security-auditor` executable
 
 **Starting a new task:**
 - See canonical definition: `AGENTS.md` (Agent Coordination section)

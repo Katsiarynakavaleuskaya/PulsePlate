@@ -1434,12 +1434,9 @@ Detailed procedures stay in runbooks, ADRs, and scoped `AGENTS.md` files.
   - `cybersecurity-skills` is companion/manual-only guidance and must not be
     emitted as a deterministic `recommended_skills` slug
   - privileged-surface routing is shared by bootstrap and skill routing through
-    `scripts/orchestration/bootstrap_sync_policy.py`; matched surfaces include
-    workflow/actions, Fastlane, orchestration/CI/release scripts,
-    orchestration/review docs, Trivy/root Docker/Compose, devcontainer controls,
-    deploy Caddy/Compose, frontend Caddy Dockerfile/npm manifests, iOS Gemfile
-    manifests, GitHub CODEOWNERS/actionlint, Dependabot YAML variants,
-    requirements, and constraints manifests, and must keep `security-auditor` executable
+    `scripts/orchestration/bootstrap_sync_policy.py`; see
+    `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md` for the canonical
+    workflows/actions and matched-surface list; must keep `security-auditor` executable
 
 ### 🛑 Docs-only PR Rule (Mandatory)
 
