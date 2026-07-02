@@ -8,5 +8,5 @@
 pandas
 
 # Keep Parquet writer support explicit for local data-build lanes while preserving
-# current runtime/CI ownership in requirements.in and requirements-ci-lite.in.
+# runtime/Docker/CI-lite absence unless a future PR documents canonical ownership.
 pyarrow>=20.0.0,<25.0.0

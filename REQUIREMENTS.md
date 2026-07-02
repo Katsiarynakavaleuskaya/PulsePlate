@@ -44,6 +44,10 @@ the first audited subset: `pyarrow`, `pandas`, `httpx2`, `reportlab`,
 future PR documents canonical runtime owner evidence; runtime, Docker runtime,
 CI-lite, and `requirements-lock.txt` must not install it. Legacy-only usage is
 `legacy_compat_transitional` evidence, not production dependency ownership.
+`aiosqlite` is documented as SQLite async fallback/local-dev/test ownership via
+`core/db.py`, not as production Postgres authority. Direct `numpy` runtime
+authority should be removed only when compiled locks keep `numpy` transitively
+through `matplotlib` without unrelated resolver churn.
 
 Local/manual profiles (`requirements-data.txt`, `requirements-evals.txt`, and
 `requirements-rag-vector-cpu.txt`) are not shared GitHub Actions

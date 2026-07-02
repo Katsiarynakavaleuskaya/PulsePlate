@@ -12,12 +12,18 @@ from __future__ import annotations
 import shutil
 import subprocess  # nosec B404: fixed git commands only, no user input (remove-by: 2026-09-30, ref: PR-main-nightly-nosec-ttl)
 import sys
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from scripts.ci.check_private_python_proxy_health import (
+    DEFAULT_PACKAGES_HOST,
+    DEFAULT_SIMPLE_ROOT_PATH,
+    INDEX_ENV_VAR,
+    validate_index_url,
+)
 from scripts.orchestration.context_pack import (
     collect_scoped_agents,
     find_nearest_agents_file,
@@ -42,6 +48,17 @@ REQUIRED_FILES = [
 
 STATUS_HEAD_LINES = 10
 VALID_MODES = {"analyze", "execute", "merge"}
+CANONICAL_PYTHON_INDEX_URL = f"https://{DEFAULT_PACKAGES_HOST}{DEFAULT_SIMPLE_ROOT_PATH}"
+DEPENDENCY_SENSITIVE_PATH_PREFIXES = (
+    "requirements",
+    "constraints.txt",
+    "scripts/ci/install_locked_python_requirements.py",
+    "scripts/ci/check_private_python_proxy_health.py",
+    "scripts/ci/check_python_dependency_surfaces.py",
+    ".github/actions/python-setup/",
+    ".github/workflows/ci.yml",
+    ".github/workflows/python-dependency-submission.yml",
+)
 
 
 def _run(cmd: list[str], cwd: Path | None = None) -> tuple[int, str]:
@@ -283,6 +300,71 @@ def check_routing_readiness(primary: str, secondary: list[str], reviewer: str) -
     return True
 
 
+def _is_dependency_sensitive_path(path: str) -> bool:
+    normalized_path = path.strip().strip("/")
+    if not normalized_path:
+        return False
+    path_parts = PurePosixPath(normalized_path).parts
+    for prefix in DEPENDENCY_SENSITIVE_PATH_PREFIXES:
+        normalized_prefix = prefix.strip().strip("/")
+        prefix_parts = PurePosixPath(normalized_prefix).parts
+        if (
+            normalized_prefix == "requirements"
+            and len(path_parts) == 1
+            and path_parts[0].startswith("requirements")
+        ):
+            return True
+        # Both exact/descendant paths and broad parent scopes are dependency-sensitive.
+        if path_parts[: len(prefix_parts)] == prefix_parts:
+            return True
+        if prefix_parts[: len(path_parts)] == path_parts:
+            return True
+    return False
+
+
+def _touches_dependency_sensitive_path(task_paths: list[str]) -> bool:
+    normalized_paths = repo_relative_paths(task_paths)
+    return any(_is_dependency_sensitive_path(path) for path in normalized_paths)
+
+
+def check_private_python_index_url_shape(mode: str, task_paths: list[str]) -> bool:
+    """Validate configured private Python index shape without network calls."""
+    import os
+
+    raw_index_url = os.environ.get(INDEX_ENV_VAR)
+    if raw_index_url is None:
+        return True
+    touches_dependency_surface = _touches_dependency_sensitive_path(task_paths)
+
+    try:
+        normalized_index_url = validate_index_url(raw_index_url)
+    except ValueError as exc:
+        message = (
+            f"{INDEX_ENV_VAR} is set but does not match the canonical private "
+            f"proxy root shape ({type(exc).__name__}: {exc}). Expected "
+            f"{CANONICAL_PYTHON_INDEX_URL}"
+        )
+        if mode in {"execute", "merge"} and touches_dependency_surface:
+            print(f"FAIL: {message}")
+            return False
+        print(f"WARNING: {message}")
+        return True
+
+    if normalized_index_url != CANONICAL_PYTHON_INDEX_URL:
+        message = (
+            f"{INDEX_ENV_VAR} normalized to a noncanonical private proxy root. "
+            f"Expected {CANONICAL_PYTHON_INDEX_URL}"
+        )
+        if mode in {"execute", "merge"} and touches_dependency_surface:
+            print(f"FAIL: {message}")
+            return False
+        print(f"WARNING: {message}")
+        return True
+
+    print("PASS: private Python index URL shape")
+    return True
+
+
 def check_gate_evidence(files: list[str]) -> bool:
     """Verify merge-mode local gate evidence artifacts exist and are non-empty."""
 
@@ -367,6 +449,7 @@ def main(argv: list[str] | None = None) -> int:
     ok &= check_agent_consistency()
     check_artifact_gitignore()  # Soft guard: warning only, never fails
     ok &= _role_dispatch_bridge_smoke()  # Role dispatch bridge import smoke-test
+    ok &= check_private_python_index_url_shape(mode, task_paths)
 
     if mode == "analyze":
         if task_paths:

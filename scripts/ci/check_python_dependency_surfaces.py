@@ -117,6 +117,12 @@ LEGACY_COMPAT_OWNER_PATHS = (
     Path("app/services/bmi_compat.py"),
 )
 LEGACY_COMPAT_TRANSITIONAL_PATHS = set(LEGACY_COMPAT_OWNER_PATHS)
+SQLITE_ASYNC_FALLBACK_OWNER_PATH = Path("core/db.py")
+SQLITE_ASYNC_FALLBACK_OWNER_MARKERS = (
+    "_derive_async_url",
+    "sqlite+aiosqlite",
+    "_sqlite_connect_args",
+)
 PACKAGE_IMPORT_ALIASES = {
     "pydantic-core": ("pydantic_core",),
     "pytest-xdist": ("xdist",),
@@ -465,6 +471,17 @@ def _canonical_runtime_import_evidence(repo_root: Path, package: str) -> tuple[s
 
 def _legacy_compat_import_evidence(repo_root: Path, package: str) -> tuple[str, ...]:
     return _package_import_evidence(repo_root, package, LEGACY_COMPAT_OWNER_PATHS)
+
+
+def _sqlite_async_fallback_owner_evidence(repo_root: Path) -> tuple[str, ...]:
+    """Return explicit SQLite async fallback ownership evidence for aiosqlite."""
+    owner_file = repo_root / SQLITE_ASYNC_FALLBACK_OWNER_PATH
+    if not owner_file.is_file():
+        return ()
+    owner_text = owner_file.read_text(encoding="utf-8")
+    if all(marker in owner_text for marker in SQLITE_ASYNC_FALLBACK_OWNER_MARKERS):
+        return (str(SQLITE_ASYNC_FALLBACK_OWNER_PATH),)
+    return ()
 
 
 def _pip_audit_manifest_entries(script_text: str) -> set[str]:
@@ -893,15 +910,30 @@ def collect_dependency_ownership_findings(
         RUNTIME_DOCKER_CI_LITE_REQUIREMENT_SURFACES,
     )
     if aiosqlite_surfaces:
-        findings.append(
-            _ownership_finding(
-                package="aiosqlite",
-                severity=OWNERSHIP_WARNING,
-                reason_code="db_fallback_test_split_pending",
-                surfaces=aiosqlite_surfaces,
-                detail="sqlite async fallback/test ownership needs a separate DB-surface decision",
+        aiosqlite_evidence = _sqlite_async_fallback_owner_evidence(repo_root)
+        if aiosqlite_evidence:
+            findings.append(
+                _ownership_finding(
+                    package="aiosqlite",
+                    severity=OWNERSHIP_INFO,
+                    reason_code="sqlite_async_fallback_owner_documented",
+                    surfaces=aiosqlite_evidence,
+                    detail=(
+                        "core DB URL derivation documents SQLite async fallback/local-test "
+                        "ownership; this is not production Postgres authority"
+                    ),
+                )
             )
-        )
+        else:
+            findings.append(
+                _ownership_finding(
+                    package="aiosqlite",
+                    severity=OWNERSHIP_WARNING,
+                    reason_code="db_fallback_test_split_pending",
+                    surfaces=aiosqlite_surfaces,
+                    detail="sqlite async fallback/test ownership needs a separate DB-surface decision",
+                )
+            )
 
     return tuple(findings)
 

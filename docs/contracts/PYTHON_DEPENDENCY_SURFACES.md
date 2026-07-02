@@ -81,6 +81,7 @@ Stable reason codes include `runtime_direct_no_canonical_owner`,
 `data_eval_dependency_in_runtime`, `test_dev_dependency_in_runtime`,
 `canonical_runtime_owner_documented`, `legacy_compat_transitional`, and
 `transitive_only_direct_runtime_candidate`,
+`sqlite_async_fallback_owner_documented`, and
 `db_fallback_test_split_pending`.
 
 Import evidence uses exact top-level import names plus explicit aliases for
@@ -103,8 +104,8 @@ canonical runtime ownership.
 | `httpx2` | Error if present in runtime, Docker runtime, or CI-lite surfaces. Dev/test only. |
 | `reportlab` | Allowed as canonical runtime for export/PDF owners. |
 | `matplotlib` | Warning as `legacy_compat_transitional` unless a canonical BMI owner is documented. Do not remove in this PR. |
-| `numpy` | Warning as `transitive_only_direct_runtime_candidate` when directly declared without direct canonical runtime imports. It may remain transitive through `matplotlib`. |
-| `aiosqlite` | Warning pending DB fallback/test split. Do not remove in this PR. |
+| `numpy` | Warning as `transitive_only_direct_runtime_candidate` when directly declared without direct canonical runtime imports. It may remain transitive through `matplotlib`; direct runtime authority should be removed only when lock regeneration stays narrow and deterministic. |
+| `aiosqlite` | Info as `sqlite_async_fallback_owner_documented` when `core/db.py` documents SQLite async URL derivation/fallback ownership. Keep scoped to local/dev/test SQLite fallback support, not production Postgres authority. |
 
 `pyarrow` belongs to `requirements-data.in` / `requirements-data.txt` for
 offline Parquet-capable data builders unless a future PR documents canonical
