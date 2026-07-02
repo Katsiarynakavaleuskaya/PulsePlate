@@ -17,6 +17,11 @@ from core.analyzer.store_sqlalchemy import SQLAlchemyAnalyzerStore
 from core.bayes.adherence_service import AdherenceService
 from core.db import get_session
 
+BAYES_ADHERENCE_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = (
+    ("/api/v1/bayes/adherence/event", "POST", True),
+    ("/api/v1/bayes/adherence/risk", "GET", True),
+)
+
 router = APIRouter(
     prefix="/api/v1/bayes/adherence",
     tags=["bayes"],

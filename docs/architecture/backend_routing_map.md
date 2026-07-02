@@ -144,15 +144,27 @@ Runtime effect:
 - In normal runtime: includes `app/routers/pro.py`.
 - `premium_week` is included only when enabled (`FEATURE_PREMIUM_WEEK_ENABLED` or VIP module enabled).
 
-### Bayesian adherence + nutrition log (import-soft)
+### Bayesian adherence + nutrition log + legacy alias (canonical-owned registration)
 
-Anchor (stable): `legacy_app.py -> try/except ImportError then include_router(...)`
+Anchor (stable): `app/main.py -> _include_nutrition_state_routers_if_needed(app)`
 
-Evidence: `legacy_app.py:829-843`
+Evidence:
+- `app/main.py` — `_include_nutrition_state_routers_if_needed(app)` registers
+  the bounded nutrition/adherence state route family with
+  `ensure_route_family_registered(...)`.
+- `app/routers/bayes_adherence.py` — source route specs for Bayes adherence.
+- `app/routers/nutrition_log.py` — source route specs for nutrition log.
+- `app/routers/legacy_nutrition_alias.py` — hidden/deprecated legacy nutrition
+  compatibility alias.
 
-- Included if import succeeds:
+Runtime effect:
+- Canonical bootstrap owns:
   - `app/routers/bayes_adherence.py`
   - `app/routers/nutrition_log.py`
+  - `app/routers/legacy_nutrition_alias.py`
+- Import-soft legacy behavior is removed for these routers. Missing modules or
+  route-family drift now fail startup/bootstrap instead of creating a partial
+  runtime.
 
 ### Shopping list generators (always included; tier handled inside)
 

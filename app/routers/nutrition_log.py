@@ -28,6 +28,11 @@ if TYPE_CHECKING:
     # Static-only import for precise typing; runtime keeps lazy ORM resolution.
     from app.models import NutritionEvent as NutritionEventModel
 
+NUTRITION_LOG_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = (
+    ("/api/v1/pro/nutrition/meal-log", "POST", True),
+    ("/api/v1/pro/nutrition/day-close", "POST", True),
+)
+
 router = APIRouter(
     prefix="/api/v1/pro/nutrition",
     tags=["pro", "nutrition-log"],

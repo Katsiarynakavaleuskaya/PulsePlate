@@ -719,6 +719,120 @@ def test_legacy_growth_guard_rejects_business_router_reintroduction(
     assert errors == expected
 
 
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        (
+            textwrap.dedent("""
+                from app.routers import bayes_adherence
+
+                app.include_router(bayes_adherence.router)
+                """),
+            [
+                "legacy_app.py: unexpected legacy route growth: "
+                "registration:include_router:bayes_adherence.router",
+                "legacy_app.py: unexpected app.routers import growth: "
+                "router_import:app.routers:bayes_adherence",
+            ],
+        ),
+        (
+            textwrap.dedent("""
+                from app.routers import nutrition_log as nutrition_routes
+
+                app.include_router(nutrition_routes.router)
+                """),
+            [
+                "legacy_app.py: unexpected legacy route growth: "
+                "registration:include_router:nutrition_routes.router",
+                "legacy_app.py: unexpected app.routers import growth: "
+                "router_import:app.routers:nutrition_log -> nutrition_routes",
+            ],
+        ),
+        (
+            textwrap.dedent("""
+                from app.routers.legacy_nutrition_alias import (
+                    router as legacy_nutrition_alias_router,
+                )
+
+                app.include_router(legacy_nutrition_alias_router)
+                """),
+            [
+                "legacy_app.py: unexpected legacy route growth: "
+                "registration:include_router:legacy_nutrition_alias_router",
+                "legacy_app.py: unexpected app.routers import growth: "
+                "router_import:app.routers.legacy_nutrition_alias:router -> "
+                "legacy_nutrition_alias_router",
+            ],
+        ),
+        (
+            textwrap.dedent("""
+                import app.routers.nutrition_log as nutrition_log_module
+
+                app.include_router(nutrition_log_module.router)
+                """),
+            [
+                "legacy_app.py: unexpected legacy route growth: "
+                "registration:include_router:nutrition_log_module.router",
+                "legacy_app.py: unexpected app.routers import growth: "
+                "router_import:import:app.routers.nutrition_log -> nutrition_log_module",
+            ],
+        ),
+        (
+            textwrap.dedent("""
+                import importlib
+
+                bayes_router = importlib.import_module("app.routers.bayes_adherence").router
+                app.include_router(bayes_router)
+                """),
+            [
+                "legacy_app.py: unexpected legacy route growth: "
+                "registration:include_router:bayes_router",
+                "legacy_app.py: unexpected app.routers import growth: "
+                "router_import:dynamic:app.routers.bayes_adherence -> bayes_router",
+            ],
+        ),
+        (
+            textwrap.dedent("""
+                import importlib
+
+                nutrition_router, _ = (
+                    importlib.import_module("app.routers.nutrition_log").router,
+                    None,
+                )
+                app.include_router(nutrition_router)
+                """),
+            [
+                "legacy_app.py: unexpected legacy route growth: "
+                "registration:include_router:nutrition_router",
+                "legacy_app.py: unexpected app.routers import growth: "
+                "router_import:dynamic:app.routers.nutrition_log -> nutrition_router",
+            ],
+        ),
+        (
+            textwrap.dedent("""
+                from importlib import import_module
+
+                if (alias_router := import_module("app.routers.legacy_nutrition_alias").router):
+                    app.include_router(alias_router)
+                """),
+            [
+                "legacy_app.py: unexpected legacy route growth: "
+                "registration:include_router:alias_router",
+                "legacy_app.py: unexpected app.routers import growth: "
+                "router_import:dynamic:app.routers.legacy_nutrition_alias -> alias_router",
+            ],
+        ),
+    ],
+)
+def test_legacy_growth_guard_rejects_nutrition_state_router_reintroduction(
+    source: str,
+    expected: list[str],
+) -> None:
+    errors = legacy_guard.validate_legacy_growth(source)
+
+    assert errors == expected
+
+
 def test_legacy_growth_guard_rejects_module_qualified_bodyfat_router_registration() -> None:
     source = textwrap.dedent("""
         import app.routers.bodyfat as bodyfat_routes
