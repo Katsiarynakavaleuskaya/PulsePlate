@@ -313,6 +313,25 @@ as `NOT-A-BUG` above. No additional CodeRabbit or Cubic inline actionables were
 present in the GitHub pull request comments fetched during the current-head
 merge-readiness failure triage.
 
+## Current-head CI Diff-coverage Closure
+
+Disposition: FIXED
+
+Finding: Fresh current-head CI `diff-coverage` failed at run
+`28574995138`, job `84724590497`, with missing changed source lines
+`app/main.py:825`, `app/routers/business.py:98`, and
+`app/routers/business.py:166`.
+
+Commit: `bdaea1b68`
+
+Evidence: `tests/test_route_family_bootstrap.py` now includes CI-selected
+route-contract probes for the disabled business bootstrap no-op, direct
+disabled analyze guard, and request-time business status response. Local
+focused pytest passed, and local `diff-cover coverage.xml
+--compare-branch=origin/main --fail-under=97` reported
+`app/main.py (100%)`, `app/routers/business.py (100%)`, and total changed
+source coverage `100%`.
+
 ## Merge Readiness
 
 Not ready yet.
