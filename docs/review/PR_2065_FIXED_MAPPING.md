@@ -25,7 +25,7 @@ Material implementation commit:
 - [x] Post-open `bug-hunter` pass completed.
 - [x] Post-open `security-auditor` pass completed.
 - [x] Codex Security diff scan / finding discovery completed.
-- [ ] `pulseplate-pr-review` completed.
+- [x] `pulseplate-pr-review` completed.
 - [ ] CodeRabbit actionable review comments checked and dispositioned.
 - [ ] Sourcery actionable review comments checked and dispositioned.
 - [ ] Cubic actionable review comments checked and dispositioned.
@@ -90,6 +90,20 @@ Source: Codex Security diff scan / finding discovery
 Evidence: Codex Security scan `f8ea9cfe-0f02-4e2e-9bd7-9ade7ec85801` completed
 with 0 findings and 4/4 reviewed rows covered. Report:
 `/private/var/folders/bw/12x002vn67v2bvjpbhbtm8480000gn/T/codex-security-scans-2UD7UI/auth-principal-mapping-contract/4380390e832e61c9e4678569a39112de489d262b_20260702T184540Z_mq9w4wc4/report.md`.
+
+### PulsePlate PR Review
+
+Disposition: NOT-A-BUG
+Source: `pulseplate-pr-review`
+Evidence: The dry-run report for PR #2065 emitted one advisory note that the
+diff has 508 changed lines, above the 300-line review-risk threshold. The diff
+is intentionally one coherent docs/tests/mapping security-contract lane, and
+the targeted proof bundle includes focused auth contract tests, docs gates,
+Phase2 gates, post-open role passes, and Codex Security 4/4 coverage with 0
+findings.
+Reason: Splitting would separate the contract doc, tests, premortem, or mapping
+evidence that jointly make this PR auditable; no runtime or dependency surface
+is changed.
 
 ## Premortem Findings
 
