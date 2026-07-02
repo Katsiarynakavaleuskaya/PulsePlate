@@ -24,7 +24,7 @@ Material implementation commit:
 - [x] Post-open `qa-engineer-agent` pass completed.
 - [x] Post-open `bug-hunter` pass completed.
 - [x] Post-open `security-auditor` pass completed.
-- [ ] Codex Security diff scan / finding discovery completed.
+- [x] Codex Security diff scan / finding discovery completed.
 - [ ] `pulseplate-pr-review` completed.
 - [ ] CodeRabbit actionable review comments checked and dispositioned.
 - [ ] Sourcery actionable review comments checked and dispositioned.
@@ -82,6 +82,14 @@ Evidence: The security-auditor pass on head `2eb40400a` found no false
 principal-source mapping, billing entitlement confusion, credential-derived
 subject overclaim, SEC-001 overclaim, live telemetry overclaim, or fail-open
 test assumption in this docs/tests-only diff.
+
+### Codex Security
+
+Disposition: NOT-A-BUG
+Source: Codex Security diff scan / finding discovery
+Evidence: Codex Security scan `f8ea9cfe-0f02-4e2e-9bd7-9ade7ec85801` completed
+with 0 findings and 4/4 reviewed rows covered. Report:
+`/private/var/folders/bw/12x002vn67v2bvjpbhbtm8480000gn/T/codex-security-scans-2UD7UI/auth-principal-mapping-contract/4380390e832e61c9e4678569a39112de489d262b_20260702T184540Z_mq9w4wc4/report.md`.
 
 ## Premortem Findings
 
