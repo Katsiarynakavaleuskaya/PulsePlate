@@ -106,6 +106,12 @@ Disposition: FIXED
 Commit: 77001496e05fbabe53c371ffb6e92cb83e3858c7
 Evidence: `tests/test_coverage_boost_final.py` uses `monkeypatch.setenv("BUSINESS_MODULE_ENABLED", "true")`; targeted pytest, `make validate-changed`, and `pre-commit run --all-files` passed.
 
+Disposition: FIXED
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2061#discussion_r3511698704 -> 3f58ff443
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2061#pullrequestreview-4615911898 -> 3f58ff443
+Commit: 3f58ff443
+Evidence: `tests/test_business_registration_bootstrap.py` restores `app_main.app` routes, `openapi`, and `openapi_schema`; focused pytest, `make validate-changed`, and `pre-commit run --all-files` passed.
+
 Disposition: NOT-A-BUG
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2061#pullrequestreview-4615160415
 Evidence: Sourcery's async-test suggestion conflicts with `tests/AGENTS.md` hook guidance for pre-commit-selected tests, and the bootstrap-helper suggestion would add production API outside this narrow route-ownership PR.
@@ -331,6 +337,29 @@ focused pytest passed, and local `diff-cover coverage.xml
 --compare-branch=origin/main --fail-under=97` reported
 `app/main.py (100%)`, `app/routers/business.py (100%)`, and total changed
 source coverage `100%`.
+
+## CodeRabbit State Restoration Closure
+
+Review thread:
+https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2061#discussion_r3511698704
+
+Review:
+https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2061#pullrequestreview-4615911898
+
+Disposition: FIXED
+
+Finding: CodeRabbit correctly flagged that
+`test_enabled_business_routes_stay_hidden_from_public_openapi` mutated the
+shared `app_main.app` singleton through `ensure_canonical_app_bootstrap(...)`
+without restoring `router.routes`, `openapi`, or `openapi_schema`.
+
+Commit: `3f58ff443`
+
+Evidence: `tests/test_business_registration_bootstrap.py` now snapshots and
+restores the shared app route table plus OpenAPI state in a `finally` block.
+Focused pytest passed for `tests/test_business_registration_bootstrap.py` and
+`tests/test_route_family_bootstrap.py`; `make validate-changed` and
+`pre-commit run --all-files` also passed after the fix.
 
 ## Merge Readiness
 
