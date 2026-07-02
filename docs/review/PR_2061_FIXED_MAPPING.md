@@ -96,8 +96,8 @@ source.
 - [x] `pulseplate-pr-review` completed.
 - [x] CodeRabbit, Sourcery, and Cubic actionables checked and dispositioned.
 - [x] Review threads checked and dispositioned.
-- [ ] Current-head CI complete before readiness language.
-- [ ] Strict merge-readiness checks run after the final review/check cycle.
+- [x] Current-head CI complete before readiness language.
+- [x] Strict merge-readiness checks run after the final review/check cycle.
 
 ## Fixed in Commit Mapping
 
@@ -363,13 +363,15 @@ Focused pytest passed for `tests/test_business_registration_bootstrap.py` and
 
 ## Merge Readiness
 
-Not ready yet.
+Ready for final merge execution after the strict current-head wrapper is rerun
+against the final pushed commit.
 
 - Local focused gates: PASS.
-- Fixed mapping artifact: created.
-- Current-head GitHub CI: pending.
-- Post-open role/security review: pending.
-- Review thread / bot actionable disposition: pending.
-- Strict merge-readiness wrapper: pending.
+- Fixed mapping artifact: PASS.
+- Post-open role/security review: PASS.
+- Review thread / bot actionable disposition: PASS.
+- Current-head GitHub CI: PASS on head `41b2bd84131c998c1ddb099a305a51aeecb13829`.
+- Strict merge-readiness wrapper: PASS on head `41b2bd84131c998c1ddb099a305a51aeecb13829`.
 
-No merge-readiness, ready, green, or mergeable claim is made by this artifact.
+If this artifact receives another commit before merge, rerun current-head CI
+classification and the strict merge-readiness wrapper before merge execution.
