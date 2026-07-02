@@ -1,0 +1,281 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pulseplate.local/contracts/creative_hypothesis_packet.v1.schema.json",
+  "title": "CreativeHypothesisPacket",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "policy_version",
+    "packet_id",
+    "idempotency_key",
+    "context_map_id",
+    "context_map_fingerprint",
+    "creative_status",
+    "reason_code",
+    "hypothesis_count",
+    "hypotheses",
+    "authority",
+    "sanitized"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "artifact_type": { "const": "creative_hypothesis_packet" },
+    "policy_version": { "const": "experiment-runner-pr-creative-context-v1" },
+    "packet_id": { "$ref": "#/$defs/safe_id" },
+    "idempotency_key": { "$ref": "#/$defs/safe_id" },
+    "context_map_id": { "$ref": "#/$defs/safe_id" },
+    "context_map_fingerprint": { "$ref": "#/$defs/sha256" },
+    "creative_status": {
+      "enum": ["hypotheses_generated", "no_creative_action", "blocked"]
+    },
+    "reason_code": {
+      "enum": [
+        "docs_only_no_runtime_action",
+        "eligible_orchestration_surface",
+        "label_activation",
+        "manual_activation",
+        "marker_activation",
+        "missing_changed_paths",
+        "missing_required_capability",
+        "product_runtime_surface",
+        "unsupported_surface",
+        "workflow_deferred_followup"
+      ]
+    },
+    "hypothesis_count": { "type": "integer", "minimum": 0, "maximum": 5 },
+    "hypotheses": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/hypothesis" }
+    },
+    "authority": { "$ref": "#/$defs/authority" },
+    "sanitized": { "const": true }
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": ["creative_status"],
+        "properties": { "creative_status": { "const": "hypotheses_generated" } }
+      },
+      "then": {
+        "properties": {
+          "hypothesis_count": { "enum": [3, 4, 5] },
+          "hypotheses": {
+            "minItems": 3,
+            "maxItems": 5,
+            "contains": {
+              "type": "object",
+              "required": ["target_surfaces"],
+              "properties": {
+                "target_surfaces": {
+                  "contains": { "$ref": "#/$defs/concrete_target_path" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["creative_status"],
+        "properties": { "creative_status": { "const": "no_creative_action" } }
+      },
+      "then": {
+        "properties": {
+          "hypothesis_count": { "const": 0 },
+          "hypotheses": { "maxItems": 0 }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "safe_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "repo_path": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.-][A-Za-z0-9_./-]*$",
+      "not": {
+        "pattern": "(^/|\\.\\.|\\\\|file://|^~|^\\.git/|^\\.venv/|^worktrees/|^artifacts(/|$))"
+      }
+    },
+    "concrete_target_path": {
+      "allOf": [
+        { "$ref": "#/$defs/repo_path" },
+        {
+          "pattern": "^(scripts/|tests/|docs/orchestration/contracts/|docs/prompts/|tools/codex_skills/|\\.agents/skills/)"
+        }
+      ]
+    },
+    "repo_paths": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/repo_path" }
+    },
+    "sha256": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+    "safe_text": { "type": "string", "minLength": 1, "maxLength": 360 },
+    "analogy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_domain",
+        "analogy",
+        "target_repo_surface",
+        "why_useful",
+        "risk",
+        "requires_specialist_agent"
+      ],
+      "properties": {
+        "source_domain": {
+          "enum": [
+            "philosophy",
+            "nutrition",
+            "security",
+            "data",
+            "UX",
+            "testing",
+            "economics",
+            "biology",
+            "CBT",
+            "information_theory"
+          ]
+        },
+        "analogy": { "$ref": "#/$defs/safe_text" },
+        "target_repo_surface": { "$ref": "#/$defs/repo_path" },
+        "why_useful": { "$ref": "#/$defs/safe_text" },
+        "risk": { "$ref": "#/$defs/safe_text" },
+        "requires_specialist_agent": { "type": "boolean" }
+      }
+    },
+    "hypothesis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "hypothesis_id",
+        "hypothesis_kind",
+        "title",
+        "target_surfaces",
+        "expected_behavior",
+        "tests_or_oracles",
+        "risk_notes",
+        "cross_domain_analogies",
+        "falsifier",
+        "negative_controls",
+        "requires_human_approval",
+        "eligible_for_pr1_specification",
+        "eligible_for_pr2_patch"
+      ],
+      "properties": {
+        "hypothesis_id": { "$ref": "#/$defs/safe_id" },
+        "hypothesis_kind": {
+          "enum": [
+            "architecture",
+            "security_authority",
+            "testing_oracle",
+            "creative_protocol",
+            "scientific_stats"
+          ]
+        },
+        "title": { "$ref": "#/$defs/safe_text" },
+        "target_surfaces": { "$ref": "#/$defs/repo_paths" },
+        "expected_behavior": { "$ref": "#/$defs/safe_text" },
+        "tests_or_oracles": { "$ref": "#/$defs/repo_paths" },
+        "risk_notes": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/safe_text" }
+        },
+        "cross_domain_analogies": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/analogy" }
+        },
+        "falsifier": { "$ref": "#/$defs/safe_text" },
+        "negative_controls": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/safe_text" }
+        },
+        "requires_human_approval": { "const": true },
+        "eligible_for_pr1_specification": { "const": true },
+        "eligible_for_pr2_patch": { "const": false }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "call_product_runtime",
+        "call_provider",
+        "change_client_runtime",
+        "change_openapi",
+        "claim_merge_readiness",
+        "create_branch",
+        "edit_fixed_mapping",
+        "emit_local_artifacts",
+        "execute_pr1_specification",
+        "execute_pr2_patch_builder",
+        "execute_pr3_promotion",
+        "generate_hypotheses",
+        "generate_patch",
+        "mark_pr_ready",
+        "merge",
+        "modify_github_app",
+        "modify_slack",
+        "modify_workflows",
+        "open_draft_pr",
+        "open_pr",
+        "post_github_comment",
+        "prepare_human_approval_packet",
+        "push",
+        "read_sanitized_context",
+        "read_secrets",
+        "release",
+        "resolve_threads",
+        "route_to_agents",
+        "use_semantic_cache",
+        "workflow_dispatch",
+        "write_branch"
+      ],
+      "properties": {
+        "call_product_runtime": { "const": false },
+        "call_provider": { "const": false },
+        "change_client_runtime": { "const": false },
+        "change_openapi": { "const": false },
+        "claim_merge_readiness": { "const": false },
+        "create_branch": { "const": false },
+        "edit_fixed_mapping": { "const": false },
+        "emit_local_artifacts": { "const": true },
+        "execute_pr1_specification": { "const": false },
+        "execute_pr2_patch_builder": { "const": false },
+        "execute_pr3_promotion": { "const": false },
+        "generate_hypotheses": { "const": true },
+        "generate_patch": { "const": false },
+        "mark_pr_ready": { "const": false },
+        "merge": { "const": false },
+        "modify_github_app": { "const": false },
+        "modify_slack": { "const": false },
+        "modify_workflows": { "const": false },
+        "open_draft_pr": { "const": false },
+        "open_pr": { "const": false },
+        "post_github_comment": { "const": false },
+        "prepare_human_approval_packet": { "const": true },
+        "push": { "const": false },
+        "read_sanitized_context": { "const": true },
+        "read_secrets": { "const": false },
+        "release": { "const": false },
+        "resolve_threads": { "const": false },
+        "route_to_agents": { "const": true },
+        "use_semantic_cache": { "const": false },
+        "workflow_dispatch": { "const": false },
+        "write_branch": { "const": false }
+      }
+    }
+  }
+}

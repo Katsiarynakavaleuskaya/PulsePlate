@@ -169,6 +169,8 @@ def test_packet_prompt_enforces_mandatory_tail_for_partial_requested_order() -> 
         "Role order: agent-coordinator, qa-engineer-agent, bug-hunter, security-auditor" in prompt
     )
     assert "Role order: agent-coordinator, security-auditor, bug-hunter" not in prompt
+    assert "single pass per material diff" in prompt
+    assert "fixed mapping and targeted gates" in prompt
 
 
 def test_packet_prompt_normalizes_requested_order_when_security_precedes_bug_hunter() -> None:

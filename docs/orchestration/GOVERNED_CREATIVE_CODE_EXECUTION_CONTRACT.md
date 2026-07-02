@@ -2,15 +2,17 @@
 
 <!-- markdownlint-disable MD013 -->
 
-**Status:** PR-6 first applied-candidate lane plus local private-pilot loop
-operator. Repo-only governance contract. No runtime impact.
+**Status:** PR-6 first applied-candidate lane, local private-pilot loop
+operator, and local Experiment Runner PR creative-context attachment. Repo-only
+governance contract. No runtime impact.
 
 **Scope:** Define the authority boundary between a promoted `creative_research`
 output, a PR-1 implementation specification, PR-2 local candidate-patch
 generation, PR-3 human-approved non-draft PR handoff tooling, PR-4 telemetry,
 PR-5 read-only review-disposition integration, the PR-6 local
 applied-candidate run-plan wrapper, and a local private-pilot lifecycle
-operator. PR-2
+operator, plus a local PR creative-context artifact layer for Experiment
+Runner hypothesis generation and agent routing. PR-2
 authorizes only isolated local candidate-patch generation/evaluation. PR-3
 authorizes only the separate local promotion tool that can create a new
 `experiment/*` branch, push it without force, and open a non-draft PR after
@@ -24,7 +26,10 @@ report, then emit next-action artifacts only. It does not
 authorize draft PRs, shared worktree mutation, existing branch modification,
 review-thread resolution, fixed-mapping edits, merge, release, product runtime
 AI, OpenAPI/client changes, public multi-tenant use, or Slack/GitHub authority
-expansion.
+expansion. The PR creative-context layer may read sanitized PR surface refs,
+generate bounded hypotheses, route them to agents, and prepare a human approval
+reservation; it does not authorize candidate patches, repository writes,
+workflow changes, provider calls, or PR/GitHub mutations.
 
 ---
 
@@ -38,6 +43,7 @@ expansion.
 | `repository-write` | Writes to shared worktrees, creates branches, pushes, opens PRs, marks ready for review, resolves review threads, or merges. | Forbidden except the PR-3 promoter's narrowly validated new `experiment/*` branch push and non-draft PR creation. |
 | `promotion` | Promotes a candidate into canonical repo behavior through human review, PR governance, and merge gates. | PR-3 opens the review handoff only. Canonical behavior still requires normal PR review and merge gates. |
 | `private-pilot-lifecycle` | Reads sanitized lifecycle metadata and emits local next-action artifacts. | Allowed only through the private-pilot loop operator; no candidate generation or GitHub write authority. |
+| `pr-creative-context` | Expands eligible PR context into 3-5 hypotheses, cross-domain analogies, agent routing, and approval reservations. | Allowed only through local sanitized Experiment Runner creative-context artifacts; no patch generation, workflow mutation, or GitHub write authority. |
 
 PR-0 sets:
 
@@ -57,6 +63,8 @@ private-pilot loop operator adds local lifecycle state, GitHub App read-only
 capability gating, and checklist planning without adding candidate-generation
 or repository-write authority. Product runtime, OpenAPI/client, semantic-cache,
 review-thread, merge, release, and Slack/GitHub authority flags remain closed.
+The PR creative-context layer adds bounded hypothesis/routing artifacts only;
+auto-workflow attachment remains a separate follow-up PR.
 
 ---
 
@@ -114,6 +122,23 @@ The private-pilot loop operator artifacts are:
 - `scripts/orchestration/github_app_private_pilot_capability.py`
 - `artifacts/orchestration/creative_code/private_pilot/<pr-number>/pilot_state.json`
 - `artifacts/orchestration/creative_code/private_pilot/<pr-number>/candidate_plan.json`
+
+The Experiment Runner PR creative-context artifacts are:
+
+- `docs/orchestration/contracts/EXPERIMENT_RUNNER_PR_CREATIVE_CONTEXT_CONTRACT.md`
+- `docs/orchestration/contracts/experiment_runner_pr_oracle_attachment.v1.schema.json`
+- `docs/orchestration/contracts/creative_protocol_context_map.v1.schema.json`
+- `docs/orchestration/contracts/creative_hypothesis_packet.v1.schema.json`
+- `docs/orchestration/contracts/creative_hypothesis_agent_routing.v1.schema.json`
+- `docs/orchestration/contracts/creative_hypothesis_agent_consumption_summary.v1.schema.json`
+- `docs/orchestration/contracts/creative_hypothesis_approval.v1.schema.json`
+- `scripts/orchestration/experiment_runner_pr_creative_context_contract.py`
+- `scripts/orchestration/experiment_runner_pr_creative_context.py`
+- `artifacts/orchestration/experiments/creative_context/<context-id>/context_map.json`
+- `artifacts/orchestration/experiments/creative_context/<context-id>/hypothesis_packet.json`
+- `artifacts/orchestration/experiments/creative_context/<context-id>/agent_routing.json`
+- `artifacts/orchestration/experiments/creative_context/<context-id>/oracle_attachment.json`
+- `artifacts/orchestration/experiments/creative_context/<context-id>/agent_consumption_summary.json`
 
 `patch_request.json` remains a PR-2 `CreativeCodePatchBuildRequest` handoff
 artifact. It is built and validated only after PR-1 emits
@@ -183,6 +208,13 @@ PR-0 is a contract-only start point.
   a checklist-only candidate plan. It cannot execute candidate generation,
   branch/PR operations, fixed-mapping edits, thread resolution, provider/runtime
   calls, token minting, GitHub App settings changes, or Slack/GitHub writes.
+- PR creative-context attachment: collect sanitized PR surface refs, emit a
+  `CreativeProtocolContextMap`, generate a `CreativeHypothesisPacket`, emit
+  `CreativeHypothesisAgentRouting`, and summarize the next allowed action for
+  role agents. It cannot generate candidate patches, mutate code, change
+  workflows, call providers, call product runtime, create branches, open PRs,
+  post comments, resolve threads, edit fixed mappings, merge, or claim
+  readiness.
 
 Minimum future telemetry fields are defined now for the later train and must not be emitted before PR-1:
 
@@ -255,12 +287,18 @@ make role agents consume the resulting decisions, but only after a reviewed PR
 defines trigger rules, artifact reuse, failure behavior, co-author attribution,
 rate/quota boundaries, opt-out behavior, and PR-body evidence requirements.
 
+The PR creative-context layer also does not automatically launch on GitHub
+Actions in v1. It provides the local sanitized artifact and contract surface
+that a later auto-attach PR may consume after workflow trigger, permission, and
+artifact-retention rules are reviewed.
+
 ---
 
 ## Rollback
 
 Rollback is removal of the private-pilot operator files, PR-6
-applied-candidate wrapper, their tests, and local ignored artifacts. If
+applied-candidate wrapper, Experiment Runner PR creative-context files, their
+tests, and local ignored artifacts. If
 reverting the whole train, also remove the PR-5 review-disposition files, PR-4
 telemetry files, PR-3 promotion files, PR-2 patch-builder files, and existing
 PR-1/PR-0 contract files. Because these layers add no product runtime behavior,

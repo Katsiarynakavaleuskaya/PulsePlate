@@ -1,0 +1,171 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pulseplate.local/contracts/experiment_runner_pr_oracle_attachment.v1.schema.json",
+  "title": "ExperimentRunnerPROracleAttachment",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "policy_version",
+    "attachment_id",
+    "idempotency_key",
+    "source",
+    "runner_mode",
+    "oracle_status",
+    "result_ref",
+    "result_fingerprint",
+    "coauthor_required",
+    "authority",
+    "sanitized"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "artifact_type": { "const": "experiment_runner_pr_oracle_attachment" },
+    "policy_version": { "const": "experiment-runner-pr-creative-context-v1" },
+    "attachment_id": { "$ref": "#/$defs/safe_id" },
+    "idempotency_key": { "$ref": "#/$defs/safe_id" },
+    "source": { "$ref": "#/$defs/source" },
+    "runner_mode": { "const": "oracle_only_governance_reviewer" },
+    "oracle_status": { "enum": ["accepted", "rejected", "skipped", "failed"] },
+    "result_ref": { "anyOf": [{ "$ref": "#/$defs/artifact_ref" }, { "type": "null" }] },
+    "result_fingerprint": { "anyOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }] },
+    "coauthor_required": { "type": "boolean" },
+    "authority": { "$ref": "#/$defs/authority" },
+    "sanitized": { "const": true }
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": ["oracle_status"],
+        "properties": { "oracle_status": { "const": "accepted" } }
+      },
+      "then": {
+        "properties": {
+          "result_ref": { "$ref": "#/$defs/artifact_ref" },
+          "result_fingerprint": { "$ref": "#/$defs/sha256" }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "safe_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "repo_path": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.-][A-Za-z0-9_./-]*$",
+      "not": {
+        "pattern": "(^/|\\.\\.|\\\\|file://|^~|^\\.git/|^\\.venv/|^worktrees/|^artifacts(/|$))"
+      }
+    },
+    "artifact_ref": {
+      "type": "string",
+      "pattern": "^artifacts/orchestration/(experiments|creative_code)/[A-Za-z0-9_./:-]+$",
+      "not": { "pattern": "(^/|\\\\|file://|^~|(^|/)\\.\\.?(/|$))" }
+    },
+    "sha": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+    "sha256": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+    "utc_timestamp": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository",
+        "pr_number",
+        "base_ref",
+        "base_sha",
+        "head_sha",
+        "task_packet_id",
+        "generated_at_utc"
+      ],
+      "properties": {
+        "repository": { "type": "string", "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$" },
+        "pr_number": { "anyOf": [{ "type": "integer", "minimum": 1 }, { "type": "null" }] },
+        "base_ref": { "type": "string", "minLength": 1, "maxLength": 192 },
+        "base_sha": { "anyOf": [{ "$ref": "#/$defs/sha" }, { "type": "null" }] },
+        "head_sha": { "anyOf": [{ "$ref": "#/$defs/sha" }, { "type": "null" }] },
+        "task_packet_id": { "anyOf": [{ "$ref": "#/$defs/safe_id" }, { "type": "null" }] },
+        "generated_at_utc": {
+          "anyOf": [{ "$ref": "#/$defs/utc_timestamp" }, { "type": "null" }]
+        }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "call_product_runtime",
+        "call_provider",
+        "change_client_runtime",
+        "change_openapi",
+        "claim_merge_readiness",
+        "create_branch",
+        "edit_fixed_mapping",
+        "emit_local_artifacts",
+        "execute_pr1_specification",
+        "execute_pr2_patch_builder",
+        "execute_pr3_promotion",
+        "generate_hypotheses",
+        "generate_patch",
+        "mark_pr_ready",
+        "merge",
+        "modify_github_app",
+        "modify_slack",
+        "modify_workflows",
+        "open_draft_pr",
+        "open_pr",
+        "post_github_comment",
+        "prepare_human_approval_packet",
+        "push",
+        "read_sanitized_context",
+        "read_secrets",
+        "release",
+        "resolve_threads",
+        "route_to_agents",
+        "use_semantic_cache",
+        "workflow_dispatch",
+        "write_branch"
+      ],
+      "properties": {
+        "call_product_runtime": { "const": false },
+        "call_provider": { "const": false },
+        "change_client_runtime": { "const": false },
+        "change_openapi": { "const": false },
+        "claim_merge_readiness": { "const": false },
+        "create_branch": { "const": false },
+        "edit_fixed_mapping": { "const": false },
+        "emit_local_artifacts": { "const": true },
+        "execute_pr1_specification": { "const": false },
+        "execute_pr2_patch_builder": { "const": false },
+        "execute_pr3_promotion": { "const": false },
+        "generate_hypotheses": { "const": true },
+        "generate_patch": { "const": false },
+        "mark_pr_ready": { "const": false },
+        "merge": { "const": false },
+        "modify_github_app": { "const": false },
+        "modify_slack": { "const": false },
+        "modify_workflows": { "const": false },
+        "open_draft_pr": { "const": false },
+        "open_pr": { "const": false },
+        "post_github_comment": { "const": false },
+        "prepare_human_approval_packet": { "const": true },
+        "push": { "const": false },
+        "read_sanitized_context": { "const": true },
+        "read_secrets": { "const": false },
+        "release": { "const": false },
+        "resolve_threads": { "const": false },
+        "route_to_agents": { "const": true },
+        "use_semantic_cache": { "const": false },
+        "workflow_dispatch": { "const": false },
+        "write_branch": { "const": false }
+      }
+    }
+  }
+}

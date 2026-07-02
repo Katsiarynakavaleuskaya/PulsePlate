@@ -25,6 +25,22 @@
   evidence artifact. This mode is mandatory evidence for non-trivial PRs, but
   remains review-only authority: it must not promote, resolve review threads,
   claim merge readiness, or mutate governance surfaces.
+- Experiment Runner PR creative-context artifacts stay local under
+  `artifacts/orchestration/experiments/creative_context/`. The
+  `experiment_runner_pr_creative_context.py` CLI may only emit sanitized
+  context maps, 3-5 bounded hypotheses for eligible orchestration/creative
+  surfaces, coordinator-owned routing proposals, oracle attachment summaries,
+  and human-approval reservations. It must not read raw PR/review bodies,
+  patches, prompts, provider payloads, Codex JSONL, oracle stdout/stderr,
+  secrets, token values, or local absolute paths, and it must not generate
+  patches, modify the worktree, change workflows, dispatch workflows, create or
+  write branches, push, open PRs, edit PR bodies, post comments, resolve review
+  threads, edit fixed mappings, claim readiness, merge, release, call providers,
+  call product runtime, use semantic cache, or mutate GitHub App / Slack
+  settings. The post-open Codex Security / review chain is
+  single-pass-per-material-diff; later comments use fixed mapping and targeted
+  gates unless the security-relevant diff changes, the coordinator records an
+  evidence-backed reroute, or the operator explicitly requests another run.
 - The runner must apply patches only inside an isolated temporary checkout and must leave the shared working tree untouched.
 - Mutable surfaces, immutable oracles, budgets, and promotion boundaries are defined by `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`; do not duplicate or relax them here.
 - Runner mutation of `scripts/ci/**`, `docs/review/**`, `AGENTS.md`, merge

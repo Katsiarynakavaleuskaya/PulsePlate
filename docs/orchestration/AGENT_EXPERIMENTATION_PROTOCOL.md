@@ -55,6 +55,7 @@ Current governed sub-lane:
 
 - `docs/orchestration/CREATIVE_RESEARCH_SUBLANE_PROTOCOL.md`
 - `docs/orchestration/GOVERNED_CREATIVE_CODE_EXECUTION_CONTRACT.md`
+- `docs/orchestration/contracts/EXPERIMENT_RUNNER_PR_CREATIVE_CONTEXT_CONTRACT.md`
 - `docs/orchestration/contracts/CREATIVE_CODE_PR_PROMOTION_CONTRACT.md`
 - `docs/orchestration/JUDGMENT_ADJUDICATION_SUBLANE_PROTOCOL.md`
 
@@ -68,6 +69,9 @@ Current governed sub-lane:
 - Fixed-budget candidate runs against immutable evaluation oracles.
 - Oracle-only governance reviewer runs that evaluate validators and write local
   result artifacts without applying candidate patches.
+- Local PR creative-context artifacts that expand sanitized PR context into
+  bounded hypotheses, cross-domain analogies, coordinator-owned routing, and a
+  human approval packet without patch generation or repository writes.
 - Experiment charters, result packets, and KPP-compliant promotion decisions.
 - First-wave experimentation for `LLM/RAG reliability`, then later `CV` evaluation and other approved research lanes.
 - CV-specific packet fields, privacy posture, and degrade semantics live in
@@ -110,6 +114,12 @@ Rules:
   before they can be treated as cryptographically attributable.
 - The Experiment Runner has no merge rights, review-thread resolution authority,
   or merge-readiness authority.
+- The PR creative-context layer is allowed to generate hypotheses and routing
+  proposals only through
+  `docs/orchestration/contracts/EXPERIMENT_RUNNER_PR_CREATIVE_CONTEXT_CONTRACT.md`.
+  It does not replace the oracle. It cannot generate candidate patches, write
+  branches, push, open PRs, edit PRs/comments/threads/fixed mappings, mutate
+  workflows, call providers, call product runtime, or claim readiness.
 - For non-trivial PR lanes, Experiment Runner participation is mandatory
   oracle-only evidence by default: create a local result artifact or record a
   narrow coordinator/operator `Not applicable` reason only when the runner
@@ -186,6 +196,11 @@ Rules:
   shared repository writes, branch/push/PR creation, ready-for-review,
   review-thread resolution, merge, release, public multi-tenant use,
   semantic-cache use, or Slack/GitHub authority expansion.
+- The post-open `qa-engineer-agent -> bug-hunter -> security-auditor -> Codex
+  Security -> pulseplate-pr-review` chain is a single pass per material diff.
+  Later comments use fixed mapping and targeted gates unless the
+  security-relevant diff changes, the coordinator records an evidence-backed
+  reroute, or the operator explicitly requests a rerun.
 
 ---
 

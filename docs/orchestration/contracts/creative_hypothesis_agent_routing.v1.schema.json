@@ -1,0 +1,153 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pulseplate.local/contracts/creative_hypothesis_agent_routing.v1.schema.json",
+  "title": "CreativeHypothesisAgentRouting",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "policy_version",
+    "routing_id",
+    "idempotency_key",
+    "source_hypothesis_packet_id",
+    "source_hypothesis_packet_fingerprint",
+    "routing",
+    "agent_review_mode",
+    "authority",
+    "sanitized"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "artifact_type": { "const": "creative_hypothesis_agent_routing" },
+    "policy_version": { "const": "experiment-runner-pr-creative-context-v1" },
+    "routing_id": { "$ref": "#/$defs/safe_id" },
+    "idempotency_key": { "$ref": "#/$defs/safe_id" },
+    "source_hypothesis_packet_id": { "$ref": "#/$defs/safe_id" },
+    "source_hypothesis_packet_fingerprint": { "$ref": "#/$defs/sha256" },
+    "routing": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/route" }
+    },
+    "agent_review_mode": { "const": "critique_refine_only" },
+    "authority": { "$ref": "#/$defs/authority" },
+    "sanitized": { "const": true }
+  },
+  "$defs": {
+    "safe_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "sha256": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+    "agent_slug": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "route": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "hypothesis_id",
+        "primary_agent",
+        "review_agents",
+        "cross_domain_agents",
+        "missing_agent_capabilities",
+        "coordinator_decision_required",
+        "mutation_authority"
+      ],
+      "properties": {
+        "hypothesis_id": { "$ref": "#/$defs/safe_id" },
+        "primary_agent": { "$ref": "#/$defs/agent_slug" },
+        "review_agents": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/agent_slug" }
+        },
+        "cross_domain_agents": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/agent_slug" }
+        },
+        "missing_agent_capabilities": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/agent_slug" }
+        },
+        "coordinator_decision_required": { "const": true },
+        "mutation_authority": { "const": false }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "call_product_runtime",
+        "call_provider",
+        "change_client_runtime",
+        "change_openapi",
+        "claim_merge_readiness",
+        "create_branch",
+        "edit_fixed_mapping",
+        "emit_local_artifacts",
+        "execute_pr1_specification",
+        "execute_pr2_patch_builder",
+        "execute_pr3_promotion",
+        "generate_hypotheses",
+        "generate_patch",
+        "mark_pr_ready",
+        "merge",
+        "modify_github_app",
+        "modify_slack",
+        "modify_workflows",
+        "open_draft_pr",
+        "open_pr",
+        "post_github_comment",
+        "prepare_human_approval_packet",
+        "push",
+        "read_sanitized_context",
+        "read_secrets",
+        "release",
+        "resolve_threads",
+        "route_to_agents",
+        "use_semantic_cache",
+        "workflow_dispatch",
+        "write_branch"
+      ],
+      "properties": {
+        "call_product_runtime": { "const": false },
+        "call_provider": { "const": false },
+        "change_client_runtime": { "const": false },
+        "change_openapi": { "const": false },
+        "claim_merge_readiness": { "const": false },
+        "create_branch": { "const": false },
+        "edit_fixed_mapping": { "const": false },
+        "emit_local_artifacts": { "const": true },
+        "execute_pr1_specification": { "const": false },
+        "execute_pr2_patch_builder": { "const": false },
+        "execute_pr3_promotion": { "const": false },
+        "generate_hypotheses": { "const": true },
+        "generate_patch": { "const": false },
+        "mark_pr_ready": { "const": false },
+        "merge": { "const": false },
+        "modify_github_app": { "const": false },
+        "modify_slack": { "const": false },
+        "modify_workflows": { "const": false },
+        "open_draft_pr": { "const": false },
+        "open_pr": { "const": false },
+        "post_github_comment": { "const": false },
+        "prepare_human_approval_packet": { "const": true },
+        "push": { "const": false },
+        "read_sanitized_context": { "const": true },
+        "read_secrets": { "const": false },
+        "release": { "const": false },
+        "resolve_threads": { "const": false },
+        "route_to_agents": { "const": true },
+        "use_semantic_cache": { "const": false },
+        "workflow_dispatch": { "const": false },
+        "write_branch": { "const": false }
+      }
+    }
+  }
+}
