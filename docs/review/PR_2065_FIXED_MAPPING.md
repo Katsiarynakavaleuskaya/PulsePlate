@@ -5,6 +5,12 @@
 PR #2065 documents and hardens the existing authenticated principal mapping
 contract with docs/tests only.
 
+## Lane Start Provenance
+
+- Packet: `artifacts/orchestration/task_packets/a0d678a19b80.json`
+- Starter: `scripts/orchestration/start_pr_lane.sh`
+- Branch: `codex/auth-principal-mapping-contract`
+
 Material implementation commit:
 
 - `ab417ff6b` - adds `docs/security/AUTHENTICATED_PRINCIPAL_MAPPING.md`,
@@ -13,10 +19,27 @@ Material implementation commit:
 
 ## Discussion Thread Pass
 
+- [x] Discussion-thread pass completed.
+- [x] Fixed in commit mapping completed.
+- [x] Post-open `qa-engineer-agent` pass completed.
+- [x] Post-open `bug-hunter` pass completed.
+- [ ] Post-open `security-auditor` pass completed.
+- [ ] Codex Security diff scan / finding discovery completed.
+- [ ] `pulseplate-pr-review` completed.
+- [ ] CodeRabbit actionable review comments checked and dispositioned.
+- [ ] Sourcery actionable review comments checked and dispositioned.
+- [ ] Cubic actionable review comments checked and dispositioned.
+- [ ] Current-head CI complete before readiness language.
+- [ ] Strict merge-readiness checks run after the final review/check cycle.
+
 No GitHub review discussion threads existed when this artifact was created.
 Future actionable human, bot, role-agent, premortem, Experiment Runner, or
 Codex Security findings must be added here with disposition evidence before
 merge-readiness claims.
+
+## Fixed in Commit Mapping
+
+- No actionable review comments
 
 ## Post-Open Role Findings
 
@@ -55,7 +78,7 @@ merge-readiness claims.
 
 - Packet:
   `artifacts/orchestration/experiments/auth-principal-mapping-contract-experiment-packet-macos.json`
-- Result:
+- Artifact:
   `artifacts/orchestration/experiments/results/auth-principal-mapping-contract-oracle-macos.json`
 - Mode: `oracle_only_governance_reviewer`
 - Status: accepted
