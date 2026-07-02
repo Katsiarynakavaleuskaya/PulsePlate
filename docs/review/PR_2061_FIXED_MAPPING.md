@@ -89,11 +89,11 @@ source.
 - [x] Initial fixed-mapping artifact created after PR open.
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
-- [ ] Post-open `qa-engineer-agent` pass completed.
-- [ ] Post-open `bug-hunter` pass completed.
-- [ ] Post-open `security-auditor` pass completed.
-- [ ] Codex Security diff scan / finding discovery completed.
-- [ ] `pulseplate-pr-review` completed.
+- [x] Post-open `qa-engineer-agent` pass completed after rerun.
+- [x] Post-open `bug-hunter` pass completed.
+- [x] Post-open `security-auditor` pass completed.
+- [x] Codex Security diff scan / finding discovery completed.
+- [x] `pulseplate-pr-review` completed.
 - [ ] CodeRabbit, Sourcery, and Cubic actionables checked and dispositioned.
 - [ ] Review threads checked, dispositioned, and resolved if any appear.
 - [ ] Current-head CI complete before readiness language.
@@ -167,17 +167,89 @@ Evidence: `make validate-changed` was rerun after implementation commit
 
 ## Post-open Role Review Evidence
 
-Pending. Required post-open pass order remains:
+Disposition: FIXED
+
+Role: `qa-engineer-agent`
+
+Finding: `tests/test_coverage_boost_final.py` still patched the removed
+`app.routers.business.BUSINESS_MODULE_ENABLED` module attribute, encoding the
+old business feature-flag contract.
+
+Commit: `77001496e`
+
+Evidence: `tests/test_coverage_boost_final.py` now uses
+`monkeypatch.setenv("BUSINESS_MODULE_ENABLED", "true")`. Targeted validation
+passed with `pytest -q tests/test_coverage_boost_final.py -k
+business_router_edge_paths`, and post-commit `make validate-changed` selected
+and passed `tests/test_coverage_boost_final.py`.
+
+Required post-open pass order remains:
 `qa-engineer-agent -> bug-hunter -> security-auditor`, followed by Codex
 Security diff scan / finding discovery and `pulseplate-pr-review`.
 
+Disposition: NOT-A-BUG
+
+Role: `bug-hunter`
+
+Finding: No actionable runtime regression findings after the QA fix.
+
+Evidence: The bug-hunter pass verified canonical business registration in
+`app/main.py`, the `require_app_api_key` route-family dependency for
+`POST /api/v1/business/analyze`, request-time disabled behavior in
+`app/routers/business.py`, and final OpenAPI filtering for
+`/api/v1/business/*`. It reran focused pytest, direct route-table checks for
+enabled and unset env states, `scripts/ci/check_legacy_growth_guard.py`, and
+generated OpenAPI/client zero-diff checks.
+
+Disposition: NOT-A-BUG
+
+Role: `security-auditor`
+
+Finding: No actionable security findings after the QA fix.
+
+Evidence: The security-auditor pass verified that
+`/api/v1/business/analyze` still carries `require_app_api_key`, business route
+registration is explicit-truthy and default-disabled, public OpenAPI filtering
+excludes `/api/v1/business/*`, and the legacy-growth guard rejects business
+router reintroduction. It reran the focused business bootstrap tests, default
+disabled/enabled route probes, `scripts/ci/check_legacy_growth_guard.py`, and
+`git diff --check origin/main...HEAD`.
+
 ## Codex Security Evidence
 
-Pending.
+Disposition: NOT-A-BUG
+
+Finding: Codex Security diff scan found no reportable security findings.
+
+Evidence:
+
+- Scan ID: `0775a86e-aac6-471a-aebb-da641ee6982d`
+- Mode: diff scan for `e253631c20ff2a8a052685b697e9e2acacd5dcf9..77001496e05fbabe53c371ffb6e92cb83e3858c7`
+- Reportable findings: `0`
+- Reviewed source-like rows: `4/4`
+- Report:
+  `/private/var/folders/bw/12x002vn67v2bvjpbhbtm8480000gn/T/codex-security-scans-e01Jen/move-business-registration-to-canonical-bootstrap/77001496e05fbabe53c371ffb6e92cb83e3858c7_20260702T073012Z_nothpny3/report.md`
 
 ## pulseplate-pr-review Disposition
 
-Pending.
+Disposition: NOT-A-BUG
+
+Finding: The advisory dry-run report flagged a `note` for large diff risk
+because the diff has 719 changed lines, above the 300-line review-risk
+threshold.
+
+Evidence: This PR is the approved narrow business-route canonical-bootstrap
+slice. The larger line count is primarily deterministic bootstrap, route-family,
+legacy-growth, and authz test coverage plus the required fixed-mapping artifact.
+Focused tests, `make validate-changed`, pre-commit, post-open role passes, and
+Codex Security diff scan completed; the dry-run report recorded no correctness,
+security, architecture, or QA findings beyond the review-planning size note.
+
+Artifacts:
+
+- Context: `artifacts/orchestration/pr_review/pr_2061_context_after_push.json`
+- Markdown report: `artifacts/orchestration/pr_review/pr_2061_review_after_push.md`
+- JSON report: `artifacts/orchestration/pr_review/pr_2061_review_after_push.json`
 
 ## Merge Readiness
 
