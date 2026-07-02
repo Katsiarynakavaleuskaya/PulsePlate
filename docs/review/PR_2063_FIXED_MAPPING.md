@@ -46,7 +46,7 @@ runtime, thread-resolution, fixed-mapping, merge, or readiness authority.
 - [x] `pulseplate-pr-review` completed.
 - [x] CodeRabbit actionable review comments checked and dispositioned after bot
   review completes.
-- [ ] Sourcery actionable review comments checked and dispositioned after bot
+- [x] Sourcery actionable review comments checked and dispositioned after bot
   review completes.
 - [x] Cubic actionable review comments checked and dispositioned after bot
   review completes.
@@ -55,8 +55,11 @@ runtime, thread-resolution, fixed-mapping, merge, or readiness authority.
 
 ## Fixed in Commit Mapping
 
-- CodeRabbit mapping entries are populated in the follow-up mapping evidence
-  commit after this fix commit exists.
+Disposition: FIXED
+Commit: c8e205968
+Evidence: `docs/review/PR_2063_FIXED_MAPPING.md` now records concrete CodeRabbit URL mappings.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2063#discussion_r3513328587 -> c8e205968
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2063#pullrequestreview-4617820269 -> c8e205968
 
 ## Role-Agent Finding Dispositions
 
@@ -185,10 +188,24 @@ in this mapping artifact, focused tests, `make validate-changed`,
 
 Disposition: FIXED
 Source: CodeRabbit
+Commit: c8e205968
 Evidence: The fixed-mapping section no longer claims `No actionable review
 comments` while the artifact records role-agent and bot dispositions. The
-follow-up mapping evidence commit records this fix commit SHA against the
-CodeRabbit review and inline comment URLs.
+canonical mapping section records the CodeRabbit review and inline comment URLs
+against the fix commit.
+
+Disposition: NOT-A-BUG
+Source: Sourcery
+Evidence: Sourcery review
+`https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2063#pullrequestreview-4617291385`
+reported weekly diff-character rate limit exhaustion and did not produce
+code-actionable review comments. GitHub PR review comments API returned only the
+mapped CodeRabbit inline comment.
+
+Disposition: NOT-A-BUG
+Source: Cubic
+Evidence: Cubic status was neutral/skipped for PR #2063 and no Cubic actionable
+review comments were present in the GitHub PR review comments API.
 
 ## Experiment Runner Evidence
 
