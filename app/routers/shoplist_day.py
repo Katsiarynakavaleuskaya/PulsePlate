@@ -19,6 +19,10 @@ from app.schemas.shopping_list import ShopLang, ShoplistDayResponse
 from app.core.shoplist_day.day_generator import generate_day_items
 from app.core.shoplist_day.provider import fetch_day_plan
 
+SHOPLIST_DAY_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = (
+    ("/api/v1/pro/shoplist/day", "GET", True),
+)
+
 router = APIRouter(prefix="/api/v1/pro/shoplist", tags=["pro", "shoplist-day"])
 
 
@@ -52,4 +56,4 @@ async def get_shoplist_day(
     return ShoplistDayResponse(date=day.isoformat(), lang=lang, items=items, warnings=[])
 
 
-__all__ = ["router"]
+__all__ = ["SHOPLIST_DAY_ROUTE_SPECS", "router"]

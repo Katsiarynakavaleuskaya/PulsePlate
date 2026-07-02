@@ -54,8 +54,6 @@ from app.routers.foods import router as foods_router
 from app.routers.nutrition_recommendations import router as nutrition_recommendations_router
 from app.routers.recipes import router as recipes_router
 from app.routers.restaurants import router as restaurants_router
-from app.routers.shoplist_day import router as shoplist_day_router
-from app.routers.shopping_list_pro import router as shopping_list_pro_router
 from app.routers.users import router as users_router
 from app.schemas.bmr import BMRRequest, BMRRequestLegacy, BMRResponse
 from app.schemas.bmi_compat import BMIRequest, BMIRequestV1
@@ -920,12 +918,7 @@ app.include_router(catalog_router)
 
 # PRO/VIP route registration is owned by app.main canonical bootstrap.
 # Compatibility attrs above are populated there after successful registration.
-
-# Include PRO Shopping List Generator router
-app.include_router(shopping_list_pro_router)
-
-# Include Day Shopping List router (iOS MVP)
-app.include_router(shoplist_day_router)
+# Shopping-list route registration is owned by app.main canonical bootstrap.
 
 # Premium week router registration is now handled in
 # app.routers.pro_registration.register_pro_routes() for centralized registration.
