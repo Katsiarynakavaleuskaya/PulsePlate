@@ -94,14 +94,15 @@ source.
 - [x] Post-open `security-auditor` pass completed.
 - [x] Codex Security diff scan / finding discovery completed.
 - [x] `pulseplate-pr-review` completed.
-- [ ] CodeRabbit, Sourcery, and Cubic actionables checked and dispositioned.
-- [ ] Review threads checked, dispositioned, and resolved if any appear.
+- [x] CodeRabbit, Sourcery, and Cubic actionables checked and dispositioned.
+- [x] Review threads checked and dispositioned.
 - [ ] Current-head CI complete before readiness language.
 - [ ] Strict merge-readiness checks run after the final review/check cycle.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2061#discussion_r3511088671 -> 77001496e05fbabe53c371ffb6e92cb83e3858c7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2061#pullrequestreview-4615160415
 
 ## Initial Mapping Evidence
 
@@ -187,6 +188,24 @@ Required post-open pass order remains:
 `qa-engineer-agent -> bug-hunter -> security-auditor`, followed by Codex
 Security diff scan / finding discovery and `pulseplate-pr-review`.
 
+Review thread:
+https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2061#discussion_r3511088671
+
+Disposition: FIXED
+
+Finding: Codex review identified the same stale
+`app.routers.business.BUSINESS_MODULE_ENABLED` patch target in
+`tests/test_coverage_boost_final.py`.
+
+Commit: `77001496e05fbabe53c371ffb6e92cb83e3858c7`
+
+Evidence: `tests/test_coverage_boost_final.py` now enables the feature through
+`monkeypatch.setenv("BUSINESS_MODULE_ENABLED", "true")`, matching the new
+canonical feature-flag helper. Targeted validation passed with
+`pytest -q tests/test_coverage_boost_final.py -k business_router_edge_paths`,
+and the post-fix branch validation passed with `make validate-changed` and
+`pre-commit run --all-files`.
+
 Disposition: NOT-A-BUG
 
 Role: `bug-hunter`
@@ -250,6 +269,42 @@ Artifacts:
 - Context: `artifacts/orchestration/pr_review/pr_2061_context_after_push.json`
 - Markdown report: `artifacts/orchestration/pr_review/pr_2061_review_after_push.md`
 - JSON report: `artifacts/orchestration/pr_review/pr_2061_review_after_push.json`
+
+## Sourcery Review Disposition
+
+Review:
+https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2061#pullrequestreview-4615160415
+
+Disposition: NOT-A-BUG
+
+Finding: Sourcery suggested keeping
+`test_analyze_business_code_oversized_payload_internal` as a native async
+pytest test and suggested exposing a higher-level public registration API
+instead of testing `app.main` private bootstrap helpers directly.
+
+Evidence: The sync `asyncio.run(...)` test shape follows `tests/AGENTS.md`,
+which forbids adding async pytest markers to pre-commit-selected tests unless
+the hook environment is proven to load `pytest-asyncio`. The direct
+`app.main` helper assertions are intentional in this migration PR: the changed
+contract is canonical bootstrap ownership and fail-closed route-family
+registration, so tests assert the narrow private seam instead of adding a new
+production API only for test ergonomics. Focused validation and
+`pre-commit run --all-files` passed with this shape.
+
+## External Bot Status Disposition
+
+Disposition: NOT-A-BUG
+
+Finding: CodeRabbit provided a summary-only comment, Cubic reported a completed
+neutral/success advisory status, and Sourcery's high-level review was
+dispositioned above.
+
+Evidence: `gh api repos/Katsiarynakavaleuskaya/PulsePlate/pulls/2061/comments`
+returned one actionable inline review comment, the Codex P1 thread fixed in
+`77001496e05fbabe53c371ffb6e92cb83e3858c7`. The Sourcery review URL is mapped
+as `NOT-A-BUG` above. No additional CodeRabbit or Cubic inline actionables were
+present in the GitHub pull request comments fetched during the current-head
+merge-readiness failure triage.
 
 ## Merge Readiness
 
