@@ -37,6 +37,8 @@ BOLA, dependency upgrades, or GitHub workflow edits are included.
 - `21e64df95` - addresses AGENTS review comments by reducing the root/runbook
   sync note to a policy pointer while preserving the shared-matcher and
   executable `security-auditor` invariants.
+- `849c06cf1` - fixes the post-open bug-hunter finding by adding bounded root
+  CI/security/deploy helper-script and root quality-gate config coverage.
 
 ## Lane Start Provenance
 
@@ -233,6 +235,22 @@ observed local value was `https://packages.pulseplate.app/root/pypi/+simple/`.
 Evidence: `RUNBOOK_AGENT.md` and `docs/DEPENDENCY_MANAGEMENT.md` already point
 to the canonical `root/pulseplate/+simple/` URL. No secret or local shell
 configuration is committed by this PR.
+
+Role: `bug-hunter`
+
+Disposition: FIXED
+
+Commit: `849c06cf1`
+
+Reason: Bug-hunter correctly found that root workflow-called helper scripts and
+root quality-gate configs can weaken CI/security/deploy behavior while sitting
+outside the original `scripts/ci/` prefix and manifest patterns.
+
+Evidence: Commit `849c06cf1` adds bounded `.pre-commit-config.y*ml`,
+`pyproject.toml`, `scripts/ci_*.sh`, and `scripts/deploy_*.sh` patterns.
+Focused bootstrap, skill-router, and task-bootstrap tests cover
+`scripts/ci_bandit.sh`, `scripts/ci_pip_audit.sh`, `scripts/deploy_production.sh`,
+`.pre-commit-config.yaml`, and `pyproject.toml`, plus lookalike negatives.
 
 ## Local Validation Evidence
 
