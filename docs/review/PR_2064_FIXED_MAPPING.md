@@ -49,7 +49,7 @@ auth/tier/BOLA refactor work is included.
   `#2064`.
 - [x] Initial PR open: no GitHub review threads were resolved before mapping.
 - [x] Post-open `qa-engineer-agent` pass completed.
-- [ ] Post-open `bug-hunter` pass completed.
+- [x] Post-open `bug-hunter` pass completed.
 - [ ] Post-open `security-auditor` pass completed.
 - [ ] Codex Security diff scan / finding discovery completed.
 - [ ] `pulseplate-pr-review` completed.
@@ -155,3 +155,22 @@ Disposition: NOT-A-BUG
 Evidence: Post-open QA found no actionable code-level QA defects in the route
 migration. The focused route-family/bootstrap tests, nutrition/adherence
 behavior tests, auth/tier+BOLA packs, and legacy growth guard passed.
+
+Role: `bug-hunter`
+
+Disposition: FIXED
+
+Commit: `89f85c1a3`
+
+Evidence: Post-open bug-hunter found local absolute user paths in this mapping
+artifact's validation evidence. Commit `89f85c1a3` rewrites those commands to
+repo-relative `VENV_PYTHON` / Make / pre-commit forms. Validation:
+`pytest -q tests/guards/test_security_devtooling_regression_guards.py::test_changed_docs_do_not_add_local_users_absolute_paths`
+and `scripts/ci/check_pr_body_phase2_gates.py` both pass after the fix.
+
+Disposition: NOT-A-BUG
+
+Evidence: Post-open bug-hunter found no additional actionable bugs in the
+current HEAD diff for duplicate/partial registration, startup/import behavior,
+auth/subject ownership, idempotency, legacy alias metric/delegation, or OpenAPI
+visibility.
