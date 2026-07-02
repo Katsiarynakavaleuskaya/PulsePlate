@@ -51,8 +51,8 @@ auth/tier/BOLA refactor work is included.
 - [x] Post-open `qa-engineer-agent` pass completed.
 - [x] Post-open `bug-hunter` pass completed.
 - [x] Post-open `security-auditor` pass completed.
-- [ ] Codex Security diff scan / finding discovery completed.
-- [ ] `pulseplate-pr-review` completed.
+- [x] Codex Security diff scan / finding discovery completed.
+- [x] `pulseplate-pr-review` completed.
 - [ ] Current-head CI complete before readiness language.
 - [ ] Strict merge-readiness checks run after the final review/check cycle.
 
@@ -186,3 +186,29 @@ governance/security artifact hygiene. No actionable security findings were
 identified. Read-only validation covered preflight, focused security bundle,
 docs local-path guard, Phase 2 artifact validator, legacy growth guard, and
 live route-table checks.
+
+Role: `Codex Security`
+
+Disposition: NOT-A-BUG
+
+Evidence: Codex Security diff scan `47d77f22-e012-489f-9ac9-ef98532447c1`
+completed exactly once for the material PR #2064 diff at head `8b833fd3`.
+The scan closed 5/5 source worklist rows and reported 0 findings. Reviewed
+surfaces covered BOLA/API5 dependency preservation, stateful
+`require_pro_tier` + `get_current_user` binding, hidden/deprecated legacy alias
+metadata, alias metric recording/delegation, fail-closed startup, and bounded
+legacy-removal scope. Per operator rule, this scan is not rerun for later
+docs/body/fixed-mapping-only updates.
+
+Role: `pulseplate-pr-review`
+
+Disposition: NOT-A-BUG
+
+Evidence: Repo-native `pulseplate-pr-review` dry-run completed for PR #2064
+with one advisory `large-diff-risk` note because the diff exceeded the review
+risk threshold. The note is review-planning evidence, not a code/security
+defect: this PR is an operator-approved bounded route-family migration, scope
+and out-of-scope are recorded in this artifact and the PR body, focused local
+pytest/security/governance/OpenAPI gates passed, and `make validate-changed`
+passed. Calibration tests passed with the repo venv:
+`python3 -m pytest tests/test_pr_review_report.py tests/test_pr_review_context.py -q`.
