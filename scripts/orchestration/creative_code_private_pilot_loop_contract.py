@@ -1097,16 +1097,34 @@ def validate_private_pilot_state(
             f"state.decision must equal computed next action {expected_decision!r}."
         )
     if validate_identity:
-        expected_state_id, expected_idempotency_key = _private_pilot_identity(
-            normalized,
-            legacy_without_github_app_capability=legacy_without_github_app_capability,
-        )
+        expected_state_id, expected_idempotency_key = _private_pilot_identity(normalized)
+        if legacy_without_github_app_capability:
+            expected_legacy_state_id, expected_legacy_idempotency_key = _private_pilot_identity(
+                normalized,
+                legacy_without_github_app_capability=True,
+            )
+            if normalized["state_id"] != expected_legacy_state_id:
+                raise CreativeCodePrivatePilotContractError(
+                    "state.state_id does not match legacy payload."
+                )
+            if normalized["idempotency_key"] != expected_legacy_idempotency_key:
+                raise CreativeCodePrivatePilotContractError(
+                    "state.idempotency_key does not match legacy payload."
+                )
+            normalized["state_id"] = expected_state_id
+            normalized["idempotency_key"] = expected_idempotency_key
+            reject_unsafe_private_pilot_value(normalized, label="state")
+            return normalized
         if normalized["state_id"] != expected_state_id:
             raise CreativeCodePrivatePilotContractError("state.state_id does not match payload.")
         if normalized["idempotency_key"] != expected_idempotency_key:
             raise CreativeCodePrivatePilotContractError(
                 "state.idempotency_key does not match payload."
             )
+    elif legacy_without_github_app_capability:
+        expected_state_id, expected_idempotency_key = _private_pilot_identity(normalized)
+        normalized["state_id"] = expected_state_id
+        normalized["idempotency_key"] = expected_idempotency_key
     reject_unsafe_private_pilot_value(normalized, label="state")
     return normalized
 

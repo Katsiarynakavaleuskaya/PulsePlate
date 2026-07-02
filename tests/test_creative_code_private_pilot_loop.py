@@ -673,8 +673,10 @@ def test_legacy_state_without_github_app_capability_defaults_on_read() -> None:
 
     assert normalized["github_app_capability"] == default_github_app_capability_state()
     assert normalized["decision"] == "prepare_next_candidate_plan"
-    assert normalized["state_id"] == legacy_state["state_id"]
-    assert normalized["idempotency_key"] == legacy_state["idempotency_key"]
+    assert normalized["state_id"] != legacy_state["state_id"]
+    assert normalized["idempotency_key"] != legacy_state["idempotency_key"]
+    assert validate_private_pilot_state(normalized) == normalized
+    assert build_candidate_plan(normalized)["decision"] == "prepare_next_candidate_plan"
 
 
 def test_github_app_capability_report_with_read_permissions_allows_candidate_plan() -> None:
@@ -1173,6 +1175,9 @@ def test_state_schema_matches_closed_contract_enums() -> None:
     assert "workflow_dispatch_actions_write_optional" in capability_coupling
     assert "pull_requests:read" in capability_coupling
     assert "checks:read" in capability_coupling
+    assert "read_metadata" in capability_coupling
+    assert "read_contents" in capability_coupling
+    assert "read_actions" in capability_coupling
     assert "read_only_with_workflow_dispatch" in capability_coupling
     assert base_ref == {"$ref": "#/$defs/git_ref"}
     assert details_url["anyOf"] == [

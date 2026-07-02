@@ -322,6 +322,16 @@
                   "contents_read": { "const": false },
                   "actions_read": { "const": false }
                 }
+              },
+              "authority": {
+                "properties": {
+                  "read_pull_requests": { "const": false },
+                  "read_checks": { "const": false },
+                  "read_metadata": { "const": false },
+                  "read_contents": { "const": false },
+                  "read_actions": { "const": false },
+                  "workflow_dispatch": { "const": false }
+                }
               }
             }
           }
@@ -357,6 +367,12 @@
                 "properties": {
                   "metadata_read": { "const": true }
                 }
+              },
+              "authority": {
+                "properties": {
+                  "read_metadata": { "const": true },
+                  "read_contents": { "const": false }
+                }
               }
             }
           }
@@ -379,6 +395,7 @@
               },
               "authority": {
                 "properties": {
+                  "read_actions": { "const": true },
                   "workflow_dispatch": { "const": true }
                 }
               }
@@ -602,7 +619,7 @@
         "read_pull_requests": { "type": "boolean" },
         "read_checks": { "type": "boolean" },
         "read_metadata": { "type": "boolean" },
-        "read_contents": { "type": "boolean" },
+        "read_contents": { "const": false },
         "read_actions": { "type": "boolean" },
         "workflow_dispatch": { "type": "boolean" },
         "write_pull_requests": { "const": false },
