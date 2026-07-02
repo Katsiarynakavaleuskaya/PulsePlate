@@ -95,27 +95,18 @@ commands and the shared tree stayed untouched.
 ## Fixed in Commit Mapping
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2059#discussion_r3510275346 -> e3cd5c15962131cb1e2e336a8b3402ebf72dede3
-
 Disposition: FIXED
-
 Commit: e3cd5c15962131cb1e2e336a8b3402ebf72dede3
-
 Evidence: `scripts/orchestration/check_preflight.py` now compares dependency-sensitive paths with `PurePosixPath.parts`, keeps exact/descendant and broad parent-scope matching explicit, and centralizes the decision in `_touches_dependency_sensitive_path`; `tests/test_orchestration_preflight.py` covers broad `scripts` and `.github` parent scopes.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2059#discussion_r3510275358 -> e3cd5c15962131cb1e2e336a8b3402ebf72dede3
-
 Disposition: FIXED
-
 Commit: e3cd5c15962131cb1e2e336a8b3402ebf72dede3
-
 Evidence: `tests/test_python_dependency_surfaces.py` now covers partial `core/db.py` marker evidence and verifies `aiosqlite` stays at `warning:db_fallback_test_split_pending` unless the complete SQLite async fallback owner evidence is present.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2059#pullrequestreview-4614308389 -> e3cd5c15962131cb1e2e336a8b3402ebf72dede3
-
 Disposition: FIXED
-
 Commit: e3cd5c15962131cb1e2e336a8b3402ebf72dede3
-
 Evidence: `tests/test_orchestration_preflight.py` now asserts malformed proxy URL diagnostics do not echo the full inline-credential URL, `user:token`, `token@`, or the bare `token` fragment.
 
 ## Local Validation Evidence
