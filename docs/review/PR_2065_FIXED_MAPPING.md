@@ -19,18 +19,18 @@ Material implementation commit:
 
 ## Discussion Thread Pass
 
-- [x] Discussion-thread pass completed.
-- [x] Fixed in commit mapping completed.
-- [x] Post-open `qa-engineer-agent` pass completed.
-- [x] Post-open `bug-hunter` pass completed.
-- [x] Post-open `security-auditor` pass completed.
-- [x] Codex Security diff scan / finding discovery completed.
-- [x] `pulseplate-pr-review` completed.
-- [ ] CodeRabbit actionable review comments checked and dispositioned.
-- [ ] Sourcery actionable review comments checked and dispositioned.
-- [ ] Cubic actionable review comments checked and dispositioned.
-- [ ] Current-head CI complete before readiness language.
-- [ ] Strict merge-readiness checks run after the final review/check cycle.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+- [x] Post-open `qa-engineer-agent` pass completed
+- [x] Post-open `bug-hunter` pass completed
+- [x] Post-open `security-auditor` pass completed
+- [x] Codex Security diff scan / finding discovery completed
+- [x] `pulseplate-pr-review` completed
+- [ ] CodeRabbit actionable review comments checked and dispositioned
+- [ ] Sourcery actionable review comments checked and dispositioned
+- [ ] Cubic actionable review comments checked and dispositioned
+- [ ] Current-head CI complete before readiness language
+- [ ] Strict merge-readiness checks run after the final review/check cycle
 
 No GitHub review discussion threads existed when this artifact was created.
 Future actionable human, bot, role-agent, premortem, Experiment Runner, or
