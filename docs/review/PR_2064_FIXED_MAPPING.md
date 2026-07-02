@@ -30,6 +30,8 @@ auth/tier/BOLA refactor work is included.
   bootstrap and add route-family/legacy-guard/premortem coverage.
 - `00792fcc4` - address CodeRabbit legacy alias adapter and JSON content-type
   review findings.
+- `641bf8caa` - keep the legacy alias type-shape fix coverage-neutral for the
+  CI diff-coverage gate.
 
 ## Lane Start Provenance
 
@@ -63,7 +65,7 @@ auth/tier/BOLA refactor work is included.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2064#discussion_r3513135490 -> 00792fcc4
 Disposition: FIXED
 Commit: 00792fcc4
-Evidence: `app/routers/legacy_nutrition_alias.py:42` adds typed bridge values and forwards explicit `lang="en"` to `get_daily_nutrition(...)`.
+Evidence: `00792fcc4` fixes the alias adapter by forwarding explicit `lang="en"` and preserving the callee's typed shape; `641bf8caa` keeps that final shape coverage-neutral via alias type definitions and inline casts before `get_daily_nutrition(...)`.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2064#discussion_r3513135507 -> 00792fcc4
 Disposition: FIXED
