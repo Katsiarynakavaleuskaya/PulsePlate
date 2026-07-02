@@ -712,6 +712,35 @@ Route-family registrars should fail closed on:
 - A focused live route-table test that fails on duplicate paid-tier
   method/path entries.
 
+## 27) Premortem must close production risks in code, not just documents
+
+### Problem
+Premortem can drift into a governance artifact: the PR contains a risk document,
+the risks have disposition words, and the lane appears compliant, but no new
+production invariant, workflow guard, or test was added. That turns premortem
+into paperwork instead of a prediction exercise against the actual diff.
+
+### Rule
+For non-trivial PRs, premortem starts from "how this exact diff could make
+`main` worse in production within 48 hours." Each credible failure story must
+end in one of these closures:
+
+1. code, workflow, or test change that makes the failure fail closed
+2. explicit stop-condition in the PR evidence when the risk cannot be proven
+   pre-merge
+3. backlog item only when the risk is genuinely out of scope and safe to defer
+
+Do not count a premortem as complete because the document exists. Count it only
+when at least one real production failure mode was actively challenged, and any
+credible current-PR risk was fixed or blocked by a guard.
+
+### Use instead
+
+- Diff-first failure stories tied to changed files and CI/runtime behavior.
+- Contract tests for every workflow or runtime invariant added by the premortem.
+- PR evidence that separates pre-merge proof from post-merge proof when a lane
+  such as publish cannot run automatically on pull requests.
+
 ---
 
 ## Repo Commands Reference

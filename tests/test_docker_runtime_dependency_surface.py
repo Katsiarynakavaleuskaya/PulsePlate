@@ -113,6 +113,7 @@ def test_find_blocked_packages_flags_ci_and_vector_stack() -> None:
 
 def test_find_blocked_debian_packages_flags_exact_package_names() -> None:
     installed = {
+        "gzip": "1.12-1",
         "libc6": "2.36-9+deb12u13",
         "libgnutls30": "3.7.9-2+deb12u6",
         "libsqlite3-0": "3.40.1-2+deb12u2",
@@ -123,9 +124,10 @@ def test_find_blocked_debian_packages_flags_exact_package_names() -> None:
 
     assert runtime_surface.find_blocked_debian_packages(
         installed,
-        ("libgnutls30", "libsqlite3-0", "missing-package", "perl-base"),
+        ("gzip", "libgnutls30", "libsqlite3-0", "missing-package", "perl-base"),
         ("perl-modules-",),
     ) == (
+        "gzip=1.12-1",
         "libgnutls30=3.7.9-2+deb12u6",
         "libsqlite3-0=3.40.1-2+deb12u2",
         "perl-base=5.36.0-7+deb12u3",
@@ -159,6 +161,7 @@ def test_build_result_fails_for_blocked_debian_package(monkeypatch: pytest.Monke
         "inspect_image_debian_packages",
         lambda _image: {
             "apt": "2.6.1",
+            "gzip": "1.12-1",
             "gpgv": "2.2.40-1.1",
             "libgnutls30": "3.7.9-2+deb12u6",
             "libsqlite3-0": "3.40.1-2+deb12u2",
@@ -171,15 +174,16 @@ def test_build_result_fails_for_blocked_debian_package(monkeypatch: pytest.Monke
     result = runtime_surface.build_result(
         "pulseplate:test",
         ("pytest",),
-        ("apt", "gpgv", "libgnutls30", "libsqlite3-0", "perl-base"),
+        ("apt", "gzip", "gpgv", "libgnutls30", "libsqlite3-0", "perl-base"),
         ("perl-modules-",),
     )
 
     assert result.blocked == ()
-    assert result.installed_debian_count == 7
+    assert result.installed_debian_count == 8
     assert result.blocked_debian_packages == (
         "apt=2.6.1",
         "gpgv=2.2.40-1.1",
+        "gzip=1.12-1",
         "libgnutls30=3.7.9-2+deb12u6",
         "libsqlite3-0=3.40.1-2+deb12u2",
         "perl-base=5.36.0-7+deb12u3",
@@ -288,6 +292,8 @@ def test_main_accepts_blocked_debian_packages(monkeypatch: pytest.MonkeyPatch) -
             "--blocked-debian-package",
             "apt",
             "--blocked-debian-package",
+            "gzip",
+            "--blocked-debian-package",
             "gpgv",
             "--blocked-debian-package",
             "libgnutls30",
@@ -305,6 +311,7 @@ def test_main_accepts_blocked_debian_packages(monkeypatch: pytest.MonkeyPatch) -
     assert captured["blocked_prefixes"] == runtime_surface.DEFAULT_BLOCKED_PREFIXES
     assert captured["blocked_debian_packages"] == (
         "apt",
+        "gzip",
         "gpgv",
         "libgnutls30",
         "libsqlite3-0",

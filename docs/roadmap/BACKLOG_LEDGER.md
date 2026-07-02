@@ -196,6 +196,18 @@ If it is not recorded here — it does not exist.
   - Links: `Dockerfile`, `.dockerignore`, `.github/workflows/build.yml`, `.github/workflows/trivy.yml`, `scripts/ci/docker_source_artifacts.json`, `scripts/ci/fetch_docker_source_artifacts.py`, `scripts/ci/check_docker_runtime_dependency_surface.py`, `.trivyignore`, `trivy/ignore-policy.rego`, `docs/security/CVE-2026-sqlite-runtime-removal.md`
   - DoD: CI/local Docker lanes run explicit source-artifact preparation before Docker build; Dockerfile performs no live upstream download; production image loads SQLite >=3.53.2 through Python `sqlite3`; production image removes Debian `libsqlite3-0`; Docker runtime dependency-surface guard fails if `libsqlite3-0` returns; broad `.trivyignore` SQLite CVE entries are removed; current-head Docker build/runtime-surface/Trivy image scan pass before any readiness claim.
 
+<a id="ledger-p1-container-gzip-cve-remediation"></a>
+- [ ] P1: Container image gzip CVE remediation (CVE-2026-41992)
+  - Owner: @katsiaryna_kavaleuskaya (Security/SRE)
+  - Priority: P1
+  - Target PR: PR #2062 — https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2062
+  - Branch: codex/fix-main-docker-publish-gzip-cve-2026-41992
+  - Status: In progress
+  - Area: security / container / supply-chain
+  - Reason (EN): Main Docker publish Trivy reports `gzip 1.12-1` for `CVE-2026-41992` with blank fixed-version metadata. Debian bookworm, trixie, and sid still mark their current `gzip` lines vulnerable, so this emergency lane remediates by production package removal instead of adding `.trivyignore` or `trivy/ignore-policy.rego` suppression.
+  - Links: `Dockerfile`, `.github/workflows/build.yml`, `.github/workflows/trivy.yml`, `scripts/ci/check_docker_runtime_dependency_surface.py`, `.trivyignore`, `trivy/ignore-policy.rego`, `docs/security/CVE-2026-41992-gzip.md`
+  - DoD: Production image removes `gzip`; Dockerfile fails closed if `gzip`, `gunzip`, or `zcat` binaries remain; Python stdlib `gzip` smoke still passes; Docker build and publish runtime dependency-surface guards fail if `gzip` returns; do not suppress CVE-2026-41992; current-head Docker build/runtime-surface/Trivy image scan pass before any readiness claim.
+
 <a id="ledger-p1-private-pypi-proxy-mirror-parity"></a>
 - [ ] P1: Private PyPI proxy mirror parity and origin stability (packages host only — marketing 521 stays intentional)
   - Owner: @katsiaryna_kavaleuskaya (SRE/DevOps)
