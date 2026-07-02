@@ -18,8 +18,8 @@ review threads, change product runtime, change workflows, or claim readiness.
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 - [x] Post-open `qa-engineer-agent` pass completed.
-- [ ] Post-open `bug-hunter` pass completed.
-- [ ] Post-open `security-auditor` pass completed.
+- [x] Post-open `bug-hunter` pass completed.
+- [x] Post-open `security-auditor` pass completed.
 - [ ] Codex Security diff scan / finding discovery completed or explicitly
   dispositioned.
 - [ ] `pulseplate-pr-review` completed.
@@ -88,6 +88,16 @@ Evidence: This mapping artifact now records Sourcery's actual review URL
 `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2060#pullrequestreview-4614334490`
 as the FIXED actionable and classifies the generated guide issue comment as
 NOT-A-BUG.
+
+Disposition: FIXED
+Source: post-open `security-auditor`
+Evidence: This artifact now marks the completed post-open `bug-hunter` pass in
+the checklist, matching the recorded bug-hunter dispositions.
+
+Disposition: NOT-A-BUG
+Source: post-open `security-auditor`
+Evidence: Security-auditor found no P0/P1/P2 security issues in pushed HEAD
+`c70063ad4`; the only finding was the checklist consistency item fixed above.
 
 ## Experiment Runner Evidence
 
