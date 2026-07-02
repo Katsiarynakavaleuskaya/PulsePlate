@@ -347,6 +347,23 @@
         {
           "if": {
             "properties": {
+              "report_present": { "const": true }
+            },
+            "required": ["report_present"]
+          },
+          "then": {
+            "properties": {
+              "read_only": {
+                "properties": {
+                  "metadata_read": { "const": true }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
               "workflow_dispatch_label": {
                 "const": "workflow_dispatch_actions_write_optional"
               }
@@ -390,6 +407,154 @@
                   "workflow_dispatch": { "const": false }
                 }
               }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "report_present": { "const": true },
+              "read_only": {
+                "properties": {
+                  "pull_requests_read": { "const": false }
+                },
+                "required": ["pull_requests_read"]
+              }
+            },
+            "required": ["report_present", "read_only"]
+          },
+          "then": {
+            "properties": {
+              "status": { "const": "missing_required_read_permissions" },
+              "missing_permissions": { "contains": { "const": "pull_requests:read" } },
+              "authority": {
+                "properties": {
+                  "read_pull_requests": { "const": false }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "report_present": { "const": true },
+              "read_only": {
+                "properties": {
+                  "pull_requests_read": { "const": true }
+                },
+                "required": ["pull_requests_read"]
+              }
+            },
+            "required": ["report_present", "read_only"]
+          },
+          "then": {
+            "properties": {
+              "missing_permissions": {
+                "not": { "contains": { "const": "pull_requests:read" } }
+              },
+              "authority": {
+                "properties": {
+                  "read_pull_requests": { "const": true }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "report_present": { "const": true },
+              "read_only": {
+                "properties": {
+                  "checks_read": { "const": false }
+                },
+                "required": ["checks_read"]
+              }
+            },
+            "required": ["report_present", "read_only"]
+          },
+          "then": {
+            "properties": {
+              "status": { "const": "missing_required_read_permissions" },
+              "missing_permissions": { "contains": { "const": "checks:read" } },
+              "authority": {
+                "properties": {
+                  "read_checks": { "const": false }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "report_present": { "const": true },
+              "read_only": {
+                "properties": {
+                  "checks_read": { "const": true }
+                },
+                "required": ["checks_read"]
+              }
+            },
+            "required": ["report_present", "read_only"]
+          },
+          "then": {
+            "properties": {
+              "missing_permissions": {
+                "not": { "contains": { "const": "checks:read" } }
+              },
+              "authority": {
+                "properties": {
+                  "read_checks": { "const": true }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "report_present": { "const": true },
+              "read_only": {
+                "properties": {
+                  "pull_requests_read": { "const": true },
+                  "checks_read": { "const": true }
+                },
+                "required": ["pull_requests_read", "checks_read"]
+              },
+              "workflow_dispatch_label": { "const": "manual_only" }
+            },
+            "required": ["report_present", "read_only", "workflow_dispatch_label"]
+          },
+          "then": {
+            "properties": {
+              "status": { "const": "read_only_capable" },
+              "missing_permissions": { "maxItems": 0 }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "report_present": { "const": true },
+              "read_only": {
+                "properties": {
+                  "pull_requests_read": { "const": true },
+                  "checks_read": { "const": true }
+                },
+                "required": ["pull_requests_read", "checks_read"]
+              },
+              "workflow_dispatch_label": {
+                "const": "workflow_dispatch_actions_write_optional"
+              }
+            },
+            "required": ["report_present", "read_only", "workflow_dispatch_label"]
+          },
+          "then": {
+            "properties": {
+              "status": { "const": "read_only_with_workflow_dispatch" },
+              "missing_permissions": { "maxItems": 0 }
             }
           }
         }

@@ -83,7 +83,9 @@ images, or user/runtime data.
   and Checks read are required for the read-only pilot; missing either blocks
   `prepare_next_candidate_plan` with `hold_for_governance`. Actions write is
   not required for read-only pilot state and is represented only as optional
-  fixed workflow-dispatch capability when present.
+  fixed workflow-dispatch capability when present. New state artifacts must
+  include this section; readers may normalize legacy v1.0 state artifacts that
+  predate the section to `manual_only` / `not_checked`.
 - optional external hotfix dependency status;
 - computed decision:
   `wait_for_hotfix_main | wait_for_review | wait_for_ci | fix_current_pr |

@@ -7,7 +7,7 @@ mutates app settings, dispatches workflows, or persists secrets.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 import json
 from pathlib import Path
 import re
@@ -311,6 +311,12 @@ def _expected_capabilities(
     }
 
 
+def _mismatched_keys(actual: Mapping[str, bool], expected: Mapping[str, bool]) -> list[str]:
+    return [
+        key for key in sorted(set(actual) | set(expected)) if actual.get(key) != expected.get(key)
+    ]
+
+
 def _normalize_permissions(raw_permissions: Any) -> dict[str, str]:
     if not isinstance(raw_permissions, Mapping):
         raise GithubAppPrivatePilotCapabilityError("permissions must be a JSON object.")
@@ -371,9 +377,12 @@ def _normalize_capabilities(
         key: _require_bool(raw_capabilities, key, expected=None, label="capabilities")
         for key in sorted(CAPABILITY_KEYS)
     }
-    if normalized != dict(sorted(expected.items())):
+    expected_normalized = dict(sorted(expected.items()))
+    if normalized != expected_normalized:
+        fields = ", ".join(_mismatched_keys(normalized, expected_normalized))
         raise GithubAppPrivatePilotCapabilityError(
-            "capabilities must match the normalized permission set."
+            "capabilities must match the normalized permission set; "
+            f"mismatched fields: {fields}."
         )
     return normalized
 
@@ -401,9 +410,11 @@ def _normalize_authority(raw_authority: Any, *, expected: Mapping[str, bool]) ->
         key: _require_bool(raw_authority, key, expected=None, label="authority")
         for key in sorted(AUTHORITY_KEYS)
     }
-    if normalized != dict(sorted(expected.items())):
+    expected_normalized = dict(sorted(expected.items()))
+    if normalized != expected_normalized:
+        fields = ", ".join(_mismatched_keys(normalized, expected_normalized))
         raise GithubAppPrivatePilotCapabilityError(
-            "authority must match the normalized permission set."
+            "authority must match the normalized permission set; " f"mismatched fields: {fields}."
         )
     return normalized
 
@@ -474,16 +485,33 @@ def validate_github_app_private_pilot_capability_report(
     return normalized
 
 
-def missing_required_read_permissions(report: Mapping[str, Any]) -> list[str]:
-    """Return required read permissions missing from a normalized report."""
-
-    capabilities = report["capabilities"]
+def _missing_required_read_permissions_from_read_only(
+    capabilities: Mapping[str, bool],
+) -> list[str]:
     missing: list[str] = []
     if not capabilities["pull_requests_read"]:
         missing.append("pull_requests:read")
     if not capabilities["checks_read"]:
         missing.append("checks:read")
     return sorted(missing)
+
+
+def _capability_status(
+    *,
+    missing_permissions: Sequence[str],
+    workflow_dispatch_label: str,
+) -> str:
+    if missing_permissions:
+        return "missing_required_read_permissions"
+    if workflow_dispatch_label == "workflow_dispatch_actions_write_optional":
+        return "read_only_with_workflow_dispatch"
+    return "read_only_capable"
+
+
+def missing_required_read_permissions(report: Mapping[str, Any]) -> list[str]:
+    """Return required read permissions missing from a normalized report."""
+
+    return _missing_required_read_permissions_from_read_only(report["capabilities"])
 
 
 def default_github_app_capability_state() -> dict[str, Any]:
@@ -510,12 +538,10 @@ def github_app_capability_state_from_report(report: Mapping[str, Any]) -> dict[s
 
     normalized_report = validate_github_app_private_pilot_capability_report(report)
     missing = missing_required_read_permissions(normalized_report)
-    if missing:
-        status = "missing_required_read_permissions"
-    elif normalized_report["capabilities"]["workflow_dispatch"]:
-        status = "read_only_with_workflow_dispatch"
-    else:
-        status = "read_only_capable"
+    status = _capability_status(
+        missing_permissions=missing,
+        workflow_dispatch_label=normalized_report["workflow_dispatch"]["label"],
+    )
     return {
         "status": status,
         "report_present": True,
@@ -601,6 +627,10 @@ def normalize_github_app_capability_state(payload: Any) -> dict[str, Any]:
             "github_app_capability not-checked state must be manual-only."
         )
     if report_present:
+        if not read_only["metadata_read"]:
+            raise GithubAppPrivatePilotCapabilityError(
+                "github_app_capability metadata read is required when report is present."
+            )
         if read_only["contents_read"]:
             raise GithubAppPrivatePilotCapabilityError(
                 "github_app_capability contents read is not part of the private-pilot gate."
@@ -623,24 +653,14 @@ def normalize_github_app_capability_state(payload: Any) -> dict[str, Any]:
             raise GithubAppPrivatePilotCapabilityError(
                 "github_app_capability workflow dispatch requires actions read/write capability."
             )
-        expected_missing = []
-        if not read_only["pull_requests_read"]:
-            expected_missing.append("pull_requests:read")
-        if not read_only["checks_read"]:
-            expected_missing.append("checks:read")
-        expected_missing = sorted(expected_missing)
+        expected_missing = _missing_required_read_permissions_from_read_only(read_only)
         if missing != expected_missing:
             raise GithubAppPrivatePilotCapabilityError(
                 "github_app_capability.missing_permissions must match read booleans."
             )
-        expected_status = (
-            "missing_required_read_permissions"
-            if missing
-            else (
-                "read_only_with_workflow_dispatch"
-                if dispatch_label == "workflow_dispatch_actions_write_optional"
-                else "read_only_capable"
-            )
+        expected_status = _capability_status(
+            missing_permissions=missing,
+            workflow_dispatch_label=dispatch_label,
         )
         if status != expected_status:
             raise GithubAppPrivatePilotCapabilityError(

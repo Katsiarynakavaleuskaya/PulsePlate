@@ -10,6 +10,7 @@ from typing import Any
 import pytest
 
 from core.evidence.fingerprints import fingerprint_payload
+from scripts.orchestration import creative_code_private_pilot_loop_contract as contract
 from scripts.orchestration import creative_code_private_pilot_loop_operator as operator
 from scripts.orchestration.creative_code_private_pilot_loop_contract import (
     AUTHORITY_FALSE_KEYS,
@@ -32,6 +33,7 @@ from scripts.orchestration.github_app_private_pilot_capability import (
     REQUIRED_READ_PERMISSIONS,
     WORKFLOW_DISPATCH_LABELS,
     GithubAppPrivatePilotCapabilityError,
+    default_github_app_capability_state,
     github_app_capability_state_from_report,
     read_github_app_private_pilot_capability_report,
     reject_unsafe_report_value,
@@ -658,6 +660,23 @@ def test_github_app_capability_default_is_manual_only_and_nonblocking() -> None:
     assert decide_next_action(state) == "prepare_next_candidate_plan"
 
 
+def test_legacy_state_without_github_app_capability_defaults_on_read() -> None:
+    state = _state()
+    legacy_state = deepcopy(state)
+    legacy_state.pop("github_app_capability")
+    legacy_state["state_id"], legacy_state["idempotency_key"] = contract._private_pilot_identity(
+        legacy_state,
+        legacy_without_github_app_capability=True,
+    )
+
+    normalized = validate_private_pilot_state(legacy_state)
+
+    assert normalized["github_app_capability"] == default_github_app_capability_state()
+    assert normalized["decision"] == "prepare_next_candidate_plan"
+    assert normalized["state_id"] == legacy_state["state_id"]
+    assert normalized["idempotency_key"] == legacy_state["idempotency_key"]
+
+
 def test_github_app_capability_report_with_read_permissions_allows_candidate_plan() -> None:
     capability = github_app_capability_state_from_report(_github_app_capability_report())
     state = _state(github_app_capability=capability)
@@ -670,6 +689,20 @@ def test_github_app_capability_report_with_read_permissions_allows_candidate_pla
     assert state["github_app_capability"]["authority"]["workflow_dispatch"] is False
     assert state["decision"] == "prepare_next_candidate_plan"
     assert build_candidate_plan(state)["decision"] == "prepare_next_candidate_plan"
+
+
+def test_github_app_capability_present_state_requires_metadata_read() -> None:
+    state = _state(
+        github_app_capability=github_app_capability_state_from_report(
+            _github_app_capability_report()
+        )
+    )
+    payload = deepcopy(state)
+    payload["github_app_capability"]["read_only"]["metadata_read"] = False
+    payload["github_app_capability"]["authority"]["read_metadata"] = False
+
+    with pytest.raises(CreativeCodePrivatePilotContractError, match="metadata read"):
+        validate_private_pilot_state(payload)
 
 
 @pytest.mark.parametrize(
@@ -787,7 +820,10 @@ def test_github_app_capability_report_rejects_permission_capability_mismatch() -
     report = _github_app_capability_report()
     report["capabilities"]["pull_requests_read"] = False
 
-    with pytest.raises(GithubAppPrivatePilotCapabilityError, match="capabilities"):
+    with pytest.raises(
+        GithubAppPrivatePilotCapabilityError,
+        match="capabilities.*pull_requests_read",
+    ):
         validate_github_app_private_pilot_capability_report(report)
 
 
@@ -795,7 +831,10 @@ def test_github_app_capability_report_rejects_permission_authority_mismatch() ->
     report = _github_app_capability_report()
     report["authority"]["read_pull_requests"] = False
 
-    with pytest.raises(GithubAppPrivatePilotCapabilityError, match="authority"):
+    with pytest.raises(
+        GithubAppPrivatePilotCapabilityError,
+        match="authority.*read_pull_requests",
+    ):
         validate_github_app_private_pilot_capability_report(report)
 
 
@@ -825,9 +864,15 @@ def test_github_app_capability_report_schema_documents_runtime_mismatch_guards()
     mismatched_authority = _github_app_capability_report()
     mismatched_authority["authority"]["read_checks"] = False
 
-    with pytest.raises(GithubAppPrivatePilotCapabilityError, match="capabilities"):
+    with pytest.raises(
+        GithubAppPrivatePilotCapabilityError,
+        match="capabilities.*pull_requests_read",
+    ):
         validate_github_app_private_pilot_capability_report(mismatched_capability)
-    with pytest.raises(GithubAppPrivatePilotCapabilityError, match="authority"):
+    with pytest.raises(
+        GithubAppPrivatePilotCapabilityError,
+        match="authority.*read_checks",
+    ):
         validate_github_app_private_pilot_capability_report(mismatched_authority)
 
 
@@ -1123,8 +1168,12 @@ def test_state_schema_matches_closed_contract_enums() -> None:
     assert sorted(capability_status["enum"]) == sorted(GITHUB_APP_CAPABILITY_STATUSES)
     assert sorted(capability_missing["items"]["enum"]) == sorted(REQUIRED_READ_PERMISSIONS)
     assert sorted(capability_dispatch["enum"]) == sorted(WORKFLOW_DISPATCH_LABELS)
-    assert len(github_app_capability["allOf"]) == 4
-    assert "workflow_dispatch_actions_write_optional" in json.dumps(github_app_capability["allOf"])
+    capability_coupling = json.dumps(github_app_capability["allOf"])
+    assert len(github_app_capability["allOf"]) == 11
+    assert "workflow_dispatch_actions_write_optional" in capability_coupling
+    assert "pull_requests:read" in capability_coupling
+    assert "checks:read" in capability_coupling
+    assert "read_only_with_workflow_dispatch" in capability_coupling
     assert base_ref == {"$ref": "#/$defs/git_ref"}
     assert details_url["anyOf"] == [
         {"$ref": "#/$defs/github_url"},
