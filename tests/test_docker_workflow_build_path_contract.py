@@ -652,7 +652,9 @@ def test_publish_image_scan_fails_closed() -> None:
     publish_surface_run = publish_surface_step["run"]
     assert isinstance(publish_surface_run, str)
     assert "check_docker_runtime_dependency_surface.py" in publish_surface_run
-    assert "--image ${{ steps.image-ref.outputs.ref }}" in publish_surface_run
+    assert publish_surface_step["env"] == {"IMAGE_REF": "${{ steps.image-ref.outputs.ref }}"}
+    assert '--image "${IMAGE_REF}"' in publish_surface_run
+    assert "steps.image-ref.outputs.ref" not in publish_surface_run
     assert "--blocked-debian-package gzip" in publish_surface_run
     for package in (
         "apt",

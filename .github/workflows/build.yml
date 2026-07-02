@@ -553,10 +553,12 @@ jobs:
           echo "ref=${{ env.REGISTRY }}/${{ steps.image-name.outputs.image_name }}:sha-${{ github.sha }}" >> "$GITHUB_OUTPUT"
 
       - name: Check Docker publish runtime dependency surface
+        env:
+          IMAGE_REF: ${{ steps.image-ref.outputs.ref }}
         run: |
           set -euo pipefail
           python3 scripts/ci/check_docker_runtime_dependency_surface.py \
-            --image ${{ steps.image-ref.outputs.ref }} \
+            --image "${IMAGE_REF}" \
             --blocked-debian-package apt \
             --blocked-debian-package gzip \
             --blocked-debian-package gpgv \
