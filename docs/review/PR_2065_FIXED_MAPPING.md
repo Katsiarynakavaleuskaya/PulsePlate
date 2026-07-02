@@ -61,6 +61,19 @@ merge-readiness claims.
     `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"`
     form.
 
+### Bug Hunter
+
+- Finding: canonical fixed-mapping artifact and PR body mirror were missing the
+  Phase 2 mapping contract shape, including checked discussion/mapping
+  checkboxes, parser-valid `## Fixed in Commit Mapping` content, and literal
+  Experiment Runner `Artifact:` evidence.
+  - Disposition: FIXED
+  - Commit: `cfd7102b7`
+  - Evidence:
+    `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 2065` passes,
+    and `python3 scripts/orchestration/check_review_threads_disposition.py --pr-number 2065`
+    reports no resolved review threads to enforce.
+
 ## Premortem Findings
 
 - R1 false full-BOLA closure interpretation - FIXED by scope wording and
