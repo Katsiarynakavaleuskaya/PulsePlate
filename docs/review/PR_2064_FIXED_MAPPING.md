@@ -143,7 +143,7 @@ Role: `qa-engineer-agent`
 
 Disposition: FIXED
 
-Commit: `98d85d3fa`
+Commit: `f3f187fa7`
 
 Evidence: Post-open QA found the Phase 2/fixed-mapping gate failed because the
 mapping artifact omitted parser-required checkbox labels and used prose instead
