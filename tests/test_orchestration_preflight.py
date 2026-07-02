@@ -225,6 +225,108 @@ def test_check_gate_evidence_resolves_relative_paths_against_root(
     assert preflight.check_gate_evidence(["evidence.log"]) is True
 
 
+def test_private_python_index_url_shape_allows_missing_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv(preflight.INDEX_ENV_VAR, raising=False)
+
+    assert preflight.check_private_python_index_url_shape("execute", ["requirements.in"])
+
+
+def test_private_python_index_url_shape_warns_in_analyze_mode(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setenv(
+        preflight.INDEX_ENV_VAR,
+        "https://packages.pulseplate.app/root/pypi/+simple/",
+    )
+
+    assert preflight.check_private_python_index_url_shape("analyze", ["requirements.in"])
+
+    output = capsys.readouterr().out
+    assert "WARNING:" in output
+    assert "unexpected_index_path" in output
+    assert "https://packages.pulseplate.app/root/pulseplate/+simple/" in output
+
+
+def test_private_python_index_url_shape_fails_dependency_sensitive_execute_path(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setenv(
+        preflight.INDEX_ENV_VAR,
+        "https://packages.pulseplate.app/root/pypi/+simple/",
+    )
+
+    assert (
+        preflight.check_private_python_index_url_shape(
+            "execute",
+            ["scripts/ci/check_python_dependency_surfaces.py"],
+        )
+        is False
+    )
+
+    output = capsys.readouterr().out
+    assert "FAIL:" in output
+    assert "unexpected_index_path" in output
+
+
+def test_private_python_index_url_shape_fails_dependency_sensitive_directory_scope(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setenv(
+        preflight.INDEX_ENV_VAR,
+        "https://packages.pulseplate.app/root/pypi/+simple/",
+    )
+
+    assert preflight.check_private_python_index_url_shape("execute", ["scripts/ci"]) is False
+    assert preflight.check_private_python_index_url_shape("execute", [".github/workflows"]) is False
+
+    output = capsys.readouterr().out
+    assert output.count("FAIL:") == 2
+    assert "unexpected_index_path" in output
+
+
+def test_private_python_index_url_shape_warns_for_unrelated_execute_path(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setenv(preflight.INDEX_ENV_VAR, "https://pypi.org/simple/")
+
+    assert preflight.check_private_python_index_url_shape(
+        "execute",
+        ["docs/orchestration/workflow.md"],
+    )
+
+    output = capsys.readouterr().out
+    assert "WARNING:" in output
+    assert "public_index_url" in output
+
+
+def test_private_python_index_url_shape_does_not_echo_inline_credentials(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    unsafe_url = "https://user:token@packages.pulseplate.app/root/pulseplate/+simple/"  # pragma: allowlist secret
+    monkeypatch.setenv(preflight.INDEX_ENV_VAR, unsafe_url)
+
+    assert preflight.check_private_python_index_url_shape("execute", ["requirements.in"]) is False
+
+    output = capsys.readouterr().out
+    assert "credentialed_index_url" in output
+    assert unsafe_url not in output
+
+
+def test_private_python_index_url_shape_accepts_canonical_root(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setenv(
+        preflight.INDEX_ENV_VAR,
+        "https://packages.pulseplate.app/root/pulseplate/+simple/",
+    )
+
+    assert preflight.check_private_python_index_url_shape("execute", ["requirements.in"])
+
+    assert "PASS: private Python index URL shape" in capsys.readouterr().out
+
+
 def test_role_dispatch_bridge_smoke_fails_closed_when_required_bridge_missing(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

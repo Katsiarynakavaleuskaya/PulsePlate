@@ -1397,6 +1397,9 @@ def test_dependency_docs_describe_eval_and_data_profiles_as_local_manual() -> No
     assert "scripts/build_recipe_db.py" in dependency_docs
     assert "pandas" in dependency_docs
     assert "pyarrow" in dependency_docs
+    assert "sqlite+aiosqlite" in dependency_docs
+    assert "production/staging Postgres policy is unchanged" in dependency_docs
+    assert "without unrelated lock churn" in dependency_docs
     normalized_dependency_docs = " ".join(dependency_docs.casefold().split())
     assert "runtime, docker runtime, ci-lite, and `requirements-lock.txt`" in (
         normalized_dependency_docs

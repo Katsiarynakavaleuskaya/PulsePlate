@@ -86,6 +86,13 @@ The dependency ownership audit currently enforces only the first audited subset:
 not runtime ownership. `legacy_app.py`, root `bmi_visualization.py`, and legacy
 BMI compatibility shims can produce `legacy_compat_transitional` evidence only;
 they cannot by themselves make a dependency canonical runtime authority.
+`aiosqlite` remains in runtime, Docker runtime, and CI-lite surfaces because
+`core/db.py` derives `sqlite+aiosqlite` URLs for SQLite async fallback/local-dev
+and test support. That documented owner does not make SQLite or `aiosqlite` a
+production database authority; production/staging Postgres policy is unchanged.
+`numpy` direct runtime authority remains warning-only unless a PR can remove the
+direct input line while keeping `numpy` as a deterministic transitive pin
+through `matplotlib` without unrelated lock churn.
 
 `requirements-evals.in` owns the tracked offline eval dependency surface for
 the local RAGAS companion runner. RAGAS native execution is disabled while

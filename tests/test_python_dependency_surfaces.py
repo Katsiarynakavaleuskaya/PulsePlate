@@ -583,6 +583,66 @@ def test_dependency_ownership_audit_reports_numpy_as_transitive_candidate(
     )
 
 
+def test_dependency_ownership_audit_documents_aiosqlite_sqlite_async_fallback_owner(
+    tmp_path: Path,
+) -> None:
+    _write_valid_contract_repo(tmp_path)
+    for surface_file, requirement in (
+        ("requirements.in", "aiosqlite>=0.22.1,<1.0.0"),
+        ("requirements.txt", "aiosqlite==0.22.1"),
+        ("requirements-ci-lite.in", "aiosqlite>=0.22.1,<1.0.0"),
+        ("requirements-ci-lite.txt", "aiosqlite==0.22.1"),
+        ("requirements-docker-runtime.in", "aiosqlite>=0.22.1,<1.0.0"),
+        ("requirements-docker-runtime.txt", "aiosqlite==0.22.1"),
+    ):
+        _append_requirement(tmp_path, surface_file, requirement)
+    core_dir = tmp_path / "core"
+    core_dir.mkdir(parents=True, exist_ok=True)
+    (core_dir / "db.py").write_text(
+        "\n".join(
+            (
+                "def _sqlite_connect_args(url):",
+                "    return {}",
+                "",
+                "def _derive_async_url(sync_url):",
+                "    return sync_url.replace('sqlite:///', 'sqlite+aiosqlite:///', 1)",
+            )
+        ),
+        encoding="utf-8",
+    )
+
+    errors = surfaces.validate_repo(tmp_path)
+    findings = surfaces.collect_dependency_ownership_findings(tmp_path)
+
+    assert errors == []
+    assert any(
+        finding.package == "aiosqlite"
+        and finding.severity == surfaces.OWNERSHIP_INFO
+        and finding.reason_code == "sqlite_async_fallback_owner_documented"
+        and finding.surfaces == ("core/db.py",)
+        for finding in findings
+    )
+
+
+def test_dependency_ownership_audit_keeps_aiosqlite_warning_without_owner_evidence(
+    tmp_path: Path,
+) -> None:
+    _write_valid_contract_repo(tmp_path)
+    _append_requirement(tmp_path, "requirements.in", "aiosqlite>=0.22.1,<1.0.0")
+    _append_requirement(tmp_path, "requirements.txt", "aiosqlite==0.22.1")
+
+    errors = surfaces.validate_repo(tmp_path)
+    findings = surfaces.collect_dependency_ownership_findings(tmp_path)
+
+    assert errors == []
+    assert any(
+        finding.package == "aiosqlite"
+        and finding.severity == surfaces.OWNERSHIP_WARNING
+        and finding.reason_code == "db_fallback_test_split_pending"
+        for finding in findings
+    )
+
+
 def test_verify_requirements_wrapper_runs_surface_validator(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
