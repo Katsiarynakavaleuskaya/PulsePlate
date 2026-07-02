@@ -156,6 +156,18 @@ is changed.
 - PASS: push hooks, including pip-audit, backend pre-push tests, and full-repo
   Bandit
 - PASS: `python3 scripts/orchestration/check_experiment_runner_identity.py --json`
+- PASS: `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 2065`
+- PASS:
+  `python3 scripts/orchestration/check_review_threads_disposition.py --pr-number 2065`
+
+## CI Observation
+
+- Earlier current-head CI run `28614307520` failed `PR Body Phase2 gates`
+  because the workflow event body was captured before the PR body mirror was
+  updated with checked discussion/mapping boxes. The live PR body and canonical
+  artifact now pass `check_pr_body_phase2_gates.py --pr-number 2065`; this
+  commit records that correction and creates a non-empty governance update for a
+  fresh current-head rerun.
 
 ## Merge Readiness
 
