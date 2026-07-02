@@ -404,6 +404,42 @@ def test_legacy_nutrition_endpoint_defaults(
     assert after == before + 1.0
 
 
+def test_legacy_nutrition_endpoint_records_metric_and_delegates(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    pro_headers: dict[str, str],
+) -> None:
+    import app.routers.legacy_nutrition_alias as legacy_alias
+
+    calls: list[dict[str, object]] = []
+
+    async def _fake_get_daily_nutrition(**kwargs: object) -> dict[str, object]:
+        calls.append(kwargs)
+        return {"date": kwargs["date_str"], "delegated": True}
+
+    monkeypatch.setattr(legacy_alias, "get_daily_nutrition", _fake_get_daily_nutrition)
+    _reset_legacy_alias_counter_for_tests()
+    before = _get_legacy_alias_metric_value()
+
+    response = client.get("/api/nutrition/2025-12-15", headers=pro_headers)
+
+    assert response.status_code == 200
+    assert response.json() == {"date": "2025-12-15", "delegated": True}
+    assert calls == [
+        {
+            "date_str": "2025-12-15",
+            "sex": "female",
+            "age": 30,
+            "height_cm": 165,
+            "weight_kg": 65,
+            "activity": "moderate",
+            "goal": "maintain",
+        }
+    ]
+    after = _get_legacy_alias_metric_value()
+    assert after == before + 1.0
+
+
 def _get_legacy_alias_metric_value() -> float:
     # prom-client API: stable, no scraping needed
     try:

@@ -8,6 +8,10 @@ from app.metrics import LEGACY_NUTRITION_DATE_ROUTE_TEMPLATE, record_legacy_alia
 from app.middleware.api_tiers import require_pro_tier
 from app.routers.pro import get_daily_nutrition
 
+LEGACY_NUTRITION_ALIAS_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = (
+    (LEGACY_NUTRITION_DATE_ROUTE_TEMPLATE, "GET", False),
+)
+
 router = APIRouter(tags=["pro", "legacy"], include_in_schema=False)
 
 
@@ -36,12 +40,12 @@ async def legacy_nutrition_date_alias(
 
     response = await get_daily_nutrition(
         date_str=date_str,
-        sex=sex,  # type: ignore
+        sex=sex,
         age=age,
         height_cm=height_cm,
         weight_kg=weight_kg,
-        activity=activity,  # type: ignore
-        goal=goal,  # type: ignore
+        activity=activity,
+        goal=goal,
     )
     # Return canonical response as-is (avoid serialization drift in shim).
     return response

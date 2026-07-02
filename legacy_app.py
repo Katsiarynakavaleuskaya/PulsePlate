@@ -921,37 +921,11 @@ app.include_router(catalog_router)
 # PRO/VIP route registration is owned by app.main canonical bootstrap.
 # Compatibility attrs above are populated there after successful registration.
 
-# Include Bayesian adherence router (PRO/VIP tier)
-try:
-    from app.routers import bayes_adherence
-
-    app.include_router(bayes_adherence.router)
-except ImportError as e:
-    logger.warning("Bayesian adherence router not loaded: %s", e)
-
-# Include nutrition logging router (PRO tier)
-try:
-    from app.routers import nutrition_log
-
-    app.include_router(nutrition_log.router)
-except ImportError as e:
-    logger.warning("Nutrition log router not loaded: %s", e)
-
 # Include PRO Shopping List Generator router
 app.include_router(shopping_list_pro_router)
 
 # Include Day Shopping List router (iOS MVP)
 app.include_router(shoplist_day_router)
-
-
-# Legacy nutrition alias router (thin include only; no instrumentation here).
-try:
-    from app.routers.legacy_nutrition_alias import router as legacy_nutrition_alias_router
-
-    app.include_router(legacy_nutrition_alias_router)
-except ImportError as e:  # pragma: no cover
-    logger.warning("Legacy nutrition alias router not loaded: %s", e)  # pragma: no cover
-
 
 # Premium week router registration is now handled in
 # app.routers.pro_registration.register_pro_routes() for centralized registration.

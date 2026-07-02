@@ -41,6 +41,7 @@ from app.effective_routes import (
 from app.bootstrap.route_family import RouteMemberContract, ensure_route_family_registered
 from app.bootstrap.telemetry import register_request_telemetry
 from app.bootstrap.tracing import register_tracing
+from app.middleware.api_tiers import get_current_user, require_pro_tier
 from app.routers.creative_research_internal import router as creative_research_internal_router
 from app.routers.paywall_analytics import ingest_paywall_event, router as paywall_analytics_router
 import app.routers.realtime_ws as realtime_ws
@@ -49,6 +50,10 @@ from app.routers.admin_operations import (
     router as admin_operations_router,
 )
 from app.routers.api_key import require_app_api_key
+from app.routers.bayes_adherence import (
+    BAYES_ADHERENCE_ROUTE_SPECS,
+    router as bayes_adherence_router,
+)
 from app.routers.bodyfat import BODYFAT_ROUTE_SPECS, router as bodyfat_router
 from app.routers.business import BUSINESS_ROUTE_SPECS, router as business_router
 from app.routers.bmi_compat import BMI_COMPAT_ROUTE_SPECS, router as bmi_compat_router
@@ -65,6 +70,11 @@ from app.routers.legacy_export_aliases import (
     LEGACY_EXPORT_ALIAS_ROUTE_SPECS,
     build_legacy_export_aliases_router,
 )
+from app.routers.legacy_nutrition_alias import (
+    LEGACY_NUTRITION_ALIAS_ROUTE_SPECS,
+    router as legacy_nutrition_alias_router,
+)
+from app.routers.nutrition_log import NUTRITION_LOG_ROUTE_SPECS, router as nutrition_log_router
 from app.routers.plan_export import (
     PLAN_EXPORT_ROUTE_SPECS,
     WEEK_EXPORT_CSV_PATH,
@@ -127,6 +137,10 @@ _PAYWALL_EVENTS_ROUTE_PATH: str = "/api/v1/internal/paywall/events"
 _ADMIN_OPERATION_ROUTE_SPECS: tuple[tuple[str, str], ...] = tuple(
     (path, method.upper()) for path, method in ADMIN_OPERATION_ROUTE_SPECS
 )
+_BAYES_ADHERENCE_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = tuple(
+    (path, method.upper(), include_in_schema)
+    for path, method, include_in_schema in BAYES_ADHERENCE_ROUTE_SPECS
+)
 _BMI_COMPAT_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = tuple(
     (path, method.upper(), include_in_schema)
     for path, method, include_in_schema in BMI_COMPAT_ROUTE_SPECS
@@ -146,6 +160,14 @@ _TEST_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = tuple(
 _LEGACY_EXPORT_ALIAS_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = tuple(
     (path, method.upper(), include_in_schema)
     for path, method, include_in_schema in LEGACY_EXPORT_ALIAS_ROUTE_SPECS
+)
+_LEGACY_NUTRITION_ALIAS_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = tuple(
+    (path, method.upper(), include_in_schema)
+    for path, method, include_in_schema in LEGACY_NUTRITION_ALIAS_ROUTE_SPECS
+)
+_NUTRITION_LOG_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = tuple(
+    (path, method.upper(), include_in_schema)
+    for path, method, include_in_schema in NUTRITION_LOG_ROUTE_SPECS
 )
 _PLAN_EXPORT_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = tuple(
     (path, method.upper(), include_in_schema)
@@ -278,6 +300,37 @@ def _restaurant_moderation_route_members(
         )
         for path, method, include_in_schema in _RESTAURANT_MODERATION_ROUTE_SPECS
     )
+
+
+def _nutrition_state_route_members() -> tuple[RouteMemberContract, ...]:
+    stateful_dependencies = (require_pro_tier, get_current_user)
+    alias_dependencies = (require_pro_tier,)
+    members: list[RouteMemberContract] = []
+
+    for path, method, include_in_schema in (
+        *_BAYES_ADHERENCE_ROUTE_SPECS,
+        *_NUTRITION_LOG_ROUTE_SPECS,
+    ):
+        members.append(
+            RouteMemberContract(
+                path=path,
+                method=method,
+                include_in_schema=include_in_schema,
+                required_dependencies=stateful_dependencies,
+            )
+        )
+
+    for path, method, include_in_schema in _LEGACY_NUTRITION_ALIAS_ROUTE_SPECS:
+        members.append(
+            RouteMemberContract(
+                path=path,
+                method=method,
+                include_in_schema=include_in_schema,
+                required_dependencies=alias_dependencies,
+            )
+        )
+
+    return tuple(members)
 
 
 def _bodyfat_route_members() -> tuple[RouteMemberContract, ...]:
@@ -807,6 +860,21 @@ def _include_shoplist_export_router_if_needed(target_app: FastAPI) -> None:
     )
 
 
+def _include_nutrition_state_routers_if_needed(target_app: FastAPI) -> None:
+    """Register nutrition/adherence state routes as one protected static family."""
+
+    ensure_route_family_registered(
+        target_app,
+        family_name="Nutrition state",
+        routers=(
+            bayes_adherence_router,
+            nutrition_log_router,
+            legacy_nutrition_alias_router,
+        ),
+        members=_nutrition_state_route_members(),
+    )
+
+
 def _include_bodyfat_router_if_needed(target_app: FastAPI) -> None:
     """Register public bodyfat route as one canonical static family."""
 
@@ -1005,6 +1073,7 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
     register_tracing(app)
     _register_paid_tier_routes(app)
     register_pro_contract_routes(app)
+    _include_nutrition_state_routers_if_needed(app)
 
     ws_paths_present = {path for path in _WS_ROUTE_PATHS if _has_route(app, path)}
     if not ws_paths_present:
