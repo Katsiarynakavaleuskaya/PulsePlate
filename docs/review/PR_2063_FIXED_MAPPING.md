@@ -41,7 +41,7 @@ runtime, thread-resolution, fixed-mapping, merge, or readiness authority.
 - [x] Post-open `qa-engineer-agent` pass completed.
 - [x] Post-open `bug-hunter` pass completed.
 - [x] Post-open `security-auditor` pass completed.
-- [ ] Codex Security diff scan / finding discovery completed or explicitly
+- [x] Codex Security diff scan / finding discovery completed or explicitly
   dispositioned.
 - [ ] `pulseplate-pr-review` completed.
 - [ ] CodeRabbit actionable review comments checked and dispositioned after bot
@@ -162,6 +162,15 @@ adds an accepted-status schema guard requiring both `result_ref` and
 and
 `tests/test_experiment_runner_pr_creative_context.py::test_oracle_attachment_schema_requires_fingerprint_for_accepted_status`.
 
+Disposition: NOT-A-BUG
+Source: Codex Security diff scan / finding discovery
+Evidence: Codex Security scan `85f14aea-d5d0-494d-9e78-218a37eb5325`
+completed for head `3956e6d09c1a481b091e130cf727ca80bc65191d` with
+0 reportable findings and 4/4 diff review rows closed. Reviewed surfaces
+included CLI output confinement, contract sanitization and artifact refs,
+oracle/approval/routing/summary binding, task-bootstrap single-pass governance,
+and supporting schema/doc/test surfaces.
+
 ## Experiment Runner Evidence
 
 - Artifact: `artifacts/orchestration/experiments/results/exp-faf9d17cb8f9.json`
@@ -198,10 +207,13 @@ and
   schema files.
 - PASS after security-auditor fixes:
   `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/test_experiment_runner_pr_creative_context.py tests/test_task_bootstrap.py tests/test_render_codex_start_prompt.py tests/test_creative_code_review_disposition.py tests/test_creative_code_private_pilot_loop.py`.
+- PASS: Codex Security scan
+  `85f14aea-d5d0-494d-9e78-218a37eb5325` completed with 0 findings and 4/4
+  diff review rows closed.
 
 ## Merge Readiness
 
 Not claimed. This artifact records current dispositions and local evidence only.
-The post-open `bug-hunter -> security-auditor -> Codex Security ->
-pulseplate-pr-review` chain, bot review disposition, current-head CI, and strict
-merge-readiness checks remain required before any readiness language.
+The post-open `pulseplate-pr-review` pass, bot review disposition,
+current-head CI, and strict merge-readiness checks remain required before any
+readiness language.
