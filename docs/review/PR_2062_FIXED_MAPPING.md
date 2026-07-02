@@ -22,12 +22,22 @@ backlog tracking, and a diff-first premortem with code closures.
 - [x] Codex Security diff scan / finding discovery completed.
 - [ ] `pulseplate-pr-review` completed.
 - [x] CodeRabbit actionable review comments checked and dispositioned.
-- [ ] Sourcery actionable review comments checked and dispositioned.
-- [ ] Cubic actionable review comments checked and dispositioned.
+- [x] Sourcery actionable review comments checked and dispositioned.
+- [x] Cubic actionable review comments checked and dispositioned.
 - [ ] Current-head CI complete before readiness language.
 - [ ] Strict merge-readiness checks run after the final review/check cycle.
 
 ## Fixed in Commit Mapping
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2062#pullrequestreview-4615936341 -> b7353977e414f88840bb9c13c764726ce71cd662
+Disposition: FIXED
+Commit: b7353977e414f88840bb9c13c764726ce71cd662
+Evidence: The review-level CodeRabbit summary contained three actionable items. `docs/roadmap/BACKLOG_LEDGER.md` now targets PR #2062, `docs/security/CVE-2026-41992-gzip.md` now has concrete file:line anchors, and `.github/workflows/build.yml` now passes the publish image reference through `env: IMAGE_REF` before the shell `run:` block. `tests/test_docker_workflow_build_path_contract.py` asserts the env binding and forbids `steps.image-ref.outputs.ref` inside that runtime-surface guard script.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2062#pullrequestreview-4616005241 -> d5e1f60c25cbedd7bc2471d723340330498073d1
+Disposition: FIXED
+Commit: d5e1f60c25cbedd7bc2471d723340330498073d1
+Evidence: The later CodeRabbit review-level summary requested concrete fixed-mapping entries. `docs/review/PR_2062_FIXED_MAPPING.md` now lists each actionable CodeRabbit thread with disposition-specific proof and post-comment commit SHAs.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2062#discussion_r3511718210 -> 5583e6f337156606d1f681f9e74b17fbc9e222ce
 Disposition: FIXED
@@ -43,6 +53,14 @@ Evidence: `docs/roadmap/BACKLOG_LEDGER.md` now records `Target PR: PR #2062` wit
 Disposition: FIXED
 Commit: d5e1f60c25cbedd7bc2471d723340330498073d1
 Evidence: `docs/review/PR_2062_FIXED_MAPPING.md` replaced the no-actionable sentinel with concrete CodeRabbit review-thread mappings and disposition proof.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2062#pullrequestreview-4615879762
+Disposition: NOT-A-BUG
+Evidence: Sourcery posted a rate-limit notice, not actionable code-review feedback for this diff. The PR status context reports `Sourcery review` as pass, and no Sourcery code comments require code or documentation changes.
+
+- Cubic status check: https://www.cubic.dev/pr/Katsiarynakavaleuskaya/PulsePlate/pull/2062
+Disposition: NOT-A-BUG
+Evidence: Cubic exposed a neutral/skipped status check and no actionable review comments in the GitHub PR review/comment surfaces inspected for PR #2062.
 
 ## Role-Agent Finding Dispositions
 
