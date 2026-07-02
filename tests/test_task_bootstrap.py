@@ -1181,15 +1181,24 @@ def test_task_bootstrap_keeps_security_auditor_in_privileged_review_path() -> No
 @pytest.mark.parametrize(
     "candidate_path",
     (
+        ".github/actions/setup/action.yml",
+        "Dockerfile",
+        ".trivyignore",
+        "docker-compose.yaml",
+        "requirements-ci-lite.txt",
+        "requirements.in",
+        "constraints.txt",
         "scripts/ci/check_pr_merge_readiness.py",
+        "scripts/release/publish.py",
         "docs/orchestration/workflow.md",
         "docs/review/PR_1254_FIXED_MAPPING.md",
+        "trivy/policy.rego",
     ),
 )
-def test_task_bootstrap_marks_merge_governance_paths_as_privileged(
+def test_task_bootstrap_marks_privileged_review_surfaces_as_privileged(
     candidate_path: str,
 ) -> None:
-    """Merge-governance docs/scripts must force the security review path."""
+    """Privileged review surfaces must force the security review path."""
 
     packet = build_task_packet(
         goal="Refresh merge-governance automation contract",
@@ -1210,6 +1219,19 @@ def test_task_bootstrap_marks_merge_governance_paths_as_privileged(
         packet["native_subagent_bridge"]["reviewer"]["repo_agent_slug"],
         *[binding["repo_agent_slug"] for binding in packet["native_subagent_bridge"]["secondary"]],
     }
+
+
+def test_task_bootstrap_does_not_mark_non_privileged_control_path_as_privileged() -> None:
+    """Ordinary test paths must not widen the privileged security-review path."""
+
+    packet = build_task_packet(
+        goal="Refresh a non-privileged bootstrap test",
+        task_class="Testing",
+        candidate_paths=["tests/test_task_bootstrap.py"],
+        requested_agents=["agent-coordinator"],
+    )
+
+    assert packet["automation_flags"]["security_review_required"] is False
 
 
 def test_task_bootstrap_forces_requested_security_auditor_into_executable_bridge() -> None:

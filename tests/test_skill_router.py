@@ -6,10 +6,15 @@ from pathlib import Path
 import pytest
 import scripts.orchestration.skill_router as skill_router_module
 
-from scripts.orchestration.bootstrap_sync_policy import DOCS_ONLY_ENVELOPE_MODE
+from scripts.orchestration.bootstrap_sync_policy import (
+    DOCS_ONLY_ENVELOPE_MODE,
+    PRIVILEGED_REVIEW_PATTERNS,
+    PRIVILEGED_REVIEW_PREFIXES,
+)
 from scripts.orchestration.skill_router import (
     CLASSIFICATION_PRECEDENCE,
     DOCS_ONLY_EXCLUDED_ROUTING_SKILLS,
+    PRIVILEGED_SURFACE_PATTERNS,
     PRIVILEGED_SURFACE_PREFIXES,
     RESEARCH_POLICY_BUCKET_APPROVED,
     RESEARCH_POLICY_BUCKET_DISALLOWED,
@@ -30,6 +35,8 @@ POLICY_DOC_PATH = (
 MESSAGE_PROTOCOL_DOC_PATH = (
     Path(__file__).resolve().parents[1] / "docs/orchestration/AGENT_MESSAGE_PROTOCOL.md"
 )
+ROOT_AGENTS_PATH = Path(__file__).resolve().parents[1] / "AGENTS.md"
+RUNBOOK_AGENT_PATH = Path(__file__).resolve().parents[1] / "RUNBOOK_AGENT.md"
 
 EXPECTED_REQUESTED_AGENT_POLICY_ROWS: tuple[str, ...] = (
     "| `agent-coordinator` | `docs-sync`, `agents-md`, `pulseplate-gates` |",
@@ -49,11 +56,14 @@ EXPECTED_REQUESTED_AGENT_NAMES: frozenset[str] = frozenset(
 )
 
 EXPECTED_PRIVILEGED_SURFACE_POLICY_LINES: tuple[str, ...] = (
-    "- `.github/workflows/**`",
+    "- `.github/workflows/**` and `.github/actions/**`",
     "- `ios/fastlane/**`",
-    "- `scripts/orchestration/**`",
-    "- merge-governance scripts under `scripts/ci/**`",
+    "- `scripts/orchestration/**`, `scripts/ci/**`, and `scripts/release/**`",
     "- merge-governance docs under `docs/orchestration/**` and `docs/review/**`",
+    "- container and security-scan policy under `Dockerfile`, `.dockerignore`, `.trivyignore`, and `trivy/**`",
+    "- dependency and compose control files matching `.github/dependabot.yml`, `docker-compose*.yml`, `docker-compose*.yaml`, `requirements*.txt`, `requirements*.in`, and `constraints*.txt`",
+    "- keep `security-auditor` in the executable review path for the canonical bootstrap privileged-review matcher in `scripts/orchestration/bootstrap_sync_policy.py`;",
+    "- any matched privileged surface must set `automation_flags.security_review_required = true` and keep the security reviewer executable in the native subagent bridge;",
 )
 EXPECTED_CLASSIFICATION_POLICY_LINES: tuple[str, ...] = (
     "- `implementation`",
@@ -1367,11 +1377,21 @@ def test_skill_router_boosts_security_skills_for_privileged_surfaces() -> None:
     ("candidate_path", "domain", "expected_reason_prefix"),
     (
         (".github/workflows/test.yml", "release", ".github/workflows/"),
+        (".github/actions/setup/action.yml", "release", ".github/actions/"),
         ("ios/fastlane/Fastfile", "release", "ios/fastlane/"),
         ("scripts/orchestration/skill_router.py", "orchestration", "scripts/orchestration/"),
         ("scripts/ci/check_pr_merge_readiness.py", "qa", "scripts/ci/"),
+        ("scripts/release/publish.py", "release", "scripts/release/"),
         ("docs/orchestration/AGENT_ROUTING_GRAPH.md", "orchestration", "docs/orchestration/"),
         ("docs/review/PR_999_FIXED_MAPPING.md", "qa", "docs/review/"),
+        ("trivy/policy.rego", "security", "trivy/"),
+        ("Dockerfile", "infra", "Dockerfile"),
+        (".trivyignore", "security", ".trivyignore"),
+        (".github/dependabot.yml", "security", ".github/dependabot.yml"),
+        ("docker-compose.yaml", "infra", "docker-compose*.yaml"),
+        ("requirements-ci-lite.txt", "security", "requirements*.txt"),
+        ("requirements.in", "security", "requirements*.in"),
+        ("constraints.txt", "security", "constraints*.txt"),
     ),
 )
 def test_privileged_surface_parity_emits_stable_security_metadata(
@@ -1406,14 +1426,65 @@ def test_privileged_surface_prefixes_stay_in_sync_with_policy_coverage() -> None
     """Policy-critical privileged surface prefixes should remain explicit and finite."""
 
     assert len(PRIVILEGED_SURFACE_PREFIXES) == len(set(PRIVILEGED_SURFACE_PREFIXES))
+    assert PRIVILEGED_SURFACE_PREFIXES == PRIVILEGED_REVIEW_PREFIXES
     assert set(PRIVILEGED_SURFACE_PREFIXES) == {
         ".github/workflows/",
+        ".github/actions/",
         "ios/fastlane/",
         "scripts/orchestration/",
         "scripts/ci/",
+        "scripts/release/",
         "docs/orchestration/",
         "docs/review/",
+        "trivy/",
     }
+
+
+def test_privileged_surface_patterns_stay_in_sync_with_policy_coverage() -> None:
+    """Policy-critical privileged surface patterns should remain explicit and finite."""
+
+    assert len(PRIVILEGED_SURFACE_PATTERNS) == len(set(PRIVILEGED_SURFACE_PATTERNS))
+    assert PRIVILEGED_SURFACE_PATTERNS == PRIVILEGED_REVIEW_PATTERNS
+    assert set(PRIVILEGED_SURFACE_PATTERNS) == {
+        "Dockerfile",
+        ".dockerignore",
+        ".trivyignore",
+        ".github/dependabot.yml",
+        "docker-compose*.yml",
+        "docker-compose*.yaml",
+        "requirements*.txt",
+        "requirements*.in",
+        "constraints*.txt",
+    }
+
+
+@pytest.mark.parametrize(
+    "candidate_path",
+    (
+        "requirements/dev.txt",
+        "requirements-notes/dev.txt",
+        "constraints/dev.txt",
+        "docker-compose/sandbox.yaml",
+        "docker-compose-notes/prod.yaml",
+    ),
+)
+def test_privileged_surface_patterns_do_not_cross_path_boundaries(candidate_path: str) -> None:
+    """Root manifest globs must not privilege unrelated nested/lookalike paths."""
+
+    decision = route_skills(
+        goal="Refresh a non-privileged docs path",
+        task_class="Documentation",
+        candidate_paths=[candidate_path],
+        domain="docs",
+    )
+
+    reasons = [
+        reason
+        for item in decision["recommended"]
+        for reason in item["reasons"]
+        if reason.startswith("privileged-surface:")
+    ]
+    assert reasons == []
 
 
 @pytest.mark.parametrize(
@@ -1424,6 +1495,19 @@ def test_privileged_surface_policy_lines_stay_in_sync(expected_line: str) -> Non
     """Canonical privileged-surface bullets should stay locked to deterministic tests."""
 
     assert expected_line in _read_policy_doc()
+
+
+@pytest.mark.parametrize("policy_path", (ROOT_AGENTS_PATH, RUNBOOK_AGENT_PATH))
+def test_agent_entrypoints_reference_shared_privileged_surface_matcher(
+    policy_path: Path,
+) -> None:
+    """Agent-facing entrypoints must point at the shared privileged matcher."""
+
+    policy_text = policy_path.read_text(encoding="utf-8")
+
+    assert "privileged-surface routing is shared by bootstrap and skill routing" in policy_text
+    assert "scripts/orchestration/bootstrap_sync_policy.py" in policy_text
+    assert "must keep `security-auditor` executable" in policy_text
 
 
 def test_skill_router_prefix_match_is_boundary_aware() -> None:

@@ -1433,10 +1433,11 @@ Detailed procedures stay in runbooks, ADRs, and scoped `AGENTS.md` files.
     `security-threat-model`, `pulseplate-guards`
   - `cybersecurity-skills` is companion/manual-only guidance and must not be
     emitted as a deterministic `recommended_skills` slug
-  - privileged-surface skill routing may cover merge-governance paths under
-    `scripts/ci/**`, `docs/orchestration/**`, and `docs/review/**` without
-    widening executable reviewer selection; bootstrap review-path promotion
-    remains defined by `scripts/orchestration/task_bootstrap.py`
+  - privileged-surface routing is shared by bootstrap and skill routing through
+    `scripts/orchestration/bootstrap_sync_policy.py`; matched surfaces include
+    workflow/actions, Fastlane, orchestration/CI/release scripts,
+    orchestration/review docs, Trivy/Docker/Compose/Dependabot, requirements,
+    and constraints manifests, and must keep `security-auditor` executable
 
 ### 🛑 Docs-only PR Rule (Mandatory)
 

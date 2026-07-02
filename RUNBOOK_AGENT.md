@@ -93,9 +93,11 @@ instructions still match the live contract:
   `security-threat-model`, and `pulseplate-guards`
 - `cybersecurity-skills` stays companion/manual-only and must not appear in
   deterministic `recommended_skills`
-- merge-governance paths under `scripts/ci/**`, `docs/orchestration/**`, and
-  `docs/review/**` are privileged for skill routing, but executable reviewer
-  widening still follows `scripts/orchestration/task_bootstrap.py`
+- privileged-surface routing is shared by bootstrap and skill routing through
+  `scripts/orchestration/bootstrap_sync_policy.py`; matched surfaces include
+  workflow/actions, Fastlane, orchestration/CI/release scripts,
+  orchestration/review docs, Trivy/Docker/Compose/Dependabot, requirements, and
+  constraints manifests, and must keep `security-auditor` executable
 
 **Starting a new task:**
 - See canonical definition: `AGENTS.md` (Agent Coordination section)

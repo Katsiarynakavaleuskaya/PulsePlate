@@ -11,6 +11,7 @@ from scripts.orchestration.bootstrap_sync_policy import (
     DOCS_ONLY_ENVELOPE_MODE,
     DOCS_ONLY_ROOT_FILES,
     IMPLEMENTATION_PATH_PREFIXES,
+    PRIVILEGED_REVIEW_PATTERNS,
     PRIVILEGED_REVIEW_PREFIXES,
     SKILL_CONTRACT_FILE,
     is_docs_only_contract_path,
@@ -18,6 +19,7 @@ from scripts.orchestration.bootstrap_sync_policy import (
     needs_agents_sync,
     needs_backlog_update,
     needs_docs_sync,
+    privileged_review_surface_matches,
     requires_security_review,
     resolve_analysis_envelope_mode,
 )
@@ -54,11 +56,30 @@ def test_bootstrap_sync_policy_freezes_privileged_review_prefixes() -> None:
 
     assert PRIVILEGED_REVIEW_PREFIXES == (
         ".github/workflows/",
+        ".github/actions/",
         "ios/fastlane/",
         "scripts/orchestration/",
         "scripts/ci/",
+        "scripts/release/",
         "docs/orchestration/",
         "docs/review/",
+        "trivy/",
+    )
+
+
+def test_bootstrap_sync_policy_freezes_privileged_review_patterns() -> None:
+    """Privileged review glob patterns must stay canonical and reviewable."""
+
+    assert PRIVILEGED_REVIEW_PATTERNS == (
+        "Dockerfile",
+        ".dockerignore",
+        ".trivyignore",
+        ".github/dependabot.yml",
+        "docker-compose*.yml",
+        "docker-compose*.yaml",
+        "requirements*.txt",
+        "requirements*.in",
+        "constraints*.txt",
     )
 
 
@@ -200,11 +221,49 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     """Privileged review detection should stay aligned with the canonical prefix set."""
 
     assert requires_security_review([".github/workflows"]) is True
+    assert requires_security_review([".github/actions/setup/action.yml"]) is True
     assert requires_security_review(["scripts/ci"]) is True
     assert requires_security_review(["scripts/orchestration/task_bootstrap.py"]) is True
+    assert requires_security_review(["scripts/release/publish.py"]) is True
     assert requires_security_review(["docs/review/PR_1325_FIXED_MAPPING.md"]) is True
+    assert requires_security_review(["trivy/policy.rego"]) is True
+    assert requires_security_review(["Dockerfile"]) is True
+    assert requires_security_review([".dockerignore"]) is True
+    assert requires_security_review([".trivyignore"]) is True
+    assert requires_security_review([".github/dependabot.yml"]) is True
+    assert requires_security_review(["docker-compose.yaml"]) is True
+    assert requires_security_review(["docker-compose.prod.yml"]) is True
+    assert requires_security_review(["requirements.txt"]) is True
+    assert requires_security_review(["requirements-ci-lite.txt"]) is True
+    assert requires_security_review(["requirements.in"]) is True
+    assert requires_security_review(["constraints.txt"]) is True
     assert requires_security_review(["script/orchestration/config.yml"]) is False
     assert requires_security_review(["tests/test_task_bootstrap.py"]) is False
+    assert requires_security_review(["requirements_docs.md"]) is False
+    assert requires_security_review(["requirements/dev.txt"]) is False
+    assert requires_security_review(["requirements-notes/dev.txt"]) is False
+    assert requires_security_review(["constraints/dev.txt"]) is False
+    assert requires_security_review(["docker-compose/sandbox.yaml"]) is False
+    assert requires_security_review(["docker-compose-notes/prod.yaml"]) is False
+
+
+def test_bootstrap_sync_policy_returns_stable_privileged_review_labels() -> None:
+    """Shared matcher labels must be stable because skill-router reasons expose them."""
+
+    assert privileged_review_surface_matches(
+        [
+            "./.github/actions/setup/action.yml",
+            ".github/actions/cache/action.yml",
+            " Dockerfile ",
+            "requirements-ci-lite.txt",
+            "docs/review/PR_1325_FIXED_MAPPING.md",
+        ]
+    ) == (
+        ".github/actions/",
+        "Dockerfile",
+        "requirements*.txt",
+        "docs/review/",
+    )
 
 
 def test_bootstrap_sync_policy_fails_closed_to_analysis_for_privileged_docs() -> None:

@@ -7,6 +7,7 @@ EN: Centralizes sync-policy constants and matcher rules for the bootstrap packet
 from __future__ import annotations
 
 from collections.abc import Sequence
+from fnmatch import fnmatchcase
 
 BACKLOG_SIGNAL_TERMS: tuple[str, ...] = (
     "backlog",
@@ -28,11 +29,25 @@ IMPLEMENTATION_PATH_PREFIXES: tuple[str, ...] = (
 
 PRIVILEGED_REVIEW_PREFIXES: tuple[str, ...] = (
     ".github/workflows/",
+    ".github/actions/",
     "ios/fastlane/",
     "scripts/orchestration/",
     "scripts/ci/",
+    "scripts/release/",
     "docs/orchestration/",
     "docs/review/",
+    "trivy/",
+)
+PRIVILEGED_REVIEW_PATTERNS: tuple[str, ...] = (
+    "Dockerfile",
+    ".dockerignore",
+    ".trivyignore",
+    ".github/dependabot.yml",
+    "docker-compose*.yml",
+    "docker-compose*.yaml",
+    "requirements*.txt",
+    "requirements*.in",
+    "constraints*.txt",
 )
 
 AGENTS_CONTRACT_FILE = "AGENTS.md"
@@ -67,6 +82,52 @@ def matches_any_prefix(path: str, prefixes: tuple[str, ...]) -> bool:
     return any(path == prefix.rstrip("/") or path.startswith(prefix) for prefix in prefixes)
 
 
+def normalize_policy_path(path: str) -> str:
+    """Normalize a repo-relative policy path without resolving filesystem state."""
+
+    normalized = path.strip()
+    while normalized.startswith("./"):
+        normalized = normalized[2:]
+    return normalized
+
+
+def matches_privileged_review_pattern(path: str, pattern: str) -> bool:
+    """Return True when ``path`` matches a privileged pattern at its intended depth."""
+
+    if "/" not in pattern and "/" in path:
+        return False
+    return fnmatchcase(path, pattern)
+
+
+def privileged_review_surface_matches(candidate_paths: Sequence[str]) -> tuple[str, ...]:
+    """Return stable privileged-surface match labels for candidate paths.
+
+    RU: Возвращает канонические labels, которые используют bootstrap и skill router.
+    EN: Returns canonical labels shared by bootstrap and skill routing.
+    """
+
+    matches: list[str] = []
+    seen: set[str] = set()
+    for raw_path in candidate_paths:
+        path = normalize_policy_path(raw_path)
+        if not path:
+            continue
+        label = ""
+        for prefix in PRIVILEGED_REVIEW_PREFIXES:
+            if matches_any_prefix(path, (prefix,)):
+                label = prefix
+                break
+        if not label:
+            for pattern in PRIVILEGED_REVIEW_PATTERNS:
+                if matches_privileged_review_pattern(path, pattern):
+                    label = pattern
+                    break
+        if label and label not in seen:
+            seen.add(label)
+            matches.append(label)
+    return tuple(matches)
+
+
 def requires_security_review(candidate_paths: Sequence[str]) -> bool:
     """Return True when the task touches privileged review surfaces.
 
@@ -74,7 +135,7 @@ def requires_security_review(candidate_paths: Sequence[str]) -> bool:
     EN: Privileged surfaces always force the security-review path.
     """
 
-    return any(matches_any_prefix(path, PRIVILEGED_REVIEW_PREFIXES) for path in candidate_paths)
+    return bool(privileged_review_surface_matches(candidate_paths))
 
 
 def needs_backlog_update(

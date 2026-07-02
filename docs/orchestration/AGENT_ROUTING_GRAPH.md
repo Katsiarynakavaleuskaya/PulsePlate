@@ -114,7 +114,13 @@ Bootstrap evidence: `scripts/orchestration/routing_graph_loader.py`, `scripts/or
 12. **`creative_research` sub-lane:** route through `research` first, then apply phase-specific role mapping from `docs/orchestration/CREATIVE_RESEARCH_SUBLANE_PROTOCOL.md`. The sub-lane refines execution inside the experimentation umbrella; it does not replace this routing graph.
 13. **CV routing invariant:** generic coordinator/task packets route CV-first work through `domain=cv`, `cluster=ml`. Governed experimentation packets may remain `ml`-scoped until their contract is migrated explicitly.
 14. **Explicit requested-agent override:** after canonical domain routing resolves, bootstrap may promote a user-requested agent when it already belongs to the routed domain slot set (primary / secondary / reviewer). Specialists in `AGENT_NON_ROUTABLE_SPECIALISTS.md` use the same rule: **graph slots win** (promotion allowed); if the agent is outside the routed domain’s slots, bootstrap records `advisory_non_routable` with rationale. Runtime truth: `scripts/orchestration/task_bootstrap.py:568` (`allowed_promotions`) and `:575` (graph precedence over non-routable). Doc contract: `docs/orchestration/AGENT_NON_ROUTABLE_SPECIALISTS.md:10`. Packet fields: `requested_agents`, `requested_agent_disposition`. CLI: `scripts/orchestration/task_bootstrap.py --requested-agent …`.
-15. **Privileged-surface review rule:** tasks touching `.github/workflows/**`, `ios/fastlane/**`, `scripts/orchestration/**`, or merge-governance scripts/docs must include `security-auditor` in the review path, even when the dominant domain is docs/orchestration/release rather than security.
+15. **Privileged-surface review rule:** tasks whose touched paths match the
+    canonical matcher in `scripts/orchestration/bootstrap_sync_policy.py` must
+    include `security-auditor` in the review path, even when the dominant
+    domain is docs/orchestration/release rather than security. Current surfaces
+    include GitHub workflows/actions, Fastlane, orchestration/CI/release
+    scripts, orchestration/review docs, Trivy policy, Docker/Compose files,
+    Dependabot, requirements, and constraints manifests.
 16. **Docs vs research split:** internal policy/runbook/docs maintenance defaults to `docs` -> `cursor-specialist-agent`; external web/OSS intake remains `research` -> `web-research-agent`.
 
 Audit evidence: `scripts/orchestration/check_agent_consistency.py:103-209`, `tests/test_routing_graph_loader.py:159-315`, `tests/guards/test_agent_consistency_guard.py:179-216`.
