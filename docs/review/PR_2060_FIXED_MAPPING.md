@@ -20,9 +20,9 @@ review threads, change product runtime, change workflows, or claim readiness.
 - [x] Post-open `qa-engineer-agent` pass completed.
 - [x] Post-open `bug-hunter` pass completed.
 - [x] Post-open `security-auditor` pass completed.
-- [ ] Codex Security diff scan / finding discovery completed or explicitly
+- [x] Codex Security diff scan / finding discovery completed or explicitly
   dispositioned.
-- [ ] `pulseplate-pr-review` completed.
+- [x] `pulseplate-pr-review` completed.
 - [x] CodeRabbit usage-limit comment checked and dispositioned.
 - [x] Sourcery high-level review comment checked and dispositioned.
 - [ ] Current-head CI complete before readiness language.
@@ -99,6 +99,24 @@ Source: post-open `security-auditor`
 Evidence: Security-auditor found no P0/P1/P2 security issues in pushed HEAD
 `c70063ad4`; the only finding was the checklist consistency item fixed above.
 
+Disposition: NOT-A-BUG
+Source: Codex Security diff scan / finding discovery
+Evidence: Codex Security scan `c9c2f570-46e7-4790-8195-41244d5a02bf`
+completed with 0 reportable findings and 4/4 diff worklist rows closed. The
+scan focused on secret/path diagnostic leaks, unsafe GitHub authority
+expansion, write-permission bypasses, token minting/app mutation, and
+schema/runtime drift with security impact.
+
+Disposition: NOT-A-BUG
+Source: `pulseplate-pr-review`
+Evidence: The dry-run report produced one advisory `large-diff-risk` note. The
+diff is intentionally a single capability-gate slice spanning schema, runtime
+contract, operator collect input, identity policy, docs, and focused tests; the
+split rationale is documented in the PR body and follow-up auto-attach runner
+work is deferred. Local proof already includes focused pytest,
+`check_experiment_runner_identity.py`, `make validate-changed`, and
+`pre-commit run --all-files`.
+
 ## Experiment Runner Evidence
 
 - Artifact: `artifacts/orchestration/experiments/results/github_app_capability_gate_oracle_result_network1.json`
@@ -116,5 +134,5 @@ Evidence: Security-auditor found no P0/P1/P2 security issues in pushed HEAD
 ## Merge Readiness
 
 Not claimed. This artifact records post-open dispositions and local evidence
-only; current-head CI, remaining role passes, security scan, bot comments, and
-strict merge-readiness checks are still required.
+only; current-head CI must be rechecked after this mapping-only update before
+any readiness language.
