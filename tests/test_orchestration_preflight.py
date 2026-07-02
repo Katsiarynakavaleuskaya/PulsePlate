@@ -286,6 +286,22 @@ def test_private_python_index_url_shape_fails_dependency_sensitive_directory_sco
     assert "unexpected_index_path" in output
 
 
+def test_private_python_index_url_shape_fails_broad_parent_dependency_scope(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setenv(
+        preflight.INDEX_ENV_VAR,
+        "https://packages.pulseplate.app/root/pypi/+simple/",
+    )
+
+    assert preflight.check_private_python_index_url_shape("execute", ["scripts"]) is False
+    assert preflight.check_private_python_index_url_shape("execute", [".github"]) is False
+
+    output = capsys.readouterr().out
+    assert output.count("FAIL:") == 2
+    assert "unexpected_index_path" in output
+
+
 def test_private_python_index_url_shape_warns_for_unrelated_execute_path(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -312,6 +328,9 @@ def test_private_python_index_url_shape_does_not_echo_inline_credentials(
     output = capsys.readouterr().out
     assert "credentialed_index_url" in output
     assert unsafe_url not in output
+    assert "user:token" not in output
+    assert "token@" not in output
+    assert "token" not in output
 
 
 def test_private_python_index_url_shape_accepts_canonical_root(
