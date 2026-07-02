@@ -4442,23 +4442,37 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Policy-only skills cannot drift out of the implementation without failing deterministic tests
     - Privileged-surface triggers and requested-agent bundle reasons are emitted in routing metadata
 
-- [ ] P1: Privileged workflow security-review requirement for orchestration and release surfaces
+- [x] P1: Privileged workflow security-review requirement for orchestration and release surfaces
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-PRIVILEGED-SURFACE-SECURITY-REVIEW
+  - Target PR: PR #2067
   - Area: orchestration / release ops / security review
   - Finding Type: review-path hardening
-  - Reason: Tasks touching GitHub workflows, Fastlane, orchestration scripts, or merge-governance artifacts can change privileged automation, but today the review path is not consistently forced through `security-auditor`.
+  - Reason: Tasks touching GitHub workflows/actions, Fastlane,
+    orchestration/CI/release scripts, merge-governance docs,
+    Trivy/Docker/Compose/Dependabot files, or root requirements/constraints
+    manifests can change privileged automation and supply-chain posture; PR
+    #2067 centralizes this matcher and forces executable `security-auditor`
+    review for matched surfaces.
   - Links:
+    - `AGENTS.md`
+    - `RUNBOOK_AGENT.md`
     - `docs/orchestration/AGENT_ROUTING_GRAPH.md`
-    - `docs/orchestration/workflow.md`
-    - `.cursor/agents/agent-coordinator.md`
+    - `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`
+    - `scripts/orchestration/bootstrap_sync_policy.py`
+    - `scripts/orchestration/skill_router.py`
+    - `tests/test_bootstrap_sync_policy.py`
+    - `tests/test_skill_router.py`
+    - `tests/test_task_bootstrap.py`
     - `.github/workflows/`
+    - `.github/actions/`
     - `ios/fastlane/`
+    - `trivy/`
   - DoD:
-    - Canonical docs define the privileged-surface trigger list
-    - Coordinator/bootstrap preserves `security-auditor` in the review path for those surfaces
-    - Deterministic tests cover workflow/Fastlane/orchestration-path review routing
+    - Canonical docs define the privileged-surface trigger list via `bootstrap_sync_policy.py`
+    - Coordinator/bootstrap preserves `security-auditor` in the executable review path for those surfaces
+    - Deterministic tests cover workflow/action/Fastlane/orchestration/release/docs/Trivy/Docker/dependency-manifest
+      review routing
     - Merge-readiness docs explain that this is a default requirement, not optional reviewer theater
 
 <a id="ledger-p1-classify-ci-checks-as-hard-soft-external"></a>
