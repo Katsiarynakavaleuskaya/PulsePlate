@@ -96,8 +96,9 @@ instructions still match the live contract:
 - privileged-surface routing is shared by bootstrap and skill routing through
   `scripts/orchestration/bootstrap_sync_policy.py`; matched surfaces include
   workflow/actions, Fastlane, orchestration/CI/release scripts,
-  orchestration/review docs, Trivy/Docker/Compose/Dependabot, requirements, and
-  constraints manifests, and must keep `security-auditor` executable
+  orchestration/review docs, Trivy/root Docker/Compose, deploy Compose/Caddy
+  Dockerfile, Dependabot YAML variants, requirements, and constraints
+  manifests, and must keep `security-auditor` executable
 
 **Starting a new task:**
 - See canonical definition: `AGENTS.md` (Agent Coordination section)

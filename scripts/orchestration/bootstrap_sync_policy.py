@@ -43,8 +43,12 @@ PRIVILEGED_REVIEW_PATTERNS: tuple[str, ...] = (
     ".dockerignore",
     ".trivyignore",
     ".github/dependabot.yml",
+    ".github/dependabot.yaml",
     "docker-compose*.yml",
     "docker-compose*.yaml",
+    "deploy/docker-compose.production*.yaml",
+    "deploy/docker-compose.staging.yaml",
+    "frontend/Dockerfile.caddy-spa",
     "requirements*.txt",
     "requirements*.in",
     "constraints*.txt",
@@ -94,9 +98,14 @@ def normalize_policy_path(path: str) -> str:
 def matches_privileged_review_pattern(path: str, pattern: str) -> bool:
     """Return True when ``path`` matches a privileged pattern at its intended depth."""
 
-    if "/" not in pattern and "/" in path:
+    path_parts = path.split("/")
+    pattern_parts = pattern.split("/")
+    if len(path_parts) != len(pattern_parts):
         return False
-    return fnmatchcase(path, pattern)
+    return all(
+        fnmatchcase(path_part, pattern_part)
+        for path_part, pattern_part in zip(path_parts, pattern_parts, strict=True)
+    )
 
 
 def privileged_review_surface_matches(candidate_paths: Sequence[str]) -> tuple[str, ...]:

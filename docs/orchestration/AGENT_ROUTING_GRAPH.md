@@ -119,8 +119,9 @@ Bootstrap evidence: `scripts/orchestration/routing_graph_loader.py`, `scripts/or
     include `security-auditor` in the review path, even when the dominant
     domain is docs/orchestration/release rather than security. Current surfaces
     include GitHub workflows/actions, Fastlane, orchestration/CI/release
-    scripts, orchestration/review docs, Trivy policy, Docker/Compose files,
-    Dependabot, requirements, and constraints manifests.
+    scripts, orchestration/review docs, Trivy policy, root Docker/Compose
+    files, deploy Compose/Caddy Dockerfile surfaces, Dependabot YAML variants,
+    requirements, and constraints manifests.
 16. **Docs vs research split:** internal policy/runbook/docs maintenance defaults to `docs` -> `cursor-specialist-agent`; external web/OSS intake remains `research` -> `web-research-agent`.
 
 Audit evidence: `scripts/orchestration/check_agent_consistency.py:103-209`, `tests/test_routing_graph_loader.py:159-315`, `tests/guards/test_agent_consistency_guard.py:179-216`.

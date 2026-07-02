@@ -75,8 +75,12 @@ def test_bootstrap_sync_policy_freezes_privileged_review_patterns() -> None:
         ".dockerignore",
         ".trivyignore",
         ".github/dependabot.yml",
+        ".github/dependabot.yaml",
         "docker-compose*.yml",
         "docker-compose*.yaml",
+        "deploy/docker-compose.production*.yaml",
+        "deploy/docker-compose.staging.yaml",
+        "frontend/Dockerfile.caddy-spa",
         "requirements*.txt",
         "requirements*.in",
         "constraints*.txt",
@@ -231,8 +235,13 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     assert requires_security_review([".dockerignore"]) is True
     assert requires_security_review([".trivyignore"]) is True
     assert requires_security_review([".github/dependabot.yml"]) is True
+    assert requires_security_review([".github/dependabot.yaml"]) is True
     assert requires_security_review(["docker-compose.yaml"]) is True
     assert requires_security_review(["docker-compose.prod.yml"]) is True
+    assert requires_security_review(["deploy/docker-compose.production.yaml"]) is True
+    assert requires_security_review(["deploy/docker-compose.production.selfhosted.yaml"]) is True
+    assert requires_security_review(["deploy/docker-compose.staging.yaml"]) is True
+    assert requires_security_review(["frontend/Dockerfile.caddy-spa"]) is True
     assert requires_security_review(["requirements.txt"]) is True
     assert requires_security_review(["requirements-ci-lite.txt"]) is True
     assert requires_security_review(["requirements.in"]) is True
@@ -245,6 +254,10 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     assert requires_security_review(["constraints/dev.txt"]) is False
     assert requires_security_review(["docker-compose/sandbox.yaml"]) is False
     assert requires_security_review(["docker-compose-notes/prod.yaml"]) is False
+    assert requires_security_review(["deploy/nested/docker-compose.production.yaml"]) is False
+    assert requires_security_review(["deploy/docker-compose.production/archive.yaml"]) is False
+    assert requires_security_review(["frontend/nested/Dockerfile.caddy-spa"]) is False
+    assert requires_security_review([".github/dependabot/nested.yaml"]) is False
 
 
 def test_bootstrap_sync_policy_returns_stable_privileged_review_labels() -> None:
@@ -255,12 +268,14 @@ def test_bootstrap_sync_policy_returns_stable_privileged_review_labels() -> None
             "./.github/actions/setup/action.yml",
             ".github/actions/cache/action.yml",
             " Dockerfile ",
+            "deploy/docker-compose.production.selfhosted.yaml",
             "requirements-ci-lite.txt",
             "docs/review/PR_1325_FIXED_MAPPING.md",
         ]
     ) == (
         ".github/actions/",
         "Dockerfile",
+        "deploy/docker-compose.production*.yaml",
         "requirements*.txt",
         "docs/review/",
     )

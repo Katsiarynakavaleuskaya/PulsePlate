@@ -69,8 +69,8 @@ AGENTS/RUNBOOK sync note.
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed.
-- [ ] Fixed in commit mapping completed.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 - [x] Fixed in commit mapping artifact created after GitHub assigned PR number
   `#2067`.
 - [x] Initial PR open: no GitHub review comments were resolved before mapping.
@@ -90,11 +90,13 @@ AGENTS/RUNBOOK sync note.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments at initial PR open.
+- No actionable review comments
 
-Future actionable human, bot, role-agent, premortem, Experiment Runner, or
-Codex Security findings must be added here with disposition evidence before
-merge-readiness claims.
+## Mapping Notes
+
+Future actionable human, bot, role-agent, premortem, Experiment Runner, Codex
+Security, or external-review findings must be added with disposition evidence
+before merge-readiness claims.
 
 ## Local Validation Evidence
 

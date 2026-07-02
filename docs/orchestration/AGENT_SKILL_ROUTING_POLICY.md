@@ -265,8 +265,8 @@ The following touched paths must automatically boost security-oriented skills:
 - `ios/fastlane/**`
 - `scripts/orchestration/**`, `scripts/ci/**`, and `scripts/release/**`
 - merge-governance docs under `docs/orchestration/**` and `docs/review/**`
-- container and security-scan policy under `Dockerfile`, `.dockerignore`, `.trivyignore`, and `trivy/**`
-- dependency and compose control files matching `.github/dependabot.yml`, `docker-compose*.yml`, `docker-compose*.yaml`, `requirements*.txt`, `requirements*.in`, and `constraints*.txt`
+- container, deploy, and security-scan policy under `Dockerfile`, `.dockerignore`, `.trivyignore`, `frontend/Dockerfile.caddy-spa`, deploy compose production/staging patterns, and `trivy/**`
+- dependency and compose control files matching `.github/dependabot.yml`, `.github/dependabot.yaml`, `docker-compose*.yml`, `docker-compose*.yaml`, `requirements*.txt`, `requirements*.in`, and `constraints*.txt`
 
 Expected behavior:
 

@@ -4450,10 +4450,10 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Finding Type: review-path hardening
   - Reason: Tasks touching GitHub workflows/actions, Fastlane,
     orchestration/CI/release scripts, merge-governance docs,
-    Trivy/Docker/Compose/Dependabot files, or root requirements/constraints
-    manifests can change privileged automation and supply-chain posture; PR
-    #2067 centralizes this matcher and forces executable `security-auditor`
-    review for matched surfaces.
+    Trivy/root Docker/Compose, deploy Compose/Caddy Dockerfile, Dependabot YAML
+    variants, or root requirements/constraints manifests can change privileged
+    automation and supply-chain posture; PR #2067 centralizes this matcher and
+    forces executable `security-auditor` review for matched surfaces.
   - Links:
     - `AGENTS.md`
     - `RUNBOOK_AGENT.md`
@@ -4471,7 +4471,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - DoD:
     - Canonical docs define the privileged-surface trigger list via `bootstrap_sync_policy.py`
     - Coordinator/bootstrap preserves `security-auditor` in the executable review path for those surfaces
-    - Deterministic tests cover workflow/action/Fastlane/orchestration/release/docs/Trivy/Docker/dependency-manifest
+    - Deterministic tests cover workflow/action/Fastlane/orchestration/release/docs/Trivy/root-Docker/deploy-Compose/Caddy-Dockerfile/dependency-manifest
       review routing
     - Merge-readiness docs explain that this is a default requirement, not optional reviewer theater
 
