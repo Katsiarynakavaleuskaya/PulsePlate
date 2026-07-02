@@ -1,0 +1,131 @@
+# PR #2063 Fixed in Commit Mapping SoT
+
+PR: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2063
+
+Branch: `codex/experiment-runner-pr-creative-context`
+
+## Summary
+
+This PR adds a local, read-only Experiment Runner PR creative-context layer for
+eligible orchestration surfaces. It emits sanitized context, hypothesis,
+routing, oracle attachment, consumption summary, and approval-reservation
+artifacts without granting patch, branch, PR, workflow, provider, product
+runtime, thread-resolution, fixed-mapping, merge, or readiness authority.
+
+## Scope Boundary
+
+- In scope: local artifact contract, CLI, schemas, premortem, task-bootstrap
+  metadata, rendered start prompt text, scripts-scoped AGENTS guidance, backlog
+  tracking, and focused tests.
+- Out of scope: `.github/workflows/**`, automatic PR attachment, provider calls,
+  product runtime calls, GitHub App mutation, Slack mutation, comments, thread
+  resolution, branch writes by the runner, PR-2 patch generation, and merge
+  readiness claims.
+
+## Privileged Scope Exception
+
+- operator approval: approved for the combined Experiment Runner creative-context
+  contract slice requested by the operator.
+- privileged scope exception: approved for the local orchestration/security
+  governance scope over the privileged target file cap.
+- Scope note: splitting runtime contract, matching schemas, docs, task-bootstrap
+  guard metadata, and tests would leave the new authority boundary partially
+  machine-visible and weaken the QA/security proof for this PR.
+- Trusted labels required on PR #2063: `scope/operator-approved`,
+  `scope/privileged-approved`.
+
+## Discussion Thread Pass
+
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+- [x] Post-open `qa-engineer-agent` pass completed.
+- [ ] Post-open `bug-hunter` pass completed.
+- [ ] Post-open `security-auditor` pass completed.
+- [ ] Codex Security diff scan / finding discovery completed or explicitly
+  dispositioned.
+- [ ] `pulseplate-pr-review` completed.
+- [ ] CodeRabbit actionable review comments checked and dispositioned after bot
+  review completes.
+- [ ] Sourcery actionable review comments checked and dispositioned after bot
+  review completes.
+- [ ] Cubic actionable review comments checked and dispositioned after bot
+  review completes.
+- [ ] Current-head CI complete before readiness language.
+- [ ] Strict merge-readiness checks run after the final review/check cycle.
+
+## Fixed in Commit Mapping
+
+- No actionable review comments
+
+## Role-Agent Finding Dispositions
+
+Disposition: FIXED
+Source: post-open `qa-engineer-agent`
+Commit: 437a01405eb7e8205d8d704290e8bdccc3ae8179
+Evidence: `docs/orchestration/contracts/*creative*.v1.schema.json` and
+`docs/orchestration/contracts/experiment_runner_pr_oracle_attachment.v1.schema.json`
+now require the exact runtime authority key set with `additionalProperties:
+false`. Regression coverage is in
+`tests/test_experiment_runner_pr_creative_context.py::test_schema_authority_definitions_match_runtime_authority`.
+
+Disposition: FIXED
+Source: post-open `qa-engineer-agent`
+Commit: 437a01405eb7e8205d8d704290e8bdccc3ae8179
+Evidence:
+`docs/orchestration/contracts/creative_hypothesis_packet.v1.schema.json`
+now encodes generated/no-action status coupling: generated packets require
+3-5 hypotheses and a concrete non-doc target, while `no_creative_action`
+requires zero hypotheses. Regression coverage is in
+`tests/test_experiment_runner_pr_creative_context.py::test_hypothesis_packet_schema_encodes_generated_and_no_action_guards`.
+
+Disposition: FIXED
+Source: post-open `qa-engineer-agent`
+Evidence: This artifact fixes the missing canonical mapping artifact that made
+`PR Body Phase2 gates` and `Merge readiness gate` fail after PR open. The PR
+body mirror is updated separately and does not claim merge readiness.
+
+Disposition: FIXED
+Source: post-open `qa-engineer-agent`
+Evidence: The PR body now records `operator approval: approved` and
+`privileged scope exception: approved`, and PR #2063 carries trusted labels
+`scope/operator-approved` and `scope/privileged-approved`, so the coherent
+20-file privileged orchestration/security-governance slice is explicitly
+approved instead of bypassing the scope guard.
+
+## Experiment Runner Evidence
+
+- Artifact: `artifacts/orchestration/experiments/results/exp-faf9d17cb8f9.json`
+- Experiment ID: `exp-faf9d17cb8f9`
+- Mode: `oracle_only_governance_reviewer`
+- Status: accepted
+- Source diff applied: true
+- Shared tree untouched: true
+- Oracles: 3/3 passed
+- Co-author required: true
+
+## Lane Start Provenance
+
+- Packet: `artifacts/orchestration/task_packets/353d0c92de04.json`
+- Starter: `scripts/orchestration/start_pr_lane.sh`
+
+## Validation Evidence
+
+- PASS: `python3 scripts/orchestration/check_preflight.py`
+- PASS: `python3 scripts/orchestration/check_agent_consistency.py`
+- PASS:
+  `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_experiment_runner_pr_creative_context.py tests/test_task_bootstrap.py tests/test_render_codex_start_prompt.py`
+- PASS before PR open:
+  `pytest -q tests/test_experiment_runner_pr_creative_context.py tests/test_task_bootstrap.py tests/test_render_codex_start_prompt.py tests/test_creative_code_review_disposition.py tests/test_creative_code_private_pilot_loop.py`
+- PASS before PR open: `make validate-changed`
+- PASS before PR open: `pre-commit run --all-files`
+- PASS before PR open: push pre-push hooks, including changed-file mypy,
+  `pip-audit`, backend pre-push pytest, full-repo Bandit, and Docker build test.
+- PASS: Experiment Runner oracle-only evidence
+  `artifacts/orchestration/experiments/results/exp-faf9d17cb8f9.json`.
+
+## Merge Readiness
+
+Not claimed. This artifact records current dispositions and local evidence only.
+The post-open `bug-hunter -> security-auditor -> Codex Security ->
+pulseplate-pr-review` chain, bot review disposition, current-head CI, and strict
+merge-readiness checks remain required before any readiness language.
