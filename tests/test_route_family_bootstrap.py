@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Sequence
 
 import pytest
-from fastapi import APIRouter, Depends, FastAPI, WebSocket
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, WebSocket
+from fastapi.testclient import TestClient
 
 from app.bootstrap.route_family import (
     RouteMemberContract,
@@ -353,3 +355,61 @@ def test_callable_matcher_uses_module_and_qualname_after_identity() -> None:
     assert same_callable_by_module_and_qualname(_expected, _expected)
     assert same_callable_by_module_and_qualname(_equivalent, _expected)
     assert not same_callable_by_module_and_qualname(None, _expected)
+
+
+def test_business_bootstrap_noops_when_feature_flag_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app import main as app_main
+
+    monkeypatch.delenv("BUSINESS_MODULE_ENABLED", raising=False)
+    app = FastAPI()
+
+    app_main._include_business_router_if_enabled(app)
+
+    assert not any(
+        str(getattr(route, "path", "")).startswith("/api/v1/business") for route in app.routes
+    )
+
+
+def test_business_analyze_direct_call_rejects_disabled_module(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.routers.business import BusinessAnalysisRequest, analyze_business_code
+
+    monkeypatch.setenv("BUSINESS_MODULE_ENABLED", "false")
+    request = BusinessAnalysisRequest(code="def test(): pass", test_name="disabled")
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(analyze_business_code(request, "placeholder"))
+
+    assert exc_info.value.status_code == 503
+
+
+def test_business_status_route_reports_request_time_flag(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.routers.business import router as business_router
+
+    app = FastAPI()
+    app.include_router(business_router)
+    client = TestClient(app)
+
+    try:
+        monkeypatch.setenv("BUSINESS_MODULE_ENABLED", "true")
+        enabled_response = client.get("/api/v1/business/status")
+        assert enabled_response.status_code == 200
+        assert enabled_response.json() == {
+            "enabled": True,
+            "module": "business_analysis",
+        }
+
+        monkeypatch.setenv("BUSINESS_MODULE_ENABLED", "false")
+        disabled_response = client.get("/api/v1/business/status")
+        assert disabled_response.status_code == 200
+        assert disabled_response.json() == {
+            "enabled": False,
+            "module": "business_analysis",
+        }
+    finally:
+        client.close()
