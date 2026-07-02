@@ -8,9 +8,11 @@ mutates app settings, dispatches workflows, or persists secrets.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from datetime import datetime
 import json
 from pathlib import Path
 import re
+from stat import S_ISREG
 from typing import Any
 
 SCHEMA_VERSION = "1.0"
@@ -193,6 +195,7 @@ def read_github_app_private_pilot_capability_report(path: str | Path) -> dict[st
 
     report_path = Path(path)
     _reject_symlink_components(report_path)
+    _require_regular_file(report_path)
     try:
         payload = json.loads(
             report_path.read_text(encoding="utf-8"),
@@ -220,6 +223,19 @@ def _reject_symlink_components(path: Path) -> None:
             raise GithubAppPrivatePilotCapabilityError(
                 "capability report path must not traverse symlinks."
             )
+
+
+def _require_regular_file(path: Path) -> None:
+    try:
+        mode = path.lstat().st_mode
+    except OSError as exc:
+        raise GithubAppPrivatePilotCapabilityError(
+            "Unable to read GitHub App capability report JSON."
+        ) from exc
+    if not S_ISREG(mode):
+        raise GithubAppPrivatePilotCapabilityError(
+            "GitHub App capability report path must be a regular file."
+        )
 
 
 def _require_exact_keys(
@@ -269,6 +285,12 @@ def _require_id(payload: Mapping[str, Any], key: str, *, label: str) -> str:
 def _require_timestamp(value: Any, *, label: str) -> str:
     if not isinstance(value, str) or not TIMESTAMP_RE.fullmatch(value):
         raise GithubAppPrivatePilotCapabilityError(f"{label} must be a UTC timestamp.")
+    try:
+        datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ")
+    except ValueError as exc:
+        raise GithubAppPrivatePilotCapabilityError(
+            f"{label} must be a valid UTC timestamp."
+        ) from exc
     return value
 
 

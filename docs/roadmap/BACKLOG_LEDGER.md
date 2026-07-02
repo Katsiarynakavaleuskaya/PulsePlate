@@ -10988,7 +10988,14 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - PR-5: add local read-only review-disposition integration through `CreativeCodeReviewFeedbackRecord`, `CreativeCodeReviewDispositionPacket`, and `CreativeCodeRepairLaunchPacket`; only `create_pr1_specification=true` may be prepared for later human review, while patch generation, branch writes, PR creation, review-thread resolution, fixed-mapping edits, merge authority, runtime changes, Slack/GitHub App authority, and readiness claims remain forbidden.
     - PR-6: run the first governed applied creative-code candidate through normal PR governance, starting from a local run-plan wrapper that validates the PR-5 launch packet, binds the target surface exactly to `docs/prompts/cv/program.md`, and then keeps the generated candidate mutation surface to that prompt/program document.
     - Private-pilot loop operator: collect sanitized PR/check/review state plus PR-4 / PR-5 / PR-6 artifact refs, consume an optional sanitized GitHub App read-only capability report, decide the next action, and optionally emit a checklist-only candidate plan; no PR-1 / PR-2 / PR-3 command is executed by the operator.
-    - Follow-up auto-oracle attach: wire coordinator/task packets so non-trivial PR lanes can automatically attach oracle-only Experiment Runner evidence and expose the resulting decisions to role agents; this requires a separate reviewed PR with trigger rules, artifact reuse, failure behavior, co-author attribution, rate/quota boundaries, opt-out behavior, and PR-body evidence requirements.
+    - Follow-up auto-oracle attach:
+      - Priority: P1 automation leverage.
+      - Owner: orchestration.
+      - Target PR: separate reviewed PR `feat(orchestration): auto-attach Experiment Runner oracle evidence to PR lanes`.
+      - Reason: non-trivial PR lanes need automatic oracle-only Experiment Runner evidence attachment so role agents can consume runner decisions without granting GitHub App write authority.
+      - Scope: wire coordinator/task packets so non-trivial PR lanes can attach oracle-only evidence and expose sanitized decisions to role agents.
+      - DoD: trigger rules, artifact reuse, failure behavior, co-author attribution, rate/quota boundaries, opt-out behavior, PR-body evidence requirements, and regression tests are landed; no PR/review/thread/merge writes, workflow mutation, GitHub App settings mutation, or token minting authority is added.
+      - Links: PR #2060 establishes the private-pilot GitHub App capability gate consumed by this future automation.
   - Minimum future telemetry fields (defined now, emitted no earlier than PR-1):
     - `packet_id`
     - `source_candidate_id`

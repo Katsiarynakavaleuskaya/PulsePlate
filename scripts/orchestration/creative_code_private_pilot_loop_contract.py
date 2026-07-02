@@ -1423,7 +1423,9 @@ def build_private_pilot_state(
         "blockers": dict(blockers),
         "governance_refs": dict(governance_refs),
         "github_app_capability": dict(
-            github_app_capability or default_github_app_capability_state()
+            default_github_app_capability_state()
+            if github_app_capability is None
+            else github_app_capability
         ),
         "external_dependencies": dict(
             external_dependencies

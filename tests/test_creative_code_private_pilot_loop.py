@@ -660,6 +660,11 @@ def test_github_app_capability_default_is_manual_only_and_nonblocking() -> None:
     assert decide_next_action(state) == "prepare_next_candidate_plan"
 
 
+def test_github_app_capability_explicit_empty_state_is_invalid() -> None:
+    with pytest.raises(CreativeCodePrivatePilotContractError, match="github_app_capability"):
+        _state(github_app_capability={})
+
+
 def test_legacy_state_without_github_app_capability_defaults_on_read() -> None:
     state = _state()
     legacy_state = deepcopy(state)
@@ -878,6 +883,14 @@ def test_github_app_capability_report_schema_documents_runtime_mismatch_guards()
         validate_github_app_private_pilot_capability_report(mismatched_authority)
 
 
+def test_github_app_capability_report_rejects_invalid_calendar_timestamp() -> None:
+    report = _github_app_capability_report()
+    report["generated_at_utc"] = "2026-99-99T99:99:99Z"
+
+    with pytest.raises(GithubAppPrivatePilotCapabilityError, match="valid UTC timestamp"):
+        validate_github_app_private_pilot_capability_report(report)
+
+
 def test_github_app_capability_state_rejects_dispatch_without_actions_capability() -> None:
     capability = github_app_capability_state_from_report(
         _github_app_capability_report(actions="write", workflow_dispatch=True)
@@ -987,6 +1000,11 @@ def test_github_app_capability_report_rejects_symlink_parent(tmp_path: Path) -> 
 
     with pytest.raises(GithubAppPrivatePilotCapabilityError, match="symlinks"):
         read_github_app_private_pilot_capability_report(link / "github_app_capability.json")
+
+
+def test_github_app_capability_report_rejects_non_regular_path(tmp_path: Path) -> None:
+    with pytest.raises(GithubAppPrivatePilotCapabilityError, match="regular file"):
+        read_github_app_private_pilot_capability_report(tmp_path)
 
 
 @pytest.mark.parametrize(
