@@ -39,6 +39,11 @@ Disposition: FIXED
 Commit: 95428f1d98820893000c60f48258381bc3bbd262
 Evidence: `docs/roadmap/BACKLOG_LEDGER.md` now records `Target PR: PR #2062` with the PR URL and keeps the branch slug in a separate `Branch:` field.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2062#discussion_r3511776681 -> d5e1f60c25cbedd7bc2471d723340330498073d1
+Disposition: FIXED
+Commit: d5e1f60c25cbedd7bc2471d723340330498073d1
+Evidence: `docs/review/PR_2062_FIXED_MAPPING.md` replaced the no-actionable sentinel with concrete CodeRabbit review-thread mappings and disposition proof.
+
 ## Role-Agent Finding Dispositions
 
 Disposition: FIXED
