@@ -18,6 +18,26 @@ Future actionable human, bot, role-agent, premortem, Experiment Runner, or
 Codex Security findings must be added here with disposition evidence before
 merge-readiness claims.
 
+## Post-Open Role Findings
+
+### QA Engineer Agent
+
+- Finding: no-overclaim guard was too literal and could miss equivalent claims
+  such as live runtime alerts, production emission of alert labels, or full BOLA
+  closure wording.
+  - Disposition: FIXED
+  - Commit: `8c3d7bb38`
+  - Evidence:
+    `tests/security/test_authenticated_principal_mapping.py::test_docs_do_not_claim_runtime_alerting_or_full_bola_closure`
+    now normalizes docs text and blocks expanded overclaim variants.
+- Finding: local evidence used `.venv/bin/python` as though the isolated
+  worktree owned a local venv.
+  - Disposition: FIXED
+  - Commit: `8c3d7bb38`
+  - Evidence: this artifact records the focused bundle with the repo-resolved
+    `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"`
+    form.
+
 ## Premortem Findings
 
 - R1 false full-BOLA closure interpretation - FIXED by scope wording and
