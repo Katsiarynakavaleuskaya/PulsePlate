@@ -56,13 +56,14 @@ Out of scope:
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2066#discussion_r3516273298 -> `633eeca00`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2066#discussion_r3516357104
 
 ## Implementation Evidence
 
 Disposition: FIXED
 
-Commit: `ac0338460`
+Commit: `ac033846008ac1157be48f64551bd0eaab0f8c7d`
 
 Evidence:
 
@@ -124,10 +125,45 @@ Evidence:
 - Oracle command: focused route-family, legacy-growth, authz, and OpenAPI
   pytest bundle.
 - Shared tree untouched: true
-- Co-author required: true and present in commit `ac0338460`.
+- Co-author required: true and present in commit
+  `ac033846008ac1157be48f64551bd0eaab0f8c7d`.
 - Note: earlier packet `exp-dd7f551071bc` rejected as local infra before oracle
   execution because the network-disabled sandbox required `unshare` on PATH.
   The accepted packet used `network_budget=1` and ran the same oracle.
+
+## Review Comment Dispositions
+
+### Sourcery Assertion Diagnostics
+
+Disposition: FIXED
+
+Comment:
+https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2066#discussion_r3516273298
+
+Commit: `633eeca00`
+
+Evidence:
+
+- `tests/test_shopping_list_registration_bootstrap.py` now includes an assertion
+  message for `_shopping_list_route(...)` failures with method, path, match
+  count, and matched route summaries.
+- PASS:
+  `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/test_shopping_list_registration_bootstrap.py tests/test_legacy_growth_guard.py`
+
+### Codex Experiment Runner Trailer Evidence
+
+Disposition: NOT-A-BUG
+
+Comment:
+https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2066#discussion_r3516357104
+
+Evidence:
+
+- `git log --pretty=format:'%H %s%n%b' -1 ac033846008ac1157be48f64551bd0eaab0f8c7d`
+  shows the required trailer:
+  `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
+- The later mapping-only commits do not contain material Experiment Runner
+  contribution and therefore do not need the trailer.
 
 ## Post-Open Role Findings
 
