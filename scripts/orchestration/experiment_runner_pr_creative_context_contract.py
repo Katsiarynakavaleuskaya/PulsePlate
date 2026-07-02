@@ -88,6 +88,10 @@ CONCRETE_HYPOTHESIS_TARGET_PREFIXES = (
     "tools/codex_skills/",
     ".agents/skills/",
 )
+APPROVABLE_PR1_TARGET_PREFIXES = (
+    *CONCRETE_HYPOTHESIS_TARGET_PREFIXES,
+    "docs/orchestration/",
+)
 ELIGIBLE_PREFIXES = (
     "scripts/orchestration/",
     "docs/orchestration/",
@@ -1832,6 +1836,21 @@ def build_agent_consumption_summary(
 ) -> dict[str, Any]:
     packet = validate_creative_hypothesis_packet(hypothesis_packet)
     routing_payload = validate_creative_hypothesis_agent_routing(routing)
+    if routing_payload["source_hypothesis_packet_id"] != packet["packet_id"]:
+        raise ExperimentRunnerCreativeContextContractError(
+            "agent routing must reference the supplied hypothesis packet."
+        )
+    packet_fingerprint = cast(str, fingerprint_payload(packet))
+    if routing_payload["source_hypothesis_packet_fingerprint"] != packet_fingerprint:
+        raise ExperimentRunnerCreativeContextContractError(
+            "agent routing fingerprint must match the supplied hypothesis packet."
+        )
+    packet_hypothesis_ids = {row["hypothesis_id"] for row in packet["hypotheses"]}
+    routing_hypothesis_ids = {row["hypothesis_id"] for row in routing_payload["routing"]}
+    if routing_hypothesis_ids != packet_hypothesis_ids:
+        raise ExperimentRunnerCreativeContextContractError(
+            "agent routing rows must match hypothesis packet rows."
+        )
     oracle_status = "skipped"
     coauthor_required = False
     if oracle_attachment is not None:
@@ -1975,17 +1994,18 @@ def build_creative_hypothesis_approval(
     approved_by: str = "human_operator",
     next_step: str = "no_action",
 ) -> dict[str, Any]:
+    normalized_targets = _normalize_path_list(
+        list(approved_target_surfaces),
+        label="approved_target_surfaces",
+        allow_empty=True,
+    )
     body: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "artifact_type": APPROVAL_TYPE,
         "policy_version": POLICY_VERSION,
         "hypothesis_id": hypothesis_id,
         "decision": decision,
-        "approved_target_surfaces": _normalize_path_list(
-            list(approved_target_surfaces),
-            label="approved_target_surfaces",
-            allow_empty=True,
-        ),
+        "approved_target_surfaces": normalized_targets,
         "approved_agents": _normalize_text_list(
             list(approved_agents),
             label="approved_agents",
@@ -2049,6 +2069,36 @@ def validate_creative_hypothesis_approval(payload: Mapping[str, Any]) -> dict[st
     ):
         raise ExperimentRunnerCreativeContextContractError(
             "approval for PR-1 specification must set next_step=create_pr1_specification."
+        )
+    if normalized["decision"] != "approve_for_pr1_specification" and (
+        normalized["next_step"] == "create_pr1_specification"
+    ):
+        raise ExperimentRunnerCreativeContextContractError(
+            "only approve_for_pr1_specification may create PR-1 specification."
+        )
+    if normalized["decision"] == "reject" and normalized["next_step"] != "no_action":
+        raise ExperimentRunnerCreativeContextContractError("rejected approvals must set no_action.")
+    if normalized["decision"] == "defer" and normalized["next_step"] != "defer":
+        raise ExperimentRunnerCreativeContextContractError("deferred approvals must set defer.")
+    if normalized["decision"] == "approve_for_pr1_specification":
+        if not normalized["approved_target_surfaces"]:
+            raise ExperimentRunnerCreativeContextContractError(
+                "PR-1 approval requires at least one approved target surface."
+            )
+        invalid_targets = [
+            target
+            for target in normalized["approved_target_surfaces"]
+            if not target.startswith(APPROVABLE_PR1_TARGET_PREFIXES)
+            or target.startswith(PRODUCT_RUNTIME_PREFIXES)
+            or target.startswith(WORKFLOW_PREFIX)
+        ]
+        if invalid_targets:
+            raise ExperimentRunnerCreativeContextContractError(
+                "PR-1 approval targets must stay on creative-context orchestration surfaces."
+            )
+    elif normalized["approved_target_surfaces"] or normalized["approved_agents"]:
+        raise ExperimentRunnerCreativeContextContractError(
+            "reject/defer approvals must not carry approved targets or agents."
         )
     _validate_identity(
         normalized,

@@ -44,7 +44,9 @@
     "repo_path": {
       "type": "string",
       "pattern": "^[A-Za-z0-9_.-][A-Za-z0-9_./-]*$",
-      "not": { "pattern": "(^/|\\.\\.|\\\\|file://|^~|^\\.git/|^\\.venv/|^worktrees/)" }
+      "not": {
+        "pattern": "(^/|\\.\\.|\\\\|file://|^~|^\\.git/|^\\.venv/|^worktrees/|^artifacts(/|$))"
+      }
     },
     "artifact_ref": {
       "type": "string",

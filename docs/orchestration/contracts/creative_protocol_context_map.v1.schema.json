@@ -58,7 +58,9 @@
     "repo_path": {
       "type": "string",
       "pattern": "^[A-Za-z0-9_.-][A-Za-z0-9_./-]*$",
-      "not": { "pattern": "(^/|\\.\\.|\\\\|file://|^~|^\\.git/|^\\.venv/|^worktrees/)" }
+      "not": {
+        "pattern": "(^/|\\.\\.|\\\\|file://|^~|^\\.git/|^\\.venv/|^worktrees/|^artifacts(/|$))"
+      }
     },
     "repo_paths": {
       "type": "array",
@@ -121,7 +123,20 @@
         "creative_decision": {
           "enum": ["hypotheses_required", "no_creative_action", "blocked"]
         },
-        "reason_code": { "type": "string" },
+        "reason_code": {
+          "enum": [
+            "docs_only_no_runtime_action",
+            "eligible_orchestration_surface",
+            "label_activation",
+            "manual_activation",
+            "marker_activation",
+            "missing_changed_paths",
+            "missing_required_capability",
+            "product_runtime_surface",
+            "unsupported_surface",
+            "workflow_deferred_followup"
+          ]
+        },
         "activation_source": { "enum": ["path", "label", "marker", "manual", "none"] },
         "eligible_surface": { "type": "string" }
       }

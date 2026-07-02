@@ -20,8 +20,10 @@ from scripts.orchestration.experiment_runner_pr_creative_context_contract import
     HYPOTHESIS_PACKET_TYPE,
     ORACLE_ATTACHMENT_TYPE,
     POLICY_VERSION,
+    REASON_CODES,
     SCHEMA_VERSION,
     ExperimentRunnerCreativeContextContractError,
+    _artifact_identity,
     build_agent_consumption_summary,
     build_creative_hypothesis_agent_routing,
     build_creative_hypothesis_approval,
@@ -329,6 +331,84 @@ def test_routing_records_missing_specialist_agents_and_uses_registered_fallback(
     assert all(row["mutation_authority"] is False for row in routing["routing"])
 
 
+def test_consumption_summary_rejects_unrelated_routing_packet() -> None:
+    packet = _packet(hypothesis_count=3)
+    other_context = _context(
+        changed_paths=[
+            "scripts/orchestration/task_bootstrap.py",
+            "docs/orchestration/contracts/EXPERIMENT_RUNNER_PR_CREATIVE_CONTEXT_CONTRACT.md",
+        ],
+    )
+    other_packet = build_creative_hypothesis_packet(other_context, hypothesis_count=3)
+    other_routing = build_creative_hypothesis_agent_routing(other_packet)
+
+    with pytest.raises(
+        ExperimentRunnerCreativeContextContractError,
+        match="agent routing must reference the supplied hypothesis packet",
+    ):
+        build_agent_consumption_summary(hypothesis_packet=packet, routing=other_routing)
+
+
+def test_consumption_summary_rejects_missing_routing_rows_for_generated_packet() -> None:
+    packet = _packet(hypothesis_count=3)
+    routing = build_creative_hypothesis_agent_routing(packet)
+    bad_routing = dict(routing)
+    bad_routing["routing"] = []
+    body_without_identity = {
+        key: value
+        for key, value in bad_routing.items()
+        if key not in {"routing_id", "idempotency_key"}
+    }
+    routing_id, idempotency_key = _artifact_identity(
+        body_without_identity,
+        artifact_type=AGENT_ROUTING_TYPE,
+        upstream_ids=(packet["packet_id"],),
+    )
+    bad_routing["routing_id"] = routing_id
+    bad_routing["idempotency_key"] = idempotency_key
+
+    with pytest.raises(
+        ExperimentRunnerCreativeContextContractError,
+        match="agent routing rows must match hypothesis packet rows",
+    ):
+        build_agent_consumption_summary(hypothesis_packet=packet, routing=bad_routing)
+
+
+def test_approval_rejects_rejected_or_deferred_pr1_handoff() -> None:
+    with pytest.raises(
+        ExperimentRunnerCreativeContextContractError,
+        match="only approve_for_pr1_specification may create PR-1 specification",
+    ):
+        build_creative_hypothesis_approval(
+            hypothesis_id="hyp-001",
+            decision="reject",
+            next_step="create_pr1_specification",
+        )
+
+    with pytest.raises(
+        ExperimentRunnerCreativeContextContractError,
+        match="deferred approvals must set defer",
+    ):
+        build_creative_hypothesis_approval(
+            hypothesis_id="hyp-001",
+            decision="defer",
+            next_step="no_action",
+        )
+
+
+def test_approval_rejects_product_runtime_pr1_targets() -> None:
+    with pytest.raises(
+        ExperimentRunnerCreativeContextContractError,
+        match="PR-1 approval targets must stay on creative-context orchestration surfaces",
+    ):
+        build_creative_hypothesis_approval(
+            hypothesis_id="hyp-001",
+            decision="approve_for_pr1_specification",
+            approved_target_surfaces=["app/main.py"],
+            next_step="create_pr1_specification",
+        )
+
+
 def test_cli_prepare_writes_only_approved_local_artifact_files(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -437,3 +517,50 @@ def test_hypothesis_packet_schema_encodes_generated_and_no_action_guards() -> No
     assert contains_target["contains"]["$ref"] == "#/$defs/concrete_target_path"
     assert no_action_guard["then"]["properties"]["hypothesis_count"]["const"] == 0
     assert no_action_guard["then"]["properties"]["hypotheses"]["maxItems"] == 0
+
+
+def test_context_and_packet_schemas_pin_reason_codes_and_artifact_path_ban() -> None:
+    for filename in (
+        "creative_protocol_context_map.v1.schema.json",
+        "creative_hypothesis_packet.v1.schema.json",
+    ):
+        schema = _schema(filename)
+        if filename == "creative_protocol_context_map.v1.schema.json":
+            reason_schema = schema["$defs"]["classification"]["properties"]["reason_code"]
+        else:
+            reason_schema = schema["properties"]["reason_code"]
+        assert set(reason_schema["enum"]) == REASON_CODES
+        assert "artifacts" in schema["$defs"]["repo_path"]["not"]["pattern"]
+
+
+def test_approval_schema_encodes_decision_state_machine() -> None:
+    schema = _schema("creative_hypothesis_approval.v1.schema.json")
+    approve_guard = next(
+        guard
+        for guard in schema["allOf"]
+        if guard["if"]["properties"]["decision"]["const"] == "approve_for_pr1_specification"
+    )
+    reject_guard = next(
+        guard
+        for guard in schema["allOf"]
+        if guard["if"]["properties"]["decision"]["const"] == "reject"
+    )
+    defer_guard = next(
+        guard
+        for guard in schema["allOf"]
+        if guard["if"]["properties"]["decision"]["const"] == "defer"
+    )
+
+    approve_then = approve_guard["then"]["properties"]
+    assert approve_then["next_step"]["const"] == "create_pr1_specification"
+    assert approve_then["approved_target_surfaces"]["minItems"] == 1
+    assert (
+        approve_then["approved_target_surfaces"]["items"]["$ref"]
+        == "#/$defs/approvable_pr1_target_path"
+    )
+    assert reject_guard["then"]["properties"]["next_step"]["const"] == "no_action"
+    assert reject_guard["then"]["properties"]["approved_target_surfaces"]["maxItems"] == 0
+    assert reject_guard["then"]["properties"]["approved_agents"]["maxItems"] == 0
+    assert defer_guard["then"]["properties"]["next_step"]["const"] == "defer"
+    assert defer_guard["then"]["properties"]["approved_target_surfaces"]["maxItems"] == 0
+    assert "app/" in schema["$defs"]["approvable_pr1_target_path"]["allOf"][2]["not"]["pattern"]

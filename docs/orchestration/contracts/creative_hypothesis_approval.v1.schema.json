@@ -40,6 +40,49 @@
     "authority": { "$ref": "#/$defs/authority" },
     "sanitized": { "const": true }
   },
+  "allOf": [
+    {
+      "if": {
+        "required": ["decision"],
+        "properties": { "decision": { "const": "approve_for_pr1_specification" } }
+      },
+      "then": {
+        "properties": {
+          "next_step": { "const": "create_pr1_specification" },
+          "approved_target_surfaces": {
+            "minItems": 1,
+            "items": { "$ref": "#/$defs/approvable_pr1_target_path" }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["decision"],
+        "properties": { "decision": { "const": "reject" } }
+      },
+      "then": {
+        "properties": {
+          "next_step": { "const": "no_action" },
+          "approved_target_surfaces": { "maxItems": 0 },
+          "approved_agents": { "maxItems": 0 }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["decision"],
+        "properties": { "decision": { "const": "defer" } }
+      },
+      "then": {
+        "properties": {
+          "next_step": { "const": "defer" },
+          "approved_target_surfaces": { "maxItems": 0 },
+          "approved_agents": { "maxItems": 0 }
+        }
+      }
+    }
+  ],
   "$defs": {
     "safe_id": {
       "type": "string",
@@ -50,7 +93,18 @@
     "repo_path": {
       "type": "string",
       "pattern": "^[A-Za-z0-9_.-][A-Za-z0-9_./-]*$",
-      "not": { "pattern": "(^/|\\.\\.|\\\\|file://|^~|^\\.git/|^\\.venv/|^worktrees/)" }
+      "not": {
+        "pattern": "(^/|\\.\\.|\\\\|file://|^~|^\\.git/|^\\.venv/|^worktrees/|^artifacts(/|$))"
+      }
+    },
+    "approvable_pr1_target_path": {
+      "allOf": [
+        { "$ref": "#/$defs/repo_path" },
+        {
+          "pattern": "^(scripts/|tests/|docs/orchestration/|docs/prompts/|tools/codex_skills/|\\.agents/skills/)"
+        },
+        { "not": { "pattern": "^(app/|core/|frontend/|ios/|providers/|alembic/|\\.github/workflows/)" } }
+      ]
     },
     "repo_paths": {
       "type": "array",
