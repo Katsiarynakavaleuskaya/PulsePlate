@@ -44,18 +44,19 @@ runtime, thread-resolution, fixed-mapping, merge, or readiness authority.
 - [x] Codex Security diff scan / finding discovery completed or explicitly
   dispositioned.
 - [x] `pulseplate-pr-review` completed.
-- [ ] CodeRabbit actionable review comments checked and dispositioned after bot
+- [x] CodeRabbit actionable review comments checked and dispositioned after bot
   review completes.
 - [ ] Sourcery actionable review comments checked and dispositioned after bot
   review completes.
-- [ ] Cubic actionable review comments checked and dispositioned after bot
+- [x] Cubic actionable review comments checked and dispositioned after bot
   review completes.
 - [ ] Current-head CI complete before readiness language.
 - [ ] Strict merge-readiness checks run after the final review/check cycle.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- CodeRabbit mapping entries are populated in the follow-up mapping evidence
+  commit after this fix commit exists.
 
 ## Role-Agent Finding Dispositions
 
@@ -181,6 +182,13 @@ operator-approved and explicitly covered by trusted labels
 `scope/operator-approved` and `scope/privileged-approved`, the split rationale
 in this mapping artifact, focused tests, `make validate-changed`,
 `pre-commit run --all-files`, and push-time pre-push hooks.
+
+Disposition: FIXED
+Source: CodeRabbit
+Evidence: The fixed-mapping section no longer claims `No actionable review
+comments` while the artifact records role-agent and bot dispositions. The
+follow-up mapping evidence commit records this fix commit SHA against the
+CodeRabbit review and inline comment URLs.
 
 ## Experiment Runner Evidence
 
