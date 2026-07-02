@@ -1231,6 +1231,10 @@ def validate_experiment_runner_pr_oracle_attachment(payload: Mapping[str, Any]) 
         raise ExperimentRunnerCreativeContextContractError(
             "accepted oracle attachments require result_ref."
         )
+    if normalized["oracle_status"] == "accepted" and not normalized["result_fingerprint"]:
+        raise ExperimentRunnerCreativeContextContractError(
+            "accepted oracle attachments require result_fingerprint."
+        )
     _validate_identity(
         normalized,
         id_key="attachment_id",

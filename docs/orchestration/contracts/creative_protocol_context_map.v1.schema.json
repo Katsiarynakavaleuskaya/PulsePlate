@@ -69,7 +69,8 @@
     },
     "artifact_ref": {
       "type": "string",
-      "pattern": "^artifacts/orchestration/(experiments|creative_code)/[A-Za-z0-9_./:-]+$"
+      "pattern": "^artifacts/orchestration/(experiments|creative_code)/[A-Za-z0-9_./:-]+$",
+      "not": { "pattern": "(^/|\\\\|file://|^~|(^|/)\\.\\.?(/|$))" }
     },
     "artifact_refs_or_repo_paths": {
       "type": "array",

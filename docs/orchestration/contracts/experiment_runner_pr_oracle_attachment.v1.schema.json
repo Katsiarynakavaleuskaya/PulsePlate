@@ -34,6 +34,20 @@
     "authority": { "$ref": "#/$defs/authority" },
     "sanitized": { "const": true }
   },
+  "allOf": [
+    {
+      "if": {
+        "required": ["oracle_status"],
+        "properties": { "oracle_status": { "const": "accepted" } }
+      },
+      "then": {
+        "properties": {
+          "result_ref": { "$ref": "#/$defs/artifact_ref" },
+          "result_fingerprint": { "$ref": "#/$defs/sha256" }
+        }
+      }
+    }
+  ],
   "$defs": {
     "safe_id": {
       "type": "string",
@@ -50,7 +64,8 @@
     },
     "artifact_ref": {
       "type": "string",
-      "pattern": "^artifacts/orchestration/(experiments|creative_code)/[A-Za-z0-9_./:-]+$"
+      "pattern": "^artifacts/orchestration/(experiments|creative_code)/[A-Za-z0-9_./:-]+$",
+      "not": { "pattern": "(^/|\\\\|file://|^~|(^|/)\\.\\.?(/|$))" }
     },
     "sha": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
     "sha256": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },

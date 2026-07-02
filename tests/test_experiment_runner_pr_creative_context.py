@@ -303,6 +303,21 @@ def test_path_validation_rejects_traversal_local_paths_and_unapproved_artifacts(
         build_creative_protocol_context_map(changed_paths=[bad_path])
 
 
+def test_accepted_oracle_attachment_requires_fingerprint() -> None:
+    context = _context()
+
+    with pytest.raises(
+        ExperimentRunnerCreativeContextContractError,
+        match="accepted oracle attachments require result_fingerprint",
+    ):
+        build_experiment_runner_pr_oracle_attachment(
+            source=context["source"],
+            oracle_status="accepted",
+            result_ref="artifacts/orchestration/experiments/results/oracle-result.json",
+            result_fingerprint=None,
+        )
+
+
 def test_routing_records_missing_specialist_agents_and_uses_registered_fallback() -> None:
     packet = _packet(hypothesis_count=5)
     registered_agents = {
@@ -531,6 +546,29 @@ def test_context_and_packet_schemas_pin_reason_codes_and_artifact_path_ban() -> 
             reason_schema = schema["properties"]["reason_code"]
         assert set(reason_schema["enum"]) == REASON_CODES
         assert "artifacts" in schema["$defs"]["repo_path"]["not"]["pattern"]
+
+
+def test_artifact_ref_schemas_reject_traversal_segments() -> None:
+    for filename in (
+        "creative_protocol_context_map.v1.schema.json",
+        "experiment_runner_pr_oracle_attachment.v1.schema.json",
+    ):
+        schema = _schema(filename)
+        artifact_ref = schema["$defs"]["artifact_ref"]
+        assert "(^|/)\\.\\.?" in artifact_ref["not"]["pattern"]
+
+
+def test_oracle_attachment_schema_requires_fingerprint_for_accepted_status() -> None:
+    schema = _schema("experiment_runner_pr_oracle_attachment.v1.schema.json")
+    accepted_guard = next(
+        guard
+        for guard in schema["allOf"]
+        if guard["if"]["properties"]["oracle_status"]["const"] == "accepted"
+    )
+
+    accepted_then = accepted_guard["then"]["properties"]
+    assert accepted_then["result_ref"]["$ref"] == "#/$defs/artifact_ref"
+    assert accepted_then["result_fingerprint"]["$ref"] == "#/$defs/sha256"
 
 
 def test_approval_schema_encodes_decision_state_machine() -> None:
