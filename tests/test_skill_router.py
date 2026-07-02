@@ -1563,6 +1563,63 @@ def test_skill_router_routes_review_oracle_and_learning_loop_skills() -> None:
     )
 
 
+def test_skill_router_routes_learning_loop_for_repeated_role_premortem_failure() -> None:
+    """Repeated role or premortem failures should trigger the learning-loop helper."""
+
+    decision = route_skills(
+        goal=(
+            "Fix repeated role-agent failure where premortem became docs closeout "
+            "instead of diff-specific production-risk closure"
+        ),
+        task_class="Orchestration",
+        candidate_paths=[
+            "AGENTS.md",
+            "docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md",
+        ],
+        domain="orchestration",
+    )
+
+    recommended = {item["skill"] for item in decision["recommended"]}
+    assert "pulseplate-agent-learning-loop" in recommended
+    per_skill = {
+        item["skill"]: item
+        for item in decision["explanation"]["per_skill_evidence"]
+        if item["skill"] == "pulseplate-agent-learning-loop"
+    }
+    assert any(
+        "semantic-group:orchestration.agent_learning_loop" in reason
+        for reason in per_skill["pulseplate-agent-learning-loop"]["reasons"]
+    )
+    assert any(
+        item["group_id"] == "orchestration.agent_learning_loop"
+        for item in decision["explanation"]["semantic_groups"]
+    )
+
+
+def test_skill_router_routes_learning_loop_for_successful_iteration_pattern() -> None:
+    """Repeatable successful patterns should also trigger the learning-loop helper."""
+
+    decision = route_skills(
+        goal=(
+            "Promote a successful iteration where premortem and agent review "
+            "worked well for creative hypothesis routing"
+        ),
+        task_class="Orchestration",
+        candidate_paths=[
+            "docs/orchestration/AGENT_LEARNING_LOOP.md",
+            "docs/orchestration/GOVERNED_CREATIVE_CODE_EXECUTION_CONTRACT.md",
+        ],
+        domain="orchestration",
+    )
+
+    recommended = {item["skill"] for item in decision["recommended"]}
+    assert "pulseplate-agent-learning-loop" in recommended
+    assert any(
+        item["group_id"] == "orchestration.agent_learning_loop"
+        for item in decision["explanation"]["semantic_groups"]
+    )
+
+
 def test_skill_router_does_not_route_review_oracles_from_generic_oracle_text() -> None:
     """Generic experiment-runner oracle wording must not boost review-pattern helpers."""
 

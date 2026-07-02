@@ -480,6 +480,13 @@ def test_premortem_skill_says_advisory_findings_require_closure() -> None:
     assert "Advisory means this skill has no independent execution" in skill_text
     assert "It does **not** mean findings can be ignored." in skill_text
     assert "Every premortem finding produced for a PR-scoped lane must be closed" in skill_text
+    assert "not a PR-body/docs closeout ritual" in skill_text
+    assert "introduced or exposed by the actual diff" in skill_text
+    assert "Documentation-only FIXED proof is valid only" in skill_text
+    assert "risk is documentation-only" in skill_text
+    assert "code, schema, validator, workflow guard, deterministic test, policy guard" in (
+        skill_text
+    )
     assert "FIXED" in skill_text
     assert "NOT-A-BUG" in skill_text
     assert "DEFERRED" in skill_text

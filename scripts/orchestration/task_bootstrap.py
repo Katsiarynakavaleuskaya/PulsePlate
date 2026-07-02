@@ -1032,6 +1032,13 @@ def build_task_packet(
         design_lane_mode=design_lane_mode,
         design_blockers=design_lane_contract["blockers"],
     )
+    recommended_skills = flatten_recommended_skills(skill_routing)
+    learning_loop_required = "pulseplate-agent-learning-loop" in recommended_skills
+    learning_loop_semantic_triggers = [
+        item
+        for item in skill_routing.get("explanation", {}).get("semantic_groups", [])
+        if item.get("group_id") == "orchestration.agent_learning_loop"
+    ]
     forced_executable_agents = {"security-auditor"} if security_review_required else set()
     if normalized_pr_phase == PR_PHASE_POST_OPEN_REVIEW:
         forced_executable_agents.update(POST_OPEN_REVIEW_LANE)
@@ -1227,13 +1234,39 @@ def build_task_packet(
             "extractor": "scripts/orchestration/agent_lesson_extractor.py",
             "promoter": "scripts/orchestration/agent_lesson_promoter.py",
             "contract": "docs/orchestration/contracts/agent_learning_record.v1.json",
+            "orchestration_gate": "conditional_required_when_triggered",
+            "current_packet_required": learning_loop_required,
+            "trigger_evidence": learning_loop_semantic_triggers,
+            "required_when": [
+                "operator_explicitly_requests_learning_loop",
+                "repeated_role_agent_failure_mode",
+                "repeated_premortem_failure_or_docs_closeout",
+                "repeated_review_failure_or_missed_actionable",
+                "repeated_successful_iteration_pattern",
+            ],
+            "current_pr_enforcement_required_when_scope_affected": True,
+            "proposal_only_until_promoted": True,
+            "redaction_required": True,
+            "promotion_requires_reviewed_repo_diff": True,
+            "metrics_required": True,
+            "metrics_schema_version": "agent_learning_metrics.v1",
+            "metric_ids": [
+                "agent_iteration_quality",
+                "business_risk_clarity",
+                "premortem_code_closure_rate",
+                "project_development_signal",
+                "repeat_failure_reduction",
+                "review_actionable_escape_reduction",
+                "successful_pattern_reuse",
+                "user_impact_clarity",
+            ],
             "authority_boundary": "proposal_only_non_runtime",
             "side_effects_allowed": False,
             "runtime_authority": False,
             "canonical_until_promoted_by_repo_diff": False,
         },
         "message_envelope": message_envelope,
-        "recommended_skills": flatten_recommended_skills(skill_routing),
+        "recommended_skills": recommended_skills,
         "skill_routing": skill_routing,
         "automation_flags": {
             "coordinator_first_required": True,

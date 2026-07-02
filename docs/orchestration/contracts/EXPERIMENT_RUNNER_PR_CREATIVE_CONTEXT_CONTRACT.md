@@ -12,6 +12,11 @@ context, emits 3-5 bounded hypotheses, maps cross-domain analogies, proposes
 coordinator-owned agent routing, and prepares a human approval packet for a
 later PR-1 specification handoff.
 
+PR-2 adds an active local intake lane: an operator-controlled local model/tool
+may produce structured hypothesis JSON outside the repo, while the repo only
+validates, normalizes, fingerprints, and routes that JSON. The repo does not
+call a provider/model and does not retain raw prompts or raw model payloads.
+
 ## Authority Boundary
 
 Allowed:
@@ -21,10 +26,12 @@ Allowed:
   `artifacts/orchestration/experiments/creative_context/`;
 - build `CreativeProtocolContextMap`;
 - generate exactly 3-5 hypotheses for eligible orchestration/creative surfaces;
+- ingest operator-supplied local model JSON after strict schema validation;
 - attach cross-domain analogies as implementation hypotheses, not product
   claims;
 - route hypotheses to registered agents or record missing specialist
   capabilities with approved fallbacks;
+- emit a coordinator dispatch handoff for critique/refine review only;
 - prepare a `CreativeHypothesisApproval` reservation for human review.
 
 Forbidden:
@@ -36,6 +43,8 @@ Forbidden:
 - workflow mutation or automatic workflow dispatch;
 - provider calls, product runtime calls, semantic-cache use, secrets reads,
   GitHub App mutation, or Slack mutation;
+- local HTTP model adapters, GitHub App `workflow_dispatch`, and Actions write
+  permissions unless a later reviewed capability gate opens them;
 - storing raw PR bodies, review bodies, patches, prompts, provider payloads,
   oracle stdout/stderr, Codex JSONL, secrets, tokens, or absolute local paths.
 
@@ -70,8 +79,10 @@ Schemas:
 
 - `experiment_runner_pr_oracle_attachment.v1.schema.json`
 - `creative_protocol_context_map.v1.schema.json`
+- `creative_hypothesis_operator_model_intake.v1.schema.json`
 - `creative_hypothesis_packet.v1.schema.json`
 - `creative_hypothesis_agent_routing.v1.schema.json`
+- `creative_hypothesis_coordinator_dispatch.v1.schema.json`
 - `creative_hypothesis_agent_consumption_summary.v1.schema.json`
 - `creative_hypothesis_approval.v1.schema.json`
 
@@ -84,7 +95,9 @@ CLI:
 ```bash
 python -m scripts.orchestration.experiment_runner_pr_creative_context collect-context
 python -m scripts.orchestration.experiment_runner_pr_creative_context generate-hypotheses
+python -m scripts.orchestration.experiment_runner_pr_creative_context ingest-model-hypotheses
 python -m scripts.orchestration.experiment_runner_pr_creative_context route-agents
+python -m scripts.orchestration.experiment_runner_pr_creative_context dispatch-coordinator
 python -m scripts.orchestration.experiment_runner_pr_creative_context summarize
 python -m scripts.orchestration.experiment_runner_pr_creative_context prepare
 python -m scripts.orchestration.experiment_runner_pr_creative_context validate
@@ -95,8 +108,49 @@ python -m scripts.orchestration.experiment_runner_pr_creative_context validate
 - `context_map.json`
 - `hypothesis_packet.json`
 - `agent_routing.json`
+- `coordinator_dispatch.json`
 - `oracle_attachment.json`
 - `agent_consumption_summary.json`
+
+`prepare --context-map <context_map.json> --model-intake <json>` uses the
+supplied fingerprinted context map and intake instead of deterministic
+templates, then writes the same local artifact set. Supplying the same
+`context_map.json` used by `ingest-model-hypotheses` prevents timestamp or
+argument drift from invalidating otherwise valid operator/model JSON.
+
+## Operator Model Intake
+
+`CreativeHypothesisOperatorModelIntake` is an advisory, unverified local input
+artifact. It is not evidence-backed truth and not a patch request.
+
+Required boundaries:
+
+- `generation.mode=operator_supplied_model_json`;
+- `repo_provider_calls=false`;
+- `raw_model_payload_stored=false`;
+- `semantic_cache_used=false`;
+- `hypothesis_count` must be 3, 4, or 5 and must match the array length;
+- external `hypothesis_id` is rejected; the repo normalizer assigns stable
+  `hyp-001`, `hyp-002`, ... IDs;
+- each hypothesis must include concrete target surfaces, tests/oracles, risk
+  notes, cross-domain analogies, falsifier, negative controls, human approval,
+  `eligible_for_pr1_specification=true`, and `eligible_for_pr2_patch=false`;
+- authority is limited to `operator_supplied_hypotheses=true`; GitHub,
+  workflow, provider, runtime, patch, branch, PR, thread, fixed-mapping,
+  semantic-cache, OpenAPI, and client-runtime powers are forced false.
+
+The normalizer rejects raw prompt/response fields, provider payloads,
+chain-of-thought, patch or diff text, token-like values, absolute local paths,
+product-runtime targets, workflow mutation, GitHub write intent, and
+semantic-cache claims.
+
+Normalized `CreativeHypothesisPacket` records:
+
+- `hypothesis_generation_mode=operator_validated_intake_v1`;
+- `source_model_intake_fingerprint=sha256:...`;
+- `repo_provider_calls=false`;
+- `raw_model_payload_stored=false`;
+- `semantic_cache_used=false`.
 
 ## Hypothesis Requirements
 
@@ -130,6 +184,11 @@ Baseline routing:
 
 Missing specialist agents are recorded as `missing_agent_capabilities`; routing
 falls back to `agent-coordinator` when the primary is not registered.
+
+`CreativeHypothesisCoordinatorDispatch` converts routing rows into
+`TASK_PACKET_V1`-style local handoff rows with `task_mode=critique_refine_only`,
+`mutation_authority=false`, `execute_agent_tasks=false`, and
+`dispatch_to_coordinator=true`. It is a coordinator input, not an agent executor.
 
 ## Codex Security Single-Pass Guard
 

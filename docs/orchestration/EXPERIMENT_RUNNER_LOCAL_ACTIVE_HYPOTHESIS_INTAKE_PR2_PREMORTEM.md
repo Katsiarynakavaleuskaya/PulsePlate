@@ -1,0 +1,62 @@
+# Experiment Runner Local Active Hypothesis Intake PR-2 Premortem
+
+Status: pre-open diff-specific premortem closure for
+`codex/experiment-runner-local-active-hypothesis-pr2`.
+
+Scope: local Experiment Runner creative-context model/operator intake,
+coordinator dispatch, learning-loop feedback, and orchestration governance.
+
+This premortem is part of the creative-context line: it forecasts plausible
+future failures from user, business, project-development, security, and
+orchestration perspectives. It is not a docs closeout artifact. `FIXED`
+entries below cite the code, schema, validator, or focused test closure in this
+PR.
+
+## Findings
+
+| ID | Future failure scenario | Impact | Disposition | Closure / proof |
+|---|---|---|---|---|
+| PM-PR2-001 | Operator-supplied model JSON carries mixed-case raw prompts, provider payloads, patch text, token-like strings, local paths, workflow mutation, or GitHub authority text that schema-only consumers fail to reject. | A local creative intake could persist unsafe content, route an injected hypothesis, or normalize authority the repo must not grant. | FIXED | Intake and packet safe-text schemas use case-aware deny patterns; runtime validation rejects unsafe values. Proof: `tests/test_experiment_runner_pr_creative_context.py` safety cases and schema parity cases. |
+| PM-PR2-002 | External `hypothesis_id` values become trusted routing keys. | A model/operator could force collisions, spoof dispatch identity, or cause agent reviews to attach to the wrong hypothesis. | FIXED | The normalizer rejects external IDs and assigns stable repo-owned `hyp-001` style IDs/fingerprints. Proof: model-intake normalization tests in `tests/test_experiment_runner_pr_creative_context.py`. |
+| PM-PR2-003 | Operator-intake packets can claim `operator_validated_intake_v1` while carrying `creative_status=no_action` or no source intake fingerprint. | Agent routing could treat an empty or mismatched packet as valid model-intake output. | FIXED | Packet schema/runtime require operator mode to bind `creative_status=hypotheses_generated`, a source intake fingerprint, and 3-5 hypotheses. Proof: packet-mode validation tests in `tests/test_experiment_runner_pr_creative_context.py`. |
+| PM-PR2-004 | Coordinator dispatch is interpreted as execution authority. | Agents could mutate code, generate patches, or treat a handoff as approval rather than critique/refinement. | FIXED | Dispatch schema/runtime force `task_mode=critique_refine_only`, `mutation_authority=false`, `execute_agent_tasks=false`, and no branch/PR/provider/runtime authority. Proof: coordinator dispatch tests in `tests/test_experiment_runner_pr_creative_context.py`. |
+| PM-PR2-005 | GitHub App `workflow_dispatch` / Actions write becomes part of this PR by implication. | The repo could move from local operator/model choice into remote privileged automation without a separate capability gate. | FIXED | Creative-context authority flags and docs keep GitHub App mutation, workflow dispatch, PR writes, provider calls, and semantic cache closed; backlog/deferred items keep future workflow dispatch separate. Proof: contract/docs plus authority/safety tests in `tests/test_experiment_runner_pr_creative_context.py`. |
+| PM-PR2-006 | Premortem devolves into docs-only closeout and misses real production failures introduced by the diff. | Agents repeatedly mark risk review complete without code/schema/test/workflow closure, weakening trust in PR gates. | FIXED | Root `AGENTS.md`, `PR_ORCHESTRATION_CONTRACT_MATRIX.md`, and `pulseplate-premortem-risk-review` now require actual-diff future-state findings and enforceable closure for code/runtime/schema/security/workflow/orchestration/CI/governance risks; `skill_router.py` and `task_bootstrap.py` trigger learning-loop on repeated premortem/docs-closeout failure. Proof: `tests/test_skill_router.py`, `tests/test_task_bootstrap.py`, and `tests/test_render_codex_start_prompt.py` learning-loop/premortem skill tests. |
+| PM-PR2-007 | Learning-loop captures only failures, omits successful creative iterations, or records lessons without metrics. | The creative protocol cannot learn from effective agent/premortem patterns, and future promotion cannot be evaluated against user, business, or project-development signals. | FIXED | `agent_learning_record.v1` now requires `pattern_kind` and bounded `learning_metrics`; helper validation includes these fields in the dedupe fingerprint, with proposal-only no-runtime/no-cache/no-graph authority. Proof: `tests/test_agent_learning_loop.py` successful-iteration, metrics, schema, and promoter tests. |
+| PM-PR2-008 | Learning-loop records become canonical truth or runtime telemetry. | Proposal artifacts could silently update agent behavior, semantic cache, graph truth, product runtime, fixed mapping, or review-thread state. | FIXED | Learning-loop contracts and bootstrap metadata force proposal-only authority, redaction, reviewed repo-diff promotion, no runtime telemetry, no semantic cache, no graph truth, and no product runtime truth. Proof: `scripts/orchestration/agent_learning_loop.py`, `scripts/orchestration/task_bootstrap.py`, and focused learning-loop/bootstrap tests. |
+| PM-PR2-009 | Learning-loop records preserve `raw_prompt`, `raw_response`, `provider_payload`, chain-of-thought, candidate patch, or `diff --git` markers after intake rejects them. | A future learning promotion could reintroduce model prompt/output material into repo instructions or governance artifacts. | FIXED | `agent_learning_loop.py` redacts raw model artifact markers and patch-text lines before fingerprinting or promotion; validation rejects unredacted stored text. Proof: `tests/test_agent_learning_loop.py` raw model artifact redaction and promotion tests. |
+| PM-PR2-010 | Learning metrics treat successful iterations and failures as interchangeable. | A successful creative pattern could be promoted using failure-reduction metrics, making future agent evaluation misleading. | FIXED | Runtime and `agent_learning_record.v1` now enforce pattern-kind-aware metric shapes: failures use `repeat_failure_reduction` plus closure/escape metrics, successes use `successful_pattern_reuse` plus `agent_iteration_quality`. Proof: `tests/test_agent_learning_loop.py` metric mismatch tests and schema parity assertions. |
+| PM-PR2-011 | Operator intake accepts a mixed target list such as `app/main.py` plus an allowed orchestration file. | Agents could route or later approve hypotheses against product/runtime/workflow surfaces even though this PR is local orchestration-only. | FIXED | Hypothesis and analogy normalization reject any product runtime or workflow target, even when another target is allowed; intake and packet schemas carry the same ban. Proof: `tests/test_experiment_runner_pr_creative_context.py` mixed product/workflow target tests and schema assertions. |
+| PM-PR2-012 | Cross-domain analogies remain decorative and do not influence agent routing. | The creative protocol would claim cross-disciplinary review while silently routing only by `hypothesis_kind`. | FIXED | Routing now maps analogy `source_domain` values that require specialists to registered specialist agents, or records missing capabilities when those specialists are unavailable. Proof: `tests/test_experiment_runner_pr_creative_context.py` registered and missing analogy-specialist routing tests. |
+| PM-PR2-013 | `prepare --model-intake` rebuilds a fresh context map instead of using the fingerprinted context the intake was generated against. | Valid local model/operator JSON can fail closed due to timestamp or argument drift, causing false-negative operator workflows. | FIXED | `prepare` accepts `--context-map` and reuses the supplied context map when validating model intake; the contract documents the fingerprint-preserving flow. Proof: `tests/test_experiment_runner_pr_creative_context.py` CLI prepare/model-intake context reuse test. |
+| PM-PR2-014 | Runtime safe-text limits reject strings that the operator-intake schema accepts. | Operators could pass schema validation with bounded 300-character rationale text but fail runtime normalization later. | FIXED | Runtime safe-text defaults now match the 360-character schema limit for title, risk, why-useful, and list text fields. Proof: `tests/test_experiment_runner_pr_creative_context.py` schema-limit runtime acceptance test. |
+| PM-PR2-015 | `tests_or_oracles` accepts product runtime or workflow paths even though target surfaces reject them. | A hypothesis could smuggle `app/`, `core/`, or `.github/workflows/` through oracle refs and later steer agents toward forbidden surfaces. | FIXED | Hypothesis normalization now applies the same product-runtime/workflow ban to `tests_or_oracles`; schemas already encode the same path ban. Proof: `tests/test_experiment_runner_pr_creative_context.py` product/workflow `tests_or_oracles` rejection tests. |
+| PM-PR2-016 | Economics analogies route to a non-canonical business role. | Coordinator dispatch could record a missing fake capability while the repo has a canonical business specialist. | FIXED | Economics analogy routing now targets `business-strategist-agent`, matching repo inventory. Proof: `tests/test_experiment_runner_pr_creative_context.py` canonical business specialist routing test. |
+| PM-PR2-017 | Learning-loop redaction misses Linux CI paths such as `/home/runner/work/...`, container paths such as `/workspace/...`, and common absolute prefixes such as `/root`, `/etc`, `/opt`, `/usr`, or `/mnt`. | Future learning records could store machine-local CI/workspace evidence paths, making proposals non-portable and leaking host topology. | FIXED | `agent_learning_loop.py` redacts common Linux absolute paths before proposal generation and validation. Proof: `tests/test_agent_learning_loop.py` Linux path redaction tests. |
+| PM-PR2-018 | `redaction_status` can be flipped from `redacted` to `clean` without invalidating the learning-record fingerprint. | Future learning-loop feedback could falsely report a sanitized-clean pattern after redaction occurred, weakening review feedback and metrics interpretation. | FIXED | `redaction_status` is now included in the learning-record fingerprint and tampering invalidates validation. Proof: `tests/test_agent_learning_loop.py` redaction-status fingerprint tamper test. |
+| PM-PR2-019 | External operator/model intake must supply repo-generated identity fields. | A real local model/operator could emit the planned sanitized hypothesis JSON but fail before normalization because it does not know PulsePlate `intake_id` or `idempotency_key` internals. | FIXED | Operator intake validation now accepts missing external identity fields and derives stable repo-owned `intake_id` / `idempotency_key` after normalization; supplied identity values are not trusted as source of truth. Proof: `tests/test_experiment_runner_pr_creative_context.py` repo identity derivation and overwrite tests. |
+| PM-PR2-020 | `hypothesis_count` is mandatory instead of derived from the hypothesis array. | A valid operator intake with exactly 3-5 hypotheses could fail closed only because the local tool omitted a redundant count field, contradicting the intake contract. | FIXED | Operator intake validation now derives `hypothesis_count` from the validated array when omitted and still rejects supplied count mismatches. Proof: `tests/test_experiment_runner_pr_creative_context.py` derived count and mismatch tests. |
+
+## Metrics
+
+Learning-loop records use bounded proposal metrics, not runtime telemetry:
+
+- `repeat_failure_reduction`
+- `successful_pattern_reuse`
+- `premortem_code_closure_rate`
+- `review_actionable_escape_reduction`
+- `agent_iteration_quality`
+- `user_impact_clarity`
+- `business_risk_clarity`
+- `project_development_signal`
+
+These metrics are intended to evaluate future reviewed promotion of agent
+instructions. They must not update product runtime, semantic cache, graph truth,
+fixed mapping, review threads, or GitHub state.
+
+## Residual Risk
+
+No blocking premortem findings remain open for the local PR-2 diff. Merge
+readiness is not claimed by this artifact; local narrow gates, post-open role
+passes, Codex Security once per material diff, bot disposition, and current-head
+CI still govern readiness.
