@@ -35,6 +35,8 @@ dependency lock change is included.
 - `f8640b5ad` - settle residual runtime dependency ownership.
 - `c5037d32c` - add PR 2059 fixed mapping.
 - `e3cd5c159` - address runtime ownership review findings.
+- `3f3a7f658` - map PR 2059 review findings.
+- `d9f3160ab` - normalize PR 2059 mapping blocks.
 
 ## Lane Start Provenance
 
@@ -86,11 +88,30 @@ commands and the shared tree stayed untouched.
 - [x] Post-open `qa-engineer-agent` pass completed.
 - [x] Post-open `bug-hunter` pass completed.
 - [x] Post-open `security-auditor` pass completed.
-- [ ] Codex Security diff scan / finding discovery completed or explicitly
+- [x] Codex Security diff scan / finding discovery completed or explicitly
   dispositioned.
-- [ ] `pulseplate-pr-review` completed.
+- [x] `pulseplate-pr-review` completed.
 - [ ] Current-head CI inspected before readiness language.
 - [ ] Strict merge-readiness checks run after the final review/check cycle.
+
+Codex Security scan:
+`7602e0f6-f1f1-4eb1-8285-814fecb6af10`
+
+Result: complete; 0 findings; coverage 2/2 reviewed rows. The workbench
+classified the revision-range coverage as `branch_diff` at finalization while
+the scan workspace remained mode `diff`.
+
+PulsePlate PR review:
+
+Result: complete dry-run report with one advisory large-diff planning note.
+
+Disposition: NOT-A-BUG
+
+Evidence: PR scope is deliberately bounded to dependency ownership and
+preflight governance; `docs/review/PR_RESIDUAL_RUNTIME_DEP_OWNERSHIP_PREMORTEM.md`
+records split rationale, `make validate-changed` and `pre-commit run
+--all-files` already passed, and Codex Security scan
+`7602e0f6-f1f1-4eb1-8285-814fecb6af10` completed with 0 findings.
 
 ## Fixed in Commit Mapping
 
@@ -129,5 +150,5 @@ Evidence: `tests/test_orchestration_preflight.py` now asserts malformed proxy UR
 
 ## Merge Readiness
 
-Not merge-ready yet. Current-head CI, post-open review chain, bot comments,
-discussion-thread disposition, and strict merge-readiness checks are pending.
+Not merge-ready yet. Current-head CI and strict merge-readiness checks are
+pending.
