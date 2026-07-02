@@ -245,10 +245,18 @@ def test_enabled_business_routes_stay_hidden_from_public_openapi(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("BUSINESS_MODULE_ENABLED", "true")
+    original_routes = list(app_main.app.router.routes)
+    original_openapi = app_main.app.openapi
+    original_openapi_schema = app_main.app.openapi_schema
 
-    app_main.ensure_canonical_app_bootstrap(app_main.app)
-    app_main.app.openapi_schema = None
+    try:
+        app_main.ensure_canonical_app_bootstrap(app_main.app)
+        app_main.app.openapi_schema = None
 
-    paths = set(app_main.app.openapi().get("paths", {}))
+        paths = set(app_main.app.openapi().get("paths", {}))
 
-    assert paths.isdisjoint(_EXPECTED_BUSINESS_ROUTE_PATHS)
+        assert paths.isdisjoint(_EXPECTED_BUSINESS_ROUTE_PATHS)
+    finally:
+        app_main.app.router.routes = original_routes
+        app_main.app.openapi = original_openapi
+        app_main.app.openapi_schema = original_openapi_schema
