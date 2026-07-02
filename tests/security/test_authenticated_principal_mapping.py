@@ -170,16 +170,23 @@ def test_docs_do_not_claim_runtime_alerting_or_full_bola_closure() -> None:
     combined = "\n".join(
         path.read_text(encoding="utf-8") for path in (PRINCIPAL_DOC, PREMORTEM_DOC)
     ).lower()
+    normalized = " ".join(combined.split())
 
-    assert "this pr does not emit" in combined
-    assert "future observability contract only" in combined
-    assert "not complete full bola" in combined
+    assert "this pr does not emit" in normalized
+    assert "future observability contract only" in normalized
+    assert "does not implement runtime alerting" in normalized
+    assert "not complete full bola" in normalized
     forbidden_claims = (
         "runtime alerting is implemented",
+        "runtime alerts are live",
         "production telemetry is implemented",
+        "production emits auth_principal_mismatch",
         "first-class user authentication is implemented",
+        "first-class user auth is implemented",
         "bola is complete",
+        "bola fully addressed",
         "full bola completion",
+        "full bola closure",
     )
     for claim in forbidden_claims:
-        assert claim not in combined
+        assert claim not in normalized

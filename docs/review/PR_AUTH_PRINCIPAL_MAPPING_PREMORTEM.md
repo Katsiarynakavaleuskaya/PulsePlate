@@ -15,12 +15,13 @@ Lane provenance:
 
 ## How This Diff Could Make Main Worse Within 48 Hours
 
-### R1: The PR is mistaken for full BOLA closure
+### R1: The PR is mistaken for complete object-authorization coverage
 
 Failure story: reviewers or later agents treat the new contract document as full
-BOLA closure, then skip object-level authorization tests for new object-id
-routes. A client-controlled object ID could later enter a route with no
-negative ownership case because the current PR sounded broader than it is.
+object-authorization coverage, then skip object-level authorization tests for
+new object-id routes. A client-controlled object ID could later enter a route
+with no negative ownership case because the current PR sounded broader than it
+is.
 
 Closure: the contract says it records current principal mapping only, and
 explicitly states it does not complete BOLA. Existing BOLA coverage remains in

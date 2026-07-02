@@ -53,7 +53,8 @@ merge-readiness claims.
 
 - PASS: `python3 scripts/orchestration/check_preflight.py`
 - PASS: `python3 scripts/orchestration/check_agent_consistency.py`
-- PASS: `.venv/bin/python -m pytest -q tests/security/test_authenticated_principal_mapping.py tests/security/test_api_auth_tier_contract_pack.py tests/security/test_api_bola_contract_pack.py tests/guards/test_manual_billing_auth_contract_guard.py tests/test_paid_route_guards.py`
+- PASS:
+  `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")" && "$VENV_PYTHON" -m pytest -q tests/security/test_authenticated_principal_mapping.py tests/security/test_api_auth_tier_contract_pack.py tests/security/test_api_bola_contract_pack.py tests/guards/test_manual_billing_auth_contract_guard.py tests/test_paid_route_guards.py`
   -> 39 passed
 - PASS: `python3 scripts/ci/check_docs_phase1_gates.py --files docs/security/AUTHENTICATED_PRINCIPAL_MAPPING.md docs/review/PR_AUTH_PRINCIPAL_MAPPING_PREMORTEM.md`
 - PASS: `python3 scripts/ci/check_python_dependency_surfaces.py`
