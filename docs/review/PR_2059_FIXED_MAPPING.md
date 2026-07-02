@@ -37,6 +37,7 @@ dependency lock change is included.
 - `e3cd5c159` - address runtime ownership review findings.
 - `3f3a7f658` - map PR 2059 review findings.
 - `d9f3160ab` - normalize PR 2059 mapping blocks.
+- `1244aa6ea` - record PR 2059 security closure.
 
 ## Lane Start Provenance
 
@@ -114,6 +115,11 @@ records split rationale, `make validate-changed` and `pre-commit run
 `7602e0f6-f1f1-4eb1-8285-814fecb6af10` completed with 0 findings.
 
 ## Fixed in Commit Mapping
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2059#pullrequestreview-4614304285 -> e3cd5c15962131cb1e2e336a8b3402ebf72dede3
+Disposition: FIXED
+Commit: e3cd5c15962131cb1e2e336a8b3402ebf72dede3
+Evidence: review-level Sourcery summary raised the same two actionable items as the individual comments below; both were fixed by the `PurePosixPath.parts`-based dependency-sensitive path matcher and partial `core/db.py` marker evidence test coverage.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2059#discussion_r3510275346 -> e3cd5c15962131cb1e2e336a8b3402ebf72dede3
 Disposition: FIXED
