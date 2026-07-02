@@ -10918,8 +10918,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Governed creative-code execution lane (PR-0 through PR-6)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (research-to-implementation leverage with closed authority)
-  - Target PR: PR-0 `feat/experiment-runner-creative-code-authority-pr0` -> PR-1 `codex/creative-code-specification-pr1` -> PR-2 `#2022` -> PR-3 `#2030` -> PR-4 `#2044` -> PR-5 `#2048` -> PR-6 `codex/creative-code-first-applied-candidate-pr6` -> private-pilot loop operator `codex/creative-code-private-pilot-loop-operator`
-  - Status: PR-0 merged baseline; PR-1 merged as a repo-only specification-bundle control-plane layer; PR-2 merged in PR `#2022` as a local sandboxed candidate-patch builder; PR-3 merged in PR `#2030` as human-approved non-draft PR promotion tooling; PR-4 merged in PR `#2044` at `a7e19b78c7d36b783ec2575ab0eab9f1402f2a0d` as local candidate evaluation telemetry and rejection taxonomy; PR-5 merged in PR `#2048` at `71af9d208b26435352fc821b79a2d78cebb319f5` as read-only local review-disposition integration; PR-6 is active as the first governed applied creative-code candidate lane targeting `docs/prompts/cv/program.md` through normal PR governance; the private-pilot loop operator adds sanitized local lifecycle state and checklist-only next-candidate planning without write/push/PR/thread/fixed-mapping/provider/runtime authority
+  - Target PR: PR-0 `feat/experiment-runner-creative-code-authority-pr0` -> PR-1 `codex/creative-code-specification-pr1` -> PR-2 `#2022` -> PR-3 `#2030` -> PR-4 `#2044` -> PR-5 `#2048` -> PR-6 `codex/creative-code-first-applied-candidate-pr6` -> private-pilot loop operator `codex/creative-code-private-pilot-loop-operator` -> GitHub App capability gate `codex/experiment-runner-github-app-capability-gate`
+  - Status: PR-0 merged baseline; PR-1 merged as a repo-only specification-bundle control-plane layer; PR-2 merged in PR `#2022` as a local sandboxed candidate-patch builder; PR-3 merged in PR `#2030` as human-approved non-draft PR promotion tooling; PR-4 merged in PR `#2044` at `a7e19b78c7d36b783ec2575ab0eab9f1402f2a0d` as local candidate evaluation telemetry and rejection taxonomy; PR-5 merged in PR `#2048` at `71af9d208b26435352fc821b79a2d78cebb319f5` as read-only local review-disposition integration; PR-6 is active as the first governed applied creative-code candidate lane targeting `docs/prompts/cv/program.md` through normal PR governance; the private-pilot loop operator adds sanitized local lifecycle state and checklist-only next-candidate planning without write/push/PR/thread/fixed-mapping/provider/runtime authority; the GitHub App capability gate slice feeds that state with a strict sanitized read-only permission report requiring Pull requests read and Checks read while keeping Actions write optional for fixed workflow dispatch only
   - Dependencies:
     - [P1: Creative research eval lane under governed experimentation epic](#ledger-p1-creative-research-eval-lane)
     - [P1: Governed agent experimentation lane (PR1-PR6 orchestration epic)](#ledger-p1-agent-experimentation-lane)
@@ -10953,6 +10953,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/orchestration/contracts/CREATIVE_CODE_PRIVATE_PILOT_LOOP_OPERATOR_CONTRACT.md`
     - `docs/orchestration/contracts/creative_code_private_pilot_state.v1.schema.json`
     - `docs/orchestration/contracts/creative_code_private_pilot_candidate_plan.v1.schema.json`
+    - `docs/orchestration/contracts/github_app_private_pilot_capability_report.v1.schema.json`
     - `scripts/orchestration/creative_code_contract.py`
     - `scripts/orchestration/creative_code_specification.py`
     - `scripts/orchestration/creative_code_spec_pipeline.py`
@@ -10970,6 +10971,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `scripts/orchestration/creative_code_applied_candidate_pr6.py`
     - `scripts/orchestration/creative_code_private_pilot_loop_contract.py`
     - `scripts/orchestration/creative_code_private_pilot_loop_operator.py`
+    - `scripts/orchestration/github_app_private_pilot_capability.py`
     - `tests/test_creative_code_contract.py`
     - `tests/test_creative_code_patch_builder.py`
     - `tests/test_creative_code_pr_promotion.py`
@@ -10985,7 +10987,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - PR-4: add local candidate evaluation telemetry and rejection taxonomy over sanitized PR-1/PR-2/PR-3 artifacts; no public GitHub App backend, Slack beta, live review ingestion, review-thread resolution, fixed-mapping automation, or new mutation authority.
     - PR-5: add local read-only review-disposition integration through `CreativeCodeReviewFeedbackRecord`, `CreativeCodeReviewDispositionPacket`, and `CreativeCodeRepairLaunchPacket`; only `create_pr1_specification=true` may be prepared for later human review, while patch generation, branch writes, PR creation, review-thread resolution, fixed-mapping edits, merge authority, runtime changes, Slack/GitHub App authority, and readiness claims remain forbidden.
     - PR-6: run the first governed applied creative-code candidate through normal PR governance, starting from a local run-plan wrapper that validates the PR-5 launch packet, binds the target surface exactly to `docs/prompts/cv/program.md`, and then keeps the generated candidate mutation surface to that prompt/program document.
-    - Private-pilot loop operator: collect sanitized PR/check/review state plus PR-4 / PR-5 / PR-6 artifact refs, decide the next action, and optionally emit a checklist-only candidate plan; no PR-1 / PR-2 / PR-3 command is executed by the operator.
+    - Private-pilot loop operator: collect sanitized PR/check/review state plus PR-4 / PR-5 / PR-6 artifact refs, consume an optional sanitized GitHub App read-only capability report, decide the next action, and optionally emit a checklist-only candidate plan; no PR-1 / PR-2 / PR-3 command is executed by the operator.
+    - Follow-up auto-oracle attach: wire coordinator/task packets so non-trivial PR lanes can automatically attach oracle-only Experiment Runner evidence and expose the resulting decisions to role agents; this requires a separate reviewed PR with trigger rules, artifact reuse, failure behavior, co-author attribution, rate/quota boundaries, opt-out behavior, and PR-body evidence requirements.
   - Minimum future telemetry fields (defined now, emitted no earlier than PR-1):
     - `packet_id`
     - `source_candidate_id`
@@ -11002,7 +11005,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - PR-3 emits strict local promotion plan, validation, approval, and receipt artifacts; validates fresh oracle, `pre-commit run --all-files`, and `make validate-changed` in isolated checkouts; requires exact TTY approval; creates only new non-draft `experiment/*` PRs; and never resolves review threads, edits fixed mappings, claims merge readiness, merges, releases, or expands Slack/GitHub App authority
     - PR-5 emits only sanitized local feedback records, advisory disposition packets, and specification-only repair launch packets; it may classify feedback but never fixes code, resolves review threads, edits fixed mappings, creates branches/PRs, claims readiness, or mutates GitHub state
     - PR-6 emits only local applied-candidate run plans before using the existing PR-1 / PR-2 / PR-3 tools; the wrapper itself never generates patches, writes branches, pushes, opens PRs, resolves review threads, edits fixed mappings, claims readiness, calls providers, calls product runtime, or changes GitHub App / Slack settings
-    - The private-pilot loop operator emits only `pilot_state.json` and checklist-only `candidate_plan.json` under `artifacts/orchestration/creative_code/private_pilot/`; it compares current-head check/run SHAs to the PR head SHA, treats stale failures as diagnostic, and keeps all write/push/PR/thread/fixed-mapping/provider/runtime/Slack/GitHub-App authority false
+    - The private-pilot loop operator emits only `pilot_state.json` and checklist-only `candidate_plan.json` under `artifacts/orchestration/creative_code/private_pilot/`; it compares current-head check/run SHAs to the PR head SHA, treats stale failures as diagnostic, gates supplied GitHub App private-pilot reports on Pull requests read and Checks read, treats Actions write as optional fixed workflow-dispatch capability only, and keeps all write/push/PR/thread/fixed-mapping/provider/runtime/Slack/GitHub-App authority false
     - Creative-code packets require promoted `creative_research` provenance, sandboxing, human review, fallback, repo-relative paths, and disjoint mutable/oracle surfaces
     - Future PRs cannot emit telemetry, generate patches beyond PR-2, open candidate PRs beyond the PR-3 contract, or expand Slack/GitHub authority until their separate gates land
     - No PR in the train treats creative-code output as canonical product truth, scientific verified discovery, merge-readiness evidence, or review-thread disposition authority

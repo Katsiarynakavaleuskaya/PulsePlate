@@ -42,6 +42,11 @@ from scripts.orchestration.creative_code_review_disposition_contract import (
     DISPOSITION_PACKET_TYPE,
     validate_creative_code_review_disposition_packet,
 )
+from scripts.orchestration.github_app_private_pilot_capability import (
+    GithubAppPrivatePilotCapabilityError,
+    github_app_capability_state_from_report,
+    read_github_app_private_pilot_capability_report,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CREATIVE_CODE_ROOT = REPO_ROOT / "artifacts" / "orchestration" / "creative_code"
@@ -561,6 +566,7 @@ def collect_private_pilot_state(
     *,
     pr_number: int,
     output_dir: Path,
+    github_app_capability_report: Path | None = None,
     repo_root: Path = REPO_ROOT,
 ) -> tuple[Path, dict[str, Any]]:
     """Collect sanitized state and write `pilot_state.json` under output_dir."""
@@ -646,6 +652,19 @@ def collect_private_pilot_state(
             artifact_type="creative_code_applied_candidate_run_plan",
         ),
     }
+    try:
+        github_app_capability = None
+        if github_app_capability_report is not None:
+            capability_report = read_github_app_private_pilot_capability_report(
+                github_app_capability_report
+            )
+            if capability_report["repository"] != repo:
+                raise CreativeCodePrivatePilotOperatorError(
+                    "GitHub App capability report repository must match the source PR repository."
+                )
+            github_app_capability = github_app_capability_state_from_report(capability_report)
+    except GithubAppPrivatePilotCapabilityError as exc:
+        raise CreativeCodePrivatePilotOperatorError(str(exc)) from exc
     state = build_private_pilot_state(
         generated_at_utc=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         source_pr={
@@ -662,6 +681,7 @@ def collect_private_pilot_state(
         review_capacity=review_capacity,
         blockers=blockers,
         governance_refs=governance_refs,
+        github_app_capability=github_app_capability,
     )
     output_path = output / PILOT_STATE_FILE
     _write_json_atomic(output_path, state, expected_filename=PILOT_STATE_FILE)
@@ -722,6 +742,11 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     collect = subparsers.add_parser("collect", help="Collect sanitized private-pilot state.")
     collect.add_argument("--pr-number", required=True, type=int)
     collect.add_argument("--output-dir", required=True, type=Path)
+    collect.add_argument(
+        "--github-app-capability-report",
+        type=Path,
+        help="Optional local sanitized GitHub App capability report JSON.",
+    )
 
     decide = subparsers.add_parser("decide-next", help="Print the next lifecycle decision.")
     decide.add_argument("--pilot-state", required=True, type=Path)
@@ -742,6 +767,7 @@ def main(argv: list[str] | None = None) -> int:
             output_path, _state = collect_private_pilot_state(
                 pr_number=args.pr_number,
                 output_dir=args.output_dir,
+                github_app_capability_report=args.github_app_capability_report,
             )
             print(f"{SUCCESS_COLLECT_OUTPUT}: {output_path.relative_to(REPO_ROOT)}")
             return 0

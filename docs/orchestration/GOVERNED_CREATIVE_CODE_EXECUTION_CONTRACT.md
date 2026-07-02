@@ -19,7 +19,8 @@ context or explicit read-only fixtures and emit local advisory disposition /
 repair-launch packets. PR-6 may validate a PR-5 repair launch packet, bind the
 first applied candidate target to `docs/prompts/cv/program.md`, and emit a
 local PR-1 / PR-2 / PR-3 / PR-4 run plan. The private-pilot operator may read
-sanitized metadata and refs and emit next-action artifacts only. It does not
+sanitized metadata, refs, and an optional read-only GitHub App capability
+report, then emit next-action artifacts only. It does not
 authorize draft PRs, shared worktree mutation, existing branch modification,
 review-thread resolution, fixed-mapping edits, merge, release, product runtime
 AI, OpenAPI/client changes, public multi-tenant use, or Slack/GitHub authority
@@ -52,10 +53,10 @@ PR-1 adds only a local specification-bundle layer. PR-2 opens only local
 sandboxed candidate-patch generation/evaluation. PR-3 adds a separate
 human-approved non-draft PR creation lane. PR-6 adds a local run-plan wrapper
 for the first applied candidate without adding execution authority. The
-private-pilot loop operator adds local lifecycle state and checklist planning
-without adding candidate-generation or repository-write authority. Product
-runtime, OpenAPI/client, semantic-cache, review-thread, merge, release, and
-Slack/GitHub authority flags remain closed.
+private-pilot loop operator adds local lifecycle state, GitHub App read-only
+capability gating, and checklist planning without adding candidate-generation
+or repository-write authority. Product runtime, OpenAPI/client, semantic-cache,
+review-thread, merge, release, and Slack/GitHub authority flags remain closed.
 
 ---
 
@@ -107,8 +108,10 @@ The private-pilot loop operator artifacts are:
 - `docs/orchestration/contracts/CREATIVE_CODE_PRIVATE_PILOT_LOOP_OPERATOR_CONTRACT.md`
 - `docs/orchestration/contracts/creative_code_private_pilot_state.v1.schema.json`
 - `docs/orchestration/contracts/creative_code_private_pilot_candidate_plan.v1.schema.json`
+- `docs/orchestration/contracts/github_app_private_pilot_capability_report.v1.schema.json`
 - `scripts/orchestration/creative_code_private_pilot_loop_contract.py`
 - `scripts/orchestration/creative_code_private_pilot_loop_operator.py`
+- `scripts/orchestration/github_app_private_pilot_capability.py`
 - `artifacts/orchestration/creative_code/private_pilot/<pr-number>/pilot_state.json`
 - `artifacts/orchestration/creative_code/private_pilot/<pr-number>/candidate_plan.json`
 
@@ -175,10 +178,11 @@ PR-0 is a contract-only start point.
   deterministic PR-1 / PR-2 / PR-3 / PR-4 run plan before the generated
   candidate is restricted to that prompt/program document.
 - Private-pilot loop operator: collect sanitized PR/check/review state and
-  PR-4 / PR-5 / PR-6 artifact refs, decide the next action, and optionally emit
+  PR-4 / PR-5 / PR-6 artifact refs, consume an optional sanitized GitHub App
+  private-pilot capability report, decide the next action, and optionally emit
   a checklist-only candidate plan. It cannot execute candidate generation,
   branch/PR operations, fixed-mapping edits, thread resolution, provider/runtime
-  calls, or Slack/GitHub App changes.
+  calls, token minting, GitHub App settings changes, or Slack/GitHub writes.
 
 Minimum future telemetry fields are defined now for the later train and must not be emitted before PR-1:
 
@@ -238,8 +242,18 @@ They may classify the next action as `wait_for_hotfix_main`, `wait_for_review`,
 `wait_for_ci`, `fix_current_pr`, `prepare_next_candidate_plan`,
 `hold_for_governance`, or `hold_for_security`, but they are not review-thread
 disposition evidence, fixed-mapping evidence, readiness evidence, runtime truth,
-release evidence, or GitHub App/Slack authority. Candidate plans are
+release evidence, or GitHub App/Slack authority. The GitHub App capability
+section is read-only capability evidence only: Pull requests read and Checks
+read gate private-pilot read access, while Actions write is optional and
+modeled solely as fixed workflow-dispatch capability. Candidate plans are
 checklist-only and remain bound to `docs/prompts/cv/program.md`.
+
+This capability gate does not automatically launch Experiment Runner in every
+PR lane. Automatic PR-lane attachment is a separate follow-up contract: a
+coordinator/packet hook may attach oracle-only Experiment Runner evidence and
+make role agents consume the resulting decisions, but only after a reviewed PR
+defines trigger rules, artifact reuse, failure behavior, co-author attribution,
+rate/quota boundaries, opt-out behavior, and PR-body evidence requirements.
 
 ---
 

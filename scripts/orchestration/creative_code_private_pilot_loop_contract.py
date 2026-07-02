@@ -13,9 +13,14 @@ from pathlib import Path, PurePosixPath
 import re
 import argparse
 import sys
-from typing import Any
+from typing import Any, cast
 
 from core.evidence.fingerprints import build_asset_id, build_idempotency_key, fingerprint_payload
+from scripts.orchestration.github_app_private_pilot_capability import (
+    GithubAppPrivatePilotCapabilityError,
+    default_github_app_capability_state,
+    normalize_github_app_capability_state,
+)
 
 SCHEMA_VERSION = "1.0"
 POLICY_VERSION = "creative-code-private-pilot-loop-operator"
@@ -114,6 +119,7 @@ STATE_KEYS = frozenset(
         "review_capacity",
         "blockers",
         "governance_refs",
+        "github_app_capability",
         "external_dependencies",
         "decision",
         "authority",
@@ -927,6 +933,13 @@ def _normalize_external_dependencies(raw_deps: Any) -> dict[str, Any]:
     }
 
 
+def _normalize_github_app_capability(raw_capability: Any) -> dict[str, Any]:
+    try:
+        return cast(dict[str, Any], normalize_github_app_capability_state(raw_capability))
+    except GithubAppPrivatePilotCapabilityError as exc:
+        raise CreativeCodePrivatePilotContractError(str(exc)) from exc
+
+
 def decide_next_action(state: Mapping[str, Any]) -> str:
     """Return the next lifecycle action from a validated state-like mapping."""
 
@@ -968,6 +981,8 @@ def decide_next_action(state: Mapping[str, Any]) -> str:
         return "wait_for_review"
     if normalized["review_capacity"]["friction"] in {"high", "blocked"}:
         return "wait_for_review"
+    if normalized["github_app_capability"]["missing_permissions"]:
+        return "hold_for_governance"
     return "prepare_next_candidate_plan"
 
 
@@ -978,6 +993,7 @@ def _state_identity_payload(state: Mapping[str, Any]) -> dict[str, Any]:
         "review_capacity": state["review_capacity"],
         "blockers": state["blockers"],
         "governance_refs": state["governance_refs"],
+        "github_app_capability": state["github_app_capability"],
         "external_dependencies": state["external_dependencies"],
         "decision": state["decision"],
         "authority": state["authority"],
@@ -1038,6 +1054,7 @@ def validate_private_pilot_state(
         "review_capacity": _normalize_review_capacity(payload["review_capacity"]),
         "blockers": _normalize_blockers(payload["blockers"]),
         "governance_refs": _normalize_governance_refs(payload["governance_refs"]),
+        "github_app_capability": _normalize_github_app_capability(payload["github_app_capability"]),
         "external_dependencies": _normalize_external_dependencies(payload["external_dependencies"]),
         "decision": _require_token(payload, "decision", label="state"),
         "authority": _normalize_authority(payload["authority"]),
@@ -1341,6 +1358,7 @@ def build_private_pilot_state(
     review_capacity: Mapping[str, Any],
     blockers: Mapping[str, Any],
     governance_refs: Mapping[str, Any],
+    github_app_capability: Mapping[str, Any] | None = None,
     external_dependencies: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build and validate a CreativeCodePrivatePilotState."""
@@ -1357,6 +1375,9 @@ def build_private_pilot_state(
         "review_capacity": dict(review_capacity),
         "blockers": dict(blockers),
         "governance_refs": dict(governance_refs),
+        "github_app_capability": dict(
+            github_app_capability or default_github_app_capability_state()
+        ),
         "external_dependencies": dict(
             external_dependencies
             or {

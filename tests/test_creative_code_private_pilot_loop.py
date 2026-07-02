@@ -26,6 +26,17 @@ from scripts.orchestration.creative_code_private_pilot_loop_contract import (
     validate_candidate_plan,
     validate_private_pilot_state,
 )
+from scripts.orchestration.github_app_private_pilot_capability import (
+    AUTHORITY_KEYS as GITHUB_APP_CAPABILITY_AUTHORITY_KEYS,
+    CAPABILITY_STATUSES as GITHUB_APP_CAPABILITY_STATUSES,
+    REQUIRED_READ_PERMISSIONS,
+    WORKFLOW_DISPATCH_LABELS,
+    GithubAppPrivatePilotCapabilityError,
+    github_app_capability_state_from_report,
+    read_github_app_private_pilot_capability_report,
+    reject_unsafe_report_value,
+    validate_github_app_private_pilot_capability_report,
+)
 from scripts.orchestration.creative_code_review_disposition_contract import (
     build_creative_code_review_disposition_packet,
     build_creative_code_review_feedback_record,
@@ -188,12 +199,71 @@ def _governance_refs(**overrides: Any) -> dict[str, Any]:
     return payload
 
 
+def _github_app_capability_report(
+    *,
+    pull_requests: str = "read",
+    checks: str = "read",
+    contents: str = "none",
+    actions: str = "none",
+    workflow_dispatch: bool = False,
+) -> dict[str, Any]:
+    permissions = {
+        "metadata": "read",
+        "pull_requests": pull_requests,
+        "checks": checks,
+        "contents": contents,
+        "actions": actions,
+        "workflows": "none",
+        "administration": "none",
+        "organization_administration": "none",
+        "members": "none",
+        "secrets": "none",  # pragma: allowlist secret
+    }
+    capabilities = {
+        "pull_requests_read": pull_requests == "read",
+        "checks_read": checks == "read",
+        "metadata_read": True,
+        "contents_read": contents == "read",
+        "actions_read": actions == "write",
+        "workflow_dispatch": actions == "write" and workflow_dispatch,
+    }
+    authority = {key: False for key in sorted(GITHUB_APP_CAPABILITY_AUTHORITY_KEYS)}
+    authority.update(
+        {
+            "read_pull_requests": capabilities["pull_requests_read"],
+            "read_checks": capabilities["checks_read"],
+            "read_metadata": capabilities["metadata_read"],
+            "read_contents": capabilities["contents_read"],
+            "read_actions": capabilities["actions_read"],
+            "workflow_dispatch": capabilities["workflow_dispatch"],
+        }
+    )
+    return {
+        "schema_version": "1.0",
+        "artifact_type": "github_app_private_pilot_capability_report",
+        "policy_version": "github-app-private-pilot-capability-report",
+        "generated_at_utc": GENERATED_AT,
+        "repository": "Katsiarynakavaleuskaya/PulsePlate",
+        "permissions": permissions,
+        "capabilities": capabilities,
+        "workflow_dispatch": {
+            "enabled": workflow_dispatch,
+            "label": (
+                "workflow_dispatch_actions_write_optional" if workflow_dispatch else "manual_only"
+            ),
+        },
+        "authority": authority,
+        "sanitized": True,
+    }
+
+
 def _state(
     *,
     checks: dict[str, Any] | None = None,
     blockers: dict[str, Any] | None = None,
     review_capacity: dict[str, Any] | None = None,
     governance_refs: dict[str, Any] | None = None,
+    github_app_capability: dict[str, Any] | None = None,
     external_dependencies: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     return build_private_pilot_state(
@@ -203,6 +273,7 @@ def _state(
         review_capacity=review_capacity or _review_capacity(),
         blockers=blockers or _blockers(),
         governance_refs=governance_refs or _governance_refs(),
+        github_app_capability=github_app_capability,
         external_dependencies=external_dependencies,
     )
 
@@ -576,6 +647,316 @@ def test_hotfix_dependency_can_wait_for_main_when_required() -> None:
     assert state["decision"] == "wait_for_hotfix_main"
 
 
+def test_github_app_capability_default_is_manual_only_and_nonblocking() -> None:
+    state = _state()
+
+    assert state["github_app_capability"]["status"] == "manual_only"
+    assert state["github_app_capability"]["report_present"] is False
+    assert state["github_app_capability"]["workflow_dispatch_label"] == "not_checked"
+    assert state["github_app_capability"]["missing_permissions"] == []
+    assert state["decision"] == "prepare_next_candidate_plan"
+    assert decide_next_action(state) == "prepare_next_candidate_plan"
+
+
+def test_github_app_capability_report_with_read_permissions_allows_candidate_plan() -> None:
+    capability = github_app_capability_state_from_report(_github_app_capability_report())
+    state = _state(github_app_capability=capability)
+
+    assert state["github_app_capability"]["status"] == "read_only_capable"
+    assert state["github_app_capability"]["report_present"] is True
+    assert state["github_app_capability"]["read_only"]["pull_requests_read"] is True
+    assert state["github_app_capability"]["read_only"]["checks_read"] is True
+    assert state["github_app_capability"]["workflow_dispatch_label"] == "manual_only"
+    assert state["github_app_capability"]["authority"]["workflow_dispatch"] is False
+    assert state["decision"] == "prepare_next_candidate_plan"
+    assert build_candidate_plan(state)["decision"] == "prepare_next_candidate_plan"
+
+
+@pytest.mark.parametrize(
+    ("permission", "expected_missing"),
+    [
+        ("pull_requests", ["pull_requests:read"]),
+        ("checks", ["checks:read"]),
+    ],
+)
+def test_github_app_capability_missing_required_read_permission_blocks_candidate_plan(
+    permission: str,
+    expected_missing: list[str],
+) -> None:
+    report = _github_app_capability_report()
+    report["permissions"][permission] = "none"
+    report["capabilities"][f"{permission}_read"] = False
+    report["authority"][f"read_{permission}"] = False
+    capability = github_app_capability_state_from_report(report)
+    state = _state(github_app_capability=capability)
+
+    assert state["github_app_capability"]["status"] == "missing_required_read_permissions"
+    assert state["github_app_capability"]["missing_permissions"] == expected_missing
+    assert state["decision"] == "hold_for_governance"
+    with pytest.raises(CreativeCodePrivatePilotContractError, match="prepare_next_candidate_plan"):
+        build_candidate_plan(state)
+
+
+def test_github_app_capability_gate_does_not_shadow_security_blockers() -> None:
+    report = _github_app_capability_report(checks="none")
+    report["capabilities"]["checks_read"] = False
+    report["authority"]["read_checks"] = False
+    state = _state(
+        blockers=_blockers(security_blocker_count=1),
+        github_app_capability=github_app_capability_state_from_report(report),
+    )
+
+    assert state["github_app_capability"]["missing_permissions"] == ["checks:read"]
+    assert state["decision"] == "hold_for_security"
+
+
+def test_github_app_capability_actions_write_is_optional_dispatch_only() -> None:
+    without_actions = _state(
+        github_app_capability=github_app_capability_state_from_report(
+            _github_app_capability_report(actions="none")
+        )
+    )
+    with_dispatch = _state(
+        github_app_capability=github_app_capability_state_from_report(
+            _github_app_capability_report(actions="write", workflow_dispatch=True)
+        )
+    )
+
+    assert without_actions["github_app_capability"]["status"] == "read_only_capable"
+    assert without_actions["github_app_capability"]["authority"]["workflow_dispatch"] is False
+    assert without_actions["decision"] == "prepare_next_candidate_plan"
+    assert with_dispatch["github_app_capability"]["status"] == "read_only_with_workflow_dispatch"
+    assert (
+        with_dispatch["github_app_capability"]["workflow_dispatch_label"]
+        == "workflow_dispatch_actions_write_optional"
+    )
+    assert with_dispatch["github_app_capability"]["authority"]["workflow_dispatch"] is True
+    assert with_dispatch["decision"] == "prepare_next_candidate_plan"
+
+
+@pytest.mark.parametrize("permission", ["pull_requests", "checks", "contents"])
+def test_github_app_capability_report_rejects_read_surface_write_permissions(
+    permission: str,
+) -> None:
+    report = _github_app_capability_report()
+    report["permissions"][permission] = "write"
+
+    with pytest.raises(GithubAppPrivatePilotCapabilityError, match=permission):
+        validate_github_app_private_pilot_capability_report(report)
+
+
+@pytest.mark.parametrize(
+    ("permission", "value"),
+    [
+        ("contents", "read"),
+        ("actions", "read"),
+    ],
+)
+def test_github_app_capability_report_rejects_unneeded_read_authority(
+    permission: str,
+    value: str,
+) -> None:
+    report = _github_app_capability_report()
+    report["permissions"][permission] = value
+    report["capabilities"][f"{permission}_read"] = True
+    report["authority"][f"read_{permission}"] = True
+
+    with pytest.raises(GithubAppPrivatePilotCapabilityError, match=permission):
+        validate_github_app_private_pilot_capability_report(report)
+
+
+@pytest.mark.parametrize("permission", ["workflows", "administration", "secrets"])
+def test_github_app_capability_report_rejects_privileged_permissions(permission: str) -> None:
+    report = _github_app_capability_report()
+    report["permissions"][permission] = "read"
+
+    with pytest.raises(GithubAppPrivatePilotCapabilityError, match=permission):
+        validate_github_app_private_pilot_capability_report(report)
+
+
+def test_github_app_capability_report_rejects_actions_write_without_dispatch() -> None:
+    report = _github_app_capability_report(actions="write", workflow_dispatch=False)
+    report["capabilities"]["actions_read"] = True
+    report["authority"]["read_actions"] = True
+
+    with pytest.raises(GithubAppPrivatePilotCapabilityError, match="workflow_dispatch"):
+        validate_github_app_private_pilot_capability_report(report)
+
+
+def test_github_app_capability_report_rejects_permission_capability_mismatch() -> None:
+    report = _github_app_capability_report()
+    report["capabilities"]["pull_requests_read"] = False
+
+    with pytest.raises(GithubAppPrivatePilotCapabilityError, match="capabilities"):
+        validate_github_app_private_pilot_capability_report(report)
+
+
+def test_github_app_capability_report_rejects_permission_authority_mismatch() -> None:
+    report = _github_app_capability_report()
+    report["authority"]["read_pull_requests"] = False
+
+    with pytest.raises(GithubAppPrivatePilotCapabilityError, match="authority"):
+        validate_github_app_private_pilot_capability_report(report)
+
+
+def test_github_app_capability_report_schema_documents_runtime_mismatch_guards() -> None:
+    schema = json.loads(
+        (
+            REPO_ROOT
+            / "docs"
+            / "orchestration"
+            / "contracts"
+            / "github_app_private_pilot_capability_report.v1.schema.json"
+        ).read_text(encoding="utf-8")
+    )
+    schema_text = json.dumps(schema)
+
+    for marker in (
+        "actions",
+        "workflow_dispatch",
+        "read_actions",
+        "permission_actions",
+        "permission_none",
+    ):
+        assert marker in schema_text
+
+    mismatched_capability = _github_app_capability_report()
+    mismatched_capability["capabilities"]["pull_requests_read"] = False
+    mismatched_authority = _github_app_capability_report()
+    mismatched_authority["authority"]["read_checks"] = False
+
+    with pytest.raises(GithubAppPrivatePilotCapabilityError, match="capabilities"):
+        validate_github_app_private_pilot_capability_report(mismatched_capability)
+    with pytest.raises(GithubAppPrivatePilotCapabilityError, match="authority"):
+        validate_github_app_private_pilot_capability_report(mismatched_authority)
+
+
+def test_github_app_capability_state_rejects_dispatch_without_actions_capability() -> None:
+    capability = github_app_capability_state_from_report(
+        _github_app_capability_report(actions="write", workflow_dispatch=True)
+    )
+    capability["read_only"]["actions_read"] = False
+    capability["authority"]["read_actions"] = False
+
+    payload = _state(
+        github_app_capability=github_app_capability_state_from_report(
+            _github_app_capability_report()
+        )
+    )
+    payload["github_app_capability"] = capability
+
+    with pytest.raises(CreativeCodePrivatePilotContractError, match="actions"):
+        validate_private_pilot_state(payload, validate_identity=False)
+
+
+def test_github_app_capability_state_rejects_report_present_not_checked() -> None:
+    capability = github_app_capability_state_from_report(_github_app_capability_report())
+    capability["workflow_dispatch_label"] = "not_checked"
+    capability["status"] = "read_only_capable"
+
+    payload = _state(
+        github_app_capability=github_app_capability_state_from_report(
+            _github_app_capability_report()
+        )
+    )
+    payload["github_app_capability"] = capability
+
+    with pytest.raises(CreativeCodePrivatePilotContractError, match="not_checked|checked"):
+        validate_private_pilot_state(payload, validate_identity=False)
+
+
+@pytest.mark.parametrize(
+    ("field", "match"),
+    [
+        ("contents_read", "contents read"),
+        ("actions_read", "actions read"),
+    ],
+)
+def test_github_app_capability_state_rejects_inflated_read_authority(
+    field: str,
+    match: str,
+) -> None:
+    payload = _state(
+        github_app_capability=github_app_capability_state_from_report(
+            _github_app_capability_report()
+        )
+    )
+    payload["github_app_capability"]["read_only"][field] = True
+    payload["github_app_capability"]["authority"][f"read_{field.removesuffix('_read')}"] = True
+
+    with pytest.raises(CreativeCodePrivatePilotContractError, match=match):
+        validate_private_pilot_state(payload, validate_identity=False)
+
+
+def test_github_app_capability_report_rejects_duplicate_json_keys(tmp_path: Path) -> None:
+    report = tmp_path / "github_app_capability.json"
+    report.write_text(
+        '{"schema_version":"bad","schema_version":"1.0"}',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(GithubAppPrivatePilotCapabilityError, match="duplicate key"):
+        read_github_app_private_pilot_capability_report(report)
+
+
+def test_github_app_capability_duplicate_key_error_redacts_sensitive_key(
+    tmp_path: Path,
+) -> None:
+    sensitive_key = "GH_TOKEN=ghs_secretsecretsecret"
+    report = tmp_path / "github_app_capability.json"
+    report.write_text(
+        '{"' + sensitive_key + '":"bad","' + sensitive_key + '":"bad"}',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(GithubAppPrivatePilotCapabilityError) as exc_info:
+        read_github_app_private_pilot_capability_report(report)
+
+    error = str(exc_info.value)
+    assert sensitive_key not in error
+    assert "<redacted-key>" in error
+
+
+def test_github_app_capability_extra_key_error_redacts_sensitive_key() -> None:
+    sensitive_key = "/Users/katsiaryna_kavaleuskaya/private/path"
+    report = _github_app_capability_report()
+    report[sensitive_key] = "bad"
+
+    with pytest.raises(GithubAppPrivatePilotCapabilityError) as exc_info:
+        validate_github_app_private_pilot_capability_report(report)
+
+    error = str(exc_info.value)
+    assert sensitive_key not in error
+    assert "<redacted-key>" in error
+
+
+def test_github_app_capability_report_rejects_symlink_parent(tmp_path: Path) -> None:
+    target = tmp_path / "target"
+    target.mkdir()
+    link = tmp_path / "link"
+    link.symlink_to(target, target_is_directory=True)
+    report = target / "github_app_capability.json"
+    report.write_text(json.dumps(_github_app_capability_report()), encoding="utf-8")
+
+    with pytest.raises(GithubAppPrivatePilotCapabilityError, match="symlinks"):
+        read_github_app_private_pilot_capability_report(link / "github_app_capability.json")
+
+
+@pytest.mark.parametrize(
+    "unsafe_value",
+    [
+        "GH_TOKEN=ghs_secretsecretsecret",
+        "private_key",
+        "/Users/katsiaryna_kavaleuskaya/private/path",
+    ],
+)
+def test_github_app_capability_report_rejects_tokens_private_keys_and_paths(
+    unsafe_value: str,
+) -> None:
+    with pytest.raises(GithubAppPrivatePilotCapabilityError):
+        reject_unsafe_report_value(unsafe_value, label="capability")
+
+
 @pytest.mark.parametrize(
     ("mutate", "match"),
     [
@@ -709,6 +1090,11 @@ def test_operator_help_matches_documented_entrypoint(capsys: pytest.CaptureFixtu
     assert "status" in captured.out
     assert "decide-next" in captured.out
     assert "prepare-next-candidate" in captured.out
+    with pytest.raises(SystemExit) as collect_excinfo:
+        operator.main(["collect", "--help"])
+    collect_help = capsys.readouterr()
+    assert collect_excinfo.value.code == 0
+    assert "--github-app-capability-report" in collect_help.out
 
 
 def test_state_schema_matches_closed_contract_enums() -> None:
@@ -727,9 +1113,18 @@ def test_state_schema_matches_closed_contract_enums() -> None:
     details_url = schema["$defs"]["check_entry"]["properties"]["details_url"]
     external_reference = schema["$defs"]["external_dependencies"]["properties"]["reference"]
     base_ref = schema["$defs"]["source_pr"]["properties"]["base_ref"]
+    github_app_capability = schema["$defs"]["github_app_capability"]
+    capability_status = github_app_capability["properties"]["status"]
+    capability_missing = github_app_capability["properties"]["missing_permissions"]
+    capability_dispatch = github_app_capability["properties"]["workflow_dispatch_label"]
 
     assert sorted(review_status["enum"]) == sorted(REVIEW_SOURCE_STATUSES)
     assert sorted(artifact_type["enum"]) == sorted(ARTIFACT_REF_TYPES)
+    assert sorted(capability_status["enum"]) == sorted(GITHUB_APP_CAPABILITY_STATUSES)
+    assert sorted(capability_missing["items"]["enum"]) == sorted(REQUIRED_READ_PERMISSIONS)
+    assert sorted(capability_dispatch["enum"]) == sorted(WORKFLOW_DISPATCH_LABELS)
+    assert len(github_app_capability["allOf"]) == 4
+    assert "workflow_dispatch_actions_write_optional" in json.dumps(github_app_capability["allOf"])
     assert base_ref == {"$ref": "#/$defs/git_ref"}
     assert details_url["anyOf"] == [
         {"$ref": "#/$defs/github_url"},
@@ -774,6 +1169,20 @@ def test_safe_text_schema_denylist_matches_runtime_leak_markers() -> None:
         pattern = re.compile(schema["$defs"]["safe_text"]["not"]["pattern"])
         for unsafe in unsafe_examples:
             assert pattern.search(unsafe)
+    capability_schema = json.loads(
+        (
+            REPO_ROOT
+            / "docs"
+            / "orchestration"
+            / "contracts"
+            / "github_app_private_pilot_capability_report.v1.schema.json"
+        ).read_text(encoding="utf-8")
+    )
+    capability_text = json.dumps(capability_schema)
+    for unsafe_marker in ("secrets", "workflows", "administration", "write_contents"):
+        assert unsafe_marker in capability_text
+    assert len(capability_schema["allOf"]) == 8
+    assert "workflow_dispatch_actions_write_optional" in json.dumps(capability_schema["allOf"])
 
 
 def test_candidate_plan_schema_requires_exact_blocked_authority_set() -> None:
@@ -889,6 +1298,227 @@ def test_collect_private_pilot_state_uses_base_sha_for_review_diff_and_branch_fo
     assert captured["head_ref"] == HEAD_SHA
     assert required_call["base_ref"] == "release/1.0"
     assert state["source_pr"]["base_ref"] == "release/1.0"
+
+
+def test_collect_private_pilot_state_embeds_github_app_capability_report(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    private = _configure_operator_root(monkeypatch, tmp_path)
+    repo = private.parents[3]
+    report_path = tmp_path / "github_app_capability.json"
+    report = _github_app_capability_report(checks="none")
+    report["capabilities"]["checks_read"] = False
+    report["authority"]["read_checks"] = False
+    report_path.write_text(json.dumps(report), encoding="utf-8")
+
+    monkeypatch.setattr(
+        operator.pr_review_context,
+        "infer_repo_name",
+        lambda repo_root: "Katsiarynakavaleuskaya/PulsePlate",
+    )
+    monkeypatch.setattr(
+        operator,
+        "_gh_pr_view",
+        lambda *, pr_number, repo_root: {
+            "url": f"https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/{pr_number}",
+            "state": "OPEN",
+            "isDraft": False,
+            "baseRefName": "main",
+            "baseRefOid": "c" * 40,
+            "headRefOid": HEAD_SHA,
+            "mergeStateStatus": "CLEAN",
+            "reviewDecision": "",
+        },
+    )
+    monkeypatch.setattr(
+        operator.pr_review_context,
+        "collect_review_context",
+        lambda **kwargs: {
+            "review_source_status": [
+                {
+                    "source": "github_pr_metadata",
+                    "status": "available",
+                    "source_degraded": False,
+                    "blocking": False,
+                }
+            ],
+            "fixed_mapping": {
+                "exists": True,
+                "repo_path": "docs/review/PR_2056_FIXED_MAPPING.md",
+                "entries": {},
+                "no_actionable": True,
+                "present_in_pr_diff": True,
+            },
+        },
+    )
+    monkeypatch.setattr(
+        operator,
+        "_required_check_names",
+        lambda **kwargs: (["name:lint", "name:test-main"], True, False),
+    )
+    monkeypatch.setattr(
+        operator,
+        "_current_head_raw_checks",
+        lambda *, repo, head_sha, repo_root: [_raw_check("lint"), _raw_check("test-main")],
+    )
+    monkeypatch.setattr(operator, "_typed_artifact_refs", lambda **kwargs: [])
+    monkeypatch.setattr(operator, "_artifact_refs", lambda **kwargs: [])
+
+    _state_path, state = operator.collect_private_pilot_state(
+        pr_number=2056,
+        output_dir=private / "2056",
+        github_app_capability_report=report_path,
+        repo_root=repo,
+    )
+
+    assert state["github_app_capability"]["report_present"] is True
+    assert state["github_app_capability"]["missing_permissions"] == ["checks:read"]
+    assert state["decision"] == "hold_for_governance"
+
+
+def test_collect_private_pilot_state_rejects_capability_report_repo_mismatch(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    private = _configure_operator_root(monkeypatch, tmp_path)
+    repo = private.parents[3]
+    report_path = tmp_path / "github_app_capability.json"
+    report = _github_app_capability_report()
+    report["repository"] = "OtherOwner/OtherRepo"
+    report_path.write_text(json.dumps(report), encoding="utf-8")
+
+    monkeypatch.setattr(
+        operator.pr_review_context,
+        "infer_repo_name",
+        lambda repo_root: "Katsiarynakavaleuskaya/PulsePlate",
+    )
+    monkeypatch.setattr(
+        operator,
+        "_gh_pr_view",
+        lambda *, pr_number, repo_root: {
+            "url": f"https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/{pr_number}",
+            "state": "OPEN",
+            "isDraft": False,
+            "baseRefName": "main",
+            "baseRefOid": "c" * 40,
+            "headRefOid": HEAD_SHA,
+            "mergeStateStatus": "CLEAN",
+            "reviewDecision": "",
+        },
+    )
+    monkeypatch.setattr(
+        operator.pr_review_context,
+        "collect_review_context",
+        lambda **kwargs: {
+            "review_source_status": [
+                {
+                    "source": "github_pr_metadata",
+                    "status": "available",
+                    "source_degraded": False,
+                    "blocking": False,
+                }
+            ],
+            "fixed_mapping": {
+                "exists": True,
+                "repo_path": "docs/review/PR_2056_FIXED_MAPPING.md",
+                "entries": {},
+                "no_actionable": True,
+                "present_in_pr_diff": True,
+            },
+        },
+    )
+    monkeypatch.setattr(
+        operator,
+        "_required_check_names",
+        lambda **kwargs: (["name:lint", "name:test-main"], True, False),
+    )
+    monkeypatch.setattr(
+        operator,
+        "_current_head_raw_checks",
+        lambda *, repo, head_sha, repo_root: [_raw_check("lint"), _raw_check("test-main")],
+    )
+    monkeypatch.setattr(operator, "_typed_artifact_refs", lambda **kwargs: [])
+    monkeypatch.setattr(operator, "_artifact_refs", lambda **kwargs: [])
+
+    with pytest.raises(operator.CreativeCodePrivatePilotOperatorError, match="repository"):
+        operator.collect_private_pilot_state(
+            pr_number=2056,
+            output_dir=private / "2056",
+            github_app_capability_report=report_path,
+            repo_root=repo,
+        )
+
+
+def test_collect_cli_forwards_github_app_capability_report_path(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(operator, "REPO_ROOT", tmp_path)
+    report_path = tmp_path / "github_app_capability.json"
+    captured: dict[str, Any] = {}
+
+    def fake_collect_private_pilot_state(**kwargs: Any) -> tuple[Path, dict[str, Any]]:
+        captured.update(kwargs)
+        output_path = (
+            tmp_path
+            / "artifacts"
+            / "orchestration"
+            / "creative_code"
+            / "private_pilot"
+            / "2056"
+            / "pilot_state.json"
+        )
+        return output_path, {}
+
+    monkeypatch.setattr(operator, "collect_private_pilot_state", fake_collect_private_pilot_state)
+
+    exit_code = operator.main(
+        [
+            "collect",
+            "--pr-number",
+            "2056",
+            "--output-dir",
+            "2056",
+            "--github-app-capability-report",
+            str(report_path),
+        ]
+    )
+
+    assert exit_code == 0
+    assert captured["pr_number"] == 2056
+    assert captured["output_dir"] == Path("2056")
+    assert captured["github_app_capability_report"] == report_path
+    assert str(report_path) not in capsys.readouterr().out
+
+
+def test_collect_cli_reports_capability_report_errors_without_traceback(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    def fake_collect_private_pilot_state(**kwargs: Any) -> tuple[Path, dict[str, Any]]:
+        raise operator.CreativeCodePrivatePilotOperatorError("capability report invalid")
+
+    monkeypatch.setattr(operator, "collect_private_pilot_state", fake_collect_private_pilot_state)
+
+    exit_code = operator.main(
+        [
+            "collect",
+            "--pr-number",
+            "2056",
+            "--output-dir",
+            "2056",
+            "--github-app-capability-report",
+            str(tmp_path / "bad.json"),
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert captured.out == ""
+    assert captured.err.strip() == "ERROR: capability report invalid"
 
 
 def test_required_check_names_preserve_source_identity_and_encode_branch(
