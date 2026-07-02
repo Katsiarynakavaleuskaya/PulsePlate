@@ -56,7 +56,14 @@ def _shopping_list_route(target_app: FastAPI, path: str, method: str) -> object:
         for route in _shopping_list_routes(target_app)
         if route_path(route) == path and method in route_methods(route)
     ]
-    assert len(matches) == 1
+    route_summaries = [
+        f"{route_path(route)}:{sorted(route_methods(route))}:{route_endpoint(route).__module__}"
+        for route in matches
+    ]
+    assert len(matches) == 1, (
+        f"expected exactly one shopping-list route for {method} {path}; "
+        f"found {len(matches)}: {route_summaries}"
+    )
     return matches[0]
 
 
