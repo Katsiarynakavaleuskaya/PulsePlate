@@ -39,7 +39,7 @@ runtime, thread-resolution, fixed-mapping, merge, or readiness authority.
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 - [x] Post-open `qa-engineer-agent` pass completed.
-- [ ] Post-open `bug-hunter` pass completed.
+- [x] Post-open `bug-hunter` pass completed.
 - [ ] Post-open `security-auditor` pass completed.
 - [ ] Codex Security diff scan / finding discovery completed or explicitly
   dispositioned.
@@ -92,6 +92,44 @@ Evidence: The PR body now records `operator approval: approved` and
 20-file privileged orchestration/security-governance slice is explicitly
 approved instead of bypassing the scope guard.
 
+Disposition: FIXED
+Source: post-open `bug-hunter`
+Commit: 1f60046148b06d4cddf8cc438509b935cfbd9c8e
+Evidence:
+`scripts/orchestration/experiment_runner_pr_creative_context_contract.py` now
+rejects rejected/deferred approval artifacts that try to create PR-1
+specifications, requires approved PR-1 handoffs to stay on creative-context
+orchestration surfaces, and rejects product-runtime targets such as
+`app/main.py`. Regression coverage is in
+`tests/test_experiment_runner_pr_creative_context.py::test_approval_rejects_rejected_or_deferred_pr1_handoff`
+and
+`tests/test_experiment_runner_pr_creative_context.py::test_approval_rejects_product_runtime_pr1_targets`.
+
+Disposition: FIXED
+Source: post-open `bug-hunter`
+Commit: 1f60046148b06d4cddf8cc438509b935cfbd9c8e
+Evidence:
+`scripts/orchestration/experiment_runner_pr_creative_context_contract.py` now
+checks that agent consumption summaries use a routing artifact whose source
+packet id, packet fingerprint, and routed hypothesis ids match the supplied
+hypothesis packet. Regression coverage is in
+`tests/test_experiment_runner_pr_creative_context.py::test_consumption_summary_rejects_unrelated_routing_packet`
+and
+`tests/test_experiment_runner_pr_creative_context.py::test_consumption_summary_rejects_missing_routing_rows_for_generated_packet`.
+
+Disposition: FIXED
+Source: post-open `bug-hunter`
+Commit: 1f60046148b06d4cddf8cc438509b935cfbd9c8e
+Evidence:
+`docs/orchestration/contracts/creative_protocol_context_map.v1.schema.json` and
+`docs/orchestration/contracts/creative_hypothesis_packet.v1.schema.json` now
+pin `reason_code` to the runtime enum and reject `artifacts/` values through
+their repo-path definitions; approval schema now encodes the decision state
+machine. Regression coverage is in
+`tests/test_experiment_runner_pr_creative_context.py::test_context_and_packet_schemas_pin_reason_codes_and_artifact_path_ban`
+and
+`tests/test_experiment_runner_pr_creative_context.py::test_approval_schema_encodes_decision_state_machine`.
+
 ## Experiment Runner Evidence
 
 - Artifact: `artifacts/orchestration/experiments/results/exp-faf9d17cb8f9.json`
@@ -122,6 +160,10 @@ approved instead of bypassing the scope guard.
   `pip-audit`, backend pre-push pytest, full-repo Bandit, and Docker build test.
 - PASS: Experiment Runner oracle-only evidence
   `artifacts/orchestration/experiments/results/exp-faf9d17cb8f9.json`.
+- PASS after bug-hunter fixes:
+  `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_experiment_runner_pr_creative_context.py tests/test_task_bootstrap.py tests/test_render_codex_start_prompt.py tests/test_creative_code_review_disposition.py tests/test_creative_code_private_pilot_loop.py`.
+- PASS after bug-hunter fixes: JSON parse check for the touched creative-context
+  schema files.
 
 ## Merge Readiness
 
