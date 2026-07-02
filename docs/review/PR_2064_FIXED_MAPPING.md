@@ -28,6 +28,8 @@ auth/tier/BOLA refactor work is included.
 
 - `402c105a6` - refactor nutrition state route registration into canonical
   bootstrap and add route-family/legacy-guard/premortem coverage.
+- `00792fcc4` - address CodeRabbit legacy alias adapter and JSON content-type
+  review findings.
 
 ## Lane Start Provenance
 
@@ -58,7 +60,20 @@ auth/tier/BOLA refactor work is included.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2064#discussion_r3513135490 -> 00792fcc4
+Disposition: FIXED
+Commit: 00792fcc4
+Evidence: `app/routers/legacy_nutrition_alias.py:42` adds typed bridge values and forwards explicit `lang="en"` to `get_daily_nutrition(...)`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2064#discussion_r3513135507 -> 00792fcc4
+Disposition: FIXED
+Commit: 00792fcc4
+Evidence: `tests/test_nutrition_daily.py:427` asserts JSON content type before calling `response.json()` and verifies delegated `lang`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2064#pullrequestreview-4617572591 -> 00792fcc4
+Disposition: FIXED
+Commit: 00792fcc4
+Evidence: The CodeRabbit review-level summary is covered by the two inline review comments mapped above.
 
 ## Implementation Evidence
 
@@ -138,6 +153,29 @@ Notes:
   focused pytest bundles above are the primary Python evidence.
 
 ## Post-Open Review Evidence
+
+Role: `CodeRabbit`
+
+Disposition: FIXED
+
+Commit: `00792fcc4`
+
+Evidence:
+- CodeRabbit `discussion_r3513135490` found that the legacy nutrition alias
+  delegated directly to `get_daily_nutrition(...)` without explicit `lang` and
+  without preserving the callee's `Literal[...]` type shape. Commit
+  `00792fcc4` adds local typed bridge values and forwards `lang="en"` at
+  `app/routers/legacy_nutrition_alias.py:42`.
+- CodeRabbit `discussion_r3513135507` found that the new alias delegation test
+  parsed `response.json()` without first asserting JSON content type. Commit
+  `00792fcc4` adds the content-type assertion and verifies delegated `lang` at
+  `tests/test_nutrition_daily.py:427`.
+- The CodeRabbit review summary
+  `pullrequestreview-4617572591` is covered by the two inline fixes above.
+- Focused validation passed after the fix:
+  `pytest -q tests/test_nutrition_daily.py::test_legacy_nutrition_endpoint_records_metric_and_delegates tests/test_nutrition_daily.py::test_legacy_nutrition_endpoint_defaults`
+  and
+  `pytest -q tests/test_nutrition_state_registration_bootstrap.py tests/test_legacy_growth_guard.py tests/test_route_family_bootstrap.py`.
 
 Role: `qa-engineer-agent`
 
