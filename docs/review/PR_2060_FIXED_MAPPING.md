@@ -24,6 +24,7 @@ review threads, change product runtime, change workflows, or claim readiness.
   dispositioned.
 - [x] `pulseplate-pr-review` completed.
 - [x] CodeRabbit usage-limit comment checked and dispositioned.
+- [x] CodeRabbit actionable review comments checked and dispositioned.
 - [x] Sourcery high-level review comment checked and dispositioned.
 - [ ] Current-head CI complete before readiness language.
 - [ ] Strict merge-readiness checks run after the final review/check cycle.
@@ -37,6 +38,16 @@ Evidence: Codex connector comment reports code-review usage limits only and does
 Disposition: NOT-A-BUG
 Evidence: CodeRabbit comment reports temporary review-limit state only and does not contain a code, docs, schema, security, or governance actionable.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2060#issuecomment-4861939191
+
+Disposition: FIXED
+Commit: 22873a4a149a1f67fe11615ec9a60352efa2eeab
+Evidence: `docs/orchestration/contracts/github_app_private_pilot_capability_report.v1.schema.json` tightens the UTC timestamp regex; `scripts/orchestration/github_app_private_pilot_capability.py` rejects non-regular report paths before JSON reads and semantically validates timestamps; `scripts/orchestration/creative_code_private_pilot_loop_contract.py` rejects explicit empty capability state instead of defaulting it; `docs/roadmap/BACKLOG_LEDGER.md` now records formal owner/priority/target/DoD metadata for the auto-oracle attach follow-up. Regression coverage is in `tests/test_creative_code_private_pilot_loop.py`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2060#discussion_r3510940050 -> 22873a4a149a1f67fe11615ec9a60352efa2eeab
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2060#discussion_r3510940060 -> 22873a4a149a1f67fe11615ec9a60352efa2eeab
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2060#discussion_r3510940061 -> 22873a4a149a1f67fe11615ec9a60352efa2eeab
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2060#discussion_r3510940065 -> 22873a4a149a1f67fe11615ec9a60352efa2eeab
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2060#discussion_r3510940073 -> 22873a4a149a1f67fe11615ec9a60352efa2eeab
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2060#pullrequestreview-4615039627 -> 22873a4a149a1f67fe11615ec9a60352efa2eeab
 
 Disposition: FIXED
 Commit: c6d3e97a8d20077db5e84af636c6c26bc846ce29
