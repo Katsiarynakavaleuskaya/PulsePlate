@@ -21,7 +21,7 @@ backlog tracking, and a diff-first premortem with code closures.
 - [x] Post-open `security-auditor` pass completed.
 - [x] Codex Security diff scan / finding discovery completed.
 - [ ] `pulseplate-pr-review` completed.
-- [ ] CodeRabbit actionable review comments checked and dispositioned.
+- [x] CodeRabbit actionable review comments checked and dispositioned.
 - [ ] Sourcery actionable review comments checked and dispositioned.
 - [ ] Cubic actionable review comments checked and dispositioned.
 - [ ] Current-head CI complete before readiness language.
@@ -29,7 +29,15 @@ backlog tracking, and a diff-first premortem with code closures.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2062#discussion_r3511718210 -> 5583e6f337156606d1f681f9e74b17fbc9e222ce
+Disposition: FIXED
+Commit: 5583e6f337156606d1f681f9e74b17fbc9e222ce
+Evidence: `docs/security/CVE-2026-41992-gzip.md` now cites concrete `file:line` anchors for Dockerfile package pruning, build/publish/trivy workflow guards, runtime-surface tests, and no-suppression tests.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2062#discussion_r3511718203 -> 95428f1d98820893000c60f48258381bc3bbd262
+Disposition: FIXED
+Commit: 95428f1d98820893000c60f48258381bc3bbd262
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md` now records `Target PR: PR #2062` with the PR URL and keeps the branch slug in a separate `Branch:` field.
 
 ## Role-Agent Finding Dispositions
 
