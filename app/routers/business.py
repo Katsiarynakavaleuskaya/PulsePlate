@@ -1,5 +1,4 @@
 import logging
-import os
 import re
 from typing import Any, Optional
 
@@ -8,20 +7,18 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
 from app.routers.api_key import require_app_api_key
+from app.utils.feature_flags import is_business_module_enabled
 from core.business_bayesian_analyzer import BusinessBayesianAnalyzer
 from core.i18n import normalize_lang, t
-
-# Business feature flag: enable/disable business module via env or default True
-BUSINESS_MODULE_ENABLED = os.getenv("BUSINESS_MODULE_ENABLED", "true").lower() in (
-    "1",
-    "true",
-    "yes",
-    "on",
-)
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/business", tags=["business"])
+
+BUSINESS_ROUTE_SPECS = (
+    ("/api/v1/business/analyze", "POST", True),
+    ("/api/v1/business/status", "GET", True),
+)
 
 
 def _safe_error_summary(err: Exception) -> str:
@@ -98,7 +95,7 @@ async def analyze_business_code(
     Provides business insights on monetization strategies, cost optimization,
     customer acquisition, revenue growth, and customer retention.
     """
-    if not BUSINESS_MODULE_ENABLED:
+    if not is_business_module_enabled():
         detail = _localized_error(request.locale, "business_module_disabled")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -166,4 +163,4 @@ async def analyze_business_code(
 @router.get("/status")
 async def business_status() -> dict[str, Any]:
     """Check if the business module is enabled."""
-    return {"enabled": BUSINESS_MODULE_ENABLED, "module": "business_analysis"}
+    return {"enabled": is_business_module_enabled(), "module": "business_analysis"}

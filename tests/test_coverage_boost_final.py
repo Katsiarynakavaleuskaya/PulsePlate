@@ -73,7 +73,7 @@ class TestCoverageFinalBoost:
         """Cover business router edge cases."""
         from app.routers.api_key import require_app_api_key
 
-        monkeypatch.setattr("app.routers.business.BUSINESS_MODULE_ENABLED", True)
+        monkeypatch.setenv("BUSINESS_MODULE_ENABLED", "true")
         test_client.app.dependency_overrides[require_app_api_key] = lambda: "test-api-key"
         try:
             with patch("app.routers.business.BusinessBayesianAnalyzer") as MockAnalyzer:

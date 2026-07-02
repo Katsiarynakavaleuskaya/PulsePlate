@@ -49,7 +49,6 @@ from app.http_error_details import (
     INVALID_PREMIUM_PLATE_INPUT_DETAIL,
 )
 from app.routers.api_key import api_key_header
-from app.routers.business import router as business_router
 from app.routers.catalog import router as catalog_router
 from app.routers.foods import router as foods_router
 from app.routers.nutrition_recommendations import router as nutrition_recommendations_router
@@ -4296,10 +4295,3 @@ if EXPORTS_ENABLED:
 
 
 # Bodyfat, BMI, and BMI Pro route registration is owned by app.main canonical bootstrap.
-
-# Include Business router (with feature flag). Defaults to disabled for safety.
-
-_business_flag = os.getenv("BUSINESS_MODULE_ENABLED")
-BUSINESS_MODULE_ENABLED = _is_truthy(_business_flag) if _business_flag is not None else False
-if BUSINESS_MODULE_ENABLED and business_router:
-    app.include_router(business_router)

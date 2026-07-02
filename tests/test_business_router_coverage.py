@@ -8,6 +8,7 @@ Tests verify:
 - HTTPException pass-through
 """
 
+import asyncio
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -90,7 +91,7 @@ class TestBusinessAnalysisEndpoint:
 
     def test_business_module_disabled_returns_503(self, test_client, monkeypatch) -> None:
         """When module disabled, should return 503 before attempting analysis."""
-        monkeypatch.setattr("app.routers.business.BUSINESS_MODULE_ENABLED", False)
+        monkeypatch.setenv("BUSINESS_MODULE_ENABLED", "false")
 
         response = test_client.post(
             "/api/v1/business/analyze",
@@ -103,7 +104,7 @@ class TestBusinessAnalysisEndpoint:
 
     def test_oversized_payload_rejected_with_413(self, test_client, monkeypatch) -> None:
         """Payloads > 100KB should be rejected with 413 (manual check) to prevent DoS."""
-        monkeypatch.setattr("app.routers.business.BUSINESS_MODULE_ENABLED", True)
+        monkeypatch.setenv("BUSINESS_MODULE_ENABLED", "true")
 
         # Create exactly 100,001 bytes of code
         oversized_code = "x" * 100_001
@@ -118,15 +119,14 @@ class TestBusinessAnalysisEndpoint:
         assert response.status_code == 413
 
 
-@pytest.mark.asyncio
-async def test_analyze_business_code_oversized_payload_internal(
+def test_analyze_business_code_oversized_payload_internal(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Internal guard: oversized payloads raise 413 even when using direct model construction."""
     from app.routers.business import BusinessAnalysisRequest, analyze_business_code
 
     # Ensure module-level flag allows analysis
-    monkeypatch.setattr("app.routers.business.BUSINESS_MODULE_ENABLED", True)
+    monkeypatch.setenv("BUSINESS_MODULE_ENABLED", "true")
 
     oversized_code = "x" * 100_001
 
@@ -138,9 +138,11 @@ async def test_analyze_business_code_oversized_payload_internal(
     )
 
     with pytest.raises(HTTPException) as exc_info:
-        await analyze_business_code(
-            request,
-            _api_key=API_KEY_HEADERS["X-API-Key"],
+        asyncio.run(
+            analyze_business_code(
+                request,
+                _api_key=API_KEY_HEADERS["X-API-Key"],
+            )
         )
 
     assert exc_info.value.status_code == status.HTTP_413_CONTENT_TOO_LARGE
@@ -149,7 +151,7 @@ async def test_analyze_business_code_oversized_payload_internal(
 
 def test_exactly_100kb_payload_accepted(test_client, monkeypatch) -> None:
     """Payload of exactly 100KB should be accepted."""
-    monkeypatch.setattr("app.routers.business.BUSINESS_MODULE_ENABLED", True)
+    monkeypatch.setenv("BUSINESS_MODULE_ENABLED", "true")
 
     with patch("app.routers.business.BusinessBayesianAnalyzer") as MockAnalyzer:
         mock_instance = MockAnalyzer.return_value
@@ -183,7 +185,7 @@ def test_business_analysis_invalid_api_key_rejected(test_client, monkeypatch) ->
     from app.main import app as main_app
     from app.routers.api_key import require_app_api_key
 
-    monkeypatch.setattr("app.routers.business.BUSINESS_MODULE_ENABLED", True)
+    monkeypatch.setenv("BUSINESS_MODULE_ENABLED", "true")
 
     def _reject_invalid() -> str:
         raise HTTPException(status_code=403, detail="Invalid API Key")
@@ -207,7 +209,7 @@ def test_analyzer_exception_wrapped_as_500(test_client, monkeypatch, caplog) -> 
     """Non-HTTP exceptions from analyzer should be wrapped as 500."""
     import logging
 
-    monkeypatch.setattr("app.routers.business.BUSINESS_MODULE_ENABLED", True)
+    monkeypatch.setenv("BUSINESS_MODULE_ENABLED", "true")
 
     with patch("app.routers.business.BusinessBayesianAnalyzer") as MockAnalyzer:
         mock_instance = MockAnalyzer.return_value
@@ -230,7 +232,7 @@ def test_analyzer_exception_wrapped_as_500(test_client, monkeypatch, caplog) -> 
 
 def test_http_exception_passed_through_unchanged(test_client, monkeypatch) -> None:
     """HTTPException from analyzer should pass through without wrapping."""
-    monkeypatch.setattr("app.routers.business.BUSINESS_MODULE_ENABLED", True)
+    monkeypatch.setenv("BUSINESS_MODULE_ENABLED", "true")
 
     with patch("app.routers.business.BusinessBayesianAnalyzer") as MockAnalyzer:
         mock_instance = MockAnalyzer.return_value
@@ -254,14 +256,14 @@ def test_http_exception_passed_through_unchanged(test_client, monkeypatch) -> No
 def test_status_endpoint_reflects_module_state(test_client, monkeypatch) -> None:
     """Status endpoint should accurately reflect BUSINESS_MODULE_ENABLED."""
     # Test when enabled
-    monkeypatch.setattr("app.routers.business.BUSINESS_MODULE_ENABLED", True)
+    monkeypatch.setenv("BUSINESS_MODULE_ENABLED", "true")
     response = test_client.get("/api/v1/business/status")
     assert response.status_code == 200
     assert response.json()["enabled"] is True
     assert response.json()["module"] == "business_analysis"
 
     # Test when disabled
-    monkeypatch.setattr("app.routers.business.BUSINESS_MODULE_ENABLED", False)
+    monkeypatch.setenv("BUSINESS_MODULE_ENABLED", "false")
     response = test_client.get("/api/v1/business/status")
     assert response.status_code == 200
     assert response.json()["enabled"] is False
@@ -272,7 +274,7 @@ def test_error_type_handling_when_analyzer_returns_error(test_client, monkeypatc
     """Verify error_type conversion when analysis returns error results."""
     from core.business_bayesian_analyzer import BusinessErrorType
 
-    monkeypatch.setattr("app.routers.business.BUSINESS_MODULE_ENABLED", True)
+    monkeypatch.setenv("BUSINESS_MODULE_ENABLED", "true")
 
     with patch("app.routers.business.BusinessBayesianAnalyzer") as MockAnalyzer:
         mock_instance = MockAnalyzer.return_value
@@ -308,7 +310,7 @@ def test_multiple_results_returned_as_list(test_client, monkeypatch) -> None:
     """Analyzer can return multiple results for different aspects."""
     from core.business_bayesian_analyzer import BusinessCategory
 
-    monkeypatch.setattr("app.routers.business.BUSINESS_MODULE_ENABLED", True)
+    monkeypatch.setenv("BUSINESS_MODULE_ENABLED", "true")
 
     with patch("app.routers.business.BusinessBayesianAnalyzer") as MockAnalyzer:
         mock_instance = MockAnalyzer.return_value
@@ -355,7 +357,7 @@ def test_log_injection_prevented_in_error_logging(test_client, monkeypatch, capl
     """Test that malicious test_name values are sanitized before logging."""
     import logging
 
-    monkeypatch.setattr("app.routers.business.BUSINESS_MODULE_ENABLED", True)
+    monkeypatch.setenv("BUSINESS_MODULE_ENABLED", "true")
 
     with patch("app.routers.business.BusinessBayesianAnalyzer") as MockAnalyzer:
         mock_instance = MockAnalyzer.return_value

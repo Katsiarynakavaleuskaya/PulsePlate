@@ -21,6 +21,19 @@ def _is_truthy(value: Optional[str]) -> bool:
     return (value or "").strip().lower() in _TRUTHY
 
 
+def is_explicit_truthy_env_var(name: str) -> bool:
+    """Check whether an env var is present and explicitly truthy."""
+
+    raw = os.getenv(name)
+    return raw is not None and _is_truthy(raw)
+
+
+def is_business_module_enabled() -> bool:
+    """Check if the business module is explicitly enabled."""
+
+    return is_explicit_truthy_env_var("BUSINESS_MODULE_ENABLED")
+
+
 def is_vip_module_enabled() -> bool:
     """Check if VIP module is enabled via environment variable."""
     return _is_truthy(os.getenv("VIP_MODULE_ENABLED", "true"))
@@ -90,7 +103,9 @@ def is_philosophy_pragmatic_enabled() -> bool:
 
 
 __all__ = [
+    "is_business_module_enabled",
     "is_creative_research_pilot_enabled",
+    "is_explicit_truthy_env_var",
     "is_vip_module_enabled",
     "is_rag_vector_enabled",
     "is_philosophy_validation_enabled",
