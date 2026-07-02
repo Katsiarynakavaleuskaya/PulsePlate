@@ -13,6 +13,7 @@ from scripts.orchestration.experiment_runner_pr_creative_context_contract import
     AGENT_ROUTING_TYPE,
     APPROVAL_TYPE,
     AUTHORITY_FALSE_KEYS,
+    AUTHORITY_KEYS,
     AUTHORITY_TRUE_KEYS,
     CONTEXT_MAP_TYPE,
     CONSUMPTION_SUMMARY_TYPE,
@@ -38,6 +39,19 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 BASE_SHA = "a" * 40
 HEAD_SHA = "b" * 40
 SHA256 = "sha256:" + ("c" * 64)
+SCHEMA_FILES = {
+    "experiment_runner_pr_oracle_attachment.v1.schema.json": ORACLE_ATTACHMENT_TYPE,
+    "creative_protocol_context_map.v1.schema.json": CONTEXT_MAP_TYPE,
+    "creative_hypothesis_packet.v1.schema.json": HYPOTHESIS_PACKET_TYPE,
+    "creative_hypothesis_agent_routing.v1.schema.json": AGENT_ROUTING_TYPE,
+    "creative_hypothesis_agent_consumption_summary.v1.schema.json": CONSUMPTION_SUMMARY_TYPE,
+    "creative_hypothesis_approval.v1.schema.json": APPROVAL_TYPE,
+}
+
+
+def _schema(filename: str) -> dict[str, object]:
+    schema_path = REPO_ROOT / "docs" / "orchestration" / "contracts" / filename
+    return json.loads(schema_path.read_text(encoding="utf-8"))
 
 
 def _context(
@@ -381,20 +395,45 @@ def test_cli_rejects_output_outside_creative_context_root(
 
 
 def test_schema_files_pin_artifact_type_and_policy_version() -> None:
-    schema_files = {
-        "experiment_runner_pr_oracle_attachment.v1.schema.json": ORACLE_ATTACHMENT_TYPE,
-        "creative_protocol_context_map.v1.schema.json": CONTEXT_MAP_TYPE,
-        "creative_hypothesis_packet.v1.schema.json": HYPOTHESIS_PACKET_TYPE,
-        "creative_hypothesis_agent_routing.v1.schema.json": AGENT_ROUTING_TYPE,
-        "creative_hypothesis_agent_consumption_summary.v1.schema.json": (CONSUMPTION_SUMMARY_TYPE),
-        "creative_hypothesis_approval.v1.schema.json": APPROVAL_TYPE,
-    }
-
-    for filename, artifact_type in schema_files.items():
-        schema_path = REPO_ROOT / "docs" / "orchestration" / "contracts" / filename
-        schema = json.loads(schema_path.read_text(encoding="utf-8"))
+    for filename, artifact_type in SCHEMA_FILES.items():
+        schema = _schema(filename)
         assert schema["additionalProperties"] is False
         assert schema["properties"]["schema_version"]["const"] == SCHEMA_VERSION
         assert schema["properties"]["artifact_type"]["const"] == artifact_type
         assert schema["properties"]["policy_version"]["const"] == POLICY_VERSION
         assert schema["properties"]["sanitized"]["const"] is True
+
+
+def test_schema_authority_definitions_match_runtime_authority() -> None:
+    for filename in SCHEMA_FILES:
+        authority = _schema(filename)["$defs"]["authority"]
+        assert authority["additionalProperties"] is False
+        assert set(authority["required"]) == AUTHORITY_KEYS
+        assert set(authority["properties"]) == AUTHORITY_KEYS
+        for key in AUTHORITY_TRUE_KEYS:
+            assert authority["properties"][key]["const"] is True
+        for key in AUTHORITY_FALSE_KEYS:
+            assert authority["properties"][key]["const"] is False
+
+
+def test_hypothesis_packet_schema_encodes_generated_and_no_action_guards() -> None:
+    schema = _schema("creative_hypothesis_packet.v1.schema.json")
+    generated_guard = next(
+        guard
+        for guard in schema["allOf"]
+        if guard["if"]["properties"]["creative_status"]["const"] == "hypotheses_generated"
+    )
+    no_action_guard = next(
+        guard
+        for guard in schema["allOf"]
+        if guard["if"]["properties"]["creative_status"]["const"] == "no_creative_action"
+    )
+
+    generated_then = generated_guard["then"]["properties"]
+    assert generated_then["hypothesis_count"]["enum"] == [3, 4, 5]
+    assert generated_then["hypotheses"]["minItems"] == 3
+    assert generated_then["hypotheses"]["maxItems"] == 5
+    contains_target = generated_then["hypotheses"]["contains"]["properties"]["target_surfaces"]
+    assert contains_target["contains"]["$ref"] == "#/$defs/concrete_target_path"
+    assert no_action_guard["then"]["properties"]["hypothesis_count"]["const"] == 0
+    assert no_action_guard["then"]["properties"]["hypotheses"]["maxItems"] == 0

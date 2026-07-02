@@ -39,6 +39,44 @@
     "authority": { "$ref": "#/$defs/authority" },
     "sanitized": { "const": true }
   },
+  "allOf": [
+    {
+      "if": {
+        "required": ["creative_status"],
+        "properties": { "creative_status": { "const": "hypotheses_generated" } }
+      },
+      "then": {
+        "properties": {
+          "hypothesis_count": { "enum": [3, 4, 5] },
+          "hypotheses": {
+            "minItems": 3,
+            "maxItems": 5,
+            "contains": {
+              "type": "object",
+              "required": ["target_surfaces"],
+              "properties": {
+                "target_surfaces": {
+                  "contains": { "$ref": "#/$defs/concrete_target_path" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["creative_status"],
+        "properties": { "creative_status": { "const": "no_creative_action" } }
+      },
+      "then": {
+        "properties": {
+          "hypothesis_count": { "const": 0 },
+          "hypotheses": { "maxItems": 0 }
+        }
+      }
+    }
+  ],
   "$defs": {
     "safe_id": {
       "type": "string",
@@ -50,6 +88,14 @@
       "type": "string",
       "pattern": "^[A-Za-z0-9_.-][A-Za-z0-9_./-]*$",
       "not": { "pattern": "(^/|\\.\\.|\\\\|file://|^~|^\\.git/|^\\.venv/|^worktrees/)" }
+    },
+    "concrete_target_path": {
+      "allOf": [
+        { "$ref": "#/$defs/repo_path" },
+        {
+          "pattern": "^(scripts/|tests/|docs/orchestration/contracts/|docs/prompts/|tools/codex_skills/|\\.agents/skills/)"
+        }
+      ]
     },
     "repo_paths": {
       "type": "array",
@@ -148,17 +194,73 @@
     },
     "authority": {
       "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "call_product_runtime",
+        "call_provider",
+        "change_client_runtime",
+        "change_openapi",
+        "claim_merge_readiness",
+        "create_branch",
+        "edit_fixed_mapping",
+        "emit_local_artifacts",
+        "execute_pr1_specification",
+        "execute_pr2_patch_builder",
+        "execute_pr3_promotion",
+        "generate_hypotheses",
+        "generate_patch",
+        "mark_pr_ready",
+        "merge",
+        "modify_github_app",
+        "modify_slack",
+        "modify_workflows",
+        "open_draft_pr",
+        "open_pr",
+        "post_github_comment",
+        "prepare_human_approval_packet",
+        "push",
+        "read_sanitized_context",
+        "read_secrets",
+        "release",
+        "resolve_threads",
+        "route_to_agents",
+        "use_semantic_cache",
+        "workflow_dispatch",
+        "write_branch"
+      ],
       "properties": {
-        "generate_hypotheses": { "const": true },
-        "route_to_agents": { "const": true },
-        "generate_patch": { "const": false },
-        "write_branch": { "const": false },
-        "push": { "const": false },
-        "merge": { "const": false },
+        "call_product_runtime": { "const": false },
         "call_provider": { "const": false },
-        "modify_workflows": { "const": false }
-      },
-      "additionalProperties": { "type": "boolean" }
+        "change_client_runtime": { "const": false },
+        "change_openapi": { "const": false },
+        "claim_merge_readiness": { "const": false },
+        "create_branch": { "const": false },
+        "edit_fixed_mapping": { "const": false },
+        "emit_local_artifacts": { "const": true },
+        "execute_pr1_specification": { "const": false },
+        "execute_pr2_patch_builder": { "const": false },
+        "execute_pr3_promotion": { "const": false },
+        "generate_hypotheses": { "const": true },
+        "generate_patch": { "const": false },
+        "mark_pr_ready": { "const": false },
+        "merge": { "const": false },
+        "modify_github_app": { "const": false },
+        "modify_slack": { "const": false },
+        "modify_workflows": { "const": false },
+        "open_draft_pr": { "const": false },
+        "open_pr": { "const": false },
+        "post_github_comment": { "const": false },
+        "prepare_human_approval_packet": { "const": true },
+        "push": { "const": false },
+        "read_sanitized_context": { "const": true },
+        "read_secrets": { "const": false },
+        "release": { "const": false },
+        "resolve_threads": { "const": false },
+        "route_to_agents": { "const": true },
+        "use_semantic_cache": { "const": false },
+        "workflow_dispatch": { "const": false },
+        "write_branch": { "const": false }
+      }
     }
   }
 }
