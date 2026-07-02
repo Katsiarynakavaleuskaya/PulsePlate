@@ -74,6 +74,8 @@ def test_bootstrap_sync_policy_freezes_privileged_review_patterns() -> None:
         "Dockerfile",
         ".dockerignore",
         ".trivyignore",
+        ".pre-commit-config.yaml",
+        ".pre-commit-config.yml",
         ".devcontainer/Dockerfile",
         ".devcontainer/devcontainer.json",
         ".devcontainer/docker-compose*.yml",
@@ -92,9 +94,12 @@ def test_bootstrap_sync_policy_freezes_privileged_review_patterns() -> None:
         "frontend/package*.json",
         "ios/Gemfile*",
         "package*.json",
+        "pyproject.toml",
         "requirements*.txt",
         "requirements*.in",
         "constraints*.txt",
+        "scripts/ci_*.sh",
+        "scripts/deploy_*.sh",
     )
 
 
@@ -245,6 +250,8 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     assert requires_security_review(["Dockerfile"]) is True
     assert requires_security_review([".dockerignore"]) is True
     assert requires_security_review([".trivyignore"]) is True
+    assert requires_security_review([".pre-commit-config.yaml"]) is True
+    assert requires_security_review([".pre-commit-config.yml"]) is True
     assert requires_security_review([".devcontainer/Dockerfile"]) is True
     assert requires_security_review([".devcontainer/devcontainer.json"]) is True
     assert requires_security_review([".devcontainer/docker-compose.devcontainer.yml"]) is True
@@ -266,12 +273,17 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     assert requires_security_review(["ios/Gemfile.lock"]) is True
     assert requires_security_review(["package.json"]) is True
     assert requires_security_review(["package-lock.json"]) is True
+    assert requires_security_review(["pyproject.toml"]) is True
     assert requires_security_review(["requirements.txt"]) is True
     assert requires_security_review(["requirements-ci-lite.txt"]) is True
     assert requires_security_review(["requirements.in"]) is True
     assert requires_security_review(["constraints.txt"]) is True
+    assert requires_security_review(["scripts/ci_bandit.sh"]) is True
+    assert requires_security_review(["scripts/ci_pip_audit.sh"]) is True
+    assert requires_security_review(["scripts/deploy_production.sh"]) is True
     assert requires_security_review(["script/orchestration/config.yml"]) is False
     assert requires_security_review(["tests/test_task_bootstrap.py"]) is False
+    assert requires_security_review(["docs/pyproject.toml"]) is False
     assert requires_security_review(["requirements_docs.md"]) is False
     assert requires_security_review(["requirements/dev.txt"]) is False
     assert requires_security_review(["requirements-notes/dev.txt"]) is False
@@ -290,6 +302,9 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     assert requires_security_review(["ios/vendor/Gemfile.lock"]) is False
     assert requires_security_review(["packages/package-lock.json"]) is False
     assert requires_security_review([".github/dependabot/nested.yaml"]) is False
+    assert requires_security_review(["scripts/ci-tools/bandit.sh"]) is False
+    assert requires_security_review(["scripts/deploy/production.sh"]) is False
+    assert requires_security_review(["scripts/cicd_notes.sh"]) is False
 
 
 def test_bootstrap_sync_policy_returns_stable_privileged_review_labels() -> None:

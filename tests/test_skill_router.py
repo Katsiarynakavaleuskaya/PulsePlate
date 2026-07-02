@@ -61,7 +61,7 @@ EXPECTED_PRIVILEGED_SURFACE_POLICY_LINES: tuple[str, ...] = (
     "- `scripts/orchestration/**`, `scripts/ci/**`, and `scripts/release/**`",
     "- merge-governance docs under `docs/orchestration/**` and `docs/review/**`",
     "- container, deploy, devcontainer, and security-scan policy under `Dockerfile`, `.dockerignore`, `.trivyignore`, `.devcontainer` Docker/Compose/devcontainer files, deploy Caddy/Compose patterns, `frontend/Dockerfile.caddy-spa`, and `trivy/**`",
-    "- dependency and repo-governance control files matching `.github/CODEOWNERS`, `.github/actionlint.yml`, `.github/actionlint.yaml`, `.github/dependabot.yml`, `.github/dependabot.yaml`, root/frontend `package*.json`, `ios/Gemfile*`, `requirements*.txt`, `requirements*.in`, and `constraints*.txt`",
+    "- dependency, quality-gate, and repo-governance control files matching `.pre-commit-config.yaml`, `.pre-commit-config.yml`, `.github/CODEOWNERS`, `.github/actionlint.yml`, `.github/actionlint.yaml`, `.github/dependabot.yml`, `.github/dependabot.yaml`, `pyproject.toml`, root/frontend `package*.json`, `ios/Gemfile*`, `requirements*.txt`, `requirements*.in`, `constraints*.txt`, `scripts/ci_*.sh`, and `scripts/deploy_*.sh`",
     "- keep `security-auditor` in the executable review path for the canonical bootstrap privileged-review matcher in `scripts/orchestration/bootstrap_sync_policy.py`;",
     "- any matched privileged surface must set `automation_flags.security_review_required = true` and keep the security reviewer executable in the native subagent bridge;",
 )
@@ -1387,6 +1387,7 @@ def test_skill_router_boosts_security_skills_for_privileged_surfaces() -> None:
         ("trivy/policy.rego", "security", "trivy/"),
         ("Dockerfile", "infra", "Dockerfile"),
         (".trivyignore", "security", ".trivyignore"),
+        (".pre-commit-config.yaml", "qa", ".pre-commit-config.yaml"),
         (".devcontainer/Dockerfile", "infra", ".devcontainer/Dockerfile"),
         (".devcontainer/devcontainer.json", "infra", ".devcontainer/devcontainer.json"),
         (
@@ -1416,9 +1417,13 @@ def test_skill_router_boosts_security_skills_for_privileged_surfaces() -> None:
         ("frontend/package-lock.json", "frontend", "frontend/package*.json"),
         ("ios/Gemfile.lock", "release", "ios/Gemfile*"),
         ("package-lock.json", "frontend", "package*.json"),
+        ("pyproject.toml", "qa", "pyproject.toml"),
         ("requirements-ci-lite.txt", "security", "requirements*.txt"),
         ("requirements.in", "security", "requirements*.in"),
         ("constraints.txt", "security", "constraints*.txt"),
+        ("scripts/ci_bandit.sh", "security", "scripts/ci_*.sh"),
+        ("scripts/ci_pip_audit.sh", "security", "scripts/ci_*.sh"),
+        ("scripts/deploy_production.sh", "release", "scripts/deploy_*.sh"),
     ),
 )
 def test_privileged_surface_parity_emits_stable_security_metadata(
@@ -1476,6 +1481,8 @@ def test_privileged_surface_patterns_stay_in_sync_with_policy_coverage() -> None
         "Dockerfile",
         ".dockerignore",
         ".trivyignore",
+        ".pre-commit-config.yaml",
+        ".pre-commit-config.yml",
         ".devcontainer/Dockerfile",
         ".devcontainer/devcontainer.json",
         ".devcontainer/docker-compose*.yml",
@@ -1494,9 +1501,12 @@ def test_privileged_surface_patterns_stay_in_sync_with_policy_coverage() -> None
         "frontend/package*.json",
         "ios/Gemfile*",
         "package*.json",
+        "pyproject.toml",
         "requirements*.txt",
         "requirements*.in",
         "constraints*.txt",
+        "scripts/ci_*.sh",
+        "scripts/deploy_*.sh",
     }
 
 
@@ -1520,6 +1530,10 @@ def test_privileged_surface_patterns_stay_in_sync_with_policy_coverage() -> None
         "ios/vendor/Gemfile.lock",
         "packages/package-lock.json",
         ".github/dependabot/nested.yaml",
+        "docs/pyproject.toml",
+        "scripts/ci-tools/bandit.sh",
+        "scripts/deploy/production.sh",
+        "scripts/cicd_notes.sh",
     ),
 )
 def test_privileged_surface_patterns_do_not_cross_path_boundaries(candidate_path: str) -> None:

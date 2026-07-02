@@ -42,6 +42,8 @@ PRIVILEGED_REVIEW_PATTERNS: tuple[str, ...] = (
     "Dockerfile",
     ".dockerignore",
     ".trivyignore",
+    ".pre-commit-config.yaml",
+    ".pre-commit-config.yml",
     ".devcontainer/Dockerfile",
     ".devcontainer/devcontainer.json",
     ".devcontainer/docker-compose*.yml",
@@ -60,9 +62,12 @@ PRIVILEGED_REVIEW_PATTERNS: tuple[str, ...] = (
     "frontend/package*.json",
     "ios/Gemfile*",
     "package*.json",
+    "pyproject.toml",
     "requirements*.txt",
     "requirements*.in",
     "constraints*.txt",
+    "scripts/ci_*.sh",
+    "scripts/deploy_*.sh",
 )
 
 AGENTS_CONTRACT_FILE = "AGENTS.md"
