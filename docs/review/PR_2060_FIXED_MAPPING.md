@@ -41,7 +41,11 @@ Evidence: CodeRabbit comment reports temporary review-limit state only and does 
 Disposition: FIXED
 Commit: c6d3e97a8d20077db5e84af636c6c26bc846ce29
 Evidence: `scripts/orchestration/github_app_private_pilot_capability.py` centralizes missing-permission/status derivation and includes mismatched field names in capability/authority diagnostics; regression coverage is in `tests/test_creative_code_private_pilot_loop.py`.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2060#issuecomment-4861939596 -> c6d3e97a8d20077db5e84af636c6c26bc846ce29
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2060#pullrequestreview-4614334490 -> c6d3e97a8d20077db5e84af636c6c26bc846ce29
+
+Disposition: NOT-A-BUG
+Evidence: Sourcery issue comment is a generated review guide/summary and not the review-level actionable; the actionable review is mapped separately.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2060#issuecomment-4861939596
 
 ## Role-Agent Finding Dispositions
 
@@ -52,10 +56,10 @@ Evidence: This artifact fixes the missing canonical mapping artifact that made
 
 Disposition: FIXED
 Source: post-open `qa-engineer-agent`
-Evidence: `validate_private_pilot_state()` now normalizes legacy v1.0 states
-without `github_app_capability` to `manual_only` / `not_checked` while
-preserving legacy fingerprint validation, with regression coverage in
-`tests/test_creative_code_private_pilot_loop.py`.
+Evidence: `validate_private_pilot_state()` normalizes legacy v1.0 states
+without `github_app_capability` to `manual_only` / `not_checked`, verifies their
+legacy fingerprint, and returns current-shape/current-identity state with
+regression coverage in `tests/test_creative_code_private_pilot_loop.py`.
 
 Disposition: FIXED
 Source: post-open `qa-engineer-agent`
@@ -63,6 +67,27 @@ Evidence: `creative_code_private_pilot_state.v1.schema.json` now mirrors runtime
 coupling for report-present metadata read, PR/check read booleans,
 `missing_permissions`, read authority, and derived status; schema parity tests
 assert the coupling markers.
+
+Disposition: FIXED
+Source: post-open `bug-hunter`
+Evidence: Commit `3304494dc76ca664bd3fb8b0c00ed756f4e4cef2` makes legacy
+defaulting operational after first read: the legacy payload is verified against
+its original fingerprint, then returned with current identity so second
+validation and `build_candidate_plan()` succeed.
+
+Disposition: FIXED
+Source: post-open `bug-hunter`
+Evidence: Commit `3304494dc76ca664bd3fb8b0c00ed756f4e4cef2` tightens
+`creative_code_private_pilot_state.v1.schema.json` authority coupling for
+manual/not-checked, metadata-read, and workflow-dispatch states; schema parity
+tests assert the read-authority markers.
+
+Disposition: FIXED
+Source: post-open `bug-hunter`
+Evidence: This mapping artifact now records Sourcery's actual review URL
+`https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2060#pullrequestreview-4614334490`
+as the FIXED actionable and classifies the generated guide issue comment as
+NOT-A-BUG.
 
 ## Experiment Runner Evidence
 
