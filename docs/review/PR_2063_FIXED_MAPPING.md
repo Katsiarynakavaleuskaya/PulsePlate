@@ -40,7 +40,7 @@ runtime, thread-resolution, fixed-mapping, merge, or readiness authority.
 - [x] Fixed in commit mapping completed
 - [x] Post-open `qa-engineer-agent` pass completed.
 - [x] Post-open `bug-hunter` pass completed.
-- [ ] Post-open `security-auditor` pass completed.
+- [x] Post-open `security-auditor` pass completed.
 - [ ] Codex Security diff scan / finding discovery completed or explicitly
   dispositioned.
 - [ ] `pulseplate-pr-review` completed.
@@ -130,6 +130,38 @@ machine. Regression coverage is in
 and
 `tests/test_experiment_runner_pr_creative_context.py::test_approval_schema_encodes_decision_state_machine`.
 
+Disposition: FIXED
+Source: post-open `security-auditor`
+Commit: b38ed557e8252a5f9b43404983c3555d66bf1b1d
+Evidence:
+`docs/orchestration/contracts/creative_protocol_context_map.v1.schema.json` and
+`docs/orchestration/contracts/experiment_runner_pr_oracle_attachment.v1.schema.json`
+now add segment-level traversal bans to `artifact_ref`, preventing
+`artifacts/orchestration/experiments/../...` references from passing
+schema-only validation. Regression coverage is in
+`tests/test_experiment_runner_pr_creative_context.py::test_artifact_ref_schemas_reject_traversal_segments`.
+
+Disposition: FIXED
+Source: post-open `security-auditor`
+Commit: b38ed557e8252a5f9b43404983c3555d66bf1b1d
+Evidence: This mapping artifact no longer stores machine-local absolute
+interpreter paths; command evidence now uses the repo-relative
+`scripts/hooks/repo_python.sh` resolver form required by
+`docs/ENGINEERING_LESSONS.md`.
+
+Disposition: FIXED
+Source: post-open `security-auditor`
+Commit: b38ed557e8252a5f9b43404983c3555d66bf1b1d
+Evidence:
+`scripts/orchestration/experiment_runner_pr_creative_context_contract.py` now
+requires accepted oracle attachments to include `result_fingerprint`, and
+`docs/orchestration/contracts/experiment_runner_pr_oracle_attachment.v1.schema.json`
+adds an accepted-status schema guard requiring both `result_ref` and
+`result_fingerprint`. Regression coverage is in
+`tests/test_experiment_runner_pr_creative_context.py::test_accepted_oracle_attachment_requires_fingerprint`
+and
+`tests/test_experiment_runner_pr_creative_context.py::test_oracle_attachment_schema_requires_fingerprint_for_accepted_status`.
+
 ## Experiment Runner Evidence
 
 - Artifact: `artifacts/orchestration/experiments/results/exp-faf9d17cb8f9.json`
@@ -164,6 +196,8 @@ and
   `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/test_experiment_runner_pr_creative_context.py tests/test_task_bootstrap.py tests/test_render_codex_start_prompt.py tests/test_creative_code_review_disposition.py tests/test_creative_code_private_pilot_loop.py`.
 - PASS after bug-hunter fixes: JSON parse check for the touched creative-context
   schema files.
+- PASS after security-auditor fixes:
+  `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/test_experiment_runner_pr_creative_context.py tests/test_task_bootstrap.py tests/test_render_codex_start_prompt.py tests/test_creative_code_review_disposition.py tests/test_creative_code_private_pilot_loop.py`.
 
 ## Merge Readiness
 
