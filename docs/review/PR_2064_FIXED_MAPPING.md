@@ -50,7 +50,7 @@ auth/tier/BOLA refactor work is included.
 - [x] Initial PR open: no GitHub review threads were resolved before mapping.
 - [x] Post-open `qa-engineer-agent` pass completed.
 - [x] Post-open `bug-hunter` pass completed.
-- [ ] Post-open `security-auditor` pass completed.
+- [x] Post-open `security-auditor` pass completed.
 - [ ] Codex Security diff scan / finding discovery completed.
 - [ ] `pulseplate-pr-review` completed.
 - [ ] Current-head CI complete before readiness language.
@@ -174,3 +174,15 @@ Evidence: Post-open bug-hunter found no additional actionable bugs in the
 current HEAD diff for duplicate/partial registration, startup/import behavior,
 auth/subject ownership, idempotency, legacy alias metric/delegation, or OpenAPI
 visibility.
+
+Role: `security-auditor`
+
+Disposition: NOT-A-BUG
+
+Evidence: Post-open security-auditor reviewed the current HEAD diff for
+BOLA/API5, route dependency preservation, legacy alias auth/observability/
+delegation, OpenAPI hidden alias behavior, fail-closed startup, and
+governance/security artifact hygiene. No actionable security findings were
+identified. Read-only validation covered preflight, focused security bundle,
+docs local-path guard, Phase 2 artifact validator, legacy growth guard, and
+live route-table checks.
