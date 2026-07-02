@@ -66,14 +66,14 @@ class TestBusinessRouterIsolated:
         self.app.dependency_overrides[require_app_api_key] = _raise_forbidden
 
     def test_status_enabled_true(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr(self.mod, "BUSINESS_MODULE_ENABLED", True)
+        monkeypatch.setenv("BUSINESS_MODULE_ENABLED", "true")
 
         resp = self.client.get("/api/v1/business/status")
         assert resp.status_code == 200, resp.text
         assert resp.json() == {"enabled": True, "module": "business_analysis"}
 
     def test_status_enabled_false(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr(self.mod, "BUSINESS_MODULE_ENABLED", False)
+        monkeypatch.setenv("BUSINESS_MODULE_ENABLED", "false")
 
         resp = self.client.get("/api/v1/business/status")
         assert resp.status_code == 200, resp.text
@@ -81,14 +81,14 @@ class TestBusinessRouterIsolated:
 
     def test_analyze_422_missing_code(self, monkeypatch: pytest.MonkeyPatch) -> None:
         self._auth_ok()
-        monkeypatch.setattr(self.mod, "BUSINESS_MODULE_ENABLED", True)
+        monkeypatch.setenv("BUSINESS_MODULE_ENABLED", "true")
 
         resp = self.client.post("/api/v1/business/analyze", json={"test_name": "t1"})
         assert resp.status_code == 422
 
     def test_analyze_403_when_api_key_guard_rejects(self, monkeypatch: pytest.MonkeyPatch) -> None:
         self._auth_forbidden()
-        monkeypatch.setattr(self.mod, "BUSINESS_MODULE_ENABLED", True)
+        monkeypatch.setenv("BUSINESS_MODULE_ENABLED", "true")
 
         resp = self.client.post(
             "/api/v1/business/analyze",
@@ -323,7 +323,7 @@ class TestBusinessRouterIsolated:
 
     def test_analyze_503_when_module_disabled(self, monkeypatch: pytest.MonkeyPatch) -> None:
         self._auth_ok()
-        monkeypatch.setattr(self.mod, "BUSINESS_MODULE_ENABLED", False)
+        monkeypatch.setenv("BUSINESS_MODULE_ENABLED", "false")
 
         def _business_module_disabled(_locale: object, _key: object) -> str:
             return "business_module_disabled"
@@ -343,7 +343,7 @@ class TestBusinessRouterIsolated:
 
     def test_analyze_413_payload_too_large(self, monkeypatch: pytest.MonkeyPatch) -> None:
         self._auth_ok()
-        monkeypatch.setattr(self.mod, "BUSINESS_MODULE_ENABLED", True)
+        monkeypatch.setenv("BUSINESS_MODULE_ENABLED", "true")
 
         def _payload_too_large(_locale: object, _key: object) -> str:
             return "business_payload_too_large"
@@ -365,7 +365,7 @@ class TestBusinessRouterIsolated:
     def test_analyze_200_payload_at_size_limit(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Exact 100KB payload should be accepted (boundary test for < vs <=)."""
         self._auth_ok()
-        monkeypatch.setattr(self.mod, "BUSINESS_MODULE_ENABLED", True)
+        monkeypatch.setenv("BUSINESS_MODULE_ENABLED", "true")
 
         expected = [
             _AnalyzerResult(
@@ -400,7 +400,7 @@ class TestBusinessRouterIsolated:
 
     def test_analyze_happy_path_maps_results(self, monkeypatch: pytest.MonkeyPatch) -> None:
         self._auth_ok()
-        monkeypatch.setattr(self.mod, "BUSINESS_MODULE_ENABLED", True)
+        monkeypatch.setenv("BUSINESS_MODULE_ENABLED", "true")
 
         expected = [
             _AnalyzerResult(
@@ -449,7 +449,7 @@ class TestBusinessRouterIsolated:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         self._auth_ok()
-        monkeypatch.setattr(self.mod, "BUSINESS_MODULE_ENABLED", True)
+        monkeypatch.setenv("BUSINESS_MODULE_ENABLED", "true")
         monkeypatch.setattr(
             self.mod,
             "_localized_error",

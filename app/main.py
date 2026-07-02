@@ -48,7 +48,9 @@ from app.routers.admin_operations import (
     ADMIN_OPERATION_ROUTE_SPECS,
     router as admin_operations_router,
 )
+from app.routers.api_key import require_app_api_key
 from app.routers.bodyfat import BODYFAT_ROUTE_SPECS, router as bodyfat_router
+from app.routers.business import BUSINESS_ROUTE_SPECS, router as business_router
 from app.routers.bmi_compat import BMI_COMPAT_ROUTE_SPECS, router as bmi_compat_router
 from app.routers.bmi_registration import BmiRouteRegistration, register_bmi_routes
 from app.routers.billing import register_billing_routes
@@ -85,7 +87,7 @@ from app.routers.test import (
 )
 from app.routers.vip_registration import register_vip_routes
 from app.schemas.direct_api_root import DirectApiRootProbe
-from app.utils.feature_flags import is_vip_module_enabled
+from app.utils.feature_flags import is_business_module_enabled, is_vip_module_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -132,6 +134,10 @@ _BMI_COMPAT_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = tuple(
 _BODYFAT_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = tuple(
     (path, method.upper(), include_in_schema)
     for path, method, include_in_schema in BODYFAT_ROUTE_SPECS
+)
+_BUSINESS_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = tuple(
+    (path, method.upper(), include_in_schema)
+    for path, method, include_in_schema in BUSINESS_ROUTE_SPECS
 )
 _TEST_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = tuple(
     (path, method.upper(), include_in_schema)
@@ -282,6 +288,18 @@ def _bodyfat_route_members() -> tuple[RouteMemberContract, ...]:
             include_in_schema=include_in_schema,
         )
         for path, method, include_in_schema in _BODYFAT_ROUTE_SPECS
+    )
+
+
+def _business_route_members() -> tuple[RouteMemberContract, ...]:
+    return tuple(
+        RouteMemberContract(
+            path=path,
+            method=method,
+            include_in_schema=include_in_schema,
+            required_dependencies=(require_app_api_key,) if path.endswith("/analyze") else (),
+        )
+        for path, method, include_in_schema in _BUSINESS_ROUTE_SPECS
     )
 
 
@@ -800,6 +818,20 @@ def _include_bodyfat_router_if_needed(target_app: FastAPI) -> None:
     )
 
 
+def _include_business_router_if_enabled(target_app: FastAPI) -> None:
+    """Register business routes as one explicitly feature-flagged static family."""
+
+    if not is_business_module_enabled():
+        return
+
+    ensure_route_family_registered(
+        target_app,
+        family_name="Business",
+        routers=(business_router,),
+        members=_business_route_members(),
+    )
+
+
 def _include_test_router_if_enabled(target_app: FastAPI) -> None:
     """Register non-production test routes as one hidden canonical family."""
 
@@ -990,6 +1022,7 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
     _register_bmi_routes(app)
     _include_bmi_compat_router_if_needed(app)
     _include_bodyfat_router_if_needed(app)
+    _include_business_router_if_enabled(app)
     _include_test_router_if_enabled(app)
     _include_plan_export_routers_if_needed(app)
     _include_shoplist_export_router_if_needed(app)

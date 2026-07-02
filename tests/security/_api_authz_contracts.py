@@ -246,6 +246,7 @@ API_AUTHZ_CONTRACTS: tuple[ApiAuthzContract, ...] = (
         MinimumTier.NONE,
         PrincipalSource.OPERATOR_CREDENTIAL,
         OwnershipPolicy.OPERATOR_GLOBAL,
+        ApiExposure.HIDDEN_RUNTIME,
     ),
     _contract(
         "POST",

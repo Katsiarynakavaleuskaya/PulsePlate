@@ -181,7 +181,7 @@ Evidence:
   - `responses=RATE_LIMIT_429_RESPONSES`
   - `@limit_if_available(RATE_LIMIT_EXPORTS)`
 
-### Conditional routers: BMI Pro / Business
+### Conditional routers: BMI Pro
 
 Anchor (stable): `app/main.py -> app/routers/bmi_registration.py` owns BMI route registration; `legacy_app.py` remains a compatibility seam for direct-call shims and mirrored attrs.
 
@@ -193,7 +193,6 @@ Evidence:
 - BMI Pro: registered by `app/main.py` via `app/routers/bmi_registration.py`, included only if `FEATURE_BMI_PRO_ENABLED` is truthy
   - canonical: `/api/v1/pro/bmi`
   - legacy alias: `/api/v1/bmi/pro`
-- Business: included only if `BUSINESS_MODULE_ENABLED` is truthy
 
 ### Bodyfat route family (canonical-owned bootstrap)
 
@@ -219,6 +218,38 @@ Runtime effect:
 - OpenAPI: the source route keeps `include_in_schema=True`, but the final
   canonical OpenAPI builder still filters `/api/v1/bodyfat` out of published
   `/openapi.json`; generated client/OpenAPI artifacts are unchanged.
+
+### Business route family (explicit feature flag, canonical-owned bootstrap)
+
+Anchor (stable): `app/main.py -> _include_business_router_if_enabled(app)` owns
+`app/routers/business.py`.
+
+Evidence:
+- `app/routers/business.py` defines `BUSINESS_ROUTE_SPECS`, source route
+  handlers for `POST /api/v1/business/analyze` and
+  `GET /api/v1/business/status`, and request-time feature checks through
+  `app.utils.feature_flags.is_business_module_enabled()`.
+- `app/utils/feature_flags.py` owns explicit-truthy parsing for
+  `BUSINESS_MODULE_ENABLED`; unset, empty, and false-like values are disabled.
+- `app/main.py -> _include_business_router_if_enabled(app)` registers the
+  business family through `ensure_route_family_registered(...)` and
+  `RouteMemberContract` only when the env var is explicitly truthy.
+- `legacy_app.py` does not import or include `app.routers.business`; the legacy
+  growth guard rejects direct, aliased, module-qualified, dynamic, and walrus
+  business router re-registration there.
+
+Runtime effect:
+- Unset/default `BUSINESS_MODULE_ENABLED`: `/api/v1/business/*` is absent.
+- Explicit truthy `BUSINESS_MODULE_ENABLED` (`1`, `true`, `yes`, `on`):
+  `POST /api/v1/business/analyze` and `GET /api/v1/business/status` are
+  routable exactly once through canonical bootstrap.
+- Auth: `/api/v1/business/analyze` keeps the app API-key dependency;
+  `/api/v1/business/status` remains unauthenticated when the route family is
+  explicitly enabled.
+- OpenAPI: the source routes keep current `include_in_schema=True` visibility,
+  but the final public OpenAPI builder still filters `/api/v1/business/*` out
+  of published `/openapi.json`; generated client/OpenAPI artifacts are expected
+  to remain unchanged.
 
 ### Test router (canonical bootstrap-owned, non-production env)
 

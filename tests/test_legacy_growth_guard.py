@@ -638,6 +638,87 @@ def test_legacy_growth_guard_rejects_aliased_bodyfat_router_registration() -> No
     ]
 
 
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        (
+            textwrap.dedent("""
+                from app.routers.business import router as business_router
+
+                app.include_router(business_router)
+                """),
+            [
+                "legacy_app.py: unexpected legacy route growth: "
+                "registration:include_router:business_router",
+                "legacy_app.py: unexpected app.routers import growth: "
+                "router_import:app.routers.business:router -> business_router",
+            ],
+        ),
+        (
+            textwrap.dedent("""
+                from app.routers.business import router as canonical_business_router
+
+                app.include_router(canonical_business_router)
+                """),
+            [
+                "legacy_app.py: unexpected legacy route growth: "
+                "registration:include_router:canonical_business_router",
+                "legacy_app.py: unexpected app.routers import growth: "
+                "router_import:app.routers.business:router -> canonical_business_router",
+            ],
+        ),
+        (
+            textwrap.dedent("""
+                import app.routers.business as business_routes
+
+                app.include_router(business_routes.router)
+                """),
+            [
+                "legacy_app.py: unexpected legacy route growth: "
+                "registration:include_router:business_routes.router",
+                "legacy_app.py: unexpected app.routers import growth: "
+                "router_import:import:app.routers.business -> business_routes",
+            ],
+        ),
+        (
+            textwrap.dedent("""
+                import importlib
+
+                business_router = importlib.import_module("app.routers.business").router
+                app.include_router(business_router)
+                """),
+            [
+                "legacy_app.py: unexpected legacy route growth: "
+                "registration:include_router:business_router",
+                "legacy_app.py: unexpected app.routers import growth: "
+                "router_import:dynamic:app.routers.business -> business_router",
+            ],
+        ),
+        (
+            textwrap.dedent("""
+                import importlib
+
+                if (business_router := importlib.import_module("app.routers.business").router):
+                    app.include_router(business_router)
+                """),
+            [
+                "legacy_app.py: unexpected legacy route growth: "
+                "registration:include_router:business_router",
+                "legacy_app.py: unexpected app.routers import growth: "
+                "router_import:dynamic:app.routers.business -> business_router",
+            ],
+        ),
+    ],
+)
+def test_legacy_growth_guard_rejects_business_router_reintroduction(
+    source: str,
+    expected: list[str],
+) -> None:
+    errors = legacy_guard.validate_legacy_growth(source)
+
+    assert errors == expected
+
+
 def test_legacy_growth_guard_rejects_module_qualified_bodyfat_router_registration() -> None:
     source = textwrap.dedent("""
         import app.routers.bodyfat as bodyfat_routes
@@ -666,6 +747,8 @@ def test_legacy_growth_guard_rejects_dynamic_bodyfat_router_hidden_as_allowed_na
     errors = legacy_guard.validate_legacy_growth(source)
 
     assert errors == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:include_router:business_router",
         "legacy_app.py: unexpected app.routers import growth: "
         "router_import:dynamic:app.routers.bodyfat -> business_router",
     ]
@@ -680,6 +763,8 @@ def test_legacy_growth_guard_rejects_dunder_import_bodyfat_router_hidden_as_allo
     errors = legacy_guard.validate_legacy_growth(source)
 
     assert errors == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:include_router:business_router",
         "legacy_app.py: unexpected app.routers import growth: "
         "router_import:dynamic:app.routers.bodyfat -> business_router",
     ]
@@ -696,6 +781,8 @@ def test_legacy_growth_guard_rejects_aliased_import_module_bodyfat_router() -> N
     errors = legacy_guard.validate_legacy_growth(source)
 
     assert errors == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:include_router:business_router",
         "legacy_app.py: unexpected app.routers import growth: "
         "router_import:dynamic:app.routers.bodyfat -> business_router",
     ]
@@ -712,6 +799,8 @@ def test_legacy_growth_guard_rejects_aliased_builtin_import_bodyfat_router() -> 
     errors = legacy_guard.validate_legacy_growth(source)
 
     assert errors == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:include_router:business_router",
         "legacy_app.py: unexpected app.routers import growth: "
         "router_import:dynamic:app.routers.bodyfat -> business_router",
     ]
@@ -729,6 +818,8 @@ def test_legacy_growth_guard_rejects_simple_import_module_alias_bodyfat_router()
     errors = legacy_guard.validate_legacy_growth(source)
 
     assert errors == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:include_router:business_router",
         "legacy_app.py: unexpected app.routers import growth: "
         "router_import:dynamic:app.routers.bodyfat -> business_router",
     ]
@@ -744,6 +835,8 @@ def test_legacy_growth_guard_rejects_simple_dunder_import_alias_bodyfat_router()
     errors = legacy_guard.validate_legacy_growth(source)
 
     assert errors == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:include_router:business_router",
         "legacy_app.py: unexpected app.routers import growth: "
         "router_import:dynamic:app.routers.bodyfat -> business_router",
     ]
@@ -760,6 +853,8 @@ def test_legacy_growth_guard_rejects_destructured_dynamic_bodyfat_router() -> No
     errors = legacy_guard.validate_legacy_growth(source)
 
     assert errors == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:include_router:business_router",
         "legacy_app.py: unexpected app.routers import growth: "
         "router_import:dynamic:app.routers.bodyfat -> business_router",
     ]
@@ -776,6 +871,8 @@ def test_legacy_growth_guard_rejects_walrus_dynamic_bodyfat_router() -> None:
     errors = legacy_guard.validate_legacy_growth(source)
 
     assert errors == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:include_router:business_router",
         "legacy_app.py: unexpected app.routers import growth: "
         "router_import:dynamic:app.routers.bodyfat -> business_router",
     ]
@@ -793,6 +890,8 @@ def test_legacy_growth_guard_rejects_walrus_import_function_alias_bodyfat_router
     errors = legacy_guard.validate_legacy_growth(source)
 
     assert errors == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:include_router:business_router",
         "legacy_app.py: unexpected app.routers import growth: "
         "router_import:dynamic:app.routers.bodyfat -> business_router",
     ]
@@ -909,6 +1008,8 @@ def test_legacy_growth_guard_rejects_nested_dynamic_bodyfat_router_composition()
     errors = legacy_guard.validate_legacy_growth(source)
 
     assert errors == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:include_router:business_router",
         "legacy_app.py: unexpected app.routers import growth: "
         "router_import:dynamic:app.routers.bodyfat -> business_router.include_router",
     ]
