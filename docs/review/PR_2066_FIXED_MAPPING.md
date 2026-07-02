@@ -46,8 +46,8 @@ Out of scope:
 - [x] Post-open `qa-engineer-agent` pass completed.
 - [x] Post-open `bug-hunter` pass completed.
 - [x] Post-open `security-auditor` pass completed.
-- [ ] Codex Security diff scan / finding discovery completed.
-- [ ] `pulseplate-pr-review` completed.
+- [x] Codex Security diff scan / finding discovery completed.
+- [x] `pulseplate-pr-review` completed.
 - [ ] CodeRabbit actionable review comments checked and dispositioned.
 - [ ] Sourcery actionable review comments checked and dispositioned.
 - [ ] Cubic actionable review comments checked and dispositioned.
@@ -159,13 +159,39 @@ scope widening. It confirmed that the premortem closures are code/test-backed.
 
 ## Codex Security
 
-Pending. A Codex Security diff scan / finding discovery pass is still required
-before any merge-readiness claim.
+Disposition: NOT-A-BUG
+
+Evidence:
+
+- Scan ID: `21647199-e9cc-44b4-b4f2-82f9ea9fa40c`
+- Mode: branch diff over
+  `0e5b8c62e4dc2e8286b393d5d0ce15409a87b2a6...5c10e731a1791c53ea61f68bba7e846ca319dc6f`
+- Coverage: 5/5 reviewed surfaces closed.
+- Findings: 0 reportable findings.
+- Report:
+  `/private/var/folders/bw/12x002vn67v2bvjpbhbtm8480000gn/T/codex-security-scans-nU0tuF/move-shopping-list-registration-to-canonical-bootstrap/5c10e731a1791c53ea61f68bba7e846ca319dc6f_20260702T220104Z_9sujpp6k/report.md`
+- Reviewed surfaces:
+  `app/main.py`, `app/routers/shopping_list_pro.py`,
+  `app/routers/shoplist_day.py`, `legacy_app.py`, and
+  `scripts/ci/check_legacy_growth_guard.py`.
 
 ## PulsePlate PR Review
 
-Pending. A `pulseplate-pr-review` pass is still required before any
-merge-readiness claim.
+Disposition: NOT-A-BUG
+
+Evidence:
+
+- Report: `/tmp/pulseplate_pr_review_report_2066.md`
+- Context: `/tmp/pulseplate_pr_review_context_2066.json`
+- The dry-run reported one advisory `large-diff-risk` note because the PR has
+  648 added lines. This is expected for this bounded slice: most added lines are
+  targeted tests plus the PR fixed-mapping artifact, and the runtime scope
+  remains the two paid shopping-list route registrations.
+- Gate evidence: `make validate-changed`, `pre-commit run --all-files`, and the
+  focused shopping/auth/OpenAPI/legacy guard pytest bundle passed.
+- Calibration check:
+  `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/test_pr_review_report.py tests/test_pr_review_context.py`
+  passed.
 
 ## Local Evidence
 
@@ -179,6 +205,8 @@ merge-readiness claim.
   `artifacts/orchestration/experiments/results/exp-e478f895d5a7.json`
 - PASS: `make validate-changed`
 - PASS: `pre-commit run --all-files`
+- PASS:
+  `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/test_pr_review_report.py tests/test_pr_review_context.py`
 - PASS: pre-push hooks during `git push`, including backend pre-push tests,
   full-repo Bandit pre-push, and docker build test.
 
@@ -192,6 +220,6 @@ merge-readiness claim.
 
 ## Merge Readiness
 
-Not claimed. Current-head CI, Codex Security diff scan, `pulseplate-pr-review`,
-bot review disposition, review-thread disposition checks, and strict
-merge-readiness governance remain required before any merge-readiness claim.
+Not claimed. Current-head CI, bot review disposition, review-thread disposition
+checks, and strict merge-readiness governance remain required before any
+merge-readiness claim.
