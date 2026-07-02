@@ -101,8 +101,15 @@ source.
 
 ## Fixed in Commit Mapping
 
+Disposition: FIXED
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2061#discussion_r3511088671 -> 77001496e05fbabe53c371ffb6e92cb83e3858c7
+Commit: 77001496e05fbabe53c371ffb6e92cb83e3858c7
+Evidence: `tests/test_coverage_boost_final.py` uses `monkeypatch.setenv("BUSINESS_MODULE_ENABLED", "true")`; targeted pytest, `make validate-changed`, and `pre-commit run --all-files` passed.
+
+Disposition: NOT-A-BUG
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2061#pullrequestreview-4615160415
+Evidence: Sourcery's async-test suggestion conflicts with `tests/AGENTS.md` hook guidance for pre-commit-selected tests, and the bootstrap-helper suggestion would add production API outside this narrow route-ownership PR.
+Reason: Current test shape intentionally covers the private canonical bootstrap seam changed by this PR without widening runtime API surface.
 
 ## Initial Mapping Evidence
 
