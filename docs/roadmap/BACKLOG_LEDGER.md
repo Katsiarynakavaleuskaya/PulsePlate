@@ -200,7 +200,8 @@ If it is not recorded here — it does not exist.
 - [ ] P1: Container image gzip CVE remediation (CVE-2026-41992)
   - Owner: @katsiaryna_kavaleuskaya (Security/SRE)
   - Priority: P1
-  - Target PR: codex/fix-main-docker-publish-gzip-cve-2026-41992
+  - Target PR: PR #2062 — https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2062
+  - Branch: codex/fix-main-docker-publish-gzip-cve-2026-41992
   - Status: In progress
   - Area: security / container / supply-chain
   - Reason (EN): Main Docker publish Trivy reports `gzip 1.12-1` for `CVE-2026-41992` with blank fixed-version metadata. Debian bookworm, trixie, and sid still mark their current `gzip` lines vulnerable, so this emergency lane remediates by production package removal instead of adding `.trivyignore` or `trivy/ignore-policy.rego` suppression.
