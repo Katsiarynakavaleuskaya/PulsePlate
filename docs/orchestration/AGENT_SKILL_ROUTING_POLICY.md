@@ -266,7 +266,7 @@ The following touched paths must automatically boost security-oriented skills:
 - `scripts/orchestration/**`, `scripts/ci/**`, and `scripts/release/**`
 - merge-governance docs under `docs/orchestration/**` and `docs/review/**`
 - container, deploy, devcontainer, and security-scan policy under `Dockerfile`, `.dockerignore`, `.trivyignore`, `.devcontainer` Docker/Compose/devcontainer files, deploy Caddy/Compose patterns, `frontend/Dockerfile.caddy-spa`, and `trivy/**`
-- dependency, quality-gate, and repo-governance control files matching `.pre-commit-config.yaml`, `.pre-commit-config.yml`, `.github/CODEOWNERS`, `.github/actionlint.yml`, `.github/actionlint.yaml`, `.github/dependabot.yml`, `.github/dependabot.yaml`, `pyproject.toml`, root/frontend `package*.json`, `ios/Gemfile*`, `ios/Package.swift`, `ios/Package.resolved`, `requirements*.txt`, `requirements*.in`, `constraints*.txt`, `scripts/ci_*.sh`, and `scripts/deploy_*.sh`
+- dependency, quality-gate, and repo-governance control files matching `AGENTS.md`, `RUNBOOK_AGENT.md`, `Makefile`, `.bandit`, `.bandit.yaml`, `.pre-commit-config.yaml`, `.pre-commit-config.yml`, `.github/CODEOWNERS`, `.github/PULL_REQUEST_TEMPLATE/*.md`, `.github/actionlint.yml`, `.github/actionlint.yaml`, `.github/dependabot.yml`, `.github/dependabot.yaml`, `.github/pull_request_template.md`, `pyproject.toml`, root/frontend `package*.json`, `ios/Gemfile*`, `ios/Package.swift`, `ios/Package.resolved`, `requirements*.txt`, `requirements*.in`, `constraints*.txt`, `scripts/hooks/repo_python.sh`, `scripts/run-backend-tests-pre-commit.sh`, `scripts/ci_*.sh`, and `scripts/deploy_*.sh`
 
 Expected behavior:
 

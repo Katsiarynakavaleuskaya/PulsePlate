@@ -1214,6 +1214,15 @@ def test_task_bootstrap_keeps_security_auditor_in_privileged_review_path() -> No
         "docs/orchestration/workflow.md",
         "docs/review/PR_1254_FIXED_MAPPING.md",
         "trivy/policy.rego",
+        "AGENTS.md",
+        "Makefile",
+        "RUNBOOK_AGENT.md",
+        ".bandit",
+        ".bandit.yaml",
+        ".github/PULL_REQUEST_TEMPLATE/design.md",
+        ".github/pull_request_template.md",
+        "scripts/hooks/repo_python.sh",
+        "scripts/run-backend-tests-pre-commit.sh",
     ),
 )
 def test_task_bootstrap_marks_privileged_review_surfaces_as_privileged(

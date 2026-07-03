@@ -4442,7 +4442,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Policy-only skills cannot drift out of the implementation without failing deterministic tests
     - Privileged-surface triggers and requested-agent bundle reasons are emitted in routing metadata
 
-- [x] P1: Privileged workflow security-review requirement for orchestration and release surfaces
+- [ ] P1: Privileged workflow security-review requirement for orchestration and release surfaces
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR #2067
@@ -4452,11 +4452,13 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     orchestration/CI/release scripts, merge-governance docs,
     Trivy/root Docker/Compose, devcontainer controls, deploy Caddy/Compose,
     frontend Caddy Dockerfile/npm manifests, iOS Gemfile/SwiftPM manifests,
-    root quality-gate configs, root CI/deploy helper scripts, GitHub
-    CODEOWNERS/actionlint, Dependabot YAML variants, or root
-    requirements/constraints manifests can change privileged automation and
-    supply-chain posture; PR #2067 centralizes this matcher and forces
-    executable `security-auditor` review for matched surfaces.
+    root security/quality-gate configs, root CI/deploy/test-gate helper
+    scripts, root AGENTS/RUNBOOK/Makefile policy entrypoints, GitHub
+    CODEOWNERS/actionlint/PR-template governance, Dependabot YAML variants, or
+    root requirements/constraints manifests can change privileged automation
+    and supply-chain posture; PR #2067 is the active target to centralize this
+    matcher and force executable `security-auditor` review for matched
+    surfaces.
   - Links:
     - `AGENTS.md`
     - `RUNBOOK_AGENT.md`
@@ -4474,7 +4476,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - DoD:
     - Canonical docs define the privileged-surface trigger list via `bootstrap_sync_policy.py`
     - Coordinator/bootstrap preserves `security-auditor` in the executable review path for those surfaces
-    - Deterministic tests cover workflow/action/Fastlane/orchestration/release/docs/Trivy/root-Docker/devcontainer/deploy-Caddy-Compose/frontend-Caddy-Dockerfile/npm/iOS-Gemfile-SwiftPM/quality-gate-config/root-CI-deploy-helper/GitHub-governance/dependency-manifest
+    - PR #2067 is merged or an explicit won't-do closeout is recorded before this checkbox is closed
+    - Deterministic tests cover workflow/action/Fastlane/orchestration/release/docs/Trivy/root-Docker/devcontainer/deploy-Caddy-Compose/frontend-Caddy-Dockerfile/npm/iOS-Gemfile-SwiftPM/quality-gate-config/root-CI-deploy-test-helper/root-policy-entrypoint/GitHub-governance/dependency-manifest
       review routing
     - Merge-readiness docs explain that this is a default requirement, not optional reviewer theater
 

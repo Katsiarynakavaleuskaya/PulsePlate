@@ -122,8 +122,9 @@ Bootstrap evidence: `scripts/orchestration/routing_graph_loader.py`, `scripts/or
     scripts, orchestration/review docs, Trivy policy, root Docker/Compose
     files, devcontainer controls, deploy Caddy/Compose surfaces, frontend Caddy
     Dockerfile and npm manifests, iOS Gemfile and SwiftPM manifests, root
-    quality-gate configs, root CI/deploy helper scripts, GitHub CODEOWNERS and
-    actionlint controls, Dependabot YAML variants, requirements, and
+    security/quality-gate configs, root CI/deploy/test-gate helper scripts,
+    root AGENTS/RUNBOOK/Makefile policy entrypoints, GitHub CODEOWNERS,
+    PR-template, and actionlint controls, Dependabot YAML variants, requirements, and
     constraints manifests.
 16. **Docs vs research split:** internal policy/runbook/docs maintenance defaults to `docs` -> `cursor-specialist-agent`; external web/OSS intake remains `research` -> `web-research-agent`.
 
