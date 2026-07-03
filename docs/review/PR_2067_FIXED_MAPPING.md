@@ -54,7 +54,7 @@ BOLA, dependency upgrades, or GitHub workflow edits are included.
 - `3ff73044a` - fixes the coordinator premortem risk that the Xcode project
   package-reference file could bypass privileged review routing even though it
   can carry SwiftPM dependency references.
-- Pending current-head Codex Security fix - normalizes bounded dot-segment
+- `067ff4dca` - normalizes bounded dot-segment
   paths before privileged matching and adds coverage-governance files
   `.coveragerc` / `codecov.*` to the privileged matcher.
 
@@ -89,6 +89,7 @@ guidance at the shared matcher; `tests/test_skill_router.py` locks the
 AGENTS/RUNBOOK sync note.
 
 Disposition: FIXED
+Commit: 067ff4dca
 Reason: Current-head Codex Security file review found that bounded dot-segment
 candidate paths such as `docs/../.github/workflows/ci.yml` could bypass the
 standalone matcher even though they resolve to a privileged surface. The fix
@@ -101,6 +102,7 @@ and `tests/test_skill_router.py` cover bounded dot-segment positives, while
 closed before packet construction.
 
 Disposition: FIXED
+Commit: 067ff4dca
 Reason: Current-head Codex Security file review found `.coveragerc` and
 `codecov.*` are coverage-governance controls that can affect local/CI coverage
 truth and should not route as ordinary config when this PR is explicitly
@@ -571,6 +573,7 @@ with 0 findings and complete coverage over 11 changed surfaces. Report:
 Role: `codex-security-current-head`
 
 Disposition: FIXED
+Commit: 067ff4dca
 
 Reason: Current-head Codex Security scan `bce4adbf-5ab0-4801-b495-256425cf57d4`
 found two actionable matcher-governance candidates: bounded dot-segment path
