@@ -60,6 +60,10 @@ BOLA, dependency upgrades, or GitHub workflow edits are included.
 - `7005eb031` - fixes the latest review-control findings by adding bounded
   privileged coverage for yamllint config, submodule metadata, repo-local hook
   scripts, Python/Ruby toolchain pins, and the CI environment validation helper.
+- `b6fa2dbae` - fixes the latest agent/control-plane review findings by adding
+  bounded privileged coverage for GitHub helper scripts, scoped AGENTS files,
+  authz contract tests, skill installer/source surfaces, cybersecurity skill
+  bundle content, and Cursor control-plane configs.
 
 ## Lane Start Provenance
 
@@ -423,6 +427,52 @@ Disposition: FIXED
 Commit: 7005eb031
 Reason: `scripts/validate-ci-environment.sh` is a workflow-called CI/CD environment validation helper, so helper-only edits can weaken deploy-environment validation without matching the existing `scripts/ci/` or `scripts/deploy_*.sh` surfaces.
 Evidence: The matcher now covers exact `scripts/validate-ci-environment.sh`; focused bootstrap, skill-router, and task-bootstrap tests prove the positive path and keep `scripts/validate-ci-environment/archive.sh` as a nested negative control.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3520535964
+Disposition: NOT-A-BUG
+Reason: The review comment validates against synthetic target commit `7a1145d18df7c1333947c166af583ec7b066b839`, which is not present in the local or pushed PR branch history. Repo merge-readiness disposition proof is based on real branch commits and commit-after-comment ancestry on the PR head, not on a transient review-only synthetic object.
+Evidence: `git cat-file -t 7a1145d18df7c1333947c166af583ec7b066b839` fails locally, while `git merge-base --is-ancestor 21e64df95 HEAD` and `git merge-base --is-ancestor 7005eb031 HEAD` both return 0. The strict disposition guard reports all resolved threads have disposition proof and commit-after-comment.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3520535970
+Disposition: NOT-A-BUG
+Reason: Experiment Runner attribution is required on commits where Experiment Runner materially contributed. The material oracle evidence shaped the original implementation commit, and that commit carries the required trailer. Later review-fix commits and GitHub synthetic review commits did not use Experiment Runner output as material contribution, so adding the trailer there would be inaccurate.
+Evidence: `git show -s --format=%B b09ea4d9d` contains `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`, and `git merge-base --is-ancestor b09ea4d9d HEAD` returns 0.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3520535977 -> b6fa2dbae
+Disposition: FIXED
+Commit: b6fa2dbae
+Reason: GitHub helper scripts under `.github/scripts/**` are workflow-adjacent privileged controls already treated as workflow risk by CI risk profiling, so helper-only changes must not bypass executable security review.
+Evidence: The matcher now covers `.github/scripts/`; focused bootstrap, skill-router, and task-bootstrap tests cover `.github/scripts/parse-safety-report.py`, while `.github/script/` and `.github/scripts-notes/` remain negative controls.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3520535982 -> b6fa2dbae
+Disposition: FIXED
+Commit: b6fa2dbae
+Reason: Scoped `AGENTS.md` files define mandatory local policy for their subtrees, so scoped policy changes are governance changes rather than ordinary docs.
+Evidence: The matcher now supports the bounded `**/AGENTS.md` pattern; focused bootstrap, skill-router, and task-bootstrap tests cover `scripts/AGENTS.md` and `tests/AGENTS.md`, while `AGENTS.md.backup` lookalikes stay non-privileged.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3520535991 -> b6fa2dbae
+Disposition: FIXED
+Commit: b6fa2dbae
+Reason: `tests/security/_api_authz_contracts.py` is the required auth/tier/ownership route registry, and its static contract test guards that registry; changing either can weaken authorization coverage without touching production routes.
+Evidence: The matcher now covers `tests/security/_api_authz_contracts.py` and `tests/security/test_api_authz_contract_static.py`; focused tests cover both positives and nested/lookalike negatives.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3520535997 -> b6fa2dbae
+Disposition: FIXED
+Commit: b6fa2dbae
+Reason: `scripts/install_codex_skills.sh` controls official/compat skill installation targets and cybersecurity bundle handling, so installer-only changes can alter agent skill sources or destinations.
+Evidence: The matcher now covers exact `scripts/install_codex_skills.sh`; focused tests prove the positive path and keep `scripts/install_codex_skills/archive.sh` non-privileged.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3520536004 -> b6fa2dbae
+Disposition: FIXED
+Commit: b6fa2dbae
+Reason: Repo skill sources, discovery mirror entries, and the cybersecurity skill bundle are agent behavior/control-plane inputs; skill-only changes can weaken gate, review, or security instructions.
+Evidence: The matcher now covers `.agents/skills/`, `tools/codex_skills/`, and `tools/cybersecurity_skills/`; focused bootstrap, skill-router, and task-bootstrap tests cover representative positive paths and lookalike negatives.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3520536010 -> b6fa2dbae
+Disposition: FIXED
+Commit: b6fa2dbae
+Reason: Cursor command/rule/MCP example files shape cold-start behavior, security-skill discovery, and local MCP wiring, so they are control-plane surfaces like `.cursor/agents/**`.
+Evidence: The matcher now covers `.cursor/commands/`, `.cursor/rules/`, and `.cursor/mcp.json.example`; focused tests cover representative positives and keep `.cursor/command/`, `.cursor/rules-notes/`, and `.cursor/mcp.json` as negative controls.
 
 ## Role-Agent / Premortem Closeout
 
