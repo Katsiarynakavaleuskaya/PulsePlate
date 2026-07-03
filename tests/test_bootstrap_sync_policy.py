@@ -79,6 +79,7 @@ def test_bootstrap_sync_policy_freezes_privileged_review_patterns() -> None:
         "RUNBOOK_AGENT.md",
         ".bandit",
         ".bandit.yaml",
+        ".coveragerc",
         ".coderabbit.yaml",
         ".dockerignore",
         ".nvmrc",
@@ -98,6 +99,8 @@ def test_bootstrap_sync_policy_freezes_privileged_review_patterns() -> None:
         ".github/dependabot.yml",
         ".github/dependabot.yaml",
         ".github/pull_request_template.md",
+        "codecov.yml",
+        "codecov.yaml",
         "docker-compose*.yml",
         "docker-compose*.yaml",
         "deploy/Caddyfile*",
@@ -274,6 +277,7 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     """Privileged review detection should stay aligned with the canonical prefix set."""
 
     assert requires_security_review([".github/workflows"]) is True
+    assert requires_security_review(["docs/../.github/workflows/ci.yml"]) is True
     assert requires_security_review([".cursor/agents/security-auditor.md"]) is True
     assert requires_security_review([".github/actions/setup/action.yml"]) is True
     assert requires_security_review(["scripts/ci"]) is True
@@ -287,10 +291,12 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     assert requires_security_review(["trivy/policy.rego"]) is True
     assert requires_security_review(["AGENTS.md"]) is True
     assert requires_security_review(["Dockerfile"]) is True
+    assert requires_security_review(["build/../Dockerfile"]) is True
     assert requires_security_review(["Makefile"]) is True
     assert requires_security_review(["RUNBOOK_AGENT.md"]) is True
     assert requires_security_review([".bandit"]) is True
     assert requires_security_review([".bandit.yaml"]) is True
+    assert requires_security_review([".coveragerc"]) is True
     assert requires_security_review([".coderabbit.yaml"]) is True
     assert requires_security_review([".dockerignore"]) is True
     assert requires_security_review([".nvmrc"]) is True
@@ -308,6 +314,8 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     assert requires_security_review([".github/dependabot.yml"]) is True
     assert requires_security_review([".github/dependabot.yaml"]) is True
     assert requires_security_review([".github/pull_request_template.md"]) is True
+    assert requires_security_review(["codecov.yml"]) is True
+    assert requires_security_review(["codecov.yaml"]) is True
     assert requires_security_review(["docker-compose.yaml"]) is True
     assert requires_security_review(["docker-compose.prod.yml"]) is True
     assert requires_security_review(["deploy/Caddyfile"]) is True
@@ -359,6 +367,8 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     assert requires_security_review(["worker.js"]) is True
     assert requires_security_review(["wrangler.toml"]) is True
     assert requires_security_review(["script/orchestration/config.yml"]) is False
+    assert requires_security_review(["../Dockerfile"]) is False
+    assert requires_security_review(["../.github/workflows/ci.yml"]) is False
     assert requires_security_review(["tests/test_task_bootstrap.py"]) is False
     assert requires_security_review(["tests/guarded/test_nosec_policy_guard.py"]) is False
     assert requires_security_review(["docs/pyproject.toml"]) is False
@@ -378,6 +388,8 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     assert requires_security_review([".github/PULL_REQUEST_TEMPLATE/nested/design.md"]) is False
     assert requires_security_review([".github/pull_request_template/archive.md"]) is False
     assert requires_security_review([".github/actionlint/rules.yaml"]) is False
+    assert requires_security_review(["docs/.coveragerc"]) is False
+    assert requires_security_review(["docs/codecov.yml"]) is False
     assert requires_security_review(["frontend/nested/Dockerfile.caddy-spa"]) is False
     assert requires_security_review(["frontend/nested/.dockerignore"]) is False
     assert requires_security_review(["frontend/packages/package-lock.json"]) is False
@@ -413,8 +425,12 @@ def test_bootstrap_sync_policy_returns_stable_privileged_review_labels() -> None
     assert privileged_review_surface_matches(
         [
             "./.github/actions/setup/action.yml",
+            "docs/../.github/workflows/ci.yml",
             ".github/actions/cache/action.yml",
             " Dockerfile ",
+            "build/../Dockerfile",
+            ".coveragerc",
+            "codecov.yml",
             "deploy/docker-compose.production.selfhosted.yaml",
             "frontend/package-lock.json",
             "requirements-ci-lite.txt",
@@ -422,7 +438,10 @@ def test_bootstrap_sync_policy_returns_stable_privileged_review_labels() -> None
         ]
     ) == (
         ".github/actions/",
+        ".github/workflows/",
         "Dockerfile",
+        ".coveragerc",
+        "codecov.yml",
         "deploy/docker-compose.production*.yaml",
         "frontend/package*.json",
         "requirements*.txt",

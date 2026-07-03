@@ -54,6 +54,9 @@ BOLA, dependency upgrades, or GitHub workflow edits are included.
 - `3ff73044a` - fixes the coordinator premortem risk that the Xcode project
   package-reference file could bypass privileged review routing even though it
   can carry SwiftPM dependency references.
+- Pending current-head Codex Security fix - normalizes bounded dot-segment
+  paths before privileged matching and adds coverage-governance files
+  `.coveragerc` / `codecov.*` to the privileged matcher.
 
 ## Lane Start Provenance
 
@@ -84,6 +87,28 @@ Evidence: `AGENTS.md`, `RUNBOOK_AGENT.md`,
 `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md` now point agent-facing
 guidance at the shared matcher; `tests/test_skill_router.py` locks the
 AGENTS/RUNBOOK sync note.
+
+Disposition: FIXED
+Reason: Current-head Codex Security file review found that bounded dot-segment
+candidate paths such as `docs/../.github/workflows/ci.yml` could bypass the
+standalone matcher even though they resolve to a privileged surface. The fix
+must be executable, not documentation-only, because skill routing consumes the
+matcher before adding `privileged-surface:*` reasons.
+Evidence: `scripts/orchestration/bootstrap_sync_policy.py` now normalizes POSIX
+dot segments before prefix/pattern matching. `tests/test_bootstrap_sync_policy.py`
+and `tests/test_skill_router.py` cover bounded dot-segment positives, while
+`tests/test_task_bootstrap.py` asserts parent-traversal candidate paths fail
+closed before packet construction.
+
+Disposition: FIXED
+Reason: Current-head Codex Security file review found `.coveragerc` and
+`codecov.*` are coverage-governance controls that can affect local/CI coverage
+truth and should not route as ordinary config when this PR is explicitly
+centralizing privileged review surfaces.
+Evidence: `scripts/orchestration/bootstrap_sync_policy.py` now covers
+`.coveragerc`, `codecov.yml`, and `codecov.yaml`; focused bootstrap,
+skill-router, and task-bootstrap tests cover positive root paths and nested
+lookalike negatives.
 
 ## Experiment Runner Evidence
 
@@ -516,13 +541,15 @@ and task-bootstrap tests cover the new positives plus nested/lookalike negatives
 
 Disposition: NOT-A-BUG
 
-Reason: The final security-auditor pass checked the current PR head and found
+Reason: The earlier security-auditor pass checked the then-current PR head and found
 that all live review-thread URLs were represented in this mapping, every
 `FIXED`/`NOT-A-BUG` block included a `Reason:`, stale-state comments pointed at
 invalid or non-current commits, and the code-side matcher/test coverage closed
-the remaining privileged-surface routing risks.
+the then-known privileged-surface routing risks. Later current-head scan findings
+are recorded in separate entries above rather than treating this older pass as
+current-head proof.
 
-Evidence: Final post-open security-auditor PASS on
+Evidence: Post-open security-auditor PASS on
 `cfedd6a4a013e883c0a0aef2c8f0af020ea72773` confirmed zero unmapped live review
 thread URLs, `MISSING_REASON: none`, valid mapped ancestor commits for live
 fixes, and no new secret/subprocess/nosec/type-ignore/runtime/OpenAPI/BOLA/
@@ -532,16 +559,28 @@ Role: `codex-security`
 
 Disposition: NOT-A-BUG
 
-Reason: The Codex Security diff scan found no reportable candidate because the
-material diff centralizes fail-closed routing, adds positive and negative
-matcher tests, keeps `security-auditor` executable for matched surfaces, and
-does not add runtime entrypoints, subprocess execution, secret handling,
-authorization decisions, route registration, OpenAPI/product behavior, or
-provider calls.
+Reason: The earlier Codex Security diff scan found no reportable candidate for
+the then-current material diff. It is historical evidence only; the active
+current-head Codex Security scan is tracked separately and must provide the
+current-head result after the follow-up matcher fixes are finalized.
 
 Evidence: Scan `f855c09e-b874-45c7-89b1-1bb2bc1efa92` finalized successfully
 with 0 findings and complete coverage over 11 changed surfaces. Report:
 `/private/var/folders/bw/12x002vn67v2bvjpbhbtm8480000gn/T/codex-security-scans-mNIoGV/harden-privileged-surface-review-routing/cfedd6a4a013e883c0a0aef2c8f0af020ea72773_20260703T074800Z_8ze5fph6/report.md`.
+
+Role: `codex-security-current-head`
+
+Disposition: FIXED
+
+Reason: Current-head Codex Security scan `bce4adbf-5ab0-4801-b495-256425cf57d4`
+found two actionable matcher-governance candidates: bounded dot-segment path
+normalization and missing coverage-governance files. Both candidates were
+closed by code/tests/docs before scan finalization, so the final report has 0
+outstanding findings rather than a bare `not a bug` classification.
+
+Evidence: Scan `bce4adbf-5ab0-4801-b495-256425cf57d4` finalized with 0
+outstanding findings after in-scan fixes. Report:
+`/private/var/folders/bw/12x002vn67v2bvjpbhbtm8480000gn/T/codex-security-scans-mNIoGV/harden-privileged-surface-review-routing/86ee4ceb2b9da213261371697165690c5e053c74_20260703T131924Z_pd3xbv2g/report.md`.
 
 Role: `pulseplate-pr-review`
 
@@ -577,8 +616,13 @@ validate-changed` already passed on this branch.
 - `pre-commit run --all-files` passed.
 - Push pre-push hooks passed, including mypy changed files, pip-audit, backend
   tests, full-repo bandit, and docker build test.
-- Codex Security diff scan finalized with 0 findings and complete coverage over
-  11 changed surfaces; report path:
+- Historical Codex Security diff scan finalized with 0 findings for an earlier
+  PR head; the current-head scan is recorded separately after finalization.
+  Historical report path:
   `/private/var/folders/bw/12x002vn67v2bvjpbhbtm8480000gn/T/codex-security-scans-mNIoGV/harden-privileged-surface-review-routing/cfedd6a4a013e883c0a0aef2c8f0af020ea72773_20260703T074800Z_8ze5fph6/report.md`.
+- Current-head Codex Security scan `bce4adbf-5ab0-4801-b495-256425cf57d4`
+  finalized with 0 outstanding findings after fixing two matcher-governance
+  candidates in code/tests/docs; report path:
+  `/private/var/folders/bw/12x002vn67v2bvjpbhbtm8480000gn/T/codex-security-scans-mNIoGV/harden-privileged-surface-review-routing/86ee4ceb2b9da213261371697165690c5e053c74_20260703T131924Z_pd3xbv2g/report.md`.
 - `pulseplate-pr-review` dry-run report completed; its only finding was the
   advisory diff-size `NEEDS-HUMAN` note dispositioned above with rationale.

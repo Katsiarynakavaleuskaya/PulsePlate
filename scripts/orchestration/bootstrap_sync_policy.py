@@ -6,6 +6,7 @@ EN: Centralizes sync-policy constants and matcher rules for the bootstrap packet
 
 from __future__ import annotations
 
+import posixpath
 from collections.abc import Sequence
 from fnmatch import fnmatchcase
 
@@ -47,6 +48,7 @@ PRIVILEGED_REVIEW_PATTERNS: tuple[str, ...] = (
     "RUNBOOK_AGENT.md",
     ".bandit",
     ".bandit.yaml",
+    ".coveragerc",
     ".coderabbit.yaml",
     ".dockerignore",
     ".nvmrc",
@@ -66,6 +68,8 @@ PRIVILEGED_REVIEW_PATTERNS: tuple[str, ...] = (
     ".github/dependabot.yml",
     ".github/dependabot.yaml",
     ".github/pull_request_template.md",
+    "codecov.yml",
+    "codecov.yaml",
     "docker-compose*.yml",
     "docker-compose*.yaml",
     "deploy/Caddyfile*",
@@ -138,9 +142,10 @@ def matches_any_prefix(path: str, prefixes: tuple[str, ...]) -> bool:
 def normalize_policy_path(path: str) -> str:
     """Normalize a repo-relative policy path without resolving filesystem state."""
 
-    normalized = path.strip()
-    while normalized.startswith("./"):
-        normalized = normalized[2:]
+    normalized = path.strip().replace("\\", "/")
+    normalized = posixpath.normpath(normalized)
+    if normalized == ".":
+        return ""
     return normalized
 
 

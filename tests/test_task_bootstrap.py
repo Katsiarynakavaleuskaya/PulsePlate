@@ -1232,6 +1232,9 @@ def test_task_bootstrap_keeps_security_auditor_in_privileged_review_path() -> No
         "RUNBOOK_AGENT.md",
         ".bandit",
         ".bandit.yaml",
+        ".coveragerc",
+        "codecov.yml",
+        "codecov.yaml",
         ".coderabbit.yaml",
         ".secrets.baseline",
         ".sourcery.yaml",
@@ -1284,6 +1287,18 @@ def test_task_bootstrap_does_not_mark_non_privileged_control_path_as_privileged(
     )
 
     assert packet["automation_flags"]["security_review_required"] is False
+
+
+def test_task_bootstrap_rejects_parent_traversal_candidate_paths() -> None:
+    """Parent traversal candidate paths must fail closed before routing."""
+
+    with pytest.raises(ValueError, match="path must stay inside repo"):
+        build_task_packet(
+            goal="Review normalized workflow path",
+            task_class="Orchestration",
+            candidate_paths=["docs/../.github/workflows/ci.yml"],
+            requested_agents=["agent-coordinator"],
+        )
 
 
 def test_task_bootstrap_forces_requested_security_auditor_into_executable_bridge() -> None:
