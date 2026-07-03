@@ -447,6 +447,120 @@ def test_prepare_specification_rejects_candidate_tampering(
         shutil.rmtree(input_dir, ignore_errors=True)
 
 
+def test_validate_rejects_candidate_and_metrics_mismatch(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    context, packet, dispatch, approval = _chain()
+    input_dir, context_path, packet_path, dispatch_path, approval_path = (
+        _write_creative_context_inputs(
+            leaf="pytest-spec-bridge-validate",
+            context=context,
+            packet=packet,
+            dispatch=dispatch,
+            approval=approval,
+        )
+    )
+    first = build_creative_hypothesis_spec_bridge_bundle(
+        context_map=context,
+        hypothesis_packet=packet,
+        coordinator_dispatch=dispatch,
+        approval=approval,
+        variant_count=3,
+    )
+    second = build_creative_hypothesis_spec_bridge_bundle(
+        context_map=context,
+        hypothesis_packet=packet,
+        coordinator_dispatch=dispatch,
+        approval=approval,
+        variant_count=4,
+    )
+    first_dir = cli.SPEC_BRIDGE_ROOT / str(first["bridge"]["bridge_id"])
+    second_dir = cli.SPEC_BRIDGE_ROOT / str(second["bridge"]["bridge_id"])
+    shutil.rmtree(first_dir, ignore_errors=True)
+    shutil.rmtree(second_dir, ignore_errors=True)
+    try:
+        assert (
+            cli.main(
+                [
+                    "build-candidate",
+                    "--context-map",
+                    str(context_path),
+                    "--hypothesis-packet",
+                    str(packet_path),
+                    "--coordinator-dispatch",
+                    str(dispatch_path),
+                    "--approval",
+                    str(approval_path),
+                    "--variant-count",
+                    "3",
+                ]
+            )
+            == 0
+        )
+        capsys.readouterr()
+        assert (
+            cli.main(
+                [
+                    "build-candidate",
+                    "--context-map",
+                    str(context_path),
+                    "--hypothesis-packet",
+                    str(packet_path),
+                    "--coordinator-dispatch",
+                    str(dispatch_path),
+                    "--approval",
+                    str(approval_path),
+                    "--variant-count",
+                    "4",
+                ]
+            )
+            == 0
+        )
+        capsys.readouterr()
+
+        assert cli.main(["validate", "--bridge", str(first_dir / cli.BRIDGE_FILENAME)]) == 0
+        capsys.readouterr()
+
+        first_candidate = json.loads(
+            (first_dir / cli.CANDIDATE_FILENAME).read_text(encoding="utf-8")
+        )
+        first_candidate["candidate_id"] = "tampered-candidate-id"
+        tampered_candidate = first_dir / "tampered_candidate.json"
+        tampered_candidate.write_text(
+            json.dumps(first_candidate, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        exit_code = cli.main(
+            [
+                "validate",
+                "--bridge",
+                str(first_dir / cli.BRIDGE_FILENAME),
+                "--candidate",
+                str(tampered_candidate),
+            ]
+        )
+        captured = capsys.readouterr()
+        assert exit_code == 1
+        assert "fingerprint_mismatch" in captured.err
+
+        exit_code = cli.main(
+            [
+                "validate",
+                "--bridge",
+                str(first_dir / cli.BRIDGE_FILENAME),
+                "--metrics",
+                str(second_dir / cli.METRICS_FILENAME),
+            ]
+        )
+        captured = capsys.readouterr()
+        assert exit_code == 1
+        assert "fingerprint_mismatch" in captured.err
+    finally:
+        shutil.rmtree(first_dir, ignore_errors=True)
+        shutil.rmtree(second_dir, ignore_errors=True)
+        shutil.rmtree(input_dir, ignore_errors=True)
+
+
 def test_cli_failure_prints_single_fail_line(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -551,6 +665,37 @@ def test_cli_rejects_outside_repo_and_symlink_inputs(
         assert "must not traverse symlinks" in captured.err
     finally:
         shutil.rmtree(input_dir, ignore_errors=True)
+
+
+def test_validate_rejects_symlinked_bridge_path(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    context, packet, dispatch, approval = _chain()
+    bundle = build_creative_hypothesis_spec_bridge_bundle(
+        context_map=context,
+        hypothesis_packet=packet,
+        coordinator_dispatch=dispatch,
+        approval=approval,
+        variant_count=3,
+    )
+    output_dir = cli.SPEC_BRIDGE_ROOT / str(bundle["bridge"]["bridge_id"])
+    shutil.rmtree(output_dir, ignore_errors=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    bridge_path = output_dir / cli.BRIDGE_FILENAME
+    bridge_path.write_text(
+        json.dumps(bundle["bridge"], indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    symlink_path = output_dir / "bridge_link.json"
+    symlink_path.symlink_to(bridge_path)
+    try:
+        exit_code = cli.main(["validate", "--bridge", str(symlink_path)])
+        captured = capsys.readouterr()
+
+        assert exit_code == 1
+        assert "must not traverse symlinks" in captured.err
+    finally:
+        shutil.rmtree(output_dir, ignore_errors=True)
 
 
 def test_new_schemas_are_closed() -> None:

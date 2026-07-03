@@ -347,6 +347,44 @@ def _assert_candidate_matches_bridge(
         )
 
 
+def _assert_metrics_matches_bridge_and_candidate(
+    *,
+    metrics: Mapping[str, Any],
+    bridge: Mapping[str, Any],
+    candidate: Mapping[str, Any],
+) -> None:
+    normalized_metrics = validate_bridge_metrics(metrics)
+    normalized_candidate = validate_creative_code_candidate_packet(dict(candidate))
+    source = cast_mapping(normalized_metrics["source"])
+    if normalized_metrics["bridge_id"] != bridge["bridge_id"]:
+        raise CreativeHypothesisSpecBridgeCliError(
+            "fingerprint_mismatch: metrics bridge id does not match bridge."
+        )
+    if normalized_metrics["candidate_id"] != normalized_candidate["candidate_id"]:
+        raise CreativeHypothesisSpecBridgeCliError(
+            "fingerprint_mismatch: metrics candidate id does not match candidate."
+        )
+    if source["candidate_fingerprint"] != fingerprint_payload(dict(normalized_candidate)):
+        raise CreativeHypothesisSpecBridgeCliError(
+            "fingerprint_mismatch: metrics candidate fingerprint does not match candidate."
+        )
+    bridge_source = cast_mapping(bridge["source"])
+    for key in (
+        "context_map_id",
+        "context_map_fingerprint",
+        "hypothesis_packet_id",
+        "hypothesis_packet_fingerprint",
+        "coordinator_dispatch_id",
+        "coordinator_dispatch_fingerprint",
+        "approval_id",
+        "approval_fingerprint",
+    ):
+        if source[key] != bridge_source[key]:
+            raise CreativeHypothesisSpecBridgeCliError(
+                f"fingerprint_mismatch: metrics {key} does not match bridge."
+            )
+
+
 def cast_mapping(value: Any) -> Mapping[str, Any]:
     if not isinstance(value, Mapping):
         raise CreativeHypothesisSpecBridgeCliError("expected JSON object.")
@@ -432,16 +470,30 @@ def _cmd_build_and_prepare(args: argparse.Namespace) -> int:
 
 
 def _cmd_validate(args: argparse.Namespace) -> int:
-    bridge = validate_creative_hypothesis_specification_bridge(read_json_object(args.bridge))
+    bridge, output_dir = _read_bridge_with_dir(args.bridge)
     if args.candidate:
-        validate_creative_code_candidate_packet(read_creative_code_candidate_packet(args.candidate))
+        candidate_path = _resolve_bridge_file(args.candidate)
+        candidate = validate_creative_code_candidate_packet(
+            read_creative_code_candidate_packet(candidate_path)
+        )
     else:
         candidate_path = _repo_ref_to_file(
             str(cast_mapping(bridge["candidate_packet"])["candidate_packet_ref"])
         )
-        validate_creative_code_candidate_packet(read_creative_code_candidate_packet(candidate_path))
+        candidate = validate_creative_code_candidate_packet(
+            read_creative_code_candidate_packet(candidate_path)
+        )
+    _assert_candidate_matches_bridge(bridge=bridge, candidate=candidate)
     if args.metrics:
-        validate_bridge_metrics(read_json_object(args.metrics))
+        metrics_path = _resolve_bridge_file(args.metrics)
+        metrics = validate_bridge_metrics(read_json_object(metrics_path))
+    else:
+        metrics = validate_bridge_metrics(read_json_object(output_dir / METRICS_FILENAME))
+    _assert_metrics_matches_bridge_and_candidate(
+        metrics=metrics,
+        bridge=bridge,
+        candidate=candidate,
+    )
     print(SUCCESS_VALIDATE_OUTPUT)
     return 0
 
