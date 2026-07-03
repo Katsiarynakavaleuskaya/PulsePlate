@@ -237,6 +237,16 @@ Disposition: NOT-A-BUG
 Reason: This stale-state attribution comment checks the same non-current `cd18de8650108aeb6cce48b4b192e687b5cbabd4` object; the actual implementation commit that used Experiment Runner evidence is still in the PR history with the required trailer.
 Evidence: `git show -s --format=full b09ea4d9d` contains `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`, and `git merge-base --is-ancestor b09ea4d9d HEAD` returns 0.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3518181507
+Disposition: NOT-A-BUG
+Reason: This stale-state review comment is anchored to `9b2a6cc2e483d5d92977ae7c436a48d5cf3a09f0`, which is not a valid object in the current PR history; remapping valid ancestor fix commits to that invalid object would make the artifact less accurate.
+Evidence: `git cat-file -t 9b2a6cc2e483d5d92977ae7c436a48d5cf3a09f0` exits 128 locally, and the current PR head is `99fced9d7e1419c0688fd6ca3700c5bfa4f1bc7f`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3518181513
+Disposition: NOT-A-BUG
+Reason: This stale-state attribution comment checks the same invalid `9b2a6cc2e483d5d92977ae7c436a48d5cf3a09f0` object; the actual implementation commit that used Experiment Runner evidence is still in the current PR history with the required trailer.
+Evidence: `git show -s --format=full b09ea4d9d` contains `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`, and `git merge-base --is-ancestor b09ea4d9d HEAD` returns 0.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3518105311 -> 9e4ce2fa2
 Disposition: FIXED
 Commit: 9e4ce2fa2
