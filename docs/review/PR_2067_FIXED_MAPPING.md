@@ -41,6 +41,9 @@ BOLA, dependency upgrades, or GitHub workflow edits are included.
   CI/security/deploy helper-script and root quality-gate config coverage.
 - `95b04a9d` - fixes the post-open security-auditor SwiftPM finding by adding
   iOS SwiftPM manifest coverage with positive and nested negative tests.
+- `e36f556e6` - fixes the second post-open security-auditor pass by adding
+  bounded root security/gate/governance control surfaces and reopening the
+  backlog item until PR merge or explicit closeout.
 
 ## Lane Start Provenance
 
@@ -185,6 +188,42 @@ Commit: 849c06cf1
 Reason: Workflow-called root CI/security/deploy helper scripts can change gate or deploy behavior while sitting outside `scripts/ci/` and `scripts/release/` directory prefixes.
 Evidence: The matcher covers `scripts/ci_*.sh` and `scripts/deploy_*.sh`; focused tests cover `scripts/ci_bandit.sh`, `scripts/ci_pip_audit.sh`, `scripts/deploy_production.sh`, and lookalike negatives.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3518035727 -> e36f556e6
+Disposition: FIXED
+Commit: e36f556e6
+Reason: Bandit configuration controls the security-scan exclusion policy, so `.bandit.yaml` and the repo's Makefile-used `.bandit` must not route as ordinary docs or config.
+Evidence: The matcher now covers `.bandit` and `.bandit.yaml`; focused bootstrap, skill-router, and task-bootstrap tests prove both paths force privileged security review.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3518035736 -> e36f556e6
+Disposition: FIXED
+Commit: e36f556e6
+Reason: `scripts/run-backend-tests-pre-commit.sh` and `scripts/hooks/repo_python.sh` decide changed-test selection and repo interpreter resolution for mandatory local gates, so helper-only changes need the same privileged review path as hook config changes.
+Evidence: The matcher now covers both helper paths with negative controls for nested lookalikes; focused bootstrap, skill-router, and task-bootstrap tests prove security review is required.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3518035740 -> e36f556e6
+Disposition: FIXED
+Commit: e36f556e6
+Reason: Root `AGENTS.md` and `RUNBOOK_AGENT.md` own mandatory gate and reviewer policy, so changing them can weaken merge governance even when no code file changes.
+Evidence: The matcher now covers `AGENTS.md` and `RUNBOOK_AGENT.md`; focused bootstrap, skill-router, and task-bootstrap tests prove they keep `security-auditor` executable.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3518035746 -> e36f556e6
+Disposition: FIXED
+Commit: e36f556e6
+Reason: `Makefile` owns required local targets such as `validate-changed` and `bandit-full`, so Makefile-only gate changes must not bypass privileged routing.
+Evidence: The matcher now covers `Makefile`; focused bootstrap, skill-router, and task-bootstrap tests prove it triggers `security_review_required=true`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3518035750 -> e36f556e6
+Disposition: FIXED
+Commit: e36f556e6
+Reason: PR templates shape merge-readiness evidence and reviewer checklists, so root and typed PR-template changes are merge-governance control changes rather than ordinary markdown.
+Evidence: The matcher now covers `.github/pull_request_template.md` and `.github/PULL_REQUEST_TEMPLATE/*.md`, with nested-template negative controls and task-bootstrap parity coverage.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3518035754 -> e36f556e6
+Disposition: FIXED
+Commit: e36f556e6
+Reason: The backlog item should track PR #2067 as the active target while the PR is still open; closing the checkbox before merge would hide unresolved review/CI disposition work.
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md` now leaves the item unchecked and adds a DoD line requiring PR #2067 merge or explicit won't-do closeout before the checkbox is closed.
+
 ## Mapping Notes
 
 Future actionable human, bot, role-agent, premortem, Experiment Runner, Codex
@@ -290,6 +329,21 @@ Evidence: Commit `95b04a9d` adds `ios/Package.swift` and
 `ios/Package.resolved` patterns. Focused bootstrap, skill-router, and
 task-bootstrap tests cover both SwiftPM manifest positives and nested
 `ios/vendor/Package.resolved` as a negative.
+
+Disposition: FIXED
+
+Commit: `e36f556e6`
+
+Reason: The second security-auditor pass found live review-governance and
+gate-control files still outside the canonical matcher; these are credible
+fail-open paths because they can alter mandatory gates, reviewer policy, or PR
+evidence without touching workflow YAML.
+
+Evidence: Commit `e36f556e6` adds bounded matcher coverage for Bandit config,
+root AGENTS/RUNBOOK/Makefile policy entrypoints, PR templates, and backend-test
+hook helpers. Focused bootstrap, skill-router, and task-bootstrap tests cover
+the new positive paths plus nested/lookalike negative controls, and the backlog
+item is reopened until PR merge or explicit closeout.
 
 ## Local Validation Evidence
 
