@@ -75,13 +75,15 @@ _LOCAL_PATH_RE = re.compile(
     r"[A-Za-z]:[\\/][^\s,;]+"
     r")"
 )
-_RAW_MODEL_ARTIFACT_LINE_RE = re.compile(
-    r"(?im)^.*\b("
-    r"raw[_-]?prompt|raw[_-]?response|provider[_-]?payload|"
-    r"chain[_ -]?of[_ -]?thought|candidate\.patch"
-    r")\b.*$"
+_RAW_MODEL_ARTIFACT_RE = re.compile(
+    r"(?im)\b("
+    r"raw[_. -]?(?:body|prompt|response|context|patch|review|pr)|"
+    r"provider[_. -]?payload|"
+    r"chain[_. -]?of[_. -]?thought|"
+    r"candidate[_. -]?patch"
+    r")\b"
 )
-_PATCH_TEXT_LINE_RE = re.compile(r"(?im)^.*\bdiff --git\b.*$")
+_PATCH_TEXT_RE = re.compile(r"(?im)(^diff --git\b|^@@(?:\s|$)|^\+\+\+\s+[ab]/|^---\s+[ab]/)")
 
 
 def redact_learning_text(value: str) -> str:
@@ -89,8 +91,9 @@ def redact_learning_text(value: str) -> str:
 
     redacted = _SENSITIVE_RE.sub("<redacted>", value)
     redacted = _LOCAL_PATH_RE.sub("<redacted-path>", redacted)
-    redacted = _RAW_MODEL_ARTIFACT_LINE_RE.sub("<redacted>", redacted)
-    return _PATCH_TEXT_LINE_RE.sub("<redacted>", redacted)
+    if _RAW_MODEL_ARTIFACT_RE.search(redacted) or _PATCH_TEXT_RE.search(redacted):
+        return "<redacted>"
+    return redacted
 
 
 def _require_repo_relative_path(value: str, *, field_name: str) -> str:

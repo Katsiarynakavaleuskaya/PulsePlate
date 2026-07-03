@@ -68,11 +68,26 @@ def test_learning_loop_redacts_common_linux_absolute_paths() -> None:
 
 def test_learning_loop_redacts_raw_model_artifact_markers() -> None:
     assert redact_learning_text("raw_prompt: please mutate workflow") == "<redacted>"
+    assert redact_learning_text("raw prompt: please mutate workflow") == "<redacted>"
+    assert redact_learning_text("raw response: payload") == "<redacted>"
+    assert redact_learning_text("raw patch: payload") == "<redacted>"
+    assert redact_learning_text("raw_context: payload") == "<redacted>"
+    assert redact_learning_text("raw-review: payload") == "<redacted>"
+    assert redact_learning_text("raw_pr: payload") == "<redacted>"
     assert redact_learning_text('provider_payload={"token":"x"} was included') == "<redacted>"
+    assert redact_learning_text("provider payload: x") == "<redacted>"
     assert redact_learning_text("chain of thought should never be stored") == "<redacted>"
+    assert redact_learning_text("chain-of-thought should never be stored") == "<redacted>"
     assert redact_learning_text("candidate.patch=/tmp/candidate.patch") == "<redacted>"
-    assert redact_learning_text("before\ndiff --git a/app/main.py b/app/main.py\nafter") == (
-        "before\n<redacted>\nafter"
+    assert redact_learning_text("candidate_patch: payload") == "<redacted>"
+    assert redact_learning_text("candidate patch: payload") == "<redacted>"
+    assert (
+        redact_learning_text("before\ndiff --git a/app/main.py b/app/main.py\nafter")
+        == "<redacted>"
+    )
+    assert (
+        redact_learning_text("--- a/app/main.py\n+++ b/app/main.py\n@@ -1 +1 @@\n-secret\n+secret")
+        == "<redacted>"
     )
 
 
