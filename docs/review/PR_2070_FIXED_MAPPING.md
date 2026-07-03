@@ -42,6 +42,12 @@ Evidence: `scripts/orchestration/creative_hypothesis_spec_bridge.py` now verifie
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2070#discussion_r3522016530 -> 0f357a1c65baf920675b0b5ba761faeacd932275
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2070#discussion_r3522016533 -> 0f357a1c65baf920675b0b5ba761faeacd932275
 
+Disposition: FIXED
+Commit: 4f17738bf5ac7e580f8da6b16c719be51c2953d1
+Evidence: `scripts/orchestration/creative_hypothesis_spec_bridge_contract.py` now rejects non-`hypotheses_generated` packets before candidate construction, and `scripts/orchestration/creative_hypothesis_spec_bridge.py` rejects `prepare-specification` reruns once a bridge is prepared. `tests/test_creative_hypothesis_spec_bridge.py` covers blocked packets and confirms already-prepared bridges do not rewrite `skeptic_reviews.json`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2070#discussion_r3522197531 -> 4f17738bf5ac7e580f8da6b16c719be51c2953d1
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2070#discussion_r3522197532 -> 4f17738bf5ac7e580f8da6b16c719be51c2953d1
+
 Disposition: DEFERRED
 Backlog: `docs/roadmap/BACKLOG_LEDGER.md` follow-up bridge authority schema single-source entry.
 Reason: The `bridge_authority` schema/Python duplication is a maintainability cleanup, not a runtime safety gap in this slice; deduplication needs a separate contract-maintenance PR so closed-schema validation is not weakened while addressing review feedback.
@@ -57,8 +63,8 @@ Summary: accepted oracle-only review, no repository mutation by the runner, `sha
 
 Disposition: FIXED
 Role: architecture-specialist
-Commit: 391538779, 0f357a1c6
-Evidence: `CreativeHypothesisApproval` now binds approved PR-1 handoff to the exact source hypothesis packet id/fingerprint and selected hypothesis fingerprint; the bridge rejects stale approvals, mismatched candidate packets, non-canonical output directories, swapped metrics, stale prepare artifacts, and premature `agent_skeptic_review` handoff before prepare completes. Covered by `tests/test_creative_hypothesis_spec_bridge.py` and `tests/test_experiment_runner_pr_creative_context.py`.
+Commit: 391538779, 0f357a1c6, 4f17738bf
+Evidence: `CreativeHypothesisApproval` now binds approved PR-1 handoff to the exact source hypothesis packet id/fingerprint and selected hypothesis fingerprint; the bridge rejects stale approvals, mismatched candidate packets, non-canonical output directories, swapped metrics, stale prepare artifacts, blocked packets, already-prepared reruns, and premature `agent_skeptic_review` handoff before prepare completes. Covered by `tests/test_creative_hypothesis_spec_bridge.py` and `tests/test_experiment_runner_pr_creative_context.py`.
 
 ## Lane Start Provenance
 
