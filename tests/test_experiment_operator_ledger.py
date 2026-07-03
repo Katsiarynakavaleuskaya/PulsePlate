@@ -300,10 +300,11 @@ def test_slack_bridge_operator_ledger_preserves_subsecond_write_order(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     audit_path = _slack_audit_path(tmp_path)
+    base = datetime.now(timezone.utc).replace(microsecond=0) - timedelta(days=1)
     timestamps = iter(
         (
-            "2026-06-03T12:00:00.000100+00:00",
-            "2026-06-03T12:00:00.000900+00:00",
+            base.replace(microsecond=100).isoformat(),
+            base.replace(microsecond=900).isoformat(),
         )
     )
     monkeypatch.setattr(ledger, "_utcnow_iso", lambda: next(timestamps))
