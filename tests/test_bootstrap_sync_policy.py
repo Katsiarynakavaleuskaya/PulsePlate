@@ -61,6 +61,8 @@ def test_bootstrap_sync_policy_freezes_privileged_review_prefixes() -> None:
         ".cursor/rules/",
         ".github/workflows/",
         ".github/actions/",
+        ".github/agents/",
+        ".github/prompts/",
         ".github/scripts/",
         ".githooks/",
         "appstore/fitchef/",
@@ -108,6 +110,7 @@ def test_bootstrap_sync_policy_freezes_privileged_review_patterns() -> None:
         ".yamllint",
         ".pre-commit-config.yaml",
         ".pre-commit-config.yml",
+        ".vscode/extensions.json",
         ".cursor/mcp.json.example",
         ".kimi/mcp.json.example",
         ".devcontainer/Dockerfile",
@@ -130,6 +133,8 @@ def test_bootstrap_sync_policy_freezes_privileged_review_patterns() -> None:
         "deploy/docker-compose.production*.yaml",
         "deploy/docker-compose.staging.yaml",
         "deploy/systemd/pulseplate-postgres-backup.*",
+        "docs/security/TOOLING_SURFACE_POLICY.md",
+        "docs/security/vscode_extensions_allowlist.txt",
         "frontend/.dockerignore",
         "frontend/Dockerfile.caddy-spa",
         "frontend/package*.json",
@@ -139,6 +144,7 @@ def test_bootstrap_sync_policy_freezes_privileged_review_patterns() -> None:
         "ios/Package.resolved",
         "ios/PulsePlate.xcodeproj/project.pbxproj",
         "ios/PulsePlate.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved",
+        "ios/PulsePlate.xcodeproj/xcshareddata/xcschemes/PulsePlate.xcscheme",
         "ios/PulsePlate.xcworkspace/xcshareddata/swiftpm/Package.swift",
         "ios/PulsePlate/Info-Release.plist",
         "ios/PulsePlate/PulsePlate.entitlements",
@@ -146,6 +152,7 @@ def test_bootstrap_sync_policy_freezes_privileged_review_patterns() -> None:
         "ios/PulsePlate/*/InfoPlist.strings",
         "mcp-config.json",
         "mcp-setup.sh",
+        "mcp_pulseplate_server.py",
         "opencode.json",
         "package*.json",
         "pyproject.toml",
@@ -155,17 +162,23 @@ def test_bootstrap_sync_policy_freezes_privileged_review_patterns() -> None:
         "scripts/deploy.sh",
         "scripts/diagnose_web.sh",
         "scripts/hooks/repo_python.sh",
+        "scripts/devcontainer/smoke.sh",
         "scripts/install_codex_skills.sh",
+        "scripts/opencode/run_pulseplate_mcp.sh",
         "scripts/ops/postgres_backup.sh",
         "scripts/ops/postgres_restore.sh",
         "scripts/redeploy_caddy.sh",
         "scripts/run-backend-tests-pre-commit.sh",
         "scripts/validate-ci-environment.sh",
+        "scripts/verify_codex_skills_install.py",
         "scripts/ci_*.sh",
         "scripts/deploy_*.sh",
+        "setup_custom_mcp.py",
         "tests/security/_api_authz_contracts.py",
         "tests/security/test_api_authz_contract_static.py",
+        "tests/test_install_codex_skills.py",
         "tests/test_repo_policy_guards.py",
+        "update_api_key.py",
         "worker.js",
         "wrangler.toml",
     )
@@ -315,6 +328,8 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     assert requires_security_review([".cursor/commands/init.md"]) is True
     assert requires_security_review([".cursor/rules/cybersecurity-skills-index.md"]) is True
     assert requires_security_review([".github/actions/setup/action.yml"]) is True
+    assert requires_security_review([".github/agents/my-agent.md"]) is True
+    assert requires_security_review([".github/prompts/vibecoder.prompt.md"]) is True
     assert requires_security_review([".github/scripts/parse-safety-report.py"]) is True
     assert requires_security_review([".githooks/pre-push"]) is True
     assert requires_security_review(["appstore/fitchef/appstore_review_checklist.md"]) is True
@@ -353,6 +368,7 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     assert requires_security_review([".yamllint"]) is True
     assert requires_security_review([".pre-commit-config.yaml"]) is True
     assert requires_security_review([".pre-commit-config.yml"]) is True
+    assert requires_security_review([".vscode/extensions.json"]) is True
     assert requires_security_review([".cursor/mcp.json.example"]) is True
     assert requires_security_review([".kimi/mcp.json.example"]) is True
     assert requires_security_review([".devcontainer/Dockerfile"]) is True
@@ -383,6 +399,8 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
         requires_security_review(["deploy/systemd/pulseplate-postgres-backup.timer.example"])
         is True
     )
+    assert requires_security_review(["docs/security/TOOLING_SURFACE_POLICY.md"]) is True
+    assert requires_security_review(["docs/security/vscode_extensions_allowlist.txt"]) is True
     assert requires_security_review(["frontend/.dockerignore"]) is True
     assert requires_security_review(["frontend/Dockerfile.caddy-spa"]) is True
     assert requires_security_review(["frontend/package.json"]) is True
@@ -400,6 +418,12 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
         is True
     )
     assert (
+        requires_security_review(
+            ["ios/PulsePlate.xcodeproj/xcshareddata/xcschemes/PulsePlate.xcscheme"]
+        )
+        is True
+    )
+    assert (
         requires_security_review(["ios/PulsePlate.xcworkspace/xcshareddata/swiftpm/Package.swift"])
         is True
     )
@@ -409,6 +433,7 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     assert requires_security_review(["ios/PulsePlate/en.lproj/InfoPlist.strings"]) is True
     assert requires_security_review(["mcp-config.json"]) is True
     assert requires_security_review(["mcp-setup.sh"]) is True
+    assert requires_security_review(["mcp_pulseplate_server.py"]) is True
     assert requires_security_review(["opencode.json"]) is True
     assert requires_security_review(["package.json"]) is True
     assert requires_security_review(["package-lock.json"]) is True
@@ -420,22 +445,28 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     assert requires_security_review(["scripts/deploy.sh"]) is True
     assert requires_security_review(["scripts/diagnose_web.sh"]) is True
     assert requires_security_review(["scripts/hooks/repo_python.sh"]) is True
+    assert requires_security_review(["scripts/devcontainer/smoke.sh"]) is True
     assert requires_security_review(["scripts/install_codex_skills.sh"]) is True
+    assert requires_security_review(["scripts/opencode/run_pulseplate_mcp.sh"]) is True
     assert requires_security_review(["scripts/ops/postgres_backup.sh"]) is True
     assert requires_security_review(["scripts/ops/postgres_restore.sh"]) is True
     assert requires_security_review(["scripts/redeploy_caddy.sh"]) is True
     assert requires_security_review(["scripts/run-backend-tests-pre-commit.sh"]) is True
     assert requires_security_review(["scripts/validate-ci-environment.sh"]) is True
+    assert requires_security_review(["scripts/verify_codex_skills_install.py"]) is True
     assert requires_security_review(["scripts/ci_bandit.sh"]) is True
     assert requires_security_review(["scripts/ci_pip_audit.sh"]) is True
     assert requires_security_review(["scripts/deploy_production.sh"]) is True
+    assert requires_security_review(["setup_custom_mcp.py"]) is True
     assert requires_security_review(["scripts/metatron_lab/compose_guard.py"]) is True
     assert requires_security_review(["tests/security/_api_authz_contracts.py"]) is True
     assert requires_security_review(["tests/security/test_api_authz_contract_static.py"]) is True
+    assert requires_security_review(["tests/test_install_codex_skills.py"]) is True
     assert requires_security_review(["tests/test_repo_policy_guards.py"]) is True
     assert requires_security_review(["tools/agentguard/scan_text.mjs"]) is True
     assert requires_security_review(["tools/codex_skills/pulseplate-gates/SKILL.md"]) is True
     assert requires_security_review(["tools/cybersecurity_skills/index.json"]) is True
+    assert requires_security_review(["update_api_key.py"]) is True
     assert requires_security_review(["worker.js"]) is True
     assert requires_security_review(["wrangler.toml"]) is True
     assert requires_security_review(["script/orchestration/config.yml"]) is False
@@ -472,6 +503,10 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     assert requires_security_review([".github/PULL_REQUEST_TEMPLATE/nested/design.md"]) is False
     assert requires_security_review([".github/pull_request_template/archive.md"]) is False
     assert requires_security_review([".github/actionlint/rules.yaml"]) is False
+    assert requires_security_review([".github/agent/my-agent.md"]) is False
+    assert requires_security_review([".github/agents-notes/my-agent.md"]) is False
+    assert requires_security_review([".github/prompt/vibecoder.prompt.md"]) is False
+    assert requires_security_review([".github/prompts-notes/vibecoder.prompt.md"]) is False
     assert requires_security_review([".github/script/parse-safety-report.py"]) is False
     assert requires_security_review([".github/scripts-notes/parse-safety-report.py"]) is False
     assert requires_security_review([".githooks-notes/pre-push"]) is False
@@ -483,10 +518,15 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     assert requires_security_review(["docs/.coveragerc"]) is False
     assert requires_security_review(["docs/.env.example"]) is False
     assert requires_security_review(["docs/.flake8"]) is False
+    assert requires_security_review(["docs/.vscode/extensions.json"]) is False
     assert requires_security_review(["docs/codecov.yml"]) is False
     assert requires_security_review(["docs/.gitmodules"]) is False
     assert requires_security_review(["docs/.markdownlint.json"]) is False
     assert requires_security_review(["docs/.yamllint"]) is False
+    assert requires_security_review(["docs/security/archive/TOOLING_SURFACE_POLICY.md"]) is False
+    assert (
+        requires_security_review(["docs/security/archive/vscode_extensions_allowlist.txt"]) is False
+    )
     assert requires_security_review(["frontend/nested/Dockerfile.caddy-spa"]) is False
     assert requires_security_review(["frontend/nested/.dockerignore"]) is False
     assert requires_security_review(["frontend/packages/package-lock.json"]) is False
@@ -495,6 +535,12 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     assert requires_security_review(["ios/vendor/Gemfile.lock"]) is False
     assert requires_security_review(["ios/vendor/Package.resolved"]) is False
     assert requires_security_review(["ios/Archive/PulsePlate.xcodeproj/project.pbxproj"]) is False
+    assert (
+        requires_security_review(
+            ["ios/PulsePlate.xcodeproj/xcshareddata/xcschemes/archive/PulsePlate.xcscheme"]
+        )
+        is False
+    )
     assert (
         requires_security_review(
             ["ios/PulsePlate.xcworkspace/xcshareddata/swiftpm/archive/Package.swift"]
@@ -511,23 +557,30 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     assert requires_security_review([".kimi/mcp.json"]) is False
     assert requires_security_review([".kimi/mcp.json.example.backup"]) is False
     assert requires_security_review(["mcp-setup/archive.sh"]) is False
+    assert requires_security_review(["docs/mcp_pulseplate_server.py"]) is False
     assert requires_security_review(["scripts/mcp-setup.sh"]) is False
     assert requires_security_review(["scripts/hooks/nested/repo_python.sh"]) is False
+    assert requires_security_review(["scripts/devcontainer/archive/smoke.sh"]) is False
     assert requires_security_review(["scripts/deploy/archive.sh"]) is False
     assert requires_security_review(["scripts/ops/archive/postgres_backup.sh"]) is False
     assert requires_security_review(["scripts/install_codex_skills/archive.sh"]) is False
+    assert requires_security_review(["scripts/opencode/archive/run_pulseplate_mcp.sh"]) is False
     assert requires_security_review(["scripts/run-backend-tests-pre-commit.d/runner.sh"]) is False
     assert requires_security_review(["scripts/validate-ci-environment/archive.sh"]) is False
+    assert requires_security_review(["scripts/tools/verify_codex_skills_install.py"]) is False
     assert requires_security_review(["scripts/ci-tools/bandit.sh"]) is False
     assert requires_security_review(["scripts/deploy/production.sh"]) is False
+    assert requires_security_review(["scripts/setup_custom_mcp.py"]) is False
     assert requires_security_review(["scripts/cicd_notes.sh"]) is False
     assert requires_security_review(["scripts/metatron_lab_notes/compose_guard.py"]) is False
     assert requires_security_review(["tests/test_repo_policy_guard_notes.py"]) is False
     assert requires_security_review(["tests/security/_api_authz_contracts_notes.py"]) is False
     assert requires_security_review(["tests/security/contracts/_api_authz_contracts.py"]) is False
+    assert requires_security_review(["tests/install/test_install_codex_skills.py"]) is False
     assert requires_security_review(["tools/agentguard-notes/scan_text.mjs"]) is False
     assert requires_security_review(["tools/codex_skillz/pulseplate-gates/SKILL.md"]) is False
     assert requires_security_review(["tools/cybersecurity_skillz/index.json"]) is False
+    assert requires_security_review(["scripts/update_api_key.py"]) is False
     assert requires_security_review(["workers/worker.js"]) is False
     assert requires_security_review(["deploy/wrangler.toml"]) is False
 
@@ -540,7 +593,10 @@ def test_bootstrap_sync_policy_returns_stable_privileged_review_labels() -> None
             "./.github/actions/setup/action.yml",
             "docs/../.github/workflows/ci.yml",
             ".github/actions/cache/action.yml",
+            ".github/agents/my-agent.md",
+            ".github/prompts/vibecoder.prompt.md",
             ".github/scripts/parse-safety-report.py",
+            ".vscode/extensions.json",
             "scripts/AGENTS.md",
             " Dockerfile ",
             ".env.example",
@@ -557,13 +613,22 @@ def test_bootstrap_sync_policy_returns_stable_privileged_review_labels() -> None
             "deploy/docker-compose.production.selfhosted.yaml",
             "deploy/metatron-lab/docker-compose.yaml",
             "deploy/systemd/pulseplate-postgres-backup.timer.example",
+            "docs/security/vscode_extensions_allowlist.txt",
             "frontend/package-lock.json",
+            "ios/PulsePlate.xcodeproj/xcshareddata/xcschemes/PulsePlate.xcscheme",
             "ios/PulsePlate/PulsePlate.entitlements",
             "ios/PulsePlate/en.lproj/InfoPlist.strings",
+            "mcp_pulseplate_server.py",
+            "scripts/devcontainer/smoke.sh",
             "scripts/metatron_lab/compose_guard.py",
+            "scripts/opencode/run_pulseplate_mcp.sh",
             "scripts/validate-ci-environment.sh",
+            "scripts/verify_codex_skills_install.py",
+            "setup_custom_mcp.py",
+            "tests/test_install_codex_skills.py",
             "tools/agentguard/scan_text.mjs",
             "tools/codex_skills/pulseplate-gates/SKILL.md",
+            "update_api_key.py",
             "mcp-setup.sh",
             "requirements-ci-lite.txt",
             "docs/review/PR_1325_FIXED_MAPPING.md",
@@ -571,7 +636,10 @@ def test_bootstrap_sync_policy_returns_stable_privileged_review_labels() -> None
     ) == (
         ".github/actions/",
         ".github/workflows/",
+        ".github/agents/",
+        ".github/prompts/",
         ".github/scripts/",
+        ".vscode/extensions.json",
         "**/AGENTS.md",
         "Dockerfile",
         ".env.example",
@@ -587,13 +655,22 @@ def test_bootstrap_sync_policy_returns_stable_privileged_review_labels() -> None
         "deploy/docker-compose.production*.yaml",
         "deploy/metatron-lab/",
         "deploy/systemd/pulseplate-postgres-backup.*",
+        "docs/security/vscode_extensions_allowlist.txt",
         "frontend/package*.json",
+        "ios/PulsePlate.xcodeproj/xcshareddata/xcschemes/PulsePlate.xcscheme",
         "ios/PulsePlate/PulsePlate.entitlements",
         "ios/PulsePlate/*/InfoPlist.strings",
+        "mcp_pulseplate_server.py",
+        "scripts/devcontainer/smoke.sh",
         "scripts/metatron_lab/",
+        "scripts/opencode/run_pulseplate_mcp.sh",
         "scripts/validate-ci-environment.sh",
+        "scripts/verify_codex_skills_install.py",
+        "setup_custom_mcp.py",
+        "tests/test_install_codex_skills.py",
         "tools/agentguard/",
         "tools/codex_skills/",
+        "update_api_key.py",
         "mcp-setup.sh",
         "requirements*.txt",
         "docs/review/",

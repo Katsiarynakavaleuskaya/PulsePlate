@@ -124,13 +124,13 @@ Bootstrap evidence: `scripts/orchestration/routing_graph_loader.py`, `scripts/or
     deploy Caddy/Compose
     and backup systemd unit surfaces, frontend Caddy
     Dockerfile/build-context ignore and npm manifests, iOS Gemfile, Xcode project,
-    SwiftPM, entitlements, release plist/localized privacy strings, and privacy manifests, root
+    SwiftPM, Xcode scheme, entitlements, release plist/localized privacy strings, and privacy manifests, root
     security/quality-gate/coverage-governance/toolchain configs, root CI/deploy/test-gate helper scripts,
     repo-local hook scripts, submodule metadata, root/scoped AGENTS policy entrypoints,
-    skill sources, AgentGuard scanner, Cursor control-plane configs, authz contract tests,
+    skill sources, skill install verifier, AgentGuard scanner, Cursor/Kimi/OpenCode/MCP control-plane configs, authz contract tests,
     root RUNBOOK/Makefile policy entrypoints, root environment/lint/markdownlint/Alembic configs, GitHub CODEOWNERS,
-    PR-template, and actionlint controls, review-bot configs, MCP control-plane
-    examples including Kimi plus MCP setup script, secret baseline, policy guard tests, Cloudflare Worker/Wrangler
+    PR-template, GitHub Copilot agent/prompt surfaces, and actionlint controls, review-bot configs, MCP server entrypoint
+    and control-plane examples including Kimi plus MCP setup script, VS Code tooling allowlist, API-key utilities, secret baseline, policy guard tests, Cloudflare Worker/Wrangler
     controls, Dependabot YAML variants, requirements, and constraints manifests.
 16. **Docs vs research split:** internal policy/runbook/docs maintenance defaults to `docs` -> `cursor-specialist-agent`; external web/OSS intake remains `research` -> `web-research-agent`.
 
