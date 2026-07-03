@@ -1335,6 +1335,7 @@ Artifact-first validation fixture.
 ## Fixed in Commit Mapping
 Disposition: FIXED
 Commit: abc1234
+Evidence: tests/test_pr_body_phase2_gates.py
 - https://github.com/org/repo/pull/998#discussion_r1 -> abc1234
 
 ## Experiment Runner Evidence
@@ -1393,6 +1394,7 @@ Not applicable: trivial docs cleanup without runner output.
 ## Fixed in Commit Mapping
 Disposition: FIXED
 Commit: abc1234
+Evidence: tests/test_pr_body_phase2_gates.py
 - https://github.com/org/repo/pull/998#discussion_r1 -> abc1234
 """
     (tmp_path / "PR_998_FIXED_MAPPING.md").write_text(artifact_content, encoding="utf-8")
@@ -1443,6 +1445,7 @@ Starter: scripts/orchestration/start_pr_lane.sh
 ## Fixed in Commit Mapping
 Disposition: FIXED
 Commit: abc1234
+Evidence: tests/test_pr_body_phase2_gates.py
 - https://github.com/org/repo/pull/998#discussion_r1 -> abc1234
 
 ## Experiment Runner Evidence
@@ -1497,6 +1500,7 @@ Exception: trivial docs cleanup: body mirror fixture.
 ## Fixed in Commit Mapping
 Disposition: FIXED
 Commit: abc1234
+Evidence: tests/test_pr_body_phase2_gates.py
 - https://github.com/org/repo/pull/998#discussion_r1 -> abc1234
 
 ## Experiment Runner Evidence
@@ -1553,6 +1557,7 @@ Starter: scripts/orchestration/start_pr_lane.sh
 ## Fixed in Commit Mapping
 Disposition: FIXED
 Commit: abc1234
+Evidence: tests/test_pr_body_phase2_gates.py
 - https://github.com/org/repo/pull/998#discussion_r1 -> abc1234
 
 ## Experiment Runner Evidence
@@ -1608,6 +1613,7 @@ Starter: scripts/orchestration/start_pr_lane.sh
 ## Fixed in Commit Mapping
 Disposition: FIXED
 Commit: abc1234
+Evidence: tests/test_pr_body_phase2_gates.py
 - https://github.com/org/repo/pull/998#discussion_r1 -> abc1234
 
 ## Lane Start Provenance
@@ -1646,6 +1652,7 @@ def test_phase2_accepts_empty_pr_body_when_artifact_is_valid(tmp_path: Path) -> 
 ## Fixed in Commit Mapping
 Disposition: FIXED
 Commit: abc1234
+Evidence: tests/test_pr_body_phase2_gates.py
 - https://github.com/org/repo/pull/998#discussion_r1 -> abc1234
 
 ## Experiment Runner Evidence
@@ -1691,6 +1698,7 @@ def test_phase2_accepts_non_mirror_body_when_artifact_is_valid(tmp_path: Path) -
 ## Fixed in Commit Mapping
 Disposition: FIXED
 Commit: abc1234
+Evidence: tests/test_pr_body_phase2_gates.py
 - https://github.com/org/repo/pull/998#discussion_r1 -> abc1234
 
 ## Experiment Runner Evidence
@@ -1742,6 +1750,7 @@ def test_phase2_rejects_invalid_present_body_mirror_when_artifact_is_valid(
 ## Fixed in Commit Mapping
 Disposition: FIXED
 Commit: abc1234
+Evidence: tests/test_pr_body_phase2_gates.py
 - https://github.com/org/repo/pull/998#discussion_r1 -> abc1234
 
 ## Experiment Runner Evidence
@@ -1788,6 +1797,7 @@ def test_phase2_accepts_pr_number_without_explicit_body_when_artifact_is_valid(
 ## Fixed in Commit Mapping
 Disposition: FIXED
 Commit: abc1234
+Evidence: tests/test_pr_body_phase2_gates.py
 - https://github.com/org/repo/pull/998#discussion_r1 -> abc1234
 
 ## Experiment Runner Evidence
@@ -1840,6 +1850,7 @@ def test_phase2_failure_output_only_reports_failing_scope(tmp_path: Path) -> Non
 ## Fixed in Commit Mapping
 Disposition: FIXED
 Commit: abc1234
+Evidence: tests/test_pr_body_phase2_gates.py
 - https://github.com/org/repo/pull/998#discussion_r1 -> abc1234
 
 ## Experiment Runner Evidence

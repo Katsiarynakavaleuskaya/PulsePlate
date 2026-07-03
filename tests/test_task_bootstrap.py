@@ -46,6 +46,13 @@ from scripts.orchestration.task_bootstrap import (
     main,
 )
 
+FIXTURE_DIR = Path(__file__).resolve().parent / "fixtures" / "orchestration"
+
+
+def _privileged_surface_cases() -> list[dict[str, object]]:
+    fixture = json.loads((FIXTURE_DIR / "privileged_review_surfaces.json").read_text())
+    return list(fixture["cases"])
+
 
 def test_task_bootstrap_resolves_orchestration_domain() -> None:
     """Scripts/docs orchestration work should resolve to ops/orchestration."""
@@ -1284,6 +1291,27 @@ def test_task_bootstrap_marks_merge_governance_paths_as_privileged(
         packet["native_subagent_bridge"]["reviewer"]["repo_agent_slug"],
         *[binding["repo_agent_slug"] for binding in packet["native_subagent_bridge"]["secondary"]],
     }
+
+
+@pytest.mark.parametrize("case", _privileged_surface_cases(), ids=lambda case: case["case_id"])
+def test_task_bootstrap_consumes_shared_privileged_surface_matrix(
+    case: dict[str, object],
+) -> None:
+    """Bootstrap packet security-review flags must follow the shared matrix."""
+
+    packet = build_task_packet(
+        goal="Refresh guarded orchestration surface",
+        task_class="Governance",
+        candidate_paths=[str(case["path"])],
+    )
+
+    assert packet["automation_flags"]["security_review_required"] is bool(case["privileged"])
+    if case["privileged"]:
+        assert "security-auditor" in {
+            packet["primary_agent"],
+            packet["reviewer"],
+            *packet["secondary_agents"],
+        }
 
 
 def test_task_bootstrap_forces_requested_security_auditor_into_executable_bridge() -> None:

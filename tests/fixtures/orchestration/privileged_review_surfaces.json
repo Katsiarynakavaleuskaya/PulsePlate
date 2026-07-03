@@ -1,0 +1,288 @@
+{
+  "schema_version": "privileged_review_surfaces.v1",
+  "cases": [
+    {
+      "case_id": "github_workflow",
+      "path": ".github/workflows/ci.yml",
+      "privileged": true,
+      "reason": ".github/workflows/"
+    },
+    {
+      "case_id": "github_action",
+      "path": ".github/actions/setup/action.yml",
+      "privileged": true,
+      "reason": ".github/actions/"
+    },
+    {
+      "case_id": "github_codeowners",
+      "path": ".github/CODEOWNERS",
+      "privileged": true,
+      "reason": "CODEOWNERS"
+    },
+    {
+      "case_id": "root_codeowners",
+      "path": "CODEOWNERS",
+      "privileged": true,
+      "reason": "CODEOWNERS"
+    },
+    {
+      "case_id": "docs_codeowners",
+      "path": "docs/CODEOWNERS",
+      "privileged": true,
+      "reason": "CODEOWNERS"
+    },
+    {
+      "case_id": "fastlane",
+      "path": "ios/fastlane/Fastfile",
+      "privileged": true,
+      "reason": "ios/fastlane/"
+    },
+    {
+      "case_id": "orchestration_script",
+      "path": "scripts/orchestration/task_bootstrap.py",
+      "privileged": true,
+      "reason": "scripts/orchestration/"
+    },
+    {
+      "case_id": "ci_merge_script",
+      "path": "scripts/ci/check_pr_merge_readiness.py",
+      "privileged": true,
+      "reason": "scripts/ci/"
+    },
+    {
+      "case_id": "orchestration_docs",
+      "path": "docs/orchestration/AGENT_MESSAGE_PROTOCOL.md",
+      "privileged": true,
+      "reason": "docs/orchestration/"
+    },
+    {
+      "case_id": "review_mapping_docs",
+      "path": "docs/review/PR_999_FIXED_MAPPING.md",
+      "privileged": true,
+      "reason": "docs/review/"
+    },
+    {
+      "case_id": "root_dockerfile",
+      "path": "Dockerfile",
+      "privileged": true,
+      "reason": "deploy-or-image-config"
+    },
+    {
+      "case_id": "nested_dockerfile",
+      "path": "deploy/api/Dockerfile",
+      "privileged": true,
+      "reason": "deploy-or-image-config"
+    },
+    {
+      "case_id": "production_dockerfile_variant",
+      "path": "frontend/Dockerfile.caddy-spa",
+      "privileged": true,
+      "reason": "deploy-or-image-config"
+    },
+    {
+      "case_id": "docker_compose_override",
+      "path": "docker-compose.override.yml",
+      "privileged": true,
+      "reason": "deploy-or-image-config"
+    },
+    {
+      "case_id": "docker_compose_production_yaml",
+      "path": "deploy/docker-compose.production.yaml",
+      "privileged": true,
+      "reason": "deploy-or-image-config"
+    },
+    {
+      "case_id": "pre_commit",
+      "path": ".pre-commit-config.yaml",
+      "privileged": true,
+      "reason": "dependency-or-hook-config"
+    },
+    {
+      "case_id": "github_dependabot_yml",
+      "path": ".github/dependabot.yml",
+      "privileged": true,
+      "reason": "dependency-or-hook-config"
+    },
+    {
+      "case_id": "github_dependabot_yaml",
+      "path": ".github/dependabot.yaml",
+      "privileged": true,
+      "reason": "dependency-or-hook-config"
+    },
+    {
+      "case_id": "requirements",
+      "path": "requirements.txt",
+      "privileged": true,
+      "reason": "dependency-or-hook-config"
+    },
+    {
+      "case_id": "requirements_ci_lite",
+      "path": "requirements-ci-lite.txt",
+      "privileged": true,
+      "reason": "dependency-or-hook-config"
+    },
+    {
+      "case_id": "requirements_lock",
+      "path": "requirements-lock.txt",
+      "privileged": true,
+      "reason": "dependency-or-hook-config"
+    },
+    {
+      "case_id": "requirements_test",
+      "path": "requirements-test.txt",
+      "privileged": true,
+      "reason": "dependency-or-hook-config"
+    },
+    {
+      "case_id": "requirements_dev_in",
+      "path": "requirements-dev.in",
+      "privileged": true,
+      "reason": "dependency-or-hook-config"
+    },
+    {
+      "case_id": "requirements_ci_lite_in",
+      "path": "requirements-ci-lite.in",
+      "privileged": true,
+      "reason": "dependency-or-hook-config"
+    },
+    {
+      "case_id": "requirements_rag_vector_in",
+      "path": "requirements-rag-vector.in",
+      "privileged": true,
+      "reason": "dependency-or-hook-config"
+    },
+    {
+      "case_id": "requirements_data_in",
+      "path": "requirements-data.in",
+      "privileged": true,
+      "reason": "dependency-or-hook-config"
+    },
+    {
+      "case_id": "requirements_docker_runtime_in",
+      "path": "requirements-docker-runtime.in",
+      "privileged": true,
+      "reason": "dependency-or-hook-config"
+    },
+    {
+      "case_id": "root_package_json",
+      "path": "package.json",
+      "privileged": true,
+      "reason": "dependency-or-hook-config"
+    },
+    {
+      "case_id": "nested_requirements_txt",
+      "path": "services/api/requirements-dev.txt",
+      "privileged": true,
+      "reason": "dependency-or-hook-config"
+    },
+    {
+      "case_id": "nested_requirements_in",
+      "path": "services/api/requirements.in",
+      "privileged": true,
+      "reason": "dependency-or-hook-config"
+    },
+    {
+      "case_id": "nested_pyproject",
+      "path": "services/api/pyproject.toml",
+      "privileged": true,
+      "reason": "dependency-or-hook-config"
+    },
+    {
+      "case_id": "nested_pre_commit",
+      "path": "backend/.pre-commit-config.yaml",
+      "privileged": true,
+      "reason": "dependency-or-hook-config"
+    },
+    {
+      "case_id": "nested_constraints",
+      "path": "services/api/constraints.txt",
+      "privileged": true,
+      "reason": "dependency-or-hook-config"
+    },
+    {
+      "case_id": "nested_package_json",
+      "path": "frontend/package.json",
+      "privileged": true,
+      "reason": "dependency-or-hook-config"
+    },
+    {
+      "case_id": "business_collateral_package_json",
+      "path": "scripts/business_collateral/package.json",
+      "privileged": true,
+      "reason": "dependency-or-hook-config"
+    },
+    {
+      "case_id": "nested_package_lock",
+      "path": "frontend/package-lock.json",
+      "privileged": true,
+      "reason": "dependency-or-hook-config"
+    },
+    {
+      "case_id": "root_skills_lock",
+      "path": "skills-lock.json",
+      "privileged": true,
+      "reason": "dependency-or-hook-config"
+    },
+    {
+      "case_id": "ios_swiftpm_manifest",
+      "path": "ios/Package.swift",
+      "privileged": true,
+      "reason": "dependency-or-hook-config"
+    },
+    {
+      "case_id": "ios_swiftpm_lock",
+      "path": "ios/Package.resolved",
+      "privileged": true,
+      "reason": "dependency-or-hook-config"
+    },
+    {
+      "case_id": "xcode_swiftpm_lock",
+      "path": "ios/PulsePlate.xcodeproj/xcshareddata/swiftpm/Package.resolved",
+      "privileged": true,
+      "reason": "dependency-or-hook-config"
+    },
+    {
+      "case_id": "ios_gemfile",
+      "path": "ios/Gemfile",
+      "privileged": true,
+      "reason": "dependency-or-hook-config"
+    },
+    {
+      "case_id": "ios_gemfile_lock",
+      "path": "ios/Gemfile.lock",
+      "privileged": true,
+      "reason": "dependency-or-hook-config"
+    },
+    {
+      "case_id": "nested_pnpm_lock",
+      "path": "frontend/pnpm-lock.yaml",
+      "privileged": true,
+      "reason": "dependency-or-hook-config"
+    },
+    {
+      "case_id": "root_readme",
+      "path": "README.md",
+      "privileged": false
+    },
+    {
+      "case_id": "runbook_docs",
+      "path": "docs/runbooks/QUICKSTART.md",
+      "privileged": false
+    },
+    {
+      "case_id": "implementation_markdown",
+      "path": "app/internal_notes.md",
+      "privileged": false
+    },
+    {
+      "case_id": "near_miss_script",
+      "path": "script/orchestration/config.yml",
+      "privileged": false
+    },
+    {
+      "case_id": "test_file",
+      "path": "tests/test_task_bootstrap.py",
+      "privileged": false
+    }
+  ]
+}

@@ -1,0 +1,51 @@
+{
+  "schema_version": "orchestration_validation_negative_cases.v1",
+  "cases": [
+    {
+      "case_id": "raw_model_labels.raw_prompt",
+      "category": "raw_model_labels",
+      "value": "raw_prompt: preserve this model output"
+    },
+    {
+      "case_id": "patch_hunks.diff_header",
+      "category": "patch_hunks",
+      "value": "diff --git a/app/main.py b/app/main.py\n@@ -1,1 +1,1 @@"
+    },
+    {
+      "case_id": "broad_root_targets.repo_root",
+      "category": "broad_root_targets",
+      "value": "."
+    },
+    {
+      "case_id": "broad_root_targets.app_root",
+      "category": "broad_root_targets",
+      "value": "app"
+    },
+    {
+      "case_id": "null_learning_metrics.learning_metrics",
+      "category": "null_learning_metrics",
+      "field": "learning_metrics",
+      "value": null
+    },
+    {
+      "case_id": "invalid_timestamps.offset_timestamp",
+      "category": "invalid_timestamps",
+      "value": "2026-07-03T12:00:00+03:00"
+    },
+    {
+      "case_id": "invalid_agent_slugs.spaced_slug",
+      "category": "invalid_agent_slugs",
+      "value": "not an agent slug"
+    },
+    {
+      "case_id": "local_absolute_paths.macos_user_path",
+      "category": "local_absolute_paths",
+      "value": "/Users/example/worktree/.env"
+    },
+    {
+      "case_id": "local_absolute_paths.file_uri",
+      "category": "local_absolute_paths",
+      "value": "file:///private/tmp/raw-review.txt"
+    }
+  ]
+}

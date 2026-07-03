@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 import pytest
 import scripts.orchestration.skill_router as skill_router_module
@@ -30,6 +31,7 @@ POLICY_DOC_PATH = (
 MESSAGE_PROTOCOL_DOC_PATH = (
     Path(__file__).resolve().parents[1] / "docs/orchestration/AGENT_MESSAGE_PROTOCOL.md"
 )
+FIXTURE_DIR = Path(__file__).resolve().parent / "fixtures" / "orchestration"
 
 EXPECTED_REQUESTED_AGENT_POLICY_ROWS: tuple[str, ...] = (
     "| `agent-coordinator` | `docs-sync`, `agents-md`, `pulseplate-gates` |",
@@ -50,10 +52,13 @@ EXPECTED_REQUESTED_AGENT_NAMES: frozenset[str] = frozenset(
 
 EXPECTED_PRIVILEGED_SURFACE_POLICY_LINES: tuple[str, ...] = (
     "- `.github/workflows/**`",
+    "- `.github/actions/**`",
     "- `ios/fastlane/**`",
     "- `scripts/orchestration/**`",
     "- merge-governance scripts under `scripts/ci/**`",
     "- merge-governance docs under `docs/orchestration/**` and `docs/review/**`",
+    "- deploy/image config such as `Dockerfile`, `docker-compose*.yml`, and `deploy/**`",
+    "- dependency and hook config such as `requirements*.txt`, `requirements*.in`, `pyproject.toml`,",
 )
 EXPECTED_CLASSIFICATION_POLICY_LINES: tuple[str, ...] = (
     "- `implementation`",
@@ -78,6 +83,11 @@ def _read_policy_doc() -> str:
     """Load the canonical policy markdown for doc-to-implementation parity checks."""
 
     return POLICY_DOC_PATH.read_text(encoding="utf-8")
+
+
+def _privileged_surface_cases() -> list[dict[str, object]]:
+    fixture = json.loads((FIXTURE_DIR / "privileged_review_surfaces.json").read_text())
+    return list(fixture["cases"])
 
 
 def _read_message_protocol_doc() -> str:
@@ -1367,11 +1377,14 @@ def test_skill_router_boosts_security_skills_for_privileged_surfaces() -> None:
     ("candidate_path", "domain", "expected_reason_prefix"),
     (
         (".github/workflows/test.yml", "release", ".github/workflows/"),
+        (".github/actions/setup/action.yml", "release", ".github/actions/"),
         ("ios/fastlane/Fastfile", "release", "ios/fastlane/"),
         ("scripts/orchestration/skill_router.py", "orchestration", "scripts/orchestration/"),
         ("scripts/ci/check_pr_merge_readiness.py", "qa", "scripts/ci/"),
         ("docs/orchestration/AGENT_ROUTING_GRAPH.md", "orchestration", "docs/orchestration/"),
         ("docs/review/PR_999_FIXED_MAPPING.md", "qa", "docs/review/"),
+        ("Dockerfile", "ops", "deploy-or-image-config"),
+        ("requirements.txt", "ops", "dependency-or-hook-config"),
     ),
 )
 def test_privileged_surface_parity_emits_stable_security_metadata(
@@ -1408,12 +1421,40 @@ def test_privileged_surface_prefixes_stay_in_sync_with_policy_coverage() -> None
     assert len(PRIVILEGED_SURFACE_PREFIXES) == len(set(PRIVILEGED_SURFACE_PREFIXES))
     assert set(PRIVILEGED_SURFACE_PREFIXES) == {
         ".github/workflows/",
+        ".github/actions/",
         "ios/fastlane/",
         "scripts/orchestration/",
         "scripts/ci/",
         "docs/orchestration/",
         "docs/review/",
+        "deploy/",
+        ".devcontainer/",
     }
+
+
+@pytest.mark.parametrize("case", _privileged_surface_cases(), ids=lambda case: case["case_id"])
+def test_skill_router_consumes_shared_privileged_surface_matrix(
+    case: dict[str, object],
+) -> None:
+    """Skill routing must consume the reviewed privileged-surface class matrix."""
+
+    decision = route_skills(
+        goal="Refresh guarded orchestration surface",
+        task_class="Governance",
+        candidate_paths=[str(case["path"])],
+        domain="orchestration",
+    )
+    privileged_reasons = [
+        reason
+        for item in decision["recommended"]
+        for reason in item["reasons"]
+        if reason.startswith("privileged-surface:")
+    ]
+
+    if case["privileged"]:
+        assert f"privileged-surface:{case['reason']}(+4)" in privileged_reasons
+    else:
+        assert privileged_reasons == []
 
 
 @pytest.mark.parametrize(
