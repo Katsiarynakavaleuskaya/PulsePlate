@@ -59,6 +59,12 @@ def test_route_family_migration_proof_schema_pins_non_runtime_contract() -> None
         "rollback_proof",
     ):
         assert schema["properties"][section_name]["$ref"] == "#/$defs/proof_section"
+    repo_path_not_pattern = schema["$defs"]["repo_path"]["not"]["pattern"]
+    assert "^[A-Za-z][A-Za-z0-9+.-]*:" in repo_path_not_pattern
+    assert "^(Users|home|private|tmp|var|Volumes|mnt|root|workspace|workspaces)(/|$)" in (
+        repo_path_not_pattern
+    )
+    assert schema["$defs"]["proof_section"]["properties"]["summary"]["pattern"] == "\\S"
 
 
 def test_route_family_migration_proof_accepts_minimal_valid_payload() -> None:
@@ -99,6 +105,15 @@ def test_route_family_migration_proof_rejects_long_summaries() -> None:
     payload = _valid_proof()
     payload["owner_proof"] = deepcopy(payload["owner_proof"])
     payload["owner_proof"]["summary"] = "x" * 361
+
+    errors = validate_route_family_migration_proof(payload)
+    assert "owner_proof.summary must be a non-empty string of 360 chars or fewer" in errors
+
+
+def test_route_family_migration_proof_rejects_whitespace_only_summaries() -> None:
+    payload = _valid_proof()
+    payload["owner_proof"] = deepcopy(payload["owner_proof"])
+    payload["owner_proof"]["summary"] = "   "
 
     errors = validate_route_family_migration_proof(payload)
     assert "owner_proof.summary must be a non-empty string of 360 chars or fewer" in errors
@@ -150,6 +165,24 @@ def test_route_family_migration_proof_rejects_windows_and_backslash_refs() -> No
         "C:/Users/example/secret.txt",
         "C:\\Users\\example\\secret.txt",
         "tests\\test_route_family_migration_proof.py",
+    ):
+        payload = _valid_proof()
+        payload["openapi_proof"] = deepcopy(payload["openapi_proof"])
+        payload["openapi_proof"]["evidence_refs"] = [value]
+
+        errors = validate_route_family_migration_proof(payload)
+        assert "openapi_proof.evidence_refs[0] must be a repo-relative ref" in errors
+
+
+def test_route_family_migration_proof_rejects_uri_drive_and_local_root_refs() -> None:
+    for value in (
+        "https://github.com/org/repo/pull/1",
+        "C:relative",
+        "var/local-proof.json",
+        "workspace/proof.json",
+        "Volumes/proof.json",
+        "home/proof.json",
+        "root/proof.json",
     ):
         payload = _valid_proof()
         payload["openapi_proof"] = deepcopy(payload["openapi_proof"])

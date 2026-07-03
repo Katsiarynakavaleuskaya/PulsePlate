@@ -116,6 +116,48 @@
       "reason": "dependency-or-hook-config"
     },
     {
+      "case_id": "nested_requirements_txt",
+      "path": "services/api/requirements-dev.txt",
+      "privileged": true,
+      "reason": "dependency-or-hook-config"
+    },
+    {
+      "case_id": "nested_requirements_in",
+      "path": "services/api/requirements.in",
+      "privileged": true,
+      "reason": "dependency-or-hook-config"
+    },
+    {
+      "case_id": "nested_pyproject",
+      "path": "services/api/pyproject.toml",
+      "privileged": true,
+      "reason": "dependency-or-hook-config"
+    },
+    {
+      "case_id": "nested_pre_commit",
+      "path": "backend/.pre-commit-config.yaml",
+      "privileged": true,
+      "reason": "dependency-or-hook-config"
+    },
+    {
+      "case_id": "nested_constraints",
+      "path": "services/api/constraints.txt",
+      "privileged": true,
+      "reason": "dependency-or-hook-config"
+    },
+    {
+      "case_id": "nested_package_lock",
+      "path": "frontend/package-lock.json",
+      "privileged": true,
+      "reason": "dependency-or-hook-config"
+    },
+    {
+      "case_id": "nested_pnpm_lock",
+      "path": "frontend/pnpm-lock.yaml",
+      "privileged": true,
+      "reason": "dependency-or-hook-config"
+    },
+    {
       "case_id": "root_readme",
       "path": "README.md",
       "privileged": false

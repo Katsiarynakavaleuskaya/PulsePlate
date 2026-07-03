@@ -108,6 +108,18 @@ def _validate_fixed_mapping_block(lines: list[str]) -> list[str]:
     return errors
 
 
+def _block_has_thread_entry(lines: list[str]) -> bool:
+    return any(MAPPING_LINE_RE.match(line) or THREAD_LINE_RE.match(line) for line in lines)
+
+
+def _is_mapping_entries_preamble(lines: list[str]) -> bool:
+    """Return True for PR_2068-style proof preambles that name following mappings."""
+
+    return not _block_has_thread_entry(lines) and any(
+        "see mapping entries below" in line.lower() for line in lines
+    )
+
+
 def mapping_artifact_path(pr_number: int) -> Path:
     """Return canonical review mapping artifact path for a PR number."""
     return _review_dir() / f"PR_{pr_number}_FIXED_MAPPING.md"
@@ -203,18 +215,25 @@ def validate_fixed_mapping_section(section: str) -> list[str]:
 
     blocks: list[list[str]] = []
     current_block: list[str] = []
-    for line in raw_lines:
+    for line_index, line in enumerate(raw_lines):
         if not line:
-            if current_block and any(
-                MAPPING_LINE_RE.match(item) or THREAD_LINE_RE.match(item) for item in current_block
-            ):
+            if current_block and _block_has_thread_entry(current_block):
+                blocks.append(current_block)
+                current_block = []
+            elif current_block:
+                next_non_empty = next(
+                    (candidate for candidate in raw_lines[line_index + 1 :] if candidate),
+                    "",
+                )
+                if _is_mapping_entries_preamble(current_block) and (
+                    MAPPING_LINE_RE.match(next_non_empty) or THREAD_LINE_RE.match(next_non_empty)
+                ):
+                    continue
                 blocks.append(current_block)
                 current_block = []
             continue
         is_thread_line = bool(MAPPING_LINE_RE.match(line) or THREAD_LINE_RE.match(line))
-        current_has_thread = any(
-            MAPPING_LINE_RE.match(item) or THREAD_LINE_RE.match(item) for item in current_block
-        )
+        current_has_thread = _block_has_thread_entry(current_block)
         current_has_disposition = any(item.startswith("Disposition:") for item in current_block)
         if (
             is_thread_line

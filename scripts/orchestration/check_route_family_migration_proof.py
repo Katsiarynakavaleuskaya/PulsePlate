@@ -25,8 +25,20 @@ REQUIRED_TOP_LEVEL = (
 )
 PROOF_SECTIONS = REQUIRED_TOP_LEVEL[3:]
 PROOF_SECTION_FIELDS = ("checked", "summary", "evidence_refs")
-LOCAL_ROOTS = {"Users", "private", "tmp", "var", "Volumes", "workspaces", "workspace"}
+LOCAL_ROOTS = {
+    "Users",
+    "home",
+    "mnt",
+    "private",
+    "root",
+    "tmp",
+    "var",
+    "Volumes",
+    "workspaces",
+    "workspace",
+}
 WINDOWS_DRIVE_RE = re.compile(r"^[A-Za-z]:[\\/]")
+URI_SCHEME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*:")
 
 
 def _is_repo_relative_ref(value: str) -> bool:
@@ -34,6 +46,7 @@ def _is_repo_relative_ref(value: str) -> bool:
         not value
         or "\\" in value
         or WINDOWS_DRIVE_RE.match(value)
+        or URI_SCHEME_RE.match(value)
         or value.startswith(("file://", "~", "/", "\\"))
         or not REPO_PATH_RE.fullmatch(value)
     ):

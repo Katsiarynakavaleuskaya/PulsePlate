@@ -97,8 +97,14 @@ PRIVILEGED_REVIEW_SURFACES: tuple[PrivilegedReviewSurface, ...] = (
             "requirements.txt",
             "requirements-dev.txt",
         ),
-        suffixes=("/package-lock.json", "/pnpm-lock.yaml", "/requirements.txt"),
-        regexes=(r"^requirements[-A-Za-z0-9_]*\.(in|txt)$",),
+        suffixes=(
+            "/.pre-commit-config.yaml",
+            "/constraints.txt",
+            "/package-lock.json",
+            "/pnpm-lock.yaml",
+            "/pyproject.toml",
+        ),
+        regexes=(r"(^|.*/)requirements[-A-Za-z0-9_]*\.(in|txt)$",),
     ),
 )
 
