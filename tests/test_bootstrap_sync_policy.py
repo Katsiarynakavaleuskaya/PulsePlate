@@ -80,6 +80,7 @@ def test_bootstrap_sync_policy_freezes_privileged_review_prefixes() -> None:
     assert tuple(surface.surface_class for surface in PRIVILEGED_REVIEW_SURFACES) == (
         "github_workflows",
         "github_actions",
+        "github_codeowners",
         "ios_fastlane",
         "orchestration_scripts",
         "merge_governance_scripts",

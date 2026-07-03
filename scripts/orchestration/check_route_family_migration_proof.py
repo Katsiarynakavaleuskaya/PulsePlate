@@ -67,15 +67,25 @@ def _is_repo_relative_ref(value: str) -> bool:
 
 def _evidence_ref_exists(value: str, *, repo_root: Path) -> bool:
     path_value = value
+    line_number: int | None = None
     line_ref_match = LINE_REF_RE.fullmatch(value)
     if line_ref_match:
         path_value = line_ref_match.group("path")
+        line_number = int(line_ref_match.group("line"))
     try:
         candidate = (repo_root / path_value).resolve(strict=False)
         candidate.relative_to(repo_root.resolve())
     except (OSError, RuntimeError, ValueError):
         return False
-    return candidate.is_file()
+    if not candidate.is_file():
+        return False
+    if line_number is None:
+        return True
+    try:
+        with candidate.open(encoding="utf-8") as handle:
+            return sum(1 for _ in handle) >= line_number
+    except UnicodeDecodeError:
+        return False
 
 
 def validate_route_family_migration_proof(
@@ -136,8 +146,9 @@ def validate_route_family_migration_proof(
                 errors.append(f"{section_name}.evidence_refs[{index}] must be a repo-relative ref")
                 continue
             if not _evidence_ref_exists(ref, repo_root=repo_root):
+                target = "repo file and line" if LINE_REF_RE.fullmatch(ref) else "repo file"
                 errors.append(
-                    f"{section_name}.evidence_refs[{index}] must reference an existing repo file"
+                    f"{section_name}.evidence_refs[{index}] must reference an existing {target}"
                 )
                 continue
             string_refs.append(ref)

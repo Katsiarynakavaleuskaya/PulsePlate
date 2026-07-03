@@ -14,6 +14,24 @@
       "reason": ".github/actions/"
     },
     {
+      "case_id": "github_codeowners",
+      "path": ".github/CODEOWNERS",
+      "privileged": true,
+      "reason": "CODEOWNERS"
+    },
+    {
+      "case_id": "root_codeowners",
+      "path": "CODEOWNERS",
+      "privileged": true,
+      "reason": "CODEOWNERS"
+    },
+    {
+      "case_id": "docs_codeowners",
+      "path": "docs/CODEOWNERS",
+      "privileged": true,
+      "reason": "CODEOWNERS"
+    },
+    {
       "case_id": "fastlane",
       "path": "ios/fastlane/Fastfile",
       "privileged": true,
@@ -56,8 +74,38 @@
       "reason": "deploy-or-image-config"
     },
     {
+      "case_id": "production_dockerfile_variant",
+      "path": "frontend/Dockerfile.caddy-spa",
+      "privileged": true,
+      "reason": "deploy-or-image-config"
+    },
+    {
+      "case_id": "docker_compose_override",
+      "path": "docker-compose.override.yml",
+      "privileged": true,
+      "reason": "deploy-or-image-config"
+    },
+    {
+      "case_id": "docker_compose_production_yaml",
+      "path": "deploy/docker-compose.production.yaml",
+      "privileged": true,
+      "reason": "deploy-or-image-config"
+    },
+    {
       "case_id": "pre_commit",
       "path": ".pre-commit-config.yaml",
+      "privileged": true,
+      "reason": "dependency-or-hook-config"
+    },
+    {
+      "case_id": "github_dependabot_yml",
+      "path": ".github/dependabot.yml",
+      "privileged": true,
+      "reason": "dependency-or-hook-config"
+    },
+    {
+      "case_id": "github_dependabot_yaml",
+      "path": ".github/dependabot.yaml",
       "privileged": true,
       "reason": "dependency-or-hook-config"
     },
@@ -166,6 +214,42 @@
     {
       "case_id": "nested_package_lock",
       "path": "frontend/package-lock.json",
+      "privileged": true,
+      "reason": "dependency-or-hook-config"
+    },
+    {
+      "case_id": "root_skills_lock",
+      "path": "skills-lock.json",
+      "privileged": true,
+      "reason": "dependency-or-hook-config"
+    },
+    {
+      "case_id": "ios_swiftpm_manifest",
+      "path": "ios/Package.swift",
+      "privileged": true,
+      "reason": "dependency-or-hook-config"
+    },
+    {
+      "case_id": "ios_swiftpm_lock",
+      "path": "ios/Package.resolved",
+      "privileged": true,
+      "reason": "dependency-or-hook-config"
+    },
+    {
+      "case_id": "xcode_swiftpm_lock",
+      "path": "ios/PulsePlate.xcodeproj/xcshareddata/swiftpm/Package.resolved",
+      "privileged": true,
+      "reason": "dependency-or-hook-config"
+    },
+    {
+      "case_id": "ios_gemfile",
+      "path": "ios/Gemfile",
+      "privileged": true,
+      "reason": "dependency-or-hook-config"
+    },
+    {
+      "case_id": "ios_gemfile_lock",
+      "path": "ios/Gemfile.lock",
       "privileged": true,
       "reason": "dependency-or-hook-config"
     },

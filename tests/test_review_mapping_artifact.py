@@ -298,6 +298,51 @@ Evidence: See mapping entries below.
     assert errors == []
 
 
+def test_validate_fixed_mapping_section_accepts_placeholder_preamble_with_thread_lines() -> None:
+    section = """Disposition: FIXED
+Commit: see mapping entries below
+Evidence: See mapping entries below.
+- https://github.com/org/repo/pull/1000#discussion_r1
+
+- https://github.com/org/repo/pull/1000#discussion_r1 -> abc1234
+"""
+    errors = artifact.validate_fixed_mapping_section(section)
+    assert errors == []
+
+
+def test_validate_fixed_mapping_section_rejects_placeholder_with_same_block_mappings() -> None:
+    section = """Disposition: FIXED
+Commit: see mapping entries below
+Evidence: See mapping entries below.
+- https://github.com/org/repo/pull/1000#discussion_r1 -> abc1234
+"""
+    errors = artifact.validate_fixed_mapping_section(section)
+    assert any("following SHA mapping-only block" in error for error in errors)
+
+
+def test_validate_fixed_mapping_section_rejects_mixed_placeholder_following_block() -> None:
+    section = """Disposition: FIXED
+Commit: see mapping entries below
+Evidence: See mapping entries below.
+- https://github.com/org/repo/pull/1000#discussion_r1
+
+- https://github.com/org/repo/pull/1000#discussion_r1 -> abc1234
+- https://github.com/org/repo/pull/1000#discussion_r2
+"""
+    errors = artifact.validate_fixed_mapping_section(section)
+    assert any("following SHA mapping-only block" in error for error in errors)
+
+
+def test_validate_fixed_mapping_section_rejects_placeholder_trailing_period() -> None:
+    section = """Disposition: FIXED
+Commit: see mapping entries below.
+Evidence: See mapping entries below.
+- https://github.com/org/repo/pull/1000#discussion_r1 -> abc1234
+"""
+    errors = artifact.validate_fixed_mapping_section(section)
+    assert any("Commit proof must be a commit SHA" in error for error in errors)
+
+
 def test_validate_fixed_mapping_section_rejects_fixed_sha_mapping_without_commit() -> None:
     section = """- https://github.com/org/repo/pull/1000#issuecomment-1 -> abc1234
 Disposition: FIXED
@@ -348,6 +393,17 @@ Commit: abc1234
 """
     errors = artifact.validate_fixed_mapping_section(section)
     assert any("Disposition FIXED requires" in error for error in errors)
+
+
+def test_validate_fixed_mapping_section_accepts_mapping_first_with_blank_proof_block() -> None:
+    section = """- https://github.com/org/repo/pull/1000#discussion_r1 -> abc1234
+
+Disposition: FIXED
+Commit: abc1234
+Evidence: tests/test_review_mapping_artifact.py
+"""
+    errors = artifact.validate_fixed_mapping_section(section)
+    assert errors == []
 
 
 def test_validate_fixed_mapping_section_rejects_orphan_disposition_before_mapping() -> None:

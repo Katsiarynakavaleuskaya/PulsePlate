@@ -99,6 +99,14 @@ def _validate_fixed_mapping_block(lines: list[str]) -> list[str]:
 
     disposition = disposition_values[0]
     if disposition == "FIXED":
+        uses_mapping_entries_preamble = any(
+            value.strip().lower() == "see mapping entries below" for value in commit_values
+        )
+        if uses_mapping_entries_preamble and has_sha_mapping:
+            errors.append(
+                "Disposition FIXED with 'Commit: see mapping entries below' requires "
+                "a following SHA mapping-only block."
+            )
         if not has_sha_mapping:
             errors.append("Disposition FIXED requires '- <url> -> <sha>' mapping lines.")
         if has_url_only_mapping:
@@ -112,7 +120,7 @@ def _validate_fixed_mapping_block(lines: list[str]) -> list[str]:
             for value in commit_values
             if not (
                 COMMIT_SHA_RE.fullmatch(value)
-                or value.strip().lower().rstrip(".") == "see mapping entries below"
+                or value.strip().lower() == "see mapping entries below"
             )
         ]
         if invalid_commit_values:
@@ -146,12 +154,118 @@ def _block_has_thread_entry(lines: list[str]) -> bool:
     return any(MAPPING_LINE_RE.match(line) or THREAD_LINE_RE.match(line) for line in lines)
 
 
+def _block_has_sha_mapping(lines: list[str]) -> bool:
+    return any(MAPPING_LINE_RE.match(line) for line in lines)
+
+
+def _block_has_disposition(lines: list[str]) -> bool:
+    return any(line.startswith("Disposition:") for line in lines)
+
+
+def _is_mapping_only_block(lines: list[str]) -> bool:
+    if not lines:
+        return False
+    return all(MAPPING_LINE_RE.match(line) or THREAD_LINE_RE.match(line) for line in lines)
+
+
+def _is_sha_mapping_only_block(lines: list[str]) -> bool:
+    if not lines:
+        return False
+    return all(MAPPING_LINE_RE.match(line) for line in lines)
+
+
+def _split_fixed_mapping_blocks(raw_lines: list[str]) -> list[list[str]]:
+    """Split physical blocks while preserving legacy mapping-first inline groups."""
+
+    blocks: list[list[str]] = []
+    current_block: list[str] = []
+    for line in raw_lines:
+        if not line:
+            if current_block:
+                blocks.append(current_block)
+                current_block = []
+            continue
+        is_thread_line = bool(MAPPING_LINE_RE.match(line) or THREAD_LINE_RE.match(line))
+        current_has_thread = _block_has_thread_entry(current_block)
+        current_has_disposition = _block_has_disposition(current_block)
+        if (
+            is_thread_line
+            and current_has_thread
+            and current_has_disposition
+            and not (current_block and current_block[0].startswith("Disposition:"))
+        ):
+            blocks.append(current_block)
+            current_block = [line]
+            continue
+        if line.startswith("Disposition:") and _block_has_disposition(current_block):
+            blocks.append(current_block)
+            current_block = [line]
+            continue
+        current_block.append(line)
+    if current_block:
+        blocks.append(current_block)
+    return blocks
+
+
 def _is_mapping_entries_preamble(lines: list[str]) -> bool:
     """Return True for PR_2068-style proof preambles that name following mappings."""
 
-    return not _block_has_thread_entry(lines) and any(
-        "see mapping entries below" in line.lower() for line in lines
+    return (
+        not _block_has_sha_mapping(lines)
+        and any(line == "Commit: see mapping entries below" for line in lines)
+        and any(line.startswith("Disposition: FIXED") for line in lines)
+        and any(line.startswith("Evidence:") for line in lines)
     )
+
+
+def _validate_mapping_entries_preamble(
+    preamble: list[str],
+    following: list[str] | None,
+) -> list[str]:
+    errors: list[str] = []
+    for line in preamble:
+        if (
+            line.startswith("Disposition:")
+            or line.startswith("Commit:")
+            or line.startswith("Evidence:")
+            or THREAD_LINE_RE.match(line)
+        ):
+            continue
+        errors.append(f"Invalid mapping line format in canonical artifact: {line}")
+    evidence_values = [
+        line.removeprefix("Evidence:").strip()
+        for line in preamble
+        if line.startswith("Evidence:")
+    ]
+    if not evidence_values or any(not value for value in evidence_values):
+        errors.append("Disposition FIXED requires a non-empty 'Evidence:' proof line.")
+    if following is None or not _is_sha_mapping_only_block(following):
+        errors.append(
+            "Disposition FIXED with 'Commit: see mapping entries below' requires "
+            "a following SHA mapping-only block."
+        )
+        return errors
+    mapping_entries = {
+        match.group(1): match.group(2)
+        for line in following
+        if (match := MAPPING_LINE_RE.match(line))
+    }
+    if not mapping_entries:
+        errors.append(
+            "Disposition FIXED with 'Commit: see mapping entries below' requires "
+            "SHA mapping lines in the following block."
+        )
+    missing_urls = [
+        match.group(1)
+        for line in preamble
+        if (match := THREAD_LINE_RE.match(line)) and match.group(1) not in mapping_entries
+    ]
+    if missing_urls:
+        errors.append(
+            "Disposition FIXED with 'Commit: see mapping entries below' is missing "
+            f"following SHA mappings for: {', '.join(missing_urls)}."
+        )
+    return errors
 
 
 def mapping_artifact_path(pr_number: int) -> Path:
@@ -247,54 +361,29 @@ def validate_fixed_mapping_section(section: str) -> list[str]:
             )
         return errors
 
-    blocks: list[list[str]] = []
-    current_block: list[str] = []
-    for line_index, line in enumerate(raw_lines):
-        if not line:
-            if current_block and _block_has_thread_entry(current_block):
-                blocks.append(current_block)
-                current_block = []
-            elif current_block:
-                next_non_empty = next(
-                    (candidate for candidate in raw_lines[line_index + 1 :] if candidate),
-                    "",
-                )
-                if _is_mapping_entries_preamble(current_block) and (
-                    MAPPING_LINE_RE.match(next_non_empty) or THREAD_LINE_RE.match(next_non_empty)
-                ):
-                    continue
-                blocks.append(current_block)
-                current_block = []
-            continue
-        is_thread_line = bool(MAPPING_LINE_RE.match(line) or THREAD_LINE_RE.match(line))
-        current_has_thread = _block_has_thread_entry(current_block)
-        current_has_disposition = any(item.startswith("Disposition:") for item in current_block)
-        if (
-            is_thread_line
-            and current_has_thread
-            and current_has_disposition
-            and not (current_block and current_block[0].startswith("Disposition:"))
-        ):
-            blocks.append(current_block)
-            current_block = [line]
-            continue
-        if line.startswith("Disposition:") and any(
-            item.startswith("Disposition:") for item in current_block
-        ):
-            if current_block:
-                blocks.append(current_block)
-            current_block = [line]
-        else:
-            current_block.append(line)
-    if current_block:
-        blocks.append(current_block)
+    blocks = _split_fixed_mapping_blocks(raw_lines)
 
     saw_thread_line = any(
         MAPPING_LINE_RE.match(line) or THREAD_LINE_RE.match(line)
         for block in blocks
         for line in block
     )
-    for block in blocks:
+    skip_indexes: set[int] = set()
+    for index, block in enumerate(blocks):
+        if index in skip_indexes:
+            continue
+        next_block = blocks[index + 1] if index + 1 < len(blocks) else None
+        if _is_mapping_entries_preamble(block):
+            errors.extend(_validate_mapping_entries_preamble(block, next_block))
+            if next_block is not None and _is_mapping_only_block(next_block):
+                skip_indexes.add(index + 1)
+            continue
+        if _is_mapping_only_block(block) and next_block is not None and _block_has_disposition(
+            next_block
+        ):
+            errors.extend(_validate_fixed_mapping_block([*block, *next_block]))
+            skip_indexes.add(index + 1)
+            continue
         errors.extend(_validate_fixed_mapping_block(block))
 
     if not saw_thread_line and not errors:

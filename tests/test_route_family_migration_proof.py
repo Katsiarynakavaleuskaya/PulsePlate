@@ -80,6 +80,17 @@ def test_route_family_migration_proof_accepts_existing_line_refs() -> None:
     assert validate_route_family_migration_proof(payload) == []
 
 
+def test_route_family_migration_proof_rejects_missing_line_refs() -> None:
+    payload = _valid_proof()
+    payload["openapi_proof"] = deepcopy(payload["openapi_proof"])
+    payload["openapi_proof"]["evidence_refs"] = [
+        "tests/test_route_family_migration_proof.py:999999"
+    ]
+
+    errors = validate_route_family_migration_proof(payload)
+    assert "openapi_proof.evidence_refs[0] must reference an existing repo file and line" in errors
+
+
 def test_route_family_migration_proof_accepts_root_file_line_refs() -> None:
     payload = _valid_proof()
     payload["openapi_proof"] = deepcopy(payload["openapi_proof"])
@@ -107,6 +118,31 @@ def test_route_family_migration_proof_rejects_schema_invalid_route_family() -> N
     payload["route_family"] = "a" * 97
     errors = validate_route_family_migration_proof(payload)
     assert any("route_family must match" in error for error in errors)
+
+
+def test_route_family_migration_proof_rejects_unexpected_top_level_fields() -> None:
+    payload = _valid_proof()
+    payload["review_notes"] = {}
+
+    errors = validate_route_family_migration_proof(payload)
+    assert "unexpected fields: review_notes" in errors
+
+
+def test_route_family_migration_proof_rejects_non_object_sections() -> None:
+    payload = _valid_proof()
+    payload["owner_proof"] = "checked"
+
+    errors = validate_route_family_migration_proof(payload)
+    assert "owner_proof must be a JSON object" in errors
+
+
+def test_route_family_migration_proof_rejects_unexpected_section_fields() -> None:
+    payload = _valid_proof()
+    payload["owner_proof"] = deepcopy(payload["owner_proof"])
+    payload["owner_proof"]["extra"] = "not allowed"
+
+    errors = validate_route_family_migration_proof(payload)
+    assert "owner_proof unexpected fields: extra" in errors
 
 
 def test_route_family_migration_proof_requires_each_section_checked() -> None:
@@ -184,6 +220,24 @@ def test_route_family_migration_proof_rejects_missing_evidence_refs() -> None:
 
     errors = validate_route_family_migration_proof(payload)
     assert "openapi_proof.evidence_refs[0] must reference an existing repo file" in errors
+
+
+def test_route_family_migration_proof_rejects_empty_evidence_refs() -> None:
+    payload = _valid_proof()
+    payload["openapi_proof"] = deepcopy(payload["openapi_proof"])
+    payload["openapi_proof"]["evidence_refs"] = []
+
+    errors = validate_route_family_migration_proof(payload)
+    assert "openapi_proof.evidence_refs must be a non-empty array" in errors
+
+
+def test_route_family_migration_proof_rejects_non_list_evidence_refs() -> None:
+    payload = _valid_proof()
+    payload["openapi_proof"] = deepcopy(payload["openapi_proof"])
+    payload["openapi_proof"]["evidence_refs"] = "tests/test_route_family_migration_proof.py"
+
+    errors = validate_route_family_migration_proof(payload)
+    assert "openapi_proof.evidence_refs must be a non-empty array" in errors
 
 
 def test_route_family_migration_proof_rejects_dotdot_inside_ref_names() -> None:
