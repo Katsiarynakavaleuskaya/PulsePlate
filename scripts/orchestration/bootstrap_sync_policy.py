@@ -61,6 +61,8 @@ PRIVILEGED_REVIEW_PATTERNS: tuple[str, ...] = (
     "frontend/Dockerfile.caddy-spa",
     "frontend/package*.json",
     "ios/Gemfile*",
+    "ios/Package.swift",
+    "ios/Package.resolved",
     "package*.json",
     "pyproject.toml",
     "requirements*.txt",

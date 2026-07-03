@@ -1199,6 +1199,8 @@ def test_task_bootstrap_keeps_security_auditor_in_privileged_review_path() -> No
         "frontend/Dockerfile.caddy-spa",
         "frontend/package-lock.json",
         "ios/Gemfile.lock",
+        "ios/Package.swift",
+        "ios/Package.resolved",
         "package-lock.json",
         "pyproject.toml",
         "requirements-ci-lite.txt",

@@ -93,6 +93,8 @@ def test_bootstrap_sync_policy_freezes_privileged_review_patterns() -> None:
         "frontend/Dockerfile.caddy-spa",
         "frontend/package*.json",
         "ios/Gemfile*",
+        "ios/Package.swift",
+        "ios/Package.resolved",
         "package*.json",
         "pyproject.toml",
         "requirements*.txt",
@@ -271,6 +273,8 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     assert requires_security_review(["frontend/package-lock.json"]) is True
     assert requires_security_review(["ios/Gemfile"]) is True
     assert requires_security_review(["ios/Gemfile.lock"]) is True
+    assert requires_security_review(["ios/Package.swift"]) is True
+    assert requires_security_review(["ios/Package.resolved"]) is True
     assert requires_security_review(["package.json"]) is True
     assert requires_security_review(["package-lock.json"]) is True
     assert requires_security_review(["pyproject.toml"]) is True
@@ -300,6 +304,7 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     assert requires_security_review(["frontend/nested/Dockerfile.caddy-spa"]) is False
     assert requires_security_review(["frontend/packages/package-lock.json"]) is False
     assert requires_security_review(["ios/vendor/Gemfile.lock"]) is False
+    assert requires_security_review(["ios/vendor/Package.resolved"]) is False
     assert requires_security_review(["packages/package-lock.json"]) is False
     assert requires_security_review([".github/dependabot/nested.yaml"]) is False
     assert requires_security_review(["scripts/ci-tools/bandit.sh"]) is False

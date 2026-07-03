@@ -4451,8 +4451,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Reason: Tasks touching GitHub workflows/actions, Fastlane,
     orchestration/CI/release scripts, merge-governance docs,
     Trivy/root Docker/Compose, devcontainer controls, deploy Caddy/Compose,
-    frontend Caddy Dockerfile/npm manifests, iOS Gemfile manifests, root
-    quality-gate configs, root CI/deploy helper scripts, GitHub
+    frontend Caddy Dockerfile/npm manifests, iOS Gemfile/SwiftPM manifests,
+    root quality-gate configs, root CI/deploy helper scripts, GitHub
     CODEOWNERS/actionlint, Dependabot YAML variants, or root
     requirements/constraints manifests can change privileged automation and
     supply-chain posture; PR #2067 centralizes this matcher and forces
@@ -4474,7 +4474,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - DoD:
     - Canonical docs define the privileged-surface trigger list via `bootstrap_sync_policy.py`
     - Coordinator/bootstrap preserves `security-auditor` in the executable review path for those surfaces
-    - Deterministic tests cover workflow/action/Fastlane/orchestration/release/docs/Trivy/root-Docker/devcontainer/deploy-Caddy-Compose/frontend-Caddy-Dockerfile/npm/iOS-Gemfile/quality-gate-config/root-CI-deploy-helper/GitHub-governance/dependency-manifest
+    - Deterministic tests cover workflow/action/Fastlane/orchestration/release/docs/Trivy/root-Docker/devcontainer/deploy-Caddy-Compose/frontend-Caddy-Dockerfile/npm/iOS-Gemfile-SwiftPM/quality-gate-config/root-CI-deploy-helper/GitHub-governance/dependency-manifest
       review routing
     - Merge-readiness docs explain that this is a default requirement, not optional reviewer theater
 
