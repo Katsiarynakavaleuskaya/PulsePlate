@@ -27,6 +27,13 @@ Artifact: `artifacts/orchestration/experiments/results/approved-hypothesis-spec-
 
 Summary: accepted oracle-only review, no repository mutation by the runner, `shared_tree_untouched=true`, `mutated_paths=[]`, and `coauthor_required=true`. The implementation commit includes the canonical Experiment Runner co-author trailer.
 
+## Post-Open Role Finding Disposition Evidence
+
+Disposition: FIXED
+Role: architecture-specialist
+Commit: 391538779
+Evidence: `CreativeHypothesisApproval` now binds approved PR-1 handoff to the exact source hypothesis packet id/fingerprint and selected hypothesis fingerprint; the bridge rejects stale approvals, mismatched candidate packets, non-canonical output directories, and premature `agent_skeptic_review` handoff before prepare completes. Covered by `tests/test_creative_hypothesis_spec_bridge.py` and `tests/test_experiment_runner_pr_creative_context.py`.
+
 ## Lane Start Provenance
 
 Packet: `artifacts/orchestration/task_packets/1ecc9fd44a92.json`
@@ -47,9 +54,10 @@ Post-open role order executed:
 
 - `python3 scripts/orchestration/check_preflight.py` - PASS with existing local private-index shape warning only.
 - `python3 scripts/orchestration/check_agent_consistency.py` - PASS.
-- `. .venv/bin/activate && pytest -q tests/test_creative_hypothesis_spec_bridge.py` - PASS, 21 passed.
+- `. .venv/bin/activate && pytest -q tests/test_creative_hypothesis_spec_bridge.py tests/test_experiment_runner_pr_creative_context.py` - PASS.
 - `. .venv/bin/activate && pytest -q tests/test_experiment_runner_pr_creative_context.py tests/test_creative_code_contract.py tests/test_creative_code_specification.py tests/test_agent_learning_loop.py` - PASS.
-- `make validate-changed` - PASS, selected `tests/test_creative_hypothesis_spec_bridge.py`, 21 passed.
+- `python3 -m json.tool docs/orchestration/contracts/creative_hypothesis_approval.v1.schema.json`, `python3 -m json.tool docs/orchestration/contracts/creative_hypothesis_specification_bridge.v1.schema.json`, `python3 -m json.tool docs/orchestration/contracts/creative_hypothesis_spec_bridge_metrics.v1.schema.json`, and `git diff --check` - PASS.
+- `make validate-changed` - PASS, selected `tests/test_creative_hypothesis_spec_bridge.py`, 24 passed.
 - `pre-commit run --all-files` - PASS.
 
 ## Merge Readiness
