@@ -64,6 +64,10 @@ BOLA, dependency upgrades, or GitHub workflow edits are included.
   bounded privileged coverage for GitHub helper scripts, scoped AGENTS files,
   authz contract tests, skill installer/source surfaces, cybersecurity skill
   bundle content, and Cursor control-plane configs.
+- `3f39887e5` - fixes the latest lab/release/scanner findings by adding bounded
+  privileged coverage for METATRON lab compose/guard files, iOS entitlement and
+  release plist/string controls, the AgentGuard scanner, and backup systemd
+  unit examples.
 
 ## Lane Start Provenance
 
@@ -473,6 +477,40 @@ Disposition: FIXED
 Commit: b6fa2dbae
 Reason: Cursor command/rule/MCP example files shape cold-start behavior, security-skill discovery, and local MCP wiring, so they are control-plane surfaces like `.cursor/agents/**`.
 Evidence: The matcher now covers `.cursor/commands/`, `.cursor/rules/`, and `.cursor/mcp.json.example`; focused tests cover representative positives and keep `.cursor/command/`, `.cursor/rules-notes/`, and `.cursor/mcp.json` as negative controls.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3520884314
+Disposition: NOT-A-BUG
+Reason: The comment validates FIXED proof against synthetic reviewed commit `a6f61af64cde8d7cd546c601cdc13ecc49e39aa9`, which is not present in the local or pushed PR branch history. Remapping real fix commits to a non-branch object would make the artifact less accurate; repository disposition proof is based on real PR commits that contain the fixes and satisfy commit-after-comment.
+Evidence: `git cat-file -t a6f61af64cde8d7cd546c601cdc13ecc49e39aa9` fails locally, while real mapped fix commits are branch commits. The new code-fix commit for current actionable findings is `3f39887e5`, made after this comment.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3520884318
+Disposition: NOT-A-BUG
+Reason: Experiment Runner attribution is required on commits materially shaped by Experiment Runner evidence. That material oracle evidence shaped the original implementation commit, which carries the required trailer; the synthetic reviewed commit `a6f61af64cde8d7cd546c601cdc13ecc49e39aa9` is not a branch commit, and later review-fix commits did not use new Experiment Runner output as material contribution.
+Evidence: `git show -s --format=%B b09ea4d9d` contains `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`, and `git merge-base --is-ancestor b09ea4d9d HEAD` returns 0.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3520884326 -> 3f39887e5
+Disposition: FIXED
+Commit: 3f39887e5
+Reason: `deploy/metatron-lab/docker-compose.yaml` and `scripts/metatron_lab/compose_guard.py` control the isolated security-lab network and its fixed-path guard, so lab isolation changes must not bypass executable security review.
+Evidence: The matcher now covers `deploy/metatron-lab/` and `scripts/metatron_lab/`; focused bootstrap, skill-router, and task-bootstrap tests cover representative positive paths and lookalike negatives such as `deploy/metatron_lab/` and `scripts/metatron_lab_notes/`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3520884329 -> 3f39887e5
+Disposition: FIXED
+Commit: 3f39887e5
+Reason: iOS entitlements, release plist, and localized `InfoPlist.strings` files control HealthKit/release permission posture and App Store privacy copy, so they belong with the existing iOS privacy-manifest release controls.
+Evidence: The matcher now covers `ios/PulsePlate/PulsePlate.entitlements`, `ios/PulsePlate/Info-Release.plist`, and `ios/PulsePlate/*/InfoPlist.strings`; focused tests cover the positives and nested/archive lookalike negatives.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3520884334 -> 3f39887e5
+Disposition: FIXED
+Commit: 3f39887e5
+Reason: `tools/agentguard/scan_text.mjs` is invoked by the local AgentGuard bridge for shared AI-input scanning, so scanner-only changes can weaken prompt-injection or shell-exec detection without touching Python guard code.
+Evidence: The matcher now covers `tools/agentguard/`; focused bootstrap, skill-router, and task-bootstrap tests cover `tools/agentguard/scan_text.mjs` and keep `tools/agentguard-notes/scan_text.mjs` non-privileged.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3520884340 -> 3f39887e5
+Disposition: FIXED
+Commit: 3f39887e5
+Reason: Backup systemd service/timer examples schedule `scripts/ops/postgres_backup.sh` for self-hosted installs, so unit-only changes can alter backup cadence, user, or target without touching the backup helper itself.
+Evidence: The matcher now covers `deploy/systemd/pulseplate-postgres-backup.*`; focused tests cover service/timer positives and nested/lookalike negatives such as `deploy/systemd/archive/` and `pulseplate-postgres-backup-notes.md`.
 
 ## Role-Agent / Premortem Closeout
 
