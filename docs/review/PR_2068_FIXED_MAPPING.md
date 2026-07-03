@@ -47,8 +47,8 @@ Out of scope:
 
 ## Discussion Thread Pass
 
-- [x] Discussion-thread pass completed.
-- [x] Fixed in commit mapping completed.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 - [x] Fixed in commit mapping artifact created after GitHub assigned PR number
   `#2068`.
 - [x] Post-open `qa-engineer-agent` pass completed.
@@ -80,6 +80,10 @@ Evidence: See `Review Comment Dispositions` below.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2068#discussion_r3518568926 -> 442b7d81cf5d4ac6fbd5031068b635e2a5627714
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2068#discussion_r3518568928 -> 442b7d81cf5d4ac6fbd5031068b635e2a5627714
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2068#discussion_r3518568929 -> 442b7d81cf5d4ac6fbd5031068b635e2a5627714
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2068#pullrequestreview-4621670747 -> d3ea17f96bb2a4fd6b68a5faf0db76db8dd8ebdd
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2068#pullrequestreview-4623604911 -> d3ea17f96bb2a4fd6b68a5faf0db76db8dd8ebdd
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2068#pullrequestreview-4623921579 -> 442b7d81cf5d4ac6fbd5031068b635e2a5627714
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2068#pullrequestreview-4624036507 -> 5646787ad2286544d55db08cee8a908c3e17b72a
 
 Disposition: NOT-A-BUG
 Evidence: `tests/test_agent_learning_loop.py` already covered the requested failure-pattern secondary-metric branch before the bot comment; CodeRabbit marked the thread addressed in commit `7db17f6`.
@@ -141,6 +145,44 @@ Reason: The current branch already covered the requested failure branch before
 the review comment. No post-comment code change was required; the branch is not
 missing the requested coverage.
 
+### CodeRabbit Review: Dispatch And Learning-Loop Routing Nitpicks
+
+Disposition: FIXED
+Comment:
+https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2068#pullrequestreview-4621670747
+Commit: d3ea17f96bb2a4fd6b68a5faf0db76db8dd8ebdd
+Evidence:
+
+- `creative_hypothesis_coordinator_dispatch.v1.schema.json` now requires
+  `dispatch.minItems=1`, and the runtime coordinator-dispatch validator rejects
+  empty dispatch arrays before identity validation.
+- `scripts/orchestration/skill_router.py` now uses one shared
+  `AGENT_LEARNING_LOOP_KEYWORDS` tuple for both the semantic group and the
+  `pulseplate-agent-learning-loop` `SkillRule`.
+- `tests/test_experiment_runner_pr_creative_context.py` and
+  `tests/test_skill_router.py` cover both closures.
+
+Reason: The inline failure-pattern metrics comment in this same CodeRabbit
+review is dispositioned separately as NOT-A-BUG because the coverage was already
+present before the comment. The review-level nitpicks were still valid, so they
+were fixed in code/schema/tests rather than treated as docs-only closeout.
+
+### CodeRabbit Review: Trusted Schema Regex Test Context
+
+Disposition: FIXED
+Comment:
+https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2068#pullrequestreview-4623604911
+Commit: d3ea17f96bb2a4fd6b68a5faf0db76db8dd8ebdd
+Evidence:
+
+- `tests/test_experiment_runner_pr_creative_context.py` now documents that the
+  regex patterns executed in schema parity tests are loaded from repo-owned
+  schema JSON, not attacker-controlled input.
+
+Reason: The ReDoS concern is not a runtime vulnerability in this test context,
+but the trust boundary was worth making explicit to prevent future reuse against
+untrusted patterns.
+
 ### CodeRabbit: Null Learning Metrics
 
 Disposition: FIXED
@@ -153,6 +195,24 @@ Evidence:
   `learning_metrics is None`, non-string primary/window fields, and duplicate
   primary metric entries.
 - `tests/test_agent_learning_loop.py` covers these validator-integrity cases.
+
+### CodeRabbit Review: Learning Metrics Strictness
+
+Disposition: FIXED
+Comment:
+https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2068#pullrequestreview-4623921579
+Commit: 442b7d81cf5d4ac6fbd5031068b635e2a5627714
+Evidence:
+
+- `scripts/orchestration/agent_learning_loop.py` rejects non-string
+  `primary_metric` / `measurement_window` values and rejects secondary metrics
+  that duplicate `primary_metric`.
+- `tests/test_agent_learning_loop.py` covers non-string and duplicate metric
+  cases.
+
+Reason: The review-level comment was actionable because silent coercion or
+deduplication would weaken the proposal-only learning artifact contract; the
+validator now fails closed.
 
 ### Codex: Raw Model Payload Labels In Intake
 
@@ -209,6 +269,25 @@ Evidence:
   and chain-of-thought marker labels.
 - The operator-intake schema mirrors the same dot-separated deny patterns.
 - Tests cover `raw.prompt`, `provider.payload`, and `chain.of.thought`.
+
+### CodeRabbit Review: Model-Intake Identity And Count Documentation
+
+Disposition: FIXED
+Comment:
+https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2068#pullrequestreview-4624036507
+Commit: 5646787ad2286544d55db08cee8a908c3e17b72a
+Evidence:
+
+- `tests/test_experiment_runner_pr_creative_context.py` asserts exact
+  repo-derived `intake_id` and `idempotency_key` values when operator-supplied
+  identity is overwritten.
+- `docs/orchestration/contracts/EXPERIMENT_RUNNER_PR_CREATIVE_CONTEXT_CONTRACT.md`
+  documents that `hypothesis_count` may be omitted and derived, while supplied
+  count and identity fields remain non-authoritative / validator-owned.
+
+Reason: The review correctly identified an operator-contract clarity issue; the
+test now proves exact repo-owned identity and the contract text matches runtime
+normalization.
 
 ### Codex: Patch-Hunk Redaction In Intake Schema
 
