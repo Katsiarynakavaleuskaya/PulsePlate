@@ -106,6 +106,7 @@ python -m scripts.orchestration.experiment_runner_pr_creative_context validate
 `prepare` writes only these filenames:
 
 - `context_map.json`
+- `model_intake.json` when `--model-intake` is supplied;
 - `hypothesis_packet.json`
 - `agent_routing.json`
 - `coordinator_dispatch.json`
@@ -114,9 +115,17 @@ python -m scripts.orchestration.experiment_runner_pr_creative_context validate
 
 `prepare --context-map <context_map.json> --model-intake <json>` uses the
 supplied fingerprinted context map and intake instead of deterministic
-templates, then writes the same local artifact set. Supplying the same
-`context_map.json` used by `ingest-model-hypotheses` prevents timestamp or
-argument drift from invalidating otherwise valid operator/model JSON.
+templates, then writes the normalized intake as `model_intake.json` beside the
+packet whose `source_model_intake_fingerprint` points at that normalized
+artifact. Supplying the same `context_map.json` used by
+`ingest-model-hypotheses` prevents timestamp or argument drift from
+invalidating otherwise valid operator/model JSON.
+
+`ingest-model-hypotheses --output <path>` writes the normalized packet to
+`<path>` and, by default, writes the validated normalized intake as
+`model_intake.json` beside it. Operators may override that sidecar path with
+`--normalized-intake-output`; stdout-only mode does not create a sidecar unless
+an explicit sidecar output is provided.
 
 ## Operator Model Intake
 
@@ -186,7 +195,9 @@ Baseline routing:
   `experiment-design-stats-agent` when registered.
 
 Missing specialist agents are recorded as `missing_agent_capabilities`; routing
-falls back to `agent-coordinator` when the primary is not registered.
+falls back to `agent-coordinator` when the primary is not registered. Missing
+capability entries must still use PulsePlate agent-slug shape; they are not
+free-form rationale text.
 
 `CreativeHypothesisCoordinatorDispatch` converts routing rows into
 `TASK_PACKET_V1`-style local handoff rows with `task_mode=critique_refine_only`,

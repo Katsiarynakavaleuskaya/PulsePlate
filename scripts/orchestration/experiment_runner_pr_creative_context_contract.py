@@ -190,6 +190,7 @@ CODEX_SECURITY_RERUN_ALLOWED_REASONS = (
 
 ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 SAFE_TOKEN_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$")
+AGENT_SLUG_RE = re.compile(r"^[a-z][a-z0-9-]{1,63}$")
 SAFE_GIT_REF_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,191}$")
 SHA_RE = re.compile(r"^[a-f0-9]{40}$")
 SHA256_RE = re.compile(r"^sha256:[a-f0-9]{64}$")
@@ -203,11 +204,11 @@ SECRET_RE = re.compile(
 )
 LEAK_TEXT_RE = re.compile(
     r"(diff --git|^\+\+\+ |^--- |@@ |candidate\.patch|candidate_patch|"
-    r"candidate[_ -]?patch|raw[_ -]?(model[_ -]?payload|"
+    r"candidate[_. -]?patch|raw[_. -]?(model[_. -]?payload|"
     r"body|prompt|response|context|patch|review|pr)|"
-    r"review[_ -]?thread[_ -]?body|pull[_ -]?request[_ -]?body|"
-    r"chain[_ -]?of[_ -]?thought|provider[_ -]?payload|"
-    r"oracle[_ -]?(stdout|stderr|output)|file://|"
+    r"review[_. -]?thread[_. -]?body|pull[_. -]?request[_. -]?body|"
+    r"chain[_. -]?of[_. -]?thought|provider[_. -]?payload|"
+    r"oracle[_. -]?(stdout|stderr|output)|file://|"
     r"/(?:Users|home|private/var|var/folders|tmp|etc|opt|usr|Volumes|mnt|root|"
     r"workspace|workspaces)(?:/|$)|~[/\\]|[A-Za-z]:[\\/]|\.venv/|\.git/|"
     r"worktrees([:/._-]|$)|merge[-_ ]?ready|ready to merge|mergeable)",
@@ -641,6 +642,16 @@ def _require_token(payload: Mapping[str, Any], key: str, *, label: str) -> str:
     return normalized
 
 
+def _require_agent_slug(value: Any, *, label: str) -> str:
+    if not isinstance(value, str):
+        raise ExperimentRunnerCreativeContextContractError(f"{label} must be a string.")
+    normalized = value.strip()
+    if not AGENT_SLUG_RE.fullmatch(normalized):
+        raise ExperimentRunnerCreativeContextContractError(f"{label} must be an agent slug.")
+    reject_unsafe_creative_context_value(normalized, label=label)
+    return normalized
+
+
 def _require_safe_text(
     payload: Mapping[str, Any],
     key: str,
@@ -825,6 +836,25 @@ def _normalize_text_list(
     if len(normalized) != len(set(normalized)):
         raise ExperimentRunnerCreativeContextContractError(f"{label} must not contain duplicates.")
     return normalized
+
+
+def _normalize_agent_slug_list(
+    raw_agents: Any,
+    *,
+    label: str,
+    allow_empty: bool,
+) -> list[str]:
+    if not isinstance(raw_agents, list):
+        raise ExperimentRunnerCreativeContextContractError(f"{label} must be a list.")
+    if not raw_agents and not allow_empty:
+        raise ExperimentRunnerCreativeContextContractError(f"{label} must be non-empty.")
+    agents = [
+        _require_agent_slug(agent, label=f"{label}[{index}]")
+        for index, agent in enumerate(raw_agents)
+    ]
+    if len(agents) != len(set(agents)):
+        raise ExperimentRunnerCreativeContextContractError(f"{label} must not contain duplicates.")
+    return agents
 
 
 def _is_product_runtime_or_workflow_target(path: str) -> bool:
@@ -2408,7 +2438,7 @@ def _normalize_coordinator_dispatch_entry(
             label=f"{label}.cross_domain_agents",
             registered_agents=registered_agents,
         ),
-        "missing_agent_capabilities": _normalize_text_list(
+        "missing_agent_capabilities": _normalize_agent_slug_list(
             raw_entry["missing_agent_capabilities"],
             label=f"{label}.missing_agent_capabilities",
             allow_empty=True,
@@ -2458,7 +2488,7 @@ def _normalize_routing_entry(
         label=f"{label}.cross_domain_agents",
         registered_agents=registered_agents,
     )
-    missing = _normalize_text_list(
+    missing = _normalize_agent_slug_list(
         raw_entry["missing_agent_capabilities"],
         label=f"{label}.missing_agent_capabilities",
         allow_empty=True,
@@ -2490,7 +2520,7 @@ def _normalize_agent_list(
     label: str,
     registered_agents: set[str],
 ) -> list[str]:
-    agents = _normalize_text_list(raw_agents, label=label, allow_empty=True)
+    agents = _normalize_agent_slug_list(raw_agents, label=label, allow_empty=True)
     unknown = [agent for agent in agents if agent not in registered_agents]
     if unknown:
         raise ExperimentRunnerCreativeContextContractError(

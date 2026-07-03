@@ -52,6 +52,7 @@ from scripts.orchestration.experiment_runner_pr_creative_context_contract import
     read_json_object,
     reject_unsafe_creative_context_value,
     validate_artifact_by_type,
+    validate_creative_hypothesis_agent_routing,
     validate_creative_hypothesis_coordinator_dispatch,
     validate_creative_hypothesis_operator_model_intake,
     validate_creative_hypothesis_packet,
@@ -519,6 +520,13 @@ def test_model_intake_rejects_pr2_patch_eligibility() -> None:
         lambda payload: payload["hypotheses"][0].update(
             {"expected_behavior": "raw model payload includes provider response"}
         ),
+        lambda payload: payload["hypotheses"][0].update(
+            {"expected_behavior": "raw.prompt includes provider response"}
+        ),
+        lambda payload: payload["hypotheses"][0].update(
+            {"risk_notes": ["provider.payload included"]}
+        ),
+        lambda payload: payload["hypotheses"][0].update({"falsifier": "chain.of.thought included"}),
         lambda payload: payload["hypotheses"][0].update({"falsifier": "@@ -1 +1 @@ patch hunk"}),
         lambda payload: payload["hypotheses"][0].update(
             {"target_surfaces": ["/Users/example/repo/file.py"]}
@@ -968,6 +976,34 @@ def test_coordinator_dispatch_rejects_missing_routing_rows() -> None:
         )
 
 
+def test_routing_rejects_malformed_missing_agent_capability_slug() -> None:
+    packet = _packet(hypothesis_count=3)
+    routing = build_creative_hypothesis_agent_routing(packet)
+    routing["routing"][0]["missing_agent_capabilities"] = ["not an agent slug"]
+
+    with pytest.raises(
+        ExperimentRunnerCreativeContextContractError,
+        match="agent slug",
+    ):
+        validate_creative_hypothesis_agent_routing(routing)
+
+
+def test_coordinator_dispatch_rejects_malformed_missing_agent_capability_slug() -> None:
+    packet = _packet(hypothesis_count=3)
+    routing = build_creative_hypothesis_agent_routing(packet)
+    dispatch = build_creative_hypothesis_coordinator_dispatch(
+        hypothesis_packet=packet,
+        routing=routing,
+    )
+    dispatch["dispatch"][0]["missing_agent_capabilities"] = ["Bad.Agent"]
+
+    with pytest.raises(
+        ExperimentRunnerCreativeContextContractError,
+        match="agent slug",
+    ):
+        validate_creative_hypothesis_coordinator_dispatch(dispatch)
+
+
 def test_consumption_summary_rejects_unrelated_routing_packet() -> None:
     packet = _packet(hypothesis_count=3)
     other_context = _context(
@@ -1124,10 +1160,13 @@ def test_cli_prepare_with_model_intake_reuses_supplied_context_map(
     dispatch = read_json_object(creative_root / "operator-lane" / "coordinator_dispatch.json")
     assert written_context["context_id"] == context["context_id"]
     assert packet["hypothesis_generation_mode"] == "operator_validated_intake_v1"
+    normalized_intake = read_json_object(creative_root / "operator-lane" / "model_intake.json")
     assert packet["context_map_fingerprint"] == fingerprint_payload(context)
-    assert packet["source_model_intake_fingerprint"] == fingerprint_payload(
-        validate_creative_hypothesis_operator_model_intake(intake, context_map=context)
+    assert normalized_intake == validate_creative_hypothesis_operator_model_intake(
+        intake,
+        context_map=context,
     )
+    assert packet["source_model_intake_fingerprint"] == fingerprint_payload(normalized_intake)
     assert all(row["task_mode"] == "critique_refine_only" for row in dispatch["dispatch"])
 
 
@@ -1160,6 +1199,8 @@ def test_cli_ingest_model_hypotheses_writes_normalized_packet(
     packet = read_json_object(creative_root / "hypothesis_packet.json")
     assert packet["hypothesis_generation_mode"] == "operator_validated_intake_v1"
     assert packet["hypothesis_count"] == 3
+    normalized_intake = read_json_object(creative_root / "model_intake.json")
+    assert packet["source_model_intake_fingerprint"] == fingerprint_payload(normalized_intake)
     assert [row["hypothesis_id"] for row in packet["hypotheses"]] == [
         "hyp-001",
         "hyp-002",
@@ -1353,11 +1394,27 @@ def test_operator_model_intake_schema_enforces_local_sanitized_shape() -> None:
         "--- a/app/main.py",
         "+++ b/app/main.py",
         "raw model payload included",
+        "raw.prompt included",
         "Provider_Payload included",
+        "provider.payload included",
+        "chain.of.thought included",
         "/Users/example/repo/file.py",
         "github_token",
     ):
         assert any(re.search(pattern, unsafe_value) for pattern in unsafe_text_patterns)
+
+    assert (
+        _schema("creative_hypothesis_agent_routing.v1.schema.json")["$defs"]["agent_slug"][
+            "pattern"
+        ]
+        == "^[a-z][a-z0-9-]{1,63}$"
+    )
+    assert (
+        _schema("creative_hypothesis_coordinator_dispatch.v1.schema.json")["$defs"]["agent_slug"][
+            "pattern"
+        ]
+        == "^[a-z][a-z0-9-]{1,63}$"
+    )
 
 
 def test_hypothesis_packet_schema_rejects_unsafe_text_classes() -> None:

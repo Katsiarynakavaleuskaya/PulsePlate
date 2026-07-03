@@ -42,6 +42,7 @@ from scripts.orchestration.experiment_runner_pr_creative_context_contract import
     reject_unsafe_creative_context_value,
     validate_artifact_by_type,
     validate_creative_hypothesis_agent_routing,
+    validate_creative_hypothesis_operator_model_intake,
     validate_creative_hypothesis_packet,
     validate_creative_protocol_context_map,
     validate_experiment_runner_pr_oracle_attachment,
@@ -54,6 +55,7 @@ ALLOWED_OUTPUT_FILENAMES = frozenset(
     {
         "context_map.json",
         "hypothesis_packet.json",
+        "model_intake.json",
         "agent_routing.json",
         "agent_consumption_summary.json",
         "coordinator_dispatch.json",
@@ -268,11 +270,22 @@ def _cmd_route_agents(args: argparse.Namespace) -> int:
 
 def _cmd_ingest_model_hypotheses(args: argparse.Namespace) -> int:
     context_map = validate_creative_protocol_context_map(read_json_object(args.context_map))
+    model_intake = validate_creative_hypothesis_operator_model_intake(
+        read_json_object(args.model_intake),
+        context_map=context_map,
+    )
     packet = build_creative_hypothesis_packet_from_model_intake(
         context_map,
-        read_json_object(args.model_intake),
+        model_intake,
     )
     _write_json(Path(args.output) if args.output else None, packet)
+    normalized_intake_output = (
+        Path(args.normalized_intake_output)
+        if args.normalized_intake_output
+        else Path(args.output).with_name("model_intake.json") if args.output else None
+    )
+    if normalized_intake_output is not None:
+        _write_json(normalized_intake_output, model_intake)
     return 0
 
 
@@ -313,10 +326,15 @@ def _cmd_prepare(args: argparse.Namespace) -> int:
         if args.output_dir
         else _artifact_subdir(context_map)
     )
+    model_intake = None
     if args.model_intake:
+        model_intake = validate_creative_hypothesis_operator_model_intake(
+            read_json_object(args.model_intake),
+            context_map=context_map,
+        )
         hypothesis_packet = build_creative_hypothesis_packet_from_model_intake(
             context_map,
-            read_json_object(args.model_intake),
+            model_intake,
         )
     else:
         hypothesis_packet = build_creative_hypothesis_packet(
@@ -341,6 +359,8 @@ def _cmd_prepare(args: argparse.Namespace) -> int:
         routing=agent_routing,
     )
     _write_json(output_dir / "context_map.json", context_map)
+    if model_intake is not None:
+        _write_json(output_dir / "model_intake.json", model_intake)
     _write_json(output_dir / "hypothesis_packet.json", hypothesis_packet)
     _write_json(output_dir / "agent_routing.json", agent_routing)
     _write_json(output_dir / "coordinator_dispatch.json", coordinator_dispatch)
@@ -411,6 +431,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     ingest_parser.add_argument("--context-map", required=True)
     ingest_parser.add_argument("--model-intake", required=True)
     ingest_parser.add_argument("--output")
+    ingest_parser.add_argument("--normalized-intake-output")
     ingest_parser.set_defaults(func=_cmd_ingest_model_hypotheses)
 
     dispatch_parser = subparsers.add_parser("dispatch-coordinator")
