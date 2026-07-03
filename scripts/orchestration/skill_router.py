@@ -207,6 +207,33 @@ TIKTOK_SCRAPING_KEYWORDS: tuple[str, ...] = ("tiktok",)
 GOOGLE_MAPS_SCRAPING_KEYWORDS: tuple[str, ...] = ("google maps",)
 UNIVERSAL_SCRAPING_KEYWORDS: tuple[str, ...] = ("scrape any site", "entire internet")
 
+AGENT_LEARNING_LOOP_KEYWORDS: tuple[str, ...] = (
+    "agent learning loop",
+    "learning-loop",
+    "learning loop",
+    "durable lesson",
+    "recurring failure mode",
+    "repeated failure mode",
+    "role-agent failure",
+    "role agent failure",
+    "premortem failure",
+    "premortem miss",
+    "premortem docs closeout",
+    "docs closeout",
+    "review failure",
+    "review miss",
+    "successful iteration",
+    "successful iterations",
+    "successful pattern",
+    "winning pattern",
+    "effective pattern",
+    "repeatable success",
+    "worked well",
+    "learning metrics",
+    "proposal metrics",
+    "promote lesson",
+)
+
 
 @dataclass(frozen=True)
 class SemanticLexemeGroup:
@@ -270,13 +297,7 @@ SEMANTIC_LEXEME_GROUPS: tuple[SemanticLexemeGroup, ...] = (
             "Agent learning-loop work must stay proposal-only until promoted by "
             "reviewed repo diffs."
         ),
-        keywords=(
-            "agent learning loop",
-            "learning-loop",
-            "durable lesson",
-            "recurring failure mode",
-            "promote lesson",
-        ),
+        keywords=AGENT_LEARNING_LOOP_KEYWORDS,
         skill_boosts=(("pulseplate-agent-learning-loop", 4), ("docs-sync", 1)),
     ),
     SemanticLexemeGroup(
@@ -1134,13 +1155,7 @@ SKILL_RULES: tuple[SkillRule, ...] = (
         min_score=6,
         domain_weights={"orchestration": 2, "qa": 1},
         path_prefixes=("docs/orchestration/", "scripts/orchestration/", "tools/codex_skills/"),
-        keywords=(
-            "agent learning loop",
-            "learning-loop",
-            "durable lesson",
-            "recurring failure mode",
-            "promote lesson",
-        ),
+        keywords=AGENT_LEARNING_LOOP_KEYWORDS,
     ),
     SkillRule(
         skill="pulseplate-premortem-risk-review",

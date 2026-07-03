@@ -1,13 +1,14 @@
 ---
 name: pulseplate-agent-learning-loop
-description: Produce redacted, deterministic, repo-governed learning-loop proposals for repeated PulsePlate agent/review failure modes.
+description: Produce redacted, deterministic, repo-governed learning-loop proposals with metrics for repeated PulsePlate failure and successful-iteration patterns.
 ---
 
 # PulsePlate Agent Learning Loop
 
 ## When to use
 
-- A PR exposes a repeated role-agent failure mode or durable workflow lesson.
+- A PR exposes a repeated role-agent, review, premortem, workflow, architecture,
+  or successful-iteration pattern.
 - The operator asks to turn review learning into repo-governed guidance.
 
 ## Procedure
@@ -22,6 +23,10 @@ description: Produce redacted, deterministic, repo-governed learning-loop propos
 
 3. Redaction is mandatory. Do not store tokens, secrets, raw provider payloads,
    hidden reasoning, or local absolute evidence paths as learning-loop truth.
+4. Learning records must use `agent_learning_record.v1`, set `pattern_kind`,
+   and include bounded `learning_metrics`. Metrics are proposal-only process
+   signals; do not write runtime telemetry, semantic cache, graph truth, or
+   product runtime truth.
 
 ## SoT links
 

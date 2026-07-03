@@ -22,6 +22,8 @@ from scripts.orchestration.agent_consistency_loader import load_inventory_agents
 
 SCHEMA_VERSION = "1.0"
 POLICY_VERSION = "experiment-runner-pr-creative-context-v1"
+OPERATOR_MODEL_INTAKE_POLICY_VERSION = "creative-hypothesis-operator-intake-v1"
+COORDINATOR_DISPATCH_POLICY_VERSION = "creative-hypothesis-coordinator-dispatch-v1"
 
 ORACLE_ATTACHMENT_TYPE = "experiment_runner_pr_oracle_attachment"
 CONTEXT_MAP_TYPE = "creative_protocol_context_map"
@@ -29,12 +31,18 @@ HYPOTHESIS_PACKET_TYPE = "creative_hypothesis_packet"
 AGENT_ROUTING_TYPE = "creative_hypothesis_agent_routing"
 CONSUMPTION_SUMMARY_TYPE = "creative_hypothesis_agent_consumption_summary"
 APPROVAL_TYPE = "creative_hypothesis_approval"
+OPERATOR_MODEL_INTAKE_TYPE = "creative_hypothesis_operator_model_intake"
+COORDINATOR_DISPATCH_TYPE = "creative_hypothesis_coordinator_dispatch"
 
 CREATIVE_STATUSES = frozenset({"hypotheses_generated", "no_creative_action", "blocked"})
 ORACLE_STATUSES = frozenset({"accepted", "rejected", "skipped", "failed"})
 SUMMARY_NEXT_ACTIONS = frozenset({"agent_review", "approve_pr1_specification", "no_action", "hold"})
 APPROVAL_DECISIONS = frozenset({"approve_for_pr1_specification", "reject", "defer"})
 APPROVAL_NEXT_STEPS = frozenset({"create_pr1_specification", "no_action", "defer"})
+HYPOTHESIS_GENERATION_MODES = frozenset(
+    {"deterministic_templates_v1", "operator_validated_intake_v1"}
+)
+OPERATOR_TOOL_LABELS = frozenset({"codex", "comet", "ollama", "other_local", "unknown"})
 SOURCE_DOMAINS = frozenset(
     {
         "philosophy",
@@ -49,6 +57,18 @@ SOURCE_DOMAINS = frozenset(
         "information_theory",
     }
 )
+ANALOGY_DOMAIN_AGENT_CANDIDATES = {
+    "CBT": ("wellness-analyst-agent",),
+    "UX": ("creative-designer", "frontend-engineer"),
+    "biology": ("wellness-analyst-agent",),
+    "data": ("data-scientist-agent",),
+    "economics": ("business-strategist-agent",),
+    "information_theory": ("data-scientist-agent", "logic-agent"),
+    "nutrition": ("nutritionist-agent", "wellness-analyst-agent"),
+    "philosophy": ("philosophy-agent", "epistemology-discovery-agent"),
+    "security": ("security-auditor",),
+    "testing": ("qa-engineer-agent", "bug-hunter"),
+}
 HYPOTHESIS_KINDS = frozenset(
     {
         "architecture",
@@ -106,7 +126,9 @@ ELIGIBLE_EXACT_PATHS = frozenset(
     }
 )
 PRODUCT_RUNTIME_PREFIXES = ("app/", "core/", "frontend/", "ios/", "providers/", "alembic/")
+PRODUCT_RUNTIME_ROOTS = frozenset(prefix.rstrip("/") for prefix in PRODUCT_RUNTIME_PREFIXES)
 WORKFLOW_PREFIX = ".github/workflows/"
+WORKFLOW_ROOT = WORKFLOW_PREFIX.rstrip("/")
 
 AUTHORITY_TRUE_KEYS = frozenset(
     {
@@ -148,6 +170,16 @@ AUTHORITY_FALSE_KEYS = frozenset(
     }
 )
 AUTHORITY_KEYS = AUTHORITY_TRUE_KEYS | AUTHORITY_FALSE_KEYS
+INTAKE_AUTHORITY_TRUE_KEYS = frozenset({"operator_supplied_hypotheses"})
+INTAKE_AUTHORITY_FALSE_KEYS = AUTHORITY_FALSE_KEYS | frozenset({"repo_provider_calls"})
+INTAKE_AUTHORITY_KEYS = INTAKE_AUTHORITY_TRUE_KEYS | INTAKE_AUTHORITY_FALSE_KEYS
+COORDINATOR_DISPATCH_AUTHORITY_TRUE_KEYS = frozenset({"dispatch_to_coordinator"})
+COORDINATOR_DISPATCH_AUTHORITY_FALSE_KEYS = AUTHORITY_FALSE_KEYS | frozenset(
+    {"execute_agent_tasks", "mutate_code"}
+)
+COORDINATOR_DISPATCH_AUTHORITY_KEYS = (
+    COORDINATOR_DISPATCH_AUTHORITY_TRUE_KEYS | COORDINATOR_DISPATCH_AUTHORITY_FALSE_KEYS
+)
 CODEX_REVIEW_SINGLE_RUN_POLICY = "single_pass_per_material_diff"
 CODEX_SECURITY_RERUN_ALLOWED_REASONS = (
     "security_relevant_diff_changed",
@@ -158,6 +190,7 @@ CODEX_SECURITY_RERUN_ALLOWED_REASONS = (
 
 ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 SAFE_TOKEN_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$")
+AGENT_SLUG_RE = re.compile(r"^[a-z][a-z0-9-]{1,63}$")
 SAFE_GIT_REF_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,191}$")
 SHA_RE = re.compile(r"^[a-f0-9]{40}$")
 SHA256_RE = re.compile(r"^sha256:[a-f0-9]{64}$")
@@ -171,10 +204,11 @@ SECRET_RE = re.compile(
 )
 LEAK_TEXT_RE = re.compile(
     r"(diff --git|^\+\+\+ |^--- |@@ |candidate\.patch|candidate_patch|"
-    r"raw[_ -]?(body|prompt|response|context|patch|review|pr)|"
-    r"review[_ -]?thread[_ -]?body|pull[_ -]?request[_ -]?body|"
-    r"chain[_ -]?of[_ -]?thought|provider[_ -]?payload|"
-    r"oracle[_ -]?(stdout|stderr|output)|file://|"
+    r"candidate[_. -]?patch|raw[_. -]?(model[_. -]?payload|"
+    r"body|prompt|response|context|patch|review|pr)|"
+    r"review[_. -]?thread[_. -]?body|pull[_. -]?request[_. -]?body|"
+    r"chain[_. -]?of[_. -]?thought|provider[_. -]?payload|"
+    r"oracle[_. -]?(stdout|stderr|output)|file://|"
     r"/(?:Users|home|private/var|var/folders|tmp|etc|opt|usr|Volumes|mnt|root|"
     r"workspace|workspaces)(?:/|$)|~[/\\]|[A-Za-z]:[\\/]|\.venv/|\.git/|"
     r"worktrees([:/._-]|$)|merge[-_ ]?ready|ready to merge|mergeable)",
@@ -185,6 +219,7 @@ UNSAFE_KEY_RE = re.compile(
     r"prompt_text|raw_prompt|provider_payload|oracle_stdout|oracle_stderr|"
     r"secret_value|token_value|access_token|api_key|workflow_log)"
 )
+SAFE_FALSE_METADATA_KEYS = frozenset({"raw_model_payload_stored"})
 SCHEME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*:")
 
 SOURCE_KEYS = frozenset(
@@ -260,6 +295,37 @@ HYPOTHESIS_KEYS = frozenset(
         "eligible_for_pr2_patch",
     }
 )
+OPERATOR_GENERATION_KEYS = frozenset(
+    {
+        "mode",
+        "tool_label",
+        "repo_provider_calls",
+        "raw_model_payload_stored",
+        "semantic_cache_used",
+    }
+)
+OPERATOR_HYPOTHESIS_KEYS = HYPOTHESIS_KEYS - {"hypothesis_id"}
+OPERATOR_MODEL_INTAKE_KEYS = frozenset(
+    {
+        "schema_version",
+        "artifact_type",
+        "policy_version",
+        "intake_id",
+        "idempotency_key",
+        "context_map_id",
+        "context_map_fingerprint",
+        "generation",
+        "hypothesis_count",
+        "hypotheses",
+        "authority",
+        "sanitized",
+    }
+)
+OPERATOR_MODEL_INTAKE_REQUIRED_KEYS = OPERATOR_MODEL_INTAKE_KEYS - {
+    "intake_id",
+    "idempotency_key",
+    "hypothesis_count",
+}
 HYPOTHESIS_PACKET_KEYS = frozenset(
     {
         "schema_version",
@@ -271,6 +337,11 @@ HYPOTHESIS_PACKET_KEYS = frozenset(
         "context_map_fingerprint",
         "creative_status",
         "reason_code",
+        "hypothesis_generation_mode",
+        "source_model_intake_fingerprint",
+        "repo_provider_calls",
+        "raw_model_payload_stored",
+        "semantic_cache_used",
         "hypothesis_count",
         "hypotheses",
         "authority",
@@ -299,6 +370,33 @@ AGENT_ROUTING_KEYS = frozenset(
         "source_hypothesis_packet_fingerprint",
         "routing",
         "agent_review_mode",
+        "authority",
+        "sanitized",
+    }
+)
+COORDINATOR_DISPATCH_ENTRY_KEYS = frozenset(
+    {
+        "hypothesis_id",
+        "task_packet_kind",
+        "primary_agent",
+        "review_agents",
+        "cross_domain_agents",
+        "missing_agent_capabilities",
+        "task_mode",
+        "mutation_authority",
+        "coordinator_decision_required",
+    }
+)
+COORDINATOR_DISPATCH_KEYS = frozenset(
+    {
+        "schema_version",
+        "artifact_type",
+        "policy_version",
+        "dispatch_id",
+        "idempotency_key",
+        "source_hypothesis_packet_id",
+        "source_hypothesis_packet_fingerprint",
+        "dispatch",
         "authority",
         "sanitized",
     }
@@ -424,6 +522,12 @@ def reject_unsafe_creative_context_value(value: Any, *, label: str) -> None:
         return
     if isinstance(value, dict):
         for key, item in value.items():
+            if str(key) in SAFE_FALSE_METADATA_KEYS:
+                if item is not False:
+                    raise ExperimentRunnerCreativeContextContractError(
+                        f"{label}.{_diagnostic_key(key)} must be false."
+                    )
+                continue
             if UNSAFE_KEY_RE.search(str(key)):
                 raise ExperimentRunnerCreativeContextContractError(
                     f"{label}.{_diagnostic_key(key)} is an unsupported raw/private field."
@@ -436,6 +540,22 @@ def default_creative_context_authority() -> dict[str, bool]:
 
     authority = {key: False for key in sorted(AUTHORITY_FALSE_KEYS)}
     authority.update({key: True for key in sorted(AUTHORITY_TRUE_KEYS)})
+    return dict(sorted(authority.items()))
+
+
+def default_operator_model_intake_authority() -> dict[str, bool]:
+    """Return the authority shape accepted from operator-supplied model JSON."""
+
+    authority = {key: False for key in sorted(INTAKE_AUTHORITY_FALSE_KEYS)}
+    authority.update({key: True for key in sorted(INTAKE_AUTHORITY_TRUE_KEYS)})
+    return dict(sorted(authority.items()))
+
+
+def default_coordinator_dispatch_authority() -> dict[str, bool]:
+    """Return the authority shape for coordinator handoff artifacts."""
+
+    authority = {key: False for key in sorted(COORDINATOR_DISPATCH_AUTHORITY_FALSE_KEYS)}
+    authority.update({key: True for key in sorted(COORDINATOR_DISPATCH_AUTHORITY_TRUE_KEYS)})
     return dict(sorted(authority.items()))
 
 
@@ -522,12 +642,22 @@ def _require_token(payload: Mapping[str, Any], key: str, *, label: str) -> str:
     return normalized
 
 
+def _require_agent_slug(value: Any, *, label: str) -> str:
+    if not isinstance(value, str):
+        raise ExperimentRunnerCreativeContextContractError(f"{label} must be a string.")
+    normalized = value.strip()
+    if not AGENT_SLUG_RE.fullmatch(normalized):
+        raise ExperimentRunnerCreativeContextContractError(f"{label} must be an agent slug.")
+    reject_unsafe_creative_context_value(normalized, label=label)
+    return normalized
+
+
 def _require_safe_text(
     payload: Mapping[str, Any],
     key: str,
     *,
     label: str,
-    max_chars: int = 240,
+    max_chars: int = 360,
 ) -> str:
     value = payload.get(key)
     if not isinstance(value, str):
@@ -543,7 +673,7 @@ def _require_safe_text(
     return normalized
 
 
-def _require_optional_safe_text(value: Any, *, label: str, max_chars: int = 240) -> str | None:
+def _require_optional_safe_text(value: Any, *, label: str, max_chars: int = 360) -> str | None:
     if value is None:
         return None
     return _require_safe_text({"value": value}, "value", label=label, max_chars=max_chars)
@@ -623,6 +753,10 @@ def _normalize_repo_relative_path(
     value = raw_path.strip()
     if not value:
         raise ExperimentRunnerCreativeContextContractError(f"{label} must not be empty.")
+    if value in {".", "*", "**"}:
+        raise ExperimentRunnerCreativeContextContractError(
+            f"{label} must reference a bounded repo-relative path."
+        )
     if any(ord(character) < 32 or ord(character) == 127 for character in value):
         raise ExperimentRunnerCreativeContextContractError(
             f"{label} must not contain control chars."
@@ -689,7 +823,7 @@ def _normalize_text_list(
     *,
     label: str,
     allow_empty: bool,
-    max_chars: int = 240,
+    max_chars: int = 360,
 ) -> list[str]:
     if not isinstance(raw_values, list):
         raise ExperimentRunnerCreativeContextContractError(f"{label} must be a list.")
@@ -704,6 +838,43 @@ def _normalize_text_list(
     return normalized
 
 
+def _normalize_agent_slug_list(
+    raw_agents: Any,
+    *,
+    label: str,
+    allow_empty: bool,
+) -> list[str]:
+    if not isinstance(raw_agents, list):
+        raise ExperimentRunnerCreativeContextContractError(f"{label} must be a list.")
+    if not raw_agents and not allow_empty:
+        raise ExperimentRunnerCreativeContextContractError(f"{label} must be non-empty.")
+    agents = [
+        _require_agent_slug(agent, label=f"{label}[{index}]")
+        for index, agent in enumerate(raw_agents)
+    ]
+    if len(agents) != len(set(agents)):
+        raise ExperimentRunnerCreativeContextContractError(f"{label} must not contain duplicates.")
+    return agents
+
+
+def _is_product_runtime_or_workflow_target(path: str) -> bool:
+    return (
+        path in PRODUCT_RUNTIME_ROOTS
+        or path.startswith(PRODUCT_RUNTIME_PREFIXES)
+        or path == WORKFLOW_ROOT
+        or path.startswith(WORKFLOW_PREFIX)
+    )
+
+
+def _reject_product_runtime_or_workflow_targets(paths: Sequence[str], *, label: str) -> None:
+    forbidden = [path for path in paths if _is_product_runtime_or_workflow_target(path)]
+    if forbidden:
+        joined = ", ".join(forbidden)
+        raise ExperimentRunnerCreativeContextContractError(
+            f"{label} must not include product runtime or workflow targets: {joined}."
+        )
+
+
 def _normalize_authority(raw_authority: Any) -> dict[str, bool]:
     if not isinstance(raw_authority, Mapping):
         raise ExperimentRunnerCreativeContextContractError("authority must be a JSON object.")
@@ -711,6 +882,32 @@ def _normalize_authority(raw_authority: Any) -> dict[str, bool]:
     normalized: dict[str, bool] = {}
     for key in sorted(AUTHORITY_KEYS):
         expected = key in AUTHORITY_TRUE_KEYS
+        normalized[key] = _require_bool(raw_authority, key, expected=expected, label="authority")
+    return normalized
+
+
+def _normalize_operator_model_intake_authority(raw_authority: Any) -> dict[str, bool]:
+    if not isinstance(raw_authority, Mapping):
+        raise ExperimentRunnerCreativeContextContractError("authority must be a JSON object.")
+    _require_exact_keys(raw_authority, INTAKE_AUTHORITY_KEYS, label="authority")
+    normalized: dict[str, bool] = {}
+    for key in sorted(INTAKE_AUTHORITY_KEYS):
+        expected = key in INTAKE_AUTHORITY_TRUE_KEYS
+        normalized[key] = _require_bool(raw_authority, key, expected=expected, label="authority")
+    return normalized
+
+
+def _normalize_coordinator_dispatch_authority(raw_authority: Any) -> dict[str, bool]:
+    if not isinstance(raw_authority, Mapping):
+        raise ExperimentRunnerCreativeContextContractError("authority must be a JSON object.")
+    _require_exact_keys(
+        raw_authority,
+        COORDINATOR_DISPATCH_AUTHORITY_KEYS,
+        label="authority",
+    )
+    normalized: dict[str, bool] = {}
+    for key in sorted(COORDINATOR_DISPATCH_AUTHORITY_KEYS):
+        expected = key in COORDINATOR_DISPATCH_AUTHORITY_TRUE_KEYS
         normalized[key] = _require_bool(raw_authority, key, expected=expected, label="authority")
     return normalized
 
@@ -748,6 +945,7 @@ def _artifact_identity(
     *,
     artifact_type: str,
     upstream_ids: tuple[str, ...] = (),
+    policy_version: str = POLICY_VERSION,
 ) -> tuple[str, str]:
     fingerprint = cast(str, fingerprint_payload(cast(dict[str, Any], dict(payload))))
     return (
@@ -755,7 +953,7 @@ def _artifact_identity(
             asset_type=artifact_type,
             rail="orchestration",
             version=SCHEMA_VERSION,
-            policy_version=POLICY_VERSION,
+            policy_version=policy_version,
             fingerprint=fingerprint,
             upstream_ids=upstream_ids,
         ),
@@ -763,7 +961,7 @@ def _artifact_identity(
             asset_type=artifact_type,
             rail="orchestration",
             version=SCHEMA_VERSION,
-            policy_version=POLICY_VERSION,
+            policy_version=policy_version,
             fingerprint=fingerprint,
             upstream_ids=upstream_ids,
         ),
@@ -791,7 +989,7 @@ def classify_creative_context_eligibility(
             "activation_source": "none",
             "eligible_surface": "",
         }
-    if any(path.startswith(WORKFLOW_PREFIX) for path in normalized):
+    if any(path == WORKFLOW_ROOT or path.startswith(WORKFLOW_PREFIX) for path in normalized):
         return {
             "eligible": False,
             "creative_decision": "no_creative_action",
@@ -799,7 +997,10 @@ def classify_creative_context_eligibility(
             "activation_source": "none",
             "eligible_surface": "",
         }
-    if any(path.startswith(PRODUCT_RUNTIME_PREFIXES) for path in normalized):
+    if any(
+        path in PRODUCT_RUNTIME_ROOTS or path.startswith(PRODUCT_RUNTIME_PREFIXES)
+        for path in normalized
+    ):
         return {
             "eligible": False,
             "creative_decision": "no_creative_action",
@@ -1263,6 +1464,11 @@ def build_creative_hypothesis_packet(
             "context_map_fingerprint": cast(str, fingerprint_payload(context)),
             "creative_status": "no_creative_action",
             "reason_code": classification["reason_code"],
+            "hypothesis_generation_mode": "deterministic_templates_v1",
+            "source_model_intake_fingerprint": None,
+            "repo_provider_calls": False,
+            "raw_model_payload_stored": False,
+            "semantic_cache_used": False,
             "hypothesis_count": 0,
             "hypotheses": [],
             "authority": default_creative_context_authority(),
@@ -1293,6 +1499,11 @@ def build_creative_hypothesis_packet(
         "context_map_fingerprint": cast(str, fingerprint_payload(context)),
         "creative_status": "hypotheses_generated",
         "reason_code": classification["reason_code"],
+        "hypothesis_generation_mode": "deterministic_templates_v1",
+        "source_model_intake_fingerprint": None,
+        "repo_provider_calls": False,
+        "raw_model_payload_stored": False,
+        "semantic_cache_used": False,
         "hypothesis_count": len(hypotheses),
         "hypotheses": hypotheses,
         "authority": default_creative_context_authority(),
@@ -1310,6 +1521,221 @@ def build_creative_hypothesis_packet(
             "idempotency_key": idempotency_key,
         }
     )
+
+
+def build_creative_hypothesis_packet_from_model_intake(
+    context_map: Mapping[str, Any],
+    model_intake: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Normalize operator-supplied local model hypotheses into a governed packet."""
+
+    context = validate_creative_protocol_context_map(context_map)
+    if not context["classification"]["eligible"]:
+        raise ExperimentRunnerCreativeContextContractError(
+            "operator model intake requires an eligible creative context map."
+        )
+    intake = validate_creative_hypothesis_operator_model_intake(
+        model_intake,
+        context_map=context,
+    )
+    hypotheses = [
+        _normalize_operator_hypothesis_as_packet_row(row, index=index)
+        for index, row in enumerate(intake["hypotheses"], start=1)
+    ]
+    body: dict[str, Any] = {
+        "schema_version": SCHEMA_VERSION,
+        "artifact_type": HYPOTHESIS_PACKET_TYPE,
+        "policy_version": POLICY_VERSION,
+        "context_map_id": context["context_id"],
+        "context_map_fingerprint": cast(str, fingerprint_payload(context)),
+        "creative_status": "hypotheses_generated",
+        "reason_code": context["classification"]["reason_code"],
+        "hypothesis_generation_mode": "operator_validated_intake_v1",
+        "source_model_intake_fingerprint": cast(str, fingerprint_payload(intake)),
+        "repo_provider_calls": False,
+        "raw_model_payload_stored": False,
+        "semantic_cache_used": False,
+        "hypothesis_count": len(hypotheses),
+        "hypotheses": hypotheses,
+        "authority": default_creative_context_authority(),
+        "sanitized": True,
+    }
+    packet_id, idempotency_key = _artifact_identity(
+        body,
+        artifact_type=HYPOTHESIS_PACKET_TYPE,
+        upstream_ids=(context["context_id"],),
+    )
+    return validate_creative_hypothesis_packet(
+        {
+            **body,
+            "packet_id": packet_id,
+            "idempotency_key": idempotency_key,
+        }
+    )
+
+
+def validate_creative_hypothesis_operator_model_intake(
+    payload: Mapping[str, Any],
+    *,
+    context_map: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    label = "CreativeHypothesisOperatorModelIntake"
+    actual = set(payload)
+    missing = sorted(OPERATOR_MODEL_INTAKE_REQUIRED_KEYS - actual)
+    extra = sorted(actual - OPERATOR_MODEL_INTAKE_KEYS)
+    if missing:
+        raise ExperimentRunnerCreativeContextContractError(
+            f"{label} is missing required fields: {', '.join(missing)}"
+        )
+    if extra:
+        raise ExperimentRunnerCreativeContextContractError(
+            f"{label} has unsupported fields: {', '.join(extra)}"
+        )
+    for optional_identity_key in ("intake_id", "idempotency_key"):
+        if optional_identity_key in payload:
+            _require_id(payload, optional_identity_key, label=label)
+    raw_hypotheses = payload["hypotheses"]
+    if not isinstance(raw_hypotheses, list):
+        raise ExperimentRunnerCreativeContextContractError(f"{label}.hypotheses must be a list.")
+    hypotheses = [
+        _normalize_operator_hypothesis(row, label=f"hypotheses[{index}]")
+        for index, row in enumerate(raw_hypotheses)
+    ]
+    if "hypothesis_count" in payload:
+        hypothesis_count = _require_int(
+            payload,
+            "hypothesis_count",
+            min_value=3,
+            max_value=5,
+            label=label,
+        )
+    else:
+        hypothesis_count = len(hypotheses)
+        if not 3 <= hypothesis_count <= 5:
+            raise ExperimentRunnerCreativeContextContractError(
+                "operator model intake hypotheses must contain 3 to 5 rows."
+            )
+    if hypothesis_count != len(hypotheses):
+        raise ExperimentRunnerCreativeContextContractError(
+            "operator model intake hypothesis_count must match hypotheses."
+        )
+    normalized_body = {
+        "schema_version": _require_const(payload, "schema_version", SCHEMA_VERSION, label=label),
+        "artifact_type": _require_const(
+            payload,
+            "artifact_type",
+            OPERATOR_MODEL_INTAKE_TYPE,
+            label=label,
+        ),
+        "policy_version": _require_const(
+            payload,
+            "policy_version",
+            OPERATOR_MODEL_INTAKE_POLICY_VERSION,
+            label=label,
+        ),
+        "context_map_id": _require_id(payload, "context_map_id", label=label),
+        "context_map_fingerprint": _require_sha256(
+            payload["context_map_fingerprint"],
+            label="context_map_fingerprint",
+        ),
+        "generation": _normalize_operator_generation(payload["generation"]),
+        "hypothesis_count": hypothesis_count,
+        "hypotheses": hypotheses,
+        "authority": _normalize_operator_model_intake_authority(payload["authority"]),
+        "sanitized": _require_bool(payload, "sanitized", expected=True, label=label),
+    }
+    intake_id, idempotency_key = _artifact_identity(
+        normalized_body,
+        artifact_type=OPERATOR_MODEL_INTAKE_TYPE,
+        upstream_ids=(normalized_body["context_map_id"],),
+        policy_version=OPERATOR_MODEL_INTAKE_POLICY_VERSION,
+    )
+    normalized = {
+        **normalized_body,
+        "intake_id": intake_id,
+        "idempotency_key": idempotency_key,
+    }
+    if context_map is not None:
+        context = validate_creative_protocol_context_map(context_map)
+        if normalized["context_map_id"] != context["context_id"]:
+            raise ExperimentRunnerCreativeContextContractError(
+                "operator model intake context_map_id must match context map."
+            )
+        if normalized["context_map_fingerprint"] != fingerprint_payload(context):
+            raise ExperimentRunnerCreativeContextContractError(
+                "operator model intake context_map_fingerprint must match context map."
+            )
+    reject_unsafe_creative_context_value(normalized, label=label)
+    return normalized
+
+
+def _normalize_operator_generation(raw_generation: Any) -> dict[str, Any]:
+    if not isinstance(raw_generation, Mapping):
+        raise ExperimentRunnerCreativeContextContractError("generation must be a JSON object.")
+    _require_exact_keys(raw_generation, OPERATOR_GENERATION_KEYS, label="generation")
+    mode = _require_const(
+        raw_generation,
+        "mode",
+        "operator_supplied_model_json",
+        label="generation",
+    )
+    tool_label = _require_token(raw_generation, "tool_label", label="generation")
+    if tool_label not in OPERATOR_TOOL_LABELS:
+        raise ExperimentRunnerCreativeContextContractError("generation.tool_label is unsupported.")
+    return {
+        "mode": mode,
+        "tool_label": tool_label,
+        "repo_provider_calls": _require_bool(
+            raw_generation,
+            "repo_provider_calls",
+            expected=False,
+            label="generation",
+        ),
+        "raw_model_payload_stored": _require_bool(
+            raw_generation,
+            "raw_model_payload_stored",
+            expected=False,
+            label="generation",
+        ),
+        "semantic_cache_used": _require_bool(
+            raw_generation,
+            "semantic_cache_used",
+            expected=False,
+            label="generation",
+        ),
+    }
+
+
+def _normalize_operator_hypothesis(raw_hypothesis: Any, *, label: str) -> dict[str, Any]:
+    if not isinstance(raw_hypothesis, Mapping):
+        raise ExperimentRunnerCreativeContextContractError(f"{label} must be a JSON object.")
+    _require_exact_keys(raw_hypothesis, OPERATOR_HYPOTHESIS_KEYS, label=label)
+    normalized = _normalize_hypothesis(
+        {
+            **raw_hypothesis,
+            "hypothesis_id": "hyp-operator-normalization-placeholder",
+        },
+        label=label,
+    )
+    if not all(
+        target.startswith(CONCRETE_HYPOTHESIS_TARGET_PREFIXES)
+        for target in normalized["target_surfaces"]
+    ):
+        raise ExperimentRunnerCreativeContextContractError(
+            f"{label}.target_surfaces must all be concrete code, test, contract, "
+            "agent, or prompt/program target."
+        )
+    return {key: value for key, value in normalized.items() if key != "hypothesis_id"}
+
+
+def _normalize_operator_hypothesis_as_packet_row(
+    raw_hypothesis: Mapping[str, Any],
+    *,
+    index: int,
+) -> dict[str, Any]:
+    hypothesis = dict(raw_hypothesis)
+    hypothesis["hypothesis_id"] = f"hyp-{index:03d}"
+    return _normalize_hypothesis(hypothesis, label=f"hypotheses[{index - 1}]")
 
 
 def _generate_hypotheses(
@@ -1438,6 +1864,11 @@ def validate_creative_hypothesis_packet(payload: Mapping[str, Any]) -> dict[str,
     reason_code = _require_token(payload, "reason_code", label=label)
     if reason_code not in REASON_CODES:
         raise ExperimentRunnerCreativeContextContractError(f"{label}.reason_code is unsupported.")
+    generation_mode = _require_token(payload, "hypothesis_generation_mode", label=label)
+    if generation_mode not in HYPOTHESIS_GENERATION_MODES:
+        raise ExperimentRunnerCreativeContextContractError(
+            f"{label}.hypothesis_generation_mode is unsupported."
+        )
     raw_hypotheses = payload["hypotheses"]
     if not isinstance(raw_hypotheses, list):
         raise ExperimentRunnerCreativeContextContractError(f"{label}.hypotheses must be a list.")
@@ -1494,11 +1925,55 @@ def validate_creative_hypothesis_packet(payload: Mapping[str, Any]) -> dict[str,
         ),
         "creative_status": creative_status,
         "reason_code": reason_code,
+        "hypothesis_generation_mode": generation_mode,
+        "source_model_intake_fingerprint": _require_optional_sha256(
+            payload["source_model_intake_fingerprint"],
+            label="source_model_intake_fingerprint",
+        ),
+        "repo_provider_calls": _require_bool(
+            payload,
+            "repo_provider_calls",
+            expected=False,
+            label=label,
+        ),
+        "raw_model_payload_stored": _require_bool(
+            payload,
+            "raw_model_payload_stored",
+            expected=False,
+            label=label,
+        ),
+        "semantic_cache_used": _require_bool(
+            payload,
+            "semantic_cache_used",
+            expected=False,
+            label=label,
+        ),
         "hypothesis_count": hypothesis_count,
         "hypotheses": hypotheses,
         "authority": _normalize_authority(payload["authority"]),
         "sanitized": _require_bool(payload, "sanitized", expected=True, label=label),
     }
+    if (
+        normalized["hypothesis_generation_mode"] == "operator_validated_intake_v1"
+        and not normalized["source_model_intake_fingerprint"]
+    ):
+        raise ExperimentRunnerCreativeContextContractError(
+            "operator_validated_intake_v1 packets require source_model_intake_fingerprint."
+        )
+    if (
+        normalized["hypothesis_generation_mode"] == "operator_validated_intake_v1"
+        and normalized["creative_status"] != "hypotheses_generated"
+    ):
+        raise ExperimentRunnerCreativeContextContractError(
+            "operator_validated_intake_v1 packets require hypotheses_generated."
+        )
+    if (
+        normalized["hypothesis_generation_mode"] == "deterministic_templates_v1"
+        and normalized["source_model_intake_fingerprint"]
+    ):
+        raise ExperimentRunnerCreativeContextContractError(
+            "deterministic template packets must not carry source_model_intake_fingerprint."
+        )
     _validate_identity(
         normalized,
         id_key="packet_id",
@@ -1519,26 +1994,36 @@ def _normalize_hypothesis(raw_hypothesis: Any, *, label: str) -> dict[str, Any]:
         raise ExperimentRunnerCreativeContextContractError(
             f"{label}.hypothesis_kind is unsupported."
         )
+    target_surfaces = _normalize_path_list(
+        raw_hypothesis["target_surfaces"],
+        label=f"{label}.target_surfaces",
+        allow_empty=False,
+    )
+    _reject_product_runtime_or_workflow_targets(
+        target_surfaces,
+        label=f"{label}.target_surfaces",
+    )
+    tests_or_oracles = _normalize_path_list(
+        raw_hypothesis["tests_or_oracles"],
+        label=f"{label}.tests_or_oracles",
+        allow_empty=False,
+    )
+    _reject_product_runtime_or_workflow_targets(
+        tests_or_oracles,
+        label=f"{label}.tests_or_oracles",
+    )
     return {
         "hypothesis_id": _require_id(raw_hypothesis, "hypothesis_id", label=label),
         "hypothesis_kind": hypothesis_kind,
         "title": _require_safe_text(raw_hypothesis, "title", label=label),
-        "target_surfaces": _normalize_path_list(
-            raw_hypothesis["target_surfaces"],
-            label=f"{label}.target_surfaces",
-            allow_empty=False,
-        ),
+        "target_surfaces": target_surfaces,
         "expected_behavior": _require_safe_text(
             raw_hypothesis,
             "expected_behavior",
             label=label,
             max_chars=360,
         ),
-        "tests_or_oracles": _normalize_path_list(
-            raw_hypothesis["tests_or_oracles"],
-            label=f"{label}.tests_or_oracles",
-            allow_empty=False,
-        ),
+        "tests_or_oracles": tests_or_oracles,
         "risk_notes": _normalize_text_list(
             raw_hypothesis["risk_notes"],
             label=f"{label}.risk_notes",
@@ -1597,14 +2082,19 @@ def _normalize_analogies(raw_analogies: Any, *, label: str) -> list[dict[str, An
             raise ExperimentRunnerCreativeContextContractError(
                 f"{row_label}.source_domain is unsupported."
             )
+        target_repo_surface = _normalize_repo_relative_path(
+            row["target_repo_surface"],
+            label=f"{row_label}.target_repo_surface",
+        )
+        _reject_product_runtime_or_workflow_targets(
+            [target_repo_surface],
+            label=f"{row_label}.target_repo_surface",
+        )
         normalized.append(
             {
                 "source_domain": source_domain,
                 "analogy": _require_safe_text(row, "analogy", label=row_label, max_chars=360),
-                "target_repo_surface": _normalize_repo_relative_path(
-                    row["target_repo_surface"],
-                    label=f"{row_label}.target_repo_surface",
-                ),
+                "target_repo_surface": target_repo_surface,
                 "why_useful": _require_safe_text(row, "why_useful", label=row_label),
                 "risk": _require_safe_text(row, "risk", label=row_label, max_chars=360),
                 "requires_specialist_agent": _require_bool(
@@ -1701,6 +2191,20 @@ def _route_hypothesis(
     cross = [agent for agent in cross_agents if agent in registered_agents]
     if primary not in registered_agents:
         missing.append(primary)
+    already_routed = {primary_agent, *review}
+    for analogy in hypothesis["cross_domain_analogies"]:
+        if not analogy["requires_specialist_agent"]:
+            continue
+        candidates = ANALOGY_DOMAIN_AGENT_CANDIDATES[cast(str, analogy["source_domain"])]
+        routed_for_analogy = False
+        for candidate in candidates:
+            if candidate in registered_agents:
+                if candidate not in already_routed:
+                    cross.append(candidate)
+                    already_routed.add(candidate)
+                routed_for_analogy = True
+        if not routed_for_analogy:
+            missing.extend(candidates)
     return {
         "hypothesis_id": hypothesis["hypothesis_id"],
         "primary_agent": primary_agent,
@@ -1767,6 +2271,203 @@ def validate_creative_hypothesis_agent_routing(
     return normalized
 
 
+def build_creative_hypothesis_coordinator_dispatch(
+    *,
+    hypothesis_packet: Mapping[str, Any],
+    routing: Mapping[str, Any],
+    registered_agents: set[str] | None = None,
+) -> dict[str, Any]:
+    """Build a coordinator-owned critique/refine handoff without execution authority."""
+
+    packet = validate_creative_hypothesis_packet(hypothesis_packet)
+    agents = registered_agents if registered_agents is not None else load_inventory_agents()
+    routing_payload = validate_creative_hypothesis_agent_routing(
+        routing,
+        registered_agents=agents,
+    )
+    if routing_payload["source_hypothesis_packet_id"] != packet["packet_id"]:
+        raise ExperimentRunnerCreativeContextContractError(
+            "coordinator dispatch routing must reference the supplied hypothesis packet."
+        )
+    if routing_payload["source_hypothesis_packet_fingerprint"] != fingerprint_payload(packet):
+        raise ExperimentRunnerCreativeContextContractError(
+            "coordinator dispatch routing fingerprint must match the supplied packet."
+        )
+    packet_hypothesis_ids = {row["hypothesis_id"] for row in packet["hypotheses"]}
+    routing_hypothesis_ids = {row["hypothesis_id"] for row in routing_payload["routing"]}
+    if routing_hypothesis_ids != packet_hypothesis_ids:
+        raise ExperimentRunnerCreativeContextContractError(
+            "coordinator dispatch rows must match hypothesis packet rows."
+        )
+    dispatch = [
+        {
+            "hypothesis_id": row["hypothesis_id"],
+            "task_packet_kind": "TASK_PACKET_V1",
+            "primary_agent": row["primary_agent"],
+            "review_agents": row["review_agents"],
+            "cross_domain_agents": row["cross_domain_agents"],
+            "missing_agent_capabilities": row["missing_agent_capabilities"],
+            "task_mode": "critique_refine_only",
+            "mutation_authority": False,
+            "coordinator_decision_required": True,
+        }
+        for row in routing_payload["routing"]
+    ]
+    body: dict[str, Any] = {
+        "schema_version": SCHEMA_VERSION,
+        "artifact_type": COORDINATOR_DISPATCH_TYPE,
+        "policy_version": COORDINATOR_DISPATCH_POLICY_VERSION,
+        "source_hypothesis_packet_id": packet["packet_id"],
+        "source_hypothesis_packet_fingerprint": cast(str, fingerprint_payload(packet)),
+        "dispatch": dispatch,
+        "authority": default_coordinator_dispatch_authority(),
+        "sanitized": True,
+    }
+    dispatch_id, idempotency_key = _artifact_identity(
+        body,
+        artifact_type=COORDINATOR_DISPATCH_TYPE,
+        upstream_ids=(packet["packet_id"],),
+        policy_version=COORDINATOR_DISPATCH_POLICY_VERSION,
+    )
+    return validate_creative_hypothesis_coordinator_dispatch(
+        {
+            **body,
+            "dispatch_id": dispatch_id,
+            "idempotency_key": idempotency_key,
+        },
+        registered_agents=agents,
+    )
+
+
+def validate_creative_hypothesis_coordinator_dispatch(
+    payload: Mapping[str, Any],
+    *,
+    registered_agents: set[str] | None = None,
+) -> dict[str, Any]:
+    label = "CreativeHypothesisCoordinatorDispatch"
+    _require_exact_keys(payload, COORDINATOR_DISPATCH_KEYS, label=label)
+    agents = registered_agents if registered_agents is not None else load_inventory_agents()
+    raw_dispatch = payload["dispatch"]
+    if not isinstance(raw_dispatch, list):
+        raise ExperimentRunnerCreativeContextContractError(f"{label}.dispatch must be a list.")
+    if not raw_dispatch:
+        raise ExperimentRunnerCreativeContextContractError(
+            "coordinator dispatch must contain at least one dispatch entry."
+        )
+    dispatch = [
+        _normalize_coordinator_dispatch_entry(
+            row,
+            label=f"dispatch[{index}]",
+            registered_agents=agents,
+        )
+        for index, row in enumerate(raw_dispatch)
+    ]
+    if len([row["hypothesis_id"] for row in dispatch]) != len(
+        {row["hypothesis_id"] for row in dispatch}
+    ):
+        raise ExperimentRunnerCreativeContextContractError(
+            "coordinator dispatch hypothesis ids must be unique."
+        )
+    normalized = {
+        "schema_version": _require_const(payload, "schema_version", SCHEMA_VERSION, label=label),
+        "artifact_type": _require_const(
+            payload,
+            "artifact_type",
+            COORDINATOR_DISPATCH_TYPE,
+            label=label,
+        ),
+        "policy_version": _require_const(
+            payload,
+            "policy_version",
+            COORDINATOR_DISPATCH_POLICY_VERSION,
+            label=label,
+        ),
+        "dispatch_id": _require_id(payload, "dispatch_id", label=label),
+        "idempotency_key": _require_id(payload, "idempotency_key", label=label),
+        "source_hypothesis_packet_id": _require_id(
+            payload,
+            "source_hypothesis_packet_id",
+            label=label,
+        ),
+        "source_hypothesis_packet_fingerprint": _require_sha256(
+            payload["source_hypothesis_packet_fingerprint"],
+            label="source_hypothesis_packet_fingerprint",
+        ),
+        "dispatch": dispatch,
+        "authority": _normalize_coordinator_dispatch_authority(payload["authority"]),
+        "sanitized": _require_bool(payload, "sanitized", expected=True, label=label),
+    }
+    _validate_identity(
+        normalized,
+        id_key="dispatch_id",
+        idempotency_key="idempotency_key",
+        artifact_type=COORDINATOR_DISPATCH_TYPE,
+        upstream_ids=(normalized["source_hypothesis_packet_id"],),
+        policy_version=COORDINATOR_DISPATCH_POLICY_VERSION,
+    )
+    reject_unsafe_creative_context_value(normalized, label=label)
+    return normalized
+
+
+def _normalize_coordinator_dispatch_entry(
+    raw_entry: Any,
+    *,
+    label: str,
+    registered_agents: set[str],
+) -> dict[str, Any]:
+    if not isinstance(raw_entry, Mapping):
+        raise ExperimentRunnerCreativeContextContractError(f"{label} must be a JSON object.")
+    _require_exact_keys(raw_entry, COORDINATOR_DISPATCH_ENTRY_KEYS, label=label)
+    primary_agent = _require_token(raw_entry, "primary_agent", label=label)
+    if primary_agent not in registered_agents:
+        raise ExperimentRunnerCreativeContextContractError(
+            f"{label}.primary_agent is not registered."
+        )
+    return {
+        "hypothesis_id": _require_id(raw_entry, "hypothesis_id", label=label),
+        "task_packet_kind": _require_const(
+            raw_entry,
+            "task_packet_kind",
+            "TASK_PACKET_V1",
+            label=label,
+        ),
+        "primary_agent": primary_agent,
+        "review_agents": _normalize_agent_list(
+            raw_entry["review_agents"],
+            label=f"{label}.review_agents",
+            registered_agents=registered_agents,
+        ),
+        "cross_domain_agents": _normalize_agent_list(
+            raw_entry["cross_domain_agents"],
+            label=f"{label}.cross_domain_agents",
+            registered_agents=registered_agents,
+        ),
+        "missing_agent_capabilities": _normalize_agent_slug_list(
+            raw_entry["missing_agent_capabilities"],
+            label=f"{label}.missing_agent_capabilities",
+            allow_empty=True,
+        ),
+        "task_mode": _require_const(
+            raw_entry,
+            "task_mode",
+            "critique_refine_only",
+            label=label,
+        ),
+        "mutation_authority": _require_bool(
+            raw_entry,
+            "mutation_authority",
+            expected=False,
+            label=label,
+        ),
+        "coordinator_decision_required": _require_bool(
+            raw_entry,
+            "coordinator_decision_required",
+            expected=True,
+            label=label,
+        ),
+    }
+
+
 def _normalize_routing_entry(
     raw_entry: Any,
     *,
@@ -1791,7 +2492,7 @@ def _normalize_routing_entry(
         label=f"{label}.cross_domain_agents",
         registered_agents=registered_agents,
     )
-    missing = _normalize_text_list(
+    missing = _normalize_agent_slug_list(
         raw_entry["missing_agent_capabilities"],
         label=f"{label}.missing_agent_capabilities",
         allow_empty=True,
@@ -1823,7 +2524,7 @@ def _normalize_agent_list(
     label: str,
     registered_agents: set[str],
 ) -> list[str]:
-    agents = _normalize_text_list(raw_agents, label=label, allow_empty=True)
+    agents = _normalize_agent_slug_list(raw_agents, label=label, allow_empty=True)
     unknown = [agent for agent in agents if agent not in registered_agents]
     if unknown:
         raise ExperimentRunnerCreativeContextContractError(
@@ -2122,6 +2823,7 @@ def _validate_identity(
     idempotency_key: str,
     artifact_type: str,
     upstream_ids: tuple[str, ...] = (),
+    policy_version: str = POLICY_VERSION,
 ) -> None:
     body = dict(normalized)
     observed_id = str(body.pop(id_key))
@@ -2130,6 +2832,7 @@ def _validate_identity(
         body,
         artifact_type=artifact_type,
         upstream_ids=upstream_ids,
+        policy_version=policy_version,
     )
     if observed_id != expected_id:
         raise ExperimentRunnerCreativeContextContractError(f"{id_key} does not match content.")
@@ -2147,6 +2850,8 @@ def validate_artifact_by_type(artifact_type: str, payload: Mapping[str, Any]) ->
         AGENT_ROUTING_TYPE: validate_creative_hypothesis_agent_routing,
         CONSUMPTION_SUMMARY_TYPE: validate_agent_consumption_summary,
         APPROVAL_TYPE: validate_creative_hypothesis_approval,
+        OPERATOR_MODEL_INTAKE_TYPE: validate_creative_hypothesis_operator_model_intake,
+        COORDINATOR_DISPATCH_TYPE: validate_creative_hypothesis_coordinator_dispatch,
     }
     if artifact_type not in validators:
         supported = ", ".join(sorted(validators))

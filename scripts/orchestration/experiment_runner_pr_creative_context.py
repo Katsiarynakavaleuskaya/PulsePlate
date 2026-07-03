@@ -24,20 +24,25 @@ if str(REPO_ROOT) not in sys.path:
 from scripts.orchestration.experiment_runner_pr_creative_context_contract import (
     AGENT_ROUTING_TYPE,
     APPROVAL_TYPE,
+    COORDINATOR_DISPATCH_TYPE,
     CONTEXT_MAP_TYPE,
     CONSUMPTION_SUMMARY_TYPE,
     HYPOTHESIS_PACKET_TYPE,
     ORACLE_ATTACHMENT_TYPE,
+    OPERATOR_MODEL_INTAKE_TYPE,
     ExperimentRunnerCreativeContextContractError,
     build_agent_consumption_summary,
+    build_creative_hypothesis_coordinator_dispatch,
     build_creative_hypothesis_agent_routing,
     build_creative_hypothesis_packet,
+    build_creative_hypothesis_packet_from_model_intake,
     build_creative_protocol_context_map,
     build_experiment_runner_pr_oracle_attachment,
     read_json_object,
     reject_unsafe_creative_context_value,
     validate_artifact_by_type,
     validate_creative_hypothesis_agent_routing,
+    validate_creative_hypothesis_operator_model_intake,
     validate_creative_hypothesis_packet,
     validate_creative_protocol_context_map,
     validate_experiment_runner_pr_oracle_attachment,
@@ -50,8 +55,10 @@ ALLOWED_OUTPUT_FILENAMES = frozenset(
     {
         "context_map.json",
         "hypothesis_packet.json",
+        "model_intake.json",
         "agent_routing.json",
         "agent_consumption_summary.json",
+        "coordinator_dispatch.json",
         "oracle_attachment.json",
         "approval.json",
         "creative_context.json",
@@ -261,6 +268,38 @@ def _cmd_route_agents(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_ingest_model_hypotheses(args: argparse.Namespace) -> int:
+    context_map = validate_creative_protocol_context_map(read_json_object(args.context_map))
+    model_intake = validate_creative_hypothesis_operator_model_intake(
+        read_json_object(args.model_intake),
+        context_map=context_map,
+    )
+    packet = build_creative_hypothesis_packet_from_model_intake(
+        context_map,
+        model_intake,
+    )
+    _write_json(Path(args.output) if args.output else None, packet)
+    normalized_intake_output = (
+        Path(args.normalized_intake_output)
+        if args.normalized_intake_output
+        else Path(args.output).with_name("model_intake.json") if args.output else None
+    )
+    if normalized_intake_output is not None:
+        _write_json(normalized_intake_output, model_intake)
+    return 0
+
+
+def _cmd_dispatch_coordinator(args: argparse.Namespace) -> int:
+    packet = validate_creative_hypothesis_packet(read_json_object(args.hypothesis_packet))
+    routing = validate_creative_hypothesis_agent_routing(read_json_object(args.routing))
+    dispatch = build_creative_hypothesis_coordinator_dispatch(
+        hypothesis_packet=packet,
+        routing=routing,
+    )
+    _write_json(Path(args.output) if args.output else None, dispatch)
+    return 0
+
+
 def _cmd_summarize(args: argparse.Namespace) -> int:
     oracle = None
     if args.oracle:
@@ -277,17 +316,36 @@ def _cmd_summarize(args: argparse.Namespace) -> int:
 
 
 def _cmd_prepare(args: argparse.Namespace) -> int:
-    context_map = build_creative_protocol_context_map(**_common_context_kwargs(args))
+    context_map = (
+        validate_creative_protocol_context_map(read_json_object(args.context_map))
+        if args.context_map
+        else build_creative_protocol_context_map(**_common_context_kwargs(args))
+    )
     output_dir = (
         _resolve_output_dir(Path(args.output_dir), create=True)
         if args.output_dir
         else _artifact_subdir(context_map)
     )
-    hypothesis_packet = build_creative_hypothesis_packet(
-        context_map,
-        hypothesis_count=args.hypothesis_count,
-    )
+    model_intake = None
+    if args.model_intake:
+        model_intake = validate_creative_hypothesis_operator_model_intake(
+            read_json_object(args.model_intake),
+            context_map=context_map,
+        )
+        hypothesis_packet = build_creative_hypothesis_packet_from_model_intake(
+            context_map,
+            model_intake,
+        )
+    else:
+        hypothesis_packet = build_creative_hypothesis_packet(
+            context_map,
+            hypothesis_count=args.hypothesis_count,
+        )
     agent_routing = build_creative_hypothesis_agent_routing(hypothesis_packet)
+    coordinator_dispatch = build_creative_hypothesis_coordinator_dispatch(
+        hypothesis_packet=hypothesis_packet,
+        routing=agent_routing,
+    )
     oracle_attachment = build_experiment_runner_pr_oracle_attachment(
         source=context_map["source"],
         oracle_status=args.oracle_status,
@@ -301,8 +359,11 @@ def _cmd_prepare(args: argparse.Namespace) -> int:
         routing=agent_routing,
     )
     _write_json(output_dir / "context_map.json", context_map)
+    if model_intake is not None:
+        _write_json(output_dir / "model_intake.json", model_intake)
     _write_json(output_dir / "hypothesis_packet.json", hypothesis_packet)
     _write_json(output_dir / "agent_routing.json", agent_routing)
+    _write_json(output_dir / "coordinator_dispatch.json", coordinator_dispatch)
     _write_json(output_dir / "oracle_attachment.json", oracle_attachment)
     _write_json(output_dir / "agent_consumption_summary.json", summary)
     print(SUCCESS_PREPARE_OUTPUT)
@@ -366,6 +427,19 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     routing_parser.add_argument("--output")
     routing_parser.set_defaults(func=_cmd_route_agents)
 
+    ingest_parser = subparsers.add_parser("ingest-model-hypotheses")
+    ingest_parser.add_argument("--context-map", required=True)
+    ingest_parser.add_argument("--model-intake", required=True)
+    ingest_parser.add_argument("--output")
+    ingest_parser.add_argument("--normalized-intake-output")
+    ingest_parser.set_defaults(func=_cmd_ingest_model_hypotheses)
+
+    dispatch_parser = subparsers.add_parser("dispatch-coordinator")
+    dispatch_parser.add_argument("--hypothesis-packet", required=True)
+    dispatch_parser.add_argument("--routing", required=True)
+    dispatch_parser.add_argument("--output")
+    dispatch_parser.set_defaults(func=_cmd_dispatch_coordinator)
+
     summary_parser = subparsers.add_parser("summarize")
     summary_parser.add_argument("--oracle")
     summary_parser.add_argument("--hypotheses", required=True)
@@ -375,7 +449,9 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
     prepare_parser = subparsers.add_parser("prepare")
     _add_context_args(prepare_parser)
+    prepare_parser.add_argument("--context-map")
     prepare_parser.add_argument("--hypothesis-count", type=int, default=4)
+    prepare_parser.add_argument("--model-intake")
     prepare_parser.add_argument("--oracle-status", default="skipped")
     prepare_parser.add_argument("--oracle-result-ref")
     prepare_parser.add_argument("--oracle-result-fingerprint")
@@ -393,6 +469,8 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                 CONTEXT_MAP_TYPE,
                 HYPOTHESIS_PACKET_TYPE,
                 AGENT_ROUTING_TYPE,
+                OPERATOR_MODEL_INTAKE_TYPE,
+                COORDINATOR_DISPATCH_TYPE,
                 CONSUMPTION_SUMMARY_TYPE,
                 APPROVAL_TYPE,
             }

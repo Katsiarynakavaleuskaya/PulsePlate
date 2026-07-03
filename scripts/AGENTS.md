@@ -29,8 +29,12 @@
   `artifacts/orchestration/experiments/creative_context/`. The
   `experiment_runner_pr_creative_context.py` CLI may only emit sanitized
   context maps, 3-5 bounded hypotheses for eligible orchestration/creative
-  surfaces, coordinator-owned routing proposals, oracle attachment summaries,
-  and human-approval reservations. It must not read raw PR/review bodies,
+  surfaces, validated operator-supplied local model intake packets,
+  coordinator-owned routing proposals, coordinator dispatch handoffs, oracle
+  attachment summaries, and human-approval reservations. Operator intake is
+  local structured JSON only: the repo validates, normalizes, fingerprints, and
+  routes it without calling a provider/model, storing raw model payloads, or
+  trusting external hypothesis IDs. It must not read raw PR/review bodies,
   patches, prompts, provider payloads, Codex JSONL, oracle stdout/stderr,
   secrets, token values, or local absolute paths, and it must not generate
   patches, modify the worktree, change workflows, dispatch workflows, create or

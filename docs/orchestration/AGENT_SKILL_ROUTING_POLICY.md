@@ -199,10 +199,19 @@ Companion note:
 ### 3b. Review Oracles and Learning Loop Skills
 
 `pulseplate-review-pattern-oracles` and `pulseplate-agent-learning-loop` are
-repo-tracked, offline, deterministic helpers. They are advisory by design:
-they must not post GitHub comments, resolve threads, update fixed mapping,
-claim merge readiness, mutate product runtime, or become canonical learning
-without a reviewed repo diff.
+repo-tracked, offline, deterministic helpers. The learning loop is a
+conditional hard gate when the operator requests it or when repeated
+role-agent, premortem, review, workflow, architecture, or
+successful-iteration patterns appear. Both helpers are side-effect free by
+design: they must not post GitHub comments, resolve threads, update fixed
+mapping, claim merge readiness, mutate product runtime, update semantic cache
+or graph truth, or become canonical learning without a reviewed repo diff.
+Learning records must use `agent_learning_record.v1` and classify
+`pattern_kind` as `failure` or `successful_iteration`. They must also include
+bounded `learning_metrics` so future promotion can be evaluated through
+proposal-only process signals such as repeat-failure reduction, successful
+pattern reuse, premortem code-closure rate, user-impact clarity, business-risk
+clarity, and project-development signal.
 
 Machine-consumed JSON contracts:
 

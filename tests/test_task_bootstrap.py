@@ -283,6 +283,80 @@ def test_task_bootstrap_adds_automation_metadata_defaults() -> None:
     assert packet["needs_agents_sync"] is False
 
 
+def test_task_bootstrap_requires_learning_loop_for_repeated_premortem_failure() -> None:
+    """Learning-loop should become packet-required when repeated PR-process failure is in scope."""
+
+    packet = build_task_packet(
+        goal=(
+            "Fix repeated role-agent failure where premortem became docs closeout "
+            "instead of diff-specific production-risk closure"
+        ),
+        task_class="Orchestration",
+        candidate_paths=[
+            "AGENTS.md",
+            "docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md",
+        ],
+    )
+
+    assert "pulseplate-agent-learning-loop" in packet["recommended_skills"]
+    learning_loop = packet["agent_learning_loop"]
+    assert learning_loop["orchestration_gate"] == "conditional_required_when_triggered"
+    assert learning_loop["current_packet_required"] is True
+    assert learning_loop["current_pr_enforcement_required_when_scope_affected"] is True
+    assert learning_loop["proposal_only_until_promoted"] is True
+    assert learning_loop["redaction_required"] is True
+    assert learning_loop["promotion_requires_reviewed_repo_diff"] is True
+    assert learning_loop["metrics_required"] is True
+    assert learning_loop["metrics_schema_version"] == "agent_learning_metrics.v1"
+    assert "repeat_failure_reduction" in learning_loop["metric_ids"]
+    assert "successful_pattern_reuse" in learning_loop["metric_ids"]
+    assert "user_impact_clarity" in learning_loop["metric_ids"]
+    assert "business_risk_clarity" in learning_loop["metric_ids"]
+    assert "project_development_signal" in learning_loop["metric_ids"]
+    assert learning_loop["runtime_authority"] is False
+    assert learning_loop["canonical_until_promoted_by_repo_diff"] is False
+    assert {item["group_id"] for item in learning_loop["trigger_evidence"]} == {
+        "orchestration.agent_learning_loop"
+    }
+
+
+def test_task_bootstrap_requires_learning_loop_for_successful_iteration_pattern() -> None:
+    """Learning-loop should also become packet-required for repeatable success patterns."""
+
+    packet = build_task_packet(
+        goal=(
+            "Promote a successful iteration where premortem and agent review "
+            "worked well for creative hypothesis routing"
+        ),
+        task_class="Orchestration",
+        candidate_paths=[
+            "docs/orchestration/AGENT_LEARNING_LOOP.md",
+            "docs/orchestration/GOVERNED_CREATIVE_CODE_EXECUTION_CONTRACT.md",
+        ],
+    )
+
+    assert "pulseplate-agent-learning-loop" in packet["recommended_skills"]
+    assert packet["agent_learning_loop"]["current_packet_required"] is True
+    assert packet["agent_learning_loop"]["metrics_required"] is True
+    assert "repeated_successful_iteration_pattern" in packet["agent_learning_loop"]["required_when"]
+
+
+def test_task_bootstrap_requires_learning_loop_for_semantic_trigger_outside_docs_lane() -> None:
+    """Semantic repeated-failure triggers should require learning-loop even on runtime paths."""
+
+    packet = build_task_packet(
+        goal="Fix repeated role-agent failure in frontend planning flow",
+        task_class="Frontend",
+        candidate_paths=["frontend/src/Home.tsx"],
+    )
+
+    learning_loop = packet["agent_learning_loop"]
+    assert {item["group_id"] for item in learning_loop["trigger_evidence"]} == {
+        "orchestration.agent_learning_loop"
+    }
+    assert learning_loop["current_packet_required"] is True
+
+
 def test_task_bootstrap_keeps_wide_pr_packets_when_context_graph_truncates() -> None:
     """Advisory compression limits must never block task-packet creation."""
 

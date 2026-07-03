@@ -1,136 +1,60 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://pulseplate.local/contracts/creative_hypothesis_packet.v1.schema.json",
-  "title": "CreativeHypothesisPacket",
+  "$id": "https://pulseplate.local/contracts/creative_hypothesis_operator_model_intake.v1.schema.json",
+  "title": "CreativeHypothesisOperatorModelIntake",
   "type": "object",
   "additionalProperties": false,
   "required": [
     "schema_version",
     "artifact_type",
     "policy_version",
-    "packet_id",
-    "idempotency_key",
     "context_map_id",
     "context_map_fingerprint",
-    "creative_status",
-    "reason_code",
-    "hypothesis_generation_mode",
-    "source_model_intake_fingerprint",
-    "repo_provider_calls",
-    "raw_model_payload_stored",
-    "semantic_cache_used",
-    "hypothesis_count",
+    "generation",
     "hypotheses",
     "authority",
     "sanitized"
   ],
   "properties": {
     "schema_version": { "const": "1.0" },
-    "artifact_type": { "const": "creative_hypothesis_packet" },
-    "policy_version": { "const": "experiment-runner-pr-creative-context-v1" },
-    "packet_id": { "$ref": "#/$defs/safe_id" },
+    "artifact_type": { "const": "creative_hypothesis_operator_model_intake" },
+    "policy_version": { "const": "creative-hypothesis-operator-intake-v1" },
+    "intake_id": { "$ref": "#/$defs/safe_id" },
     "idempotency_key": { "$ref": "#/$defs/safe_id" },
     "context_map_id": { "$ref": "#/$defs/safe_id" },
     "context_map_fingerprint": { "$ref": "#/$defs/sha256" },
-    "creative_status": {
-      "enum": ["hypotheses_generated", "no_creative_action", "blocked"]
-    },
-    "reason_code": {
-      "enum": [
-        "docs_only_no_runtime_action",
-        "eligible_orchestration_surface",
-        "label_activation",
-        "manual_activation",
-        "marker_activation",
-        "missing_changed_paths",
-        "missing_required_capability",
-        "product_runtime_surface",
-        "unsupported_surface",
-        "workflow_deferred_followup"
-      ]
-    },
-    "hypothesis_generation_mode": {
-      "enum": ["deterministic_templates_v1", "operator_validated_intake_v1"]
-    },
-    "source_model_intake_fingerprint": {
-      "anyOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }]
-    },
-    "repo_provider_calls": { "const": false },
-    "raw_model_payload_stored": { "const": false },
-    "semantic_cache_used": { "const": false },
-    "hypothesis_count": { "type": "integer", "minimum": 0, "maximum": 5 },
+    "generation": { "$ref": "#/$defs/generation" },
+    "hypothesis_count": { "type": "integer", "minimum": 3, "maximum": 5 },
     "hypotheses": {
       "type": "array",
-      "items": { "$ref": "#/$defs/hypothesis" }
+      "minItems": 3,
+      "maxItems": 5,
+      "items": { "$ref": "#/$defs/operator_hypothesis" }
     },
-    "authority": { "$ref": "#/$defs/authority" },
+    "authority": { "$ref": "#/$defs/intake_authority" },
     "sanitized": { "const": true }
   },
   "allOf": [
     {
       "if": {
-        "required": ["creative_status"],
-        "properties": { "creative_status": { "const": "hypotheses_generated" } }
+        "required": ["hypothesis_count"],
+        "properties": { "hypothesis_count": { "const": 3 } }
       },
-      "then": {
-        "properties": {
-          "hypothesis_count": { "enum": [3, 4, 5] },
-          "hypotheses": {
-            "minItems": 3,
-            "maxItems": 5,
-            "contains": {
-              "type": "object",
-              "required": ["target_surfaces"],
-              "properties": {
-                "target_surfaces": {
-                  "contains": { "$ref": "#/$defs/concrete_target_path" }
-                }
-              }
-            }
-          }
-        }
-      }
+      "then": { "properties": { "hypotheses": { "minItems": 3, "maxItems": 3 } } }
     },
     {
       "if": {
-        "required": ["creative_status"],
-        "properties": { "creative_status": { "const": "no_creative_action" } }
+        "required": ["hypothesis_count"],
+        "properties": { "hypothesis_count": { "const": 4 } }
       },
-      "then": {
-        "properties": {
-          "hypothesis_count": { "const": 0 },
-          "hypotheses": { "maxItems": 0 }
-        }
-      }
+      "then": { "properties": { "hypotheses": { "minItems": 4, "maxItems": 4 } } }
     },
     {
       "if": {
-        "required": ["hypothesis_generation_mode"],
-        "properties": {
-          "hypothesis_generation_mode": { "const": "operator_validated_intake_v1" }
-        }
+        "required": ["hypothesis_count"],
+        "properties": { "hypothesis_count": { "const": 5 } }
       },
-      "then": {
-        "properties": {
-          "creative_status": { "const": "hypotheses_generated" },
-          "source_model_intake_fingerprint": { "$ref": "#/$defs/sha256" },
-          "hypothesis_count": { "enum": [3, 4, 5] },
-          "hypotheses": { "minItems": 3, "maxItems": 5 }
-        }
-      }
-    },
-    {
-      "if": {
-        "required": ["hypothesis_generation_mode"],
-        "properties": {
-          "hypothesis_generation_mode": { "const": "deterministic_templates_v1" }
-        }
-      },
-      "then": {
-        "properties": {
-          "source_model_intake_fingerprint": { "type": "null" }
-        }
-      }
+      "then": { "properties": { "hypotheses": { "minItems": 5, "maxItems": 5 } } }
     }
   ],
   "$defs": {
@@ -140,11 +64,12 @@
       "maxLength": 128,
       "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
     },
+    "sha256": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
     "repo_path": {
       "type": "string",
       "pattern": "^[A-Za-z0-9_.-][A-Za-z0-9_./-]*$",
       "not": {
-        "pattern": "(^/|\\.\\.|\\\\|file://|^~|^\\.git/|^\\.venv/|^worktrees/|^artifacts(/|$)|^(app|core|frontend|ios|providers|alembic)/|^\\.github/workflows/)"
+        "pattern": "(^/|^\\.$|^\\*$|^\\*\\*$|\\.\\.|\\\\|file://|^~|^\\.git/|^\\.venv/|^worktrees/|^artifacts(/|$)|^(app|core|frontend|ios|providers|alembic)(/|$)|^\\.github/workflows(/|$))"
       }
     },
     "concrete_target_path": {
@@ -161,7 +86,6 @@
       "uniqueItems": true,
       "items": { "$ref": "#/$defs/repo_path" }
     },
-    "sha256": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
     "safe_text": {
       "type": "string",
       "minLength": 1,
@@ -169,11 +93,15 @@
       "not": {
         "anyOf": [
           { "pattern": "[dD][iI][fF][fF] --[gG][iI][tT]" },
+          { "pattern": "@@" },
+          { "pattern": "\\+\\+\\+\\s+[ab]/" },
+          { "pattern": "---\\s+[ab]/" },
           { "pattern": "[cC][aA][nN][dD][iI][dD][aA][tT][eE]\\.[pP][aA][tT][cC][hH]" },
-          { "pattern": "[rR][aA][wW][_ -]?([bB][oO][dD][yY]|[pP][rR][oO][mM][pP][tT]|[rR][eE][sS][pP][oO][nN][sS][eE]|[cC][oO][nN][tT][eE][xX][tT]|[pP][aA][tT][cC][hH]|[rR][eE][vV][iI][eE][wW]|[pP][rR])" },
-          { "pattern": "[cC][hH][aA][iI][nN][_ -]?[oO][fF][_ -]?[tT][hH][oO][uU][gG][hH][tT]" },
-          { "pattern": "[pP][rR][oO][vV][iI][dD][eE][rR][_ -]?[pP][aA][yY][lL][oO][aA][dD]" },
-          { "pattern": "[oO][rR][aA][cC][lL][eE][_ -]?([sS][tT][dD][oO][uU][tT]|[sS][tT][dD][eE][rR][rR]|[oO][uU][tT][pP][uU][tT])" },
+          { "pattern": "[cC][aA][nN][dD][iI][dD][aA][tT][eE][_. -]?[pP][aA][tT][cC][hH]" },
+          { "pattern": "[rR][aA][wW][_. -]?([mM][oO][dD][eE][lL][_. -]?[pP][aA][yY][lL][oO][aA][dD]|[bB][oO][dD][yY]|[pP][rR][oO][mM][pP][tT]|[rR][eE][sS][pP][oO][nN][sS][eE]|[cC][oO][nN][tT][eE][xX][tT]|[pP][aA][tT][cC][hH]|[rR][eE][vV][iI][eE][wW]|[pP][rR])" },
+          { "pattern": "[cC][hH][aA][iI][nN][_. -]?[oO][fF][_. -]?[tT][hH][oO][uU][gG][hH][tT]" },
+          { "pattern": "[pP][rR][oO][vV][iI][dD][eE][rR][_. -]?[pP][aA][yY][lL][oO][aA][dD]" },
+          { "pattern": "[oO][rR][aA][cC][lL][eE][_. -]?([sS][tT][dD][oO][uU][tT]|[sS][tT][dD][eE][rR][rR]|[oO][uU][tT][pP][uU][tT])" },
           { "pattern": "[fF][iI][lL][eE]://" },
           { "pattern": "/([Uu][Ss][Ee][Rr][Ss]|[Hh][Oo][Mm][Ee]|[Pp][Rr][Ii][Vv][Aa][Tt][Ee]/[Vv][Aa][Rr]|[Vv][Aa][Rr]/[Ff][Oo][Ll][Dd][Ee][Rr][Ss]|[Tt][Mm][Pp]|[Ee][Tt][Cc]|[Oo][Pp][Tt]|[Uu][Ss][Rr]|[Vv][Oo][Ll][Uu][Mm][Ee][Ss]|[Mm][Nn][Tt]|[Rr][Oo][Oo][Tt]|[Ww][Oo][Rr][Kk][Ss][Pp][Aa][Cc][Ee]|[Ww][Oo][Rr][Kk][Ss][Pp][Aa][Cc][Ee][Ss])(/|$)" },
           { "pattern": "~[/\\\\]|[A-Za-z]:[\\\\/]|\\.[vV][eE][nN][vV]/|\\.[gG][iI][tT]/" },
@@ -182,6 +110,26 @@
           { "pattern": "[sS][kK]-[A-Za-z0-9_-]{12,}|[gG][hH][pPsSoOrRuU]_[A-Za-z0-9_.-]{12,}|[gG][iI][tT][hH][uU][bB]_[pP][aA][tT]_|[xX][oO][xX][abprsABPRS]-" },
           { "pattern": "[aA][uU][tT][hH][oO][rR][iI][zZ][aA][tT][iI][oO][nN]:\\s*[bB][eE][aA][rR][eE][rR]|[pP][rR][iI][vV][aA][tT][eE][_ -]?[kK][eE][yY]|[aA][pP][iI][_ -]?[kK][eE][yY]|[gG][hH]_[tT][oO][kK][eE][nN]|[gG][iI][tT][hH][uU][bB]_[tT][oO][kK][eE][nN]" }
         ]
+      }
+    },
+    "generation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode",
+        "tool_label",
+        "repo_provider_calls",
+        "raw_model_payload_stored",
+        "semantic_cache_used"
+      ],
+      "properties": {
+        "mode": { "const": "operator_supplied_model_json" },
+        "tool_label": {
+          "enum": ["codex", "comet", "ollama", "other_local", "unknown"]
+        },
+        "repo_provider_calls": { "const": false },
+        "raw_model_payload_stored": { "const": false },
+        "semantic_cache_used": { "const": false }
       }
     },
     "analogy": {
@@ -217,11 +165,10 @@
         "requires_specialist_agent": { "type": "boolean" }
       }
     },
-    "hypothesis": {
+    "operator_hypothesis": {
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "hypothesis_id",
         "hypothesis_kind",
         "title",
         "target_surfaces",
@@ -236,7 +183,6 @@
         "eligible_for_pr2_patch"
       ],
       "properties": {
-        "hypothesis_id": { "$ref": "#/$defs/safe_id" },
         "hypothesis_kind": {
           "enum": [
             "architecture",
@@ -247,7 +193,12 @@
           ]
         },
         "title": { "$ref": "#/$defs/safe_text" },
-        "target_surfaces": { "$ref": "#/$defs/repo_paths" },
+        "target_surfaces": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/concrete_target_path" }
+        },
         "expected_behavior": { "$ref": "#/$defs/safe_text" },
         "tests_or_oracles": { "$ref": "#/$defs/repo_paths" },
         "risk_notes": {
@@ -271,7 +222,7 @@
         "eligible_for_pr2_patch": { "const": false }
       }
     },
-    "authority": {
+    "intake_authority": {
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -282,11 +233,9 @@
         "claim_merge_readiness",
         "create_branch",
         "edit_fixed_mapping",
-        "emit_local_artifacts",
         "execute_pr1_specification",
         "execute_pr2_patch_builder",
         "execute_pr3_promotion",
-        "generate_hypotheses",
         "generate_patch",
         "mark_pr_ready",
         "merge",
@@ -295,14 +244,13 @@
         "modify_workflows",
         "open_draft_pr",
         "open_pr",
+        "operator_supplied_hypotheses",
         "post_github_comment",
-        "prepare_human_approval_packet",
         "push",
-        "read_sanitized_context",
         "read_secrets",
         "release",
+        "repo_provider_calls",
         "resolve_threads",
-        "route_to_agents",
         "use_semantic_cache",
         "workflow_dispatch",
         "write_branch"
@@ -315,11 +263,9 @@
         "claim_merge_readiness": { "const": false },
         "create_branch": { "const": false },
         "edit_fixed_mapping": { "const": false },
-        "emit_local_artifacts": { "const": true },
         "execute_pr1_specification": { "const": false },
         "execute_pr2_patch_builder": { "const": false },
         "execute_pr3_promotion": { "const": false },
-        "generate_hypotheses": { "const": true },
         "generate_patch": { "const": false },
         "mark_pr_ready": { "const": false },
         "merge": { "const": false },
@@ -328,14 +274,13 @@
         "modify_workflows": { "const": false },
         "open_draft_pr": { "const": false },
         "open_pr": { "const": false },
+        "operator_supplied_hypotheses": { "const": true },
         "post_github_comment": { "const": false },
-        "prepare_human_approval_packet": { "const": true },
         "push": { "const": false },
-        "read_sanitized_context": { "const": true },
         "read_secrets": { "const": false },
         "release": { "const": false },
+        "repo_provider_calls": { "const": false },
         "resolve_threads": { "const": false },
-        "route_to_agents": { "const": true },
         "use_semantic_cache": { "const": false },
         "workflow_dispatch": { "const": false },
         "write_branch": { "const": false }
