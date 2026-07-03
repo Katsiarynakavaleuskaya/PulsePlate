@@ -44,6 +44,9 @@ BOLA, dependency upgrades, or GitHub workflow edits are included.
 - `e36f556e6` - fixes the second post-open security-auditor pass by adding
   bounded root security/gate/governance control surfaces and reopening the
   backlog item until PR merge or explicit closeout.
+- `9e4ce2fa2` - fixes the third post-open security-auditor pass by adding
+  bounded review-bot, MCP control-plane, secret-baseline, policy-guard-test,
+  and Cloudflare edge deploy control surfaces.
 
 ## Lane Start Provenance
 
@@ -224,6 +227,46 @@ Commit: e36f556e6
 Reason: The backlog item should track PR #2067 as the active target while the PR is still open; closing the checkbox before merge would hide unresolved review/CI disposition work.
 Evidence: `docs/roadmap/BACKLOG_LEDGER.md` now leaves the item unchecked and adds a DoD line requiring PR #2067 merge or explicit won't-do closeout before the checkbox is closed.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3518105300
+Disposition: NOT-A-BUG
+Reason: This stale-state review comment is anchored to `cd18de8650108aeb6cce48b4b192e687b5cbabd4`, which is not a valid commit in the current PR history; the current branch head contains the mapped fix commits as ancestors.
+Evidence: `git cat-file -t cd18de8650108aeb6cce48b4b192e687b5cbabd4` reports an invalid object locally, while `git merge-base --is-ancestor b09ea4d9d HEAD`, `21e64df95`, `100b1ac42`, `6d3a83a54`, `849c06cf1`, `95b04a9d`, `e36f556e6`, and `9e4ce2fa2` return current-branch ancestry for their mapped fixes.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3518105307
+Disposition: NOT-A-BUG
+Reason: This stale-state attribution comment checks the same non-current `cd18de8650108aeb6cce48b4b192e687b5cbabd4` object; the actual implementation commit that used Experiment Runner evidence is still in the PR history with the required trailer.
+Evidence: `git show -s --format=full b09ea4d9d` contains `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`, and `git merge-base --is-ancestor b09ea4d9d HEAD` returns 0.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3518105311 -> 9e4ce2fa2
+Disposition: FIXED
+Commit: 9e4ce2fa2
+Reason: CodeRabbit and Sourcery config files control merge-blocking review-bot behavior, so changes to `.coderabbit.yaml` or `.sourcery.yaml` must not route as ordinary config.
+Evidence: The matcher now covers `.coderabbit.yaml` and `.sourcery.yaml`; focused bootstrap, skill-router, and task-bootstrap tests prove both paths force privileged security review.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3518105314 -> 9e4ce2fa2
+Disposition: FIXED
+Commit: 9e4ce2fa2
+Reason: `opencode.json` and `mcp-config.json` define governed MCP command/package and env wiring examples, so control-plane tool changes need executable security review.
+Evidence: The matcher now covers `opencode.json` and `mcp-config.json`; focused bootstrap, skill-router, and task-bootstrap tests cover both positive paths.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3518105315 -> 9e4ce2fa2
+Disposition: FIXED
+Commit: 9e4ce2fa2
+Reason: `.secrets.baseline` is the detect-secrets suppression baseline, so baseline-only changes can hide secret fingerprints unless they route through privileged security review.
+Evidence: The matcher now covers `.secrets.baseline`; focused bootstrap, skill-router, and task-bootstrap tests prove it sets `security_review_required=true`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3518105321 -> 9e4ce2fa2
+Disposition: FIXED
+Commit: 9e4ce2fa2
+Reason: Repo policy guard tests enforce nosec/subprocess/sys.modules and other hard-gate rules, so guard-weakening test-only PRs need privileged governance review.
+Evidence: The matcher now covers `tests/test_repo_policy_guards.py` and the bounded `tests/guards/` prefix, with negative controls for non-guard test lookalikes and task-bootstrap parity coverage.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3518105324 -> 9e4ce2fa2
+Disposition: FIXED
+Commit: 9e4ce2fa2
+Reason: `worker.js`, `wrangler.toml`, and `frontend/wrangler.toml` control first-party Cloudflare proxy/edge deploy behavior, so edge routing changes belong in the privileged deploy surface.
+Evidence: The matcher now covers `worker.js`, `wrangler.toml`, and `frontend/wrangler.toml`, with negative controls for nested lookalikes and task-bootstrap parity coverage.
+
 ## Mapping Notes
 
 Future actionable human, bot, role-agent, premortem, Experiment Runner, Codex
@@ -344,6 +387,21 @@ root AGENTS/RUNBOOK/Makefile policy entrypoints, PR templates, and backend-test
 hook helpers. Focused bootstrap, skill-router, and task-bootstrap tests cover
 the new positive paths plus nested/lookalike negative controls, and the backlog
 item is reopened until PR merge or explicit closeout.
+
+Disposition: FIXED
+
+Commit: `9e4ce2fa2`
+
+Reason: The third security-auditor pass found additional live control surfaces
+that can alter merge-blocking bot review, MCP tool command wiring, secret-scan
+suppression, hard-gate guard tests, or Cloudflare edge deploy behavior without
+touching workflow YAML.
+
+Evidence: Commit `9e4ce2fa2` adds bounded matcher coverage for `.coderabbit.yaml`,
+`.sourcery.yaml`, `.secrets.baseline`, `opencode.json`, `mcp-config.json`,
+`tests/test_repo_policy_guards.py`, `tests/guards/**`, `worker.js`,
+`wrangler.toml`, and `frontend/wrangler.toml`. Focused bootstrap, skill-router,
+and task-bootstrap tests cover the new positives plus nested/lookalike negatives.
 
 ## Local Validation Evidence
 
