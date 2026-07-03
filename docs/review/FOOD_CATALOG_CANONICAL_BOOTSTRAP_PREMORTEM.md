@@ -72,6 +72,34 @@ Evidence:
 - `tests/test_metrics.py` proves existing Prometheus labels use route templates
   for foods/catalog routes, not raw IDs or query strings.
 
+## Post-Open Premortem Addendum
+
+The first guard hardening closed direct, alias, module-qualified, literal
+dynamic, destructured, walrus, and nested include regrowth. Post-open security
+review found one remaining production-risk story: a later change could rebuild
+`app.routers.foods` or `app.routers.catalog` through a computed string, assign
+the imported router to an old allowlisted name such as `recipes_router`, and
+pass `app.include_router(recipes_router)` without tripping the legacy-growth
+guard.
+
+Production impact: route ownership would silently split back into
+`legacy_app.py`, so future migration evidence, OpenAPI proof, and route-template
+metrics could look healthy while canonical ownership had regressed.
+
+Closure: FIXED in the guard-hardening follow-up for this PR.
+
+Evidence:
+
+- `scripts/ci/check_legacy_growth_guard.py` now resolves static dynamic-import
+  strings across constants, names, concatenation, f-strings, and
+  `".".join(...)`.
+- The same guard tracks unresolved `app.routers` string hints and fails closed
+  when an unresolved dynamic import is used as a router registration source.
+- `tests/test_legacy_growth_guard.py` rejects computed foods/catalog dynamic
+  imports hidden behind old allowlisted router aliases.
+- `python -m pytest tests/test_legacy_growth_guard.py -q` passes.
+- `python scripts/ci/check_legacy_growth_guard.py` passes.
+
 ## Revised Plan
 
 1. Keep the diff registration-only: no FoodDB, Meili/provider, recipes, users,

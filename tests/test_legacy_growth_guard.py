@@ -1074,6 +1074,90 @@ def test_legacy_growth_guard_rejects_food_catalog_router_reintroduction(
     assert errors == expected
 
 
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        (
+            textwrap.dedent("""
+                import importlib
+
+                module_name = "app.routers." + "foods"
+                recipes_router = importlib.import_module(module_name).router
+                app.include_router(recipes_router)
+                """),
+            [
+                "legacy_app.py: unexpected app.routers import growth: "
+                "router_import:dynamic:app.routers.foods -> recipes_router"
+            ],
+        ),
+        (
+            textwrap.dedent("""
+                import importlib
+
+                module_name = ".".join(["app", "routers", "catalog"])
+                users_router = importlib.import_module(module_name).router
+                app.include_router(users_router)
+                """),
+            [
+                "legacy_app.py: unexpected app.routers import growth: "
+                "router_import:dynamic:app.routers.catalog -> users_router"
+            ],
+        ),
+        (
+            textwrap.dedent("""
+                import importlib
+
+                family = "catalog"
+                module_name = f"app.routers.{family}"
+                restaurants_router = importlib.import_module(module_name).router
+                app.include_router(restaurants_router)
+                """),
+            [
+                "legacy_app.py: unexpected app.routers import growth: "
+                "router_import:dynamic:app.routers.catalog -> restaurants_router"
+            ],
+        ),
+        (
+            textwrap.dedent("""
+                import importlib
+                import os
+
+                family = os.getenv("ROUTER_FAMILY", "foods")
+                module_name = f"app.routers.{family}"
+                nutrition_recommendations_router = importlib.import_module(module_name).router
+                app.include_router(nutrition_recommendations_router)
+                """),
+            [
+                "legacy_app.py: unexpected app.routers import growth: "
+                "router_import:dynamic:<unresolved app.routers import> -> "
+                "nutrition_recommendations_router"
+            ],
+        ),
+        (
+            textwrap.dedent("""
+                import importlib
+                import os
+
+                module_name = os.getenv("LEGACY_ROUTER_MODULE")
+                recipes_router = importlib.import_module(module_name).router
+                app.include_router(recipes_router)
+                """),
+            [
+                "legacy_app.py: unexpected app.routers import growth: "
+                "router_import:dynamic:<unresolved dynamic router import> -> recipes_router"
+            ],
+        ),
+    ],
+)
+def test_legacy_growth_guard_rejects_computed_food_catalog_dynamic_import_alias_bypass(
+    source: str,
+    expected: list[str],
+) -> None:
+    errors = legacy_guard.validate_legacy_growth(source)
+
+    assert errors == expected
+
+
 def test_legacy_growth_guard_rejects_module_qualified_bodyfat_router_registration() -> None:
     source = textwrap.dedent("""
         import app.routers.bodyfat as bodyfat_routes
