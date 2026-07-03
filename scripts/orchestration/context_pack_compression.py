@@ -774,7 +774,7 @@ def _validate_repo_relative_path(raw_path: str | Path) -> str:
         raise ValueError("path must stay inside repo")
     if normalized in {".", ".."} or ".." in candidate.parts:
         raise ValueError("path must stay inside repo")
-    if normalized.startswith(".env") or "/.env" in normalized:
+    if normalized != ".env.example" and (normalized.startswith(".env") or "/.env" in normalized):
         raise ValueError("path contains unsafe metadata")
     return normalized
 

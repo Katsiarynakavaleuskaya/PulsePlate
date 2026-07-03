@@ -69,24 +69,49 @@ def test_bootstrap_sync_policy_freezes_privileged_review_prefixes() -> None:
     assert PRIVILEGED_REVIEW_PREFIXES == (
         ".github/workflows/",
         ".github/actions/",
+        ".github/agents/",
+        ".github/prompts/",
+        ".github/scripts/",
+        ".agents/skills/",
+        ".cursor/agents/",
+        ".cursor/commands/",
+        ".cursor/rules/",
+        ".githooks/",
+        "tests/guards/",
+        "tools/agentguard/",
+        "tools/codex_skills/",
+        "tools/cybersecurity_skills/",
         "ios/fastlane/",
         "scripts/orchestration/",
         "scripts/ci/",
+        "scripts/metatron_lab/",
+        "scripts/release/",
         "docs/orchestration/",
         "docs/review/",
         "deploy/",
         ".devcontainer/",
+        "appstore/fitchef/",
+        "deploy/metatron-lab/",
+        "trivy/",
     )
     assert tuple(surface.surface_class for surface in PRIVILEGED_REVIEW_SURFACES) == (
+        "repo_agent_contracts",
         "github_workflows",
         "github_actions",
+        "github_agent_control",
+        "github_prompt_control",
+        "github_support_scripts",
         "github_codeowners",
+        "cursor_and_local_hook_control",
         "ios_fastlane",
         "orchestration_scripts",
         "merge_governance_scripts",
+        "metatron_lab_scripts",
+        "release_scripts",
         "orchestration_governance_docs",
         "review_governance_docs",
         "deploy_and_image_config",
+        "security_scan_policy",
         "dependency_and_hook_config",
     )
 
@@ -229,13 +254,332 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     """Privileged review detection should stay aligned with the canonical prefix set."""
 
     assert requires_security_review([".github/workflows"]) is True
+    assert requires_security_review([".agents/skills/pulseplate-gates/SKILL.md"]) is True
+    assert requires_security_review([".cursor/agents/security-auditor.md"]) is True
+    assert requires_security_review([".cursor/commands/init.md"]) is True
+    assert requires_security_review([".cursor/rules/cybersecurity-skills-index.md"]) is True
+    assert requires_security_review([".github/actions/setup/action.yml"]) is True
+    assert requires_security_review([".github/agents/my-agent.md"]) is True
+    assert requires_security_review([".github/prompts/vibecoder.prompt.md"]) is True
+    assert requires_security_review([".github/scripts/parse-safety-report.py"]) is True
+    assert requires_security_review([".githooks/pre-push"]) is True
+    assert requires_security_review(["appstore/fitchef/appstore_review_checklist.md"]) is True
     assert requires_security_review(["scripts/ci"]) is True
     assert requires_security_review(["scripts/orchestration/task_bootstrap.py"]) is True
+    assert requires_security_review(["scripts/release/publish.py"]) is True
     assert requires_security_review(["docs/review/PR_1325_FIXED_MAPPING.md"]) is True
+    assert requires_security_review(["tests/guards/test_nosec_policy_guard.py"]) is True
+    assert (
+        requires_security_review(["tests/guards/test_subprocess_uses_absolute_binaries.py"]) is True
+    )
+    assert requires_security_review(["trivy/policy.rego"]) is True
+    assert requires_security_review(["AGENTS.md"]) is True
+    assert requires_security_review(["scripts/AGENTS.md"]) is True
+    assert requires_security_review(["tests/AGENTS.md"]) is True
     assert requires_security_review(["Dockerfile"]) is True
+    assert requires_security_review(["Makefile"]) is True
+    assert requires_security_review(["RUNBOOK_AGENT.md"]) is True
+    assert requires_security_review([".env.example"]) is True
+    assert requires_security_review([".bandit"]) is True
+    assert requires_security_review([".bandit.yaml"]) is True
+    assert requires_security_review([".coveragerc"]) is True
+    assert requires_security_review([".coderabbit.yaml"]) is True
+    assert requires_security_review([".dockerignore"]) is True
+    assert requires_security_review([".gitmodules"]) is True
+    assert requires_security_review([".flake8"]) is True
+    assert requires_security_review([".markdownlint.json"]) is True
+    assert requires_security_review([".nvmrc"]) is True
+    assert requires_security_review([".python-version"]) is True
+    assert requires_security_review([".ruby-version"]) is True
+    assert requires_security_review([".secrets.baseline"]) is True
+    assert requires_security_review([".sourcery.yaml"]) is True
+    assert requires_security_review([".tool-versions"]) is True
+    assert requires_security_review([".trivyignore"]) is True
+    assert requires_security_review([".yamllint"]) is True
+    assert requires_security_review([".pre-commit-config.yaml"]) is True
+    assert requires_security_review([".pre-commit-config.yml"]) is True
+    assert requires_security_review([".vscode/extensions.json"]) is True
+    assert requires_security_review([".cursor/mcp.json.example"]) is True
+    assert requires_security_review([".kimi/mcp.json.example"]) is True
+    assert requires_security_review([".devcontainer/Dockerfile"]) is True
+    assert requires_security_review([".devcontainer/devcontainer.json"]) is True
+    assert requires_security_review([".devcontainer/docker-compose.devcontainer.yml"]) is True
+    assert requires_security_review([".github/CODEOWNERS"]) is True
+    assert requires_security_review([".github/PULL_REQUEST_TEMPLATE/design.md"]) is True
+    assert requires_security_review([".github/actionlint.yaml"]) is True
+    assert requires_security_review([".github/dependabot.yml"]) is True
+    assert requires_security_review([".github/dependabot.yaml"]) is True
+    assert requires_security_review([".github/pull_request_template.md"]) is True
+    assert requires_security_review(["alembic.ini"]) is True
+    assert requires_security_review(["codecov.yml"]) is True
+    assert requires_security_review(["codecov.yaml"]) is True
+    assert requires_security_review(["docker-compose.yaml"]) is True
+    assert requires_security_review(["docker-compose.prod.yml"]) is True
+    assert requires_security_review(["deploy/Caddyfile"]) is True
+    assert requires_security_review(["deploy/Caddyfile.production"]) is True
+    assert requires_security_review(["deploy/docker-compose.production.yaml"]) is True
+    assert requires_security_review(["deploy/docker-compose.production.selfhosted.yaml"]) is True
+    assert requires_security_review(["deploy/docker-compose.staging.yaml"]) is True
+    assert requires_security_review(["deploy/metatron-lab/docker-compose.yaml"]) is True
+    assert (
+        requires_security_review(["deploy/systemd/pulseplate-postgres-backup.service.example"])
+        is True
+    )
+    assert (
+        requires_security_review(["deploy/systemd/pulseplate-postgres-backup.timer.example"])
+        is True
+    )
+    assert requires_security_review(["docs/security/TOOLING_SURFACE_POLICY.md"]) is True
+    assert requires_security_review(["docs/security/vscode_extensions_allowlist.txt"]) is True
+    assert requires_security_review(["frontend/.dockerignore"]) is True
+    assert requires_security_review(["frontend/Dockerfile.caddy-spa"]) is True
+    assert requires_security_review(["frontend/package.json"]) is True
+    assert requires_security_review(["frontend/package-lock.json"]) is True
+    assert requires_security_review(["frontend/wrangler.toml"]) is True
+    assert requires_security_review(["ios/Gemfile"]) is True
+    assert requires_security_review(["ios/Gemfile.lock"]) is True
+    assert requires_security_review(["ios/Package.swift"]) is True
+    assert requires_security_review(["ios/Package.resolved"]) is True
+    assert requires_security_review(["ios/PulsePlate.xcodeproj/project.pbxproj"]) is True
+    assert (
+        requires_security_review(
+            ["ios/PulsePlate.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"]
+        )
+        is True
+    )
+    assert (
+        requires_security_review(
+            ["ios/PulsePlate.xcodeproj/xcshareddata/xcschemes/PulsePlate.xcscheme"]
+        )
+        is True
+    )
+    assert (
+        requires_security_review(["ios/PulsePlate.xcworkspace/xcshareddata/swiftpm/Package.swift"])
+        is True
+    )
+    assert requires_security_review(["ios/PulsePlate/Info-Release.plist"]) is True
+    assert requires_security_review(["ios/PulsePlate/PulsePlate.entitlements"]) is True
+    assert requires_security_review(["ios/PulsePlate/PrivacyInfo.xcprivacy"]) is True
+    assert requires_security_review(["ios/PulsePlate/en.lproj/InfoPlist.strings"]) is True
+    assert requires_security_review(["mcp-config.json"]) is True
+    assert requires_security_review(["mcp-setup.sh"]) is True
+    assert requires_security_review(["mcp_pulseplate_server.py"]) is True
+    assert requires_security_review(["opencode.json"]) is True
+    assert requires_security_review(["package.json"]) is True
+    assert requires_security_review(["package-lock.json"]) is True
+    assert requires_security_review(["pyproject.toml"]) is True
     assert requires_security_review(["requirements.txt"]) is True
+    assert requires_security_review(["requirements-ci-lite.txt"]) is True
+    assert requires_security_review(["requirements.in"]) is True
+    assert requires_security_review(["constraints.txt"]) is True
+    assert requires_security_review(["scripts/deploy.sh"]) is True
+    assert requires_security_review(["scripts/diagnose_web.sh"]) is True
+    assert requires_security_review(["scripts/hooks/repo_python.sh"]) is True
+    assert requires_security_review(["scripts/devcontainer/smoke.sh"]) is True
+    assert requires_security_review(["scripts/install_codex_skills.sh"]) is True
+    assert requires_security_review(["scripts/opencode/run_pulseplate_mcp.sh"]) is True
+    assert requires_security_review(["scripts/ops/postgres_backup.sh"]) is True
+    assert requires_security_review(["scripts/ops/postgres_restore.sh"]) is True
+    assert requires_security_review(["scripts/redeploy_caddy.sh"]) is True
+    assert requires_security_review(["scripts/run-backend-tests-pre-commit.sh"]) is True
+    assert requires_security_review(["scripts/validate-ci-environment.sh"]) is True
+    assert requires_security_review(["scripts/verify_codex_skills_install.py"]) is True
+    assert requires_security_review(["scripts/ci_bandit.sh"]) is True
+    assert requires_security_review(["scripts/ci_pip_audit.sh"]) is True
+    assert requires_security_review(["scripts/deploy_production.sh"]) is True
+    assert requires_security_review(["setup_custom_mcp.py"]) is True
+    assert requires_security_review(["scripts/metatron_lab/compose_guard.py"]) is True
+    assert requires_security_review(["tests/security/_api_authz_contracts.py"]) is True
+    assert requires_security_review(["tests/security/test_api_authz_contract_static.py"]) is True
+    assert requires_security_review(["tests/test_install_codex_skills.py"]) is True
+    assert requires_security_review(["tests/test_repo_policy_guards.py"]) is True
+    assert requires_security_review(["tools/agentguard/scan_text.mjs"]) is True
+    assert requires_security_review(["tools/codex_skills/pulseplate-gates/SKILL.md"]) is True
+    assert requires_security_review(["tools/cybersecurity_skills/index.json"]) is True
+    assert requires_security_review(["update_api_key.py"]) is True
+    assert requires_security_review(["worker.js"]) is True
+    assert requires_security_review(["wrangler.toml"]) is True
     assert requires_security_review(["script/orchestration/config.yml"]) is False
+    assert requires_security_review(["../Dockerfile"]) is False
+    assert requires_security_review(["../.github/workflows/ci.yml"]) is False
+    assert requires_security_review(["docs/../.github/workflows/ci.yml"]) is False
+    assert requires_security_review(["build/../Dockerfile"]) is False
     assert requires_security_review(["tests/test_task_bootstrap.py"]) is False
+    assert requires_security_review(["tests/guarded/test_nosec_policy_guard.py"]) is False
+    assert requires_security_review(["docs/pyproject.toml"]) is True
+    assert requires_security_review(["requirements_docs.md"]) is False
+    assert requires_security_review(["requirements/dev.txt"]) is False
+    assert requires_security_review(["requirements-notes/dev.txt"]) is False
+    assert requires_security_review(["constraints/dev.txt"]) is False
+    assert requires_security_review(["docker-compose/sandbox.yaml"]) is False
+    assert requires_security_review(["docker-compose-notes/prod.yaml"]) is False
+    assert requires_security_review(["deploy/nested/docker-compose.production.yaml"]) is True
+    assert requires_security_review(["deploy/docker-compose.production/archive.yaml"]) is True
+    assert requires_security_review(["deploy/nested/Caddyfile.production"]) is True
+    assert requires_security_review(["deploy/metatron_lab/docker-compose.yaml"]) is True
+    assert requires_security_review(["deploy/metatron-lab-notes/docker-compose.yaml"]) is True
+    assert (
+        requires_security_review(
+            ["deploy/systemd/archive/pulseplate-postgres-backup.service.example"]
+        )
+        is True
+    )
+    assert requires_security_review(["deploy/systemd/pulseplate-postgres-backup-notes.md"]) is True
+    assert requires_security_review([".cursor/agent_notes/security-auditor.md"]) is False
+    assert requires_security_review([".cursor/command/init.md"]) is False
+    assert requires_security_review([".cursor/rules-notes/cybersecurity-skills-index.md"]) is False
+    assert requires_security_review([".cursor/mcp.json"]) is False
+    assert requires_security_review([".devcontainer/nested/Dockerfile"]) is True
+    assert requires_security_review([".devcontainer/docker-compose/archive.yml"]) is True
+    assert requires_security_review([".github/config/CODEOWNERS"]) is False
+    assert requires_security_review([".github/PULL_REQUEST_TEMPLATE/nested/design.md"]) is False
+    assert requires_security_review([".github/pull_request_template/archive.md"]) is False
+    assert requires_security_review([".github/actionlint/rules.yaml"]) is False
+    assert requires_security_review([".github/agent/my-agent.md"]) is False
+    assert requires_security_review([".github/agents-notes/my-agent.md"]) is False
+    assert requires_security_review([".github/prompt/vibecoder.prompt.md"]) is False
+    assert requires_security_review([".github/prompts-notes/vibecoder.prompt.md"]) is False
+    assert requires_security_review([".github/script/parse-safety-report.py"]) is False
+    assert requires_security_review([".github/scripts-notes/parse-safety-report.py"]) is False
+    assert requires_security_review([".githooks-notes/pre-push"]) is False
+    assert (
+        requires_security_review(["appstore/fitchef-notes/appstore_review_checklist.md"]) is False
+    )
+    assert requires_security_review(["AGENTS.md.backup"]) is False
+    assert requires_security_review(["docs/AGENTS.md.backup"]) is False
+    assert requires_security_review(["docs/.coveragerc"]) is False
+    assert requires_security_review(["docs/.env.example"]) is False
+    assert requires_security_review(["docs/.flake8"]) is False
+    assert requires_security_review(["docs/.vscode/extensions.json"]) is False
+    assert requires_security_review(["docs/codecov.yml"]) is False
+    assert requires_security_review(["docs/.gitmodules"]) is False
+    assert requires_security_review(["docs/.markdownlint.json"]) is False
+    assert requires_security_review(["docs/.yamllint"]) is False
+    assert requires_security_review(["docs/security/archive/TOOLING_SURFACE_POLICY.md"]) is False
+    assert (
+        requires_security_review(["docs/security/archive/vscode_extensions_allowlist.txt"]) is False
+    )
+    assert requires_security_review(["frontend/nested/Dockerfile.caddy-spa"]) is False
+    assert requires_security_review(["frontend/nested/.dockerignore"]) is False
+    assert requires_security_review(["frontend/packages/package-lock.json"]) is False
+    assert requires_security_review(["frontend/.nvmrc"]) is False
+    assert requires_security_review(["frontend/nested/wrangler.toml"]) is False
+    assert requires_security_review(["ios/vendor/Gemfile.lock"]) is False
+    assert requires_security_review(["ios/vendor/Package.resolved"]) is False
+    assert requires_security_review(["ios/Archive/PulsePlate.xcodeproj/project.pbxproj"]) is False
+    assert (
+        requires_security_review(
+            ["ios/PulsePlate.xcodeproj/xcshareddata/xcschemes/archive/PulsePlate.xcscheme"]
+        )
+        is False
+    )
+    assert (
+        requires_security_review(
+            ["ios/PulsePlate.xcworkspace/xcshareddata/swiftpm/archive/Package.swift"]
+        )
+        is False
+    )
+    assert requires_security_review(["ios/PulsePlate/Archive/PrivacyInfo.xcprivacy"]) is False
+    assert requires_security_review(["ios/PulsePlate/Archive/PulsePlate.entitlements"]) is False
+    assert requires_security_review(["ios/PulsePlate/en.lproj/archive/InfoPlist.strings"]) is False
+    assert requires_security_review(["ios/PulsePlate/en.lproj/InfoPlist.strings.backup"]) is False
+    assert requires_security_review(["packages/package-lock.json"]) is False
+    assert requires_security_review([".github/dependabot/nested.yaml"]) is False
+    assert requires_security_review(["docs/alembic.ini"]) is False
+    assert requires_security_review([".kimi/mcp.json"]) is False
+    assert requires_security_review([".kimi/mcp.json.example.backup"]) is False
+    assert requires_security_review(["mcp-setup/archive.sh"]) is False
+    assert requires_security_review(["docs/mcp_pulseplate_server.py"]) is False
+    assert requires_security_review(["scripts/mcp-setup.sh"]) is False
+    assert requires_security_review(["scripts/hooks/nested/repo_python.sh"]) is False
+    assert requires_security_review(["scripts/devcontainer/archive/smoke.sh"]) is False
+    assert requires_security_review(["scripts/deploy/archive.sh"]) is False
+    assert requires_security_review(["scripts/ops/archive/postgres_backup.sh"]) is False
+    assert requires_security_review(["scripts/install_codex_skills/archive.sh"]) is False
+    assert requires_security_review(["scripts/opencode/archive/run_pulseplate_mcp.sh"]) is False
+    assert requires_security_review(["scripts/run-backend-tests-pre-commit.d/runner.sh"]) is False
+    assert requires_security_review(["scripts/validate-ci-environment/archive.sh"]) is False
+    assert requires_security_review(["scripts/tools/verify_codex_skills_install.py"]) is False
+    assert requires_security_review(["scripts/ci-tools/bandit.sh"]) is False
+    assert requires_security_review(["scripts/deploy/production.sh"]) is False
+    assert requires_security_review(["scripts/setup_custom_mcp.py"]) is False
+    assert requires_security_review(["scripts/cicd_notes.sh"]) is False
+    assert requires_security_review(["scripts/metatron_lab_notes/compose_guard.py"]) is False
+    assert requires_security_review(["tests/test_repo_policy_guard_notes.py"]) is False
+    assert requires_security_review(["tests/security/_api_authz_contracts_notes.py"]) is False
+    assert requires_security_review(["tests/security/contracts/_api_authz_contracts.py"]) is False
+    assert requires_security_review(["tests/install/test_install_codex_skills.py"]) is False
+    assert requires_security_review(["tools/agentguard-notes/scan_text.mjs"]) is False
+    assert requires_security_review(["tools/codex_skillz/pulseplate-gates/SKILL.md"]) is False
+    assert requires_security_review(["tools/cybersecurity_skillz/index.json"]) is False
+    assert requires_security_review(["scripts/update_api_key.py"]) is False
+    assert requires_security_review(["workers/worker.js"]) is False
+    assert requires_security_review(["deploy/wrangler.toml"]) is True
+
+
+def test_bootstrap_sync_policy_returns_stable_privileged_review_labels() -> None:
+    """Shared matcher labels must be stable because skill-router reasons expose them."""
+
+    assert privileged_review_surface_matches(
+        [
+            "./.github/actions/setup/action.yml",
+            ".github/workflows/ci.yml",
+            ".github/actions/cache/action.yml",
+            ".github/agents/my-agent.md",
+            ".github/prompts/vibecoder.prompt.md",
+            ".github/scripts/parse-safety-report.py",
+            ".vscode/extensions.json",
+            "scripts/AGENTS.md",
+            " Dockerfile ",
+            ".env.example",
+            ".flake8",
+            ".markdownlint.json",
+            "build/../Dockerfile",
+            ".coveragerc",
+            ".kimi/mcp.json.example",
+            "alembic.ini",
+            ".gitmodules",
+            "codecov.yml",
+            ".yamllint",
+            "appstore/fitchef/appstore_review_checklist.md",
+            "deploy/docker-compose.production.selfhosted.yaml",
+            "deploy/metatron-lab/docker-compose.yaml",
+            "deploy/systemd/pulseplate-postgres-backup.timer.example",
+            "docs/security/vscode_extensions_allowlist.txt",
+            "frontend/package-lock.json",
+            "ios/PulsePlate.xcodeproj/xcshareddata/xcschemes/PulsePlate.xcscheme",
+            "ios/PulsePlate/PulsePlate.entitlements",
+            "ios/PulsePlate/en.lproj/InfoPlist.strings",
+            "mcp_pulseplate_server.py",
+            "scripts/devcontainer/smoke.sh",
+            "scripts/metatron_lab/compose_guard.py",
+            "scripts/opencode/run_pulseplate_mcp.sh",
+            "scripts/validate-ci-environment.sh",
+            "scripts/verify_codex_skills_install.py",
+            "setup_custom_mcp.py",
+            "tests/test_install_codex_skills.py",
+            "tests/guards/test_nosec_policy_guard.py",
+            "tools/agentguard/scan_text.mjs",
+            "tools/codex_skills/pulseplate-gates/SKILL.md",
+            "update_api_key.py",
+            "mcp-setup.sh",
+            "requirements-ci-lite.txt",
+            "docs/review/PR_1325_FIXED_MAPPING.md",
+        ]
+    ) == (
+        "agent-contract",
+        ".github/workflows/",
+        ".github/actions/",
+        ".github/agents/",
+        ".github/prompts/",
+        ".github/scripts/",
+        "local-agent-tooling-control",
+        "scripts/metatron_lab/",
+        "scripts/release/",
+        "docs/review/",
+        "deploy-or-image-config",
+        "dependency-or-hook-config",
+    )
 
 
 @pytest.mark.parametrize("case", _privileged_surface_cases(), ids=lambda case: case["case_id"])

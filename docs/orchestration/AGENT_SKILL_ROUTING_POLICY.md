@@ -45,7 +45,7 @@ Boundary note:
   boundaries between repo policy, local launcher behavior, and host runtime
   constraints.
 
-`scripts/orchestration/task_bootstrap.py:45` is the deterministic bootstrap entrypoint for generic coordinator task packets.
+`scripts/orchestration/task_bootstrap.py:901` is the deterministic bootstrap entrypoint for generic coordinator task packets.
 `scripts/orchestration/experiment_bootstrap.py` is the deterministic bootstrap entrypoint for governed experimentation packets.
 Deterministic coverage lives in `tests/test_task_bootstrap.py` and `tests/test_experiment_bootstrap.py`.
 
@@ -64,7 +64,7 @@ Packet contract note:
 - `skill_routing.conditional` does not leak into `recommended_skills`.
 - `skill_routing` must expose:
   - `task_classification`
-  - `envelope_mode_hint` (mirrors `resolve_analysis_envelope_mode` in `scripts/orchestration/bootstrap_sync_policy.py:157`)
+  - `envelope_mode_hint` (mirrors `resolve_analysis_envelope_mode` in `scripts/orchestration/bootstrap_sync_policy.py:232`)
   - `required`
   - `recommended`
   - `conditional`
@@ -112,17 +112,18 @@ Tie-break precedence is canonical and must stay explicit:
 - `explanation`: stable schema describing evidence axes, matched semantic groups,
   and compact per-skill evidence for the skills that were surfaced. Evidence:
   `scripts/orchestration/skill_router.py:654-733`,
-  `scripts/orchestration/skill_router.py:1956-2090`,
-  `scripts/orchestration/task_bootstrap.py:786-923`,
-  `tests/test_skill_router.py:1510-1586`,
+  `scripts/orchestration/skill_router.py:1980-2106`,
+  `scripts/orchestration/bootstrap_sync_policy.py:30-138`,
+  `scripts/orchestration/task_bootstrap.py:983-1042`,
+  `tests/test_skill_router.py:1448-1510`,
   `tests/test_task_bootstrap.py:163-183`.
 - `research_connector_policy`: explicit catalog of approved / conditional /
   disallowed research-only connectors, plus deterministic request-time matches.
   Evidence: `scripts/orchestration/skill_router.py:288-345`,
   `scripts/orchestration/skill_router.py:594-626`,
-  `scripts/orchestration/skill_router.py:1959-2090`,
-  `scripts/orchestration/task_bootstrap.py:786-923`,
-  `tests/test_skill_router.py:1442-1586`,
+  `scripts/orchestration/skill_router.py:1980-2106`,
+  `scripts/orchestration/task_bootstrap.py:983-1042`,
+  `tests/test_skill_router.py:1448-1510`,
   `tests/test_task_bootstrap.py:163-183`.
 
 For experimentation tasks, the bootstrap packet should also reference:
@@ -142,7 +143,7 @@ CV routing note:
 
 ### 2c. Docs-only envelope suppression
 
-When `envelope_mode_hint` is `docs_only` (all candidate paths are contract/docs-only surfaces and none require privileged security review per `bootstrap_sync_policy`), `scripts/orchestration/skill_router.py` **removes** implementation-oriented skills from `recommended` and `conditional` so selection stays aligned with root `AGENTS.md` docs-only PR scope and with `inputs.message_envelope.mode` (`docs-only`) on the bootstrap packet. The excluded slug set is `DOCS_ONLY_EXCLUDED_ROUTING_SKILLS` in `scripts/orchestration/skill_router.py:120`.
+When `envelope_mode_hint` is `docs_only` (all candidate paths are contract/docs-only surfaces and none require privileged security review per `bootstrap_sync_policy`), `scripts/orchestration/skill_router.py` **removes** implementation-oriented skills from `recommended` and `conditional` so selection stays aligned with root `AGENTS.md` docs-only PR scope and with `inputs.message_envelope.mode` (`docs-only`) on the bootstrap packet. The excluded slug set is `DOCS_ONLY_EXCLUDED_ROUTING_SKILLS` in `scripts/orchestration/skill_router.py:143`.
 
 For `pulseplate-app-store-release`, docs-only suppression still applies even when
 `docs/runbooks/IOS_APPSTORE_ASSETS_ROLLOUT.md` matches a routing prefix. Promote
@@ -271,20 +272,26 @@ The following touched paths must automatically boost security-oriented skills:
 
 - `.github/workflows/**`
 - `.github/actions/**`
+- `.github/agents/**`, `.github/prompts/**`, `.github/scripts/**`, and `.githooks/**`
+- local agent/tooling control under `.agents/skills/**`, `.cursor/agents/**`,
+  `.cursor/commands/**`, `.cursor/rules/**`, and `tools/*skills/**`
 - `ios/fastlane/**`
-- `scripts/orchestration/**`
-- merge-governance scripts under `scripts/ci/**`
+- `scripts/metatron_lab/**`, `scripts/orchestration/**`, `scripts/ci/**`, and `scripts/release/**`
 - merge-governance docs under `docs/orchestration/**` and `docs/review/**`
 - deploy/image config such as `Dockerfile`, `docker-compose*.yml`, and `deploy/**`
 - dependency and hook config such as `requirements*.txt`, `requirements*.in`, `pyproject.toml`,
   lockfiles, and `.pre-commit-config.yaml`
+- security-scan policy such as `.trivyignore` and `trivy/**`
+- MCP/OpenCode/VS Code/Cursor/Kimi control files and policy guard tests covered
+  by `scripts/orchestration/bootstrap_sync_policy.py`
 
 Expected behavior:
 
 - add `security-best-practices` and/or `pulseplate-guards` when the task packet touches these paths;
 - keep `security-auditor` in the executable review path for the canonical bootstrap
   privileged-review surface matrix in `scripts/orchestration/bootstrap_sync_policy.py`;
-- merge-governance docs/scripts under `scripts/ci/**`, `docs/orchestration/**`, and `docs/review/**` must set `automation_flags.security_review_required = true` and keep the security reviewer executable in the native subagent bridge;
+- any matched privileged surface must set `automation_flags.security_review_required = true`
+  and keep the security reviewer executable in the native subagent bridge;
 - security-auditor may reference `cybersecurity-skills` bundle (repo path: `tools/cybersecurity_skills/`; index: `tools/cybersecurity_skills/index.json`) for subdomain-specific procedures (API Security, DevSecOps, Web App Sec, Container Security).
 
 ---

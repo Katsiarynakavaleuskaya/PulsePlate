@@ -260,6 +260,96 @@
       "reason": "dependency-or-hook-config"
     },
     {
+      "case_id": "root_agents_contract",
+      "path": "AGENTS.md",
+      "privileged": true,
+      "reason": "agent-contract"
+    },
+    {
+      "case_id": "scoped_agents_contract",
+      "path": "scripts/AGENTS.md",
+      "privileged": true,
+      "reason": "agent-contract"
+    },
+    {
+      "case_id": "github_agent_control",
+      "path": ".github/agents/security-auditor.md",
+      "privileged": true,
+      "reason": ".github/agents/"
+    },
+    {
+      "case_id": "github_prompt_control",
+      "path": ".github/prompts/vibecoder.prompt.md",
+      "privileged": true,
+      "reason": ".github/prompts/"
+    },
+    {
+      "case_id": "github_support_script",
+      "path": ".github/scripts/parse-safety-report.py",
+      "privileged": true,
+      "reason": ".github/scripts/"
+    },
+    {
+      "case_id": "cursor_agent_control",
+      "path": ".cursor/agents/security-auditor.md",
+      "privileged": true,
+      "reason": "local-agent-tooling-control"
+    },
+    {
+      "case_id": "vscode_tooling_allowlist",
+      "path": ".vscode/extensions.json",
+      "privileged": true,
+      "reason": "local-agent-tooling-control"
+    },
+    {
+      "case_id": "mcp_server_control",
+      "path": "mcp_pulseplate_server.py",
+      "privileged": true,
+      "reason": "local-agent-tooling-control"
+    },
+    {
+      "case_id": "codex_skill_install_test",
+      "path": "tests/test_install_codex_skills.py",
+      "privileged": true,
+      "reason": "local-agent-tooling-control"
+    },
+    {
+      "case_id": "guard_policy_test",
+      "path": "tests/guards/test_nosec_policy_guard.py",
+      "privileged": true,
+      "reason": "local-agent-tooling-control"
+    },
+    {
+      "case_id": "release_script",
+      "path": "scripts/release/publish.py",
+      "privileged": true,
+      "reason": "scripts/release/"
+    },
+    {
+      "case_id": "devcontainer_smoke_script",
+      "path": "scripts/devcontainer/smoke.sh",
+      "privileged": true,
+      "reason": "scripts/release/"
+    },
+    {
+      "case_id": "metatron_lab_script",
+      "path": "scripts/metatron_lab/compose_guard.py",
+      "privileged": true,
+      "reason": "scripts/metatron_lab/"
+    },
+    {
+      "case_id": "trivy_policy",
+      "path": "trivy/policy.rego",
+      "privileged": true,
+      "reason": "security-scan-policy"
+    },
+    {
+      "case_id": "trivy_ignore_root",
+      "path": ".trivyignore",
+      "privileged": true,
+      "reason": "security-scan-policy"
+    },
+    {
       "case_id": "root_readme",
       "path": "README.md",
       "privileged": false

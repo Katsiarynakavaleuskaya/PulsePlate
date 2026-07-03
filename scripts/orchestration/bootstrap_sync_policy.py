@@ -43,6 +43,12 @@ class PrivilegedReviewSurface:
 
 PRIVILEGED_REVIEW_SURFACES: tuple[PrivilegedReviewSurface, ...] = (
     PrivilegedReviewSurface(
+        surface_class="repo_agent_contracts",
+        reason="agent-contract",
+        exact_paths=("AGENTS.md", "RUNBOOK_AGENT.md"),
+        suffixes=("/AGENTS.md",),
+    ),
+    PrivilegedReviewSurface(
         surface_class="github_workflows",
         reason=".github/workflows/",
         prefixes=(".github/workflows/",),
@@ -53,9 +59,55 @@ PRIVILEGED_REVIEW_SURFACES: tuple[PrivilegedReviewSurface, ...] = (
         prefixes=(".github/actions/",),
     ),
     PrivilegedReviewSurface(
+        surface_class="github_agent_control",
+        reason=".github/agents/",
+        prefixes=(".github/agents/",),
+    ),
+    PrivilegedReviewSurface(
+        surface_class="github_prompt_control",
+        reason=".github/prompts/",
+        prefixes=(".github/prompts/",),
+    ),
+    PrivilegedReviewSurface(
+        surface_class="github_support_scripts",
+        reason=".github/scripts/",
+        prefixes=(".github/scripts/",),
+    ),
+    PrivilegedReviewSurface(
         surface_class="github_codeowners",
         reason="CODEOWNERS",
         exact_paths=(".github/CODEOWNERS", "CODEOWNERS", "docs/CODEOWNERS"),
+    ),
+    PrivilegedReviewSurface(
+        surface_class="cursor_and_local_hook_control",
+        reason="local-agent-tooling-control",
+        prefixes=(
+            ".agents/skills/",
+            ".cursor/agents/",
+            ".cursor/commands/",
+            ".cursor/rules/",
+            ".githooks/",
+            "tests/guards/",
+            "tools/agentguard/",
+            "tools/codex_skills/",
+            "tools/cybersecurity_skills/",
+        ),
+        exact_paths=(
+            ".cursor/mcp.json.example",
+            ".github/pull_request_template.md",
+            ".kimi/mcp.json.example",
+            ".vscode/extensions.json",
+            "docs/security/TOOLING_SURFACE_POLICY.md",
+            "docs/security/vscode_extensions_allowlist.txt",
+            "mcp-config.json",
+            "mcp-setup.sh",
+            "mcp_pulseplate_server.py",
+            "opencode.json",
+            "setup_custom_mcp.py",
+            "tests/test_install_codex_skills.py",
+            "update_api_key.py",
+        ),
+        regexes=(r"\.github/PULL_REQUEST_TEMPLATE/[^/]+\.md",),
     ),
     PrivilegedReviewSurface(
         surface_class="ios_fastlane",
@@ -73,6 +125,31 @@ PRIVILEGED_REVIEW_SURFACES: tuple[PrivilegedReviewSurface, ...] = (
         prefixes=("scripts/ci/",),
     ),
     PrivilegedReviewSurface(
+        surface_class="metatron_lab_scripts",
+        reason="scripts/metatron_lab/",
+        prefixes=("scripts/metatron_lab/",),
+    ),
+    PrivilegedReviewSurface(
+        surface_class="release_scripts",
+        reason="scripts/release/",
+        prefixes=("scripts/release/",),
+        exact_paths=(
+            "scripts/deploy.sh",
+            "scripts/diagnose_web.sh",
+            "scripts/devcontainer/smoke.sh",
+            "scripts/hooks/repo_python.sh",
+            "scripts/install_codex_skills.sh",
+            "scripts/opencode/run_pulseplate_mcp.sh",
+            "scripts/ops/postgres_backup.sh",
+            "scripts/ops/postgres_restore.sh",
+            "scripts/redeploy_caddy.sh",
+            "scripts/run-backend-tests-pre-commit.sh",
+            "scripts/validate-ci-environment.sh",
+            "scripts/verify_codex_skills_install.py",
+        ),
+        regexes=(r"scripts/(?:ci|deploy)_[A-Za-z0-9_.-]+\.sh",),
+    ),
+    PrivilegedReviewSurface(
         surface_class="orchestration_governance_docs",
         reason="docs/orchestration/",
         prefixes=("docs/orchestration/",),
@@ -85,24 +162,77 @@ PRIVILEGED_REVIEW_SURFACES: tuple[PrivilegedReviewSurface, ...] = (
     PrivilegedReviewSurface(
         surface_class="deploy_and_image_config",
         reason="deploy-or-image-config",
-        prefixes=("deploy/", ".devcontainer/"),
-        exact_paths=("Dockerfile", "docker-compose.yaml", "docker-compose.yml"),
-        suffixes=("/Dockerfile", "/docker-compose.yaml", "/docker-compose.yml"),
-        regexes=(
-            r"(^|.*/)Dockerfile(?:\.[A-Za-z0-9_.-]+)?$",
-            r"(^|.*/)docker-compose(?:\.[A-Za-z0-9_.-]+)?\.ya?ml$",
+        prefixes=("deploy/", ".devcontainer/", "appstore/fitchef/", "deploy/metatron-lab/"),
+        exact_paths=(
+            "Dockerfile",
+            ".dockerignore",
+            "docker-compose.yaml",
+            "docker-compose.yml",
+            "frontend/.dockerignore",
+            "frontend/Dockerfile.caddy-spa",
+            "frontend/wrangler.toml",
+            "worker.js",
+            "wrangler.toml",
         ),
+        regexes=(
+            r"Dockerfile(?:\.[A-Za-z0-9_.-]+)?$",
+            r"docker-compose(?:\.[A-Za-z0-9_.-]+)?\.ya?ml$",
+        ),
+    ),
+    PrivilegedReviewSurface(
+        surface_class="security_scan_policy",
+        reason="security-scan-policy",
+        prefixes=("trivy/",),
+        exact_paths=(".trivyignore",),
     ),
     PrivilegedReviewSurface(
         surface_class="dependency_and_hook_config",
         reason="dependency-or-hook-config",
         exact_paths=(
             ".pre-commit-config.yaml",
+            ".pre-commit-config.yml",
             ".github/dependabot.yaml",
             ".github/dependabot.yml",
+            ".github/actionlint.yaml",
+            ".github/actionlint.yml",
+            ".github/pull_request_template.md",
+            ".bandit",
+            ".bandit.yaml",
+            ".coveragerc",
+            ".coderabbit.yaml",
+            ".env.example",
+            ".flake8",
+            ".gitmodules",
+            ".markdownlint.json",
+            ".nvmrc",
+            ".python-version",
+            ".ruby-version",
+            ".secrets.baseline",
+            ".sourcery.yaml",
+            ".tool-versions",
+            ".yamllint",
+            "Makefile",
+            "alembic.ini",
+            "codecov.yml",
+            "codecov.yaml",
             "constraints.txt",
+            "constraints-dev.txt",
+            "frontend/package.json",
+            "frontend/package-lock.json",
             "Gemfile",
             "Gemfile.lock",
+            "ios/Gemfile",
+            "ios/Gemfile.lock",
+            "ios/Package.swift",
+            "ios/Package.resolved",
+            "ios/PulsePlate.xcodeproj/project.pbxproj",
+            "ios/PulsePlate.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved",
+            "ios/PulsePlate.xcodeproj/xcshareddata/swiftpm/Package.resolved",
+            "ios/PulsePlate.xcodeproj/xcshareddata/xcschemes/PulsePlate.xcscheme",
+            "ios/PulsePlate.xcworkspace/xcshareddata/swiftpm/Package.swift",
+            "ios/PulsePlate/Info-Release.plist",
+            "ios/PulsePlate/PulsePlate.entitlements",
+            "ios/PulsePlate/PrivacyInfo.xcprivacy",
             "package.json",
             "package-lock.json",
             "Package.resolved",
@@ -115,21 +245,20 @@ PRIVILEGED_REVIEW_SURFACES: tuple[PrivilegedReviewSurface, ...] = (
             "requirements.in",
             "requirements.txt",
             "requirements-dev.txt",
+            "scripts/business_collateral/package.json",
+            "tests/security/_api_authz_contracts.py",
+            "tests/security/test_api_authz_contract_static.py",
+            "tests/test_repo_policy_guards.py",
             "skills-lock.json",
             "uv.lock",
             "yarn.lock",
         ),
         suffixes=(
             "/.pre-commit-config.yaml",
+            "/.pre-commit-config.yml",
             "/.github/dependabot.yaml",
             "/.github/dependabot.yml",
             "/constraints.txt",
-            "/Gemfile",
-            "/Gemfile.lock",
-            "/package.json",
-            "/package-lock.json",
-            "/Package.resolved",
-            "/Package.swift",
             "/Pipfile",
             "/Pipfile.lock",
             "/pnpm-lock.yaml",
@@ -139,7 +268,11 @@ PRIVILEGED_REVIEW_SURFACES: tuple[PrivilegedReviewSurface, ...] = (
             "/uv.lock",
             "/yarn.lock",
         ),
-        regexes=(r"(^|.*/)requirements[-A-Za-z0-9_]*\.(in|txt)$",),
+        regexes=(
+            r"(^|.*/)requirements[-A-Za-z0-9_]*\.(in|txt)$",
+            r"(^|.*/)constraints[-A-Za-z0-9_]*\.txt$",
+            r"ios/PulsePlate/[^/]+/InfoPlist\.strings",
+        ),
     ),
 )
 
@@ -176,6 +309,10 @@ def _normalize_review_path(path: str) -> str:
     return normalized
 
 
+def _contains_parent_traversal(path: str) -> bool:
+    return any(part == ".." for part in path.split("/"))
+
+
 def matches_any_prefix(path: str, prefixes: tuple[str, ...]) -> bool:
     """Return True when a path matches a canonical prefix exactly or by subtree.
 
@@ -184,6 +321,8 @@ def matches_any_prefix(path: str, prefixes: tuple[str, ...]) -> bool:
     """
 
     normalized = _normalize_review_path(path)
+    if _contains_parent_traversal(normalized):
+        return False
     return any(
         normalized == prefix.rstrip("/") or normalized.startswith(prefix) for prefix in prefixes
     )
@@ -191,7 +330,7 @@ def matches_any_prefix(path: str, prefixes: tuple[str, ...]) -> bool:
 
 def _matches_privileged_surface(path: str, surface: PrivilegedReviewSurface) -> bool:
     normalized = _normalize_review_path(path)
-    if not normalized:
+    if not normalized or _contains_parent_traversal(normalized):
         return False
     if normalized in surface.exact_paths:
         return True

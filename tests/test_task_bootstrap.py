@@ -1262,15 +1262,124 @@ def test_task_bootstrap_keeps_security_auditor_in_privileged_review_path() -> No
 @pytest.mark.parametrize(
     "candidate_path",
     (
+        ".cursor/agents/security-auditor.md",
+        ".agents/skills/pulseplate-gates/SKILL.md",
+        ".cursor/commands/init.md",
+        ".cursor/rules/cybersecurity-skills-index.md",
+        ".github/actions/setup/action.yml",
+        ".github/scripts/parse-safety-report.py",
+        ".githooks/pre-push",
+        "appstore/fitchef/appstore_review_checklist.md",
+        "Dockerfile",
+        ".env.example",
+        ".trivyignore",
+        ".flake8",
+        ".markdownlint.json",
+        ".nvmrc",
+        ".pre-commit-config.yaml",
+        ".devcontainer/Dockerfile",
+        ".devcontainer/devcontainer.json",
+        ".devcontainer/docker-compose.devcontainer.yml",
+        ".github/CODEOWNERS",
+        ".github/actionlint.yaml",
+        ".github/dependabot.yaml",
+        "docker-compose.yaml",
+        "deploy/Caddyfile.production",
+        "deploy/docker-compose.production.yaml",
+        "deploy/docker-compose.production.selfhosted.yaml",
+        "deploy/docker-compose.staging.yaml",
+        "frontend/.dockerignore",
+        "frontend/Dockerfile.caddy-spa",
+        "frontend/package-lock.json",
+        "ios/Gemfile.lock",
+        "ios/Package.swift",
+        "ios/Package.resolved",
+        "ios/PulsePlate.xcodeproj/project.pbxproj",
+        "ios/PulsePlate.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved",
+        "ios/PulsePlate.xcworkspace/xcshareddata/swiftpm/Package.swift",
+        "ios/PulsePlate/PrivacyInfo.xcprivacy",
+        "package-lock.json",
+        "pyproject.toml",
+        "requirements-ci-lite.txt",
+        "requirements.in",
+        "constraints.txt",
+        "scripts/deploy.sh",
+        "scripts/diagnose_web.sh",
+        "scripts/ops/postgres_backup.sh",
+        "scripts/ops/postgres_restore.sh",
+        "scripts/redeploy_caddy.sh",
+        "scripts/ci_bandit.sh",
+        "scripts/ci_pip_audit.sh",
+        "scripts/deploy_production.sh",
         "scripts/ci/check_pr_merge_readiness.py",
+        "scripts/release/publish.py",
         "docs/orchestration/workflow.md",
         "docs/review/PR_1254_FIXED_MAPPING.md",
+        "tests/guards/test_nosec_policy_guard.py",
+        "trivy/policy.rego",
+        "AGENTS.md",
+        "scripts/AGENTS.md",
+        "Makefile",
+        "RUNBOOK_AGENT.md",
+        ".bandit",
+        ".bandit.yaml",
+        ".coveragerc",
+        "codecov.yml",
+        "codecov.yaml",
+        ".coderabbit.yaml",
+        ".gitmodules",
+        ".python-version",
+        ".ruby-version",
+        ".secrets.baseline",
+        ".sourcery.yaml",
+        ".tool-versions",
+        ".yamllint",
+        ".cursor/mcp.json.example",
+        ".kimi/mcp.json.example",
+        ".github/PULL_REQUEST_TEMPLATE/design.md",
+        ".github/pull_request_template.md",
+        "alembic.ini",
+        "deploy/metatron-lab/docker-compose.yaml",
+        "deploy/systemd/pulseplate-postgres-backup.service.example",
+        "deploy/systemd/pulseplate-postgres-backup.timer.example",
+        "frontend/wrangler.toml",
+        ".github/agents/my-agent.md",
+        ".github/prompts/vibecoder.prompt.md",
+        ".vscode/extensions.json",
+        "docs/security/vscode_extensions_allowlist.txt",
+        "ios/PulsePlate/Info-Release.plist",
+        "ios/PulsePlate/PulsePlate.entitlements",
+        "ios/PulsePlate.xcodeproj/xcshareddata/xcschemes/PulsePlate.xcscheme",
+        "ios/PulsePlate/en.lproj/InfoPlist.strings",
+        "mcp-config.json",
+        "mcp-setup.sh",
+        "mcp_pulseplate_server.py",
+        "opencode.json",
+        "scripts/devcontainer/smoke.sh",
+        "scripts/hooks/repo_python.sh",
+        "scripts/install_codex_skills.sh",
+        "scripts/metatron_lab/compose_guard.py",
+        "scripts/opencode/run_pulseplate_mcp.sh",
+        "scripts/run-backend-tests-pre-commit.sh",
+        "scripts/validate-ci-environment.sh",
+        "scripts/verify_codex_skills_install.py",
+        "setup_custom_mcp.py",
+        "tests/security/_api_authz_contracts.py",
+        "tests/security/test_api_authz_contract_static.py",
+        "tests/test_install_codex_skills.py",
+        "tests/test_repo_policy_guards.py",
+        "tools/agentguard/scan_text.mjs",
+        "tools/codex_skills/pulseplate-gates/SKILL.md",
+        "tools/cybersecurity_skills/index.json",
+        "update_api_key.py",
+        "worker.js",
+        "wrangler.toml",
     ),
 )
-def test_task_bootstrap_marks_merge_governance_paths_as_privileged(
+def test_task_bootstrap_marks_privileged_review_surfaces_as_privileged(
     candidate_path: str,
 ) -> None:
-    """Merge-governance docs/scripts must force the security review path."""
+    """Privileged review surfaces must force the security review path."""
 
     packet = build_task_packet(
         goal="Refresh merge-governance automation contract",
@@ -1291,6 +1400,31 @@ def test_task_bootstrap_marks_merge_governance_paths_as_privileged(
         packet["native_subagent_bridge"]["reviewer"]["repo_agent_slug"],
         *[binding["repo_agent_slug"] for binding in packet["native_subagent_bridge"]["secondary"]],
     }
+
+
+def test_task_bootstrap_does_not_mark_non_privileged_control_path_as_privileged() -> None:
+    """Ordinary test paths must not widen the privileged security-review path."""
+
+    packet = build_task_packet(
+        goal="Refresh a non-privileged bootstrap test",
+        task_class="Testing",
+        candidate_paths=["tests/test_task_bootstrap.py"],
+        requested_agents=["agent-coordinator"],
+    )
+
+    assert packet["automation_flags"]["security_review_required"] is False
+
+
+def test_task_bootstrap_rejects_parent_traversal_candidate_paths() -> None:
+    """Parent traversal candidate paths must fail closed before routing."""
+
+    with pytest.raises(ValueError, match="path must stay inside repo"):
+        build_task_packet(
+            goal="Review normalized workflow path",
+            task_class="Orchestration",
+            candidate_paths=["docs/../.github/workflows/ci.yml"],
+            requested_agents=["agent-coordinator"],
+        )
 
 
 @pytest.mark.parametrize("case", _privileged_surface_cases(), ids=lambda case: case["case_id"])

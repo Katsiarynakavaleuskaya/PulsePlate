@@ -31,6 +31,8 @@ POLICY_DOC_PATH = (
 MESSAGE_PROTOCOL_DOC_PATH = (
     Path(__file__).resolve().parents[1] / "docs/orchestration/AGENT_MESSAGE_PROTOCOL.md"
 )
+ROOT_AGENTS_PATH = Path(__file__).resolve().parents[1] / "AGENTS.md"
+RUNBOOK_AGENT_PATH = Path(__file__).resolve().parents[1] / "RUNBOOK_AGENT.md"
 FIXTURE_DIR = Path(__file__).resolve().parent / "fixtures" / "orchestration"
 
 EXPECTED_REQUESTED_AGENT_POLICY_ROWS: tuple[str, ...] = (
@@ -53,12 +55,15 @@ EXPECTED_REQUESTED_AGENT_NAMES: frozenset[str] = frozenset(
 EXPECTED_PRIVILEGED_SURFACE_POLICY_LINES: tuple[str, ...] = (
     "- `.github/workflows/**`",
     "- `.github/actions/**`",
+    "- `.github/agents/**`, `.github/prompts/**`, `.github/scripts/**`, and `.githooks/**`",
+    "- local agent/tooling control under `.agents/skills/**`, `.cursor/agents/**`,",
     "- `ios/fastlane/**`",
-    "- `scripts/orchestration/**`",
-    "- merge-governance scripts under `scripts/ci/**`",
+    "- `scripts/metatron_lab/**`, `scripts/orchestration/**`, `scripts/ci/**`, and `scripts/release/**`",
     "- merge-governance docs under `docs/orchestration/**` and `docs/review/**`",
     "- deploy/image config such as `Dockerfile`, `docker-compose*.yml`, and `deploy/**`",
     "- dependency and hook config such as `requirements*.txt`, `requirements*.in`, `pyproject.toml`,",
+    "- security-scan policy such as `.trivyignore` and `trivy/**`",
+    "- any matched privileged surface must set `automation_flags.security_review_required = true`",
 )
 EXPECTED_CLASSIFICATION_POLICY_LINES: tuple[str, ...] = (
     "- `implementation`",
@@ -1374,15 +1379,22 @@ def test_skill_router_boosts_security_skills_for_privileged_surfaces() -> None:
 
 
 @pytest.mark.parametrize(
-    ("candidate_path", "domain", "expected_reason_prefix"),
+    ("candidate_path", "domain", "expected_reason"),
     (
         (".github/workflows/test.yml", "release", ".github/workflows/"),
         (".github/actions/setup/action.yml", "release", ".github/actions/"),
+        (".github/agents/my-agent.md", "security", ".github/agents/"),
+        ("AGENTS.md", "orchestration", "agent-contract"),
+        (".cursor/agents/security-auditor.md", "security", "local-agent-tooling-control"),
+        ("mcp_pulseplate_server.py", "security", "local-agent-tooling-control"),
         ("ios/fastlane/Fastfile", "release", "ios/fastlane/"),
+        ("scripts/metatron_lab/compose_guard.py", "security", "scripts/metatron_lab/"),
         ("scripts/orchestration/skill_router.py", "orchestration", "scripts/orchestration/"),
         ("scripts/ci/check_pr_merge_readiness.py", "qa", "scripts/ci/"),
+        ("scripts/release/publish.py", "release", "scripts/release/"),
         ("docs/orchestration/AGENT_ROUTING_GRAPH.md", "orchestration", "docs/orchestration/"),
         ("docs/review/PR_999_FIXED_MAPPING.md", "qa", "docs/review/"),
+        ("trivy/policy.rego", "security", "security-scan-policy"),
         ("Dockerfile", "ops", "deploy-or-image-config"),
         ("requirements.txt", "ops", "dependency-or-hook-config"),
     ),
@@ -1390,7 +1402,7 @@ def test_skill_router_boosts_security_skills_for_privileged_surfaces() -> None:
 def test_privileged_surface_parity_emits_stable_security_metadata(
     candidate_path: str,
     domain: str,
-    expected_reason_prefix: str,
+    expected_reason: str,
 ) -> None:
     """Privileged surfaces should deterministically emit stable security routing reasons."""
 
@@ -1406,11 +1418,11 @@ def test_privileged_surface_parity_emits_stable_security_metadata(
     assert "security-best-practices" in recommended_by_skill
     assert "pulseplate-guards" in recommended_by_skill
     assert (
-        f"privileged-surface:{expected_reason_prefix}(+4)"
+        f"privileged-surface:{expected_reason}(+4)"
         in recommended_by_skill["security-best-practices"]["reasons"]
     )
     assert (
-        f"privileged-surface:{expected_reason_prefix}(+4)"
+        f"privileged-surface:{expected_reason}(+4)"
         in recommended_by_skill["pulseplate-guards"]["reasons"]
     )
 
@@ -1420,15 +1432,32 @@ def test_privileged_surface_prefixes_stay_in_sync_with_policy_coverage() -> None
 
     assert len(PRIVILEGED_SURFACE_PREFIXES) == len(set(PRIVILEGED_SURFACE_PREFIXES))
     assert set(PRIVILEGED_SURFACE_PREFIXES) == {
+        ".agents/skills/",
+        ".cursor/agents/",
+        ".cursor/commands/",
+        ".cursor/rules/",
         ".github/workflows/",
         ".github/actions/",
+        ".github/agents/",
+        ".github/prompts/",
+        ".github/scripts/",
+        ".githooks/",
+        "appstore/fitchef/",
+        "deploy/metatron-lab/",
         "ios/fastlane/",
+        "scripts/metatron_lab/",
         "scripts/orchestration/",
         "scripts/ci/",
+        "scripts/release/",
         "docs/orchestration/",
         "docs/review/",
         "deploy/",
         ".devcontainer/",
+        "tests/guards/",
+        "tools/agentguard/",
+        "tools/codex_skills/",
+        "tools/cybersecurity_skills/",
+        "trivy/",
     }
 
 
@@ -1465,6 +1494,19 @@ def test_privileged_surface_policy_lines_stay_in_sync(expected_line: str) -> Non
     """Canonical privileged-surface bullets should stay locked to deterministic tests."""
 
     assert expected_line in _read_policy_doc()
+
+
+@pytest.mark.parametrize("policy_path", (ROOT_AGENTS_PATH, RUNBOOK_AGENT_PATH))
+def test_agent_entrypoints_reference_shared_privileged_surface_matcher(
+    policy_path: Path,
+) -> None:
+    """Agent-facing entrypoints must point at the shared privileged matcher."""
+
+    policy_text = policy_path.read_text(encoding="utf-8")
+
+    assert "privileged-surface routing is shared by bootstrap and skill routing" in policy_text
+    assert "scripts/orchestration/bootstrap_sync_policy.py" in policy_text
+    assert "must keep `security-auditor` executable" in policy_text
 
 
 def test_skill_router_prefix_match_is_boundary_aware() -> None:
