@@ -17,6 +17,16 @@ may produce structured hypothesis JSON outside the repo, while the repo only
 validates, normalizes, fingerprints, and routes that JSON. The repo does not
 call a provider/model and does not retain raw prompts or raw model payloads.
 
+The approved next handoff after a human `CreativeHypothesisApproval` is the
+separate local bridge in
+`scripts/orchestration/creative_hypothesis_spec_bridge.py`. That bridge may
+build a validated `CreativeCodeCandidatePacket`, deterministic local metrics,
+and existing PR-1 prepare artifacts only when the approval decision is
+`approve_for_pr1_specification` with `next_step=create_pr1_specification`.
+Approval remains specification handoff authority only; it is not patch,
+repository-write, PR, agent-execution, provider, product-runtime, cache, graph,
+or merge authority.
+
 ## Authority Boundary
 
 Allowed:
@@ -85,10 +95,13 @@ Schemas:
 - `creative_hypothesis_coordinator_dispatch.v1.schema.json`
 - `creative_hypothesis_agent_consumption_summary.v1.schema.json`
 - `creative_hypothesis_approval.v1.schema.json`
+- `creative_hypothesis_specification_bridge.v1.schema.json`
+- `creative_hypothesis_spec_bridge_metrics.v1.schema.json`
 
 Runtime contract:
 
 - `scripts/orchestration/experiment_runner_pr_creative_context_contract.py`
+- `scripts/orchestration/creative_hypothesis_spec_bridge_contract.py`
 
 CLI:
 
@@ -101,6 +114,10 @@ python -m scripts.orchestration.experiment_runner_pr_creative_context dispatch-c
 python -m scripts.orchestration.experiment_runner_pr_creative_context summarize
 python -m scripts.orchestration.experiment_runner_pr_creative_context prepare
 python -m scripts.orchestration.experiment_runner_pr_creative_context validate
+python -m scripts.orchestration.creative_hypothesis_spec_bridge build-candidate
+python -m scripts.orchestration.creative_hypothesis_spec_bridge prepare-specification
+python -m scripts.orchestration.creative_hypothesis_spec_bridge build-and-prepare
+python -m scripts.orchestration.creative_hypothesis_spec_bridge validate
 ```
 
 `prepare` writes only these filenames:
@@ -126,6 +143,27 @@ invalidating otherwise valid operator/model JSON.
 `model_intake.json` beside it. Operators may override that sidecar path with
 `--normalized-intake-output`; stdout-only mode does not create a sidecar unless
 an explicit sidecar output is provided.
+
+`creative_hypothesis_spec_bridge build-candidate` consumes an existing
+`context_map.json`, `hypothesis_packet.json`, `coordinator_dispatch.json`, and
+`approval.json`, then writes only:
+
+- `creative_hypothesis_specification_bridge.json`;
+- `creative_code_candidate_packet.json`;
+- `bridge_metrics.json`.
+
+`creative_hypothesis_spec_bridge build-and-prepare` additionally delegates to
+the existing PR-1 `creative_code_spec_pipeline.prepare(...)` implementation and
+writes only these prepare artifacts under `spec_prepare/`:
+
+- `source_packet.json`;
+- `variants.json`;
+- `skeptic_reviews.json`;
+- `context_pack.json`.
+
+The bridge never calls `finalize`, patch builders, promotion tooling, role
+dispatch, providers, product runtime, workflow dispatch, GitHub/Slack write
+paths, or cache/graph truth systems.
 
 ## Operator Model Intake
 

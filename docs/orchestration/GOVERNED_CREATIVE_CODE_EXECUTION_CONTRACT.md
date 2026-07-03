@@ -3,8 +3,9 @@
 <!-- markdownlint-disable MD013 -->
 
 **Status:** PR-6 first applied-candidate lane, local private-pilot loop
-operator, and local Experiment Runner PR creative-context attachment. Repo-only
-governance contract. No runtime impact.
+operator, local Experiment Runner PR creative-context attachment, and approved
+creative-hypothesis specification bridge. Repo-only governance contract. No
+runtime impact.
 
 **Scope:** Define the authority boundary between a promoted `creative_research`
 output, a PR-1 implementation specification, PR-2 local candidate-patch
@@ -12,7 +13,9 @@ generation, PR-3 human-approved non-draft PR handoff tooling, PR-4 telemetry,
 PR-5 read-only review-disposition integration, the PR-6 local
 applied-candidate run-plan wrapper, and a local private-pilot lifecycle
 operator, plus a local PR creative-context artifact layer for Experiment
-Runner hypothesis generation and agent routing. PR-2
+Runner hypothesis generation and agent routing, and a local bridge from human
+approved creative hypotheses into existing PR-1 specification candidate
+artifacts. PR-2
 authorizes only isolated local candidate-patch generation/evaluation. PR-3
 authorizes only the separate local promotion tool that can create a new
 `experiment/*` branch, push it without force, and open a non-draft PR after
@@ -31,7 +34,13 @@ generate bounded hypotheses or ingest validated operator-supplied local model
 hypothesis JSON, route normalized hypotheses to agents, emit coordinator
 dispatch handoffs, and prepare a human approval reservation; it does not
 authorize candidate patches, repository writes, workflow changes, provider
-calls, model adapters, semantic-cache use, or PR/GitHub mutations.
+calls, model adapters, semantic-cache use, or PR/GitHub mutations. The approved
+creative-hypothesis bridge may consume that human approval reservation only to
+build a validated `CreativeCodeCandidatePacket`, deterministic local metrics,
+and existing PR-1 prepare artifacts; it does not widen candidate mutable
+surfaces, execute agents, finalize bundles, generate patches, call providers,
+write PR/GitHub/Slack state, write product runtime truth, write graph truth, or
+open the semantic-cache gate.
 
 ---
 
@@ -46,6 +55,7 @@ calls, model adapters, semantic-cache use, or PR/GitHub mutations.
 | `promotion` | Promotes a candidate into canonical repo behavior through human review, PR governance, and merge gates. | PR-3 opens the review handoff only. Canonical behavior still requires normal PR review and merge gates. |
 | `private-pilot-lifecycle` | Reads sanitized lifecycle metadata and emits local next-action artifacts. | Allowed only through the private-pilot loop operator; no candidate generation or GitHub write authority. |
 | `pr-creative-context` | Expands eligible PR context into 3-5 hypotheses, validates operator-supplied local hypothesis JSON, assigns normalized hypothesis IDs, records cross-domain analogies, emits agent routing/coordinator dispatch, and prepares approval reservations. | Allowed only through local sanitized Experiment Runner creative-context artifacts; no repo-side provider/model call, patch generation, workflow mutation, semantic cache, or GitHub write authority. |
+| `approved-hypothesis-spec-bridge` | Converts a human-approved creative hypothesis into a validated PR-0 creative-code candidate and existing PR-1 prepare artifacts. | Allowed only through local `creative_hypothesis_spec_bridge.py`; no mutable-surface widening, provider calls, patch generation, PR writes, role execution, finalization, semantic cache, graph truth, or product runtime authority. |
 
 PR-0 sets:
 
@@ -68,6 +78,10 @@ review-thread, merge, release, and Slack/GitHub authority flags remain closed.
 The PR creative-context layer adds bounded hypothesis/routing artifacts only;
 active model/operator intake remains local and validated; auto-workflow
 attachment remains a separate follow-up PR.
+The approved-hypothesis bridge adds only local candidate/specification handoff
+artifacts after human approval; approval targets outside the current
+`CreativeCodeCandidatePacket` mutable allowlist become immutable oracles, and
+the bridge fails closed when no allowed mutable target remains.
 
 Premortem is part of this creative line, not a documentation closeout ritual.
 For Experiment Runner creative-context work, premortem should forecast plausible
@@ -162,6 +176,20 @@ The Experiment Runner PR creative-context artifacts are:
 - `artifacts/orchestration/experiments/creative_context/<context-id>/oracle_attachment.json`
 - `artifacts/orchestration/experiments/creative_context/<context-id>/agent_consumption_summary.json`
 
+The approved creative-hypothesis specification bridge artifacts are:
+
+- `docs/orchestration/contracts/creative_hypothesis_specification_bridge.v1.schema.json`
+- `docs/orchestration/contracts/creative_hypothesis_spec_bridge_metrics.v1.schema.json`
+- `scripts/orchestration/creative_hypothesis_spec_bridge_contract.py`
+- `scripts/orchestration/creative_hypothesis_spec_bridge.py`
+- `artifacts/orchestration/creative_code/spec_bridge/<bridge-id>/creative_hypothesis_specification_bridge.json`
+- `artifacts/orchestration/creative_code/spec_bridge/<bridge-id>/creative_code_candidate_packet.json`
+- `artifacts/orchestration/creative_code/spec_bridge/<bridge-id>/bridge_metrics.json`
+- `artifacts/orchestration/creative_code/spec_bridge/<bridge-id>/spec_prepare/source_packet.json`
+- `artifacts/orchestration/creative_code/spec_bridge/<bridge-id>/spec_prepare/variants.json`
+- `artifacts/orchestration/creative_code/spec_bridge/<bridge-id>/spec_prepare/skeptic_reviews.json`
+- `artifacts/orchestration/creative_code/spec_bridge/<bridge-id>/spec_prepare/context_pack.json`
+
 `patch_request.json` remains a PR-2 `CreativeCodePatchBuildRequest` handoff
 artifact. It is built and validated only after PR-1 emits
 `spec_runs/<candidate-id>/bundle.json`, because its identity and fingerprint are
@@ -205,6 +233,12 @@ PR-0 is a contract-only start point.
 - PR-1: emit deterministic implementation specification bundles from promoted
   creative research; no patches, provider calls, repo writes, runtime truth,
   review disposition authority, or merge-readiness evidence.
+- Approved-hypothesis specification bridge: consume human-approved
+  `CreativeHypothesisApproval` artifacts and emit a validated
+  `CreativeCodeCandidatePacket`, deterministic local bridge metrics, and
+  existing PR-1 prepare artifacts; no agent execution, finalize, candidate
+  patches, provider calls, workflow changes, repository writes, product runtime
+  truth, semantic cache, graph truth, or mutable-surface widening.
 - PR-2: generate isolated candidate patches only in sandboxed evaluation
   workspaces with exact source-bundle fingerprint binding, exact `origin/main`
   base SHA, fixed Codex CLI argv/env, strict patch policy validation, direct
@@ -237,6 +271,11 @@ PR-0 is a contract-only start point.
   workflows, call providers, call product runtime, create branches, open PRs,
   post comments, resolve threads, edit fixed mappings, merge, or claim
   readiness.
+- Bridge follow-ups remain separate reviewed PRs: attach agent skeptic reviews
+  and `finalize`, ingest bridge metrics into the existing telemetry /
+  learning-loop rollup, and explore graph/multimodal lineage only after
+  repo-reviewed evidence contracts define asset lineage, fingerprints,
+  idempotency, and replay/admission behavior.
 
 Minimum future telemetry fields are defined now for the later train and must not be emitted before PR-1:
 

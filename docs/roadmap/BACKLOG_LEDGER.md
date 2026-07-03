@@ -10951,8 +10951,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Governed creative-code execution lane (PR-0 through PR-6)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (research-to-implementation leverage with closed authority)
-  - Target PR: PR-0 `feat/experiment-runner-creative-code-authority-pr0` -> PR-1 `codex/creative-code-specification-pr1` -> PR-2 `#2022` -> PR-3 `#2030` -> PR-4 `#2044` -> PR-5 `#2048` -> PR-6 `codex/creative-code-first-applied-candidate-pr6` -> private-pilot loop operator `codex/creative-code-private-pilot-loop-operator` -> GitHub App capability gate `codex/experiment-runner-github-app-capability-gate`
-  - Status: PR-0 merged baseline; PR-1 merged as a repo-only specification-bundle control-plane layer; PR-2 merged in PR `#2022` as a local sandboxed candidate-patch builder; PR-3 merged in PR `#2030` as human-approved non-draft PR promotion tooling; PR-4 merged in PR `#2044` at `a7e19b78c7d36b783ec2575ab0eab9f1402f2a0d` as local candidate evaluation telemetry and rejection taxonomy; PR-5 merged in PR `#2048` at `71af9d208b26435352fc821b79a2d78cebb319f5` as read-only local review-disposition integration; PR-6 is active as the first governed applied creative-code candidate lane targeting `docs/prompts/cv/program.md` through normal PR governance; the private-pilot loop operator adds sanitized local lifecycle state and checklist-only next-candidate planning without write/push/PR/thread/fixed-mapping/provider/runtime authority; the GitHub App capability gate slice feeds that state with a strict sanitized read-only permission report requiring Pull requests read and Checks read while keeping Actions write optional for fixed workflow dispatch only
+  - Target PR: PR-0 `feat/experiment-runner-creative-code-authority-pr0` -> PR-1 `codex/creative-code-specification-pr1` -> PR-2 `#2022` -> PR-3 `#2030` -> PR-4 `#2044` -> PR-5 `#2048` -> PR-6 `codex/creative-code-first-applied-candidate-pr6` -> private-pilot loop operator `codex/creative-code-private-pilot-loop-operator` -> GitHub App capability gate `codex/experiment-runner-github-app-capability-gate` -> approved creative-hypothesis specification bridge `codex/experiment-runner-approved-hypothesis-spec-bridge`
+  - Status: PR-0 merged baseline; PR-1 merged as a repo-only specification-bundle control-plane layer; PR-2 merged in PR `#2022` as a local sandboxed candidate-patch builder; PR-3 merged in PR `#2030` as human-approved non-draft PR promotion tooling; PR-4 merged in PR `#2044` at `a7e19b78c7d36b783ec2575ab0eab9f1402f2a0d` as local candidate evaluation telemetry and rejection taxonomy; PR-5 merged in PR `#2048` at `71af9d208b26435352fc821b79a2d78cebb319f5` as read-only local review-disposition integration; PR-6 is active as the first governed applied creative-code candidate lane targeting `docs/prompts/cv/program.md` through normal PR governance; the private-pilot loop operator adds sanitized local lifecycle state and checklist-only next-candidate planning without write/push/PR/thread/fixed-mapping/provider/runtime authority; the GitHub App capability gate slice feeds that state with a strict sanitized read-only permission report requiring Pull requests read and Checks read while keeping Actions write optional for fixed workflow dispatch only; the approved creative-hypothesis specification bridge consumes human-approved local creative-context artifacts and emits only a validated candidate packet, deterministic local metrics, and existing PR-1 prepare artifacts
   - Dependencies:
     - [P1: Creative research eval lane under governed experimentation epic](#ledger-p1-creative-research-eval-lane)
     - [P1: Governed agent experimentation lane (PR1-PR6 orchestration epic)](#ledger-p1-agent-experimentation-lane)
@@ -10978,6 +10978,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/orchestration/contracts/creative_code_telemetry_rollup.v1.schema.json`
     - `docs/orchestration/contracts/creative_code_rejection_taxonomy.v1.schema.json`
     - `docs/orchestration/contracts/creative_code_rejection_taxonomy.v1.json`
+    - `docs/orchestration/contracts/creative_hypothesis_specification_bridge.v1.schema.json`
+    - `docs/orchestration/contracts/creative_hypothesis_spec_bridge_metrics.v1.schema.json`
     - `docs/orchestration/CREATIVE_CODE_REVIEW_DISPOSITION_PR5_PREMORTEM.md`
     - `docs/orchestration/contracts/CREATIVE_CODE_REVIEW_DISPOSITION_CONTRACT.md`
     - `docs/orchestration/contracts/creative_code_review_feedback_record.v1.schema.json`
@@ -11005,6 +11007,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `scripts/orchestration/creative_code_private_pilot_loop_contract.py`
     - `scripts/orchestration/creative_code_private_pilot_loop_operator.py`
     - `scripts/orchestration/github_app_private_pilot_capability.py`
+    - `scripts/orchestration/creative_hypothesis_spec_bridge_contract.py`
+    - `scripts/orchestration/creative_hypothesis_spec_bridge.py`
     - `tests/test_creative_code_contract.py`
     - `tests/test_creative_code_patch_builder.py`
     - `tests/test_creative_code_pr_promotion.py`
@@ -11012,6 +11016,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `tests/test_creative_code_review_disposition.py`
     - `tests/test_creative_code_applied_candidate_pr6.py`
     - `tests/test_creative_code_private_pilot_loop.py`
+    - `tests/test_creative_hypothesis_spec_bridge.py`
   - PR train:
     - PR-0: closed authority contract, schema, reference packet, validator, and tests; no model calls, patches, workflows, Slack/GitHub settings, or `experiment_runner.py` changes.
     - PR-1: emit deterministic implementation specification bundles from promoted creative research, with skeptic reviews, synthesis, telemetry summary, safe local artifact I/O, and fingerprint-only rejection indexes; no candidate patches, provider calls, repo writes, runtime truth, review-thread disposition authority, or merge-readiness evidence.
@@ -11021,6 +11026,25 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - PR-5: add local read-only review-disposition integration through `CreativeCodeReviewFeedbackRecord`, `CreativeCodeReviewDispositionPacket`, and `CreativeCodeRepairLaunchPacket`; only `create_pr1_specification=true` may be prepared for later human review, while patch generation, branch writes, PR creation, review-thread resolution, fixed-mapping edits, merge authority, runtime changes, Slack/GitHub App authority, and readiness claims remain forbidden.
     - PR-6: run the first governed applied creative-code candidate through normal PR governance, starting from a local run-plan wrapper that validates the PR-5 launch packet, binds the target surface exactly to `docs/prompts/cv/program.md`, and then keeps the generated candidate mutation surface to that prompt/program document.
     - Private-pilot loop operator: collect sanitized PR/check/review state plus PR-4 / PR-5 / PR-6 artifact refs, consume an optional sanitized GitHub App read-only capability report, decide the next action, and optionally emit a checklist-only candidate plan; no PR-1 / PR-2 / PR-3 command is executed by the operator.
+    - Approved creative-hypothesis specification bridge: build a validated `CreativeCodeCandidatePacket`, deterministic `bridge_metrics.json`, and existing PR-1 `prepare` artifacts from `CreativeHypothesisApproval(decision=approve_for_pr1_specification, next_step=create_pr1_specification)`; no agent execution, `finalize`, candidate patches, provider calls, workflow changes, repository writes, product runtime truth, semantic cache, graph truth, or mutable-surface widening.
+    - Follow-up bridge skeptic/finalize:
+      - Priority: P1 automation leverage.
+      - Owner: orchestration.
+      - Target PR: separate reviewed PR after the approved-hypothesis bridge.
+      - Reason: bridge output intentionally leaves skeptic-review attachment and `finalize` outside this slice so agent review evidence can be attached under coordinator-owned governance.
+      - DoD: agent skeptic-review artifacts are attached to the PR-1 prepare output, `finalize` remains explicit and validated, and no patch, branch, PR, provider, runtime, or review-thread authority is added.
+    - Follow-up bridge metrics ingestion:
+      - Priority: P1 learning-loop leverage.
+      - Owner: orchestration.
+      - Target PR: separate reviewed PR after the approved-hypothesis bridge.
+      - Reason: bridge metrics are deterministic local sidecars but are not yet ingested into the existing telemetry / learning-loop rollup.
+      - DoD: bridge metrics ingest into the existing advisory telemetry / learning-loop rollup with redaction, bounded fields, no runtime telemetry, no product truth, no semantic-cache use, and no graph truth.
+    - Follow-up graph/multimodal lineage exploration:
+      - Priority: P2 research leverage.
+      - Owner: orchestration.
+      - Target PR: separate design/contract PR only after evidence lineage contracts exist.
+      - Reason: graph and multimodal lineage may be useful for agent learning, but this lane requires repo-reviewed asset lineage, fingerprint, idempotency, replay, and admission contracts before implementation.
+      - DoD: proposal stays contract-first and non-runtime until reviewed evidence contracts define allowed assets, upstream assets, fingerprints, idempotency keys, replay/admission behavior, and rollback boundaries.
     - Follow-up auto-oracle attach:
       - Priority: P1 automation leverage.
       - Owner: orchestration.
