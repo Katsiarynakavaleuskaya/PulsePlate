@@ -9,6 +9,7 @@ from typing import Any
 
 import pytest
 
+from core.evidence.fingerprints import fingerprint_payload
 from scripts.orchestration import creative_hypothesis_spec_bridge as cli
 from scripts.orchestration.creative_code_contract import validate_creative_code_candidate_packet
 from scripts.orchestration.creative_hypothesis_spec_bridge_contract import (
@@ -286,6 +287,38 @@ def test_stale_approval_rejects_changed_hypothesis_fingerprint() -> None:
         build_creative_hypothesis_spec_bridge_bundle(
             context_map=context,
             hypothesis_packet=mutated_packet,
+            coordinator_dispatch=dispatch,
+            approval=approval,
+            variant_count=3,
+        )
+
+
+def test_blocked_hypothesis_packet_cannot_build_candidate() -> None:
+    context, packet, _dispatch, _approval = _chain(hypothesis_suffix="blocked-packet")
+    blocked_packet = deepcopy(packet)
+    blocked_packet["creative_status"] = "blocked"
+    blocked_packet = _refresh_packet_identity(blocked_packet)
+    routing = build_creative_hypothesis_agent_routing(blocked_packet)
+    dispatch = build_creative_hypothesis_coordinator_dispatch(
+        hypothesis_packet=blocked_packet,
+        routing=routing,
+    )
+    approval = build_creative_hypothesis_approval(
+        hypothesis_id=blocked_packet["hypotheses"][0]["hypothesis_id"],
+        decision="approve_for_pr1_specification",
+        hypothesis_packet=blocked_packet,
+        approved_target_surfaces=blocked_packet["hypotheses"][0]["target_surfaces"],
+        approved_agents=[dispatch["dispatch"][0]["primary_agent"]],
+        next_step="create_pr1_specification",
+    )
+
+    with pytest.raises(
+        CreativeHypothesisSpecBridgeError,
+        match="bridge requires a generated hypothesis packet",
+    ):
+        build_creative_hypothesis_spec_bridge_bundle(
+            context_map=context,
+            hypothesis_packet=blocked_packet,
             coordinator_dispatch=dispatch,
             approval=approval,
             variant_count=3,
@@ -717,6 +750,69 @@ def test_prepare_rejects_stale_spec_prepare_artifacts(
         assert metrics["status"] == "blocked"
         assert metrics["blocked_reason"] == "spec_prepare_failed"
         assert not (spec_prepare_dir / "source_packet.json").exists()
+    finally:
+        shutil.rmtree(output_dir, ignore_errors=True)
+        shutil.rmtree(input_dir, ignore_errors=True)
+
+
+def test_prepare_rejects_already_prepared_bridge_without_rewriting_reviews(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    context, packet, dispatch, approval = _chain(hypothesis_suffix="already-prepared")
+    input_dir, context_path, packet_path, dispatch_path, approval_path = (
+        _write_creative_context_inputs(
+            leaf="pytest-spec-bridge-already-prepared",
+            context=context,
+            packet=packet,
+            dispatch=dispatch,
+            approval=approval,
+        )
+    )
+    bundle = build_creative_hypothesis_spec_bridge_bundle(
+        context_map=context,
+        hypothesis_packet=packet,
+        coordinator_dispatch=dispatch,
+        approval=approval,
+        variant_count=3,
+    )
+    output_dir = cli.SPEC_BRIDGE_ROOT / str(bundle["bridge"]["bridge_id"])
+    shutil.rmtree(output_dir, ignore_errors=True)
+    try:
+        assert (
+            cli.main(
+                [
+                    "build-and-prepare",
+                    "--context-map",
+                    str(context_path),
+                    "--hypothesis-packet",
+                    str(packet_path),
+                    "--coordinator-dispatch",
+                    str(dispatch_path),
+                    "--approval",
+                    str(approval_path),
+                    "--variant-count",
+                    "3",
+                ]
+            )
+            == 0
+        )
+        capsys.readouterr()
+        reviews_path = output_dir / "spec_prepare" / "skeptic_reviews.json"
+        reviews = json.loads(reviews_path.read_text(encoding="utf-8"))
+        reviews[0]["decision"] = "pass"
+        reviews[0]["blockers"] = []
+        reviews_path.write_text(json.dumps(reviews, indent=2, sort_keys=True) + "\n")
+        expected_fingerprint = fingerprint_payload(reviews)
+
+        exit_code = cli.main(
+            ["prepare-specification", "--bridge", str(output_dir / cli.BRIDGE_FILENAME)]
+        )
+        captured = capsys.readouterr()
+        assert exit_code == 1
+        assert "spec_prepare_already_prepared" in captured.err
+        assert (
+            fingerprint_payload(json.loads(reviews_path.read_text("utf-8"))) == expected_fingerprint
+        )
     finally:
         shutil.rmtree(output_dir, ignore_errors=True)
         shutil.rmtree(input_dir, ignore_errors=True)

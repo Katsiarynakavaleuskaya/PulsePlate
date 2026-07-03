@@ -324,7 +324,12 @@ def _prepare_from_bridge(
     output_dir: Path,
 ) -> dict[str, Any]:
     candidate_ref = str(cast_mapping(bridge["candidate_packet"])["candidate_packet_ref"])
-    run_dir_ref = str(cast_mapping(bridge["spec_prepare"])["run_dir_ref"])
+    spec_prepare = cast_mapping(bridge["spec_prepare"])
+    if spec_prepare["prepared"]:
+        raise CreativeHypothesisSpecBridgeCliError(
+            "spec_prepare_already_prepared: prepare-specification requires an unprepared bridge."
+        )
+    run_dir_ref = str(spec_prepare["run_dir_ref"])
     candidate_path = _repo_ref_to_file(candidate_ref)
     run_dir = _repo_ref_to_dir(run_dir_ref)
     try:

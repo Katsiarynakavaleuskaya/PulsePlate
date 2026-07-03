@@ -63,6 +63,7 @@ BRIDGE_FAILURE_REASONS = frozenset(
         "dispatch_row_missing",
         "fingerprint_mismatch",
         "hypothesis_not_found",
+        "hypothesis_packet_not_generated",
         "invalid_candidate_packet",
         NO_ALLOWED_MUTABLE_TARGET,
         "spec_prepare_failed",
@@ -240,6 +241,11 @@ def build_creative_hypothesis_spec_bridge_bundle(
     normalized_packet = sources["hypothesis_packet"]
     normalized_dispatch = sources["coordinator_dispatch"]
     normalized_approval = sources["approval"]
+    if normalized_packet["creative_status"] != "hypotheses_generated":
+        raise CreativeHypothesisSpecBridgeError(
+            "hypothesis_packet_not_generated: bridge requires a generated hypothesis packet.",
+            blocked_reason="hypothesis_packet_not_generated",
+        )
     if (
         normalized_approval["decision"] != "approve_for_pr1_specification"
         or normalized_approval["next_step"] != "create_pr1_specification"

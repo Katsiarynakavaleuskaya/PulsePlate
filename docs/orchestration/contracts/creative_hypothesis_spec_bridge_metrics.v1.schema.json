@@ -45,6 +45,7 @@
             "dispatch_row_missing",
             "fingerprint_mismatch",
             "hypothesis_not_found",
+            "hypothesis_packet_not_generated",
             "invalid_candidate_packet",
             "no_allowed_mutable_target",
             "spec_prepare_failed"
