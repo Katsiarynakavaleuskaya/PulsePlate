@@ -249,6 +249,30 @@ Evidence: tests/test_review_mapping_artifact.py
     assert errors == []
 
 
+def test_validate_fixed_mapping_section_accepts_mapping_first_without_blank_lines() -> None:
+    section = """- https://github.com/org/repo/pull/1000#discussion_r1 -> abc1234
+Disposition: FIXED
+Commit: abc1234
+Evidence: tests/test_review_mapping_artifact.py
+- https://github.com/org/repo/pull/1000#discussion_r2 -> abc1234
+Disposition: FIXED
+Commit: abc1234
+Evidence: tests/test_review_mapping_artifact.py
+"""
+    errors = artifact.validate_fixed_mapping_section(section)
+    assert errors == []
+
+
+def test_validate_fixed_mapping_section_accepts_fixed_sha_mapping_with_evidence_only() -> None:
+    section = """- https://github.com/org/repo/pull/1000#issuecomment-1 -> abc1234
+Disposition: FIXED
+Evidence: tests/test_review_mapping_artifact.py
+Reason: Older artifacts used the mapping SHA as the commit proof.
+"""
+    errors = artifact.validate_fixed_mapping_section(section)
+    assert errors == []
+
+
 def test_validate_fixed_mapping_section_requires_disposition_for_sha_mappings() -> None:
     section = """Commit: abc1234
 - https://github.com/org/repo/pull/1#discussion_r1 -> abc1234

@@ -25,10 +25,16 @@ REQUIRED_TOP_LEVEL = (
 PROOF_SECTIONS = REQUIRED_TOP_LEVEL[3:]
 PROOF_SECTION_FIELDS = ("checked", "summary", "evidence_refs")
 LOCAL_ROOTS = {"Users", "private", "tmp", "var", "Volumes", "workspaces", "workspace"}
+WINDOWS_DRIVE_RE = re.compile(r"^[A-Za-z]:[\\/]")
 
 
 def _is_repo_relative_ref(value: str) -> bool:
-    if not value or value.startswith(("file://", "~", "/", "\\")):
+    if (
+        not value
+        or "\\" in value
+        or WINDOWS_DRIVE_RE.match(value)
+        or value.startswith(("file://", "~", "/", "\\"))
+    ):
         return False
     path = PurePosixPath(value.replace("\\", "/"))
     if path.is_absolute() or ".." in path.parts:

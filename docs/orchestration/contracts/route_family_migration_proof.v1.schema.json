@@ -36,7 +36,7 @@
       "type": "string",
       "pattern": "^[A-Za-z0-9_.-][A-Za-z0-9_./:-]*$",
       "not": {
-        "pattern": "(^/|\\.\\.|\\\\|file://|^~|^\\.git/|^\\.venv/|^worktrees/|^artifacts(/|$)|^/Users/|^/tmp/|^/private/)"
+        "pattern": "(^/|\\.\\.|\\\\|file://|^~|^[A-Za-z]:[\\\\/]|^\\.git/|^\\.venv/|^worktrees/|^artifacts(/|$)|^/Users/|^/tmp/|^/private/)"
       }
     },
     "proof_section": {

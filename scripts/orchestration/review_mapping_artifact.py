@@ -93,8 +93,8 @@ def _validate_fixed_mapping_block(lines: list[str]) -> list[str]:
             errors.append("Disposition FIXED requires '- <url> -> <sha>' mapping lines.")
         if has_url_only_mapping:
             errors.append("Disposition FIXED must not use URL-only review-thread lines.")
-        if "Commit:" not in proof_prefixes:
-            errors.append("Disposition FIXED requires a 'Commit:' proof line.")
+        if not ({"Commit:", "Evidence:"} & proof_prefixes):
+            errors.append("Disposition FIXED requires a 'Commit:' or 'Evidence:' proof line.")
     elif disposition == "NOT-A-BUG":
         if has_sha_mapping:
             errors.append("Disposition NOT-A-BUG must use URL-only review-thread lines.")
@@ -210,6 +210,15 @@ def validate_fixed_mapping_section(section: str) -> list[str]:
             if current_block:
                 blocks.append(current_block)
                 current_block = []
+            continue
+        is_thread_line = bool(MAPPING_LINE_RE.match(line) or THREAD_LINE_RE.match(line))
+        current_has_thread = any(
+            MAPPING_LINE_RE.match(item) or THREAD_LINE_RE.match(item) for item in current_block
+        )
+        current_has_disposition = any(item.startswith("Disposition:") for item in current_block)
+        if is_thread_line and current_has_thread and current_has_disposition:
+            blocks.append(current_block)
+            current_block = [line]
             continue
         if line.startswith("Disposition:") and any(
             item.startswith("Disposition:") for item in current_block
