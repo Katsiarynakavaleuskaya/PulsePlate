@@ -25,6 +25,7 @@ def extract_agent_lesson_record(
     root_cause: str,
     required_oracle: str,
     promotion_target: str,
+    pattern_kind: str = "failure",
 ) -> dict[str, object]:
     """Return one redacted learning record without writing or promotion."""
 
@@ -32,6 +33,7 @@ def extract_agent_lesson_record(
         dict[str, object],
         build_agent_learning_record(
             source=source,
+            pattern_kind=pattern_kind,
             pattern=pattern,
             severity=severity,
             affected_surfaces=affected_surfaces,
@@ -47,6 +49,12 @@ def main(argv: list[str] | None = None) -> int:
         description="Emit one repo-governed agent learning record without side effects."
     )
     parser.add_argument("--source", required=True)
+    parser.add_argument(
+        "--pattern-kind",
+        default="failure",
+        choices=("failure", "successful_iteration"),
+        help="Classify whether the repeated pattern is a failure or a successful iteration.",
+    )
     parser.add_argument("--pattern", required=True)
     parser.add_argument("--severity", default="medium")
     parser.add_argument("--affected-surface", action="append", default=[])
@@ -57,6 +65,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         payload = extract_agent_lesson_record(
             source=args.source,
+            pattern_kind=args.pattern_kind,
             pattern=args.pattern,
             severity=args.severity,
             affected_surfaces=args.affected_surface,

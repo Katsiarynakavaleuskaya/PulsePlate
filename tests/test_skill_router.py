@@ -2,19 +2,15 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 import pytest
 import scripts.orchestration.skill_router as skill_router_module
 
-from scripts.orchestration.bootstrap_sync_policy import (
-    DOCS_ONLY_ENVELOPE_MODE,
-    PRIVILEGED_REVIEW_PATTERNS,
-    PRIVILEGED_REVIEW_PREFIXES,
-)
+from scripts.orchestration.bootstrap_sync_policy import DOCS_ONLY_ENVELOPE_MODE
 from scripts.orchestration.skill_router import (
     CLASSIFICATION_PRECEDENCE,
     DOCS_ONLY_EXCLUDED_ROUTING_SKILLS,
-    PRIVILEGED_SURFACE_PATTERNS,
     PRIVILEGED_SURFACE_PREFIXES,
     RESEARCH_POLICY_BUCKET_APPROVED,
     RESEARCH_POLICY_BUCKET_DISALLOWED,
@@ -37,6 +33,7 @@ MESSAGE_PROTOCOL_DOC_PATH = (
 )
 ROOT_AGENTS_PATH = Path(__file__).resolve().parents[1] / "AGENTS.md"
 RUNBOOK_AGENT_PATH = Path(__file__).resolve().parents[1] / "RUNBOOK_AGENT.md"
+FIXTURE_DIR = Path(__file__).resolve().parent / "fixtures" / "orchestration"
 
 EXPECTED_REQUESTED_AGENT_POLICY_ROWS: tuple[str, ...] = (
     "| `agent-coordinator` | `docs-sync`, `agents-md`, `pulseplate-gates` |",
@@ -56,15 +53,17 @@ EXPECTED_REQUESTED_AGENT_NAMES: frozenset[str] = frozenset(
 )
 
 EXPECTED_PRIVILEGED_SURFACE_POLICY_LINES: tuple[str, ...] = (
-    "- `.cursor/agents/**`",
-    "- `.github/workflows/**` and `.github/actions/**`",
+    "- `.github/workflows/**`",
+    "- `.github/actions/**`",
+    "- `.github/agents/**`, `.github/prompts/**`, `.github/scripts/**`, and `.githooks/**`",
+    "- local agent/tooling control under `.agents/skills/**`, `.cursor/agents/**`,",
     "- `ios/fastlane/**`",
     "- `scripts/metatron_lab/**`, `scripts/orchestration/**`, `scripts/ci/**`, and `scripts/release/**`",
     "- merge-governance docs under `docs/orchestration/**` and `docs/review/**`",
-    "- container, deploy, devcontainer, App Store release-pack, security-lab, backup-systemd, and security-scan policy under `Dockerfile`, `.dockerignore`, `.trivyignore`, `.devcontainer` Docker/Compose/devcontainer files, `appstore/fitchef/**`, deploy Caddy/Compose patterns, METATRON lab compose/guard files, backup systemd unit examples, `frontend/.dockerignore`, `frontend/Dockerfile.caddy-spa`, and `trivy/**`",
-    "- dependency, quality-gate, coverage-governance, toolchain, local-hook, skill-source, Cursor/Kimi/OpenCode/MCP control-plane, VS Code tooling policy, edge-deploy, iOS release-control, AgentGuard scanner, migration config, env-template, and repo-governance control files matching root or scoped `AGENTS.md`, `RUNBOOK_AGENT.md`, `Makefile`, `.env.example`, `.bandit`, `.bandit.yaml`, `.coveragerc`, `.coderabbit.yaml`, `.cursor/mcp.json.example`, `.kimi/mcp.json.example`, `.vscode/extensions.json`, `.gitmodules`, `.flake8`, `.markdownlint.json`, `.nvmrc`, `.python-version`, `.ruby-version`, `.secrets.baseline`, `.sourcery.yaml`, `.tool-versions`, `.trivyignore`, `.yamllint`, `.pre-commit-config.yaml`, `.pre-commit-config.yml`, `alembic.ini`, `codecov.yml`, `codecov.yaml`, `.github/CODEOWNERS`, `.github/PULL_REQUEST_TEMPLATE/*.md`, `.github/actionlint.yml`, `.github/actionlint.yaml`, `.github/dependabot.yml`, `.github/dependabot.yaml`, `.github/pull_request_template.md`, `docs/security/TOOLING_SURFACE_POLICY.md`, `docs/security/vscode_extensions_allowlist.txt`, `frontend/wrangler.toml`, `mcp-config.json`, `mcp-setup.sh`, `mcp_pulseplate_server.py`, `opencode.json`, `pyproject.toml`, root/frontend `package*.json`, `ios/Gemfile*`, `ios/Package.swift`, `ios/Package.resolved`, Xcode project/scheme and SwiftPM manifests, `ios/PulsePlate/Info-Release.plist`, `ios/PulsePlate/PulsePlate.entitlements`, `ios/PulsePlate/PrivacyInfo.xcprivacy`, `ios/PulsePlate/*/InfoPlist.strings`, `requirements*.txt`, `requirements*.in`, `constraints*.txt`, `scripts/deploy.sh`, `scripts/diagnose_web.sh`, `scripts/devcontainer/smoke.sh`, `scripts/hooks/repo_python.sh`, `scripts/install_codex_skills.sh`, `scripts/opencode/run_pulseplate_mcp.sh`, `scripts/ops/postgres_backup.sh`, `scripts/ops/postgres_restore.sh`, `scripts/redeploy_caddy.sh`, `scripts/run-backend-tests-pre-commit.sh`, `scripts/validate-ci-environment.sh`, `scripts/verify_codex_skills_install.py`, `scripts/ci_*.sh`, `scripts/deploy_*.sh`, `setup_custom_mcp.py`, `tests/security/_api_authz_contracts.py`, `tests/security/test_api_authz_contract_static.py`, `tests/test_install_codex_skills.py`, `tests/test_repo_policy_guards.py`, `update_api_key.py`, `worker.js`, `wrangler.toml`, policy guard tests under `tests/guards/**`, repo-local hook scripts under `.githooks/**`, GitHub helper scripts under `.github/scripts/**`, GitHub Copilot agent/prompt surfaces under `.github/agents/**` and `.github/prompts/**`, skill sources under `.agents/skills/**`, `tools/agentguard/**`, `tools/codex_skills/**`, `tools/cybersecurity_skills/**`, and Cursor control-plane files under `.cursor/commands/**` and `.cursor/rules/**`",
-    "- keep `security-auditor` in the executable review path for the canonical bootstrap privileged-review matcher in `scripts/orchestration/bootstrap_sync_policy.py`;",
-    "- any matched privileged surface must set `automation_flags.security_review_required = true` and keep the security reviewer executable in the native subagent bridge;",
+    "- deploy/image config such as `Dockerfile`, `docker-compose*.yml`, and `deploy/**`",
+    "- dependency and hook config such as `requirements*.txt`, `requirements*.in`, `pyproject.toml`,",
+    "- security-scan policy such as `.trivyignore` and `trivy/**`",
+    "- any matched privileged surface must set `automation_flags.security_review_required = true`",
 )
 EXPECTED_CLASSIFICATION_POLICY_LINES: tuple[str, ...] = (
     "- `implementation`",
@@ -89,6 +88,11 @@ def _read_policy_doc() -> str:
     """Load the canonical policy markdown for doc-to-implementation parity checks."""
 
     return POLICY_DOC_PATH.read_text(encoding="utf-8")
+
+
+def _privileged_surface_cases() -> list[dict[str, object]]:
+    fixture = json.loads((FIXTURE_DIR / "privileged_review_surfaces.json").read_text())
+    return list(fixture["cases"])
 
 
 def _read_message_protocol_doc() -> str:
@@ -1375,18 +1379,14 @@ def test_skill_router_boosts_security_skills_for_privileged_surfaces() -> None:
 
 
 @pytest.mark.parametrize(
-    ("candidate_path", "domain", "expected_reason_prefix"),
+    ("candidate_path", "domain", "expected_reason"),
     (
         (".github/workflows/test.yml", "release", ".github/workflows/"),
-        (".agents/skills/pulseplate-gates/SKILL.md", "orchestration", ".agents/skills/"),
-        (".cursor/agents/security-auditor.md", "security", ".cursor/agents/"),
-        (".cursor/commands/init.md", "orchestration", ".cursor/commands/"),
-        (".cursor/rules/cybersecurity-skills-index.md", "security", ".cursor/rules/"),
         (".github/actions/setup/action.yml", "release", ".github/actions/"),
-        (".github/scripts/parse-safety-report.py", "release", ".github/scripts/"),
-        (".githooks/pre-push", "qa", ".githooks/"),
-        ("appstore/fitchef/appstore_review_checklist.md", "release", "appstore/fitchef/"),
-        ("deploy/metatron-lab/docker-compose.yaml", "security", "deploy/metatron-lab/"),
+        (".github/agents/my-agent.md", "security", ".github/agents/"),
+        ("AGENTS.md", "orchestration", "agent-contract"),
+        (".cursor/agents/security-auditor.md", "security", "local-agent-tooling-control"),
+        ("mcp_pulseplate_server.py", "security", "local-agent-tooling-control"),
         ("ios/fastlane/Fastfile", "release", "ios/fastlane/"),
         ("scripts/metatron_lab/compose_guard.py", "security", "scripts/metatron_lab/"),
         ("scripts/orchestration/skill_router.py", "orchestration", "scripts/orchestration/"),
@@ -1394,192 +1394,15 @@ def test_skill_router_boosts_security_skills_for_privileged_surfaces() -> None:
         ("scripts/release/publish.py", "release", "scripts/release/"),
         ("docs/orchestration/AGENT_ROUTING_GRAPH.md", "orchestration", "docs/orchestration/"),
         ("docs/review/PR_999_FIXED_MAPPING.md", "qa", "docs/review/"),
-        ("tests/guards/test_nosec_policy_guard.py", "security", "tests/guards/"),
-        ("trivy/policy.rego", "security", "trivy/"),
-        ("docs/../.github/workflows/ci.yml", "orchestration", ".github/workflows/"),
-        ("AGENTS.md", "orchestration", "AGENTS.md"),
-        ("scripts/AGENTS.md", "orchestration", "**/AGENTS.md"),
-        ("Dockerfile", "infra", "Dockerfile"),
-        ("Makefile", "qa", "Makefile"),
-        ("RUNBOOK_AGENT.md", "orchestration", "RUNBOOK_AGENT.md"),
-        (".env.example", "infra", ".env.example"),
-        (".bandit", "security", ".bandit"),
-        (".bandit.yaml", "security", ".bandit.yaml"),
-        (".coveragerc", "qa", ".coveragerc"),
-        ("codecov.yml", "qa", "codecov.yml"),
-        ("codecov.yaml", "qa", "codecov.yaml"),
-        (".coderabbit.yaml", "orchestration", ".coderabbit.yaml"),
-        (".gitmodules", "security", ".gitmodules"),
-        (".flake8", "qa", ".flake8"),
-        (".markdownlint.json", "qa", ".markdownlint.json"),
-        (".nvmrc", "frontend", ".nvmrc"),
-        (".python-version", "qa", ".python-version"),
-        (".ruby-version", "release", ".ruby-version"),
-        (".secrets.baseline", "security", ".secrets.baseline"),
-        (".sourcery.yaml", "orchestration", ".sourcery.yaml"),
-        (".tool-versions", "qa", ".tool-versions"),
-        (".trivyignore", "security", ".trivyignore"),
-        (".yamllint", "qa", ".yamllint"),
-        (".pre-commit-config.yaml", "qa", ".pre-commit-config.yaml"),
-        (".cursor/mcp.json.example", "security", ".cursor/mcp.json.example"),
-        (".kimi/mcp.json.example", "security", ".kimi/mcp.json.example"),
-        (".vscode/extensions.json", "security", ".vscode/extensions.json"),
-        (".devcontainer/Dockerfile", "infra", ".devcontainer/Dockerfile"),
-        (".devcontainer/devcontainer.json", "infra", ".devcontainer/devcontainer.json"),
-        (
-            ".devcontainer/docker-compose.devcontainer.yml",
-            "infra",
-            ".devcontainer/docker-compose*.yml",
-        ),
-        (".github/CODEOWNERS", "security", ".github/CODEOWNERS"),
-        (
-            ".github/PULL_REQUEST_TEMPLATE/design.md",
-            "orchestration",
-            ".github/PULL_REQUEST_TEMPLATE/*.md",
-        ),
-        (".github/actionlint.yaml", "security", ".github/actionlint.yaml"),
-        (".github/agents/my-agent.md", "security", ".github/agents/"),
-        (".github/prompts/vibecoder.prompt.md", "security", ".github/prompts/"),
-        (".github/dependabot.yml", "security", ".github/dependabot.yml"),
-        (".github/dependabot.yaml", "security", ".github/dependabot.yaml"),
-        (
-            ".github/pull_request_template.md",
-            "orchestration",
-            ".github/pull_request_template.md",
-        ),
-        ("alembic.ini", "backend", "alembic.ini"),
-        ("docker-compose.yaml", "infra", "docker-compose*.yaml"),
-        ("deploy/Caddyfile", "infra", "deploy/Caddyfile*"),
-        ("deploy/Caddyfile.production", "infra", "deploy/Caddyfile*"),
-        (
-            "deploy/docker-compose.production.yaml",
-            "infra",
-            "deploy/docker-compose.production*.yaml",
-        ),
-        (
-            "deploy/docker-compose.production.selfhosted.yaml",
-            "infra",
-            "deploy/docker-compose.production*.yaml",
-        ),
-        ("deploy/docker-compose.staging.yaml", "infra", "deploy/docker-compose.staging.yaml"),
-        (
-            "docs/security/vscode_extensions_allowlist.txt",
-            "security",
-            "docs/security/vscode_extensions_allowlist.txt",
-        ),
-        (
-            "deploy/systemd/pulseplate-postgres-backup.service.example",
-            "infra",
-            "deploy/systemd/pulseplate-postgres-backup.*",
-        ),
-        ("frontend/.dockerignore", "infra", "frontend/.dockerignore"),
-        ("frontend/Dockerfile.caddy-spa", "infra", "frontend/Dockerfile.caddy-spa"),
-        ("frontend/package-lock.json", "frontend", "frontend/package*.json"),
-        ("frontend/wrangler.toml", "infra", "frontend/wrangler.toml"),
-        ("ios/Gemfile.lock", "release", "ios/Gemfile*"),
-        ("ios/Package.swift", "release", "ios/Package.swift"),
-        ("ios/Package.resolved", "release", "ios/Package.resolved"),
-        (
-            "ios/PulsePlate.xcodeproj/project.pbxproj",
-            "release",
-            "ios/PulsePlate.xcodeproj/project.pbxproj",
-        ),
-        (
-            "ios/PulsePlate.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved",
-            "release",
-            "ios/PulsePlate.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved",
-        ),
-        (
-            "ios/PulsePlate.xcodeproj/xcshareddata/xcschemes/PulsePlate.xcscheme",
-            "release",
-            "ios/PulsePlate.xcodeproj/xcshareddata/xcschemes/PulsePlate.xcscheme",
-        ),
-        (
-            "ios/PulsePlate.xcworkspace/xcshareddata/swiftpm/Package.swift",
-            "release",
-            "ios/PulsePlate.xcworkspace/xcshareddata/swiftpm/Package.swift",
-        ),
-        ("ios/PulsePlate/Info-Release.plist", "release", "ios/PulsePlate/Info-Release.plist"),
-        (
-            "ios/PulsePlate/PulsePlate.entitlements",
-            "release",
-            "ios/PulsePlate/PulsePlate.entitlements",
-        ),
-        ("ios/PulsePlate/PrivacyInfo.xcprivacy", "release", "ios/PulsePlate/PrivacyInfo.xcprivacy"),
-        (
-            "ios/PulsePlate/en.lproj/InfoPlist.strings",
-            "release",
-            "ios/PulsePlate/*/InfoPlist.strings",
-        ),
-        ("mcp-config.json", "security", "mcp-config.json"),
-        ("mcp-setup.sh", "security", "mcp-setup.sh"),
-        ("mcp_pulseplate_server.py", "security", "mcp_pulseplate_server.py"),
-        ("opencode.json", "security", "opencode.json"),
-        ("package-lock.json", "frontend", "package*.json"),
-        ("pyproject.toml", "qa", "pyproject.toml"),
-        ("requirements-ci-lite.txt", "security", "requirements*.txt"),
-        ("requirements.in", "security", "requirements*.in"),
-        ("constraints.txt", "security", "constraints*.txt"),
-        ("scripts/deploy.sh", "release", "scripts/deploy.sh"),
-        ("scripts/diagnose_web.sh", "release", "scripts/diagnose_web.sh"),
-        ("scripts/devcontainer/smoke.sh", "infra", "scripts/devcontainer/smoke.sh"),
-        ("scripts/hooks/repo_python.sh", "qa", "scripts/hooks/repo_python.sh"),
-        ("scripts/install_codex_skills.sh", "orchestration", "scripts/install_codex_skills.sh"),
-        (
-            "scripts/opencode/run_pulseplate_mcp.sh",
-            "security",
-            "scripts/opencode/run_pulseplate_mcp.sh",
-        ),
-        ("scripts/ops/postgres_backup.sh", "release", "scripts/ops/postgres_backup.sh"),
-        ("scripts/ops/postgres_restore.sh", "release", "scripts/ops/postgres_restore.sh"),
-        ("scripts/redeploy_caddy.sh", "release", "scripts/redeploy_caddy.sh"),
-        (
-            "scripts/run-backend-tests-pre-commit.sh",
-            "qa",
-            "scripts/run-backend-tests-pre-commit.sh",
-        ),
-        (
-            "scripts/validate-ci-environment.sh",
-            "qa",
-            "scripts/validate-ci-environment.sh",
-        ),
-        (
-            "scripts/verify_codex_skills_install.py",
-            "orchestration",
-            "scripts/verify_codex_skills_install.py",
-        ),
-        ("scripts/ci_bandit.sh", "security", "scripts/ci_*.sh"),
-        ("scripts/ci_pip_audit.sh", "security", "scripts/ci_*.sh"),
-        ("scripts/deploy_production.sh", "release", "scripts/deploy_*.sh"),
-        ("setup_custom_mcp.py", "security", "setup_custom_mcp.py"),
-        (
-            "tests/security/_api_authz_contracts.py",
-            "security",
-            "tests/security/_api_authz_contracts.py",
-        ),
-        (
-            "tests/security/test_api_authz_contract_static.py",
-            "security",
-            "tests/security/test_api_authz_contract_static.py",
-        ),
-        (
-            "tests/test_install_codex_skills.py",
-            "orchestration",
-            "tests/test_install_codex_skills.py",
-        ),
-        ("tests/test_repo_policy_guards.py", "security", "tests/test_repo_policy_guards.py"),
-        ("tools/agentguard/scan_text.mjs", "security", "tools/agentguard/"),
-        ("tools/codex_skills/pulseplate-gates/SKILL.md", "orchestration", "tools/codex_skills/"),
-        ("tools/cybersecurity_skills/index.json", "security", "tools/cybersecurity_skills/"),
-        ("update_api_key.py", "security", "update_api_key.py"),
-        ("worker.js", "infra", "worker.js"),
-        ("wrangler.toml", "infra", "wrangler.toml"),
+        ("trivy/policy.rego", "security", "security-scan-policy"),
+        ("Dockerfile", "ops", "deploy-or-image-config"),
+        ("requirements.txt", "ops", "dependency-or-hook-config"),
     ),
 )
 def test_privileged_surface_parity_emits_stable_security_metadata(
     candidate_path: str,
     domain: str,
-    expected_reason_prefix: str,
+    expected_reason: str,
 ) -> None:
     """Privileged surfaces should deterministically emit stable security routing reasons."""
 
@@ -1595,11 +1418,11 @@ def test_privileged_surface_parity_emits_stable_security_metadata(
     assert "security-best-practices" in recommended_by_skill
     assert "pulseplate-guards" in recommended_by_skill
     assert (
-        f"privileged-surface:{expected_reason_prefix}(+4)"
+        f"privileged-surface:{expected_reason}(+4)"
         in recommended_by_skill["security-best-practices"]["reasons"]
     )
     assert (
-        f"privileged-surface:{expected_reason_prefix}(+4)"
+        f"privileged-surface:{expected_reason}(+4)"
         in recommended_by_skill["pulseplate-guards"]["reasons"]
     )
 
@@ -1608,13 +1431,12 @@ def test_privileged_surface_prefixes_stay_in_sync_with_policy_coverage() -> None
     """Policy-critical privileged surface prefixes should remain explicit and finite."""
 
     assert len(PRIVILEGED_SURFACE_PREFIXES) == len(set(PRIVILEGED_SURFACE_PREFIXES))
-    assert PRIVILEGED_SURFACE_PREFIXES == PRIVILEGED_REVIEW_PREFIXES
     assert set(PRIVILEGED_SURFACE_PREFIXES) == {
         ".agents/skills/",
-        ".github/workflows/",
         ".cursor/agents/",
         ".cursor/commands/",
         ".cursor/rules/",
+        ".github/workflows/",
         ".github/actions/",
         ".github/agents/",
         ".github/prompts/",
@@ -1629,6 +1451,8 @@ def test_privileged_surface_prefixes_stay_in_sync_with_policy_coverage() -> None
         "scripts/release/",
         "docs/orchestration/",
         "docs/review/",
+        "deploy/",
+        ".devcontainer/",
         "tests/guards/",
         "tools/agentguard/",
         "tools/codex_skills/",
@@ -1637,218 +1461,29 @@ def test_privileged_surface_prefixes_stay_in_sync_with_policy_coverage() -> None
     }
 
 
-def test_privileged_surface_patterns_stay_in_sync_with_policy_coverage() -> None:
-    """Policy-critical privileged surface patterns should remain explicit and finite."""
-
-    assert len(PRIVILEGED_SURFACE_PATTERNS) == len(set(PRIVILEGED_SURFACE_PATTERNS))
-    assert PRIVILEGED_SURFACE_PATTERNS == PRIVILEGED_REVIEW_PATTERNS
-    assert set(PRIVILEGED_SURFACE_PATTERNS) == {
-        "AGENTS.md",
-        "**/AGENTS.md",
-        "Dockerfile",
-        "Makefile",
-        "RUNBOOK_AGENT.md",
-        ".env.example",
-        ".bandit",
-        ".bandit.yaml",
-        ".coveragerc",
-        "codecov.yml",
-        "codecov.yaml",
-        ".coderabbit.yaml",
-        ".dockerignore",
-        ".gitmodules",
-        ".flake8",
-        ".markdownlint.json",
-        ".nvmrc",
-        ".python-version",
-        ".ruby-version",
-        ".secrets.baseline",
-        ".sourcery.yaml",
-        ".tool-versions",
-        ".trivyignore",
-        ".yamllint",
-        ".pre-commit-config.yaml",
-        ".pre-commit-config.yml",
-        ".vscode/extensions.json",
-        ".cursor/mcp.json.example",
-        ".kimi/mcp.json.example",
-        ".devcontainer/Dockerfile",
-        ".devcontainer/devcontainer.json",
-        ".devcontainer/docker-compose*.yml",
-        ".devcontainer/docker-compose*.yaml",
-        ".github/CODEOWNERS",
-        ".github/PULL_REQUEST_TEMPLATE/*.md",
-        ".github/actionlint.yml",
-        ".github/actionlint.yaml",
-        ".github/dependabot.yml",
-        ".github/dependabot.yaml",
-        ".github/pull_request_template.md",
-        "alembic.ini",
-        "docker-compose*.yml",
-        "docker-compose*.yaml",
-        "deploy/Caddyfile*",
-        "deploy/docker-compose.production*.yaml",
-        "deploy/docker-compose.staging.yaml",
-        "deploy/systemd/pulseplate-postgres-backup.*",
-        "docs/security/TOOLING_SURFACE_POLICY.md",
-        "docs/security/vscode_extensions_allowlist.txt",
-        "frontend/.dockerignore",
-        "frontend/Dockerfile.caddy-spa",
-        "frontend/package*.json",
-        "frontend/wrangler.toml",
-        "ios/Gemfile*",
-        "ios/Package.swift",
-        "ios/Package.resolved",
-        "ios/PulsePlate.xcodeproj/project.pbxproj",
-        "ios/PulsePlate.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved",
-        "ios/PulsePlate.xcodeproj/xcshareddata/xcschemes/PulsePlate.xcscheme",
-        "ios/PulsePlate.xcworkspace/xcshareddata/swiftpm/Package.swift",
-        "ios/PulsePlate/Info-Release.plist",
-        "ios/PulsePlate/PulsePlate.entitlements",
-        "ios/PulsePlate/PrivacyInfo.xcprivacy",
-        "ios/PulsePlate/*/InfoPlist.strings",
-        "mcp-config.json",
-        "mcp-setup.sh",
-        "mcp_pulseplate_server.py",
-        "opencode.json",
-        "package*.json",
-        "pyproject.toml",
-        "requirements*.txt",
-        "requirements*.in",
-        "constraints*.txt",
-        "scripts/deploy.sh",
-        "scripts/diagnose_web.sh",
-        "scripts/devcontainer/smoke.sh",
-        "scripts/hooks/repo_python.sh",
-        "scripts/install_codex_skills.sh",
-        "scripts/opencode/run_pulseplate_mcp.sh",
-        "scripts/ops/postgres_backup.sh",
-        "scripts/ops/postgres_restore.sh",
-        "scripts/redeploy_caddy.sh",
-        "scripts/run-backend-tests-pre-commit.sh",
-        "scripts/validate-ci-environment.sh",
-        "scripts/verify_codex_skills_install.py",
-        "scripts/ci_*.sh",
-        "scripts/deploy_*.sh",
-        "setup_custom_mcp.py",
-        "tests/security/_api_authz_contracts.py",
-        "tests/security/test_api_authz_contract_static.py",
-        "tests/test_install_codex_skills.py",
-        "tests/test_repo_policy_guards.py",
-        "update_api_key.py",
-        "worker.js",
-        "wrangler.toml",
-    }
-
-
-@pytest.mark.parametrize(
-    "candidate_path",
-    (
-        "requirements/dev.txt",
-        "requirements-notes/dev.txt",
-        "constraints/dev.txt",
-        "docker-compose/sandbox.yaml",
-        "docker-compose-notes/prod.yaml",
-        "deploy/nested/docker-compose.production.yaml",
-        "deploy/docker-compose.production/archive.yaml",
-        "deploy/nested/Caddyfile.production",
-        "deploy/metatron_lab/docker-compose.yaml",
-        "deploy/metatron-lab-notes/docker-compose.yaml",
-        "deploy/systemd/archive/pulseplate-postgres-backup.service.example",
-        "deploy/systemd/pulseplate-postgres-backup-notes.md",
-        ".cursor/agent_notes/security-auditor.md",
-        ".cursor/command/init.md",
-        ".cursor/rules-notes/cybersecurity-skills-index.md",
-        ".cursor/mcp.json",
-        ".devcontainer/nested/Dockerfile",
-        ".devcontainer/docker-compose/archive.yml",
-        ".github/config/CODEOWNERS",
-        ".github/PULL_REQUEST_TEMPLATE/nested/design.md",
-        ".github/pull_request_template/archive.md",
-        ".github/actionlint/rules.yaml",
-        ".github/agent/my-agent.md",
-        ".github/agents-notes/my-agent.md",
-        ".github/prompt/vibecoder.prompt.md",
-        ".github/prompts-notes/vibecoder.prompt.md",
-        ".github/script/parse-safety-report.py",
-        ".github/scripts-notes/parse-safety-report.py",
-        ".githooks-notes/pre-push",
-        "appstore/fitchef-notes/appstore_review_checklist.md",
-        "AGENTS.md.backup",
-        "docs/AGENTS.md.backup",
-        "docs/.env.example",
-        "docs/.flake8",
-        "docs/.markdownlint.json",
-        "docs/.vscode/extensions.json",
-        "docs/security/archive/TOOLING_SURFACE_POLICY.md",
-        "docs/security/archive/vscode_extensions_allowlist.txt",
-        "frontend/nested/Dockerfile.caddy-spa",
-        "frontend/nested/.dockerignore",
-        "frontend/packages/package-lock.json",
-        "frontend/.nvmrc",
-        "frontend/nested/wrangler.toml",
-        "ios/vendor/Gemfile.lock",
-        "ios/vendor/Package.resolved",
-        "ios/Archive/PulsePlate.xcodeproj/project.pbxproj",
-        "ios/PulsePlate.xcodeproj/xcshareddata/xcschemes/archive/PulsePlate.xcscheme",
-        "ios/PulsePlate.xcworkspace/xcshareddata/swiftpm/archive/Package.swift",
-        "ios/PulsePlate/Archive/PrivacyInfo.xcprivacy",
-        "ios/PulsePlate/Archive/PulsePlate.entitlements",
-        "ios/PulsePlate/en.lproj/archive/InfoPlist.strings",
-        "ios/PulsePlate/en.lproj/InfoPlist.strings.backup",
-        "packages/package-lock.json",
-        ".github/dependabot/nested.yaml",
-        "docs/pyproject.toml",
-        "docs/alembic.ini",
-        ".kimi/mcp.json",
-        ".kimi/mcp.json.example.backup",
-        "mcp-setup/archive.sh",
-        "docs/mcp_pulseplate_server.py",
-        "scripts/mcp-setup.sh",
-        "scripts/deploy/archive.sh",
-        "scripts/hooks/nested/repo_python.sh",
-        "scripts/devcontainer/archive/smoke.sh",
-        "scripts/ops/archive/postgres_backup.sh",
-        "scripts/install_codex_skills/archive.sh",
-        "scripts/opencode/archive/run_pulseplate_mcp.sh",
-        "scripts/run-backend-tests-pre-commit.d/runner.sh",
-        "scripts/validate-ci-environment/archive.sh",
-        "scripts/tools/verify_codex_skills_install.py",
-        "scripts/ci-tools/bandit.sh",
-        "scripts/deploy/production.sh",
-        "scripts/setup_custom_mcp.py",
-        "scripts/cicd_notes.sh",
-        "scripts/metatron_lab_notes/compose_guard.py",
-        "tests/guarded/test_nosec_policy_guard.py",
-        "tests/test_repo_policy_guard_notes.py",
-        "tests/security/_api_authz_contracts_notes.py",
-        "tests/security/contracts/_api_authz_contracts.py",
-        "tests/install/test_install_codex_skills.py",
-        "tools/codex_skillz/pulseplate-gates/SKILL.md",
-        "tools/agentguard-notes/scan_text.mjs",
-        "tools/cybersecurity_skillz/index.json",
-        "scripts/update_api_key.py",
-        "workers/worker.js",
-        "deploy/wrangler.toml",
-    ),
-)
-def test_privileged_surface_patterns_do_not_cross_path_boundaries(candidate_path: str) -> None:
-    """Root manifest globs must not privilege unrelated nested/lookalike paths."""
+@pytest.mark.parametrize("case", _privileged_surface_cases(), ids=lambda case: case["case_id"])
+def test_skill_router_consumes_shared_privileged_surface_matrix(
+    case: dict[str, object],
+) -> None:
+    """Skill routing must consume the reviewed privileged-surface class matrix."""
 
     decision = route_skills(
-        goal="Refresh a non-privileged docs path",
-        task_class="Documentation",
-        candidate_paths=[candidate_path],
-        domain="docs",
+        goal="Refresh guarded orchestration surface",
+        task_class="Governance",
+        candidate_paths=[str(case["path"])],
+        domain="orchestration",
     )
-
-    reasons = [
+    privileged_reasons = [
         reason
         for item in decision["recommended"]
         for reason in item["reasons"]
         if reason.startswith("privileged-surface:")
     ]
-    assert reasons == []
+
+    if case["privileged"]:
+        assert f"privileged-surface:{case['reason']}(+4)" in privileged_reasons
+    else:
+        assert privileged_reasons == []
 
 
 @pytest.mark.parametrize(
@@ -2009,6 +1644,80 @@ def test_skill_router_routes_review_oracle_and_learning_loop_skills() -> None:
         item["group_id"] == "orchestration.agent_learning_loop"
         for item in decision["explanation"]["semantic_groups"]
     )
+
+
+def test_skill_router_routes_learning_loop_for_repeated_role_premortem_failure() -> None:
+    """Repeated role or premortem failures should trigger the learning-loop helper."""
+
+    decision = route_skills(
+        goal=(
+            "Fix repeated role-agent failure where premortem became docs closeout "
+            "instead of diff-specific production-risk closure"
+        ),
+        task_class="Orchestration",
+        candidate_paths=[
+            "AGENTS.md",
+            "docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md",
+        ],
+        domain="orchestration",
+    )
+
+    recommended = {item["skill"] for item in decision["recommended"]}
+    assert "pulseplate-agent-learning-loop" in recommended
+    per_skill = {
+        item["skill"]: item
+        for item in decision["explanation"]["per_skill_evidence"]
+        if item["skill"] == "pulseplate-agent-learning-loop"
+    }
+    assert any(
+        "semantic-group:orchestration.agent_learning_loop" in reason
+        for reason in per_skill["pulseplate-agent-learning-loop"]["reasons"]
+    )
+    assert any(
+        item["group_id"] == "orchestration.agent_learning_loop"
+        for item in decision["explanation"]["semantic_groups"]
+    )
+
+
+def test_skill_router_routes_learning_loop_for_successful_iteration_pattern() -> None:
+    """Repeatable successful patterns should also trigger the learning-loop helper."""
+
+    decision = route_skills(
+        goal=(
+            "Promote a successful iteration where premortem and agent review "
+            "worked well for creative hypothesis routing"
+        ),
+        task_class="Orchestration",
+        candidate_paths=[
+            "docs/orchestration/AGENT_LEARNING_LOOP.md",
+            "docs/orchestration/GOVERNED_CREATIVE_CODE_EXECUTION_CONTRACT.md",
+        ],
+        domain="orchestration",
+    )
+
+    recommended = {item["skill"] for item in decision["recommended"]}
+    assert "pulseplate-agent-learning-loop" in recommended
+    assert any(
+        item["group_id"] == "orchestration.agent_learning_loop"
+        for item in decision["explanation"]["semantic_groups"]
+    )
+
+
+def test_learning_loop_semantic_group_and_skill_rule_keywords_stay_aligned() -> None:
+    """Learning-loop skill routing must not drift from its semantic trigger group."""
+
+    semantic_keywords = next(
+        group.keywords
+        for group in skill_router_module.SEMANTIC_LEXEME_GROUPS
+        if group.group_id == "orchestration.agent_learning_loop"
+    )
+    skill_keywords = next(
+        rule.keywords
+        for rule in skill_router_module.SKILL_RULES
+        if rule.skill == "pulseplate-agent-learning-loop"
+    )
+
+    assert skill_keywords == semantic_keywords
 
 
 def test_skill_router_does_not_route_review_oracles_from_generic_oracle_text() -> None:

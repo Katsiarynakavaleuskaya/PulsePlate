@@ -13,8 +13,7 @@ from typing import Any
 
 from scripts.orchestration.bootstrap_sync_policy import (
     DOCS_ONLY_ENVELOPE_MODE,
-    PRIVILEGED_REVIEW_PATTERNS,
-    PRIVILEGED_REVIEW_PREFIXES,
+    PRIVILEGED_REVIEW_PREFIXES as PRIVILEGED_SURFACE_PREFIXES,
     privileged_review_surface_matches,
     resolve_analysis_envelope_mode,
 )
@@ -130,9 +129,6 @@ REQUESTED_AGENT_COMPANION_SKILL_BUNDLES: dict[str, tuple[str, ...]] = {
     "security-auditor": ("cybersecurity-skills",),
 }
 
-PRIVILEGED_SURFACE_PREFIXES: tuple[str, ...] = PRIVILEGED_REVIEW_PREFIXES
-PRIVILEGED_SURFACE_PATTERNS: tuple[str, ...] = PRIVILEGED_REVIEW_PATTERNS
-
 PRIVILEGED_SURFACE_SKILL_BUNDLES: dict[str, int] = {
     "security-best-practices": 4,
     "pulseplate-guards": 4,
@@ -204,6 +200,33 @@ TIKTOK_SCRAPING_KEYWORDS: tuple[str, ...] = ("tiktok",)
 GOOGLE_MAPS_SCRAPING_KEYWORDS: tuple[str, ...] = ("google maps",)
 UNIVERSAL_SCRAPING_KEYWORDS: tuple[str, ...] = ("scrape any site", "entire internet")
 
+AGENT_LEARNING_LOOP_KEYWORDS: tuple[str, ...] = (
+    "agent learning loop",
+    "learning-loop",
+    "learning loop",
+    "durable lesson",
+    "recurring failure mode",
+    "repeated failure mode",
+    "role-agent failure",
+    "role agent failure",
+    "premortem failure",
+    "premortem miss",
+    "premortem docs closeout",
+    "docs closeout",
+    "review failure",
+    "review miss",
+    "successful iteration",
+    "successful iterations",
+    "successful pattern",
+    "winning pattern",
+    "effective pattern",
+    "repeatable success",
+    "worked well",
+    "learning metrics",
+    "proposal metrics",
+    "promote lesson",
+)
+
 
 @dataclass(frozen=True)
 class SemanticLexemeGroup:
@@ -267,13 +290,7 @@ SEMANTIC_LEXEME_GROUPS: tuple[SemanticLexemeGroup, ...] = (
             "Agent learning-loop work must stay proposal-only until promoted by "
             "reviewed repo diffs."
         ),
-        keywords=(
-            "agent learning loop",
-            "learning-loop",
-            "durable lesson",
-            "recurring failure mode",
-            "promote lesson",
-        ),
+        keywords=AGENT_LEARNING_LOOP_KEYWORDS,
         skill_boosts=(("pulseplate-agent-learning-loop", 4), ("docs-sync", 1)),
     ),
     SemanticLexemeGroup(
@@ -1131,13 +1148,7 @@ SKILL_RULES: tuple[SkillRule, ...] = (
         min_score=6,
         domain_weights={"orchestration": 2, "qa": 1},
         path_prefixes=("docs/orchestration/", "scripts/orchestration/", "tools/codex_skills/"),
-        keywords=(
-            "agent learning loop",
-            "learning-loop",
-            "durable lesson",
-            "recurring failure mode",
-            "promote lesson",
-        ),
+        keywords=AGENT_LEARNING_LOOP_KEYWORDS,
     ),
     SkillRule(
         skill="pulseplate-premortem-risk-review",

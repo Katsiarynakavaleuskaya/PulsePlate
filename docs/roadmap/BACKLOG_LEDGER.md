@@ -11026,9 +11026,10 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
       - Owner: orchestration.
       - Target PR: separate reviewed PR `feat(orchestration): auto-attach Experiment Runner oracle evidence to PR lanes`.
       - Reason: non-trivial PR lanes need automatic oracle-only Experiment Runner evidence and creative-context attachment so role agents can consume runner decisions and bounded hypotheses without granting GitHub App write authority.
-      - Scope: wire coordinator/task packets so non-trivial PR lanes can attach oracle-only evidence, expose sanitized decisions to role agents, and optionally consume the local creative-context packet emitted by this PR's `experiment_runner_pr_creative_context.py` CLI.
+      - Scope: wire coordinator/task packets so non-trivial PR lanes can attach oracle-only evidence, expose sanitized decisions to role agents, and optionally consume the local creative-context packet emitted by the `experiment_runner_pr_creative_context.py` CLI, including local operator/model-intake packets when present.
       - DoD: trigger rules, artifact reuse, failure behavior, co-author attribution, rate/quota boundaries, opt-out behavior, PR-body evidence requirements, workflow permission review, artifact retention bounds, and regression tests are landed; no PR/review/thread/merge writes, GitHub App settings mutation, token minting authority, provider call, product runtime call, or candidate patch generation is added.
-      - Links: PR #2060 establishes the private-pilot GitHub App capability gate consumed by this future automation.
+      - Deferred capability gate: GitHub App initiated `workflow_dispatch` and Actions write remain separate backlog work requiring explicit least-privilege permission review, operator opt-in, and a local-model/API-provider selection boundary; this PR-2 line stays local-machine only.
+      - Links: PR #2060 establishes the private-pilot GitHub App capability gate consumed by this future automation; PR #2063 establishes the deterministic local creative-context baseline consumed by the local active intake lane.
   - Minimum future telemetry fields (defined now, emitted no earlier than PR-1):
     - `packet_id`
     - `source_candidate_id`

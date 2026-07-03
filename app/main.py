@@ -88,8 +88,13 @@ from app.routers.restaurants import (
     RESTAURANT_MODERATION_ROUTE_SPECS,
     moderation_router as restaurant_moderation_router,
 )
+from app.routers.shoplist_day import SHOPLIST_DAY_ROUTE_SPECS, router as shoplist_day_router
 from app.routers.shoplist_export import router as shoplist_export_router
 from app.routers.shoplist_export_routes import SHOPLIST_ROUTE_SPECS
+from app.routers.shopping_list_pro import (
+    SHOPPING_LIST_PRO_ROUTE_SPECS,
+    router as shopping_list_pro_router,
+)
 from app.routers.test import (
     TEST_ROUTE_SPECS,
     _ensure_non_production as ensure_test_routes_non_production,
@@ -176,6 +181,14 @@ _PLAN_EXPORT_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = tuple(
 _SHOPLIST_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = tuple(
     (path, method.upper(), include_in_schema)
     for path, method, include_in_schema in SHOPLIST_ROUTE_SPECS
+)
+_SHOPLIST_DAY_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = tuple(
+    (path, method.upper(), include_in_schema)
+    for path, method, include_in_schema in SHOPLIST_DAY_ROUTE_SPECS
+)
+_SHOPPING_LIST_PRO_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = tuple(
+    (path, method.upper(), include_in_schema)
+    for path, method, include_in_schema in SHOPPING_LIST_PRO_ROUTE_SPECS
 )
 _RESTAURANT_MODERATION_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = tuple(
     (path, method.upper(), include_in_schema)
@@ -284,6 +297,21 @@ def _shoplist_export_route_members(
             required_dependencies=(api_key_dependency,),
         )
         for path, method, include_in_schema in _SHOPLIST_ROUTE_SPECS
+    )
+
+
+def _shopping_list_route_members() -> tuple[RouteMemberContract, ...]:
+    return tuple(
+        RouteMemberContract(
+            path=path,
+            method=method,
+            include_in_schema=include_in_schema,
+            required_dependencies=(require_pro_tier,),
+        )
+        for path, method, include_in_schema in (
+            *_SHOPPING_LIST_PRO_ROUTE_SPECS,
+            *_SHOPLIST_DAY_ROUTE_SPECS,
+        )
     )
 
 
@@ -860,6 +888,17 @@ def _include_shoplist_export_router_if_needed(target_app: FastAPI) -> None:
     )
 
 
+def _include_shopping_list_routers_if_needed(target_app: FastAPI) -> None:
+    """Register paid shopping-list routes as one protected static family."""
+
+    ensure_route_family_registered(
+        target_app,
+        family_name="Shopping list",
+        routers=(shopping_list_pro_router, shoplist_day_router),
+        members=_shopping_list_route_members(),
+    )
+
+
 def _include_nutrition_state_routers_if_needed(target_app: FastAPI) -> None:
     """Register nutrition/adherence state routes as one protected static family."""
 
@@ -1095,6 +1134,7 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
     _include_test_router_if_enabled(app)
     _include_plan_export_routers_if_needed(app)
     _include_shoplist_export_router_if_needed(app)
+    _include_shopping_list_routers_if_needed(app)
     _include_legacy_export_alias_router_if_needed(app)
     _include_restaurant_moderation_router_if_needed(app)
 

@@ -833,6 +833,119 @@ def test_legacy_growth_guard_rejects_nutrition_state_router_reintroduction(
     assert errors == expected
 
 
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        (
+            textwrap.dedent("""
+                from app.routers.shopping_list_pro import router as shopping_list_pro_router
+
+                app.include_router(shopping_list_pro_router)
+                """),
+            [
+                "legacy_app.py: unexpected legacy route growth: "
+                "registration:include_router:shopping_list_pro_router",
+                "legacy_app.py: unexpected app.routers import growth: "
+                "router_import:app.routers.shopping_list_pro:router -> "
+                "shopping_list_pro_router",
+            ],
+        ),
+        (
+            textwrap.dedent("""
+                from app.routers.shoplist_day import router as shoplist_day_router
+
+                app.include_router(shoplist_day_router)
+                """),
+            [
+                "legacy_app.py: unexpected legacy route growth: "
+                "registration:include_router:shoplist_day_router",
+                "legacy_app.py: unexpected app.routers import growth: "
+                "router_import:app.routers.shoplist_day:router -> shoplist_day_router",
+            ],
+        ),
+        (
+            textwrap.dedent("""
+                from app.routers.shopping_list_pro import router as canonical_shopping_router
+
+                app.include_router(canonical_shopping_router)
+                """),
+            [
+                "legacy_app.py: unexpected legacy route growth: "
+                "registration:include_router:canonical_shopping_router",
+                "legacy_app.py: unexpected app.routers import growth: "
+                "router_import:app.routers.shopping_list_pro:router -> "
+                "canonical_shopping_router",
+            ],
+        ),
+        (
+            textwrap.dedent("""
+                import app.routers.shoplist_day as shoplist_day_module
+
+                app.include_router(shoplist_day_module.router)
+                """),
+            [
+                "legacy_app.py: unexpected legacy route growth: "
+                "registration:include_router:shoplist_day_module.router",
+                "legacy_app.py: unexpected app.routers import growth: "
+                "router_import:import:app.routers.shoplist_day -> shoplist_day_module",
+            ],
+        ),
+        (
+            textwrap.dedent("""
+                import importlib
+
+                shopping_router = importlib.import_module("app.routers.shopping_list_pro").router
+                app.include_router(shopping_router)
+                """),
+            [
+                "legacy_app.py: unexpected legacy route growth: "
+                "registration:include_router:shopping_router",
+                "legacy_app.py: unexpected app.routers import growth: "
+                "router_import:dynamic:app.routers.shopping_list_pro -> shopping_router",
+            ],
+        ),
+        (
+            textwrap.dedent("""
+                import importlib
+
+                shopping_router, _ = (
+                    importlib.import_module("app.routers.shoplist_day").router,
+                    None,
+                )
+                app.include_router(shopping_router)
+                """),
+            [
+                "legacy_app.py: unexpected legacy route growth: "
+                "registration:include_router:shopping_router",
+                "legacy_app.py: unexpected app.routers import growth: "
+                "router_import:dynamic:app.routers.shoplist_day -> shopping_router",
+            ],
+        ),
+        (
+            textwrap.dedent("""
+                from importlib import import_module
+
+                if (shopping_router := import_module("app.routers.shoplist_day").router):
+                    app.include_router(shopping_router)
+                """),
+            [
+                "legacy_app.py: unexpected legacy route growth: "
+                "registration:include_router:shopping_router",
+                "legacy_app.py: unexpected app.routers import growth: "
+                "router_import:dynamic:app.routers.shoplist_day -> shopping_router",
+            ],
+        ),
+    ],
+)
+def test_legacy_growth_guard_rejects_shopping_list_router_reintroduction(
+    source: str,
+    expected: list[str],
+) -> None:
+    errors = legacy_guard.validate_legacy_growth(source)
+
+    assert errors == expected
+
+
 def test_legacy_growth_guard_rejects_module_qualified_bodyfat_router_registration() -> None:
     source = textwrap.dedent("""
         import app.routers.bodyfat as bodyfat_routes

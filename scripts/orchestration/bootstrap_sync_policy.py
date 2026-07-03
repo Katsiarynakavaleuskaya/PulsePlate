@@ -6,9 +6,9 @@ EN: Centralizes sync-policy constants and matcher rules for the bootstrap packet
 
 from __future__ import annotations
 
-import posixpath
 from collections.abc import Sequence
-from fnmatch import fnmatchcase
+from dataclasses import dataclass
+import re
 
 BACKLOG_SIGNAL_TERMS: tuple[str, ...] = (
     "backlog",
@@ -28,128 +28,256 @@ IMPLEMENTATION_PATH_PREFIXES: tuple[str, ...] = (
     "ios/",
 )
 
-PRIVILEGED_REVIEW_PREFIXES: tuple[str, ...] = (
-    ".agents/skills/",
-    ".cursor/agents/",
-    ".cursor/commands/",
-    ".cursor/rules/",
-    ".github/workflows/",
-    ".github/actions/",
-    ".github/agents/",
-    ".github/prompts/",
-    ".github/scripts/",
-    ".githooks/",
-    "appstore/fitchef/",
-    "deploy/metatron-lab/",
-    "ios/fastlane/",
-    "scripts/metatron_lab/",
-    "scripts/orchestration/",
-    "scripts/ci/",
-    "scripts/release/",
-    "docs/orchestration/",
-    "docs/review/",
-    "tests/guards/",
-    "tools/agentguard/",
-    "tools/codex_skills/",
-    "tools/cybersecurity_skills/",
-    "trivy/",
+
+@dataclass(frozen=True)
+class PrivilegedReviewSurface:
+    """Reviewed privileged-surface matcher row."""
+
+    surface_class: str
+    reason: str
+    prefixes: tuple[str, ...] = ()
+    exact_paths: tuple[str, ...] = ()
+    suffixes: tuple[str, ...] = ()
+    regexes: tuple[str, ...] = ()
+
+
+PRIVILEGED_REVIEW_SURFACES: tuple[PrivilegedReviewSurface, ...] = (
+    PrivilegedReviewSurface(
+        surface_class="repo_agent_contracts",
+        reason="agent-contract",
+        exact_paths=("AGENTS.md", "RUNBOOK_AGENT.md"),
+        suffixes=("/AGENTS.md",),
+    ),
+    PrivilegedReviewSurface(
+        surface_class="github_workflows",
+        reason=".github/workflows/",
+        prefixes=(".github/workflows/",),
+    ),
+    PrivilegedReviewSurface(
+        surface_class="github_actions",
+        reason=".github/actions/",
+        prefixes=(".github/actions/",),
+    ),
+    PrivilegedReviewSurface(
+        surface_class="github_agent_control",
+        reason=".github/agents/",
+        prefixes=(".github/agents/",),
+    ),
+    PrivilegedReviewSurface(
+        surface_class="github_prompt_control",
+        reason=".github/prompts/",
+        prefixes=(".github/prompts/",),
+    ),
+    PrivilegedReviewSurface(
+        surface_class="github_support_scripts",
+        reason=".github/scripts/",
+        prefixes=(".github/scripts/",),
+    ),
+    PrivilegedReviewSurface(
+        surface_class="github_codeowners",
+        reason="CODEOWNERS",
+        exact_paths=(".github/CODEOWNERS", "CODEOWNERS", "docs/CODEOWNERS"),
+    ),
+    PrivilegedReviewSurface(
+        surface_class="cursor_and_local_hook_control",
+        reason="local-agent-tooling-control",
+        prefixes=(
+            ".agents/skills/",
+            ".cursor/agents/",
+            ".cursor/commands/",
+            ".cursor/rules/",
+            ".githooks/",
+            "tests/guards/",
+            "tools/agentguard/",
+            "tools/codex_skills/",
+            "tools/cybersecurity_skills/",
+        ),
+        exact_paths=(
+            ".cursor/mcp.json.example",
+            ".github/pull_request_template.md",
+            ".kimi/mcp.json.example",
+            ".vscode/extensions.json",
+            "docs/security/TOOLING_SURFACE_POLICY.md",
+            "docs/security/vscode_extensions_allowlist.txt",
+            "mcp-config.json",
+            "mcp-setup.sh",
+            "mcp_pulseplate_server.py",
+            "opencode.json",
+            "setup_custom_mcp.py",
+            "tests/test_install_codex_skills.py",
+            "update_api_key.py",
+        ),
+        regexes=(r"\.github/PULL_REQUEST_TEMPLATE/[^/]+\.md",),
+    ),
+    PrivilegedReviewSurface(
+        surface_class="ios_fastlane",
+        reason="ios/fastlane/",
+        prefixes=("ios/fastlane/",),
+    ),
+    PrivilegedReviewSurface(
+        surface_class="orchestration_scripts",
+        reason="scripts/orchestration/",
+        prefixes=("scripts/orchestration/",),
+    ),
+    PrivilegedReviewSurface(
+        surface_class="merge_governance_scripts",
+        reason="scripts/ci/",
+        prefixes=("scripts/ci/",),
+    ),
+    PrivilegedReviewSurface(
+        surface_class="metatron_lab_scripts",
+        reason="scripts/metatron_lab/",
+        prefixes=("scripts/metatron_lab/",),
+    ),
+    PrivilegedReviewSurface(
+        surface_class="release_scripts",
+        reason="scripts/release/",
+        prefixes=("scripts/release/",),
+        exact_paths=(
+            "scripts/deploy.sh",
+            "scripts/diagnose_web.sh",
+            "scripts/devcontainer/smoke.sh",
+            "scripts/hooks/repo_python.sh",
+            "scripts/install_codex_skills.sh",
+            "scripts/opencode/run_pulseplate_mcp.sh",
+            "scripts/ops/postgres_backup.sh",
+            "scripts/ops/postgres_restore.sh",
+            "scripts/redeploy_caddy.sh",
+            "scripts/run-backend-tests-pre-commit.sh",
+            "scripts/validate-ci-environment.sh",
+            "scripts/verify_codex_skills_install.py",
+        ),
+        regexes=(r"scripts/(?:ci|deploy)_[A-Za-z0-9_.-]+\.sh",),
+    ),
+    PrivilegedReviewSurface(
+        surface_class="orchestration_governance_docs",
+        reason="docs/orchestration/",
+        prefixes=("docs/orchestration/",),
+    ),
+    PrivilegedReviewSurface(
+        surface_class="review_governance_docs",
+        reason="docs/review/",
+        prefixes=("docs/review/",),
+    ),
+    PrivilegedReviewSurface(
+        surface_class="deploy_and_image_config",
+        reason="deploy-or-image-config",
+        prefixes=("deploy/", ".devcontainer/", "appstore/fitchef/", "deploy/metatron-lab/"),
+        exact_paths=(
+            "Dockerfile",
+            ".dockerignore",
+            "docker-compose.yaml",
+            "docker-compose.yml",
+            "frontend/.dockerignore",
+            "frontend/Dockerfile.caddy-spa",
+            "frontend/wrangler.toml",
+            "worker.js",
+            "wrangler.toml",
+        ),
+        regexes=(
+            r"Dockerfile(?:\.[A-Za-z0-9_.-]+)?$",
+            r"docker-compose(?:\.[A-Za-z0-9_.-]+)?\.ya?ml$",
+        ),
+    ),
+    PrivilegedReviewSurface(
+        surface_class="security_scan_policy",
+        reason="security-scan-policy",
+        prefixes=("trivy/",),
+        exact_paths=(".trivyignore",),
+    ),
+    PrivilegedReviewSurface(
+        surface_class="dependency_and_hook_config",
+        reason="dependency-or-hook-config",
+        exact_paths=(
+            ".pre-commit-config.yaml",
+            ".pre-commit-config.yml",
+            ".github/dependabot.yaml",
+            ".github/dependabot.yml",
+            ".github/actionlint.yaml",
+            ".github/actionlint.yml",
+            ".github/pull_request_template.md",
+            ".bandit",
+            ".bandit.yaml",
+            ".coveragerc",
+            ".coderabbit.yaml",
+            ".env.example",
+            ".flake8",
+            ".gitmodules",
+            ".markdownlint.json",
+            ".nvmrc",
+            ".python-version",
+            ".ruby-version",
+            ".secrets.baseline",
+            ".sourcery.yaml",
+            ".tool-versions",
+            ".yamllint",
+            "Makefile",
+            "alembic.ini",
+            "codecov.yml",
+            "codecov.yaml",
+            "constraints.txt",
+            "constraints-dev.txt",
+            "frontend/package.json",
+            "frontend/package-lock.json",
+            "Gemfile",
+            "Gemfile.lock",
+            "ios/Gemfile",
+            "ios/Gemfile.lock",
+            "ios/Package.swift",
+            "ios/Package.resolved",
+            "ios/PulsePlate.xcodeproj/project.pbxproj",
+            "ios/PulsePlate.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved",
+            "ios/PulsePlate.xcodeproj/xcshareddata/swiftpm/Package.resolved",
+            "ios/PulsePlate.xcodeproj/xcshareddata/xcschemes/PulsePlate.xcscheme",
+            "ios/PulsePlate.xcworkspace/xcshareddata/swiftpm/Package.swift",
+            "ios/PulsePlate/Info-Release.plist",
+            "ios/PulsePlate/PulsePlate.entitlements",
+            "ios/PulsePlate/PrivacyInfo.xcprivacy",
+            "package.json",
+            "package-lock.json",
+            "Package.resolved",
+            "Package.swift",
+            "Pipfile",
+            "Pipfile.lock",
+            "pnpm-lock.yaml",
+            "poetry.lock",
+            "pyproject.toml",
+            "requirements.in",
+            "requirements.txt",
+            "requirements-dev.txt",
+            "scripts/business_collateral/package.json",
+            "tests/security/_api_authz_contracts.py",
+            "tests/security/test_api_authz_contract_static.py",
+            "tests/test_repo_policy_guards.py",
+            "skills-lock.json",
+            "uv.lock",
+            "yarn.lock",
+        ),
+        suffixes=(
+            "/.pre-commit-config.yaml",
+            "/.pre-commit-config.yml",
+            "/.github/dependabot.yaml",
+            "/.github/dependabot.yml",
+            "/constraints.txt",
+            "/Pipfile",
+            "/Pipfile.lock",
+            "/pnpm-lock.yaml",
+            "/poetry.lock",
+            "/pyproject.toml",
+            "/skills-lock.json",
+            "/uv.lock",
+            "/yarn.lock",
+        ),
+        regexes=(
+            r"(^|.*/)requirements[-A-Za-z0-9_]*\.(in|txt)$",
+            r"(^|.*/)constraints[-A-Za-z0-9_]*\.txt$",
+            r"ios/PulsePlate/[^/]+/InfoPlist\.strings",
+        ),
+    ),
 )
-PRIVILEGED_REVIEW_PATTERNS: tuple[str, ...] = (
-    "AGENTS.md",
-    "**/AGENTS.md",
-    "Dockerfile",
-    "Makefile",
-    "RUNBOOK_AGENT.md",
-    ".env.example",
-    ".bandit",
-    ".bandit.yaml",
-    ".coveragerc",
-    ".coderabbit.yaml",
-    ".dockerignore",
-    ".gitmodules",
-    ".flake8",
-    ".markdownlint.json",
-    ".nvmrc",
-    ".python-version",
-    ".ruby-version",
-    ".secrets.baseline",
-    ".sourcery.yaml",
-    ".tool-versions",
-    ".trivyignore",
-    ".yamllint",
-    ".pre-commit-config.yaml",
-    ".pre-commit-config.yml",
-    ".vscode/extensions.json",
-    ".cursor/mcp.json.example",
-    ".kimi/mcp.json.example",
-    ".devcontainer/Dockerfile",
-    ".devcontainer/devcontainer.json",
-    ".devcontainer/docker-compose*.yml",
-    ".devcontainer/docker-compose*.yaml",
-    ".github/CODEOWNERS",
-    ".github/PULL_REQUEST_TEMPLATE/*.md",
-    ".github/actionlint.yml",
-    ".github/actionlint.yaml",
-    ".github/dependabot.yml",
-    ".github/dependabot.yaml",
-    ".github/pull_request_template.md",
-    "alembic.ini",
-    "codecov.yml",
-    "codecov.yaml",
-    "docker-compose*.yml",
-    "docker-compose*.yaml",
-    "deploy/Caddyfile*",
-    "deploy/docker-compose.production*.yaml",
-    "deploy/docker-compose.staging.yaml",
-    "deploy/systemd/pulseplate-postgres-backup.*",
-    "docs/security/TOOLING_SURFACE_POLICY.md",
-    "docs/security/vscode_extensions_allowlist.txt",
-    "frontend/.dockerignore",
-    "frontend/Dockerfile.caddy-spa",
-    "frontend/package*.json",
-    "frontend/wrangler.toml",
-    "ios/Gemfile*",
-    "ios/Package.swift",
-    "ios/Package.resolved",
-    "ios/PulsePlate.xcodeproj/project.pbxproj",
-    "ios/PulsePlate.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved",
-    "ios/PulsePlate.xcodeproj/xcshareddata/xcschemes/PulsePlate.xcscheme",
-    "ios/PulsePlate.xcworkspace/xcshareddata/swiftpm/Package.swift",
-    "ios/PulsePlate/Info-Release.plist",
-    "ios/PulsePlate/PulsePlate.entitlements",
-    "ios/PulsePlate/PrivacyInfo.xcprivacy",
-    "ios/PulsePlate/*/InfoPlist.strings",
-    "mcp-config.json",
-    "mcp-setup.sh",
-    "mcp_pulseplate_server.py",
-    "opencode.json",
-    "package*.json",
-    "pyproject.toml",
-    "requirements*.txt",
-    "requirements*.in",
-    "constraints*.txt",
-    "scripts/deploy.sh",
-    "scripts/diagnose_web.sh",
-    "scripts/hooks/repo_python.sh",
-    "scripts/devcontainer/smoke.sh",
-    "scripts/install_codex_skills.sh",
-    "scripts/opencode/run_pulseplate_mcp.sh",
-    "scripts/ops/postgres_backup.sh",
-    "scripts/ops/postgres_restore.sh",
-    "scripts/redeploy_caddy.sh",
-    "scripts/run-backend-tests-pre-commit.sh",
-    "scripts/validate-ci-environment.sh",
-    "scripts/verify_codex_skills_install.py",
-    "scripts/ci_*.sh",
-    "scripts/deploy_*.sh",
-    "setup_custom_mcp.py",
-    "tests/security/_api_authz_contracts.py",
-    "tests/security/test_api_authz_contract_static.py",
-    "tests/test_install_codex_skills.py",
-    "tests/test_repo_policy_guards.py",
-    "update_api_key.py",
-    "worker.js",
-    "wrangler.toml",
+
+PRIVILEGED_REVIEW_PREFIXES: tuple[str, ...] = tuple(
+    prefix for surface in PRIVILEGED_REVIEW_SURFACES for prefix in surface.prefixes
 )
 
 AGENTS_CONTRACT_FILE = "AGENTS.md"
@@ -174,6 +302,17 @@ ANALYSIS_ENVELOPE_MODE = "analysis"
 DOCS_ONLY_ENVELOPE_MODE = "docs_only"
 
 
+def _normalize_review_path(path: str) -> str:
+    normalized = path.strip().replace("\\", "/")
+    while normalized.startswith("./"):
+        normalized = normalized[2:]
+    return normalized
+
+
+def _contains_parent_traversal(path: str) -> bool:
+    return any(part == ".." for part in path.split("/"))
+
+
 def matches_any_prefix(path: str, prefixes: tuple[str, ...]) -> bool:
     """Return True when a path matches a canonical prefix exactly or by subtree.
 
@@ -181,62 +320,37 @@ def matches_any_prefix(path: str, prefixes: tuple[str, ...]) -> bool:
     EN: A match is valid for both the root directory and any nested path.
     """
 
-    return any(path == prefix.rstrip("/") or path.startswith(prefix) for prefix in prefixes)
-
-
-def normalize_policy_path(path: str) -> str:
-    """Normalize a repo-relative policy path without resolving filesystem state."""
-
-    normalized = path.strip().replace("\\", "/")
-    normalized = posixpath.normpath(normalized)
-    if normalized == ".":
-        return ""
-    return normalized
-
-
-def matches_privileged_review_pattern(path: str, pattern: str) -> bool:
-    """Return True when ``path`` matches a privileged pattern at its intended depth."""
-
-    if pattern.startswith("**/"):
-        suffix = pattern.removeprefix("**/")
-        return path == suffix or path.endswith(f"/{suffix}")
-
-    path_parts = path.split("/")
-    pattern_parts = pattern.split("/")
-    if len(path_parts) != len(pattern_parts):
+    normalized = _normalize_review_path(path)
+    if _contains_parent_traversal(normalized):
         return False
-    return all(
-        fnmatchcase(path_part, pattern_part)
-        for path_part, pattern_part in zip(path_parts, pattern_parts, strict=True)
+    return any(
+        normalized == prefix.rstrip("/") or normalized.startswith(prefix) for prefix in prefixes
     )
 
 
-def privileged_review_surface_matches(candidate_paths: Sequence[str]) -> tuple[str, ...]:
-    """Return stable privileged-surface match labels for candidate paths.
+def _matches_privileged_surface(path: str, surface: PrivilegedReviewSurface) -> bool:
+    normalized = _normalize_review_path(path)
+    if not normalized or _contains_parent_traversal(normalized):
+        return False
+    if normalized in surface.exact_paths:
+        return True
+    if any(
+        normalized == prefix.rstrip("/") or normalized.startswith(prefix)
+        for prefix in surface.prefixes
+    ):
+        return True
+    if any(re.fullmatch(pattern, normalized) for pattern in surface.regexes):
+        return True
+    return any(normalized.endswith(suffix) for suffix in surface.suffixes)
 
-    RU: Возвращает канонические labels, которые используют bootstrap и skill router.
-    EN: Returns canonical labels shared by bootstrap and skill routing.
-    """
+
+def privileged_review_surface_matches(candidate_paths: Sequence[str]) -> tuple[str, ...]:
+    """Return stable privileged-surface reason labels matched by candidate paths."""
 
     matches: list[str] = []
-    seen: set[str] = set()
-    for raw_path in candidate_paths:
-        path = normalize_policy_path(raw_path)
-        if not path:
-            continue
-        label = ""
-        for prefix in PRIVILEGED_REVIEW_PREFIXES:
-            if matches_any_prefix(path, (prefix,)):
-                label = prefix
-                break
-        if not label:
-            for pattern in PRIVILEGED_REVIEW_PATTERNS:
-                if matches_privileged_review_pattern(path, pattern):
-                    label = pattern
-                    break
-        if label and label not in seen:
-            seen.add(label)
-            matches.append(label)
+    for surface in PRIVILEGED_REVIEW_SURFACES:
+        if any(_matches_privileged_surface(path, surface) for path in candidate_paths):
+            matches.append(surface.reason)
     return tuple(matches)
 
 

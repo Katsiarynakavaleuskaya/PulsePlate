@@ -509,6 +509,20 @@ For every non-trivial PR:
   Every finding must be fixed in code/docs/tests or dispositioned as
   `NOT-A-BUG` / `DEFERRED` with evidence or backlog proof before mapping or merge
   readiness.
+  Premortem is a creative future-state risk exercise and a production-risk
+  exercise, not a docs closeout ritual. It may forecast what the diff could do
+  to users, business outcomes, project development, security, and orchestration
+  governance, but every PR-scoped finding must still land on a concrete failure
+  mode introduced or exposed by the actual diff, the affected
+  repo/runtime/governance surface, and the closure surface. For code, runtime,
+  security, schema, workflow, orchestration, CI, or governance risks, `FIXED`
+  closure must include an executable or enforceable mitigation in the same PR
+  whenever feasible: code, schema, validator, workflow guard, deterministic
+  test, policy guard, or fail-closed behavior. Documentation-only closure is
+  valid only when the risk is itself documentation-only, or when the finding is
+  explicitly dispositioned `DEFERRED` with backlog proof or `NOT-A-BUG` with
+  contract evidence. Do not mark a premortem scenario fixed merely by recording
+  that the risk exists.
 - Run Experiment Runner in oracle-only governance reviewer mode after the first coherent diff
   and before PR open. Local artifact load/write failures are infrastructure
   blockers, not a valid `Not applicable` reason. If the result materially shapes
@@ -566,13 +580,19 @@ Operational procedure lives in `RUNBOOK_AGENT.md` and `docs/orchestration/COORDI
 **Agent docs consistency:** Agent docs MUST stay consistent: routing ⊆ inventory ⊆ capability. Run `python scripts/orchestration/check_agent_consistency.py` (must PASS before merge readiness).
 
 **Durable agent lessons:** When a PR exposes a repeatable role-agent failure mode,
-architecture lesson, or workflow insight that changes how future agents should act,
-update the smallest authoritative instruction surface in the same PR when in scope:
-the relevant `.cursor/agents/*.md` role instruction, nearest scoped `AGENTS.md`,
-root `AGENTS.md`, or `docs/ENGINEERING_LESSONS.md`. Do not store transient PR
-notes, local memory summaries, or evidence-only research as instructions. If the
-lesson is real but out of scope, add a tracked follow-up in `docs/roadmap/BACKLOG_LEDGER.md`
-instead of silently dropping it.
+premortem/review failure mode, architecture lesson, workflow insight, or
+successful iteration pattern that changes how future agents should act, trigger
+`pulseplate-agent-learning-loop` and update the smallest authoritative
+instruction surface in the same PR when the current scope is affected: the
+relevant `.cursor/agents/*.md` role instruction, nearest scoped `AGENTS.md`,
+root `AGENTS.md`, or an orchestration contract. Learning-loop output remains
+redacted and proposal-only until a reviewed repo diff promotes it, and each
+record must include bounded `learning_metrics` for process/user/business/project
+signals; it must not write product runtime, runtime telemetry, semantic cache,
+graph truth, fixed mapping, branch protection, or review-thread state. Do not
+store transient PR notes, local memory summaries, or evidence-only research as
+instructions. If the lesson is real but out of scope, add a tracked follow-up in
+`docs/roadmap/BACKLOG_LEDGER.md` instead of silently dropping it.
 
 **Templates:**
 - Task Analysis: `docs/orchestration/task_analysis.template.md`

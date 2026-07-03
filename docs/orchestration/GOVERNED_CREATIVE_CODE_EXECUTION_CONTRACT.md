@@ -27,9 +27,11 @@ authorize draft PRs, shared worktree mutation, existing branch modification,
 review-thread resolution, fixed-mapping edits, merge, release, product runtime
 AI, OpenAPI/client changes, public multi-tenant use, or Slack/GitHub authority
 expansion. The PR creative-context layer may read sanitized PR surface refs,
-generate bounded hypotheses, route them to agents, and prepare a human approval
-reservation; it does not authorize candidate patches, repository writes,
-workflow changes, provider calls, or PR/GitHub mutations.
+generate bounded hypotheses or ingest validated operator-supplied local model
+hypothesis JSON, route normalized hypotheses to agents, emit coordinator
+dispatch handoffs, and prepare a human approval reservation; it does not
+authorize candidate patches, repository writes, workflow changes, provider
+calls, model adapters, semantic-cache use, or PR/GitHub mutations.
 
 ---
 
@@ -43,7 +45,7 @@ workflow changes, provider calls, or PR/GitHub mutations.
 | `repository-write` | Writes to shared worktrees, creates branches, pushes, opens PRs, marks ready for review, resolves review threads, or merges. | Forbidden except the PR-3 promoter's narrowly validated new `experiment/*` branch push and non-draft PR creation. |
 | `promotion` | Promotes a candidate into canonical repo behavior through human review, PR governance, and merge gates. | PR-3 opens the review handoff only. Canonical behavior still requires normal PR review and merge gates. |
 | `private-pilot-lifecycle` | Reads sanitized lifecycle metadata and emits local next-action artifacts. | Allowed only through the private-pilot loop operator; no candidate generation or GitHub write authority. |
-| `pr-creative-context` | Expands eligible PR context into 3-5 hypotheses, cross-domain analogies, agent routing, and approval reservations. | Allowed only through local sanitized Experiment Runner creative-context artifacts; no patch generation, workflow mutation, or GitHub write authority. |
+| `pr-creative-context` | Expands eligible PR context into 3-5 hypotheses, validates operator-supplied local hypothesis JSON, assigns normalized hypothesis IDs, records cross-domain analogies, emits agent routing/coordinator dispatch, and prepares approval reservations. | Allowed only through local sanitized Experiment Runner creative-context artifacts; no repo-side provider/model call, patch generation, workflow mutation, semantic cache, or GitHub write authority. |
 
 PR-0 sets:
 
@@ -64,7 +66,24 @@ capability gating, and checklist planning without adding candidate-generation
 or repository-write authority. Product runtime, OpenAPI/client, semantic-cache,
 review-thread, merge, release, and Slack/GitHub authority flags remain closed.
 The PR creative-context layer adds bounded hypothesis/routing artifacts only;
-auto-workflow attachment remains a separate follow-up PR.
+active model/operator intake remains local and validated; auto-workflow
+attachment remains a separate follow-up PR.
+
+Premortem is part of this creative line, not a documentation closeout ritual.
+For Experiment Runner creative-context work, premortem should forecast plausible
+future failures from the perspective of users, business outcomes, project
+development, security, and orchestration governance. That forecast must still
+land on the actual diff: every PR-scoped finding needs a concrete affected
+surface and closure through code, schema, validator, workflow guard,
+deterministic test, policy guard, fail-closed behavior, or an explicit
+`NOT-A-BUG` / `DEFERRED` disposition. Learning-loop feedback over both
+recurring failure patterns and successful iteration patterns is proposal-only
+until a reviewed repo diff promotes it into the smallest authoritative surface.
+Every learning-loop record for this creative line must include bounded
+proposal-only metrics for user-impact clarity, business-risk clarity,
+project-development signal, repeat-failure reduction, and successful-pattern
+reuse; these metrics must not write runtime telemetry, semantic cache, graph
+truth, or product runtime truth.
 
 ---
 
@@ -128,8 +147,10 @@ The Experiment Runner PR creative-context artifacts are:
 - `docs/orchestration/contracts/EXPERIMENT_RUNNER_PR_CREATIVE_CONTEXT_CONTRACT.md`
 - `docs/orchestration/contracts/experiment_runner_pr_oracle_attachment.v1.schema.json`
 - `docs/orchestration/contracts/creative_protocol_context_map.v1.schema.json`
+- `docs/orchestration/contracts/creative_hypothesis_operator_model_intake.v1.schema.json`
 - `docs/orchestration/contracts/creative_hypothesis_packet.v1.schema.json`
 - `docs/orchestration/contracts/creative_hypothesis_agent_routing.v1.schema.json`
+- `docs/orchestration/contracts/creative_hypothesis_coordinator_dispatch.v1.schema.json`
 - `docs/orchestration/contracts/creative_hypothesis_agent_consumption_summary.v1.schema.json`
 - `docs/orchestration/contracts/creative_hypothesis_approval.v1.schema.json`
 - `scripts/orchestration/experiment_runner_pr_creative_context_contract.py`
@@ -137,6 +158,7 @@ The Experiment Runner PR creative-context artifacts are:
 - `artifacts/orchestration/experiments/creative_context/<context-id>/context_map.json`
 - `artifacts/orchestration/experiments/creative_context/<context-id>/hypothesis_packet.json`
 - `artifacts/orchestration/experiments/creative_context/<context-id>/agent_routing.json`
+- `artifacts/orchestration/experiments/creative_context/<context-id>/coordinator_dispatch.json`
 - `artifacts/orchestration/experiments/creative_context/<context-id>/oracle_attachment.json`
 - `artifacts/orchestration/experiments/creative_context/<context-id>/agent_consumption_summary.json`
 
@@ -290,7 +312,10 @@ rate/quota boundaries, opt-out behavior, and PR-body evidence requirements.
 The PR creative-context layer also does not automatically launch on GitHub
 Actions in v1. It provides the local sanitized artifact and contract surface
 that a later auto-attach PR may consume after workflow trigger, permission, and
-artifact-retention rules are reviewed.
+artifact-retention rules are reviewed. GitHub App initiated
+`workflow_dispatch` and Actions write remain deferred capability-gate work; the
+current model/hypothesis lane runs on the developer/operator's local machine and
+requires the operator to choose any local model/API tool outside repo authority.
 
 ---
 

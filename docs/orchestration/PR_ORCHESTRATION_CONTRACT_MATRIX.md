@@ -76,6 +76,24 @@ Phase 2 sections and required orchestration evidence:
 - Required premortem evidence for non-trivial PRs: `pulseplate-premortem-risk-review`
   must run against the actual diff before PR open, and every finding must be
   `FIXED`, `NOT-A-BUG`, or `DEFERRED` with evidence/backlog proof.
+  Premortem evidence is a creative future-state risk view and must be
+  diff-specific: each finding names the concrete failure mode, affected surface,
+  plausible user/business/project/security/governance impact, closure surface,
+  and proof. For code, runtime, schema, security, workflow, orchestration, CI,
+  or governance risks, `FIXED` proof must cite an enforceable mitigation in the
+  PR, such as code, schema, validator, workflow guard, deterministic test,
+  policy guard, or fail-closed behavior. A docs-only note is valid `FIXED`
+  proof only when the underlying risk is documentation-only. Otherwise use
+  `DEFERRED` with backlog proof or `NOT-A-BUG` with contract evidence.
+- Required learning-loop evidence when triggered: `pulseplate-agent-learning-loop`
+  is conditionally required when the operator asks for it or when the PR exposes
+  a repeated role-agent, premortem, review, workflow, architecture, or
+  successful-iteration pattern. Records must use
+  `agent_learning_record.v1`, distinguish `pattern_kind`, include bounded
+  `learning_metrics`, stay redacted and proposal-only, and require reviewed
+  repo-diff promotion before becoming canonical instructions. If the pattern
+  affects the current PR scope, close it with code/schema/test/guard/policy
+  changes, not a learning note alone.
 - Required bootstrap role-agent evidence: `task_bootstrap.py` packet creation
   does not execute roles. The packet/runbook-declared role order must be run in
   order before implementation or before the phase it governs; missing role
@@ -200,7 +218,8 @@ Canonical lane matrix:
 | Local       | `pre-commit run --all-files` | Hard gate | Must pass before push; hook modifications must be committed |
 | Local       | Narrow validation bundle | Hard gate | Agents must run `check_preflight`, `check_agent_consistency`, focused tests for the touched surface, and `make validate-changed`; full local `make verify` is not a default agent command |
 | Local / PR process | `task_bootstrap.py` + `role_dispatch_bridge.py` role-agent dispatch | Hard gate | Packet creation is not execution; every bootstrap/runbook assigned role and every required readonly/custom-role pass must run in declared order or carry an explicit coordinator disposition with evidence |
-| Local / PR process | `pulseplate-premortem-risk-review` | Hard gate | Every non-trivial PR must run premortem on the actual diff before PR open; findings require FIXED / NOT-A-BUG / DEFERRED evidence |
+| Local / PR process | `pulseplate-premortem-risk-review` | Hard gate | Every non-trivial PR must run premortem on the actual diff before PR open; findings are creative future-state risk forecasts for user/business/project/security/governance impact, but require FIXED / NOT-A-BUG / DEFERRED evidence; FIXED for code/runtime/schema/security/workflow/orchestration/CI/governance risks requires enforceable closure in the PR, not docs-only risk recording |
+| Local / PR process | `pulseplate-agent-learning-loop` | Conditional hard gate | Required when operator-triggered or when repeated failure/successful-iteration patterns appear; use redacted `agent_learning_record.v1` with `pattern_kind`, bounded `learning_metrics`, proposal-only authority, and reviewed repo-diff promotion before canonical instruction changes |
 | Local / PR process | Experiment Runner oracle evidence | Hard gate | Every non-trivial PR must create oracle-only evidence by default; artifact load/write failures are infrastructure blockers, and material contribution requires governed attribution |
 | Post-open review | `qa-engineer-agent -> bug-hunter -> security-auditor` plus Codex Security plus `pulseplate-pr-review` | Hard gate | Role passes, Codex Security diff scan / finding discovery, and `pulseplate-pr-review` must complete; any finding must be fixed or dispositioned before merge-readiness claims |
 | GitHub PR CI | Full/heavy verification signal | Hard gate | Current-head CI must be green for `lint`, required/current-head checks for the touched PR surface, relevant `test-main` matrix, `diff-coverage` ≥97%, applicable security/governance checks, and merge-readiness; this replaces default local full `make verify` on agent machines |

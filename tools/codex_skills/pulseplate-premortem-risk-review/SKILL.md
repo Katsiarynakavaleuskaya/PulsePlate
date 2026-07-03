@@ -79,8 +79,13 @@ authority. It does **not** mean findings can be ignored.
 Every premortem finding produced for a PR-scoped lane must be closed before the
 lane claims readiness:
 
-- **FIXED:** change code, docs, tests, scripts, or governance artifacts in the PR
-  and cite the evidence in the PR body or review artifact.
+- **FIXED:** change the PR surface that closes the failure mode and cite the
+  evidence in the PR body or review artifact. For code, runtime, security,
+  schema, workflow, orchestration, CI, or governance risks, proof must include
+  an executable or enforceable mitigation in the same PR whenever feasible:
+  code, schema, validator, workflow guard, deterministic test, policy guard, or
+  fail-closed behavior. Documentation-only FIXED proof is valid only when the
+  risk is documentation-only.
 - **NOT-A-BUG:** coordinator records why the finding does not apply, with repo
   evidence.
 - **DEFERRED:** coordinator records backlog tracking and the PR body names the
@@ -115,7 +120,11 @@ If any of the three are missing, ask one focused question. Do not ask a question
 
 ### 1. Set the premortem frame
 
-After gathering sufficient context, set the frame explicitly:
+After gathering sufficient context, set the frame explicitly. A PR premortem is
+not a PR-body/docs closeout ritual. It must forecast concrete future failures
+introduced or exposed by the actual diff, from user, business, project
+development, security, and orchestration-governance perspectives when those
+perspectives are relevant:
 
 > It is 6 months from now. This plan failed. We are looking backward to understand why.
 

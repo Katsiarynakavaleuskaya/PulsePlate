@@ -1,36 +1,35 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://pulseplate.local/contracts/creative_hypothesis_agent_routing.v1.schema.json",
-  "title": "CreativeHypothesisAgentRouting",
+  "$id": "https://pulseplate.local/contracts/creative_hypothesis_coordinator_dispatch.v1.schema.json",
+  "title": "CreativeHypothesisCoordinatorDispatch",
   "type": "object",
   "additionalProperties": false,
   "required": [
     "schema_version",
     "artifact_type",
     "policy_version",
-    "routing_id",
+    "dispatch_id",
     "idempotency_key",
     "source_hypothesis_packet_id",
     "source_hypothesis_packet_fingerprint",
-    "routing",
-    "agent_review_mode",
+    "dispatch",
     "authority",
     "sanitized"
   ],
   "properties": {
     "schema_version": { "const": "1.0" },
-    "artifact_type": { "const": "creative_hypothesis_agent_routing" },
-    "policy_version": { "const": "experiment-runner-pr-creative-context-v1" },
-    "routing_id": { "$ref": "#/$defs/safe_id" },
+    "artifact_type": { "const": "creative_hypothesis_coordinator_dispatch" },
+    "policy_version": { "const": "creative-hypothesis-coordinator-dispatch-v1" },
+    "dispatch_id": { "$ref": "#/$defs/safe_id" },
     "idempotency_key": { "$ref": "#/$defs/safe_id" },
     "source_hypothesis_packet_id": { "$ref": "#/$defs/safe_id" },
     "source_hypothesis_packet_fingerprint": { "$ref": "#/$defs/sha256" },
-    "routing": {
+    "dispatch": {
       "type": "array",
-      "items": { "$ref": "#/$defs/route" }
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/dispatch_entry" }
     },
-    "agent_review_mode": { "const": "critique_refine_only" },
-    "authority": { "$ref": "#/$defs/authority" },
+    "authority": { "$ref": "#/$defs/dispatch_authority" },
     "sanitized": { "const": true }
   },
   "$defs": {
@@ -45,20 +44,23 @@
       "type": "string",
       "pattern": "^[a-z][a-z0-9-]{1,63}$"
     },
-    "route": {
+    "dispatch_entry": {
       "type": "object",
       "additionalProperties": false,
       "required": [
         "hypothesis_id",
+        "task_packet_kind",
         "primary_agent",
         "review_agents",
         "cross_domain_agents",
         "missing_agent_capabilities",
-        "coordinator_decision_required",
-        "mutation_authority"
+        "task_mode",
+        "mutation_authority",
+        "coordinator_decision_required"
       ],
       "properties": {
         "hypothesis_id": { "$ref": "#/$defs/safe_id" },
+        "task_packet_kind": { "const": "TASK_PACKET_V1" },
         "primary_agent": { "$ref": "#/$defs/agent_slug" },
         "review_agents": {
           "type": "array",
@@ -75,11 +77,12 @@
           "uniqueItems": true,
           "items": { "$ref": "#/$defs/agent_slug" }
         },
-        "coordinator_decision_required": { "const": true },
-        "mutation_authority": { "const": false }
+        "task_mode": { "const": "critique_refine_only" },
+        "mutation_authority": { "const": false },
+        "coordinator_decision_required": { "const": true }
       }
     },
-    "authority": {
+    "dispatch_authority": {
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -89,28 +92,26 @@
         "change_openapi",
         "claim_merge_readiness",
         "create_branch",
+        "dispatch_to_coordinator",
         "edit_fixed_mapping",
-        "emit_local_artifacts",
+        "execute_agent_tasks",
         "execute_pr1_specification",
         "execute_pr2_patch_builder",
         "execute_pr3_promotion",
-        "generate_hypotheses",
         "generate_patch",
         "mark_pr_ready",
         "merge",
         "modify_github_app",
         "modify_slack",
         "modify_workflows",
+        "mutate_code",
         "open_draft_pr",
         "open_pr",
         "post_github_comment",
-        "prepare_human_approval_packet",
         "push",
-        "read_sanitized_context",
         "read_secrets",
         "release",
         "resolve_threads",
-        "route_to_agents",
         "use_semantic_cache",
         "workflow_dispatch",
         "write_branch"
@@ -122,28 +123,26 @@
         "change_openapi": { "const": false },
         "claim_merge_readiness": { "const": false },
         "create_branch": { "const": false },
+        "dispatch_to_coordinator": { "const": true },
         "edit_fixed_mapping": { "const": false },
-        "emit_local_artifacts": { "const": true },
+        "execute_agent_tasks": { "const": false },
         "execute_pr1_specification": { "const": false },
         "execute_pr2_patch_builder": { "const": false },
         "execute_pr3_promotion": { "const": false },
-        "generate_hypotheses": { "const": true },
         "generate_patch": { "const": false },
         "mark_pr_ready": { "const": false },
         "merge": { "const": false },
         "modify_github_app": { "const": false },
         "modify_slack": { "const": false },
         "modify_workflows": { "const": false },
+        "mutate_code": { "const": false },
         "open_draft_pr": { "const": false },
         "open_pr": { "const": false },
         "post_github_comment": { "const": false },
-        "prepare_human_approval_packet": { "const": true },
         "push": { "const": false },
-        "read_sanitized_context": { "const": true },
         "read_secrets": { "const": false },
         "release": { "const": false },
         "resolve_threads": { "const": false },
-        "route_to_agents": { "const": true },
         "use_semantic_cache": { "const": false },
         "workflow_dispatch": { "const": false },
         "write_branch": { "const": false }

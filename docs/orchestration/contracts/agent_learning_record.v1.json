@@ -5,12 +5,14 @@
   "required": [
     "lesson_id",
     "source",
+    "pattern_kind",
     "pattern",
     "severity",
     "affected_surfaces",
     "root_cause",
     "required_oracle",
     "promotion_target",
+    "learning_metrics",
     "dedupe_fingerprint",
     "redaction_status",
     "human_review_required"
@@ -18,6 +20,7 @@
   "properties": {
     "lesson_id": { "type": "string", "minLength": 1 },
     "source": { "type": "string", "minLength": 1 },
+    "pattern_kind": { "enum": ["failure", "successful_iteration"] },
     "pattern": { "type": "string", "minLength": 1 },
     "severity": { "enum": ["low", "medium", "high", "critical"] },
     "affected_surfaces": {
@@ -42,9 +45,125 @@
       "type": "string",
       "pattern": "^(?![A-Za-z][A-Za-z0-9+.-]*:)(?!/)(?![A-Za-z]:[\\\\/])(?!~(?:/|$))(?!(?:tmp|var|Users|Volumes|private)(?:/|$))(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
     },
+    "learning_metrics": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "primary_metric",
+        "secondary_metrics",
+        "measurement_window",
+        "authority_boundary",
+        "runtime_telemetry_allowed",
+        "product_runtime_truth",
+        "semantic_cache_used",
+        "graph_truth_updated"
+      ],
+      "properties": {
+        "schema_version": { "const": "agent_learning_metrics.v1" },
+        "primary_metric": {
+          "enum": [
+            "agent_iteration_quality",
+            "business_risk_clarity",
+            "premortem_code_closure_rate",
+            "project_development_signal",
+            "repeat_failure_reduction",
+            "review_actionable_escape_reduction",
+            "successful_pattern_reuse",
+            "user_impact_clarity"
+          ]
+        },
+        "secondary_metrics": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "agent_iteration_quality",
+              "business_risk_clarity",
+              "premortem_code_closure_rate",
+              "project_development_signal",
+              "repeat_failure_reduction",
+              "review_actionable_escape_reduction",
+              "successful_pattern_reuse",
+              "user_impact_clarity"
+            ]
+          },
+          "uniqueItems": true
+        },
+        "measurement_window": {
+          "enum": [
+            "current_pr",
+            "next_comparable_pr",
+            "next_two_comparable_prs",
+            "release_train"
+          ]
+        },
+        "authority_boundary": { "const": "proposal_only_non_runtime" },
+        "runtime_telemetry_allowed": { "const": false },
+        "product_runtime_truth": { "const": false },
+        "semantic_cache_used": { "const": false },
+        "graph_truth_updated": { "const": false }
+      },
+      "additionalProperties": false
+    },
     "dedupe_fingerprint": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
     "redaction_status": { "enum": ["clean", "redacted"] },
     "human_review_required": { "const": true }
   },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "pattern_kind": { "const": "failure" }
+        }
+      },
+      "then": {
+        "properties": {
+          "learning_metrics": {
+            "properties": {
+              "primary_metric": { "const": "repeat_failure_reduction" },
+              "secondary_metrics": {
+                "contains": {
+                  "enum": [
+                    "premortem_code_closure_rate",
+                    "review_actionable_escape_reduction"
+                  ]
+                },
+                "not": {
+                  "contains": { "const": "successful_pattern_reuse" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "pattern_kind": { "const": "successful_iteration" }
+        }
+      },
+      "then": {
+        "properties": {
+          "learning_metrics": {
+            "properties": {
+              "primary_metric": { "const": "successful_pattern_reuse" },
+              "secondary_metrics": {
+                "contains": { "const": "agent_iteration_quality" },
+                "not": {
+                  "contains": {
+                    "enum": [
+                      "premortem_code_closure_rate",
+                      "repeat_failure_reduction",
+                      "review_actionable_escape_reduction"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
   "additionalProperties": false
 }

@@ -200,10 +200,19 @@ Companion note:
 ### 3b. Review Oracles and Learning Loop Skills
 
 `pulseplate-review-pattern-oracles` and `pulseplate-agent-learning-loop` are
-repo-tracked, offline, deterministic helpers. They are advisory by design:
-they must not post GitHub comments, resolve threads, update fixed mapping,
-claim merge readiness, mutate product runtime, or become canonical learning
-without a reviewed repo diff.
+repo-tracked, offline, deterministic helpers. The learning loop is a
+conditional hard gate when the operator requests it or when repeated
+role-agent, premortem, review, workflow, architecture, or
+successful-iteration patterns appear. Both helpers are side-effect free by
+design: they must not post GitHub comments, resolve threads, update fixed
+mapping, claim merge readiness, mutate product runtime, update semantic cache
+or graph truth, or become canonical learning without a reviewed repo diff.
+Learning records must use `agent_learning_record.v1` and classify
+`pattern_kind` as `failure` or `successful_iteration`. They must also include
+bounded `learning_metrics` so future promotion can be evaluated through
+proposal-only process signals such as repeat-failure reduction, successful
+pattern reuse, premortem code-closure rate, user-impact clarity, business-risk
+clarity, and project-development signal.
 
 Machine-consumed JSON contracts:
 
@@ -261,19 +270,28 @@ The coordinator may use installed skills when they improve delivery and align wi
 
 The following touched paths must automatically boost security-oriented skills:
 
-- `.github/workflows/**` and `.github/actions/**`
-- `.cursor/agents/**`
+- `.github/workflows/**`
+- `.github/actions/**`
+- `.github/agents/**`, `.github/prompts/**`, `.github/scripts/**`, and `.githooks/**`
+- local agent/tooling control under `.agents/skills/**`, `.cursor/agents/**`,
+  `.cursor/commands/**`, `.cursor/rules/**`, and `tools/*skills/**`
 - `ios/fastlane/**`
 - `scripts/metatron_lab/**`, `scripts/orchestration/**`, `scripts/ci/**`, and `scripts/release/**`
 - merge-governance docs under `docs/orchestration/**` and `docs/review/**`
-- container, deploy, devcontainer, App Store release-pack, security-lab, backup-systemd, and security-scan policy under `Dockerfile`, `.dockerignore`, `.trivyignore`, `.devcontainer` Docker/Compose/devcontainer files, `appstore/fitchef/**`, deploy Caddy/Compose patterns, METATRON lab compose/guard files, backup systemd unit examples, `frontend/.dockerignore`, `frontend/Dockerfile.caddy-spa`, and `trivy/**`
-- dependency, quality-gate, coverage-governance, toolchain, local-hook, skill-source, Cursor/Kimi/OpenCode/MCP control-plane, VS Code tooling policy, edge-deploy, iOS release-control, AgentGuard scanner, migration config, env-template, and repo-governance control files matching root or scoped `AGENTS.md`, `RUNBOOK_AGENT.md`, `Makefile`, `.env.example`, `.bandit`, `.bandit.yaml`, `.coveragerc`, `.coderabbit.yaml`, `.cursor/mcp.json.example`, `.kimi/mcp.json.example`, `.vscode/extensions.json`, `.gitmodules`, `.flake8`, `.markdownlint.json`, `.nvmrc`, `.python-version`, `.ruby-version`, `.secrets.baseline`, `.sourcery.yaml`, `.tool-versions`, `.trivyignore`, `.yamllint`, `.pre-commit-config.yaml`, `.pre-commit-config.yml`, `alembic.ini`, `codecov.yml`, `codecov.yaml`, `.github/CODEOWNERS`, `.github/PULL_REQUEST_TEMPLATE/*.md`, `.github/actionlint.yml`, `.github/actionlint.yaml`, `.github/dependabot.yml`, `.github/dependabot.yaml`, `.github/pull_request_template.md`, `docs/security/TOOLING_SURFACE_POLICY.md`, `docs/security/vscode_extensions_allowlist.txt`, `frontend/wrangler.toml`, `mcp-config.json`, `mcp-setup.sh`, `mcp_pulseplate_server.py`, `opencode.json`, `pyproject.toml`, root/frontend `package*.json`, `ios/Gemfile*`, `ios/Package.swift`, `ios/Package.resolved`, Xcode project/scheme and SwiftPM manifests, `ios/PulsePlate/Info-Release.plist`, `ios/PulsePlate/PulsePlate.entitlements`, `ios/PulsePlate/PrivacyInfo.xcprivacy`, `ios/PulsePlate/*/InfoPlist.strings`, `requirements*.txt`, `requirements*.in`, `constraints*.txt`, `scripts/deploy.sh`, `scripts/diagnose_web.sh`, `scripts/devcontainer/smoke.sh`, `scripts/hooks/repo_python.sh`, `scripts/install_codex_skills.sh`, `scripts/opencode/run_pulseplate_mcp.sh`, `scripts/ops/postgres_backup.sh`, `scripts/ops/postgres_restore.sh`, `scripts/redeploy_caddy.sh`, `scripts/run-backend-tests-pre-commit.sh`, `scripts/validate-ci-environment.sh`, `scripts/verify_codex_skills_install.py`, `scripts/ci_*.sh`, `scripts/deploy_*.sh`, `setup_custom_mcp.py`, `tests/security/_api_authz_contracts.py`, `tests/security/test_api_authz_contract_static.py`, `tests/test_install_codex_skills.py`, `tests/test_repo_policy_guards.py`, `update_api_key.py`, `worker.js`, `wrangler.toml`, policy guard tests under `tests/guards/**`, repo-local hook scripts under `.githooks/**`, GitHub helper scripts under `.github/scripts/**`, GitHub Copilot agent/prompt surfaces under `.github/agents/**` and `.github/prompts/**`, skill sources under `.agents/skills/**`, `tools/agentguard/**`, `tools/codex_skills/**`, `tools/cybersecurity_skills/**`, and Cursor control-plane files under `.cursor/commands/**` and `.cursor/rules/**`
+- deploy/image config such as `Dockerfile`, `docker-compose*.yml`, and `deploy/**`
+- dependency and hook config such as `requirements*.txt`, `requirements*.in`, `pyproject.toml`,
+  lockfiles, and `.pre-commit-config.yaml`
+- security-scan policy such as `.trivyignore` and `trivy/**`
+- MCP/OpenCode/VS Code/Cursor/Kimi control files and policy guard tests covered
+  by `scripts/orchestration/bootstrap_sync_policy.py`
 
 Expected behavior:
 
 - add `security-best-practices` and/or `pulseplate-guards` when the task packet touches these paths;
-- keep `security-auditor` in the executable review path for the canonical bootstrap privileged-review matcher in `scripts/orchestration/bootstrap_sync_policy.py`;
-- any matched privileged surface must set `automation_flags.security_review_required = true` and keep the security reviewer executable in the native subagent bridge;
+- keep `security-auditor` in the executable review path for the canonical bootstrap
+  privileged-review surface matrix in `scripts/orchestration/bootstrap_sync_policy.py`;
+- any matched privileged surface must set `automation_flags.security_review_required = true`
+  and keep the security reviewer executable in the native subagent bridge;
 - security-auditor may reference `cybersecurity-skills` bundle (repo path: `tools/cybersecurity_skills/`; index: `tools/cybersecurity_skills/index.json`) for subdomain-specific procedures (API Security, DevSecOps, Web App Sec, Container Security).
 
 ---
