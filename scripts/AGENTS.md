@@ -50,6 +50,7 @@
   `creative_hypothesis_spec_bridge.py` CLI may only consume validated
   creative-context context maps, hypothesis packets, coordinator dispatch
   handoffs, and human approval packets; emit a validated
+  `creative_hypothesis_specification_bridge.json`,
   `CreativeCodeCandidatePacket`, deterministic `bridge_metrics.json`, and
   existing PR-1 `creative_code_spec_pipeline.prepare` artifacts; and validate
   those artifacts. It must not widen `CreativeCodeCandidatePacket.target_surface`

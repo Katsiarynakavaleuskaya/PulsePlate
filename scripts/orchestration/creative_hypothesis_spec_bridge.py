@@ -24,7 +24,6 @@ from scripts.orchestration.creative_code_contract import (
 )
 from scripts.orchestration.creative_hypothesis_spec_bridge_contract import (
     BLOCKED_STATUS,
-    BRIDGE_SUCCESS_STATUS,
     PREPARED_STATUS,
     PREPARE_FILENAMES,
     CreativeHypothesisSpecBridgeError,

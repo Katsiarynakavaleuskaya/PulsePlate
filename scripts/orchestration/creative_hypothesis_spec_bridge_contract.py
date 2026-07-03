@@ -9,7 +9,7 @@ generate patches, dispatch agents, finalize specifications, or claim readiness.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from pathlib import Path, PurePosixPath
+from pathlib import PurePosixPath
 import re
 from typing import Any, cast
 
@@ -629,7 +629,7 @@ def _candidate_targets_from_approval(
         try:
             normalized = validate_mutable_candidate_surface([target])
         except ValueError:
-            non_mutable_targets.append(target)
+            non_mutable_targets.append(PurePosixPath(target).as_posix())
             continue
         if any(_is_protected_candidate_target(path) for path in normalized):
             non_mutable_targets.extend(normalized)
@@ -1375,7 +1375,7 @@ def _normalize_repo_path(raw_path: Any, *, label: str, allow_artifact_ref: bool)
         raise CreativeHypothesisSpecBridgeError(f"{label} must not contain control characters.")
     if "\\" in value:
         raise CreativeHypothesisSpecBridgeError(f"{label} must use POSIX separators.")
-    if value.startswith(("/", "~")) or Path(value).is_absolute():
+    if value.startswith(("/", "~")) or PurePosixPath(value).is_absolute():
         raise CreativeHypothesisSpecBridgeError(f"{label} must be repo-relative.")
     if SCHEME_RE.match(value):
         raise CreativeHypothesisSpecBridgeError(f"{label} must not be a URL or scheme path.")
@@ -1390,7 +1390,12 @@ def _normalize_repo_path(raw_path: Any, *, label: str, allow_artifact_ref: bool)
     if normalized == "artifacts" or normalized.startswith("artifacts/"):
         if not allow_artifact_ref:
             raise CreativeHypothesisSpecBridgeError(f"{label} points to a local artifact path.")
-        if not normalized.startswith("artifacts/orchestration/creative_code/spec_bridge/"):
+        artifact_parts = PurePosixPath(normalized).parts
+        if (
+            len(artifact_parts) < 6
+            or artifact_parts[:4] != ("artifacts", "orchestration", "creative_code", "spec_bridge")
+            or not ID_RE.fullmatch(artifact_parts[4])
+        ):
             raise CreativeHypothesisSpecBridgeError(
                 f"{label} must reference a spec_bridge local artifact."
             )

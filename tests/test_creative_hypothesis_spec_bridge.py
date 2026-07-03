@@ -21,6 +21,7 @@ from scripts.orchestration.creative_hypothesis_spec_bridge_contract import (
     CreativeHypothesisSpecBridgeError,
     build_creative_hypothesis_spec_bridge_bundle,
     validate_bridge_metrics,
+    validate_creative_hypothesis_specification_bridge,
 )
 from scripts.orchestration.experiment_runner_pr_creative_context_contract import (
     COORDINATOR_DISPATCH_POLICY_VERSION,
@@ -114,10 +115,13 @@ def _chain(
     approved_targets: list[str] | None = None,
     decision: str = "approve_for_pr1_specification",
     next_step: str = "create_pr1_specification",
+    hypothesis_suffix: str = "",
 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]:
     context = _context()
     packet = build_creative_hypothesis_packet(context, hypothesis_count=3)
     hypothesis = dict(packet["hypotheses"][0])
+    if hypothesis_suffix:
+        hypothesis["hypothesis_id"] = f"{hypothesis['hypothesis_id']}-{hypothesis_suffix}"
     hypothesis["target_surfaces"] = sorted(
         [
             "docs/prompts/cv/program.md",
@@ -314,11 +318,32 @@ def test_metrics_sidecar_is_redacted_and_rejects_unsafe_claims() -> None:
     with pytest.raises(ValueError):
         validate_bridge_metrics(metrics)
 
+    metrics = deepcopy(_bundle()["metrics"])
+    metrics["counts"]["candidate_target_count"] = 101
+    with pytest.raises(ValueError):
+        validate_bridge_metrics(metrics)
+
+
+def test_bridge_validator_rejects_loose_spec_bridge_artifact_refs() -> None:
+    bridge = deepcopy(_bundle()["bridge"])
+    bridge["candidate_packet"][
+        "candidate_packet_ref"
+    ] = "artifacts/orchestration/creative_code/spec_bridge/-unsafe/candidate.json"
+    with pytest.raises(CreativeHypothesisSpecBridgeError, match="spec_bridge local artifact"):
+        validate_creative_hypothesis_specification_bridge(bridge)
+
+    bridge = deepcopy(_bundle()["bridge"])
+    bridge["spec_prepare"][
+        "run_dir_ref"
+    ] = "artifacts/orchestration/creative_code/spec_bridge/-unsafe/spec_prepare"
+    with pytest.raises(CreativeHypothesisSpecBridgeError, match="spec_bridge local artifact"):
+        validate_creative_hypothesis_specification_bridge(bridge)
+
 
 def test_cli_build_and_prepare_writes_four_prepare_artifacts(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    context, packet, dispatch, approval = _chain()
+    context, packet, dispatch, approval = _chain(hypothesis_suffix="happy")
     expected_bundle = build_creative_hypothesis_spec_bridge_bundle(
         context_map=context,
         hypothesis_packet=packet,
@@ -379,7 +404,7 @@ def test_cli_build_and_prepare_writes_four_prepare_artifacts(
 def test_prepare_specification_rejects_candidate_tampering(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    context, packet, dispatch, approval = _chain()
+    context, packet, dispatch, approval = _chain(hypothesis_suffix="tamper")
     expected_bundle = build_creative_hypothesis_spec_bridge_bundle(
         context_map=context,
         hypothesis_packet=packet,
@@ -450,7 +475,7 @@ def test_prepare_specification_rejects_candidate_tampering(
 def test_prepare_recomputes_stale_metrics_counts(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    context, packet, dispatch, approval = _chain()
+    context, packet, dispatch, approval = _chain(hypothesis_suffix="stale-metrics")
     input_dir, context_path, packet_path, dispatch_path, approval_path = (
         _write_creative_context_inputs(
             leaf="pytest-spec-bridge-stale-metrics",
@@ -531,7 +556,7 @@ def test_prepare_recomputes_stale_metrics_counts(
 def test_validate_rejects_candidate_and_metrics_mismatch(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    context, packet, dispatch, approval = _chain()
+    context, packet, dispatch, approval = _chain(hypothesis_suffix="validate-mismatch")
     input_dir, context_path, packet_path, dispatch_path, approval_path = (
         _write_creative_context_inputs(
             leaf="pytest-spec-bridge-validate",
@@ -659,7 +684,7 @@ def test_validate_and_prepare_reject_cross_bridge_refs(
     bridge_key: str,
     expected_error: str,
 ) -> None:
-    context, packet, dispatch, approval = _chain()
+    context, packet, dispatch, approval = _chain(hypothesis_suffix=f"cross-ref-{bridge_key}")
     input_dir, context_path, packet_path, dispatch_path, approval_path = (
         _write_creative_context_inputs(
             leaf=f"pytest-spec-bridge-cross-ref-{bridge_key}",
@@ -778,7 +803,7 @@ def test_cli_rejects_outside_repo_and_symlink_inputs(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    context, packet, dispatch, approval = _chain()
+    context, packet, dispatch, approval = _chain(hypothesis_suffix="input-guard")
     input_dir, _context_path, packet_path, dispatch_path, approval_path = (
         _write_creative_context_inputs(
             leaf="pytest-spec-bridge-input-guard",
@@ -838,7 +863,7 @@ def test_cli_rejects_outside_repo_and_symlink_inputs(
 def test_validate_rejects_symlinked_bridge_path(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    context, packet, dispatch, approval = _chain()
+    context, packet, dispatch, approval = _chain(hypothesis_suffix="bridge-link")
     bundle = build_creative_hypothesis_spec_bridge_bundle(
         context_map=context,
         hypothesis_packet=packet,
@@ -870,7 +895,7 @@ def test_validate_and_prepare_reject_default_metrics_symlink(
     capsys: pytest.CaptureFixture[str],
     tmp_path: Path,
 ) -> None:
-    context, packet, dispatch, approval = _chain()
+    context, packet, dispatch, approval = _chain(hypothesis_suffix="metrics-link")
     input_dir, context_path, packet_path, dispatch_path, approval_path = (
         _write_creative_context_inputs(
             leaf="pytest-spec-bridge-metrics-link",

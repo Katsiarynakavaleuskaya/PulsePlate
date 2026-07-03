@@ -11027,18 +11027,24 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - PR-6: run the first governed applied creative-code candidate through normal PR governance, starting from a local run-plan wrapper that validates the PR-5 launch packet, binds the target surface exactly to `docs/prompts/cv/program.md`, and then keeps the generated candidate mutation surface to that prompt/program document.
     - Private-pilot loop operator: collect sanitized PR/check/review state plus PR-4 / PR-5 / PR-6 artifact refs, consume an optional sanitized GitHub App read-only capability report, decide the next action, and optionally emit a checklist-only candidate plan; no PR-1 / PR-2 / PR-3 command is executed by the operator.
     - Approved creative-hypothesis specification bridge: build a validated `CreativeCodeCandidatePacket`, deterministic `bridge_metrics.json`, and existing PR-1 `prepare` artifacts from `CreativeHypothesisApproval(decision=approve_for_pr1_specification, next_step=create_pr1_specification)`; no agent execution, `finalize`, candidate patches, provider calls, workflow changes, repository writes, product runtime truth, semantic cache, graph truth, or mutable-surface widening.
-    - Follow-up bridge skeptic/finalize:
+    - Follow-up bridge finalize evidence attachment:
       - Priority: P1 automation leverage.
       - Owner: orchestration.
       - Target PR: separate reviewed PR after the approved-hypothesis bridge.
-      - Reason: bridge output intentionally leaves skeptic-review attachment and `finalize` outside this slice so agent review evidence can be attached under coordinator-owned governance.
-      - DoD: agent skeptic-review artifacts are attached to the PR-1 prepare output, `finalize` remains explicit and validated, and no patch, branch, PR, provider, runtime, or review-thread authority is added.
+      - Reason: bridge output emits pending `skeptic_reviews.json`; downstream reviewer evidence attachment and explicit `finalize` remain outside this slice under coordinator-owned governance.
+      - DoD: reviewer evidence is attached before explicit `finalize`, and no patch, branch, PR, provider, runtime, or review-thread authority is added.
     - Follow-up bridge metrics ingestion:
       - Priority: P1 learning-loop leverage.
       - Owner: orchestration.
       - Target PR: separate reviewed PR after the approved-hypothesis bridge.
       - Reason: bridge metrics are deterministic local sidecars but are not yet ingested into the existing telemetry / learning-loop rollup.
       - DoD: bridge metrics ingest into the existing advisory telemetry / learning-loop rollup with redaction, bounded fields, no runtime telemetry, no product truth, no semantic-cache use, and no graph truth.
+    - Follow-up bridge authority schema single-source:
+      - Priority: P2 maintainability.
+      - Owner: orchestration.
+      - Target PR: separate reviewed contract-maintenance PR after the approved-hypothesis bridge.
+      - Reason: `bridge_authority` remains intentionally closed in both JSON schemas and Python constants for this slice; deduplicating it needs a shared-fragment or generation contract without weakening closed-schema validation.
+      - DoD: the bridge authority key partition is generated from, or validated against, one canonical source while both JSON schemas remain closed and no bridge authority is widened.
     - Follow-up graph/multimodal lineage exploration:
       - Priority: P2 research leverage.
       - Owner: orchestration.
