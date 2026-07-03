@@ -1147,6 +1147,21 @@ def test_legacy_growth_guard_rejects_food_catalog_router_reintroduction(
                 "router_import:dynamic:<unresolved dynamic router import> -> recipes_router"
             ],
         ),
+        (
+            textwrap.dedent("""
+                import os
+                from importlib import import_module
+
+                module = import_module(os.getenv("LEGACY_ROUTER_MODULE"))
+                recipes_router.include_router(module.router)
+                app.include_router(recipes_router)
+                """),
+            [
+                "legacy_app.py: unexpected app.routers import growth: "
+                "router_import:dynamic:<unresolved dynamic router import> -> "
+                "recipes_router.include_router"
+            ],
+        ),
     ],
 )
 def test_legacy_growth_guard_rejects_computed_food_catalog_dynamic_import_alias_bypass(
@@ -1156,6 +1171,19 @@ def test_legacy_growth_guard_rejects_computed_food_catalog_dynamic_import_alias_
     errors = legacy_guard.validate_legacy_growth(source)
 
     assert errors == expected
+
+
+def test_legacy_growth_guard_allows_unregistered_dynamic_import_without_router_use() -> None:
+    source = textwrap.dedent("""
+        import os
+        from importlib import import_module
+
+        module = import_module(os.getenv("LEGACY_HELPER_MODULE"))
+        value = module.VALUE
+        app.include_router(recipes_router)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
 
 
 def test_legacy_growth_guard_rejects_module_qualified_bodyfat_router_registration() -> None:

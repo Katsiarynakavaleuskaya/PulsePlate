@@ -32,12 +32,18 @@ command.
 - Shared tree untouched: `true`
 - Contribution kind: `oracle_review`
 - Co-author required: `true`
+- Evidence commit: `e91828e2e607727ca7e85d133ea6ef77ad91d0f1`
+- Evidence commit trailer:
+  `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`
 
 The accepted fallback used the same oracle-only governance intent and an
 explicit nonzero network budget to avoid the local `unshare` blocker. It is
 review-required evidence and does not replace local gates, current-head CI,
 post-open role passes, Codex Security, `pulseplate-pr-review`, or
 merge-readiness checks.
+
+Any squash or landing commit that carries this oracle-shaped evidence must
+preserve the same co-author trailer.
 
 ## Oracle Commands
 
