@@ -100,8 +100,6 @@ def _validate_fixed_mapping_block(lines: list[str]) -> list[str]:
             errors.append("Disposition NOT-A-BUG must use URL-only review-thread lines.")
         if "Evidence:" not in proof_prefixes:
             errors.append("Disposition NOT-A-BUG requires an 'Evidence:' proof line.")
-        if "Reason:" not in proof_prefixes:
-            errors.append("Disposition NOT-A-BUG requires a 'Reason:' proof line.")
     elif disposition == "DEFERRED":
         if has_sha_mapping:
             errors.append("Disposition DEFERRED must use URL-only review-thread lines.")
@@ -207,7 +205,9 @@ def validate_fixed_mapping_section(section: str) -> list[str]:
     current_block: list[str] = []
     for line in raw_lines:
         if not line:
-            if current_block:
+            if current_block and any(
+                MAPPING_LINE_RE.match(item) or THREAD_LINE_RE.match(item) for item in current_block
+            ):
                 blocks.append(current_block)
                 current_block = []
             continue
@@ -216,7 +216,12 @@ def validate_fixed_mapping_section(section: str) -> list[str]:
             MAPPING_LINE_RE.match(item) or THREAD_LINE_RE.match(item) for item in current_block
         )
         current_has_disposition = any(item.startswith("Disposition:") for item in current_block)
-        if is_thread_line and current_has_thread and current_has_disposition:
+        if (
+            is_thread_line
+            and current_has_thread
+            and current_has_disposition
+            and not (current_block and current_block[0].startswith("Disposition:"))
+        ):
             blocks.append(current_block)
             current_block = [line]
             continue

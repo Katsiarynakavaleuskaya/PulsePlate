@@ -211,6 +211,15 @@ Reason: Existing behavior already matches the contract.
     assert errors == []
 
 
+def test_validate_fixed_mapping_section_accepts_not_a_bug_evidence_only() -> None:
+    section = """Disposition: NOT-A-BUG
+Evidence: Existing artifact has evidence-only proof for non-actionable bot output.
+- https://github.com/org/repo/pull/1000#discussion_r1
+"""
+    errors = artifact.validate_fixed_mapping_section(section)
+    assert errors == []
+
+
 def test_validate_fixed_mapping_section_accepts_deferred_backlog_line() -> None:
     section = """Disposition: DEFERRED
 Backlog: docs/roadmap/BACKLOG_LEDGER.md#review-thread-follow-up
@@ -258,6 +267,17 @@ Evidence: tests/test_review_mapping_artifact.py
 Disposition: FIXED
 Commit: abc1234
 Evidence: tests/test_review_mapping_artifact.py
+"""
+    errors = artifact.validate_fixed_mapping_section(section)
+    assert errors == []
+
+
+def test_validate_fixed_mapping_section_accepts_disposition_first_multi_url_block() -> None:
+    section = """Disposition: FIXED
+Commit: abc1234
+Evidence: tests/test_review_mapping_artifact.py
+- https://github.com/org/repo/pull/1000#discussion_r1 -> abc1234
+- https://github.com/org/repo/pull/1000#discussion_r2 -> abc1234
 """
     errors = artifact.validate_fixed_mapping_section(section)
     assert errors == []
