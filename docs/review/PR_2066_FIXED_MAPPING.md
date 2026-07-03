@@ -67,13 +67,11 @@ Evidence: See `Review Comment Dispositions` below.
 Disposition: NOT-A-BUG
 Evidence: The implementation commit contains the required Experiment Runner trailer.
 Reason: The comment was based on stale commit interpretation; the current branch history includes the required trailer on the material implementation commit, while later mapping-only commits do not require Experiment Runner attribution.
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2066#discussion_r3516357104
 
 Disposition: NOT-A-BUG
 Evidence: Existing route-family bootstrap tests exercise private `app.main` registration helpers directly, and legacy growth guard tests assert exact diagnostic strings as guard contract output.
 Reason: Exposing a public shopping-list registration helper would widen the API surface for a canonical-bootstrap-only seam, and loosening exact legacy-guard diagnostic assertions would weaken the re-growth guard contract rather than making this PR safer.
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2066#pullrequestreview-4621363293
 
 ## Implementation Evidence
