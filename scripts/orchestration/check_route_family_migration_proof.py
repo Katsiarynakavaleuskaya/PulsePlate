@@ -94,11 +94,14 @@ def validate_route_family_migration_proof(payload: dict[str, Any]) -> list[str]:
         if not isinstance(evidence_refs, list) or not evidence_refs:
             errors.append(f"{section_name}.evidence_refs must be a non-empty array")
             continue
-        if len(evidence_refs) != len(set(evidence_refs)):
-            errors.append(f"{section_name}.evidence_refs must not contain duplicates")
+        string_refs: list[str] = []
         for index, ref in enumerate(evidence_refs):
             if not isinstance(ref, str) or not _is_repo_relative_ref(ref):
                 errors.append(f"{section_name}.evidence_refs[{index}] must be a repo-relative ref")
+                continue
+            string_refs.append(ref)
+        if len(string_refs) != len(set(string_refs)):
+            errors.append(f"{section_name}.evidence_refs must not contain duplicates")
 
     return errors
 

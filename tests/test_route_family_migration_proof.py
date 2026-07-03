@@ -116,6 +116,17 @@ def test_route_family_migration_proof_rejects_duplicate_evidence_refs() -> None:
     assert "auth_proof.evidence_refs must not contain duplicates" in errors
 
 
+def test_route_family_migration_proof_reports_non_string_evidence_refs() -> None:
+    payload = _valid_proof()
+    payload["auth_proof"] = deepcopy(payload["auth_proof"])
+    payload["auth_proof"]["evidence_refs"] = [
+        {"path": "tests/test_route_family_migration_proof.py"}
+    ]
+
+    errors = validate_route_family_migration_proof(payload)
+    assert "auth_proof.evidence_refs[0] must be a repo-relative ref" in errors
+
+
 def test_route_family_migration_proof_rejects_local_evidence_refs() -> None:
     payload = _valid_proof()
     payload["openapi_proof"] = deepcopy(payload["openapi_proof"])

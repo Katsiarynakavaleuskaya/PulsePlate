@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+import re
 
 BACKLOG_SIGNAL_TERMS: tuple[str, ...] = (
     "backlog",
@@ -37,6 +38,7 @@ class PrivilegedReviewSurface:
     prefixes: tuple[str, ...] = ()
     exact_paths: tuple[str, ...] = ()
     suffixes: tuple[str, ...] = ()
+    regexes: tuple[str, ...] = ()
 
 
 PRIVILEGED_REVIEW_SURFACES: tuple[PrivilegedReviewSurface, ...] = (
@@ -96,6 +98,7 @@ PRIVILEGED_REVIEW_SURFACES: tuple[PrivilegedReviewSurface, ...] = (
             "requirements-dev.txt",
         ),
         suffixes=("/package-lock.json", "/pnpm-lock.yaml", "/requirements.txt"),
+        regexes=(r"^requirements[-A-Za-z0-9_]*\.txt$",),
     ),
 )
 
@@ -155,6 +158,8 @@ def _matches_privileged_surface(path: str, surface: PrivilegedReviewSurface) -> 
         normalized == prefix.rstrip("/") or normalized.startswith(prefix)
         for prefix in surface.prefixes
     ):
+        return True
+    if any(re.fullmatch(pattern, normalized) for pattern in surface.regexes):
         return True
     return any(normalized.endswith(suffix) for suffix in surface.suffixes)
 

@@ -68,6 +68,24 @@
       "reason": "dependency-or-hook-config"
     },
     {
+      "case_id": "requirements_ci_lite",
+      "path": "requirements-ci-lite.txt",
+      "privileged": true,
+      "reason": "dependency-or-hook-config"
+    },
+    {
+      "case_id": "requirements_lock",
+      "path": "requirements-lock.txt",
+      "privileged": true,
+      "reason": "dependency-or-hook-config"
+    },
+    {
+      "case_id": "requirements_test",
+      "path": "requirements-test.txt",
+      "privileged": true,
+      "reason": "dependency-or-hook-config"
+    },
+    {
       "case_id": "root_readme",
       "path": "README.md",
       "privileged": false
