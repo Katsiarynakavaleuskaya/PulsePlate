@@ -189,13 +189,14 @@ def validate_fixed_mapping_section(section: str) -> list[str]:
         errors.append("Missing '## Fixed in Commit Mapping' section.")
         return errors
 
-    lines = [ln.strip() for ln in section.splitlines() if ln.strip()]
-    if not lines:
+    raw_lines = [ln.strip() for ln in section.splitlines()]
+    non_empty_lines = [line for line in raw_lines if line]
+    if not non_empty_lines:
         errors.append("'## Fixed in Commit Mapping' section is empty.")
         return errors
 
-    if NO_ACTIONABLE_LINE in lines:
-        if len(lines) > 1:
+    if NO_ACTIONABLE_LINE in non_empty_lines:
+        if len(non_empty_lines) > 1:
             errors.append(
                 "Invalid mixed mode: 'No actionable review comments' "
                 "cannot appear together with SHA mappings."
@@ -204,8 +205,15 @@ def validate_fixed_mapping_section(section: str) -> list[str]:
 
     blocks: list[list[str]] = []
     current_block: list[str] = []
-    for line in lines:
-        if line.startswith("Disposition:"):
+    for line in raw_lines:
+        if not line:
+            if current_block:
+                blocks.append(current_block)
+                current_block = []
+            continue
+        if line.startswith("Disposition:") and any(
+            item.startswith("Disposition:") for item in current_block
+        ):
             if current_block:
                 blocks.append(current_block)
             current_block = [line]

@@ -5,9 +5,11 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import PurePosixPath
+import re
 from typing import Any
 
 SCHEMA_VERSION = "route_family_migration_proof.v1"
+ROUTE_FAMILY_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$")
 REQUIRED_TOP_LEVEL = (
     "schema_version",
     "route_family",
@@ -54,8 +56,8 @@ def validate_route_family_migration_proof(payload: dict[str, Any]) -> list[str]:
     if payload["schema_version"] != SCHEMA_VERSION:
         errors.append(f"schema_version must be {SCHEMA_VERSION}")
     route_family = payload["route_family"]
-    if not isinstance(route_family, str) or not route_family.strip():
-        errors.append("route_family must be a non-empty string")
+    if not isinstance(route_family, str) or not ROUTE_FAMILY_RE.fullmatch(route_family):
+        errors.append("route_family must match ^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$")
     if payload["runtime_mutation_allowed"] is not False:
         errors.append("runtime_mutation_allowed must be false")
 
@@ -74,12 +76,20 @@ def validate_route_family_migration_proof(payload: dict[str, Any]) -> list[str]:
             continue
         if section["checked"] is not True:
             errors.append(f"{section_name}.checked must be true")
-        if not isinstance(section["summary"], str) or not section["summary"].strip():
-            errors.append(f"{section_name}.summary must be a non-empty string")
+        if (
+            not isinstance(section["summary"], str)
+            or not section["summary"].strip()
+            or len(section["summary"]) > 360
+        ):
+            errors.append(
+                f"{section_name}.summary must be a non-empty string of 360 chars or fewer"
+            )
         evidence_refs = section["evidence_refs"]
         if not isinstance(evidence_refs, list) or not evidence_refs:
             errors.append(f"{section_name}.evidence_refs must be a non-empty array")
             continue
+        if len(evidence_refs) != len(set(evidence_refs)):
+            errors.append(f"{section_name}.evidence_refs must not contain duplicates")
         for index, ref in enumerate(evidence_refs):
             if not isinstance(ref, str) or not _is_repo_relative_ref(ref):
                 errors.append(f"{section_name}.evidence_refs[{index}] must be a repo-relative ref")
