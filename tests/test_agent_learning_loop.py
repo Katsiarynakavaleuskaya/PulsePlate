@@ -13,6 +13,7 @@ from scripts.orchestration.agent_learning_loop import (
     build_agent_learning_record,
     build_learning_loop_proposal,
     redact_learning_text,
+    validate_agent_learning_record,
 )
 from scripts.orchestration.agent_lesson_extractor import extract_agent_lesson_record
 from scripts.orchestration.agent_lesson_promoter import _load_record, promote_agent_lesson_record
@@ -70,6 +71,7 @@ def test_learning_loop_redacts_raw_model_artifact_markers() -> None:
     assert redact_learning_text("raw_prompt: please mutate workflow") == "<redacted>"
     assert redact_learning_text("raw prompt: please mutate workflow") == "<redacted>"
     assert redact_learning_text("raw response: payload") == "<redacted>"
+    assert redact_learning_text("raw model payload: full response") == "<redacted>"
     assert redact_learning_text("raw patch: payload") == "<redacted>"
     assert redact_learning_text("raw_context: payload") == "<redacted>"
     assert redact_learning_text("raw-review: payload") == "<redacted>"
@@ -225,6 +227,75 @@ def test_agent_lesson_extractor_rejects_invalid_schema_values() -> None:
             },
         )
 
+    with pytest.raises(ValueError, match="learning_metrics.primary_metric must be a string"):
+        build_agent_learning_record(
+            source="review",
+            pattern="schema validator drift",
+            severity="high",
+            affected_surfaces=["scripts/orchestration"],
+            root_cause="stale schema",
+            required_oracle="schema_validator_parity",
+            promotion_target="docs/orchestration/AGENT_LEARNING_LOOP.md",
+            learning_metrics={
+                "schema_version": "agent_learning_metrics.v1",
+                "primary_metric": 123,
+                "secondary_metrics": ["premortem_code_closure_rate"],
+                "measurement_window": "next_comparable_pr",
+                "authority_boundary": "proposal_only_non_runtime",
+                "runtime_telemetry_allowed": False,
+                "product_runtime_truth": False,
+                "semantic_cache_used": False,
+                "graph_truth_updated": False,
+            },
+        )
+
+    with pytest.raises(ValueError, match="secondary_metrics must not duplicate primary_metric"):
+        build_agent_learning_record(
+            source="review",
+            pattern="schema validator drift",
+            severity="high",
+            affected_surfaces=["scripts/orchestration"],
+            root_cause="stale schema",
+            required_oracle="schema_validator_parity",
+            promotion_target="docs/orchestration/AGENT_LEARNING_LOOP.md",
+            learning_metrics={
+                "schema_version": "agent_learning_metrics.v1",
+                "primary_metric": "repeat_failure_reduction",
+                "secondary_metrics": [
+                    "repeat_failure_reduction",
+                    "premortem_code_closure_rate",
+                ],
+                "measurement_window": "next_comparable_pr",
+                "authority_boundary": "proposal_only_non_runtime",
+                "runtime_telemetry_allowed": False,
+                "product_runtime_truth": False,
+                "semantic_cache_used": False,
+                "graph_truth_updated": False,
+            },
+        )
+
+    with pytest.raises(ValueError, match="learning_metrics.measurement_window must be a string"):
+        build_agent_learning_record(
+            source="review",
+            pattern="schema validator drift",
+            severity="high",
+            affected_surfaces=["scripts/orchestration"],
+            root_cause="stale schema",
+            required_oracle="schema_validator_parity",
+            promotion_target="docs/orchestration/AGENT_LEARNING_LOOP.md",
+            learning_metrics={
+                "schema_version": "agent_learning_metrics.v1",
+                "primary_metric": "repeat_failure_reduction",
+                "secondary_metrics": ["premortem_code_closure_rate"],
+                "measurement_window": 123,
+                "authority_boundary": "proposal_only_non_runtime",
+                "runtime_telemetry_allowed": False,
+                "product_runtime_truth": False,
+                "semantic_cache_used": False,
+                "graph_truth_updated": False,
+            },
+        )
+
     with pytest.raises(
         ValueError,
         match="primary_metric must be successful_pattern_reuse for successful_iteration",
@@ -357,6 +428,19 @@ def test_agent_lesson_extractor_rejects_invalid_schema_values() -> None:
                 "graph_truth_updated": False,
             },
         )
+
+    record_with_null_metrics = build_agent_learning_record(
+        source="review",
+        pattern="schema validator drift",
+        severity="high",
+        affected_surfaces=["scripts/orchestration"],
+        root_cause="stale schema",
+        required_oracle="schema_validator_parity",
+        promotion_target="docs/orchestration/AGENT_LEARNING_LOOP.md",
+    )
+    record_with_null_metrics["learning_metrics"] = None
+    with pytest.raises(ValueError, match="learning_metrics must be a JSON object"):
+        validate_agent_learning_record(record_with_null_metrics)
 
     with pytest.raises(ValueError, match="promotion_target must be a repo-relative path"):
         extract_agent_lesson_record(

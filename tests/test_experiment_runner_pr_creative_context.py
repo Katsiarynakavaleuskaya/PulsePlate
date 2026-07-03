@@ -382,9 +382,20 @@ def test_model_intake_overwrites_supplied_identity_with_repo_identity() -> None:
         intake,
         context_map=context,
     )
+    body_without_identity = {
+        key: value
+        for key, value in validated_intake.items()
+        if key not in {"intake_id", "idempotency_key"}
+    }
+    expected_intake_id, expected_idempotency_key = _artifact_identity(
+        body_without_identity,
+        artifact_type=OPERATOR_MODEL_INTAKE_TYPE,
+        upstream_ids=(str(context["context_id"]),),
+        policy_version=OPERATOR_MODEL_INTAKE_POLICY_VERSION,
+    )
 
-    assert validated_intake["intake_id"] != "operator-supplied-id"
-    assert validated_intake["idempotency_key"] != "operator-supplied-key"
+    assert validated_intake["intake_id"] == expected_intake_id
+    assert validated_intake["idempotency_key"] == expected_idempotency_key
 
 
 def test_model_intake_derives_hypothesis_count_when_operator_omits_it() -> None:
@@ -506,6 +517,10 @@ def test_model_intake_rejects_pr2_patch_eligibility() -> None:
             {"title": "diff --git a/app/main.py b/app/main.py"}
         ),
         lambda payload: payload["hypotheses"][0].update(
+            {"expected_behavior": "raw model payload includes provider response"}
+        ),
+        lambda payload: payload["hypotheses"][0].update({"falsifier": "@@ -1 +1 @@ patch hunk"}),
+        lambda payload: payload["hypotheses"][0].update(
             {"target_surfaces": ["/Users/example/repo/file.py"]}
         ),
         lambda payload: payload["authority"].update({"workflow_dispatch": True}),
@@ -526,7 +541,15 @@ def test_model_intake_rejects_unsafe_payload_or_authority(
 
 @pytest.mark.parametrize(
     "forbidden_target",
-    ["app/main.py", ".github/workflows/ci.yml"],
+    [
+        ".",
+        "app",
+        "app/main.py",
+        "core",
+        "frontend",
+        ".github/workflows",
+        ".github/workflows/ci.yml",
+    ],
 )
 def test_model_intake_rejects_mixed_product_runtime_or_workflow_targets(
     forbidden_target: str,
@@ -540,7 +563,22 @@ def test_model_intake_rejects_mixed_product_runtime_or_workflow_targets(
 
     with pytest.raises(
         ExperimentRunnerCreativeContextContractError,
-        match="must not include product runtime or workflow targets",
+        match="must not include product runtime or workflow targets|bounded repo-relative path",
+    ):
+        validate_creative_hypothesis_operator_model_intake(intake, context_map=context)
+
+
+def test_model_intake_rejects_nonconcrete_repo_root_with_valid_target() -> None:
+    context = _context()
+    intake = _operator_model_intake(context)
+    intake["hypotheses"][0]["target_surfaces"] = [
+        "docs/orchestration/README.md",
+        "scripts/orchestration/experiment_runner_pr_creative_context.py",
+    ]
+
+    with pytest.raises(
+        ExperimentRunnerCreativeContextContractError,
+        match="target_surfaces must all be concrete",
     ):
         validate_creative_hypothesis_operator_model_intake(intake, context_map=context)
 
@@ -776,6 +814,7 @@ def test_cross_domain_analogy_routes_registered_specialist_agent() -> None:
     assert architecture_route["hypothesis_id"] == "hyp-001"
     assert "nutritionist-agent" in architecture_route["cross_domain_agents"]
     assert "nutritionist-agent" not in architecture_route["missing_agent_capabilities"]
+    assert "wellness-analyst-agent" not in architecture_route["missing_agent_capabilities"]
 
 
 def test_cross_domain_analogy_records_missing_specialist_capability() -> None:
@@ -1295,8 +1334,12 @@ def test_operator_model_intake_schema_enforces_local_sanitized_shape() -> None:
     assert "hypothesis_count" not in schema["required"]
     assert "hypothesis_id" not in hypothesis["properties"]
     assert "hypothesis_id" not in hypothesis["required"]
-    assert "^(app|core|frontend|ios|providers|alembic)/" in repo_path_not_pattern
-    assert "^\\.github/workflows/" in repo_path_not_pattern
+    assert "^(app|core|frontend|ios|providers|alembic)(/|$)" in repo_path_not_pattern
+    assert "^\\.github/workflows(/|$)" in repo_path_not_pattern
+    assert "^\\.$" in repo_path_not_pattern
+    assert hypothesis["properties"]["target_surfaces"]["items"]["$ref"] == (
+        "#/$defs/concrete_target_path"
+    )
     assert schema["properties"]["hypothesis_count"]["minimum"] == 3
     assert schema["properties"]["hypothesis_count"]["maximum"] == 5
     assert schema["properties"]["hypotheses"]["minItems"] == 3
@@ -1306,6 +1349,10 @@ def test_operator_model_intake_schema_enforces_local_sanitized_shape() -> None:
     assert generation["properties"]["semantic_cache_used"]["const"] is False
     for unsafe_value in (
         "DIFF --GIT a/app/main.py b/app/main.py",
+        "@@ -1 +1 @@",
+        "--- a/app/main.py",
+        "+++ b/app/main.py",
+        "raw model payload included",
         "Provider_Payload included",
         "/Users/example/repo/file.py",
         "github_token",

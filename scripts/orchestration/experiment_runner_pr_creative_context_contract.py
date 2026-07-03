@@ -126,7 +126,9 @@ ELIGIBLE_EXACT_PATHS = frozenset(
     }
 )
 PRODUCT_RUNTIME_PREFIXES = ("app/", "core/", "frontend/", "ios/", "providers/", "alembic/")
+PRODUCT_RUNTIME_ROOTS = frozenset(prefix.rstrip("/") for prefix in PRODUCT_RUNTIME_PREFIXES)
 WORKFLOW_PREFIX = ".github/workflows/"
+WORKFLOW_ROOT = WORKFLOW_PREFIX.rstrip("/")
 
 AUTHORITY_TRUE_KEYS = frozenset(
     {
@@ -201,7 +203,8 @@ SECRET_RE = re.compile(
 )
 LEAK_TEXT_RE = re.compile(
     r"(diff --git|^\+\+\+ |^--- |@@ |candidate\.patch|candidate_patch|"
-    r"raw[_ -]?(body|prompt|response|context|patch|review|pr)|"
+    r"candidate[_ -]?patch|raw[_ -]?(model[_ -]?payload|"
+    r"body|prompt|response|context|patch|review|pr)|"
     r"review[_ -]?thread[_ -]?body|pull[_ -]?request[_ -]?body|"
     r"chain[_ -]?of[_ -]?thought|provider[_ -]?payload|"
     r"oracle[_ -]?(stdout|stderr|output)|file://|"
@@ -739,6 +742,10 @@ def _normalize_repo_relative_path(
     value = raw_path.strip()
     if not value:
         raise ExperimentRunnerCreativeContextContractError(f"{label} must not be empty.")
+    if value in {".", "*", "**"}:
+        raise ExperimentRunnerCreativeContextContractError(
+            f"{label} must reference a bounded repo-relative path."
+        )
     if any(ord(character) < 32 or ord(character) == 127 for character in value):
         raise ExperimentRunnerCreativeContextContractError(
             f"{label} must not contain control chars."
@@ -820,12 +827,17 @@ def _normalize_text_list(
     return normalized
 
 
+def _is_product_runtime_or_workflow_target(path: str) -> bool:
+    return (
+        path in PRODUCT_RUNTIME_ROOTS
+        or path.startswith(PRODUCT_RUNTIME_PREFIXES)
+        or path == WORKFLOW_ROOT
+        or path.startswith(WORKFLOW_PREFIX)
+    )
+
+
 def _reject_product_runtime_or_workflow_targets(paths: Sequence[str], *, label: str) -> None:
-    forbidden = [
-        path
-        for path in paths
-        if path.startswith(PRODUCT_RUNTIME_PREFIXES) or path.startswith(WORKFLOW_PREFIX)
-    ]
+    forbidden = [path for path in paths if _is_product_runtime_or_workflow_target(path)]
     if forbidden:
         joined = ", ".join(forbidden)
         raise ExperimentRunnerCreativeContextContractError(
@@ -947,7 +959,7 @@ def classify_creative_context_eligibility(
             "activation_source": "none",
             "eligible_surface": "",
         }
-    if any(path.startswith(WORKFLOW_PREFIX) for path in normalized):
+    if any(path == WORKFLOW_ROOT or path.startswith(WORKFLOW_PREFIX) for path in normalized):
         return {
             "eligible": False,
             "creative_decision": "no_creative_action",
@@ -955,7 +967,10 @@ def classify_creative_context_eligibility(
             "activation_source": "none",
             "eligible_surface": "",
         }
-    if any(path.startswith(PRODUCT_RUNTIME_PREFIXES) for path in normalized):
+    if any(
+        path in PRODUCT_RUNTIME_ROOTS or path.startswith(PRODUCT_RUNTIME_PREFIXES)
+        for path in normalized
+    ):
         return {
             "eligible": False,
             "creative_decision": "no_creative_action",
@@ -1672,12 +1687,12 @@ def _normalize_operator_hypothesis(raw_hypothesis: Any, *, label: str) -> dict[s
         },
         label=label,
     )
-    if not any(
+    if not all(
         target.startswith(CONCRETE_HYPOTHESIS_TARGET_PREFIXES)
         for target in normalized["target_surfaces"]
     ):
         raise ExperimentRunnerCreativeContextContractError(
-            f"{label}.target_surfaces must include a concrete code, test, contract, "
+            f"{label}.target_surfaces must all be concrete code, test, contract, "
             "agent, or prompt/program target."
         )
     return {key: value for key, value in normalized.items() if key != "hypothesis_id"}
@@ -2151,12 +2166,15 @@ def _route_hypothesis(
         if not analogy["requires_specialist_agent"]:
             continue
         candidates = ANALOGY_DOMAIN_AGENT_CANDIDATES[cast(str, analogy["source_domain"])]
+        routed_for_analogy = False
         for candidate in candidates:
             if candidate in registered_agents:
                 if candidate not in already_routed:
                     cross.append(candidate)
-                continue
-            missing.append(candidate)
+                    already_routed.add(candidate)
+                routed_for_analogy = True
+        if not routed_for_analogy:
+            missing.extend(candidates)
     return {
         "hypothesis_id": hypothesis["hypothesis_id"],
         "primary_agent": primary_agent,

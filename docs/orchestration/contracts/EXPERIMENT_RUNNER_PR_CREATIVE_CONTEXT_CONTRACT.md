@@ -129,7 +129,10 @@ Required boundaries:
 - `repo_provider_calls=false`;
 - `raw_model_payload_stored=false`;
 - `semantic_cache_used=false`;
-- `hypothesis_count` must be 3, 4, or 5 and must match the array length;
+- `hypothesis_count` may be omitted and derived from `hypotheses`; if supplied,
+  it must be 3, 4, or 5 and must match the array length;
+- operator-supplied `intake_id` and `idempotency_key` are non-authoritative and
+  are overwritten by repo-derived identity during normalization;
 - external `hypothesis_id` is rejected; the repo normalizer assigns stable
   `hyp-001`, `hyp-002`, ... IDs;
 - each hypothesis must include concrete target surfaces, tests/oracles, risk

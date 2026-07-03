@@ -78,6 +78,7 @@ _LOCAL_PATH_RE = re.compile(
 _RAW_MODEL_ARTIFACT_RE = re.compile(
     r"(?im)\b("
     r"raw[_. -]?(?:body|prompt|response|context|patch|review|pr)|"
+    r"raw[_. -]?model[_. -]?payload|"
     r"provider[_. -]?payload|"
     r"chain[_. -]?of[_. -]?thought|"
     r"candidate[_. -]?patch"
@@ -205,7 +206,9 @@ def _normalize_learning_metrics(
         if metrics[field] is not False:
             raise ValueError(f"learning_metrics.{field} must be false.")
 
-    primary_metric = str(metrics["primary_metric"]).strip()
+    if not isinstance(metrics["primary_metric"], str):
+        raise ValueError("learning_metrics.primary_metric must be a string.")
+    primary_metric = metrics["primary_metric"].strip()
     if primary_metric not in VALID_LEARNING_METRIC_IDS:
         allowed = ", ".join(sorted(VALID_LEARNING_METRIC_IDS))
         raise ValueError(f"learning_metrics.primary_metric must be one of: {allowed}.")
@@ -221,7 +224,11 @@ def _normalize_learning_metrics(
         if metric not in VALID_LEARNING_METRIC_IDS:
             allowed = ", ".join(sorted(VALID_LEARNING_METRIC_IDS))
             raise ValueError(f"learning_metrics.secondary_metrics must contain only: {allowed}.")
-        if metric != primary_metric and metric not in secondary_metrics:
+        if metric == primary_metric:
+            raise ValueError(
+                "learning_metrics.secondary_metrics must not duplicate primary_metric."
+            )
+        if metric not in secondary_metrics:
             secondary_metrics.append(metric)
 
     _validate_metric_shape_for_pattern_kind(
@@ -230,7 +237,9 @@ def _normalize_learning_metrics(
         secondary_metrics=secondary_metrics,
     )
 
-    measurement_window = str(metrics["measurement_window"]).strip()
+    if not isinstance(metrics["measurement_window"], str):
+        raise ValueError("learning_metrics.measurement_window must be a string.")
+    measurement_window = metrics["measurement_window"].strip()
     if measurement_window not in VALID_LEARNING_MEASUREMENT_WINDOWS:
         allowed = ", ".join(sorted(VALID_LEARNING_MEASUREMENT_WINDOWS))
         raise ValueError(f"learning_metrics.measurement_window must be one of: {allowed}.")
@@ -442,8 +451,11 @@ def validate_agent_learning_record(record: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("affected_surfaces must be an array of repo-relative paths.")
     severity = _normalize_severity(_required_text("severity"))
     pattern_kind = _normalize_pattern_kind(_required_text("pattern_kind"))
+    raw_learning_metrics = record.get("learning_metrics")
+    if raw_learning_metrics is None:
+        raise ValueError("learning_metrics must be a JSON object.")
     learning_metrics = _normalize_learning_metrics(
-        record.get("learning_metrics"),
+        raw_learning_metrics,
         pattern_kind=pattern_kind,
     )
     affected_surfaces = [

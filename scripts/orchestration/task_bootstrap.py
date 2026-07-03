@@ -1033,12 +1033,14 @@ def build_task_packet(
         design_blockers=design_lane_contract["blockers"],
     )
     recommended_skills = flatten_recommended_skills(skill_routing)
-    learning_loop_required = "pulseplate-agent-learning-loop" in recommended_skills
     learning_loop_semantic_triggers = [
         item
         for item in skill_routing.get("explanation", {}).get("semantic_groups", [])
         if item.get("group_id") == "orchestration.agent_learning_loop"
     ]
+    learning_loop_required = "pulseplate-agent-learning-loop" in recommended_skills or bool(
+        learning_loop_semantic_triggers
+    )
     forced_executable_agents = {"security-auditor"} if security_review_required else set()
     if normalized_pr_phase == PR_PHASE_POST_OPEN_REVIEW:
         forced_executable_agents.update(POST_OPEN_REVIEW_LANE)

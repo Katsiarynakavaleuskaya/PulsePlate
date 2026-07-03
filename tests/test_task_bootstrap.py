@@ -341,6 +341,22 @@ def test_task_bootstrap_requires_learning_loop_for_successful_iteration_pattern(
     assert "repeated_successful_iteration_pattern" in packet["agent_learning_loop"]["required_when"]
 
 
+def test_task_bootstrap_requires_learning_loop_for_semantic_trigger_outside_docs_lane() -> None:
+    """Semantic repeated-failure triggers should require learning-loop even on runtime paths."""
+
+    packet = build_task_packet(
+        goal="Fix repeated role-agent failure in frontend planning flow",
+        task_class="Frontend",
+        candidate_paths=["frontend/src/Home.tsx"],
+    )
+
+    learning_loop = packet["agent_learning_loop"]
+    assert {item["group_id"] for item in learning_loop["trigger_evidence"]} == {
+        "orchestration.agent_learning_loop"
+    }
+    assert learning_loop["current_packet_required"] is True
+
+
 def test_task_bootstrap_keeps_wide_pr_packets_when_context_graph_truncates() -> None:
     """Advisory compression limits must never block task-packet creation."""
 

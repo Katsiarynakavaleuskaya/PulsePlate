@@ -69,7 +69,7 @@
       "type": "string",
       "pattern": "^[A-Za-z0-9_.-][A-Za-z0-9_./-]*$",
       "not": {
-        "pattern": "(^/|\\.\\.|\\\\|file://|^~|^\\.git/|^\\.venv/|^worktrees/|^artifacts(/|$)|^(app|core|frontend|ios|providers|alembic)/|^\\.github/workflows/)"
+        "pattern": "(^/|^\\.$|^\\*$|^\\*\\*$|\\.\\.|\\\\|file://|^~|^\\.git/|^\\.venv/|^worktrees/|^artifacts(/|$)|^(app|core|frontend|ios|providers|alembic)(/|$)|^\\.github/workflows(/|$))"
       }
     },
     "concrete_target_path": {
@@ -93,8 +93,12 @@
       "not": {
         "anyOf": [
           { "pattern": "[dD][iI][fF][fF] --[gG][iI][tT]" },
+          { "pattern": "@@" },
+          { "pattern": "\\+\\+\\+\\s+[ab]/" },
+          { "pattern": "---\\s+[ab]/" },
           { "pattern": "[cC][aA][nN][dD][iI][dD][aA][tT][eE]\\.[pP][aA][tT][cC][hH]" },
-          { "pattern": "[rR][aA][wW][_ -]?([bB][oO][dD][yY]|[pP][rR][oO][mM][pP][tT]|[rR][eE][sS][pP][oO][nN][sS][eE]|[cC][oO][nN][tT][eE][xX][tT]|[pP][aA][tT][cC][hH]|[rR][eE][vV][iI][eE][wW]|[pP][rR])" },
+          { "pattern": "[cC][aA][nN][dD][iI][dD][aA][tT][eE][_ -]?[pP][aA][tT][cC][hH]" },
+          { "pattern": "[rR][aA][wW][_ -]?([mM][oO][dD][eE][lL][_ -]?[pP][aA][yY][lL][oO][aA][dD]|[bB][oO][dD][yY]|[pP][rR][oO][mM][pP][tT]|[rR][eE][sS][pP][oO][nN][sS][eE]|[cC][oO][nN][tT][eE][xX][tT]|[pP][aA][tT][cC][hH]|[rR][eE][vV][iI][eE][wW]|[pP][rR])" },
           { "pattern": "[cC][hH][aA][iI][nN][_ -]?[oO][fF][_ -]?[tT][hH][oO][uU][gG][hH][tT]" },
           { "pattern": "[pP][rR][oO][vV][iI][dD][eE][rR][_ -]?[pP][aA][yY][lL][oO][aA][dD]" },
           { "pattern": "[oO][rR][aA][cC][lL][eE][_ -]?([sS][tT][dD][oO][uU][tT]|[sS][tT][dD][eE][rR][rR]|[oO][uU][tT][pP][uU][tT])" },
@@ -190,10 +194,10 @@
         },
         "title": { "$ref": "#/$defs/safe_text" },
         "target_surfaces": {
-          "allOf": [
-            { "$ref": "#/$defs/repo_paths" },
-            { "contains": { "$ref": "#/$defs/concrete_target_path" } }
-          ]
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/concrete_target_path" }
         },
         "expected_behavior": { "$ref": "#/$defs/safe_text" },
         "tests_or_oracles": { "$ref": "#/$defs/repo_paths" },
