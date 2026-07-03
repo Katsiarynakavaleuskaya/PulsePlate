@@ -55,9 +55,13 @@ def test_bootstrap_sync_policy_freezes_privileged_review_prefixes() -> None:
     """Privileged review prefixes must remain canonical and reviewable."""
 
     assert PRIVILEGED_REVIEW_PREFIXES == (
+        ".agents/skills/",
         ".cursor/agents/",
+        ".cursor/commands/",
+        ".cursor/rules/",
         ".github/workflows/",
         ".github/actions/",
+        ".github/scripts/",
         ".githooks/",
         "ios/fastlane/",
         "scripts/orchestration/",
@@ -66,6 +70,8 @@ def test_bootstrap_sync_policy_freezes_privileged_review_prefixes() -> None:
         "docs/orchestration/",
         "docs/review/",
         "tests/guards/",
+        "tools/codex_skills/",
+        "tools/cybersecurity_skills/",
         "trivy/",
     )
 
@@ -75,6 +81,7 @@ def test_bootstrap_sync_policy_freezes_privileged_review_patterns() -> None:
 
     assert PRIVILEGED_REVIEW_PATTERNS == (
         "AGENTS.md",
+        "**/AGENTS.md",
         "Dockerfile",
         "Makefile",
         "RUNBOOK_AGENT.md",
@@ -94,6 +101,7 @@ def test_bootstrap_sync_policy_freezes_privileged_review_patterns() -> None:
         ".yamllint",
         ".pre-commit-config.yaml",
         ".pre-commit-config.yml",
+        ".cursor/mcp.json.example",
         ".devcontainer/Dockerfile",
         ".devcontainer/devcontainer.json",
         ".devcontainer/docker-compose*.yml",
@@ -133,6 +141,7 @@ def test_bootstrap_sync_policy_freezes_privileged_review_patterns() -> None:
         "scripts/deploy.sh",
         "scripts/diagnose_web.sh",
         "scripts/hooks/repo_python.sh",
+        "scripts/install_codex_skills.sh",
         "scripts/ops/postgres_backup.sh",
         "scripts/ops/postgres_restore.sh",
         "scripts/redeploy_caddy.sh",
@@ -140,6 +149,8 @@ def test_bootstrap_sync_policy_freezes_privileged_review_patterns() -> None:
         "scripts/validate-ci-environment.sh",
         "scripts/ci_*.sh",
         "scripts/deploy_*.sh",
+        "tests/security/_api_authz_contracts.py",
+        "tests/security/test_api_authz_contract_static.py",
         "tests/test_repo_policy_guards.py",
         "worker.js",
         "wrangler.toml",
@@ -285,8 +296,12 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
 
     assert requires_security_review([".github/workflows"]) is True
     assert requires_security_review(["docs/../.github/workflows/ci.yml"]) is True
+    assert requires_security_review([".agents/skills/pulseplate-gates/SKILL.md"]) is True
     assert requires_security_review([".cursor/agents/security-auditor.md"]) is True
+    assert requires_security_review([".cursor/commands/init.md"]) is True
+    assert requires_security_review([".cursor/rules/cybersecurity-skills-index.md"]) is True
     assert requires_security_review([".github/actions/setup/action.yml"]) is True
+    assert requires_security_review([".github/scripts/parse-safety-report.py"]) is True
     assert requires_security_review([".githooks/pre-push"]) is True
     assert requires_security_review(["scripts/ci"]) is True
     assert requires_security_review(["scripts/orchestration/task_bootstrap.py"]) is True
@@ -298,6 +313,8 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     )
     assert requires_security_review(["trivy/policy.rego"]) is True
     assert requires_security_review(["AGENTS.md"]) is True
+    assert requires_security_review(["scripts/AGENTS.md"]) is True
+    assert requires_security_review(["tests/AGENTS.md"]) is True
     assert requires_security_review(["Dockerfile"]) is True
     assert requires_security_review(["build/../Dockerfile"]) is True
     assert requires_security_review(["Makefile"]) is True
@@ -318,6 +335,7 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     assert requires_security_review([".yamllint"]) is True
     assert requires_security_review([".pre-commit-config.yaml"]) is True
     assert requires_security_review([".pre-commit-config.yml"]) is True
+    assert requires_security_review([".cursor/mcp.json.example"]) is True
     assert requires_security_review([".devcontainer/Dockerfile"]) is True
     assert requires_security_review([".devcontainer/devcontainer.json"]) is True
     assert requires_security_review([".devcontainer/docker-compose.devcontainer.yml"]) is True
@@ -369,6 +387,7 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     assert requires_security_review(["scripts/deploy.sh"]) is True
     assert requires_security_review(["scripts/diagnose_web.sh"]) is True
     assert requires_security_review(["scripts/hooks/repo_python.sh"]) is True
+    assert requires_security_review(["scripts/install_codex_skills.sh"]) is True
     assert requires_security_review(["scripts/ops/postgres_backup.sh"]) is True
     assert requires_security_review(["scripts/ops/postgres_restore.sh"]) is True
     assert requires_security_review(["scripts/redeploy_caddy.sh"]) is True
@@ -377,7 +396,11 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     assert requires_security_review(["scripts/ci_bandit.sh"]) is True
     assert requires_security_review(["scripts/ci_pip_audit.sh"]) is True
     assert requires_security_review(["scripts/deploy_production.sh"]) is True
+    assert requires_security_review(["tests/security/_api_authz_contracts.py"]) is True
+    assert requires_security_review(["tests/security/test_api_authz_contract_static.py"]) is True
     assert requires_security_review(["tests/test_repo_policy_guards.py"]) is True
+    assert requires_security_review(["tools/codex_skills/pulseplate-gates/SKILL.md"]) is True
+    assert requires_security_review(["tools/cybersecurity_skills/index.json"]) is True
     assert requires_security_review(["worker.js"]) is True
     assert requires_security_review(["wrangler.toml"]) is True
     assert requires_security_review(["script/orchestration/config.yml"]) is False
@@ -396,13 +419,20 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     assert requires_security_review(["deploy/docker-compose.production/archive.yaml"]) is False
     assert requires_security_review(["deploy/nested/Caddyfile.production"]) is False
     assert requires_security_review([".cursor/agent_notes/security-auditor.md"]) is False
+    assert requires_security_review([".cursor/command/init.md"]) is False
+    assert requires_security_review([".cursor/rules-notes/cybersecurity-skills-index.md"]) is False
+    assert requires_security_review([".cursor/mcp.json"]) is False
     assert requires_security_review([".devcontainer/nested/Dockerfile"]) is False
     assert requires_security_review([".devcontainer/docker-compose/archive.yml"]) is False
     assert requires_security_review([".github/config/CODEOWNERS"]) is False
     assert requires_security_review([".github/PULL_REQUEST_TEMPLATE/nested/design.md"]) is False
     assert requires_security_review([".github/pull_request_template/archive.md"]) is False
     assert requires_security_review([".github/actionlint/rules.yaml"]) is False
+    assert requires_security_review([".github/script/parse-safety-report.py"]) is False
+    assert requires_security_review([".github/scripts-notes/parse-safety-report.py"]) is False
     assert requires_security_review([".githooks-notes/pre-push"]) is False
+    assert requires_security_review(["AGENTS.md.backup"]) is False
+    assert requires_security_review(["docs/AGENTS.md.backup"]) is False
     assert requires_security_review(["docs/.coveragerc"]) is False
     assert requires_security_review(["docs/codecov.yml"]) is False
     assert requires_security_review(["docs/.gitmodules"]) is False
@@ -427,12 +457,17 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     assert requires_security_review(["scripts/hooks/nested/repo_python.sh"]) is False
     assert requires_security_review(["scripts/deploy/archive.sh"]) is False
     assert requires_security_review(["scripts/ops/archive/postgres_backup.sh"]) is False
+    assert requires_security_review(["scripts/install_codex_skills/archive.sh"]) is False
     assert requires_security_review(["scripts/run-backend-tests-pre-commit.d/runner.sh"]) is False
     assert requires_security_review(["scripts/validate-ci-environment/archive.sh"]) is False
     assert requires_security_review(["scripts/ci-tools/bandit.sh"]) is False
     assert requires_security_review(["scripts/deploy/production.sh"]) is False
     assert requires_security_review(["scripts/cicd_notes.sh"]) is False
     assert requires_security_review(["tests/test_repo_policy_guard_notes.py"]) is False
+    assert requires_security_review(["tests/security/_api_authz_contracts_notes.py"]) is False
+    assert requires_security_review(["tests/security/contracts/_api_authz_contracts.py"]) is False
+    assert requires_security_review(["tools/codex_skillz/pulseplate-gates/SKILL.md"]) is False
+    assert requires_security_review(["tools/cybersecurity_skillz/index.json"]) is False
     assert requires_security_review(["workers/worker.js"]) is False
     assert requires_security_review(["deploy/wrangler.toml"]) is False
 
@@ -445,6 +480,8 @@ def test_bootstrap_sync_policy_returns_stable_privileged_review_labels() -> None
             "./.github/actions/setup/action.yml",
             "docs/../.github/workflows/ci.yml",
             ".github/actions/cache/action.yml",
+            ".github/scripts/parse-safety-report.py",
+            "scripts/AGENTS.md",
             " Dockerfile ",
             "build/../Dockerfile",
             ".coveragerc",
@@ -454,12 +491,15 @@ def test_bootstrap_sync_policy_returns_stable_privileged_review_labels() -> None
             "deploy/docker-compose.production.selfhosted.yaml",
             "frontend/package-lock.json",
             "scripts/validate-ci-environment.sh",
+            "tools/codex_skills/pulseplate-gates/SKILL.md",
             "requirements-ci-lite.txt",
             "docs/review/PR_1325_FIXED_MAPPING.md",
         ]
     ) == (
         ".github/actions/",
         ".github/workflows/",
+        ".github/scripts/",
+        "**/AGENTS.md",
         "Dockerfile",
         ".coveragerc",
         ".gitmodules",
@@ -468,6 +508,7 @@ def test_bootstrap_sync_policy_returns_stable_privileged_review_labels() -> None
         "deploy/docker-compose.production*.yaml",
         "frontend/package*.json",
         "scripts/validate-ci-environment.sh",
+        "tools/codex_skills/",
         "requirements*.txt",
         "docs/review/",
     )

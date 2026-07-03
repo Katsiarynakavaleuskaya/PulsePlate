@@ -29,9 +29,13 @@ IMPLEMENTATION_PATH_PREFIXES: tuple[str, ...] = (
 )
 
 PRIVILEGED_REVIEW_PREFIXES: tuple[str, ...] = (
+    ".agents/skills/",
     ".cursor/agents/",
+    ".cursor/commands/",
+    ".cursor/rules/",
     ".github/workflows/",
     ".github/actions/",
+    ".github/scripts/",
     ".githooks/",
     "ios/fastlane/",
     "scripts/orchestration/",
@@ -40,10 +44,13 @@ PRIVILEGED_REVIEW_PREFIXES: tuple[str, ...] = (
     "docs/orchestration/",
     "docs/review/",
     "tests/guards/",
+    "tools/codex_skills/",
+    "tools/cybersecurity_skills/",
     "trivy/",
 )
 PRIVILEGED_REVIEW_PATTERNS: tuple[str, ...] = (
     "AGENTS.md",
+    "**/AGENTS.md",
     "Dockerfile",
     "Makefile",
     "RUNBOOK_AGENT.md",
@@ -63,6 +70,7 @@ PRIVILEGED_REVIEW_PATTERNS: tuple[str, ...] = (
     ".yamllint",
     ".pre-commit-config.yaml",
     ".pre-commit-config.yml",
+    ".cursor/mcp.json.example",
     ".devcontainer/Dockerfile",
     ".devcontainer/devcontainer.json",
     ".devcontainer/docker-compose*.yml",
@@ -102,6 +110,7 @@ PRIVILEGED_REVIEW_PATTERNS: tuple[str, ...] = (
     "scripts/deploy.sh",
     "scripts/diagnose_web.sh",
     "scripts/hooks/repo_python.sh",
+    "scripts/install_codex_skills.sh",
     "scripts/ops/postgres_backup.sh",
     "scripts/ops/postgres_restore.sh",
     "scripts/redeploy_caddy.sh",
@@ -109,6 +118,8 @@ PRIVILEGED_REVIEW_PATTERNS: tuple[str, ...] = (
     "scripts/validate-ci-environment.sh",
     "scripts/ci_*.sh",
     "scripts/deploy_*.sh",
+    "tests/security/_api_authz_contracts.py",
+    "tests/security/test_api_authz_contract_static.py",
     "tests/test_repo_policy_guards.py",
     "worker.js",
     "wrangler.toml",
@@ -158,6 +169,10 @@ def normalize_policy_path(path: str) -> str:
 
 def matches_privileged_review_pattern(path: str, pattern: str) -> bool:
     """Return True when ``path`` matches a privileged pattern at its intended depth."""
+
+    if pattern.startswith("**/"):
+        suffix = pattern.removeprefix("**/")
+        return path == suffix or path.endswith(f"/{suffix}")
 
     path_parts = path.split("/")
     pattern_parts = pattern.split("/")
