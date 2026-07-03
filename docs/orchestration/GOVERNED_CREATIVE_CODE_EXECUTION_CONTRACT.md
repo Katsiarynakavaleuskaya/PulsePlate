@@ -79,9 +79,11 @@ The PR creative-context layer adds bounded hypothesis/routing artifacts only;
 active model/operator intake remains local and validated; auto-workflow
 attachment remains a separate follow-up PR.
 The approved-hypothesis bridge adds only local candidate/specification handoff
-artifacts after human approval; approval targets outside the current
-`CreativeCodeCandidatePacket` mutable allowlist become immutable oracles, and
-the bridge fails closed when no allowed mutable target remains.
+artifacts after human approval. The approval must bind to the exact source
+hypothesis packet id, packet fingerprint, and selected hypothesis fingerprint;
+approval targets outside the current `CreativeCodeCandidatePacket` mutable
+allowlist become immutable oracles, and the bridge fails closed when no allowed
+mutable target remains.
 
 Premortem is part of this creative line, not a documentation closeout ritual.
 For Experiment Runner creative-context work, premortem should forecast plausible
@@ -190,6 +192,12 @@ The approved creative-hypothesis specification bridge artifacts are:
 - `artifacts/orchestration/creative_code/spec_bridge/<bridge-id>/spec_prepare/skeptic_reviews.json`
 - `artifacts/orchestration/creative_code/spec_bridge/<bridge-id>/spec_prepare/context_pack.json`
 
+Bridge output directories must be exactly
+`artifacts/orchestration/creative_code/spec_bridge/<bridge-id>/`; bridge refs,
+candidate packets, metrics, and prepare directories must agree on that id.
+Build-only artifacts may only allow `prepare_specification`; agent skeptic
+review is the next action only after the four PR-1 prepare artifacts exist.
+
 `patch_request.json` remains a PR-2 `CreativeCodePatchBuildRequest` handoff
 artifact. It is built and validated only after PR-1 emits
 `spec_runs/<candidate-id>/bundle.json`, because its identity and fingerprint are
@@ -234,7 +242,8 @@ PR-0 is a contract-only start point.
   creative research; no patches, provider calls, repo writes, runtime truth,
   review disposition authority, or merge-readiness evidence.
 - Approved-hypothesis specification bridge: consume human-approved
-  `CreativeHypothesisApproval` artifacts and emit a validated
+  `CreativeHypothesisApproval` artifacts that bind to the current source packet
+  and selected hypothesis fingerprints, then emit a validated
   `CreativeCodeCandidatePacket`, deterministic local bridge metrics, and
   existing PR-1 prepare artifacts; no agent execution, finalize, candidate
   patches, provider calls, workflow changes, repository writes, product runtime

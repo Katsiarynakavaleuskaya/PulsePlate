@@ -19,9 +19,12 @@ from scripts.orchestration.creative_hypothesis_spec_bridge_contract import (
     PREPARE_FILENAMES,
     POLICY_VERSION,
     CreativeHypothesisSpecBridgeError,
+    build_bridge_metrics,
     build_creative_hypothesis_spec_bridge_bundle,
     validate_bridge_metrics,
     validate_creative_hypothesis_specification_bridge,
+    _artifact_identity as _bridge_artifact_identity,
+    _bridge_identity_payload,
 )
 from scripts.orchestration.experiment_runner_pr_creative_context_contract import (
     COORDINATOR_DISPATCH_POLICY_VERSION,
@@ -149,6 +152,7 @@ def _chain(
     approval = build_creative_hypothesis_approval(
         hypothesis_id=hypothesis["hypothesis_id"],
         decision=decision,
+        hypothesis_packet=packet if decision == "approve_for_pr1_specification" else None,
         approved_target_surfaces=selected_targets,
         approved_agents=[dispatch["dispatch"][0]["primary_agent"]] if selected_targets else [],
         next_step=next_step,
@@ -165,6 +169,28 @@ def _bundle() -> dict[str, dict[str, Any]]:
         approval=approval,
         variant_count=3,
     )
+
+
+def _refresh_bridge_identity(bridge: dict[str, Any]) -> dict[str, Any]:
+    source = bridge["source"]
+    candidate_ref = bridge["candidate_packet"]
+    bridge_id, idempotency_key = _bridge_artifact_identity(
+        _bridge_identity_payload(bridge),
+        artifact_type=BRIDGE_ARTIFACT_TYPE,
+        upstream_ids=(
+            str(source["hypothesis_packet_id"]),
+            str(source["approval_id"]),
+            str(candidate_ref["candidate_id"]),
+        ),
+    )
+    artifact_root_ref = f"artifacts/orchestration/creative_code/spec_bridge/{bridge_id}"
+    bridge["bridge_id"] = bridge_id
+    bridge["idempotency_key"] = idempotency_key
+    bridge["candidate_packet"][
+        "candidate_packet_ref"
+    ] = f"{artifact_root_ref}/creative_code_candidate_packet.json"
+    bridge["spec_prepare"]["run_dir_ref"] = f"{artifact_root_ref}/spec_prepare"
+    return bridge
 
 
 def _write_creative_context_inputs(
@@ -234,6 +260,31 @@ def test_dispatch_fingerprint_mismatch_rejects_before_candidate_output() -> None
         build_creative_hypothesis_spec_bridge_bundle(
             context_map=context,
             hypothesis_packet=packet,
+            coordinator_dispatch=dispatch,
+            approval=approval,
+            variant_count=3,
+        )
+
+
+def test_stale_approval_rejects_changed_hypothesis_fingerprint() -> None:
+    context, packet, _dispatch, approval = _chain(hypothesis_suffix="stale-approval")
+    mutated_packet = deepcopy(packet)
+    mutated_hypothesis = dict(mutated_packet["hypotheses"][0])
+    mutated_hypothesis["expected_behavior"] = (
+        "Changed hypothesis content must require a fresh human approval binding."
+    )
+    mutated_packet["hypotheses"][0] = mutated_hypothesis
+    mutated_packet = _refresh_packet_identity(mutated_packet)
+    routing = build_creative_hypothesis_agent_routing(mutated_packet)
+    dispatch = build_creative_hypothesis_coordinator_dispatch(
+        hypothesis_packet=mutated_packet,
+        routing=routing,
+    )
+
+    with pytest.raises(CreativeHypothesisSpecBridgeError, match="approval must bind"):
+        build_creative_hypothesis_spec_bridge_bundle(
+            context_map=context,
+            hypothesis_packet=mutated_packet,
             coordinator_dispatch=dispatch,
             approval=approval,
             variant_count=3,
@@ -352,6 +403,9 @@ def test_cli_build_and_prepare_writes_four_prepare_artifacts(
         variant_count=3,
     )
     bridge_id = str(expected_bundle["bridge"]["bridge_id"])
+    assert (
+        expected_bundle["bridge"]["spec_prepare"]["next_allowed_action"] == "prepare_specification"
+    )
     output_dir = cli.SPEC_BRIDGE_ROOT / bridge_id
     shutil.rmtree(output_dir, ignore_errors=True)
     input_dir, context_path, packet_path, dispatch_path, approval_path = (
@@ -393,6 +447,8 @@ def test_cli_build_and_prepare_writes_four_prepare_artifacts(
         )
         assert not (spec_prepare_dir / "bundle.json").exists()
         metrics = json.loads((output_dir / cli.METRICS_FILENAME).read_text(encoding="utf-8"))
+        bridge = json.loads((output_dir / cli.BRIDGE_FILENAME).read_text(encoding="utf-8"))
+        assert bridge["spec_prepare"]["next_allowed_action"] == "agent_skeptic_review"
         assert metrics["status"] == "prepared"
         assert metrics["counts"]["prepare_files_written"] == 4
         assert metrics["counts"]["pending_skeptic_review_count"] == 9
@@ -470,6 +526,66 @@ def test_prepare_specification_rejects_candidate_tampering(
     finally:
         shutil.rmtree(output_dir, ignore_errors=True)
         shutil.rmtree(input_dir, ignore_errors=True)
+
+
+def test_validate_and_prepare_reject_bridge_candidate_parity_mismatch(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    context, packet, dispatch, approval = _chain(hypothesis_suffix="parity")
+    bundle = build_creative_hypothesis_spec_bridge_bundle(
+        context_map=context,
+        hypothesis_packet=packet,
+        coordinator_dispatch=dispatch,
+        approval=approval,
+        variant_count=3,
+    )
+    bridge = deepcopy(bundle["bridge"])
+    bridge["selected_hypothesis"]["immutable_oracles"] = bridge["selected_hypothesis"][
+        "immutable_oracles"
+    ][:1]
+    bridge = _refresh_bridge_identity(bridge)
+    metrics = build_bridge_metrics(
+        bridge=bridge,
+        candidate=bundle["candidate"],
+        hypothesis_packet=packet,
+        approval=approval,
+        status=BRIDGE_SUCCESS_STATUS,
+        prepare_files_written=0,
+        pending_skeptic_review_count=0,
+    )
+    output_dir = cli.SPEC_BRIDGE_ROOT / str(bridge["bridge_id"])
+    shutil.rmtree(output_dir, ignore_errors=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        (output_dir / cli.BRIDGE_FILENAME).write_text(
+            json.dumps(bridge, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        (output_dir / cli.CANDIDATE_FILENAME).write_text(
+            json.dumps(bundle["candidate"], indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        (output_dir / cli.METRICS_FILENAME).write_text(
+            json.dumps(metrics, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+
+        exit_code = cli.main(["validate", "--bridge", str(output_dir / cli.BRIDGE_FILENAME)])
+        captured = capsys.readouterr()
+        assert exit_code == 1
+        assert "candidate immutable_oracles" in captured.err
+
+        exit_code = cli.main(
+            ["prepare-specification", "--bridge", str(output_dir / cli.BRIDGE_FILENAME)]
+        )
+        captured = capsys.readouterr()
+        assert exit_code == 1
+        assert "candidate immutable_oracles" in captured.err
+        blocked_metrics = json.loads((output_dir / cli.METRICS_FILENAME).read_text("utf-8"))
+        assert blocked_metrics["status"] == "blocked"
+        assert blocked_metrics["blocked_reason"] == "fingerprint_mismatch"
+    finally:
+        shutil.rmtree(output_dir, ignore_errors=True)
 
 
 def test_prepare_recomputes_stale_metrics_counts(
@@ -860,6 +976,56 @@ def test_cli_rejects_outside_repo_and_symlink_inputs(
         shutil.rmtree(input_dir, ignore_errors=True)
 
 
+def test_cli_rejects_noncanonical_output_dir(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    context, packet, dispatch, approval = _chain(hypothesis_suffix="output-dir")
+    expected_bundle = build_creative_hypothesis_spec_bridge_bundle(
+        context_map=context,
+        hypothesis_packet=packet,
+        coordinator_dispatch=dispatch,
+        approval=approval,
+        variant_count=3,
+    )
+    bridge_id = str(expected_bundle["bridge"]["bridge_id"])
+    custom_dir = cli.SPEC_BRIDGE_ROOT / "custom-review" / bridge_id
+    input_dir, context_path, packet_path, dispatch_path, approval_path = (
+        _write_creative_context_inputs(
+            leaf="pytest-spec-bridge-output-dir",
+            context=context,
+            packet=packet,
+            dispatch=dispatch,
+            approval=approval,
+        )
+    )
+    shutil.rmtree(custom_dir.parent, ignore_errors=True)
+    try:
+        exit_code = cli.main(
+            [
+                "build-candidate",
+                "--context-map",
+                str(context_path),
+                "--hypothesis-packet",
+                str(packet_path),
+                "--coordinator-dispatch",
+                str(dispatch_path),
+                "--approval",
+                str(approval_path),
+                "--variant-count",
+                "3",
+                "--output-dir",
+                str(custom_dir),
+            ]
+        )
+        captured = capsys.readouterr()
+        assert exit_code == 1
+        assert "canonical spec_bridge/<bridge-id>" in captured.err
+        assert not custom_dir.exists()
+    finally:
+        shutil.rmtree(custom_dir.parent, ignore_errors=True)
+        shutil.rmtree(input_dir, ignore_errors=True)
+
+
 def test_validate_rejects_symlinked_bridge_path(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -970,6 +1136,24 @@ def test_new_schemas_are_closed() -> None:
         assert schema["additionalProperties"] is False
         assert schema["properties"]["authority"]["$ref"] == "#/$defs/bridge_authority"
         assert schema["$defs"]["bridge_authority"]["additionalProperties"] is False
+        if filename == "creative_hypothesis_specification_bridge.v1.schema.json":
+            repo_path_pattern = schema["$defs"]["repo_path"]["not"]["pattern"]
+            assert "(?:^|/)\\.\\.?(?:/|$)" in repo_path_pattern
+            assert "artifacts" in repo_path_pattern
+            spec_prepare = schema["$defs"]["spec_prepare"]
+            assert spec_prepare["properties"]["next_allowed_action"]["enum"] == [
+                "prepare_specification",
+                "agent_skeptic_review",
+            ]
+            prepared_guards = spec_prepare["allOf"]
+            assert (
+                prepared_guards[0]["then"]["properties"]["next_allowed_action"]["const"]
+                == "prepare_specification"
+            )
+            assert (
+                prepared_guards[1]["then"]["properties"]["next_allowed_action"]["const"]
+                == "agent_skeptic_review"
+            )
 
 
 def test_bridge_modules_do_not_import_downstream_mutation_surfaces() -> None:

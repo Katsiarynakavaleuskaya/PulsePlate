@@ -10,7 +10,10 @@
     "policy_version",
     "approval_id",
     "idempotency_key",
+    "source_hypothesis_packet_id",
+    "source_hypothesis_packet_fingerprint",
     "hypothesis_id",
+    "hypothesis_fingerprint",
     "decision",
     "approved_target_surfaces",
     "approved_agents",
@@ -26,7 +29,16 @@
     "policy_version": { "const": "experiment-runner-pr-creative-context-v1" },
     "approval_id": { "$ref": "#/$defs/safe_id" },
     "idempotency_key": { "$ref": "#/$defs/safe_id" },
+    "source_hypothesis_packet_id": {
+      "anyOf": [{ "$ref": "#/$defs/safe_id" }, { "type": "null" }]
+    },
+    "source_hypothesis_packet_fingerprint": {
+      "anyOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }]
+    },
     "hypothesis_id": { "$ref": "#/$defs/safe_id" },
+    "hypothesis_fingerprint": {
+      "anyOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }]
+    },
     "decision": { "enum": ["approve_for_pr1_specification", "reject", "defer"] },
     "approved_target_surfaces": { "$ref": "#/$defs/repo_paths" },
     "approved_agents": {
@@ -49,6 +61,9 @@
       "then": {
         "properties": {
           "next_step": { "const": "create_pr1_specification" },
+          "source_hypothesis_packet_id": { "$ref": "#/$defs/safe_id" },
+          "source_hypothesis_packet_fingerprint": { "$ref": "#/$defs/sha256" },
+          "hypothesis_fingerprint": { "$ref": "#/$defs/sha256" },
           "approved_target_surfaces": {
             "minItems": 1,
             "items": { "$ref": "#/$defs/approvable_pr1_target_path" }
@@ -90,6 +105,7 @@
       "maxLength": 128,
       "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
     },
+    "sha256": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
     "repo_path": {
       "type": "string",
       "pattern": "^[A-Za-z0-9_.-][A-Za-z0-9_./-]*$",

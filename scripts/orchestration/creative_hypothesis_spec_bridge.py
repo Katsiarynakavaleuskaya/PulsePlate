@@ -119,6 +119,11 @@ def _resolve_output_dir(
         raise CreativeHypothesisSpecBridgeCliError(
             "output directory must stay under creative-code spec_bridge artifacts."
         )
+    expected_output_dir = root / bridge_id
+    if resolved_candidate != expected_output_dir.resolve(strict=False):
+        raise CreativeHypothesisSpecBridgeCliError(
+            "output directory must be the canonical spec_bridge/<bridge-id> directory."
+        )
     if candidate.name != bridge_id:
         raise CreativeHypothesisSpecBridgeCliError(
             "output directory leaf must equal the derived bridge id."
@@ -343,6 +348,40 @@ def _assert_candidate_matches_bridge(
     if observed_fingerprint != candidate_ref["candidate_fingerprint"]:
         raise CreativeHypothesisSpecBridgeCliError(
             "fingerprint_mismatch: candidate packet fingerprint does not match bridge."
+        )
+    selected = cast_mapping(bridge["selected_hypothesis"])
+    source = cast_mapping(normalized_candidate["source_creative_research"])
+    bridge_source = cast_mapping(bridge["source"])
+    expected_pairs = {
+        "source bundle id": (source["bundle_id"], bridge_source["hypothesis_packet_id"]),
+        "source hypothesis id": (source["candidate_id"], selected["hypothesis_id"]),
+        "source hypothesis fingerprint": (
+            source["fingerprint"],
+            selected["hypothesis_fingerprint"],
+        ),
+        "variant count": (
+            normalized_candidate["variant_count"],
+            selected["variant_count"],
+        ),
+    }
+    for label, (observed, expected) in expected_pairs.items():
+        if observed != expected:
+            raise CreativeHypothesisSpecBridgeCliError(
+                f"fingerprint_mismatch: candidate {label} does not match bridge."
+            )
+    if normalized_candidate["target_surface"] != selected["candidate_target_surface"]:
+        raise CreativeHypothesisSpecBridgeCliError(
+            "fingerprint_mismatch: candidate target_surface does not match bridge."
+        )
+    if normalized_candidate["immutable_oracles"] != selected["immutable_oracles"]:
+        raise CreativeHypothesisSpecBridgeCliError(
+            "fingerprint_mismatch: candidate immutable_oracles do not match bridge."
+        )
+    approved_agents = set(cast(list[str], selected["approved_agents"]))
+    dispatch_agents = set(cast(list[str], selected["dispatch_agents"]))
+    if not approved_agents.issubset(dispatch_agents):
+        raise CreativeHypothesisSpecBridgeCliError(
+            "fingerprint_mismatch: bridge approved agents are not present in dispatch agents."
         )
 
 

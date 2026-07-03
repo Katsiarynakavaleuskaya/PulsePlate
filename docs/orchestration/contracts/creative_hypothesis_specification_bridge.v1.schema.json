@@ -41,7 +41,9 @@
     "repo_path": {
       "type": "string",
       "minLength": 1,
-      "not": { "pattern": "^(?:/|~|[A-Za-z][A-Za-z0-9+.-]*:)|(?:^|/)\\.\\.(?:/|$)|\\\\|[\\u0000-\\u001F\\u007F]" }
+      "not": {
+        "pattern": "^(?:/|~|[A-Za-z][A-Za-z0-9+.-]*:)|(?:^|/)\\.\\.?(?:/|$)|\\\\|[\\u0000-\\u001F\\u007F]|^(?:\\.git|\\.venv|worktrees|artifacts)(?:/|$)"
+      }
     },
     "spec_bridge_artifact_ref": {
       "type": "string",
@@ -160,8 +162,18 @@
         },
         "prepared": { "type": "boolean" },
         "finalized": { "const": false },
-        "next_allowed_action": { "const": "agent_skeptic_review" }
-      }
+        "next_allowed_action": { "enum": ["prepare_specification", "agent_skeptic_review"] }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "prepared": { "const": false } }, "required": ["prepared"] },
+          "then": { "properties": { "next_allowed_action": { "const": "prepare_specification" } } }
+        },
+        {
+          "if": { "properties": { "prepared": { "const": true } }, "required": ["prepared"] },
+          "then": { "properties": { "next_allowed_action": { "const": "agent_skeptic_review" } } }
+        }
+      ]
     },
     "bridge_authority": {
       "type": "object",

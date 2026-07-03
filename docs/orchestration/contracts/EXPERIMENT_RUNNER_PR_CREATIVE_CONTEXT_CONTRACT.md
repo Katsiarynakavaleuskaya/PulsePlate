@@ -22,7 +22,9 @@ separate local bridge in
 `scripts/orchestration/creative_hypothesis_spec_bridge.py`. That bridge may
 build a validated `CreativeCodeCandidatePacket`, deterministic local metrics,
 and existing PR-1 prepare artifacts only when the approval decision is
-`approve_for_pr1_specification` with `next_step=create_pr1_specification`.
+`approve_for_pr1_specification` with `next_step=create_pr1_specification` and
+the approval is bound to the current `source_hypothesis_packet_id`,
+`source_hypothesis_packet_fingerprint`, and selected `hypothesis_fingerprint`.
 Approval remains specification handoff authority only; it is not patch,
 repository-write, PR, agent-execution, provider, product-runtime, cache, graph,
 or merge authority.
@@ -165,6 +167,11 @@ The bridge never calls `finalize`, patch builders, promotion tooling, role
 dispatch, providers, product runtime, workflow dispatch, GitHub/Slack write
 paths, or cache/graph truth systems.
 
+Build-only bridge artifacts keep `spec_prepare.prepared=false` and
+`next_allowed_action=prepare_specification`. Only after
+`prepare-specification` writes the four deterministic PR-1 artifacts may the
+bridge mark `prepared=true` and expose `next_allowed_action=agent_skeptic_review`.
+
 ## Operator Model Intake
 
 `CreativeHypothesisOperatorModelIntake` is an advisory, unverified local input
@@ -272,7 +279,10 @@ and targeted gates unless one of the rerun reasons is present.
 `CreativeHypothesisApproval` is a reservation, not a mutation grant. An
 approval may authorize only `create_pr1_specification`. It must keep
 `generate_patch=false`; PR-2 patch generation requires a later explicit gate and
-approved specification evidence.
+approved specification evidence. PR-1 approvals must bind to the exact
+hypothesis packet id, packet fingerprint, and selected hypothesis fingerprint;
+stale approvals for the same reusable `hypothesis_id` cannot authorize a
+changed packet.
 
 ## Rollback
 

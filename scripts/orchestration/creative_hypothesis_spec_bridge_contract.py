@@ -254,6 +254,7 @@ def build_creative_hypothesis_spec_bridge_bundle(
         normalized_packet,
         str(normalized_approval["hypothesis_id"]),
     )
+    _require_approval_binding(normalized_approval, normalized_packet, hypothesis)
     approved_targets = _require_approved_targets_subset(normalized_approval, hypothesis)
     dispatch_row = _find_dispatch_row(
         normalized_dispatch,
@@ -324,6 +325,7 @@ def mark_bridge_prepared(bridge: Mapping[str, Any]) -> dict[str, Any]:
     spec_prepare = dict(cast(Mapping[str, Any], prepared["spec_prepare"]))
     spec_prepare["prepared"] = True
     spec_prepare["finalized"] = False
+    spec_prepare["next_allowed_action"] = "agent_skeptic_review"
     prepared["spec_prepare"] = spec_prepare
     _validate_bridge_identity(prepared)
     reject_bridge_payload_safety(prepared, label="CreativeHypothesisSpecificationBridge")
@@ -454,6 +456,7 @@ def validate_creative_hypothesis_specification_bridge(
         "authority": _normalize_bridge_authority(payload["authority"], label=f"{label}.authority"),
         "sanitized": _require_bool(payload, "sanitized", expected=True, label=label),
     }
+    _validate_selected_hypothesis_invariants(normalized)
     _validate_bridge_artifact_refs(normalized)
     _validate_bridge_identity(normalized)
     reject_bridge_payload_safety(normalized, label=label)
@@ -618,6 +621,25 @@ def _dispatch_agents(dispatch_row: Mapping[str, Any]) -> list[str]:
         *(str(agent) for agent in dispatch_row["cross_domain_agents"]),
     }
     return sorted(agents)
+
+
+def _require_approval_binding(
+    approval: Mapping[str, Any],
+    packet: Mapping[str, Any],
+    hypothesis: Mapping[str, Any],
+) -> None:
+    packet_fingerprint = fingerprint_payload(cast(dict[str, Any], dict(packet)))
+    hypothesis_fingerprint = fingerprint_payload(cast(dict[str, Any], dict(hypothesis)))
+    if (
+        approval["source_hypothesis_packet_id"] != packet["packet_id"]
+        or approval["source_hypothesis_packet_fingerprint"] != packet_fingerprint
+        or approval["hypothesis_fingerprint"] != hypothesis_fingerprint
+    ):
+        raise CreativeHypothesisSpecBridgeError(
+            "fingerprint_mismatch: approval must bind to the current hypothesis "
+            "packet and selected hypothesis fingerprint.",
+            blocked_reason="fingerprint_mismatch",
+        )
 
 
 def _candidate_targets_from_approval(
@@ -833,7 +855,9 @@ def _build_bridge_artifact(
             "expected_files": list(PREPARE_FILENAMES),
             "prepared": prepared,
             "finalized": False,
-            "next_allowed_action": "agent_skeptic_review",
+            "next_allowed_action": (
+                "agent_skeptic_review" if prepared else "prepare_specification"
+            ),
         },
         "authority": default_bridge_authority(),
         "sanitized": True,
@@ -924,7 +948,6 @@ def _bridge_identity_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
         },
         "spec_prepare": {
             "expected_files": spec_prepare["expected_files"],
-            "next_allowed_action": spec_prepare["next_allowed_action"],
         },
         "authority": payload["authority"],
         "sanitized": payload["sanitized"],
@@ -953,6 +976,26 @@ def _validate_bridge_artifact_refs(payload: Mapping[str, Any]) -> None:
         raise CreativeHypothesisSpecBridgeError(
             "CreativeHypothesisSpecificationBridge.spec_prepare.run_dir_ref "
             "must match the bridge id."
+        )
+
+
+def _validate_selected_hypothesis_invariants(payload: Mapping[str, Any]) -> None:
+    selected = cast(Mapping[str, Any], payload["selected_hypothesis"])
+    approved_targets = set(cast(Sequence[str], selected["approved_target_surfaces"]))
+    candidate_targets = set(cast(Sequence[str], selected["candidate_target_surface"]))
+    immutable_oracles = set(cast(Sequence[str], selected["immutable_oracles"]))
+    if not candidate_targets.issubset(approved_targets):
+        raise CreativeHypothesisSpecBridgeError(
+            "CreativeHypothesisSpecificationBridge.selected_hypothesis."
+            "candidate_target_surface must be a subset of approved_target_surfaces."
+        )
+    _reject_target_oracle_overlap(sorted(candidate_targets), sorted(immutable_oracles))
+    approved_agents = set(cast(Sequence[str], selected["approved_agents"]))
+    dispatch_agents = set(cast(Sequence[str], selected["dispatch_agents"]))
+    if not approved_agents.issubset(dispatch_agents):
+        raise CreativeHypothesisSpecBridgeError(
+            "CreativeHypothesisSpecificationBridge.selected_hypothesis.approved_agents "
+            "must be a subset of dispatch_agents."
         )
 
 
@@ -1256,6 +1299,13 @@ def _normalize_spec_prepare(raw_value: Any, *, label: str) -> dict[str, Any]:
     )
     if expected_files != list(PREPARE_FILENAMES):
         raise CreativeHypothesisSpecBridgeError(f"{label}.expected_files must match PR-1 prepare.")
+    prepared = _require_bool(raw_value, "prepared", expected=None, label=label)
+    next_allowed_action = _require_token(raw_value, "next_allowed_action", label=label)
+    expected_next_action = "agent_skeptic_review" if prepared else "prepare_specification"
+    if next_allowed_action != expected_next_action:
+        raise CreativeHypothesisSpecBridgeError(
+            f"{label}.next_allowed_action must be {expected_next_action}."
+        )
     return {
         "run_dir_ref": _normalize_repo_path(
             raw_value["run_dir_ref"],
@@ -1263,14 +1313,9 @@ def _normalize_spec_prepare(raw_value: Any, *, label: str) -> dict[str, Any]:
             allow_artifact_ref=True,
         ),
         "expected_files": expected_files,
-        "prepared": _require_bool(raw_value, "prepared", expected=None, label=label),
+        "prepared": prepared,
         "finalized": _require_bool(raw_value, "finalized", expected=False, label=label),
-        "next_allowed_action": _require_const(
-            raw_value,
-            "next_allowed_action",
-            "agent_skeptic_review",
-            label=label,
-        ),
+        "next_allowed_action": next_allowed_action,
     }
 
 
