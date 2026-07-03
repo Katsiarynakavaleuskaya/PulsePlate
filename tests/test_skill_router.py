@@ -62,7 +62,7 @@ EXPECTED_PRIVILEGED_SURFACE_POLICY_LINES: tuple[str, ...] = (
     "- `scripts/orchestration/**`, `scripts/ci/**`, and `scripts/release/**`",
     "- merge-governance docs under `docs/orchestration/**` and `docs/review/**`",
     "- container, deploy, devcontainer, and security-scan policy under `Dockerfile`, `.dockerignore`, `.trivyignore`, `.devcontainer` Docker/Compose/devcontainer files, deploy Caddy/Compose patterns, `frontend/.dockerignore`, `frontend/Dockerfile.caddy-spa`, and `trivy/**`",
-    "- dependency, quality-gate, edge-deploy, and repo-governance control files matching `AGENTS.md`, `RUNBOOK_AGENT.md`, `Makefile`, `.bandit`, `.bandit.yaml`, `.coderabbit.yaml`, `.nvmrc`, `.secrets.baseline`, `.sourcery.yaml`, `.pre-commit-config.yaml`, `.pre-commit-config.yml`, `.github/CODEOWNERS`, `.github/PULL_REQUEST_TEMPLATE/*.md`, `.github/actionlint.yml`, `.github/actionlint.yaml`, `.github/dependabot.yml`, `.github/dependabot.yaml`, `.github/pull_request_template.md`, `frontend/wrangler.toml`, `mcp-config.json`, `opencode.json`, `pyproject.toml`, root/frontend `package*.json`, `ios/Gemfile*`, `ios/Package.swift`, `ios/Package.resolved`, Xcode SwiftPM manifests, `ios/PulsePlate/PrivacyInfo.xcprivacy`, `requirements*.txt`, `requirements*.in`, `constraints*.txt`, `scripts/deploy.sh`, `scripts/diagnose_web.sh`, `scripts/hooks/repo_python.sh`, `scripts/ops/postgres_backup.sh`, `scripts/ops/postgres_restore.sh`, `scripts/redeploy_caddy.sh`, `scripts/run-backend-tests-pre-commit.sh`, `scripts/ci_*.sh`, `scripts/deploy_*.sh`, `tests/test_repo_policy_guards.py`, `worker.js`, `wrangler.toml`, and policy guard tests under `tests/guards/**`",
+    "- dependency, quality-gate, edge-deploy, and repo-governance control files matching `AGENTS.md`, `RUNBOOK_AGENT.md`, `Makefile`, `.bandit`, `.bandit.yaml`, `.coderabbit.yaml`, `.nvmrc`, `.secrets.baseline`, `.sourcery.yaml`, `.pre-commit-config.yaml`, `.pre-commit-config.yml`, `.github/CODEOWNERS`, `.github/PULL_REQUEST_TEMPLATE/*.md`, `.github/actionlint.yml`, `.github/actionlint.yaml`, `.github/dependabot.yml`, `.github/dependabot.yaml`, `.github/pull_request_template.md`, `frontend/wrangler.toml`, `mcp-config.json`, `opencode.json`, `pyproject.toml`, root/frontend `package*.json`, `ios/Gemfile*`, `ios/Package.swift`, `ios/Package.resolved`, Xcode project and SwiftPM manifests, `ios/PulsePlate/PrivacyInfo.xcprivacy`, `requirements*.txt`, `requirements*.in`, `constraints*.txt`, `scripts/deploy.sh`, `scripts/diagnose_web.sh`, `scripts/hooks/repo_python.sh`, `scripts/ops/postgres_backup.sh`, `scripts/ops/postgres_restore.sh`, `scripts/redeploy_caddy.sh`, `scripts/run-backend-tests-pre-commit.sh`, `scripts/ci_*.sh`, `scripts/deploy_*.sh`, `tests/test_repo_policy_guards.py`, `worker.js`, `wrangler.toml`, and policy guard tests under `tests/guards/**`",
     "- keep `security-auditor` in the executable review path for the canonical bootstrap privileged-review matcher in `scripts/orchestration/bootstrap_sync_policy.py`;",
     "- any matched privileged surface must set `automation_flags.security_review_required = true` and keep the security reviewer executable in the native subagent bridge;",
 )
@@ -1443,6 +1443,11 @@ def test_skill_router_boosts_security_skills_for_privileged_surfaces() -> None:
         ("ios/Package.swift", "release", "ios/Package.swift"),
         ("ios/Package.resolved", "release", "ios/Package.resolved"),
         (
+            "ios/PulsePlate.xcodeproj/project.pbxproj",
+            "release",
+            "ios/PulsePlate.xcodeproj/project.pbxproj",
+        ),
+        (
             "ios/PulsePlate.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved",
             "release",
             "ios/PulsePlate.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved",
@@ -1570,6 +1575,7 @@ def test_privileged_surface_patterns_stay_in_sync_with_policy_coverage() -> None
         "ios/Gemfile*",
         "ios/Package.swift",
         "ios/Package.resolved",
+        "ios/PulsePlate.xcodeproj/project.pbxproj",
         "ios/PulsePlate.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved",
         "ios/PulsePlate.xcworkspace/xcshareddata/swiftpm/Package.swift",
         "ios/PulsePlate/PrivacyInfo.xcprivacy",
@@ -1620,6 +1626,7 @@ def test_privileged_surface_patterns_stay_in_sync_with_policy_coverage() -> None
         "frontend/nested/wrangler.toml",
         "ios/vendor/Gemfile.lock",
         "ios/vendor/Package.resolved",
+        "ios/Archive/PulsePlate.xcodeproj/project.pbxproj",
         "ios/PulsePlate.xcworkspace/xcshareddata/swiftpm/archive/Package.swift",
         "ios/PulsePlate/Archive/PrivacyInfo.xcprivacy",
         "packages/package-lock.json",

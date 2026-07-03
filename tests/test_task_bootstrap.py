@@ -1204,6 +1204,7 @@ def test_task_bootstrap_keeps_security_auditor_in_privileged_review_path() -> No
         "ios/Gemfile.lock",
         "ios/Package.swift",
         "ios/Package.resolved",
+        "ios/PulsePlate.xcodeproj/project.pbxproj",
         "ios/PulsePlate.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved",
         "ios/PulsePlate.xcworkspace/xcshareddata/swiftpm/Package.swift",
         "ios/PulsePlate/PrivacyInfo.xcprivacy",

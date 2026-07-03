@@ -121,8 +121,8 @@ Bootstrap evidence: `scripts/orchestration/routing_graph_loader.py`, `scripts/or
     include GitHub workflows/actions, `.cursor/agents/**`, Fastlane, orchestration/CI/release
     scripts, orchestration/review docs, Trivy policy, root Docker/Compose
     files, devcontainer controls, deploy Caddy/Compose surfaces, frontend Caddy
-    Dockerfile/build-context ignore and npm manifests, iOS Gemfile, SwiftPM,
-    and privacy manifests, root
+    Dockerfile/build-context ignore and npm manifests, iOS Gemfile, Xcode project,
+    SwiftPM, and privacy manifests, root
     security/quality-gate configs, root CI/deploy/test-gate helper scripts,
     root AGENTS/RUNBOOK/Makefile policy entrypoints, GitHub CODEOWNERS,
     PR-template, and actionlint controls, review-bot configs, MCP control-plane

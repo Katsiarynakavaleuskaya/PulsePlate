@@ -110,6 +110,7 @@ def test_bootstrap_sync_policy_freezes_privileged_review_patterns() -> None:
         "ios/Gemfile*",
         "ios/Package.swift",
         "ios/Package.resolved",
+        "ios/PulsePlate.xcodeproj/project.pbxproj",
         "ios/PulsePlate.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved",
         "ios/PulsePlate.xcworkspace/xcshareddata/swiftpm/Package.swift",
         "ios/PulsePlate/PrivacyInfo.xcprivacy",
@@ -323,6 +324,7 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     assert requires_security_review(["ios/Gemfile.lock"]) is True
     assert requires_security_review(["ios/Package.swift"]) is True
     assert requires_security_review(["ios/Package.resolved"]) is True
+    assert requires_security_review(["ios/PulsePlate.xcodeproj/project.pbxproj"]) is True
     assert (
         requires_security_review(
             ["ios/PulsePlate.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"]
@@ -383,6 +385,7 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     assert requires_security_review(["frontend/nested/wrangler.toml"]) is False
     assert requires_security_review(["ios/vendor/Gemfile.lock"]) is False
     assert requires_security_review(["ios/vendor/Package.resolved"]) is False
+    assert requires_security_review(["ios/Archive/PulsePlate.xcodeproj/project.pbxproj"]) is False
     assert (
         requires_security_review(
             ["ios/PulsePlate.xcworkspace/xcshareddata/swiftpm/archive/Package.swift"]

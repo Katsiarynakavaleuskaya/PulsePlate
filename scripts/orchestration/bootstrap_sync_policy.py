@@ -78,6 +78,7 @@ PRIVILEGED_REVIEW_PATTERNS: tuple[str, ...] = (
     "ios/Gemfile*",
     "ios/Package.swift",
     "ios/Package.resolved",
+    "ios/PulsePlate.xcodeproj/project.pbxproj",
     "ios/PulsePlate.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved",
     "ios/PulsePlate.xcworkspace/xcshareddata/swiftpm/Package.swift",
     "ios/PulsePlate/PrivacyInfo.xcprivacy",
