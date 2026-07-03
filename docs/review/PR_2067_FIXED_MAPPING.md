@@ -39,6 +39,8 @@ BOLA, dependency upgrades, or GitHub workflow edits are included.
   executable `security-auditor` invariants.
 - `849c06cf1` - fixes the post-open bug-hunter finding by adding bounded root
   CI/security/deploy helper-script and root quality-gate config coverage.
+- `95b04a9d` - fixes the post-open security-auditor SwiftPM finding by adding
+  iOS SwiftPM manifest coverage with positive and nested negative tests.
 
 ## Lane Start Provenance
 
@@ -91,8 +93,8 @@ AGENTS/RUNBOOK sync note.
 - [x] Fixed in commit mapping artifact created after GitHub assigned PR number
   `#2067`.
 - [x] Initial PR open: no GitHub review comments were resolved before mapping.
-- [ ] Post-open `qa-engineer-agent` pass completed.
-- [ ] Post-open `bug-hunter` pass completed.
+- [x] Post-open `qa-engineer-agent` pass completed.
+- [x] Post-open `bug-hunter` pass completed.
 - [ ] Post-open `security-auditor` pass completed.
 - [ ] Codex Security diff scan / finding discovery completed.
 - [ ] `pulseplate-pr-review` completed.
@@ -160,6 +162,28 @@ Disposition: FIXED
 Commit: 6d3a83a54
 Reason: `.github/CODEOWNERS` and `.github/actionlint.yaml` govern review ownership and workflow lint policy, so leaving them outside the matcher would allow governance changes to bypass executable security review.
 Evidence: The matcher includes `.github/CODEOWNERS`, `.github/actionlint.yml`, and `.github/actionlint.yaml`; focused tests cover positive and nested lookalike negative cases.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3516486804
+Disposition: NOT-A-BUG
+Reason: This stale-state review comment was based on a transient single-commit head; the mapped SHAs are current PR ancestors on the actual head.
+Evidence: `git merge-base --is-ancestor 21e64df95 HEAD`, `100b1ac42`, and `6d3a83a54` returned 0 on the local PR head, and `check_pr_body_phase2_gates --pr-number 2067` passes.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3516486807
+Disposition: NOT-A-BUG
+Reason: This stale-state review comment checked a transient head that lacked the Experiment Runner trailer; the actual branch still contains the material Experiment Runner co-author trailer on the implementation commit.
+Evidence: `git show -s --format=full b09ea4d9d` contains `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`, and the Phase2 gate passes on the current branch.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3516486812 -> 849c06cf1
+Disposition: FIXED
+Commit: 849c06cf1
+Reason: Root quality-gate configs can weaken pre-commit, ruff, pytest, or shared tooling behavior, so they must route through privileged security review.
+Evidence: The matcher covers `.pre-commit-config.yaml`, `.pre-commit-config.yml`, and `pyproject.toml`; focused bootstrap, skill-router, and task-bootstrap tests cover positives and lookalike negatives.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3516486816 -> 849c06cf1
+Disposition: FIXED
+Commit: 849c06cf1
+Reason: Workflow-called root CI/security/deploy helper scripts can change gate or deploy behavior while sitting outside `scripts/ci/` and `scripts/release/` directory prefixes.
+Evidence: The matcher covers `scripts/ci_*.sh` and `scripts/deploy_*.sh`; focused tests cover `scripts/ci_bandit.sh`, `scripts/ci_pip_audit.sh`, `scripts/deploy_production.sh`, and lookalike negatives.
 
 ## Mapping Notes
 
@@ -252,10 +276,25 @@ Focused bootstrap, skill-router, and task-bootstrap tests cover
 `scripts/ci_bandit.sh`, `scripts/ci_pip_audit.sh`, `scripts/deploy_production.sh`,
 `.pre-commit-config.yaml`, and `pyproject.toml`, plus lookalike negatives.
 
+Role: `security-auditor`
+
+Disposition: FIXED
+
+Commit: `95b04a9d`
+
+Reason: Security-auditor correctly found that iOS SwiftPM manifests are
+dependency supply-chain control files like `ios/Gemfile*`, so they should not
+bypass privileged review routing.
+
+Evidence: Commit `95b04a9d` adds `ios/Package.swift` and
+`ios/Package.resolved` patterns. Focused bootstrap, skill-router, and
+task-bootstrap tests cover both SwiftPM manifest positives and nested
+`ios/vendor/Package.resolved` as a negative.
+
 ## Local Validation Evidence
 
-- `python3 scripts/orchestration/check_preflight.py` passed with the existing
-  private-index shape warning only.
+- `PULSEPLATE_PYTHON_INDEX_URL=https://packages.pulseplate.app/root/pulseplate/+simple/ python3 scripts/orchestration/check_preflight.py`
+  passed with canonical private-index shape.
 - `python3 scripts/orchestration/check_agent_consistency.py` passed.
 - Focused pytest passed with the repo-resolved interpreter:
   `. scripts/hooks/repo_python.sh; VENV_PYTHON="$(resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/test_bootstrap_sync_policy.py tests/test_task_bootstrap.py tests/test_skill_router.py`.
