@@ -63,13 +63,16 @@ def test_bootstrap_sync_policy_freezes_privileged_review_prefixes() -> None:
         ".github/actions/",
         ".github/scripts/",
         ".githooks/",
+        "deploy/metatron-lab/",
         "ios/fastlane/",
+        "scripts/metatron_lab/",
         "scripts/orchestration/",
         "scripts/ci/",
         "scripts/release/",
         "docs/orchestration/",
         "docs/review/",
         "tests/guards/",
+        "tools/agentguard/",
         "tools/codex_skills/",
         "tools/cybersecurity_skills/",
         "trivy/",
@@ -120,6 +123,7 @@ def test_bootstrap_sync_policy_freezes_privileged_review_patterns() -> None:
         "deploy/Caddyfile*",
         "deploy/docker-compose.production*.yaml",
         "deploy/docker-compose.staging.yaml",
+        "deploy/systemd/pulseplate-postgres-backup.*",
         "frontend/.dockerignore",
         "frontend/Dockerfile.caddy-spa",
         "frontend/package*.json",
@@ -130,7 +134,10 @@ def test_bootstrap_sync_policy_freezes_privileged_review_patterns() -> None:
         "ios/PulsePlate.xcodeproj/project.pbxproj",
         "ios/PulsePlate.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved",
         "ios/PulsePlate.xcworkspace/xcshareddata/swiftpm/Package.swift",
+        "ios/PulsePlate/Info-Release.plist",
+        "ios/PulsePlate/PulsePlate.entitlements",
         "ios/PulsePlate/PrivacyInfo.xcprivacy",
+        "ios/PulsePlate/*/InfoPlist.strings",
         "mcp-config.json",
         "opencode.json",
         "package*.json",
@@ -354,6 +361,15 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     assert requires_security_review(["deploy/docker-compose.production.yaml"]) is True
     assert requires_security_review(["deploy/docker-compose.production.selfhosted.yaml"]) is True
     assert requires_security_review(["deploy/docker-compose.staging.yaml"]) is True
+    assert requires_security_review(["deploy/metatron-lab/docker-compose.yaml"]) is True
+    assert (
+        requires_security_review(["deploy/systemd/pulseplate-postgres-backup.service.example"])
+        is True
+    )
+    assert (
+        requires_security_review(["deploy/systemd/pulseplate-postgres-backup.timer.example"])
+        is True
+    )
     assert requires_security_review(["frontend/.dockerignore"]) is True
     assert requires_security_review(["frontend/Dockerfile.caddy-spa"]) is True
     assert requires_security_review(["frontend/package.json"]) is True
@@ -374,7 +390,10 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
         requires_security_review(["ios/PulsePlate.xcworkspace/xcshareddata/swiftpm/Package.swift"])
         is True
     )
+    assert requires_security_review(["ios/PulsePlate/Info-Release.plist"]) is True
+    assert requires_security_review(["ios/PulsePlate/PulsePlate.entitlements"]) is True
     assert requires_security_review(["ios/PulsePlate/PrivacyInfo.xcprivacy"]) is True
+    assert requires_security_review(["ios/PulsePlate/en.lproj/InfoPlist.strings"]) is True
     assert requires_security_review(["mcp-config.json"]) is True
     assert requires_security_review(["opencode.json"]) is True
     assert requires_security_review(["package.json"]) is True
@@ -396,9 +415,11 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     assert requires_security_review(["scripts/ci_bandit.sh"]) is True
     assert requires_security_review(["scripts/ci_pip_audit.sh"]) is True
     assert requires_security_review(["scripts/deploy_production.sh"]) is True
+    assert requires_security_review(["scripts/metatron_lab/compose_guard.py"]) is True
     assert requires_security_review(["tests/security/_api_authz_contracts.py"]) is True
     assert requires_security_review(["tests/security/test_api_authz_contract_static.py"]) is True
     assert requires_security_review(["tests/test_repo_policy_guards.py"]) is True
+    assert requires_security_review(["tools/agentguard/scan_text.mjs"]) is True
     assert requires_security_review(["tools/codex_skills/pulseplate-gates/SKILL.md"]) is True
     assert requires_security_review(["tools/cybersecurity_skills/index.json"]) is True
     assert requires_security_review(["worker.js"]) is True
@@ -418,6 +439,15 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     assert requires_security_review(["deploy/nested/docker-compose.production.yaml"]) is False
     assert requires_security_review(["deploy/docker-compose.production/archive.yaml"]) is False
     assert requires_security_review(["deploy/nested/Caddyfile.production"]) is False
+    assert requires_security_review(["deploy/metatron_lab/docker-compose.yaml"]) is False
+    assert requires_security_review(["deploy/metatron-lab-notes/docker-compose.yaml"]) is False
+    assert (
+        requires_security_review(
+            ["deploy/systemd/archive/pulseplate-postgres-backup.service.example"]
+        )
+        is False
+    )
+    assert requires_security_review(["deploy/systemd/pulseplate-postgres-backup-notes.md"]) is False
     assert requires_security_review([".cursor/agent_notes/security-auditor.md"]) is False
     assert requires_security_review([".cursor/command/init.md"]) is False
     assert requires_security_review([".cursor/rules-notes/cybersecurity-skills-index.md"]) is False
@@ -452,6 +482,9 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
         is False
     )
     assert requires_security_review(["ios/PulsePlate/Archive/PrivacyInfo.xcprivacy"]) is False
+    assert requires_security_review(["ios/PulsePlate/Archive/PulsePlate.entitlements"]) is False
+    assert requires_security_review(["ios/PulsePlate/en.lproj/archive/InfoPlist.strings"]) is False
+    assert requires_security_review(["ios/PulsePlate/en.lproj/InfoPlist.strings.backup"]) is False
     assert requires_security_review(["packages/package-lock.json"]) is False
     assert requires_security_review([".github/dependabot/nested.yaml"]) is False
     assert requires_security_review(["scripts/hooks/nested/repo_python.sh"]) is False
@@ -463,9 +496,11 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     assert requires_security_review(["scripts/ci-tools/bandit.sh"]) is False
     assert requires_security_review(["scripts/deploy/production.sh"]) is False
     assert requires_security_review(["scripts/cicd_notes.sh"]) is False
+    assert requires_security_review(["scripts/metatron_lab_notes/compose_guard.py"]) is False
     assert requires_security_review(["tests/test_repo_policy_guard_notes.py"]) is False
     assert requires_security_review(["tests/security/_api_authz_contracts_notes.py"]) is False
     assert requires_security_review(["tests/security/contracts/_api_authz_contracts.py"]) is False
+    assert requires_security_review(["tools/agentguard-notes/scan_text.mjs"]) is False
     assert requires_security_review(["tools/codex_skillz/pulseplate-gates/SKILL.md"]) is False
     assert requires_security_review(["tools/cybersecurity_skillz/index.json"]) is False
     assert requires_security_review(["workers/worker.js"]) is False
@@ -489,8 +524,14 @@ def test_bootstrap_sync_policy_returns_stable_privileged_review_labels() -> None
             "codecov.yml",
             ".yamllint",
             "deploy/docker-compose.production.selfhosted.yaml",
+            "deploy/metatron-lab/docker-compose.yaml",
+            "deploy/systemd/pulseplate-postgres-backup.timer.example",
             "frontend/package-lock.json",
+            "ios/PulsePlate/PulsePlate.entitlements",
+            "ios/PulsePlate/en.lproj/InfoPlist.strings",
+            "scripts/metatron_lab/compose_guard.py",
             "scripts/validate-ci-environment.sh",
+            "tools/agentguard/scan_text.mjs",
             "tools/codex_skills/pulseplate-gates/SKILL.md",
             "requirements-ci-lite.txt",
             "docs/review/PR_1325_FIXED_MAPPING.md",
@@ -506,8 +547,14 @@ def test_bootstrap_sync_policy_returns_stable_privileged_review_labels() -> None
         "codecov.yml",
         ".yamllint",
         "deploy/docker-compose.production*.yaml",
+        "deploy/metatron-lab/",
+        "deploy/systemd/pulseplate-postgres-backup.*",
         "frontend/package*.json",
+        "ios/PulsePlate/PulsePlate.entitlements",
+        "ios/PulsePlate/*/InfoPlist.strings",
+        "scripts/metatron_lab/",
         "scripts/validate-ci-environment.sh",
+        "tools/agentguard/",
         "tools/codex_skills/",
         "requirements*.txt",
         "docs/review/",
