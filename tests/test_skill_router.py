@@ -1620,6 +1620,23 @@ def test_skill_router_routes_learning_loop_for_successful_iteration_pattern() ->
     )
 
 
+def test_learning_loop_semantic_group_and_skill_rule_keywords_stay_aligned() -> None:
+    """Learning-loop skill routing must not drift from its semantic trigger group."""
+
+    semantic_keywords = next(
+        group.keywords
+        for group in skill_router_module.SEMANTIC_LEXEME_GROUPS
+        if group.group_id == "orchestration.agent_learning_loop"
+    )
+    skill_keywords = next(
+        rule.keywords
+        for rule in skill_router_module.SKILL_RULES
+        if rule.skill == "pulseplate-agent-learning-loop"
+    )
+
+    assert skill_keywords == semantic_keywords
+
+
 def test_skill_router_does_not_route_review_oracles_from_generic_oracle_text() -> None:
     """Generic experiment-runner oracle wording must not boost review-pattern helpers."""
 

@@ -2350,6 +2350,10 @@ def validate_creative_hypothesis_coordinator_dispatch(
     raw_dispatch = payload["dispatch"]
     if not isinstance(raw_dispatch, list):
         raise ExperimentRunnerCreativeContextContractError(f"{label}.dispatch must be a list.")
+    if not raw_dispatch:
+        raise ExperimentRunnerCreativeContextContractError(
+            "coordinator dispatch must contain at least one dispatch entry."
+        )
     dispatch = [
         _normalize_coordinator_dispatch_entry(
             row,

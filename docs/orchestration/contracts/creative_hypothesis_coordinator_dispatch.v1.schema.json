@@ -26,6 +26,7 @@
     "source_hypothesis_packet_fingerprint": { "$ref": "#/$defs/sha256" },
     "dispatch": {
       "type": "array",
+      "minItems": 1,
       "items": { "$ref": "#/$defs/dispatch_entry" }
     },
     "authority": { "$ref": "#/$defs/dispatch_authority" },

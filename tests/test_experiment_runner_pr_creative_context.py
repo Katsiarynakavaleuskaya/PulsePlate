@@ -347,6 +347,35 @@ def test_valid_model_intake_normalizes_to_hypothesis_packet_and_dispatch() -> No
     assert all(row["mutation_authority"] is False for row in dispatch["dispatch"])
 
 
+def test_coordinator_dispatch_rejects_empty_dispatch_entries() -> None:
+    context = _context()
+    packet = build_creative_hypothesis_packet(context, hypothesis_count=3)
+    routing = build_creative_hypothesis_agent_routing(packet)
+    dispatch = build_creative_hypothesis_coordinator_dispatch(
+        hypothesis_packet=packet,
+        routing=routing,
+    )
+    dispatch["dispatch"] = []
+    dispatch_id, idempotency_key = _artifact_identity(
+        {
+            key: value
+            for key, value in dispatch.items()
+            if key not in {"dispatch_id", "idempotency_key"}
+        },
+        artifact_type=COORDINATOR_DISPATCH_TYPE,
+        upstream_ids=(str(packet["packet_id"]),),
+        policy_version=COORDINATOR_DISPATCH_POLICY_VERSION,
+    )
+    dispatch["dispatch_id"] = dispatch_id
+    dispatch["idempotency_key"] = idempotency_key
+
+    with pytest.raises(
+        ExperimentRunnerCreativeContextContractError,
+        match="at least one dispatch entry",
+    ):
+        validate_creative_hypothesis_coordinator_dispatch(dispatch)
+
+
 def test_model_intake_derives_repo_identity_when_operator_omits_it() -> None:
     context = _context()
     intake = _operator_model_intake(context, hypothesis_count=4)
@@ -1401,6 +1430,8 @@ def test_operator_model_intake_schema_enforces_local_sanitized_shape() -> None:
         "/Users/example/repo/file.py",
         "github_token",
     ):
+        # These regexes are loaded from repo-owned schema JSON, not from
+        # attacker-controlled input, so schema parity checks may execute them.
         assert any(re.search(pattern, unsafe_value) for pattern in unsafe_text_patterns)
 
     assert (
@@ -1417,6 +1448,12 @@ def test_operator_model_intake_schema_enforces_local_sanitized_shape() -> None:
     )
 
 
+def test_coordinator_dispatch_schema_requires_at_least_one_dispatch_entry() -> None:
+    schema = _schema("creative_hypothesis_coordinator_dispatch.v1.schema.json")
+
+    assert schema["properties"]["dispatch"]["minItems"] == 1
+
+
 def test_hypothesis_packet_schema_rejects_unsafe_text_classes() -> None:
     schema = _schema("creative_hypothesis_packet.v1.schema.json")
     unsafe_text_patterns = [row["pattern"] for row in schema["$defs"]["safe_text"]["not"]["anyOf"]]
@@ -1427,6 +1464,8 @@ def test_hypothesis_packet_schema_rejects_unsafe_text_classes() -> None:
         "/Users/example/repo/file.py",
         "github_token",
     ):
+        # These regexes are loaded from repo-owned schema JSON, not from
+        # attacker-controlled input, so schema parity checks may execute them.
         assert any(re.search(pattern, unsafe_value) for pattern in unsafe_text_patterns)
 
 
