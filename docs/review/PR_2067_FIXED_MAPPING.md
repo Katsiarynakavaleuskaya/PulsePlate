@@ -57,6 +57,9 @@ BOLA, dependency upgrades, or GitHub workflow edits are included.
 - `067ff4dca` - normalizes bounded dot-segment
   paths before privileged matching and adds coverage-governance files
   `.coveragerc` / `codecov.*` to the privileged matcher.
+- `7005eb031` - fixes the latest review-control findings by adding bounded
+  privileged coverage for yamllint config, submodule metadata, repo-local hook
+  scripts, Python/Ruby toolchain pins, and the CI environment validation helper.
 
 ## Lane Start Provenance
 
@@ -390,6 +393,36 @@ Disposition: FIXED
 Commit: c76ab28de
 Reason: `scripts/deploy.sh` and the ops backup/restore helpers are live deploy and database-safety entrypoints, so they need exact privileged routing instead of relying only on underscore-prefixed deploy helpers.
 Evidence: The matcher now covers `scripts/deploy.sh`, `scripts/ops/postgres_backup.sh`, and `scripts/ops/postgres_restore.sh`, with focused bootstrap, skill-router, and task-bootstrap tests.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3520300541 -> 7005eb031
+Disposition: FIXED
+Commit: 7005eb031
+Reason: `.yamllint` config controls the repo yamllint hook invoked by pre-commit, so changing it can weaken mandatory YAML lint behavior without touching `.pre-commit-config.yaml`.
+Evidence: The matcher now covers root `.yamllint`; focused bootstrap, skill-router, and task-bootstrap tests prove it routes through `security_review_required=true`, and negative tests keep `docs/.yamllint` non-privileged.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3520300553 -> 7005eb031
+Disposition: FIXED
+Commit: 7005eb031
+Reason: `.gitmodules` controls checked-in submodule source metadata, including the security-skills submodule path used by operator install flows, so submodule URL/path edits must not bypass executable security review.
+Evidence: The matcher now covers root `.gitmodules`; focused bootstrap, skill-router, and task-bootstrap tests prove the positive path and keep `docs/.gitmodules` as a nested lookalike negative.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3520300561 -> 7005eb031
+Disposition: FIXED
+Commit: 7005eb031
+Reason: Repo-local hook scripts under `.githooks/**` can weaken local push and safety checks even when the pre-commit config is unchanged, so they belong in the privileged local-hook surface.
+Evidence: The matcher now covers the bounded `.githooks/` prefix; focused bootstrap, skill-router, and task-bootstrap tests cover `.githooks/pre-push`, while `.githooks-notes/pre-push` remains a negative control.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3520300567 -> 7005eb031
+Disposition: FIXED
+Commit: 7005eb031
+Reason: Python/Ruby runtime pin files define local and release toolchain baselines, and this matcher already protected the adjacent Node pin `.nvmrc`; leaving `.python-version`, `.tool-versions`, and `.ruby-version` out created inconsistent toolchain governance.
+Evidence: The matcher now covers `.python-version`, `.tool-versions`, and `.ruby-version`; focused bootstrap, skill-router, and task-bootstrap tests prove all three route through privileged review.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3520300573 -> 7005eb031
+Disposition: FIXED
+Commit: 7005eb031
+Reason: `scripts/validate-ci-environment.sh` is a workflow-called CI/CD environment validation helper, so helper-only edits can weaken deploy-environment validation without matching the existing `scripts/ci/` or `scripts/deploy_*.sh` surfaces.
+Evidence: The matcher now covers exact `scripts/validate-ci-environment.sh`; focused bootstrap, skill-router, and task-bootstrap tests prove the positive path and keep `scripts/validate-ci-environment/archive.sh` as a nested negative control.
 
 ## Role-Agent / Premortem Closeout
 
