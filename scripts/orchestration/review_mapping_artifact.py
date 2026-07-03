@@ -233,9 +233,7 @@ def _validate_mapping_entries_preamble(
             continue
         errors.append(f"Invalid mapping line format in canonical artifact: {line}")
     evidence_values = [
-        line.removeprefix("Evidence:").strip()
-        for line in preamble
-        if line.startswith("Evidence:")
+        line.removeprefix("Evidence:").strip() for line in preamble if line.startswith("Evidence:")
     ]
     if not evidence_values or any(not value for value in evidence_values):
         errors.append("Disposition FIXED requires a non-empty 'Evidence:' proof line.")
@@ -378,8 +376,10 @@ def validate_fixed_mapping_section(section: str) -> list[str]:
             if next_block is not None and _is_mapping_only_block(next_block):
                 skip_indexes.add(index + 1)
             continue
-        if _is_mapping_only_block(block) and next_block is not None and _block_has_disposition(
-            next_block
+        if (
+            _is_mapping_only_block(block)
+            and next_block is not None
+            and _block_has_disposition(next_block)
         ):
             errors.extend(_validate_fixed_mapping_block([*block, *next_block]))
             skip_indexes.add(index + 1)
