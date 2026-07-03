@@ -33,6 +33,81 @@ THREAD_LINE_RE = re.compile(r"^\s*-\s+(https://github\.com/\S+)\s*$")
 NO_ACTIONABLE_LINE = "- No actionable review comments"
 # Disposition/proof lines allowed in section (disposition guard format)
 DETAIL_PREFIXES = ("Disposition:", "Commit:", "Evidence:", "Backlog:", "Reason:")
+VALID_DISPOSITIONS = frozenset({"FIXED", "NOT-A-BUG", "DEFERRED"})
+
+
+def _validate_fixed_mapping_block(lines: list[str]) -> list[str]:
+    """Validate one disposition/proof block inside Fixed in Commit Mapping."""
+
+    errors: list[str] = []
+    disposition_values: list[str] = []
+    has_sha_mapping = False
+    has_url_only_mapping = False
+    proof_prefixes: set[str] = set()
+
+    for line in lines:
+        if line.startswith("Disposition:"):
+            disposition = line.removeprefix("Disposition:").strip()
+            if disposition not in VALID_DISPOSITIONS:
+                errors.append(
+                    f"Invalid Disposition value: {disposition}. "
+                    "Expected FIXED, NOT-A-BUG, or DEFERRED."
+                )
+            disposition_values.append(disposition)
+            continue
+        matched_detail = next(
+            (prefix for prefix in DETAIL_PREFIXES[1:] if line.startswith(prefix)),
+            None,
+        )
+        if matched_detail is not None:
+            proof_prefixes.add(matched_detail)
+            continue
+        if MAPPING_LINE_RE.match(line):
+            has_sha_mapping = True
+            continue
+        if THREAD_LINE_RE.match(line):
+            has_url_only_mapping = True
+            continue
+        errors.append(f"Invalid mapping line format in canonical artifact: {line}")
+
+    saw_thread_line = has_sha_mapping or has_url_only_mapping
+    if len(disposition_values) > 1:
+        errors.append("Fixed in Commit Mapping proof block must contain one Disposition line.")
+    if not errors and not saw_thread_line:
+        errors.append(
+            "Fixed in Commit Mapping proof block must contain at least one '- <url>' "
+            "or '- <url> -> <sha>' line."
+        )
+    if not errors and saw_thread_line and not disposition_values:
+        errors.append("Missing 'Disposition:' when review-thread entries are present.")
+    if not errors and saw_thread_line and not proof_prefixes:
+        errors.append(
+            "Missing proof detail (Commit:/Evidence:/Backlog:) when review-thread entries are present."
+        )
+    if errors or not disposition_values:
+        return errors
+
+    disposition = disposition_values[0]
+    if disposition == "FIXED":
+        if not has_sha_mapping:
+            errors.append("Disposition FIXED requires '- <url> -> <sha>' mapping lines.")
+        if has_url_only_mapping:
+            errors.append("Disposition FIXED must not use URL-only review-thread lines.")
+        if "Commit:" not in proof_prefixes:
+            errors.append("Disposition FIXED requires a 'Commit:' proof line.")
+    elif disposition == "NOT-A-BUG":
+        if has_sha_mapping:
+            errors.append("Disposition NOT-A-BUG must use URL-only review-thread lines.")
+        if "Evidence:" not in proof_prefixes:
+            errors.append("Disposition NOT-A-BUG requires an 'Evidence:' proof line.")
+        if "Reason:" not in proof_prefixes:
+            errors.append("Disposition NOT-A-BUG requires a 'Reason:' proof line.")
+    elif disposition == "DEFERRED":
+        if has_sha_mapping:
+            errors.append("Disposition DEFERRED must use URL-only review-thread lines.")
+        if "Backlog:" not in proof_prefixes:
+            errors.append("Disposition DEFERRED requires a 'Backlog:' proof line.")
+    return errors
 
 
 def mapping_artifact_path(pr_number: int) -> Path:
@@ -127,34 +202,30 @@ def validate_fixed_mapping_section(section: str) -> list[str]:
             )
         return errors
 
-    saw_thread_line = False
-    saw_disposition = False
-    saw_proof = False
+    blocks: list[list[str]] = []
+    current_block: list[str] = []
     for line in lines:
         if line.startswith("Disposition:"):
-            saw_disposition = True
-            continue
-        if any(line.startswith(prefix) for prefix in DETAIL_PREFIXES[1:]):
-            saw_proof = True
-            continue
-        if MAPPING_LINE_RE.match(line):
-            saw_thread_line = True
-            continue
-        if THREAD_LINE_RE.match(line):
-            saw_thread_line = True
-            continue
-        errors.append(f"Invalid mapping line format in canonical artifact: {line}")
+            if current_block:
+                blocks.append(current_block)
+            current_block = [line]
+        else:
+            current_block.append(line)
+    if current_block:
+        blocks.append(current_block)
 
-    if not errors and not saw_thread_line:
+    saw_thread_line = any(
+        MAPPING_LINE_RE.match(line) or THREAD_LINE_RE.match(line)
+        for block in blocks
+        for line in block
+    )
+    for block in blocks:
+        errors.extend(_validate_fixed_mapping_block(block))
+
+    if not saw_thread_line and not errors:
         errors.append(
             "Fixed in Commit Mapping must contain at least one '- <url>' or "
             "'- <url> -> <sha>' line, or '- No actionable review comments'."
-        )
-    if not errors and saw_thread_line and not saw_disposition:
-        errors.append("Missing 'Disposition:' when review-thread entries are present.")
-    if not errors and saw_thread_line and not saw_proof:
-        errors.append(
-            "Missing proof detail (Commit:/Evidence:/Backlog:) when review-thread entries are present."
         )
 
     return errors

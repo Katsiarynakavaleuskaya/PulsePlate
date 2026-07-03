@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
+import pytest
+
 from scripts.orchestration.bootstrap_sync_policy import (
     AGENT_CONTRACT_PATH_MARKERS,
     AGENTS_CONTRACT_FILE,
@@ -12,15 +17,24 @@ from scripts.orchestration.bootstrap_sync_policy import (
     DOCS_ONLY_ROOT_FILES,
     IMPLEMENTATION_PATH_PREFIXES,
     PRIVILEGED_REVIEW_PREFIXES,
+    PRIVILEGED_REVIEW_SURFACES,
     SKILL_CONTRACT_FILE,
     is_docs_only_contract_path,
     matches_any_prefix,
     needs_agents_sync,
     needs_backlog_update,
     needs_docs_sync,
+    privileged_review_surface_matches,
     requires_security_review,
     resolve_analysis_envelope_mode,
 )
+
+FIXTURE_DIR = Path(__file__).resolve().parent / "fixtures" / "orchestration"
+
+
+def _privileged_surface_cases() -> list[dict[str, object]]:
+    fixture = json.loads((FIXTURE_DIR / "privileged_review_surfaces.json").read_text())
+    return list(fixture["cases"])
 
 
 def test_bootstrap_sync_policy_freezes_backlog_signal_terms() -> None:
@@ -54,11 +68,25 @@ def test_bootstrap_sync_policy_freezes_privileged_review_prefixes() -> None:
 
     assert PRIVILEGED_REVIEW_PREFIXES == (
         ".github/workflows/",
+        ".github/actions/",
         "ios/fastlane/",
         "scripts/orchestration/",
         "scripts/ci/",
         "docs/orchestration/",
         "docs/review/",
+        "deploy/",
+        ".devcontainer/",
+    )
+    assert tuple(surface.surface_class for surface in PRIVILEGED_REVIEW_SURFACES) == (
+        "github_workflows",
+        "github_actions",
+        "ios_fastlane",
+        "orchestration_scripts",
+        "merge_governance_scripts",
+        "orchestration_governance_docs",
+        "review_governance_docs",
+        "deploy_and_image_config",
+        "dependency_and_hook_config",
     )
 
 
@@ -203,8 +231,27 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     assert requires_security_review(["scripts/ci"]) is True
     assert requires_security_review(["scripts/orchestration/task_bootstrap.py"]) is True
     assert requires_security_review(["docs/review/PR_1325_FIXED_MAPPING.md"]) is True
+    assert requires_security_review(["Dockerfile"]) is True
+    assert requires_security_review(["requirements.txt"]) is True
     assert requires_security_review(["script/orchestration/config.yml"]) is False
     assert requires_security_review(["tests/test_task_bootstrap.py"]) is False
+
+
+@pytest.mark.parametrize("case", _privileged_surface_cases(), ids=lambda case: case["case_id"])
+def test_bootstrap_sync_policy_uses_reviewed_privileged_surface_matrix(
+    case: dict[str, object],
+) -> None:
+    """Shared matrix must drive exact, suffix, prefix, and negative matching."""
+
+    path = str(case["path"])
+    is_privileged = bool(case["privileged"])
+    assert requires_security_review([path]) is is_privileged
+
+    matches = privileged_review_surface_matches([f"  {path}  "])
+    if is_privileged:
+        assert case["reason"] in matches
+    else:
+        assert matches == ()
 
 
 def test_bootstrap_sync_policy_fails_closed_to_analysis_for_privileged_docs() -> None:
@@ -222,3 +269,4 @@ def test_bootstrap_sync_policy_fails_closed_for_whitespace_padded_privileged_doc
     candidate_paths = ["  docs/orchestration/AGENT_MESSAGE_PROTOCOL.md  "]
 
     assert resolve_analysis_envelope_mode(candidate_paths) == ANALYSIS_ENVELOPE_MODE
+    assert requires_security_review(candidate_paths) is True

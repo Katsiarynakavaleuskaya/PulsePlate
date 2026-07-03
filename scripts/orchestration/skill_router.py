@@ -13,6 +13,8 @@ from typing import Any
 
 from scripts.orchestration.bootstrap_sync_policy import (
     DOCS_ONLY_ENVELOPE_MODE,
+    PRIVILEGED_REVIEW_PREFIXES as PRIVILEGED_SURFACE_PREFIXES,
+    privileged_review_surface_matches,
     resolve_analysis_envelope_mode,
 )
 from scripts.orchestration.context_pack import normalize_text, repo_relative_paths
@@ -126,15 +128,6 @@ REQUESTED_AGENT_SKILL_BUNDLES: dict[str, tuple[str, ...]] = {
 REQUESTED_AGENT_COMPANION_SKILL_BUNDLES: dict[str, tuple[str, ...]] = {
     "security-auditor": ("cybersecurity-skills",),
 }
-
-PRIVILEGED_SURFACE_PREFIXES: tuple[str, ...] = (
-    ".github/workflows/",
-    "ios/fastlane/",
-    "scripts/orchestration/",
-    "scripts/ci/",
-    "docs/orchestration/",
-    "docs/review/",
-)
 
 PRIVILEGED_SURFACE_SKILL_BUNDLES: dict[str, int] = {
     "security-best-practices": 4,
@@ -2109,7 +2102,7 @@ def route_skills(
     ]
 
     selected_by_skill = {item["skill"]: item for item in selected}
-    privileged_surface_matches = _match_path_prefixes(PRIVILEGED_SURFACE_PREFIXES, normalized_paths)
+    privileged_surface_matches = privileged_review_surface_matches(normalized_paths)
     for privileged_surface in privileged_surface_matches:
         for skill, boost in PRIVILEGED_SURFACE_SKILL_BUNDLES.items():
             _apply_bundle_reason(

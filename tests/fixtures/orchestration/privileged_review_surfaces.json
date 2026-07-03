@@ -1,0 +1,96 @@
+{
+  "schema_version": "privileged_review_surfaces.v1",
+  "cases": [
+    {
+      "case_id": "github_workflow",
+      "path": ".github/workflows/ci.yml",
+      "privileged": true,
+      "reason": ".github/workflows/"
+    },
+    {
+      "case_id": "github_action",
+      "path": ".github/actions/setup/action.yml",
+      "privileged": true,
+      "reason": ".github/actions/"
+    },
+    {
+      "case_id": "fastlane",
+      "path": "ios/fastlane/Fastfile",
+      "privileged": true,
+      "reason": "ios/fastlane/"
+    },
+    {
+      "case_id": "orchestration_script",
+      "path": "scripts/orchestration/task_bootstrap.py",
+      "privileged": true,
+      "reason": "scripts/orchestration/"
+    },
+    {
+      "case_id": "ci_merge_script",
+      "path": "scripts/ci/check_pr_merge_readiness.py",
+      "privileged": true,
+      "reason": "scripts/ci/"
+    },
+    {
+      "case_id": "orchestration_docs",
+      "path": "docs/orchestration/AGENT_MESSAGE_PROTOCOL.md",
+      "privileged": true,
+      "reason": "docs/orchestration/"
+    },
+    {
+      "case_id": "review_mapping_docs",
+      "path": "docs/review/PR_999_FIXED_MAPPING.md",
+      "privileged": true,
+      "reason": "docs/review/"
+    },
+    {
+      "case_id": "root_dockerfile",
+      "path": "Dockerfile",
+      "privileged": true,
+      "reason": "deploy-or-image-config"
+    },
+    {
+      "case_id": "nested_dockerfile",
+      "path": "deploy/api/Dockerfile",
+      "privileged": true,
+      "reason": "deploy-or-image-config"
+    },
+    {
+      "case_id": "pre_commit",
+      "path": ".pre-commit-config.yaml",
+      "privileged": true,
+      "reason": "dependency-or-hook-config"
+    },
+    {
+      "case_id": "requirements",
+      "path": "requirements.txt",
+      "privileged": true,
+      "reason": "dependency-or-hook-config"
+    },
+    {
+      "case_id": "root_readme",
+      "path": "README.md",
+      "privileged": false
+    },
+    {
+      "case_id": "runbook_docs",
+      "path": "docs/runbooks/QUICKSTART.md",
+      "privileged": false
+    },
+    {
+      "case_id": "implementation_markdown",
+      "path": "app/internal_notes.md",
+      "privileged": false
+    },
+    {
+      "case_id": "near_miss_script",
+      "path": "script/orchestration/config.yml",
+      "privileged": false
+    },
+    {
+      "case_id": "test_file",
+      "path": "tests/test_task_bootstrap.py",
+      "privileged": false
+    }
+  ]
+}

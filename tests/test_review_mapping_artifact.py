@@ -211,6 +211,29 @@ Reason: Existing behavior already matches the contract.
     assert errors == []
 
 
+def test_validate_fixed_mapping_section_accepts_deferred_backlog_line() -> None:
+    section = """Disposition: DEFERRED
+Backlog: docs/roadmap/BACKLOG_LEDGER.md#review-thread-follow-up
+- https://github.com/org/repo/pull/1000#discussion_r1
+"""
+    errors = artifact.validate_fixed_mapping_section(section)
+    assert errors == []
+
+
+def test_validate_fixed_mapping_section_accepts_multiple_disposition_blocks() -> None:
+    section = """Disposition: FIXED
+Commit: abc1234
+- https://github.com/org/repo/pull/1000#discussion_r1 -> abc1234
+
+Disposition: NOT-A-BUG
+Evidence: docs/review/PR_1000_FIXED_MAPPING.md:1
+Reason: Existing behavior already matches the contract.
+- https://github.com/org/repo/pull/1000#discussion_r2
+"""
+    errors = artifact.validate_fixed_mapping_section(section)
+    assert errors == []
+
+
 def test_validate_fixed_mapping_section_requires_disposition_for_sha_mappings() -> None:
     section = """Commit: abc1234
 - https://github.com/org/repo/pull/1#discussion_r1 -> abc1234
@@ -233,3 +256,40 @@ def test_validate_fixed_mapping_section_requires_proof_for_url_only_entries() ->
 """
     errors = artifact.validate_fixed_mapping_section(section)
     assert any("Missing proof detail" in error for error in errors)
+
+
+def test_validate_fixed_mapping_section_rejects_unknown_disposition() -> None:
+    section = """Disposition: HANDLED
+Evidence: docs/review/PR_1000_FIXED_MAPPING.md:1
+- https://github.com/org/repo/pull/1#discussion_r1
+"""
+    errors = artifact.validate_fixed_mapping_section(section)
+    assert any("Invalid Disposition value" in error for error in errors)
+
+
+def test_validate_fixed_mapping_section_rejects_fixed_url_only() -> None:
+    section = """Disposition: FIXED
+Commit: abc1234
+- https://github.com/org/repo/pull/1#discussion_r1
+"""
+    errors = artifact.validate_fixed_mapping_section(section)
+    assert any("Disposition FIXED requires" in error for error in errors)
+
+
+def test_validate_fixed_mapping_section_rejects_not_a_bug_sha_mapping() -> None:
+    section = """Disposition: NOT-A-BUG
+Evidence: docs/review/PR_1000_FIXED_MAPPING.md:1
+Reason: Existing behavior already matches the contract.
+- https://github.com/org/repo/pull/1#discussion_r1 -> abc1234
+"""
+    errors = artifact.validate_fixed_mapping_section(section)
+    assert any("NOT-A-BUG must use URL-only" in error for error in errors)
+
+
+def test_validate_fixed_mapping_section_rejects_deferred_without_backlog() -> None:
+    section = """Disposition: DEFERRED
+Evidence: docs/review/PR_1000_FIXED_MAPPING.md:1
+- https://github.com/org/repo/pull/1#discussion_r1
+"""
+    errors = artifact.validate_fixed_mapping_section(section)
+    assert any("DEFERRED requires a 'Backlog:'" in error for error in errors)

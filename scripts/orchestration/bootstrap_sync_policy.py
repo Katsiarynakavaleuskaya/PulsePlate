@@ -7,6 +7,7 @@ EN: Centralizes sync-policy constants and matcher rules for the bootstrap packet
 from __future__ import annotations
 
 from collections.abc import Sequence
+from dataclasses import dataclass
 
 BACKLOG_SIGNAL_TERMS: tuple[str, ...] = (
     "backlog",
@@ -26,13 +27,80 @@ IMPLEMENTATION_PATH_PREFIXES: tuple[str, ...] = (
     "ios/",
 )
 
-PRIVILEGED_REVIEW_PREFIXES: tuple[str, ...] = (
-    ".github/workflows/",
-    "ios/fastlane/",
-    "scripts/orchestration/",
-    "scripts/ci/",
-    "docs/orchestration/",
-    "docs/review/",
+
+@dataclass(frozen=True)
+class PrivilegedReviewSurface:
+    """Reviewed privileged-surface matcher row."""
+
+    surface_class: str
+    reason: str
+    prefixes: tuple[str, ...] = ()
+    exact_paths: tuple[str, ...] = ()
+    suffixes: tuple[str, ...] = ()
+
+
+PRIVILEGED_REVIEW_SURFACES: tuple[PrivilegedReviewSurface, ...] = (
+    PrivilegedReviewSurface(
+        surface_class="github_workflows",
+        reason=".github/workflows/",
+        prefixes=(".github/workflows/",),
+    ),
+    PrivilegedReviewSurface(
+        surface_class="github_actions",
+        reason=".github/actions/",
+        prefixes=(".github/actions/",),
+    ),
+    PrivilegedReviewSurface(
+        surface_class="ios_fastlane",
+        reason="ios/fastlane/",
+        prefixes=("ios/fastlane/",),
+    ),
+    PrivilegedReviewSurface(
+        surface_class="orchestration_scripts",
+        reason="scripts/orchestration/",
+        prefixes=("scripts/orchestration/",),
+    ),
+    PrivilegedReviewSurface(
+        surface_class="merge_governance_scripts",
+        reason="scripts/ci/",
+        prefixes=("scripts/ci/",),
+    ),
+    PrivilegedReviewSurface(
+        surface_class="orchestration_governance_docs",
+        reason="docs/orchestration/",
+        prefixes=("docs/orchestration/",),
+    ),
+    PrivilegedReviewSurface(
+        surface_class="review_governance_docs",
+        reason="docs/review/",
+        prefixes=("docs/review/",),
+    ),
+    PrivilegedReviewSurface(
+        surface_class="deploy_and_image_config",
+        reason="deploy-or-image-config",
+        prefixes=("deploy/", ".devcontainer/"),
+        exact_paths=("Dockerfile", "docker-compose.yaml", "docker-compose.yml"),
+        suffixes=("/Dockerfile", "/docker-compose.yaml", "/docker-compose.yml"),
+    ),
+    PrivilegedReviewSurface(
+        surface_class="dependency_and_hook_config",
+        reason="dependency-or-hook-config",
+        exact_paths=(
+            ".pre-commit-config.yaml",
+            "constraints.txt",
+            "package-lock.json",
+            "pnpm-lock.yaml",
+            "pyproject.toml",
+            "requirements.in",
+            "requirements.txt",
+            "requirements-dev.txt",
+        ),
+        suffixes=("/package-lock.json", "/pnpm-lock.yaml", "/requirements.txt"),
+    ),
+)
+
+PRIVILEGED_REVIEW_PREFIXES: tuple[str, ...] = tuple(
+    prefix for surface in PRIVILEGED_REVIEW_SURFACES for prefix in surface.prefixes
 )
 
 AGENTS_CONTRACT_FILE = "AGENTS.md"
@@ -57,6 +125,13 @@ ANALYSIS_ENVELOPE_MODE = "analysis"
 DOCS_ONLY_ENVELOPE_MODE = "docs_only"
 
 
+def _normalize_review_path(path: str) -> str:
+    normalized = path.strip().replace("\\", "/")
+    while normalized.startswith("./"):
+        normalized = normalized[2:]
+    return normalized
+
+
 def matches_any_prefix(path: str, prefixes: tuple[str, ...]) -> bool:
     """Return True when a path matches a canonical prefix exactly or by subtree.
 
@@ -64,7 +139,34 @@ def matches_any_prefix(path: str, prefixes: tuple[str, ...]) -> bool:
     EN: A match is valid for both the root directory and any nested path.
     """
 
-    return any(path == prefix.rstrip("/") or path.startswith(prefix) for prefix in prefixes)
+    normalized = _normalize_review_path(path)
+    return any(
+        normalized == prefix.rstrip("/") or normalized.startswith(prefix) for prefix in prefixes
+    )
+
+
+def _matches_privileged_surface(path: str, surface: PrivilegedReviewSurface) -> bool:
+    normalized = _normalize_review_path(path)
+    if not normalized:
+        return False
+    if normalized in surface.exact_paths:
+        return True
+    if any(
+        normalized == prefix.rstrip("/") or normalized.startswith(prefix)
+        for prefix in surface.prefixes
+    ):
+        return True
+    return any(normalized.endswith(suffix) for suffix in surface.suffixes)
+
+
+def privileged_review_surface_matches(candidate_paths: Sequence[str]) -> tuple[str, ...]:
+    """Return stable privileged-surface reason labels matched by candidate paths."""
+
+    matches: list[str] = []
+    for surface in PRIVILEGED_REVIEW_SURFACES:
+        if any(_matches_privileged_surface(path, surface) for path in candidate_paths):
+            matches.append(surface.reason)
+    return tuple(matches)
 
 
 def requires_security_review(candidate_paths: Sequence[str]) -> bool:
@@ -74,7 +176,7 @@ def requires_security_review(candidate_paths: Sequence[str]) -> bool:
     EN: Privileged surfaces always force the security-review path.
     """
 
-    return any(matches_any_prefix(path, PRIVILEGED_REVIEW_PREFIXES) for path in candidate_paths)
+    return bool(privileged_review_surface_matches(candidate_paths))
 
 
 def needs_backlog_update(
