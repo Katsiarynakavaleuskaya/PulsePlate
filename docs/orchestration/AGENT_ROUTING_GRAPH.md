@@ -118,10 +118,11 @@ Bootstrap evidence: `scripts/orchestration/routing_graph_loader.py`, `scripts/or
     canonical matcher in `scripts/orchestration/bootstrap_sync_policy.py` must
     include `security-auditor` in the review path, even when the dominant
     domain is docs/orchestration/release rather than security. Current surfaces
-    include GitHub workflows/actions, Fastlane, orchestration/CI/release
+    include GitHub workflows/actions, `.cursor/agents/**`, Fastlane, orchestration/CI/release
     scripts, orchestration/review docs, Trivy policy, root Docker/Compose
     files, devcontainer controls, deploy Caddy/Compose surfaces, frontend Caddy
-    Dockerfile and npm manifests, iOS Gemfile and SwiftPM manifests, root
+    Dockerfile/build-context ignore and npm manifests, iOS Gemfile, SwiftPM,
+    and privacy manifests, root
     security/quality-gate configs, root CI/deploy/test-gate helper scripts,
     root AGENTS/RUNBOOK/Makefile policy entrypoints, GitHub CODEOWNERS,
     PR-template, and actionlint controls, review-bot configs, MCP control-plane

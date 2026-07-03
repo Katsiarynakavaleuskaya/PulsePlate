@@ -55,6 +55,7 @@ def test_bootstrap_sync_policy_freezes_privileged_review_prefixes() -> None:
     """Privileged review prefixes must remain canonical and reviewable."""
 
     assert PRIVILEGED_REVIEW_PREFIXES == (
+        ".cursor/agents/",
         ".github/workflows/",
         ".github/actions/",
         "ios/fastlane/",
@@ -80,6 +81,7 @@ def test_bootstrap_sync_policy_freezes_privileged_review_patterns() -> None:
         ".bandit.yaml",
         ".coderabbit.yaml",
         ".dockerignore",
+        ".nvmrc",
         ".secrets.baseline",
         ".sourcery.yaml",
         ".trivyignore",
@@ -101,12 +103,16 @@ def test_bootstrap_sync_policy_freezes_privileged_review_patterns() -> None:
         "deploy/Caddyfile*",
         "deploy/docker-compose.production*.yaml",
         "deploy/docker-compose.staging.yaml",
+        "frontend/.dockerignore",
         "frontend/Dockerfile.caddy-spa",
         "frontend/package*.json",
         "frontend/wrangler.toml",
         "ios/Gemfile*",
         "ios/Package.swift",
         "ios/Package.resolved",
+        "ios/PulsePlate.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved",
+        "ios/PulsePlate.xcworkspace/xcshareddata/swiftpm/Package.swift",
+        "ios/PulsePlate/PrivacyInfo.xcprivacy",
         "mcp-config.json",
         "opencode.json",
         "package*.json",
@@ -114,7 +120,12 @@ def test_bootstrap_sync_policy_freezes_privileged_review_patterns() -> None:
         "requirements*.txt",
         "requirements*.in",
         "constraints*.txt",
+        "scripts/deploy.sh",
+        "scripts/diagnose_web.sh",
         "scripts/hooks/repo_python.sh",
+        "scripts/ops/postgres_backup.sh",
+        "scripts/ops/postgres_restore.sh",
+        "scripts/redeploy_caddy.sh",
         "scripts/run-backend-tests-pre-commit.sh",
         "scripts/ci_*.sh",
         "scripts/deploy_*.sh",
@@ -262,6 +273,7 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     """Privileged review detection should stay aligned with the canonical prefix set."""
 
     assert requires_security_review([".github/workflows"]) is True
+    assert requires_security_review([".cursor/agents/security-auditor.md"]) is True
     assert requires_security_review([".github/actions/setup/action.yml"]) is True
     assert requires_security_review(["scripts/ci"]) is True
     assert requires_security_review(["scripts/orchestration/task_bootstrap.py"]) is True
@@ -280,6 +292,7 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     assert requires_security_review([".bandit.yaml"]) is True
     assert requires_security_review([".coderabbit.yaml"]) is True
     assert requires_security_review([".dockerignore"]) is True
+    assert requires_security_review([".nvmrc"]) is True
     assert requires_security_review([".secrets.baseline"]) is True
     assert requires_security_review([".sourcery.yaml"]) is True
     assert requires_security_review([".trivyignore"]) is True
@@ -301,6 +314,7 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     assert requires_security_review(["deploy/docker-compose.production.yaml"]) is True
     assert requires_security_review(["deploy/docker-compose.production.selfhosted.yaml"]) is True
     assert requires_security_review(["deploy/docker-compose.staging.yaml"]) is True
+    assert requires_security_review(["frontend/.dockerignore"]) is True
     assert requires_security_review(["frontend/Dockerfile.caddy-spa"]) is True
     assert requires_security_review(["frontend/package.json"]) is True
     assert requires_security_review(["frontend/package-lock.json"]) is True
@@ -309,6 +323,17 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     assert requires_security_review(["ios/Gemfile.lock"]) is True
     assert requires_security_review(["ios/Package.swift"]) is True
     assert requires_security_review(["ios/Package.resolved"]) is True
+    assert (
+        requires_security_review(
+            ["ios/PulsePlate.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"]
+        )
+        is True
+    )
+    assert (
+        requires_security_review(["ios/PulsePlate.xcworkspace/xcshareddata/swiftpm/Package.swift"])
+        is True
+    )
+    assert requires_security_review(["ios/PulsePlate/PrivacyInfo.xcprivacy"]) is True
     assert requires_security_review(["mcp-config.json"]) is True
     assert requires_security_review(["opencode.json"]) is True
     assert requires_security_review(["package.json"]) is True
@@ -318,7 +343,12 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     assert requires_security_review(["requirements-ci-lite.txt"]) is True
     assert requires_security_review(["requirements.in"]) is True
     assert requires_security_review(["constraints.txt"]) is True
+    assert requires_security_review(["scripts/deploy.sh"]) is True
+    assert requires_security_review(["scripts/diagnose_web.sh"]) is True
     assert requires_security_review(["scripts/hooks/repo_python.sh"]) is True
+    assert requires_security_review(["scripts/ops/postgres_backup.sh"]) is True
+    assert requires_security_review(["scripts/ops/postgres_restore.sh"]) is True
+    assert requires_security_review(["scripts/redeploy_caddy.sh"]) is True
     assert requires_security_review(["scripts/run-backend-tests-pre-commit.sh"]) is True
     assert requires_security_review(["scripts/ci_bandit.sh"]) is True
     assert requires_security_review(["scripts/ci_pip_audit.sh"]) is True
@@ -339,6 +369,7 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     assert requires_security_review(["deploy/nested/docker-compose.production.yaml"]) is False
     assert requires_security_review(["deploy/docker-compose.production/archive.yaml"]) is False
     assert requires_security_review(["deploy/nested/Caddyfile.production"]) is False
+    assert requires_security_review([".cursor/agent_notes/security-auditor.md"]) is False
     assert requires_security_review([".devcontainer/nested/Dockerfile"]) is False
     assert requires_security_review([".devcontainer/docker-compose/archive.yml"]) is False
     assert requires_security_review([".github/config/CODEOWNERS"]) is False
@@ -346,13 +377,24 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     assert requires_security_review([".github/pull_request_template/archive.md"]) is False
     assert requires_security_review([".github/actionlint/rules.yaml"]) is False
     assert requires_security_review(["frontend/nested/Dockerfile.caddy-spa"]) is False
+    assert requires_security_review(["frontend/nested/.dockerignore"]) is False
     assert requires_security_review(["frontend/packages/package-lock.json"]) is False
+    assert requires_security_review(["frontend/.nvmrc"]) is False
     assert requires_security_review(["frontend/nested/wrangler.toml"]) is False
     assert requires_security_review(["ios/vendor/Gemfile.lock"]) is False
     assert requires_security_review(["ios/vendor/Package.resolved"]) is False
+    assert (
+        requires_security_review(
+            ["ios/PulsePlate.xcworkspace/xcshareddata/swiftpm/archive/Package.swift"]
+        )
+        is False
+    )
+    assert requires_security_review(["ios/PulsePlate/Archive/PrivacyInfo.xcprivacy"]) is False
     assert requires_security_review(["packages/package-lock.json"]) is False
     assert requires_security_review([".github/dependabot/nested.yaml"]) is False
     assert requires_security_review(["scripts/hooks/nested/repo_python.sh"]) is False
+    assert requires_security_review(["scripts/deploy/archive.sh"]) is False
+    assert requires_security_review(["scripts/ops/archive/postgres_backup.sh"]) is False
     assert requires_security_review(["scripts/run-backend-tests-pre-commit.d/runner.sh"]) is False
     assert requires_security_review(["scripts/ci-tools/bandit.sh"]) is False
     assert requires_security_review(["scripts/deploy/production.sh"]) is False
