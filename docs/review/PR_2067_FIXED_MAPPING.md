@@ -125,22 +125,14 @@ AGENTS/RUNBOOK sync note.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#pullrequestreview-4621382055 -> 21e64df95
 Disposition: FIXED
 Commit: 21e64df95
-Reason: The Sourcery review contained one actionable typo/clarity finding on
-root privileged-surface wording; the root note now avoids the duplicate matcher
-list and points to the canonical workflows/actions policy.
-Evidence: `AGENTS.md` points to
-`docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`, and the inline Sourcery
-discussion URL is mapped below with the same commit proof.
+Reason: The Sourcery review contained one actionable typo/clarity finding on root privileged-surface wording; the root note now avoids the duplicate matcher list and points to the canonical workflows/actions policy.
+Evidence: `AGENTS.md` points to `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`, and the inline Sourcery discussion URL is mapped below with the same commit proof.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#pullrequestreview-4621396806 -> 21e64df95
 Disposition: FIXED
 Commit: 21e64df95
-Reason: The CodeRabbit review contained one actionable root-AGENTS duplication
-finding; the fix reduced the root note to a scoped policy pointer rather than a
-second matcher list.
-Evidence: `AGENTS.md` and `RUNBOOK_AGENT.md` now keep only the shared matcher
-pointer plus executable `security-auditor` invariant, and the inline
-CodeRabbit discussion URL is mapped below with the same commit proof.
+Reason: The CodeRabbit review contained one actionable root-AGENTS duplication finding; the fix reduced the root note to a scoped policy pointer rather than a second matcher list.
+Evidence: `AGENTS.md` and `RUNBOOK_AGENT.md` now keep only the shared matcher pointer plus executable `security-auditor` invariant, and the inline CodeRabbit discussion URL is mapped below with the same commit proof.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3516291986 -> 21e64df95
 Disposition: FIXED
@@ -306,121 +298,71 @@ Evidence: The matcher now covers `worker.js`, `wrangler.toml`, and `frontend/wra
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3518310113
 Disposition: NOT-A-BUG
-Reason: The comment asked to remap FIXED proofs to dropped target
-`81d7bbdd72dd4ba6cae4c68f290081fb0cfd916c`, but that object is not present in
-the current PR history. Mapping valid fix commits to a non-current object would
-make the artifact less accurate, not more accurate.
-Evidence: `git cat-file -t 81d7bbdd72dd4ba6cae4c68f290081fb0cfd916c`
-returns missing locally, while the mapped fix commits remain ancestors of the
-current PR head.
+Reason: The comment asked to remap FIXED proofs to dropped target `81d7bbdd72dd4ba6cae4c68f290081fb0cfd916c`, but that object is not present in the current PR history. Mapping valid fix commits to a non-current object would make the artifact less accurate, not more accurate.
+Evidence: `git cat-file -t 81d7bbdd72dd4ba6cae4c68f290081fb0cfd916c` returns missing locally, while the mapped fix commits remain ancestors of the current PR head.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3518310119
 Disposition: NOT-A-BUG
-Reason: The attribution comment checked the same dropped
-`81d7bbdd72dd4ba6cae4c68f290081fb0cfd916c` object. The actual implementation
-commit that used Experiment Runner evidence is still in the current PR history
-and carries the required trailer.
-Evidence: `git show -s --format=full b09ea4d9d` contains
-`Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`, and
-`git merge-base --is-ancestor b09ea4d9d HEAD` returns 0.
+Reason: The attribution comment checked the same dropped `81d7bbdd72dd4ba6cae4c68f290081fb0cfd916c` object. The actual implementation commit that used Experiment Runner evidence is still in the current PR history and carries the required trailer.
+Evidence: `git show -s --format=full b09ea4d9d` contains `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`, and `git merge-base --is-ancestor b09ea4d9d HEAD` returns 0.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3518310125 -> c76ab28de
 Disposition: FIXED
 Commit: c76ab28de
-Reason: Xcode-managed SwiftPM locks are live iOS dependency-control files and
-are used by CI cache keys, so they must not bypass privileged review routing
-just because the root `ios/Package.resolved` path is already covered.
-Evidence: The matcher now covers
-`ios/PulsePlate.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved`,
-with focused bootstrap, skill-router, and task-bootstrap tests proving it
-requires security review.
+Reason: Xcode-managed SwiftPM locks are live iOS dependency-control files and are used by CI cache keys, so they must not bypass privileged review routing just because the root `ios/Package.resolved` path is already covered.
+Evidence: The matcher now covers `ios/PulsePlate.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved`, with focused bootstrap, skill-router, and task-bootstrap tests proving it requires security review.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3518310131 -> c76ab28de
 Disposition: FIXED
 Commit: c76ab28de
-Reason: `scripts/diagnose_web.sh` and `scripts/redeploy_caddy.sh` are bundled
-into the production deploy path, so helper-only changes can alter production
-diagnostics/redeploy behavior without matching `scripts/deploy_*.sh`.
-Evidence: The matcher now covers both exact helper paths, and focused
-bootstrap, skill-router, and task-bootstrap tests prove they force the
-privileged security-review path.
+Reason: `scripts/diagnose_web.sh` and `scripts/redeploy_caddy.sh` are bundled into the production deploy path, so helper-only changes can alter production diagnostics/redeploy behavior without matching `scripts/deploy_*.sh`.
+Evidence: The matcher now covers both exact helper paths, and focused bootstrap, skill-router, and task-bootstrap tests prove they force the privileged security-review path.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3518310139 -> c76ab28de
 Disposition: FIXED
 Commit: c76ab28de
-Reason: `.cursor/agents/**` is the canonical role-definition source reused by
-native subagent transports, so coordinator/security-auditor instruction changes
-can weaken review authority and must require executable security review.
-Evidence: The matcher now includes the bounded `.cursor/agents/` prefix, with
-positive and lookalike negative coverage in bootstrap/skill-router tests.
+Reason: `.cursor/agents/**` is the canonical role-definition source reused by native subagent transports, so coordinator/security-auditor instruction changes can weaken review authority and must require executable security review.
+Evidence: The matcher now includes the bounded `.cursor/agents/` prefix, with positive and lookalike negative coverage in bootstrap/skill-router tests.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3518310148 -> c76ab28de
 Disposition: FIXED
 Commit: c76ab28de
-Reason: Root `.nvmrc` pins the Node runtime baseline used by frontend CI and
-guard tests, so runtime-baseline changes belong with the privileged
-dependency/tooling control files.
-Evidence: The matcher now covers root `.nvmrc`; focused bootstrap,
-skill-router, and task-bootstrap tests cover the positive path and keep
-`frontend/.nvmrc` as a negative lookalike.
+Reason: Root `.nvmrc` pins the Node runtime baseline used by frontend CI and guard tests, so runtime-baseline changes belong with the privileged dependency/tooling control files.
+Evidence: The matcher now covers root `.nvmrc`; focused bootstrap, skill-router, and task-bootstrap tests cover the positive path and keep `frontend/.nvmrc` as a negative lookalike.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3518426345
 Disposition: NOT-A-BUG
-Reason: The comment asked to remap FIXED proofs to dropped target
-`157c228476e75ba45975badb6a3d6e7e3b8b48aa`, but that object is not present in
-the current PR history. The correct mapping must name commits that actually
-exist on the current branch and contain each fix.
-Evidence: `git cat-file -t 157c228476e75ba45975badb6a3d6e7e3b8b48aa`
-returns missing locally, while the mapped fix commits are current-branch
-ancestors.
+Reason: The comment asked to remap FIXED proofs to dropped target `157c228476e75ba45975badb6a3d6e7e3b8b48aa`, but that object is not present in the current PR history. The correct mapping must name commits that actually exist on the current branch and contain each fix.
+Evidence: `git cat-file -t 157c228476e75ba45975badb6a3d6e7e3b8b48aa` returns missing locally, while the mapped fix commits are current-branch ancestors.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3518426354
 Disposition: NOT-A-BUG
-Reason: The attribution comment checked the same dropped
-`157c228476e75ba45975badb6a3d6e7e3b8b48aa` object. The actual implementation
-commit that used Experiment Runner evidence is still in the current PR history
-and carries the required trailer.
-Evidence: `git show -s --format=full b09ea4d9d` contains
-`Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`, and
-`git merge-base --is-ancestor b09ea4d9d HEAD` returns 0.
+Reason: The attribution comment checked the same dropped `157c228476e75ba45975badb6a3d6e7e3b8b48aa` object. The actual implementation commit that used Experiment Runner evidence is still in the current PR history and carries the required trailer.
+Evidence: `git show -s --format=full b09ea4d9d` contains `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`, and `git merge-base --is-ancestor b09ea4d9d HEAD` returns 0.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3518426358 -> c76ab28de
 Disposition: FIXED
 Commit: c76ab28de
-Reason: The workspace SwiftPM manifest is a live Xcode dependency-control file
-for the iOS workspace, so it belongs in the privileged SwiftPM surface beside
-the root manifests and Xcode lockfile.
-Evidence: The matcher now covers
-`ios/PulsePlate.xcworkspace/xcshareddata/swiftpm/Package.swift`, with focused
-bootstrap, skill-router, and task-bootstrap parity tests.
+Reason: The workspace SwiftPM manifest is a live Xcode dependency-control file for the iOS workspace, so it belongs in the privileged SwiftPM surface beside the root manifests and Xcode lockfile.
+Evidence: The matcher now covers `ios/PulsePlate.xcworkspace/xcshareddata/swiftpm/Package.swift`, with focused bootstrap, skill-router, and task-bootstrap parity tests.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3518426362 -> c76ab28de
 Disposition: FIXED
 Commit: c76ab28de
-Reason: `ios/PulsePlate/PrivacyInfo.xcprivacy` is an App Store release
-readiness and privacy-disclosure gate, so disclosure-affecting changes must not
-route as ordinary iOS files.
-Evidence: The matcher now covers `ios/PulsePlate/PrivacyInfo.xcprivacy`, with
-focused bootstrap, skill-router, and task-bootstrap tests.
+Reason: `ios/PulsePlate/PrivacyInfo.xcprivacy` is an App Store release readiness and privacy-disclosure gate, so disclosure-affecting changes must not route as ordinary iOS files.
+Evidence: The matcher now covers `ios/PulsePlate/PrivacyInfo.xcprivacy`, with focused bootstrap, skill-router, and task-bootstrap tests.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3518426367 -> c76ab28de
 Disposition: FIXED
 Commit: c76ab28de
-Reason: `frontend/.dockerignore` controls what enters the frontend/Caddy image
-build context, so it is a deploy/supply-chain control file like
-`frontend/Dockerfile.caddy-spa`.
-Evidence: The matcher now covers `frontend/.dockerignore`; tests cover the
-positive path and keep `frontend/nested/.dockerignore` as a negative lookalike.
+Reason: `frontend/.dockerignore` controls what enters the frontend/Caddy image build context, so it is a deploy/supply-chain control file like `frontend/Dockerfile.caddy-spa`.
+Evidence: The matcher now covers `frontend/.dockerignore`; tests cover the positive path and keep `frontend/nested/.dockerignore` as a negative lookalike.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3518426372 -> c76ab28de
 Disposition: FIXED
 Commit: c76ab28de
-Reason: `scripts/deploy.sh` and the ops backup/restore helpers are live deploy
-and database-safety entrypoints, so they need exact privileged routing instead
-of relying only on underscore-prefixed deploy helpers.
-Evidence: The matcher now covers `scripts/deploy.sh`,
-`scripts/ops/postgres_backup.sh`, and `scripts/ops/postgres_restore.sh`, with
-focused bootstrap, skill-router, and task-bootstrap tests.
+Reason: `scripts/deploy.sh` and the ops backup/restore helpers are live deploy and database-safety entrypoints, so they need exact privileged routing instead of relying only on underscore-prefixed deploy helpers.
+Evidence: The matcher now covers `scripts/deploy.sh`, `scripts/ops/postgres_backup.sh`, and `scripts/ops/postgres_restore.sh`, with focused bootstrap, skill-router, and task-bootstrap tests.
 
 ## Role-Agent / Premortem Closeout
 
