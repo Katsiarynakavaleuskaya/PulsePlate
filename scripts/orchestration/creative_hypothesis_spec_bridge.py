@@ -279,6 +279,43 @@ def _pending_skeptic_review_count(run_dir: Path) -> int:
     )
 
 
+def _reject_unexpected_prepare_entries(run_dir: Path) -> None:
+    if not run_dir.exists():
+        return
+    if not run_dir.is_dir():
+        raise CreativeHypothesisSpecBridgeCliError(
+            "spec_prepare_failed: spec_prepare ref must be a directory."
+        )
+    expected = set(PREPARE_FILENAMES)
+    unexpected = sorted(child.name for child in run_dir.iterdir() if child.name not in expected)
+    if unexpected:
+        joined = ", ".join(unexpected)
+        raise CreativeHypothesisSpecBridgeCliError(
+            f"spec_prepare_failed: unexpected spec_prepare artifact(s): {joined}."
+        )
+
+
+def _write_blocked_prepare_metrics(
+    *,
+    metrics: Mapping[str, Any],
+    bridge: Mapping[str, Any],
+    candidate: Mapping[str, Any],
+    output_dir: Path,
+    run_dir: Path,
+    blocked_reason: str,
+) -> None:
+    blocked_metrics = update_bridge_metrics_for_prepare(
+        metrics=metrics,
+        bridge=bridge,
+        candidate=candidate,
+        status=BLOCKED_STATUS,
+        blocked_reason=blocked_reason,
+        prepare_files_written=_count_prepare_files(run_dir),
+        pending_skeptic_review_count=_pending_skeptic_review_count(run_dir),
+    )
+    _write_json_atomic(output_dir / METRICS_FILENAME, blocked_metrics)
+
+
 def _prepare_from_bridge(
     *,
     bridge: Mapping[str, Any],
@@ -292,31 +329,36 @@ def _prepare_from_bridge(
     run_dir = _repo_ref_to_dir(run_dir_ref)
     try:
         _assert_candidate_matches_bridge(bridge=bridge, candidate=candidate)
-    except CreativeHypothesisSpecBridgeCliError as exc:
-        blocked_metrics = update_bridge_metrics_for_prepare(
+        _assert_metrics_matches_bridge_and_candidate(
             metrics=metrics,
             bridge=bridge,
             candidate=candidate,
-            status=BLOCKED_STATUS,
-            blocked_reason="fingerprint_mismatch",
-            prepare_files_written=_count_prepare_files(run_dir),
-            pending_skeptic_review_count=_pending_skeptic_review_count(run_dir),
         )
-        _write_json_atomic(output_dir / METRICS_FILENAME, blocked_metrics)
+    except CreativeHypothesisSpecBridgeCliError as exc:
+        _write_blocked_prepare_metrics(
+            metrics=metrics,
+            bridge=bridge,
+            candidate=candidate,
+            output_dir=output_dir,
+            run_dir=run_dir,
+            blocked_reason="fingerprint_mismatch",
+        )
         raise exc
     try:
+        _reject_unexpected_prepare_entries(run_dir)
         creative_code_spec_pipeline.prepare(candidate_path, run_dir)
-    except creative_code_spec_pipeline.CreativeCodeSpecPipelineError as exc:
-        blocked_metrics = update_bridge_metrics_for_prepare(
+    except (
+        CreativeHypothesisSpecBridgeCliError,
+        creative_code_spec_pipeline.CreativeCodeSpecPipelineError,
+    ) as exc:
+        _write_blocked_prepare_metrics(
             metrics=metrics,
             bridge=bridge,
             candidate=candidate,
-            status=BLOCKED_STATUS,
+            output_dir=output_dir,
+            run_dir=run_dir,
             blocked_reason="spec_prepare_failed",
-            prepare_files_written=_count_prepare_files(run_dir),
-            pending_skeptic_review_count=_pending_skeptic_review_count(run_dir),
         )
-        _write_json_atomic(output_dir / METRICS_FILENAME, blocked_metrics)
         raise CreativeHypothesisSpecBridgeCliError(f"spec_prepare_failed: {exc}") from exc
     prepared_bridge = mark_bridge_prepared(bridge)
     prepared_metrics = update_bridge_metrics_for_prepare(
@@ -394,6 +436,8 @@ def _assert_metrics_matches_bridge_and_candidate(
     normalized_metrics = validate_bridge_metrics(metrics)
     normalized_candidate = validate_creative_code_candidate_packet(dict(candidate))
     source = cast_mapping(normalized_metrics["source"])
+    spec_prepare = cast_mapping(bridge["spec_prepare"])
+    bridge_prepared = bool(spec_prepare["prepared"])
     if normalized_metrics["bridge_id"] != bridge["bridge_id"]:
         raise CreativeHypothesisSpecBridgeCliError(
             "fingerprint_mismatch: metrics bridge id does not match bridge."
@@ -427,6 +471,19 @@ def _assert_metrics_matches_bridge_and_candidate(
                 f"fingerprint_mismatch: metrics {key} does not match bridge."
             )
     counts = cast_mapping(normalized_metrics["counts"])
+    if bridge_prepared:
+        if normalized_metrics["status"] != PREPARED_STATUS:
+            raise CreativeHypothesisSpecBridgeCliError(
+                "fingerprint_mismatch: prepared bridge requires prepared metrics."
+            )
+        if counts["prepare_files_written"] != len(PREPARE_FILENAMES):
+            raise CreativeHypothesisSpecBridgeCliError(
+                "fingerprint_mismatch: prepared bridge requires all prepare files."
+            )
+    elif normalized_metrics["status"] == PREPARED_STATUS:
+        raise CreativeHypothesisSpecBridgeCliError(
+            "fingerprint_mismatch: unprepared bridge cannot use prepared metrics."
+        )
     expected_counts = {
         "approved_target_count": len(selected_hypothesis["approved_target_surfaces"]),
         "candidate_target_count": len(normalized_candidate["target_surface"]),
@@ -438,6 +495,32 @@ def _assert_metrics_matches_bridge_and_candidate(
             raise CreativeHypothesisSpecBridgeCliError(
                 f"fingerprint_mismatch: metrics {key} does not match bridge/candidate."
             )
+
+
+def _assert_prepare_dir_matches_bridge_and_metrics(
+    *,
+    bridge: Mapping[str, Any],
+    metrics: Mapping[str, Any],
+) -> None:
+    normalized_metrics = validate_bridge_metrics(metrics)
+    spec_prepare = cast_mapping(bridge["spec_prepare"])
+    run_dir = _repo_ref_to_dir(str(spec_prepare["run_dir_ref"]))
+    _reject_unexpected_prepare_entries(run_dir)
+    prepare_files_written = _count_prepare_files(run_dir)
+    pending_skeptic_review_count = _pending_skeptic_review_count(run_dir)
+    counts = cast_mapping(normalized_metrics["counts"])
+    if counts["prepare_files_written"] != prepare_files_written:
+        raise CreativeHypothesisSpecBridgeCliError(
+            "fingerprint_mismatch: metrics prepare_files_written does not match spec_prepare."
+        )
+    if counts["pending_skeptic_review_count"] != pending_skeptic_review_count:
+        raise CreativeHypothesisSpecBridgeCliError(
+            "fingerprint_mismatch: metrics pending_skeptic_review_count does not match spec_prepare."
+        )
+    if spec_prepare["prepared"] and prepare_files_written != len(PREPARE_FILENAMES):
+        raise CreativeHypothesisSpecBridgeCliError(
+            "fingerprint_mismatch: prepared bridge requires complete spec_prepare files."
+        )
 
 
 def cast_mapping(value: Any) -> Mapping[str, Any]:
@@ -552,6 +635,7 @@ def _cmd_validate(args: argparse.Namespace) -> int:
         bridge=bridge,
         candidate=candidate,
     )
+    _assert_prepare_dir_matches_bridge_and_metrics(bridge=bridge, metrics=metrics)
     print(SUCCESS_VALIDATE_OUTPUT)
     return 0
 

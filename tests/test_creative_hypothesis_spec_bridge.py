@@ -21,6 +21,7 @@ from scripts.orchestration.creative_hypothesis_spec_bridge_contract import (
     CreativeHypothesisSpecBridgeError,
     build_bridge_metrics,
     build_creative_hypothesis_spec_bridge_bundle,
+    mark_bridge_prepared,
     validate_bridge_metrics,
     validate_creative_hypothesis_specification_bridge,
     _artifact_identity as _bridge_artifact_identity,
@@ -588,13 +589,13 @@ def test_validate_and_prepare_reject_bridge_candidate_parity_mismatch(
         shutil.rmtree(output_dir, ignore_errors=True)
 
 
-def test_prepare_recomputes_stale_metrics_counts(
+def test_prepare_rejects_swapped_metrics_before_prepare(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    context, packet, dispatch, approval = _chain(hypothesis_suffix="stale-metrics")
+    context, packet, dispatch, approval = _chain(hypothesis_suffix="swapped-metrics")
     input_dir, context_path, packet_path, dispatch_path, approval_path = (
         _write_creative_context_inputs(
-            leaf="pytest-spec-bridge-stale-metrics",
+            leaf="pytest-spec-bridge-swapped-metrics",
             context=context,
             packet=packet,
             dispatch=dispatch,
@@ -642,30 +643,82 @@ def test_prepare_recomputes_stale_metrics_counts(
             capsys.readouterr()
 
         shutil.copyfile(second_dir / cli.METRICS_FILENAME, first_dir / cli.METRICS_FILENAME)
-        assert (
-            cli.main(["prepare-specification", "--bridge", str(first_dir / cli.BRIDGE_FILENAME)])
-            == 0
+        exit_code = cli.main(
+            ["prepare-specification", "--bridge", str(first_dir / cli.BRIDGE_FILENAME)]
         )
-        capsys.readouterr()
-
+        captured = capsys.readouterr()
+        assert exit_code == 1
+        assert "fingerprint_mismatch" in captured.err
+        assert not (first_dir / "spec_prepare" / "source_packet.json").exists()
         metrics = json.loads((first_dir / cli.METRICS_FILENAME).read_text(encoding="utf-8"))
-        candidate = json.loads((first_dir / cli.CANDIDATE_FILENAME).read_text(encoding="utf-8"))
-        bridge = json.loads((first_dir / cli.BRIDGE_FILENAME).read_text(encoding="utf-8"))
-        selected = bridge["selected_hypothesis"]
-        assert metrics["status"] == "prepared"
-        assert metrics["bridge_id"] == bridge["bridge_id"]
-        assert metrics["candidate_id"] == candidate["candidate_id"]
-        assert metrics["selected_hypothesis_id"] == selected["hypothesis_id"]
-        assert metrics["counts"]["approved_target_count"] == len(
-            selected["approved_target_surfaces"]
-        )
-        assert metrics["counts"]["candidate_target_count"] == len(candidate["target_surface"])
-        assert metrics["counts"]["immutable_oracle_count"] == len(candidate["immutable_oracles"])
-        assert metrics["counts"]["variant_count"] == candidate["variant_count"] == 3
-        assert cli.main(["validate", "--bridge", str(first_dir / cli.BRIDGE_FILENAME)]) == 0
+        assert metrics["status"] == "blocked"
+        assert metrics["blocked_reason"] == "fingerprint_mismatch"
+        assert metrics["bridge_id"] == first["bridge"]["bridge_id"]
+        assert metrics["candidate_id"] == first["candidate"]["candidate_id"]
     finally:
         shutil.rmtree(first_dir, ignore_errors=True)
         shutil.rmtree(second_dir, ignore_errors=True)
+        shutil.rmtree(input_dir, ignore_errors=True)
+
+
+def test_prepare_rejects_stale_spec_prepare_artifacts(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    context, packet, dispatch, approval = _chain(hypothesis_suffix="stale-prepare-file")
+    input_dir, context_path, packet_path, dispatch_path, approval_path = (
+        _write_creative_context_inputs(
+            leaf="pytest-spec-bridge-stale-prepare-file",
+            context=context,
+            packet=packet,
+            dispatch=dispatch,
+            approval=approval,
+        )
+    )
+    bundle = build_creative_hypothesis_spec_bridge_bundle(
+        context_map=context,
+        hypothesis_packet=packet,
+        coordinator_dispatch=dispatch,
+        approval=approval,
+        variant_count=3,
+    )
+    output_dir = cli.SPEC_BRIDGE_ROOT / str(bundle["bridge"]["bridge_id"])
+    shutil.rmtree(output_dir, ignore_errors=True)
+    try:
+        assert (
+            cli.main(
+                [
+                    "build-candidate",
+                    "--context-map",
+                    str(context_path),
+                    "--hypothesis-packet",
+                    str(packet_path),
+                    "--coordinator-dispatch",
+                    str(dispatch_path),
+                    "--approval",
+                    str(approval_path),
+                    "--variant-count",
+                    "3",
+                ]
+            )
+            == 0
+        )
+        capsys.readouterr()
+        spec_prepare_dir = output_dir / "spec_prepare"
+        spec_prepare_dir.mkdir(parents=True, exist_ok=True)
+        (spec_prepare_dir / "bundle.json").write_text("{}\n", encoding="utf-8")
+
+        exit_code = cli.main(
+            ["prepare-specification", "--bridge", str(output_dir / cli.BRIDGE_FILENAME)]
+        )
+        captured = capsys.readouterr()
+        assert exit_code == 1
+        assert "unexpected spec_prepare artifact" in captured.err
+        metrics = json.loads((output_dir / cli.METRICS_FILENAME).read_text(encoding="utf-8"))
+        assert metrics["status"] == "blocked"
+        assert metrics["blocked_reason"] == "spec_prepare_failed"
+        assert not (spec_prepare_dir / "source_packet.json").exists()
+    finally:
+        shutil.rmtree(output_dir, ignore_errors=True)
         shutil.rmtree(input_dir, ignore_errors=True)
 
 
@@ -781,6 +834,43 @@ def test_validate_rejects_candidate_and_metrics_mismatch(
         shutil.rmtree(first_dir, ignore_errors=True)
         shutil.rmtree(second_dir, ignore_errors=True)
         shutil.rmtree(input_dir, ignore_errors=True)
+
+
+def test_validate_rejects_prepared_bridge_with_unprepared_metrics(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    context, packet, dispatch, approval = _chain(hypothesis_suffix="prepared-metrics")
+    bundle = build_creative_hypothesis_spec_bridge_bundle(
+        context_map=context,
+        hypothesis_packet=packet,
+        coordinator_dispatch=dispatch,
+        approval=approval,
+        variant_count=3,
+    )
+    bridge = mark_bridge_prepared(bundle["bridge"])
+    output_dir = cli.SPEC_BRIDGE_ROOT / str(bridge["bridge_id"])
+    shutil.rmtree(output_dir, ignore_errors=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        (output_dir / cli.BRIDGE_FILENAME).write_text(
+            json.dumps(bridge, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        (output_dir / cli.CANDIDATE_FILENAME).write_text(
+            json.dumps(bundle["candidate"], indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        (output_dir / cli.METRICS_FILENAME).write_text(
+            json.dumps(bundle["metrics"], indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+
+        exit_code = cli.main(["validate", "--bridge", str(output_dir / cli.BRIDGE_FILENAME)])
+        captured = capsys.readouterr()
+        assert exit_code == 1
+        assert "prepared bridge requires prepared metrics" in captured.err
+    finally:
+        shutil.rmtree(output_dir, ignore_errors=True)
 
 
 @pytest.mark.parametrize(
