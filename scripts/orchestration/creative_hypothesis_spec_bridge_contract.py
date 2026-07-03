@@ -454,6 +454,7 @@ def validate_creative_hypothesis_specification_bridge(
         "authority": _normalize_bridge_authority(payload["authority"], label=f"{label}.authority"),
         "sanitized": _require_bool(payload, "sanitized", expected=True, label=label),
     }
+    _validate_bridge_artifact_refs(normalized)
     _validate_bridge_identity(normalized)
     reject_bridge_payload_safety(normalized, label=label)
     return normalized
@@ -928,6 +929,31 @@ def _bridge_identity_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
         "authority": payload["authority"],
         "sanitized": payload["sanitized"],
     }
+
+
+def _expected_bridge_artifact_refs(bridge_id: str) -> tuple[str, str]:
+    artifact_root_ref = f"artifacts/orchestration/creative_code/spec_bridge/{bridge_id}"
+    return (
+        f"{artifact_root_ref}/creative_code_candidate_packet.json",
+        f"{artifact_root_ref}/spec_prepare",
+    )
+
+
+def _validate_bridge_artifact_refs(payload: Mapping[str, Any]) -> None:
+    bridge_id = str(payload["bridge_id"])
+    expected_candidate_ref, expected_run_dir_ref = _expected_bridge_artifact_refs(bridge_id)
+    candidate_ref = cast(Mapping[str, Any], payload["candidate_packet"])["candidate_packet_ref"]
+    if candidate_ref != expected_candidate_ref:
+        raise CreativeHypothesisSpecBridgeError(
+            "CreativeHypothesisSpecificationBridge.candidate_packet.candidate_packet_ref "
+            "must match the bridge id."
+        )
+    run_dir_ref = cast(Mapping[str, Any], payload["spec_prepare"])["run_dir_ref"]
+    if run_dir_ref != expected_run_dir_ref:
+        raise CreativeHypothesisSpecBridgeError(
+            "CreativeHypothesisSpecificationBridge.spec_prepare.run_dir_ref "
+            "must match the bridge id."
+        )
 
 
 def _artifact_identity(

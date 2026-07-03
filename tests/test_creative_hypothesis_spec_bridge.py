@@ -642,6 +642,93 @@ def test_validate_rejects_candidate_and_metrics_mismatch(
         shutil.rmtree(input_dir, ignore_errors=True)
 
 
+@pytest.mark.parametrize(
+    ("bridge_section", "bridge_key", "expected_error"),
+    (
+        (
+            "candidate_packet",
+            "candidate_packet_ref",
+            "candidate_packet_ref must match the bridge id",
+        ),
+        ("spec_prepare", "run_dir_ref", "run_dir_ref must match the bridge id"),
+    ),
+)
+def test_validate_and_prepare_reject_cross_bridge_refs(
+    capsys: pytest.CaptureFixture[str],
+    bridge_section: str,
+    bridge_key: str,
+    expected_error: str,
+) -> None:
+    context, packet, dispatch, approval = _chain()
+    input_dir, context_path, packet_path, dispatch_path, approval_path = (
+        _write_creative_context_inputs(
+            leaf=f"pytest-spec-bridge-cross-ref-{bridge_key}",
+            context=context,
+            packet=packet,
+            dispatch=dispatch,
+            approval=approval,
+        )
+    )
+    first = build_creative_hypothesis_spec_bridge_bundle(
+        context_map=context,
+        hypothesis_packet=packet,
+        coordinator_dispatch=dispatch,
+        approval=approval,
+        variant_count=3,
+    )
+    second = build_creative_hypothesis_spec_bridge_bundle(
+        context_map=context,
+        hypothesis_packet=packet,
+        coordinator_dispatch=dispatch,
+        approval=approval,
+        variant_count=4,
+    )
+    first_dir = cli.SPEC_BRIDGE_ROOT / str(first["bridge"]["bridge_id"])
+    second_dir = cli.SPEC_BRIDGE_ROOT / str(second["bridge"]["bridge_id"])
+    shutil.rmtree(first_dir, ignore_errors=True)
+    shutil.rmtree(second_dir, ignore_errors=True)
+    try:
+        for variant_count in ("3", "4"):
+            assert (
+                cli.main(
+                    [
+                        "build-candidate",
+                        "--context-map",
+                        str(context_path),
+                        "--hypothesis-packet",
+                        str(packet_path),
+                        "--coordinator-dispatch",
+                        str(dispatch_path),
+                        "--approval",
+                        str(approval_path),
+                        "--variant-count",
+                        variant_count,
+                    ]
+                )
+                == 0
+            )
+            capsys.readouterr()
+
+        bridge_path = first_dir / cli.BRIDGE_FILENAME
+        bridge = json.loads(bridge_path.read_text(encoding="utf-8"))
+        bridge[bridge_section][bridge_key] = second["bridge"][bridge_section][bridge_key]
+        bridge_path.write_text(
+            json.dumps(bridge, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+
+        for command in ("validate", "prepare-specification"):
+            exit_code = cli.main([command, "--bridge", str(bridge_path)])
+            captured = capsys.readouterr()
+            assert exit_code == 1
+            assert expected_error in captured.err
+        assert not (second_dir / "spec_prepare" / "source_packet.json").exists()
+    finally:
+        shutil.rmtree(first_dir, ignore_errors=True)
+        shutil.rmtree(second_dir, ignore_errors=True)
+        shutil.rmtree(input_dir, ignore_errors=True)
+
+
 def test_cli_failure_prints_single_fail_line(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
