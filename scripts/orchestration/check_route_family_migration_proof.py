@@ -48,6 +48,7 @@ def _is_repo_relative_ref(value: str) -> bool:
         or WINDOWS_DRIVE_RE.match(value)
         or URI_SCHEME_RE.match(value)
         or value.startswith(("file://", "~", "/", "\\"))
+        or ".." in value
         or not REPO_PATH_RE.fullmatch(value)
     ):
         return False

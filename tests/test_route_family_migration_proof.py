@@ -160,6 +160,15 @@ def test_route_family_migration_proof_rejects_schema_invalid_ref_characters() ->
     assert "openapi_proof.evidence_refs[0] must be a repo-relative ref" in errors
 
 
+def test_route_family_migration_proof_rejects_dotdot_inside_ref_names() -> None:
+    payload = _valid_proof()
+    payload["openapi_proof"] = deepcopy(payload["openapi_proof"])
+    payload["openapi_proof"]["evidence_refs"] = ["docs/foo..bar.md"]
+
+    errors = validate_route_family_migration_proof(payload)
+    assert "openapi_proof.evidence_refs[0] must be a repo-relative ref" in errors
+
+
 def test_route_family_migration_proof_rejects_windows_and_backslash_refs() -> None:
     for value in (
         "C:/Users/example/secret.txt",

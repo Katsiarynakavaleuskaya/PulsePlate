@@ -90,6 +90,7 @@ PRIVILEGED_REVIEW_SURFACES: tuple[PrivilegedReviewSurface, ...] = (
         exact_paths=(
             ".pre-commit-config.yaml",
             "constraints.txt",
+            "package.json",
             "package-lock.json",
             "pnpm-lock.yaml",
             "pyproject.toml",
@@ -100,6 +101,7 @@ PRIVILEGED_REVIEW_SURFACES: tuple[PrivilegedReviewSurface, ...] = (
         suffixes=(
             "/.pre-commit-config.yaml",
             "/constraints.txt",
+            "/package.json",
             "/package-lock.json",
             "/pnpm-lock.yaml",
             "/pyproject.toml",
