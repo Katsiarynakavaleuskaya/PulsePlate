@@ -68,6 +68,10 @@ BOLA, dependency upgrades, or GitHub workflow edits are included.
   privileged coverage for METATRON lab compose/guard files, iOS entitlement and
   release plist/string controls, the AgentGuard scanner, and backup systemd
   unit examples.
+- `9733786e2` - fixes the latest release/root-governance findings by adding
+  bounded privileged coverage for App Store release packs, Flake8/markdownlint
+  configs, root env template, Alembic config, Kimi MCP example, and MCP setup
+  script while preserving fail-closed `.env*` metadata handling.
 
 ## Lane Start Provenance
 
@@ -724,15 +728,104 @@ Evidence: `python3 scripts/orchestration/pr_review_context.py --pr 2067
 candidate `NEEDS-HUMAN`, and gate `make validate-changed`; `make
 validate-changed` already passed on this branch.
 
+## Latest Root Governance Review Pass
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3520974122 -> 9733786e2
+
+Disposition: FIXED
+
+Commit: `9733786e2`
+
+Reason: Root `.flake8` changes can weaken the Flake8 policy used by mandatory
+lint/pre-commit surfaces, so they must route through `security_review_required`
+instead of being treated as ordinary root config.
+
+Evidence: Commit `9733786e2` adds exact `.flake8` matcher coverage plus
+bootstrap, skill-router, and task-bootstrap tests; nested `docs/.flake8`
+remains a negative control.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3520974135 -> 9733786e2
+
+Disposition: FIXED
+
+Commit: `9733786e2`
+
+Reason: `.kimi/mcp.json.example` and `mcp-setup.sh` govern local MCP wiring and
+setup behavior, so MCP-only changes can affect tool/package configuration even
+when `.cursor/mcp.json.example` is untouched.
+
+Evidence: Commit `9733786e2` adds exact `.kimi/mcp.json.example` and
+`mcp-setup.sh` matcher coverage with positive parity tests and lookalike
+negative controls for `.kimi/mcp.json`, `.kimi/mcp.json.example.backup`,
+`mcp-setup/archive.sh`, and `scripts/mcp-setup.sh`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3520974141 -> 9733786e2
+
+Disposition: FIXED
+
+Commit: `9733786e2`
+
+Reason: `appstore/fitchef/**` contains release-pack metadata/checklists and
+shot scenario controls, so App Store release copy and wellness-claim evidence
+must not bypass the same privileged review path as adjacent iOS/Fastlane
+release controls.
+
+Evidence: Commit `9733786e2` adds bounded `appstore/fitchef/` prefix coverage,
+skill-router metadata parity, task-bootstrap `security_review_required=true`
+coverage, and `appstore/fitchef-notes/**` negative control coverage.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3520974145 -> 9733786e2
+
+Disposition: FIXED
+
+Commit: `9733786e2`
+
+Reason: Root `.markdownlint.json` controls docs-lint exclusions and style
+policy, so changes there can weaken required docs linting without touching the
+workflow file.
+
+Evidence: Commit `9733786e2` adds exact `.markdownlint.json` matcher coverage
+with focused bootstrap, skill-router, and task-bootstrap tests; nested
+`docs/.markdownlint.json` remains non-privileged.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3520974150 -> 9733786e2
+
+Disposition: FIXED
+
+Commit: `9733786e2`
+
+Reason: Root `.env.example` is the committed startup/environment template used
+for private-proxy and credential-safety invariants, but the context-pack helper
+must still reject real `.env*` secret-bearing paths.
+
+Evidence: Commit `9733786e2` adds exact `.env.example` matcher coverage and a
+narrow context-pack exception for root `.env.example` only; nested
+`docs/.env.example` remains blocked/non-privileged and general `.env*` metadata
+paths still fail closed.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3520974153 -> 9733786e2
+
+Disposition: FIXED
+
+Commit: `9733786e2`
+
+Reason: `alembic.ini` controls migration script location and database URL
+template defaults, so migration-chain config-only edits should route through
+privileged security review.
+
+Evidence: Commit `9733786e2` adds exact `alembic.ini` matcher coverage with
+bootstrap, skill-router, and task-bootstrap parity tests; `docs/alembic.ini`
+remains a negative control.
+
 ## Local Validation Evidence
 
 - `PULSEPLATE_PYTHON_INDEX_URL=https://packages.pulseplate.app/root/pulseplate/+simple/ python3 scripts/orchestration/check_preflight.py`
   passed with canonical private-index shape.
 - `python3 scripts/orchestration/check_agent_consistency.py` passed.
 - Focused pytest passed with the repo-resolved interpreter:
-  `. scripts/hooks/repo_python.sh; VENV_PYTHON="$(resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/test_bootstrap_sync_policy.py tests/test_task_bootstrap.py tests/test_skill_router.py`.
+  `. scripts/hooks/repo_python.sh; VENV_PYTHON="$(resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/test_bootstrap_sync_policy.py tests/test_task_bootstrap.py tests/test_skill_router.py tests/test_context_pack_compression.py`.
 - Focused ruff passed with the repo-resolved interpreter:
-  `. scripts/hooks/repo_python.sh; VENV_PYTHON="$(resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m ruff check scripts/orchestration/bootstrap_sync_policy.py scripts/orchestration/skill_router.py tests/test_bootstrap_sync_policy.py tests/test_task_bootstrap.py tests/test_skill_router.py`.
+  `. scripts/hooks/repo_python.sh; VENV_PYTHON="$(resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m ruff check scripts/orchestration/bootstrap_sync_policy.py scripts/orchestration/skill_router.py scripts/orchestration/context_pack_compression.py tests/test_bootstrap_sync_policy.py tests/test_task_bootstrap.py tests/test_skill_router.py tests/test_context_pack_compression.py`.
 - Phase2 artifact validation passed after the post-open QA fix:
   `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 2067`.
 - `make validate-changed` passed after commit and selected the three changed
