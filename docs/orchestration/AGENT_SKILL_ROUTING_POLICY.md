@@ -276,7 +276,7 @@ The following touched paths must automatically boost security-oriented skills:
 - merge-governance scripts under `scripts/ci/**`
 - merge-governance docs under `docs/orchestration/**` and `docs/review/**`
 - deploy/image config such as `Dockerfile`, `docker-compose*.yml`, and `deploy/**`
-- dependency and hook config such as `requirements*.txt`, `pyproject.toml`,
+- dependency and hook config such as `requirements*.txt`, `requirements*.in`, `pyproject.toml`,
   lockfiles, and `.pre-commit-config.yaml`
 
 Expected behavior:

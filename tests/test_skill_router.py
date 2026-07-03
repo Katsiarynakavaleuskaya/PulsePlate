@@ -58,7 +58,7 @@ EXPECTED_PRIVILEGED_SURFACE_POLICY_LINES: tuple[str, ...] = (
     "- merge-governance scripts under `scripts/ci/**`",
     "- merge-governance docs under `docs/orchestration/**` and `docs/review/**`",
     "- deploy/image config such as `Dockerfile`, `docker-compose*.yml`, and `deploy/**`",
-    "- dependency and hook config such as `requirements*.txt`, `pyproject.toml`,",
+    "- dependency and hook config such as `requirements*.txt`, `requirements*.in`, `pyproject.toml`,",
 )
 EXPECTED_CLASSIFICATION_POLICY_LINES: tuple[str, ...] = (
     "- `implementation`",

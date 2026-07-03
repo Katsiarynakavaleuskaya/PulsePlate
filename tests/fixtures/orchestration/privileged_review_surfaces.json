@@ -86,6 +86,36 @@
       "reason": "dependency-or-hook-config"
     },
     {
+      "case_id": "requirements_dev_in",
+      "path": "requirements-dev.in",
+      "privileged": true,
+      "reason": "dependency-or-hook-config"
+    },
+    {
+      "case_id": "requirements_ci_lite_in",
+      "path": "requirements-ci-lite.in",
+      "privileged": true,
+      "reason": "dependency-or-hook-config"
+    },
+    {
+      "case_id": "requirements_rag_vector_in",
+      "path": "requirements-rag-vector.in",
+      "privileged": true,
+      "reason": "dependency-or-hook-config"
+    },
+    {
+      "case_id": "requirements_data_in",
+      "path": "requirements-data.in",
+      "privileged": true,
+      "reason": "dependency-or-hook-config"
+    },
+    {
+      "case_id": "requirements_docker_runtime_in",
+      "path": "requirements-docker-runtime.in",
+      "privileged": true,
+      "reason": "dependency-or-hook-config"
+    },
+    {
       "case_id": "root_readme",
       "path": "README.md",
       "privileged": false

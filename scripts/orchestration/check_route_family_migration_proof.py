@@ -10,6 +10,7 @@ from typing import Any
 
 SCHEMA_VERSION = "route_family_migration_proof.v1"
 ROUTE_FAMILY_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$")
+REPO_PATH_RE = re.compile(r"^[A-Za-z0-9_.-][A-Za-z0-9_./:-]*$")
 REQUIRED_TOP_LEVEL = (
     "schema_version",
     "route_family",
@@ -34,6 +35,7 @@ def _is_repo_relative_ref(value: str) -> bool:
         or "\\" in value
         or WINDOWS_DRIVE_RE.match(value)
         or value.startswith(("file://", "~", "/", "\\"))
+        or not REPO_PATH_RE.fullmatch(value)
     ):
         return False
     path = PurePosixPath(value.replace("\\", "/"))
