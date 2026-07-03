@@ -101,9 +101,9 @@ AGENTS/RUNBOOK sync note.
 - [x] Initial PR open: no GitHub review comments were resolved before mapping.
 - [x] Post-open `qa-engineer-agent` pass completed.
 - [x] Post-open `bug-hunter` pass completed.
-- [ ] Post-open `security-auditor` pass completed.
-- [ ] Codex Security diff scan / finding discovery completed.
-- [ ] `pulseplate-pr-review` completed.
+- [x] Post-open `security-auditor` pass completed.
+- [x] Codex Security diff scan / finding discovery completed.
+- [x] `pulseplate-pr-review` completed.
 - [ ] CodeRabbit actionable review comments checked and dispositioned after bot
   review completes.
 - [ ] Sourcery actionable review comments checked and dispositioned after bot
@@ -413,6 +413,53 @@ Evidence: Commit `9e4ce2fa2` adds bounded matcher coverage for `.coderabbit.yaml
 `wrangler.toml`, and `frontend/wrangler.toml`. Focused bootstrap, skill-router,
 and task-bootstrap tests cover the new positives plus nested/lookalike negatives.
 
+Disposition: NOT-A-BUG
+
+Reason: The final security-auditor pass checked the current PR head and found
+that all live review-thread URLs were represented in this mapping, every
+`FIXED`/`NOT-A-BUG` block included a `Reason:`, stale-state comments pointed at
+invalid or non-current commits, and the code-side matcher/test coverage closed
+the remaining privileged-surface routing risks.
+
+Evidence: Final post-open security-auditor PASS on
+`cfedd6a4a013e883c0a0aef2c8f0af020ea72773` confirmed zero unmapped live review
+thread URLs, `MISSING_REASON: none`, valid mapped ancestor commits for live
+fixes, and no new secret/subprocess/nosec/type-ignore/runtime/OpenAPI/BOLA/
+route-registration risk in the material diff.
+
+Role: `codex-security`
+
+Disposition: NOT-A-BUG
+
+Reason: The Codex Security diff scan found no reportable candidate because the
+material diff centralizes fail-closed routing, adds positive and negative
+matcher tests, keeps `security-auditor` executable for matched surfaces, and
+does not add runtime entrypoints, subprocess execution, secret handling,
+authorization decisions, route registration, OpenAPI/product behavior, or
+provider calls.
+
+Evidence: Scan `f855c09e-b874-45c7-89b1-1bb2bc1efa92` finalized successfully
+with 0 findings and complete coverage over 11 changed surfaces. Report:
+`/private/var/folders/bw/12x002vn67v2bvjpbhbtm8480000gn/T/codex-security-scans-mNIoGV/harden-privileged-surface-review-routing/cfedd6a4a013e883c0a0aef2c8f0af020ea72773_20260703T074800Z_8ze5fph6/report.md`.
+
+Role: `pulseplate-pr-review`
+
+Disposition: NOT-A-BUG
+
+Reason: The dry-run PR review emitted only an advisory `NEEDS-HUMAN` note for
+diff size, not a code defect. The larger diff is still one coherent root-cause
+slice: one canonical privileged-surface matcher shared by bootstrap, skill
+routing, docs, and tests. Splitting after the post-open role fixes would create
+more governance churn without reducing the reviewed security risk.
+
+Evidence: `python3 scripts/orchestration/pr_review_context.py --pr 2067
+--output /tmp/pulseplate_pr_2067_review_context.json` succeeded, and
+`python3 scripts/orchestration/pr_review_report.py --context
+/tmp/pulseplate_pr_2067_review_context.json --format json` reported
+`findings_count: 1` with severity `note`, category `tests`, disposition
+candidate `NEEDS-HUMAN`, and gate `make validate-changed`; `make
+validate-changed` already passed on this branch.
+
 ## Local Validation Evidence
 
 - `PULSEPLATE_PYTHON_INDEX_URL=https://packages.pulseplate.app/root/pulseplate/+simple/ python3 scripts/orchestration/check_preflight.py`
@@ -429,3 +476,8 @@ and task-bootstrap tests cover the new positives plus nested/lookalike negatives
 - `pre-commit run --all-files` passed.
 - Push pre-push hooks passed, including mypy changed files, pip-audit, backend
   tests, full-repo bandit, and docker build test.
+- Codex Security diff scan finalized with 0 findings and complete coverage over
+  11 changed surfaces; report path:
+  `/private/var/folders/bw/12x002vn67v2bvjpbhbtm8480000gn/T/codex-security-scans-mNIoGV/harden-privileged-surface-review-routing/cfedd6a4a013e883c0a0aef2c8f0af020ea72773_20260703T074800Z_8ze5fph6/report.md`.
+- `pulseplate-pr-review` dry-run report completed; its only finding was the
+  advisory diff-size `NEEDS-HUMAN` note dispositioned above with rationale.
