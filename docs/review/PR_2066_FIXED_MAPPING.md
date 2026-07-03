@@ -236,8 +236,10 @@ Reason: Codex Security completed a branch-diff scan with zero reportable finding
   `0e5b8c62e4dc2e8286b393d5d0ce15409a87b2a6...5c10e731a1791c53ea61f68bba7e846ca319dc6f`
 - Coverage: 5/5 reviewed surfaces closed.
 - Findings: 0 reportable findings.
-- Report:
-  `/private/var/folders/bw/12x002vn67v2bvjpbhbtm8480000gn/T/codex-security-scans-nU0tuF/move-shopping-list-registration-to-canonical-bootstrap/5c10e731a1791c53ea61f68bba7e846ca319dc6f_20260702T220104Z_9sujpp6k/report.md`
+- Report evidence: Codex Security workbench scan
+  `21647199-e9cc-44b4-b4f2-82f9ea9fa40c` completed with canonical
+  `scan-manifest.json`, `coverage.json`, `findings.json`, markdown report, and
+  SARIF projection available through the scan record.
 - Reviewed surfaces:
   `app/main.py`, `app/routers/shopping_list_pro.py`,
   `app/routers/shoplist_day.py`, `legacy_app.py`, and
@@ -249,8 +251,10 @@ Disposition: NOT-A-BUG
 Evidence:
 Reason: The only review note was an advisory large-diff warning; the runtime scope stayed bounded and validation passed.
 
-- Report: `/tmp/pulseplate_pr_review_report_2066.md`
-- Context: `/tmp/pulseplate_pr_review_context_2066.json`
+- Report command:
+  `python3 scripts/orchestration/pr_review_report.py --context <pr_review_context_json> --format markdown --packet-id 6191c7a0e812 --packet-path artifacts/orchestration/task_packets/6191c7a0e812.json`
+- Context command:
+  `python3 scripts/orchestration/pr_review_context.py --pr 2066 --repo-root "$PWD" --output <pr_review_context_json>`
 - The dry-run reported one advisory `large-diff-risk` note because the PR has
   648 added lines. This is expected for this bounded slice: most added lines are
   targeted tests plus the PR fixed-mapping artifact, and the runtime scope
