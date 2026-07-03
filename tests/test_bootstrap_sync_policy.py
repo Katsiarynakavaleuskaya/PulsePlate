@@ -63,6 +63,7 @@ def test_bootstrap_sync_policy_freezes_privileged_review_prefixes() -> None:
         ".github/actions/",
         ".github/scripts/",
         ".githooks/",
+        "appstore/fitchef/",
         "deploy/metatron-lab/",
         "ios/fastlane/",
         "scripts/metatron_lab/",
@@ -88,12 +89,15 @@ def test_bootstrap_sync_policy_freezes_privileged_review_patterns() -> None:
         "Dockerfile",
         "Makefile",
         "RUNBOOK_AGENT.md",
+        ".env.example",
         ".bandit",
         ".bandit.yaml",
         ".coveragerc",
         ".coderabbit.yaml",
         ".dockerignore",
         ".gitmodules",
+        ".flake8",
+        ".markdownlint.json",
         ".nvmrc",
         ".python-version",
         ".ruby-version",
@@ -105,6 +109,7 @@ def test_bootstrap_sync_policy_freezes_privileged_review_patterns() -> None:
         ".pre-commit-config.yaml",
         ".pre-commit-config.yml",
         ".cursor/mcp.json.example",
+        ".kimi/mcp.json.example",
         ".devcontainer/Dockerfile",
         ".devcontainer/devcontainer.json",
         ".devcontainer/docker-compose*.yml",
@@ -116,6 +121,7 @@ def test_bootstrap_sync_policy_freezes_privileged_review_patterns() -> None:
         ".github/dependabot.yml",
         ".github/dependabot.yaml",
         ".github/pull_request_template.md",
+        "alembic.ini",
         "codecov.yml",
         "codecov.yaml",
         "docker-compose*.yml",
@@ -139,6 +145,7 @@ def test_bootstrap_sync_policy_freezes_privileged_review_patterns() -> None:
         "ios/PulsePlate/PrivacyInfo.xcprivacy",
         "ios/PulsePlate/*/InfoPlist.strings",
         "mcp-config.json",
+        "mcp-setup.sh",
         "opencode.json",
         "package*.json",
         "pyproject.toml",
@@ -310,6 +317,7 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     assert requires_security_review([".github/actions/setup/action.yml"]) is True
     assert requires_security_review([".github/scripts/parse-safety-report.py"]) is True
     assert requires_security_review([".githooks/pre-push"]) is True
+    assert requires_security_review(["appstore/fitchef/appstore_review_checklist.md"]) is True
     assert requires_security_review(["scripts/ci"]) is True
     assert requires_security_review(["scripts/orchestration/task_bootstrap.py"]) is True
     assert requires_security_review(["scripts/release/publish.py"]) is True
@@ -326,12 +334,15 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     assert requires_security_review(["build/../Dockerfile"]) is True
     assert requires_security_review(["Makefile"]) is True
     assert requires_security_review(["RUNBOOK_AGENT.md"]) is True
+    assert requires_security_review([".env.example"]) is True
     assert requires_security_review([".bandit"]) is True
     assert requires_security_review([".bandit.yaml"]) is True
     assert requires_security_review([".coveragerc"]) is True
     assert requires_security_review([".coderabbit.yaml"]) is True
     assert requires_security_review([".dockerignore"]) is True
     assert requires_security_review([".gitmodules"]) is True
+    assert requires_security_review([".flake8"]) is True
+    assert requires_security_review([".markdownlint.json"]) is True
     assert requires_security_review([".nvmrc"]) is True
     assert requires_security_review([".python-version"]) is True
     assert requires_security_review([".ruby-version"]) is True
@@ -343,6 +354,7 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     assert requires_security_review([".pre-commit-config.yaml"]) is True
     assert requires_security_review([".pre-commit-config.yml"]) is True
     assert requires_security_review([".cursor/mcp.json.example"]) is True
+    assert requires_security_review([".kimi/mcp.json.example"]) is True
     assert requires_security_review([".devcontainer/Dockerfile"]) is True
     assert requires_security_review([".devcontainer/devcontainer.json"]) is True
     assert requires_security_review([".devcontainer/docker-compose.devcontainer.yml"]) is True
@@ -352,6 +364,7 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     assert requires_security_review([".github/dependabot.yml"]) is True
     assert requires_security_review([".github/dependabot.yaml"]) is True
     assert requires_security_review([".github/pull_request_template.md"]) is True
+    assert requires_security_review(["alembic.ini"]) is True
     assert requires_security_review(["codecov.yml"]) is True
     assert requires_security_review(["codecov.yaml"]) is True
     assert requires_security_review(["docker-compose.yaml"]) is True
@@ -395,6 +408,7 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     assert requires_security_review(["ios/PulsePlate/PrivacyInfo.xcprivacy"]) is True
     assert requires_security_review(["ios/PulsePlate/en.lproj/InfoPlist.strings"]) is True
     assert requires_security_review(["mcp-config.json"]) is True
+    assert requires_security_review(["mcp-setup.sh"]) is True
     assert requires_security_review(["opencode.json"]) is True
     assert requires_security_review(["package.json"]) is True
     assert requires_security_review(["package-lock.json"]) is True
@@ -461,11 +475,17 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     assert requires_security_review([".github/script/parse-safety-report.py"]) is False
     assert requires_security_review([".github/scripts-notes/parse-safety-report.py"]) is False
     assert requires_security_review([".githooks-notes/pre-push"]) is False
+    assert (
+        requires_security_review(["appstore/fitchef-notes/appstore_review_checklist.md"]) is False
+    )
     assert requires_security_review(["AGENTS.md.backup"]) is False
     assert requires_security_review(["docs/AGENTS.md.backup"]) is False
     assert requires_security_review(["docs/.coveragerc"]) is False
+    assert requires_security_review(["docs/.env.example"]) is False
+    assert requires_security_review(["docs/.flake8"]) is False
     assert requires_security_review(["docs/codecov.yml"]) is False
     assert requires_security_review(["docs/.gitmodules"]) is False
+    assert requires_security_review(["docs/.markdownlint.json"]) is False
     assert requires_security_review(["docs/.yamllint"]) is False
     assert requires_security_review(["frontend/nested/Dockerfile.caddy-spa"]) is False
     assert requires_security_review(["frontend/nested/.dockerignore"]) is False
@@ -487,6 +507,11 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     assert requires_security_review(["ios/PulsePlate/en.lproj/InfoPlist.strings.backup"]) is False
     assert requires_security_review(["packages/package-lock.json"]) is False
     assert requires_security_review([".github/dependabot/nested.yaml"]) is False
+    assert requires_security_review(["docs/alembic.ini"]) is False
+    assert requires_security_review([".kimi/mcp.json"]) is False
+    assert requires_security_review([".kimi/mcp.json.example.backup"]) is False
+    assert requires_security_review(["mcp-setup/archive.sh"]) is False
+    assert requires_security_review(["scripts/mcp-setup.sh"]) is False
     assert requires_security_review(["scripts/hooks/nested/repo_python.sh"]) is False
     assert requires_security_review(["scripts/deploy/archive.sh"]) is False
     assert requires_security_review(["scripts/ops/archive/postgres_backup.sh"]) is False
@@ -518,11 +543,17 @@ def test_bootstrap_sync_policy_returns_stable_privileged_review_labels() -> None
             ".github/scripts/parse-safety-report.py",
             "scripts/AGENTS.md",
             " Dockerfile ",
+            ".env.example",
+            ".flake8",
+            ".markdownlint.json",
             "build/../Dockerfile",
             ".coveragerc",
+            ".kimi/mcp.json.example",
+            "alembic.ini",
             ".gitmodules",
             "codecov.yml",
             ".yamllint",
+            "appstore/fitchef/appstore_review_checklist.md",
             "deploy/docker-compose.production.selfhosted.yaml",
             "deploy/metatron-lab/docker-compose.yaml",
             "deploy/systemd/pulseplate-postgres-backup.timer.example",
@@ -533,6 +564,7 @@ def test_bootstrap_sync_policy_returns_stable_privileged_review_labels() -> None
             "scripts/validate-ci-environment.sh",
             "tools/agentguard/scan_text.mjs",
             "tools/codex_skills/pulseplate-gates/SKILL.md",
+            "mcp-setup.sh",
             "requirements-ci-lite.txt",
             "docs/review/PR_1325_FIXED_MAPPING.md",
         ]
@@ -542,10 +574,16 @@ def test_bootstrap_sync_policy_returns_stable_privileged_review_labels() -> None
         ".github/scripts/",
         "**/AGENTS.md",
         "Dockerfile",
+        ".env.example",
+        ".flake8",
+        ".markdownlint.json",
         ".coveragerc",
+        ".kimi/mcp.json.example",
+        "alembic.ini",
         ".gitmodules",
         "codecov.yml",
         ".yamllint",
+        "appstore/fitchef/",
         "deploy/docker-compose.production*.yaml",
         "deploy/metatron-lab/",
         "deploy/systemd/pulseplate-postgres-backup.*",
@@ -556,6 +594,7 @@ def test_bootstrap_sync_policy_returns_stable_privileged_review_labels() -> None
         "scripts/validate-ci-environment.sh",
         "tools/agentguard/",
         "tools/codex_skills/",
+        "mcp-setup.sh",
         "requirements*.txt",
         "docs/review/",
     )
