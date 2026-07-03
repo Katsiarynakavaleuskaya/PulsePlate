@@ -360,6 +360,16 @@ Evidence: tests/test_review_mapping_artifact.py
     assert any("proof block must contain at least one" in error for error in errors)
 
 
+def test_validate_fixed_mapping_section_rejects_conflicting_fixed_commit_sha() -> None:
+    section = """Disposition: FIXED
+Commit: abc1234
+Evidence: tests/test_review_mapping_artifact.py
+- https://github.com/org/repo/pull/1000#discussion_r1 -> deadbee
+"""
+    errors = artifact.validate_fixed_mapping_section(section)
+    assert any("Commit SHA must match mapped SHA entries" in error for error in errors)
+
+
 def test_validate_fixed_mapping_section_rejects_not_a_bug_sha_mapping() -> None:
     section = """Disposition: NOT-A-BUG
 Evidence: docs/review/PR_1000_FIXED_MAPPING.md:1

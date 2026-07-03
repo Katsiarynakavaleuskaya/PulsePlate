@@ -71,6 +71,14 @@ def test_route_family_migration_proof_accepts_minimal_valid_payload() -> None:
     assert validate_route_family_migration_proof(_valid_proof()) == []
 
 
+def test_route_family_migration_proof_accepts_existing_line_refs() -> None:
+    payload = _valid_proof()
+    payload["openapi_proof"] = deepcopy(payload["openapi_proof"])
+    payload["openapi_proof"]["evidence_refs"] = ["tests/test_route_family_migration_proof.py:1"]
+
+    assert validate_route_family_migration_proof(payload) == []
+
+
 def test_route_family_migration_proof_rejects_runtime_mutation_authority() -> None:
     payload = _valid_proof()
     payload["runtime_mutation_allowed"] = True
@@ -158,6 +166,15 @@ def test_route_family_migration_proof_rejects_schema_invalid_ref_characters() ->
 
     errors = validate_route_family_migration_proof(payload)
     assert "openapi_proof.evidence_refs[0] must be a repo-relative ref" in errors
+
+
+def test_route_family_migration_proof_rejects_missing_evidence_refs() -> None:
+    payload = _valid_proof()
+    payload["openapi_proof"] = deepcopy(payload["openapi_proof"])
+    payload["openapi_proof"]["evidence_refs"] = ["docs/does-not-exist.md"]
+
+    errors = validate_route_family_migration_proof(payload)
+    assert "openapi_proof.evidence_refs[0] must reference an existing repo file" in errors
 
 
 def test_route_family_migration_proof_rejects_dotdot_inside_ref_names() -> None:

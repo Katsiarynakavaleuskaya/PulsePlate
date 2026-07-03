@@ -4,13 +4,16 @@ from __future__ import annotations
 
 import argparse
 import json
+from pathlib import Path
 from pathlib import PurePosixPath
 import re
 from typing import Any
 
+REPO_ROOT = Path(__file__).resolve().parents[2]
 SCHEMA_VERSION = "route_family_migration_proof.v1"
 ROUTE_FAMILY_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$")
 REPO_PATH_RE = re.compile(r"^[A-Za-z0-9_.-][A-Za-z0-9_./:-]*$")
+LINE_REF_RE = re.compile(r"^(?P<path>.+):(?P<line>[1-9][0-9]*)$")
 REQUIRED_TOP_LEVEL = (
     "schema_version",
     "route_family",
@@ -62,7 +65,24 @@ def _is_repo_relative_ref(value: str) -> bool:
     return True
 
 
-def validate_route_family_migration_proof(payload: dict[str, Any]) -> list[str]:
+def _evidence_ref_exists(value: str, *, repo_root: Path) -> bool:
+    path_value = value
+    line_ref_match = LINE_REF_RE.fullmatch(value)
+    if line_ref_match and "/" in line_ref_match.group("path"):
+        path_value = line_ref_match.group("path")
+    try:
+        candidate = (repo_root / path_value).resolve(strict=False)
+        candidate.relative_to(repo_root.resolve())
+    except (OSError, RuntimeError, ValueError):
+        return False
+    return candidate.is_file()
+
+
+def validate_route_family_migration_proof(
+    payload: dict[str, Any],
+    *,
+    repo_root: Path = REPO_ROOT,
+) -> list[str]:
     """Return validation errors for a route-family migration proof artifact."""
 
     errors: list[str] = []
@@ -114,6 +134,11 @@ def validate_route_family_migration_proof(payload: dict[str, Any]) -> list[str]:
         for index, ref in enumerate(evidence_refs):
             if not isinstance(ref, str) or not _is_repo_relative_ref(ref):
                 errors.append(f"{section_name}.evidence_refs[{index}] must be a repo-relative ref")
+                continue
+            if not _evidence_ref_exists(ref, repo_root=repo_root):
+                errors.append(
+                    f"{section_name}.evidence_refs[{index}] must reference an existing repo file"
+                )
                 continue
             string_refs.append(ref)
         if len(string_refs) != len(set(string_refs)):

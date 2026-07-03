@@ -23,5 +23,7 @@ Required proof sections:
 - `rollback_proof`: rollback path and touched files are explicit.
 
 Minimum artifact rule: every proof section must set `checked: true`, include a
-short `summary`, and provide at least one repo-relative `evidence_refs` entry.
+short `summary`, and provide at least one repo-relative `evidence_refs` entry
+that resolves to an existing repo file. Optional numeric line refs such as
+`tests/test_route_family_migration_proof.py:1` are allowed.
 `runtime_mutation_allowed` must stay `false`.

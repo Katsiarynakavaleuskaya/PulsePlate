@@ -34,6 +34,7 @@ NO_ACTIONABLE_LINE = "- No actionable review comments"
 # Disposition/proof lines allowed in section (disposition guard format)
 DETAIL_PREFIXES = ("Disposition:", "Commit:", "Evidence:", "Backlog:", "Reason:")
 VALID_DISPOSITIONS = frozenset({"FIXED", "NOT-A-BUG", "DEFERRED"})
+COMMIT_SHA_RE = re.compile(r"^[0-9a-f]{7,40}$")
 
 
 def _validate_fixed_mapping_block(lines: list[str]) -> list[str]:
@@ -44,6 +45,8 @@ def _validate_fixed_mapping_block(lines: list[str]) -> list[str]:
     has_sha_mapping = False
     has_url_only_mapping = False
     proof_prefixes: set[str] = set()
+    commit_values: list[str] = []
+    mapped_shas: list[str] = []
 
     for line in lines:
         if line.startswith("Disposition:"):
@@ -61,9 +64,12 @@ def _validate_fixed_mapping_block(lines: list[str]) -> list[str]:
         )
         if matched_detail is not None:
             proof_prefixes.add(matched_detail)
+            if matched_detail == "Commit:":
+                commit_values.append(line.removeprefix("Commit:").strip())
             continue
-        if MAPPING_LINE_RE.match(line):
+        if mapping_match := MAPPING_LINE_RE.match(line):
             has_sha_mapping = True
+            mapped_shas.append(mapping_match.group(2))
             continue
         if THREAD_LINE_RE.match(line):
             has_url_only_mapping = True
@@ -95,6 +101,13 @@ def _validate_fixed_mapping_block(lines: list[str]) -> list[str]:
             errors.append("Disposition FIXED must not use URL-only review-thread lines.")
         if not ({"Commit:", "Evidence:"} & proof_prefixes):
             errors.append("Disposition FIXED requires a 'Commit:' or 'Evidence:' proof line.")
+        commit_shas = {value for value in commit_values if COMMIT_SHA_RE.fullmatch(value)}
+        mapped_sha_values = set(mapped_shas)
+        if commit_shas and mapped_sha_values - commit_shas:
+            errors.append(
+                "Disposition FIXED Commit SHA must match mapped SHA entries "
+                "or use 'Commit: see mapping entries below'."
+            )
     elif disposition == "NOT-A-BUG":
         if has_sha_mapping:
             errors.append("Disposition NOT-A-BUG must use URL-only review-thread lines.")
