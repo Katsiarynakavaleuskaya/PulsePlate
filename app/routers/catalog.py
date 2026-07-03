@@ -7,6 +7,12 @@ from fastapi import APIRouter, Depends, Query
 from app.schemas.catalog import CatalogRegion, CatalogSKU, CatalogStore
 from core.catalog.service import CatalogService, default_catalog_service
 
+CATALOG_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = (
+    ("/api/v1/catalog/regions", "GET", True),
+    ("/api/v1/catalog/stores", "GET", True),
+    ("/api/v1/catalog/search", "GET", True),
+)
+
 router = APIRouter(prefix="/api/v1/catalog", tags=["catalog"])
 
 

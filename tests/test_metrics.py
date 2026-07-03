@@ -215,6 +215,45 @@ def test_metrics_includes_route_template(client: TestClient) -> None:
         assert "?" not in route_label, f"Route label should not contain query params: {route_label}"
 
 
+def test_metrics_include_food_catalog_route_templates(client: TestClient) -> None:
+    """Foods/catalog legacy-registration move must preserve route-template labels."""
+    missing_food_id = "missing-food-id-for-metrics"
+
+    food_response = client.get(f"/api/v1/foods/{missing_food_id}?debug_raw_path=true")
+    assert food_response.status_code == 404
+
+    catalog_response = client.get(
+        "/api/v1/catalog/search",
+        params={"q": "ban", "region_id": "ES", "limit": 1, "debug_raw_query": "true"},
+    )
+    assert catalog_response.status_code == 200
+
+    metrics_text = client.get("/metrics").text
+
+    assert (
+        _metric_value(
+            metrics_text,
+            method="GET",
+            route="/api/v1/foods/{food_id}",
+            status="404",
+        )
+        >= 1.0
+    )
+    assert (
+        _metric_value(
+            metrics_text,
+            method="GET",
+            route="/api/v1/catalog/search",
+            status="200",
+        )
+        >= 1.0
+    )
+    assert missing_food_id not in metrics_text
+    assert "debug_raw_path" not in metrics_text
+    assert "debug_raw_query" not in metrics_text
+    assert 'route="/api/v1/catalog/search?' not in metrics_text
+
+
 def test_metrics_content_type(client: TestClient) -> None:
     """Test /metrics returns correct Content-Type header.
 
