@@ -35,6 +35,8 @@ Out of scope:
 
 ## Lane Start Provenance
 
+- Packet:
+  `artifacts/orchestration/task_packets/experiment_runner_local_active_hypothesis_pr2_pre_open.json`
 - Branch: `codex/experiment-runner-local-active-hypothesis-pr2`
 - Base: `main`
 - PR: `#2068`
@@ -80,29 +82,18 @@ Evidence: See `Review Comment Dispositions` below.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2068#discussion_r3518568929 -> 442b7d81cf5d4ac6fbd5031068b635e2a5627714
 
 Disposition: NOT-A-BUG
-Evidence: `tests/test_agent_learning_loop.py` already covered the requested
-failure-pattern secondary-metric branch on the current diff before the bot
-comment; CodeRabbit also marked the thread addressed in commit `7db17f6`.
-Reason: This was stale reviewer feedback against an already-covered branch, so
-no new post-comment code change was needed and mapping it to the pre-comment
-commit as `FIXED` would violate commit-after-comment governance.
-
+Evidence: `tests/test_agent_learning_loop.py` already covered the requested failure-pattern secondary-metric branch before the bot comment; CodeRabbit marked the thread addressed in commit `7db17f6`.
+Reason: The feedback was stale against an already-covered branch, so no new post-comment code change was needed and mapping it to the pre-comment commit as `FIXED` would violate commit-after-comment governance.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2068#discussion_r3516541188
 
 Disposition: NOT-A-BUG
-Evidence: Sourcery review `4621614380` contains only a weekly diff-character
-rate-limit message and no actionable code, test, or docs finding.
-Reason: A rate-limit status is external tool availability, not a defect in this
-PR diff. There is no Sourcery actionable to fix in the branch.
-
+Evidence: Sourcery review `4621614380` contains only a weekly diff-character rate-limit message and no actionable code, test, or docs finding.
+Reason: A rate-limit status is external tool availability, not a defect in this PR diff, so there is no Sourcery actionable to fix in the branch.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2068#pullrequestreview-4621614380
 
 Disposition: NOT-A-BUG
-Evidence: Cubic-generated PR body summary contains generated release-note style
-content and no inline actionable review thread requiring code or docs changes.
-Reason: The generated summary is advisory metadata; actionable review comments
-are handled separately in this mapping.
-
+Evidence: Cubic-generated PR body summary contains generated release-note style content and no inline actionable review thread requiring code or docs changes.
+Reason: The generated summary is advisory metadata; actionable review comments are handled separately in this mapping.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2068
 
 ## Review Comment Dispositions
