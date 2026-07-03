@@ -166,14 +166,32 @@ Runtime effect:
   route-family drift now fail startup/bootstrap instead of creating a partial
   runtime.
 
-### Shopping list generators (always included; tier handled inside)
+### Shopping list generators (canonical bootstrap-owned)
 
-Anchor (stable): `legacy_app.py -> include_router(shopping_list_pro_router, shoplist_day_router)`
+Anchor (stable): `app/main.py -> _include_shopping_list_routers_if_needed(app)`
 
-Evidence: `legacy_app.py:845-849`
+Evidence:
+- `app/bootstrap/route_family.py` — shared `RouteMemberContract` and
+  `ensure_route_family_registered(...)` guard for exact static route-family registration.
+- `app/main.py` — `_include_shopping_list_routers_if_needed(app)` registers
+  `shopping_list_pro_router` and `shoplist_day_router` as one `Shopping list`
+  family with `require_pro_tier` as a required route-member dependency.
+- `app/routers/shopping_list_pro.py` — owns the `POST /api/v1/pro/meal/shopping-list`
+  handler and `SHOPPING_LIST_PRO_ROUTE_SPECS`.
+- `app/routers/shoplist_day.py` — owns the iOS MVP `GET /api/v1/pro/shoplist/day`
+  handler and `SHOPLIST_DAY_ROUTE_SPECS`.
 
-- `app/routers/shopping_list_pro.py`
-- `app/routers/shoplist_day.py` (iOS MVP path)
+Runtime effect:
+- `POST /api/v1/pro/meal/shopping-list`
+- `GET /api/v1/pro/shoplist/day`
+
+OpenAPI effect:
+- Source `APIRoute.include_in_schema` remains `True` for both routes.
+- Canonical bootstrap validates idempotency, partial registration, duplicate/foreign
+  handlers, method drift, OpenAPI visibility drift, and `require_pro_tier` dependency drift.
+- `legacy_app.py` no longer imports or registers the shopping-list routers; the
+  legacy growth guard rejects direct, aliased, module-qualified, dynamic,
+  destructured, or walrus-style reintroduction.
 
 ### Insight endpoints (LLM) + providers wiring (legacy_app → llm → providers)
 

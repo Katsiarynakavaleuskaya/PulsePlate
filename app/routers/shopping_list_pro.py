@@ -17,6 +17,10 @@ from app.schemas.fitchef import (
 )
 from app.schemas.shopping_list import ShoppingListDTO, ShoppingListRequest
 
+SHOPPING_LIST_PRO_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = (
+    ("/api/v1/pro/meal/shopping-list", "POST", True),
+)
+
 router = APIRouter(prefix="/api/v1/pro/meal", tags=["pro", "shopping-list"])
 
 
@@ -90,4 +94,4 @@ async def generate_shopping_list(request: ShoppingListRequest) -> ShoppingListDT
     return result.shopping_list
 
 
-__all__ = ["router"]
+__all__ = ["SHOPPING_LIST_PRO_ROUTE_SPECS", "router"]
