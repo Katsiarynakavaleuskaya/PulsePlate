@@ -557,6 +557,70 @@ Commit: 9733786e2
 Reason: `alembic.ini` controls migration script location and database URL template defaults, so migration-chain config-only edits should route through privileged security review.
 Evidence: Commit `9733786e2` adds exact `alembic.ini` matcher coverage with bootstrap, skill-router, and task-bootstrap parity tests; `docs/alembic.ini` remains a negative control.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3521101431
+Disposition: NOT-A-BUG
+Reason: The comment asks to remap FIXED proofs to `7cc00595`, but that SHA is not the current PR head and does not appear in the current PR commit list. The canonical review proof remains the current branch head and ancestor commits on that branch, not a stale or synthetic reviewed SHA.
+Evidence: `gh pr view 2067 --json headRefOid,commits` reported current head `a3147b38dc158458c414f10a739f74181e0993b7` before this follow-up fix, with current PR commits ending in `9733786e2`, `0a24cf220`, and `a3147b38d`; local `git rev-parse --verify 7cc00595^{commit}` found no such commit in this checkout.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3521101437
+Disposition: NOT-A-BUG
+Reason: The material Experiment Runner contribution is attributed on the implementation commit where it shaped the PR-open decision; later mapping-only commits do not require the trailer unless the Runner materially contributed to that commit. The comment checked a non-current `7cc00595` SHA rather than the attributed implementation commit.
+Evidence: `git show -s --format=%B b09ea4d9d` contains `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`, while the current PR commit list does not include `7cc00595`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3521101441 -> 331562a52
+Disposition: FIXED
+Commit: 331562a52
+Reason: `opencode.json` and tests treat `scripts/opencode/run_pulseplate_mcp.sh` as the wrapper for the MCP server path, so a wrapper-only change can affect strict mode, interpreter fallback, and target server behavior without routing through security review.
+Evidence: The matcher now covers `scripts/opencode/run_pulseplate_mcp.sh`; focused bootstrap, task-bootstrap, and skill-router tests prove it requires security review and preserves a nested `scripts/opencode/archive/...` negative.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3521101445 -> 331562a52
+Disposition: FIXED
+Commit: 331562a52
+Reason: VS Code extension recommendations and the reviewed allowlist are developer tooling controls consumed by the guard, so extension-only or allowlist-only changes should not bypass privileged review.
+Evidence: The matcher now covers `.vscode/extensions.json`, `docs/security/TOOLING_SURFACE_POLICY.md`, and `docs/security/vscode_extensions_allowlist.txt`; focused tests cover positive root paths and nested policy/allowlist negatives.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3521101449 -> 331562a52
+Disposition: FIXED
+Commit: 331562a52
+Reason: `setup_custom_mcp.py` writes Cursor MCP/settings/env files and preserves secret/encrypted-key handling, so a helper-only change can weaken MCP setup or secret hygiene without security review.
+Evidence: The matcher now covers root `setup_custom_mcp.py`, with tests proving it is privileged while `scripts/setup_custom_mcp.py` remains a non-privileged lookalike.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3521101451 -> 331562a52
+Disposition: FIXED
+Commit: 331562a52
+Reason: Checked-in GitHub Copilot agent and prompt definitions can shape security-review behavior, so they belong to the same privileged control-plane surface as other agent definitions.
+Evidence: The matcher now covers `.github/agents/**` and `.github/prompts/**`; focused tests cover positive agent/prompt files and lookalike `.github/agent/**` / `.github/prompt/**` negatives.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3521101454 -> 331562a52
+Disposition: FIXED
+Commit: 331562a52
+Reason: `mcp_pulseplate_server.py` is the JSON-RPC MCP entrypoint and imports AI input guard logic before tool execution, so entrypoint-only changes need the privileged review path.
+Evidence: The matcher now covers root `mcp_pulseplate_server.py`, with focused tests proving root-only matching and a `docs/mcp_pulseplate_server.py` negative.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3521101457 -> 331562a52
+Disposition: FIXED
+Commit: 331562a52
+Reason: The Codex skills install verifier and its tests enforce which local skill bundles are installed, so verifier-only or test-only changes can weaken agent/tooling control-plane governance.
+Evidence: The matcher now covers `scripts/verify_codex_skills_install.py` and `tests/test_install_codex_skills.py`; focused tests cover both positives and nested/lookalike negatives.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3521101463 -> 331562a52
+Disposition: FIXED
+Commit: 331562a52
+Reason: `.github/workflows/devcontainer-smoke.yml` executes `scripts/devcontainer/smoke.sh`, so smoke-script-only changes can alter devcontainer toolchain validation without security review.
+Evidence: The matcher now covers `scripts/devcontainer/smoke.sh`; focused tests also keep `scripts/devcontainer/archive/smoke.sh` non-privileged.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3521101465 -> 331562a52
+Disposition: FIXED
+Commit: 331562a52
+Reason: The shared Xcode scheme controls build/test/archive participation for CI and release workflows, so scheme-only edits are privileged release controls.
+Evidence: The matcher now covers `ios/PulsePlate.xcodeproj/xcshareddata/xcschemes/PulsePlate.xcscheme`, with a nested archive negative in focused matcher tests.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3521101467 -> 331562a52
+Disposition: FIXED
+Commit: 331562a52
+Reason: `update_api_key.py` manages local OpenAI API-key material and writes runtime/Cursor MCP settings, so secret-handling utility edits must trigger the security-review path.
+Evidence: The matcher now covers root `update_api_key.py`, while focused tests keep `scripts/update_api_key.py` as a non-privileged lookalike.
+
 ## Role-Agent / Premortem Closeout
 
 - Coordinator finding: Xcode project SwiftPM package references could bypass
@@ -768,117 +832,6 @@ Evidence: `python3 scripts/orchestration/pr_review_context.py --pr 2067
 `findings_count: 1` with severity `note`, category `tests`, disposition
 candidate `NEEDS-HUMAN`, and gate `make validate-changed`; `make
 validate-changed` already passed on this branch.
-
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3521101431
-Disposition: NOT-A-BUG
-Reason: The comment asks to remap FIXED proofs to `7cc00595`, but that SHA is
-not the current PR head and does not appear in the current PR commit list. The
-canonical review proof remains the current branch head and ancestor commits on
-that branch, not a stale or synthetic reviewed SHA.
-Evidence: `gh pr view 2067 --json headRefOid,commits` reported current head
-`a3147b38dc158458c414f10a739f74181e0993b7` before this follow-up fix, with
-current PR commits ending in `9733786e2`, `0a24cf220`, and `a3147b38d`; local
-`git rev-parse --verify 7cc00595^{commit}` found no such commit in this
-checkout.
-
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3521101437
-Disposition: NOT-A-BUG
-Reason: The material Experiment Runner contribution is attributed on the
-implementation commit where it shaped the PR-open decision; later mapping-only
-commits do not require the trailer unless the Runner materially contributed to
-that commit. The comment checked a non-current `7cc00595` SHA rather than the
-attributed implementation commit.
-Evidence: `git show -s --format=%B b09ea4d9d` contains
-`Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`, while the
-current PR commit list does not include `7cc00595`.
-
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3521101441 -> 331562a52
-Disposition: FIXED
-Commit: 331562a52
-Reason: `opencode.json` and tests treat `scripts/opencode/run_pulseplate_mcp.sh`
-as the wrapper for the MCP server path, so a wrapper-only change can affect
-strict mode, interpreter fallback, and target server behavior without routing
-through security review.
-Evidence: The matcher now covers `scripts/opencode/run_pulseplate_mcp.sh`;
-focused bootstrap, task-bootstrap, and skill-router tests prove it requires
-security review and preserves a nested `scripts/opencode/archive/...` negative.
-
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3521101445 -> 331562a52
-Disposition: FIXED
-Commit: 331562a52
-Reason: VS Code extension recommendations and the reviewed allowlist are
-developer tooling controls consumed by the guard, so extension-only or
-allowlist-only changes should not bypass privileged review.
-Evidence: The matcher now covers `.vscode/extensions.json`,
-`docs/security/TOOLING_SURFACE_POLICY.md`, and
-`docs/security/vscode_extensions_allowlist.txt`; focused tests cover positive
-root paths and nested policy/allowlist negatives.
-
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3521101449 -> 331562a52
-Disposition: FIXED
-Commit: 331562a52
-Reason: `setup_custom_mcp.py` writes Cursor MCP/settings/env files and preserves
-secret/encrypted-key handling, so a helper-only change can weaken MCP setup or
-secret hygiene without security review.
-Evidence: The matcher now covers root `setup_custom_mcp.py`, with tests proving
-it is privileged while `scripts/setup_custom_mcp.py` remains a non-privileged
-lookalike.
-
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3521101451 -> 331562a52
-Disposition: FIXED
-Commit: 331562a52
-Reason: Checked-in GitHub Copilot agent and prompt definitions can shape
-security-review behavior, so they belong to the same privileged control-plane
-surface as other agent definitions.
-Evidence: The matcher now covers `.github/agents/**` and `.github/prompts/**`;
-focused tests cover positive agent/prompt files and lookalike
-`.github/agent/**` / `.github/prompt/**` negatives.
-
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3521101454 -> 331562a52
-Disposition: FIXED
-Commit: 331562a52
-Reason: `mcp_pulseplate_server.py` is the JSON-RPC MCP entrypoint and imports
-AI input guard logic before tool execution, so entrypoint-only changes need the
-privileged review path.
-Evidence: The matcher now covers root `mcp_pulseplate_server.py`, with focused
-tests proving root-only matching and a `docs/mcp_pulseplate_server.py` negative.
-
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3521101457 -> 331562a52
-Disposition: FIXED
-Commit: 331562a52
-Reason: The Codex skills install verifier and its tests enforce which local
-skill bundles are installed, so verifier-only or test-only changes can weaken
-agent/tooling control-plane governance.
-Evidence: The matcher now covers `scripts/verify_codex_skills_install.py` and
-`tests/test_install_codex_skills.py`; focused tests cover both positives and
-nested/lookalike negatives.
-
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3521101463 -> 331562a52
-Disposition: FIXED
-Commit: 331562a52
-Reason: `.github/workflows/devcontainer-smoke.yml` executes
-`scripts/devcontainer/smoke.sh`, so smoke-script-only changes can alter
-devcontainer toolchain validation without security review.
-Evidence: The matcher now covers `scripts/devcontainer/smoke.sh`; focused tests
-also keep `scripts/devcontainer/archive/smoke.sh` non-privileged.
-
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3521101465 -> 331562a52
-Disposition: FIXED
-Commit: 331562a52
-Reason: The shared Xcode scheme controls build/test/archive participation for
-CI and release workflows, so scheme-only edits are privileged release controls.
-Evidence: The matcher now covers
-`ios/PulsePlate.xcodeproj/xcshareddata/xcschemes/PulsePlate.xcscheme`, with a
-nested archive negative in focused matcher tests.
-
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3521101467 -> 331562a52
-Disposition: FIXED
-Commit: 331562a52
-Reason: `update_api_key.py` manages local OpenAI API-key material and writes
-runtime/Cursor MCP settings, so secret-handling utility edits must trigger the
-security-review path.
-Evidence: The matcher now covers root `update_api_key.py`, while focused tests
-keep `scripts/update_api_key.py` as a non-privileged lookalike.
 
 ## Local Validation Evidence
 
