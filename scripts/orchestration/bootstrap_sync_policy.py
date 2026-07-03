@@ -36,6 +36,7 @@ PRIVILEGED_REVIEW_PREFIXES: tuple[str, ...] = (
     "scripts/release/",
     "docs/orchestration/",
     "docs/review/",
+    "tests/guards/",
     "trivy/",
 )
 PRIVILEGED_REVIEW_PATTERNS: tuple[str, ...] = (
@@ -45,7 +46,10 @@ PRIVILEGED_REVIEW_PATTERNS: tuple[str, ...] = (
     "RUNBOOK_AGENT.md",
     ".bandit",
     ".bandit.yaml",
+    ".coderabbit.yaml",
     ".dockerignore",
+    ".secrets.baseline",
+    ".sourcery.yaml",
     ".trivyignore",
     ".pre-commit-config.yaml",
     ".pre-commit-config.yml",
@@ -67,9 +71,12 @@ PRIVILEGED_REVIEW_PATTERNS: tuple[str, ...] = (
     "deploy/docker-compose.staging.yaml",
     "frontend/Dockerfile.caddy-spa",
     "frontend/package*.json",
+    "frontend/wrangler.toml",
     "ios/Gemfile*",
     "ios/Package.swift",
     "ios/Package.resolved",
+    "mcp-config.json",
+    "opencode.json",
     "package*.json",
     "pyproject.toml",
     "requirements*.txt",
@@ -79,6 +86,9 @@ PRIVILEGED_REVIEW_PATTERNS: tuple[str, ...] = (
     "scripts/run-backend-tests-pre-commit.sh",
     "scripts/ci_*.sh",
     "scripts/deploy_*.sh",
+    "tests/test_repo_policy_guards.py",
+    "worker.js",
+    "wrangler.toml",
 )
 
 AGENTS_CONTRACT_FILE = "AGENTS.md"

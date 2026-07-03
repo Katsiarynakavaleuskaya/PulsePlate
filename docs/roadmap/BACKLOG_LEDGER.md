@@ -4454,11 +4454,12 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     frontend Caddy Dockerfile/npm manifests, iOS Gemfile/SwiftPM manifests,
     root security/quality-gate configs, root CI/deploy/test-gate helper
     scripts, root AGENTS/RUNBOOK/Makefile policy entrypoints, GitHub
-    CODEOWNERS/actionlint/PR-template governance, Dependabot YAML variants, or
-    root requirements/constraints manifests can change privileged automation
-    and supply-chain posture; PR #2067 is the active target to centralize this
-    matcher and force executable `security-auditor` review for matched
-    surfaces.
+    CODEOWNERS/actionlint/PR-template governance, review-bot configs, MCP
+    control-plane examples, secret baseline, policy guard tests, Cloudflare
+    Worker/Wrangler controls, Dependabot YAML variants, or root
+    requirements/constraints manifests can change privileged automation and
+    supply-chain posture; PR #2067 is the active target to centralize this
+    matcher and force executable `security-auditor` review for matched surfaces.
   - Links:
     - `AGENTS.md`
     - `RUNBOOK_AGENT.md`
@@ -4477,7 +4478,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Canonical docs define the privileged-surface trigger list via `bootstrap_sync_policy.py`
     - Coordinator/bootstrap preserves `security-auditor` in the executable review path for those surfaces
     - PR #2067 is merged or an explicit won't-do closeout is recorded before this checkbox is closed
-    - Deterministic tests cover workflow/action/Fastlane/orchestration/release/docs/Trivy/root-Docker/devcontainer/deploy-Caddy-Compose/frontend-Caddy-Dockerfile/npm/iOS-Gemfile-SwiftPM/quality-gate-config/root-CI-deploy-test-helper/root-policy-entrypoint/GitHub-governance/dependency-manifest
+    - Deterministic tests cover workflow/action/Fastlane/orchestration/release/docs/Trivy/root-Docker/devcontainer/deploy-Caddy-Compose/frontend-Caddy-Dockerfile/npm/iOS-Gemfile-SwiftPM/quality-gate-config/root-CI-deploy-test-helper/root-policy-entrypoint/GitHub-governance/review-bot-config/MCP-control-plane/secret-baseline/policy-guard-test/Cloudflare-edge/dependency-manifest
       review routing
     - Merge-readiness docs explain that this is a default requirement, not optional reviewer theater
 

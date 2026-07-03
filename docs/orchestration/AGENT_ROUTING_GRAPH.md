@@ -124,8 +124,9 @@ Bootstrap evidence: `scripts/orchestration/routing_graph_loader.py`, `scripts/or
     Dockerfile and npm manifests, iOS Gemfile and SwiftPM manifests, root
     security/quality-gate configs, root CI/deploy/test-gate helper scripts,
     root AGENTS/RUNBOOK/Makefile policy entrypoints, GitHub CODEOWNERS,
-    PR-template, and actionlint controls, Dependabot YAML variants, requirements, and
-    constraints manifests.
+    PR-template, and actionlint controls, review-bot configs, MCP control-plane
+    examples, secret baseline, policy guard tests, Cloudflare Worker/Wrangler
+    controls, Dependabot YAML variants, requirements, and constraints manifests.
 16. **Docs vs research split:** internal policy/runbook/docs maintenance defaults to `docs` -> `cursor-specialist-agent`; external web/OSS intake remains `research` -> `web-research-agent`.
 
 Audit evidence: `scripts/orchestration/check_agent_consistency.py:103-209`, `tests/test_routing_graph_loader.py:159-315`, `tests/guards/test_agent_consistency_guard.py:179-216`.

@@ -63,6 +63,7 @@ def test_bootstrap_sync_policy_freezes_privileged_review_prefixes() -> None:
         "scripts/release/",
         "docs/orchestration/",
         "docs/review/",
+        "tests/guards/",
         "trivy/",
     )
 
@@ -77,7 +78,10 @@ def test_bootstrap_sync_policy_freezes_privileged_review_patterns() -> None:
         "RUNBOOK_AGENT.md",
         ".bandit",
         ".bandit.yaml",
+        ".coderabbit.yaml",
         ".dockerignore",
+        ".secrets.baseline",
+        ".sourcery.yaml",
         ".trivyignore",
         ".pre-commit-config.yaml",
         ".pre-commit-config.yml",
@@ -99,9 +103,12 @@ def test_bootstrap_sync_policy_freezes_privileged_review_patterns() -> None:
         "deploy/docker-compose.staging.yaml",
         "frontend/Dockerfile.caddy-spa",
         "frontend/package*.json",
+        "frontend/wrangler.toml",
         "ios/Gemfile*",
         "ios/Package.swift",
         "ios/Package.resolved",
+        "mcp-config.json",
+        "opencode.json",
         "package*.json",
         "pyproject.toml",
         "requirements*.txt",
@@ -111,6 +118,9 @@ def test_bootstrap_sync_policy_freezes_privileged_review_patterns() -> None:
         "scripts/run-backend-tests-pre-commit.sh",
         "scripts/ci_*.sh",
         "scripts/deploy_*.sh",
+        "tests/test_repo_policy_guards.py",
+        "worker.js",
+        "wrangler.toml",
     )
 
 
@@ -257,6 +267,10 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     assert requires_security_review(["scripts/orchestration/task_bootstrap.py"]) is True
     assert requires_security_review(["scripts/release/publish.py"]) is True
     assert requires_security_review(["docs/review/PR_1325_FIXED_MAPPING.md"]) is True
+    assert requires_security_review(["tests/guards/test_nosec_policy_guard.py"]) is True
+    assert (
+        requires_security_review(["tests/guards/test_subprocess_uses_absolute_binaries.py"]) is True
+    )
     assert requires_security_review(["trivy/policy.rego"]) is True
     assert requires_security_review(["AGENTS.md"]) is True
     assert requires_security_review(["Dockerfile"]) is True
@@ -264,7 +278,10 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     assert requires_security_review(["RUNBOOK_AGENT.md"]) is True
     assert requires_security_review([".bandit"]) is True
     assert requires_security_review([".bandit.yaml"]) is True
+    assert requires_security_review([".coderabbit.yaml"]) is True
     assert requires_security_review([".dockerignore"]) is True
+    assert requires_security_review([".secrets.baseline"]) is True
+    assert requires_security_review([".sourcery.yaml"]) is True
     assert requires_security_review([".trivyignore"]) is True
     assert requires_security_review([".pre-commit-config.yaml"]) is True
     assert requires_security_review([".pre-commit-config.yml"]) is True
@@ -287,10 +304,13 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     assert requires_security_review(["frontend/Dockerfile.caddy-spa"]) is True
     assert requires_security_review(["frontend/package.json"]) is True
     assert requires_security_review(["frontend/package-lock.json"]) is True
+    assert requires_security_review(["frontend/wrangler.toml"]) is True
     assert requires_security_review(["ios/Gemfile"]) is True
     assert requires_security_review(["ios/Gemfile.lock"]) is True
     assert requires_security_review(["ios/Package.swift"]) is True
     assert requires_security_review(["ios/Package.resolved"]) is True
+    assert requires_security_review(["mcp-config.json"]) is True
+    assert requires_security_review(["opencode.json"]) is True
     assert requires_security_review(["package.json"]) is True
     assert requires_security_review(["package-lock.json"]) is True
     assert requires_security_review(["pyproject.toml"]) is True
@@ -303,8 +323,12 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     assert requires_security_review(["scripts/ci_bandit.sh"]) is True
     assert requires_security_review(["scripts/ci_pip_audit.sh"]) is True
     assert requires_security_review(["scripts/deploy_production.sh"]) is True
+    assert requires_security_review(["tests/test_repo_policy_guards.py"]) is True
+    assert requires_security_review(["worker.js"]) is True
+    assert requires_security_review(["wrangler.toml"]) is True
     assert requires_security_review(["script/orchestration/config.yml"]) is False
     assert requires_security_review(["tests/test_task_bootstrap.py"]) is False
+    assert requires_security_review(["tests/guarded/test_nosec_policy_guard.py"]) is False
     assert requires_security_review(["docs/pyproject.toml"]) is False
     assert requires_security_review(["requirements_docs.md"]) is False
     assert requires_security_review(["requirements/dev.txt"]) is False
@@ -323,6 +347,7 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     assert requires_security_review([".github/actionlint/rules.yaml"]) is False
     assert requires_security_review(["frontend/nested/Dockerfile.caddy-spa"]) is False
     assert requires_security_review(["frontend/packages/package-lock.json"]) is False
+    assert requires_security_review(["frontend/nested/wrangler.toml"]) is False
     assert requires_security_review(["ios/vendor/Gemfile.lock"]) is False
     assert requires_security_review(["ios/vendor/Package.resolved"]) is False
     assert requires_security_review(["packages/package-lock.json"]) is False
@@ -332,6 +357,9 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     assert requires_security_review(["scripts/ci-tools/bandit.sh"]) is False
     assert requires_security_review(["scripts/deploy/production.sh"]) is False
     assert requires_security_review(["scripts/cicd_notes.sh"]) is False
+    assert requires_security_review(["tests/test_repo_policy_guard_notes.py"]) is False
+    assert requires_security_review(["workers/worker.js"]) is False
+    assert requires_security_review(["deploy/wrangler.toml"]) is False
 
 
 def test_bootstrap_sync_policy_returns_stable_privileged_review_labels() -> None:
