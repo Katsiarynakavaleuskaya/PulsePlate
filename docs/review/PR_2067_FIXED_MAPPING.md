@@ -516,6 +516,42 @@ Commit: 3f39887e5
 Reason: Backup systemd service/timer examples schedule `scripts/ops/postgres_backup.sh` for self-hosted installs, so unit-only changes can alter backup cadence, user, or target without touching the backup helper itself.
 Evidence: The matcher now covers `deploy/systemd/pulseplate-postgres-backup.*`; focused tests cover service/timer positives and nested/lookalike negatives such as `deploy/systemd/archive/` and `pulseplate-postgres-backup-notes.md`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3520974122 -> 9733786e2
+Disposition: FIXED
+Commit: 9733786e2
+Reason: Root `.flake8` changes can weaken the Flake8 policy used by mandatory lint/pre-commit surfaces, so they must route through `security_review_required` instead of being treated as ordinary root config.
+Evidence: Commit `9733786e2` adds exact `.flake8` matcher coverage plus bootstrap, skill-router, and task-bootstrap tests; nested `docs/.flake8` remains a negative control.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3520974135 -> 9733786e2
+Disposition: FIXED
+Commit: 9733786e2
+Reason: `.kimi/mcp.json.example` and `mcp-setup.sh` govern local MCP wiring and setup behavior, so MCP-only changes can affect tool/package configuration even when `.cursor/mcp.json.example` is untouched.
+Evidence: Commit `9733786e2` adds exact `.kimi/mcp.json.example` and `mcp-setup.sh` matcher coverage with positive parity tests and lookalike negative controls for `.kimi/mcp.json`, `.kimi/mcp.json.example.backup`, `mcp-setup/archive.sh`, and `scripts/mcp-setup.sh`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3520974141 -> 9733786e2
+Disposition: FIXED
+Commit: 9733786e2
+Reason: `appstore/fitchef/**` contains release-pack metadata/checklists and shot scenario controls, so App Store release copy and wellness-claim evidence must not bypass the same privileged review path as adjacent iOS/Fastlane release controls.
+Evidence: Commit `9733786e2` adds bounded `appstore/fitchef/` prefix coverage, skill-router metadata parity, task-bootstrap `security_review_required=true` coverage, and `appstore/fitchef-notes/**` negative control coverage.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3520974145 -> 9733786e2
+Disposition: FIXED
+Commit: 9733786e2
+Reason: Root `.markdownlint.json` controls docs-lint exclusions and style policy, so changes there can weaken required docs linting without touching the workflow file.
+Evidence: Commit `9733786e2` adds exact `.markdownlint.json` matcher coverage with focused bootstrap, skill-router, and task-bootstrap tests; nested `docs/.markdownlint.json` remains non-privileged.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3520974150 -> 9733786e2
+Disposition: FIXED
+Commit: 9733786e2
+Reason: Root `.env.example` is the committed startup/environment template used for private-proxy and credential-safety invariants, but the context-pack helper must still reject real `.env*` secret-bearing paths.
+Evidence: Commit `9733786e2` adds exact `.env.example` matcher coverage and a narrow context-pack exception for root `.env.example` only; nested `docs/.env.example` remains blocked/non-privileged and general `.env*` metadata paths still fail closed.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3520974153 -> 9733786e2
+Disposition: FIXED
+Commit: 9733786e2
+Reason: `alembic.ini` controls migration script location and database URL template defaults, so migration-chain config-only edits should route through privileged security review.
+Evidence: Commit `9733786e2` adds exact `alembic.ini` matcher coverage with bootstrap, skill-router, and task-bootstrap parity tests; `docs/alembic.ini` remains a negative control.
+
 ## Role-Agent / Premortem Closeout
 
 - Coordinator finding: Xcode project SwiftPM package references could bypass
@@ -727,95 +763,6 @@ Evidence: `python3 scripts/orchestration/pr_review_context.py --pr 2067
 `findings_count: 1` with severity `note`, category `tests`, disposition
 candidate `NEEDS-HUMAN`, and gate `make validate-changed`; `make
 validate-changed` already passed on this branch.
-
-## Latest Root Governance Review Pass
-
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3520974122 -> 9733786e2
-
-Disposition: FIXED
-
-Commit: `9733786e2`
-
-Reason: Root `.flake8` changes can weaken the Flake8 policy used by mandatory
-lint/pre-commit surfaces, so they must route through `security_review_required`
-instead of being treated as ordinary root config.
-
-Evidence: Commit `9733786e2` adds exact `.flake8` matcher coverage plus
-bootstrap, skill-router, and task-bootstrap tests; nested `docs/.flake8`
-remains a negative control.
-
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3520974135 -> 9733786e2
-
-Disposition: FIXED
-
-Commit: `9733786e2`
-
-Reason: `.kimi/mcp.json.example` and `mcp-setup.sh` govern local MCP wiring and
-setup behavior, so MCP-only changes can affect tool/package configuration even
-when `.cursor/mcp.json.example` is untouched.
-
-Evidence: Commit `9733786e2` adds exact `.kimi/mcp.json.example` and
-`mcp-setup.sh` matcher coverage with positive parity tests and lookalike
-negative controls for `.kimi/mcp.json`, `.kimi/mcp.json.example.backup`,
-`mcp-setup/archive.sh`, and `scripts/mcp-setup.sh`.
-
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3520974141 -> 9733786e2
-
-Disposition: FIXED
-
-Commit: `9733786e2`
-
-Reason: `appstore/fitchef/**` contains release-pack metadata/checklists and
-shot scenario controls, so App Store release copy and wellness-claim evidence
-must not bypass the same privileged review path as adjacent iOS/Fastlane
-release controls.
-
-Evidence: Commit `9733786e2` adds bounded `appstore/fitchef/` prefix coverage,
-skill-router metadata parity, task-bootstrap `security_review_required=true`
-coverage, and `appstore/fitchef-notes/**` negative control coverage.
-
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3520974145 -> 9733786e2
-
-Disposition: FIXED
-
-Commit: `9733786e2`
-
-Reason: Root `.markdownlint.json` controls docs-lint exclusions and style
-policy, so changes there can weaken required docs linting without touching the
-workflow file.
-
-Evidence: Commit `9733786e2` adds exact `.markdownlint.json` matcher coverage
-with focused bootstrap, skill-router, and task-bootstrap tests; nested
-`docs/.markdownlint.json` remains non-privileged.
-
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3520974150 -> 9733786e2
-
-Disposition: FIXED
-
-Commit: `9733786e2`
-
-Reason: Root `.env.example` is the committed startup/environment template used
-for private-proxy and credential-safety invariants, but the context-pack helper
-must still reject real `.env*` secret-bearing paths.
-
-Evidence: Commit `9733786e2` adds exact `.env.example` matcher coverage and a
-narrow context-pack exception for root `.env.example` only; nested
-`docs/.env.example` remains blocked/non-privileged and general `.env*` metadata
-paths still fail closed.
-
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2067#discussion_r3520974153 -> 9733786e2
-
-Disposition: FIXED
-
-Commit: `9733786e2`
-
-Reason: `alembic.ini` controls migration script location and database URL
-template defaults, so migration-chain config-only edits should route through
-privileged security review.
-
-Evidence: Commit `9733786e2` adds exact `alembic.ini` matcher coverage with
-bootstrap, skill-router, and task-bootstrap parity tests; `docs/alembic.ini`
-remains a negative control.
 
 ## Local Validation Evidence
 
