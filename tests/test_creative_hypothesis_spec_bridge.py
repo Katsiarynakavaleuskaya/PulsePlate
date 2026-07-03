@@ -447,6 +447,87 @@ def test_prepare_specification_rejects_candidate_tampering(
         shutil.rmtree(input_dir, ignore_errors=True)
 
 
+def test_prepare_recomputes_stale_metrics_counts(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    context, packet, dispatch, approval = _chain()
+    input_dir, context_path, packet_path, dispatch_path, approval_path = (
+        _write_creative_context_inputs(
+            leaf="pytest-spec-bridge-stale-metrics",
+            context=context,
+            packet=packet,
+            dispatch=dispatch,
+            approval=approval,
+        )
+    )
+    first = build_creative_hypothesis_spec_bridge_bundle(
+        context_map=context,
+        hypothesis_packet=packet,
+        coordinator_dispatch=dispatch,
+        approval=approval,
+        variant_count=3,
+    )
+    second = build_creative_hypothesis_spec_bridge_bundle(
+        context_map=context,
+        hypothesis_packet=packet,
+        coordinator_dispatch=dispatch,
+        approval=approval,
+        variant_count=4,
+    )
+    first_dir = cli.SPEC_BRIDGE_ROOT / str(first["bridge"]["bridge_id"])
+    second_dir = cli.SPEC_BRIDGE_ROOT / str(second["bridge"]["bridge_id"])
+    shutil.rmtree(first_dir, ignore_errors=True)
+    shutil.rmtree(second_dir, ignore_errors=True)
+    try:
+        for variant_count in ("3", "4"):
+            assert (
+                cli.main(
+                    [
+                        "build-candidate",
+                        "--context-map",
+                        str(context_path),
+                        "--hypothesis-packet",
+                        str(packet_path),
+                        "--coordinator-dispatch",
+                        str(dispatch_path),
+                        "--approval",
+                        str(approval_path),
+                        "--variant-count",
+                        variant_count,
+                    ]
+                )
+                == 0
+            )
+            capsys.readouterr()
+
+        shutil.copyfile(second_dir / cli.METRICS_FILENAME, first_dir / cli.METRICS_FILENAME)
+        assert (
+            cli.main(["prepare-specification", "--bridge", str(first_dir / cli.BRIDGE_FILENAME)])
+            == 0
+        )
+        capsys.readouterr()
+
+        metrics = json.loads((first_dir / cli.METRICS_FILENAME).read_text(encoding="utf-8"))
+        candidate = json.loads((first_dir / cli.CANDIDATE_FILENAME).read_text(encoding="utf-8"))
+        bridge = json.loads((first_dir / cli.BRIDGE_FILENAME).read_text(encoding="utf-8"))
+        selected = bridge["selected_hypothesis"]
+        assert metrics["status"] == "prepared"
+        assert metrics["bridge_id"] == bridge["bridge_id"]
+        assert metrics["candidate_id"] == candidate["candidate_id"]
+        assert metrics["selected_hypothesis_id"] == selected["hypothesis_id"]
+        assert metrics["counts"]["approved_target_count"] == len(
+            selected["approved_target_surfaces"]
+        )
+        assert metrics["counts"]["candidate_target_count"] == len(candidate["target_surface"])
+        assert metrics["counts"]["immutable_oracle_count"] == len(candidate["immutable_oracles"])
+        assert metrics["counts"]["variant_count"] == candidate["variant_count"] == 3
+        assert cli.main(["validate", "--bridge", str(first_dir / cli.BRIDGE_FILENAME)]) == 0
+    finally:
+        shutil.rmtree(first_dir, ignore_errors=True)
+        shutil.rmtree(second_dir, ignore_errors=True)
+        shutil.rmtree(input_dir, ignore_errors=True)
+
+
 def test_validate_rejects_candidate_and_metrics_mismatch(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -696,6 +777,74 @@ def test_validate_rejects_symlinked_bridge_path(
         assert "must not traverse symlinks" in captured.err
     finally:
         shutil.rmtree(output_dir, ignore_errors=True)
+
+
+def test_validate_and_prepare_reject_default_metrics_symlink(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    context, packet, dispatch, approval = _chain()
+    input_dir, context_path, packet_path, dispatch_path, approval_path = (
+        _write_creative_context_inputs(
+            leaf="pytest-spec-bridge-metrics-link",
+            context=context,
+            packet=packet,
+            dispatch=dispatch,
+            approval=approval,
+        )
+    )
+    bundle = build_creative_hypothesis_spec_bridge_bundle(
+        context_map=context,
+        hypothesis_packet=packet,
+        coordinator_dispatch=dispatch,
+        approval=approval,
+        variant_count=3,
+    )
+    output_dir = cli.SPEC_BRIDGE_ROOT / str(bundle["bridge"]["bridge_id"])
+    shutil.rmtree(output_dir, ignore_errors=True)
+    outside_metrics = tmp_path / cli.METRICS_FILENAME
+    outside_metrics.write_text(
+        json.dumps(bundle["metrics"], indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    try:
+        assert (
+            cli.main(
+                [
+                    "build-candidate",
+                    "--context-map",
+                    str(context_path),
+                    "--hypothesis-packet",
+                    str(packet_path),
+                    "--coordinator-dispatch",
+                    str(dispatch_path),
+                    "--approval",
+                    str(approval_path),
+                    "--variant-count",
+                    "3",
+                ]
+            )
+            == 0
+        )
+        capsys.readouterr()
+        metrics_path = output_dir / cli.METRICS_FILENAME
+        metrics_path.unlink()
+        metrics_path.symlink_to(outside_metrics)
+
+        for command in ("validate", "prepare-specification"):
+            exit_code = cli.main(
+                [
+                    command,
+                    "--bridge",
+                    str(output_dir / cli.BRIDGE_FILENAME),
+                ]
+            )
+            captured = capsys.readouterr()
+            assert exit_code == 1
+            assert "must not traverse symlinks" in captured.err
+    finally:
+        shutil.rmtree(output_dir, ignore_errors=True)
+        shutil.rmtree(input_dir, ignore_errors=True)
 
 
 def test_new_schemas_are_closed() -> None:

@@ -391,7 +391,7 @@ def update_bridge_metrics_for_prepare(
         if key not in {"metrics_id", "idempotency_key"}
     }
     body["source"] = {
-        **cast(dict[str, Any], body["source"]),
+        **cast(dict[str, Any], normalized_bridge["source"]),
         "candidate_fingerprint": fingerprint_payload(
             cast(dict[str, Any], dict(normalized_candidate))
         ),
@@ -400,7 +400,13 @@ def update_bridge_metrics_for_prepare(
     body["candidate_id"] = normalized_candidate["candidate_id"]
     body["status"] = status
     body["blocked_reason"] = blocked_reason
+    selected = cast(Mapping[str, Any], normalized_bridge["selected_hypothesis"])
+    body["selected_hypothesis_id"] = selected["hypothesis_id"]
     counts = dict(cast(Mapping[str, Any], body["counts"]))
+    counts["approved_target_count"] = len(selected["approved_target_surfaces"])
+    counts["candidate_target_count"] = len(normalized_candidate["target_surface"])
+    counts["immutable_oracle_count"] = len(normalized_candidate["immutable_oracles"])
+    counts["variant_count"] = normalized_candidate["variant_count"]
     counts["prepare_files_written"] = prepare_files_written
     counts["pending_skeptic_review_count"] = pending_skeptic_review_count
     body["counts"] = counts

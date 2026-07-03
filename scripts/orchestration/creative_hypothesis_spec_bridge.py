@@ -364,6 +364,11 @@ def _assert_metrics_matches_bridge_and_candidate(
         raise CreativeHypothesisSpecBridgeCliError(
             "fingerprint_mismatch: metrics candidate id does not match candidate."
         )
+    selected_hypothesis = cast_mapping(bridge["selected_hypothesis"])
+    if normalized_metrics["selected_hypothesis_id"] != selected_hypothesis["hypothesis_id"]:
+        raise CreativeHypothesisSpecBridgeCliError(
+            "fingerprint_mismatch: metrics selected hypothesis id does not match bridge."
+        )
     if source["candidate_fingerprint"] != fingerprint_payload(dict(normalized_candidate)):
         raise CreativeHypothesisSpecBridgeCliError(
             "fingerprint_mismatch: metrics candidate fingerprint does not match candidate."
@@ -382,6 +387,18 @@ def _assert_metrics_matches_bridge_and_candidate(
         if source[key] != bridge_source[key]:
             raise CreativeHypothesisSpecBridgeCliError(
                 f"fingerprint_mismatch: metrics {key} does not match bridge."
+            )
+    counts = cast_mapping(normalized_metrics["counts"])
+    expected_counts = {
+        "approved_target_count": len(selected_hypothesis["approved_target_surfaces"]),
+        "candidate_target_count": len(normalized_candidate["target_surface"]),
+        "immutable_oracle_count": len(normalized_candidate["immutable_oracles"]),
+        "variant_count": normalized_candidate["variant_count"],
+    }
+    for key, expected in expected_counts.items():
+        if counts[key] != expected:
+            raise CreativeHypothesisSpecBridgeCliError(
+                f"fingerprint_mismatch: metrics {key} does not match bridge/candidate."
             )
 
 
@@ -435,8 +452,10 @@ def _cmd_build_candidate(args: argparse.Namespace) -> int:
 
 def _cmd_prepare_specification(args: argparse.Namespace) -> int:
     bridge, output_dir = _read_bridge_with_dir(args.bridge)
-    candidate = read_creative_code_candidate_packet(output_dir / CANDIDATE_FILENAME)
-    metrics = validate_bridge_metrics(read_json_object(output_dir / METRICS_FILENAME))
+    candidate_path = _resolve_bridge_file(output_dir / CANDIDATE_FILENAME)
+    candidate = read_creative_code_candidate_packet(candidate_path)
+    metrics_path = _resolve_bridge_file(output_dir / METRICS_FILENAME)
+    metrics = validate_bridge_metrics(read_json_object(metrics_path))
     _prepare_from_bridge(
         bridge=bridge,
         candidate=candidate,
@@ -488,7 +507,8 @@ def _cmd_validate(args: argparse.Namespace) -> int:
         metrics_path = _resolve_bridge_file(args.metrics)
         metrics = validate_bridge_metrics(read_json_object(metrics_path))
     else:
-        metrics = validate_bridge_metrics(read_json_object(output_dir / METRICS_FILENAME))
+        metrics_path = _resolve_bridge_file(output_dir / METRICS_FILENAME)
+        metrics = validate_bridge_metrics(read_json_object(metrics_path))
     _assert_metrics_matches_bridge_and_candidate(
         metrics=metrics,
         bridge=bridge,
