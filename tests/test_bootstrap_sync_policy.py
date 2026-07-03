@@ -58,6 +58,7 @@ def test_bootstrap_sync_policy_freezes_privileged_review_prefixes() -> None:
         ".cursor/agents/",
         ".github/workflows/",
         ".github/actions/",
+        ".githooks/",
         "ios/fastlane/",
         "scripts/orchestration/",
         "scripts/ci/",
@@ -82,10 +83,15 @@ def test_bootstrap_sync_policy_freezes_privileged_review_patterns() -> None:
         ".coveragerc",
         ".coderabbit.yaml",
         ".dockerignore",
+        ".gitmodules",
         ".nvmrc",
+        ".python-version",
+        ".ruby-version",
         ".secrets.baseline",
         ".sourcery.yaml",
+        ".tool-versions",
         ".trivyignore",
+        ".yamllint",
         ".pre-commit-config.yaml",
         ".pre-commit-config.yml",
         ".devcontainer/Dockerfile",
@@ -131,6 +137,7 @@ def test_bootstrap_sync_policy_freezes_privileged_review_patterns() -> None:
         "scripts/ops/postgres_restore.sh",
         "scripts/redeploy_caddy.sh",
         "scripts/run-backend-tests-pre-commit.sh",
+        "scripts/validate-ci-environment.sh",
         "scripts/ci_*.sh",
         "scripts/deploy_*.sh",
         "tests/test_repo_policy_guards.py",
@@ -280,6 +287,7 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     assert requires_security_review(["docs/../.github/workflows/ci.yml"]) is True
     assert requires_security_review([".cursor/agents/security-auditor.md"]) is True
     assert requires_security_review([".github/actions/setup/action.yml"]) is True
+    assert requires_security_review([".githooks/pre-push"]) is True
     assert requires_security_review(["scripts/ci"]) is True
     assert requires_security_review(["scripts/orchestration/task_bootstrap.py"]) is True
     assert requires_security_review(["scripts/release/publish.py"]) is True
@@ -299,10 +307,15 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     assert requires_security_review([".coveragerc"]) is True
     assert requires_security_review([".coderabbit.yaml"]) is True
     assert requires_security_review([".dockerignore"]) is True
+    assert requires_security_review([".gitmodules"]) is True
     assert requires_security_review([".nvmrc"]) is True
+    assert requires_security_review([".python-version"]) is True
+    assert requires_security_review([".ruby-version"]) is True
     assert requires_security_review([".secrets.baseline"]) is True
     assert requires_security_review([".sourcery.yaml"]) is True
+    assert requires_security_review([".tool-versions"]) is True
     assert requires_security_review([".trivyignore"]) is True
+    assert requires_security_review([".yamllint"]) is True
     assert requires_security_review([".pre-commit-config.yaml"]) is True
     assert requires_security_review([".pre-commit-config.yml"]) is True
     assert requires_security_review([".devcontainer/Dockerfile"]) is True
@@ -360,6 +373,7 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     assert requires_security_review(["scripts/ops/postgres_restore.sh"]) is True
     assert requires_security_review(["scripts/redeploy_caddy.sh"]) is True
     assert requires_security_review(["scripts/run-backend-tests-pre-commit.sh"]) is True
+    assert requires_security_review(["scripts/validate-ci-environment.sh"]) is True
     assert requires_security_review(["scripts/ci_bandit.sh"]) is True
     assert requires_security_review(["scripts/ci_pip_audit.sh"]) is True
     assert requires_security_review(["scripts/deploy_production.sh"]) is True
@@ -388,8 +402,11 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     assert requires_security_review([".github/PULL_REQUEST_TEMPLATE/nested/design.md"]) is False
     assert requires_security_review([".github/pull_request_template/archive.md"]) is False
     assert requires_security_review([".github/actionlint/rules.yaml"]) is False
+    assert requires_security_review([".githooks-notes/pre-push"]) is False
     assert requires_security_review(["docs/.coveragerc"]) is False
     assert requires_security_review(["docs/codecov.yml"]) is False
+    assert requires_security_review(["docs/.gitmodules"]) is False
+    assert requires_security_review(["docs/.yamllint"]) is False
     assert requires_security_review(["frontend/nested/Dockerfile.caddy-spa"]) is False
     assert requires_security_review(["frontend/nested/.dockerignore"]) is False
     assert requires_security_review(["frontend/packages/package-lock.json"]) is False
@@ -411,6 +428,7 @@ def test_bootstrap_sync_policy_detects_privileged_review_surfaces() -> None:
     assert requires_security_review(["scripts/deploy/archive.sh"]) is False
     assert requires_security_review(["scripts/ops/archive/postgres_backup.sh"]) is False
     assert requires_security_review(["scripts/run-backend-tests-pre-commit.d/runner.sh"]) is False
+    assert requires_security_review(["scripts/validate-ci-environment/archive.sh"]) is False
     assert requires_security_review(["scripts/ci-tools/bandit.sh"]) is False
     assert requires_security_review(["scripts/deploy/production.sh"]) is False
     assert requires_security_review(["scripts/cicd_notes.sh"]) is False
@@ -430,9 +448,12 @@ def test_bootstrap_sync_policy_returns_stable_privileged_review_labels() -> None
             " Dockerfile ",
             "build/../Dockerfile",
             ".coveragerc",
+            ".gitmodules",
             "codecov.yml",
+            ".yamllint",
             "deploy/docker-compose.production.selfhosted.yaml",
             "frontend/package-lock.json",
+            "scripts/validate-ci-environment.sh",
             "requirements-ci-lite.txt",
             "docs/review/PR_1325_FIXED_MAPPING.md",
         ]
@@ -441,9 +462,12 @@ def test_bootstrap_sync_policy_returns_stable_privileged_review_labels() -> None
         ".github/workflows/",
         "Dockerfile",
         ".coveragerc",
+        ".gitmodules",
         "codecov.yml",
+        ".yamllint",
         "deploy/docker-compose.production*.yaml",
         "frontend/package*.json",
+        "scripts/validate-ci-environment.sh",
         "requirements*.txt",
         "docs/review/",
     )

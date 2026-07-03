@@ -123,8 +123,8 @@ Bootstrap evidence: `scripts/orchestration/routing_graph_loader.py`, `scripts/or
     files, devcontainer controls, deploy Caddy/Compose surfaces, frontend Caddy
     Dockerfile/build-context ignore and npm manifests, iOS Gemfile, Xcode project,
     SwiftPM, and privacy manifests, root
-    security/quality-gate/coverage-governance configs, root CI/deploy/test-gate helper scripts,
-    root AGENTS/RUNBOOK/Makefile policy entrypoints, GitHub CODEOWNERS,
+    security/quality-gate/coverage-governance/toolchain configs, root CI/deploy/test-gate helper scripts,
+    repo-local hook scripts, submodule metadata, root AGENTS/RUNBOOK/Makefile policy entrypoints, GitHub CODEOWNERS,
     PR-template, and actionlint controls, review-bot configs, MCP control-plane
     examples, secret baseline, policy guard tests, Cloudflare Worker/Wrangler
     controls, Dependabot YAML variants, requirements, and constraints manifests.
