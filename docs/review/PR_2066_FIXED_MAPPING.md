@@ -62,6 +62,7 @@ Evidence: See `Review Comment Dispositions` below.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2066#discussion_r3516273298 -> 633eeca00
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2066#discussion_r3516357092 -> 7d20c13e0
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2066#discussion_r3516444236 -> cc729464f
 
 Disposition: NOT-A-BUG
 Evidence: The implementation commit contains the required Experiment Runner trailer.
@@ -174,7 +175,9 @@ Reason: A public shopping-list bootstrap helper would broaden the route-registra
 Disposition: NOT-A-BUG
 Comment:
 https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2066#discussion_r3516357104
-Evidence:
+Evidence: The material implementation commit
+`ac033846008ac1157be48f64551bd0eaab0f8c7d` contains the required Experiment
+Runner trailer.
 Reason: The current branch history already contains the required trailer on the material implementation commit.
 
 - `git log --pretty=format:'%H %s%n%b' -1 ac033846008ac1157be48f64551bd0eaab0f8c7d`
@@ -196,6 +199,28 @@ Evidence:
   `ac033846008ac1157be48f64551bd0eaab0f8c7d`.
 - Current branch history contains that implementation commit before the mapping
   updates.
+
+### Codex Local Artifact Path Evidence
+
+Disposition: FIXED
+Comment:
+https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2066#discussion_r3516444236
+Commit: cc729464f
+Evidence: `docs/review/PR_2066_FIXED_MAPPING.md` now uses the Codex Security
+scan ID plus reproducible PR-review commands instead of machine-local
+filesystem report paths.
+
+- Evidence check:
+  `docs/review/PR_2066_FIXED_MAPPING.md` no longer contains machine-local
+  absolute report paths.
+- Evidence check:
+  the PR body no longer contains machine-local absolute report paths.
+- PASS:
+  `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 2066 --commit-range origin/main..HEAD`
+- PASS:
+  `python3 scripts/orchestration/check_review_threads_disposition.py --pr-number 2066`
+- PASS: `make validate-changed`
+- PASS: `pre-commit run --all-files`
 
 ## Post-Open Role Findings
 
@@ -228,7 +253,9 @@ Reason: Security-auditor did not identify a defect requiring code or docs change
 ## Codex Security
 
 Disposition: NOT-A-BUG
-Evidence:
+Evidence: Codex Security scan `21647199-e9cc-44b4-b4f2-82f9ea9fa40c`
+completed the branch-diff review with 5/5 reviewed surfaces closed and zero
+reportable findings.
 Reason: Codex Security completed a branch-diff scan with zero reportable findings.
 
 - Scan ID: `21647199-e9cc-44b4-b4f2-82f9ea9fa40c`
@@ -248,7 +275,9 @@ Reason: Codex Security completed a branch-diff scan with zero reportable finding
 ## PulsePlate PR Review
 
 Disposition: NOT-A-BUG
-Evidence:
+Evidence: `pulseplate-pr-review` produced only the advisory `large-diff-risk`
+note while the runtime diff remained bounded to the two paid shopping-list route
+registrations and targeted validation passed.
 Reason: The only review note was an advisory large-diff warning; the runtime scope stayed bounded and validation passed.
 
 - Report command:
