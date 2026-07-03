@@ -63,9 +63,13 @@ def _validate_fixed_mapping_block(lines: list[str]) -> list[str]:
             None,
         )
         if matched_detail is not None:
+            proof_value = line.removeprefix(matched_detail).strip()
+            if not proof_value:
+                errors.append(f"{matched_detail} proof value must not be empty.")
+                continue
             proof_prefixes.add(matched_detail)
             if matched_detail == "Commit:":
-                commit_values.append(line.removeprefix("Commit:").strip())
+                commit_values.append(proof_value)
             continue
         if mapping_match := MAPPING_LINE_RE.match(line):
             has_sha_mapping = True
@@ -99,8 +103,23 @@ def _validate_fixed_mapping_block(lines: list[str]) -> list[str]:
             errors.append("Disposition FIXED requires '- <url> -> <sha>' mapping lines.")
         if has_url_only_mapping:
             errors.append("Disposition FIXED must not use URL-only review-thread lines.")
-        if not ({"Commit:", "Evidence:"} & proof_prefixes):
-            errors.append("Disposition FIXED requires a 'Commit:' or 'Evidence:' proof line.")
+        if "Commit:" not in proof_prefixes:
+            errors.append("Disposition FIXED requires a 'Commit:' proof line.")
+        if "Evidence:" not in proof_prefixes:
+            errors.append("Disposition FIXED requires an 'Evidence:' proof line.")
+        invalid_commit_values = [
+            value
+            for value in commit_values
+            if not (
+                COMMIT_SHA_RE.fullmatch(value)
+                or value.strip().lower().rstrip(".") == "see mapping entries below"
+            )
+        ]
+        if invalid_commit_values:
+            errors.append(
+                "Disposition FIXED Commit proof must be a commit SHA or "
+                "'see mapping entries below'."
+            )
         commit_shas = {value for value in commit_values if COMMIT_SHA_RE.fullmatch(value)}
         mapped_sha_values = set(mapped_shas)
         if commit_shas and mapped_sha_values - commit_shas:
@@ -113,6 +132,8 @@ def _validate_fixed_mapping_block(lines: list[str]) -> list[str]:
             errors.append("Disposition NOT-A-BUG must use URL-only review-thread lines.")
         if "Evidence:" not in proof_prefixes:
             errors.append("Disposition NOT-A-BUG requires an 'Evidence:' proof line.")
+        if "Reason:" not in proof_prefixes:
+            errors.append("Disposition NOT-A-BUG requires a 'Reason:' proof line.")
     elif disposition == "DEFERRED":
         if has_sha_mapping:
             errors.append("Disposition DEFERRED must use URL-only review-thread lines.")

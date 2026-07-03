@@ -60,7 +60,8 @@ def test_route_family_migration_proof_schema_pins_non_runtime_contract() -> None
     ):
         assert schema["properties"][section_name]["$ref"] == "#/$defs/proof_section"
     repo_path_not_pattern = schema["$defs"]["repo_path"]["not"]["pattern"]
-    assert "^[A-Za-z][A-Za-z0-9+.-]*:" in repo_path_not_pattern
+    assert "^[A-Za-z][A-Za-z0-9+.-]*://" in repo_path_not_pattern
+    assert "^[A-Za-z]:" in repo_path_not_pattern
     assert "^(Users|home|private|tmp|var|Volumes|mnt|root|workspace|workspaces)(/|$)" in (
         repo_path_not_pattern
     )
@@ -75,6 +76,14 @@ def test_route_family_migration_proof_accepts_existing_line_refs() -> None:
     payload = _valid_proof()
     payload["openapi_proof"] = deepcopy(payload["openapi_proof"])
     payload["openapi_proof"]["evidence_refs"] = ["tests/test_route_family_migration_proof.py:1"]
+
+    assert validate_route_family_migration_proof(payload) == []
+
+
+def test_route_family_migration_proof_accepts_root_file_line_refs() -> None:
+    payload = _valid_proof()
+    payload["openapi_proof"] = deepcopy(payload["openapi_proof"])
+    payload["openapi_proof"]["evidence_refs"] = ["README.md:1"]
 
     assert validate_route_family_migration_proof(payload) == []
 

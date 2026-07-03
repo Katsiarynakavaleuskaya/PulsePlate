@@ -36,7 +36,7 @@
       "type": "string",
       "pattern": "^[A-Za-z0-9_.-][A-Za-z0-9_./:-]*$",
       "not": {
-        "pattern": "(^/|\\.\\.|\\\\|file://|^~|^[A-Za-z][A-Za-z0-9+.-]*:|^\\.git/|^\\.venv/|^worktrees/|^artifacts(/|$)|^(Users|home|private|tmp|var|Volumes|mnt|root|workspace|workspaces)(/|$))"
+        "pattern": "(^/|\\.\\.|\\\\|file://|^~|^[A-Za-z][A-Za-z0-9+.-]*://|^[A-Za-z]:|^\\.git/|^\\.venv/|^worktrees/|^artifacts(/|$)|^(Users|home|private|tmp|var|Volumes|mnt|root|workspace|workspaces)(/|$))"
       }
     },
     "proof_section": {

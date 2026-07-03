@@ -17,6 +17,7 @@ FIXTURE_ARTIFACT = """# PR 998 — Fixed in Commit Mapping
 ## Fixed in Commit Mapping
 Disposition: FIXED
 Commit: abc1234
+Evidence: tests/test_review_mapping_artifact.py
 - https://github.com/org/repo/pull/998#discussion_r1 -> abc1234
 """
 
@@ -156,6 +157,7 @@ def test_validate_mapping_artifact_text_valid() -> None:
 ## Fixed in Commit Mapping
 Disposition: FIXED
 Commit: abc1234
+Evidence: tests/test_review_mapping_artifact.py
 - https://github.com/org/repo/pull/998#discussion_r1 -> abc1234
 """
     errors = artifact.validate_mapping_artifact_text(text)
@@ -211,13 +213,13 @@ Reason: Existing behavior already matches the contract.
     assert errors == []
 
 
-def test_validate_fixed_mapping_section_accepts_not_a_bug_evidence_only() -> None:
+def test_validate_fixed_mapping_section_rejects_not_a_bug_without_reason() -> None:
     section = """Disposition: NOT-A-BUG
 Evidence: Existing artifact has evidence-only proof for non-actionable bot output.
 - https://github.com/org/repo/pull/1000#discussion_r1
 """
     errors = artifact.validate_fixed_mapping_section(section)
-    assert errors == []
+    assert any("NOT-A-BUG requires a 'Reason:'" in error for error in errors)
 
 
 def test_validate_fixed_mapping_section_accepts_deferred_backlog_line() -> None:
@@ -232,6 +234,7 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#review-thread-follow-up
 def test_validate_fixed_mapping_section_accepts_multiple_disposition_blocks() -> None:
     section = """Disposition: FIXED
 Commit: abc1234
+Evidence: tests/test_review_mapping_artifact.py
 - https://github.com/org/repo/pull/1000#discussion_r1 -> abc1234
 
 Disposition: NOT-A-BUG
@@ -295,14 +298,14 @@ Evidence: See mapping entries below.
     assert errors == []
 
 
-def test_validate_fixed_mapping_section_accepts_fixed_sha_mapping_with_evidence_only() -> None:
+def test_validate_fixed_mapping_section_rejects_fixed_sha_mapping_without_commit() -> None:
     section = """- https://github.com/org/repo/pull/1000#issuecomment-1 -> abc1234
 Disposition: FIXED
 Evidence: tests/test_review_mapping_artifact.py
 Reason: Older artifacts used the mapping SHA as the commit proof.
 """
     errors = artifact.validate_fixed_mapping_section(section)
-    assert errors == []
+    assert any("Disposition FIXED requires a 'Commit:'" in error for error in errors)
 
 
 def test_validate_fixed_mapping_section_requires_disposition_for_sha_mappings() -> None:
@@ -368,6 +371,27 @@ Evidence: tests/test_review_mapping_artifact.py
 """
     errors = artifact.validate_fixed_mapping_section(section)
     assert any("Commit SHA must match mapped SHA entries" in error for error in errors)
+
+
+def test_validate_fixed_mapping_section_rejects_invalid_fixed_commit_value() -> None:
+    section = """Disposition: FIXED
+Commit: not-a-sha
+Evidence: tests/test_review_mapping_artifact.py
+- https://github.com/org/repo/pull/1000#discussion_r1 -> abc1234
+"""
+    errors = artifact.validate_fixed_mapping_section(section)
+    assert any("Commit proof must be a commit SHA" in error for error in errors)
+
+
+def test_validate_fixed_mapping_section_rejects_empty_proof_detail_values() -> None:
+    section = """Disposition: NOT-A-BUG
+Evidence:
+Reason:
+- https://github.com/org/repo/pull/1000#discussion_r1
+"""
+    errors = artifact.validate_fixed_mapping_section(section)
+    assert "Evidence: proof value must not be empty." in errors
+    assert "Reason: proof value must not be empty." in errors
 
 
 def test_validate_fixed_mapping_section_rejects_not_a_bug_sha_mapping() -> None:

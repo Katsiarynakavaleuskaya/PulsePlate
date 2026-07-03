@@ -40,8 +40,8 @@ LOCAL_ROOTS = {
     "workspaces",
     "workspace",
 }
-WINDOWS_DRIVE_RE = re.compile(r"^[A-Za-z]:[\\/]")
-URI_SCHEME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*:")
+WINDOWS_DRIVE_RE = re.compile(r"^[A-Za-z]:")
+URI_SCHEME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*://")
 
 
 def _is_repo_relative_ref(value: str) -> bool:
@@ -68,7 +68,7 @@ def _is_repo_relative_ref(value: str) -> bool:
 def _evidence_ref_exists(value: str, *, repo_root: Path) -> bool:
     path_value = value
     line_ref_match = LINE_REF_RE.fullmatch(value)
-    if line_ref_match and "/" in line_ref_match.group("path"):
+    if line_ref_match:
         path_value = line_ref_match.group("path")
     try:
         candidate = (repo_root / path_value).resolve(strict=False)
