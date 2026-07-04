@@ -57,6 +57,17 @@ FINALIZE_RECEIPT_FILENAME = "finalize_receipt.json"
 ATTACH_SUCCESS_OUTPUT = "PASS: creative specification skeptic reviews attached"
 VALIDATE_SUCCESS_OUTPUT = "PASS: creative specification skeptic review attachment valid"
 FINALIZE_SUCCESS_OUTPUT = "PASS: creative specification finalize receipt written"
+REVIEWED_RUN_FILENAMES = frozenset(
+    {
+        "source_packet.json",
+        "variants.json",
+        "skeptic_reviews.json",
+        "context_pack.json",
+        ATTACHMENT_FILENAME,
+        BUNDLE_FILENAME,
+        FINALIZE_RECEIPT_FILENAME,
+    }
+)
 
 
 class CreativeSpecificationSkepticReviewCliError(ValueError):
@@ -523,11 +534,36 @@ def _validate_attachment_artifacts(attachment_path: Path) -> tuple[dict[str, Any
         raise CreativeSpecificationSkepticReviewCliError(
             f"attachment input must be the canonical {ATTACHMENT_FILENAME} artifact."
         )
+    _reject_unexpected_entries(
+        reviewed_dir,
+        allowed=set(REVIEWED_RUN_FILENAMES),
+        label="reviewed finalize run",
+    )
+    source = cast(Mapping[str, Any], attachment["source"])
+    source_bridge_path = _resolve_repo_artifact_ref(
+        str(source["bridge_ref"]),
+        label="source bridge ref",
+    )
+    expected_reviewed_dir = source_bridge_path.parent / REVIEWED_RUN_DIRNAME
+    if reviewed_dir.resolve(strict=True) != expected_reviewed_dir.resolve(strict=False):
+        raise CreativeSpecificationSkepticReviewCliError(
+            "reviewed_run_dir_ref must be the sibling of the source bridge artifact."
+        )
+    source_spec_prepare_dir = _resolve_repo_artifact_ref(
+        str(source["spec_prepare_ref"]),
+        label="source spec_prepare ref",
+        expect_dir=True,
+    )
+    if source_spec_prepare_dir.parent.resolve(strict=True) != source_bridge_path.parent.resolve(
+        strict=True
+    ):
+        raise CreativeSpecificationSkepticReviewCliError(
+            "spec_prepare_ref must be a sibling of the source bridge artifact."
+        )
     source_packet = _read_json_object(reviewed_dir / "source_packet.json", label="source packet")
     variants = _read_json_array(reviewed_dir / "variants.json", label="variants")
     reviews = _read_json_array(reviewed_dir / "skeptic_reviews.json", label="skeptic reviews")
     context_pack = _read_json_object(reviewed_dir / "context_pack.json", label="context pack")
-    source = cast(Mapping[str, Any], attachment["source"])
     _assert_reviewed_ref(
         str(reviewed_run["source_packet_ref"]),
         reviewed_dir / "source_packet.json",

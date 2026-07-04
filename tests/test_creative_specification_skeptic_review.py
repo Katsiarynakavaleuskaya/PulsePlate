@@ -26,6 +26,7 @@ from scripts.orchestration.creative_hypothesis_spec_bridge_contract import (
 )
 from scripts.orchestration.creative_specification_skeptic_review_contract import (
     CreativeSpecificationSkepticReviewError,
+    build_skeptic_review_attachment,
     default_review_input_authority,
     validate_agent_skeptic_reviews_input,
     validate_finalize_receipt,
@@ -511,9 +512,133 @@ def test_validate_rejects_reviewed_child_symlink_before_read(
         )
         captured = capsys.readouterr()
         assert exit_code == 1
-        assert "JSON artifact must not traverse symlinks" in captured.err
+        assert "reviewed finalize run contains symlink artifact(s): variants.json" in captured.err
     finally:
         shutil.rmtree(output_dir, ignore_errors=True)
+        shutil.rmtree(input_dir, ignore_errors=True)
+
+
+def test_validate_rejects_hidden_reviewed_run_sidecar(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    output_dir, input_dir = _prepared_bridge(capsys, suffix="reviewed-sidecar")
+    try:
+        reviews_path = _write_review_input(output_dir, _review_input(output_dir))
+        assert (
+            review_cli.main(
+                [
+                    "attach",
+                    "--bridge",
+                    str(output_dir / bridge_cli.BRIDGE_FILENAME),
+                    "--reviews",
+                    str(reviews_path),
+                ]
+            )
+            == 0
+        )
+        capsys.readouterr()
+
+        reviewed_dir = output_dir / "spec_finalize_reviewed"
+        _write_json(reviewed_dir / "unexpected.json", {"extra": True})
+
+        exit_code = review_cli.main(
+            ["validate", "--attachment", str(reviewed_dir / review_cli.ATTACHMENT_FILENAME)]
+        )
+        captured = capsys.readouterr()
+        assert exit_code == 1
+        assert "reviewed finalize run contains unexpected artifact(s): unexpected.json" in (
+            captured.err
+        )
+    finally:
+        shutil.rmtree(output_dir, ignore_errors=True)
+        shutil.rmtree(input_dir, ignore_errors=True)
+
+
+def test_validate_rejects_relocated_reviewed_run(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    output_dir, input_dir = _prepared_bridge(capsys, suffix="relocated-reviewed")
+    relocated_parent = output_dir.parent / f"{output_dir.name}-relocated"
+    try:
+        reviews_path = _write_review_input(output_dir, _review_input(output_dir))
+        assert (
+            review_cli.main(
+                [
+                    "attach",
+                    "--bridge",
+                    str(output_dir / bridge_cli.BRIDGE_FILENAME),
+                    "--reviews",
+                    str(reviews_path),
+                ]
+            )
+            == 0
+        )
+        capsys.readouterr()
+
+        reviewed_dir = output_dir / "spec_finalize_reviewed"
+        attachment = validate_skeptic_review_attachment(
+            _read_json(reviewed_dir / review_cli.ATTACHMENT_FILENAME)
+        )
+        relocated_dir = relocated_parent / "spec_finalize_reviewed"
+        relocated_dir.mkdir(parents=True)
+        for filename in (
+            "source_packet.json",
+            "variants.json",
+            "skeptic_reviews.json",
+            "context_pack.json",
+        ):
+            shutil.copyfile(reviewed_dir / filename, relocated_dir / filename)
+
+        source = attachment["source"]
+        normalized_reviews = _read_json(reviewed_dir / "skeptic_reviews.json")
+        relocated_attachment = build_skeptic_review_attachment(
+            bridge_id=source["bridge_id"],
+            bridge_fingerprint=source["bridge_fingerprint"],
+            bridge_ref=source["bridge_ref"],
+            candidate_id=source["candidate_id"],
+            candidate_fingerprint=source["candidate_fingerprint"],
+            candidate_ref=source["candidate_ref"],
+            metrics_id=source["metrics_id"],
+            metrics_fingerprint=source["metrics_fingerprint"],
+            metrics_ref=source["metrics_ref"],
+            spec_prepare_ref=source["spec_prepare_ref"],
+            source_packet_ref=source["source_packet_ref"],
+            source_packet_fingerprint=source["source_packet_fingerprint"],
+            variants_ref=source["variants_ref"],
+            variants_fingerprint=source["variants_fingerprint"],
+            pending_reviews_ref=source["pending_reviews_ref"],
+            pending_reviews_fingerprint=source["pending_reviews_fingerprint"],
+            context_pack_ref=source["context_pack_ref"],
+            context_pack_fingerprint=source["context_pack_fingerprint"],
+            reviewed_run_dir_ref=relocated_dir.relative_to(REPO_ROOT).as_posix(),
+            reviewed_source_packet_ref=(relocated_dir / "source_packet.json")
+            .relative_to(REPO_ROOT)
+            .as_posix(),
+            reviewed_variants_ref=(relocated_dir / "variants.json")
+            .relative_to(REPO_ROOT)
+            .as_posix(),
+            reviewed_reviews_ref=(relocated_dir / "skeptic_reviews.json")
+            .relative_to(REPO_ROOT)
+            .as_posix(),
+            reviewed_context_pack_ref=(relocated_dir / "context_pack.json")
+            .relative_to(REPO_ROOT)
+            .as_posix(),
+            normalized_reviews=normalized_reviews,
+            variant_count=attachment["coverage"]["variant_count"],
+        )
+        _write_json(relocated_dir / review_cli.ATTACHMENT_FILENAME, relocated_attachment)
+
+        exit_code = review_cli.main(
+            ["validate", "--attachment", str(relocated_dir / review_cli.ATTACHMENT_FILENAME)]
+        )
+        captured = capsys.readouterr()
+        assert exit_code == 1
+        assert "reviewed_run_dir_ref must be the sibling of the source bridge artifact" in (
+            captured.err
+        )
+    finally:
+        shutil.rmtree(output_dir, ignore_errors=True)
+        shutil.rmtree(relocated_parent, ignore_errors=True)
         shutil.rmtree(input_dir, ignore_errors=True)
 
 
