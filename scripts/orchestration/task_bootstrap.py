@@ -11,12 +11,13 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 BOOTSTRAP_REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(BOOTSTRAP_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(BOOTSTRAP_REPO_ROOT))
 
+from core.evidence.fingerprints import fingerprint_payload
 from core.judgment import (
     CLAIM_EVIDENCE_FIELDS,
     CLAIM_TYPES,
@@ -37,6 +38,9 @@ from scripts.orchestration.context_pack import (
 from scripts.orchestration.context_pack_compression import (
     build_context_pack_compression,
     to_stable_mapping as context_compression_to_stable_mapping,
+)
+from scripts.orchestration.creative_spec_learning_rollup_contract import (
+    validate_coordinator_advisory_hints,
 )
 from scripts.orchestration.embedding_retrieval_admission_telemetry import (
     build_embedding_retrieval_admission_telemetry,
@@ -105,6 +109,9 @@ from scripts.orchestration.shadow_reuse_telemetry import (
 
 SCHEMA_VERSION = "2.0"
 TASK_PACKET_DIR: Path = REPO_ROOT / "artifacts" / "orchestration" / "task_packets"
+CREATIVE_LEARNING_HINTS_ROOT: Path = (
+    REPO_ROOT / "artifacts" / "orchestration" / "creative_code" / "learning_rollup"
+)
 REQUESTED_AGENT_STATUS_REJECTED_UNKNOWN = "rejected_unknown_agent"
 REQUESTED_AGENT_STATUS_HONORED_PRIMARY = "honored_primary"
 REQUESTED_AGENT_STATUS_HONORED_SECONDARY = "honored_secondary"
@@ -180,6 +187,123 @@ def _read_json(path: Path) -> dict[str, Any] | None:
     except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return None
     return payload if isinstance(payload, dict) else None
+
+
+def _reject_duplicate_json_object_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    payload: dict[str, Any] = {}
+    seen: set[str] = set()
+    for key, value in pairs:
+        if key in seen:
+            raise ValueError(f"creative learning hints JSON has duplicate key: {key}")
+        seen.add(key)
+        payload[key] = value
+    return payload
+
+
+def _existing_components(path: Path) -> list[Path]:
+    components: list[Path] = []
+    current_path = Path(path.anchor) if path.anchor else Path(".")
+    parts = path.parts[1:] if path.anchor else path.parts
+    for part in parts:
+        current_path = current_path / part
+        if current_path.exists() or current_path.is_symlink():
+            components.append(current_path)
+    return components
+
+
+def _reject_symlink_components(path: Path, *, label: str) -> None:
+    for component in _existing_components(path):
+        if component.is_symlink():
+            raise ValueError(f"{label} must not traverse symlinks")
+
+
+def _resolve_creative_learning_hints_path(raw_path: str | Path) -> Path:
+    candidate = Path(raw_path)
+    if not candidate.is_absolute():
+        candidate = REPO_ROOT / candidate
+    _reject_symlink_components(candidate, label="--creative-learning-hints")
+    try:
+        resolved = candidate.resolve(strict=True)
+    except OSError as exc:
+        raise ValueError("--creative-learning-hints must point to an existing JSON file") from exc
+    try:
+        resolved.relative_to(REPO_ROOT.resolve())
+        resolved.relative_to(CREATIVE_LEARNING_HINTS_ROOT.resolve(strict=False))
+    except ValueError as exc:
+        raise ValueError(
+            "--creative-learning-hints must stay under "
+            "artifacts/orchestration/creative_code/learning_rollup"
+        ) from exc
+    if not resolved.is_file() or resolved.suffix != ".json":
+        raise ValueError("--creative-learning-hints must point to a JSON file")
+    return resolved
+
+
+def _read_creative_learning_hints(raw_path: str | Path | None) -> dict[str, Any] | None:
+    if raw_path is None:
+        return None
+    hints_path = _resolve_creative_learning_hints_path(raw_path)
+    try:
+        payload = json.loads(
+            hints_path.read_text(encoding="utf-8"),
+            object_pairs_hook=_reject_duplicate_json_object_keys,
+        )
+    except json.JSONDecodeError as exc:
+        raise ValueError("unable to read --creative-learning-hints JSON") from exc
+    except ValueError:
+        raise
+    except (OSError, UnicodeDecodeError) as exc:
+        raise ValueError("unable to read --creative-learning-hints JSON") from exc
+    if not isinstance(payload, dict):
+        raise ValueError("--creative-learning-hints must contain a JSON object")
+    return cast(dict[str, Any], validate_coordinator_advisory_hints(payload))
+
+
+def _build_creative_learning_hints_packet(
+    hints: dict[str, Any] | None,
+    *,
+    hints_fingerprint: str,
+) -> dict[str, Any]:
+    if hints is None:
+        source_hints_id = ""
+        source_rollup_id = ""
+        source_rollup_fingerprint = ""
+        recommended_role_focus: list[dict[str, Any]] = []
+        reuse_lesson_ids: list[str] = []
+        avoid_lesson_ids: list[str] = []
+    else:
+        source_hints_id = str(hints["hints_id"])
+        source_rollup_id = str(hints["source_rollup_id"])
+        source_rollup_fingerprint = str(hints["source_rollup_fingerprint"])
+        recommended_role_focus = list(hints["recommended_role_focus"])
+        reuse_lesson_ids = list(hints["reuse_lesson_ids"])
+        avoid_lesson_ids = list(hints["avoid_lesson_ids"])
+
+    return {
+        "schema_version": "creative_learning_hints_packet.v1",
+        "current_packet_includes_hints": hints is not None,
+        "source_hints_id": source_hints_id,
+        "source_hints_fingerprint": hints_fingerprint,
+        "source_rollup_id": source_rollup_id,
+        "source_rollup_fingerprint": source_rollup_fingerprint,
+        "recommended_role_focus": recommended_role_focus,
+        "reuse_lesson_ids": reuse_lesson_ids,
+        "avoid_lesson_ids": avoid_lesson_ids,
+        "authority_boundary": "advisory_only_non_runtime",
+        "side_effects_allowed": False,
+        "routing_authority": False,
+        "execution_authority": False,
+        "merge_readiness_authority": False,
+        "patch_generation_authority": False,
+        "semantic_cache_used": False,
+        "graph_truth_updated": False,
+        "product_runtime_truth": False,
+        "change_primary_agent": False,
+        "force_agent_routing": False,
+        "skip_required_roles": False,
+        "execute_agents": False,
+        "change_lifecycle_gates": False,
+    }
 
 
 def _design_fingerprint(*, design_lane_mode: str, design_lane_contract: dict[str, Any]) -> str:
@@ -917,6 +1041,7 @@ def build_task_packet(
     explicit_creation_mode: bool = False,
     native_bridge_transport: str = BRIDGE_TRANSPORT,
     telemetry_path: Path = TELEMETRY_PATH,
+    creative_learning_hints_path: str | Path | None = None,
 ) -> dict[str, Any]:
     """Build a deterministic task packet for orchestration tooling."""
 
@@ -931,6 +1056,10 @@ def build_task_packet(
         )
     normalized_requested_agents = normalize_requested_agents(requested_agents)
     normalized_pr_phase = _normalize_pr_phase(pr_phase)
+    creative_learning_hints = _read_creative_learning_hints(creative_learning_hints_path)
+    creative_learning_hints_fingerprint = (
+        fingerprint_payload(creative_learning_hints) if creative_learning_hints is not None else ""
+    )
     design_lane_mode, design_lane_contract, design_lane_enabled = _build_design_lane_contract(
         design_source=design_source,
         source_url=source_url,
@@ -967,6 +1096,7 @@ def build_task_packet(
             design_lane_mode=design_lane_mode,
             design_lane_contract=design_lane_contract,
         ),
+        creative_learning_hints_fingerprint=creative_learning_hints_fingerprint,
     )
     context_pack = collect_context_pack(
         normalized_paths,
@@ -1267,6 +1397,10 @@ def build_task_packet(
             "runtime_authority": False,
             "canonical_until_promoted_by_repo_diff": False,
         },
+        "creative_learning_hints": _build_creative_learning_hints_packet(
+            creative_learning_hints,
+            hints_fingerprint=creative_learning_hints_fingerprint,
+        ),
         "message_envelope": message_envelope,
         "recommended_skills": recommended_skills,
         "skill_routing": skill_routing,
@@ -1346,6 +1480,14 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Native subagent bridge transport label for runtime-specific packets.",
     )
     parser.add_argument(
+        "--creative-learning-hints",
+        default=None,
+        help=(
+            "Optional coordinator advisory hints JSON under "
+            "artifacts/orchestration/creative_code/learning_rollup."
+        ),
+    )
+    parser.add_argument(
         "--design-source",
         choices=DESIGN_SOURCES,
         default=None,
@@ -1390,25 +1532,35 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
-    packet = build_task_packet(
-        goal=args.goal,
-        task_class=args.task_class,
-        candidate_paths=args.path,
-        requested_agents=args.requested_agent,
-        pr_phase=args.pr_phase,
-        design_source=args.design_source,
-        source_url=args.source_url,
-        file_key_or_workspace=args.file_key_or_workspace,
-        node_id_or_frame_id=args.node_id_or_frame_id,
-        target_surface=args.target_surface,
-        task_mode=args.task_mode,
-        figma_lane_tool=args.figma_lane_tool,
-        design_blockers=args.design_blocker,
-        code_native_design_brief_path=args.code_native_design_brief_path,
-        explicit_creation_mode=args.explicit_creation_mode,
-        native_bridge_transport=args.native_bridge_transport,
-        telemetry_path=Path(args.telemetry),
-    )
+    try:
+        packet = build_task_packet(
+            goal=args.goal,
+            task_class=args.task_class,
+            candidate_paths=args.path,
+            requested_agents=args.requested_agent,
+            pr_phase=args.pr_phase,
+            design_source=args.design_source,
+            source_url=args.source_url,
+            file_key_or_workspace=args.file_key_or_workspace,
+            node_id_or_frame_id=args.node_id_or_frame_id,
+            target_surface=args.target_surface,
+            task_mode=args.task_mode,
+            figma_lane_tool=args.figma_lane_tool,
+            design_blockers=args.design_blocker,
+            code_native_design_brief_path=args.code_native_design_brief_path,
+            explicit_creation_mode=args.explicit_creation_mode,
+            native_bridge_transport=args.native_bridge_transport,
+            telemetry_path=Path(args.telemetry),
+            creative_learning_hints_path=args.creative_learning_hints,
+        )
+    except ValueError as exc:
+        print(f"FAIL: {exc}")
+        return 1
+    if not isinstance(packet.get("creative_learning_hints"), dict):
+        packet["creative_learning_hints"] = _build_creative_learning_hints_packet(
+            None,
+            hints_fingerprint="",
+        )
     try:
         out_path = _resolve_output_path(args.output, packet["task_packet_id"])
     except ValueError as exc:
@@ -1449,6 +1601,9 @@ def main(argv: list[str] | None = None) -> int:
                 "reviewer": packet["reviewer"],
                 "requested_agents": packet["requested_agents"],
                 "recommended_skills": packet["recommended_skills"],
+                "creative_learning_hints_fingerprint": packet["creative_learning_hints"][
+                    "source_hints_fingerprint"
+                ],
                 "primary_native_agent_type": packet["native_subagent_bridge"]["primary"][
                     "native_agent_type"
                 ],

@@ -1,0 +1,144 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PulsePlate Creative Spec Coordinator Advisory Hints",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "policy_version",
+    "hints_id",
+    "idempotency_key",
+    "source_rollup_id",
+    "source_rollup_fingerprint",
+    "recommended_role_focus",
+    "reuse_lesson_ids",
+    "avoid_lesson_ids",
+    "authority",
+    "sanitized"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "artifact_type": { "const": "creative_spec_coordinator_advisory_hints" },
+    "policy_version": { "const": "creative-spec-learning-rollup-v1" },
+    "hints_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "idempotency_key": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "source_rollup_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "source_rollup_fingerprint": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "recommended_role_focus": {
+      "type": "array",
+      "maxItems": 6,
+      "items": { "$ref": "#/$defs/role_focus" }
+    },
+    "reuse_lesson_ids": { "$ref": "#/$defs/lesson_ids" },
+    "avoid_lesson_ids": { "$ref": "#/$defs/lesson_ids" },
+    "authority": { "$ref": "#/$defs/advisory_authority" },
+    "sanitized": { "const": true }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "lesson_id": {
+      "type": "string",
+      "pattern": "^lesson-[a-f0-9]{12}$"
+    },
+    "lesson_ids": {
+      "type": "array",
+      "maxItems": 6,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/lesson_id" }
+    },
+    "role_focus": {
+      "type": "object",
+      "required": [
+        "agent",
+        "focus",
+        "reason",
+        "source_lesson_ids"
+      ],
+      "properties": {
+        "agent": {
+          "enum": [
+            "agent-coordinator",
+            "architecture-specialist",
+            "security-auditor",
+            "qa-engineer-agent",
+            "bug-hunter",
+            "cursor-specialist-agent"
+          ]
+        },
+        "focus": {
+          "enum": [
+            "authority_boundary_review",
+            "failure_pattern_review",
+            "oracle_and_test_reuse",
+            "specification_pattern_reuse",
+            "creative_learning_review"
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 180,
+          "not": {
+            "pattern": "(diff --git|candidate[._ -]?patch|raw[._ -]?(body|prompt|response|context|patch|review|pr)|provider[._ -]?payload|chain[._ -]?of[._ -]?thought|semantic[-_ ]?cache|graph[-_ ]?truth|product[-_ ]?runtime|provider[-_ ]?call|github[-_ ]?write|slack[-_ ]?write|patch[-_ ]?generation|auto[-_ ]?execute|merge[-_ ]?readiness|file://|https?://|/(Users|home|private/var|var/folders|tmp|etc|opt|usr|Volumes|mnt|root|workspace|workspaces)(/|$)|~[/\\\\]|[A-Za-z]:[\\\\/]|sk-[A-Za-z0-9_-]{12,}|gh[psoru]_|github_pat_|xox[abprs]-|GH_TOKEN|GITHUB_TOKEN)"
+          }
+        },
+        "source_lesson_ids": { "$ref": "#/$defs/lesson_ids" }
+      },
+      "additionalProperties": false
+    },
+    "advisory_authority": {
+      "type": "object",
+      "required": [
+        "advisory_only",
+        "call_product_runtime",
+        "call_provider",
+        "change_lifecycle_gates",
+        "change_primary_agent",
+        "claim_merge_readiness",
+        "execute_agents",
+        "force_agent_routing",
+        "generate_patch",
+        "modify_agents",
+        "modify_prompts",
+        "post_github_comment",
+        "resolve_threads",
+        "skip_required_roles",
+        "use_semantic_cache",
+        "write_graph_truth",
+        "write_repository"
+      ],
+      "properties": {
+        "advisory_only": { "const": true },
+        "call_product_runtime": { "const": false },
+        "call_provider": { "const": false },
+        "change_lifecycle_gates": { "const": false },
+        "change_primary_agent": { "const": false },
+        "claim_merge_readiness": { "const": false },
+        "execute_agents": { "const": false },
+        "force_agent_routing": { "const": false },
+        "generate_patch": { "const": false },
+        "modify_agents": { "const": false },
+        "modify_prompts": { "const": false },
+        "post_github_comment": { "const": false },
+        "resolve_threads": { "const": false },
+        "skip_required_roles": { "const": false },
+        "use_semantic_cache": { "const": false },
+        "write_graph_truth": { "const": false },
+        "write_repository": { "const": false }
+      },
+      "additionalProperties": false
+    }
+  }
+}

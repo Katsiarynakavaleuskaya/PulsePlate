@@ -72,6 +72,20 @@
   create/write branches, push/open PRs, edit fixed mappings, resolve review
   threads, modify workflows, call product runtime, use semantic cache, write
   graph truth, or claim readiness.
+- Creative spec learning rollup artifacts stay local under
+  `artifacts/orchestration/creative_code/learning_rollup/<rollup-id>/`. The
+  `creative_spec_learning_rollup.py` CLI may only read validated bridge
+  metrics, skeptic-review attachment, finalize receipt, and
+  `CreativeCodeSpecificationBundle` artifacts; emit proposal-only
+  `agent_learning_record.v1` records and coordinator advisory hints; and
+  validate those local artifacts. Hints may be surfaced in `task_bootstrap.py`
+  packets with `--creative-learning-hints`, but only as reviewer-focus context.
+  They must not change primary/reviewer/role order, execute agents, auto-route
+  roles, skip required roles, generate patches, create/write branches,
+  push/open PRs, post GitHub comments, edit fixed mappings, resolve review
+  threads, claim readiness, merge, release, call providers, call product
+  runtime, use semantic cache, write graph truth, or mutate GitHub App / Slack
+  settings.
 - The runner must apply patches only inside an isolated temporary checkout and must leave the shared working tree untouched.
 - Mutable surfaces, immutable oracles, budgets, and promotion boundaries are defined by `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`; do not duplicate or relax them here.
 - Runner mutation of `scripts/ci/**`, `docs/review/**`, `AGENTS.md`, merge

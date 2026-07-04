@@ -26,6 +26,16 @@ security/governance failures on the actual diff, while learning-loop records
 repeatable patterns and the process metrics that would show whether later
 promotion improved agent behavior.
 
+Finalized creative-code specification outcomes may feed this loop through the
+local-only creative spec learning rollup. That rollup consumes validated bridge
+metrics, skeptic-review attachment, finalize receipt, and
+`CreativeCodeSpecificationBundle` artifacts, then emits proposal-only
+`agent_learning_record.v1` success/failure records plus coordinator advisory
+hints. These hints may tell reviewers which lesson ids to reuse or avoid, but
+they do not change routing, role order, required gates, agent execution,
+patch generation, semantic cache, graph truth, product runtime truth, or
+merge-readiness authority.
+
 Learning-loop output is not runtime truth, not product behavior, and not
 canonical governance until a reviewed repo diff promotes it into the smallest
 authoritative surface, such as a scoped `AGENTS.md`, an orchestration contract,

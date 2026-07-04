@@ -57,6 +57,7 @@ open the semantic-cache gate.
 | `pr-creative-context` | Expands eligible PR context into 3-5 hypotheses, validates operator-supplied local hypothesis JSON, assigns normalized hypothesis IDs, records cross-domain analogies, emits agent routing/coordinator dispatch, and prepares approval reservations. | Allowed only through local sanitized Experiment Runner creative-context artifacts; no repo-side provider/model call, patch generation, workflow mutation, semantic cache, or GitHub write authority. |
 | `approved-hypothesis-spec-bridge` | Converts a human-approved creative hypothesis into a validated PR-0 creative-code candidate and existing PR-1 prepare artifacts. | Allowed only through local `creative_hypothesis_spec_bridge.py`; no mutable-surface widening, provider calls, patch generation, PR writes, role execution, finalization, semantic cache, graph truth, or product runtime authority. |
 | `reviewed-spec-finalize` | Attaches sanitized local skeptic-review evidence to a prepared bridge run and delegates to existing PR-1 finalize in a sibling reviewed directory. | Allowed only through local `creative_specification_skeptic_review.py`; must preserve `spec_prepare/`; no agent execution, provider calls, patch generation, PR writes, workflow changes, semantic cache, graph truth, product runtime, fixed-mapping edits, review-thread actions, or readiness claims. |
+| `reviewed-spec-learning-rollup` | Converts finalized creative specification outcomes into proposal-only learning records and coordinator advisory hints. | Allowed only through local `creative_spec_learning_rollup.py` and optional `task_bootstrap.py --creative-learning-hints`; no provider calls, agent execution, patch generation, routing authority, required-role changes, lifecycle-gate changes, PR/GitHub/Slack writes, semantic cache, graph truth, product runtime truth, or merge-readiness authority. |
 
 PR-0 sets:
 
@@ -198,6 +199,15 @@ The approved creative-hypothesis specification bridge artifacts are:
 - `artifacts/orchestration/creative_code/spec_bridge/<bridge-id>/spec_finalize_reviewed/creative_code_specification_bundle.json`
 - `artifacts/orchestration/creative_code/spec_bridge/<bridge-id>/spec_finalize_reviewed/finalize_receipt.json`
 
+The reviewed creative specification learning rollup artifacts are:
+
+- `docs/orchestration/contracts/creative_spec_learning_rollup.v1.schema.json`
+- `docs/orchestration/contracts/creative_spec_coordinator_advisory_hints.v1.schema.json`
+- `scripts/orchestration/creative_spec_learning_rollup_contract.py`
+- `scripts/orchestration/creative_spec_learning_rollup.py`
+- `artifacts/orchestration/creative_code/learning_rollup/<rollup-id>/creative_spec_learning_rollup.json`
+- `artifacts/orchestration/creative_code/learning_rollup/<rollup-id>/coordinator_advisory_hints.json`
+
 Bridge output directories must be exactly
 `artifacts/orchestration/creative_code/spec_bridge/<bridge-id>/`; bridge refs,
 candidate packets, metrics, and prepare directories must agree on that id.
@@ -260,6 +270,13 @@ PR-0 is a contract-only start point.
   preserve `spec_prepare/`; no agent execution, patches, branch/PR writes,
   provider calls, workflows, product runtime truth, semantic cache, graph truth,
   fixed-mapping edits, review-thread actions, or readiness claims.
+- Creative spec learning rollup: ingest finalized creative spec outcomes into
+  proposal-only `agent_learning_record.v1` success/failure records and
+  coordinator advisory hints; optional task bootstrap packet visibility may
+  expose hint fingerprints and reviewer-focus lesson ids only, without changing
+  routing, role order, required gates, agent execution, patch generation,
+  semantic cache, graph truth, product runtime truth, PR/GitHub/Slack writes,
+  or merge-readiness authority.
 - PR-2: generate isolated candidate patches only in sandboxed evaluation
   workspaces with exact source-bundle fingerprint binding, exact `origin/main`
   base SHA, fixed Codex CLI argv/env, strict patch policy validation, direct
@@ -292,10 +309,10 @@ PR-0 is a contract-only start point.
   workflows, call providers, call product runtime, create branches, open PRs,
   post comments, resolve threads, edit fixed mappings, merge, or claim
   readiness.
-- Bridge follow-ups remain separate reviewed PRs: ingest bridge metrics into
-  the existing telemetry / learning-loop rollup and explore graph/multimodal
-  lineage only after
-  repo-reviewed evidence contracts define asset lineage, fingerprints,
+- Bridge follow-ups remain separate reviewed PRs: the reviewed-spec learning
+  rollup ingests finalized bridge/finalize outcomes into the existing
+  proposal-only learning loop, while graph/multimodal lineage remains deferred
+  until repo-reviewed evidence contracts define asset lineage, fingerprints,
   idempotency, and replay/admission behavior.
 
 Minimum future telemetry fields are defined now for the later train and must not be emitted before PR-1:
