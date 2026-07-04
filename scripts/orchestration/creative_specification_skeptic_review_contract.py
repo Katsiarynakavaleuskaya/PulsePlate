@@ -32,6 +32,8 @@ ATTACHMENT_ARTIFACT_TYPE = "creative_specification_skeptic_review_attachment"
 FINALIZE_RECEIPT_ARTIFACT_TYPE = "creative_specification_finalize_receipt"
 POLICY_VERSION = "creative-specification-skeptic-review-finalize-v1"
 REVIEWED_RUN_DIRNAME = "spec_finalize_reviewed"
+ATTACHMENT_FILENAME = "skeptic_review_attachment.json"
+BUNDLE_FILENAME = "creative_code_specification_bundle.json"
 NEXT_ACTION_SELECTED = "human_review_for_patch_builder"
 NEXT_ACTION_ALL_REJECTED = "human_review_for_discard_or_defer"
 MAX_REVIEW_TEXT_LENGTH = 512
@@ -584,6 +586,40 @@ def validate_finalize_receipt(payload: Mapping[str, Any]) -> dict[str, Any]:
         raise CreativeSpecificationSkepticReviewError(
             f"{label}.counts.selected_variant_count does not match selected_variant_id."
         )
+    if selected_variant_id is None:
+        if counts["rejected_variant_count"] != counts["variant_count"]:
+            raise CreativeSpecificationSkepticReviewError(
+                f"{label}.counts.rejected_variant_count must match variant_count when all rejected."
+            )
+        if counts["rejection_record_count"] != counts["variant_count"]:
+            raise CreativeSpecificationSkepticReviewError(
+                f"{label}.counts.rejection_record_count must match variant_count when all rejected."
+            )
+    source_attachment_ref = _normalize_artifact_ref(
+        payload.get("source_attachment_ref"),
+        label=f"{label}.source_attachment_ref",
+    )
+    reviewed_run_dir_ref = _normalize_artifact_ref(
+        payload.get("reviewed_run_dir_ref"),
+        label=f"{label}.reviewed_run_dir_ref",
+        must_be_reviewed_run=True,
+    )
+    bundle_ref = _normalize_artifact_ref(
+        payload.get("bundle_ref"),
+        label=f"{label}.bundle_ref",
+    )
+    _require_reviewed_run_child_ref(
+        reviewed_run_dir_ref=reviewed_run_dir_ref,
+        child_ref=source_attachment_ref,
+        filename=ATTACHMENT_FILENAME,
+        label=f"{label}.source_attachment_ref",
+    )
+    _require_reviewed_run_child_ref(
+        reviewed_run_dir_ref=reviewed_run_dir_ref,
+        child_ref=bundle_ref,
+        filename=BUNDLE_FILENAME,
+        label=f"{label}.bundle_ref",
+    )
     normalized = {
         "schema_version": _require_const(payload, "schema_version", SCHEMA_VERSION, label=label),
         "artifact_type": _require_const(
@@ -606,19 +642,9 @@ def validate_finalize_receipt(payload: Mapping[str, Any]) -> dict[str, Any]:
             "source_attachment_fingerprint",
             label=label,
         ),
-        "source_attachment_ref": _normalize_artifact_ref(
-            payload.get("source_attachment_ref"),
-            label=f"{label}.source_attachment_ref",
-        ),
-        "reviewed_run_dir_ref": _normalize_artifact_ref(
-            payload.get("reviewed_run_dir_ref"),
-            label=f"{label}.reviewed_run_dir_ref",
-            must_be_reviewed_run=True,
-        ),
-        "bundle_ref": _normalize_artifact_ref(
-            payload.get("bundle_ref"),
-            label=f"{label}.bundle_ref",
-        ),
+        "source_attachment_ref": source_attachment_ref,
+        "reviewed_run_dir_ref": reviewed_run_dir_ref,
+        "bundle_ref": bundle_ref,
         "bundle_id": _require_id(payload, "bundle_id", label=label),
         "bundle_fingerprint": _require_fingerprint(payload, "bundle_fingerprint", label=label),
         "bundle_idempotency_key": _require_id(payload, "bundle_idempotency_key", label=label),
@@ -896,6 +922,10 @@ def _normalize_attachment_coverage(raw_counts: Any, *, label: str) -> dict[str, 
             "unsafe_authority_flag_count": MAX_TOTAL_REVIEW_TOKEN_COUNT,
             "blocker_count": MAX_TOTAL_REVIEW_TOKEN_COUNT,
         },
+        minima={
+            "variant_count": 1,
+            "review_count": 1,
+        },
     )
     if counts["required_reviewer_count"] != len(REQUIRED_SKEPTIC_REVIEWERS):
         raise CreativeSpecificationSkepticReviewError(
@@ -917,6 +947,10 @@ def _normalize_receipt_counts(raw_counts: Any, *, label: str) -> dict[str, int]:
             "unresolved_blocker_count": MAX_TOTAL_REVIEW_TOKEN_COUNT,
             "rejection_record_count": 5,
         },
+        minima={
+            "variant_count": 1,
+            "review_count": 1,
+        },
     )
 
 
@@ -926,14 +960,35 @@ def _normalize_counts(
     expected_keys: frozenset[str],
     label: str,
     maxima: Mapping[str, int],
+    minima: Mapping[str, int] | None = None,
 ) -> dict[str, int]:
     if not isinstance(raw_counts, dict):
         raise CreativeSpecificationSkepticReviewError(f"{label} must be a JSON object.")
     _require_exact_keys(raw_counts, expected_keys, label=label)
+    minimum_by_key = minima or {}
     return {
-        key: _bounded_count(raw_counts[key], f"{label}.{key}", minimum=0, maximum=maxima[key])
+        key: _bounded_count(
+            raw_counts[key],
+            f"{label}.{key}",
+            minimum=minimum_by_key.get(key, 0),
+            maximum=maxima[key],
+        )
         for key in sorted(expected_keys)
     }
+
+
+def _require_reviewed_run_child_ref(
+    *,
+    reviewed_run_dir_ref: str,
+    child_ref: str,
+    filename: str,
+    label: str,
+) -> None:
+    child_path = PurePosixPath(child_ref)
+    if child_path.parent != PurePosixPath(reviewed_run_dir_ref) or child_path.name != filename:
+        raise CreativeSpecificationSkepticReviewError(
+            f"{label} must point to canonical {filename} under reviewed_run_dir_ref."
+        )
 
 
 def _normalize_authority(

@@ -511,6 +511,8 @@ def test_finalize_receipt_records_all_rejected_status(
         assert receipt["synthesis_status"] == "all_rejected"
         assert receipt["next_allowed_action"] == "human_review_for_discard_or_defer"
         assert receipt["counts"]["selected_variant_count"] == 0
+        assert receipt["counts"]["rejected_variant_count"] == receipt["counts"]["variant_count"]
+        assert receipt["counts"]["rejection_record_count"] == receipt["counts"]["variant_count"]
     finally:
         shutil.rmtree(output_dir, ignore_errors=True)
         shutil.rmtree(input_dir, ignore_errors=True)
@@ -990,6 +992,93 @@ def test_finalize_receipt_rejects_inconsistent_selected_count(
         shutil.rmtree(input_dir, ignore_errors=True)
 
 
+def test_finalize_receipt_rejects_all_rejected_without_rejection_counts(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    output_dir, input_dir = _prepared_bridge(capsys, suffix="all-rejected-count-mismatch")
+    try:
+        reviews_path = _write_review_input(output_dir, _review_input(output_dir, all_rejected=True))
+        assert (
+            review_cli.main(
+                [
+                    "attach",
+                    "--bridge",
+                    str(output_dir / bridge_cli.BRIDGE_FILENAME),
+                    "--reviews",
+                    str(reviews_path),
+                ]
+            )
+            == 0
+        )
+        capsys.readouterr()
+        attachment_path = output_dir / "spec_finalize_reviewed" / review_cli.ATTACHMENT_FILENAME
+        assert review_cli.main(["finalize", "--attachment", str(attachment_path)]) == 0
+        capsys.readouterr()
+        receipt_path = output_dir / "spec_finalize_reviewed" / review_cli.FINALIZE_RECEIPT_FILENAME
+        receipt = validate_finalize_receipt(_read_json(receipt_path))
+        tampered_receipt = deepcopy(receipt)
+        tampered_receipt["counts"]["rejected_variant_count"] = 0
+        tampered_receipt["counts"]["rejection_record_count"] = 0
+
+        with pytest.raises(CreativeSpecificationSkepticReviewError, match="when all rejected"):
+            validate_finalize_receipt(_refresh_receipt_identity(tampered_receipt))
+    finally:
+        shutil.rmtree(output_dir, ignore_errors=True)
+        shutil.rmtree(input_dir, ignore_errors=True)
+
+
+@pytest.mark.parametrize(
+    ("field_name", "replacement_suffix"),
+    [
+        (
+            "source_attachment_ref",
+            "skeptic_review_attachment.json",
+        ),
+        (
+            "bundle_ref",
+            "creative_code_specification_bundle.json",
+        ),
+    ],
+)
+def test_finalize_receipt_refs_must_bind_to_reviewed_run(
+    capsys: pytest.CaptureFixture[str],
+    field_name: str,
+    replacement_suffix: str,
+) -> None:
+    output_dir, input_dir = _prepared_bridge(capsys, suffix=f"receipt-ref-{field_name}")
+    try:
+        reviews_path = _write_review_input(output_dir, _review_input(output_dir))
+        assert (
+            review_cli.main(
+                [
+                    "attach",
+                    "--bridge",
+                    str(output_dir / bridge_cli.BRIDGE_FILENAME),
+                    "--reviews",
+                    str(reviews_path),
+                ]
+            )
+            == 0
+        )
+        capsys.readouterr()
+        attachment_path = output_dir / "spec_finalize_reviewed" / review_cli.ATTACHMENT_FILENAME
+        assert review_cli.main(["finalize", "--attachment", str(attachment_path)]) == 0
+        capsys.readouterr()
+        receipt_path = output_dir / "spec_finalize_reviewed" / review_cli.FINALIZE_RECEIPT_FILENAME
+        receipt = validate_finalize_receipt(_read_json(receipt_path))
+        tampered_receipt = deepcopy(receipt)
+        tampered_receipt[field_name] = (
+            "artifacts/orchestration/creative_code/spec_bridge/other-bridge/"
+            f"spec_finalize_reviewed/{replacement_suffix}"
+        )
+
+        with pytest.raises(CreativeSpecificationSkepticReviewError, match="reviewed_run_dir_ref"):
+            validate_finalize_receipt(_refresh_receipt_identity(tampered_receipt))
+    finally:
+        shutil.rmtree(output_dir, ignore_errors=True)
+        shutil.rmtree(input_dir, ignore_errors=True)
+
+
 @pytest.mark.parametrize(
     ("case_slug", "mutator", "expected_error"),
     [
@@ -1284,6 +1373,39 @@ def test_attachment_contract_requires_exact_reviewer_count(
 
         with pytest.raises(CreativeSpecificationSkepticReviewError, match="must equal 3"):
             validate_skeptic_review_attachment(attachment)
+    finally:
+        shutil.rmtree(output_dir, ignore_errors=True)
+        shutil.rmtree(input_dir, ignore_errors=True)
+
+
+@pytest.mark.parametrize("count_key", ["variant_count", "review_count"])
+def test_attachment_contract_rejects_zero_coverage_counts(
+    capsys: pytest.CaptureFixture[str],
+    count_key: str,
+) -> None:
+    output_dir, input_dir = _prepared_bridge(capsys, suffix=f"zero-{count_key}")
+    try:
+        reviews_path = _write_review_input(output_dir, _review_input(output_dir))
+        assert (
+            review_cli.main(
+                [
+                    "attach",
+                    "--bridge",
+                    str(output_dir / bridge_cli.BRIDGE_FILENAME),
+                    "--reviews",
+                    str(reviews_path),
+                ]
+            )
+            == 0
+        )
+        capsys.readouterr()
+        attachment = _read_json(
+            output_dir / "spec_finalize_reviewed" / review_cli.ATTACHMENT_FILENAME
+        )
+        attachment["coverage"][count_key] = 0
+
+        with pytest.raises(CreativeSpecificationSkepticReviewError, match="between 1"):
+            validate_skeptic_review_attachment(_refresh_attachment_identity(attachment))
     finally:
         shutil.rmtree(output_dir, ignore_errors=True)
         shutil.rmtree(input_dir, ignore_errors=True)
