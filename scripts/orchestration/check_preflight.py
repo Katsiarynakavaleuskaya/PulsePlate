@@ -59,6 +59,18 @@ DEPENDENCY_SENSITIVE_PATH_PREFIXES = (
     ".github/workflows/ci.yml",
     ".github/workflows/python-dependency-submission.yml",
 )
+PRIVATE_INDEX_SCOPE_DEPENDENCY = "dependency-sensitive"
+PRIVATE_INDEX_SCOPE_NON_DEPENDENCY = "explicit-non-dependency"
+PRIVATE_INDEX_SCOPE_AMBIGUOUS = "ambiguous"
+NONCANONICAL_PRIVATE_PROXY_ROOT_ERROR_CODE = "noncanonical_private_proxy_root"
+SUPPRESSED_NON_DEPENDENCY_INDEX_ERROR_CODES = frozenset(
+    {
+        "public_index_url",
+        "unexpected_index_path",
+        "unexpected_packages_host",
+        NONCANONICAL_PRIVATE_PROXY_ROOT_ERROR_CODE,
+    }
+)
 
 
 def _run(cmd: list[str], cwd: Path | None = None) -> tuple[int, str]:
@@ -322,9 +334,43 @@ def _is_dependency_sensitive_path(path: str) -> bool:
     return False
 
 
-def _touches_dependency_sensitive_path(task_paths: list[str]) -> bool:
+def _private_index_scope(task_paths: list[str]) -> str:
     normalized_paths = repo_relative_paths(task_paths)
-    return any(_is_dependency_sensitive_path(path) for path in normalized_paths)
+    if not normalized_paths:
+        return PRIVATE_INDEX_SCOPE_AMBIGUOUS
+    if any(_is_dependency_sensitive_path(path) for path in normalized_paths):
+        return PRIVATE_INDEX_SCOPE_DEPENDENCY
+    return PRIVATE_INDEX_SCOPE_NON_DEPENDENCY
+
+
+def _private_index_error_code(error: ValueError) -> str:
+    return str(error).split(":", 1)[0].strip()
+
+
+def _private_index_should_fail(mode: str, scope: str) -> bool:
+    return mode in {"execute", "merge"} and scope != PRIVATE_INDEX_SCOPE_NON_DEPENDENCY
+
+
+def _private_index_should_suppress_warning(scope: str, error_code: str) -> bool:
+    return (
+        scope == PRIVATE_INDEX_SCOPE_NON_DEPENDENCY
+        and error_code in SUPPRESSED_NON_DEPENDENCY_INDEX_ERROR_CODES
+    )
+
+
+def _emit_private_index_diagnostic(
+    mode: str,
+    scope: str,
+    error_code: str,
+    message: str,
+) -> bool:
+    if _private_index_should_fail(mode, scope):
+        print(f"FAIL: {message}")
+        return False
+    if _private_index_should_suppress_warning(scope, error_code):
+        return True
+    print(f"WARNING: {message}")
+    return True
 
 
 def check_private_python_index_url_shape(mode: str, task_paths: list[str]) -> bool:
@@ -334,32 +380,26 @@ def check_private_python_index_url_shape(mode: str, task_paths: list[str]) -> bo
     raw_index_url = os.environ.get(INDEX_ENV_VAR)
     if raw_index_url is None:
         return True
-    touches_dependency_surface = _touches_dependency_sensitive_path(task_paths)
+    scope = _private_index_scope(task_paths)
 
     try:
         normalized_index_url = validate_index_url(raw_index_url)
     except ValueError as exc:
+        error_code = _private_index_error_code(exc)
         message = (
             f"{INDEX_ENV_VAR} is set but does not match the canonical private "
             f"proxy root shape ({type(exc).__name__}: {exc}). Expected "
             f"{CANONICAL_PYTHON_INDEX_URL}"
         )
-        if mode in {"execute", "merge"} and touches_dependency_surface:
-            print(f"FAIL: {message}")
-            return False
-        print(f"WARNING: {message}")
-        return True
+        return _emit_private_index_diagnostic(mode, scope, error_code, message)
 
     if normalized_index_url != CANONICAL_PYTHON_INDEX_URL:
+        error_code = NONCANONICAL_PRIVATE_PROXY_ROOT_ERROR_CODE
         message = (
             f"{INDEX_ENV_VAR} normalized to a noncanonical private proxy root. "
-            f"Expected {CANONICAL_PYTHON_INDEX_URL}"
+            f"{error_code}: expected {CANONICAL_PYTHON_INDEX_URL}"
         )
-        if mode in {"execute", "merge"} and touches_dependency_surface:
-            print(f"FAIL: {message}")
-            return False
-        print(f"WARNING: {message}")
-        return True
+        return _emit_private_index_diagnostic(mode, scope, error_code, message)
 
     print("PASS: private Python index URL shape")
     return True

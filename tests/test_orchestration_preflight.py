@@ -249,6 +249,33 @@ def test_private_python_index_url_shape_warns_in_analyze_mode(
     assert "https://packages.pulseplate.app/root/pulseplate/+simple/" in output
 
 
+@pytest.mark.parametrize(
+    ("index_url", "error_code"),
+    [
+        ("https://packages.pulseplate.app/root/pypi/+simple/", "unexpected_index_path"),
+        ("https://pypi.org/simple/", "public_index_url"),
+        ("https://example.com/root/pulseplate/+simple/", "unexpected_packages_host"),
+        (
+            "https://PACKAGES.PULSEPLATE.APP/root/pulseplate/+simple/",
+            "noncanonical_private_proxy_root",
+        ),
+    ],
+)
+def test_private_python_index_url_shape_warns_for_ambiguous_analyze_scope(
+    index_url: str,
+    error_code: str,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv(preflight.INDEX_ENV_VAR, index_url)
+
+    assert preflight.check_private_python_index_url_shape("analyze", [])
+
+    output = capsys.readouterr().out
+    assert "WARNING:" in output
+    assert error_code in output
+
+
 def test_private_python_index_url_shape_fails_dependency_sensitive_execute_path(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -302,10 +329,94 @@ def test_private_python_index_url_shape_fails_broad_parent_dependency_scope(
     assert "unexpected_index_path" in output
 
 
-def test_private_python_index_url_shape_warns_for_unrelated_execute_path(
+@pytest.mark.parametrize("mode", ["execute", "merge"])
+def test_private_python_index_url_shape_fails_ambiguous_execute_and_merge_scope(
+    mode: str, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setenv(
+        preflight.INDEX_ENV_VAR,
+        "https://packages.pulseplate.app/root/pypi/+simple/",
+    )
+
+    assert preflight.check_private_python_index_url_shape(mode, []) is False
+
+    output = capsys.readouterr().out
+    assert "FAIL:" in output
+    assert "unexpected_index_path" in output
+
+
+@pytest.mark.parametrize(
+    ("mode", "paths"),
+    [
+        ("execute", []),
+        ("merge", []),
+        ("execute", ["requirements.in"]),
+        ("merge", ["requirements.in"]),
+    ],
+)
+def test_private_python_index_url_shape_fails_noncanonical_private_root_when_strict(
+    mode: str,
+    paths: list[str],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv(
+        preflight.INDEX_ENV_VAR,
+        "https://PACKAGES.PULSEPLATE.APP/root/pulseplate/+simple/",
+    )
+
+    assert preflight.check_private_python_index_url_shape(mode, paths) is False
+
+    output = capsys.readouterr().out
+    assert "FAIL:" in output
+    assert "noncanonical_private_proxy_root" in output
+
+
+@pytest.mark.parametrize("mode", ["analyze", "execute", "merge"])
+@pytest.mark.parametrize(
+    ("index_url", "error_code"),
+    [
+        ("https://packages.pulseplate.app/root/pypi/+simple/", "unexpected_index_path"),
+        ("https://pypi.org/simple/", "public_index_url"),
+        ("https://example.com/root/pulseplate/+simple/", "unexpected_packages_host"),
+        (
+            "https://PACKAGES.PULSEPLATE.APP/root/pulseplate/+simple/",
+            "noncanonical_private_proxy_root",
+        ),
+    ],
+)
+def test_private_python_index_url_shape_suppresses_noncredential_noise_for_unrelated_paths(
+    mode: str,
+    index_url: str,
+    error_code: str,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv(preflight.INDEX_ENV_VAR, index_url)
+
+    assert preflight.check_private_python_index_url_shape(
+        mode,
+        ["docs/orchestration/workflow.md"],
+    )
+
+    output = capsys.readouterr().out
+    assert output == ""
+    assert error_code not in output
+
+
+def _assert_no_inline_credential_leak(output: str, unsafe_url: str) -> None:
+    assert unsafe_url not in output
+    assert "user" not in output
+    assert "user:token" not in output
+    assert "token@" not in output
+    assert "token" not in output
+
+
+def test_private_python_index_url_shape_warns_redacted_credentials_for_unrelated_path(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    monkeypatch.setenv(preflight.INDEX_ENV_VAR, "https://pypi.org/simple/")
+    unsafe_url = "https://user:token@packages.pulseplate.app/root/pulseplate/+simple/"  # pragma: allowlist secret
+    monkeypatch.setenv(preflight.INDEX_ENV_VAR, unsafe_url)
 
     assert preflight.check_private_python_index_url_shape(
         "execute",
@@ -314,23 +425,34 @@ def test_private_python_index_url_shape_warns_for_unrelated_execute_path(
 
     output = capsys.readouterr().out
     assert "WARNING:" in output
-    assert "public_index_url" in output
+    assert "credentialed_index_url" in output
+    _assert_no_inline_credential_leak(output, unsafe_url)
 
 
-def test_private_python_index_url_shape_does_not_echo_inline_credentials(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+@pytest.mark.parametrize(
+    ("mode", "paths"),
+    [
+        ("execute", ["requirements.in"]),
+        ("merge", ["requirements.in"]),
+        ("execute", []),
+        ("merge", []),
+    ],
+)
+def test_private_python_index_url_shape_fails_redacted_credentials_for_dependency_or_ambiguous_scope(
+    mode: str,
+    paths: list[str],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     unsafe_url = "https://user:token@packages.pulseplate.app/root/pulseplate/+simple/"  # pragma: allowlist secret
     monkeypatch.setenv(preflight.INDEX_ENV_VAR, unsafe_url)
 
-    assert preflight.check_private_python_index_url_shape("execute", ["requirements.in"]) is False
+    assert preflight.check_private_python_index_url_shape(mode, paths) is False
 
     output = capsys.readouterr().out
+    assert "FAIL:" in output
     assert "credentialed_index_url" in output
-    assert unsafe_url not in output
-    assert "user:token" not in output
-    assert "token@" not in output
-    assert "token" not in output
+    _assert_no_inline_credential_leak(output, unsafe_url)
 
 
 def test_private_python_index_url_shape_accepts_canonical_root(
