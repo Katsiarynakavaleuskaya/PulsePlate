@@ -12,6 +12,13 @@ Artifact: `artifacts/orchestration/experiments/results/oracle-spec-skeptic-revie
 
 Summary: accepted oracle-only governance review, source diff applied in isolated checkout, `shared_tree_untouched=true`, and local oracle pytest commands passed. The implementation commit includes the canonical Experiment Runner co-author trailer.
 
+## Post-Open Role Finding Disposition Evidence
+
+Disposition: FIXED
+Role: bug-hunter
+Commit: f2ff78212
+Evidence: `scripts/orchestration/creative_specification_skeptic_review.py` now requires the canonical `skeptic_review_attachment.json` artifact during validate/finalize, rejects symlink JSON artifacts before reads, rejects symlink children under prepared `spec_prepare/`, and rejects symlink output targets. `docs/orchestration/contracts/creative_specification_agent_skeptic_reviews.v1.schema.json` aligns unsafe authority phrases with the Python validator. Covered by `tests/test_creative_specification_skeptic_review.py`.
+
 ## Lane Start Provenance
 Packet: `artifacts/orchestration/task_packets/c7a115b7e8b5.json`
 
