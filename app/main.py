@@ -226,10 +226,7 @@ _RESTAURANT_MODERATION_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = tuple(
     (path, method.upper(), include_in_schema)
     for path, method, include_in_schema in RESTAURANT_MODERATION_ROUTE_SPECS
 )
-_USERS_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = tuple(
-    (path, method.upper(), include_in_schema)
-    for path, method, include_in_schema in USERS_ROUTE_SPECS
-)
+_USERS_ROUTE_SPECS = USERS_ROUTE_SPECS
 _EXPORT_ROUTE_REQUIRED_STATUS_CODES = frozenset({429})
 _RESTAURANT_MODERATION_REQUIRED_STATUS_CODES = frozenset({404, 422})
 _PLAN_SIGNED_EXPORT_PATHS = frozenset({WEEK_EXPORT_CSV_PATH, WEEK_EXPORT_PDF_PATH})
