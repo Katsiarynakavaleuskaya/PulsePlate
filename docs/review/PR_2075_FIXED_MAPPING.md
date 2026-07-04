@@ -28,6 +28,7 @@ Disposition: FIXED
 Commit: 6bd673ead0706004f224899bde199183515fc0dd
 Evidence: `scripts/orchestration/creative_spec_learning_rollup_contract.py` no longer imports `BUNDLE_TYPE`, `METRICS_ARTIFACT_TYPE`, `ATTACHMENT_ARTIFACT_TYPE`, or `FINALIZE_RECEIPT_ARTIFACT_TYPE`; `python -m flake8 scripts/orchestration/creative_spec_learning_rollup_contract.py tests/test_creative_spec_learning_rollup.py` passed; `python -m pytest -q tests/test_creative_spec_learning_rollup.py` passed; CodeRabbit marked the thread addressed in commits `6bd673e` to `8d68363`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2075#discussion_r3523766542 -> 6bd673ead0706004f224899bde199183515fc0dd
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2075#pullrequestreview-4630181858 -> 6bd673ead0706004f224899bde199183515fc0dd
 
 ## Post-Open Role Finding Disposition Evidence
 
@@ -38,6 +39,14 @@ Role: qa-engineer-agent
 Commit: 6bd673ead0706004f224899bde199183515fc0dd
 Evidence: `scripts/orchestration/creative_spec_learning_rollup_contract.py` no longer imports unused artifact-type constants, `tests/test_creative_spec_learning_rollup.py` adds a semantic-cache/graph-truth claim rejection test, `python -m flake8 scripts/orchestration/creative_spec_learning_rollup_contract.py tests/test_creative_spec_learning_rollup.py` passed, and `python -m pytest -q tests/test_creative_spec_learning_rollup.py` passed.
 Reason: The post-open QA pass found flake8 F401 failures in the current PR surface; the fix removes the lint failure and strengthens the advertised authority-boundary coverage.
+
+### qa-engineer-agent Undeclared Lesson Reference Finding
+
+Disposition: FIXED
+Role: qa-engineer-agent
+Commit: 851f3aa51adae1c3a273ee90ae0405aadafa4597
+Evidence: `scripts/orchestration/creative_spec_learning_rollup_contract.py` now rejects coordinator advisory hints whose focus `source_lesson_ids` are not declared in `reuse_lesson_ids` or `avoid_lesson_ids`; `tests/test_creative_spec_learning_rollup.py` covers the contract rejection with recomputed valid identity, and `tests/test_task_bootstrap.py` covers fail-closed packet ingestion. `python -m pytest -q tests/test_creative_spec_learning_rollup.py tests/test_task_bootstrap.py` and focused flake8 passed.
+Reason: The post-open QA pass proved a validly re-fingerprinted hints artifact could carry undeclared lesson ids into `task_bootstrap`; the validator now closes that cross-field binding gap.
 
 ## Experiment Runner Evidence
 
