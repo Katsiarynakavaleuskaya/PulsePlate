@@ -1214,6 +1214,22 @@ def test_legacy_growth_guard_rejects_food_catalog_router_reintroduction(
         ),
         (
             textwrap.dedent("""
+                from importlib import import_module
+
+                method = "include_" + "router"
+                getattr(app, method)(
+                    import_module("app.routers.recipes").router
+                )
+                """),
+            [
+                "legacy_app.py: unexpected legacy route growth: "
+                "registration:include_router:import_module('app.routers.recipes').router",
+                "legacy_app.py: unexpected app.routers import growth: "
+                "router_import:dynamic:app.routers.recipes -> getattr(app, method)",
+            ],
+        ),
+        (
+            textwrap.dedent("""
                 import importlib
 
                 wrapper_router = APIRouter()
