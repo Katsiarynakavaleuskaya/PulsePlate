@@ -48,6 +48,14 @@ Commit: 851f3aa51adae1c3a273ee90ae0405aadafa4597
 Evidence: `scripts/orchestration/creative_spec_learning_rollup_contract.py` now rejects coordinator advisory hints whose focus `source_lesson_ids` are not declared in `reuse_lesson_ids` or `avoid_lesson_ids`; `tests/test_creative_spec_learning_rollup.py` covers the contract rejection with recomputed valid identity, and `tests/test_task_bootstrap.py` covers fail-closed packet ingestion. `python -m pytest -q tests/test_creative_spec_learning_rollup.py tests/test_task_bootstrap.py` and focused flake8 passed.
 Reason: The post-open QA pass proved a validly re-fingerprinted hints artifact could carry undeclared lesson ids into `task_bootstrap`; the validator now closes that cross-field binding gap.
 
+### bug-hunter Lesson Id and Counter Binding Findings
+
+Disposition: FIXED
+Role: bug-hunter
+Commit: 5d8bbccbd75c2031db6b3f2b605f527d7f76019f
+Evidence: `scripts/orchestration/creative_spec_learning_rollup_contract.py` now requires canonical `lesson-[a-f0-9]{12}` ids and binds `rejection_record_count`, `rejected_variant_count`, and all-rejected counters to `learning_summary.failure_count` and `outcomes.variant_count`; `docs/orchestration/contracts/creative_spec_coordinator_advisory_hints.v1.schema.json` uses the same canonical lesson-id pattern; `tests/test_creative_spec_learning_rollup.py` covers noncanonical lesson ids, undeclared canonical-looking focus ids, and tampered rejection counters after identity recomputation; `tests/test_task_bootstrap.py` covers fail-closed bootstrap ingestion for noncanonical and undeclared lesson ids. Focused flake8, JSON schema parse, and `python -m pytest -q tests/test_creative_spec_learning_rollup.py tests/test_task_bootstrap.py` passed.
+Reason: The post-open bug-hunter pass proved validly re-fingerprinted artifacts could carry noncanonical lesson ids or inconsistent rejection counters into validated rollup/hints outputs.
+
 ## Experiment Runner Evidence
 
 - Artifact: `artifacts/orchestration/experiments/results/creative-spec-learning-rollup-oracle-result.json`
