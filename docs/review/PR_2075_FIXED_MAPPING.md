@@ -20,10 +20,14 @@ execution, fixed-mapping authority, or merge-readiness authority.
 - [x] Fixed mapping artifact created after GitHub assigned PR number `#2075`.
 - [x] Pre-open role order completed: `agent-coordinator -> architecture-specialist -> security-auditor -> qa-engineer-agent -> bug-hunter -> cursor-specialist-agent`.
 - [x] Experiment Runner oracle-only evidence captured before PR open.
+- [x] CodeRabbit actionable comments checked and dispositioned below.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: 6bd673ead0706004f224899bde199183515fc0dd
+Evidence: `scripts/orchestration/creative_spec_learning_rollup_contract.py` no longer imports `BUNDLE_TYPE`, `METRICS_ARTIFACT_TYPE`, `ATTACHMENT_ARTIFACT_TYPE`, or `FINALIZE_RECEIPT_ARTIFACT_TYPE`; `python -m flake8 scripts/orchestration/creative_spec_learning_rollup_contract.py tests/test_creative_spec_learning_rollup.py` passed; `python -m pytest -q tests/test_creative_spec_learning_rollup.py` passed; CodeRabbit marked the thread addressed in commits `6bd673e` to `8d68363`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2075#discussion_r3523766542 -> 6bd673ead0706004f224899bde199183515fc0dd
 
 ## Post-Open Role Finding Disposition Evidence
 
