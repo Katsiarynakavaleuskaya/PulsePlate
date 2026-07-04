@@ -218,7 +218,7 @@ def test_hints_reject_focus_lesson_ids_not_declared_in_reuse_or_avoid(
     output_dir, input_dir, artifacts = _finalized_artifacts(capsys, suffix=suffix)
     try:
         hints = build_coordinator_advisory_hints(build_creative_spec_learning_rollup(**artifacts))
-        hints["recommended_role_focus"][0]["source_lesson_ids"] = ["lesson-notdeclared"]
+        hints["recommended_role_focus"][0]["source_lesson_ids"] = ["lesson-ffffffffffff"]
         set_creative_learning_identity(
             hints,
             id_key="hints_id",
@@ -231,6 +231,91 @@ def test_hints_reject_focus_lesson_ids_not_declared_in_reuse_or_avoid(
 
         with pytest.raises(CreativeSpecLearningRollupError, match="undeclared lesson ids"):
             validate_coordinator_advisory_hints(hints)
+    finally:
+        shutil.rmtree(output_dir, ignore_errors=True)
+        shutil.rmtree(input_dir, ignore_errors=True)
+
+
+def test_hints_reject_noncanonical_declared_lesson_ids(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    suffix = f"learning-noncanonical-lesson-{uuid.uuid4().hex[:8]}"
+    output_dir, input_dir, artifacts = _finalized_artifacts(capsys, suffix=suffix)
+    try:
+        hints = build_coordinator_advisory_hints(build_creative_spec_learning_rollup(**artifacts))
+        hints["reuse_lesson_ids"] = ["lesson-nothex"]
+        hints["recommended_role_focus"][0]["source_lesson_ids"] = ["lesson-nothex"]
+        set_creative_learning_identity(
+            hints,
+            id_key="hints_id",
+            asset_type=HINTS_ARTIFACT_TYPE,
+            upstream_ids=(
+                str(hints["source_rollup_id"]),
+                str(hints["source_rollup_fingerprint"]),
+            ),
+        )
+
+        with pytest.raises(CreativeSpecLearningRollupError, match="lesson id"):
+            validate_coordinator_advisory_hints(hints)
+    finally:
+        shutil.rmtree(output_dir, ignore_errors=True)
+        shutil.rmtree(input_dir, ignore_errors=True)
+
+
+def test_rollup_rejects_rejection_counters_without_failure_records(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    suffix = f"learning-tampered-counters-{uuid.uuid4().hex[:8]}"
+    output_dir, input_dir, artifacts = _finalized_artifacts(capsys, suffix=suffix)
+    try:
+        rollup = build_creative_spec_learning_rollup(**artifacts)
+        success_record = next(
+            record
+            for record in rollup["learning_records"]
+            if record["pattern_kind"] == "successful_iteration"
+        )
+        tampered_rejected = deepcopy(rollup)
+        tampered_rejected["learning_records"] = [success_record]
+        tampered_rejected["learning_summary"] = {
+            "learning_record_count": 1,
+            "successful_iteration_count": 1,
+            "failure_count": 0,
+            "reuse_lesson_ids": [success_record["lesson_id"]],
+            "avoid_lesson_ids": [],
+        }
+        tampered_rejected["outcomes"]["rejected_variant_count"] = 1
+        tampered_rejected["outcomes"]["rejection_record_count"] = 0
+        set_creative_learning_identity(
+            tampered_rejected,
+            id_key="rollup_id",
+            asset_type=ROLLUP_ARTIFACT_TYPE,
+            upstream_ids=(
+                str(tampered_rejected["source"]["finalize_id"]),
+                str(tampered_rejected["source"]["bundle_id"]),
+                str(tampered_rejected["source"]["bridge_metrics_id"]),
+            ),
+        )
+
+        with pytest.raises(CreativeSpecLearningRollupError, match="rejected counts"):
+            validate_creative_spec_learning_rollup(tampered_rejected)
+
+        tampered_records = deepcopy(rollup)
+        failure_count = int(tampered_records["learning_summary"]["failure_count"])
+        assert failure_count < 5
+        tampered_records["outcomes"]["rejection_record_count"] = failure_count + 1
+        set_creative_learning_identity(
+            tampered_records,
+            id_key="rollup_id",
+            asset_type=ROLLUP_ARTIFACT_TYPE,
+            upstream_ids=(
+                str(tampered_records["source"]["finalize_id"]),
+                str(tampered_records["source"]["bundle_id"]),
+                str(tampered_records["source"]["bridge_metrics_id"]),
+            ),
+        )
+
+        with pytest.raises(CreativeSpecLearningRollupError, match="rejection_record_count"):
+            validate_creative_spec_learning_rollup(tampered_records)
     finally:
         shutil.rmtree(output_dir, ignore_errors=True)
         shutil.rmtree(input_dir, ignore_errors=True)
@@ -253,13 +338,21 @@ def test_rollup_rejects_semantic_cache_and_graph_truth_claims(
             promotion_target="docs/orchestration/AGENT_LEARNING_LOOP.md",
             pattern_kind="successful_iteration",
         )
-        rollup["learning_records"] = [unsafe_record]
+        rollup["learning_records"] = [
+            unsafe_record if record["pattern_kind"] == "successful_iteration" else record
+            for record in rollup["learning_records"]
+        ]
+        avoid_lesson_ids = [
+            record["lesson_id"]
+            for record in rollup["learning_records"]
+            if record["pattern_kind"] == "failure"
+        ]
         rollup["learning_summary"] = {
-            "learning_record_count": 1,
+            "learning_record_count": len(rollup["learning_records"]),
             "successful_iteration_count": 1,
-            "failure_count": 0,
+            "failure_count": len(avoid_lesson_ids),
             "reuse_lesson_ids": [unsafe_record["lesson_id"]],
-            "avoid_lesson_ids": [],
+            "avoid_lesson_ids": avoid_lesson_ids,
         }
         set_creative_learning_identity(
             rollup,

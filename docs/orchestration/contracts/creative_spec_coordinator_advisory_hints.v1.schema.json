@@ -50,7 +50,7 @@
   "$defs": {
     "lesson_id": {
       "type": "string",
-      "pattern": "^lesson-[A-Za-z0-9._:-]{1,25}$"
+      "pattern": "^lesson-[a-f0-9]{12}$"
     },
     "lesson_ids": {
       "type": "array",

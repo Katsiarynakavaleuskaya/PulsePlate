@@ -487,7 +487,7 @@ def test_task_bootstrap_rejects_invalid_creative_learning_hints() -> None:
 
 def test_task_bootstrap_rejects_creative_learning_hints_with_undeclared_focus_lessons() -> None:
     hints = _valid_creative_learning_hints()
-    hints["recommended_role_focus"][0]["source_lesson_ids"] = ["lesson-notdeclared"]
+    hints["recommended_role_focus"][0]["source_lesson_ids"] = ["lesson-ffffffffffff"]
     set_creative_learning_identity(
         hints,
         id_key="hints_id",
@@ -502,6 +502,32 @@ def test_task_bootstrap_rejects_creative_learning_hints_with_undeclared_focus_le
         with pytest.raises(ValueError, match="undeclared lesson ids"):
             build_task_packet(
                 goal="Reject undeclared creative spec learning hint lesson ids",
+                task_class="Orchestration",
+                candidate_paths=["scripts/orchestration/task_bootstrap.py"],
+                creative_learning_hints_path=hints_path,
+            )
+    finally:
+        shutil.rmtree(hints_path.parent, ignore_errors=True)
+
+
+def test_task_bootstrap_rejects_noncanonical_creative_learning_lesson_ids() -> None:
+    hints = _valid_creative_learning_hints()
+    hints["reuse_lesson_ids"] = ["lesson-nothex"]
+    hints["recommended_role_focus"][0]["source_lesson_ids"] = ["lesson-nothex"]
+    set_creative_learning_identity(
+        hints,
+        id_key="hints_id",
+        asset_type=HINTS_ARTIFACT_TYPE,
+        upstream_ids=(
+            str(hints["source_rollup_id"]),
+            str(hints["source_rollup_fingerprint"]),
+        ),
+    )
+    hints_path = _write_creative_learning_hints(hints)
+    try:
+        with pytest.raises(ValueError, match="lesson id"):
+            build_task_packet(
+                goal="Reject noncanonical creative spec learning hint lesson ids",
                 task_class="Orchestration",
                 candidate_paths=["scripts/orchestration/task_bootstrap.py"],
                 creative_learning_hints_path=hints_path,

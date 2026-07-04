@@ -41,6 +41,7 @@ HINTS_ARTIFACT_TYPE = "creative_spec_coordinator_advisory_hints"
 ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 SAFE_TOKEN_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$")
 SHA256_RE = re.compile(r"^sha256:[a-f0-9]{64}$")
+LESSON_ID_RE = re.compile(r"^lesson-[a-f0-9]{12}$")
 SECRET_RE = re.compile(
     r"(sk-[A-Za-z0-9_-]{12,}|gh[psoru]_[A-Za-z0-9_.-]{12,}|github_pat_|"
     r"xox[abprs]-|authorization:\s*bearer|private[_ -]?key|api[_ -]?key|"
@@ -986,7 +987,7 @@ def _normalize_lesson_ids(raw_values: Any, *, label: str) -> list[str]:
     values: list[str] = []
     seen: set[str] = set()
     for index, item in enumerate(raw_values):
-        if not isinstance(item, str) or not item.startswith("lesson-") or len(item) > 32:
+        if not isinstance(item, str) or not LESSON_ID_RE.fullmatch(item):
             raise CreativeSpecLearningRollupError(f"{label}[{index}] must be a lesson id.")
         if item in seen:
             raise CreativeSpecLearningRollupError(f"{label} must not contain duplicates.")
@@ -1023,12 +1024,32 @@ def _normalize_authority(
 def _validate_rollup_outcome_consistency(rollup: Mapping[str, Any]) -> None:
     outcomes = cast(Mapping[str, Any], rollup["outcomes"])
     summary = cast(Mapping[str, Any], rollup["learning_summary"])
+    failure_count = int(summary["failure_count"])
+    rejected_variant_count = int(outcomes["rejected_variant_count"])
+    rejection_record_count = int(outcomes["rejection_record_count"])
+    variant_count = int(outcomes["variant_count"])
+    if rejection_record_count != failure_count:
+        raise CreativeSpecLearningRollupError(
+            "rollup rejection_record_count must match learning_summary.failure_count."
+        )
+    if failure_count == 0 and (rejected_variant_count != 0 or rejection_record_count != 0):
+        raise CreativeSpecLearningRollupError(
+            "rollup rejected counts must be zero when failure_count is zero."
+        )
+    if rejected_variant_count > failure_count:
+        raise CreativeSpecLearningRollupError(
+            "rollup rejected_variant_count must not exceed learning_summary.failure_count."
+        )
     if outcomes["synthesis_status"] == "all_rejected":
         if outcomes["selected_variant_id"] is not None:
             raise CreativeSpecLearningRollupError("all_rejected rollup must not select a variant.")
         if summary["successful_iteration_count"] != 0:
             raise CreativeSpecLearningRollupError(
                 "all_rejected rollup must not emit successful_iteration records."
+            )
+        if failure_count != variant_count or rejected_variant_count != variant_count:
+            raise CreativeSpecLearningRollupError(
+                "all_rejected rollup failure and rejected counts must match variant_count."
             )
     if outcomes["synthesis_status"] == "selected" and summary["successful_iteration_count"] != 1:
         raise CreativeSpecLearningRollupError(
