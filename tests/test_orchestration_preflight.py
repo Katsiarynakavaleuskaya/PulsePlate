@@ -249,19 +249,31 @@ def test_private_python_index_url_shape_warns_in_analyze_mode(
     assert "https://packages.pulseplate.app/root/pulseplate/+simple/" in output
 
 
+@pytest.mark.parametrize(
+    ("index_url", "error_code"),
+    [
+        ("https://packages.pulseplate.app/root/pypi/+simple/", "unexpected_index_path"),
+        ("https://pypi.org/simple/", "public_index_url"),
+        ("https://example.com/root/pulseplate/+simple/", "unexpected_packages_host"),
+        (
+            "https://PACKAGES.PULSEPLATE.APP/root/pulseplate/+simple/",
+            "noncanonical_private_proxy_root",
+        ),
+    ],
+)
 def test_private_python_index_url_shape_warns_for_ambiguous_analyze_scope(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    index_url: str,
+    error_code: str,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
-    monkeypatch.setenv(
-        preflight.INDEX_ENV_VAR,
-        "https://packages.pulseplate.app/root/pypi/+simple/",
-    )
+    monkeypatch.setenv(preflight.INDEX_ENV_VAR, index_url)
 
     assert preflight.check_private_python_index_url_shape("analyze", [])
 
     output = capsys.readouterr().out
     assert "WARNING:" in output
-    assert "unexpected_index_path" in output
+    assert error_code in output
 
 
 def test_private_python_index_url_shape_fails_dependency_sensitive_execute_path(
@@ -331,6 +343,33 @@ def test_private_python_index_url_shape_fails_ambiguous_execute_and_merge_scope(
     output = capsys.readouterr().out
     assert "FAIL:" in output
     assert "unexpected_index_path" in output
+
+
+@pytest.mark.parametrize(
+    ("mode", "paths"),
+    [
+        ("execute", []),
+        ("merge", []),
+        ("execute", ["requirements.in"]),
+        ("merge", ["requirements.in"]),
+    ],
+)
+def test_private_python_index_url_shape_fails_noncanonical_private_root_when_strict(
+    mode: str,
+    paths: list[str],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv(
+        preflight.INDEX_ENV_VAR,
+        "https://PACKAGES.PULSEPLATE.APP/root/pulseplate/+simple/",
+    )
+
+    assert preflight.check_private_python_index_url_shape(mode, paths) is False
+
+    output = capsys.readouterr().out
+    assert "FAIL:" in output
+    assert "noncanonical_private_proxy_root" in output
 
 
 @pytest.mark.parametrize("mode", ["analyze", "execute", "merge"])

@@ -62,12 +62,13 @@ DEPENDENCY_SENSITIVE_PATH_PREFIXES = (
 PRIVATE_INDEX_SCOPE_DEPENDENCY = "dependency-sensitive"
 PRIVATE_INDEX_SCOPE_NON_DEPENDENCY = "explicit-non-dependency"
 PRIVATE_INDEX_SCOPE_AMBIGUOUS = "ambiguous"
+NONCANONICAL_PRIVATE_PROXY_ROOT_ERROR_CODE = "noncanonical_private_proxy_root"
 SUPPRESSED_NON_DEPENDENCY_INDEX_ERROR_CODES = frozenset(
     {
         "public_index_url",
         "unexpected_index_path",
         "unexpected_packages_host",
-        "noncanonical_private_proxy_root",
+        NONCANONICAL_PRIVATE_PROXY_ROOT_ERROR_CODE,
     }
 )
 
@@ -357,6 +358,21 @@ def _private_index_should_suppress_warning(scope: str, error_code: str) -> bool:
     )
 
 
+def _emit_private_index_diagnostic(
+    mode: str,
+    scope: str,
+    error_code: str,
+    message: str,
+) -> bool:
+    if _private_index_should_fail(mode, scope):
+        print(f"FAIL: {message}")
+        return False
+    if _private_index_should_suppress_warning(scope, error_code):
+        return True
+    print(f"WARNING: {message}")
+    return True
+
+
 def check_private_python_index_url_shape(mode: str, task_paths: list[str]) -> bool:
     """Validate configured private Python index shape without network calls."""
     import os
@@ -375,27 +391,15 @@ def check_private_python_index_url_shape(mode: str, task_paths: list[str]) -> bo
             f"proxy root shape ({type(exc).__name__}: {exc}). Expected "
             f"{CANONICAL_PYTHON_INDEX_URL}"
         )
-        if _private_index_should_fail(mode, scope):
-            print(f"FAIL: {message}")
-            return False
-        if _private_index_should_suppress_warning(scope, error_code):
-            return True
-        print(f"WARNING: {message}")
-        return True
+        return _emit_private_index_diagnostic(mode, scope, error_code, message)
 
     if normalized_index_url != CANONICAL_PYTHON_INDEX_URL:
-        error_code = "noncanonical_private_proxy_root"
+        error_code = NONCANONICAL_PRIVATE_PROXY_ROOT_ERROR_CODE
         message = (
             f"{INDEX_ENV_VAR} normalized to a noncanonical private proxy root. "
-            f"Expected {CANONICAL_PYTHON_INDEX_URL}"
+            f"{error_code}: expected {CANONICAL_PYTHON_INDEX_URL}"
         )
-        if _private_index_should_fail(mode, scope):
-            print(f"FAIL: {message}")
-            return False
-        if _private_index_should_suppress_warning(scope, error_code):
-            return True
-        print(f"WARNING: {message}")
-        return True
+        return _emit_private_index_diagnostic(mode, scope, error_code, message)
 
     print("PASS: private Python index URL shape")
     return True
