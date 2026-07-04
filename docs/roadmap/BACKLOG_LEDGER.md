@@ -11030,9 +11030,10 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Follow-up bridge finalize evidence attachment:
       - Priority: P1 automation leverage.
       - Owner: orchestration.
-      - Target PR: separate reviewed PR after the approved-hypothesis bridge.
-      - Reason: bridge output emits pending `skeptic_reviews.json`; downstream reviewer evidence attachment and explicit `finalize` remain outside this slice under coordinator-owned governance.
-      - DoD: reviewer evidence is attached before explicit `finalize`, and no patch, branch, PR, provider, runtime, or review-thread authority is added.
+      - Target PR: `codex/experiment-runner-agent-skeptic-review-finalize`.
+      - Reason: bridge output emits pending `skeptic_reviews.json`; downstream reviewer evidence attachment and explicit `finalize` must happen in a sibling reviewed run so original bridge validation and metrics stay immutable.
+      - DoD: `creative_specification_skeptic_review.py` validates operator-supplied sanitized local skeptic-review evidence, writes only `spec_finalize_reviewed/`, calls existing PR-1 `finalize`, emits a valid `CreativeCodeSpecificationBundle` plus metadata-only receipt, preserves `spec_prepare/`, and adds no patch, branch, PR, provider, workflow, runtime, semantic-cache, graph-truth, fixed-mapping, review-thread, or readiness authority.
+      - Evidence: `scripts/orchestration/creative_specification_skeptic_review.py`; `scripts/orchestration/creative_specification_skeptic_review_contract.py`; `docs/orchestration/contracts/creative_specification_agent_skeptic_reviews.v1.schema.json`; `docs/orchestration/contracts/creative_specification_skeptic_review_attachment.v1.schema.json`; `docs/orchestration/contracts/creative_specification_finalize_receipt.v1.schema.json`; `tests/test_creative_specification_skeptic_review.py`.
     - Follow-up bridge metrics ingestion:
       - Priority: P1 learning-loop leverage.
       - Owner: orchestration.

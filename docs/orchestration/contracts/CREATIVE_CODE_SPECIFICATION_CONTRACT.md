@@ -121,6 +121,28 @@ root, non-JSON inputs, duplicate JSON keys, and partial-write states. The pure
 validator module has no filesystem writes, subprocesses, provider imports,
 network imports, GitHub/Slack calls, or product-runtime imports.
 
+## Reviewed Bridge Finalize Handoff
+
+`creative_specification_skeptic_review.py` is the only bridge-finalize wrapper.
+It consumes a prepared `creative_hypothesis_spec_bridge.py` run plus an
+operator-supplied sanitized `CreativeSpecificationAgentSkepticReviews` artifact,
+validates bridge, candidate, metrics, source-packet, variant, and review
+fingerprints, and writes a sibling reviewed run:
+
+- `artifacts/orchestration/creative_code/spec_bridge/<bridge-id>/spec_finalize_reviewed/source_packet.json`
+- `artifacts/orchestration/creative_code/spec_bridge/<bridge-id>/spec_finalize_reviewed/variants.json`
+- `artifacts/orchestration/creative_code/spec_bridge/<bridge-id>/spec_finalize_reviewed/skeptic_reviews.json`
+- `artifacts/orchestration/creative_code/spec_bridge/<bridge-id>/spec_finalize_reviewed/context_pack.json`
+- `artifacts/orchestration/creative_code/spec_bridge/<bridge-id>/spec_finalize_reviewed/skeptic_review_attachment.json`
+- `artifacts/orchestration/creative_code/spec_bridge/<bridge-id>/spec_finalize_reviewed/creative_code_specification_bundle.json`
+- `artifacts/orchestration/creative_code/spec_bridge/<bridge-id>/spec_finalize_reviewed/finalize_receipt.json`
+
+The wrapper must not mutate the original `spec_prepare/` directory. The
+attachment and receipt are metadata-only binding artifacts with bounded counts
+and closed authority flags; they do not grant patch, branch, PR, provider,
+runtime, semantic-cache, graph-truth, fixed-mapping, review-thread, or
+merge-readiness authority.
+
 ## Rejection Index
 
 Rejected variants are recorded in

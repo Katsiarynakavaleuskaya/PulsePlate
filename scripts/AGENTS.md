@@ -60,6 +60,18 @@
   readiness, merge, release, call providers, call product runtime, change
   workflows, use semantic cache, write graph truth, or mutate GitHub App /
   Slack settings.
+- Reviewed creative-code specification finalization artifacts stay local under
+  `artifacts/orchestration/creative_code/spec_bridge/<bridge-id>/spec_finalize_reviewed/`.
+  The `creative_specification_skeptic_review.py` CLI may only read a prepared
+  bridge run, read operator-supplied sanitized local skeptic-review evidence,
+  copy immutable `spec_prepare/` inputs into the sibling reviewed run,
+  normalize `skeptic_reviews.json`, call the existing PR-1
+  `creative_code_spec_pipeline.finalize`, and emit
+  `skeptic_review_attachment.json` plus `finalize_receipt.json`. It must not
+  rewrite `spec_prepare/`, execute agents, call providers, generate patches,
+  create/write branches, push/open PRs, edit fixed mappings, resolve review
+  threads, modify workflows, call product runtime, use semantic cache, write
+  graph truth, or claim readiness.
 - The runner must apply patches only inside an isolated temporary checkout and must leave the shared working tree untouched.
 - Mutable surfaces, immutable oracles, budgets, and promotion boundaries are defined by `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`; do not duplicate or relax them here.
 - Runner mutation of `scripts/ci/**`, `docs/review/**`, `AGENTS.md`, merge

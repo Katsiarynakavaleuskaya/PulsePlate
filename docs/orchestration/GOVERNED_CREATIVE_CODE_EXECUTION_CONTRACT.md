@@ -56,6 +56,7 @@ open the semantic-cache gate.
 | `private-pilot-lifecycle` | Reads sanitized lifecycle metadata and emits local next-action artifacts. | Allowed only through the private-pilot loop operator; no candidate generation or GitHub write authority. |
 | `pr-creative-context` | Expands eligible PR context into 3-5 hypotheses, validates operator-supplied local hypothesis JSON, assigns normalized hypothesis IDs, records cross-domain analogies, emits agent routing/coordinator dispatch, and prepares approval reservations. | Allowed only through local sanitized Experiment Runner creative-context artifacts; no repo-side provider/model call, patch generation, workflow mutation, semantic cache, or GitHub write authority. |
 | `approved-hypothesis-spec-bridge` | Converts a human-approved creative hypothesis into a validated PR-0 creative-code candidate and existing PR-1 prepare artifacts. | Allowed only through local `creative_hypothesis_spec_bridge.py`; no mutable-surface widening, provider calls, patch generation, PR writes, role execution, finalization, semantic cache, graph truth, or product runtime authority. |
+| `reviewed-spec-finalize` | Attaches sanitized local skeptic-review evidence to a prepared bridge run and delegates to existing PR-1 finalize in a sibling reviewed directory. | Allowed only through local `creative_specification_skeptic_review.py`; must preserve `spec_prepare/`; no agent execution, provider calls, patch generation, PR writes, workflow changes, semantic cache, graph truth, product runtime, fixed-mapping edits, review-thread actions, or readiness claims. |
 
 PR-0 sets:
 
@@ -184,6 +185,8 @@ The approved creative-hypothesis specification bridge artifacts are:
 - `docs/orchestration/contracts/creative_hypothesis_spec_bridge_metrics.v1.schema.json`
 - `scripts/orchestration/creative_hypothesis_spec_bridge_contract.py`
 - `scripts/orchestration/creative_hypothesis_spec_bridge.py`
+- `scripts/orchestration/creative_specification_skeptic_review_contract.py`
+- `scripts/orchestration/creative_specification_skeptic_review.py`
 - `artifacts/orchestration/creative_code/spec_bridge/<bridge-id>/creative_hypothesis_specification_bridge.json`
 - `artifacts/orchestration/creative_code/spec_bridge/<bridge-id>/creative_code_candidate_packet.json`
 - `artifacts/orchestration/creative_code/spec_bridge/<bridge-id>/bridge_metrics.json`
@@ -191,6 +194,9 @@ The approved creative-hypothesis specification bridge artifacts are:
 - `artifacts/orchestration/creative_code/spec_bridge/<bridge-id>/spec_prepare/variants.json`
 - `artifacts/orchestration/creative_code/spec_bridge/<bridge-id>/spec_prepare/skeptic_reviews.json`
 - `artifacts/orchestration/creative_code/spec_bridge/<bridge-id>/spec_prepare/context_pack.json`
+- `artifacts/orchestration/creative_code/spec_bridge/<bridge-id>/spec_finalize_reviewed/skeptic_review_attachment.json`
+- `artifacts/orchestration/creative_code/spec_bridge/<bridge-id>/spec_finalize_reviewed/creative_code_specification_bundle.json`
+- `artifacts/orchestration/creative_code/spec_bridge/<bridge-id>/spec_finalize_reviewed/finalize_receipt.json`
 
 Bridge output directories must be exactly
 `artifacts/orchestration/creative_code/spec_bridge/<bridge-id>/`; bridge refs,
@@ -248,6 +254,12 @@ PR-0 is a contract-only start point.
   existing PR-1 prepare artifacts; no agent execution, finalize, candidate
   patches, provider calls, workflow changes, repository writes, product runtime
   truth, semantic cache, graph truth, or mutable-surface widening.
+- Reviewed bridge finalize evidence attachment: attach sanitized local
+  skeptic-review evidence in sibling `spec_finalize_reviewed/`, run the
+  existing PR-1 `finalize`, emit metadata-only attachment/receipt counts, and
+  preserve `spec_prepare/`; no agent execution, patches, branch/PR writes,
+  provider calls, workflows, product runtime truth, semantic cache, graph truth,
+  fixed-mapping edits, review-thread actions, or readiness claims.
 - PR-2: generate isolated candidate patches only in sandboxed evaluation
   workspaces with exact source-bundle fingerprint binding, exact `origin/main`
   base SHA, fixed Codex CLI argv/env, strict patch policy validation, direct
@@ -280,9 +292,9 @@ PR-0 is a contract-only start point.
   workflows, call providers, call product runtime, create branches, open PRs,
   post comments, resolve threads, edit fixed mappings, merge, or claim
   readiness.
-- Bridge follow-ups remain separate reviewed PRs: attach agent skeptic reviews
-  and `finalize`, ingest bridge metrics into the existing telemetry /
-  learning-loop rollup, and explore graph/multimodal lineage only after
+- Bridge follow-ups remain separate reviewed PRs: ingest bridge metrics into
+  the existing telemetry / learning-loop rollup and explore graph/multimodal
+  lineage only after
   repo-reviewed evidence contracts define asset lineage, fingerprints,
   idempotency, and replay/admission behavior.
 

@@ -1,0 +1,191 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pulseplate.local/contracts/creative_specification_finalize_receipt.v1.schema.json",
+  "title": "CreativeSpecificationFinalizeReceipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "finalize_id",
+    "idempotency_key",
+    "policy_version",
+    "source_attachment_id",
+    "source_attachment_fingerprint",
+    "source_attachment_ref",
+    "reviewed_run_dir_ref",
+    "bundle_ref",
+    "bundle_id",
+    "bundle_fingerprint",
+    "bundle_idempotency_key",
+    "selected_variant_id",
+    "synthesis_status",
+    "next_allowed_action",
+    "counts",
+    "authority",
+    "sanitized"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "artifact_type": { "const": "creative_specification_finalize_receipt" },
+    "finalize_id": { "$ref": "#/$defs/safe_id" },
+    "idempotency_key": { "$ref": "#/$defs/safe_id" },
+    "policy_version": { "const": "creative-specification-skeptic-review-finalize-v1" },
+    "source_attachment_id": { "$ref": "#/$defs/safe_id" },
+    "source_attachment_fingerprint": { "$ref": "#/$defs/sha256" },
+    "source_attachment_ref": { "$ref": "#/$defs/artifact_ref" },
+    "reviewed_run_dir_ref": { "$ref": "#/$defs/reviewed_run_ref" },
+    "bundle_ref": { "$ref": "#/$defs/artifact_ref" },
+    "bundle_id": { "$ref": "#/$defs/safe_id" },
+    "bundle_fingerprint": { "$ref": "#/$defs/sha256" },
+    "bundle_idempotency_key": { "$ref": "#/$defs/safe_id" },
+    "selected_variant_id": {
+      "anyOf": [
+        { "type": "null" },
+        { "$ref": "#/$defs/safe_id" }
+      ]
+    },
+    "synthesis_status": { "enum": ["selected", "all_rejected"] },
+    "next_allowed_action": {
+      "enum": [
+        "human_review_for_patch_builder",
+        "human_review_for_discard_or_defer"
+      ]
+    },
+    "counts": { "$ref": "#/$defs/counts" },
+    "authority": { "$ref": "#/$defs/finalize_authority" },
+    "sanitized": { "const": true }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "selected_variant_id": { "type": "null" } } },
+      "then": {
+        "properties": {
+          "synthesis_status": { "const": "all_rejected" },
+          "next_allowed_action": { "const": "human_review_for_discard_or_defer" }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "selected_variant_id": { "type": "string" } } },
+      "then": {
+        "properties": {
+          "synthesis_status": { "const": "selected" },
+          "next_allowed_action": { "const": "human_review_for_patch_builder" }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "safe_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "artifact_ref": {
+      "type": "string",
+      "pattern": "^artifacts/orchestration/creative_code/spec_bridge/[A-Za-z0-9][A-Za-z0-9._:-]{0,127}(?:/[A-Za-z0-9][A-Za-z0-9._:-]{0,127}(?:\\.json)?)?$",
+      "not": { "pattern": "(?:^|/)\\.\\.?(?:/|$)" }
+    },
+    "reviewed_run_ref": {
+      "type": "string",
+      "pattern": "^artifacts/orchestration/creative_code/spec_bridge/[A-Za-z0-9][A-Za-z0-9._:-]{0,127}/spec_finalize_reviewed$",
+      "not": { "pattern": "(?:^|/)\\.\\.?(?:/|$)" }
+    },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "variant_count",
+        "review_count",
+        "selected_variant_count",
+        "rejected_variant_count",
+        "unresolved_blocker_count",
+        "rejection_record_count"
+      ],
+      "properties": {
+        "variant_count": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "review_count": { "type": "integer", "minimum": 1, "maximum": 15 },
+        "selected_variant_count": { "type": "integer", "minimum": 0, "maximum": 1 },
+        "rejected_variant_count": { "type": "integer", "minimum": 0, "maximum": 5 },
+        "unresolved_blocker_count": { "type": "integer", "minimum": 0, "maximum": 30 },
+        "rejection_record_count": { "type": "integer", "minimum": 0, "maximum": 5 }
+      }
+    },
+    "finalize_authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "finalize_specification_bundle": { "const": true },
+        "emit_local_artifacts": { "const": true },
+        "attach_skeptic_reviews": { "const": false },
+        "operator_supplied_sanitized_reviews": { "const": false },
+        "call_product_runtime": { "const": false },
+        "call_provider": { "const": false },
+        "change_client_runtime": { "const": false },
+        "change_openapi": { "const": false },
+        "claim_merge_readiness": { "const": false },
+        "create_branch": { "const": false },
+        "dispatch_to_agents": { "const": false },
+        "edit_fixed_mapping": { "const": false },
+        "execute_agent_tasks": { "const": false },
+        "execute_pr2_patch_builder": { "const": false },
+        "execute_pr3_promotion": { "const": false },
+        "generate_candidate_patch": { "const": false },
+        "generate_patch": { "const": false },
+        "merge": { "const": false },
+        "modify_workflows": { "const": false },
+        "open_draft_pr": { "const": false },
+        "open_pr": { "const": false },
+        "post_github_comment": { "const": false },
+        "push": { "const": false },
+        "read_secrets": { "const": false },
+        "resolve_threads": { "const": false },
+        "use_semantic_cache": { "const": false },
+        "workflow_dispatch": { "const": false },
+        "write_branch": { "const": false },
+        "write_graph_truth": { "const": false },
+        "write_repository": { "const": false },
+        "write_shared_worktree": { "const": false }
+      },
+      "required": [
+        "attach_skeptic_reviews",
+        "call_product_runtime",
+        "call_provider",
+        "change_client_runtime",
+        "change_openapi",
+        "claim_merge_readiness",
+        "create_branch",
+        "dispatch_to_agents",
+        "edit_fixed_mapping",
+        "emit_local_artifacts",
+        "execute_agent_tasks",
+        "execute_pr2_patch_builder",
+        "execute_pr3_promotion",
+        "finalize_specification_bundle",
+        "generate_candidate_patch",
+        "generate_patch",
+        "merge",
+        "modify_workflows",
+        "open_draft_pr",
+        "open_pr",
+        "operator_supplied_sanitized_reviews",
+        "post_github_comment",
+        "push",
+        "read_secrets",
+        "resolve_threads",
+        "use_semantic_cache",
+        "workflow_dispatch",
+        "write_branch",
+        "write_graph_truth",
+        "write_repository",
+        "write_shared_worktree"
+      ]
+    }
+  }
+}
