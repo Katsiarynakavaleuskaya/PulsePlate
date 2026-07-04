@@ -34,6 +34,7 @@ Commit: 8d50f28c1
 Evidence: docs/review/RECIPE_NUTRITION_REFERENCE_CANONICAL_BOOTSTRAP_EXPERIMENT_RUNNER_EVIDENCE.md:46 records the rejected zero-network attempt without the duplicated artifact path, and tests/test_recipe_nutrition_reference_registration_bootstrap.py:183 asserts JSON Content-Type before response.json().
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2073#discussion_r3523323769 -> 8d50f28c1
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2073#discussion_r3523323772 -> 8d50f28c1
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2073#pullrequestreview-4629721797 -> 8d50f28c1
 
 Disposition: FIXED
 Commit: 111cc0f77e2ee1b849c92555e85422bb74b39a2e
@@ -80,6 +81,11 @@ Disposition: FIXED
 Commit: f843dddd18b6a76ef5e08d73a0b7342512c24e10
 Evidence: scripts/ci/check_legacy_growth_guard.py:257 recognizes getattr(app, "include_router") call actions, scripts/ci/check_legacy_growth_guard.py:656 treats indirect include_router calls as router-registration calls, and tests/test_legacy_growth_guard.py:1199 covers the recipes router bypass.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2073#discussion_r3523434326 -> f843dddd18b6a76ef5e08d73a0b7342512c24e10
+
+Disposition: FIXED
+Commit: 41c09ce035c63cde9eb0591af4efa5ddc64123ca
+Evidence: scripts/ci/check_legacy_growth_guard.py:697 resolves getattr method-name aliases through collected static string bindings, and tests/test_legacy_growth_guard.py:1215 covers the bound method-name recipes router bypass.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2073#discussion_r3523515621 -> 41c09ce035c63cde9eb0591af4efa5ddc64123ca
 
 Disposition: NOT-A-BUG
 Evidence: git cat-file -e c036554829af5c11d4703d088647daa3964ba195^{commit} fails locally while git log origin/main..HEAD contains ac08b4b6f4e241c18b62e24dbc90db027e78d985 with Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>.
@@ -151,9 +157,11 @@ runtime, provider, client, or public API authority.
 - `python -m pytest -q tests/test_legacy_growth_guard.py::test_legacy_growth_guard_rejects_recipe_nutrition_reference_router_reintroduction` - PASS after the indirect include_router regression fix.
 - `python -m pytest -q tests/test_legacy_growth_guard.py` - PASS after the indirect include_router regression fix.
 - `python -m pytest -q tests/test_recipe_nutrition_reference_registration_bootstrap.py tests/test_openapi_namespace_guards.py tests/security/test_api_auth_tier_contract_pack.py tests/security/test_api_authz_contract_static.py` - PASS after the indirect include_router regression fix.
+- `python -m pytest -q tests/test_legacy_growth_guard.py::test_legacy_growth_guard_rejects_recipe_nutrition_reference_router_reintroduction tests/test_legacy_growth_guard.py` - PASS after the bound getattr method-name regression fix.
 - `python -m pytest -q tests/test_nutrition_recommendations_api.py::TestFreeRecommendationsSuccess::test_recommendations_success tests/test_recipe_nutrition_reference_registration_bootstrap.py::test_nutrition_recommendations_route_cannot_be_shadowed_by_dynamic_v1_alias` - PASS.
 - `python scripts/ci/check_legacy_growth_guard.py` - PASS.
 - `python -m mypy app/bootstrap/route_family.py app/main.py app/routers/recipes.py app/routers/nutrition_recommendations.py scripts/ci/check_legacy_growth_guard.py` - PASS.
+- `python -m mypy scripts/ci/check_legacy_growth_guard.py` - PASS after the bound getattr method-name regression fix.
 - `DEV_PYTHON=.venv/bin/python make openapi-check` - PASS.
 - `git diff --exit-code -- frontend/src/api/openapi.json frontend/src/api/schema.ts` - PASS.
 - `pre-commit run --all-files` - PASS after hook formatting was committed and affected tests rerun.
