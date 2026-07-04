@@ -18,14 +18,27 @@ strict.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: 05db477ea9157d5dd6adee562d8d4fd054bed861
+Evidence: scripts/orchestration/check_preflight.py now defines NONCANONICAL_PRIVATE_PROXY_ROOT_ERROR_CODE and reuses it for the suppression set and normalized-root diagnostic branch. tests/test_orchestration_preflight.py parametrizes ambiguous analyze warnings across non-credential private-index error codes. Covered by .venv/bin/python -m pytest -q tests/test_orchestration_preflight.py.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2076#discussion_r3523767563 -> 05db477ea9157d5dd6adee562d8d4fd054bed861
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2076#discussion_r3523767564 -> 05db477ea9157d5dd6adee562d8d4fd054bed861
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2076#pullrequestreview-4630182820 -> 05db477ea9157d5dd6adee562d8d4fd054bed861
+
+Disposition: FIXED
+Commit: 05db477ea9157d5dd6adee562d8d4fd054bed861
+Evidence: tests/test_orchestration_preflight.py adds strict execute/merge coverage for noncanonical_private_proxy_root under ambiguous and dependency-sensitive scopes, and scripts/orchestration/check_preflight.py routes both validator and normalized-root diagnostics through _emit_private_index_diagnostic. Covered by .venv/bin/python -m pytest -q tests/test_orchestration_preflight.py.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2076#discussion_r3523771895 -> 05db477ea9157d5dd6adee562d8d4fd054bed861
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2076#pullrequestreview-4630186604 -> 05db477ea9157d5dd6adee562d8d4fd054bed861
 
 ## Role-Agent Evidence
 
 - Pre-open packet: `artifacts/orchestration/task_packets/460f6432fcc7.json`
 - Pre-open role order completed: `agent-coordinator -> cursor-specialist-agent -> qa-engineer-agent -> bug-hunter -> security-auditor -> architecture-specialist`.
 - Post-open packet: `artifacts/orchestration/task_packets/b246ad7d1515.json`
-- Post-open coordinator found the missing canonical mapping artifact/body mirror as the active governance blocker before merge-readiness claims.
+- Current post-open packet: `artifacts/orchestration/task_packets/965672eaaf7c.json`
+- Post-open coordinator found and cleared the stale PR head / missing canonical mapping artifact blocker before merge-readiness claims.
+- Post-open QA found the missing noncanonical_private_proxy_root strict-path coverage and unmapped bot actionables; commit `05db477ea9157d5dd6adee562d8d4fd054bed861` fixes them.
 
 ## Experiment Runner Evidence
 
@@ -55,7 +68,7 @@ Starter: `scripts/orchestration/start_pr_lane.sh`
 - `python3 scripts/orchestration/check_preflight.py --mode analyze --path scripts/orchestration/check_preflight.py --path tests/test_orchestration_preflight.py` - PASS; no private-index warning for explicit non-dependency scope under the ambient wrong-root env.
 - `python3 scripts/orchestration/check_preflight.py` - PASS; ambiguous no-path preflight still reports the private-index warning.
 - `python3 scripts/orchestration/check_agent_consistency.py` - PASS.
-- `.venv/bin/python -m pytest -q tests/test_orchestration_preflight.py` - PASS, 37 passed.
+- `.venv/bin/python -m pytest -q tests/test_orchestration_preflight.py` - PASS, 44 passed after bot-review fix coverage.
 - `.venv/bin/python -m pytest -q tests/test_private_python_proxy_health.py` - PASS, 31 passed.
 - `PULSEPLATE_PYTHON_INDEX_URL="https://packages.pulseplate.app/root/pulseplate/+simple/" python3 scripts/ci/install_locked_python_requirements.py --preflight-only` - PASS.
 - `git diff --check` - PASS.
