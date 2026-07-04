@@ -46,8 +46,9 @@ local `make verify`.
 
 - [x] Fixed in commit mapping artifact created after GitHub assigned PR number
   `#2073`.
-- [ ] Post-open `qa-engineer-agent` pass completed.
-- [ ] Post-open `bug-hunter` pass completed.
+- [x] Post-open `qa-engineer-agent` pass completed.
+- [x] Post-open `bug-hunter` pass completed; three P2 findings fixed in
+  `8d50f28c1`.
 - [ ] Post-open `security-auditor` pass completed.
 - [ ] Codex Security diff scan / finding discovery completed for current head.
 - [ ] `pulseplate-pr-review` completed for current head.
@@ -58,13 +59,39 @@ local `make verify`.
 
 ## Fixed in Commit Mapping
 
-No review threads or actionable bot comments existed when this artifact was
-created. Future actionable comments must be added here with disposition-specific
-proof before any thread resolution or merge-readiness claim.
+No GitHub review threads or actionable bot comments existed when this artifact
+was created. The post-open `bug-hunter` role pass found three P2 actionables;
+they are dispositioned below.
+
+Disposition: FIXED
+Commit: 8d50f28c1
+Evidence: `app/bootstrap/route_family.py` now rejects existing static-family
+registrations whose FastAPI route order differs from source route order;
+`tests/test_main_paywall_bootstrap.py` covers generic order drift, and
+`tests/test_recipe_nutrition_reference_registration_bootstrap.py` covers
+`/api/v1/recipes/search` before `/api/v1/recipes/{recipe_id}`.
+Reason: Prevents a complete preexisting family from passing membership checks
+while shadowing `/api/v1/recipes/search` through `/{recipe_id}`.
+
+Disposition: FIXED
+Commit: 8d50f28c1
+Evidence:
+`docs/review/RECIPE_NUTRITION_REFERENCE_CANONICAL_BOOTSTRAP_EXPERIMENT_RUNNER_EVIDENCE.md`
+now records the rejected zero-network attempt as an unpromoted infra caveat
+without presenting a duplicated artifact path as review evidence.
+Reason: Keeps Experiment Runner evidence locatable and avoids promoting a
+rejected local infra-flake artifact.
+
+Disposition: FIXED
+Commit: 8d50f28c1
+Evidence: `tests/test_recipe_nutrition_reference_registration_bootstrap.py`
+asserts the JSON `Content-Type` before parsing the recipe search response.
+Reason: Aligns the new bootstrap test with `tests/AGENTS.md` JSON response
+assertion policy.
 
 ## Review Comment Dispositions
 
-No review comments have been dispositioned yet.
+No GitHub review comments have been dispositioned yet.
 
 ## Experiment Runner Evidence
 
@@ -102,6 +129,16 @@ grant product runtime, provider, client, or public API authority.
   `tests/test_recipe_nutrition_reference_registration_bootstrap.py`.
 - Pre-push hooks - PASS: mypy changed files, pip-audit, backend pytest
   pre-push, full-repo Bandit, docker build test.
+- Bug-hunter fix validation:
+  `python -m pytest -q tests/test_recipe_nutrition_reference_registration_bootstrap.py tests/test_main_paywall_bootstrap.py::test_route_family_rejects_existing_route_order_drift`
+  - PASS.
+- Bug-hunter focused bundle:
+  `python -m pytest -q tests/test_recipes_api.py tests/test_recipe_preview.py tests/test_nutrition_recommendations_api.py tests/test_recipe_nutrition_reference_registration_bootstrap.py tests/test_legacy_growth_guard.py tests/test_main_paywall_bootstrap.py tests/test_openapi_namespace_guards.py tests/security/test_api_auth_tier_contract_pack.py tests/security/test_api_authz_contract_static.py`
+  - PASS.
+- Bug-hunter fix `python scripts/ci/check_legacy_growth_guard.py` - PASS.
+- Bug-hunter fix `DEV_PYTHON=.venv/bin/python make openapi-check` - PASS.
+- Bug-hunter fix `pre-commit run --all-files` - PASS after Black formatted
+  `app/bootstrap/route_family.py` and affected tests were rerun.
 
 ## Merge Readiness
 
