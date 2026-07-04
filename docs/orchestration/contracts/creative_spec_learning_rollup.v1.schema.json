@@ -1,0 +1,380 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pulseplate.local/contracts/creative_spec_learning_rollup.v1.schema.json",
+  "title": "CreativeSpecLearningRollup",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "policy_version",
+    "rollup_id",
+    "idempotency_key",
+    "source",
+    "outcomes",
+    "agent_feedback",
+    "learning_records",
+    "learning_summary",
+    "authority",
+    "sanitized"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "artifact_type": { "const": "creative_spec_learning_rollup" },
+    "policy_version": { "const": "creative-spec-learning-rollup-v1" },
+    "rollup_id": { "$ref": "#/$defs/safe_id" },
+    "idempotency_key": { "$ref": "#/$defs/safe_id" },
+    "source": { "$ref": "#/$defs/source" },
+    "outcomes": { "$ref": "#/$defs/outcomes" },
+    "agent_feedback": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 6,
+      "items": { "$ref": "#/$defs/agent_feedback" }
+    },
+    "learning_records": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 6,
+      "items": { "$ref": "#/$defs/agent_learning_record" }
+    },
+    "learning_summary": { "$ref": "#/$defs/learning_summary" },
+    "authority": { "$ref": "#/$defs/authority" },
+    "sanitized": { "const": true }
+  },
+  "$defs": {
+    "safe_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "safe_token": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 96,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "repo_path": {
+      "type": "string",
+      "pattern": "^(?![A-Za-z][A-Za-z0-9+.-]*:)(?!/)(?![A-Za-z]:[\\\\/])(?!~(?:/|$))(?!(?:tmp|var|Users|Volumes|private)(?:/|$))(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
+    },
+    "lesson_id": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 32,
+      "pattern": "^lesson-[a-f0-9]{12}$"
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "bridge_metrics_id",
+        "bridge_metrics_fingerprint",
+        "bridge_id",
+        "skeptic_attachment_id",
+        "skeptic_attachment_fingerprint",
+        "finalize_id",
+        "finalize_receipt_fingerprint",
+        "bundle_id",
+        "bundle_fingerprint",
+        "source_packet_id",
+        "source_packet_fingerprint"
+      ],
+      "properties": {
+        "bridge_metrics_id": { "$ref": "#/$defs/safe_id" },
+        "bridge_metrics_fingerprint": { "$ref": "#/$defs/sha256" },
+        "bridge_id": { "$ref": "#/$defs/safe_id" },
+        "skeptic_attachment_id": { "$ref": "#/$defs/safe_id" },
+        "skeptic_attachment_fingerprint": { "$ref": "#/$defs/sha256" },
+        "finalize_id": { "$ref": "#/$defs/safe_id" },
+        "finalize_receipt_fingerprint": { "$ref": "#/$defs/sha256" },
+        "bundle_id": { "$ref": "#/$defs/safe_id" },
+        "bundle_fingerprint": { "$ref": "#/$defs/sha256" },
+        "source_packet_id": { "$ref": "#/$defs/safe_id" },
+        "source_packet_fingerprint": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "outcomes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "variant_count",
+        "selected_variant_id",
+        "synthesis_status",
+        "next_allowed_action",
+        "pass_review_count",
+        "revise_review_count",
+        "reject_review_count",
+        "unsafe_authority_flag_count",
+        "blocker_count",
+        "unresolved_blocker_count",
+        "rejected_variant_count",
+        "rejection_record_count",
+        "generation_status",
+        "oracle_status",
+        "failure_class",
+        "human_decision"
+      ],
+      "properties": {
+        "variant_count": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "selected_variant_id": {
+          "anyOf": [
+            { "type": "null" },
+            { "$ref": "#/$defs/safe_id" }
+          ]
+        },
+        "synthesis_status": { "enum": ["selected", "all_rejected"] },
+        "next_allowed_action": {
+          "enum": [
+            "human_review_for_patch_builder",
+            "human_review_for_discard_or_defer"
+          ]
+        },
+        "pass_review_count": { "type": "integer", "minimum": 0, "maximum": 15 },
+        "revise_review_count": { "type": "integer", "minimum": 0, "maximum": 15 },
+        "reject_review_count": { "type": "integer", "minimum": 0, "maximum": 15 },
+        "unsafe_authority_flag_count": { "type": "integer", "minimum": 0, "maximum": 150 },
+        "blocker_count": { "type": "integer", "minimum": 0, "maximum": 150 },
+        "unresolved_blocker_count": { "type": "integer", "minimum": 0, "maximum": 150 },
+        "rejected_variant_count": { "type": "integer", "minimum": 0, "maximum": 5 },
+        "rejection_record_count": { "type": "integer", "minimum": 0, "maximum": 5 },
+        "generation_status": { "$ref": "#/$defs/safe_token" },
+        "oracle_status": { "$ref": "#/$defs/safe_token" },
+        "failure_class": {
+          "anyOf": [
+            { "type": "null" },
+            { "$ref": "#/$defs/safe_token" }
+          ]
+        },
+        "human_decision": { "$ref": "#/$defs/safe_token" }
+      }
+    },
+    "agent_feedback": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reviewer_role", "pass_count", "revise_count", "reject_count"],
+      "properties": {
+        "reviewer_role": { "$ref": "#/$defs/safe_token" },
+        "pass_count": { "type": "integer", "minimum": 0, "maximum": 5 },
+        "revise_count": { "type": "integer", "minimum": 0, "maximum": 5 },
+        "reject_count": { "type": "integer", "minimum": 0, "maximum": 5 }
+      }
+    },
+    "agent_learning_record": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "lesson_id",
+        "source",
+        "pattern_kind",
+        "pattern",
+        "severity",
+        "affected_surfaces",
+        "root_cause",
+        "required_oracle",
+        "promotion_target",
+        "learning_metrics",
+        "dedupe_fingerprint",
+        "redaction_status",
+        "human_review_required"
+      ],
+      "properties": {
+        "lesson_id": { "$ref": "#/$defs/lesson_id" },
+        "source": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "pattern_kind": { "enum": ["failure", "successful_iteration"] },
+        "pattern": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "severity": { "enum": ["low", "medium", "high", "critical"] },
+        "affected_surfaces": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/repo_path" },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "root_cause": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "required_oracle": {
+          "enum": [
+            "schema_validator_parity",
+            "fail_closed_security_edge",
+            "deterministic_content_oracle",
+            "canonical_route_ownership_guard",
+            "evidence_hygiene_mapping_timing",
+            "review_source_degraded"
+          ]
+        },
+        "promotion_target": { "$ref": "#/$defs/repo_path" },
+        "learning_metrics": { "$ref": "#/$defs/learning_metrics" },
+        "dedupe_fingerprint": { "$ref": "#/$defs/sha256" },
+        "redaction_status": { "enum": ["clean", "redacted"] },
+        "human_review_required": { "const": true }
+      }
+    },
+    "learning_metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "primary_metric",
+        "secondary_metrics",
+        "measurement_window",
+        "authority_boundary",
+        "runtime_telemetry_allowed",
+        "product_runtime_truth",
+        "semantic_cache_used",
+        "graph_truth_updated"
+      ],
+      "properties": {
+        "schema_version": { "const": "agent_learning_metrics.v1" },
+        "primary_metric": {
+          "enum": [
+            "agent_iteration_quality",
+            "business_risk_clarity",
+            "premortem_code_closure_rate",
+            "project_development_signal",
+            "repeat_failure_reduction",
+            "review_actionable_escape_reduction",
+            "successful_pattern_reuse",
+            "user_impact_clarity"
+          ]
+        },
+        "secondary_metrics": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "agent_iteration_quality",
+              "business_risk_clarity",
+              "premortem_code_closure_rate",
+              "project_development_signal",
+              "repeat_failure_reduction",
+              "review_actionable_escape_reduction",
+              "successful_pattern_reuse",
+              "user_impact_clarity"
+            ]
+          },
+          "uniqueItems": true
+        },
+        "measurement_window": {
+          "enum": [
+            "current_pr",
+            "next_comparable_pr",
+            "next_two_comparable_prs",
+            "release_train"
+          ]
+        },
+        "authority_boundary": { "const": "proposal_only_non_runtime" },
+        "runtime_telemetry_allowed": { "const": false },
+        "product_runtime_truth": { "const": false },
+        "semantic_cache_used": { "const": false },
+        "graph_truth_updated": { "const": false }
+      }
+    },
+    "learning_summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "learning_record_count",
+        "successful_iteration_count",
+        "failure_count",
+        "reuse_lesson_ids",
+        "avoid_lesson_ids"
+      ],
+      "properties": {
+        "learning_record_count": { "type": "integer", "minimum": 1, "maximum": 6 },
+        "successful_iteration_count": { "type": "integer", "minimum": 0, "maximum": 1 },
+        "failure_count": { "type": "integer", "minimum": 0, "maximum": 5 },
+        "reuse_lesson_ids": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/lesson_id" },
+          "maxItems": 6,
+          "uniqueItems": true
+        },
+        "avoid_lesson_ids": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/lesson_id" },
+          "maxItems": 6,
+          "uniqueItems": true
+        }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "auto_execute_agents",
+        "call_product_runtime",
+        "call_provider",
+        "change_client_runtime",
+        "change_openapi",
+        "change_primary_agent",
+        "claim_merge_readiness",
+        "create_branch",
+        "edit_fixed_mapping",
+        "emit_coordinator_advisory_hints",
+        "emit_local_artifacts",
+        "emit_proposal_learning_records",
+        "execute_pr2_patch_builder",
+        "force_agent_routing",
+        "generate_candidate_patch",
+        "generate_patch",
+        "merge",
+        "modify_agents",
+        "modify_github_app",
+        "modify_slack",
+        "modify_task_bootstrap",
+        "modify_workflows",
+        "open_pr",
+        "post_github_comment",
+        "push",
+        "read_finalized_spec_outcomes",
+        "read_secrets",
+        "resolve_threads",
+        "skip_required_roles",
+        "use_semantic_cache",
+        "workflow_dispatch",
+        "write_branch",
+        "write_graph_truth",
+        "write_repository"
+      ],
+      "properties": {
+        "read_finalized_spec_outcomes": { "const": true },
+        "emit_local_artifacts": { "const": true },
+        "emit_proposal_learning_records": { "const": true },
+        "emit_coordinator_advisory_hints": { "const": true },
+        "auto_execute_agents": { "const": false },
+        "call_product_runtime": { "const": false },
+        "call_provider": { "const": false },
+        "change_client_runtime": { "const": false },
+        "change_openapi": { "const": false },
+        "change_primary_agent": { "const": false },
+        "claim_merge_readiness": { "const": false },
+        "create_branch": { "const": false },
+        "edit_fixed_mapping": { "const": false },
+        "execute_pr2_patch_builder": { "const": false },
+        "force_agent_routing": { "const": false },
+        "generate_candidate_patch": { "const": false },
+        "generate_patch": { "const": false },
+        "merge": { "const": false },
+        "modify_agents": { "const": false },
+        "modify_github_app": { "const": false },
+        "modify_slack": { "const": false },
+        "modify_task_bootstrap": { "const": false },
+        "modify_workflows": { "const": false },
+        "open_pr": { "const": false },
+        "post_github_comment": { "const": false },
+        "push": { "const": false },
+        "read_secrets": { "const": false },
+        "resolve_threads": { "const": false },
+        "skip_required_roles": { "const": false },
+        "use_semantic_cache": { "const": false },
+        "workflow_dispatch": { "const": false },
+        "write_branch": { "const": false },
+        "write_graph_truth": { "const": false },
+        "write_repository": { "const": false }
+      }
+    }
+  }
+}

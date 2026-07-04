@@ -11037,9 +11037,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Follow-up bridge metrics ingestion:
       - Priority: P1 learning-loop leverage.
       - Owner: orchestration.
-      - Target PR: separate reviewed PR after the approved-hypothesis bridge.
-      - Reason: bridge metrics are deterministic local sidecars but are not yet ingested into the existing telemetry / learning-loop rollup.
-      - DoD: bridge metrics ingest into the existing advisory telemetry / learning-loop rollup with redaction, bounded fields, no runtime telemetry, no product truth, no semantic-cache use, and no graph truth.
+      - Target PR: `codex/experiment-runner-creative-spec-learning-rollup`.
+      - Status: active reviewed PR lane.
+      - Reason: bridge metrics and reviewed finalize outcomes are deterministic local sidecars but need proposal-only learning-loop ingestion before patch-builder admission can be considered.
+      - DoD: finalized bridge metrics, skeptic-review attachment, finalize receipt, and `CreativeCodeSpecificationBundle` ingest into `agent_learning_record.v1` success/failure records plus coordinator advisory hints with redaction, bounded fields, no runtime telemetry, no product truth, no semantic-cache use, no graph truth, no provider calls, no patch generation, and no routing or merge-readiness authority.
+      - Evidence target: `scripts/orchestration/creative_spec_learning_rollup.py`; `scripts/orchestration/creative_spec_learning_rollup_contract.py`; `docs/orchestration/contracts/creative_spec_learning_rollup.v1.schema.json`; `docs/orchestration/contracts/creative_spec_coordinator_advisory_hints.v1.schema.json`; `tests/test_creative_spec_learning_rollup.py`; `tests/test_task_bootstrap.py`.
     - Follow-up bridge authority schema single-source:
       - Priority: P2 maintainability.
       - Owner: orchestration.

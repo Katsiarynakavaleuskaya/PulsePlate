@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 
 import scripts.orchestration.task_bootstrap as task_bootstrap_module
+from core.evidence.fingerprints import fingerprint_payload
 from core.judgment import (
     CLAIM_EVIDENCE_FIELDS,
     CLAIM_TYPES,
@@ -27,6 +28,16 @@ from scripts.orchestration.context_pack import repo_relative_paths
 from scripts.orchestration.context_pack_compression import _ROLE_FINGERPRINT_RE
 from scripts.orchestration.design_lane_contract import canonicalize_design_blockers
 from scripts.orchestration.context_pack import REPO_ROOT, normalize_repo_path
+from scripts.orchestration.agent_learning_loop import build_agent_learning_record
+from scripts.orchestration.creative_spec_learning_rollup_contract import (
+    POLICY_VERSION as CREATIVE_LEARNING_POLICY_VERSION,
+    ROLLUP_ARTIFACT_TYPE,
+    SCHEMA_VERSION as CREATIVE_LEARNING_SCHEMA_VERSION,
+    build_coordinator_advisory_hints,
+    default_rollup_authority,
+    validate_creative_spec_learning_rollup,
+    _set_identity as set_creative_learning_identity,
+)
 from scripts.orchestration.routing_graph_loader import (
     BootstrapLaneActivation,
     REQUIRED_BOOTSTRAP_LANE,
@@ -47,6 +58,92 @@ from scripts.orchestration.task_bootstrap import (
 )
 
 FIXTURE_DIR = Path(__file__).resolve().parent / "fixtures" / "orchestration"
+
+
+def _valid_creative_learning_hints() -> dict[str, object]:
+    record = build_agent_learning_record(
+        source="creative_spec_finalize:finalize-test:selected:variant-test",
+        pattern="Selected creative specification variant passed skeptic review.",
+        severity="low",
+        affected_surfaces=["scripts/orchestration/task_bootstrap.py"],
+        root_cause="Skeptic-review coverage created a reusable specification pattern.",
+        required_oracle="deterministic_content_oracle",
+        promotion_target="docs/orchestration/AGENT_LEARNING_LOOP.md",
+        pattern_kind="successful_iteration",
+    )
+    rollup: dict[str, object] = {
+        "schema_version": CREATIVE_LEARNING_SCHEMA_VERSION,
+        "artifact_type": ROLLUP_ARTIFACT_TYPE,
+        "policy_version": CREATIVE_LEARNING_POLICY_VERSION,
+        "rollup_id": "pending",
+        "idempotency_key": "pending",
+        "source": {
+            "bridge_metrics_id": "metrics-test",
+            "bridge_metrics_fingerprint": "sha256:" + ("1" * 64),
+            "bridge_id": "bridge-test",
+            "skeptic_attachment_id": "attachment-test",
+            "skeptic_attachment_fingerprint": "sha256:" + ("2" * 64),
+            "finalize_id": "finalize-test",
+            "finalize_receipt_fingerprint": "sha256:" + ("3" * 64),
+            "bundle_id": "bundle-test",
+            "bundle_fingerprint": "sha256:" + ("4" * 64),
+            "source_packet_id": "packet-test",
+            "source_packet_fingerprint": "sha256:" + ("5" * 64),
+        },
+        "outcomes": {
+            "variant_count": 1,
+            "selected_variant_id": "variant-test",
+            "synthesis_status": "selected",
+            "next_allowed_action": "human_review_for_patch_builder",
+            "pass_review_count": 1,
+            "revise_review_count": 0,
+            "reject_review_count": 0,
+            "unsafe_authority_flag_count": 0,
+            "blocker_count": 0,
+            "unresolved_blocker_count": 0,
+            "rejected_variant_count": 0,
+            "rejection_record_count": 0,
+            "generation_status": "ready",
+            "oracle_status": "ready",
+            "failure_class": None,
+            "human_decision": "pending",
+        },
+        "agent_feedback": [
+            {
+                "reviewer_role": "qa-engineer-agent",
+                "pass_count": 1,
+                "revise_count": 0,
+                "reject_count": 0,
+            }
+        ],
+        "learning_records": [record],
+        "learning_summary": {
+            "learning_record_count": 1,
+            "successful_iteration_count": 1,
+            "failure_count": 0,
+            "reuse_lesson_ids": [record["lesson_id"]],
+            "avoid_lesson_ids": [],
+        },
+        "authority": default_rollup_authority(),
+        "sanitized": True,
+    }
+    set_creative_learning_identity(
+        rollup,
+        id_key="rollup_id",
+        asset_type=ROLLUP_ARTIFACT_TYPE,
+        upstream_ids=("finalize-test", "bundle-test", "metrics-test"),
+    )
+    return build_coordinator_advisory_hints(validate_creative_spec_learning_rollup(rollup))
+
+
+def _write_creative_learning_hints(payload: dict[str, object]) -> Path:
+    hints_dir = task_bootstrap_module.CREATIVE_LEARNING_HINTS_ROOT / (
+        f"pytest-task-bootstrap-{uuid.uuid4().hex}"
+    )
+    hints_dir.mkdir(parents=True, exist_ok=False)
+    hints_path = hints_dir / "coordinator_advisory_hints.json"
+    hints_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return hints_path
 
 
 def _privileged_surface_cases() -> list[dict[str, object]]:
@@ -272,6 +369,31 @@ def test_task_bootstrap_adds_automation_metadata_defaults() -> None:
     assert packet["agent_learning_loop"]["promoter"].endswith("agent_lesson_promoter.py")
     assert packet["agent_learning_loop"]["runtime_authority"] is False
     assert packet["skill_routing"]["envelope_mode_hint"] == "docs_only"
+    assert packet["creative_learning_hints"] == {
+        "schema_version": "creative_learning_hints_packet.v1",
+        "current_packet_includes_hints": False,
+        "source_hints_id": "",
+        "source_hints_fingerprint": "",
+        "source_rollup_id": "",
+        "source_rollup_fingerprint": "",
+        "recommended_role_focus": [],
+        "reuse_lesson_ids": [],
+        "avoid_lesson_ids": [],
+        "authority_boundary": "advisory_only_non_runtime",
+        "side_effects_allowed": False,
+        "routing_authority": False,
+        "execution_authority": False,
+        "merge_readiness_authority": False,
+        "patch_generation_authority": False,
+        "semantic_cache_used": False,
+        "graph_truth_updated": False,
+        "product_runtime_truth": False,
+        "change_primary_agent": False,
+        "force_agent_routing": False,
+        "skip_required_roles": False,
+        "execute_agents": False,
+        "change_lifecycle_gates": False,
+    }
     _docs_paths = ["docs/ENGINEERING_LESSONS.md"]
     _norm_docs = repo_relative_paths([p.strip() for p in _docs_paths if p.strip()])
     assert packet["skill_routing"]["envelope_mode_hint"] == resolve_analysis_envelope_mode(
@@ -288,6 +410,115 @@ def test_task_bootstrap_adds_automation_metadata_defaults() -> None:
     assert packet["needs_backlog_update"] is False
     assert packet["needs_docs_sync"] is False
     assert packet["needs_agents_sync"] is False
+
+
+def test_task_bootstrap_creative_learning_hints_are_advisory_only() -> None:
+    hints = _valid_creative_learning_hints()
+    hints_path = _write_creative_learning_hints(hints)
+    try:
+        kwargs = {
+            "goal": "Use creative spec learning hints for reviewer focus",
+            "task_class": "Orchestration",
+            "candidate_paths": [
+                "scripts/orchestration/task_bootstrap.py",
+                "docs/orchestration/AGENT_LEARNING_LOOP.md",
+            ],
+            "requested_agents": [
+                "architecture-specialist",
+                "security-auditor",
+                "qa-engineer-agent",
+            ],
+            "pr_phase": "pre_open",
+        }
+        base_packet = build_task_packet(**kwargs)
+        hinted_packet = build_task_packet(
+            **kwargs,
+            creative_learning_hints_path=hints_path,
+        )
+
+        assert hinted_packet["task_packet_id"] != base_packet["task_packet_id"]
+        for stable_routing_key in (
+            "primary_agent",
+            "secondary_agents",
+            "reviewer",
+            "requested_agent_disposition",
+            "native_subagent_bridge",
+            "role_agent_dispatch_contract",
+            "pr_lifecycle_contract",
+        ):
+            assert hinted_packet[stable_routing_key] == base_packet[stable_routing_key]
+
+        packet_hints = hinted_packet["creative_learning_hints"]
+        assert packet_hints["current_packet_includes_hints"] is True
+        assert packet_hints["source_hints_id"] == hints["hints_id"]
+        assert packet_hints["source_hints_fingerprint"] == fingerprint_payload(hints)
+        assert packet_hints["source_rollup_id"] == hints["source_rollup_id"]
+        assert packet_hints["source_rollup_fingerprint"] == hints["source_rollup_fingerprint"]
+        assert packet_hints["recommended_role_focus"] == hints["recommended_role_focus"]
+        assert packet_hints["reuse_lesson_ids"] == hints["reuse_lesson_ids"]
+        assert packet_hints["avoid_lesson_ids"] == hints["avoid_lesson_ids"]
+        assert packet_hints["routing_authority"] is False
+        assert packet_hints["execution_authority"] is False
+        assert packet_hints["merge_readiness_authority"] is False
+        assert packet_hints["patch_generation_authority"] is False
+        assert packet_hints["semantic_cache_used"] is False
+        assert packet_hints["graph_truth_updated"] is False
+        assert packet_hints["product_runtime_truth"] is False
+    finally:
+        shutil.rmtree(hints_path.parent, ignore_errors=True)
+
+
+def test_task_bootstrap_rejects_invalid_creative_learning_hints() -> None:
+    hints = _valid_creative_learning_hints()
+    hints["authority"]["force_agent_routing"] = True
+    hints_path = _write_creative_learning_hints(hints)
+    try:
+        with pytest.raises(ValueError, match="invalid authority"):
+            build_task_packet(
+                goal="Reject invalid creative spec learning hints",
+                task_class="Orchestration",
+                candidate_paths=["scripts/orchestration/task_bootstrap.py"],
+                creative_learning_hints_path=hints_path,
+            )
+    finally:
+        shutil.rmtree(hints_path.parent, ignore_errors=True)
+
+
+def test_task_bootstrap_cli_accepts_creative_learning_hints(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    hints = _valid_creative_learning_hints()
+    hints_path = _write_creative_learning_hints(hints)
+    output_path = (
+        task_bootstrap_module.TASK_PACKET_DIR
+        / f"pytest-creative-learning-hints-{uuid.uuid4().hex}.json"
+    )
+    try:
+        exit_code = main(
+            [
+                "--goal",
+                "Expose creative spec learning hints in packet",
+                "--task-class",
+                "Orchestration",
+                "--path",
+                "scripts/orchestration/task_bootstrap.py",
+                "--creative-learning-hints",
+                str(hints_path),
+                "--output",
+                str(output_path),
+            ]
+        )
+        captured = capsys.readouterr()
+        assert exit_code == 0, captured.out
+        packet = json.loads(output_path.read_text(encoding="utf-8"))
+        summary = json.loads(captured.out)
+        assert summary["creative_learning_hints_fingerprint"] == fingerprint_payload(hints)
+        assert packet["creative_learning_hints"]["source_hints_fingerprint"] == (
+            fingerprint_payload(hints)
+        )
+    finally:
+        output_path.unlink(missing_ok=True)
+        shutil.rmtree(hints_path.parent, ignore_errors=True)
 
 
 def test_task_bootstrap_requires_learning_loop_for_repeated_premortem_failure() -> None:
