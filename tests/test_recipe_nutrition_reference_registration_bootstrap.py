@@ -184,6 +184,25 @@ def test_recipe_search_alias_remains_reachable(
     assert response.json() == []
 
 
+def test_nutrition_recommendations_route_cannot_be_shadowed_by_dynamic_v1_alias() -> None:
+    for route in iter_effective_route_candidates(app_main.app.routes):
+        if not is_api_route_candidate(route) or "GET" not in route_methods(route):
+            continue
+
+        path = route_path(route)
+        if path == "/api/v1/nutrition/recommendations":
+            endpoint = route_endpoint(route)
+            assert endpoint.__module__ == "app.routers.nutrition_recommendations"
+            assert endpoint.__name__ == "get_recommendations"
+            return
+
+        assert not (
+            path.startswith("/api/v1/nutrition/") and "{" in path
+        ), f"{path} is registered before /api/v1/nutrition/recommendations"
+
+    raise AssertionError("missing GET /api/v1/nutrition/recommendations route")
+
+
 def test_recipe_nutrition_reference_registration_rejects_route_order_drift() -> None:
     target_app = FastAPI()
     drifted_order = (

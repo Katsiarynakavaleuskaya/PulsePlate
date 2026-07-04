@@ -1205,6 +1205,7 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
     register_tracing(app)
     _register_paid_tier_routes(app)
     register_pro_contract_routes(app)
+    _include_recipe_nutrition_reference_routers_if_needed(app)
     _include_nutrition_state_routers_if_needed(app)
 
     ws_paths_present = {path for path in _WS_ROUTE_PATHS if _has_route(app, path)}
@@ -1225,7 +1226,6 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
     _include_bodyfat_router_if_needed(app)
     _include_business_router_if_enabled(app)
     _include_food_catalog_routers_if_needed(app)
-    _include_recipe_nutrition_reference_routers_if_needed(app)
     _include_test_router_if_enabled(app)
     _include_plan_export_routers_if_needed(app)
     _include_shoplist_export_router_if_needed(app)
