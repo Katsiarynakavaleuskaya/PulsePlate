@@ -49,7 +49,6 @@ local `make verify`.
 - [x] Post-open `qa-engineer-agent` pass completed.
 - [x] Post-open `bug-hunter` pass completed; three P2 findings fixed in
   `8d50f28c1`.
-- [ ] Post-open `security-auditor` pass completed.
 - [x] Post-open `security-auditor` pass completed.
 - [x] Codex Security diff scan / finding discovery completed for
   `191a2a317a42b6b7cc255e0011affedfe74e4435`.
@@ -59,7 +58,7 @@ local `make verify`.
 - [ ] CodeRabbit actionable review comments checked and dispositioned.
 - [ ] Sourcery actionable review comments checked and dispositioned.
 - [ ] Cubic actionable review comments checked and dispositioned.
-- [ ] Discussion-thread pass completed.
+- [x] Discussion-thread pass completed.
 
 ## Fixed in Commit Mapping
 
