@@ -140,6 +140,7 @@ def _artifact_ref(path: Path) -> str:
 
 
 def _read_json_file(path: Path) -> Any:
+    _reject_symlink_components(path, label="JSON artifact")
     try:
         return json.loads(
             path.read_text(encoding="utf-8"),
@@ -184,6 +185,8 @@ def _write_json_atomic(path: Path, payload: Any) -> None:
     _reject_symlink_components(path.parent, label="output artifact parent")
     path.parent.mkdir(parents=True, exist_ok=True)
     _reject_symlink_components(path.parent, label="output artifact parent")
+    if path.is_symlink():
+        raise CreativeSpecificationSkepticReviewCliError("output artifact must not be a symlink.")
     temp_name: str | None = None
     try:
         with tempfile.NamedTemporaryFile(
@@ -379,6 +382,11 @@ def _reject_unexpected_entries(path: Path, *, allowed: set[str], label: str) -> 
         raise CreativeSpecificationSkepticReviewCliError(f"{label} must be a directory.")
     if not path.exists():
         return
+    symlink_children = sorted(child.name for child in path.iterdir() if child.is_symlink())
+    if symlink_children:
+        raise CreativeSpecificationSkepticReviewCliError(
+            f"{label} contains symlink artifact(s): {', '.join(symlink_children)}."
+        )
     unexpected = sorted(child.name for child in path.iterdir() if child.name not in allowed)
     if unexpected:
         raise CreativeSpecificationSkepticReviewCliError(
@@ -504,6 +512,16 @@ def _validate_attachment_artifacts(attachment_path: Path) -> tuple[dict[str, Any
     if attachment_file.parent.resolve(strict=True) != reviewed_dir.resolve(strict=True):
         raise CreativeSpecificationSkepticReviewCliError(
             "attachment must be stored inside its reviewed_run_dir_ref."
+        )
+    canonical_attachment = reviewed_dir / ATTACHMENT_FILENAME
+    if attachment_file.name != ATTACHMENT_FILENAME:
+        raise CreativeSpecificationSkepticReviewCliError(
+            f"attachment input must be the canonical {ATTACHMENT_FILENAME} artifact."
+        )
+    _reject_symlink_components(canonical_attachment, label="canonical attachment")
+    if attachment_file.resolve(strict=True) != canonical_attachment.resolve(strict=True):
+        raise CreativeSpecificationSkepticReviewCliError(
+            f"attachment input must be the canonical {ATTACHMENT_FILENAME} artifact."
         )
     source_packet = _read_json_object(reviewed_dir / "source_packet.json", label="source packet")
     variants = _read_json_array(reviewed_dir / "variants.json", label="variants")

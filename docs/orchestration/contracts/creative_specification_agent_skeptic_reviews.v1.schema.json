@@ -60,7 +60,7 @@
       "allOf": [
         {
           "not": {
-            "pattern": "(candidate\\.patch|diff --git|provider[_ -]?payload|raw[_ -]?(prompt|response|context)|chain[_ -]?of[_ -]?thought|https?://|api\\.openai\\.com|call model|call network|runtime service|product runtime|repository patch|git commit|git push|pull request|write repository|resolve review thread|merge readiness|semantic cache|graph truth|workflow dispatch|diagnose|treat|clinical efficacy|crisis support|emergency care)"
+            "pattern": "([Cc]andidate\\.patch|[Dd]iff --git|[Pp]rovider[_ -]?[Pp]ayload|[Rr]aw[_ -]?([Pp]rompt|[Rr]esponse|[Cc]ontext)|[Cc]hain[_ -]?[Oo]f[_ -]?[Tt]hought|https?://|api\\.openai\\.com|[Cc]all [Mm]odel|[Cc]all [Nn]etwork|[Rr]untime [Ss]ervice|[Pp]roduct [Rr]untime|[Aa]pply ([Aa] )?([Rr]epository )?[Pp]atch|[Rr]epository [Pp]atch|[Cc]ommit [Cc]hanges|[Gg]it [Cc]ommit|[Gg]it [Pp]ush|[Cc]reate ([Aa] )?([Pp]ull [Rr]equest|PR|[Bb]ranch)|[Oo]pen ([Aa] )?([Dd]raft )?([Pp]ull [Rr]equest|PR)|[Ww]rite ([Tt]o )?([Tt]he )?[Rr]epository|[Ww]rite [Rr]epository|[Rr]esolve [Rr]eview [Tt]hread|[Mm]ark [Rr]eady [Ff]or [Rr]eview|[Mm]erge [Rr]eadiness|[Ss]emantic [Cc]ache|[Gg]raph [Tt]ruth|[Ww]orkflow [Dd]ispatch|[Pp]rovider [Cc]all|[Dd]iagnose|[Tt]reat|[Cc]linical [Ee]fficacy|[Cc]risis [Ss]upport|[Ee]mergency [Cc]are)"
           }
         },
         {

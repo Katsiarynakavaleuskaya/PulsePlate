@@ -412,6 +412,111 @@ def test_finalize_receipt_records_all_rejected_status(
         shutil.rmtree(input_dir, ignore_errors=True)
 
 
+def test_validate_rejects_noncanonical_attachment_path(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    output_dir, input_dir = _prepared_bridge(capsys, suffix="noncanonical-attachment")
+    try:
+        reviews_path = _write_review_input(output_dir, _review_input(output_dir))
+        assert (
+            review_cli.main(
+                [
+                    "attach",
+                    "--bridge",
+                    str(output_dir / bridge_cli.BRIDGE_FILENAME),
+                    "--reviews",
+                    str(reviews_path),
+                ]
+            )
+            == 0
+        )
+        capsys.readouterr()
+
+        reviewed_dir = output_dir / "spec_finalize_reviewed"
+        attachment_path = reviewed_dir / review_cli.ATTACHMENT_FILENAME
+        alternate_path = reviewed_dir / "alternate_attachment.json"
+        alternate_path.write_text(attachment_path.read_text(encoding="utf-8"), encoding="utf-8")
+
+        exit_code = review_cli.main(["validate", "--attachment", str(alternate_path)])
+        captured = capsys.readouterr()
+        assert exit_code == 1
+        assert f"canonical {review_cli.ATTACHMENT_FILENAME}" in captured.err
+    finally:
+        shutil.rmtree(output_dir, ignore_errors=True)
+        shutil.rmtree(input_dir, ignore_errors=True)
+
+
+def test_attach_rejects_prepared_child_symlink_before_read(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    output_dir, input_dir = _prepared_bridge(capsys, suffix="prepared-child-symlink")
+    try:
+        reviews_path = _write_review_input(output_dir, _review_input(output_dir))
+        spec_prepare = output_dir / "spec_prepare"
+        source_packet_path = spec_prepare / "source_packet.json"
+        symlink_target = tmp_path / "source_packet.json"
+        symlink_target.write_text(source_packet_path.read_text(encoding="utf-8"), encoding="utf-8")
+        source_packet_path.unlink()
+        source_packet_path.symlink_to(symlink_target)
+
+        exit_code = review_cli.main(
+            [
+                "attach",
+                "--bridge",
+                str(output_dir / bridge_cli.BRIDGE_FILENAME),
+                "--reviews",
+                str(reviews_path),
+            ]
+        )
+        captured = capsys.readouterr()
+        assert exit_code == 1
+        assert "spec_prepare contains symlink artifact(s): source_packet.json" in captured.err
+        assert not (output_dir / "spec_finalize_reviewed").exists()
+    finally:
+        shutil.rmtree(output_dir, ignore_errors=True)
+        shutil.rmtree(input_dir, ignore_errors=True)
+
+
+def test_validate_rejects_reviewed_child_symlink_before_read(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    output_dir, input_dir = _prepared_bridge(capsys, suffix="reviewed-child-symlink")
+    try:
+        reviews_path = _write_review_input(output_dir, _review_input(output_dir))
+        assert (
+            review_cli.main(
+                [
+                    "attach",
+                    "--bridge",
+                    str(output_dir / bridge_cli.BRIDGE_FILENAME),
+                    "--reviews",
+                    str(reviews_path),
+                ]
+            )
+            == 0
+        )
+        capsys.readouterr()
+
+        reviewed_dir = output_dir / "spec_finalize_reviewed"
+        variants_path = reviewed_dir / "variants.json"
+        symlink_target = tmp_path / "variants.json"
+        symlink_target.write_text(variants_path.read_text(encoding="utf-8"), encoding="utf-8")
+        variants_path.unlink()
+        variants_path.symlink_to(symlink_target)
+
+        exit_code = review_cli.main(
+            ["validate", "--attachment", str(reviewed_dir / review_cli.ATTACHMENT_FILENAME)]
+        )
+        captured = capsys.readouterr()
+        assert exit_code == 1
+        assert "JSON artifact must not traverse symlinks" in captured.err
+    finally:
+        shutil.rmtree(output_dir, ignore_errors=True)
+        shutil.rmtree(input_dir, ignore_errors=True)
+
+
 @pytest.mark.parametrize(
     ("case_slug", "mutator", "expected_error"),
     [
@@ -624,6 +729,23 @@ def test_reviewed_finalize_schemas_are_strict() -> None:
         )
         assert schema["additionalProperties"] is False
         assert "attach-and-finalize" not in json.dumps(schema)
+    review_input_schema = json.loads(
+        (
+            REPO_ROOT
+            / "docs/orchestration/contracts/creative_specification_agent_skeptic_reviews.v1.schema.json"
+        ).read_text(encoding="utf-8")
+    )
+    unsafe_text_pattern = review_input_schema["$defs"]["safe_text"]["allOf"][0]["not"]["pattern"]
+    for blocked_phrase in (
+        "Apply patch",
+        "create branch",
+        "open PR",
+        "mark ready for review",
+        "provider call",
+        "Write to repository",
+        "Commit changes",
+    ):
+        assert re.search(unsafe_text_pattern, blocked_phrase), blocked_phrase
     attachment_schema = json.loads(
         (
             REPO_ROOT
