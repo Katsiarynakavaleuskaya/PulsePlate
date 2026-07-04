@@ -19,6 +19,7 @@ from scripts.orchestration.agent_learning_loop import (
 )
 from scripts.orchestration.creative_spec_learning_rollup_contract import (
     CreativeSpecLearningRollupError,
+    HINTS_ARTIFACT_TYPE,
     ROLLUP_ARTIFACT_TYPE,
     build_coordinator_advisory_hints,
     build_creative_spec_learning_rollup,
@@ -205,6 +206,31 @@ def test_hints_reject_unsafe_text_and_authority_widening(
         widened_hints["authority"]["force_agent_routing"] = True
         with pytest.raises(CreativeSpecLearningRollupError, match="invalid authority"):
             validate_coordinator_advisory_hints(widened_hints)
+    finally:
+        shutil.rmtree(output_dir, ignore_errors=True)
+        shutil.rmtree(input_dir, ignore_errors=True)
+
+
+def test_hints_reject_focus_lesson_ids_not_declared_in_reuse_or_avoid(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    suffix = f"learning-undeclared-lesson-{uuid.uuid4().hex[:8]}"
+    output_dir, input_dir, artifacts = _finalized_artifacts(capsys, suffix=suffix)
+    try:
+        hints = build_coordinator_advisory_hints(build_creative_spec_learning_rollup(**artifacts))
+        hints["recommended_role_focus"][0]["source_lesson_ids"] = ["lesson-notdeclared"]
+        set_creative_learning_identity(
+            hints,
+            id_key="hints_id",
+            asset_type=HINTS_ARTIFACT_TYPE,
+            upstream_ids=(
+                str(hints["source_rollup_id"]),
+                str(hints["source_rollup_fingerprint"]),
+            ),
+        )
+
+        with pytest.raises(CreativeSpecLearningRollupError, match="undeclared lesson ids"):
+            validate_coordinator_advisory_hints(hints)
     finally:
         shutil.rmtree(output_dir, ignore_errors=True)
         shutil.rmtree(input_dir, ignore_errors=True)

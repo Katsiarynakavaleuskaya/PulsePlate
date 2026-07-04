@@ -438,6 +438,7 @@ def validate_coordinator_advisory_hints(payload: Mapping[str, Any]) -> dict[str,
         "authority": _normalize_hints_authority(payload["authority"], label=f"{label}.authority"),
         "sanitized": _require_bool(payload, "sanitized", expected=True, label=label),
     }
+    _validate_hints_lesson_references(normalized, label=label)
     _validate_identity(
         normalized,
         id_key="hints_id",
@@ -449,6 +450,28 @@ def validate_coordinator_advisory_hints(payload: Mapping[str, Any]) -> dict[str,
     )
     _reject_payload_safety(normalized, label=label)
     return normalized
+
+
+def _validate_hints_lesson_references(hints: Mapping[str, Any], *, label: str) -> None:
+    declared_reuse = set(cast(Sequence[str], hints["reuse_lesson_ids"]))
+    declared_avoid = set(cast(Sequence[str], hints["avoid_lesson_ids"]))
+    overlap = sorted(declared_reuse.intersection(declared_avoid))
+    if overlap:
+        raise CreativeSpecLearningRollupError(
+            f"{label}.reuse_lesson_ids and avoid_lesson_ids must be disjoint."
+        )
+    declared = declared_reuse | declared_avoid
+    for index, focus in enumerate(
+        cast(Sequence[Mapping[str, Any]], hints["recommended_role_focus"])
+    ):
+        source_ids = set(cast(Sequence[str], focus["source_lesson_ids"]))
+        undeclared = sorted(source_ids.difference(declared))
+        if undeclared:
+            joined = ", ".join(undeclared)
+            raise CreativeSpecLearningRollupError(
+                f"{label}.recommended_role_focus[{index}].source_lesson_ids "
+                f"references undeclared lesson ids: {joined}."
+            )
 
 
 def _validate_source_chain(

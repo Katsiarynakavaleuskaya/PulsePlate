@@ -30,6 +30,7 @@ from scripts.orchestration.design_lane_contract import canonicalize_design_block
 from scripts.orchestration.context_pack import REPO_ROOT, normalize_repo_path
 from scripts.orchestration.agent_learning_loop import build_agent_learning_record
 from scripts.orchestration.creative_spec_learning_rollup_contract import (
+    HINTS_ARTIFACT_TYPE,
     POLICY_VERSION as CREATIVE_LEARNING_POLICY_VERSION,
     ROLLUP_ARTIFACT_TYPE,
     SCHEMA_VERSION as CREATIVE_LEARNING_SCHEMA_VERSION,
@@ -476,6 +477,31 @@ def test_task_bootstrap_rejects_invalid_creative_learning_hints() -> None:
         with pytest.raises(ValueError, match="invalid authority"):
             build_task_packet(
                 goal="Reject invalid creative spec learning hints",
+                task_class="Orchestration",
+                candidate_paths=["scripts/orchestration/task_bootstrap.py"],
+                creative_learning_hints_path=hints_path,
+            )
+    finally:
+        shutil.rmtree(hints_path.parent, ignore_errors=True)
+
+
+def test_task_bootstrap_rejects_creative_learning_hints_with_undeclared_focus_lessons() -> None:
+    hints = _valid_creative_learning_hints()
+    hints["recommended_role_focus"][0]["source_lesson_ids"] = ["lesson-notdeclared"]
+    set_creative_learning_identity(
+        hints,
+        id_key="hints_id",
+        asset_type=HINTS_ARTIFACT_TYPE,
+        upstream_ids=(
+            str(hints["source_rollup_id"]),
+            str(hints["source_rollup_fingerprint"]),
+        ),
+    )
+    hints_path = _write_creative_learning_hints(hints)
+    try:
+        with pytest.raises(ValueError, match="undeclared lesson ids"):
+            build_task_packet(
+                goal="Reject undeclared creative spec learning hint lesson ids",
                 task_class="Orchestration",
                 candidate_paths=["scripts/orchestration/task_bootstrap.py"],
                 creative_learning_hints_path=hints_path,
