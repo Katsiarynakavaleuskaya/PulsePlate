@@ -133,8 +133,8 @@
         "pass_review_count": { "type": "integer", "minimum": 0, "maximum": 15 },
         "revise_review_count": { "type": "integer", "minimum": 0, "maximum": 15 },
         "reject_review_count": { "type": "integer", "minimum": 0, "maximum": 15 },
-        "unsafe_authority_flag_count": { "type": "integer", "minimum": 0, "maximum": 15 },
-        "blocker_count": { "type": "integer", "minimum": 0, "maximum": 30 }
+        "unsafe_authority_flag_count": { "type": "integer", "minimum": 0, "maximum": 150 },
+        "blocker_count": { "type": "integer", "minimum": 0, "maximum": 150 }
       }
     },
     "attachment_authority": {

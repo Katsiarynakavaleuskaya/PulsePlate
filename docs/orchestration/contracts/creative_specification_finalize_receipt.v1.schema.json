@@ -113,7 +113,7 @@
         "review_count": { "type": "integer", "minimum": 1, "maximum": 15 },
         "selected_variant_count": { "type": "integer", "minimum": 0, "maximum": 1 },
         "rejected_variant_count": { "type": "integer", "minimum": 0, "maximum": 5 },
-        "unresolved_blocker_count": { "type": "integer", "minimum": 0, "maximum": 30 },
+        "unresolved_blocker_count": { "type": "integer", "minimum": 0, "maximum": 150 },
         "rejection_record_count": { "type": "integer", "minimum": 0, "maximum": 5 }
       }
     },

@@ -44,6 +44,7 @@ from scripts.orchestration.creative_specification_skeptic_review_contract import
     CreativeSpecificationSkepticReviewError,
     build_finalize_receipt,
     build_skeptic_review_attachment,
+    build_skeptic_review_coverage,
     normalize_skeptic_reviews_for_pr1,
     validate_agent_skeptic_reviews_input,
     validate_finalize_receipt,
@@ -544,22 +545,78 @@ def _validate_attachment_artifacts(attachment_path: Path) -> tuple[dict[str, Any
         str(source["bridge_ref"]),
         label="source bridge ref",
     )
+    if source_bridge_path.name != BRIDGE_FILENAME:
+        raise CreativeSpecificationSkepticReviewCliError(
+            f"source bridge ref must point to canonical {BRIDGE_FILENAME}."
+        )
+    source_bridge = validate_creative_hypothesis_specification_bridge(
+        _read_json_object(source_bridge_path, label="source bridge")
+    )
+    _prepared_bridge_dir(source_bridge, source_bridge_path)
+    if source_bridge["bridge_id"] != source["bridge_id"]:
+        raise CreativeSpecificationSkepticReviewCliError(
+            "fingerprint_mismatch: source bridge id does not match attachment."
+        )
+    if fingerprint_payload(source_bridge) != source["bridge_fingerprint"]:
+        raise CreativeSpecificationSkepticReviewCliError(
+            "fingerprint_mismatch: source bridge fingerprint does not match attachment."
+        )
+    source_bridge_candidate = cast(Mapping[str, Any], source_bridge["candidate_packet"])
+    if source_bridge_candidate["candidate_id"] != source["candidate_id"]:
+        raise CreativeSpecificationSkepticReviewCliError(
+            "fingerprint_mismatch: source candidate id does not match bridge."
+        )
+    if source_bridge_candidate["candidate_fingerprint"] != source["candidate_fingerprint"]:
+        raise CreativeSpecificationSkepticReviewCliError(
+            "fingerprint_mismatch: source candidate fingerprint does not match bridge."
+        )
+    if source_bridge_candidate["candidate_packet_ref"] != source["candidate_ref"]:
+        raise CreativeSpecificationSkepticReviewCliError(
+            "fingerprint_mismatch: source candidate ref does not match bridge."
+        )
     expected_reviewed_dir = source_bridge_path.parent / REVIEWED_RUN_DIRNAME
     if reviewed_dir.resolve(strict=True) != expected_reviewed_dir.resolve(strict=False):
         raise CreativeSpecificationSkepticReviewCliError(
             "reviewed_run_dir_ref must be the sibling of the source bridge artifact."
+        )
+    expected_metrics_ref = _artifact_ref(source_bridge_path.parent / METRICS_FILENAME)
+    if source["metrics_ref"] != expected_metrics_ref:
+        raise CreativeSpecificationSkepticReviewCliError(
+            "fingerprint_mismatch: source metrics ref does not match bridge layout."
+        )
+    source_bridge_prepare = cast(Mapping[str, Any], source_bridge["spec_prepare"])
+    if source_bridge_prepare["run_dir_ref"] != source["spec_prepare_ref"]:
+        raise CreativeSpecificationSkepticReviewCliError(
+            "fingerprint_mismatch: source spec_prepare ref does not match bridge."
         )
     source_spec_prepare_dir = _resolve_repo_artifact_ref(
         str(source["spec_prepare_ref"]),
         label="source spec_prepare ref",
         expect_dir=True,
     )
-    if source_spec_prepare_dir.parent.resolve(strict=True) != source_bridge_path.parent.resolve(
+    expected_spec_prepare_dir = source_bridge_path.parent / "spec_prepare"
+    if source_spec_prepare_dir.resolve(strict=True) != expected_spec_prepare_dir.resolve(
         strict=True
     ):
         raise CreativeSpecificationSkepticReviewCliError(
-            "spec_prepare_ref must be a sibling of the source bridge artifact."
+            "spec_prepare_ref must point to the canonical source spec_prepare artifact."
         )
+    _reject_unexpected_entries(
+        source_spec_prepare_dir,
+        allowed=set(PREPARE_FILENAMES),
+        label="source spec_prepare",
+    )
+    expected_source_refs = {
+        "source_packet_ref": source_spec_prepare_dir / "source_packet.json",
+        "variants_ref": source_spec_prepare_dir / "variants.json",
+        "pending_reviews_ref": source_spec_prepare_dir / "skeptic_reviews.json",
+        "context_pack_ref": source_spec_prepare_dir / "context_pack.json",
+    }
+    for key, expected_path in expected_source_refs.items():
+        if source[key] != _artifact_ref(expected_path):
+            raise CreativeSpecificationSkepticReviewCliError(
+                f"fingerprint_mismatch: source {key} does not match spec_prepare layout."
+            )
     source_packet = _read_json_object(reviewed_dir / "source_packet.json", label="source packet")
     variants = _read_json_array(reviewed_dir / "variants.json", label="variants")
     reviews = _read_json_array(reviewed_dir / "skeptic_reviews.json", label="skeptic reviews")
@@ -640,6 +697,14 @@ def _validate_attachment_artifacts(attachment_path: Path) -> tuple[dict[str, Any
         raise CreativeSpecificationSkepticReviewCliError(
             "reviewed finalize run cannot build a valid CreativeCodeSpecificationBundle."
         ) from exc
+    expected_coverage = build_skeptic_review_coverage(
+        normalized_reviews=cast(Sequence[Mapping[str, Any]], reviews),
+        variant_count=len(variants),
+    )
+    if attachment["coverage"] != expected_coverage:
+        raise CreativeSpecificationSkepticReviewCliError(
+            "fingerprint_mismatch: attachment coverage does not match reviewed artifacts."
+        )
     if fingerprint_payload(source_packet) != source["source_packet_fingerprint"]:
         raise CreativeSpecificationSkepticReviewCliError(
             "fingerprint_mismatch: reviewed source packet does not match attachment."
@@ -690,20 +755,25 @@ def _finalize_from_attachment(attachment_path: Path) -> dict[str, Any]:
         creative_code_spec_pipeline.finalize(reviewed_dir, bundle_path)
     except creative_code_spec_pipeline.CreativeCodeSpecPipelineError as exc:
         raise CreativeSpecificationSkepticReviewCliError(str(exc)) from exc
-    bundle = validate_creative_code_specification_bundle(
-        read_creative_code_specification_bundle(bundle_path)
-    )
-    receipt = cast(
-        dict[str, Any],
-        build_finalize_receipt(
-            attachment=attachment,
-            attachment_ref=_artifact_ref(reviewed_dir / ATTACHMENT_FILENAME),
-            bundle=bundle,
-            bundle_ref=_artifact_ref(bundle_path),
-        ),
-    )
-    _write_json_atomic(receipt_path, receipt)
-    validate_finalize_receipt(receipt)
+    try:
+        bundle = validate_creative_code_specification_bundle(
+            read_creative_code_specification_bundle(bundle_path)
+        )
+        receipt = cast(
+            dict[str, Any],
+            build_finalize_receipt(
+                attachment=attachment,
+                attachment_ref=_artifact_ref(reviewed_dir / ATTACHMENT_FILENAME),
+                bundle=bundle,
+                bundle_ref=_artifact_ref(bundle_path),
+            ),
+        )
+        _write_json_atomic(receipt_path, receipt)
+        validate_finalize_receipt(receipt)
+    except Exception:
+        bundle_path.unlink(missing_ok=True)
+        receipt_path.unlink(missing_ok=True)
+        raise
     return receipt
 
 

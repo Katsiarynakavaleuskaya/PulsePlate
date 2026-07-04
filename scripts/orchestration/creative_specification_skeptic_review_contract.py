@@ -36,6 +36,7 @@ NEXT_ACTION_SELECTED = "human_review_for_patch_builder"
 NEXT_ACTION_ALL_REJECTED = "human_review_for_discard_or_defer"
 MAX_REVIEW_TEXT_LENGTH = 512
 MAX_REVIEW_TOKEN_LIST_LENGTH = 10
+MAX_TOTAL_REVIEW_TOKEN_COUNT = 150
 
 ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 SAFE_TOKEN_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$")
@@ -449,6 +450,16 @@ def build_skeptic_review_attachment(
     }
     _set_identity(body, id_key="attachment_id", asset_type=ATTACHMENT_ARTIFACT_TYPE)
     return validate_skeptic_review_attachment(body)
+
+
+def build_skeptic_review_coverage(
+    *,
+    normalized_reviews: Sequence[Mapping[str, Any]],
+    variant_count: int,
+) -> dict[str, int]:
+    """Return bounded attachment coverage counts for normalized PR-1 reviews."""
+
+    return _review_counts(normalized_reviews=normalized_reviews, variant_count=variant_count)
 
 
 def validate_skeptic_review_attachment(payload: Mapping[str, Any]) -> dict[str, Any]:
@@ -865,7 +876,7 @@ def _normalize_reviewed_run(raw_run: Any, *, label: str) -> dict[str, Any]:
 
 
 def _normalize_attachment_coverage(raw_counts: Any, *, label: str) -> dict[str, int]:
-    return _normalize_counts(
+    counts = _normalize_counts(
         raw_counts,
         expected_keys=ATTACHMENT_COVERAGE_KEYS,
         label=label,
@@ -876,10 +887,15 @@ def _normalize_attachment_coverage(raw_counts: Any, *, label: str) -> dict[str, 
             "pass_review_count": 15,
             "revise_review_count": 15,
             "reject_review_count": 15,
-            "unsafe_authority_flag_count": 15,
-            "blocker_count": 30,
+            "unsafe_authority_flag_count": MAX_TOTAL_REVIEW_TOKEN_COUNT,
+            "blocker_count": MAX_TOTAL_REVIEW_TOKEN_COUNT,
         },
     )
+    if counts["required_reviewer_count"] != len(REQUIRED_SKEPTIC_REVIEWERS):
+        raise CreativeSpecificationSkepticReviewError(
+            f"{label}.required_reviewer_count must equal {len(REQUIRED_SKEPTIC_REVIEWERS)}."
+        )
+    return counts
 
 
 def _normalize_receipt_counts(raw_counts: Any, *, label: str) -> dict[str, int]:
@@ -892,7 +908,7 @@ def _normalize_receipt_counts(raw_counts: Any, *, label: str) -> dict[str, int]:
             "review_count": 15,
             "selected_variant_count": 1,
             "rejected_variant_count": 5,
-            "unresolved_blocker_count": 30,
+            "unresolved_blocker_count": MAX_TOTAL_REVIEW_TOKEN_COUNT,
             "rejection_record_count": 5,
         },
     )
@@ -954,10 +970,16 @@ def _normalize_artifact_ref(
         raise CreativeSpecificationSkepticReviewError(
             f"{label} must stay under creative-code spec_bridge artifacts."
         )
-    if must_be_reviewed_run and path.name != REVIEWED_RUN_DIRNAME:
-        raise CreativeSpecificationSkepticReviewError(
-            f"{label} must point to {REVIEWED_RUN_DIRNAME}."
-        )
+    for component in path.parts[4:]:
+        if not ID_RE.fullmatch(component):
+            raise CreativeSpecificationSkepticReviewError(
+                f"{label} must use safe artifact path components."
+            )
+    if must_be_reviewed_run:
+        if len(path.parts) != 6 or path.name != REVIEWED_RUN_DIRNAME:
+            raise CreativeSpecificationSkepticReviewError(
+                f"{label} must point to the canonical {REVIEWED_RUN_DIRNAME} sibling."
+            )
     return path.as_posix()
 
 

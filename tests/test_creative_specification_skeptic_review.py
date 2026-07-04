@@ -14,6 +14,7 @@ from core.evidence.fingerprints import fingerprint_payload
 from scripts.orchestration import (
     creative_hypothesis_spec_bridge as bridge_cli,
     creative_specification_skeptic_review as review_cli,
+    creative_specification_skeptic_review_contract as review_contract,
 )
 from scripts.orchestration.creative_code_specification import (
     REQUIRED_SKEPTIC_REVIEWERS,
@@ -25,6 +26,7 @@ from scripts.orchestration.creative_hypothesis_spec_bridge_contract import (
     build_creative_hypothesis_spec_bridge_bundle,
 )
 from scripts.orchestration.creative_specification_skeptic_review_contract import (
+    ATTACHMENT_ARTIFACT_TYPE,
     CreativeSpecificationSkepticReviewError,
     build_skeptic_review_attachment,
     default_review_input_authority,
@@ -269,6 +271,67 @@ def _write_json(path: Path, payload: Any) -> None:
 
 def _read_json(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _refresh_attachment_identity(attachment: dict[str, Any]) -> dict[str, Any]:
+    attachment["attachment_id"] = "pending"
+    attachment["idempotency_key"] = "pending"
+    review_contract._set_identity(
+        attachment,
+        id_key="attachment_id",
+        asset_type=ATTACHMENT_ARTIFACT_TYPE,
+    )
+    return attachment
+
+
+def _rebuild_attachment(
+    attachment: dict[str, Any],
+    *,
+    source_overrides: dict[str, Any] | None = None,
+    reviewed_overrides: dict[str, Any] | None = None,
+    normalized_reviews: list[dict[str, Any]] | None = None,
+    variant_count: int | None = None,
+) -> dict[str, Any]:
+    source = dict(attachment["source"])
+    reviewed = dict(attachment["reviewed_run"])
+    if source_overrides:
+        source.update(source_overrides)
+    if reviewed_overrides:
+        reviewed.update(reviewed_overrides)
+    reviews = (
+        normalized_reviews
+        if normalized_reviews is not None
+        else _read_json(REPO_ROOT / reviewed["skeptic_reviews_ref"])
+    )
+    return build_skeptic_review_attachment(
+        bridge_id=source["bridge_id"],
+        bridge_fingerprint=source["bridge_fingerprint"],
+        bridge_ref=source["bridge_ref"],
+        candidate_id=source["candidate_id"],
+        candidate_fingerprint=source["candidate_fingerprint"],
+        candidate_ref=source["candidate_ref"],
+        metrics_id=source["metrics_id"],
+        metrics_fingerprint=source["metrics_fingerprint"],
+        metrics_ref=source["metrics_ref"],
+        spec_prepare_ref=source["spec_prepare_ref"],
+        source_packet_ref=source["source_packet_ref"],
+        source_packet_fingerprint=source["source_packet_fingerprint"],
+        variants_ref=source["variants_ref"],
+        variants_fingerprint=source["variants_fingerprint"],
+        pending_reviews_ref=source["pending_reviews_ref"],
+        pending_reviews_fingerprint=source["pending_reviews_fingerprint"],
+        context_pack_ref=source["context_pack_ref"],
+        context_pack_fingerprint=source["context_pack_fingerprint"],
+        reviewed_run_dir_ref=reviewed["run_dir_ref"],
+        reviewed_source_packet_ref=reviewed["source_packet_ref"],
+        reviewed_variants_ref=reviewed["variants_ref"],
+        reviewed_reviews_ref=reviewed["skeptic_reviews_ref"],
+        reviewed_context_pack_ref=reviewed["context_pack_ref"],
+        normalized_reviews=reviews,
+        variant_count=(
+            variant_count if variant_count is not None else attachment["coverage"]["variant_count"]
+        ),
+    )
 
 
 def test_attach_validate_finalize_preserves_original_spec_prepare(
@@ -642,6 +705,217 @@ def test_validate_rejects_relocated_reviewed_run(
         shutil.rmtree(input_dir, ignore_errors=True)
 
 
+def test_validate_rejects_noncanonical_source_bridge_ref(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    output_dir, input_dir = _prepared_bridge(capsys, suffix="fake-bridge-ref")
+    try:
+        reviews_path = _write_review_input(output_dir, _review_input(output_dir))
+        assert (
+            review_cli.main(
+                [
+                    "attach",
+                    "--bridge",
+                    str(output_dir / bridge_cli.BRIDGE_FILENAME),
+                    "--reviews",
+                    str(reviews_path),
+                ]
+            )
+            == 0
+        )
+        capsys.readouterr()
+
+        reviewed_dir = output_dir / "spec_finalize_reviewed"
+        attachment_path = reviewed_dir / review_cli.ATTACHMENT_FILENAME
+        attachment = validate_skeptic_review_attachment(_read_json(attachment_path))
+        fake_bridge = output_dir / "fake_bridge.json"
+        shutil.copyfile(output_dir / bridge_cli.BRIDGE_FILENAME, fake_bridge)
+        fake_attachment = _rebuild_attachment(
+            attachment,
+            source_overrides={"bridge_ref": fake_bridge.relative_to(REPO_ROOT).as_posix()},
+        )
+        _write_json(attachment_path, fake_attachment)
+
+        exit_code = review_cli.main(["validate", "--attachment", str(attachment_path)])
+        captured = capsys.readouterr()
+        assert exit_code == 1
+        assert f"canonical {bridge_cli.BRIDGE_FILENAME}" in captured.err
+    finally:
+        shutil.rmtree(output_dir, ignore_errors=True)
+        shutil.rmtree(input_dir, ignore_errors=True)
+
+
+def test_validate_rejects_noncanonical_source_spec_prepare_ref(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    output_dir, input_dir = _prepared_bridge(capsys, suffix="staging-spec-prepare")
+    try:
+        reviews_path = _write_review_input(output_dir, _review_input(output_dir))
+        assert (
+            review_cli.main(
+                [
+                    "attach",
+                    "--bridge",
+                    str(output_dir / bridge_cli.BRIDGE_FILENAME),
+                    "--reviews",
+                    str(reviews_path),
+                ]
+            )
+            == 0
+        )
+        capsys.readouterr()
+
+        reviewed_dir = output_dir / "spec_finalize_reviewed"
+        attachment_path = reviewed_dir / review_cli.ATTACHMENT_FILENAME
+        attachment = validate_skeptic_review_attachment(_read_json(attachment_path))
+        staging_prepare = output_dir / "staging"
+        shutil.copytree(output_dir / "spec_prepare", staging_prepare)
+        staging_attachment = _rebuild_attachment(
+            attachment,
+            source_overrides={
+                "spec_prepare_ref": staging_prepare.relative_to(REPO_ROOT).as_posix(),
+                "source_packet_ref": (staging_prepare / "source_packet.json")
+                .relative_to(REPO_ROOT)
+                .as_posix(),
+                "variants_ref": (staging_prepare / "variants.json")
+                .relative_to(REPO_ROOT)
+                .as_posix(),
+                "pending_reviews_ref": (staging_prepare / "skeptic_reviews.json")
+                .relative_to(REPO_ROOT)
+                .as_posix(),
+                "context_pack_ref": (staging_prepare / "context_pack.json")
+                .relative_to(REPO_ROOT)
+                .as_posix(),
+            },
+        )
+        _write_json(attachment_path, staging_attachment)
+
+        exit_code = review_cli.main(["validate", "--attachment", str(attachment_path)])
+        captured = capsys.readouterr()
+        assert exit_code == 1
+        assert "source spec_prepare ref does not match bridge" in captured.err
+    finally:
+        shutil.rmtree(output_dir, ignore_errors=True)
+        shutil.rmtree(input_dir, ignore_errors=True)
+
+
+def test_validate_rejects_source_spec_prepare_sidecar(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    output_dir, input_dir = _prepared_bridge(capsys, suffix="source-prepare-sidecar")
+    try:
+        reviews_path = _write_review_input(output_dir, _review_input(output_dir))
+        assert (
+            review_cli.main(
+                [
+                    "attach",
+                    "--bridge",
+                    str(output_dir / bridge_cli.BRIDGE_FILENAME),
+                    "--reviews",
+                    str(reviews_path),
+                ]
+            )
+            == 0
+        )
+        capsys.readouterr()
+        _write_json(output_dir / "spec_prepare" / "raw_provider_output.json", {"raw": True})
+
+        exit_code = review_cli.main(
+            [
+                "validate",
+                "--attachment",
+                str(output_dir / "spec_finalize_reviewed" / review_cli.ATTACHMENT_FILENAME),
+            ]
+        )
+        captured = capsys.readouterr()
+        assert exit_code == 1
+        assert "source spec_prepare contains unexpected artifact(s): raw_provider_output.json" in (
+            captured.err
+        )
+    finally:
+        shutil.rmtree(output_dir, ignore_errors=True)
+        shutil.rmtree(input_dir, ignore_errors=True)
+
+
+def test_validate_rejects_attachment_coverage_mismatch(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    output_dir, input_dir = _prepared_bridge(capsys, suffix="coverage-mismatch")
+    try:
+        reviews_path = _write_review_input(output_dir, _review_input(output_dir))
+        assert (
+            review_cli.main(
+                [
+                    "attach",
+                    "--bridge",
+                    str(output_dir / bridge_cli.BRIDGE_FILENAME),
+                    "--reviews",
+                    str(reviews_path),
+                ]
+            )
+            == 0
+        )
+        capsys.readouterr()
+
+        attachment_path = output_dir / "spec_finalize_reviewed" / review_cli.ATTACHMENT_FILENAME
+        attachment = validate_skeptic_review_attachment(_read_json(attachment_path))
+        tampered_attachment = deepcopy(attachment)
+        tampered_attachment["coverage"]["reject_review_count"] = 0
+        _write_json(attachment_path, _refresh_attachment_identity(tampered_attachment))
+
+        exit_code = review_cli.main(["validate", "--attachment", str(attachment_path)])
+        captured = capsys.readouterr()
+        assert exit_code == 1
+        assert "attachment coverage does not match reviewed artifacts" in captured.err
+    finally:
+        shutil.rmtree(output_dir, ignore_errors=True)
+        shutil.rmtree(input_dir, ignore_errors=True)
+
+
+def test_finalize_cleans_partial_outputs_on_receipt_failure(
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output_dir, input_dir = _prepared_bridge(capsys, suffix="finalize-cleanup")
+    try:
+        reviews_path = _write_review_input(output_dir, _review_input(output_dir))
+        assert (
+            review_cli.main(
+                [
+                    "attach",
+                    "--bridge",
+                    str(output_dir / bridge_cli.BRIDGE_FILENAME),
+                    "--reviews",
+                    str(reviews_path),
+                ]
+            )
+            == 0
+        )
+        capsys.readouterr()
+        attachment_path = output_dir / "spec_finalize_reviewed" / review_cli.ATTACHMENT_FILENAME
+
+        def _fail_receipt(**_: Any) -> dict[str, Any]:
+            raise CreativeSpecificationSkepticReviewError("synthetic receipt failure")
+
+        monkeypatch.setattr(review_cli, "build_finalize_receipt", _fail_receipt)
+        exit_code = review_cli.main(["finalize", "--attachment", str(attachment_path)])
+        captured = capsys.readouterr()
+        assert exit_code == 1
+        assert "synthetic receipt failure" in captured.err
+        assert not (output_dir / "spec_finalize_reviewed" / review_cli.BUNDLE_FILENAME).exists()
+        assert not (
+            output_dir / "spec_finalize_reviewed" / review_cli.FINALIZE_RECEIPT_FILENAME
+        ).exists()
+
+        monkeypatch.undo()
+        exit_code = review_cli.main(["finalize", "--attachment", str(attachment_path)])
+        captured = capsys.readouterr()
+        assert exit_code == 0, captured.err
+    finally:
+        shutil.rmtree(output_dir, ignore_errors=True)
+        shutil.rmtree(input_dir, ignore_errors=True)
+
+
 @pytest.mark.parametrize(
     ("case_slug", "mutator", "expected_error"),
     [
@@ -761,6 +1035,41 @@ def test_attach_rejects_bad_review_inputs(
         shutil.rmtree(input_dir, ignore_errors=True)
 
 
+def test_attach_accepts_bounded_aggregate_blocker_counts(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    output_dir, input_dir = _prepared_bridge(capsys, suffix="aggregate-blockers")
+    try:
+        payload = _review_input(output_dir, all_rejected=True)
+        for review in payload["reviews"]:
+            review["blockers"] = [
+                "skeptic_rejected_variant",
+                "unsafe_layout",
+                "missing_evidence",
+                "needs_contract_sync",
+            ]
+        reviews_path = _write_review_input(output_dir, payload)
+
+        exit_code = review_cli.main(
+            [
+                "attach",
+                "--bridge",
+                str(output_dir / bridge_cli.BRIDGE_FILENAME),
+                "--reviews",
+                str(reviews_path),
+            ]
+        )
+        captured = capsys.readouterr()
+        assert exit_code == 0, captured.err
+        attachment = validate_skeptic_review_attachment(
+            _read_json(output_dir / "spec_finalize_reviewed" / review_cli.ATTACHMENT_FILENAME)
+        )
+        assert attachment["coverage"]["blocker_count"] == 36
+    finally:
+        shutil.rmtree(output_dir, ignore_errors=True)
+        shutil.rmtree(input_dir, ignore_errors=True)
+
+
 def test_attach_rejects_duplicate_json_keys(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -841,6 +1150,71 @@ def test_attach_rejects_symlink_reviewed_run(
         shutil.rmtree(input_dir, ignore_errors=True)
 
 
+def test_attachment_contract_rejects_unsafe_artifact_ref_component(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    output_dir, input_dir = _prepared_bridge(capsys, suffix="bad-artifact-ref-component")
+    try:
+        reviews_path = _write_review_input(output_dir, _review_input(output_dir))
+        assert (
+            review_cli.main(
+                [
+                    "attach",
+                    "--bridge",
+                    str(output_dir / bridge_cli.BRIDGE_FILENAME),
+                    "--reviews",
+                    str(reviews_path),
+                ]
+            )
+            == 0
+        )
+        capsys.readouterr()
+        attachment = _read_json(
+            output_dir / "spec_finalize_reviewed" / review_cli.ATTACHMENT_FILENAME
+        )
+        attachment["source"]["bridge_ref"] = (
+            "artifacts/orchestration/creative_code/spec_bridge/-bad/"
+            f"{bridge_cli.BRIDGE_FILENAME}"
+        )
+
+        with pytest.raises(CreativeSpecificationSkepticReviewError, match="safe artifact"):
+            validate_skeptic_review_attachment(attachment)
+    finally:
+        shutil.rmtree(output_dir, ignore_errors=True)
+        shutil.rmtree(input_dir, ignore_errors=True)
+
+
+def test_attachment_contract_requires_exact_reviewer_count(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    output_dir, input_dir = _prepared_bridge(capsys, suffix="bad-reviewer-count")
+    try:
+        reviews_path = _write_review_input(output_dir, _review_input(output_dir))
+        assert (
+            review_cli.main(
+                [
+                    "attach",
+                    "--bridge",
+                    str(output_dir / bridge_cli.BRIDGE_FILENAME),
+                    "--reviews",
+                    str(reviews_path),
+                ]
+            )
+            == 0
+        )
+        capsys.readouterr()
+        attachment = _read_json(
+            output_dir / "spec_finalize_reviewed" / review_cli.ATTACHMENT_FILENAME
+        )
+        attachment["coverage"]["required_reviewer_count"] = 2
+
+        with pytest.raises(CreativeSpecificationSkepticReviewError, match="must equal 3"):
+            validate_skeptic_review_attachment(attachment)
+    finally:
+        shutil.rmtree(output_dir, ignore_errors=True)
+        shutil.rmtree(input_dir, ignore_errors=True)
+
+
 def test_reviewed_finalize_parser_has_no_combined_command() -> None:
     parser = review_cli.build_arg_parser()
     with pytest.raises(SystemExit):
@@ -871,12 +1245,23 @@ def test_reviewed_finalize_schemas_are_strict() -> None:
         "Commit changes",
     ):
         assert re.search(unsafe_text_pattern, blocked_phrase), blocked_phrase
+    unsafe_path_pattern = review_input_schema["$defs"]["safe_text"]["allOf"][1]["not"]["pattern"]
+    assert re.search(unsafe_path_pattern, "Inspect /Users/example/.env")
     attachment_schema = json.loads(
         (
             REPO_ROOT
             / "docs/orchestration/contracts/creative_specification_skeptic_review_attachment.v1.schema.json"
         ).read_text(encoding="utf-8")
     )
+    attachment_artifact_pattern = attachment_schema["$defs"]["artifact_ref"]["pattern"]
+    assert re.fullmatch(
+        attachment_artifact_pattern,
+        (
+            "artifacts/orchestration/creative_code/spec_bridge/bridge-1/"
+            "spec_finalize_reviewed/source_packet.json"
+        ),
+    )
+    assert attachment_schema["$defs"]["coverage"]["properties"]["blocker_count"]["maximum"] == 150
     assert (
         attachment_schema["$defs"]["attachment_authority"]["properties"][
             "finalize_specification_bundle"
@@ -894,6 +1279,10 @@ def test_reviewed_finalize_schemas_are_strict() -> None:
             "finalize_specification_bundle"
         ]["const"]
         is True
+    )
+    assert (
+        receipt_schema["$defs"]["counts"]["properties"]["unresolved_blocker_count"]["maximum"]
+        == 150
     )
 
 

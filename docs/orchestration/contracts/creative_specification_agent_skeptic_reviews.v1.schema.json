@@ -65,7 +65,7 @@
         },
         {
           "not": {
-            "pattern": "(^|[\\s:=,(\\[{'\"`<])(/(users|home|etc|workspace|tmp|private/var|var/folders)(/|$)|~[/\\\\]|[A-Za-z]:[/\\\\](Users|Documents and Settings|Windows|Temp|tmp)|\\\\\\\\[^\\\\/\\s]+[/\\\\][^\\\\/\\s]+)"
+            "pattern": "(^|[\\s:=,(\\[{'\"`<])(/([Uu]sers|[Hh]ome|[Ee]tc|[Ww]orkspace|[Tt]mp|[Pp]rivate/[Vv]ar|[Vv]ar/[Ff]olders)(/|$)|~[/\\\\]|[A-Za-z]:[/\\\\]([Uu]sers|[Dd]ocuments and Settings|[Ww]indows|[Tt]emp|[Tt]mp)|\\\\\\\\[^\\\\/\\s]+[/\\\\][^\\\\/\\s]+)"
           }
         },
         {
