@@ -30,6 +30,11 @@ Evidence: `scripts/orchestration/creative_spec_learning_rollup_contract.py` no l
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2075#discussion_r3523766542 -> 6bd673ead0706004f224899bde199183515fc0dd
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2075#pullrequestreview-4630181858 -> 6bd673ead0706004f224899bde199183515fc0dd
 
+Disposition: NOT-A-BUG
+Evidence: CodeRabbit classified the identity-refresh helper suggestion as a trivial, low-value nitpick, and the repeated identity refresh blocks in `tests/test_creative_spec_learning_rollup.py` keep each recomputed tampered artifact's upstream ids explicit next to the mutation under test. Focused flake8 and `python -m pytest -q tests/test_creative_spec_learning_rollup.py tests/test_task_bootstrap.py` passed after the latest bug-hunter fixes.
+Reason: This is a maintainability preference inside negative tests, not a correctness, security, governance, or runtime defect. Extracting helpers would add unrelated churn after the current PR already fixed the actual validator gaps.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2075#pullrequestreview-4630243274
+
 ## Post-Open Role Finding Disposition Evidence
 
 ### qa-engineer-agent F401 Finding
@@ -55,6 +60,14 @@ Role: bug-hunter
 Commit: 5d8bbccbd75c2031db6b3f2b605f527d7f76019f
 Evidence: `scripts/orchestration/creative_spec_learning_rollup_contract.py` now requires canonical `lesson-[a-f0-9]{12}` ids and binds `rejection_record_count`, `rejected_variant_count`, and all-rejected counters to `learning_summary.failure_count` and `outcomes.variant_count`; `docs/orchestration/contracts/creative_spec_coordinator_advisory_hints.v1.schema.json` uses the same canonical lesson-id pattern; `tests/test_creative_spec_learning_rollup.py` covers noncanonical lesson ids, undeclared canonical-looking focus ids, and tampered rejection counters after identity recomputation; `tests/test_task_bootstrap.py` covers fail-closed bootstrap ingestion for noncanonical and undeclared lesson ids. Focused flake8, JSON schema parse, and `python -m pytest -q tests/test_creative_spec_learning_rollup.py tests/test_task_bootstrap.py` passed.
 Reason: The post-open bug-hunter pass proved validly re-fingerprinted artifacts could carry noncanonical lesson ids or inconsistent rejection counters into validated rollup/hints outputs.
+
+### bug-hunter Feedback Count and Schema Parity Findings
+
+Disposition: FIXED
+Role: bug-hunter
+Commit: 408ad2a82402eee9afc3677127f44b27ab1e91f6
+Evidence: `scripts/orchestration/creative_spec_learning_rollup_contract.py` now rejects rollups whose summed `agent_feedback` pass/revise/reject counts do not match `outcomes.pass_review_count`, `outcomes.revise_review_count`, and `outcomes.reject_review_count`, and enforces the schema `agent_feedback` maximum of 6 entries. `tests/test_creative_spec_learning_rollup.py` covers both defects with validly recomputed artifact identity. Focused flake8 and `python -m pytest -q tests/test_creative_spec_learning_rollup.py tests/test_task_bootstrap.py` passed.
+Reason: The final bug-hunter pass proved validly re-fingerprinted artifacts could carry contradictory feedback/outcome counts or more feedback rows than the published schema allows.
 
 ## Experiment Runner Evidence
 
