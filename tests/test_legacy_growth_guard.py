@@ -946,6 +946,274 @@ def test_legacy_growth_guard_rejects_shopping_list_router_reintroduction(
     assert errors == expected
 
 
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        (
+            textwrap.dedent("""
+                from app.routers.foods import router as foods_router
+
+                app.include_router(foods_router, include_in_schema=False)
+                """),
+            [
+                "legacy_app.py: unexpected legacy route growth: "
+                "registration:include_router:foods_router",
+                "legacy_app.py: unexpected app.routers import growth: "
+                "router_import:app.routers.foods:router -> foods_router",
+            ],
+        ),
+        (
+            textwrap.dedent("""
+                from app.routers.catalog import router as catalog_router
+
+                app.include_router(catalog_router)
+                """),
+            [
+                "legacy_app.py: unexpected legacy route growth: "
+                "registration:include_router:catalog_router",
+                "legacy_app.py: unexpected app.routers import growth: "
+                "router_import:app.routers.catalog:router -> catalog_router",
+            ],
+        ),
+        (
+            textwrap.dedent("""
+                from app.routers.foods import router as canonical_foods_router
+
+                app.include_router(canonical_foods_router)
+                """),
+            [
+                "legacy_app.py: unexpected legacy route growth: "
+                "registration:include_router:canonical_foods_router",
+                "legacy_app.py: unexpected app.routers import growth: "
+                "router_import:app.routers.foods:router -> canonical_foods_router",
+            ],
+        ),
+        (
+            textwrap.dedent("""
+                import app.routers.catalog as catalog_routes
+
+                app.include_router(catalog_routes.router)
+                """),
+            [
+                "legacy_app.py: unexpected legacy route growth: "
+                "registration:include_router:catalog_routes.router",
+                "legacy_app.py: unexpected app.routers import growth: "
+                "router_import:import:app.routers.catalog -> catalog_routes",
+            ],
+        ),
+        (
+            textwrap.dedent("""
+                import importlib
+
+                food_router = importlib.import_module("app.routers.foods").router
+                app.include_router(food_router)
+                """),
+            [
+                "legacy_app.py: unexpected legacy route growth: "
+                "registration:include_router:food_router",
+                "legacy_app.py: unexpected app.routers import growth: "
+                "router_import:dynamic:app.routers.foods -> food_router",
+            ],
+        ),
+        (
+            textwrap.dedent("""
+                import importlib
+
+                catalog_router, _ = (
+                    importlib.import_module("app.routers.catalog").router,
+                    None,
+                )
+                app.include_router(catalog_router)
+                """),
+            [
+                "legacy_app.py: unexpected legacy route growth: "
+                "registration:include_router:catalog_router",
+                "legacy_app.py: unexpected app.routers import growth: "
+                "router_import:dynamic:app.routers.catalog -> catalog_router",
+            ],
+        ),
+        (
+            textwrap.dedent("""
+                from importlib import import_module
+
+                if (food_router := import_module("app.routers.foods").router):
+                    app.include_router(food_router)
+                """),
+            [
+                "legacy_app.py: unexpected legacy route growth: "
+                "registration:include_router:food_router",
+                "legacy_app.py: unexpected app.routers import growth: "
+                "router_import:dynamic:app.routers.foods -> food_router",
+            ],
+        ),
+        (
+            textwrap.dedent("""
+                import importlib
+
+                wrapper_router = APIRouter()
+                wrapper_router.include_router(
+                    importlib.import_module("app.routers.catalog").router
+                )
+                app.include_router(wrapper_router)
+                """),
+            [
+                "legacy_app.py: unexpected legacy route growth: "
+                "registration:include_router:wrapper_router",
+                "legacy_app.py: unexpected app.routers import growth: "
+                "router_import:dynamic:app.routers.catalog -> wrapper_router.include_router",
+            ],
+        ),
+    ],
+)
+def test_legacy_growth_guard_rejects_food_catalog_router_reintroduction(
+    source: str,
+    expected: list[str],
+) -> None:
+    errors = legacy_guard.validate_legacy_growth(source)
+
+    assert errors == expected
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        (
+            textwrap.dedent("""
+                import importlib
+
+                module_name = "app.routers." + "foods"
+                recipes_router = importlib.import_module(module_name).router
+                app.include_router(recipes_router)
+                """),
+            [
+                "legacy_app.py: unexpected app.routers import growth: "
+                "router_import:dynamic:app.routers.foods -> recipes_router"
+            ],
+        ),
+        (
+            textwrap.dedent("""
+                import importlib
+
+                module_name = ".".join(["app", "routers", "catalog"])
+                users_router = importlib.import_module(module_name).router
+                app.include_router(users_router)
+                """),
+            [
+                "legacy_app.py: unexpected app.routers import growth: "
+                "router_import:dynamic:app.routers.catalog -> users_router"
+            ],
+        ),
+        (
+            textwrap.dedent("""
+                import importlib
+
+                family = "catalog"
+                module_name = f"app.routers.{family}"
+                restaurants_router = importlib.import_module(module_name).router
+                app.include_router(restaurants_router)
+                """),
+            [
+                "legacy_app.py: unexpected app.routers import growth: "
+                "router_import:dynamic:app.routers.catalog -> restaurants_router"
+            ],
+        ),
+        (
+            textwrap.dedent("""
+                import importlib
+                import os
+
+                family = os.getenv("ROUTER_FAMILY", "foods")
+                module_name = f"app.routers.{family}"
+                nutrition_recommendations_router = importlib.import_module(module_name).router
+                app.include_router(nutrition_recommendations_router)
+                """),
+            [
+                "legacy_app.py: unexpected app.routers import growth: "
+                "router_import:dynamic:<unresolved app.routers import> -> "
+                "nutrition_recommendations_router"
+            ],
+        ),
+        (
+            textwrap.dedent("""
+                import importlib
+                import os
+
+                module_name = os.getenv("LEGACY_ROUTER_MODULE")
+                recipes_router = importlib.import_module(module_name).router
+                app.include_router(recipes_router)
+                """),
+            [
+                "legacy_app.py: unexpected app.routers import growth: "
+                "router_import:dynamic:<unresolved dynamic router import> -> recipes_router"
+            ],
+        ),
+        (
+            textwrap.dedent("""
+                import os
+                from importlib import import_module
+
+                module = import_module(os.getenv("LEGACY_ROUTER_MODULE"))
+                recipes_router.include_router(module.router)
+                app.include_router(recipes_router)
+                """),
+            [
+                "legacy_app.py: unexpected app.routers import growth: "
+                "router_import:dynamic:<unresolved dynamic router import> -> "
+                "recipes_router.include_router"
+            ],
+        ),
+        (
+            textwrap.dedent("""
+                import os
+                from importlib import import_module
+
+                module = import_module(os.getenv("LEGACY_ROUTER_MODULE"))
+                router = module.router
+                recipes_router.include_router(router)
+                app.include_router(recipes_router)
+                """),
+            [
+                "legacy_app.py: unexpected app.routers import growth: "
+                "router_import:dynamic:<unresolved dynamic router import> -> "
+                "recipes_router.include_router"
+            ],
+        ),
+        (
+            textwrap.dedent("""
+                import importlib
+
+                recipes_router = importlib.import_module(name="app.routers.foods").router
+                app.include_router(recipes_router)
+                """),
+            [
+                "legacy_app.py: unexpected app.routers import growth: "
+                "router_import:dynamic:app.routers.foods -> recipes_router"
+            ],
+        ),
+    ],
+)
+def test_legacy_growth_guard_rejects_computed_food_catalog_dynamic_import_alias_bypass(
+    source: str,
+    expected: list[str],
+) -> None:
+    errors = legacy_guard.validate_legacy_growth(source)
+
+    assert errors == expected
+
+
+def test_legacy_growth_guard_allows_unregistered_dynamic_import_without_router_use() -> None:
+    source = textwrap.dedent("""
+        import os
+        from importlib import import_module
+
+        module = import_module(os.getenv("LEGACY_HELPER_MODULE"))
+        value = module.VALUE
+        app.include_router(recipes_router)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
 def test_legacy_growth_guard_rejects_module_qualified_bodyfat_router_registration() -> None:
     source = textwrap.dedent("""
         import app.routers.bodyfat as bodyfat_routes
@@ -1407,7 +1675,7 @@ def test_legacy_growth_guard_rejects_auth_dependency_on_allowed_route() -> None:
 
 
 def test_legacy_growth_guard_rejects_auth_dependency_on_allowed_router() -> None:
-    source = "app.include_router(foods_router, dependencies=[Depends(auth_guard)])\n"
+    source = "app.include_router(recipes_router, dependencies=[Depends(auth_guard)])\n"
 
     errors = legacy_guard.validate_legacy_growth(source)
 
@@ -1426,7 +1694,7 @@ def test_legacy_growth_guard_rejects_auth_dependency_on_allowed_router() -> None
             """),
         textwrap.dedent("""
             deps = [Depends(auth_guard)]
-            app.include_router(foods_router, dependencies=deps)
+            app.include_router(recipes_router, dependencies=deps)
             """),
     ],
 )

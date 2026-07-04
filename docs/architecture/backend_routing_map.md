@@ -30,10 +30,38 @@ Anchor (stable): `legacy_app.py -> include_router(...) for core API routers`
 
 Evidence: `legacy_app.py:922-932`
 
-- `foods_router` (`app/routers/foods.py`)
 - `recipes_router` (`app/routers/recipes.py`)
 - `users_router` (`app/routers/users.py`)
-- `catalog_router` (`app/routers/catalog.py`)
+
+### Canonical food/catalog routers (canonical bootstrap-owned)
+
+Anchor (stable): `app/main.py -> _include_food_catalog_routers_if_needed(app)`
+
+Evidence:
+- `app/bootstrap/route_family.py` — shared `RouteMemberContract` /
+  `ensure_route_family_registered(...)` guard for exact static route families.
+- `app/main.py` — registers `foods_router` and `catalog_router` as one canonical
+  static route family and validates dependency, visibility, duplicate, partial,
+  foreign-handler, and response-metadata drift.
+- `app/routers/foods.py` — owns food endpoint handlers, `get_food_store`, hidden
+  `FOODS_ROUTE_SPECS`, and barcode `404`/`422` response metadata.
+- `app/routers/catalog.py` — owns catalog endpoint handlers, `get_catalog_service`,
+  and visible source-route `CATALOG_ROUTE_SPECS`.
+
+Runtime effect:
+- `GET /api/v1/foods`
+- `GET /api/v1/foods/search`
+- `GET /api/v1/foods/{food_id}`
+- `GET /api/v1/foods/barcode/{barcode}`
+- `GET /api/v1/catalog/regions`
+- `GET /api/v1/catalog/stores`
+- `GET /api/v1/catalog/search`
+
+OpenAPI effect:
+- Food source routes stay hidden from OpenAPI at route metadata level.
+- Catalog source routes remain schema-visible in route metadata, but final public
+  `app.openapi()` continues to filter `/api/v1/catalog/*` through the canonical
+  OpenAPI builder.
 
 ### Canonical plan export routers (canonical bootstrap-owned)
 

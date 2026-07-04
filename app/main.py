@@ -59,10 +59,16 @@ from app.routers.business import BUSINESS_ROUTE_SPECS, router as business_router
 from app.routers.bmi_compat import BMI_COMPAT_ROUTE_SPECS, router as bmi_compat_router
 from app.routers.bmi_registration import BmiRouteRegistration, register_bmi_routes
 from app.routers.billing import register_billing_routes
+from app.routers.catalog import (
+    CATALOG_ROUTE_SPECS,
+    get_catalog_service,
+    router as catalog_router,
+)
 from app.routers.cbt_insight import router as cbt_insight_router
 from app.routers.feedback import router as feedback_router
 from app.routers.fitchef_structured import router as fitchef_structured_router
 from app.routers.favicon import FAVICON_ROUTE_PATH, router as favicon_router
+from app.routers.foods import FOODS_ROUTE_SPECS, get_food_store, router as foods_router
 from app.routers.health import router as health_router
 from app.routers.legal import router as legal_router
 from app.routers import legacy_export_aliases as legacy_export_aliases_module
@@ -158,6 +164,14 @@ _BUSINESS_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = tuple(
     (path, method.upper(), include_in_schema)
     for path, method, include_in_schema in BUSINESS_ROUTE_SPECS
 )
+_CATALOG_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = tuple(
+    (path, method.upper(), include_in_schema)
+    for path, method, include_in_schema in CATALOG_ROUTE_SPECS
+)
+_FOODS_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = tuple(
+    (path, method.upper(), include_in_schema)
+    for path, method, include_in_schema in FOODS_ROUTE_SPECS
+)
 _TEST_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = tuple(
     (path, method.upper(), include_in_schema)
     for path, method, include_in_schema in TEST_ROUTE_SPECS
@@ -197,6 +211,8 @@ _RESTAURANT_MODERATION_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = tuple(
 _EXPORT_ROUTE_REQUIRED_STATUS_CODES = frozenset({429})
 _RESTAURANT_MODERATION_REQUIRED_STATUS_CODES = frozenset({404, 422})
 _PLAN_SIGNED_EXPORT_PATHS = frozenset({WEEK_EXPORT_CSV_PATH, WEEK_EXPORT_PDF_PATH})
+_NO_REQUIRED_STATUS_CODES: frozenset[int] = frozenset()
+_FOODS_BARCODE_REQUIRED_STATUS_CODES = frozenset({404, 422})
 
 
 def _build_legacy_export_aliases_router() -> APIRouter:
@@ -382,6 +398,34 @@ def _business_route_members() -> tuple[RouteMemberContract, ...]:
         )
         for path, method, include_in_schema in _BUSINESS_ROUTE_SPECS
     )
+
+
+def _food_catalog_route_members() -> tuple[RouteMemberContract, ...]:
+    members: list[RouteMemberContract] = []
+    for path, method, include_in_schema in _FOODS_ROUTE_SPECS:
+        members.append(
+            RouteMemberContract(
+                path=path,
+                method=method,
+                include_in_schema=include_in_schema,
+                required_status_codes=(
+                    _FOODS_BARCODE_REQUIRED_STATUS_CODES
+                    if path.endswith("/{barcode}")
+                    else _NO_REQUIRED_STATUS_CODES
+                ),
+                required_dependencies=(get_food_store,),
+            )
+        )
+    for path, method, include_in_schema in _CATALOG_ROUTE_SPECS:
+        members.append(
+            RouteMemberContract(
+                path=path,
+                method=method,
+                include_in_schema=include_in_schema,
+                required_dependencies=(get_catalog_service,),
+            )
+        )
+    return tuple(members)
 
 
 def _test_route_members() -> tuple[RouteMemberContract, ...]:
@@ -939,6 +983,17 @@ def _include_business_router_if_enabled(target_app: FastAPI) -> None:
     )
 
 
+def _include_food_catalog_routers_if_needed(target_app: FastAPI) -> None:
+    """Register foods/catalog routes as one canonical static family."""
+
+    ensure_route_family_registered(
+        target_app,
+        family_name="Food catalog",
+        routers=(foods_router, catalog_router),
+        members=_food_catalog_route_members(),
+    )
+
+
 def _include_test_router_if_enabled(target_app: FastAPI) -> None:
     """Register non-production test routes as one hidden canonical family."""
 
@@ -1131,6 +1186,7 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
     _include_bmi_compat_router_if_needed(app)
     _include_bodyfat_router_if_needed(app)
     _include_business_router_if_enabled(app)
+    _include_food_catalog_routers_if_needed(app)
     _include_test_router_if_enabled(app)
     _include_plan_export_routers_if_needed(app)
     _include_shoplist_export_router_if_needed(app)

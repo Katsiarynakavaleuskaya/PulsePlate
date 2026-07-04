@@ -49,8 +49,6 @@ from app.http_error_details import (
     INVALID_PREMIUM_PLATE_INPUT_DETAIL,
 )
 from app.routers.api_key import api_key_header
-from app.routers.catalog import router as catalog_router
-from app.routers.foods import router as foods_router
 from app.routers.nutrition_recommendations import router as nutrition_recommendations_router
 from app.routers.recipes import router as recipes_router
 from app.routers.restaurants import router as restaurants_router
@@ -909,12 +907,10 @@ async def admin_status() -> Dict[str, str]:
 
 
 # Include API routers
-app.include_router(foods_router, include_in_schema=False)
 app.include_router(nutrition_recommendations_router)
 app.include_router(restaurants_router, include_in_schema=False)
 app.include_router(recipes_router)
 app.include_router(users_router)
-app.include_router(catalog_router)
 
 # PRO/VIP route registration is owned by app.main canonical bootstrap.
 # Compatibility attrs above are populated there after successful registration.

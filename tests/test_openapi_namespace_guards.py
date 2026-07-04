@@ -22,6 +22,7 @@ ALLOWED_EXACT: frozenset[str] = frozenset({"/api/v1/bmi", "/api/v1/insight"})
 # Legacy WS path is kept at runtime but should NOT appear in OpenAPI schema
 # (WebSocket endpoints are not included in OpenAPI by default)
 LEGACY_DENY_PREFIXES: tuple[str, ...] = (
+    "/api/v1/catalog",
     "/api/v1/foods",
     "/api/v1/restaurants",
     "/api/v1/users",
@@ -67,6 +68,7 @@ def test_runtime_keeps_legacy_routes_and_ws_for_transition_window() -> None:
     # Canonical PRO WS path
     assert "/api/v1/pro/ws" in runtime_paths
     # Legacy food/restaurant routes (hidden from schema, kept at runtime)
+    assert "/api/v1/catalog/search" in runtime_paths
     assert "/api/v1/foods" in runtime_paths
     assert "/api/v1/restaurants/search" in runtime_paths
     # Users CRUD remains registered for internal callers but is hidden from public schema

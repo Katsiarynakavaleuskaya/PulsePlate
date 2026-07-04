@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 import re
 import sys
+from typing import AbstractSet
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 LEGACY_APP = "legacy_app.py"
@@ -84,6 +85,8 @@ SENSITIVE_APP_SURFACE_LIMITS: Mapping[str, int] = {
     "receipt": 0,
     "subscription": 0,
 }
+UNRESOLVED_APP_ROUTER_IMPORT = "<unresolved app.routers import>"
+UNRESOLVED_DYNAMIC_ROUTER_IMPORT = "<unresolved dynamic router import>"
 
 ALLOWED_LEGACY_ROUTE_FACTS = frozenset(
     {
@@ -98,12 +101,10 @@ ALLOWED_LEGACY_ROUTE_FACTS = frozenset(
         LegacyFact("decorator", "post", "/api/v1/premium/targets", "api_who_targets"),
         LegacyFact("decorator", "post", "/api/v1/premium/plan/week", "api_weekly_menu"),
         LegacyFact("decorator", "post", "/api/v1/premium/gaps", "api_nutrient_gaps"),
-        LegacyFact("registration", "include_router", "foods_router", ""),
         LegacyFact("registration", "include_router", "nutrition_recommendations_router", ""),
         LegacyFact("registration", "include_router", "restaurants_router", ""),
         LegacyFact("registration", "include_router", "recipes_router", ""),
         LegacyFact("registration", "include_router", "users_router", ""),
-        LegacyFact("registration", "include_router", "catalog_router", ""),
     }
 )
 
@@ -112,8 +113,6 @@ ALLOWED_ROUTER_IMPORT_FACTS = frozenset(
         LegacyFact("router_import", "app.routers", "vip", "_vip_mod"),
         LegacyFact("router_import", "app.routers.api_key", "api_key_header", ""),
         LegacyFact("router_import", "app.routers.bmi", "bmi_calculate_handler", ""),
-        LegacyFact("router_import", "app.routers.catalog", "router", "catalog_router"),
-        LegacyFact("router_import", "app.routers.foods", "router", "foods_router"),
         LegacyFact(
             "router_import",
             "app.routers.nutrition_recommendations",
@@ -302,6 +301,17 @@ def collect_router_import_facts(source_text: str, *, filename: str = LEGACY_APP)
 
     facts: set[LegacyFact] = set()
     dynamic_import_names = _collect_dynamic_import_function_names(tree)
+    static_string_bindings = _collect_static_string_bindings(tree)
+    static_app_router_hint_bindings = _collect_static_app_router_hint_bindings(
+        tree,
+        static_string_bindings,
+    )
+    dynamic_import_target_modules = _collect_unresolved_dynamic_import_target_modules(
+        tree,
+        import_func_names=dynamic_import_names,
+        static_string_bindings=static_string_bindings,
+    )
+    registered_router_targets = _collect_registered_router_targets(tree)
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom) and node.module is not None:
             if node.module != "app.routers" and not node.module.startswith("app.routers."):
@@ -322,6 +332,9 @@ def collect_router_import_facts(source_text: str, *, filename: str = LEGACY_APP)
                     value,
                     target,
                     import_func_names=dynamic_import_names,
+                    static_string_bindings=static_string_bindings,
+                    static_app_router_hint_bindings=static_app_router_hint_bindings,
+                    registered_router_targets=registered_router_targets,
                 ):
                     facts.add(LegacyFact("router_import", "dynamic", module_name, target_name))
         elif isinstance(node, ast.NamedExpr):
@@ -329,6 +342,9 @@ def collect_router_import_facts(source_text: str, *, filename: str = LEGACY_APP)
                 node.value,
                 node.target,
                 import_func_names=dynamic_import_names,
+                static_string_bindings=static_string_bindings,
+                static_app_router_hint_bindings=static_app_router_hint_bindings,
+                registered_router_targets=registered_router_targets,
             ):
                 facts.add(LegacyFact("router_import", "dynamic", module_name, target_name))
         elif isinstance(node, ast.Call):
@@ -337,6 +353,21 @@ def collect_router_import_facts(source_text: str, *, filename: str = LEGACY_APP)
             for module_name in _dynamic_app_router_import_modules(
                 node,
                 import_func_names=dynamic_import_names,
+                static_string_bindings=static_string_bindings,
+                static_app_router_hint_bindings=static_app_router_hint_bindings,
+                unresolved_router_registration=True,
+            ):
+                facts.add(
+                    LegacyFact(
+                        "router_import",
+                        "dynamic",
+                        module_name,
+                        _safe_unparse(node.func),
+                    )
+                )
+            for module_name in _tainted_dynamic_router_modules_in_registration_call(
+                node,
+                dynamic_import_target_modules,
             ):
                 facts.add(
                     LegacyFact(
@@ -347,6 +378,152 @@ def collect_router_import_facts(source_text: str, *, filename: str = LEGACY_APP)
                     )
                 )
     return facts
+
+
+def _collect_static_string_bindings(tree: ast.Module) -> Mapping[str, str]:
+    """Return statically resolvable string assignments used by dynamic imports."""
+
+    bindings: dict[str, str] = {}
+    changed = True
+    while changed:
+        changed = False
+        for node in ast.walk(tree):
+            value: ast.AST | None = None
+            targets: list[ast.expr] = []
+            if isinstance(node, ast.Assign):
+                value = node.value
+                targets = list(node.targets)
+            elif isinstance(node, ast.AnnAssign) and node.value is not None:
+                value = node.value
+                targets = [node.target]
+            elif isinstance(node, ast.NamedExpr):
+                value = node.value
+                targets = [node.target]
+            if value is None:
+                continue
+            resolved = _resolve_static_string(value, bindings)
+            if resolved is None:
+                continue
+            for target in targets:
+                for target_name in _assignment_target_names(target):
+                    if target_name not in bindings:
+                        bindings[target_name] = resolved
+                        changed = True
+    return bindings
+
+
+def _resolve_static_string(node: ast.AST, bindings: Mapping[str, str]) -> str | None:
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value
+    if isinstance(node, ast.Name):
+        return bindings.get(node.id)
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+        left = _resolve_static_string(node.left, bindings)
+        right = _resolve_static_string(node.right, bindings)
+        if left is not None and right is not None:
+            return left + right
+        return None
+    if isinstance(node, ast.JoinedStr):
+        parts: list[str] = []
+        for value in node.values:
+            if isinstance(value, ast.Constant) and isinstance(value.value, str):
+                parts.append(value.value)
+            elif isinstance(value, ast.FormattedValue):
+                formatted_value = _resolve_static_string(value.value, bindings)
+                if formatted_value is None:
+                    return None
+                parts.append(formatted_value)
+            else:
+                return None
+        return "".join(parts)
+    if (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "join"
+        and len(node.args) == 1
+        and isinstance(node.args[0], (ast.List, ast.Tuple))
+    ):
+        separator = _resolve_static_string(node.func.value, bindings)
+        if separator is None:
+            return None
+        items: list[str] = []
+        for item in node.args[0].elts:
+            item_value = _resolve_static_string(item, bindings)
+            if item_value is None:
+                return None
+            items.append(item_value)
+        return separator.join(items)
+    return None
+
+
+def _collect_static_app_router_hint_bindings(
+    tree: ast.Module,
+    static_string_bindings: Mapping[str, str],
+) -> frozenset[str]:
+    hints: set[str] = set()
+    changed = True
+    while changed:
+        changed = False
+        for node in ast.walk(tree):
+            value: ast.AST | None = None
+            targets: list[ast.expr] = []
+            if isinstance(node, ast.Assign):
+                value = node.value
+                targets = list(node.targets)
+            elif isinstance(node, ast.AnnAssign) and node.value is not None:
+                value = node.value
+                targets = [node.target]
+            elif isinstance(node, ast.NamedExpr):
+                value = node.value
+                targets = [node.target]
+            if value is None or not _static_app_router_hint(
+                value,
+                static_string_bindings,
+                frozenset(hints),
+            ):
+                continue
+            for target in targets:
+                for target_name in _assignment_target_names(target):
+                    if target_name not in hints:
+                        hints.add(target_name)
+                        changed = True
+    return frozenset(hints)
+
+
+def _static_app_router_hint(
+    node: ast.AST,
+    bindings: Mapping[str, str],
+    hint_bindings: frozenset[str],
+) -> bool:
+    resolved = _resolve_static_string(node, bindings)
+    if resolved is not None:
+        return resolved == "app.routers" or resolved.startswith("app.routers.")
+    if isinstance(node, ast.Name) and node.id in hint_bindings:
+        return True
+    for child in ast.walk(node):
+        if isinstance(child, ast.Constant) and isinstance(child.value, str):
+            if "app.routers" in child.value:
+                return True
+        elif isinstance(child, ast.Name):
+            if child.id in hint_bindings:
+                return True
+            bound = bindings.get(child.id)
+            if bound is not None and (bound == "app.routers" or bound.startswith("app.routers.")):
+                return True
+    return False
+
+
+def _collect_registered_router_targets(tree: ast.Module) -> frozenset[str]:
+    targets: set[str] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call) or not _is_router_registration_call(node):
+            continue
+        if not node.args:
+            continue
+        first_arg = node.args[0]
+        if isinstance(first_arg, ast.Name):
+            targets.add(first_arg.id)
+    return frozenset(targets)
 
 
 def _collect_dynamic_import_function_names(tree: ast.Module) -> frozenset[str]:
@@ -395,6 +572,53 @@ def _collect_dynamic_import_function_names(tree: ast.Module) -> frozenset[str]:
     return frozenset(names)
 
 
+def _collect_unresolved_dynamic_import_target_modules(
+    tree: ast.Module,
+    *,
+    import_func_names: frozenset[str],
+    static_string_bindings: Mapping[str, str],
+) -> Mapping[str, frozenset[str]]:
+    """Return unresolved dynamic-import targets for fail-closed router registration checks."""
+
+    targets: dict[str, set[str]] = {}
+    changed = True
+    while changed:
+        changed = False
+        for node in ast.walk(tree):
+            value: ast.AST | None = None
+            assignment_targets: list[ast.expr] = []
+            if isinstance(node, ast.Assign):
+                value = node.value
+                assignment_targets = list(node.targets)
+            elif isinstance(node, ast.AnnAssign) and node.value is not None:
+                value = node.value
+                assignment_targets = [node.target]
+            elif isinstance(node, ast.NamedExpr):
+                value = node.value
+                assignment_targets = [node.target]
+            if value is None:
+                continue
+
+            module_names: set[str] = set()
+            if _contains_unresolved_dynamic_import(
+                value,
+                import_func_names=import_func_names,
+                static_string_bindings=static_string_bindings,
+            ):
+                module_names.add(UNRESOLVED_DYNAMIC_ROUTER_IMPORT)
+            module_names.update(_tainted_dynamic_router_modules_in_node(value, targets))
+            if not module_names:
+                continue
+
+            for target in assignment_targets:
+                for target_name in _assignment_target_names(target):
+                    target_modules = targets.setdefault(target_name, set())
+                    before = len(target_modules)
+                    target_modules.update(module_names)
+                    changed = changed or len(target_modules) != before
+    return {name: frozenset(module_names) for name, module_names in targets.items()}
+
+
 def _is_dynamic_import_function_reference(
     node: ast.AST,
     *,
@@ -425,6 +649,9 @@ def _dynamic_app_router_import_assignments(
     target: ast.AST,
     *,
     import_func_names: frozenset[str],
+    static_string_bindings: Mapping[str, str],
+    static_app_router_hint_bindings: frozenset[str],
+    registered_router_targets: frozenset[str],
 ) -> tuple[tuple[str, str], ...]:
     """Return dynamic app.routers imports paired with the assigned target name."""
 
@@ -436,6 +663,9 @@ def _dynamic_app_router_import_assignments(
                     value_item,
                     target_item,
                     import_func_names=import_func_names,
+                    static_string_bindings=static_string_bindings,
+                    static_app_router_hint_bindings=static_app_router_hint_bindings,
+                    registered_router_targets=registered_router_targets,
                 )
             )
         return tuple(destructured_pairs)
@@ -446,17 +676,61 @@ def _dynamic_app_router_import_assignments(
 
     pairs: list[tuple[str, str]] = []
     for module_name in _dynamic_app_router_import_modules(
-        value, import_func_names=import_func_names
+        value,
+        import_func_names=import_func_names,
+        static_string_bindings=static_string_bindings,
+        static_app_router_hint_bindings=static_app_router_hint_bindings,
+        unresolved_router_registration=False,
     ):
         for target_name in target_names:
             pairs.append((module_name, target_name))
+    for target_name in target_names:
+        if target_name not in registered_router_targets:
+            continue
+        if pairs:
+            continue
+        if _contains_unresolved_dynamic_import(value, import_func_names=import_func_names):
+            pairs.append((UNRESOLVED_DYNAMIC_ROUTER_IMPORT, target_name))
     return tuple(pairs)
+
+
+def _tainted_dynamic_router_modules_in_registration_call(
+    call: ast.Call,
+    dynamic_import_target_modules: Mapping[str, AbstractSet[str]],
+) -> frozenset[str]:
+    """Return unresolved dynamic imports routed through wrapper-router registration args."""
+
+    if not call.args:
+        return frozenset()
+    if isinstance(call.args[0], ast.Name) and _safe_unparse(call.func) == "app.include_router":
+        return frozenset()
+    return _tainted_dynamic_router_modules_in_node(call.args[0], dynamic_import_target_modules)
+
+
+def _tainted_dynamic_router_modules_in_node(
+    node: ast.AST,
+    dynamic_import_target_modules: Mapping[str, AbstractSet[str]],
+) -> frozenset[str]:
+    """Return unresolved dynamic imports referenced by names or attributes in node."""
+
+    modules: set[str] = set()
+    for child in ast.walk(node):
+        if isinstance(child, ast.Name):
+            modules.update(dynamic_import_target_modules.get(child.id, ()))
+        elif isinstance(child, ast.Attribute):
+            root_name = _attribute_root_name(child)
+            if root_name is not None:
+                modules.update(dynamic_import_target_modules.get(root_name, ()))
+    return frozenset(modules)
 
 
 def _dynamic_app_router_import_modules(
     node: ast.AST,
     *,
     import_func_names: frozenset[str],
+    static_string_bindings: Mapping[str, str],
+    static_app_router_hint_bindings: frozenset[str],
+    unresolved_router_registration: bool,
 ) -> frozenset[str]:
     """Return dynamic app.routers module imports embedded in an AST node."""
 
@@ -464,31 +738,97 @@ def _dynamic_app_router_import_modules(
     for child in ast.walk(node):
         if not isinstance(child, ast.Call):
             continue
-        module_name = _dynamic_import_module_name(child, import_func_names=import_func_names)
+        module_name = _dynamic_import_module_name(
+            child,
+            import_func_names=import_func_names,
+            static_string_bindings=static_string_bindings,
+            static_app_router_hint_bindings=static_app_router_hint_bindings,
+            unresolved_router_registration=unresolved_router_registration,
+        )
         if module_name is None:
             continue
-        if module_name == "app.routers" or module_name.startswith("app.routers."):
+        if (
+            module_name == UNRESOLVED_APP_ROUTER_IMPORT
+            or module_name == UNRESOLVED_DYNAMIC_ROUTER_IMPORT
+            or module_name == "app.routers"
+            or module_name.startswith("app.routers.")
+        ):
             modules.add(module_name)
     return frozenset(modules)
+
+
+def _attribute_root_name(node: ast.Attribute) -> str | None:
+    value: ast.AST = node
+    while isinstance(value, ast.Attribute):
+        value = value.value
+    if isinstance(value, ast.Name):
+        return value.id
+    return None
 
 
 def _dynamic_import_module_name(
     call: ast.Call,
     *,
     import_func_names: frozenset[str],
+    static_string_bindings: Mapping[str, str],
+    static_app_router_hint_bindings: frozenset[str],
+    unresolved_router_registration: bool,
 ) -> str | None:
-    if not call.args:
-        return None
-    first_arg = call.args[0]
-    if not isinstance(first_arg, ast.Constant) or not isinstance(first_arg.value, str):
+    func = call.func
+    if not (
+        (isinstance(func, ast.Name) and func.id in import_func_names)
+        or (isinstance(func, ast.Attribute) and func.attr == "import_module")
+    ):
         return None
 
-    func = call.func
-    if isinstance(func, ast.Name) and func.id in import_func_names:
-        return first_arg.value
-    if isinstance(func, ast.Attribute) and func.attr == "import_module":
-        return first_arg.value
+    module_arg = _dynamic_import_module_arg(call)
+    if module_arg is None:
+        return None
+
+    resolved = _resolve_static_string(module_arg, static_string_bindings)
+    if resolved is not None:
+        return resolved
+    if _static_app_router_hint(
+        module_arg,
+        static_string_bindings,
+        static_app_router_hint_bindings,
+    ):
+        return UNRESOLVED_APP_ROUTER_IMPORT
+    if unresolved_router_registration:
+        return UNRESOLVED_DYNAMIC_ROUTER_IMPORT
     return None
+
+
+def _dynamic_import_module_arg(call: ast.Call) -> ast.AST | None:
+    if call.args:
+        return call.args[0]
+    for keyword in call.keywords:
+        if keyword.arg == "name":
+            return keyword.value
+    return None
+
+
+def _contains_unresolved_dynamic_import(
+    node: ast.AST,
+    *,
+    import_func_names: frozenset[str],
+    static_string_bindings: Mapping[str, str] | None = None,
+) -> bool:
+    static_string_bindings = static_string_bindings or {}
+    for child in ast.walk(node):
+        if not isinstance(child, ast.Call):
+            continue
+        func = child.func
+        if (isinstance(func, ast.Name) and func.id in import_func_names) or (
+            isinstance(func, ast.Attribute) and func.attr == "import_module"
+        ):
+            module_arg = _dynamic_import_module_arg(child)
+            if module_arg is None:
+                continue
+            resolved = _resolve_static_string(module_arg, static_string_bindings)
+            if resolved is None:
+                return True
+    return False
 
 
 def collect_sensitive_call_counts(
