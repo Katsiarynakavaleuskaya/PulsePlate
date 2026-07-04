@@ -64,6 +64,16 @@ Evidence: `scripts/orchestration/creative_specification_skeptic_review_contract.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2072#discussion_r3523498149 -> 134d726e806b0734f2ef7d23d6669166fe279054
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2072#pullrequestreview-4629921037 -> 134d726e806b0734f2ef7d23d6669166fe279054
 
+Disposition: FIXED
+Commit: c62e37ce64f7901ee87ffb0f6fc53bfa09392ef3
+Evidence: `docs/orchestration/contracts/creative_specification_finalize_receipt.v1.schema.json` now uses canonical reviewed attachment/bundle refs and conditional selected/all-rejected count constraints; `docs/orchestration/contracts/creative_specification_skeptic_review_attachment.v1.schema.json` now uses canonical reviewed-run child refs and conditional reviewer-total constraints. `scripts/orchestration/creative_specification_skeptic_review.py` now reapplies prepared bridge state checks when validating recovered attachments. Covered by `tests/test_creative_specification_skeptic_review.py`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2072#discussion_r3523534574 -> c62e37ce64f7901ee87ffb0f6fc53bfa09392ef3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2072#discussion_r3523534577 -> c62e37ce64f7901ee87ffb0f6fc53bfa09392ef3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2072#discussion_r3523534578 -> c62e37ce64f7901ee87ffb0f6fc53bfa09392ef3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2072#discussion_r3523534579 -> c62e37ce64f7901ee87ffb0f6fc53bfa09392ef3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2072#discussion_r3523534581 -> c62e37ce64f7901ee87ffb0f6fc53bfa09392ef3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2072#pullrequestreview-4629954169 -> c62e37ce64f7901ee87ffb0f6fc53bfa09392ef3
+
 ## Experiment Runner Evidence
 Artifact: `artifacts/orchestration/experiments/results/oracle-spec-skeptic-review-finalize-network1-result.json`
 
