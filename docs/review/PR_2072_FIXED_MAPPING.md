@@ -10,6 +10,7 @@ Disposition: FIXED
 Commit: c89f19fa08d862bb817739b0470367027ce5afd8
 Evidence: `docs/orchestration/contracts/creative_specification_skeptic_review_attachment.v1.schema.json` and `docs/orchestration/contracts/creative_specification_finalize_receipt.v1.schema.json` accept nested `spec_prepare/*` and `spec_finalize_reviewed/*` artifact refs; `scripts/orchestration/creative_specification_skeptic_review_contract.py` enforces review list caps. Covered by `tests/test_creative_specification_skeptic_review.py`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2072#discussion_r3523323647 -> c89f19fa08d862bb817739b0470367027ce5afd8
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2072#discussion_r3523323649 -> c89f19fa08d862bb817739b0470367027ce5afd8
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2072#discussion_r3523325117 -> c89f19fa08d862bb817739b0470367027ce5afd8
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2072#discussion_r3523325119 -> c89f19fa08d862bb817739b0470367027ce5afd8
 
