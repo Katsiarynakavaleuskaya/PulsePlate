@@ -50,8 +50,12 @@ local `make verify`.
 - [x] Post-open `bug-hunter` pass completed; three P2 findings fixed in
   `8d50f28c1`.
 - [ ] Post-open `security-auditor` pass completed.
-- [ ] Codex Security diff scan / finding discovery completed for current head.
-- [ ] `pulseplate-pr-review` completed for current head.
+- [x] Post-open `security-auditor` pass completed.
+- [x] Codex Security diff scan / finding discovery completed for
+  `191a2a317a42b6b7cc255e0011affedfe74e4435`.
+- [x] `pulseplate-pr-review` completed for
+  `191a2a317a42b6b7cc255e0011affedfe74e4435`; one advisory large-diff planning
+  note dispositioned below.
 - [ ] CodeRabbit actionable review comments checked and dispositioned.
 - [ ] Sourcery actionable review comments checked and dispositioned.
 - [ ] Cubic actionable review comments checked and dispositioned.
@@ -89,9 +93,31 @@ asserts the JSON `Content-Type` before parsing the recipe search response.
 Reason: Aligns the new bootstrap test with `tests/AGENTS.md` JSON response
 assertion policy.
 
+Disposition: NOT-A-BUG
+Evidence: `pulseplate-pr-review` dry-run report found one advisory
+large-diff planning note because the diff exceeded the 800-line review-risk
+threshold; scope remains a bounded route-registration migration plus the
+bug-hunter route-order guard fix, and focused gates covered the changed
+surfaces: recipes/nutrition behavior tests, bootstrap/guard/OpenAPI/auth-tier
+tests, `check_legacy_growth_guard.py`, targeted mypy, `make openapi-check`,
+`pre-commit run --all-files`, `make validate-changed`, and pre-push hooks.
+Reason: The threshold is review-planning evidence, not a code/security defect.
+The PR was intentionally kept to one legacy-removal family plus the directly
+required shared route-order guard.
+
 ## Review Comment Dispositions
 
 No GitHub review comments have been dispositioned yet.
+
+### Advisory PulsePlate PR Review Note
+
+Disposition: NOT-A-BUG
+Evidence: `pulseplate-pr-review` reported only the large-diff planning note
+described in `Fixed in Commit Mapping`; no deterministic correctness,
+security, architecture, QA, wellness, release, or governance code finding was
+reported.
+Reason: The PR owns one bounded legacy-removal slice and the targeted
+bug-hunter fix required to keep that slice fail-closed.
 
 ## Experiment Runner Evidence
 
@@ -139,6 +165,13 @@ grant product runtime, provider, client, or public API authority.
 - Bug-hunter fix `DEV_PYTHON=.venv/bin/python make openapi-check` - PASS.
 - Bug-hunter fix `pre-commit run --all-files` - PASS after Black formatted
   `app/bootstrap/route_family.py` and affected tests were rerun.
+- Codex Security diff scan:
+  scan `08025660-053e-4a39-bb72-73277fe7c22f` completed with 0 findings and
+  6/6 coverage rows closed for
+  `8fdcd0ac1668f612de4dca90846fd994967e60df..191a2a317a42b6b7cc255e0011affedfe74e4435`.
+- `pulseplate-pr-review`:
+  `/tmp/pr2073_pulseplate_pr_review.md` completed; one advisory large-diff note
+  dispositioned as NOT-A-BUG above.
 
 ## Merge Readiness
 
