@@ -72,7 +72,17 @@ Branch: `codex/move-users-registration-to-canonical-bootstrap`
 
 ## Merge Readiness
 
-Not merge-ready yet. Current-head GitHub CI, post-open
-`qa-engineer-agent -> bug-hunter -> security-auditor`, Codex Security diff scan
-/ finding discovery, `pulseplate-pr-review`, bot review actionables, review
-threads, and strict merge-readiness checks remain pending.
+Closeout evidence is maintained by the strict merge wrapper on the latest PR
+head, not by stale checklist prose in this artifact.
+
+- PASS: post-open `qa-engineer-agent -> bug-hunter -> security-auditor` lane.
+- PASS: Codex Security diff scan `42559129-e962-4f95-b560-e332b8931299`
+  reported 0 findings on the reviewed branch diff.
+- PASS: `pulseplate-pr-review` dry run completed with no blocking findings.
+- PASS: current-head GitHub CI completed for head
+  `66a34fd252795d256fbfcb28afd17af265a57910`.
+- PASS: `python scripts/orchestration/check_merge_ready.py --pr-number 2074
+  --repo Katsiarynakavaleuskaya/PulsePlate --require-auth` passed with 0
+  unresolved review threads and all actionable bot comments mapped.
+- Guardrail: after any later mapping/body/metadata commit, rerun the strict
+  merge wrapper on the new head before squash merge.
