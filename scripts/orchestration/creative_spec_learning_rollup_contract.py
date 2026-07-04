@@ -880,6 +880,8 @@ def _normalize_agent_feedback(raw_feedback: Any, *, label: str) -> list[dict[str
         raise CreativeSpecLearningRollupError(f"{label} must be an array.")
     if not raw_feedback:
         raise CreativeSpecLearningRollupError(f"{label} must be non-empty.")
+    if len(raw_feedback) > 6:
+        raise CreativeSpecLearningRollupError(f"{label} must contain at most 6 entries.")
     rows: list[dict[str, Any]] = []
     seen: set[str] = set()
     for index, item in enumerate(raw_feedback):
@@ -1024,10 +1026,21 @@ def _normalize_authority(
 def _validate_rollup_outcome_consistency(rollup: Mapping[str, Any]) -> None:
     outcomes = cast(Mapping[str, Any], rollup["outcomes"])
     summary = cast(Mapping[str, Any], rollup["learning_summary"])
+    agent_feedback = cast(Sequence[Mapping[str, Any]], rollup["agent_feedback"])
     failure_count = int(summary["failure_count"])
     rejected_variant_count = int(outcomes["rejected_variant_count"])
     rejection_record_count = int(outcomes["rejection_record_count"])
     variant_count = int(outcomes["variant_count"])
+    feedback_counts = {
+        "pass_review_count": sum(int(row["pass_count"]) for row in agent_feedback),
+        "revise_review_count": sum(int(row["revise_count"]) for row in agent_feedback),
+        "reject_review_count": sum(int(row["reject_count"]) for row in agent_feedback),
+    }
+    for outcome_key, feedback_count in feedback_counts.items():
+        if int(outcomes[outcome_key]) != feedback_count:
+            raise CreativeSpecLearningRollupError(
+                f"rollup agent_feedback counts must match outcomes.{outcome_key}."
+            )
     if rejection_record_count != failure_count:
         raise CreativeSpecLearningRollupError(
             "rollup rejection_record_count must match learning_summary.failure_count."

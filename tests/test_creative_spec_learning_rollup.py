@@ -321,6 +321,68 @@ def test_rollup_rejects_rejection_counters_without_failure_records(
         shutil.rmtree(input_dir, ignore_errors=True)
 
 
+def test_rollup_rejects_agent_feedback_counts_that_do_not_match_outcomes(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    suffix = f"learning-feedback-mismatch-{uuid.uuid4().hex[:8]}"
+    output_dir, input_dir, artifacts = _finalized_artifacts(capsys, suffix=suffix)
+    try:
+        rollup = build_creative_spec_learning_rollup(**artifacts)
+        assert int(rollup["outcomes"]["pass_review_count"]) > 0
+        for row in rollup["agent_feedback"]:
+            row["pass_count"] = 0
+        set_creative_learning_identity(
+            rollup,
+            id_key="rollup_id",
+            asset_type=ROLLUP_ARTIFACT_TYPE,
+            upstream_ids=(
+                str(rollup["source"]["finalize_id"]),
+                str(rollup["source"]["bundle_id"]),
+                str(rollup["source"]["bridge_metrics_id"]),
+            ),
+        )
+
+        with pytest.raises(CreativeSpecLearningRollupError, match="pass_review_count"):
+            validate_creative_spec_learning_rollup(rollup)
+    finally:
+        shutil.rmtree(output_dir, ignore_errors=True)
+        shutil.rmtree(input_dir, ignore_errors=True)
+
+
+def test_rollup_rejects_agent_feedback_over_schema_max_items(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    suffix = f"learning-feedback-max-{uuid.uuid4().hex[:8]}"
+    output_dir, input_dir, artifacts = _finalized_artifacts(capsys, suffix=suffix)
+    try:
+        rollup = build_creative_spec_learning_rollup(**artifacts)
+        rollup["agent_feedback"] = [
+            {
+                "reviewer_role": f"reviewer-{index}",
+                "pass_count": 0,
+                "revise_count": 0,
+                "reject_count": 0,
+            }
+            for index in range(7)
+        ]
+        set_creative_learning_identity(
+            rollup,
+            id_key="rollup_id",
+            asset_type=ROLLUP_ARTIFACT_TYPE,
+            upstream_ids=(
+                str(rollup["source"]["finalize_id"]),
+                str(rollup["source"]["bundle_id"]),
+                str(rollup["source"]["bridge_metrics_id"]),
+            ),
+        )
+
+        with pytest.raises(CreativeSpecLearningRollupError, match="at most 6"):
+            validate_creative_spec_learning_rollup(rollup)
+    finally:
+        shutil.rmtree(output_dir, ignore_errors=True)
+        shutil.rmtree(input_dir, ignore_errors=True)
+
+
 def test_rollup_rejects_semantic_cache_and_graph_truth_claims(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
