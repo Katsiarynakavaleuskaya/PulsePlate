@@ -41,10 +41,25 @@ Evidence: docs/review/PR_2073_FIXED_MAPPING.md now checks the required Discussio
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2073#pullrequestreview-4629760831 -> 111cc0f77e2ee1b849c92555e85422bb74b39a2e
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2073#pullrequestreview-4629802649 -> 111cc0f77e2ee1b849c92555e85422bb74b39a2e
 
+Disposition: FIXED
+Commit: c6b6fe41bf45317e607cf9e017ecb662c33aef8a
+Evidence: app/main.py:1208 registers recipe/nutrition-reference routes before the nutrition-state alias family, and tests/test_recipe_nutrition_reference_registration_bootstrap.py:187 asserts no dynamic /api/v1/nutrition route can precede GET /api/v1/nutrition/recommendations.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2073#discussion_r3523395325 -> c6b6fe41bf45317e607cf9e017ecb662c33aef8a
+
 Disposition: NOT-A-BUG
 Evidence: git show -s --format=%B ac08b4b6f4e241c18b62e24dbc90db027e78d985 includes the canonical Experiment Runner co-author trailer, and the Phase2 gate inspects origin/main..HEAD for that trailer.
 Reason: The Codex review targeted superseded commit d412942d75db55ec3cbc6c1e296a54f95433f0da; current branch history carries the required trailer on the implementation commit.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2073#discussion_r3523327703
+
+Disposition: NOT-A-BUG
+Evidence: docs/review/PR_2073_FIXED_MAPPING.md now has one checked post-open security-auditor row, and validate_mapping_artifact_text reports no artifact errors.
+Reason: The Codex review targeted superseded commit 3a888230a8 before the pushed mapping-format commits; current head no longer contains the duplicate unchecked row.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2073#discussion_r3523395324
+
+Disposition: NOT-A-BUG
+Evidence: python scripts/ci/check_pr_body_phase2_gates.py --pr-number 2073 --body "$(gh pr view 2073 --json body --jq .body)" --commit-range origin/main..HEAD --experiment-runner-evidence-mode required passed with the current canonical artifact and PR body mirror.
+Reason: The Codex review targeted superseded commit 3a888230a8; current ## Fixed in Commit Mapping contains only parser-valid URL disposition blocks, with role-pass notes moved outside the canonical mapping section.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2073#discussion_r3523395328
 
 Disposition: NOT-A-BUG
 Evidence: tests/test_recipe_nutrition_reference_registration_bootstrap.py exercises app.main bootstrap ownership directly, and tests/test_legacy_growth_guard.py pins guard message output for intentional reintroduction regressions.
@@ -108,6 +123,7 @@ runtime, provider, client, or public API authority.
 - `python scripts/orchestration/check_agent_consistency.py` - PASS.
 - `python -m pytest -q tests/test_recipes_api.py tests/test_recipe_preview.py tests/test_nutrition_recommendations_api.py` - PASS.
 - `python -m pytest -q tests/test_recipe_nutrition_reference_registration_bootstrap.py tests/test_legacy_growth_guard.py tests/test_openapi_namespace_guards.py tests/security/test_api_auth_tier_contract_pack.py tests/security/test_api_authz_contract_static.py` - PASS.
+- `python -m pytest -q tests/test_nutrition_recommendations_api.py::TestFreeRecommendationsSuccess::test_recommendations_success tests/test_recipe_nutrition_reference_registration_bootstrap.py::test_nutrition_recommendations_route_cannot_be_shadowed_by_dynamic_v1_alias` - PASS.
 - `python scripts/ci/check_legacy_growth_guard.py` - PASS.
 - `python -m mypy app/bootstrap/route_family.py app/main.py app/routers/recipes.py app/routers/nutrition_recommendations.py scripts/ci/check_legacy_growth_guard.py` - PASS.
 - `DEV_PYTHON=.venv/bin/python make openapi-check` - PASS.
