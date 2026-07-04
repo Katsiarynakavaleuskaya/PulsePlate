@@ -238,6 +238,7 @@ def test_valid_artifact_chain_enforces_creative_authority_boundary() -> None:
     approval = build_creative_hypothesis_approval(
         hypothesis_id=packet["hypotheses"][0]["hypothesis_id"],
         decision="approve_for_pr1_specification",
+        hypothesis_packet=packet,
         approved_target_surfaces=packet["hypotheses"][0]["target_surfaces"],
         approved_agents=[routing["routing"][0]["primary_agent"]],
         next_step="create_pr1_specification",
@@ -1098,6 +1099,21 @@ def test_approval_rejects_rejected_or_deferred_pr1_handoff() -> None:
         )
 
 
+def test_approval_requires_packet_binding_for_pr1_handoff() -> None:
+    packet = _packet()
+    with pytest.raises(
+        ExperimentRunnerCreativeContextContractError,
+        match="PR-1 approval requires source hypothesis packet and hypothesis fingerprint binding",
+    ):
+        build_creative_hypothesis_approval(
+            hypothesis_id=packet["hypotheses"][0]["hypothesis_id"],
+            decision="approve_for_pr1_specification",
+            approved_target_surfaces=packet["hypotheses"][0]["target_surfaces"],
+            approved_agents=["orchestration-architect"],
+            next_step="create_pr1_specification",
+        )
+
+
 def test_approval_rejects_product_runtime_pr1_targets() -> None:
     with pytest.raises(
         ExperimentRunnerCreativeContextContractError,
@@ -1106,6 +1122,7 @@ def test_approval_rejects_product_runtime_pr1_targets() -> None:
         build_creative_hypothesis_approval(
             hypothesis_id="hyp-001",
             decision="approve_for_pr1_specification",
+            hypothesis_packet=_packet(),
             approved_target_surfaces=["app/main.py"],
             next_step="create_pr1_specification",
         )
@@ -1545,6 +1562,9 @@ def test_approval_schema_encodes_decision_state_machine() -> None:
 
     approve_then = approve_guard["then"]["properties"]
     assert approve_then["next_step"]["const"] == "create_pr1_specification"
+    assert approve_then["source_hypothesis_packet_id"]["$ref"] == "#/$defs/safe_id"
+    assert approve_then["source_hypothesis_packet_fingerprint"]["$ref"] == "#/$defs/sha256"
+    assert approve_then["hypothesis_fingerprint"]["$ref"] == "#/$defs/sha256"
     assert approve_then["approved_target_surfaces"]["minItems"] == 1
     assert (
         approve_then["approved_target_surfaces"]["items"]["$ref"]

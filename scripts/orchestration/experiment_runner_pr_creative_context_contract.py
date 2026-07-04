@@ -445,7 +445,10 @@ APPROVAL_KEYS = frozenset(
         "policy_version",
         "approval_id",
         "idempotency_key",
+        "source_hypothesis_packet_id",
+        "source_hypothesis_packet_fingerprint",
         "hypothesis_id",
+        "hypothesis_fingerprint",
         "decision",
         "approved_target_surfaces",
         "approved_agents",
@@ -629,6 +632,12 @@ def _require_id(payload: Mapping[str, Any], key: str, *, label: str) -> str:
         raise ExperimentRunnerCreativeContextContractError(f"{label}.{key} must be a safe id.")
     reject_unsafe_creative_context_value(normalized, label=f"{label}.{key}")
     return normalized
+
+
+def _require_optional_id(value: Any, *, label: str) -> str | None:
+    if value is None:
+        return None
+    return _require_id({"value": value}, "value", label=label)
 
 
 def _require_token(payload: Mapping[str, Any], key: str, *, label: str) -> str:
@@ -2694,11 +2703,27 @@ def build_creative_hypothesis_approval(
     *,
     hypothesis_id: str,
     decision: str,
+    hypothesis_packet: Mapping[str, Any] | None = None,
     approved_target_surfaces: Sequence[str] = (),
     approved_agents: Sequence[str] = (),
     approved_by: str = "human_operator",
     next_step: str = "no_action",
 ) -> dict[str, Any]:
+    source_packet_id: str | None = None
+    source_packet_fingerprint: str | None = None
+    hypothesis_fingerprint: str | None = None
+    if hypothesis_packet is not None:
+        packet = validate_creative_hypothesis_packet(hypothesis_packet)
+        source_packet_id = str(packet["packet_id"])
+        source_packet_fingerprint = cast(str, fingerprint_payload(packet))
+        for row in packet["hypotheses"]:
+            if row["hypothesis_id"] == hypothesis_id:
+                hypothesis_fingerprint = cast(str, fingerprint_payload(cast(dict[str, Any], row)))
+                break
+        if hypothesis_fingerprint is None:
+            raise ExperimentRunnerCreativeContextContractError(
+                "approval hypothesis_id must exist in the supplied hypothesis packet."
+            )
     normalized_targets = _normalize_path_list(
         list(approved_target_surfaces),
         label="approved_target_surfaces",
@@ -2708,7 +2733,10 @@ def build_creative_hypothesis_approval(
         "schema_version": SCHEMA_VERSION,
         "artifact_type": APPROVAL_TYPE,
         "policy_version": POLICY_VERSION,
+        "source_hypothesis_packet_id": source_packet_id,
+        "source_hypothesis_packet_fingerprint": source_packet_fingerprint,
         "hypothesis_id": hypothesis_id,
+        "hypothesis_fingerprint": hypothesis_fingerprint,
         "decision": decision,
         "approved_target_surfaces": normalized_targets,
         "approved_agents": _normalize_text_list(
@@ -2725,7 +2753,15 @@ def build_creative_hypothesis_approval(
     approval_id, idempotency_key = _artifact_identity(
         body,
         artifact_type=APPROVAL_TYPE,
-        upstream_ids=(hypothesis_id,),
+        upstream_ids=tuple(
+            value
+            for value in (
+                hypothesis_id,
+                source_packet_id,
+                hypothesis_fingerprint,
+            )
+            if value
+        ),
     )
     return validate_creative_hypothesis_approval(
         {
@@ -2751,7 +2787,19 @@ def validate_creative_hypothesis_approval(payload: Mapping[str, Any]) -> dict[st
         "policy_version": _require_const(payload, "policy_version", POLICY_VERSION, label=label),
         "approval_id": _require_id(payload, "approval_id", label=label),
         "idempotency_key": _require_id(payload, "idempotency_key", label=label),
+        "source_hypothesis_packet_id": _require_optional_id(
+            payload["source_hypothesis_packet_id"],
+            label="source_hypothesis_packet_id",
+        ),
+        "source_hypothesis_packet_fingerprint": _require_optional_sha256(
+            payload["source_hypothesis_packet_fingerprint"],
+            label="source_hypothesis_packet_fingerprint",
+        ),
         "hypothesis_id": _require_id(payload, "hypothesis_id", label=label),
+        "hypothesis_fingerprint": _require_optional_sha256(
+            payload["hypothesis_fingerprint"],
+            label="hypothesis_fingerprint",
+        ),
         "decision": decision,
         "approved_target_surfaces": _normalize_path_list(
             payload["approved_target_surfaces"],
@@ -2786,6 +2834,14 @@ def validate_creative_hypothesis_approval(payload: Mapping[str, Any]) -> dict[st
     if normalized["decision"] == "defer" and normalized["next_step"] != "defer":
         raise ExperimentRunnerCreativeContextContractError("deferred approvals must set defer.")
     if normalized["decision"] == "approve_for_pr1_specification":
+        if (
+            not normalized["source_hypothesis_packet_id"]
+            or not normalized["source_hypothesis_packet_fingerprint"]
+            or not normalized["hypothesis_fingerprint"]
+        ):
+            raise ExperimentRunnerCreativeContextContractError(
+                "PR-1 approval requires source hypothesis packet and hypothesis fingerprint binding."
+            )
         if not normalized["approved_target_surfaces"]:
             raise ExperimentRunnerCreativeContextContractError(
                 "PR-1 approval requires at least one approved target surface."
@@ -2810,7 +2866,15 @@ def validate_creative_hypothesis_approval(payload: Mapping[str, Any]) -> dict[st
         id_key="approval_id",
         idempotency_key="idempotency_key",
         artifact_type=APPROVAL_TYPE,
-        upstream_ids=(normalized["hypothesis_id"],),
+        upstream_ids=tuple(
+            value
+            for value in (
+                normalized["hypothesis_id"],
+                normalized["source_hypothesis_packet_id"],
+                normalized["hypothesis_fingerprint"],
+            )
+            if value
+        ),
     )
     reject_unsafe_creative_context_value(normalized, label=label)
     return normalized

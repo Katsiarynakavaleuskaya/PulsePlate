@@ -45,6 +45,21 @@
   single-pass-per-material-diff; later comments use fixed mapping and targeted
   gates unless the security-relevant diff changes, the coordinator records an
   evidence-backed reroute, or the operator explicitly requests another run.
+- Approved creative-hypothesis specification bridge artifacts stay local under
+  `artifacts/orchestration/creative_code/spec_bridge/`. The
+  `creative_hypothesis_spec_bridge.py` CLI may only consume validated
+  creative-context context maps, hypothesis packets, coordinator dispatch
+  handoffs, and human approval packets; emit a validated
+  `creative_hypothesis_specification_bridge.json`,
+  `CreativeCodeCandidatePacket`, deterministic `bridge_metrics.json`, and
+  existing PR-1 `creative_code_spec_pipeline.prepare` artifacts; and validate
+  those artifacts. It must not widen `CreativeCodeCandidatePacket.target_surface`
+  beyond the existing `validate_mutable_candidate_surface(...)` allowlist,
+  execute agents, finalize bundles, generate patches, create/write branches,
+  push, open or edit PRs, resolve review threads, edit fixed mappings, claim
+  readiness, merge, release, call providers, call product runtime, change
+  workflows, use semantic cache, write graph truth, or mutate GitHub App /
+  Slack settings.
 - The runner must apply patches only inside an isolated temporary checkout and must leave the shared working tree untouched.
 - Mutable surfaces, immutable oracles, budgets, and promotion boundaries are defined by `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`; do not duplicate or relax them here.
 - Runner mutation of `scripts/ci/**`, `docs/review/**`, `AGENTS.md`, merge
