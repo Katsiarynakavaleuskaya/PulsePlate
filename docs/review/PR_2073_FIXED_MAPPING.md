@@ -20,7 +20,7 @@ generated client artifacts.
 - [x] Pre-edit role order completed: `agent-coordinator -> backend-engineer -> qa-engineer-agent -> bug-hunter -> security-auditor -> architecture-specialist`.
 - [x] Post-open role chain completed: `qa-engineer-agent -> bug-hunter -> security-auditor`.
 - [x] Post-open bug-hunter findings fixed and re-reviewed.
-- [x] Codex Security diff scan / finding discovery completed for the last security-relevant head.
+- [x] Initial Codex Security diff scan / finding discovery completed for 191a2a317a42b6b7cc255e0011affedfe74e4435; current-head rescan e82db3b8-d682-4072-b013-ac81071d0663 was started for 55b527d22325ca655e66e8507edea6c15b48bb56 and remains pending in preflight.
 - [x] `pulseplate-pr-review` completed; advisory large-diff note dispositioned below.
 - [x] Codex review actionable comments checked and dispositioned below.
 - [x] CodeRabbit actionable review comments checked and dispositioned below.
@@ -132,9 +132,11 @@ runtime, provider, client, or public API authority.
 - `make validate-changed` - PASS on latest implementation head; selected tests/test_legacy_growth_guard.py, tests/test_main_paywall_bootstrap.py, and tests/test_recipe_nutrition_reference_registration_bootstrap.py.
 - Pre-push hooks - PASS on pushed heads: mypy where applicable, pip-audit, backend pytest pre-push, full-repo Bandit, and docker build test where applicable.
 - Codex Security diff scan 08025660-053e-4a39-bb72-73277fe7c22f completed with 0 findings and 6/6 coverage rows closed for 8fdcd0ac1668f612de4dca90846fd994967e60df..191a2a317a42b6b7cc255e0011affedfe74e4435.
+- Current-head Codex Security scan e82db3b8-d682-4072-b013-ac81071d0663 was opened for 8fdcd0ac1668f612de4dca90846fd994967e60df..55b527d22325ca655e66e8507edea6c15b48bb56; it remained in preflight during this pass and is not counted as pass evidence.
 - `pulseplate-pr-review` completed; one advisory large-diff note dispositioned as NOT-A-BUG above.
 
 ## Merge Readiness
 
 Not claimed here. Requires current-head CI after the latest mapping/body commit,
-strict merge-readiness gate, and resolved review threads.
+current-head Codex Security completion, strict merge-readiness gate, and resolved
+review threads.
