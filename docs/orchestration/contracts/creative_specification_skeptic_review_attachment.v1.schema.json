@@ -41,7 +41,7 @@
     },
     "artifact_ref": {
       "type": "string",
-      "pattern": "^artifacts/orchestration/creative_code/spec_bridge/[A-Za-z0-9][A-Za-z0-9._:-]{0,127}(?:/[A-Za-z0-9][A-Za-z0-9._:-]{0,127}(?:\\.json)?)?$",
+      "pattern": "^artifacts/orchestration/creative_code/spec_bridge/[A-Za-z0-9][A-Za-z0-9._:-]{0,127}(?:/[A-Za-z0-9][A-Za-z0-9._:-]{0,127}(?:\\.json)?)*$",
       "not": { "pattern": "(?:^|/)\\.\\.?(?:/|$)" }
     },
     "reviewed_run_ref": {

@@ -34,6 +34,8 @@ POLICY_VERSION = "creative-specification-skeptic-review-finalize-v1"
 REVIEWED_RUN_DIRNAME = "spec_finalize_reviewed"
 NEXT_ACTION_SELECTED = "human_review_for_patch_builder"
 NEXT_ACTION_ALL_REJECTED = "human_review_for_discard_or_defer"
+MAX_REVIEW_TEXT_LENGTH = 512
+MAX_REVIEW_TOKEN_LIST_LENGTH = 10
 
 ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 SAFE_TOKEN_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$")
@@ -1040,6 +1042,10 @@ def _require_text(payload: Mapping[str, Any], key: str, *, label: str) -> str:
     normalized = value.strip()
     if not normalized:
         raise CreativeSpecificationSkepticReviewError(f"{label}.{key} must be non-empty.")
+    if len(normalized) > MAX_REVIEW_TEXT_LENGTH:
+        raise CreativeSpecificationSkepticReviewError(
+            f"{label}.{key} must be at most {MAX_REVIEW_TEXT_LENGTH} characters."
+        )
     _reject_unsafe_text(normalized, label=f"{label}.{key}")
     return normalized
 
@@ -1073,6 +1079,10 @@ def _normalize_token_list(
         raise CreativeSpecificationSkepticReviewError(f"{label}.{key} must be an array.")
     if not value and not allow_empty:
         raise CreativeSpecificationSkepticReviewError(f"{label}.{key} must be non-empty.")
+    if len(value) > MAX_REVIEW_TOKEN_LIST_LENGTH:
+        raise CreativeSpecificationSkepticReviewError(
+            f"{label}.{key} must contain at most {MAX_REVIEW_TOKEN_LIST_LENGTH} items."
+        )
     normalized: list[str] = []
     seen: set[str] = set()
     for index, item in enumerate(value):

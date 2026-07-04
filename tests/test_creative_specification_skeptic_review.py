@@ -4,6 +4,7 @@ import ast
 from copy import deepcopy
 import json
 from pathlib import Path
+import re
 import shutil
 from typing import Any
 
@@ -24,7 +25,9 @@ from scripts.orchestration.creative_hypothesis_spec_bridge_contract import (
     build_creative_hypothesis_spec_bridge_bundle,
 )
 from scripts.orchestration.creative_specification_skeptic_review_contract import (
+    CreativeSpecificationSkepticReviewError,
     default_review_input_authority,
+    validate_agent_skeptic_reviews_input,
     validate_finalize_receipt,
     validate_skeptic_review_attachment,
 )
@@ -322,6 +325,10 @@ def test_attach_validate_finalize_preserves_original_spec_prepare(
         assert receipt["synthesis_status"] == "selected"
         assert receipt["next_allowed_action"] == "human_review_for_patch_builder"
         assert receipt["counts"]["selected_variant_count"] == 1
+        _assert_schema_artifact_refs_accept_generated_attachment_and_receipt(
+            attachment=attachment,
+            receipt=receipt,
+        )
 
         exit_code = bridge_cli.main(
             ["validate", "--bridge", str(output_dir / bridge_cli.BRIDGE_FILENAME)]
@@ -332,6 +339,42 @@ def test_attach_validate_finalize_preserves_original_spec_prepare(
     finally:
         shutil.rmtree(output_dir, ignore_errors=True)
         shutil.rmtree(input_dir, ignore_errors=True)
+
+
+def _assert_schema_artifact_refs_accept_generated_attachment_and_receipt(
+    *,
+    attachment: dict[str, Any],
+    receipt: dict[str, Any],
+) -> None:
+    attachment_schema = json.loads(
+        (
+            REPO_ROOT
+            / "docs/orchestration/contracts/creative_specification_skeptic_review_attachment.v1.schema.json"
+        ).read_text(encoding="utf-8")
+    )
+    receipt_schema = json.loads(
+        (
+            REPO_ROOT
+            / "docs/orchestration/contracts/creative_specification_finalize_receipt.v1.schema.json"
+        ).read_text(encoding="utf-8")
+    )
+    attachment_artifact_ref = re.compile(attachment_schema["$defs"]["artifact_ref"]["pattern"])
+    attachment_reviewed_run_ref = re.compile(
+        attachment_schema["$defs"]["reviewed_run_ref"]["pattern"]
+    )
+    receipt_artifact_ref = re.compile(receipt_schema["$defs"]["artifact_ref"]["pattern"])
+    receipt_reviewed_run_ref = re.compile(receipt_schema["$defs"]["reviewed_run_ref"]["pattern"])
+
+    for key, value in attachment["source"].items():
+        if key.endswith("_ref"):
+            assert attachment_artifact_ref.fullmatch(value), key
+    assert attachment_reviewed_run_ref.fullmatch(attachment["reviewed_run"]["run_dir_ref"])
+    for key, value in attachment["reviewed_run"].items():
+        if key.endswith("_ref") and key != "run_dir_ref":
+            assert attachment_artifact_ref.fullmatch(value), key
+    assert receipt_artifact_ref.fullmatch(receipt["source_attachment_ref"])
+    assert receipt_artifact_ref.fullmatch(receipt["bundle_ref"])
+    assert receipt_reviewed_run_ref.fullmatch(receipt["reviewed_run_dir_ref"])
 
 
 def test_finalize_receipt_records_all_rejected_status(
@@ -364,6 +407,48 @@ def test_finalize_receipt_records_all_rejected_status(
         assert receipt["synthesis_status"] == "all_rejected"
         assert receipt["next_allowed_action"] == "human_review_for_discard_or_defer"
         assert receipt["counts"]["selected_variant_count"] == 0
+    finally:
+        shutil.rmtree(output_dir, ignore_errors=True)
+        shutil.rmtree(input_dir, ignore_errors=True)
+
+
+@pytest.mark.parametrize(
+    ("case_slug", "mutator", "expected_error"),
+    [
+        (
+            "overlong-text",
+            lambda payload: payload["reviews"][0].update({"duplicate_reason": "x" * 513}),
+            "at most 512 characters",
+        ),
+        (
+            "too-many-blockers",
+            lambda payload: payload["reviews"][0].update(
+                {"blockers": [f"blocker_{index}" for index in range(11)]}
+            ),
+            "at most 10 items",
+        ),
+        (
+            "too-many-unsafe-flags",
+            lambda payload: payload["reviews"][0].update(
+                {"unsafe_authority_flags": [f"flag_{index}" for index in range(11)]}
+            ),
+            "at most 10 items",
+        ),
+    ],
+)
+def test_review_input_validator_matches_schema_caps(
+    capsys: pytest.CaptureFixture[str],
+    case_slug: str,
+    mutator: Any,
+    expected_error: str,
+) -> None:
+    output_dir, input_dir = _prepared_bridge(capsys, suffix=f"schema-caps-{case_slug}")
+    try:
+        payload = _review_input(output_dir, all_rejected=True)
+        mutator(payload)
+
+        with pytest.raises(CreativeSpecificationSkepticReviewError, match=expected_error):
+            validate_agent_skeptic_reviews_input(payload)
     finally:
         shutil.rmtree(output_dir, ignore_errors=True)
         shutil.rmtree(input_dir, ignore_errors=True)
