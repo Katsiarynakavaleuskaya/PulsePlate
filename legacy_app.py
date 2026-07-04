@@ -50,7 +50,6 @@ from app.http_error_details import (
 )
 from app.routers.api_key import api_key_header
 from app.routers.restaurants import router as restaurants_router
-from app.routers.users import router as users_router
 from app.schemas.bmr import BMRRequest, BMRRequestLegacy, BMRResponse
 from app.schemas.bmi_compat import BMIRequest, BMIRequestV1
 from app.schemas.premium_contracts import (
@@ -906,7 +905,6 @@ async def admin_status() -> Dict[str, str]:
 
 # Include API routers
 app.include_router(restaurants_router, include_in_schema=False)
-app.include_router(users_router)
 
 # PRO/VIP route registration is owned by app.main canonical bootstrap.
 # Compatibility attrs above are populated there after successful registration.

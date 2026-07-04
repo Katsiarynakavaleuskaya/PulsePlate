@@ -31,7 +31,34 @@ Anchor (stable): `legacy_app.py -> include_router(...) for core API routers`
 Evidence: `legacy_app.py:922-932`
 
 - `restaurants_router` (`app/routers/restaurants.py`, hidden from OpenAPI at registration)
-- `users_router` (`app/routers/users.py`)
+- Users CRUD is no longer legacy-owned; see
+  [Canonical users router](#canonical-users-router-canonical-bootstrap-owned).
+
+### Canonical users router (canonical bootstrap-owned)
+
+Anchor (stable): `app/main.py -> _include_users_router_if_needed(app)`
+
+Evidence:
+- `app/bootstrap/route_family.py` — shared `RouteMemberContract` /
+  `ensure_route_family_registered(...)` guard for exact static route families.
+- `app/main.py` — registers `users_router` as one hidden canonical static route
+  family and validates dependency, visibility, duplicate, partial,
+  foreign-handler, wrong-method, and route-order drift.
+- `app/routers/users.py` — owns users CRUD handlers, `_require_users_api_key`,
+  hidden source-route `USERS_ROUTE_SPECS`, DB retry, conflict, not-found, and
+  idempotent delete semantics.
+- `scripts/ci/check_legacy_growth_guard.py` — rejects reintroducing users router
+  import or registration into `legacy_app.py`.
+
+Runtime effect:
+- `POST /api/v1/users`
+- `GET /api/v1/users`
+- `GET /api/v1/users/{user_id}`
+- `DELETE /api/v1/users/{user_id}`
+
+OpenAPI effect:
+- Users source routes stay hidden from OpenAPI at route metadata level.
+- Final public `app.openapi()` excludes `/api/v1/users*`.
 
 ### Canonical recipe/nutrition-reference routers (canonical bootstrap-owned)
 

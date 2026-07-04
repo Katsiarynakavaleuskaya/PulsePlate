@@ -22,6 +22,13 @@ logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
 
+USERS_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = (
+    ("/api/v1/users", "POST", False),
+    ("/api/v1/users", "GET", False),
+    ("/api/v1/users/{user_id}", "GET", False),
+    ("/api/v1/users/{user_id}", "DELETE", False),
+)
+
 
 def _require_users_api_key(api_key: str = Depends(api_key_header)) -> str:
     """Validate app-level API key access for the users CRUD surface."""
@@ -171,7 +178,12 @@ def _execute_with_retry(action: Callable[[Session], T], fallback: T | None = Non
 #       Consider adding lang parameter or translating at HTTP layer per coding guidelines.
 
 
-@router.post("", response_model=UserRead, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=UserRead,
+    status_code=status.HTTP_201_CREATED,
+    include_in_schema=False,
+)
 async def create_user(payload: UserCreate) -> UserRead:
     """RU: Создаёт нового пользователя. EN: Create a new user entry.
 
@@ -194,7 +206,7 @@ async def create_user(payload: UserCreate) -> UserRead:
     return cast(UserRead, await run_in_threadpool(_execute_with_retry, _action))
 
 
-@router.get("", response_model=List[UserRead])
+@router.get("", response_model=List[UserRead], include_in_schema=False)
 async def list_users(
     limit: int = Query(50, ge=1, le=1000),
     offset: int = Query(0, ge=0),
@@ -216,7 +228,7 @@ async def list_users(
     )  # No fallback - fail explicitly if DB unavailable
 
 
-@router.get("/{user_id}", response_model=UserRead)
+@router.get("/{user_id}", response_model=UserRead, include_in_schema=False)
 async def get_user(user_id: int) -> UserRead:
     """RU: Получить пользователя по идентификатору.
 
@@ -232,7 +244,11 @@ async def get_user(user_id: int) -> UserRead:
     return cast(UserRead, await run_in_threadpool(_execute_with_retry, _action))
 
 
-@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{user_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    include_in_schema=False,
+)
 async def delete_user(user_id: int) -> Response:
     """RU: Удаляет пользователя. EN: Delete a user by identifier.
 
