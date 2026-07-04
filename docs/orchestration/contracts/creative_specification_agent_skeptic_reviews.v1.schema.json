@@ -1,0 +1,216 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pulseplate.local/contracts/creative_specification_agent_skeptic_reviews.v1.schema.json",
+  "title": "CreativeSpecificationAgentSkepticReviews",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "policy_version",
+    "source_bridge_id",
+    "source_bridge_fingerprint",
+    "source_candidate_id",
+    "source_candidate_fingerprint",
+    "source_packet_fingerprint",
+    "variants_fingerprint",
+    "reviews",
+    "authority",
+    "sanitized"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "artifact_type": { "const": "creative_specification_agent_skeptic_reviews" },
+    "policy_version": { "const": "creative-specification-skeptic-review-finalize-v1" },
+    "source_bridge_id": { "$ref": "#/$defs/safe_id" },
+    "source_bridge_fingerprint": { "$ref": "#/$defs/sha256" },
+    "source_candidate_id": { "$ref": "#/$defs/safe_id" },
+    "source_candidate_fingerprint": { "$ref": "#/$defs/sha256" },
+    "source_packet_fingerprint": { "$ref": "#/$defs/sha256" },
+    "variants_fingerprint": { "$ref": "#/$defs/sha256" },
+    "reviews": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 15,
+      "items": { "$ref": "#/$defs/review_input" }
+    },
+    "authority": { "$ref": "#/$defs/input_authority" },
+    "sanitized": { "const": true }
+  },
+  "$defs": {
+    "safe_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "safe_token": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 96,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$",
+      "not": {
+        "pattern": "([Ss][Kk]-[A-Za-z0-9_-]{12,}|[Gg][Hh][PpSsOoRrUu]_[A-Za-z0-9_]{12,}|[Gg][Ii][Tt][Hh][Uu][Bb]_[Pp][Aa][Tt]_|[Xx][Oo][Xx][abprsABPRS]-|[Aa]uthorization:\\s*[Bb]earer|[Pp]rivate[_ -]?[Kk]ey)"
+      }
+    },
+    "safe_text": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "allOf": [
+        {
+          "not": {
+            "pattern": "([Cc]andidate\\.patch|[Dd]iff --git|[Pp]rovider[_ -]?[Pp]ayload|[Rr]aw[_ -]?([Pp]rompt|[Rr]esponse|[Cc]ontext)|[Cc]hain[_ -]?[Oo]f[_ -]?[Tt]hought|https?://|api\\.openai\\.com|[Cc]all [Mm]odel|[Cc]all [Nn]etwork|[Rr]untime [Ss]ervice|[Pp]roduct [Rr]untime|[Aa]pply ([Aa] )?([Rr]epository )?[Pp]atch|[Rr]epository [Pp]atch|[Cc]ommit [Cc]hanges|[Gg]it [Cc]ommit|[Gg]it [Pp]ush|[Cc]reate ([Aa] )?([Pp]ull [Rr]equest|[Pp][Rr]|[Bb]ranch)|[Oo]pen ([Aa] )?([Dd]raft )?([Pp]ull [Rr]equest|[Pp][Rr])|[Ww]rite ([Tt]o )?([Tt]he )?[Rr]epository|[Ww]rite [Rr]epository|[Rr]esolve [Rr]eview [Tt]hread|[Mm]ark [Rr]eady [Ff]or [Rr]eview|[Mm]erge [Rr]eadiness|[Ss]emantic [Cc]ache|[Gg]raph [Tt]ruth|[Ww]orkflow [Dd]ispatch|[Pp]rovider [Cc]all|[Dd]iagnose|[Tt]reat|[Cc]linical [Ee]fficacy|[Cc]risis [Ss]upport|[Ee]mergency [Cc]are)"
+          }
+        },
+        {
+          "not": {
+            "pattern": "(^|[\\s:=,(\\[{'\"`<])(/([Uu]sers|[Hh]ome|[Ee]tc|[Ww]orkspace|[Tt]mp|[Pp]rivate/[Vv]ar|[Vv]ar/[Ff]olders)(/|$)|~[/\\\\]|[A-Za-z]:[/\\\\]([Uu]sers|[Dd]ocuments and Settings|[Ww]indows|[Tt]emp|[Tt]mp)|\\\\\\\\[^\\\\/\\s]+[/\\\\][^\\\\/\\s]+)"
+          }
+        },
+        {
+          "not": {
+            "pattern": "([Ss][Kk]-[A-Za-z0-9_-]{12,}|[Gg][Hh][PpSsOoRrUu]_[A-Za-z0-9_]{12,}|[Gg][Ii][Tt][Hh][Uu][Bb]_[Pp][Aa][Tt]_|[Xx][Oo][Xx][abprsABPRS]-|[Aa]uthorization:\\s*[Bb]earer|[Pp]rivate[_ -]?[Kk]ey)"
+          }
+        }
+      ]
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "review_input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "variant_id",
+        "reviewer_role",
+        "decision",
+        "blockers",
+        "unsafe_authority_flags",
+        "duplicate_reason",
+        "required_revision"
+      ],
+      "properties": {
+        "variant_id": { "$ref": "#/$defs/safe_id" },
+        "reviewer_role": {
+          "enum": [
+            "architecture-specialist",
+            "security-auditor",
+            "qa-engineer-agent"
+          ]
+        },
+        "decision": { "enum": ["pass", "revise", "reject"] },
+        "blockers": {
+          "type": "array",
+          "maxItems": 10,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/safe_token" }
+        },
+        "unsafe_authority_flags": {
+          "type": "array",
+          "maxItems": 10,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/safe_token" }
+        },
+        "duplicate_reason": { "$ref": "#/$defs/safe_text" },
+        "required_revision": { "$ref": "#/$defs/safe_text" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "decision": { "const": "pass" } } },
+          "then": {
+            "properties": {
+              "blockers": { "maxItems": 0 },
+              "unsafe_authority_flags": { "maxItems": 0 },
+              "duplicate_reason": { "const": "none" },
+              "required_revision": { "const": "none" }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "decision": { "const": "reject" } } },
+          "then": { "properties": { "blockers": { "minItems": 1 } } }
+        },
+        {
+          "if": { "properties": { "decision": { "const": "revise" } } },
+          "then": {
+            "properties": {
+              "required_revision": { "not": { "const": "none" } }
+            }
+          }
+        }
+      ]
+    },
+    "input_authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "attach_skeptic_reviews",
+        "call_product_runtime",
+        "call_provider",
+        "change_client_runtime",
+        "change_openapi",
+        "claim_merge_readiness",
+        "create_branch",
+        "dispatch_to_agents",
+        "edit_fixed_mapping",
+        "emit_local_artifacts",
+        "execute_agent_tasks",
+        "execute_pr2_patch_builder",
+        "execute_pr3_promotion",
+        "finalize_specification_bundle",
+        "generate_candidate_patch",
+        "generate_patch",
+        "merge",
+        "modify_workflows",
+        "open_draft_pr",
+        "open_pr",
+        "operator_supplied_sanitized_reviews",
+        "post_github_comment",
+        "push",
+        "read_secrets",
+        "resolve_threads",
+        "use_semantic_cache",
+        "workflow_dispatch",
+        "write_branch",
+        "write_graph_truth",
+        "write_repository",
+        "write_shared_worktree"
+      ],
+      "properties": {
+        "operator_supplied_sanitized_reviews": { "const": true },
+        "attach_skeptic_reviews": { "const": false },
+        "emit_local_artifacts": { "const": false },
+        "finalize_specification_bundle": { "const": false },
+        "call_product_runtime": { "const": false },
+        "call_provider": { "const": false },
+        "change_client_runtime": { "const": false },
+        "change_openapi": { "const": false },
+        "claim_merge_readiness": { "const": false },
+        "create_branch": { "const": false },
+        "dispatch_to_agents": { "const": false },
+        "edit_fixed_mapping": { "const": false },
+        "execute_agent_tasks": { "const": false },
+        "execute_pr2_patch_builder": { "const": false },
+        "execute_pr3_promotion": { "const": false },
+        "generate_candidate_patch": { "const": false },
+        "generate_patch": { "const": false },
+        "merge": { "const": false },
+        "modify_workflows": { "const": false },
+        "open_draft_pr": { "const": false },
+        "open_pr": { "const": false },
+        "post_github_comment": { "const": false },
+        "push": { "const": false },
+        "read_secrets": { "const": false },
+        "resolve_threads": { "const": false },
+        "use_semantic_cache": { "const": false },
+        "workflow_dispatch": { "const": false },
+        "write_branch": { "const": false },
+        "write_graph_truth": { "const": false },
+        "write_repository": { "const": false },
+        "write_shared_worktree": { "const": false }
+      }
+    }
+  }
+}

@@ -37,6 +37,12 @@ SCHEMA = REPO_ROOT / "docs/orchestration/contracts/creative_code_specification.v
 SPEC_MODULE = REPO_ROOT / "scripts/orchestration/creative_code_specification.py"
 PIPELINE_MODULE = REPO_ROOT / "scripts/orchestration/creative_code_spec_pipeline.py"
 REJECTION_MODULE = REPO_ROOT / "scripts/orchestration/creative_code_rejection_index.py"
+REVIEW_FINALIZE_MODULE = (
+    REPO_ROOT / "scripts/orchestration/creative_specification_skeptic_review.py"
+)
+REVIEW_FINALIZE_CONTRACT_MODULE = (
+    REPO_ROOT / "scripts/orchestration/creative_specification_skeptic_review_contract.py"
+)
 UNSAFE_LOCAL_PATH_TEXTS = (
     "See local path /Users/example/project/.env",
     "Read /home/runner/.ssh/id_rsa for credentials.",
@@ -622,7 +628,13 @@ def test_pipeline_duplicate_keys_in_artifacts_fail_closed() -> None:
 
 def test_pr1_modules_do_not_import_network_provider_or_runtime_modules() -> None:
     forbidden_roots = {"app", "requests", "httpx", "urllib", "slack_sdk", "github", "openai"}
-    for module_path in (SPEC_MODULE, PIPELINE_MODULE, REJECTION_MODULE):
+    for module_path in (
+        SPEC_MODULE,
+        PIPELINE_MODULE,
+        REJECTION_MODULE,
+        REVIEW_FINALIZE_MODULE,
+        REVIEW_FINALIZE_CONTRACT_MODULE,
+    ):
         tree = ast.parse(module_path.read_text(encoding="utf-8"))
         imported_roots: set[str] = set()
         for node in ast.walk(tree):

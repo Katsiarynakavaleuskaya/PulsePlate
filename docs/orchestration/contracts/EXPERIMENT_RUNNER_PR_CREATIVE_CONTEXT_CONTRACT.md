@@ -172,6 +172,15 @@ Build-only bridge artifacts keep `spec_prepare.prepared=false` and
 `prepare-specification` writes the four deterministic PR-1 artifacts may the
 bridge mark `prepared=true` and expose `next_allowed_action=agent_skeptic_review`.
 
+The reviewed finalize follow-up remains outside the bridge. It may only run
+through `creative_specification_skeptic_review.py`, which copies prepared
+artifacts into sibling `spec_finalize_reviewed/`, attaches sanitized local
+agent skeptic-review evidence, delegates to the existing PR-1
+`creative_code_spec_pipeline.finalize`, and emits metadata-only attachment and
+receipt artifacts. It must not rewrite `spec_prepare/` or add agent, provider,
+patch, branch, PR, workflow, product-runtime, semantic-cache, graph-truth,
+fixed-mapping, review-thread, or merge-readiness authority to the bridge.
+
 ## Operator Model Intake
 
 `CreativeHypothesisOperatorModelIntake` is an advisory, unverified local input
