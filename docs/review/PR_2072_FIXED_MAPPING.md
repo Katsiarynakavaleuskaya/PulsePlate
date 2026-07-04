@@ -56,6 +56,14 @@ Evidence: This CodeRabbit review object is a rollup/status review for the inline
 Reason: The review-level URL has no additional actionable finding beyond its inline comments, and each inline actionable has commit proof and test coverage in this artifact.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2072#pullrequestreview-4629721700
 
+Disposition: FIXED
+Commit: 134d726e806b0734f2ef7d23d6669166fe279054
+Evidence: `scripts/orchestration/creative_specification_skeptic_review_contract.py` now rejects all-rejected receipts whose rejection counts contradict variant coverage, binds `source_attachment_ref` and `bundle_ref` to the canonical files under `reviewed_run_dir_ref`, and enforces nonzero Python-side attachment/receipt variant and review counts to match the published schemas. Covered by `tests/test_creative_specification_skeptic_review.py`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2072#discussion_r3523498147 -> 134d726e806b0734f2ef7d23d6669166fe279054
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2072#discussion_r3523498148 -> 134d726e806b0734f2ef7d23d6669166fe279054
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2072#discussion_r3523498149 -> 134d726e806b0734f2ef7d23d6669166fe279054
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2072#pullrequestreview-4629921037 -> 134d726e806b0734f2ef7d23d6669166fe279054
+
 ## Experiment Runner Evidence
 Artifact: `artifacts/orchestration/experiments/results/oracle-spec-skeptic-review-finalize-network1-result.json`
 
