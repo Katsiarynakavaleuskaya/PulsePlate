@@ -34,6 +34,13 @@ Evidence: `scripts/orchestration/creative_specification_skeptic_review.py` now u
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2072#discussion_r3523384324 -> f724a25b55ef1513f2c160b760aca8b62eef228f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2072#discussion_r3523384327 -> f724a25b55ef1513f2c160b760aca8b62eef228f
 
+Disposition: FIXED
+Commit: d450c73e275963286d39f93049d3e02173e1b027
+Evidence: `scripts/orchestration/creative_specification_skeptic_review.py` now rejects noncanonical bridge filenames during `attach`, `docs/orchestration/contracts/creative_specification_agent_skeptic_reviews.v1.schema.json` aligns deny patterns with runtime case-insensitive safety checks for lower-case PR authority phrases and upper-case secret-shaped tokens, and `scripts/orchestration/creative_specification_skeptic_review_contract.py` rejects finalize receipts whose selected counts contradict `selected_variant_id`. Covered by `tests/test_creative_specification_skeptic_review.py`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2072#discussion_r3523432892 -> d450c73e275963286d39f93049d3e02173e1b027
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2072#discussion_r3523432893 -> d450c73e275963286d39f93049d3e02173e1b027
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2072#discussion_r3523432897 -> d450c73e275963286d39f93049d3e02173e1b027
+
 ## Experiment Runner Evidence
 Artifact: `artifacts/orchestration/experiments/results/oracle-spec-skeptic-review-finalize-network1-result.json`
 
