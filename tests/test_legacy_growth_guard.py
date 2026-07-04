@@ -1162,6 +1162,34 @@ def test_legacy_growth_guard_rejects_food_catalog_router_reintroduction(
                 "recipes_router.include_router"
             ],
         ),
+        (
+            textwrap.dedent("""
+                import os
+                from importlib import import_module
+
+                module = import_module(os.getenv("LEGACY_ROUTER_MODULE"))
+                router = module.router
+                recipes_router.include_router(router)
+                app.include_router(recipes_router)
+                """),
+            [
+                "legacy_app.py: unexpected app.routers import growth: "
+                "router_import:dynamic:<unresolved dynamic router import> -> "
+                "recipes_router.include_router"
+            ],
+        ),
+        (
+            textwrap.dedent("""
+                import importlib
+
+                recipes_router = importlib.import_module(name="app.routers.foods").router
+                app.include_router(recipes_router)
+                """),
+            [
+                "legacy_app.py: unexpected app.routers import growth: "
+                "router_import:dynamic:app.routers.foods -> recipes_router"
+            ],
+        ),
     ],
 )
 def test_legacy_growth_guard_rejects_computed_food_catalog_dynamic_import_alias_bypass(
