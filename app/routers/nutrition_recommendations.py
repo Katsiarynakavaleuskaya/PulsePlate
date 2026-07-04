@@ -14,6 +14,10 @@ from fastapi import APIRouter, Query
 
 from app.schemas.nutrition_recommendations import NutrientRecommendationsResponse
 
+NUTRITION_RECOMMENDATIONS_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = (
+    ("/api/v1/nutrition/recommendations", "GET", True),
+)
+
 router = APIRouter(tags=["nutrition"])
 
 

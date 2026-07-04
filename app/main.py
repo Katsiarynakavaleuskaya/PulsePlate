@@ -80,6 +80,10 @@ from app.routers.legacy_nutrition_alias import (
     LEGACY_NUTRITION_ALIAS_ROUTE_SPECS,
     router as legacy_nutrition_alias_router,
 )
+from app.routers.nutrition_recommendations import (
+    NUTRITION_RECOMMENDATIONS_ROUTE_SPECS,
+    router as nutrition_recommendations_router,
+)
 from app.routers.nutrition_log import NUTRITION_LOG_ROUTE_SPECS, router as nutrition_log_router
 from app.routers.plan_export import (
     PLAN_EXPORT_ROUTE_SPECS,
@@ -90,6 +94,7 @@ from app.routers.plan_export import (
     plan_router,
 )
 from app.routers.pro_registration import register_pro_routes
+from app.routers.recipes import RECIPES_ROUTE_SPECS, router as recipes_router
 from app.routers.restaurants import (
     RESTAURANT_MODERATION_ROUTE_SPECS,
     moderation_router as restaurant_moderation_router,
@@ -188,9 +193,17 @@ _NUTRITION_LOG_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = tuple(
     (path, method.upper(), include_in_schema)
     for path, method, include_in_schema in NUTRITION_LOG_ROUTE_SPECS
 )
+_NUTRITION_RECOMMENDATIONS_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = tuple(
+    (path, method.upper(), include_in_schema)
+    for path, method, include_in_schema in NUTRITION_RECOMMENDATIONS_ROUTE_SPECS
+)
 _PLAN_EXPORT_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = tuple(
     (path, method.upper(), include_in_schema)
     for path, method, include_in_schema in PLAN_EXPORT_ROUTE_SPECS
+)
+_RECIPES_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = tuple(
+    (path, method.upper(), include_in_schema)
+    for path, method, include_in_schema in RECIPES_ROUTE_SPECS
 )
 _SHOPLIST_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = tuple(
     (path, method.upper(), include_in_schema)
@@ -426,6 +439,20 @@ def _food_catalog_route_members() -> tuple[RouteMemberContract, ...]:
             )
         )
     return tuple(members)
+
+
+def _recipe_nutrition_reference_route_members() -> tuple[RouteMemberContract, ...]:
+    return tuple(
+        RouteMemberContract(
+            path=path,
+            method=method,
+            include_in_schema=include_in_schema,
+        )
+        for path, method, include_in_schema in (
+            *_RECIPES_ROUTE_SPECS,
+            *_NUTRITION_RECOMMENDATIONS_ROUTE_SPECS,
+        )
+    )
 
 
 def _test_route_members() -> tuple[RouteMemberContract, ...]:
@@ -994,6 +1021,17 @@ def _include_food_catalog_routers_if_needed(target_app: FastAPI) -> None:
     )
 
 
+def _include_recipe_nutrition_reference_routers_if_needed(target_app: FastAPI) -> None:
+    """Register recipe and nutrition-reference routes as one canonical static family."""
+
+    ensure_route_family_registered(
+        target_app,
+        family_name="Recipe nutrition reference",
+        routers=(recipes_router, nutrition_recommendations_router),
+        members=_recipe_nutrition_reference_route_members(),
+    )
+
+
 def _include_test_router_if_enabled(target_app: FastAPI) -> None:
     """Register non-production test routes as one hidden canonical family."""
 
@@ -1167,6 +1205,7 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
     register_tracing(app)
     _register_paid_tier_routes(app)
     register_pro_contract_routes(app)
+    _include_recipe_nutrition_reference_routers_if_needed(app)
     _include_nutrition_state_routers_if_needed(app)
 
     ws_paths_present = {path for path in _WS_ROUTE_PATHS if _has_route(app, path)}

@@ -101,9 +101,7 @@ ALLOWED_LEGACY_ROUTE_FACTS = frozenset(
         LegacyFact("decorator", "post", "/api/v1/premium/targets", "api_who_targets"),
         LegacyFact("decorator", "post", "/api/v1/premium/plan/week", "api_weekly_menu"),
         LegacyFact("decorator", "post", "/api/v1/premium/gaps", "api_nutrient_gaps"),
-        LegacyFact("registration", "include_router", "nutrition_recommendations_router", ""),
         LegacyFact("registration", "include_router", "restaurants_router", ""),
-        LegacyFact("registration", "include_router", "recipes_router", ""),
         LegacyFact("registration", "include_router", "users_router", ""),
     }
 )
@@ -113,12 +111,6 @@ ALLOWED_ROUTER_IMPORT_FACTS = frozenset(
         LegacyFact("router_import", "app.routers", "vip", "_vip_mod"),
         LegacyFact("router_import", "app.routers.api_key", "api_key_header", ""),
         LegacyFact("router_import", "app.routers.bmi", "bmi_calculate_handler", ""),
-        LegacyFact(
-            "router_import",
-            "app.routers.nutrition_recommendations",
-            "router",
-            "nutrition_recommendations_router",
-        ),
         LegacyFact("router_import", "dynamic", "app.routers.plan_export", "_plan_mod"),
         LegacyFact(
             "router_import", "app.routers.pro_nutrition_contracts", "pro_nutrition_plate", ""
@@ -126,7 +118,6 @@ ALLOWED_ROUTER_IMPORT_FACTS = frozenset(
         LegacyFact(
             "router_import", "app.routers.pro_nutrition_contracts", "pro_nutrition_targets", ""
         ),
-        LegacyFact("router_import", "app.routers.recipes", "router", "recipes_router"),
         LegacyFact("router_import", "app.routers.restaurants", "router", "restaurants_router"),
         LegacyFact("router_import", "app.routers.users", "router", "users_router"),
         LegacyFact(
@@ -238,20 +229,60 @@ def _app_call_action(
     *,
     app_aliases: frozenset[str] = frozenset({"app"}),
     router_aliases: frozenset[str] = frozenset(),
+    static_string_bindings: Mapping[str, str] | None = None,
 ) -> str | None:
-    if not isinstance(func, ast.Attribute) or func.attr not in methods:
+    if isinstance(func, ast.Attribute) and func.attr in methods:
+        if isinstance(func.value, ast.Name) and func.value.id in app_aliases:
+            return func.attr
+        if isinstance(func.value, ast.Name) and func.value.id in router_aliases:
+            return f"router.{func.attr}"
+        if (
+            isinstance(func.value, ast.Attribute)
+            and func.value.attr == "router"
+            and isinstance(func.value.value, ast.Name)
+            and func.value.value.id in app_aliases
+        ):
+            return f"router.{func.attr}"
+
+    getattr_action = _getattr_app_call_action(
+        func,
+        methods,
+        app_aliases=app_aliases,
+        router_aliases=router_aliases,
+        static_string_bindings=static_string_bindings,
+    )
+    if getattr_action is not None:
+        return getattr_action
+    return None
+
+
+def _getattr_app_call_action(
+    func: ast.AST,
+    methods: AbstractSet[str],
+    *,
+    app_aliases: frozenset[str],
+    router_aliases: frozenset[str],
+    static_string_bindings: Mapping[str, str] | None = None,
+) -> str | None:
+    method = _getattr_method_name(
+        func,
+        methods,
+        static_string_bindings=static_string_bindings,
+    )
+    if method is None or not isinstance(func, ast.Call) or not func.args:
         return None
-    if isinstance(func.value, ast.Name) and func.value.id in app_aliases:
-        return func.attr
-    if isinstance(func.value, ast.Name) and func.value.id in router_aliases:
-        return f"router.{func.attr}"
+    target = func.args[0]
+    if isinstance(target, ast.Name) and target.id in app_aliases:
+        return method
+    if isinstance(target, ast.Name) and target.id in router_aliases:
+        return f"router.{method}"
     if (
-        isinstance(func.value, ast.Attribute)
-        and func.value.attr == "router"
-        and isinstance(func.value.value, ast.Name)
-        and func.value.value.id in app_aliases
+        isinstance(target, ast.Attribute)
+        and target.attr == "router"
+        and isinstance(target.value, ast.Name)
+        and target.value.id in app_aliases
     ):
-        return f"router.{func.attr}"
+        return f"router.{method}"
     return None
 
 
@@ -264,6 +295,7 @@ def collect_legacy_route_facts(source_text: str, *, filename: str = LEGACY_APP) 
 
     facts: set[LegacyFact] = set()
     app_aliases, router_aliases = _collect_app_aliases(tree)
+    static_string_bindings = _collect_static_string_bindings(tree)
     for node in ast.walk(tree):
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             for decorator in node.decorator_list:
@@ -274,6 +306,7 @@ def collect_legacy_route_facts(source_text: str, *, filename: str = LEGACY_APP) 
                     APP_ROUTE_METHODS,
                     app_aliases=app_aliases,
                     router_aliases=router_aliases,
+                    static_string_bindings=static_string_bindings,
                 )
                 if action is not None:
                     facts.add(
@@ -286,6 +319,7 @@ def collect_legacy_route_facts(source_text: str, *, filename: str = LEGACY_APP) 
                 APP_REGISTRATION_METHODS,
                 app_aliases=app_aliases,
                 router_aliases=router_aliases,
+                static_string_bindings=static_string_bindings,
             )
             if action is not None:
                 facts.add(LegacyFact("registration", action, _first_arg_label(call), ""))
@@ -311,7 +345,10 @@ def collect_router_import_facts(source_text: str, *, filename: str = LEGACY_APP)
         import_func_names=dynamic_import_names,
         static_string_bindings=static_string_bindings,
     )
-    registered_router_targets = _collect_registered_router_targets(tree)
+    registered_router_targets = _collect_registered_router_targets(
+        tree,
+        static_string_bindings=static_string_bindings,
+    )
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom) and node.module is not None:
             if node.module != "app.routers" and not node.module.startswith("app.routers."):
@@ -348,7 +385,10 @@ def collect_router_import_facts(source_text: str, *, filename: str = LEGACY_APP)
             ):
                 facts.add(LegacyFact("router_import", "dynamic", module_name, target_name))
         elif isinstance(node, ast.Call):
-            if not _is_router_registration_call(node):
+            if not _is_router_registration_call(
+                node,
+                static_string_bindings=static_string_bindings,
+            ):
                 continue
             for module_name in _dynamic_app_router_import_modules(
                 node,
@@ -368,6 +408,7 @@ def collect_router_import_facts(source_text: str, *, filename: str = LEGACY_APP)
             for module_name in _tainted_dynamic_router_modules_in_registration_call(
                 node,
                 dynamic_import_target_modules,
+                static_string_bindings=static_string_bindings,
             ):
                 facts.add(
                     LegacyFact(
@@ -513,10 +554,17 @@ def _static_app_router_hint(
     return False
 
 
-def _collect_registered_router_targets(tree: ast.Module) -> frozenset[str]:
+def _collect_registered_router_targets(
+    tree: ast.Module,
+    *,
+    static_string_bindings: Mapping[str, str] | None = None,
+) -> frozenset[str]:
     targets: set[str] = set()
     for node in ast.walk(tree):
-        if not isinstance(node, ast.Call) or not _is_router_registration_call(node):
+        if not isinstance(node, ast.Call) or not _is_router_registration_call(
+            node,
+            static_string_bindings=static_string_bindings,
+        ):
             continue
         if not node.args:
             continue
@@ -629,8 +677,39 @@ def _is_dynamic_import_function_reference(
     return isinstance(node, ast.Attribute) and node.attr == "import_module"
 
 
-def _is_router_registration_call(call: ast.Call) -> bool:
-    return isinstance(call.func, ast.Attribute) and call.func.attr in APP_REGISTRATION_METHODS
+def _is_router_registration_call(
+    call: ast.Call,
+    *,
+    static_string_bindings: Mapping[str, str] | None = None,
+) -> bool:
+    return (
+        isinstance(call.func, ast.Attribute)
+        and call.func.attr in APP_REGISTRATION_METHODS
+        or _getattr_method_name(
+            call.func,
+            APP_REGISTRATION_METHODS,
+            static_string_bindings=static_string_bindings,
+        )
+        is not None
+    )
+
+
+def _getattr_method_name(
+    func: ast.AST,
+    methods: AbstractSet[str],
+    *,
+    static_string_bindings: Mapping[str, str] | None = None,
+) -> str | None:
+    if not isinstance(func, ast.Call):
+        return None
+    if not isinstance(func.func, ast.Name) or func.func.id != "getattr":
+        return None
+    if len(func.args) < 2:
+        return None
+    method = _resolve_static_string(func.args[1], static_string_bindings or {})
+    if method in methods:
+        return method
+    return None
 
 
 def _assignment_target_names(node: ast.AST) -> tuple[str, ...]:
@@ -697,14 +776,46 @@ def _dynamic_app_router_import_assignments(
 def _tainted_dynamic_router_modules_in_registration_call(
     call: ast.Call,
     dynamic_import_target_modules: Mapping[str, AbstractSet[str]],
+    *,
+    static_string_bindings: Mapping[str, str] | None = None,
 ) -> frozenset[str]:
     """Return unresolved dynamic imports routed through wrapper-router registration args."""
 
     if not call.args:
         return frozenset()
-    if isinstance(call.args[0], ast.Name) and _safe_unparse(call.func) == "app.include_router":
+    if isinstance(call.args[0], ast.Name) and _is_app_include_router_func(
+        call.func,
+        static_string_bindings=static_string_bindings,
+    ):
         return frozenset()
     return _tainted_dynamic_router_modules_in_node(call.args[0], dynamic_import_target_modules)
+
+
+def _is_app_include_router_func(
+    func: ast.AST,
+    *,
+    static_string_bindings: Mapping[str, str] | None = None,
+) -> bool:
+    if (
+        isinstance(func, ast.Attribute)
+        and func.attr == "include_router"
+        and isinstance(func.value, ast.Name)
+        and func.value.id == "app"
+    ):
+        return True
+    if (
+        _getattr_method_name(
+            func,
+            frozenset({"include_router"}),
+            static_string_bindings=static_string_bindings,
+        )
+        != "include_router"
+    ):
+        return False
+    if not isinstance(func, ast.Call) or not func.args:
+        return False
+    target = func.args[0]
+    return isinstance(target, ast.Name) and target.id == "app"
 
 
 def _tainted_dynamic_router_modules_in_node(
@@ -981,6 +1092,7 @@ def collect_sensitive_app_surface_counts(
     app_surface_methods = APP_ROUTE_METHODS | APP_REGISTRATION_METHODS
     sensitive_names = _collect_sensitive_names(tree)
     app_aliases, router_aliases = _collect_app_aliases(tree)
+    static_string_bindings = _collect_static_string_bindings(tree)
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
@@ -990,6 +1102,7 @@ def collect_sensitive_app_surface_counts(
                 app_surface_methods,
                 app_aliases=app_aliases,
                 router_aliases=router_aliases,
+                static_string_bindings=static_string_bindings,
             )
             is None
         ):

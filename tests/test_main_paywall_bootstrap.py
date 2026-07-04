@@ -161,6 +161,42 @@ def test_route_family_contract_builder_rejects_duplicate_source_routes() -> None
         )
 
 
+def test_route_family_rejects_existing_route_order_drift() -> None:
+    router = APIRouter()
+
+    async def _search() -> dict[str, str]:
+        return {"status": "search"}
+
+    async def _item(item_id: str) -> dict[str, str]:
+        return {"status": item_id}
+
+    router.get("/api/v1/static-family/search")(_search)
+    router.get("/api/v1/static-family/{item_id}")(_item)
+
+    target_app = FastAPI()
+    target_app.add_api_route(
+        "/api/v1/static-family/{item_id}",
+        _item,
+        methods=["GET"],
+    )
+    target_app.add_api_route(
+        "/api/v1/static-family/search",
+        _search,
+        methods=["GET"],
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="Existing static family route order does not preserve source route order",
+    ):
+        ensure_route_family_registered(
+            target_app,
+            family_name="Static family",
+            routers=(router,),
+            members=route_member_contracts_from_router("Static family", router),
+        )
+
+
 def test_route_family_rejects_non_http_source_routes_for_static_tail_coverage() -> None:
     router = APIRouter()
 

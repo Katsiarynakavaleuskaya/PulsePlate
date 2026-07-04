@@ -30,8 +30,35 @@ Anchor (stable): `legacy_app.py -> include_router(...) for core API routers`
 
 Evidence: `legacy_app.py:922-932`
 
-- `recipes_router` (`app/routers/recipes.py`)
+- `restaurants_router` (`app/routers/restaurants.py`, hidden from OpenAPI at registration)
 - `users_router` (`app/routers/users.py`)
+
+### Canonical recipe/nutrition-reference routers (canonical bootstrap-owned)
+
+Anchor (stable): `app/main.py -> _include_recipe_nutrition_reference_routers_if_needed(app)`
+
+Evidence:
+- `app/bootstrap/route_family.py` — shared `RouteMemberContract` /
+  `ensure_route_family_registered(...)` guard for exact static route families.
+- `app/main.py` — registers `recipes_router` and `nutrition_recommendations_router`
+  as one canonical static route family and validates visibility, duplicate,
+  partial, and foreign-handler drift.
+- `app/routers/recipes.py` — owns recipe lookup/search/preview handlers and
+  visible source-route `RECIPES_ROUTE_SPECS`.
+- `app/routers/nutrition_recommendations.py` — owns the FREE basic nutrition
+  recommendation handler and visible source-route `NUTRITION_RECOMMENDATIONS_ROUTE_SPECS`.
+
+Runtime effect:
+- `GET /api/v1/recipes`
+- `GET /api/v1/recipes/search`
+- `GET /api/v1/recipes/{recipe_id}`
+- `POST /api/v1/recipes/preview`
+- `GET /api/v1/nutrition/recommendations`
+
+OpenAPI effect:
+- Source routes remain schema-visible in route metadata.
+- Final public `app.openapi()` continues to filter `/api/v1/recipes*` and
+  `/api/v1/nutrition/recommendations` through the canonical OpenAPI builder.
 
 ### Canonical food/catalog routers (canonical bootstrap-owned)
 
