@@ -20,15 +20,11 @@ Evidence: `scripts/orchestration/creative_specification_skeptic_review.py` rejec
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2072#discussion_r3523325121 -> f2ff78212abea1d863355c43130a22e04b382928
 
 Disposition: FIXED
-Commit: dd84b4bf300dace4fc010e9d503efed23dd88df4
-Evidence: `scripts/orchestration/creative_specification_skeptic_review.py` requires `reviewed_run_dir_ref` to be the sibling of the source bridge artifact. Covered by `tests/test_creative_specification_skeptic_review.py`.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2072#discussion_r3523367669 -> dd84b4bf300dace4fc010e9d503efed23dd88df4
-
-Disposition: FIXED
 Commit: f724a25b55ef1513f2c160b760aca8b62eef228f
 Evidence: `scripts/orchestration/creative_specification_skeptic_review.py` now uses the canonical bridge filename import, cleans partial finalize outputs on receipt/build validation failures, requires canonical source bridge/spec_prepare refs tied to bridge contents, rejects source `spec_prepare/` sidecars, recomputes attachment coverage from reviewed files, and validates source refs against reviewed layout. `scripts/orchestration/creative_specification_skeptic_review_contract.py` enforces safe artifact path components, exact reviewer-count coverage, exact reviewed-run sibling shape, and aggregate bounded counts aligned with the JSON schemas. Covered by `tests/test_creative_specification_skeptic_review.py`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2072#discussion_r3523323651 -> f724a25b55ef1513f2c160b760aca8b62eef228f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2072#discussion_r3523323656 -> f724a25b55ef1513f2c160b760aca8b62eef228f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2072#discussion_r3523367669 -> f724a25b55ef1513f2c160b760aca8b62eef228f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2072#discussion_r3523367670 -> f724a25b55ef1513f2c160b760aca8b62eef228f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2072#discussion_r3523367671 -> f724a25b55ef1513f2c160b760aca8b62eef228f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2072#discussion_r3523367673 -> f724a25b55ef1513f2c160b760aca8b62eef228f
