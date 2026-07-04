@@ -43,10 +43,8 @@ The accepted oracle result applied the current branch diff for:
 
 ## Infra Caveat
 
-The first zero-network local attempt wrote:
+The first zero-network local attempt was not promoted as review evidence:
 
-- Result:
-  `artifacts/orchestration/experiments/results/artifacts/orchestration/experiments/results/exp-recipe-nutrition-reference-zero-network-result.json`
 - Status: `rejected`
 - Failure class: `infra_flake`
 - Runner error: network-disabled sandbox requires `unshare` on PATH.

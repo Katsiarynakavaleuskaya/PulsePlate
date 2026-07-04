@@ -180,7 +180,38 @@ def test_recipe_search_alias_remains_reachable(
     )
 
     assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/json")
     assert response.json() == []
+
+
+def test_recipe_nutrition_reference_registration_rejects_route_order_drift() -> None:
+    target_app = FastAPI()
+    drifted_order = (
+        ("/api/v1/recipes", "GET", True),
+        ("/api/v1/recipes/{recipe_id}", "GET", True),
+        ("/api/v1/recipes/search", "GET", True),
+        ("/api/v1/recipes/preview", "POST", True),
+        ("/api/v1/nutrition/recommendations", "GET", True),
+    )
+
+    for path, method, include_in_schema in drifted_order:
+        source = _source_route(path, method)
+        target_app.add_api_route(
+            path,
+            route_endpoint(source),
+            methods=[method],
+            include_in_schema=include_in_schema,
+            responses=source.responses,
+        )
+
+    with pytest.raises(
+        RuntimeError,
+        match=(
+            "Existing recipe nutrition reference route order does not preserve "
+            "source route order"
+        ),
+    ):
+        app_main._include_recipe_nutrition_reference_routers_if_needed(target_app)
 
 
 def test_recipe_nutrition_reference_registration_rejects_partial_existing_family() -> None:

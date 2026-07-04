@@ -284,6 +284,7 @@ def _validate_existing_routes(
     endpoint_matcher: EndpointMatcher,
 ) -> None:
     present_keys: set[RouteKey] = set()
+    present_order: list[RouteKey] = []
 
     for route in family_routes:
         path = route_path(route)
@@ -294,7 +295,9 @@ def _validate_existing_routes(
         unexpected_methods = methods - matching_methods - _FRAMEWORK_METHODS
         if unexpected_methods:
             raise RuntimeError(f"Partial {family_name.lower()} route registration detected.")
-        present_keys.add((path, next(iter(matching_methods))))
+        key = (path, next(iter(matching_methods)))
+        present_keys.add(key)
+        present_order.append(key)
 
     expected_keys = set(members_by_key)
     if present_keys != expected_keys:
@@ -343,3 +346,8 @@ def _validate_existing_routes(
                     f"Existing {path} route does not preserve "
                     f"{family_name.lower()} required dependency."
                 )
+
+    if tuple(present_order) != tuple(members_by_key):
+        raise RuntimeError(
+            f"Existing {family_name.lower()} route order does not preserve " "source route order."
+        )
