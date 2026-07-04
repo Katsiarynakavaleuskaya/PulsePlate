@@ -230,19 +230,52 @@ def _app_call_action(
     app_aliases: frozenset[str] = frozenset({"app"}),
     router_aliases: frozenset[str] = frozenset(),
 ) -> str | None:
-    if not isinstance(func, ast.Attribute) or func.attr not in methods:
+    if isinstance(func, ast.Attribute) and func.attr in methods:
+        if isinstance(func.value, ast.Name) and func.value.id in app_aliases:
+            return func.attr
+        if isinstance(func.value, ast.Name) and func.value.id in router_aliases:
+            return f"router.{func.attr}"
+        if (
+            isinstance(func.value, ast.Attribute)
+            and func.value.attr == "router"
+            and isinstance(func.value.value, ast.Name)
+            and func.value.value.id in app_aliases
+        ):
+            return f"router.{func.attr}"
+
+    getattr_action = _getattr_app_call_action(
+        func,
+        methods,
+        app_aliases=app_aliases,
+        router_aliases=router_aliases,
+    )
+    if getattr_action is not None:
+        return getattr_action
+    return None
+
+
+def _getattr_app_call_action(
+    func: ast.AST,
+    methods: AbstractSet[str],
+    *,
+    app_aliases: frozenset[str],
+    router_aliases: frozenset[str],
+) -> str | None:
+    method = _getattr_method_name(func, methods)
+    if method is None or not isinstance(func, ast.Call) or not func.args:
         return None
-    if isinstance(func.value, ast.Name) and func.value.id in app_aliases:
-        return func.attr
-    if isinstance(func.value, ast.Name) and func.value.id in router_aliases:
-        return f"router.{func.attr}"
+    target = func.args[0]
+    if isinstance(target, ast.Name) and target.id in app_aliases:
+        return method
+    if isinstance(target, ast.Name) and target.id in router_aliases:
+        return f"router.{method}"
     if (
-        isinstance(func.value, ast.Attribute)
-        and func.value.attr == "router"
-        and isinstance(func.value.value, ast.Name)
-        and func.value.value.id in app_aliases
+        isinstance(target, ast.Attribute)
+        and target.attr == "router"
+        and isinstance(target.value, ast.Name)
+        and target.value.id in app_aliases
     ):
-        return f"router.{func.attr}"
+        return f"router.{method}"
     return None
 
 
@@ -621,7 +654,24 @@ def _is_dynamic_import_function_reference(
 
 
 def _is_router_registration_call(call: ast.Call) -> bool:
-    return isinstance(call.func, ast.Attribute) and call.func.attr in APP_REGISTRATION_METHODS
+    return (
+        isinstance(call.func, ast.Attribute)
+        and call.func.attr in APP_REGISTRATION_METHODS
+        or _getattr_method_name(call.func, APP_REGISTRATION_METHODS) is not None
+    )
+
+
+def _getattr_method_name(func: ast.AST, methods: AbstractSet[str]) -> str | None:
+    if not isinstance(func, ast.Call):
+        return None
+    if not isinstance(func.func, ast.Name) or func.func.id != "getattr":
+        return None
+    if len(func.args) < 2:
+        return None
+    method = _resolve_static_string(func.args[1], {})
+    if method in methods:
+        return method
+    return None
 
 
 def _assignment_target_names(node: ast.AST) -> tuple[str, ...]:
@@ -693,9 +743,25 @@ def _tainted_dynamic_router_modules_in_registration_call(
 
     if not call.args:
         return frozenset()
-    if isinstance(call.args[0], ast.Name) and _safe_unparse(call.func) == "app.include_router":
+    if isinstance(call.args[0], ast.Name) and _is_app_include_router_func(call.func):
         return frozenset()
     return _tainted_dynamic_router_modules_in_node(call.args[0], dynamic_import_target_modules)
+
+
+def _is_app_include_router_func(func: ast.AST) -> bool:
+    if (
+        isinstance(func, ast.Attribute)
+        and func.attr == "include_router"
+        and isinstance(func.value, ast.Name)
+        and func.value.id == "app"
+    ):
+        return True
+    if _getattr_method_name(func, frozenset({"include_router"})) != "include_router":
+        return False
+    if not isinstance(func, ast.Call) or not func.args:
+        return False
+    target = func.args[0]
+    return isinstance(target, ast.Name) and target.id == "app"
 
 
 def _tainted_dynamic_router_modules_in_node(
