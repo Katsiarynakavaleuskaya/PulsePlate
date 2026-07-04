@@ -8,6 +8,13 @@ from app.schemas.recipe import Recipe, RecipePreviewRequest, RecipePreviewRespon
 from app.services import recipe_store
 from app.services.food_store import nutrients_for
 
+RECIPES_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = (
+    ("/api/v1/recipes", "GET", True),
+    ("/api/v1/recipes/search", "GET", True),
+    ("/api/v1/recipes/{recipe_id}", "GET", True),
+    ("/api/v1/recipes/preview", "POST", True),
+)
+
 router = APIRouter(tags=["recipes"])
 
 
