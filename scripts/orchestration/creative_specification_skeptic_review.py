@@ -226,6 +226,10 @@ def _write_json_atomic(path: Path, payload: Any) -> None:
 
 def _read_prepared_bridge(bridge_path: Path) -> dict[str, Any]:
     bridge_file = _resolve_repo_json_file(bridge_path, label="bridge input")
+    if bridge_file.name != BRIDGE_FILENAME:
+        raise CreativeSpecificationSkepticReviewCliError(
+            f"bridge input must point to canonical {BRIDGE_FILENAME}."
+        )
     bridge = validate_creative_hypothesis_specification_bridge(
         _read_json_object(bridge_file, label="bridge input")
     )

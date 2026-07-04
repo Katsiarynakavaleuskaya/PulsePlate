@@ -27,6 +27,7 @@ from scripts.orchestration.creative_hypothesis_spec_bridge_contract import (
 )
 from scripts.orchestration.creative_specification_skeptic_review_contract import (
     ATTACHMENT_ARTIFACT_TYPE,
+    FINALIZE_RECEIPT_ARTIFACT_TYPE,
     CreativeSpecificationSkepticReviewError,
     build_skeptic_review_attachment,
     default_review_input_authority,
@@ -284,6 +285,17 @@ def _refresh_attachment_identity(attachment: dict[str, Any]) -> dict[str, Any]:
     return attachment
 
 
+def _refresh_receipt_identity(receipt: dict[str, Any]) -> dict[str, Any]:
+    receipt["finalize_id"] = "pending"
+    receipt["idempotency_key"] = "pending"
+    review_contract._set_identity(
+        receipt,
+        id_key="finalize_id",
+        asset_type=FINALIZE_RECEIPT_ARTIFACT_TYPE,
+    )
+    return receipt
+
+
 def _rebuild_attachment(
     attachment: dict[str, Any],
     *,
@@ -400,6 +412,33 @@ def test_attach_validate_finalize_preserves_original_spec_prepare(
         captured = capsys.readouterr()
         assert exit_code == 0, captured.err
         assert captured.out.strip() == bridge_cli.SUCCESS_VALIDATE_OUTPUT
+    finally:
+        shutil.rmtree(output_dir, ignore_errors=True)
+        shutil.rmtree(input_dir, ignore_errors=True)
+
+
+def test_attach_rejects_noncanonical_bridge_file(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    output_dir, input_dir = _prepared_bridge(capsys, suffix="noncanonical-bridge-file")
+    try:
+        bridge_copy = output_dir / "copy.json"
+        shutil.copyfile(output_dir / bridge_cli.BRIDGE_FILENAME, bridge_copy)
+        reviews_path = _write_review_input(output_dir, _review_input(output_dir))
+
+        exit_code = review_cli.main(
+            [
+                "attach",
+                "--bridge",
+                str(bridge_copy),
+                "--reviews",
+                str(reviews_path),
+            ]
+        )
+        captured = capsys.readouterr()
+        assert exit_code == 1
+        assert f"canonical {bridge_cli.BRIDGE_FILENAME}" in captured.err
+        assert not (output_dir / "spec_finalize_reviewed").exists()
     finally:
         shutil.rmtree(output_dir, ignore_errors=True)
         shutil.rmtree(input_dir, ignore_errors=True)
@@ -916,6 +955,40 @@ def test_finalize_cleans_partial_outputs_on_receipt_failure(
         shutil.rmtree(input_dir, ignore_errors=True)
 
 
+def test_finalize_receipt_rejects_inconsistent_selected_count(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    output_dir, input_dir = _prepared_bridge(capsys, suffix="receipt-count-mismatch")
+    try:
+        reviews_path = _write_review_input(output_dir, _review_input(output_dir))
+        assert (
+            review_cli.main(
+                [
+                    "attach",
+                    "--bridge",
+                    str(output_dir / bridge_cli.BRIDGE_FILENAME),
+                    "--reviews",
+                    str(reviews_path),
+                ]
+            )
+            == 0
+        )
+        capsys.readouterr()
+        attachment_path = output_dir / "spec_finalize_reviewed" / review_cli.ATTACHMENT_FILENAME
+        assert review_cli.main(["finalize", "--attachment", str(attachment_path)]) == 0
+        capsys.readouterr()
+        receipt_path = output_dir / "spec_finalize_reviewed" / review_cli.FINALIZE_RECEIPT_FILENAME
+        receipt = validate_finalize_receipt(_read_json(receipt_path))
+        tampered_receipt = deepcopy(receipt)
+        tampered_receipt["counts"]["selected_variant_count"] = 0
+
+        with pytest.raises(CreativeSpecificationSkepticReviewError, match="selected_variant_id"):
+            validate_finalize_receipt(_refresh_receipt_identity(tampered_receipt))
+    finally:
+        shutil.rmtree(output_dir, ignore_errors=True)
+        shutil.rmtree(input_dir, ignore_errors=True)
+
+
 @pytest.mark.parametrize(
     ("case_slug", "mutator", "expected_error"),
     [
@@ -1243,8 +1316,12 @@ def test_reviewed_finalize_schemas_are_strict() -> None:
         "provider call",
         "Write to repository",
         "Commit changes",
+        "open pr",
+        "create pr",
     ):
         assert re.search(unsafe_text_pattern, blocked_phrase), blocked_phrase
+    unsafe_token_pattern = review_input_schema["$defs"]["safe_token"]["not"]["pattern"]
+    assert re.search(unsafe_token_pattern, "GHP_12345678901234567890")
     unsafe_path_pattern = review_input_schema["$defs"]["safe_text"]["allOf"][1]["not"]["pattern"]
     assert re.search(unsafe_path_pattern, "Inspect /Users/example/.env")
     attachment_schema = json.loads(

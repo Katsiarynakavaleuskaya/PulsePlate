@@ -50,7 +50,7 @@
       "maxLength": 96,
       "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$",
       "not": {
-        "pattern": "(sk-[A-Za-z0-9_-]{12,}|gh[psoru]_[A-Za-z0-9_]{12,}|github_pat_|xox[abprs]-|authorization:\\s*bearer|private[_ -]?key)"
+        "pattern": "([Ss][Kk]-[A-Za-z0-9_-]{12,}|[Gg][Hh][PpSsOoRrUu]_[A-Za-z0-9_]{12,}|[Gg][Ii][Tt][Hh][Uu][Bb]_[Pp][Aa][Tt]_|[Xx][Oo][Xx][abprsABPRS]-|[Aa]uthorization:\\s*[Bb]earer|[Pp]rivate[_ -]?[Kk]ey)"
       }
     },
     "safe_text": {
@@ -60,7 +60,7 @@
       "allOf": [
         {
           "not": {
-            "pattern": "([Cc]andidate\\.patch|[Dd]iff --git|[Pp]rovider[_ -]?[Pp]ayload|[Rr]aw[_ -]?([Pp]rompt|[Rr]esponse|[Cc]ontext)|[Cc]hain[_ -]?[Oo]f[_ -]?[Tt]hought|https?://|api\\.openai\\.com|[Cc]all [Mm]odel|[Cc]all [Nn]etwork|[Rr]untime [Ss]ervice|[Pp]roduct [Rr]untime|[Aa]pply ([Aa] )?([Rr]epository )?[Pp]atch|[Rr]epository [Pp]atch|[Cc]ommit [Cc]hanges|[Gg]it [Cc]ommit|[Gg]it [Pp]ush|[Cc]reate ([Aa] )?([Pp]ull [Rr]equest|PR|[Bb]ranch)|[Oo]pen ([Aa] )?([Dd]raft )?([Pp]ull [Rr]equest|PR)|[Ww]rite ([Tt]o )?([Tt]he )?[Rr]epository|[Ww]rite [Rr]epository|[Rr]esolve [Rr]eview [Tt]hread|[Mm]ark [Rr]eady [Ff]or [Rr]eview|[Mm]erge [Rr]eadiness|[Ss]emantic [Cc]ache|[Gg]raph [Tt]ruth|[Ww]orkflow [Dd]ispatch|[Pp]rovider [Cc]all|[Dd]iagnose|[Tt]reat|[Cc]linical [Ee]fficacy|[Cc]risis [Ss]upport|[Ee]mergency [Cc]are)"
+            "pattern": "([Cc]andidate\\.patch|[Dd]iff --git|[Pp]rovider[_ -]?[Pp]ayload|[Rr]aw[_ -]?([Pp]rompt|[Rr]esponse|[Cc]ontext)|[Cc]hain[_ -]?[Oo]f[_ -]?[Tt]hought|https?://|api\\.openai\\.com|[Cc]all [Mm]odel|[Cc]all [Nn]etwork|[Rr]untime [Ss]ervice|[Pp]roduct [Rr]untime|[Aa]pply ([Aa] )?([Rr]epository )?[Pp]atch|[Rr]epository [Pp]atch|[Cc]ommit [Cc]hanges|[Gg]it [Cc]ommit|[Gg]it [Pp]ush|[Cc]reate ([Aa] )?([Pp]ull [Rr]equest|[Pp][Rr]|[Bb]ranch)|[Oo]pen ([Aa] )?([Dd]raft )?([Pp]ull [Rr]equest|[Pp][Rr])|[Ww]rite ([Tt]o )?([Tt]he )?[Rr]epository|[Ww]rite [Rr]epository|[Rr]esolve [Rr]eview [Tt]hread|[Mm]ark [Rr]eady [Ff]or [Rr]eview|[Mm]erge [Rr]eadiness|[Ss]emantic [Cc]ache|[Gg]raph [Tt]ruth|[Ww]orkflow [Dd]ispatch|[Pp]rovider [Cc]all|[Dd]iagnose|[Tt]reat|[Cc]linical [Ee]fficacy|[Cc]risis [Ss]upport|[Ee]mergency [Cc]are)"
           }
         },
         {
@@ -70,7 +70,7 @@
         },
         {
           "not": {
-            "pattern": "(sk-[A-Za-z0-9_-]{12,}|gh[psoru]_[A-Za-z0-9_]{12,}|github_pat_|xox[abprs]-|authorization:\\s*bearer|private[_ -]?key)"
+            "pattern": "([Ss][Kk]-[A-Za-z0-9_-]{12,}|[Gg][Hh][PpSsOoRrUu]_[A-Za-z0-9_]{12,}|[Gg][Ii][Tt][Hh][Uu][Bb]_[Pp][Aa][Tt]_|[Xx][Oo][Xx][abprsABPRS]-|[Aa]uthorization:\\s*[Bb]earer|[Pp]rivate[_ -]?[Kk]ey)"
           }
         }
       ]

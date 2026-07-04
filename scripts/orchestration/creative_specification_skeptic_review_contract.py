@@ -578,6 +578,12 @@ def validate_finalize_receipt(payload: Mapping[str, Any]) -> dict[str, Any]:
         raise CreativeSpecificationSkepticReviewError(
             f"{label}.synthesis_status does not match selected_variant_id."
         )
+    counts = _normalize_receipt_counts(payload["counts"], label=f"{label}.counts")
+    expected_selected_count = 1 if selected_variant_id is not None else 0
+    if counts["selected_variant_count"] != expected_selected_count:
+        raise CreativeSpecificationSkepticReviewError(
+            f"{label}.counts.selected_variant_count does not match selected_variant_id."
+        )
     normalized = {
         "schema_version": _require_const(payload, "schema_version", SCHEMA_VERSION, label=label),
         "artifact_type": _require_const(
@@ -619,7 +625,7 @@ def validate_finalize_receipt(payload: Mapping[str, Any]) -> dict[str, Any]:
         "selected_variant_id": selected_variant_id,
         "synthesis_status": synthesis_status,
         "next_allowed_action": next_allowed_action,
-        "counts": _normalize_receipt_counts(payload["counts"], label=f"{label}.counts"),
+        "counts": counts,
         "authority": _normalize_authority(
             payload["authority"],
             expected=default_finalize_receipt_authority(),
