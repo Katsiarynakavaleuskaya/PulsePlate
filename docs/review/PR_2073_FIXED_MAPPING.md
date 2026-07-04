@@ -20,7 +20,7 @@ generated client artifacts.
 - [x] Pre-edit role order completed: `agent-coordinator -> backend-engineer -> qa-engineer-agent -> bug-hunter -> security-auditor -> architecture-specialist`.
 - [x] Post-open role chain completed: `qa-engineer-agent -> bug-hunter -> security-auditor`.
 - [x] Post-open bug-hunter findings fixed and re-reviewed.
-- [x] Initial Codex Security diff scan / finding discovery completed for 191a2a317a42b6b7cc255e0011affedfe74e4435; current-head rescan e82db3b8-d682-4072-b013-ac81071d0663 was started for 55b527d22325ca655e66e8507edea6c15b48bb56 and remains pending in preflight.
+- [x] Codex Security diff scan / finding discovery completed for latest security-relevant head 55b527d22325ca655e66e8507edea6c15b48bb56; later changes only record scan evidence.
 - [x] `pulseplate-pr-review` completed; advisory large-diff note dispositioned below.
 - [x] Codex review actionable comments checked and dispositioned below.
 - [x] CodeRabbit actionable review comments checked and dispositioned below.
@@ -60,6 +60,16 @@ Disposition: NOT-A-BUG
 Evidence: python scripts/ci/check_pr_body_phase2_gates.py --pr-number 2073 --body "$(gh pr view 2073 --json body --jq .body)" --commit-range origin/main..HEAD --experiment-runner-evidence-mode required passed with the current canonical artifact and PR body mirror.
 Reason: The Codex review targeted superseded commit 3a888230a8; current ## Fixed in Commit Mapping contains only parser-valid URL disposition blocks, with role-pass notes moved outside the canonical mapping section.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2073#discussion_r3523395328
+
+Disposition: NOT-A-BUG
+Evidence: git log origin/main..HEAD contains ac08b4b6f4e241c18b62e24dbc90db027e78d985 with Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>; later commits are fix/governance follow-ups, not additional material Experiment Runner contributions.
+Reason: The Codex review cited synthetic reviewed commit 7e387ce3981c743b656812d3cc76e3a885a4fd18, which is not present in the local branch object database; the repo rule requires the trailer on the material runner-shaped implementation commit, not every synthetic review context or docs-only follow-up.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2073#discussion_r3523410266
+
+Disposition: NOT-A-BUG
+Evidence: GH_TOKEN="$(gh auth token)" python scripts/orchestration/check_review_threads_disposition.py --pr-number 2073 --require-auth passed on the actual branch head, and git log origin/main..HEAD contains the mapped FIXED proof commits 8d50f28c1, 111cc0f77e2ee1b849c92555e85422bb74b39a2e, and c6b6fe41bf45317e607cf9e017ecb662c33aef8a.
+Reason: The Codex review cited synthetic reviewed commit 7e387ce3981c743b656812d3cc76e3a885a4fd18 instead of the actual PR branch history. The repo disposition guard is authoritative for resolvable proof SHAs and commit-after-comment validation.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2073#discussion_r3523410269
 
 Disposition: NOT-A-BUG
 Evidence: tests/test_recipe_nutrition_reference_registration_bootstrap.py exercises app.main bootstrap ownership directly, and tests/test_legacy_growth_guard.py pins guard message output for intentional reintroduction regressions.
@@ -132,11 +142,10 @@ runtime, provider, client, or public API authority.
 - `make validate-changed` - PASS on latest implementation head; selected tests/test_legacy_growth_guard.py, tests/test_main_paywall_bootstrap.py, and tests/test_recipe_nutrition_reference_registration_bootstrap.py.
 - Pre-push hooks - PASS on pushed heads: mypy where applicable, pip-audit, backend pytest pre-push, full-repo Bandit, and docker build test where applicable.
 - Codex Security diff scan 08025660-053e-4a39-bb72-73277fe7c22f completed with 0 findings and 6/6 coverage rows closed for 8fdcd0ac1668f612de4dca90846fd994967e60df..191a2a317a42b6b7cc255e0011affedfe74e4435.
-- Current-head Codex Security scan e82db3b8-d682-4072-b013-ac81071d0663 was opened for 8fdcd0ac1668f612de4dca90846fd994967e60df..55b527d22325ca655e66e8507edea6c15b48bb56; it remained in preflight during this pass and is not counted as pass evidence.
+- Current-head Codex Security scan e82db3b8-d682-4072-b013-ac81071d0663 completed for 8fdcd0ac1668f612de4dca90846fd994967e60df..55b527d22325ca655e66e8507edea6c15b48bb56 with 0 findings and complete coverage.
 - `pulseplate-pr-review` completed; one advisory large-diff note dispositioned as NOT-A-BUG above.
 
 ## Merge Readiness
 
 Not claimed here. Requires current-head CI after the latest mapping/body commit,
-current-head Codex Security completion, strict merge-readiness gate, and resolved
-review threads.
+strict merge-readiness gate, and resolved review threads.
