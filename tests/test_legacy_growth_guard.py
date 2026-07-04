@@ -1079,6 +1079,105 @@ def test_legacy_growth_guard_rejects_food_catalog_router_reintroduction(
     [
         (
             textwrap.dedent("""
+                from app.routers.users import router
+
+                app.include_router(router)
+                """),
+            [
+                "legacy_app.py: unexpected legacy route growth: "
+                "registration:include_router:router",
+                "legacy_app.py: unexpected app.routers import growth: "
+                "router_import:app.routers.users:router",
+            ],
+        ),
+        (
+            textwrap.dedent("""
+                from app.routers.users import router as users_router
+
+                app.include_router(users_router)
+                """),
+            [
+                "legacy_app.py: unexpected legacy route growth: "
+                "registration:include_router:users_router",
+                "legacy_app.py: unexpected app.routers import growth: "
+                "router_import:app.routers.users:router -> users_router",
+            ],
+        ),
+        (
+            textwrap.dedent("""
+                import app.routers.users as users_routes
+
+                app.include_router(users_routes.router)
+                """),
+            [
+                "legacy_app.py: unexpected legacy route growth: "
+                "registration:include_router:users_routes.router",
+                "legacy_app.py: unexpected app.routers import growth: "
+                "router_import:import:app.routers.users -> users_routes",
+            ],
+        ),
+        (
+            textwrap.dedent("""
+                import importlib
+
+                module_name = "app.routers." + "users"
+                users_router = importlib.import_module(module_name).router
+                app.include_router(users_router)
+                """),
+            [
+                "legacy_app.py: unexpected legacy route growth: "
+                "registration:include_router:users_router",
+                "legacy_app.py: unexpected app.routers import growth: "
+                "router_import:dynamic:app.routers.users -> users_router",
+            ],
+        ),
+        (
+            textwrap.dedent("""
+                from importlib import import_module
+
+                if (users_router := import_module("app.routers.users").router):
+                    app.include_router(users_router)
+                """),
+            [
+                "legacy_app.py: unexpected legacy route growth: "
+                "registration:include_router:users_router",
+                "legacy_app.py: unexpected app.routers import growth: "
+                "router_import:dynamic:app.routers.users -> users_router",
+            ],
+        ),
+        (
+            textwrap.dedent("""
+                import importlib
+
+                wrapper_router = APIRouter()
+                wrapper_router.include_router(
+                    importlib.import_module("app.routers.users").router
+                )
+                app.include_router(wrapper_router)
+                """),
+            [
+                "legacy_app.py: unexpected legacy route growth: "
+                "registration:include_router:wrapper_router",
+                "legacy_app.py: unexpected app.routers import growth: "
+                "router_import:dynamic:app.routers.users -> wrapper_router.include_router",
+            ],
+        ),
+    ],
+)
+def test_legacy_growth_guard_rejects_users_router_reintroduction(
+    source: str,
+    expected: list[str],
+) -> None:
+    errors = legacy_guard.validate_legacy_growth(source)
+
+    assert errors == expected
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        (
+            textwrap.dedent("""
                 from app.routers.recipes import router as recipes_router
 
                 app.include_router(recipes_router)
@@ -1284,8 +1383,10 @@ def test_legacy_growth_guard_rejects_recipe_nutrition_reference_router_reintrodu
                 app.include_router(users_router)
                 """),
             [
+                "legacy_app.py: unexpected legacy route growth: "
+                "registration:include_router:users_router",
                 "legacy_app.py: unexpected app.routers import growth: "
-                "router_import:dynamic:app.routers.catalog -> users_router"
+                "router_import:dynamic:app.routers.catalog -> users_router",
             ],
         ),
         (
@@ -1403,7 +1504,7 @@ def test_legacy_growth_guard_allows_unregistered_dynamic_import_without_router_u
 
         module = import_module(os.getenv("LEGACY_HELPER_MODULE"))
         value = module.VALUE
-        app.include_router(users_router)
+        app.include_router(restaurants_router)
         """)
 
     assert legacy_guard.validate_legacy_growth(source) == []
@@ -1870,7 +1971,7 @@ def test_legacy_growth_guard_rejects_auth_dependency_on_allowed_route() -> None:
 
 
 def test_legacy_growth_guard_rejects_auth_dependency_on_allowed_router() -> None:
-    source = "app.include_router(users_router, dependencies=[Depends(auth_guard)])\n"
+    source = "app.include_router(restaurants_router, dependencies=[Depends(auth_guard)])\n"
 
     errors = legacy_guard.validate_legacy_growth(source)
 
@@ -1889,7 +1990,7 @@ def test_legacy_growth_guard_rejects_auth_dependency_on_allowed_router() -> None
             """),
         textwrap.dedent("""
             deps = [Depends(auth_guard)]
-            app.include_router(users_router, dependencies=deps)
+            app.include_router(restaurants_router, dependencies=deps)
             """),
     ],
 )

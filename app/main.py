@@ -111,6 +111,11 @@ from app.routers.test import (
     _ensure_non_production as ensure_test_routes_non_production,
     router as test_router,
 )
+from app.routers.users import (
+    USERS_ROUTE_SPECS,
+    _require_users_api_key,
+    router as users_router,
+)
 from app.routers.vip_registration import register_vip_routes
 from app.schemas.direct_api_root import DirectApiRootProbe
 from app.utils.feature_flags import is_business_module_enabled, is_vip_module_enabled
@@ -220,6 +225,10 @@ _SHOPPING_LIST_PRO_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = tuple(
 _RESTAURANT_MODERATION_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = tuple(
     (path, method.upper(), include_in_schema)
     for path, method, include_in_schema in RESTAURANT_MODERATION_ROUTE_SPECS
+)
+_USERS_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = tuple(
+    (path, method.upper(), include_in_schema)
+    for path, method, include_in_schema in USERS_ROUTE_SPECS
 )
 _EXPORT_ROUTE_REQUIRED_STATUS_CODES = frozenset({429})
 _RESTAURANT_MODERATION_REQUIRED_STATUS_CODES = frozenset({404, 422})
@@ -452,6 +461,18 @@ def _recipe_nutrition_reference_route_members() -> tuple[RouteMemberContract, ..
             *_RECIPES_ROUTE_SPECS,
             *_NUTRITION_RECOMMENDATIONS_ROUTE_SPECS,
         )
+    )
+
+
+def _users_route_members() -> tuple[RouteMemberContract, ...]:
+    return tuple(
+        RouteMemberContract(
+            path=path,
+            method=method,
+            include_in_schema=include_in_schema,
+            required_dependencies=(_require_users_api_key,),
+        )
+        for path, method, include_in_schema in _USERS_ROUTE_SPECS
     )
 
 
@@ -1032,6 +1053,17 @@ def _include_recipe_nutrition_reference_routers_if_needed(target_app: FastAPI) -
     )
 
 
+def _include_users_router_if_needed(target_app: FastAPI) -> None:
+    """Register internal users CRUD routes as one hidden canonical family."""
+
+    ensure_route_family_registered(
+        target_app,
+        family_name="Users",
+        routers=(users_router,),
+        members=_users_route_members(),
+    )
+
+
 def _include_test_router_if_enabled(target_app: FastAPI) -> None:
     """Register non-production test routes as one hidden canonical family."""
 
@@ -1071,12 +1103,10 @@ def _include_restaurant_moderation_router_if_needed(target_app: FastAPI) -> None
 
 
 def _internalize_users_openapi_surface(target_app: FastAPI) -> None:
-    """Hide legacy users CRUD from the public OpenAPI contract.
+    """Keep users CRUD OpenAPI metadata internal when legacy state is present.
 
-    RU: Скрываем users CRUD из публичной OpenAPI surface в canonical entrypoint,
-    не добавляя новый runtime behavior в legacy compatibility layer.
-    EN: Hide users CRUD from the public OpenAPI surface in the canonical
-    entrypoint instead of introducing new runtime behavior in legacy_app.py.
+    Source users routes are hidden at the router/decorator level. This remains
+    as defensive cleanup for older route state loaded before canonical bootstrap.
     """
 
     for route in _effective_app_routes(target_app):
@@ -1226,6 +1256,7 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
     _include_bodyfat_router_if_needed(app)
     _include_business_router_if_enabled(app)
     _include_food_catalog_routers_if_needed(app)
+    _include_users_router_if_needed(app)
     _include_test_router_if_enabled(app)
     _include_plan_export_routers_if_needed(app)
     _include_shoplist_export_router_if_needed(app)
