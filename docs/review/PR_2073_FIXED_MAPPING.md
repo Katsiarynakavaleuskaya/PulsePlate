@@ -72,6 +72,21 @@ Reason: The Codex review cited synthetic reviewed commit 7e387ce3981c743b656812d
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2073#discussion_r3523410269
 
 Disposition: NOT-A-BUG
+Evidence: git cat-file -e b3eec6be948d67df33a6b1cf082a4d76172f088d^{commit} fails locally while git log origin/main..HEAD contains ac08b4b6f4e241c18b62e24dbc90db027e78d985 with Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>.
+Reason: The Codex review cited synthetic reviewed commit b3eec6be948d67df33a6b1cf082a4d76172f088d, which is not present in the actual PR branch object database. The material Experiment Runner contribution remains the implementation commit ac08b4b6f4e241c18b62e24dbc90db027e78d985; later commits are fix/governance follow-ups.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2073#discussion_r3523434325
+
+Disposition: FIXED
+Commit: f843dddd18b6a76ef5e08d73a0b7342512c24e10
+Evidence: scripts/ci/check_legacy_growth_guard.py:257 recognizes getattr(app, "include_router") call actions, scripts/ci/check_legacy_growth_guard.py:656 treats indirect include_router calls as router-registration calls, and tests/test_legacy_growth_guard.py:1199 covers the recipes router bypass.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2073#discussion_r3523434326 -> f843dddd18b6a76ef5e08d73a0b7342512c24e10
+
+Disposition: NOT-A-BUG
+Evidence: git cat-file -e c036554829af5c11d4703d088647daa3964ba195^{commit} fails locally while git log origin/main..HEAD contains ac08b4b6f4e241c18b62e24dbc90db027e78d985 with Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>.
+Reason: The Codex review cited synthetic reviewed commit c036554829af5c11d4703d088647daa3964ba195, which is not present in the actual PR branch object database. The required trailer is present on the real material Experiment Runner commit, not on synthetic review-context SHAs.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2073#discussion_r3523451234
+
+Disposition: NOT-A-BUG
 Evidence: tests/test_recipe_nutrition_reference_registration_bootstrap.py exercises app.main bootstrap ownership directly, and tests/test_legacy_growth_guard.py pins guard message output for intentional reintroduction regressions.
 Reason: Sourcery raised maintainability considerations, not a correctness/security defect; adding a public test helper or guard-message builder would widen this legacy-removal PR beyond route ownership migration.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2073#pullrequestreview-4629716524
@@ -133,6 +148,9 @@ runtime, provider, client, or public API authority.
 - `python scripts/orchestration/check_agent_consistency.py` - PASS.
 - `python -m pytest -q tests/test_recipes_api.py tests/test_recipe_preview.py tests/test_nutrition_recommendations_api.py` - PASS.
 - `python -m pytest -q tests/test_recipe_nutrition_reference_registration_bootstrap.py tests/test_legacy_growth_guard.py tests/test_openapi_namespace_guards.py tests/security/test_api_auth_tier_contract_pack.py tests/security/test_api_authz_contract_static.py` - PASS.
+- `python -m pytest -q tests/test_legacy_growth_guard.py::test_legacy_growth_guard_rejects_recipe_nutrition_reference_router_reintroduction` - PASS after the indirect include_router regression fix.
+- `python -m pytest -q tests/test_legacy_growth_guard.py` - PASS after the indirect include_router regression fix.
+- `python -m pytest -q tests/test_recipe_nutrition_reference_registration_bootstrap.py tests/test_openapi_namespace_guards.py tests/security/test_api_auth_tier_contract_pack.py tests/security/test_api_authz_contract_static.py` - PASS after the indirect include_router regression fix.
 - `python -m pytest -q tests/test_nutrition_recommendations_api.py::TestFreeRecommendationsSuccess::test_recommendations_success tests/test_recipe_nutrition_reference_registration_bootstrap.py::test_nutrition_recommendations_route_cannot_be_shadowed_by_dynamic_v1_alias` - PASS.
 - `python scripts/ci/check_legacy_growth_guard.py` - PASS.
 - `python -m mypy app/bootstrap/route_family.py app/main.py app/routers/recipes.py app/routers/nutrition_recommendations.py scripts/ci/check_legacy_growth_guard.py` - PASS.
