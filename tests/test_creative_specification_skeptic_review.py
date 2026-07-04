@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+from collections.abc import Callable
 from copy import deepcopy
 import json
 from pathlib import Path
@@ -1016,7 +1017,7 @@ def test_finalize_receipt_rejects_inconsistent_selected_count(
 def test_review_input_validator_matches_schema_caps(
     capsys: pytest.CaptureFixture[str],
     case_slug: str,
-    mutator: Any,
+    mutator: Callable[[dict[str, Any]], None],
     expected_error: str,
 ) -> None:
     output_dir, input_dir = _prepared_bridge(capsys, suffix=f"schema-caps-{case_slug}")
@@ -1081,7 +1082,7 @@ def test_review_input_validator_matches_schema_caps(
 def test_attach_rejects_bad_review_inputs(
     capsys: pytest.CaptureFixture[str],
     case_slug: str,
-    mutator: Any,
+    mutator: Callable[[dict[str, Any]], None],
     expected_error: str,
 ) -> None:
     output_dir, input_dir = _prepared_bridge(capsys, suffix=f"bad-{case_slug}")
