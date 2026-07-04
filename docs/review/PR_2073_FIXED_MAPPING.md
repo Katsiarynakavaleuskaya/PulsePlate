@@ -83,9 +83,9 @@ Evidence: scripts/ci/check_legacy_growth_guard.py:257 recognizes getattr(app, "i
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2073#discussion_r3523434326 -> f843dddd18b6a76ef5e08d73a0b7342512c24e10
 
 Disposition: FIXED
-Commit: 41c09ce035c63cde9eb0591af4efa5ddc64123ca
+Commit: 41c09ce0353572b2c631099a77278193225f0cc1
 Evidence: scripts/ci/check_legacy_growth_guard.py:697 resolves getattr method-name aliases through collected static string bindings, and tests/test_legacy_growth_guard.py:1215 covers the bound method-name recipes router bypass.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2073#discussion_r3523515621 -> 41c09ce035c63cde9eb0591af4efa5ddc64123ca
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2073#discussion_r3523515621 -> 41c09ce0353572b2c631099a77278193225f0cc1
 
 Disposition: NOT-A-BUG
 Evidence: git cat-file -e c036554829af5c11d4703d088647daa3964ba195^{commit} fails locally while git log origin/main..HEAD contains ac08b4b6f4e241c18b62e24dbc90db027e78d985 with Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>.
