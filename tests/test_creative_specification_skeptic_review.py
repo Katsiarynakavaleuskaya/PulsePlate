@@ -787,6 +787,41 @@ def test_validate_rejects_noncanonical_source_bridge_ref(
         shutil.rmtree(input_dir, ignore_errors=True)
 
 
+def test_validate_rejects_recovered_attachment_for_unprepared_bridge(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    output_dir, input_dir = _prepared_bridge(capsys, suffix="recovered-unprepared-bridge")
+    try:
+        reviews_path = _write_review_input(output_dir, _review_input(output_dir))
+        assert (
+            review_cli.main(
+                [
+                    "attach",
+                    "--bridge",
+                    str(output_dir / bridge_cli.BRIDGE_FILENAME),
+                    "--reviews",
+                    str(reviews_path),
+                ]
+            )
+            == 0
+        )
+        capsys.readouterr()
+        bridge_path = output_dir / bridge_cli.BRIDGE_FILENAME
+        bridge_payload = _read_json(bridge_path)
+        bridge_payload["spec_prepare"]["prepared"] = False
+        bridge_payload["spec_prepare"]["next_allowed_action"] = "prepare_specification"
+        _write_json(bridge_path, bridge_payload)
+
+        attachment_path = output_dir / "spec_finalize_reviewed" / review_cli.ATTACHMENT_FILENAME
+        exit_code = review_cli.main(["validate", "--attachment", str(attachment_path)])
+        captured = capsys.readouterr()
+        assert exit_code == 1
+        assert "prepared and waiting for agent_skeptic_review" in captured.err
+    finally:
+        shutil.rmtree(output_dir, ignore_errors=True)
+        shutil.rmtree(input_dir, ignore_errors=True)
+
+
 def test_validate_rejects_noncanonical_source_spec_prepare_ref(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -871,8 +906,8 @@ def test_validate_rejects_source_spec_prepare_sidecar(
         )
         captured = capsys.readouterr()
         assert exit_code == 1
-        assert "source spec_prepare contains unexpected artifact(s): raw_provider_output.json" in (
-            captured.err
+        assert (
+            "spec_prepare contains unexpected artifact(s): raw_provider_output.json" in captured.err
         )
     finally:
         shutil.rmtree(output_dir, ignore_errors=True)
@@ -1461,6 +1496,17 @@ def test_reviewed_finalize_schemas_are_strict() -> None:
             "spec_finalize_reviewed/source_packet.json"
         ),
     )
+    assert attachment_schema["$defs"]["reviewed_source_packet_ref"]["pattern"].endswith(
+        "/spec_finalize_reviewed/source_packet\\.json$"
+    )
+    assert attachment_schema["$defs"]["reviewed_variants_ref"]["pattern"].endswith(
+        "/spec_finalize_reviewed/variants\\.json$"
+    )
+    attachment_review_count_conditions = [
+        branch["then"]["properties"]["review_count"]["const"]
+        for branch in attachment_schema["$defs"]["coverage"]["allOf"]
+    ]
+    assert sorted(attachment_review_count_conditions) == [3, 6, 9, 12, 15]
     assert attachment_schema["$defs"]["coverage"]["properties"]["blocker_count"]["maximum"] == 150
     assert (
         attachment_schema["$defs"]["attachment_authority"]["properties"][
@@ -1474,6 +1520,32 @@ def test_reviewed_finalize_schemas_are_strict() -> None:
             / "docs/orchestration/contracts/creative_specification_finalize_receipt.v1.schema.json"
         ).read_text(encoding="utf-8")
     )
+    assert (
+        receipt_schema["properties"]["source_attachment_ref"]["$ref"]
+        == "#/$defs/reviewed_attachment_ref"
+    )
+    assert receipt_schema["properties"]["bundle_ref"]["$ref"] == "#/$defs/reviewed_bundle_ref"
+    assert (
+        "skeptic_review_attachment" in receipt_schema["$defs"]["reviewed_attachment_ref"]["pattern"]
+    )
+    assert (
+        "creative_code_specification_bundle"
+        in receipt_schema["$defs"]["reviewed_bundle_ref"]["pattern"]
+    )
+    selected_count_conditions = [
+        branch["then"]["properties"]["counts"]["properties"]["selected_variant_count"]["const"]
+        for branch in receipt_schema["allOf"]
+        if "selected_variant_count"
+        in branch["then"]["properties"].get("counts", {}).get("properties", {})
+    ]
+    assert sorted(selected_count_conditions) == [0, 1]
+    rejected_count_conditions = [
+        branch["then"]["properties"]["counts"]["properties"]["rejected_variant_count"]["const"]
+        for branch in receipt_schema["allOf"]
+        if "rejected_variant_count"
+        in branch["then"]["properties"].get("counts", {}).get("properties", {})
+    ]
+    assert sorted(rejected_count_conditions) == [1, 2, 3, 4, 5]
     assert (
         receipt_schema["$defs"]["finalize_authority"]["properties"][
             "finalize_specification_bundle"

@@ -49,6 +49,30 @@
       "pattern": "^artifacts/orchestration/creative_code/spec_bridge/[A-Za-z0-9][A-Za-z0-9._:-]{0,127}/spec_finalize_reviewed$",
       "not": { "pattern": "(?:^|/)\\.\\.?(?:/|$)" }
     },
+    "reviewed_source_packet_ref": {
+      "type": "string",
+      "pattern": "^artifacts/orchestration/creative_code/spec_bridge/[A-Za-z0-9][A-Za-z0-9._:-]{0,127}/spec_finalize_reviewed/source_packet\\.json$",
+      "not": { "pattern": "(?:^|/)\\.\\.?(?:/|$)" },
+      "$comment": "Same-run prefix equality with run_dir_ref is enforced by the repository runtime validator."
+    },
+    "reviewed_variants_ref": {
+      "type": "string",
+      "pattern": "^artifacts/orchestration/creative_code/spec_bridge/[A-Za-z0-9][A-Za-z0-9._:-]{0,127}/spec_finalize_reviewed/variants\\.json$",
+      "not": { "pattern": "(?:^|/)\\.\\.?(?:/|$)" },
+      "$comment": "Same-run prefix equality with run_dir_ref is enforced by the repository runtime validator."
+    },
+    "reviewed_reviews_ref": {
+      "type": "string",
+      "pattern": "^artifacts/orchestration/creative_code/spec_bridge/[A-Za-z0-9][A-Za-z0-9._:-]{0,127}/spec_finalize_reviewed/skeptic_reviews\\.json$",
+      "not": { "pattern": "(?:^|/)\\.\\.?(?:/|$)" },
+      "$comment": "Same-run prefix equality with run_dir_ref is enforced by the repository runtime validator."
+    },
+    "reviewed_context_pack_ref": {
+      "type": "string",
+      "pattern": "^artifacts/orchestration/creative_code/spec_bridge/[A-Za-z0-9][A-Za-z0-9._:-]{0,127}/spec_finalize_reviewed/context_pack\\.json$",
+      "not": { "pattern": "(?:^|/)\\.\\.?(?:/|$)" },
+      "$comment": "Same-run prefix equality with run_dir_ref is enforced by the repository runtime validator."
+    },
     "source": {
       "type": "object",
       "additionalProperties": false,
@@ -106,10 +130,10 @@
       ],
       "properties": {
         "run_dir_ref": { "$ref": "#/$defs/reviewed_run_ref" },
-        "source_packet_ref": { "$ref": "#/$defs/artifact_ref" },
-        "variants_ref": { "$ref": "#/$defs/artifact_ref" },
-        "skeptic_reviews_ref": { "$ref": "#/$defs/artifact_ref" },
-        "context_pack_ref": { "$ref": "#/$defs/artifact_ref" },
+        "source_packet_ref": { "$ref": "#/$defs/reviewed_source_packet_ref" },
+        "variants_ref": { "$ref": "#/$defs/reviewed_variants_ref" },
+        "skeptic_reviews_ref": { "$ref": "#/$defs/reviewed_reviews_ref" },
+        "context_pack_ref": { "$ref": "#/$defs/reviewed_context_pack_ref" },
         "normalized_reviews_fingerprint": { "$ref": "#/$defs/sha256" }
       }
     },
@@ -135,7 +159,29 @@
         "reject_review_count": { "type": "integer", "minimum": 0, "maximum": 15 },
         "unsafe_authority_flag_count": { "type": "integer", "minimum": 0, "maximum": 150 },
         "blocker_count": { "type": "integer", "minimum": 0, "maximum": 150 }
-      }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "variant_count": { "const": 1 } } },
+          "then": { "properties": { "review_count": { "const": 3 } } }
+        },
+        {
+          "if": { "properties": { "variant_count": { "const": 2 } } },
+          "then": { "properties": { "review_count": { "const": 6 } } }
+        },
+        {
+          "if": { "properties": { "variant_count": { "const": 3 } } },
+          "then": { "properties": { "review_count": { "const": 9 } } }
+        },
+        {
+          "if": { "properties": { "variant_count": { "const": 4 } } },
+          "then": { "properties": { "review_count": { "const": 12 } } }
+        },
+        {
+          "if": { "properties": { "variant_count": { "const": 5 } } },
+          "then": { "properties": { "review_count": { "const": 15 } } }
+        }
+      ]
     },
     "attachment_authority": {
       "type": "object",

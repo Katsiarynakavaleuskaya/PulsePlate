@@ -553,10 +553,8 @@ def _validate_attachment_artifacts(attachment_path: Path) -> tuple[dict[str, Any
         raise CreativeSpecificationSkepticReviewCliError(
             f"source bridge ref must point to canonical {BRIDGE_FILENAME}."
         )
-    source_bridge = validate_creative_hypothesis_specification_bridge(
-        _read_json_object(source_bridge_path, label="source bridge")
-    )
-    _prepared_bridge_dir(source_bridge, source_bridge_path)
+    prepared_source = _read_prepared_bridge(source_bridge_path)
+    source_bridge = cast(Mapping[str, Any], prepared_source["bridge"])
     if source_bridge["bridge_id"] != source["bridge_id"]:
         raise CreativeSpecificationSkepticReviewCliError(
             "fingerprint_mismatch: source bridge id does not match attachment."

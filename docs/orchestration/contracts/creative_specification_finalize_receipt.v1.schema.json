@@ -33,9 +33,9 @@
     "policy_version": { "const": "creative-specification-skeptic-review-finalize-v1" },
     "source_attachment_id": { "$ref": "#/$defs/safe_id" },
     "source_attachment_fingerprint": { "$ref": "#/$defs/sha256" },
-    "source_attachment_ref": { "$ref": "#/$defs/artifact_ref" },
+    "source_attachment_ref": { "$ref": "#/$defs/reviewed_attachment_ref" },
     "reviewed_run_dir_ref": { "$ref": "#/$defs/reviewed_run_ref" },
-    "bundle_ref": { "$ref": "#/$defs/artifact_ref" },
+    "bundle_ref": { "$ref": "#/$defs/reviewed_bundle_ref" },
     "bundle_id": { "$ref": "#/$defs/safe_id" },
     "bundle_fingerprint": { "$ref": "#/$defs/sha256" },
     "bundle_idempotency_key": { "$ref": "#/$defs/safe_id" },
@@ -62,7 +62,12 @@
       "then": {
         "properties": {
           "synthesis_status": { "const": "all_rejected" },
-          "next_allowed_action": { "const": "human_review_for_discard_or_defer" }
+          "next_allowed_action": { "const": "human_review_for_discard_or_defer" },
+          "counts": {
+            "properties": {
+              "selected_variant_count": { "const": 0 }
+            }
+          }
         }
       }
     },
@@ -71,7 +76,122 @@
       "then": {
         "properties": {
           "synthesis_status": { "const": "selected" },
-          "next_allowed_action": { "const": "human_review_for_patch_builder" }
+          "next_allowed_action": { "const": "human_review_for_patch_builder" },
+          "counts": {
+            "properties": {
+              "selected_variant_count": { "const": 1 }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "selected_variant_id": { "type": "null" },
+          "counts": {
+            "properties": {
+              "variant_count": { "const": 1 }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "counts": {
+            "properties": {
+              "rejected_variant_count": { "const": 1 },
+              "rejection_record_count": { "const": 1 }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "selected_variant_id": { "type": "null" },
+          "counts": {
+            "properties": {
+              "variant_count": { "const": 2 }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "counts": {
+            "properties": {
+              "rejected_variant_count": { "const": 2 },
+              "rejection_record_count": { "const": 2 }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "selected_variant_id": { "type": "null" },
+          "counts": {
+            "properties": {
+              "variant_count": { "const": 3 }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "counts": {
+            "properties": {
+              "rejected_variant_count": { "const": 3 },
+              "rejection_record_count": { "const": 3 }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "selected_variant_id": { "type": "null" },
+          "counts": {
+            "properties": {
+              "variant_count": { "const": 4 }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "counts": {
+            "properties": {
+              "rejected_variant_count": { "const": 4 },
+              "rejection_record_count": { "const": 4 }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "selected_variant_id": { "type": "null" },
+          "counts": {
+            "properties": {
+              "variant_count": { "const": 5 }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "counts": {
+            "properties": {
+              "rejected_variant_count": { "const": 5 },
+              "rejection_record_count": { "const": 5 }
+            }
+          }
         }
       }
     }
@@ -96,6 +216,18 @@
       "type": "string",
       "pattern": "^artifacts/orchestration/creative_code/spec_bridge/[A-Za-z0-9][A-Za-z0-9._:-]{0,127}/spec_finalize_reviewed$",
       "not": { "pattern": "(?:^|/)\\.\\.?(?:/|$)" }
+    },
+    "reviewed_attachment_ref": {
+      "type": "string",
+      "pattern": "^artifacts/orchestration/creative_code/spec_bridge/[A-Za-z0-9][A-Za-z0-9._:-]{0,127}/spec_finalize_reviewed/skeptic_review_attachment\\.json$",
+      "not": { "pattern": "(?:^|/)\\.\\.?(?:/|$)" },
+      "$comment": "Same-run prefix equality with reviewed_run_dir_ref is enforced by the repository runtime validator."
+    },
+    "reviewed_bundle_ref": {
+      "type": "string",
+      "pattern": "^artifacts/orchestration/creative_code/spec_bridge/[A-Za-z0-9][A-Za-z0-9._:-]{0,127}/spec_finalize_reviewed/creative_code_specification_bundle\\.json$",
+      "not": { "pattern": "(?:^|/)\\.\\.?(?:/|$)" },
+      "$comment": "Same-run prefix equality with reviewed_run_dir_ref is enforced by the repository runtime validator."
     },
     "counts": {
       "type": "object",
