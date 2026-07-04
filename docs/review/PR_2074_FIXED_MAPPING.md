@@ -7,14 +7,21 @@
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: a95d3f197
+Evidence: `app/main.py` now aliases `_USERS_ROUTE_SPECS` directly to `app.routers.users.USERS_ROUTE_SPECS`, removing the duplicated normalization copy that Sourcery flagged.
+Evidence: `tests/test_users_registration_bootstrap.py` intentionally exercises `_users_route_members()` and `_include_users_router_if_needed()` because those private bootstrap contracts are the fail-closed surface for partial, duplicate, foreign-handler, visibility, missing-dependency, and route-order drift.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2074#pullrequestreview-4630149255 -> a95d3f197
 
 ## Implementation Evidence
 
 - Commit: `24aaf8f71b2d01939a9e1b2b2057e38e878045df`
+- Commit: `a95d3f197`
 - Evidence: `app/main.py` owns users CRUD registration through
   `_include_users_router_if_needed(...)` and
   `ensure_route_family_registered(...)`.
+- Evidence: `app/main.py` reuses `app.routers.users.USERS_ROUTE_SPECS` as the
+  single canonical users route spec source.
 - Evidence: `legacy_app.py` no longer imports or includes `users_router`.
 - Evidence: `app/routers/users.py` defines hidden source `USERS_ROUTE_SPECS`
   and keeps `_require_users_api_key`.
