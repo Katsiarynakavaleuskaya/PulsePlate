@@ -20,18 +20,14 @@ from scripts.orchestration.agent_learning_loop import (
     validate_agent_learning_record,
 )
 from scripts.orchestration.creative_code_specification import (
-    BUNDLE_TYPE,
     CreativeCodeSpecificationError,
     validate_creative_code_specification_bundle,
 )
 from scripts.orchestration.creative_hypothesis_spec_bridge_contract import (
-    METRICS_ARTIFACT_TYPE,
     CreativeHypothesisSpecBridgeError,
     validate_bridge_metrics,
 )
 from scripts.orchestration.creative_specification_skeptic_review_contract import (
-    ATTACHMENT_ARTIFACT_TYPE,
-    FINALIZE_RECEIPT_ARTIFACT_TYPE,
     CreativeSpecificationSkepticReviewError,
     validate_finalize_receipt,
     validate_skeptic_review_attachment,

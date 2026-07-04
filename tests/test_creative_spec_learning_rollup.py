@@ -13,13 +13,18 @@ from scripts.orchestration import (
     creative_spec_learning_rollup as rollup_cli,
     creative_specification_skeptic_review as review_cli,
 )
-from scripts.orchestration.agent_learning_loop import AUTHORITY_BOUNDARY
+from scripts.orchestration.agent_learning_loop import (
+    AUTHORITY_BOUNDARY,
+    build_agent_learning_record,
+)
 from scripts.orchestration.creative_spec_learning_rollup_contract import (
     CreativeSpecLearningRollupError,
+    ROLLUP_ARTIFACT_TYPE,
     build_coordinator_advisory_hints,
     build_creative_spec_learning_rollup,
     validate_coordinator_advisory_hints,
     validate_creative_spec_learning_rollup,
+    _set_identity as set_creative_learning_identity,
 )
 from tests.test_creative_specification_skeptic_review import (
     REPO_ROOT,
@@ -200,6 +205,49 @@ def test_hints_reject_unsafe_text_and_authority_widening(
         widened_hints["authority"]["force_agent_routing"] = True
         with pytest.raises(CreativeSpecLearningRollupError, match="invalid authority"):
             validate_coordinator_advisory_hints(widened_hints)
+    finally:
+        shutil.rmtree(output_dir, ignore_errors=True)
+        shutil.rmtree(input_dir, ignore_errors=True)
+
+
+def test_rollup_rejects_semantic_cache_and_graph_truth_claims(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    suffix = f"learning-cache-claim-{uuid.uuid4().hex[:8]}"
+    output_dir, input_dir, artifacts = _finalized_artifacts(capsys, suffix=suffix)
+    try:
+        rollup = build_creative_spec_learning_rollup(**artifacts)
+        unsafe_record = build_agent_learning_record(
+            source="creative_spec_finalize:finalize-test:selected:variant-test",
+            pattern="Selected variant reused semantic cache used and graph truth updated.",
+            severity="low",
+            affected_surfaces=["scripts/orchestration/creative_spec_learning_rollup.py"],
+            root_cause="Unsafe authority claim must remain outside creative learning records.",
+            required_oracle="deterministic_content_oracle",
+            promotion_target="docs/orchestration/AGENT_LEARNING_LOOP.md",
+            pattern_kind="successful_iteration",
+        )
+        rollup["learning_records"] = [unsafe_record]
+        rollup["learning_summary"] = {
+            "learning_record_count": 1,
+            "successful_iteration_count": 1,
+            "failure_count": 0,
+            "reuse_lesson_ids": [unsafe_record["lesson_id"]],
+            "avoid_lesson_ids": [],
+        }
+        set_creative_learning_identity(
+            rollup,
+            id_key="rollup_id",
+            asset_type=ROLLUP_ARTIFACT_TYPE,
+            upstream_ids=(
+                str(rollup["source"]["finalize_id"]),
+                str(rollup["source"]["bundle_id"]),
+                str(rollup["source"]["bridge_metrics_id"]),
+            ),
+        )
+
+        with pytest.raises(CreativeSpecLearningRollupError, match="unsafe"):
+            validate_creative_spec_learning_rollup(rollup)
     finally:
         shutil.rmtree(output_dir, ignore_errors=True)
         shutil.rmtree(input_dir, ignore_errors=True)
