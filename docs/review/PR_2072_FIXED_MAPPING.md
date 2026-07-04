@@ -5,7 +5,37 @@
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No actionable review comments
+
+Disposition: FIXED
+Commit: c89f19fa08d862bb817739b0470367027ce5afd8
+Evidence: `docs/orchestration/contracts/creative_specification_skeptic_review_attachment.v1.schema.json` and `docs/orchestration/contracts/creative_specification_finalize_receipt.v1.schema.json` accept nested `spec_prepare/*` and `spec_finalize_reviewed/*` artifact refs; `scripts/orchestration/creative_specification_skeptic_review_contract.py` enforces review list caps. Covered by `tests/test_creative_specification_skeptic_review.py`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2072#discussion_r3523323647 -> c89f19fa08d862bb817739b0470367027ce5afd8
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2072#discussion_r3523325117 -> c89f19fa08d862bb817739b0470367027ce5afd8
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2072#discussion_r3523325119 -> c89f19fa08d862bb817739b0470367027ce5afd8
+
+Disposition: FIXED
+Commit: f2ff78212abea1d863355c43130a22e04b382928
+Evidence: `scripts/orchestration/creative_specification_skeptic_review.py` rejects unexpected artifacts and child symlinks in `spec_finalize_reviewed/` before validate/finalize blesses a reviewed run. Covered by `tests/test_creative_specification_skeptic_review.py`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2072#discussion_r3523325121 -> f2ff78212abea1d863355c43130a22e04b382928
+
+Disposition: FIXED
+Commit: dd84b4bf300dace4fc010e9d503efed23dd88df4
+Evidence: `scripts/orchestration/creative_specification_skeptic_review.py` requires `reviewed_run_dir_ref` to be the sibling of the source bridge artifact. Covered by `tests/test_creative_specification_skeptic_review.py`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2072#discussion_r3523367669 -> dd84b4bf300dace4fc010e9d503efed23dd88df4
+
+Disposition: FIXED
+Commit: f724a25b55ef1513f2c160b760aca8b62eef228f
+Evidence: `scripts/orchestration/creative_specification_skeptic_review.py` now uses the canonical bridge filename import, cleans partial finalize outputs on receipt/build validation failures, requires canonical source bridge/spec_prepare refs tied to bridge contents, rejects source `spec_prepare/` sidecars, recomputes attachment coverage from reviewed files, and validates source refs against reviewed layout. `scripts/orchestration/creative_specification_skeptic_review_contract.py` enforces safe artifact path components, exact reviewer-count coverage, exact reviewed-run sibling shape, and aggregate bounded counts aligned with the JSON schemas. Covered by `tests/test_creative_specification_skeptic_review.py`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2072#discussion_r3523323651 -> f724a25b55ef1513f2c160b760aca8b62eef228f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2072#discussion_r3523323656 -> f724a25b55ef1513f2c160b760aca8b62eef228f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2072#discussion_r3523367670 -> f724a25b55ef1513f2c160b760aca8b62eef228f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2072#discussion_r3523367671 -> f724a25b55ef1513f2c160b760aca8b62eef228f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2072#discussion_r3523367673 -> f724a25b55ef1513f2c160b760aca8b62eef228f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2072#discussion_r3523367675 -> f724a25b55ef1513f2c160b760aca8b62eef228f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2072#discussion_r3523384319 -> f724a25b55ef1513f2c160b760aca8b62eef228f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2072#discussion_r3523384321 -> f724a25b55ef1513f2c160b760aca8b62eef228f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2072#discussion_r3523384324 -> f724a25b55ef1513f2c160b760aca8b62eef228f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2072#discussion_r3523384327 -> f724a25b55ef1513f2c160b760aca8b62eef228f
 
 ## Experiment Runner Evidence
 Artifact: `artifacts/orchestration/experiments/results/oracle-spec-skeptic-review-finalize-network1-result.json`
@@ -30,4 +60,4 @@ Packet: `artifacts/orchestration/task_packets/c7a115b7e8b5.json`
 Starter: `scripts/orchestration/start_pr_lane.sh`
 
 ## Merge Readiness
-Not claimed. Requires current-head CI, completed post-open review chain, bot review status, and strict merge-readiness governance after the latest mapping/body update.
+Pending after latest review-fix commit. Requires current-head CI, resolved review threads, bot review status, and strict merge-readiness governance after this mapping/body update.
