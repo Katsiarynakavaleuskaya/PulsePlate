@@ -55,7 +55,7 @@ Starter: `scripts/orchestration/start_pr_lane.sh`
 - `python3 scripts/orchestration/check_agent_consistency.py` - PASS.
 - `pytest -q tests/test_restaurants_registration_bootstrap.py tests/test_restaurants_router.py tests/test_restaurant_moderation_bootstrap.py tests/test_route_family_bootstrap.py tests/test_legacy_growth_guard.py tests/test_openapi_namespace_guards.py tests/security/test_api_auth_tier_contract_pack.py tests/security/test_api_authz_contract_static.py` - PASS.
 - `python3 scripts/ci/check_legacy_growth_guard.py` - PASS.
-- `PATH=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH make openapi-check` - PASS; no generated OpenAPI/client diff.
+- `make openapi-check` with the repo virtualenv first on `PATH` - PASS; no generated OpenAPI/client diff.
 - `python3 -m mypy app/main.py app/routers/restaurants.py legacy_app.py` - PASS.
 - `make validate-changed` - PASS after commit; selected `tests/test_legacy_growth_guard.py` and `tests/test_restaurants_registration_bootstrap.py`.
 - `pre-commit run --all-files` - PASS before push.
