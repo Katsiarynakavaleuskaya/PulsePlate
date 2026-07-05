@@ -15,7 +15,6 @@ from typing import Any, cast
 
 from core.evidence.fingerprints import build_asset_id, build_idempotency_key, fingerprint_payload
 from scripts.orchestration.creative_code_patch_contract import (
-    DEFAULT_MAX_CHANGED_FILES,
     GENERATION_ATTEMPTS,
     HARD_MAX_CHANGED_FILES,
     HARD_MAX_DIFF_LINES,
