@@ -1,0 +1,254 @@
+# PR 2081 - Fixed in Commit Mapping
+
+PR: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2081
+
+Branch: `codex/fix-trivy-ignore-policy-expiry`
+
+## Summary
+
+This PR refreshes the Trivy ignore-policy lane before returning to Dependabot
+#2078 / pyarrow work. It removes the resolved Faraday scanner-lag suppression,
+keeps residual Debian bookworm base-image suppressions exact-scoped, and records
+production security evidence without touching runtime code, Python lockfiles,
+Dockerfile, workflows, or broad `.trivyignore` entries.
+
+## Discussion Thread Pass
+
+- [x] Fixed mapping artifact created after GitHub assigned PR number `#2081`.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+- [x] CodeRabbit actionable comments mapped after fix commit.
+- [x] Post-open `qa-engineer-agent -> bug-hunter -> security-auditor` pass
+  completed.
+- [x] `pulseplate-pr-review` dry-run completed and dispositioned.
+- [ ] Current-head GitHub CI/security checks pending.
+
+## Fixed in Commit Mapping
+
+Disposition: FIXED
+Commit: fc9c3c97891c950e53879cb7160f293d0f456d5d
+Evidence: `docs/security/CVE-2026-27171-zlib1g.md` now points the zlib evidence anchors at the zlib policy source lines and the deterministic zlib suppression guard in `tests/test_trivy_ignore_policy_expiry.py`; `python3 scripts/ci/check_docs_phase1_gates.py --files docs/security/CVE-2026-54297-faraday-fastlane.md docs/security/CVE-2026-27171-zlib1g.md docs/security/CVE-2026-3184-util-linux.md docs/security/CVE-2025-69720-ncurses.md` and `.venv/bin/python -m pytest -q tests/test_trivy_ignore_policy_expiry.py` passed.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2081#pullrequestreview-4631319380 -> fc9c3c97891c950e53879cb7160f293d0f456d5d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2081#discussion_r3524902609 -> fc9c3c97891c950e53879cb7160f293d0f456d5d
+
+Disposition: FIXED
+Commit: fc9c3c97891c950e53879cb7160f293d0f456d5d
+Evidence: `docs/security/CVE-2026-54297-faraday-fastlane.md` now describes the two separate regression guards accurately, and `tests/test_trivy_ignore_policy_expiry.py` splits Faraday doc wording assertions into a dedicated doc-specific test; `.venv/bin/python -m pytest -q tests/test_trivy_ignore_policy_expiry.py` passed.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2081#discussion_r3524902611 -> fc9c3c97891c950e53879cb7160f293d0f456d5d
+
+Disposition: FIXED
+Commit: fc9c3c97891c950e53879cb7160f293d0f456d5d
+Evidence: `docs/security/DEPENDABOT_ALERT_INVENTORY.md` now keeps the Faraday row column contract intact with `Owner PR` set to stable `PR #2081` and Trivy recheck evidence moved into disposition/evidence columns; `python3 scripts/ci/check_docs_phase1_gates.py --files docs/security/CVE-2026-54297-faraday-fastlane.md docs/security/CVE-2026-27171-zlib1g.md docs/security/CVE-2026-3184-util-linux.md docs/security/CVE-2025-69720-ncurses.md` passed.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2081#discussion_r3524902613 -> fc9c3c97891c950e53879cb7160f293d0f456d5d
+
+## Post-Open Role Finding Disposition Evidence
+
+### qa-engineer-agent Findings
+
+Disposition: FIXED
+Role: qa-engineer-agent
+Commit: fc9c3c97891c950e53879cb7160f293d0f456d5d
+Evidence: The QA pass identified the same zlib evidence anchor drift, missing
+util-linux PkgID scope, Dependabot inventory row column drift, and pending
+CodeRabbit actionables. The fix commit adds util-linux exact PkgID matchers to
+`trivy/ignore-policy.rego`, adds zlib/util-linux deterministic guards in
+`tests/test_trivy_ignore_policy_expiry.py`, corrects the security docs and
+Dependabot row, and keeps the Faraday doc/test split aligned with the real guard
+scope. Focused Trivy image scans with the updated policy returned zero
+HIGH/CRITICAL findings and zero targeted residual zlib/util-linux/ncurses
+findings after policy application.
+Reason: These were current PR-surface evidence and suppression-scope defects,
+not inherited debt.
+
+### bug-hunter Findings
+
+Disposition: FIXED
+Role: bug-hunter
+Commit: d97bd4d448ad8c9a87bf76af2c35dc773e696ea2
+Evidence: `docs/review/PR_2081_FIXED_MAPPING.md` now maps the CodeRabbit
+review-level URL in addition to the three inline discussion URLs.
+`docs/security/CVE-2025-69720-ncurses.md` now points at the current ncurses Rego
+lines, and `docs/security/CVE-2026-3184-util-linux.md` now points at the
+canonical Trivy suppression policy section in `AGENTS.md`. `python3
+scripts/ci/check_docs_phase1_gates.py --files
+docs/security/CVE-2026-54297-faraday-fastlane.md
+docs/security/CVE-2026-27171-zlib1g.md
+docs/security/CVE-2026-3184-util-linux.md
+docs/security/CVE-2025-69720-ncurses.md`, `python3
+scripts/ci/check_pr_body_phase2_gates.py --pr-number 2081 --body "$(cat
+/tmp/pulseplate_pr_2081_body_phase2.md)" --commit-range origin/main..HEAD`, and
+`python3 scripts/orchestration/check_review_threads_disposition.py --pr-number
+2081 --require-auth` passed.
+Reason: The stale anchors and review-level mapping gap were current PR-surface
+evidence/governance defects.
+
+### security-auditor Findings
+
+Disposition: NOT-A-BUG
+Role: security-auditor
+Evidence: The security-auditor pass on head
+`927271da335d7220b6a426720eb12e868754a346` found no blocking security finding
+in the changed-file scope. It verified Faraday suppression removal, retained
+zlib/util-linux/ncurses exact CVE/package/version/PkgID scope, fixed mapping
+evidence, and live review state. Supporting commands passed: `python3
+scripts/orchestration/check_preflight.py`, `python3
+scripts/ci/check_trivy_ignore_policy_expiry.py`, `.venv/bin/python -m pytest -q
+tests/test_trivy_ignore_policy_expiry.py`, `python3
+scripts/ci/check_docs_phase1_gates.py --files
+docs/security/CVE-2026-54297-faraday-fastlane.md
+docs/security/CVE-2026-27171-zlib1g.md
+docs/security/CVE-2026-3184-util-linux.md
+docs/security/CVE-2025-69720-ncurses.md`, and `python3
+scripts/orchestration/check_review_threads_disposition.py --pr-number 2081
+--require-auth`.
+Reason: The role pass found no additional blocking current-PR security defect.
+Residual risk remains that GitHub Dependabot alert `#224` closure could not be
+verified through the local API because it returned HTTP 404/scope limitation;
+this PR does not claim alert closure.
+
+### pulseplate-pr-review Findings
+
+Disposition: NOT-A-BUG
+Role: pulseplate-pr-review / bug-hunter
+Evidence: `python3 scripts/orchestration/pr_review_context.py --pr 2081
+--output /tmp/pulseplate_pr_2081_review_context.json` and `python3
+scripts/orchestration/pr_review_report.py --context
+/tmp/pulseplate_pr_2081_review_context.json --format markdown --packet-id
+9dcf5d232ef5 --packet-path
+artifacts/orchestration/task_packets/9dcf5d232ef5.json --output
+/tmp/pulseplate_pr_2081_review_report.md` passed on head
+`9536870f12092e23806f8d1f786381e1802d06e1`. The dry-run produced one advisory
+`note` for large diff risk (`10` files, `603` additions, `172` deletions,
+`775` changed lines) and no deterministic architecture, security, QA, or
+data-scientist findings. Scope remains a single Trivy ignore-policy hotfix lane:
+no product runtime code, Python/Ruby lockfile, Dockerfile, workflow, or
+dependency requirement file changed; #2078 pyarrow and #2077 testing-deps remain
+out of scope. `make validate-changed` and `pre-commit run --all-files` passed
+after the evidence-only mapping commit.
+Reason: The large-diff warning is valid review-planning signal, but it is not a
+scope defect after the split rationale, out-of-scope boundaries, deterministic
+gates, and role passes were recorded.
+
+## Implementation Evidence
+
+- Commit: `040dfdd80302679845c9f6628afa45f0a850cc7a`
+- Evidence: `trivy/ignore-policy.rego` no longer contains Faraday
+  `CVE-2026-54297`, `GHSA-98m9-hrrm-r99r`, `faraday@1.10.5`,
+  `faraday@1.10.6`, or `pkg:gem/faraday` suppression text.
+- Evidence: retained `zlib1g`, util-linux family, and ncurses family rules
+  remain restricted to exact CVE/package/version/PkgID scope and review-by
+  `2026-07-12`.
+- Evidence: `tests/test_trivy_ignore_policy_expiry.py` prevents Faraday
+  suppression reintroduction in Rego or `.trivyignore` and verifies
+  `faraday 1.10.6` remains locked only by `ios/Gemfile.lock`.
+- Evidence: security docs and `docs/roadmap/BACKLOG_LEDGER.md` separate the
+  removed Faraday scanner-lag item from residual Debian base-image suppressions.
+- Evidence: `docs/review/PR_TRIVY_IGNORE_POLICY_HOTFIX_PREMORTEM.md` records the
+  production premortem for hidden CVE risk, false-positive release blocking,
+  Fastlane tooling risk, and local-vs-GitHub scanner divergence.
+
+## Codex Security Evidence
+
+Initial scan:
+
+- Scan id: `fe3170a1-534d-4b15-a06b-1b2da52f3a62`
+- Base: `632076f92fb85156399124b520ab30c907a83194`
+- Head: `040dfdd80302679845c9f6628afa45f0a850cc7a`
+- Coverage: 9/9 review receipts
+- Findings: 0
+
+Follow-up scan after review-fix commits:
+
+- Scan id: `920f7ec7-21ee-464f-9a73-9d5b183b32ea`
+- Base: `632076f92fb85156399124b520ab30c907a83194`
+- Head: `927271da335d7220b6a426720eb12e868754a346`
+- Coverage: 10/10 reviewed surfaces
+- Findings: 0
+- Report:
+  `/private/var/folders/bw/12x002vn67v2bvjpbhbtm8480000gn/T/codex-security-scans-vpvqlm/BMI-App_2025_clean/927271da335d7220b6a426720eb12e868754a346_20260705T130911Z_od7pub85/report.md`
+
+Limitation: no additional Codex Security scan is recorded after the
+evidence-only mapping commits. The latest completed scan-covered head is
+`927271da335d7220b6a426720eb12e868754a346`; subsequent commits only update this
+`docs/review/PR_2081_FIXED_MAPPING.md` evidence artifact and do not change
+`trivy/ignore-policy.rego`, `tests/test_trivy_ignore_policy_expiry.py`,
+`docs/security/*`, or `docs/roadmap/BACKLOG_LEDGER.md`. Local GitHub
+code-scanning and Dependabot alert REST endpoints returned HTTP 404 in this
+session, so this PR does not claim GitHub alert closure before current-head
+GitHub CI/security evidence.
+
+## Experiment Runner Evidence
+
+- Artifact:
+  `artifacts/orchestration/experiments/results/exp-trivy-ignore-policy-hotfix-oracle-network1-result.json`
+- Result: `accepted`
+- Shared tree: untouched
+- Source diff applied: false
+- Oracle commands passed:
+  - `python3 scripts/ci/check_trivy_ignore_policy_expiry.py`
+  - `python3 -m pytest -q tests/test_trivy_ignore_policy_expiry.py`
+  - `git diff --check`
+
+Infra caveat: the first zero-network local attempt was rejected because this
+macOS host does not provide `unshare` for the network-disabled sandbox. The
+accepted `network_budget=1` fallback kept local oracle commands only. No
+Experiment Runner co-author trailer is required because the accepted oracle ran
+after the implementation commit and did not materially shape that commit.
+
+## Lane Start Provenance
+
+- Packet: `artifacts/orchestration/task_packets/9dcf5d232ef5.json`
+- Starter: `scripts/orchestration/start_pr_lane.sh`
+- Branch: `codex/fix-trivy-ignore-policy-expiry`
+- Pre-open route completed:
+  `agent-coordinator -> security-auditor -> qa-engineer-agent -> bug-hunter -> architecture-specialist`
+- Post-open route completed:
+  `qa-engineer-agent -> bug-hunter -> security-auditor`.
+- Post-open `pulseplate-pr-review` completed in dry-run mode with one
+  dispositioned large-diff advisory note.
+- Follow-up still required after the final pushed head: current-head GitHub CI,
+  external bot state, review-thread/bot disposition state, and strict
+  merge-readiness checks.
+
+## Validation Evidence
+
+- PASS: `python3 scripts/orchestration/check_preflight.py`
+  - Warning observed: ambient `PULSEPLATE_PYTHON_INDEX_URL` does not match the
+    canonical private proxy root shape.
+- PASS: `python3 scripts/orchestration/check_agent_consistency.py`
+- PASS: `python3 scripts/ci/check_trivy_ignore_policy_expiry.py`
+- PASS: `.venv/bin/python -m pytest -q tests/test_trivy_ignore_policy_expiry.py`
+  (`17 passed`)
+- PASS:
+  `python3 scripts/ci/check_docs_phase1_gates.py --files docs/security/CVE-2026-54297-faraday-fastlane.md docs/security/CVE-2026-27171-zlib1g.md docs/security/CVE-2026-3184-util-linux.md docs/security/CVE-2025-69720-ncurses.md`
+- PASS: `.venv/bin/python -m pytest -q tests/test_docs_phase1_gates.py`
+  (`47 passed`)
+- PASS: `git diff --check`
+- PASS: `make validate-changed` after commit (`17 passed`)
+- PASS: `pre-commit run --all-files`
+- PASS during push: pre-push hooks, including `pip-audit`,
+  backend tests, and full Bandit.
+
+Docker / Trivy evidence:
+
+- PASS: production image build with Docker server `29.5.3`, tag
+  `pulseplate:trivy-local-632076f9`.
+- PASS: Trivy `0.71.2` filesystem scan with `.trivyignore` and skip-dirs
+  `trivy`/`worktrees` returned zero HIGH/CRITICAL findings.
+- PASS: Trivy `0.71.2` iOS filesystem no-policy scan returned zero
+  HIGH/CRITICAL findings and zero targeted Faraday findings.
+- Evidence: Trivy `0.71.2` production-image no-policy all-severity scan still
+  reports 13 targeted residual Debian findings for zlib/util-linux/ncurses.
+- PASS: Trivy `0.71.2` production-image scan with policy returned zero
+  HIGH/CRITICAL findings.
+
+Not run:
+
+- `make verify` was not run because root `AGENTS.md` forbids full local
+  `make verify` without explicit human override.
+
+## Merge Readiness
+
+Not claimed here. Requires current-head GitHub CI/security checks, bot/review
+disposition evidence, and strict merge-readiness governance after the latest
+pushed head.
