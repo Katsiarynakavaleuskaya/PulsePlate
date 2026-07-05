@@ -57,6 +57,28 @@ findings after policy application.
 Reason: These were current PR-surface evidence and suppression-scope defects,
 not inherited debt.
 
+### bug-hunter Findings
+
+Disposition: FIXED
+Role: bug-hunter
+Commit: d97bd4d448ad8c9a87bf76af2c35dc773e696ea2
+Evidence: `docs/review/PR_2081_FIXED_MAPPING.md` now maps the CodeRabbit
+review-level URL in addition to the three inline discussion URLs.
+`docs/security/CVE-2025-69720-ncurses.md` now points at the current ncurses Rego
+lines, and `docs/security/CVE-2026-3184-util-linux.md` now points at the
+canonical Trivy suppression policy section in `AGENTS.md`. `python3
+scripts/ci/check_docs_phase1_gates.py --files
+docs/security/CVE-2026-54297-faraday-fastlane.md
+docs/security/CVE-2026-27171-zlib1g.md
+docs/security/CVE-2026-3184-util-linux.md
+docs/security/CVE-2025-69720-ncurses.md`, `python3
+scripts/ci/check_pr_body_phase2_gates.py --pr-number 2081 --body "$(cat
+/tmp/pulseplate_pr_2081_body_phase2.md)" --commit-range origin/main..HEAD`, and
+`python3 scripts/orchestration/check_review_threads_disposition.py --pr-number
+2081 --require-auth` passed.
+Reason: The stale anchors and review-level mapping gap were current PR-surface
+evidence/governance defects.
+
 ## Implementation Evidence
 
 - Commit: `040dfdd80302679845c9f6628afa45f0a850cc7a`
