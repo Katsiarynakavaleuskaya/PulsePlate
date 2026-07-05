@@ -58,6 +58,11 @@ Reason: The post-open bug-hunter pass found an invalid-prepare-proof cleanup gap
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2080#discussion_r3524885014 -> 1ea21520401f0e44cb00ee1c7287571f16a269a9
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2080#discussion_r3524885016 -> 1ea21520401f0e44cb00ee1c7287571f16a269a9
 
+Disposition: FIXED
+Commit: 52f400a7b8c7f92b4aee9fad7f8507f2682a613b
+Evidence: `scripts/orchestration/creative_spec_patch_admission_contract.py` removes the stale `DEFAULT_MAX_CHANGED_FILES` import left after the no-op budget branch was deleted; focused `flake8`, focused `ruff`, and `tests/test_creative_spec_patch_admission.py` passed before commit, and commit hooks passed.
+Reason: The post-open bug-hunter rerun found that CI Flake8 would still fail on an unused import after the no-op branch fix.
+
 ## Role-Agent Evidence
 
 - Bootstrap packet: `artifacts/orchestration/task_packets/7d18e89bf74f.json`.
@@ -73,6 +78,8 @@ Reason: The post-open bug-hunter pass found an invalid-prepare-proof cleanup gap
   fixed-mapping entries for resolved CodeRabbit discussions, and the no-op
   budget branch. Commit `1ea21520401f0e44cb00ee1c7287571f16a269a9` fixes the
   code/test/schema/docs issues; this mapping records the thread proof.
+- Post-open bug-hunter rerun found one stale import after the no-op branch
+  removal. Commit `52f400a7b8c7f92b4aee9fad7f8507f2682a613b` removes it.
 - The stale Trivy policy blocker is intentionally out of scope for PR #2080 and
   is owned by PR #2081 before this PR can be merge-ready.
 
