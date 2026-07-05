@@ -54,6 +54,7 @@ Disposition: FIXED
 Commit: 1ea21520401f0e44cb00ee1c7287571f16a269a9
 Evidence: `scripts/orchestration/creative_spec_patch_admission.py` cleans a newly-created builder run directory when post-prepare proof rejects forbidden artifacts; `tests/test_creative_spec_patch_admission.py` adds a regression where `prepare()` returns but leaves `candidate.patch`; `scripts/orchestration/creative_spec_patch_admission_contract.py` removes the no-op `max_changed_files` branch; the admission schema/docs now require `validate_patch_builder_request=true`; focused pytest passed with 15 tests and commit hooks passed.
 Reason: The post-open bug-hunter pass found an invalid-prepare-proof cleanup gap, and CodeRabbit found both an unresolved no-op budget branch and a missing explicit PR-2 request-validation signal in the admission schema.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2080#pullrequestreview-4631302269 -> 1ea21520401f0e44cb00ee1c7287571f16a269a9
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2080#discussion_r3524885014 -> 1ea21520401f0e44cb00ee1c7287571f16a269a9
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2080#discussion_r3524885016 -> 1ea21520401f0e44cb00ee1c7287571f16a269a9
 
