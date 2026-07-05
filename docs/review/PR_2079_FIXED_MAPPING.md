@@ -22,6 +22,7 @@ Disposition: FIXED
 Commit: 3920fe8ba3974cd0f452dd6818d4c8ae5ea8b62d
 Evidence: `app/main.py:244`, `app/main.py:389`, `app/routers/restaurants.py:373`, `tests/test_restaurants_registration_bootstrap.py:37`, `tests/test_restaurants_registration_bootstrap.py:150`, `tests/test_legacy_growth_guard.py:1296`, `tests/test_legacy_growth_guard.py:2151`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2079#pullrequestreview-4631260857 -> 3920fe8ba3974cd0f452dd6818d4c8ae5ea8b62d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2079#discussion_r3524848575 -> 3920fe8ba3974cd0f452dd6818d4c8ae5ea8b62d
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2079#discussion_r3524853144 -> 3920fe8ba3974cd0f452dd6818d4c8ae5ea8b62d
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2079#pullrequestreview-4631266221 -> 3920fe8ba3974cd0f452dd6818d4c8ae5ea8b62d
 
