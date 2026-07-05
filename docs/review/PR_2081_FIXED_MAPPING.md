@@ -18,6 +18,8 @@ Dockerfile, workflows, or broad `.trivyignore` entries.
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 - [x] CodeRabbit actionable comments mapped after fix commit.
+- [x] Post-open `qa-engineer-agent -> bug-hunter -> security-auditor` pass
+  completed.
 - [ ] Current-head GitHub CI/security checks pending.
 
 ## Fixed in Commit Mapping
@@ -79,6 +81,30 @@ scripts/ci/check_pr_body_phase2_gates.py --pr-number 2081 --body "$(cat
 Reason: The stale anchors and review-level mapping gap were current PR-surface
 evidence/governance defects.
 
+### security-auditor Findings
+
+Disposition: NOT-A-BUG
+Role: security-auditor
+Evidence: The security-auditor pass on head
+`927271da335d7220b6a426720eb12e868754a346` found no blocking security finding
+in the changed-file scope. It verified Faraday suppression removal, retained
+zlib/util-linux/ncurses exact CVE/package/version/PkgID scope, fixed mapping
+evidence, and live review state. Supporting commands passed: `python3
+scripts/orchestration/check_preflight.py`, `python3
+scripts/ci/check_trivy_ignore_policy_expiry.py`, `.venv/bin/python -m pytest -q
+tests/test_trivy_ignore_policy_expiry.py`, `python3
+scripts/ci/check_docs_phase1_gates.py --files
+docs/security/CVE-2026-54297-faraday-fastlane.md
+docs/security/CVE-2026-27171-zlib1g.md
+docs/security/CVE-2026-3184-util-linux.md
+docs/security/CVE-2025-69720-ncurses.md`, and `python3
+scripts/orchestration/check_review_threads_disposition.py --pr-number 2081
+--require-auth`.
+Reason: The role pass found no additional blocking current-PR security defect.
+Residual risk remains that GitHub Dependabot alert `#224` closure could not be
+verified through the local API because it returned HTTP 404/scope limitation;
+this PR does not claim alert closure.
+
 ## Implementation Evidence
 
 - Commit: `040dfdd80302679845c9f6628afa45f0a850cc7a`
@@ -99,17 +125,29 @@ evidence/governance defects.
 
 ## Codex Security Evidence
 
+Initial scan:
+
 - Scan id: `fe3170a1-534d-4b15-a06b-1b2da52f3a62`
 - Base: `632076f92fb85156399124b520ab30c907a83194`
 - Head: `040dfdd80302679845c9f6628afa45f0a850cc7a`
 - Coverage: 9/9 review receipts
 - Findings: 0
-- Report:
-  `/private/var/folders/bw/12x002vn67v2bvjpbhbtm8480000gn/T/codex-security-scans-vpvqlm/BMI-App_2025_clean/040dfdd80302679845c9f6628afa45f0a850cc7a_20260705T121222Z_10s06wz4/report.md`
 
-Limitation: local GitHub code-scanning and Dependabot alert REST endpoints
-returned HTTP 404 in this session, so this PR does not claim GitHub alert
-closure before current-head GitHub CI/security evidence.
+Follow-up scan after review-fix commits:
+
+- Scan id: `920f7ec7-21ee-464f-9a73-9d5b183b32ea`
+- Base: `632076f92fb85156399124b520ab30c907a83194`
+- Head: `927271da335d7220b6a426720eb12e868754a346`
+- Coverage: 10/10 reviewed surfaces
+- Findings: 0
+- Report:
+  `/private/var/folders/bw/12x002vn67v2bvjpbhbtm8480000gn/T/codex-security-scans-vpvqlm/BMI-App_2025_clean/927271da335d7220b6a426720eb12e868754a346_20260705T130911Z_od7pub85/report.md`
+
+Limitation: a final current-head Codex Security scan must be checked after the
+last pushed evidence-only commit, because adding scan evidence to this mapping
+itself advances `HEAD`. Local GitHub code-scanning and Dependabot alert REST
+endpoints returned HTTP 404 in this session, so this PR does not claim GitHub
+alert closure before current-head GitHub CI/security evidence.
 
 ## Experiment Runner Evidence
 
@@ -136,9 +174,11 @@ after the implementation commit and did not materially shape that commit.
 - Branch: `codex/fix-trivy-ignore-policy-expiry`
 - Pre-open route completed:
   `agent-coordinator -> security-auditor -> qa-engineer-agent -> bug-hunter -> architecture-specialist`
-- Post-open route is still pending:
-  `qa-engineer-agent -> bug-hunter -> security-auditor`, followed by
-  Codex Security evidence reuse/review and `pulseplate-pr-review`.
+- Post-open route completed:
+  `qa-engineer-agent -> bug-hunter -> security-auditor`.
+- Follow-up still required after the final pushed head:
+  current-head Codex Security confirmation, `pulseplate-pr-review`, external
+  bot state, and strict merge-readiness checks.
 
 ## Validation Evidence
 
@@ -148,13 +188,13 @@ after the implementation commit and did not materially shape that commit.
 - PASS: `python3 scripts/orchestration/check_agent_consistency.py`
 - PASS: `python3 scripts/ci/check_trivy_ignore_policy_expiry.py`
 - PASS: `.venv/bin/python -m pytest -q tests/test_trivy_ignore_policy_expiry.py`
-  (`14 passed`)
+  (`17 passed`)
 - PASS:
   `python3 scripts/ci/check_docs_phase1_gates.py --files docs/security/CVE-2026-54297-faraday-fastlane.md docs/security/CVE-2026-27171-zlib1g.md docs/security/CVE-2026-3184-util-linux.md docs/security/CVE-2025-69720-ncurses.md`
 - PASS: `.venv/bin/python -m pytest -q tests/test_docs_phase1_gates.py`
   (`47 passed`)
 - PASS: `git diff --check`
-- PASS: `make validate-changed` after commit (`14 passed`)
+- PASS: `make validate-changed` after commit (`17 passed`)
 - PASS: `pre-commit run --all-files`
 - PASS during push: pre-push hooks, including `pip-audit`,
   backend tests, and full Bandit.
