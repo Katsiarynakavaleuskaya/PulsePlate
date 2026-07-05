@@ -38,7 +38,7 @@ ignore if {
 
 # CVE-2026-3184 (util-linux family) - Debian bookworm no-dsa / not applicable to login in this release context at review time
 # Review-by: 2026-07-12 (manual removal)
-# Rationale: Trivy v0.71.2 reports this util-linux issue as MEDIUM, while Debian bookworm still marks it ignored/non-applicable for the login binary context at the 2026-07-05 review; keep exact package/version scope while monitoring Debian/Trivy metadata.
+# Rationale: Trivy v0.71.2 reports this util-linux issue as MEDIUM, while Debian bookworm still marks it ignored/non-applicable for the login binary context at the 2026-07-05 review; keep exact package/version/PkgID scope while monitoring Debian/Trivy metadata.
 # Monitor: https://security-tracker.debian.org/tracker/CVE-2026-3184
 # Documented in: docs/security/CVE-2026-3184-util-linux.md
 # Removal condition: Remove when Debian bookworm publishes a fixed util-linux package or Trivy metadata includes Fixed Version
@@ -56,10 +56,51 @@ cve_2026_3184_version_match if {
 	affected_versions[input.InstalledVersion]
 }
 
+cve_2026_3184_pkgid_match if {
+	input.PkgName == "bsdutils"
+	startswith(input.PkgID, "bsdutils@1:2.38.1-5+deb12u3")
+}
+
+cve_2026_3184_pkgid_match if {
+	input.PkgName == "libblkid1"
+	startswith(input.PkgID, "libblkid1@2.38.1-5+deb12u3")
+}
+
+cve_2026_3184_pkgid_match if {
+	input.PkgName == "libmount1"
+	startswith(input.PkgID, "libmount1@2.38.1-5+deb12u3")
+}
+
+cve_2026_3184_pkgid_match if {
+	input.PkgName == "libsmartcols1"
+	startswith(input.PkgID, "libsmartcols1@2.38.1-5+deb12u3")
+}
+
+cve_2026_3184_pkgid_match if {
+	input.PkgName == "libuuid1"
+	startswith(input.PkgID, "libuuid1@2.38.1-5+deb12u3")
+}
+
+cve_2026_3184_pkgid_match if {
+	input.PkgName == "mount"
+	startswith(input.PkgID, "mount@2.38.1-5+deb12u3")
+}
+
+cve_2026_3184_pkgid_match if {
+	input.PkgName == "util-linux"
+	startswith(input.PkgID, "util-linux@2.38.1-5+deb12u3")
+}
+
+cve_2026_3184_pkgid_match if {
+	input.PkgName == "util-linux-extra"
+	startswith(input.PkgID, "util-linux-extra@2.38.1-5+deb12u3")
+}
+
 ignore if {
 	input.VulnerabilityID == "CVE-2026-3184"
 	cve_2026_3184_pkg_match
 	cve_2026_3184_version_match
+	cve_2026_3184_pkgid_match
 }
 
 # CVE-2025-69720 (ncurses family) - no fixed release for Debian bookworm at review time

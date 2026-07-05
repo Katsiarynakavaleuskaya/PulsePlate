@@ -356,7 +356,6 @@ def test_gzip_docs_and_backlog_record_production_package_removal() -> None:
 def test_faraday_fastlane_suppression_removed_after_scanner_lag_resolved() -> None:
     policy = _policy_text()
     trivyignore = TRIVYIGNORE_PATH.read_text(encoding="utf-8")
-    doc_text = SECURITY_DOC_FARADAY_PATH.read_text(encoding="utf-8")
     ledger_entry = _ledger_faraday_entry()
 
     for suppressed_text in (policy, trivyignore):
@@ -365,6 +364,17 @@ def test_faraday_fastlane_suppression_removed_after_scanner_lag_resolved() -> No
         assert "faraday@1.10.5" not in suppressed_text
         assert "faraday@1.10.6" not in suppressed_text
         assert "pkg:gem/faraday" not in suppressed_text
+
+    assert "Remove Trivy suppression for Ruby Faraday CVE-2026-54297" in ledger_entry
+    assert "- [x] P1: Remove Trivy suppression for Ruby Faraday CVE-2026-54297" in ledger_entry
+    assert "codex/dependency-cleanup-faraday-runtime-drift" in ledger_entry
+    assert "codex/fix-trivy-ignore-policy-expiry" in ledger_entry
+    assert "faraday@1.10.6" in ledger_entry
+    assert "temporary scanner-lag suppression was removed" in ledger_entry
+
+
+def test_faraday_fastlane_doc_records_scanner_lag_removal() -> None:
+    doc_text = SECURITY_DOC_FARADAY_PATH.read_text(encoding="utf-8")
 
     assert "temporary Trivy scanner-lag" in doc_text
     assert "suppression for `faraday@1.10.6` was removed" in doc_text
@@ -381,13 +391,6 @@ def test_faraday_fastlane_suppression_removed_after_scanner_lag_resolved() -> No
         in doc_text
     )
 
-    assert "Remove Trivy suppression for Ruby Faraday CVE-2026-54297" in ledger_entry
-    assert "- [x] P1: Remove Trivy suppression for Ruby Faraday CVE-2026-54297" in ledger_entry
-    assert "codex/dependency-cleanup-faraday-runtime-drift" in ledger_entry
-    assert "codex/fix-trivy-ignore-policy-expiry" in ledger_entry
-    assert "faraday@1.10.6" in ledger_entry
-    assert "temporary scanner-lag suppression was removed" in ledger_entry
-
 
 def test_faraday_1_10_6_is_only_locked_in_ios_fastlane_lockfile() -> None:
     ignored_dirs = {".git", ".venv", "node_modules", "worktrees"}
@@ -403,3 +406,40 @@ def test_faraday_1_10_6_is_only_locked_in_ios_fastlane_lockfile() -> None:
             matching_lockfiles.append(relative.as_posix())
 
     assert matching_lockfiles == ["ios/Gemfile.lock"]
+
+
+def test_zlib_suppression_requires_exact_pkgid_scope() -> None:
+    policy = _policy_text()
+
+    zlib_ignore_rule = policy[
+        policy.index('ignore if {\n\tinput.VulnerabilityID == "CVE-2026-27171"') :
+    ]
+
+    assert 'input.InstalledVersion == "1:1.2.13.dfsg-1"' in policy
+    assert 'contains(input.PkgID, "zlib1g@1:1.2.13.dfsg-1")' in policy
+    assert 'input.PkgName == "zlib1g"' in zlib_ignore_rule
+    assert "cve_2026_27171_version_match" in zlib_ignore_rule
+    assert "cve_2026_27171_pkgid_match" in zlib_ignore_rule
+
+
+def test_util_linux_suppression_requires_exact_pkgid_scope() -> None:
+    policy = _policy_text()
+
+    assert "cve_2026_3184_pkgid_match" in policy
+    util_linux_ignore_rule = policy[
+        policy.index('ignore if {\n\tinput.VulnerabilityID == "CVE-2026-3184"') :
+    ]
+    assert "cve_2026_3184_pkgid_match" in util_linux_ignore_rule
+
+    for package, version in (
+        ("bsdutils", "1:2.38.1-5+deb12u3"),
+        ("libblkid1", "2.38.1-5+deb12u3"),
+        ("libmount1", "2.38.1-5+deb12u3"),
+        ("libsmartcols1", "2.38.1-5+deb12u3"),
+        ("libuuid1", "2.38.1-5+deb12u3"),
+        ("mount", "2.38.1-5+deb12u3"),
+        ("util-linux", "2.38.1-5+deb12u3"),
+        ("util-linux-extra", "2.38.1-5+deb12u3"),
+    ):
+        assert f'input.PkgName == "{package}"' in policy
+        assert f'startswith(input.PkgID, "{package}@{version}")' in policy
