@@ -20,6 +20,7 @@ Dockerfile, workflows, or broad `.trivyignore` entries.
 - [x] CodeRabbit actionable comments mapped after fix commit.
 - [x] Post-open `qa-engineer-agent -> bug-hunter -> security-auditor` pass
   completed.
+- [x] `pulseplate-pr-review` dry-run completed and dispositioned.
 - [ ] Current-head GitHub CI/security checks pending.
 
 ## Fixed in Commit Mapping
@@ -105,6 +106,29 @@ Residual risk remains that GitHub Dependabot alert `#224` closure could not be
 verified through the local API because it returned HTTP 404/scope limitation;
 this PR does not claim alert closure.
 
+### pulseplate-pr-review Findings
+
+Disposition: NOT-A-BUG
+Role: pulseplate-pr-review / bug-hunter
+Evidence: `python3 scripts/orchestration/pr_review_context.py --pr 2081
+--output /tmp/pulseplate_pr_2081_review_context.json` and `python3
+scripts/orchestration/pr_review_report.py --context
+/tmp/pulseplate_pr_2081_review_context.json --format markdown --packet-id
+9dcf5d232ef5 --packet-path
+artifacts/orchestration/task_packets/9dcf5d232ef5.json --output
+/tmp/pulseplate_pr_2081_review_report.md` passed on head
+`9536870f12092e23806f8d1f786381e1802d06e1`. The dry-run produced one advisory
+`note` for large diff risk (`10` files, `603` additions, `172` deletions,
+`775` changed lines) and no deterministic architecture, security, QA, or
+data-scientist findings. Scope remains a single Trivy ignore-policy hotfix lane:
+no product runtime code, Python/Ruby lockfile, Dockerfile, workflow, or
+dependency requirement file changed; #2078 pyarrow and #2077 testing-deps remain
+out of scope. `make validate-changed` and `pre-commit run --all-files` passed
+after the evidence-only mapping commit.
+Reason: The large-diff warning is valid review-planning signal, but it is not a
+scope defect after the split rationale, out-of-scope boundaries, deterministic
+gates, and role passes were recorded.
+
 ## Implementation Evidence
 
 - Commit: `040dfdd80302679845c9f6628afa45f0a850cc7a`
@@ -143,11 +167,15 @@ Follow-up scan after review-fix commits:
 - Report:
   `/private/var/folders/bw/12x002vn67v2bvjpbhbtm8480000gn/T/codex-security-scans-vpvqlm/BMI-App_2025_clean/927271da335d7220b6a426720eb12e868754a346_20260705T130911Z_od7pub85/report.md`
 
-Limitation: a final current-head Codex Security scan must be checked after the
-last pushed evidence-only commit, because adding scan evidence to this mapping
-itself advances `HEAD`. Local GitHub code-scanning and Dependabot alert REST
-endpoints returned HTTP 404 in this session, so this PR does not claim GitHub
-alert closure before current-head GitHub CI/security evidence.
+Limitation: no additional Codex Security scan is recorded after the
+evidence-only mapping commits. The latest completed scan-covered head is
+`927271da335d7220b6a426720eb12e868754a346`; subsequent commits only update this
+`docs/review/PR_2081_FIXED_MAPPING.md` evidence artifact and do not change
+`trivy/ignore-policy.rego`, `tests/test_trivy_ignore_policy_expiry.py`,
+`docs/security/*`, or `docs/roadmap/BACKLOG_LEDGER.md`. Local GitHub
+code-scanning and Dependabot alert REST endpoints returned HTTP 404 in this
+session, so this PR does not claim GitHub alert closure before current-head
+GitHub CI/security evidence.
 
 ## Experiment Runner Evidence
 
@@ -176,9 +204,11 @@ after the implementation commit and did not materially shape that commit.
   `agent-coordinator -> security-auditor -> qa-engineer-agent -> bug-hunter -> architecture-specialist`
 - Post-open route completed:
   `qa-engineer-agent -> bug-hunter -> security-auditor`.
-- Follow-up still required after the final pushed head:
-  current-head Codex Security confirmation, `pulseplate-pr-review`, external
-  bot state, and strict merge-readiness checks.
+- Post-open `pulseplate-pr-review` completed in dry-run mode with one
+  dispositioned large-diff advisory note.
+- Follow-up still required after the final pushed head: current-head GitHub CI,
+  external bot state, review-thread/bot disposition state, and strict
+  merge-readiness checks.
 
 ## Validation Evidence
 
@@ -219,6 +249,6 @@ Not run:
 
 ## Merge Readiness
 
-Not claimed here. Requires current-head GitHub CI/security checks, post-open
-role chain completion, `pulseplate-pr-review`, bot/review disposition evidence,
-and strict merge-readiness governance after the latest pushed head.
+Not claimed here. Requires current-head GitHub CI/security checks, bot/review
+disposition evidence, and strict merge-readiness governance after the latest
+pushed head.
