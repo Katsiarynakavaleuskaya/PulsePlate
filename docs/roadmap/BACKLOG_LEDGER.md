@@ -10951,8 +10951,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Governed creative-code execution lane (PR-0 through PR-6)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (research-to-implementation leverage with closed authority)
-  - Target PR: PR-0 `feat/experiment-runner-creative-code-authority-pr0` -> PR-1 `codex/creative-code-specification-pr1` -> PR-2 `#2022` -> PR-3 `#2030` -> PR-4 `#2044` -> PR-5 `#2048` -> PR-6 `codex/creative-code-first-applied-candidate-pr6` -> private-pilot loop operator `codex/creative-code-private-pilot-loop-operator` -> GitHub App capability gate `codex/experiment-runner-github-app-capability-gate` -> approved creative-hypothesis specification bridge `codex/experiment-runner-approved-hypothesis-spec-bridge`
-  - Status: PR-0 merged baseline; PR-1 merged as a repo-only specification-bundle control-plane layer; PR-2 merged in PR `#2022` as a local sandboxed candidate-patch builder; PR-3 merged in PR `#2030` as human-approved non-draft PR promotion tooling; PR-4 merged in PR `#2044` at `a7e19b78c7d36b783ec2575ab0eab9f1402f2a0d` as local candidate evaluation telemetry and rejection taxonomy; PR-5 merged in PR `#2048` at `71af9d208b26435352fc821b79a2d78cebb319f5` as read-only local review-disposition integration; PR-6 is active as the first governed applied creative-code candidate lane targeting `docs/prompts/cv/program.md` through normal PR governance; the private-pilot loop operator adds sanitized local lifecycle state and checklist-only next-candidate planning without write/push/PR/thread/fixed-mapping/provider/runtime authority; the GitHub App capability gate slice feeds that state with a strict sanitized read-only permission report requiring Pull requests read and Checks read while keeping Actions write optional for fixed workflow dispatch only; the approved creative-hypothesis specification bridge consumes human-approved local creative-context artifacts and emits only a validated candidate packet, deterministic local metrics, and existing PR-1 prepare artifacts
+  - Target PR: PR-0 `feat/experiment-runner-creative-code-authority-pr0` -> PR-1 `codex/creative-code-specification-pr1` -> PR-2 `#2022` -> PR-3 `#2030` -> PR-4 `#2044` -> PR-5 `#2048` -> PR-6 `codex/creative-code-first-applied-candidate-pr6` -> private-pilot loop operator `codex/creative-code-private-pilot-loop-operator` -> GitHub App capability gate `codex/experiment-runner-github-app-capability-gate` -> approved creative-hypothesis specification bridge `codex/experiment-runner-approved-hypothesis-spec-bridge` -> creative spec learning rollup `#2075` -> patch-builder admission `codex/er-creative-spec-patch-admission`
+  - Status: PR-0 merged baseline; PR-1 merged as a repo-only specification-bundle control-plane layer; PR-2 merged in PR `#2022` as a local sandboxed candidate-patch builder; PR-3 merged in PR `#2030` as human-approved non-draft PR promotion tooling; PR-4 merged in PR `#2044` at `a7e19b78c7d36b783ec2575ab0eab9f1402f2a0d` as local candidate evaluation telemetry and rejection taxonomy; PR-5 merged in PR `#2048` at `71af9d208b26435352fc821b79a2d78cebb319f5` as read-only local review-disposition integration; PR-6 is active as the first governed applied creative-code candidate lane targeting `docs/prompts/cv/program.md` through normal PR governance; the private-pilot loop operator adds sanitized local lifecycle state and checklist-only next-candidate planning without write/push/PR/thread/fixed-mapping/provider/runtime authority; the GitHub App capability gate slice feeds that state with a strict sanitized read-only permission report requiring Pull requests read and Checks read while keeping Actions write optional for fixed workflow dispatch only; the approved creative-hypothesis specification bridge consumes human-approved local creative-context artifacts and emits only a validated candidate packet, deterministic local metrics, and existing PR-1 prepare artifacts; the creative spec learning rollup landed in PR `#2075` as proposal-only reviewer-focus learning; the patch-builder admission slice is active as a prepare-only bridge from finalized selected specs to valid PR-2 requests
   - Dependencies:
     - [P1: Creative research eval lane under governed experimentation epic](#ledger-p1-creative-research-eval-lane)
     - [P1: Governed agent experimentation lane (PR1-PR6 orchestration epic)](#ledger-p1-agent-experimentation-lane)
@@ -10980,6 +10980,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/orchestration/contracts/creative_code_rejection_taxonomy.v1.json`
     - `docs/orchestration/contracts/creative_hypothesis_specification_bridge.v1.schema.json`
     - `docs/orchestration/contracts/creative_hypothesis_spec_bridge_metrics.v1.schema.json`
+    - `docs/orchestration/contracts/CREATIVE_SPEC_PATCH_ADMISSION_CONTRACT.md`
+    - `docs/orchestration/contracts/creative_spec_patch_human_admission.v1.schema.json`
+    - `docs/orchestration/contracts/creative_spec_patch_admission.v1.schema.json`
     - `docs/orchestration/CREATIVE_CODE_REVIEW_DISPOSITION_PR5_PREMORTEM.md`
     - `docs/orchestration/contracts/CREATIVE_CODE_REVIEW_DISPOSITION_CONTRACT.md`
     - `docs/orchestration/contracts/creative_code_review_feedback_record.v1.schema.json`
@@ -11009,6 +11012,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `scripts/orchestration/github_app_private_pilot_capability.py`
     - `scripts/orchestration/creative_hypothesis_spec_bridge_contract.py`
     - `scripts/orchestration/creative_hypothesis_spec_bridge.py`
+    - `scripts/orchestration/creative_spec_patch_admission_contract.py`
+    - `scripts/orchestration/creative_spec_patch_admission.py`
     - `tests/test_creative_code_contract.py`
     - `tests/test_creative_code_patch_builder.py`
     - `tests/test_creative_code_pr_promotion.py`
@@ -11017,6 +11022,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `tests/test_creative_code_applied_candidate_pr6.py`
     - `tests/test_creative_code_private_pilot_loop.py`
     - `tests/test_creative_hypothesis_spec_bridge.py`
+    - `tests/test_creative_spec_patch_admission.py`
   - PR train:
     - PR-0: closed authority contract, schema, reference packet, validator, and tests; no model calls, patches, workflows, Slack/GitHub settings, or `experiment_runner.py` changes.
     - PR-1: emit deterministic implementation specification bundles from promoted creative research, with skeptic reviews, synthesis, telemetry summary, safe local artifact I/O, and fingerprint-only rejection indexes; no candidate patches, provider calls, repo writes, runtime truth, review-thread disposition authority, or merge-readiness evidence.
@@ -11038,10 +11044,18 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
       - Priority: P1 learning-loop leverage.
       - Owner: orchestration.
       - Target PR: `codex/experiment-runner-creative-spec-learning-rollup`.
-      - Status: active reviewed PR lane.
+      - Status: merged in PR `#2075`.
       - Reason: bridge metrics and reviewed finalize outcomes are deterministic local sidecars but need proposal-only learning-loop ingestion before patch-builder admission can be considered.
       - DoD: finalized bridge metrics, skeptic-review attachment, finalize receipt, and `CreativeCodeSpecificationBundle` ingest into `agent_learning_record.v1` success/failure records plus coordinator advisory hints with redaction, bounded fields, no runtime telemetry, no product truth, no semantic-cache use, no graph truth, no provider calls, no patch generation, and no routing or merge-readiness authority.
-      - Evidence target: `scripts/orchestration/creative_spec_learning_rollup.py`; `scripts/orchestration/creative_spec_learning_rollup_contract.py`; `docs/orchestration/contracts/creative_spec_learning_rollup.v1.schema.json`; `docs/orchestration/contracts/creative_spec_coordinator_advisory_hints.v1.schema.json`; `tests/test_creative_spec_learning_rollup.py`; `tests/test_task_bootstrap.py`.
+      - Evidence: `scripts/orchestration/creative_spec_learning_rollup.py`; `scripts/orchestration/creative_spec_learning_rollup_contract.py`; `docs/orchestration/contracts/creative_spec_learning_rollup.v1.schema.json`; `docs/orchestration/contracts/creative_spec_coordinator_advisory_hints.v1.schema.json`; `tests/test_creative_spec_learning_rollup.py`; `tests/test_task_bootstrap.py`.
+    - Follow-up finalized spec patch-builder admission:
+      - Priority: P1 automation leverage.
+      - Owner: orchestration.
+      - Target PR: `codex/er-creative-spec-patch-admission`.
+      - Status: active reviewed PR lane.
+      - Reason: finalized selected creative specs need a typed prepare-only handoff into the existing PR-2 patch-builder request contract without widening into generation, evaluation, Codex exec, promotion, branch/PR writes, workflows, product runtime, semantic cache, or graph truth.
+      - DoD: `creative_spec_patch_admission.py` validates a finalized receipt, selected bundle, explicit human admission, bounded budgets, non-empty oracle commands/metrics, exact current `origin/main` base SHA, and clean shared worktree; builds the request only through `build_creative_code_patch_build_request(...)`; optionally calls builder `prepare` only; records `candidate.patch` and `result.json` absent with `candidate_patch_generated=false` and `candidate_patch_evaluated=false`; and adds deterministic tests for binding, authority, path, stale-base, dirty-tree, unsafe-string, budget, no-generate/evaluate, and cleanup behavior.
+      - Evidence target: `scripts/orchestration/creative_spec_patch_admission.py`; `scripts/orchestration/creative_spec_patch_admission_contract.py`; `docs/orchestration/contracts/CREATIVE_SPEC_PATCH_ADMISSION_CONTRACT.md`; `docs/orchestration/contracts/creative_spec_patch_human_admission.v1.schema.json`; `docs/orchestration/contracts/creative_spec_patch_admission.v1.schema.json`; `tests/test_creative_spec_patch_admission.py`.
     - Follow-up bridge authority schema single-source:
       - Priority: P2 maintainability.
       - Owner: orchestration.

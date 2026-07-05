@@ -1,0 +1,172 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pulseplate.local/contracts/creative_spec_patch_human_admission.v1.schema.json",
+  "title": "CreativeSpecPatchHumanAdmission",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "policy_version",
+    "decision",
+    "approval_ref",
+    "approved_by",
+    "approved_at_utc",
+    "approved_source_bundle_id",
+    "approved_source_bundle_fingerprint",
+    "approved_selected_variant_id",
+    "approved_selected_variant_fingerprint",
+    "allowed_existing_paths",
+    "allowed_new_paths",
+    "oracle_commands",
+    "metrics",
+    "budgets",
+    "authority",
+    "sanitized"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "artifact_type": { "const": "creative_spec_patch_human_admission" },
+    "policy_version": { "const": "creative-spec-patch-admission-v1" },
+    "decision": { "const": "approved_for_patch_builder_prepare" },
+    "approval_ref": { "$ref": "#/$defs/safe_id" },
+    "approved_by": { "$ref": "#/$defs/safe_token" },
+    "approved_at_utc": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+    },
+    "approved_source_bundle_id": { "$ref": "#/$defs/safe_id" },
+    "approved_source_bundle_fingerprint": { "$ref": "#/$defs/sha256" },
+    "approved_selected_variant_id": { "$ref": "#/$defs/safe_id" },
+    "approved_selected_variant_fingerprint": { "$ref": "#/$defs/sha256" },
+    "allowed_existing_paths": { "$ref": "#/$defs/path_array_allow_empty" },
+    "allowed_new_paths": { "$ref": "#/$defs/path_array_allow_empty" },
+    "oracle_commands": { "$ref": "#/$defs/non_empty_string_array" },
+    "metrics": { "$ref": "#/$defs/non_empty_string_array" },
+    "budgets": { "$ref": "#/$defs/budgets" },
+    "authority": { "$ref": "#/$defs/authority" },
+    "sanitized": { "const": true }
+  },
+  "anyOf": [
+    { "properties": { "allowed_existing_paths": { "minItems": 1 } } },
+    { "properties": { "allowed_new_paths": { "minItems": 1 } } }
+  ],
+  "$defs": {
+    "safe_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "safe_token": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 96,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "repo_path": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/|~|[A-Za-z][A-Za-z0-9+.-]*:)(?!.*(?:^|/)\\.\\.?(?:/|$))(?!.*\\\\).+"
+    },
+    "path_array_allow_empty": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/repo_path" }
+    },
+    "non_empty_string_array": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "not": {
+          "pattern": "(candidate\\.patch|diff --git|raw[_ -]?(prompt|response|context|patch|review|body)|chain[_ -]?of[_ -]?thought|provider[_ -]?payload|oracle[_ -]?(stdout|stderr)|sk-[A-Za-z0-9_-]{12,}|gh[psoru]_|github_pat_|xox[abprs]-|authorization:\\s*bearer|private[_ -]?key|api[_ -]?key|/Users/|/tmp/)"
+        }
+      }
+    },
+    "budgets": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "generation_attempts",
+        "generation_timeout_seconds",
+        "evaluation_timeout_seconds",
+        "max_changed_files",
+        "max_diff_lines",
+        "max_patch_bytes"
+      ],
+      "properties": {
+        "generation_attempts": { "const": 1 },
+        "generation_timeout_seconds": { "type": "integer", "minimum": 1, "maximum": 600 },
+        "evaluation_timeout_seconds": { "type": "integer", "minimum": 1, "maximum": 600 },
+        "max_changed_files": { "type": "integer", "minimum": 1, "maximum": 5, "default": 3 },
+        "max_diff_lines": { "type": "integer", "minimum": 1, "maximum": 800 },
+        "max_patch_bytes": { "type": "integer", "minimum": 1, "maximum": 524288 }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "approve_patch_builder_request",
+        "call_local_codex_exec",
+        "call_product_runtime",
+        "call_provider",
+        "claim_merge_readiness",
+        "create_branch",
+        "edit_fixed_mapping",
+        "emit_local_artifacts",
+        "generate_candidate_patch",
+        "merge",
+        "modify_workflows",
+        "open_pull_request",
+        "promote_candidate",
+        "push_branch",
+        "read_finalized_creative_spec",
+        "read_secrets",
+        "resolve_review_threads",
+        "run_patch_builder_evaluate",
+        "run_patch_builder_generate",
+        "run_patch_builder_prepare",
+        "use_semantic_cache",
+        "validate_patch_builder_request",
+        "write_graph_truth",
+        "write_repository",
+        "write_shared_worktree"
+      ],
+      "properties": {
+        "approve_patch_builder_request": { "const": true },
+        "emit_local_artifacts": { "const": true },
+        "read_finalized_creative_spec": { "const": true },
+        "run_patch_builder_prepare": { "const": true },
+        "validate_patch_builder_request": { "const": true },
+        "call_local_codex_exec": { "const": false },
+        "call_product_runtime": { "const": false },
+        "call_provider": { "const": false },
+        "claim_merge_readiness": { "const": false },
+        "create_branch": { "const": false },
+        "edit_fixed_mapping": { "const": false },
+        "generate_candidate_patch": { "const": false },
+        "merge": { "const": false },
+        "modify_workflows": { "const": false },
+        "open_pull_request": { "const": false },
+        "promote_candidate": { "const": false },
+        "push_branch": { "const": false },
+        "read_secrets": { "const": false },
+        "resolve_review_threads": { "const": false },
+        "run_patch_builder_evaluate": { "const": false },
+        "run_patch_builder_generate": { "const": false },
+        "use_semantic_cache": { "const": false },
+        "write_graph_truth": { "const": false },
+        "write_repository": { "const": false },
+        "write_shared_worktree": { "const": false }
+      }
+    }
+  }
+}

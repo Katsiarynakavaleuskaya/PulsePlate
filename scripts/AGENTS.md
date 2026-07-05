@@ -86,6 +86,19 @@
   threads, claim readiness, merge, release, call providers, call product
   runtime, use semantic cache, write graph truth, or mutate GitHub App / Slack
   settings.
+- Creative spec patch admission artifacts stay local under
+  `artifacts/orchestration/creative_code/patch_admission/<admission-id>/`. The
+  `creative_spec_patch_admission.py` CLI may only read validated finalized
+  creative-spec bundle and receipt artifacts plus an explicit operator human
+  admission, build an existing PR-2 `CreativeCodePatchBuildRequest` through
+  `build_creative_code_patch_build_request(...)`, validate the request, and
+  optionally call patch-builder `prepare` only. It must not call patch-builder
+  `generate` or `evaluate`, call Codex, produce `candidate.patch`, execute
+  Experiment Runner candidate mode, promote candidates, create or write
+  branches, push/open PRs, resolve review threads, edit fixed mappings, claim
+  readiness, merge, release, call providers, call product runtime, modify
+  workflows, use semantic cache, write graph truth, or mutate GitHub App / Slack
+  settings.
 - The runner must apply patches only inside an isolated temporary checkout and must leave the shared working tree untouched.
 - Mutable surfaces, immutable oracles, budgets, and promotion boundaries are defined by `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`; do not duplicate or relax them here.
 - Runner mutation of `scripts/ci/**`, `docs/review/**`, `AGENTS.md`, merge
