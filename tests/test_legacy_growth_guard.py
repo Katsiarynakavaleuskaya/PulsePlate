@@ -1293,6 +1293,16 @@ def test_legacy_growth_guard_rejects_users_router_reintroduction(
             ],
         ),
     ],
+    ids=[
+        "direct_import",
+        "aliased_import",
+        "module_qualified_import",
+        "dynamic_literal_import",
+        "dynamic_computed_import",
+        "destructured_dynamic_import",
+        "walrus_dynamic_import",
+        "nested_wrapper_dynamic_import",
+    ],
 )
 def test_legacy_growth_guard_rejects_restaurants_router_reintroduction(
     source: str,
@@ -2137,6 +2147,10 @@ def test_legacy_growth_guard_rejects_auth_dependency_on_allowed_router() -> None
                 "legacy_app.py: sensitive app surface grew for auth: 1 > 0",
             ],
         ),
+    ],
+    ids=[
+        "decorator_dependency_alias",
+        "include_router_dependency_alias",
     ],
 )
 def test_legacy_growth_guard_rejects_sensitive_dependency_aliases(

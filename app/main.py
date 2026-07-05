@@ -238,8 +238,20 @@ _EXPORT_ROUTE_REQUIRED_STATUS_CODES = frozenset({429})
 _RESTAURANT_MODERATION_REQUIRED_STATUS_CODES = frozenset({404, 422})
 _RESTAURANT_MENU_REQUIRED_STATUS_CODES = frozenset({404})
 _RESTAURANT_SUBMISSION_CREATE_REQUIRED_STATUS_CODES = frozenset({422})
+_RESTAURANT_SUBMISSION_DETAIL_REQUIRED_STATUS_CODES = frozenset({404})
 _PLAN_SIGNED_EXPORT_PATHS = frozenset({WEEK_EXPORT_CSV_PATH, WEEK_EXPORT_PDF_PATH})
 _NO_REQUIRED_STATUS_CODES: frozenset[int] = frozenset()
+_RESTAURANT_ROUTE_REQUIRED_STATUS_CODES: dict[tuple[str, str], frozenset[int]] = {
+    ("/api/v1/restaurants/{chain_id}/menu", "GET"): _RESTAURANT_MENU_REQUIRED_STATUS_CODES,
+    (
+        "/api/v1/restaurants/submissions",
+        "POST",
+    ): _RESTAURANT_SUBMISSION_CREATE_REQUIRED_STATUS_CODES,
+    (
+        "/api/v1/restaurants/submissions/{submission_id}",
+        "GET",
+    ): _RESTAURANT_SUBMISSION_DETAIL_REQUIRED_STATUS_CODES,
+}
 _FOODS_BARCODE_REQUIRED_STATUS_CODES = frozenset({404, 422})
 
 
@@ -380,14 +392,9 @@ def _restaurant_route_members() -> tuple[RouteMemberContract, ...]:
             path=path,
             method=method,
             include_in_schema=include_in_schema,
-            required_status_codes=(
-                _RESTAURANT_MENU_REQUIRED_STATUS_CODES
-                if path.endswith("/{chain_id}/menu")
-                else (
-                    _RESTAURANT_SUBMISSION_CREATE_REQUIRED_STATUS_CODES
-                    if path.endswith("/submissions") and method == "POST"
-                    else _NO_REQUIRED_STATUS_CODES
-                )
+            required_status_codes=_RESTAURANT_ROUTE_REQUIRED_STATUS_CODES.get(
+                (path, method),
+                _NO_REQUIRED_STATUS_CODES,
             ),
             required_dependencies=(get_restaurant_store,),
         )

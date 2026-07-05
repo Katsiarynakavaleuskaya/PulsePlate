@@ -374,6 +374,7 @@ def create_restaurant_submission(
     "/api/v1/restaurants/submissions/{submission_id}",
     response_model=RestaurantSubmission,
     include_in_schema=False,
+    responses={status.HTTP_404_NOT_FOUND: {"description": "Submission not found"}},
 )
 def get_restaurant_submission(
     submission_id: str,

@@ -38,7 +38,7 @@ _EXPECTED_RESPONSE_CODES = {
     ("/api/v1/restaurants/search", "GET"): frozenset(),
     ("/api/v1/restaurants/{chain_id}/menu", "GET"): frozenset({404}),
     ("/api/v1/restaurants/submissions", "POST"): frozenset({422}),
-    ("/api/v1/restaurants/submissions/{submission_id}", "GET"): frozenset(),
+    ("/api/v1/restaurants/submissions/{submission_id}", "GET"): frozenset({404}),
 }
 
 
@@ -158,11 +158,13 @@ def test_restaurant_route_members_require_store_dependency_and_response_metadata
         assert member.required_status_codes == _EXPECTED_RESPONSE_CODES[key]
 
 
-def test_restaurant_router_source_routes_preserve_store_dependency() -> None:
+def test_restaurant_router_source_routes_preserve_dependency_and_response_metadata() -> None:
     for path, method, _include_in_schema in _EXPECTED_ROUTE_SPECS:
         route = _source_route(path, method)
 
         assert route_has_dependency_call(route, app_main.get_restaurant_store)
+        for status_code in _EXPECTED_RESPONSE_CODES[(path, method)]:
+            assert status_code in route_responses(route)
 
 
 def test_restaurant_router_source_specs_match_current_visibility() -> None:
