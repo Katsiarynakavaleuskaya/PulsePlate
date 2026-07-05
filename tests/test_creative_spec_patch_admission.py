@@ -617,6 +617,35 @@ def test_schemas_closed_and_cli_has_no_generate_or_evaluate_commands() -> None:
         ]
         is False
     )
+    prepared_rules = admission_schema["$defs"]["builder_prepare"]["allOf"]
+    prepared_then = prepared_rules[0]["then"]["properties"]
+    unprepared_then = prepared_rules[1]["then"]["properties"]
+    for key in (
+        "request_file_present",
+        "source_bundle_file_present",
+        "selected_variant_file_present",
+        "state_file_present",
+    ):
+        assert prepared_then[key]["const"] is True
+        assert unprepared_then[key]["const"] is False
+    assert prepared_then["run_id"]["$ref"] == "#/$defs/safe_id"
+    assert prepared_then["state_fingerprint"]["$ref"] == "#/$defs/sha256"
+    assert unprepared_then["run_id"]["type"] == "null"
+    assert unprepared_then["state_fingerprint"]["type"] == "null"
+
+    admission_prepare_effect_rules = admission_schema["allOf"]
+    assert (
+        admission_prepare_effect_rules[0]["then"]["properties"]["executed_effects"]["properties"][
+            "builder_prepared"
+        ]["const"]
+        is True
+    )
+    assert (
+        admission_prepare_effect_rules[1]["then"]["properties"]["executed_effects"]["properties"][
+            "builder_prepared"
+        ]["const"]
+        is False
+    )
 
     with pytest.raises(SystemExit):
         admission_cli._parse_args(["generate"])

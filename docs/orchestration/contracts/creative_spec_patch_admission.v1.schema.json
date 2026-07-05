@@ -36,6 +36,44 @@
     "authority": { "$ref": "#/$defs/authority" },
     "sanitized": { "const": true }
   },
+  "allOf": [
+    {
+      "if": {
+        "required": ["builder_prepare"],
+        "properties": {
+          "builder_prepare": {
+            "required": ["prepared"],
+            "properties": { "prepared": { "const": true } }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "executed_effects": {
+            "properties": { "builder_prepared": { "const": true } }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["builder_prepare"],
+        "properties": {
+          "builder_prepare": {
+            "required": ["prepared"],
+            "properties": { "prepared": { "const": false } }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "executed_effects": {
+            "properties": { "builder_prepared": { "const": false } }
+          }
+        }
+      }
+    }
+  ],
   "$defs": {
     "safe_id": {
       "type": "string",
@@ -198,7 +236,41 @@
         "result_file_present": { "const": false },
         "candidate_patch_generated": { "const": false },
         "candidate_patch_evaluated": { "const": false }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": ["prepared"],
+            "properties": { "prepared": { "const": true } }
+          },
+          "then": {
+            "properties": {
+              "run_id": { "$ref": "#/$defs/safe_id" },
+              "state_fingerprint": { "$ref": "#/$defs/sha256" },
+              "request_file_present": { "const": true },
+              "source_bundle_file_present": { "const": true },
+              "selected_variant_file_present": { "const": true },
+              "state_file_present": { "const": true }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["prepared"],
+            "properties": { "prepared": { "const": false } }
+          },
+          "then": {
+            "properties": {
+              "run_id": { "type": "null" },
+              "state_fingerprint": { "type": "null" },
+              "request_file_present": { "const": false },
+              "source_bundle_file_present": { "const": false },
+              "selected_variant_file_present": { "const": false },
+              "state_file_present": { "const": false }
+            }
+          }
+        }
+      ]
     },
     "executed_effects": {
       "type": "object",
