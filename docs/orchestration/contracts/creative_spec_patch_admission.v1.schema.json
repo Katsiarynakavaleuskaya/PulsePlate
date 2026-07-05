@@ -326,6 +326,7 @@
         "run_patch_builder_generate",
         "run_patch_builder_prepare",
         "use_semantic_cache",
+        "validate_patch_builder_request",
         "write_graph_truth",
         "write_repository",
         "write_shared_worktree"
@@ -334,6 +335,7 @@
         "build_patch_builder_request": { "const": true },
         "emit_local_artifacts": { "const": true },
         "run_patch_builder_prepare": { "const": true },
+        "validate_patch_builder_request": { "const": true },
         "call_local_codex_exec": { "const": false },
         "call_product_runtime": { "const": false },
         "call_provider": { "const": false },

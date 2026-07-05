@@ -319,40 +319,40 @@ def _prepare_builder_from_admission(admission_path: Path, *, run_id: str) -> Pat
             request_path=request_path,
             run_id=run_id,
         )
+        run_dir = resolve_run_dir(run_id, create=False)
+        builder_prepare = build_builder_prepare_summary(
+            run_id=run_id,
+            state=state,
+            request_file_present=resolve_run_file(
+                run_dir, creative_code_patch_builder.REQUEST_FILE
+            ).exists(),
+            source_bundle_file_present=resolve_run_file(
+                run_dir,
+                creative_code_patch_builder.SOURCE_BUNDLE_FILE,
+            ).exists(),
+            selected_variant_file_present=resolve_run_file(
+                run_dir,
+                creative_code_patch_builder.SELECTED_VARIANT_FILE,
+            ).exists(),
+            state_file_present=resolve_run_file(
+                run_dir, creative_code_patch_builder.STATE_FILE
+            ).exists(),
+            candidate_patch_path_present=(
+                run_dir / creative_code_patch_builder.CANDIDATE_PATCH_FILE
+            ).exists(),
+            result_file_present=(run_dir / creative_code_patch_builder.RESULT_FILE).exists(),
+        )
+        updated = attach_builder_prepare_summary(admission, builder_prepare=builder_prepare)
+        write_json_atomic(admission_path, updated)
     except Exception:
         if not run_dir_existed:
             try:
                 cleanup_run_dir(run_id)
             except CreativeCodePatchWorkspaceError as cleanup_exc:
                 raise CreativeSpecPatchAdmissionCliError(
-                    "prepare failed and partial run cleanup failed."
+                    "prepare failed or produced invalid proof, and partial run cleanup failed."
                 ) from cleanup_exc
         raise
-    run_dir = resolve_run_dir(run_id, create=False)
-    builder_prepare = build_builder_prepare_summary(
-        run_id=run_id,
-        state=state,
-        request_file_present=resolve_run_file(
-            run_dir, creative_code_patch_builder.REQUEST_FILE
-        ).exists(),
-        source_bundle_file_present=resolve_run_file(
-            run_dir,
-            creative_code_patch_builder.SOURCE_BUNDLE_FILE,
-        ).exists(),
-        selected_variant_file_present=resolve_run_file(
-            run_dir,
-            creative_code_patch_builder.SELECTED_VARIANT_FILE,
-        ).exists(),
-        state_file_present=resolve_run_file(
-            run_dir, creative_code_patch_builder.STATE_FILE
-        ).exists(),
-        candidate_patch_path_present=(
-            run_dir / creative_code_patch_builder.CANDIDATE_PATCH_FILE
-        ).exists(),
-        result_file_present=(run_dir / creative_code_patch_builder.RESULT_FILE).exists(),
-    )
-    updated = attach_builder_prepare_summary(admission, builder_prepare=builder_prepare)
-    write_json_atomic(admission_path, updated)
     return admission_path
 
 

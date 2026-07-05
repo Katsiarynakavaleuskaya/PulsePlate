@@ -233,7 +233,9 @@ after reviewed finalize evidence emits a selected
 `spec_finalize_reviewed/creative_code_specification_bundle.json` plus a
 `finalize_receipt.json` whose next allowed action is
 `human_review_for_patch_builder`. The admission layer calls the existing PR-2
-request builder and keeps its own executed authority prepare-only.
+request builder, validates the request through the existing PR-2 request
+validator, and keeps its own executed authority prepare-only with
+`validate_patch_builder_request=true`.
 
 The packet, bundle, request, result, local `candidate.patch`, plan, validation,
 approval, receipt, applied-candidate run plan, and generated PR body may

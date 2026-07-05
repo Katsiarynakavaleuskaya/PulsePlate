@@ -655,6 +655,64 @@ def test_prepare_builder_cleans_new_run_dir_on_prepare_failure(
         creative_code_patch_workspace.resolve_run_dir(run_id, create=False)
 
 
+def test_build_and_prepare_cleans_new_run_dir_when_prepare_proof_rejects_candidate_patch(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo, base_sha = _init_patch_repo(tmp_path)
+    _patch_modules_to_repo(monkeypatch, repo)
+    _bundle, bundle_path, receipt_path, human_path = _write_inputs(repo)
+    output_dir = _output_dir(repo, "cleanup-invalid-proof")
+    run_id = "cleanup-invalid-proof-run"
+    original_prepare = creative_code_patch_builder.prepare
+
+    def prepare_with_candidate_patch(
+        *,
+        spec_bundle_path: Path,
+        request_path: Path,
+        run_id: str,
+    ) -> dict[str, Any]:
+        state = original_prepare(
+            spec_bundle_path=spec_bundle_path,
+            request_path=request_path,
+            run_id=run_id,
+        )
+        run_dir = creative_code_patch_workspace.resolve_run_dir(run_id, create=False)
+        (run_dir / creative_code_patch_builder.CANDIDATE_PATCH_FILE).write_text(
+            "diff --git a/core/rag/orchestration.py b/core/rag/orchestration.py\n",
+            encoding="utf-8",
+        )
+        return state
+
+    monkeypatch.setattr(creative_code_patch_builder, "prepare", prepare_with_candidate_patch)
+
+    assert (
+        admission_cli.main(
+            [
+                "build-and-prepare",
+                "--finalize-receipt",
+                str(receipt_path),
+                "--bundle",
+                str(bundle_path),
+                "--human-admission",
+                str(human_path),
+                "--base-sha",
+                base_sha,
+                "--output-dir",
+                str(output_dir),
+                "--run-id",
+                run_id,
+            ]
+        )
+        == 1
+    )
+    assert "candidate.patch" in capsys.readouterr().err
+    assert not output_dir.exists()
+    with pytest.raises(creative_code_patch_workspace.CreativeCodePatchWorkspaceError):
+        creative_code_patch_workspace.resolve_run_dir(run_id, create=False)
+
+
 def test_schemas_closed_and_cli_has_no_generate_or_evaluate_commands() -> None:
     human_schema = json.loads(HUMAN_SCHEMA.read_text(encoding="utf-8"))
     admission_schema = json.loads(ADMISSION_SCHEMA.read_text(encoding="utf-8"))
@@ -662,6 +720,13 @@ def test_schemas_closed_and_cli_has_no_generate_or_evaluate_commands() -> None:
     assert human_schema["additionalProperties"] is False
     assert admission_schema["additionalProperties"] is False
     assert human_schema["$defs"]["authority"]["additionalProperties"] is False
+    assert "validate_patch_builder_request" in admission_schema["$defs"]["authority"]["required"]
+    assert (
+        admission_schema["$defs"]["authority"]["properties"]["validate_patch_builder_request"][
+            "const"
+        ]
+        is True
+    )
     assert (
         admission_schema["$defs"]["authority"]["properties"]["run_patch_builder_generate"]["const"]
         is False

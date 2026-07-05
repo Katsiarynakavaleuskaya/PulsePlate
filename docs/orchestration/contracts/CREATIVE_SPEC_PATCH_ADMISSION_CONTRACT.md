@@ -59,7 +59,9 @@ duplicate the PR-2 request contract logic.
 `creative_spec_patch_admission.json` records prepare-only executed effects. It
 intentionally separates this admission authority from the PR-2 request
 authority. The request remains a valid PR-2 builder request; this CLI only
-executes build, validate, summarize, and builder `prepare`.
+executes build, validate, summarize, and builder `prepare`. Its authority block
+must keep `validate_patch_builder_request=true` to make the PR-2 validator call
+an explicit admission condition, not an implied side effect.
 
 ## Prepare Proof
 
@@ -104,7 +106,7 @@ True authority is limited to:
 
 - read finalized creative specs
 - approve/build a patch-builder request
-- validate the request
+- validate the patch-builder request through the PR-2 request validator
 - run builder `prepare`
 - emit local artifacts
 

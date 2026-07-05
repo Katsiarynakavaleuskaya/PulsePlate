@@ -223,7 +223,12 @@ EXECUTED_EFFECT_KEYS = frozenset(
     }
 )
 ADMISSION_AUTHORITY_TRUE_KEYS = frozenset(
-    {"build_patch_builder_request", "emit_local_artifacts", "run_patch_builder_prepare"}
+    {
+        "build_patch_builder_request",
+        "emit_local_artifacts",
+        "run_patch_builder_prepare",
+        "validate_patch_builder_request",
+    }
 )
 ADMISSION_AUTHORITY_FALSE_KEYS = frozenset(
     {
@@ -970,8 +975,6 @@ def _normalize_budgets(raw_budgets: Any, *, label: str) -> dict[str, int]:
             label=label,
         ),
     }
-    if budgets["max_changed_files"] > DEFAULT_MAX_CHANGED_FILES:
-        return budgets
     return budgets
 
 
