@@ -8,13 +8,13 @@ anyio==4.12.0
     # via
     #   -c requirements.txt
     #   httpx2
-coverage[toml]==7.14.3
+coverage[toml]==7.15.0
     # via
     #   -r requirements-test.in
     #   pytest-cov
 execnet==2.1.2
     # via pytest-xdist
-faker==40.23.0
+faker==40.28.1
     # via -r requirements-test.in
 h11==0.16.0
     # via
@@ -24,7 +24,7 @@ httpcore2==2.3.0
     # via httpx2
 httpx2==2.3.0
     # via -r requirements-test.in
-hypothesis==6.155.7
+hypothesis==6.156.1
     # via -r requirements-test.in
 idna==3.15
     # via

@@ -1143,8 +1143,9 @@ def test_test_dependency_profile_is_split_from_dev_tooling() -> None:
     assert "pytest==9.1.1" in requirements_test
     assert "pytest-cov==7.1.0" in requirements_test
     assert "pytest-xdist==3.8.0" in requirements_test
-    assert "hypothesis==6.155.7" in requirements_test
-    assert "coverage[toml]==7.14.3" in requirements_test
+    assert "hypothesis==6.156.1" in requirements_test
+    assert "faker==40.28.1" in requirements_test
+    assert "coverage[toml]==7.15.0" in requirements_test
     assert "pgvector==" in requirements_test
     assert "bandit==" not in requirements_test
     assert "pre-commit==" not in requirements_test
