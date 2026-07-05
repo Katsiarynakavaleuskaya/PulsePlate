@@ -17,13 +17,13 @@ Docker, OpenAPI, or application code.
 
 ## Discussion Thread Pass
 
-- [x] Discussion-thread pass completed for replacement PR open state.
-- [x] Fixed in commit mapping completed for replacement findings.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 - [ ] Current-head GitHub CI and external bot state pending for PR #2083.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments at PR open time.
+- No actionable review comments
 
 ## Replacement Findings
 
@@ -87,6 +87,10 @@ Decision: proceed with the controlled replacement branch and close #2077 as
 superseded after replacement PR evidence is published.
 
 ## Experiment Runner Evidence
+
+Not applicable: runner budget limitation blocked oracle-only evidence for this
+eight-file dependency lane, so no Experiment Runner output is used as
+merge-readiness evidence.
 
 No Experiment Runner oracle output is used as merge-readiness evidence for this
 lane.
