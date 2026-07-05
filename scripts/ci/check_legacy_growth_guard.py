@@ -101,7 +101,6 @@ ALLOWED_LEGACY_ROUTE_FACTS = frozenset(
         LegacyFact("decorator", "post", "/api/v1/premium/targets", "api_who_targets"),
         LegacyFact("decorator", "post", "/api/v1/premium/plan/week", "api_weekly_menu"),
         LegacyFact("decorator", "post", "/api/v1/premium/gaps", "api_nutrient_gaps"),
-        LegacyFact("registration", "include_router", "restaurants_router", ""),
     }
 )
 
@@ -117,7 +116,6 @@ ALLOWED_ROUTER_IMPORT_FACTS = frozenset(
         LegacyFact(
             "router_import", "app.routers.pro_nutrition_contracts", "pro_nutrition_targets", ""
         ),
-        LegacyFact("router_import", "app.routers.restaurants", "router", "restaurants_router"),
         LegacyFact(
             "router_import",
             "app.routers.vip",

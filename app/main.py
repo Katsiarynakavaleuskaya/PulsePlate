@@ -97,7 +97,10 @@ from app.routers.pro_registration import register_pro_routes
 from app.routers.recipes import RECIPES_ROUTE_SPECS, router as recipes_router
 from app.routers.restaurants import (
     RESTAURANT_MODERATION_ROUTE_SPECS,
+    RESTAURANT_ROUTE_SPECS,
+    get_restaurant_store,
     moderation_router as restaurant_moderation_router,
+    router as restaurants_router,
 )
 from app.routers.shoplist_day import SHOPLIST_DAY_ROUTE_SPECS, router as shoplist_day_router
 from app.routers.shoplist_export import router as shoplist_export_router
@@ -226,11 +229,29 @@ _RESTAURANT_MODERATION_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = tuple(
     (path, method.upper(), include_in_schema)
     for path, method, include_in_schema in RESTAURANT_MODERATION_ROUTE_SPECS
 )
+_RESTAURANT_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = tuple(
+    (path, method.upper(), include_in_schema)
+    for path, method, include_in_schema in RESTAURANT_ROUTE_SPECS
+)
 _USERS_ROUTE_SPECS = USERS_ROUTE_SPECS
 _EXPORT_ROUTE_REQUIRED_STATUS_CODES = frozenset({429})
 _RESTAURANT_MODERATION_REQUIRED_STATUS_CODES = frozenset({404, 422})
+_RESTAURANT_MENU_REQUIRED_STATUS_CODES = frozenset({404})
+_RESTAURANT_SUBMISSION_CREATE_REQUIRED_STATUS_CODES = frozenset({422})
+_RESTAURANT_SUBMISSION_DETAIL_REQUIRED_STATUS_CODES = frozenset({404})
 _PLAN_SIGNED_EXPORT_PATHS = frozenset({WEEK_EXPORT_CSV_PATH, WEEK_EXPORT_PDF_PATH})
 _NO_REQUIRED_STATUS_CODES: frozenset[int] = frozenset()
+_RESTAURANT_ROUTE_REQUIRED_STATUS_CODES: dict[tuple[str, str], frozenset[int]] = {
+    ("/api/v1/restaurants/{chain_id}/menu", "GET"): _RESTAURANT_MENU_REQUIRED_STATUS_CODES,
+    (
+        "/api/v1/restaurants/submissions",
+        "POST",
+    ): _RESTAURANT_SUBMISSION_CREATE_REQUIRED_STATUS_CODES,
+    (
+        "/api/v1/restaurants/submissions/{submission_id}",
+        "GET",
+    ): _RESTAURANT_SUBMISSION_DETAIL_REQUIRED_STATUS_CODES,
+}
 _FOODS_BARCODE_REQUIRED_STATUS_CODES = frozenset({404, 422})
 
 
@@ -362,6 +383,22 @@ def _restaurant_moderation_route_members(
             required_dependencies=(api_key_dependency,),
         )
         for path, method, include_in_schema in _RESTAURANT_MODERATION_ROUTE_SPECS
+    )
+
+
+def _restaurant_route_members() -> tuple[RouteMemberContract, ...]:
+    return tuple(
+        RouteMemberContract(
+            path=path,
+            method=method,
+            include_in_schema=include_in_schema,
+            required_status_codes=_RESTAURANT_ROUTE_REQUIRED_STATUS_CODES.get(
+                (path, method),
+                _NO_REQUIRED_STATUS_CODES,
+            ),
+            required_dependencies=(get_restaurant_store,),
+        )
+        for path, method, include_in_schema in _RESTAURANT_ROUTE_SPECS
     )
 
 
@@ -1082,6 +1119,17 @@ def _include_test_router_if_enabled(target_app: FastAPI) -> None:
     )
 
 
+def _include_restaurants_router_if_needed(target_app: FastAPI) -> None:
+    """Register public restaurant routes as one hidden canonical static family."""
+
+    ensure_route_family_registered(
+        target_app,
+        family_name="Restaurants",
+        routers=(restaurants_router,),
+        members=_restaurant_route_members(),
+    )
+
+
 def _include_restaurant_moderation_router_if_needed(target_app: FastAPI) -> None:
     """Register restaurant moderation route as one protected atomic family."""
 
@@ -1259,6 +1307,7 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
     _include_shoplist_export_router_if_needed(app)
     _include_shopping_list_routers_if_needed(app)
     _include_legacy_export_alias_router_if_needed(app)
+    _include_restaurants_router_if_needed(app)
     _include_restaurant_moderation_router_if_needed(app)
 
     register_billing_routes(app)
