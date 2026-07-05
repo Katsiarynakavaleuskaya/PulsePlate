@@ -17,11 +17,44 @@ Dockerfile, workflows, or broad `.trivyignore` entries.
 - [x] Fixed mapping artifact created after GitHub assigned PR number `#2081`.
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
+- [x] CodeRabbit actionable comments mapped after fix commit.
 - [ ] Current-head GitHub CI/security checks pending.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: fc9c3c97891c950e53879cb7160f293d0f456d5d
+Evidence: `docs/security/CVE-2026-27171-zlib1g.md` now points the zlib evidence anchors at the zlib policy source lines and the deterministic zlib suppression guard in `tests/test_trivy_ignore_policy_expiry.py`; `python3 scripts/ci/check_docs_phase1_gates.py --files docs/security/CVE-2026-54297-faraday-fastlane.md docs/security/CVE-2026-27171-zlib1g.md docs/security/CVE-2026-3184-util-linux.md docs/security/CVE-2025-69720-ncurses.md` and `.venv/bin/python -m pytest -q tests/test_trivy_ignore_policy_expiry.py` passed.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2081#discussion_r3524902609 -> fc9c3c97891c950e53879cb7160f293d0f456d5d
+
+Disposition: FIXED
+Commit: fc9c3c97891c950e53879cb7160f293d0f456d5d
+Evidence: `docs/security/CVE-2026-54297-faraday-fastlane.md` now describes the two separate regression guards accurately, and `tests/test_trivy_ignore_policy_expiry.py` splits Faraday doc wording assertions into a dedicated doc-specific test; `.venv/bin/python -m pytest -q tests/test_trivy_ignore_policy_expiry.py` passed.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2081#discussion_r3524902611 -> fc9c3c97891c950e53879cb7160f293d0f456d5d
+
+Disposition: FIXED
+Commit: fc9c3c97891c950e53879cb7160f293d0f456d5d
+Evidence: `docs/security/DEPENDABOT_ALERT_INVENTORY.md` now keeps the Faraday row column contract intact with `Owner PR` set to stable `PR #2081` and Trivy recheck evidence moved into disposition/evidence columns; `python3 scripts/ci/check_docs_phase1_gates.py --files docs/security/CVE-2026-54297-faraday-fastlane.md docs/security/CVE-2026-27171-zlib1g.md docs/security/CVE-2026-3184-util-linux.md docs/security/CVE-2025-69720-ncurses.md` passed.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2081#discussion_r3524902613 -> fc9c3c97891c950e53879cb7160f293d0f456d5d
+
+## Post-Open Role Finding Disposition Evidence
+
+### qa-engineer-agent Findings
+
+Disposition: FIXED
+Role: qa-engineer-agent
+Commit: fc9c3c97891c950e53879cb7160f293d0f456d5d
+Evidence: The QA pass identified the same zlib evidence anchor drift, missing
+util-linux PkgID scope, Dependabot inventory row column drift, and pending
+CodeRabbit actionables. The fix commit adds util-linux exact PkgID matchers to
+`trivy/ignore-policy.rego`, adds zlib/util-linux deterministic guards in
+`tests/test_trivy_ignore_policy_expiry.py`, corrects the security docs and
+Dependabot row, and keeps the Faraday doc/test split aligned with the real guard
+scope. Focused Trivy image scans with the updated policy returned zero
+HIGH/CRITICAL findings and zero targeted residual zlib/util-linux/ncurses
+findings after policy application.
+Reason: These were current PR-surface evidence and suppression-scope defects,
+not inherited debt.
 
 ## Implementation Evidence
 
