@@ -9,13 +9,13 @@ default ignore := false
 # - Limit to the installed versions reported at time of suppression
 # - CI enforces a single file-level expiry (exactly one "Suppression expires: YYYY-MM-DD" per policy file)
 #
-# Suppression expires: 2026-07-04 (manual removal)
-# Last reviewed: 2026-06-28
-# Documented in: docs/security/CVE-2026-27171-zlib1g.md, docs/security/CVE-2026-3184-util-linux.md, docs/security/CVE-2025-69720-ncurses.md, docs/security/CVE-2026-54297-faraday-fastlane.md
+# Suppression expires: 2026-07-12 (manual removal)
+# Last reviewed: 2026-07-05
+# Documented in: docs/security/CVE-2026-27171-zlib1g.md, docs/security/CVE-2026-3184-util-linux.md, docs/security/CVE-2025-69720-ncurses.md
 
 # CVE-2026-27171 (zlib1g) - no fixed release for Debian bookworm at review time
-# Review-by: 2026-07-04 (manual removal)
-# Rationale: Debian bookworm has no fixed zlib1g package for this CVE at review time; no repository-level remediation is available until Debian publishes a fixed package or Trivy metadata gains a Fixed Version.
+# Review-by: 2026-07-12 (manual removal)
+# Rationale: Debian bookworm still has no fixed zlib1g package for this CVE at the 2026-07-05 review; no repository-level remediation is available until Debian publishes a fixed package or Trivy metadata gains a Fixed Version.
 # Note: CI expiry is enforced once per policy file (see header); do not add another "Suppression expires:" line.
 # Monitor: https://security-tracker.debian.org/tracker/CVE-2026-27171
 # Documented in: docs/security/CVE-2026-27171-zlib1g.md
@@ -37,8 +37,8 @@ ignore if {
 }
 
 # CVE-2026-3184 (util-linux family) - Debian bookworm no-dsa / not applicable to login in this release context at review time
-# Review-by: 2026-07-04 (manual removal)
-# Rationale: Debian bookworm marks this LOW-severity util-linux issue as no-dsa/non-applicable for the login binary context; keep exact package/version scope while monitoring Debian/Trivy metadata.
+# Review-by: 2026-07-12 (manual removal)
+# Rationale: Trivy v0.71.2 reports this util-linux issue as MEDIUM, while Debian bookworm still marks it ignored/non-applicable for the login binary context at the 2026-07-05 review; keep exact package/version/PkgID scope while monitoring Debian/Trivy metadata.
 # Monitor: https://security-tracker.debian.org/tracker/CVE-2026-3184
 # Documented in: docs/security/CVE-2026-3184-util-linux.md
 # Removal condition: Remove when Debian bookworm publishes a fixed util-linux package or Trivy metadata includes Fixed Version
@@ -56,15 +56,56 @@ cve_2026_3184_version_match if {
 	affected_versions[input.InstalledVersion]
 }
 
+cve_2026_3184_pkgid_match if {
+	input.PkgName == "bsdutils"
+	startswith(input.PkgID, "bsdutils@1:2.38.1-5+deb12u3")
+}
+
+cve_2026_3184_pkgid_match if {
+	input.PkgName == "libblkid1"
+	startswith(input.PkgID, "libblkid1@2.38.1-5+deb12u3")
+}
+
+cve_2026_3184_pkgid_match if {
+	input.PkgName == "libmount1"
+	startswith(input.PkgID, "libmount1@2.38.1-5+deb12u3")
+}
+
+cve_2026_3184_pkgid_match if {
+	input.PkgName == "libsmartcols1"
+	startswith(input.PkgID, "libsmartcols1@2.38.1-5+deb12u3")
+}
+
+cve_2026_3184_pkgid_match if {
+	input.PkgName == "libuuid1"
+	startswith(input.PkgID, "libuuid1@2.38.1-5+deb12u3")
+}
+
+cve_2026_3184_pkgid_match if {
+	input.PkgName == "mount"
+	startswith(input.PkgID, "mount@2.38.1-5+deb12u3")
+}
+
+cve_2026_3184_pkgid_match if {
+	input.PkgName == "util-linux"
+	startswith(input.PkgID, "util-linux@2.38.1-5+deb12u3")
+}
+
+cve_2026_3184_pkgid_match if {
+	input.PkgName == "util-linux-extra"
+	startswith(input.PkgID, "util-linux-extra@2.38.1-5+deb12u3")
+}
+
 ignore if {
 	input.VulnerabilityID == "CVE-2026-3184"
 	cve_2026_3184_pkg_match
 	cve_2026_3184_version_match
+	cve_2026_3184_pkgid_match
 }
 
 # CVE-2025-69720 (ncurses family) - no fixed release for Debian bookworm at review time
-# Review-by: 2026-07-04 (manual removal)
-# Rationale: Debian bookworm remains no-dsa/minor for ncurses packages at review time; keep exact package/version scope while monitoring Debian/Trivy metadata.
+# Review-by: 2026-07-12 (manual removal)
+# Rationale: Debian bookworm remains no-dsa/minor for ncurses packages at the 2026-07-05 review; keep exact package/version scope while monitoring Debian/Trivy metadata.
 # Monitor: https://security-tracker.debian.org/tracker/CVE-2025-69720
 # Documented in: docs/security/CVE-2025-69720-ncurses.md
 # Removal condition: Remove when Debian bookworm publishes a fixed ncurses package or Trivy metadata includes Fixed Version
@@ -99,39 +140,4 @@ ignore if {
 	cve_2025_69720_pkg_match
 	cve_2025_69720_version_match
 	cve_2025_69720_pkgid_match
-}
-
-# CVE-2026-54297 (Faraday / Fastlane release tooling) - scanner-lag suppression for remediated Faraday 1.10.6
-# Review-by: 2026-07-04 (manual removal)
-# Rationale: Trivy v0.71.2 / ruby-advisory-db still reports faraday@1.10.6 in ios/Gemfile.lock with fixed version >= 2.14.3 even though the advisory text says the vulnerability is fixed in 1.10.6 and 2.14.3. This lockfile is privileged iOS release tooling, not backend/container runtime or the iOS app binary, so keep an exact temporary scanner-lag suppression while monitoring Trivy/advisory metadata. Trivy ignore-policy input does not expose the result Target, DataSource.ID can vary by advisory feed, and Fingerprint changes between synthetic PR merge refs, so this rule is scoped to stable advisory/package identity fields and guarded by a repo test that Faraday 1.10.6 exists only in ios/Gemfile.lock.
-# Monitor: https://avd.aquasec.com/nvd/cve-2026-54297
-# Documented in: docs/security/CVE-2026-54297-faraday-fastlane.md
-# Removal condition: Remove when Trivy/ruby-advisory-db stops reporting CVE-2026-54297 for faraday@1.10.6, Fastlane permits Faraday >= 2.14.3, or iOS release tooling no longer depends on Fastlane's Faraday graph.
-
-cve_2026_54297_identifier_match if {
-	input.PkgIdentifier.PURL == "pkg:gem/faraday@1.10.6"
-}
-
-cve_2026_54297_fixed_version_match if {
-	input.FixedVersion == ">= 2.14.3"
-}
-
-cve_2026_54297_advisory_match if {
-	cve_2026_54297_fixed_version_match
-	input.PrimaryURL == "https://avd.aquasec.com/nvd/cve-2026-54297"
-	input.Severity == "HIGH"
-	input.Status == "fixed"
-}
-
-cve_2026_54297_pkgid_match if {
-	input.PkgID == "faraday@1.10.6"
-}
-
-ignore if {
-	input.VulnerabilityID == "CVE-2026-54297"
-	cve_2026_54297_identifier_match
-	cve_2026_54297_advisory_match
-	input.PkgName == "faraday"
-	input.InstalledVersion == "1.10.6"
-	cve_2026_54297_pkgid_match
 }
