@@ -15,13 +15,13 @@ Dockerfile, workflows, or broad `.trivyignore` entries.
 ## Discussion Thread Pass
 
 - [x] Fixed mapping artifact created after GitHub assigned PR number `#2081`.
-- [ ] Discussion-thread pass pending post-open bot/reviewer activity.
-- [ ] Fixed in commit mapping pass pending any actionable post-open comments.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 - [ ] Current-head GitHub CI/security checks pending.
 
 ## Fixed in Commit Mapping
 
-No actionable PR review threads have been resolved yet.
+- No actionable review comments
 
 ## Implementation Evidence
 
@@ -76,6 +76,7 @@ after the implementation commit and did not materially shape that commit.
 ## Lane Start Provenance
 
 - Packet: `artifacts/orchestration/task_packets/9dcf5d232ef5.json`
+- Starter: `scripts/orchestration/start_pr_lane.sh`
 - Branch: `codex/fix-trivy-ignore-policy-expiry`
 - Pre-open route completed:
   `agent-coordinator -> security-auditor -> qa-engineer-agent -> bug-hunter -> architecture-specialist`
