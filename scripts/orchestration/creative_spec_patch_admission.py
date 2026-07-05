@@ -23,7 +23,6 @@ from scripts.orchestration.creative_code_patch_contract import (
 from scripts.orchestration.creative_code_patch_workspace import (
     CreativeCodePatchWorkspaceError,
     cleanup_run_dir,
-    read_json,
     resolve_run_dir,
     resolve_run_file,
     shared_tree_status,

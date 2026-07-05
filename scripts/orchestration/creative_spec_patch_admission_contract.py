@@ -21,7 +21,6 @@ from scripts.orchestration.creative_code_patch_contract import (
     HARD_MAX_DIFF_LINES,
     HARD_MAX_PATCH_BYTES,
     HARD_TIMEOUT_SECONDS,
-    CreativeCodePatchContractError,
     build_creative_code_patch_build_request,
     source_bundle_fingerprint,
     validate_creative_code_patch_build_request,

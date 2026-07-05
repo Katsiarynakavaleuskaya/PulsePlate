@@ -314,6 +314,65 @@ def test_build_and_prepare_happy_path_no_generate_evaluate_or_candidate_patch(
     assert not run_dir.exists()
 
 
+def test_admission_validator_rejects_prepare_proof_parity_regressions(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo, base_sha = _init_patch_repo(tmp_path)
+    _patch_modules_to_repo(monkeypatch, repo)
+    _bundle, bundle_path, receipt_path, human_path = _write_inputs(repo)
+    output_dir = _output_dir(repo, "validator-negatives")
+
+    assert (
+        admission_cli.main(
+            [
+                "build-request",
+                "--finalize-receipt",
+                str(receipt_path),
+                "--bundle",
+                str(bundle_path),
+                "--human-admission",
+                str(human_path),
+                "--base-sha",
+                base_sha,
+                "--output-dir",
+                str(output_dir),
+            ]
+        )
+        == 0
+    )
+    capsys.readouterr()
+    admission = json.loads((output_dir / admission_cli.ADMISSION_FILENAME).read_text())
+
+    prepared_with_missing_file = json.loads(json.dumps(admission))
+    prepared_with_missing_file["builder_prepare"].update(
+        {
+            "prepared": True,
+            "run_id": "validator-negative-run",
+            "state_fingerprint": "sha256:" + ("2" * 64),
+            "request_file_present": True,
+            "source_bundle_file_present": False,
+            "selected_variant_file_present": True,
+            "state_file_present": True,
+        }
+    )
+    prepared_with_missing_file["executed_effects"]["builder_prepared"] = True
+    with pytest.raises(CreativeSpecPatchAdmissionError, match="source_bundle_file_present"):
+        validate_creative_spec_patch_admission(prepared_with_missing_file)
+
+    unprepared_with_prepare_proof = json.loads(json.dumps(admission))
+    unprepared_with_prepare_proof["builder_prepare"]["run_id"] = "validator-negative-run"
+    unprepared_with_prepare_proof["builder_prepare"]["state_fingerprint"] = "sha256:" + ("3" * 64)
+    with pytest.raises(CreativeSpecPatchAdmissionError, match="must not include run_id"):
+        validate_creative_spec_patch_admission(unprepared_with_prepare_proof)
+
+    effects_disagree = json.loads(json.dumps(admission))
+    effects_disagree["executed_effects"]["builder_prepared"] = True
+    with pytest.raises(CreativeSpecPatchAdmissionError, match="disagree"):
+        validate_creative_spec_patch_admission(effects_disagree)
+
+
 def test_build_request_rejects_receipt_bundle_mismatch(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
