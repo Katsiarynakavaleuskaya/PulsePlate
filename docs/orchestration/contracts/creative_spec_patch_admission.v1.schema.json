@@ -1,0 +1,362 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pulseplate.local/contracts/creative_spec_patch_admission.v1.schema.json",
+  "title": "CreativeSpecPatchAdmission",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "policy_version",
+    "admission_id",
+    "idempotency_key",
+    "source",
+    "selected_variant",
+    "base",
+    "human_admission",
+    "patch_request",
+    "builder_prepare",
+    "executed_effects",
+    "authority",
+    "sanitized"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "artifact_type": { "const": "creative_spec_patch_admission" },
+    "policy_version": { "const": "creative-spec-patch-admission-v1" },
+    "admission_id": { "$ref": "#/$defs/safe_id" },
+    "idempotency_key": { "$ref": "#/$defs/safe_id" },
+    "source": { "$ref": "#/$defs/source" },
+    "selected_variant": { "$ref": "#/$defs/selected_variant" },
+    "base": { "$ref": "#/$defs/base" },
+    "human_admission": { "$ref": "#/$defs/human_admission" },
+    "patch_request": { "$ref": "#/$defs/patch_request" },
+    "builder_prepare": { "$ref": "#/$defs/builder_prepare" },
+    "executed_effects": { "$ref": "#/$defs/executed_effects" },
+    "authority": { "$ref": "#/$defs/authority" },
+    "sanitized": { "const": true }
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": ["builder_prepare"],
+        "properties": {
+          "builder_prepare": {
+            "required": ["prepared"],
+            "properties": { "prepared": { "const": true } }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "executed_effects": {
+            "properties": { "builder_prepared": { "const": true } }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["builder_prepare"],
+        "properties": {
+          "builder_prepare": {
+            "required": ["prepared"],
+            "properties": { "prepared": { "const": false } }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "executed_effects": {
+            "properties": { "builder_prepared": { "const": false } }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "safe_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "safe_token": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 96,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "git_sha": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{40}$"
+    },
+    "artifact_ref": {
+      "type": "string",
+      "pattern": "^artifacts/orchestration/creative_code/[A-Za-z0-9._:/-]+\\.json$",
+      "not": { "pattern": "(?:^|/)\\.\\.?(?:/|$)" }
+    },
+    "repo_path": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/|~|[A-Za-z][A-Za-z0-9+.-]*:)(?!.*(?:^|/)\\.\\.?(?:/|$))(?!.*\\\\).+"
+    },
+    "repo_path_array": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/repo_path" }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "finalize_id",
+        "finalize_receipt_fingerprint",
+        "finalize_receipt_ref",
+        "bundle_id",
+        "bundle_fingerprint",
+        "bundle_ref",
+        "source_packet_id"
+      ],
+      "properties": {
+        "finalize_id": { "$ref": "#/$defs/safe_id" },
+        "finalize_receipt_fingerprint": { "$ref": "#/$defs/sha256" },
+        "finalize_receipt_ref": { "$ref": "#/$defs/artifact_ref" },
+        "bundle_id": { "$ref": "#/$defs/safe_id" },
+        "bundle_fingerprint": { "$ref": "#/$defs/sha256" },
+        "bundle_ref": { "$ref": "#/$defs/artifact_ref" },
+        "source_packet_id": { "$ref": "#/$defs/safe_id" }
+      }
+    },
+    "selected_variant": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["variant_id", "variant_fingerprint", "target_paths", "tests_to_add"],
+      "properties": {
+        "variant_id": { "$ref": "#/$defs/safe_id" },
+        "variant_fingerprint": { "$ref": "#/$defs/sha256" },
+        "target_paths": { "$ref": "#/$defs/repo_path_array" },
+        "tests_to_add": { "$ref": "#/$defs/repo_path_array" }
+      }
+    },
+    "base": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["base_ref", "base_commit_sha"],
+      "properties": {
+        "base_ref": { "const": "origin/main" },
+        "base_commit_sha": { "$ref": "#/$defs/git_sha" }
+      }
+    },
+    "human_admission": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "decision",
+        "approval_ref",
+        "approved_by",
+        "approved_at_utc",
+        "human_admission_fingerprint",
+        "human_admission_ref"
+      ],
+      "properties": {
+        "decision": { "const": "approved_for_patch_builder_prepare" },
+        "approval_ref": { "$ref": "#/$defs/safe_id" },
+        "approved_by": { "$ref": "#/$defs/safe_token" },
+        "approved_at_utc": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+        },
+        "human_admission_fingerprint": { "$ref": "#/$defs/sha256" },
+        "human_admission_ref": { "$ref": "#/$defs/artifact_ref" }
+      }
+    },
+    "patch_request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "request_id",
+        "request_idempotency_key",
+        "request_fingerprint",
+        "request_ref",
+        "source_bundle_ref",
+        "contract_policy_version",
+        "request_authority_scope"
+      ],
+      "properties": {
+        "request_id": { "$ref": "#/$defs/safe_id" },
+        "request_idempotency_key": { "$ref": "#/$defs/safe_id" },
+        "request_fingerprint": { "$ref": "#/$defs/sha256" },
+        "request_ref": { "$ref": "#/$defs/artifact_ref" },
+        "source_bundle_ref": { "$ref": "#/$defs/artifact_ref" },
+        "contract_policy_version": { "const": "creative-code-patch-builder-pr2" },
+        "request_authority_scope": { "const": "pr2_builder_request_contract" }
+      }
+    },
+    "builder_prepare": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "prepared",
+        "run_id",
+        "state_fingerprint",
+        "request_file_present",
+        "source_bundle_file_present",
+        "selected_variant_file_present",
+        "state_file_present",
+        "candidate_patch_path_present",
+        "result_file_present",
+        "candidate_patch_generated",
+        "candidate_patch_evaluated"
+      ],
+      "properties": {
+        "prepared": { "type": "boolean" },
+        "run_id": {
+          "anyOf": [
+            { "type": "null" },
+            { "$ref": "#/$defs/safe_id" }
+          ]
+        },
+        "state_fingerprint": {
+          "anyOf": [
+            { "type": "null" },
+            { "$ref": "#/$defs/sha256" }
+          ]
+        },
+        "request_file_present": { "type": "boolean" },
+        "source_bundle_file_present": { "type": "boolean" },
+        "selected_variant_file_present": { "type": "boolean" },
+        "state_file_present": { "type": "boolean" },
+        "candidate_patch_path_present": { "const": false },
+        "result_file_present": { "const": false },
+        "candidate_patch_generated": { "const": false },
+        "candidate_patch_evaluated": { "const": false }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": ["prepared"],
+            "properties": { "prepared": { "const": true } }
+          },
+          "then": {
+            "properties": {
+              "run_id": { "$ref": "#/$defs/safe_id" },
+              "state_fingerprint": { "$ref": "#/$defs/sha256" },
+              "request_file_present": { "const": true },
+              "source_bundle_file_present": { "const": true },
+              "selected_variant_file_present": { "const": true },
+              "state_file_present": { "const": true }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["prepared"],
+            "properties": { "prepared": { "const": false } }
+          },
+          "then": {
+            "properties": {
+              "run_id": { "type": "null" },
+              "state_fingerprint": { "type": "null" },
+              "request_file_present": { "const": false },
+              "source_bundle_file_present": { "const": false },
+              "selected_variant_file_present": { "const": false },
+              "state_file_present": { "const": false }
+            }
+          }
+        }
+      ]
+    },
+    "executed_effects": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "request_built",
+        "builder_prepared",
+        "candidate_patch_generated",
+        "candidate_patch_evaluated",
+        "codex_exec_called",
+        "shared_worktree_modified",
+        "branch_written",
+        "pull_request_opened",
+        "fixed_mapping_edited",
+        "semantic_cache_used",
+        "graph_truth_written"
+      ],
+      "properties": {
+        "request_built": { "const": true },
+        "builder_prepared": { "type": "boolean" },
+        "candidate_patch_generated": { "const": false },
+        "candidate_patch_evaluated": { "const": false },
+        "codex_exec_called": { "const": false },
+        "shared_worktree_modified": { "const": false },
+        "branch_written": { "const": false },
+        "pull_request_opened": { "const": false },
+        "fixed_mapping_edited": { "const": false },
+        "semantic_cache_used": { "const": false },
+        "graph_truth_written": { "const": false }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "build_patch_builder_request",
+        "call_local_codex_exec",
+        "call_product_runtime",
+        "call_provider",
+        "claim_merge_readiness",
+        "create_branch",
+        "edit_fixed_mapping",
+        "emit_local_artifacts",
+        "generate_candidate_patch",
+        "merge",
+        "modify_workflows",
+        "open_pull_request",
+        "promote_candidate",
+        "push_branch",
+        "read_secrets",
+        "resolve_review_threads",
+        "run_patch_builder_evaluate",
+        "run_patch_builder_generate",
+        "run_patch_builder_prepare",
+        "use_semantic_cache",
+        "validate_patch_builder_request",
+        "write_graph_truth",
+        "write_repository",
+        "write_shared_worktree"
+      ],
+      "properties": {
+        "build_patch_builder_request": { "const": true },
+        "emit_local_artifacts": { "const": true },
+        "run_patch_builder_prepare": { "const": true },
+        "validate_patch_builder_request": { "const": true },
+        "call_local_codex_exec": { "const": false },
+        "call_product_runtime": { "const": false },
+        "call_provider": { "const": false },
+        "claim_merge_readiness": { "const": false },
+        "create_branch": { "const": false },
+        "edit_fixed_mapping": { "const": false },
+        "generate_candidate_patch": { "const": false },
+        "merge": { "const": false },
+        "modify_workflows": { "const": false },
+        "open_pull_request": { "const": false },
+        "promote_candidate": { "const": false },
+        "push_branch": { "const": false },
+        "read_secrets": { "const": false },
+        "resolve_review_threads": { "const": false },
+        "run_patch_builder_evaluate": { "const": false },
+        "run_patch_builder_generate": { "const": false },
+        "use_semantic_cache": { "const": false },
+        "write_graph_truth": { "const": false },
+        "write_repository": { "const": false },
+        "write_shared_worktree": { "const": false }
+      }
+    }
+  }
+}

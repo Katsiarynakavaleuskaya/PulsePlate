@@ -208,16 +208,34 @@ The reviewed creative specification learning rollup artifacts are:
 - `artifacts/orchestration/creative_code/learning_rollup/<rollup-id>/creative_spec_learning_rollup.json`
 - `artifacts/orchestration/creative_code/learning_rollup/<rollup-id>/coordinator_advisory_hints.json`
 
+The finalized creative specification patch-admission artifacts are:
+
+- `docs/orchestration/contracts/CREATIVE_SPEC_PATCH_ADMISSION_CONTRACT.md`
+- `docs/orchestration/contracts/creative_spec_patch_human_admission.v1.schema.json`
+- `docs/orchestration/contracts/creative_spec_patch_admission.v1.schema.json`
+- `scripts/orchestration/creative_spec_patch_admission_contract.py`
+- `scripts/orchestration/creative_spec_patch_admission.py`
+- `artifacts/orchestration/creative_code/patch_admission/<admission-id>/human_admission.json`
+- `artifacts/orchestration/creative_code/patch_admission/<admission-id>/finalize_receipt.json`
+- `artifacts/orchestration/creative_code/patch_admission/<admission-id>/source_bundle.json`
+- `artifacts/orchestration/creative_code/patch_admission/<admission-id>/request.json`
+- `artifacts/orchestration/creative_code/patch_admission/<admission-id>/creative_spec_patch_admission.json`
+
 Bridge output directories must be exactly
 `artifacts/orchestration/creative_code/spec_bridge/<bridge-id>/`; bridge refs,
 candidate packets, metrics, and prepare directories must agree on that id.
 Build-only artifacts may only allow `prepare_specification`; agent skeptic
 review is the next action only after the four PR-1 prepare artifacts exist.
 
-`patch_request.json` remains a PR-2 `CreativeCodePatchBuildRequest` handoff
-artifact. It is built and validated only after PR-1 emits
-`spec_runs/<candidate-id>/bundle.json`, because its identity and fingerprint are
-bound to that canonical specification bundle.
+`request.json` in a patch-admission directory is a PR-2
+`CreativeCodePatchBuildRequest` handoff artifact. It is built and validated only
+after reviewed finalize evidence emits a selected
+`spec_finalize_reviewed/creative_code_specification_bundle.json` plus a
+`finalize_receipt.json` whose next allowed action is
+`human_review_for_patch_builder`. The admission layer calls the existing PR-2
+request builder, validates the request through the existing PR-2 request
+validator, and keeps its own executed authority prepare-only with
+`validate_patch_builder_request=true`.
 
 The packet, bundle, request, result, local `candidate.patch`, plan, validation,
 approval, receipt, applied-candidate run plan, and generated PR body may
@@ -277,6 +295,14 @@ PR-0 is a contract-only start point.
   routing, role order, required gates, agent execution, patch generation,
   semantic cache, graph truth, product runtime truth, PR/GitHub/Slack writes,
   or merge-readiness authority.
+- Creative spec patch admission: admit a finalized selected creative spec to a
+  valid PR-2 `CreativeCodePatchBuildRequest` and optionally run builder
+  `prepare` only, proving `request.json`, `source_bundle.json`,
+  `selected_variant.json`, and `state.json` exist while `candidate.patch` and
+  `result.json` remain absent; no `generate`, `evaluate`, Codex exec,
+  promotion, branch/PR writes, workflow changes, product runtime truth,
+  semantic cache, graph truth, fixed-mapping edits, review-thread actions, or
+  readiness claims.
 - PR-2: generate isolated candidate patches only in sandboxed evaluation
   workspaces with exact source-bundle fingerprint binding, exact `origin/main`
   base SHA, fixed Codex CLI argv/env, strict patch policy validation, direct
