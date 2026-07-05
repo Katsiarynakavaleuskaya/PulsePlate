@@ -25,6 +25,12 @@ from app.services import restaurant_postgres_read, restaurant_shadow_parity, res
 router = APIRouter(tags=["restaurants"])
 moderation_router = APIRouter(tags=["restaurants"])
 logger = logging.getLogger(__name__)
+RESTAURANT_ROUTE_SPECS = (
+    ("/api/v1/restaurants/search", "GET", False),
+    ("/api/v1/restaurants/{chain_id}/menu", "GET", False),
+    ("/api/v1/restaurants/submissions", "POST", False),
+    ("/api/v1/restaurants/submissions/{submission_id}", "GET", False),
+)
 RESTAURANT_MODERATION_STATUS_PATH = "/api/v1/restaurants/submissions/{submission_id}/status"
 RESTAURANT_MODERATION_ROUTE_SPECS = ((RESTAURANT_MODERATION_STATUS_PATH, "PATCH", False),)
 FEATURE_RESTAURANT_POSTGRES_SHADOW_READS = "FEATURE_RESTAURANT_POSTGRES_SHADOW_READS"
@@ -294,7 +300,11 @@ def get_restaurant_store() -> RestaurantStore:
     return _STORE
 
 
-@router.get("/api/v1/restaurants/search", response_model=list[RestaurantHit])
+@router.get(
+    "/api/v1/restaurants/search",
+    response_model=list[RestaurantHit],
+    include_in_schema=False,
+)
 def search_restaurants(
     query: str = Query("", max_length=128),
     limit: int = Query(20, ge=1, le=100),
@@ -316,6 +326,7 @@ def search_restaurants(
 @router.get(
     "/api/v1/restaurants/{chain_id}/menu",
     response_model=list[RestaurantMenuItem],
+    include_in_schema=False,
     responses={status.HTTP_404_NOT_FOUND: {"description": "Restaurant menu not found"}},
 )
 def get_restaurant_menu(
@@ -335,6 +346,7 @@ def get_restaurant_menu(
     "/api/v1/restaurants/submissions",
     response_model=RestaurantSubmission,
     status_code=status.HTTP_201_CREATED,
+    include_in_schema=False,
     responses={status.HTTP_422_UNPROCESSABLE_CONTENT: {"description": "Invalid submission"}},
 )
 def create_restaurant_submission(
@@ -361,6 +373,7 @@ def create_restaurant_submission(
 @router.get(
     "/api/v1/restaurants/submissions/{submission_id}",
     response_model=RestaurantSubmission,
+    include_in_schema=False,
 )
 def get_restaurant_submission(
     submission_id: str,

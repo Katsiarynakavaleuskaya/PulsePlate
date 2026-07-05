@@ -26,13 +26,43 @@ This is a **runtime truth** view (not a product wishlist).
 
 ### Always-on routers (registered unconditionally)
 
-Anchor (stable): `legacy_app.py -> include_router(...) for core API routers`
+Anchor (stable): `app/main.py -> ensure_canonical_app_bootstrap(...)`
 
-Evidence: `legacy_app.py:922-932`
+Evidence: `app/main.py -> _include_restaurants_router_if_needed(app)`
 
-- `restaurants_router` (`app/routers/restaurants.py`, hidden from OpenAPI at registration)
+- Public restaurants routes are no longer legacy-owned; see
+  [Canonical public restaurants router](#canonical-public-restaurants-router-canonical-bootstrap-owned).
 - Users CRUD is no longer legacy-owned; see
   [Canonical users router](#canonical-users-router-canonical-bootstrap-owned).
+
+### Canonical public restaurants router (canonical bootstrap-owned)
+
+Anchor (stable): `app/main.py -> _include_restaurants_router_if_needed(app)`
+
+Evidence:
+- `app/bootstrap/route_family.py` — shared `RouteMemberContract` /
+  `ensure_route_family_registered(...)` guard for exact static route families.
+- `app/main.py` — registers public `restaurants_router` as one hidden canonical
+  static route family and validates dependency, visibility, duplicate, partial,
+  foreign-handler, wrong-method, response-metadata, and route-order drift.
+- `app/routers/restaurants.py` — owns public restaurant search/menu/submission
+  handlers, `get_restaurant_store`, hidden source-route `RESTAURANT_ROUTE_SPECS`,
+  SQLite-authoritative response behavior, and PostgreSQL shadow-read helpers.
+- `scripts/ci/check_legacy_growth_guard.py` — rejects reintroducing public
+  restaurants router import or registration into `legacy_app.py`.
+
+Runtime effect:
+- `GET /api/v1/restaurants/search`
+- `GET /api/v1/restaurants/{chain_id}/menu`
+- `POST /api/v1/restaurants/submissions`
+- `GET /api/v1/restaurants/submissions/{submission_id}`
+
+OpenAPI effect:
+- Public restaurants source routes stay hidden from OpenAPI at route metadata
+  level.
+- Final public `app.openapi()` excludes `/api/v1/restaurants*`.
+- Restaurant moderation stays separate; see
+  [Restaurant moderation router](#restaurant-moderation-router-canonical-bootstrap-owned).
 
 ### Canonical users router (canonical bootstrap-owned)
 
