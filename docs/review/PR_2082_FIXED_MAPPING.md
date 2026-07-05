@@ -28,7 +28,7 @@ compatibility evidence.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments.
+- No actionable review comments
 
 ## Replacement Findings
 
@@ -147,6 +147,7 @@ Artifact: `artifacts/orchestration/experiments/results/pr2078-pyarrow24-oracle-r
 ## Lane Start Provenance
 
 - Packet: `artifacts/orchestration/task_packets/pr2078-pyarrow-data-profile.json`
+- Starter: `scripts/orchestration/start_pr_lane.sh`
 - Bootstrap:
   `python3 scripts/orchestration/task_bootstrap.py --goal "Validate Dependabot
   PR #2078 pyarrow 24.0.0 as an isolated data-profile dependency lane after PR
