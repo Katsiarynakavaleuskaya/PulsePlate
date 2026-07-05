@@ -25,6 +25,7 @@ Dockerfile, workflows, or broad `.trivyignore` entries.
 Disposition: FIXED
 Commit: fc9c3c97891c950e53879cb7160f293d0f456d5d
 Evidence: `docs/security/CVE-2026-27171-zlib1g.md` now points the zlib evidence anchors at the zlib policy source lines and the deterministic zlib suppression guard in `tests/test_trivy_ignore_policy_expiry.py`; `python3 scripts/ci/check_docs_phase1_gates.py --files docs/security/CVE-2026-54297-faraday-fastlane.md docs/security/CVE-2026-27171-zlib1g.md docs/security/CVE-2026-3184-util-linux.md docs/security/CVE-2025-69720-ncurses.md` and `.venv/bin/python -m pytest -q tests/test_trivy_ignore_policy_expiry.py` passed.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2081#pullrequestreview-4631319380 -> fc9c3c97891c950e53879cb7160f293d0f456d5d
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2081#discussion_r3524902609 -> fc9c3c97891c950e53879cb7160f293d0f456d5d
 
 Disposition: FIXED
