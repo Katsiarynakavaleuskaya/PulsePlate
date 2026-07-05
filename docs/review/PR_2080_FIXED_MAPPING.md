@@ -47,6 +47,15 @@ Commit: f6b96ef4286f69ecce03a8db80af41abfcff19bc
 Evidence: `scripts/orchestration/creative_spec_patch_admission.py` and `scripts/orchestration/creative_spec_patch_admission_contract.py` remove unused imports; `tests/test_creative_spec_patch_admission.py` adds direct negative validator tests; focused pytest passed with 14 tests, `ruff check` passed, then preflight, agent consistency, `make validate-changed`, `pre-commit run --all-files`, and pre-push hooks passed.
 Reason: The second post-open QA pass found targeted lint failures and requested direct validator negative coverage for the prior schema-parity bug class.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2080 -> f6b96ef4286f69ecce03a8db80af41abfcff19bc
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2080#discussion_r3524885015 -> f6b96ef4286f69ecce03a8db80af41abfcff19bc
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2080#discussion_r3524885018 -> f6b96ef4286f69ecce03a8db80af41abfcff19bc
+
+Disposition: FIXED
+Commit: 1ea21520401f0e44cb00ee1c7287571f16a269a9
+Evidence: `scripts/orchestration/creative_spec_patch_admission.py` cleans a newly-created builder run directory when post-prepare proof rejects forbidden artifacts; `tests/test_creative_spec_patch_admission.py` adds a regression where `prepare()` returns but leaves `candidate.patch`; `scripts/orchestration/creative_spec_patch_admission_contract.py` removes the no-op `max_changed_files` branch; the admission schema/docs now require `validate_patch_builder_request=true`; focused pytest passed with 15 tests and commit hooks passed.
+Reason: The post-open bug-hunter pass found an invalid-prepare-proof cleanup gap, and CodeRabbit found both an unresolved no-op budget branch and a missing explicit PR-2 request-validation signal in the admission schema.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2080#discussion_r3524885014 -> 1ea21520401f0e44cb00ee1c7287571f16a269a9
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2080#discussion_r3524885016 -> 1ea21520401f0e44cb00ee1c7287571f16a269a9
 
 ## Role-Agent Evidence
 
@@ -59,6 +68,10 @@ Reason: The second post-open QA pass found targeted lint failures and requested 
 - Final QA rerun passed for the creative admission diff at
   `f6b96ef4286f69ecce03a8db80af41abfcff19bc`; it also identified the missing
   Phase2 artifact and stale Trivy policy as current-head gate blockers.
+- Post-open bug-hunter found the invalid prepare-proof cleanup gap, the missing
+  fixed-mapping entries for resolved CodeRabbit discussions, and the no-op
+  budget branch. Commit `1ea21520401f0e44cb00ee1c7287571f16a269a9` fixes the
+  code/test/schema/docs issues; this mapping records the thread proof.
 - The stale Trivy policy blocker is intentionally out of scope for PR #2080 and
   is owned by PR #2081 before this PR can be merge-ready.
 
@@ -93,10 +106,13 @@ graph-truth, patch-generation, or merge-readiness authority.
 - `python scripts/orchestration/check_preflight.py --path scripts/orchestration --path docs/orchestration/contracts --path docs/roadmap/BACKLOG_LEDGER.md --path tests` - PASS.
 - `python scripts/orchestration/check_agent_consistency.py` - PASS.
 - `python -m pytest -q tests/test_creative_spec_patch_admission.py` - PASS,
-  14 passed after post-open QA fixes.
+  15 passed after post-open bug-hunter fixes.
 - Requested creative-code regression pytest bundle - PASS before PR open.
 - `make validate-changed` - PASS after implementation and post-open QA commits;
   rerun required after the latest mapping commit.
+- Commit hooks for `1ea21520401f0e44cb00ee1c7287571f16a269a9` - PASS:
+  black, ruff, bandit changed-files, backend changed tests, detect-secrets, and
+  commitizen.
 - `pre-commit run --all-files` - PASS before initial PR push and after post-open
   QA commits; rerun required after the latest mapping commit.
 
