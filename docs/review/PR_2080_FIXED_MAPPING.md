@@ -62,6 +62,7 @@ Disposition: FIXED
 Commit: 52f400a7b8c7f92b4aee9fad7f8507f2682a613b
 Evidence: `scripts/orchestration/creative_spec_patch_admission_contract.py` removes the stale `DEFAULT_MAX_CHANGED_FILES` import left after the no-op budget branch was deleted; focused `flake8`, focused `ruff`, and `tests/test_creative_spec_patch_admission.py` passed before commit, and commit hooks passed.
 Reason: The post-open bug-hunter rerun found that CI Flake8 would still fail on an unused import after the no-op branch fix.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2080 -> 52f400a7b8c7f92b4aee9fad7f8507f2682a613b
 
 ## Role-Agent Evidence
 
