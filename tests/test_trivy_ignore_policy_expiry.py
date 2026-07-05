@@ -64,14 +64,6 @@ def _policy_text() -> str:
     return POLICY_PATH.read_text(encoding="utf-8")
 
 
-def _policy_block(header: str) -> str:
-    policy = _policy_text()
-    block_start = policy.index(header)
-    next_header = policy.find("\n# CVE-", block_start + 1)
-    block_end = next_header if next_header != -1 else len(policy)
-    return policy[block_start:block_end]
-
-
 def _ledger_perl_entry() -> str:
     backlog_text = BACKLOG_PATH.read_text(encoding="utf-8")
     ledger_start = backlog_text.index('<a id="ledger-p1-container-perl-cve-remediation"></a>')
@@ -361,37 +353,26 @@ def test_gzip_docs_and_backlog_record_production_package_removal() -> None:
     assert "do not suppress CVE-2026-41992" in ledger_entry
 
 
-def test_faraday_fastlane_suppression_tracks_1_10_6_scanner_lag() -> None:
-    faraday_policy = _policy_block("# CVE-2026-54297")
+def test_faraday_fastlane_suppression_removed_after_scanner_lag_resolved() -> None:
+    policy = _policy_text()
+    trivyignore = TRIVYIGNORE_PATH.read_text(encoding="utf-8")
     doc_text = SECURITY_DOC_FARADAY_PATH.read_text(encoding="utf-8")
     ledger_entry = _ledger_faraday_entry()
 
-    assert 'input.VulnerabilityID == "CVE-2026-54297"' in faraday_policy
-    assert "input.Fingerprint" not in faraday_policy
-    assert "faraday@1.10.5" not in faraday_policy
-    assert 'input.PkgIdentifier.PURL == "pkg:gem/faraday@1.10.6"' in faraday_policy
-    assert 'input.FixedVersion == ">= 2.14.3"' in faraday_policy
-    assert 'input.FixedVersion == "2.14.3"' not in faraday_policy
-    assert 'input.PrimaryURL == "https://avd.aquasec.com/nvd/cve-2026-54297"' in faraday_policy
-    assert 'input.Severity == "HIGH"' in faraday_policy
-    assert 'input.Status == "fixed"' in faraday_policy
-    assert 'input.DataSource.ID == "ghsa"' not in faraday_policy
-    assert 'input.PkgName == "faraday"' in faraday_policy
-    assert 'input.InstalledVersion == "1.10.6"' in faraday_policy
-    assert 'input.PkgID == "faraday@1.10.6"' in faraday_policy
-    assert "docs/security/CVE-2026-54297-faraday-fastlane.md" in faraday_policy
-    assert "# Review-by: 2026-07-04 (manual removal)" in faraday_policy
+    for suppressed_text in (policy, trivyignore):
+        assert "CVE-2026-54297" not in suppressed_text
+        assert "GHSA-98m9-hrrm-r99r" not in suppressed_text
+        assert "faraday@1.10.5" not in suppressed_text
+        assert "faraday@1.10.6" not in suppressed_text
+        assert "pkg:gem/faraday" not in suppressed_text
 
-    assert "scanner-lag suppression" in doc_text
+    assert "temporary Trivy scanner-lag" in doc_text
+    assert "suppression for `faraday@1.10.6` was removed" in doc_text
     assert "faraday@1.10.6" in doc_text
-    assert "old vulnerable `1.10.5` lock" in doc_text
     assert "fastlane (2.235.0)" in doc_text
-    assert "fixed in 1.10.6 and 2.14.3" in doc_text
-    assert "ruby-advisory-db" in doc_text
-    assert 'input.FixedVersion == ">= 2.14.3"' in doc_text
-    assert "`DataSource.ID` can vary by advisory feed" in doc_text
-    assert "Trivy's ignore-policy Rego input" in doc_text
-    assert "Trivy `Fingerprint`\nchanges between synthetic PR merge refs" in doc_text
+    assert "Fixed versions per advisory: `1.10.6` and `2.14.3`" in doc_text
+    assert "2026-07-05 recheck" in doc_text
+    assert "no longer reported any HIGH/CRITICAL finding" in doc_text
     assert "skip-dirs: trivy" in doc_text
     assert "transient upstream `trivy/go.mod`" in doc_text
     assert "`trivy/ignore-policy.rego`" in doc_text
@@ -401,11 +382,11 @@ def test_faraday_fastlane_suppression_tracks_1_10_6_scanner_lag() -> None:
     )
 
     assert "Remove Trivy suppression for Ruby Faraday CVE-2026-54297" in ledger_entry
+    assert "- [x] P1: Remove Trivy suppression for Ruby Faraday CVE-2026-54297" in ledger_entry
     assert "codex/dependency-cleanup-faraday-runtime-drift" in ledger_entry
+    assert "codex/fix-trivy-ignore-policy-expiry" in ledger_entry
     assert "faraday@1.10.6" in ledger_entry
-    assert "old `faraday 1.10.5` lock" in ledger_entry
-    assert "faraday >= 2.14.3" in ledger_entry
-    assert "scanner-lag suppression" in ledger_entry
+    assert "temporary scanner-lag suppression was removed" in ledger_entry
 
 
 def test_faraday_1_10_6_is_only_locked_in_ios_fastlane_lockfile() -> None:

@@ -5141,8 +5141,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Area: security
   - Finding Type: policy exception
   - Locations:
-    - `trivy/ignore-policy.rego` — Suppression expires: 2026-06-27 for retained residual suppressions
-    - `.trivyignore` — Last reviewed: 2026-05-28; next review: 2026-06-27; CVE-2026-0861 entry removed
+    - `trivy/ignore-policy.rego` — Suppression expires: 2026-07-12 for retained residual suppressions
+    - `.trivyignore` — historical review note remains out of scope for this Rego-only expiry lane
   - Reason: Retained residual unfixed/non-applicable distro CVEs require short review windows; fixed/resolved suppressions were removed instead of extended
   - Links:
     - docs/security/CVE-2026-27171-zlib1g.md
@@ -5152,10 +5152,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Weekly monitoring for upstream fixes
     - Remove suppressions when fixed versions available
     - Update base image when fixes land
-  - **Last reviewed: 2026-05-28**
+  - **Rego suppressions last reviewed: 2026-07-05**
     - PR #929: Removed 4 upstream-fixed CVE suppressions (gpgv, gnutls, p11-kit)
     - PR #930: Extended review-by dates to 2026-05-27 for unfixed CVEs
-    - PR-TBD: Removed expired/fixed/resolved suppressions and retained only residual suppressions through 2026-06-27
+    - PR-TBD: Removed resolved Faraday scanner-lag suppression and retained only residual OS-package suppressions through 2026-07-12
+  - **`.trivyignore` review remains out of scope for this Rego-only expiry lane.**
 
 - [ ] Triage open Trivy glibc code-scanning alerts (CVE-2026-4046)
   - Owner: @katsiaryna_kavaleuskaya
@@ -5261,14 +5262,14 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Trivy Code Scanning alert #594 remains closed on `main`
 
 <a id="ledger-p1-remove-trivy-suppression-faraday-cve-2026-54297"></a>
-- [ ] P1: Remove Trivy suppression for Ruby Faraday CVE-2026-54297
+- [x] P1: Remove Trivy suppression for Ruby Faraday CVE-2026-54297
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: codex/dependency-cleanup-faraday-runtime-drift for the lock remediation; follow-up TBD for scanner-lag suppression removal
-  - Status: PR2 updates `ios/Gemfile.lock` from `faraday@1.10.5` to `faraday@1.10.6` while keeping Fastlane `2.235.0`. The remaining open work is the exact temporary scanner-lag suppression for `faraday@1.10.6`, because Trivy `v0.71.2` / `ruby-advisory-db` still reports `FixedVersion >= 2.14.3` even though the finding description says the vulnerability is fixed in 1.10.6 and 2.14.3.
+  - Target PR: codex/dependency-cleanup-faraday-runtime-drift for the lock remediation; codex/fix-trivy-ignore-policy-expiry for scanner-lag suppression removal
+  - Status: Closed by the 2026-07-05 scanner-lag removal lane. `ios/Gemfile.lock` remains on `faraday@1.10.6` with Fastlane `2.235.0`, and Trivy v0.71.2 with the refreshed vulnerability DB no longer reports `CVE-2026-54297` for `faraday@1.10.6` in the no-policy filesystem scan.
   - Area: security / iOS release tooling / code-scanning
   - Finding Type: scanner-lag follow-up for release-tooling dependency vulnerability
-  - Reason: `bundle lock --update faraday` resolves `faraday 1.10.6` without changing Fastlane `2.235.0`, which removes the old `faraday 1.10.5` lock. Local Trivy `v0.71.2` still reports `CVE-2026-54297` for `faraday@1.10.6` from `ios/Gemfile.lock` with fixed version `>= 2.14.3`, while the same advisory text says the vulnerability is fixed in 1.10.6 and 2.14.3.
+  - Reason: `bundle lock --update faraday` resolves `faraday 1.10.6` without changing Fastlane `2.235.0`, which removes the old `faraday 1.10.5` lock. The 2026-07-05 Trivy recheck no longer reports `CVE-2026-54297` for `faraday@1.10.6`, so the temporary scanner-lag suppression was removed instead of extended.
   - Links:
     - docs/security/CVE-2026-54297-faraday-fastlane.md
     - trivy/ignore-policy.rego
@@ -5280,9 +5281,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - DoD:
     - Keep `ios/Gemfile.lock` on `faraday 1.10.6` or newer without broad Fastlane/release-tooling churn
     - Remove the old `faraday@1.10.5` suppression rule from `trivy/ignore-policy.rego`
-    - Keep only the exact temporary scanner-lag suppression for `faraday@1.10.6`
-    - Remove the scanner-lag suppression when Trivy/Ruby Advisory DB/GitHub Code Scanning stops reporting `CVE-2026-54297` for `faraday@1.10.6`, Fastlane permits `faraday >= 2.14.3`, or release tooling no longer depends on the Faraday graph
-    - Mark `docs/security/CVE-2026-54297-faraday-fastlane.md` resolved or update with final scanner-lag removal evidence
+    - Remove the scanner-lag suppression for `faraday@1.10.6`
+    - Mark `docs/security/CVE-2026-54297-faraday-fastlane.md` resolved with final scanner-lag removal evidence
 
 <a id="ledger-p1-reconcile-open-dependabot-alerts"></a>
 - [ ] P1: Reconcile open Dependabot alerts on `main` after manifest fixes
