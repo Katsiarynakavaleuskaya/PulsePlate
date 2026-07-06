@@ -24,6 +24,11 @@ Evidence: `docs/contracts/API_CANONICAL_MAP.md:64`, `docs/contracts/API_CANONICA
 Reason: CodeRabbit requested deprecation/alias metadata for BMR, root targets, and gaps as if equivalent canonical PRO replacements existed. The current contract says to keep legacy routes legacy-compatible when no canonical target is documented; public OpenAPI still hides these paths, and source metadata is intentionally preserved by regression tests.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2084#pullrequestreview-4635219654
 
+Disposition: NOT-A-BUG
+Evidence: `tests/test_route_family_bootstrap.py:236`, `tests/test_route_family_bootstrap.py:270`, `tests/test_route_family_bootstrap.py:308`, `tests/test_route_family_bootstrap.py:346`, `tests/test_route_family_bootstrap.py:377`, `tests/test_route_family_bootstrap.py:404`
+Reason: CodeRabbit suggested parametrizing the wrapper delegation tests as an optional maintainability nit. These tests intentionally keep each moved legacy premium wrapper explicit because the route contracts use different request DTOs, delegate targets, and public compatibility shapes; parametrizing them would add normalization indirection without reducing the production risk covered by the current tests.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2084#pullrequestreview-4636095985
+
 ## Implementation Evidence
 
 Disposition: FIXED
