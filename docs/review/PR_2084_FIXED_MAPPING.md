@@ -29,11 +29,19 @@ Reason: CodeRabbit requested deprecation/alias metadata for BMR, root targets, a
 Disposition: FIXED
 Commit: 2ba707ffc0c0e9e96b3735540be11d90a218603c
 Evidence: `app/routers/legacy_premium_nutrition.py:23`,
-`app/main.py:452`, `app/main.py:1073`, `legacy_app.py:2977`,
+`app/main.py:455`, `app/main.py:1076`, `legacy_app.py:2980`,
 `scripts/ci/check_legacy_growth_guard.py:94`,
 `tests/test_legacy_premium_nutrition_registration_bootstrap.py:153`,
 `tests/test_legacy_growth_guard.py:49`,
 `docs/contracts/PRODUCT_TIER_MAP.md:90`
+
+Disposition: FIXED
+Commit: f542b38dee6be7908e89369e4abbe7be30ccd3a7
+Evidence: `app/main.py:1340`, `app/main.py:1345`
+Reason: Current-head CI found that the new legacy premium family changed the
+first missing-API-key dependency failure from the existing plan-export family.
+The follow-up commit preserves the prior bootstrap failure ordering while
+keeping the new legacy premium family fail-closed.
 
 No review-thread URLs were mapped at PR open because no review threads existed.
 
@@ -42,8 +50,10 @@ No review-thread URLs were mapped at PR open because no review threads existed.
 - Lane packet: `artifacts/orchestration/task_packets/e4440b5e4f4c.json`
 - Pre-open role order completed:
   `agent-coordinator -> qa-engineer-agent -> security-auditor -> bug-hunter`.
-- Post-open role chain is pending and must update this artifact if actionable
-  findings appear.
+- Post-open role chain completed:
+  `qa-engineer-agent -> bug-hunter -> security-auditor`.
+- `pulseplate-pr-review` dry-run completed with one advisory large-diff note
+  only; this was closed by split rationale plus targeted deterministic gates.
 
 ## Premortem Evidence
 
@@ -87,14 +97,23 @@ dependency installer, or public API authority.
 - `make validate-changed` - PASS after commit; selected
   `tests/test_legacy_growth_guard.py` and
   `tests/test_legacy_premium_nutrition_registration_bootstrap.py`.
+- `pytest -q tests/test_main_paywall_bootstrap.py::test_plan_export_route_registration_rejects_missing_api_key_dependency_symbol tests/test_main_paywall_bootstrap.py::test_plan_export_route_registration_rejects_missing_api_key_dependency tests/test_main_paywall_bootstrap.py::test_shoplist_export_route_registration_rejects_missing_api_key_dependency_symbol tests/test_main_paywall_bootstrap.py::test_shoplist_export_route_registration_rejects_missing_api_key_dependency tests/test_main_paywall_bootstrap.py::test_restaurant_moderation_route_registration_rejects_missing_api_key_dependency_symbol tests/test_legacy_premium_nutrition_registration_bootstrap.py` - PASS after `f542b38dee6be7908e89369e4abbe7be30ccd3a7`.
 - `pre-commit run --all-files` - PASS before push.
+- `pre-commit run --all-files` - PASS after `f542b38dee6be7908e89369e4abbe7be30ccd3a7`.
 - Push hook - PASS, including pre-push pytest, full-repo Bandit, dependency
   audit, and Docker build test.
 - `git diff --check` - PASS.
+- Codex Security diff scan:
+  `5ba56b71-1605-4562-8b6f-32b2083cc875` against
+  `1eedc0baffe05c08c02b27a554f65e7f12636508..f542b38dee6be7908e89369e4abbe7be30ccd3a7`
+  - PASS, 0 findings. Report:
+  `/private/var/folders/bw/12x002vn67v2bvjpbhbtm8480000gn/T/codex-security-scans-9J0U2w/extract-legacy-premium-nutrition-routes/f542b38dee6be7908e89369e4abbe7be30ccd3a7_20260706T114311Z_27j279ov/report.md`.
+- `python3 scripts/orchestration/pr_review_context.py --pr 2084 --output /tmp/pulseplate_pr_2084_review_context.json` - PASS.
+- `python3 scripts/orchestration/pr_review_report.py --context /tmp/pulseplate_pr_2084_review_context.json --format markdown` - PASS.
+- `python3 -m pytest tests/test_pr_review_report.py tests/test_pr_review_context.py -q` - PASS.
 
 ## Merge Readiness
 
-Not claimed here. Requires current-head CI after the latest governance/body
-commit, strict merge-readiness gate, post-open role chain completion, Codex
-Security diff scan/finding discovery when available, `pulseplate-pr-review`,
-bot review dispositions, and resolved review threads.
+Not claimed here. Requires current-head GitHub CI after the latest pushed
+commit, strict merge-readiness gate, bot review dispositions, and resolved
+review threads.
