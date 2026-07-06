@@ -19,7 +19,10 @@ It preserves existing behavior, including the historical public route shape of
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: NOT-A-BUG
+Evidence: `docs/contracts/API_CANONICAL_MAP.md:64`, `docs/contracts/API_CANONICAL_MAP.md:69`, `docs/contracts/API_CANONICAL_MAP.md:81`, `docs/contracts/OPENAPI_VISIBILITY_MATRIX.md:19`, `tests/test_legacy_premium_nutrition_registration_bootstrap.py:194`, `tests/test_legacy_premium_nutrition_registration_bootstrap.py:211`
+Reason: CodeRabbit requested deprecation/alias metadata for BMR, root targets, and gaps as if equivalent canonical PRO replacements existed. The current contract says to keep legacy routes legacy-compatible when no canonical target is documented; public OpenAPI still hides these paths, and source metadata is intentionally preserved by regression tests.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2084#pullrequestreview-4635219654
 
 ## Implementation Evidence
 
