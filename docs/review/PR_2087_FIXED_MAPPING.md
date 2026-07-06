@@ -18,16 +18,22 @@ unchanged.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2087#pullrequestreview-4639030521 -> d680f2fed01bb9e82c55caa9eaa3e5f9b4835fe2
+Commit: d680f2fed01bb9e82c55caa9eaa3e5f9b4835fe2
+Evidence: `tests/test_remaining_modules.py`
+Reason: The store-error test now uses a module-object monkeypatch and `float("inf")` timeout sentinel, addressing Sourcery's determinism and refactor-resilience comments without changing production behavior.
 
 ## Implementation Evidence
 
 Disposition: FIXED
-Commit: 6d9d0022f5c0252cd59fe58691ecde9b074580cf
+Commit: 6d9d0022f5c0252cd59fe58691ecde9b074580cf,
+d680f2fed01bb9e82c55caa9eaa3e5f9b4835fe2
 Evidence: `tests/test_remaining_modules.py`
-Reason: The store-error test now raises `KNOWLEDGE_PROMOTION_TIMEOUT_SECONDS`
-for that test only, so it exercises the intended `RuntimeError("boom")` branch
-instead of racing the timeout branch under the Python 3.12 CI shard.
+Reason: The store-error test now overrides `KNOWLEDGE_PROMOTION_TIMEOUT_SECONDS`
+for that test only, using a timeout sentinel so it exercises the intended
+`RuntimeError("boom")` branch instead of racing the timeout branch under the
+Python 3.12 CI shard.
 
 ## Main CI Failure Evidence
 
