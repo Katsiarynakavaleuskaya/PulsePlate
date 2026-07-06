@@ -18,13 +18,28 @@ the potentially stale `app_main._legacy_module` alias to the live runtime
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2086#pullrequestreview-4637062224 -> 03e4af380f7bef767e108b078007af641dacefcd
+Commit: 03e4af380f7bef767e108b078007af641dacefcd
+Evidence: `tests/test_route_family_bootstrap.py:20`, `tests/test_legacy_premium_nutrition_registration_bootstrap.py:21`, `tests/helpers/module_resolve.py:7`, `tests/helpers/module_resolve.py:17`
+Reason: The duplicated local `_runtime_legacy_module()` helpers were removed and both test files now reuse the existing shared runtime module resolver.
+
+Disposition: FIXED
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2086#pullrequestreview-4637102071 -> 03e4af380f7bef767e108b078007af641dacefcd
+Commit: 03e4af380f7bef767e108b078007af641dacefcd
+Evidence: `tests/test_route_family_bootstrap.py:20`, `tests/test_legacy_premium_nutrition_registration_bootstrap.py:21`, `tests/helpers/module_resolve.py:7`, `tests/helpers/module_resolve.py:17`
+Reason: CodeRabbit's duplicate-helper and type-precision feedback is addressed by reusing `resolve_legacy_app()`, whose shared helper returns `ModuleType`.
+
+Disposition: NOT-A-BUG
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2086#pullrequestreview-4637062224
+Evidence: `tests/helpers/module_resolve.py:7`, `tests/helpers/module_resolve.py:10`, `tests/helpers/module_resolve.py:14`
+Reason: Caching the imported `legacy_app` module would weaken the regression guard. The original `main` failure came from stale module identity under purge/reload order, so these tests must resolve the module at monkeypatch time.
 
 ## Implementation Evidence
 
 Disposition: FIXED
 Commit: e0da71dd3bb0f30a3b220f4d0d9c3a219c5810ca
-Evidence: `tests/test_route_family_bootstrap.py:132`, `tests/test_route_family_bootstrap.py:264`, `tests/test_legacy_premium_nutrition_registration_bootstrap.py:210`, `tests/test_legacy_premium_nutrition_registration_bootstrap.py:237`
+Evidence: `tests/test_route_family_bootstrap.py:20`, `tests/test_route_family_bootstrap.py:263`, `tests/test_legacy_premium_nutrition_registration_bootstrap.py:21`, `tests/test_legacy_premium_nutrition_registration_bootstrap.py:236`, `tests/helpers/module_resolve.py:17`
 Reason: Post-merge `main` CI showed that six wrapper delegation tests patched a stale legacy module alias under full-suite import/reload order. The fix resolves the live `legacy_app` module before patching the six delegate handlers while preserving object-identity and request-identity assertions.
 
 ## Main CI Failure Evidence
