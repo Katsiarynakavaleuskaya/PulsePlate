@@ -144,6 +144,14 @@ def _write_gate(
     return output_dir / generation_cli.GATE_FILENAME
 
 
+def _reset_receipt_identity(receipt: dict[str, Any]) -> None:
+    generation_cli._set_identity(
+        receipt,
+        id_key="receipt_id",
+        asset_type=generation_cli.RECEIPT_ARTIFACT_TYPE,
+    )
+
+
 def test_generate_candidate_happy_path_writes_sanitized_receipt(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -173,6 +181,8 @@ def test_generate_candidate_happy_path_writes_sanitized_receipt(
     assert "diff --git" not in serialized
     assert "Do not run network commands" not in serialized
     assert "/Users/" not in serialized
+    assert str(repo) not in serialized
+    assert str(tmp_path) not in serialized
     assert "provider_payload" not in serialized
 
     assert generation_cli.main(["summarize-result", "--receipt", str(receipt_path)]) == 0
@@ -216,6 +226,89 @@ def test_validate_artifacts_rejects_receipt_gate_fingerprint_mismatch(
         == 1
     )
     assert "gate fingerprint does not match" in capsys.readouterr().err
+
+
+def test_validate_artifacts_rejects_tampered_receipt_gate_ref_with_recomputed_identity(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo, base_sha = _init_patch_repo(tmp_path)
+    _patch_modules_to_repo(monkeypatch, repo)
+    run_id = "receipt-gate-ref-tamper"
+    admission_path = _prepare_admission(repo=repo, base_sha=base_sha, run_id=run_id)
+    _mock_successful_builder_edges(monkeypatch)
+    gate_path = _write_gate(repo=repo, admission_path=admission_path, run_id=run_id)
+    assert generation_cli.main(["generate-candidate", "--gate", str(gate_path)]) == 0
+    receipt_path = gate_path.parent / generation_cli.RECEIPT_FILENAME
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    receipt["gate_ref"] = (
+        "artifacts/orchestration/creative_code/patch_generation/" "other-run/generation_gate.json"
+    )
+    _reset_receipt_identity(receipt)
+    _write_json(receipt_path, receipt)
+
+    assert (
+        generation_cli.main(
+            ["validate-artifacts", "--gate", str(gate_path), "--receipt", str(receipt_path)]
+        )
+        == 1
+    )
+    assert "generation receipt gate_ref does not match gate" in capsys.readouterr().err
+
+
+def test_validate_artifacts_rejects_tampered_receipt_request_id_with_recomputed_identity(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo, base_sha = _init_patch_repo(tmp_path)
+    _patch_modules_to_repo(monkeypatch, repo)
+    run_id = "receipt-request-id-tamper"
+    admission_path = _prepare_admission(repo=repo, base_sha=base_sha, run_id=run_id)
+    _mock_successful_builder_edges(monkeypatch)
+    gate_path = _write_gate(repo=repo, admission_path=admission_path, run_id=run_id)
+    assert generation_cli.main(["generate-candidate", "--gate", str(gate_path)]) == 0
+    receipt_path = gate_path.parent / generation_cli.RECEIPT_FILENAME
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    receipt["request_id"] = "tampered-request-id"
+    _reset_receipt_identity(receipt)
+    _write_json(receipt_path, receipt)
+
+    assert (
+        generation_cli.main(
+            ["validate-artifacts", "--gate", str(gate_path), "--receipt", str(receipt_path)]
+        )
+        == 1
+    )
+    assert "generation receipt request_id does not match gate" in capsys.readouterr().err
+
+
+def test_validate_artifacts_rejects_receipt_authority_tamper_with_recomputed_identity(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo, base_sha = _init_patch_repo(tmp_path)
+    _patch_modules_to_repo(monkeypatch, repo)
+    run_id = "receipt-authority-tamper"
+    admission_path = _prepare_admission(repo=repo, base_sha=base_sha, run_id=run_id)
+    _mock_successful_builder_edges(monkeypatch)
+    gate_path = _write_gate(repo=repo, admission_path=admission_path, run_id=run_id)
+    assert generation_cli.main(["generate-candidate", "--gate", str(gate_path)]) == 0
+    receipt_path = gate_path.parent / generation_cli.RECEIPT_FILENAME
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    receipt["authority"]["open_pull_request"] = True
+    _reset_receipt_identity(receipt)
+    _write_json(receipt_path, receipt)
+
+    assert (
+        generation_cli.main(
+            ["validate-artifacts", "--gate", str(gate_path), "--receipt", str(receipt_path)]
+        )
+        == 1
+    )
+    assert "open_pull_request" in capsys.readouterr().err
 
 
 def test_validate_artifacts_rejects_missing_linked_candidate_patch(

@@ -53,6 +53,7 @@ semantic-cache, or graph-truth authority is added to the wrapper.
     reproduced false-green path.
 - `pulseplate-pr-review` dry run:
   - Disposition: FIXED
+  - Commit: `a4d378366513e7239dc34f33b4b232e04bd6c664`
   - Evidence: no code/security findings; governance warning for missing
     `docs/review/PR_2085_FIXED_MAPPING.md` is closed by this artifact.
 
@@ -71,8 +72,8 @@ semantic-cache, or graph-truth authority is added to the wrapper.
 - `python3 scripts/orchestration/check_preflight.py` - PASS
 - `python3 scripts/orchestration/check_agent_consistency.py` - PASS
 - `python3 -m py_compile scripts/orchestration/creative_code_patch_generation.py` - PASS
-- `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/test_creative_code_patch_generation.py tests/test_creative_code_patch_builder.py tests/test_creative_spec_patch_admission.py` - PASS (`70 passed`)
-- `make validate-changed` - PASS (`18 passed` selected from `tests/test_creative_code_patch_generation.py`)
+- `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/test_creative_code_patch_generation.py tests/test_creative_code_patch_builder.py tests/test_creative_spec_patch_admission.py` - PASS (`73` focused tests collected and passed)
+- `make validate-changed` - PASS (`21 passed` selected from `tests/test_creative_code_patch_generation.py`)
 - `pre-commit run --all-files` - PASS
 - `git push` pre-push hooks - PASS, including mypy changed files, pip-audit, backend pre-push tests, full-repo Bandit, and docker build test
 - `python3 scripts/orchestration/pr_review_context.py --pr 2085 --output /tmp/pulseplate_pr_2085_review_context.json` plus `python3 scripts/orchestration/pr_review_report.py --context /tmp/pulseplate_pr_2085_review_context.json --format markdown` - no deterministic code/security findings; governance artifact warning addressed here.

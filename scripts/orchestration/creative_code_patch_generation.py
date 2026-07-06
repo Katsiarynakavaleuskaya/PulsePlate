@@ -206,6 +206,30 @@ RECEIPT_CHECK_KEYS = frozenset(
         "authority_within_pr2",
     }
 )
+GATE_RECEIPT_PROVENANCE_KEYS = (
+    "gate_id",
+    "admission_id",
+    "admission_fingerprint",
+    "admission_ref",
+    "request_id",
+    "request_fingerprint",
+    "request_ref",
+    "source_bundle_id",
+    "source_bundle_fingerprint",
+    "source_bundle_ref",
+    "selected_variant_id",
+    "selected_variant_fingerprint",
+    "base_commit_sha",
+    "run_id",
+)
+RESULT_RECEIPT_PROVENANCE_KEYS = (
+    "request_id",
+    "source_bundle_id",
+    "source_bundle_fingerprint",
+    "selected_variant_id",
+    "selected_variant_fingerprint",
+    "base_commit_sha",
+)
 PATCH_SUMMARY_KEYS = frozenset({"patch_fingerprint", "patch_bytes", "diff_lines"})
 PATCH_METADATA_KEYS = frozenset(
     {"changed_paths", "changed_path_statuses", "patch_fingerprint", "patch_bytes", "diff_lines"}
@@ -1408,6 +1432,20 @@ def _validate_result_matches_gate(result: Mapping[str, Any], gate: Mapping[str, 
             raise CreativeCodePatchGenerationError(f"result {key} does not match generation gate.")
 
 
+def _validate_receipt_matches_gate(
+    receipt: Mapping[str, Any], gate: Mapping[str, Any], gate_path: Path
+) -> None:
+    if receipt["gate_ref"] != _repo_ref(gate_path):
+        raise CreativeCodePatchGenerationError("generation receipt gate_ref does not match gate.")
+    if receipt["gate_fingerprint"] != fingerprint_payload(dict(gate)):
+        raise CreativeCodePatchGenerationError(
+            "generation receipt gate fingerprint does not match gate."
+        )
+    for key in GATE_RECEIPT_PROVENANCE_KEYS:
+        if receipt[key] != gate[key]:
+            raise CreativeCodePatchGenerationError(f"generation receipt {key} does not match gate.")
+
+
 def _read_experiment_packet(path: Path) -> dict[str, Any]:
     raw_packet = read_json(path)
     if not isinstance(raw_packet, dict):
@@ -1492,6 +1530,15 @@ def _validate_receipt_linked_artifacts(receipt: Mapping[str, Any]) -> None:
         raise CreativeCodePatchGenerationError("generation receipt result fingerprint is stale.")
     if result["result_id"] != receipt["result_id"]:
         raise CreativeCodePatchGenerationError("generation receipt result id is stale.")
+    for key in RESULT_RECEIPT_PROVENANCE_KEYS:
+        if result[key] != receipt[key]:
+            raise CreativeCodePatchGenerationError(f"generation receipt result {key} is stale.")
+    if result["status"] != receipt["status"]:
+        raise CreativeCodePatchGenerationError("generation receipt status is stale.")
+    if result["failure_class"] != receipt["failure_class"]:
+        raise CreativeCodePatchGenerationError("generation receipt failure_class is stale.")
+    if result["promotion_ready"] != receipt["promotion_ready"]:
+        raise CreativeCodePatchGenerationError("generation receipt promotion_ready is stale.")
     if result["patch_summary"] != receipt["patch_summary"]:
         raise CreativeCodePatchGenerationError("generation receipt patch summary is stale.")
     if sorted(result["changed_paths"]) != sorted(receipt["changed_paths"]):
@@ -1553,17 +1600,13 @@ def _generate_candidate(args: argparse.Namespace) -> int:
 
 
 def _validate_artifacts(args: argparse.Namespace) -> int:
-    gate = validate_generation_gate(_read_json_object(args.gate, label="generation gate"))
+    gate_path = admission_cli._resolve_repo_json_file(args.gate, label="generation gate")
+    gate = validate_generation_gate(_read_json_object(gate_path, label="generation gate"))
     if args.receipt is not None:
         receipt = validate_generation_receipt(
             _read_json_object(args.receipt, label="generation receipt")
         )
-        if receipt["gate_id"] != gate["gate_id"]:
-            raise CreativeCodePatchGenerationError("generation receipt does not match gate.")
-        if receipt["gate_fingerprint"] != fingerprint_payload(gate):
-            raise CreativeCodePatchGenerationError(
-                "generation receipt gate fingerprint does not match gate."
-            )
+        _validate_receipt_matches_gate(receipt, gate, gate_path)
         _validate_receipt_linked_artifacts(receipt)
     print(VALIDATE_ARTIFACTS_SUCCESS_OUTPUT)
     return 0
