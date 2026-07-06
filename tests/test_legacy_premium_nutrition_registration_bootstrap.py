@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from collections import Counter
 from collections.abc import Callable
 
@@ -8,6 +9,7 @@ from fastapi import Depends, FastAPI
 
 import app.main as app_main
 from app.bootstrap.route_family import route_has_dependency_call
+from app.routers import legacy_premium_nutrition
 from app.effective_routes import (
     is_api_route_candidate,
     iter_effective_route_candidates,
@@ -189,6 +191,233 @@ def test_legacy_premium_nutrition_route_members_encode_api_key_exception() -> No
             assert member.required_dependencies == ()
         else:
             assert member.required_dependencies == (app_main._legacy_module._get_api_key_dynamic,)
+
+
+def _who_targets_response() -> app_main._legacy_module.WHOTargetsResponse:
+    return app_main._legacy_module.WHOTargetsResponse(
+        kcal_daily=1900,
+        macros={"protein_g": 95, "fat_g": 63, "carbs_g": 238, "fiber_g": 28},
+        water_ml=2200,
+        priority_micros={"iron_mg": 18.0},
+        activity_weekly={"minutes": 150},
+        calculation_date="2026-07-06",
+        warnings=[],
+        ui_labels=app_main._legacy_module.build_who_targets_ui_labels("en"),
+    )
+
+
+def test_legacy_premium_plate_wrapper_delegates_to_legacy_app(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    req = app_main._legacy_module.PlateRequest(
+        sex="female",
+        age=34,
+        height_cm=168,
+        weight_kg=62,
+        activity="light",
+        goal="maintain",
+    )
+    expected = app_main._legacy_module.PlateResponse(
+        kcal=1900,
+        macros={"protein_g": 95, "fat_g": 63, "carbs_g": 238},
+        portions={"vegetables": 0.5, "protein": 0.25, "grains": 0.25},
+        layout=[],
+        meals=[],
+    )
+    captured: dict[str, object] = {}
+
+    async def _fake_legacy_handler(
+        received: app_main._legacy_module.PlateRequest,
+    ) -> app_main._legacy_module.PlateResponse:
+        captured["request"] = received
+        return expected
+
+    monkeypatch.setattr(app_main._legacy_module, "api_premium_plate", _fake_legacy_handler)
+
+    response = asyncio.run(legacy_premium_nutrition.api_premium_plate(req))
+
+    assert response is expected
+    assert captured["request"] is req
+
+
+def test_legacy_premium_api_bmr_wrapper_delegates_to_legacy_app(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    req = app_main._legacy_module.BMRRequest(
+        weight_kg=70,
+        height_cm=175,
+        age=35,
+        sex="male",
+        activity="moderate",
+    )
+    expected = app_main._legacy_module.BMRResponse(
+        bmr={"mifflin": 1650.0},
+        tdee={"mifflin": 2557.5},
+        activity_level="moderate",
+        recommended_intake={
+            "maintenance": 2557.5,
+            "weight_loss": 2046.0,
+            "weight_gain": 3069.0,
+        },
+        formulas_used=["mifflin"],
+        notes=[],
+    )
+    captured: dict[str, object] = {}
+
+    async def _fake_legacy_handler(
+        received: app_main._legacy_module.BMRRequest,
+    ) -> app_main._legacy_module.BMRResponse:
+        captured["request"] = received
+        return expected
+
+    monkeypatch.setattr(app_main._legacy_module, "api_premium_bmr", _fake_legacy_handler)
+
+    response = asyncio.run(legacy_premium_nutrition.api_premium_bmr(req))
+
+    assert response is expected
+    assert captured["request"] is req
+
+
+def test_legacy_premium_bmr_wrapper_delegates_to_legacy_app(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    req = app_main._legacy_module.BMRRequestLegacy(
+        weight_kg=70,
+        height_cm=175,
+        age=35,
+        sex="male",
+        activity="moderate",
+    )
+    expected = app_main._legacy_module.BMRResponse(
+        bmr={"mifflin": 1650.0},
+        tdee={"mifflin": 2557.5},
+        activity_level="moderate",
+        recommended_intake={
+            "maintenance": 2557.5,
+            "weight_loss": 2046.0,
+            "weight_gain": 3069.0,
+        },
+        formulas_used=["mifflin"],
+        notes=[],
+    )
+    captured: dict[str, object] = {}
+
+    async def _fake_legacy_handler(
+        received: app_main._legacy_module.BMRRequestLegacy,
+    ) -> app_main._legacy_module.BMRResponse:
+        captured["request"] = received
+        return expected
+
+    monkeypatch.setattr(app_main._legacy_module, "premium_bmr_legacy", _fake_legacy_handler)
+
+    response = asyncio.run(legacy_premium_nutrition.premium_bmr_legacy(req))
+
+    assert response is expected
+    assert captured["request"] is req
+
+
+def test_legacy_premium_targets_wrapper_delegates_to_legacy_app(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    req = app_main._legacy_module.WHOTargetsRequest(
+        sex="female",
+        age=34,
+        height_cm=168,
+        weight_kg=62,
+        activity="light",
+    )
+    expected = _who_targets_response()
+    captured: dict[str, object] = {}
+
+    async def _fake_legacy_handler(
+        received: app_main._legacy_module.WHOTargetsRequest,
+    ) -> app_main._legacy_module.WHOTargetsResponse:
+        captured["request"] = received
+        return expected
+
+    monkeypatch.setattr(
+        app_main._legacy_module,
+        "premium_targets_legacy",
+        _fake_legacy_handler,
+    )
+
+    response = asyncio.run(legacy_premium_nutrition.premium_targets_legacy(req))
+
+    assert response is expected
+    assert captured["request"] is req
+
+
+def test_legacy_premium_api_targets_wrapper_delegates_to_legacy_app(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = {
+        "sex": "female",
+        "age": 34,
+        "height_cm": 168,
+        "weight_kg": 62,
+        "activity": "light",
+    }
+    expected = _who_targets_response()
+    captured: dict[str, object] = {}
+
+    async def _fake_legacy_handler(
+        received: dict[str, object],
+    ) -> app_main._legacy_module.WHOTargetsResponse:
+        captured["request"] = received
+        return expected
+
+    monkeypatch.setattr(app_main._legacy_module, "api_who_targets", _fake_legacy_handler)
+
+    response = asyncio.run(legacy_premium_nutrition.api_who_targets(payload))
+
+    assert response is expected
+    assert captured["request"] is payload
+
+
+def test_legacy_premium_gaps_wrapper_delegates_to_legacy_app(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    req = app_main._legacy_module.NutrientGapsRequest(
+        consumed_nutrients={"iron_mg": 10.0},
+        user_profile=app_main._legacy_module.WHOTargetsRequest(
+            sex="female",
+            age=34,
+            height_cm=168,
+            weight_kg=62,
+            activity="light",
+        ),
+    )
+    expected = app_main._legacy_module.NutrientGapsResponse(
+        gaps={"iron_mg": {"status": "low", "delta": -8.0}},
+        food_recommendations=["lentils"],
+        adherence_score=0.85,
+    )
+    captured: dict[str, object] = {}
+
+    async def _fake_legacy_handler(
+        received: app_main._legacy_module.NutrientGapsRequest,
+    ) -> app_main._legacy_module.NutrientGapsResponse:
+        captured["request"] = received
+        return expected
+
+    monkeypatch.setattr(app_main._legacy_module, "api_nutrient_gaps", _fake_legacy_handler)
+
+    response = asyncio.run(legacy_premium_nutrition.api_nutrient_gaps(req))
+
+    assert response is expected
+    assert captured["request"] is req
+
+
+def test_legacy_premium_nutrition_registration_rejects_missing_api_key_symbol(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(app_main._legacy_module, "_get_api_key_dynamic", None)
+
+    with pytest.raises(
+        RuntimeError,
+        match="Legacy premium nutrition API key dependency is unavailable",
+    ):
+        app_main._include_legacy_premium_nutrition_router_if_needed(FastAPI())
 
 
 def test_legacy_premium_nutrition_source_routes_preserve_metadata() -> None:
