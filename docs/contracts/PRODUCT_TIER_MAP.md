@@ -87,15 +87,18 @@
 | Функция        | Endpoint                        | Статус           | Требует tier | Код-доказательство                        |
 | -------------- | ------------------------------- | ---------------- | ------------ | ----------------------------------------- |
 | Weekly plan    | `/api/v1/premium/plan/week-flexible` | ⚠️ deprecated | PRO          | `app/routers/premium_week.py:290`         |
-| Targets        | `/api/v1/premium/targets`       | ⚠️ legacy shim   | PRO          | `legacy_app.py:4685`                      |
-| Daily plate    | `/api/v1/premium/plate`         | ⚠️ legacy shim   | PRO          | `legacy_app.py:3980`                      |
-| BMR            | `/premium_bmr`                  | ⚠️ legacy        | PRO          | `legacy_app.py:4148`                      |
+| Targets        | `/api/v1/premium/targets`       | ⚠️ legacy shim   | PRO          | `app/routers/legacy_premium_nutrition.py:75` |
+| Daily plate    | `/api/v1/premium/plate`         | ⚠️ legacy shim   | PRO          | `app/routers/legacy_premium_nutrition.py:35` |
+| BMR            | `/api/v1/premium/bmr`           | ⚠️ legacy        | PRO          | `app/routers/legacy_premium_nutrition.py:53` |
+| BMR root alias | `/premium_bmr`                  | ⚠️ legacy public exception | No API-key dependency | `app/routers/legacy_premium_nutrition.py:66` |
 
 > ⚠️ **Примечание:** Endpoints под `/premium/*`, которые **фактически требуют VIP tier**, не относятся к PRO и перечислены в разделе VIP (см. секцию "Deprecated aliases with wrong namespace").
 >
 > ⚠️ **Ключевое понимание:**
 > `/premium/*` endpoints **требуют PRO tier** (через `require_pro_tier()`);
 > namespace `/premium/*` при этом **deprecated**, мигрирует на `/api/v1/pro/*`.
+> `/premium_bmr` is a historical root alias and remains a route-shape compatibility
+> exception until a dedicated auth/contract migration PR owns that behavior change.
 
 ### Что НЕ входит
 
