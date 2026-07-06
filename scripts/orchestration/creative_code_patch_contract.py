@@ -1123,6 +1123,121 @@ def validate_creative_code_patch_result(payload: dict[str, Any]) -> dict[str, An
     return normalized
 
 
+def _patch_changed_paths(patch_text: str) -> list[str]:
+    paths: set[str] = set()
+    for line in patch_text.splitlines():
+        if not line.startswith("diff --git "):
+            continue
+        parts = line.split()
+        if len(parts) != 4 or not parts[2].startswith("a/") or not parts[3].startswith("b/"):
+            raise CreativeCodePatchContractError(
+                "candidate.patch contains unsupported diff header."
+            )
+        old_path = parts[2][2:]
+        new_path = parts[3][2:]
+        if old_path != new_path:
+            raise CreativeCodePatchContractError("candidate.patch renames are not supported.")
+        path = Path(new_path)
+        if path.is_absolute() or ".." in path.parts or "\\" in new_path or new_path in {"", "."}:
+            raise CreativeCodePatchContractError("candidate.patch contains unsafe changed path.")
+        paths.add(new_path)
+    if not paths:
+        raise CreativeCodePatchContractError(
+            "candidate.patch must contain at least one diff header."
+        )
+    return sorted(paths)
+
+
+def validate_creative_code_patch_run_sidecars(
+    *,
+    request: Mapping[str, Any],
+    result: Mapping[str, Any],
+    patch_text: str,
+    selected_variant: Mapping[str, Any],
+    patch_metadata: Mapping[str, Any],
+    require_accepted: bool,
+) -> dict[str, Any]:
+    """Validate canonical PR-2 sidecars without granting promotion authority."""
+
+    if require_accepted:
+        if result["status"] != "accepted":
+            raise CreativeCodePatchContractError("PR-2 result must be accepted.")
+        if result["failure_class"] is not None:
+            raise CreativeCodePatchContractError(
+                "accepted PR-2 result must not have failure_class."
+            )
+        runner_summary = result["runner_summary"]
+        if runner_summary["status"] != "accepted" or runner_summary["failure_class"] is not None:
+            raise CreativeCodePatchContractError("PR-2 runner summary must be accepted.")
+        if runner_summary["oracle_commands_configured"] < 1:
+            raise CreativeCodePatchContractError("PR-2 runner must configure at least one oracle.")
+        if (
+            runner_summary["oracle_commands_executed"]
+            != runner_summary["oracle_commands_configured"]
+        ):
+            raise CreativeCodePatchContractError(
+                "PR-2 runner must execute every configured oracle."
+            )
+        if not runner_summary["shared_tree_untouched"]:
+            raise CreativeCodePatchContractError("PR-2 runner must leave shared tree untouched.")
+    workspace_summary = result["workspace_summary"]
+    if require_accepted and not (
+        workspace_summary["origin_removed"]
+        and workspace_summary["checkout_destroyed"]
+        and workspace_summary["shared_tree_untouched"]
+    ):
+        raise CreativeCodePatchContractError("PR-2 result requires full checkout cleanup proof.")
+    if result["promotion_ready"] is not False:
+        raise CreativeCodePatchContractError("PR-2 result must preserve promotion_ready=false.")
+    if not result["sanitized"]:
+        raise CreativeCodePatchContractError("PR-2 result must be sanitized.")
+    for key in (
+        "request_id",
+        "source_bundle_id",
+        "source_bundle_fingerprint",
+        "selected_variant_id",
+        "selected_variant_fingerprint",
+        "base_commit_sha",
+    ):
+        if result[key] != request[key]:
+            raise CreativeCodePatchContractError(f"PR-2 lineage mismatch for {key}.")
+    if selected_variant.get("variant_id") != request["selected_variant_id"]:
+        raise CreativeCodePatchContractError("selected_variant_id does not match PR-2 request.")
+    if selected_variant.get("variant_fingerprint") != request["selected_variant_fingerprint"]:
+        raise CreativeCodePatchContractError(
+            "selected_variant_fingerprint does not match PR-2 request."
+        )
+    patch_fingerprint = fingerprint_payload({"candidate_patch": patch_text})
+    patch_bytes = len(patch_text.encode("utf-8"))
+    diff_lines = len(patch_text.splitlines())
+    patch_summary = result["patch_summary"]
+    if patch_summary["patch_fingerprint"] != patch_fingerprint:
+        raise CreativeCodePatchContractError("candidate.patch fingerprint mismatch.")
+    if patch_summary["patch_bytes"] != patch_bytes:
+        raise CreativeCodePatchContractError("candidate.patch byte count mismatch.")
+    if patch_summary["diff_lines"] != diff_lines:
+        raise CreativeCodePatchContractError("candidate.patch diff line count mismatch.")
+    if not result["changed_paths"]:
+        raise CreativeCodePatchContractError("PR-2 result must include changed paths.")
+    patch_changed_paths = _patch_changed_paths(patch_text)
+    if patch_changed_paths != sorted(result["changed_paths"]):
+        raise CreativeCodePatchContractError("candidate.patch changed paths mismatch.")
+    if patch_metadata.get("changed_paths") != result["changed_paths"]:
+        raise CreativeCodePatchContractError("patch_metadata changed paths mismatch.")
+    for key, expected in (
+        ("patch_fingerprint", patch_fingerprint),
+        ("patch_bytes", patch_bytes),
+        ("diff_lines", diff_lines),
+    ):
+        if patch_metadata.get(key) != expected:
+            raise CreativeCodePatchContractError(f"patch_metadata {key} mismatch.")
+    return {
+        "patch_fingerprint": patch_fingerprint,
+        "patch_bytes": patch_bytes,
+        "diff_lines": diff_lines,
+    }
+
+
 def _validate_patch_summary(raw_summary: Any) -> dict[str, Any]:
     if not isinstance(raw_summary, dict):
         raise CreativeCodePatchContractError("patch_summary must be a JSON object.")

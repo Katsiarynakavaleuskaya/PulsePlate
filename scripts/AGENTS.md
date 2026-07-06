@@ -140,6 +140,17 @@
   submit reviews, resolve review threads, edit fixed mappings, claim merge
   readiness, merge, release, call Slack/GitHub App authority paths, or call
   `experiment_pipeline.py`, `experiment_promote.py`, or notification wrappers.
+- Creative-code artifact inventory is read-only lifecycle evidence. The
+  `creative_code_artifact_inventory.py` CLI may scan local PR-2/PR-3 artifacts
+  and emit sanitized `creative_code_artifact_inventory_report.v1` metadata only.
+  It must not delete artifacts, create patch runs, promote candidates, write
+  branches, open PRs, call providers, call GitHub, expose raw patches/prompts/
+  provider payloads/oracle output/PR bodies/review bodies/secrets/token values,
+  or emit local absolute paths. Cleanup of
+  `artifacts/orchestration/creative_code/**` requires
+  `assert-ready-for-cleanup` to pass first. PR-3 promotion planning requires
+  `assert-ready-for-promotion --patch-run-id <run-id>` to pass first. Ordinary
+  derived tool cache cleanup remains allowed.
 - PR-4 creative-code telemetry artifacts stay local under
   `artifacts/orchestration/creative_code/telemetry/`. The telemetry CLI
   `creative_code_telemetry.py` may only read already-sanitized local PR-1/PR-2

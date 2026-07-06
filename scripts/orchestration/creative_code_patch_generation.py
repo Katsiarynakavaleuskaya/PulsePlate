@@ -28,6 +28,7 @@ from scripts.orchestration.creative_code_patch_contract import (
 from scripts.orchestration.creative_code_patch_workspace import (
     CreativeCodePatchWorkspaceError,
     read_json,
+    resolve_existing_run_dir,
     resolve_run_dir,
     resolve_run_file,
     shared_tree_status,
@@ -1464,7 +1465,7 @@ def _validate_receipt_linked_artifacts(receipt: Mapping[str, Any]) -> None:
         expected_patch_metadata,
         expected_experiment_packet,
         expected_result,
-    ) = _candidate_artifact_paths(resolve_run_dir(str(receipt["run_id"]), create=False))
+    ) = _candidate_artifact_paths(resolve_existing_run_dir(str(receipt["run_id"])))
     expected_refs = {
         "candidate_patch_ref": _repo_ref(expected_candidate_patch),
         "patch_metadata_ref": _repo_ref(expected_patch_metadata),
@@ -1552,6 +1553,12 @@ def _validate_receipt_linked_artifacts(receipt: Mapping[str, Any]) -> None:
             raise CreativeCodePatchGenerationError("patch metadata does not match receipt summary.")
     if sorted(metadata.get("changed_paths", [])) != sorted(receipt["changed_paths"]):
         raise CreativeCodePatchGenerationError("patch metadata changed paths do not match receipt.")
+
+
+def validate_generation_receipt_linked_artifacts(receipt: Mapping[str, Any]) -> None:
+    """Validate that a generation receipt still binds to its local PR-2 sidecars."""
+
+    _validate_receipt_linked_artifacts(receipt)
 
 
 def _validate_run_plan(args: argparse.Namespace) -> int:

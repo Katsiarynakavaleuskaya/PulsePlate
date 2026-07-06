@@ -38,6 +38,7 @@ from scripts.orchestration.creative_code_patch_contract import (
     read_creative_code_patch_result,
     validate_creative_code_patch_build_request,
     validate_creative_code_patch_result,
+    validate_creative_code_patch_run_sidecars,
 )
 from scripts.orchestration.creative_code_patch_workspace import (
     REPO_ROOT,
@@ -715,75 +716,20 @@ def _require_accepted_pr2_artifacts(
     selected_variant: dict[str, Any],
     patch_metadata: dict[str, Any],
 ) -> dict[str, Any]:
-    if result["status"] != "accepted":
-        raise CreativeCodePRPromotionError("PR-2 result must be accepted.")
-    if result["failure_class"] is not None:
-        raise CreativeCodePRPromotionError("accepted PR-2 result must not have failure_class.")
-    runner_summary = result["runner_summary"]
-    if runner_summary["status"] != "accepted" or runner_summary["failure_class"] is not None:
-        raise CreativeCodePRPromotionError("PR-2 runner summary must be accepted.")
-    if runner_summary["oracle_commands_configured"] < 1:
-        raise CreativeCodePRPromotionError("PR-2 runner must configure at least one oracle.")
-    if runner_summary["oracle_commands_executed"] != runner_summary["oracle_commands_configured"]:
-        raise CreativeCodePRPromotionError("PR-2 runner must execute every configured oracle.")
-    if not runner_summary["shared_tree_untouched"]:
-        raise CreativeCodePRPromotionError("PR-2 runner must leave shared tree untouched.")
-    workspace_summary = result["workspace_summary"]
-    if not (
-        workspace_summary["origin_removed"]
-        and workspace_summary["checkout_destroyed"]
-        and workspace_summary["shared_tree_untouched"]
-    ):
-        raise CreativeCodePRPromotionError("PR-2 result requires full checkout cleanup proof.")
-    if result["promotion_ready"] is not False:
-        raise CreativeCodePRPromotionError("PR-2 result must preserve promotion_ready=false.")
-    if not result["sanitized"]:
-        raise CreativeCodePRPromotionError("PR-2 result must be sanitized.")
-    for key in (
-        "request_id",
-        "source_bundle_id",
-        "source_bundle_fingerprint",
-        "selected_variant_id",
-        "selected_variant_fingerprint",
-        "base_commit_sha",
-    ):
-        if result[key] != request[key]:
-            raise CreativeCodePRPromotionError(f"PR-2 lineage mismatch for {key}.")
-    if selected_variant.get("variant_id") != request["selected_variant_id"]:
-        raise CreativeCodePRPromotionError("selected_variant_id does not match PR-2 request.")
-    if selected_variant.get("variant_fingerprint") != request["selected_variant_fingerprint"]:
-        raise CreativeCodePRPromotionError(
-            "selected_variant_fingerprint does not match PR-2 request."
+    try:
+        return cast(
+            dict[str, Any],
+            validate_creative_code_patch_run_sidecars(
+                request=request,
+                result=result,
+                patch_text=patch_text,
+                selected_variant=selected_variant,
+                patch_metadata=patch_metadata,
+                require_accepted=True,
+            ),
         )
-    patch_fingerprint = fingerprint_payload({"candidate_patch": patch_text})
-    patch_bytes = len(patch_text.encode("utf-8"))
-    diff_lines = len(patch_text.splitlines())
-    patch_summary = result["patch_summary"]
-    if patch_summary["patch_fingerprint"] != patch_fingerprint:
-        raise CreativeCodePRPromotionError("candidate.patch fingerprint mismatch.")
-    if patch_summary["patch_bytes"] != patch_bytes:
-        raise CreativeCodePRPromotionError("candidate.patch byte count mismatch.")
-    if patch_summary["diff_lines"] != diff_lines:
-        raise CreativeCodePRPromotionError("candidate.patch diff line count mismatch.")
-    if not result["changed_paths"]:
-        raise CreativeCodePRPromotionError("PR-2 result must include changed paths.")
-    patch_changed_paths = _patch_changed_paths(patch_text)
-    if patch_changed_paths != sorted(result["changed_paths"]):
-        raise CreativeCodePRPromotionError("candidate.patch changed paths mismatch.")
-    if patch_metadata.get("changed_paths") != result["changed_paths"]:
-        raise CreativeCodePRPromotionError("patch_metadata changed paths mismatch.")
-    for key, expected in (
-        ("patch_fingerprint", patch_fingerprint),
-        ("patch_bytes", patch_bytes),
-        ("diff_lines", diff_lines),
-    ):
-        if patch_metadata.get(key) != expected:
-            raise CreativeCodePRPromotionError(f"patch_metadata {key} mismatch.")
-    return {
-        "patch_fingerprint": patch_fingerprint,
-        "patch_bytes": patch_bytes,
-        "diff_lines": diff_lines,
-    }
+    except CreativeCodePatchContractError as exc:
+        raise CreativeCodePRPromotionError(str(exc)) from exc
 
 
 def _slugify(value: str) -> str:
