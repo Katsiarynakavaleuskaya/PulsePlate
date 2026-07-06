@@ -35,6 +35,12 @@ Disposition: NOT-A-BUG
 Evidence: `tests/helpers/module_resolve.py:7`, `tests/helpers/module_resolve.py:10`, `tests/helpers/module_resolve.py:14`
 Reason: Caching the imported `legacy_app` module would weaken the regression guard. The original `main` failure came from stale module identity under purge/reload order, so these tests must resolve the module at monkeypatch time.
 
+Disposition: FIXED
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2086#pullrequestreview-4637212776 -> db6b9e1ccde83da40e3966e67365fc7917a5ff07
+Commit: db6b9e1ccde83da40e3966e67365fc7917a5ff07
+Evidence: `tests/test_route_family_bootstrap.py:120`, `tests/test_route_family_bootstrap.py:241`, `tests/test_route_family_bootstrap.py:413`, `tests/test_legacy_premium_nutrition_registration_bootstrap.py:198`, `tests/test_legacy_premium_nutrition_registration_bootstrap.py:214`, `tests/test_legacy_premium_nutrition_registration_bootstrap.py:386`
+Reason: Wrapper request/response fixture construction now uses `resolve_legacy_app()` too, so the tests no longer rely on `app_main._legacy_module` staying current for the runtime objects they pass into delegated wrappers.
+
 ## Implementation Evidence
 
 Disposition: FIXED
