@@ -17,6 +17,7 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 
+from app.routers import legacy_premium_weekly_plan
 from app.routers import health as health_router
 import legacy_app
 
@@ -658,7 +659,7 @@ async def test_week_plan_missing_required_fields_raises_422(
         lang="en",
     )
     with pytest.raises(HTTPException) as exc:
-        await legacy_app.api_weekly_menu(req)
+        await legacy_premium_weekly_plan.api_weekly_menu(req)
     assert exc.value.status_code == 422
 
 

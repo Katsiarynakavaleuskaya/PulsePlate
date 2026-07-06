@@ -58,9 +58,10 @@ def test_legacy_growth_guard_rejects_new_route() -> None:
         ("/api/v1/premium/targets", "api_who_targets"),
         ("/premium_targets", "premium_targets_legacy"),
         ("/api/v1/premium/gaps", "api_nutrient_gaps"),
+        ("/api/v1/premium/plan/week", "api_weekly_menu"),
     ],
 )
-def test_legacy_growth_guard_rejects_reintroduced_premium_nutrition_routes(
+def test_legacy_growth_guard_rejects_reintroduced_premium_routes(
     path: str,
     owner: str,
 ) -> None:
@@ -2197,7 +2198,7 @@ def test_legacy_growth_guard_rejects_api_key_surface_growth_on_current_baseline(
         @app.post("/api/v1/insight", dependencies=[Depends(api_key_guard)])
         def insight_v1_route():
             return {"ok": True}
-        """) * 6
+        """) * (legacy_guard.SENSITIVE_APP_SURFACE_LIMITS["api_key"] + 1)
 
     errors = legacy_guard.validate_legacy_growth(source)
 
