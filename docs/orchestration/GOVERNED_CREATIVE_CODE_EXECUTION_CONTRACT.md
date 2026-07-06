@@ -50,7 +50,7 @@ open the semantic-cache gate.
 |---|---|---|
 | `research` | Produces hypotheses, scorecards, falsifiers, and promote/defer/discard decisions inside `creative_research`. | Existing governed source only. |
 | `code-specification` | Converts a promoted research output into a typed future implementation specification. | Allowed as the closed PR-0 `CreativeCodeCandidatePacket` plus PR-1 `CreativeCodeSpecificationBundle`. |
-| `candidate-patch` | Produces isolated candidate patches for local evaluation. | Allowed only through PR-2 `CreativeCodePatchBuildRequest` and `CreativeCodePatchResult` artifacts in sandboxed workspaces. |
+| `candidate-patch` | Produces isolated candidate patches for local evaluation. | Allowed only through PR-2 `CreativeCodePatchBuildRequest`, deterministic generation gate, sanitized generation receipt, and `CreativeCodePatchResult` artifacts in sandboxed workspaces. |
 | `repository-write` | Writes to shared worktrees, creates branches, pushes, opens PRs, marks ready for review, resolves review threads, or merges. | Forbidden except the PR-3 promoter's narrowly validated new `experiment/*` branch push and non-draft PR creation. |
 | `promotion` | Promotes a candidate into canonical repo behavior through human review, PR governance, and merge gates. | PR-3 opens the review handoff only. Canonical behavior still requires normal PR review and merge gates. |
 | `private-pilot-lifecycle` | Reads sanitized lifecycle metadata and emits local next-action artifacts. | Allowed only through the private-pilot loop operator; no candidate generation or GitHub write authority. |
@@ -127,10 +127,13 @@ The PR-2 local candidate-patch handoff artifacts are:
 - `docs/orchestration/contracts/CREATIVE_CODE_PATCH_BUILDER_CONTRACT.md`
 - `docs/orchestration/contracts/creative_code_patch_request.v1.schema.json`
 - `docs/orchestration/contracts/creative_code_patch_result.v1.schema.json`
+- `docs/orchestration/contracts/creative_code_patch_generation_gate.v1.schema.json`
+- `docs/orchestration/contracts/creative_code_patch_generation_receipt.v1.schema.json`
 - `scripts/orchestration/creative_code_patch_contract.py`
 - `scripts/orchestration/creative_code_patch_workspace.py`
 - `scripts/orchestration/creative_code_patch_executor.py`
 - `scripts/orchestration/creative_code_patch_builder.py`
+- `scripts/orchestration/creative_code_patch_generation.py`
 
 The PR-3 human-approved non-draft PR promotion artifacts are:
 
@@ -236,6 +239,24 @@ after reviewed finalize evidence emits a selected
 request builder, validates the request through the existing PR-2 request
 validator, and keeps its own executed authority prepare-only with
 `validate_patch_builder_request=true`.
+
+`generation_gate.json` in a patch-generation directory is a PR-2 local
+pre-generation control artifact. It may be emitted only after the admission
+artifact is prepared, the prepared run state matches the request/source bundle,
+the request base SHA still equals current local `origin/main`, the shared
+worktree is clean, no candidate artifacts already exist, and any coordinator
+advisory hints validate as non-authoritative. `generation_receipt.json` links
+the gate, existing local `candidate.patch`, patch metadata, Experiment Runner
+candidate packet, and PR-2 result metadata by repo-relative refs and
+fingerprints only. Receipt validation must re-read those linked local sidecars,
+validate patch metadata and experiment-packet contracts, require sidecar refs
+to resolve under the same `patch_runs/<receipt.run_id>/` directory, and fail
+closed on cross-run sidecar refs, sidecar drift, unsafe metadata, changed
+packet budgets/oracles, or stale result metadata. It is local PR-2 candidate
+evaluation evidence, not
+fixed-mapping evidence, review-thread disposition evidence, merge-readiness
+evidence, product runtime truth, semantic-cache authority, Slack/GitHub
+authority, or PR-3 promotion authority.
 
 The packet, bundle, request, result, local `candidate.patch`, plan, validation,
 approval, receipt, applied-candidate run plan, and generated PR body may

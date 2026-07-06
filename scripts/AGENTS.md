@@ -118,6 +118,20 @@
   but that result is not the mandatory PR oracle-only governance evidence and
   must not be used as fixed-mapping, review-disposition, or merge-readiness
   proof.
+- PR-2 creative-code generation gate artifacts stay local under
+  `artifacts/orchestration/creative_code/patch_generation/`. The
+  `creative_code_patch_generation.py` CLI may only validate an already prepared
+  patch admission, emit `generation_gate.json`, call the existing PR-2 builder
+  `generate` / `evaluate` commands through `generate-candidate`, and emit a
+  sanitized `generation_receipt.json`. Receipt validation must re-read linked
+  `candidate.patch`, `patch_metadata.json`, `experiment_packet.json`, and
+  `result.json` sidecars, require them to be the canonical files under the
+  receipt's `patch_runs/<run_id>/` directory, and fail closed when any sidecar
+  drifts or carries unsafe/unsupported metadata. It must not change role order,
+  mark role passes complete, create/write branches, push/open PRs, resolve
+  review threads, edit fixed mappings, claim readiness, promote candidates, call
+  providers, call product runtime, modify workflows, use semantic cache, write
+  graph truth, or mutate GitHub App / Slack settings.
 - PR-3 creative-code PR promotion artifacts stay local under
   `artifacts/orchestration/creative_code/promotions/`. The promoter CLI
   `creative_code_pr_promotion.py` may only plan, validate, TTY-approve, and
