@@ -1372,6 +1372,17 @@ def _validate_receipt_linked_artifacts(receipt: Mapping[str, Any]) -> None:
         )
     if result_path.name != creative_code_patch_builder.RESULT_FILE:
         raise CreativeCodePatchGenerationError("result_ref must point to result.json.")
+    try:
+        patch_text = candidate_patch.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        raise CreativeCodePatchGenerationError("candidate patch could not be read.") from exc
+    actual_patch_summary = {
+        "patch_fingerprint": fingerprint_payload({"candidate_patch": patch_text}),
+        "patch_bytes": len(patch_text.encode("utf-8")),
+        "diff_lines": len(patch_text.splitlines()),
+    }
+    if actual_patch_summary != receipt["patch_summary"]:
+        raise CreativeCodePatchGenerationError("candidate patch does not match receipt summary.")
     metadata = read_json(patch_metadata)
     if not isinstance(metadata, dict):
         raise CreativeCodePatchGenerationError("patch metadata must be a JSON object.")
