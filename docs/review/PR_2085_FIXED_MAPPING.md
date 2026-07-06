@@ -74,7 +74,15 @@ semantic-cache, or graph-truth authority is added to the wrapper.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: NOT-A-BUG
+Evidence: CodeRabbit review `4635283919` contains two trivial maintainability nitpicks; schemas remain closed and authority fields are asserted by `test_generation_schemas_are_closed_and_authority_is_const_false`, and the focused bundle plus `pre-commit run --all-files` passed.
+Reason: This is maintainability preference rather than a correctness, security, runtime, or governance defect; keeping the schemas self-contained avoids external `$ref` resolver assumptions, and moving test helpers into a new shared helper module would be unrelated churn for this narrow wrapper.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2085#pullrequestreview-4635283919
+
+Disposition: NOT-A-BUG
+Evidence: CodeRabbit review `4635596559` suggests extracting repeated generate-then-tamper setup; the repeated setup is confined to negative receipt/gate tamper tests, keeps each reproduced false-green path explicit beside the mutation under test, and the focused test bundle passed with `73` collected tests.
+Reason: This is a test-maintenance preference, not a current PR security, correctness, runtime, or merge-governance bug; helper extraction can wait until a later PR creates more consumers or materially reduces review risk.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2085#pullrequestreview-4635596559
 
 ## Local Validation Evidence
 
@@ -86,14 +94,16 @@ semantic-cache, or graph-truth authority is added to the wrapper.
 - `pre-commit run --all-files` - PASS
 - `git push` pre-push hooks - PASS, including mypy changed files, pip-audit, backend pre-push tests, full-repo Bandit, and docker build test
 - `python3 scripts/orchestration/pr_review_context.py --pr 2085 --output /tmp/pulseplate_pr_2085_review_context.json` plus `python3 scripts/orchestration/pr_review_report.py --context /tmp/pulseplate_pr_2085_review_context.json --format markdown` - no deterministic code/security findings; advisory large-diff planning note dispositioned above.
+- Codex Security current-head diff scan `3accc629-6c5f-407d-a528-759987c1a771` at head `0ee2cc68e1e89c0cf7a1b95da8802b8230c60a2f` - PASS, `0` findings, `8/8` coverage rows closed.
+- `GH_TOKEN="$(gh auth token)" GITHUB_TOKEN="$(gh auth token)" python3 scripts/ci/check_pr_merge_readiness.py --pr-number 2085 --repo Katsiarynakavaleuskaya/PulsePlate` - PASS (`0` unresolved threads; all actionable bot comments mapped).
 
 ## Merge Readiness
 
 - [ ] Current-head GitHub CI terminal success confirmed after this artifact commit.
-- [ ] CodeRabbit / Sourcery / Cubic / Codex review actionables checked and mapped.
-- [ ] Codex Security diff scan / finding discovery completed on the final head.
-- [ ] Strict review-thread disposition passes with auth.
-- [ ] Strict merge-readiness guard passes with auth.
+- [x] CodeRabbit / Sourcery / Cubic / Codex review actionables checked and mapped.
+- [x] Codex Security diff scan / finding discovery completed on current head `0ee2cc68e1e89c0cf7a1b95da8802b8230c60a2f`.
+- [x] Strict review-thread disposition passes with auth.
+- [x] Strict merge-readiness guard passes with auth.
 - [ ] Mandatory wait-window after latest bot/review activity completed.
 
 ## Deferred / Follow-ups
