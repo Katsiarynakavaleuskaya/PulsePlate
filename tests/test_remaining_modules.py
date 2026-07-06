@@ -1358,7 +1358,7 @@ class TestInsightApplicationServiceFastLane:
     ) -> None:
         """Store failures must not break the user response path."""
 
-        from app.services.insight_application_service import _maybe_promote_knowledge_candidates
+        from app.services import insight_application_service
         from core.knowledge.contracts import KnowledgeFactCandidate
 
         warnings: list[tuple[tuple[object, ...], dict[str, object]]] = []
@@ -1368,14 +1368,22 @@ class TestInsightApplicationServiceFastLane:
                 del candidates
                 raise RuntimeError("boom")
 
+        # Isolate the store-error branch; timeout branches are covered below.
         monkeypatch.setattr(
-            "app.services.insight_application_service.logger.warning",
+            insight_application_service,
+            "KNOWLEDGE_PROMOTION_TIMEOUT_SECONDS",
+            float("inf"),
+            raising=True,
+        )
+        monkeypatch.setattr(
+            insight_application_service.logger,
+            "warning",
             lambda *args, **kwargs: warnings.append((args, kwargs)),
             raising=True,
         )
 
         asyncio.run(
-            _maybe_promote_knowledge_candidates(
+            insight_application_service._maybe_promote_knowledge_candidates(
                 knowledge_store=_BrokenStore(),
                 candidates=[cast(KnowledgeFactCandidate, SimpleNamespace(fact_key="fact-1"))],
                 verification_bundle=self._verification_bundle(),
