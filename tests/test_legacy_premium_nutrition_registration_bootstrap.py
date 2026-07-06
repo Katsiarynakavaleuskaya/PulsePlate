@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import importlib
 from collections import Counter
 from collections.abc import Callable
 
@@ -19,6 +18,7 @@ from app.effective_routes import (
     route_methods,
     route_path,
 )
+from tests.helpers.module_resolve import resolve_legacy_app
 
 _EXPECTED_ROUTE_SPECS = app_main._LEGACY_PREMIUM_NUTRITION_ROUTE_SPECS
 _EXPECTED_ROUTE_KEYS = {
@@ -207,10 +207,6 @@ def _who_targets_response() -> app_main._legacy_module.WHOTargetsResponse:
     )
 
 
-def _runtime_legacy_module() -> object:
-    return importlib.import_module("legacy_app")
-
-
 def test_legacy_premium_plate_wrapper_delegates_to_legacy_app(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -237,7 +233,7 @@ def test_legacy_premium_plate_wrapper_delegates_to_legacy_app(
         captured["request"] = received
         return expected
 
-    monkeypatch.setattr(_runtime_legacy_module(), "api_premium_plate", _fake_legacy_handler)
+    monkeypatch.setattr(resolve_legacy_app(), "api_premium_plate", _fake_legacy_handler)
 
     response = asyncio.run(legacy_premium_nutrition.api_premium_plate(req))
 
@@ -275,7 +271,7 @@ def test_legacy_premium_api_bmr_wrapper_delegates_to_legacy_app(
         captured["request"] = received
         return expected
 
-    monkeypatch.setattr(_runtime_legacy_module(), "api_premium_bmr", _fake_legacy_handler)
+    monkeypatch.setattr(resolve_legacy_app(), "api_premium_bmr", _fake_legacy_handler)
 
     response = asyncio.run(legacy_premium_nutrition.api_premium_bmr(req))
 
@@ -313,7 +309,7 @@ def test_legacy_premium_bmr_wrapper_delegates_to_legacy_app(
         captured["request"] = received
         return expected
 
-    monkeypatch.setattr(_runtime_legacy_module(), "premium_bmr_legacy", _fake_legacy_handler)
+    monkeypatch.setattr(resolve_legacy_app(), "premium_bmr_legacy", _fake_legacy_handler)
 
     response = asyncio.run(legacy_premium_nutrition.premium_bmr_legacy(req))
 
@@ -341,7 +337,7 @@ def test_legacy_premium_targets_wrapper_delegates_to_legacy_app(
         return expected
 
     monkeypatch.setattr(
-        _runtime_legacy_module(),
+        resolve_legacy_app(),
         "premium_targets_legacy",
         _fake_legacy_handler,
     )
@@ -371,7 +367,7 @@ def test_legacy_premium_api_targets_wrapper_delegates_to_legacy_app(
         captured["request"] = received
         return expected
 
-    monkeypatch.setattr(_runtime_legacy_module(), "api_who_targets", _fake_legacy_handler)
+    monkeypatch.setattr(resolve_legacy_app(), "api_who_targets", _fake_legacy_handler)
 
     response = asyncio.run(legacy_premium_nutrition.api_who_targets(payload))
 
@@ -405,7 +401,7 @@ def test_legacy_premium_gaps_wrapper_delegates_to_legacy_app(
         captured["request"] = received
         return expected
 
-    monkeypatch.setattr(_runtime_legacy_module(), "api_nutrient_gaps", _fake_legacy_handler)
+    monkeypatch.setattr(resolve_legacy_app(), "api_nutrient_gaps", _fake_legacy_handler)
 
     response = asyncio.run(legacy_premium_nutrition.api_nutrient_gaps(req))
 
