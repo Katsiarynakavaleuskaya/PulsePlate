@@ -248,7 +248,10 @@ worktree is clean, no candidate artifacts already exist, and any coordinator
 advisory hints validate as non-authoritative. `generation_receipt.json` links
 the gate, existing local `candidate.patch`, patch metadata, Experiment Runner
 candidate packet, and PR-2 result metadata by repo-relative refs and
-fingerprints only. It is local PR-2 candidate evaluation evidence, not
+fingerprints only. Receipt validation must re-read those linked local sidecars,
+validate patch metadata and experiment-packet contracts, and fail closed on
+sidecar drift, unsafe metadata, changed packet budgets/oracles, or stale result
+metadata. It is local PR-2 candidate evaluation evidence, not
 fixed-mapping evidence, review-thread disposition evidence, merge-readiness
 evidence, product runtime truth, semantic-cache authority, Slack/GitHub
 authority, or PR-3 promotion authority.

@@ -116,13 +116,22 @@ write a sanitized `generation_receipt.json` that links:
 - existing `patch_metadata.json`;
 - existing `experiment_packet.json`;
 - existing `result.json`;
-- request/source/gate/result IDs and fingerprints.
+- request/source/gate/result IDs and fingerprints;
+- `patch_metadata.json` and `experiment_packet.json` fingerprints.
 
 The receipt stores named pass/fail checks and `passed_checks` /
 `total_checks`; it does not introduce subjective scores. A valid rejected
 `CreativeCodePatchResult` may still produce a receipt, but `promotion_ready`
 remains `false`. Builder or wrapper failures exit non-zero and must not emit a
 success receipt.
+
+`validate-artifacts` must re-read the linked local sidecars before reporting
+success. It recomputes the current `candidate.patch` summary, validates
+`patch_metadata.json` with an exact key set, validates `experiment_packet.json`
+through the Experiment Runner packet contract, and compares all sidecar
+fingerprints against the receipt. Sidecar drift, unexpected metadata keys,
+unsafe text, changed packet budgets/oracles, or stale result metadata fail the
+receipt validation.
 
 The wrapper must not expose commands or flags that promote candidates, write
 branches, push, open or edit PRs, resolve review threads, edit fixed mappings,

@@ -37,6 +37,7 @@ from scripts.orchestration.creative_code_patch_workspace import (
 from scripts.orchestration.creative_code_specification import (
     validate_creative_code_specification_bundle,
 )
+from scripts.orchestration.experiment_contract import validate_experiment_packet
 from scripts.orchestration.creative_spec_learning_rollup_contract import (
     CreativeSpecLearningRollupError,
     validate_coordinator_advisory_hints,
@@ -172,7 +173,9 @@ RECEIPT_KEYS = frozenset(
         "run_id",
         "candidate_patch_ref",
         "patch_metadata_ref",
+        "patch_metadata_fingerprint",
         "experiment_packet_ref",
+        "experiment_packet_fingerprint",
         "result_ref",
         "result_id",
         "result_fingerprint",
@@ -196,12 +199,16 @@ RECEIPT_CHECK_KEYS = frozenset(
         "result_valid",
         "request_matches_gate",
         "candidate_patch_metadata_current",
+        "experiment_packet_current",
         "workspace_proof_recorded",
         "promotion_not_ready",
         "authority_within_pr2",
     }
 )
 PATCH_SUMMARY_KEYS = frozenset({"patch_fingerprint", "patch_bytes", "diff_lines"})
+PATCH_METADATA_KEYS = frozenset(
+    {"changed_paths", "changed_path_statuses", "patch_fingerprint", "patch_bytes", "diff_lines"}
+)
 WORKSPACE_SUMMARY_KEYS = frozenset(
     {
         "detached_base_sha",
@@ -986,9 +993,8 @@ def _build_receipt(
     for artifact in (candidate_patch, patch_metadata, experiment_packet, result_path):
         if not artifact.exists() or not artifact.is_file():
             raise CreativeCodePatchGenerationError(f"missing generated artifact: {artifact.name}")
-    metadata = read_json(patch_metadata)
-    if not isinstance(metadata, dict):
-        raise CreativeCodePatchGenerationError("patch metadata must be a JSON object.")
+    metadata = _normalize_patch_metadata(read_json(patch_metadata), label="patch metadata")
+    experiment_packet_payload = _read_experiment_packet(experiment_packet)
     expected_patch_summary = {
         "patch_fingerprint": result["patch_summary"]["patch_fingerprint"],
         "patch_bytes": result["patch_summary"]["patch_bytes"],
@@ -1024,7 +1030,9 @@ def _build_receipt(
         "run_id": gate["run_id"],
         "candidate_patch_ref": _repo_ref(candidate_patch),
         "patch_metadata_ref": _repo_ref(patch_metadata),
+        "patch_metadata_fingerprint": fingerprint_payload(metadata),
         "experiment_packet_ref": _repo_ref(experiment_packet),
+        "experiment_packet_fingerprint": fingerprint_payload(experiment_packet_payload),
         "result_ref": _repo_ref(result_path),
         "result_id": result["result_id"],
         "result_fingerprint": fingerprint_payload(dict(result)),
@@ -1125,10 +1133,18 @@ def validate_generation_receipt(payload: Mapping[str, Any]) -> dict[str, Any]:
             label=f"{label}.patch_metadata_ref",
             required_suffix=".json",
         ),
+        "patch_metadata_fingerprint": _normalize_fingerprint(
+            payload.get("patch_metadata_fingerprint"),
+            label=f"{label}.patch_metadata_fingerprint",
+        ),
         "experiment_packet_ref": _normalize_repo_ref(
             payload.get("experiment_packet_ref"),
             label=f"{label}.experiment_packet_ref",
             required_suffix=".json",
+        ),
+        "experiment_packet_fingerprint": _normalize_fingerprint(
+            payload.get("experiment_packet_fingerprint"),
+            label=f"{label}.experiment_packet_fingerprint",
         ),
         "result_ref": _normalize_repo_ref(
             payload.get("result_ref"), label=f"{label}.result_ref", required_suffix=".json"
@@ -1245,6 +1261,51 @@ def _normalize_patch_summary(raw_summary: Any) -> dict[str, Any]:
     }
 
 
+def _normalize_patch_metadata(raw_metadata: Any, *, label: str) -> dict[str, Any]:
+    if not isinstance(raw_metadata, dict):
+        raise CreativeCodePatchGenerationError(f"{label} must be a JSON object.")
+    _require_exact_keys(raw_metadata, PATCH_METADATA_KEYS, label=label)
+    changed_paths = _normalize_path_list(
+        raw_metadata["changed_paths"], label=f"{label}.changed_paths"
+    )
+    raw_statuses = raw_metadata["changed_path_statuses"]
+    if not isinstance(raw_statuses, dict):
+        raise CreativeCodePatchGenerationError(f"{label}.changed_path_statuses must be an object.")
+    if set(raw_statuses) != set(changed_paths):
+        raise CreativeCodePatchGenerationError(
+            f"{label}.changed_path_statuses must match changed_paths."
+        )
+    changed_path_statuses: dict[str, str] = {}
+    for path in changed_paths:
+        status = raw_statuses[path]
+        if status not in {"A", "M"}:
+            raise CreativeCodePatchGenerationError(
+                f"{label}.changed_path_statuses values must be A or M."
+            )
+        changed_path_statuses[path] = status
+    normalized = {
+        "changed_paths": changed_paths,
+        "changed_path_statuses": changed_path_statuses,
+        "patch_fingerprint": _normalize_fingerprint(
+            raw_metadata["patch_fingerprint"], label=f"{label}.patch_fingerprint"
+        ),
+        "patch_bytes": _normalize_int(
+            raw_metadata["patch_bytes"],
+            min_value=1,
+            max_value=524288,
+            label=f"{label}.patch_bytes",
+        ),
+        "diff_lines": _normalize_int(
+            raw_metadata["diff_lines"],
+            min_value=1,
+            max_value=800,
+            label=f"{label}.diff_lines",
+        ),
+    }
+    _reject_payload_safety(normalized, label=label)
+    return normalized
+
+
 def _normalize_workspace_summary(raw_summary: Any) -> dict[str, Any]:
     if not isinstance(raw_summary, dict):
         raise CreativeCodePatchGenerationError("workspace_summary must be a JSON object.")
@@ -1346,6 +1407,18 @@ def _validate_result_matches_gate(result: Mapping[str, Any], gate: Mapping[str, 
             raise CreativeCodePatchGenerationError(f"result {key} does not match generation gate.")
 
 
+def _read_experiment_packet(path: Path) -> dict[str, Any]:
+    raw_packet = read_json(path)
+    if not isinstance(raw_packet, dict):
+        raise CreativeCodePatchGenerationError("experiment packet must be a JSON object.")
+    try:
+        packet = validate_experiment_packet(raw_packet)
+    except ValueError as exc:
+        raise CreativeCodePatchGenerationError(str(exc)) from exc
+    _reject_payload_safety(packet, label="experiment_packet")
+    return cast(dict[str, Any], packet)
+
+
 def _validate_receipt_linked_artifacts(receipt: Mapping[str, Any]) -> None:
     candidate_patch = _resolve_existing_receipt_ref(
         str(receipt["candidate_patch_ref"]),
@@ -1383,10 +1456,17 @@ def _validate_receipt_linked_artifacts(receipt: Mapping[str, Any]) -> None:
     }
     if actual_patch_summary != receipt["patch_summary"]:
         raise CreativeCodePatchGenerationError("candidate patch does not match receipt summary.")
-    metadata = read_json(patch_metadata)
-    if not isinstance(metadata, dict):
-        raise CreativeCodePatchGenerationError("patch metadata must be a JSON object.")
+    metadata = _normalize_patch_metadata(read_json(patch_metadata), label="patch metadata")
+    experiment_packet_payload = _read_experiment_packet(experiment_packet)
     result = validate_creative_code_patch_result(read_creative_code_patch_result(str(result_path)))
+    if fingerprint_payload(metadata) != receipt["patch_metadata_fingerprint"]:
+        raise CreativeCodePatchGenerationError(
+            "generation receipt patch metadata fingerprint is stale."
+        )
+    if fingerprint_payload(experiment_packet_payload) != receipt["experiment_packet_fingerprint"]:
+        raise CreativeCodePatchGenerationError(
+            "generation receipt experiment packet fingerprint is stale."
+        )
     if fingerprint_payload(result) != receipt["result_fingerprint"]:
         raise CreativeCodePatchGenerationError("generation receipt result fingerprint is stale.")
     if result["result_id"] != receipt["result_id"]:

@@ -300,6 +300,62 @@ def test_validate_artifacts_rejects_tampered_candidate_patch(
     assert "candidate patch does not match receipt summary" in capsys.readouterr().err
 
 
+def test_validate_artifacts_rejects_tampered_experiment_packet(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo, base_sha = _init_patch_repo(tmp_path)
+    _patch_modules_to_repo(monkeypatch, repo)
+    run_id = "tampered-experiment-packet"
+    admission_path = _prepare_admission(repo=repo, base_sha=base_sha, run_id=run_id)
+    _mock_successful_builder_edges(monkeypatch)
+    gate_path = _write_gate(repo=repo, admission_path=admission_path, run_id=run_id)
+    assert generation_cli.main(["generate-candidate", "--gate", str(gate_path)]) == 0
+    receipt_path = gate_path.parent / generation_cli.RECEIPT_FILENAME
+    run_dir = creative_code_patch_workspace.resolve_run_dir(run_id, create=False)
+    packet_path = run_dir / creative_code_patch_builder.EXPERIMENT_PACKET_FILE
+    packet = json.loads(packet_path.read_text(encoding="utf-8"))
+    packet["budgets"]["network_budget"] = 1
+    _write_json(packet_path, packet)
+
+    assert (
+        generation_cli.main(
+            ["validate-artifacts", "--gate", str(gate_path), "--receipt", str(receipt_path)]
+        )
+        == 1
+    )
+    assert "experiment packet fingerprint is stale" in capsys.readouterr().err
+
+
+def test_validate_artifacts_rejects_unsafe_patch_metadata_extra_fields(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo, base_sha = _init_patch_repo(tmp_path)
+    _patch_modules_to_repo(monkeypatch, repo)
+    run_id = "unsafe-patch-metadata"
+    admission_path = _prepare_admission(repo=repo, base_sha=base_sha, run_id=run_id)
+    _mock_successful_builder_edges(monkeypatch)
+    gate_path = _write_gate(repo=repo, admission_path=admission_path, run_id=run_id)
+    assert generation_cli.main(["generate-candidate", "--gate", str(gate_path)]) == 0
+    receipt_path = gate_path.parent / generation_cli.RECEIPT_FILENAME
+    run_dir = creative_code_patch_workspace.resolve_run_dir(run_id, create=False)
+    metadata_path = run_dir / creative_code_patch_builder.PATCH_METADATA_FILE
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    metadata["raw_prompt"] = "diff --git a/core/rag/orchestration.py b/core/rag/orchestration.py"
+    _write_json(metadata_path, metadata)
+
+    assert (
+        generation_cli.main(
+            ["validate-artifacts", "--gate", str(gate_path), "--receipt", str(receipt_path)]
+        )
+        == 1
+    )
+    assert "patch metadata has unsupported fields: raw_prompt" in capsys.readouterr().err
+
+
 def test_generation_gate_rejects_unprepared_admission(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
