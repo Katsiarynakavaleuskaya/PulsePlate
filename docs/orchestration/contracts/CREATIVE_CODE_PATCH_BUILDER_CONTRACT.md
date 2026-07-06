@@ -128,10 +128,11 @@ success receipt.
 `validate-artifacts` must re-read the linked local sidecars before reporting
 success. It recomputes the current `candidate.patch` summary, validates
 `patch_metadata.json` with an exact key set, validates `experiment_packet.json`
-through the Experiment Runner packet contract, and compares all sidecar
-fingerprints against the receipt. Sidecar drift, unexpected metadata keys,
-unsafe text, changed packet budgets/oracles, or stale result metadata fail the
-receipt validation.
+through the Experiment Runner packet contract, requires every sidecar ref to be
+the canonical file under `patch_runs/<receipt.run_id>/`, and compares all
+sidecar fingerprints against the receipt. Cross-run sidecar refs, sidecar
+drift, unexpected metadata keys, unsafe text, changed packet budgets/oracles,
+or stale result metadata fail the receipt validation.
 
 The wrapper must not expose commands or flags that promote candidates, write
 branches, push, open or edit PRs, resolve review threads, edit fixed mappings,

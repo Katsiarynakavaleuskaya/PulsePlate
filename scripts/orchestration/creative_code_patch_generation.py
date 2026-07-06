@@ -200,6 +200,7 @@ RECEIPT_CHECK_KEYS = frozenset(
         "request_matches_gate",
         "candidate_patch_metadata_current",
         "experiment_packet_current",
+        "sidecar_refs_bound_to_run",
         "workspace_proof_recorded",
         "promotion_not_ready",
         "authority_within_pr2",
@@ -1420,6 +1421,26 @@ def _read_experiment_packet(path: Path) -> dict[str, Any]:
 
 
 def _validate_receipt_linked_artifacts(receipt: Mapping[str, Any]) -> None:
+    (
+        expected_candidate_patch,
+        expected_patch_metadata,
+        expected_experiment_packet,
+        expected_result,
+    ) = _candidate_artifact_paths(resolve_run_dir(str(receipt["run_id"]), create=False))
+    expected_refs = {
+        "candidate_patch_ref": _repo_ref(expected_candidate_patch),
+        "patch_metadata_ref": _repo_ref(expected_patch_metadata),
+        "experiment_packet_ref": _repo_ref(expected_experiment_packet),
+        "result_ref": _repo_ref(expected_result),
+    }
+    mismatched_refs = [
+        key for key, expected_ref in expected_refs.items() if receipt[key] != expected_ref
+    ]
+    if mismatched_refs:
+        raise CreativeCodePatchGenerationError(
+            "generation receipt sidecar refs must point to the receipt run_id: "
+            + ", ".join(sorted(mismatched_refs))
+        )
     candidate_patch = _resolve_existing_receipt_ref(
         str(receipt["candidate_patch_ref"]),
         label="candidate_patch_ref",

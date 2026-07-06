@@ -328,6 +328,86 @@ def test_validate_artifacts_rejects_tampered_experiment_packet(
     assert "experiment packet fingerprint is stale" in capsys.readouterr().err
 
 
+def test_validate_artifacts_rejects_cross_run_sidecar_refs(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo, base_sha = _init_patch_repo(tmp_path)
+    _patch_modules_to_repo(monkeypatch, repo)
+    _mock_successful_builder_edges(monkeypatch)
+
+    run_a = "cross-run-a"
+    admission_a = _prepare_admission(
+        repo=repo,
+        base_sha=base_sha,
+        run_id=run_a,
+        output_name="generation-admission-a",
+    )
+    gate_a = _write_gate(
+        repo=repo,
+        admission_path=admission_a,
+        run_id=run_a,
+        output_name="generation-gate-a",
+    )
+    assert generation_cli.main(["generate-candidate", "--gate", str(gate_a)]) == 0
+    receipt_a_path = gate_a.parent / generation_cli.RECEIPT_FILENAME
+
+    run_b = "cross-run-b"
+    admission_b = _prepare_admission(
+        repo=repo,
+        base_sha=base_sha,
+        run_id=run_b,
+        output_name="generation-admission-b",
+    )
+    gate_b = _write_gate(
+        repo=repo,
+        admission_path=admission_b,
+        run_id=run_b,
+        output_name="generation-gate-b",
+    )
+    assert generation_cli.main(["generate-candidate", "--gate", str(gate_b)]) == 0
+    receipt_b = json.loads(
+        (gate_b.parent / generation_cli.RECEIPT_FILENAME).read_text(encoding="utf-8")
+    )
+
+    receipt_a = json.loads(receipt_a_path.read_text(encoding="utf-8"))
+    for key in (
+        "candidate_patch_ref",
+        "patch_metadata_ref",
+        "patch_metadata_fingerprint",
+        "experiment_packet_ref",
+        "experiment_packet_fingerprint",
+        "result_ref",
+        "result_id",
+        "result_fingerprint",
+        "status",
+        "failure_class",
+        "changed_paths",
+        "patch_summary",
+        "workspace_summary",
+        "runner_summary",
+        "promotion_ready",
+    ):
+        receipt_a[key] = deepcopy(receipt_b[key])
+    generation_cli._set_identity(
+        receipt_a,
+        id_key="receipt_id",
+        asset_type=generation_cli.RECEIPT_ARTIFACT_TYPE,
+    )
+    _write_json(receipt_a_path, receipt_a)
+
+    assert (
+        generation_cli.main(
+            ["validate-artifacts", "--gate", str(gate_a), "--receipt", str(receipt_a_path)]
+        )
+        == 1
+    )
+    captured = capsys.readouterr()
+    assert "sidecar refs must point to the receipt run_id" in captured.err
+    assert "patch_metadata_ref" in captured.err
+
+
 def test_validate_artifacts_rejects_unsafe_patch_metadata_extra_fields(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

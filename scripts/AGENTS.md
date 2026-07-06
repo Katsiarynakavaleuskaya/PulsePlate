@@ -125,12 +125,13 @@
   `generate` / `evaluate` commands through `generate-candidate`, and emit a
   sanitized `generation_receipt.json`. Receipt validation must re-read linked
   `candidate.patch`, `patch_metadata.json`, `experiment_packet.json`, and
-  `result.json` sidecars and fail closed when any sidecar drifts or carries
-  unsafe/unsupported metadata. It must not change role order, mark role passes
-  complete, create/write branches, push/open PRs, resolve review threads, edit
-  fixed mappings, claim readiness, promote candidates, call providers, call
-  product runtime, modify workflows, use semantic cache, write graph truth, or
-  mutate GitHub App / Slack settings.
+  `result.json` sidecars, require them to be the canonical files under the
+  receipt's `patch_runs/<run_id>/` directory, and fail closed when any sidecar
+  drifts or carries unsafe/unsupported metadata. It must not change role order,
+  mark role passes complete, create/write branches, push/open PRs, resolve
+  review threads, edit fixed mappings, claim readiness, promote candidates, call
+  providers, call product runtime, modify workflows, use semantic cache, write
+  graph truth, or mutate GitHub App / Slack settings.
 - PR-3 creative-code PR promotion artifacts stay local under
   `artifacts/orchestration/creative_code/promotions/`. The promoter CLI
   `creative_code_pr_promotion.py` may only plan, validate, TTY-approve, and

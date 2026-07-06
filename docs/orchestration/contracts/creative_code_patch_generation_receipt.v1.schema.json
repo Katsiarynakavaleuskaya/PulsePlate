@@ -85,8 +85,8 @@
     "runner_summary": { "$ref": "#/$defs/runner_summary" },
     "promotion_ready": { "const": false },
     "checks": { "$ref": "#/$defs/checks" },
-    "passed_checks": { "const": 8 },
-    "total_checks": { "const": 8 },
+    "passed_checks": { "const": 9 },
+    "total_checks": { "const": 9 },
     "authority": { "$ref": "#/$defs/authority" },
     "sanitized": { "const": true }
   },
@@ -247,6 +247,7 @@
         "request_matches_gate",
         "candidate_patch_metadata_current",
         "experiment_packet_current",
+        "sidecar_refs_bound_to_run",
         "workspace_proof_recorded",
         "promotion_not_ready",
         "authority_within_pr2"
@@ -257,6 +258,7 @@
         "request_matches_gate": { "const": true },
         "candidate_patch_metadata_current": { "const": true },
         "experiment_packet_current": { "const": true },
+        "sidecar_refs_bound_to_run": { "const": true },
         "workspace_proof_recorded": { "const": true },
         "promotion_not_ready": { "const": true },
         "authority_within_pr2": { "const": true }
