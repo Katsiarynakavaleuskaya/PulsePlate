@@ -218,6 +218,59 @@ def test_validate_artifacts_rejects_receipt_gate_fingerprint_mismatch(
     assert "gate fingerprint does not match" in capsys.readouterr().err
 
 
+def test_validate_artifacts_rejects_missing_linked_candidate_patch(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo, base_sha = _init_patch_repo(tmp_path)
+    _patch_modules_to_repo(monkeypatch, repo)
+    run_id = "missing-linked-candidate"
+    admission_path = _prepare_admission(repo=repo, base_sha=base_sha, run_id=run_id)
+    _mock_successful_builder_edges(monkeypatch)
+    gate_path = _write_gate(repo=repo, admission_path=admission_path, run_id=run_id)
+    assert generation_cli.main(["generate-candidate", "--gate", str(gate_path)]) == 0
+    receipt_path = gate_path.parent / generation_cli.RECEIPT_FILENAME
+    run_dir = creative_code_patch_workspace.resolve_run_dir(run_id, create=False)
+    (run_dir / creative_code_patch_builder.CANDIDATE_PATCH_FILE).unlink()
+
+    assert (
+        generation_cli.main(
+            ["validate-artifacts", "--gate", str(gate_path), "--receipt", str(receipt_path)]
+        )
+        == 1
+    )
+    assert "candidate_patch_ref must exist" in capsys.readouterr().err
+
+
+def test_validate_artifacts_rejects_stale_result_fingerprint(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo, base_sha = _init_patch_repo(tmp_path)
+    _patch_modules_to_repo(monkeypatch, repo)
+    run_id = "stale-result-fingerprint"
+    admission_path = _prepare_admission(repo=repo, base_sha=base_sha, run_id=run_id)
+    _mock_successful_builder_edges(monkeypatch)
+    gate_path = _write_gate(repo=repo, admission_path=admission_path, run_id=run_id)
+    assert generation_cli.main(["generate-candidate", "--gate", str(gate_path)]) == 0
+    receipt_path = gate_path.parent / generation_cli.RECEIPT_FILENAME
+    run_dir = creative_code_patch_workspace.resolve_run_dir(run_id, create=False)
+    result_path = run_dir / creative_code_patch_builder.RESULT_FILE
+    result = json.loads(result_path.read_text(encoding="utf-8"))
+    result["runner_summary"]["oracle_commands_executed"] = 0
+    _write_json(result_path, result)
+
+    assert (
+        generation_cli.main(
+            ["validate-artifacts", "--gate", str(gate_path), "--receipt", str(receipt_path)]
+        )
+        == 1
+    )
+    assert "result_id does not match result content" in capsys.readouterr().err
+
+
 def test_generation_gate_rejects_unprepared_admission(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -262,6 +315,25 @@ def test_generation_gate_rejects_unprepared_admission(
         == 1
     )
     assert "admission must be prepared" in capsys.readouterr().err
+    assert not _generation_dir(repo, "unprepared").exists()
+
+    run_dir = "unprepared-retry"
+    assert (
+        generation_cli.main(
+            [
+                "validate-run-plan",
+                "--admission",
+                str(output_dir / admission_cli.ADMISSION_FILENAME),
+                "--run-id",
+                run_dir,
+                "--output-dir",
+                str(_generation_dir(repo, "unprepared")),
+            ]
+        )
+        == 1
+    )
+    assert "admission must be prepared" in capsys.readouterr().err
+    assert not _generation_dir(repo, "unprepared").exists()
 
 
 def test_generation_gate_rejects_stale_base_before_generate(

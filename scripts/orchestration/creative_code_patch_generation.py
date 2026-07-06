@@ -8,6 +8,7 @@ from collections.abc import Mapping
 import json
 from pathlib import Path, PurePosixPath
 import re
+import shutil
 import sys
 from typing import Any, cast
 
@@ -391,6 +392,21 @@ def _write_json_new(path: Path, payload: Mapping[str, Any]) -> None:
     if path.exists() or path.is_symlink():
         raise CreativeCodePatchGenerationError("output artifact already exists.")
     write_json_atomic(path, dict(payload))
+
+
+def _resolve_existing_receipt_ref(ref: str, *, label: str) -> Path:
+    path = REPO_ROOT / ref
+    _reject_symlink_components(path, label=label)
+    try:
+        resolved = path.resolve(strict=True)
+    except OSError as exc:
+        raise CreativeCodePatchGenerationError(f"{label} must exist.") from exc
+    root = (REPO_ROOT / "artifacts" / "orchestration" / "creative_code").resolve(strict=False)
+    if not _is_relative_to(resolved, root):
+        raise CreativeCodePatchGenerationError(f"{label} must stay under creative-code artifacts.")
+    if not resolved.is_file():
+        raise CreativeCodePatchGenerationError(f"{label} must be a file.")
+    return resolved
 
 
 def _normalize_id(value: Any, *, label: str) -> str:
@@ -1330,15 +1346,69 @@ def _validate_result_matches_gate(result: Mapping[str, Any], gate: Mapping[str, 
             raise CreativeCodePatchGenerationError(f"result {key} does not match generation gate.")
 
 
+def _validate_receipt_linked_artifacts(receipt: Mapping[str, Any]) -> None:
+    candidate_patch = _resolve_existing_receipt_ref(
+        str(receipt["candidate_patch_ref"]),
+        label="candidate_patch_ref",
+    )
+    patch_metadata = _resolve_existing_receipt_ref(
+        str(receipt["patch_metadata_ref"]),
+        label="patch_metadata_ref",
+    )
+    experiment_packet = _resolve_existing_receipt_ref(
+        str(receipt["experiment_packet_ref"]),
+        label="experiment_packet_ref",
+    )
+    result_path = _resolve_existing_receipt_ref(str(receipt["result_ref"]), label="result_ref")
+    if candidate_patch.name != creative_code_patch_builder.CANDIDATE_PATCH_FILE:
+        raise CreativeCodePatchGenerationError("candidate_patch_ref must point to candidate.patch.")
+    if patch_metadata.name != creative_code_patch_builder.PATCH_METADATA_FILE:
+        raise CreativeCodePatchGenerationError(
+            "patch_metadata_ref must point to patch_metadata.json."
+        )
+    if experiment_packet.name != creative_code_patch_builder.EXPERIMENT_PACKET_FILE:
+        raise CreativeCodePatchGenerationError(
+            "experiment_packet_ref must point to experiment_packet.json."
+        )
+    if result_path.name != creative_code_patch_builder.RESULT_FILE:
+        raise CreativeCodePatchGenerationError("result_ref must point to result.json.")
+    metadata = read_json(patch_metadata)
+    if not isinstance(metadata, dict):
+        raise CreativeCodePatchGenerationError("patch metadata must be a JSON object.")
+    result = validate_creative_code_patch_result(read_creative_code_patch_result(str(result_path)))
+    if fingerprint_payload(result) != receipt["result_fingerprint"]:
+        raise CreativeCodePatchGenerationError("generation receipt result fingerprint is stale.")
+    if result["result_id"] != receipt["result_id"]:
+        raise CreativeCodePatchGenerationError("generation receipt result id is stale.")
+    if result["patch_summary"] != receipt["patch_summary"]:
+        raise CreativeCodePatchGenerationError("generation receipt patch summary is stale.")
+    if sorted(result["changed_paths"]) != sorted(receipt["changed_paths"]):
+        raise CreativeCodePatchGenerationError("generation receipt changed paths are stale.")
+    if result["workspace_summary"] != receipt["workspace_summary"]:
+        raise CreativeCodePatchGenerationError("generation receipt workspace summary is stale.")
+    if result["runner_summary"] != receipt["runner_summary"]:
+        raise CreativeCodePatchGenerationError("generation receipt runner summary is stale.")
+    for key, expected in receipt["patch_summary"].items():
+        if metadata.get(key) != expected:
+            raise CreativeCodePatchGenerationError("patch metadata does not match receipt summary.")
+    if sorted(metadata.get("changed_paths", [])) != sorted(receipt["changed_paths"]):
+        raise CreativeCodePatchGenerationError("patch metadata changed paths do not match receipt.")
+
+
 def _validate_run_plan(args: argparse.Namespace) -> int:
     output_dir = _resolve_output_dir(args.output_dir or str(_default_output_dir(args.run_id)))
-    gate = build_generation_gate(
-        admission_path=args.admission,
-        run_id=args.run_id,
-        coordinator_advisory_hints_path=args.coordinator_advisory_hints,
-    )
-    gate_path = output_dir / GATE_FILENAME
-    _write_json_new(gate_path, gate)
+    try:
+        gate = build_generation_gate(
+            admission_path=args.admission,
+            run_id=args.run_id,
+            coordinator_advisory_hints_path=args.coordinator_advisory_hints,
+        )
+        gate_path = output_dir / GATE_FILENAME
+        _write_json_new(gate_path, gate)
+    except Exception:
+        if not any(output_dir.iterdir()):
+            shutil.rmtree(output_dir)
+        raise
     print(VALIDATE_RUN_PLAN_SUCCESS_OUTPUT)
     print(_repo_ref(gate_path))
     return 0
@@ -1382,6 +1452,7 @@ def _validate_artifacts(args: argparse.Namespace) -> int:
             raise CreativeCodePatchGenerationError(
                 "generation receipt gate fingerprint does not match gate."
             )
+        _validate_receipt_linked_artifacts(receipt)
     print(VALIDATE_ARTIFACTS_SUCCESS_OUTPUT)
     return 0
 
