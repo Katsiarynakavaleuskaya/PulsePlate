@@ -1368,6 +1368,12 @@ class TestInsightApplicationServiceFastLane:
                 del candidates
                 raise RuntimeError("boom")
 
+        # Isolate the store-error branch; timeout branches are covered below.
+        monkeypatch.setattr(
+            "app.services.insight_application_service.KNOWLEDGE_PROMOTION_TIMEOUT_SECONDS",
+            5.0,
+            raising=True,
+        )
         monkeypatch.setattr(
             "app.services.insight_application_service.logger.warning",
             lambda *args, **kwargs: warnings.append((args, kwargs)),
