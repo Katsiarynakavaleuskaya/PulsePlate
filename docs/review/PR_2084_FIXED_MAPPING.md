@@ -43,6 +43,17 @@ first missing-API-key dependency failure from the existing plan-export family.
 The follow-up commit preserves the prior bootstrap failure ordering while
 keeping the new legacy premium family fail-closed.
 
+Disposition: FIXED
+Commit: 299af9e32b01ae76162a3dbd4a0c3b67331053ef
+Evidence: `tests/test_legacy_premium_nutrition_registration_bootstrap.py:196`,
+`tests/test_legacy_premium_nutrition_registration_bootstrap.py:212`,
+`tests/test_legacy_premium_nutrition_registration_bootstrap.py:253`,
+`tests/test_legacy_premium_nutrition_registration_bootstrap.py:339`
+Reason: Codecov and CI diff coverage reported uncovered new legacy premium
+wrapper and fail-closed lines. The follow-up commit adds direct delegation
+coverage for all six moved wrappers plus the missing API key dependency branch.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2084#issuecomment-4892601123 -> 299af9e32b01ae76162a3dbd4a0c3b67331053ef
+
 No review-thread URLs were mapped at PR open because no review threads existed.
 
 ## Role-Agent Evidence
@@ -111,6 +122,18 @@ dependency installer, or public API authority.
 - `python3 scripts/orchestration/pr_review_context.py --pr 2084 --output /tmp/pulseplate_pr_2084_review_context.json` - PASS.
 - `python3 scripts/orchestration/pr_review_report.py --context /tmp/pulseplate_pr_2084_review_context.json --format markdown` - PASS.
 - `python3 -m pytest tests/test_pr_review_report.py tests/test_pr_review_context.py -q` - PASS.
+- `coverage run -m pytest -q tests/test_legacy_premium_nutrition_registration_bootstrap.py`
+  plus `diff-cover /tmp/pr2084_coverage.xml --compare-branch origin/main --fail-under 97 ...`
+  - PASS after `299af9e32b01ae76162a3dbd4a0c3b67331053ef`; diff coverage
+  `app/main.py (100%)`, `app/routers/legacy_premium_nutrition.py (100%)`,
+  total changed lines `49`, missing `0`, coverage `100%`.
+- `make validate-changed` - PASS after
+  `299af9e32b01ae76162a3dbd4a0c3b67331053ef`; selected
+  `tests/test_legacy_growth_guard.py` and
+  `tests/test_legacy_premium_nutrition_registration_bootstrap.py`.
+- `pre-commit run --all-files` - PASS after
+  `299af9e32b01ae76162a3dbd4a0c3b67331053ef`; first run reformatted the
+  changed bootstrap test with Black, second run passed all hooks.
 
 ## Merge Readiness
 
