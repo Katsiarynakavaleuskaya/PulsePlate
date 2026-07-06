@@ -18,10 +18,16 @@ PR-3 consumes accepted PR-2 results through a separate
   `docs/orchestration/contracts/creative_code_patch_result.v1.schema.json`
 - Request/result reference contract:
   this document plus the strict schemas above
+- Generation gate schema:
+  `docs/orchestration/contracts/creative_code_patch_generation_gate.v1.schema.json`
+- Generation receipt schema:
+  `docs/orchestration/contracts/creative_code_patch_generation_receipt.v1.schema.json`
 - Request/result validator:
   `python -m scripts.orchestration.creative_code_patch_contract`
 - Local builder CLI:
   `python -m scripts.orchestration.creative_code_patch_builder`
+- Local gate/execute wrapper:
+  `python -m scripts.orchestration.creative_code_patch_generation`
 
 ## Required Source
 
@@ -67,6 +73,62 @@ codex exec --ignore-user-config \
 
 The prompt is passed on stdin and is not persisted in the request, result, or
 sanitized summaries.
+
+## Generation Gate Wrapper
+
+`creative_code_patch_generation.py` is the local Gate+execute wrapper over the
+existing PR-2 builder. It does not prepare admissions and does not implement a
+second patch-result contract.
+
+The wrapper exposes:
+
+```bash
+python -m scripts.orchestration.creative_code_patch_generation validate-run-plan \
+  --admission <creative_spec_patch_admission.json> \
+  --run-id <prepared-run-id> \
+  --output-dir artifacts/orchestration/creative_code/patch_generation/<run-id>
+
+python -m scripts.orchestration.creative_code_patch_generation generate-candidate \
+  --gate artifacts/orchestration/creative_code/patch_generation/<run-id>/generation_gate.json
+```
+
+`validate-run-plan` writes `generation_gate.json` only after it revalidates:
+
+- admission/source/request/finalize/human bindings;
+- builder prepare proof and exact prepared run state;
+- request/source bundle/selected variant identity;
+- current local `origin/main` base SHA;
+- clean shared worktree;
+- budget, oracle, metric, allowed-path, and immutable-oracle fingerprints;
+- absence of preexisting `candidate.patch`, patch metadata, experiment packet,
+  or result artifacts;
+- optional coordinator advisory hints as advisory-only with no role-order,
+  patch-generation, provider, repo-write, PR, Slack/GitHub, product runtime,
+  semantic-cache, or graph-truth authority.
+
+`generate-candidate` must revalidate the gate immediately before execution,
+call only `creative_code_patch_builder.generate(run_id=...)`, recheck current
+base/tree, call only `creative_code_patch_builder.evaluate(run_id=...)`, then
+write a sanitized `generation_receipt.json` that links:
+
+- `generation_gate.json`;
+- existing local `candidate.patch`;
+- existing `patch_metadata.json`;
+- existing `experiment_packet.json`;
+- existing `result.json`;
+- request/source/gate/result IDs and fingerprints.
+
+The receipt stores named pass/fail checks and `passed_checks` /
+`total_checks`; it does not introduce subjective scores. A valid rejected
+`CreativeCodePatchResult` may still produce a receipt, but `promotion_ready`
+remains `false`. Builder or wrapper failures exit non-zero and must not emit a
+success receipt.
+
+The wrapper must not expose commands or flags that promote candidates, write
+branches, push, open or edit PRs, resolve review threads, edit fixed mappings,
+claim readiness, merge, release, call providers, call product runtime, modify
+workflows, use semantic cache, write graph truth, or mutate Slack/GitHub App
+settings.
 
 ## Workspace Lifecycle
 

@@ -1,0 +1,318 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pulseplate.local/contracts/creative_code_patch_generation_receipt.v1.schema.json",
+  "title": "CreativeCodePatchGenerationReceipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "policy_version",
+    "receipt_id",
+    "idempotency_key",
+    "gate_id",
+    "gate_fingerprint",
+    "gate_ref",
+    "admission_id",
+    "admission_fingerprint",
+    "admission_ref",
+    "request_id",
+    "request_fingerprint",
+    "request_ref",
+    "source_bundle_id",
+    "source_bundle_fingerprint",
+    "source_bundle_ref",
+    "selected_variant_id",
+    "selected_variant_fingerprint",
+    "base_commit_sha",
+    "run_id",
+    "candidate_patch_ref",
+    "patch_metadata_ref",
+    "experiment_packet_ref",
+    "result_ref",
+    "result_id",
+    "result_fingerprint",
+    "status",
+    "failure_class",
+    "changed_paths",
+    "patch_summary",
+    "workspace_summary",
+    "runner_summary",
+    "promotion_ready",
+    "checks",
+    "passed_checks",
+    "total_checks",
+    "authority",
+    "sanitized"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "artifact_type": { "const": "creative_code_patch_generation_receipt" },
+    "policy_version": { "const": "creative-code-patch-generation-gate-v1" },
+    "receipt_id": { "$ref": "#/$defs/safe_id" },
+    "idempotency_key": { "$ref": "#/$defs/safe_id" },
+    "gate_id": { "$ref": "#/$defs/safe_id" },
+    "gate_fingerprint": { "$ref": "#/$defs/sha256" },
+    "gate_ref": { "$ref": "#/$defs/json_artifact_ref" },
+    "admission_id": { "$ref": "#/$defs/safe_id" },
+    "admission_fingerprint": { "$ref": "#/$defs/sha256" },
+    "admission_ref": { "$ref": "#/$defs/json_artifact_ref" },
+    "request_id": { "$ref": "#/$defs/safe_id" },
+    "request_fingerprint": { "$ref": "#/$defs/sha256" },
+    "request_ref": { "$ref": "#/$defs/json_artifact_ref" },
+    "source_bundle_id": { "$ref": "#/$defs/safe_id" },
+    "source_bundle_fingerprint": { "$ref": "#/$defs/sha256" },
+    "source_bundle_ref": { "$ref": "#/$defs/json_artifact_ref" },
+    "selected_variant_id": { "$ref": "#/$defs/safe_id" },
+    "selected_variant_fingerprint": { "$ref": "#/$defs/sha256" },
+    "base_commit_sha": { "$ref": "#/$defs/git_sha" },
+    "run_id": { "$ref": "#/$defs/safe_id" },
+    "candidate_patch_ref": { "$ref": "#/$defs/patch_artifact_ref" },
+    "patch_metadata_ref": { "$ref": "#/$defs/json_artifact_ref" },
+    "experiment_packet_ref": { "$ref": "#/$defs/json_artifact_ref" },
+    "result_ref": { "$ref": "#/$defs/json_artifact_ref" },
+    "result_id": { "$ref": "#/$defs/safe_id" },
+    "result_fingerprint": { "$ref": "#/$defs/sha256" },
+    "status": { "enum": ["accepted", "rejected"] },
+    "failure_class": { "$ref": "#/$defs/failure_class" },
+    "changed_paths": { "$ref": "#/$defs/path_array" },
+    "patch_summary": { "$ref": "#/$defs/patch_summary" },
+    "workspace_summary": { "$ref": "#/$defs/workspace_summary" },
+    "runner_summary": { "$ref": "#/$defs/runner_summary" },
+    "promotion_ready": { "const": false },
+    "checks": { "$ref": "#/$defs/checks" },
+    "passed_checks": { "const": 7 },
+    "total_checks": { "const": 7 },
+    "authority": { "$ref": "#/$defs/authority" },
+    "sanitized": { "const": true }
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": ["status"],
+        "properties": { "status": { "const": "accepted" } }
+      },
+      "then": {
+        "properties": {
+          "failure_class": { "const": null },
+          "workspace_summary": {
+            "properties": {
+              "origin_removed": { "const": true },
+              "checkout_destroyed": { "const": true },
+              "shared_tree_untouched": { "const": true }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["status"],
+        "properties": { "status": { "const": "rejected" } }
+      },
+      "then": {
+        "properties": {
+          "failure_class": {
+            "enum": [
+              "timeout",
+              "oom",
+              "metric_regression",
+              "guard_failure",
+              "policy_violation",
+              "unchanged_result",
+              "infra_flake"
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "safe_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "git_sha": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{40}$"
+    },
+    "json_artifact_ref": {
+      "type": "string",
+      "pattern": "^(?!/|~|[A-Za-z][A-Za-z0-9+.-]*:)(?!.*(?:^|/)\\.\\.?(?:/|$))(?!.*\\\\)artifacts/orchestration/creative_code/[A-Za-z0-9._:/-]+\\.json$"
+    },
+    "patch_artifact_ref": {
+      "type": "string",
+      "pattern": "^(?!/|~|[A-Za-z][A-Za-z0-9+.-]*:)(?!.*(?:^|/)\\.\\.?(?:/|$))(?!.*\\\\)artifacts/orchestration/creative_code/patch_runs/[A-Za-z0-9._-]+/candidate\\.patch$"
+    },
+    "repo_path": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/|~|[A-Za-z][A-Za-z0-9+.-]*:)(?!.*(?:^|/)\\.\\.?(?:/|$))(?!.*\\\\)(?!\\.git(?:/|$))(?!\\.github(?:/|$))(?!\\.gitmodules$)(?!\\.mypy_cache(?:/|$))(?!\\.pytest_cache(?:/|$))(?!\\.ruff_cache(?:/|$))(?!\\.venv(?:/|$))(?!AGENTS\\.md$)(?!RUNBOOK_AGENT\\.md$)(?!artifacts(?:/|$))(?!build(?:/|$))(?!dist(?:/|$))(?!docs/orchestration(?:/|$))(?!docs/review(?:/|$))(?!frontend(?:/|$))(?!ios(?:/|$))(?!node_modules(?:/|$))(?!scripts/ci(?:/|$))(?!tests(?:/|$))(?!worktrees(?:/|$)).+"
+    },
+    "path_array": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/repo_path" }
+    },
+    "failure_class": {
+      "enum": [
+        null,
+        "timeout",
+        "oom",
+        "metric_regression",
+        "guard_failure",
+        "policy_violation",
+        "unchanged_result",
+        "infra_flake"
+      ]
+    },
+    "patch_summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["patch_fingerprint", "patch_bytes", "diff_lines"],
+      "properties": {
+        "patch_fingerprint": { "$ref": "#/$defs/sha256" },
+        "patch_bytes": { "type": "integer", "minimum": 1, "maximum": 524288 },
+        "diff_lines": { "type": "integer", "minimum": 1, "maximum": 800 }
+      }
+    },
+    "workspace_summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "detached_base_sha",
+        "origin_removed",
+        "checkout_destroyed",
+        "shared_tree_untouched"
+      ],
+      "properties": {
+        "detached_base_sha": { "$ref": "#/$defs/git_sha" },
+        "origin_removed": { "type": "boolean" },
+        "checkout_destroyed": { "type": "boolean" },
+        "shared_tree_untouched": { "type": "boolean" }
+      }
+    },
+    "runner_summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "experiment_id",
+        "status",
+        "failure_class",
+        "mutated_path_count",
+        "oracle_commands_configured",
+        "oracle_commands_executed",
+        "attempts",
+        "retries_consumed",
+        "shared_tree_untouched",
+        "runner_result_fingerprint",
+        "runner_error_present",
+        "runner_error_fingerprint"
+      ],
+      "properties": {
+        "experiment_id": { "$ref": "#/$defs/safe_id" },
+        "status": { "enum": ["accepted", "rejected"] },
+        "failure_class": { "$ref": "#/$defs/failure_class" },
+        "mutated_path_count": { "type": "integer", "minimum": 0, "maximum": 5 },
+        "oracle_commands_configured": { "type": "integer", "minimum": 0, "maximum": 20 },
+        "oracle_commands_executed": { "type": "integer", "minimum": 0, "maximum": 20 },
+        "attempts": { "type": "integer", "minimum": 0, "maximum": 3 },
+        "retries_consumed": { "type": "integer", "minimum": 0, "maximum": 2 },
+        "shared_tree_untouched": { "type": "boolean" },
+        "runner_result_fingerprint": { "$ref": "#/$defs/sha256" },
+        "runner_error_present": { "type": "boolean" },
+        "runner_error_fingerprint": {
+          "type": ["string", "null"],
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        }
+      }
+    },
+    "checks": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "gate_valid",
+        "result_valid",
+        "request_matches_gate",
+        "candidate_patch_metadata_current",
+        "workspace_proof_recorded",
+        "promotion_not_ready",
+        "authority_within_pr2"
+      ],
+      "properties": {
+        "gate_valid": { "const": true },
+        "result_valid": { "const": true },
+        "request_matches_gate": { "const": true },
+        "candidate_patch_metadata_current": { "const": true },
+        "workspace_proof_recorded": { "const": true },
+        "promotion_not_ready": { "const": true },
+        "authority_within_pr2": { "const": true }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "emit_local_artifacts",
+        "run_patch_builder_evaluate",
+        "run_patch_builder_generate",
+        "validate_generation_gate",
+        "call_arbitrary_network",
+        "call_product_runtime",
+        "call_provider",
+        "claim_merge_readiness",
+        "create_branch",
+        "edit_fixed_mapping",
+        "merge",
+        "modify_workflows",
+        "open_draft_pr",
+        "open_pull_request",
+        "post_github_comment",
+        "promote_candidate",
+        "push_branch",
+        "read_secrets",
+        "release",
+        "resolve_review_threads",
+        "slack_github_authority_expansion",
+        "use_semantic_cache",
+        "write_graph_truth",
+        "write_repository",
+        "write_shared_worktree"
+      ],
+      "properties": {
+        "emit_local_artifacts": { "const": true },
+        "run_patch_builder_evaluate": { "const": true },
+        "run_patch_builder_generate": { "const": true },
+        "validate_generation_gate": { "const": true },
+        "call_arbitrary_network": { "const": false },
+        "call_product_runtime": { "const": false },
+        "call_provider": { "const": false },
+        "claim_merge_readiness": { "const": false },
+        "create_branch": { "const": false },
+        "edit_fixed_mapping": { "const": false },
+        "merge": { "const": false },
+        "modify_workflows": { "const": false },
+        "open_draft_pr": { "const": false },
+        "open_pull_request": { "const": false },
+        "post_github_comment": { "const": false },
+        "promote_candidate": { "const": false },
+        "push_branch": { "const": false },
+        "read_secrets": { "const": false },
+        "release": { "const": false },
+        "resolve_review_threads": { "const": false },
+        "slack_github_authority_expansion": { "const": false },
+        "use_semantic_cache": { "const": false },
+        "write_graph_truth": { "const": false },
+        "write_repository": { "const": false },
+        "write_shared_worktree": { "const": false }
+      }
+    }
+  }
+}
