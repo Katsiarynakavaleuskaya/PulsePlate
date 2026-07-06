@@ -18,6 +18,7 @@ from app.effective_routes import (
     route_methods,
     route_path,
 )
+from tests.helpers.module_resolve import resolve_legacy_app
 
 _EXPECTED_ROUTE_SPECS = app_main._LEGACY_PREMIUM_NUTRITION_ROUTE_SPECS
 _EXPECTED_ROUTE_KEYS = {
@@ -194,7 +195,8 @@ def test_legacy_premium_nutrition_route_members_encode_api_key_exception() -> No
 
 
 def _who_targets_response() -> app_main._legacy_module.WHOTargetsResponse:
-    return app_main._legacy_module.WHOTargetsResponse(
+    legacy_module = resolve_legacy_app()
+    return legacy_module.WHOTargetsResponse(
         kcal_daily=1900,
         macros={"protein_g": 95, "fat_g": 63, "carbs_g": 238, "fiber_g": 28},
         water_ml=2200,
@@ -202,14 +204,15 @@ def _who_targets_response() -> app_main._legacy_module.WHOTargetsResponse:
         activity_weekly={"minutes": 150},
         calculation_date="2026-07-06",
         warnings=[],
-        ui_labels=app_main._legacy_module.build_who_targets_ui_labels("en"),
+        ui_labels=legacy_module.build_who_targets_ui_labels("en"),
     )
 
 
 def test_legacy_premium_plate_wrapper_delegates_to_legacy_app(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    req = app_main._legacy_module.PlateRequest(
+    legacy_module = resolve_legacy_app()
+    req = legacy_module.PlateRequest(
         sex="female",
         age=34,
         height_cm=168,
@@ -217,7 +220,7 @@ def test_legacy_premium_plate_wrapper_delegates_to_legacy_app(
         activity="light",
         goal="maintain",
     )
-    expected = app_main._legacy_module.PlateResponse(
+    expected = legacy_module.PlateResponse(
         kcal=1900,
         macros={"protein_g": 95, "fat_g": 63, "carbs_g": 238},
         portions={"vegetables": 0.5, "protein": 0.25, "grains": 0.25},
@@ -232,7 +235,7 @@ def test_legacy_premium_plate_wrapper_delegates_to_legacy_app(
         captured["request"] = received
         return expected
 
-    monkeypatch.setattr(app_main._legacy_module, "api_premium_plate", _fake_legacy_handler)
+    monkeypatch.setattr(resolve_legacy_app(), "api_premium_plate", _fake_legacy_handler)
 
     response = asyncio.run(legacy_premium_nutrition.api_premium_plate(req))
 
@@ -243,14 +246,15 @@ def test_legacy_premium_plate_wrapper_delegates_to_legacy_app(
 def test_legacy_premium_api_bmr_wrapper_delegates_to_legacy_app(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    req = app_main._legacy_module.BMRRequest(
+    legacy_module = resolve_legacy_app()
+    req = legacy_module.BMRRequest(
         weight_kg=70,
         height_cm=175,
         age=35,
         sex="male",
         activity="moderate",
     )
-    expected = app_main._legacy_module.BMRResponse(
+    expected = legacy_module.BMRResponse(
         bmr={"mifflin": 1650.0},
         tdee={"mifflin": 2557.5},
         activity_level="moderate",
@@ -270,7 +274,7 @@ def test_legacy_premium_api_bmr_wrapper_delegates_to_legacy_app(
         captured["request"] = received
         return expected
 
-    monkeypatch.setattr(app_main._legacy_module, "api_premium_bmr", _fake_legacy_handler)
+    monkeypatch.setattr(resolve_legacy_app(), "api_premium_bmr", _fake_legacy_handler)
 
     response = asyncio.run(legacy_premium_nutrition.api_premium_bmr(req))
 
@@ -281,14 +285,15 @@ def test_legacy_premium_api_bmr_wrapper_delegates_to_legacy_app(
 def test_legacy_premium_bmr_wrapper_delegates_to_legacy_app(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    req = app_main._legacy_module.BMRRequestLegacy(
+    legacy_module = resolve_legacy_app()
+    req = legacy_module.BMRRequestLegacy(
         weight_kg=70,
         height_cm=175,
         age=35,
         sex="male",
         activity="moderate",
     )
-    expected = app_main._legacy_module.BMRResponse(
+    expected = legacy_module.BMRResponse(
         bmr={"mifflin": 1650.0},
         tdee={"mifflin": 2557.5},
         activity_level="moderate",
@@ -308,7 +313,7 @@ def test_legacy_premium_bmr_wrapper_delegates_to_legacy_app(
         captured["request"] = received
         return expected
 
-    monkeypatch.setattr(app_main._legacy_module, "premium_bmr_legacy", _fake_legacy_handler)
+    monkeypatch.setattr(resolve_legacy_app(), "premium_bmr_legacy", _fake_legacy_handler)
 
     response = asyncio.run(legacy_premium_nutrition.premium_bmr_legacy(req))
 
@@ -319,7 +324,8 @@ def test_legacy_premium_bmr_wrapper_delegates_to_legacy_app(
 def test_legacy_premium_targets_wrapper_delegates_to_legacy_app(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    req = app_main._legacy_module.WHOTargetsRequest(
+    legacy_module = resolve_legacy_app()
+    req = legacy_module.WHOTargetsRequest(
         sex="female",
         age=34,
         height_cm=168,
@@ -336,7 +342,7 @@ def test_legacy_premium_targets_wrapper_delegates_to_legacy_app(
         return expected
 
     monkeypatch.setattr(
-        app_main._legacy_module,
+        resolve_legacy_app(),
         "premium_targets_legacy",
         _fake_legacy_handler,
     )
@@ -366,7 +372,7 @@ def test_legacy_premium_api_targets_wrapper_delegates_to_legacy_app(
         captured["request"] = received
         return expected
 
-    monkeypatch.setattr(app_main._legacy_module, "api_who_targets", _fake_legacy_handler)
+    monkeypatch.setattr(resolve_legacy_app(), "api_who_targets", _fake_legacy_handler)
 
     response = asyncio.run(legacy_premium_nutrition.api_who_targets(payload))
 
@@ -377,9 +383,10 @@ def test_legacy_premium_api_targets_wrapper_delegates_to_legacy_app(
 def test_legacy_premium_gaps_wrapper_delegates_to_legacy_app(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    req = app_main._legacy_module.NutrientGapsRequest(
+    legacy_module = resolve_legacy_app()
+    req = legacy_module.NutrientGapsRequest(
         consumed_nutrients={"iron_mg": 10.0},
-        user_profile=app_main._legacy_module.WHOTargetsRequest(
+        user_profile=legacy_module.WHOTargetsRequest(
             sex="female",
             age=34,
             height_cm=168,
@@ -387,7 +394,7 @@ def test_legacy_premium_gaps_wrapper_delegates_to_legacy_app(
             activity="light",
         ),
     )
-    expected = app_main._legacy_module.NutrientGapsResponse(
+    expected = legacy_module.NutrientGapsResponse(
         gaps={"iron_mg": {"status": "low", "delta": -8.0}},
         food_recommendations=["lentils"],
         adherence_score=0.85,
@@ -400,7 +407,7 @@ def test_legacy_premium_gaps_wrapper_delegates_to_legacy_app(
         captured["request"] = received
         return expected
 
-    monkeypatch.setattr(app_main._legacy_module, "api_nutrient_gaps", _fake_legacy_handler)
+    monkeypatch.setattr(resolve_legacy_app(), "api_nutrient_gaps", _fake_legacy_handler)
 
     response = asyncio.run(legacy_premium_nutrition.api_nutrient_gaps(req))
 
