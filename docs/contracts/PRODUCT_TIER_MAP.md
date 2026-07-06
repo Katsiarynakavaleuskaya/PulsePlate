@@ -82,20 +82,26 @@
 | Nutrition log       | `/api/v1/pro/nutrition/log/*` | ✅ canonical | PRO          | `app/routers/nutrition_log.py:27`     |
 | Bayes adherence     | `/api/v1/pro/bayes/*`         | ✅ canonical | PRO          | `app/routers/bayes_adherence.py:23`   |
 
-### Deprecated (но требует PRO tier)
+### Deprecated PRO-class compatibility routes
 
-| Функция        | Endpoint                        | Статус           | Требует tier | Код-доказательство                        |
-| -------------- | ------------------------------- | ---------------- | ------------ | ----------------------------------------- |
-| Weekly plan    | `/api/v1/premium/plan/week-flexible` | ⚠️ deprecated | PRO          | `app/routers/premium_week.py:290`         |
-| Targets        | `/api/v1/premium/targets`       | ⚠️ legacy shim   | PRO          | `legacy_app.py:4685`                      |
-| Daily plate    | `/api/v1/premium/plate`         | ⚠️ legacy shim   | PRO          | `legacy_app.py:3980`                      |
-| BMR            | `/premium_bmr`                  | ⚠️ legacy        | PRO          | `legacy_app.py:4148`                      |
+| Функция        | Endpoint                        | Статус           | Runtime guard / tier classification | Код-доказательство                        |
+| -------------- | ------------------------------- | ---------------- | ----------------------------------- | ----------------------------------------- |
+| Weekly plan    | `/api/v1/premium/plan/week-flexible` | ⚠️ deprecated | PRO tier bridge | `app/routers/premium_week.py:290`         |
+| Targets        | `/api/v1/premium/targets`       | ⚠️ legacy shim   | PRO-class; legacy API-key guard | `app/routers/legacy_premium_nutrition.py:75` |
+| Daily plate    | `/api/v1/premium/plate`         | ⚠️ legacy shim   | PRO-class; legacy API-key guard | `app/routers/legacy_premium_nutrition.py:35` |
+| BMR            | `/api/v1/premium/bmr`           | ⚠️ legacy        | Legacy premium; legacy API-key guard | `app/routers/legacy_premium_nutrition.py:53` |
+| BMR root alias | `/premium_bmr`                  | ⚠️ legacy public exception | No API-key dependency | `app/routers/legacy_premium_nutrition.py:66` |
 
 > ⚠️ **Примечание:** Endpoints под `/premium/*`, которые **фактически требуют VIP tier**, не относятся к PRO и перечислены в разделе VIP (см. секцию "Deprecated aliases with wrong namespace").
 >
 > ⚠️ **Ключевое понимание:**
-> `/premium/*` endpoints **требуют PRO tier** (через `require_pro_tier()`);
-> namespace `/premium/*` при этом **deprecated**, мигрирует на `/api/v1/pro/*`.
+> `/premium/*` endpoints are deprecated PRO-class compatibility surfaces unless
+> explicitly listed in the VIP wrong-namespace section. Runtime enforcement on
+> this legacy family is the legacy API-key guard, not `require_pro_tier()`,
+> except for `/premium_bmr`, which remains a historical public route-shape
+> exception.
+> `/premium_bmr` is a historical root alias and remains a route-shape compatibility
+> exception until a dedicated auth/contract migration PR owns that behavior change.
 
 ### Что НЕ входит
 

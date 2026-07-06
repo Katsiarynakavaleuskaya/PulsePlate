@@ -2977,16 +2977,6 @@ async def _compute_premium_plate(req: PlateRequest) -> PlateResponse:
         raise HTTPException(status_code=500, detail=ENHANCED_PLATE_GENERATION_FAILED_DETAIL) from e
 
 
-@app.post(
-    "/api/v1/premium/plate",
-    dependencies=[Depends(_get_api_key_dynamic)],
-    response_model=PlateResponse,
-    deprecated=True,
-    openapi_extra={
-        "x-alias-of": "/api/v1/pro/nutrition/plate",
-        "x-migration-path": "Migrate to /api/v1/pro/nutrition/plate (same contract)",
-    },
-)
 async def api_premium_plate(req: PlateRequest) -> PlateResponse:
     """[DEPRECATED] Alias for canonical `POST /api/v1/pro/nutrition/plate`."""
     from app.routers.pro_nutrition_contracts import pro_nutrition_plate
@@ -2996,11 +2986,6 @@ async def api_premium_plate(req: PlateRequest) -> PlateResponse:
 
 
 # Premium BMR Endpoint
-@app.post(
-    "/api/v1/premium/bmr",
-    dependencies=[Depends(_get_api_key_dynamic)],
-    response_model=BMRResponse,
-)
 async def api_premium_bmr(req: BMRRequest) -> BMRResponse:
     # sourcery skip: low-code-quality
     """
@@ -3179,7 +3164,6 @@ async def api_premium_bmr(req: BMRRequest) -> BMRResponse:
 
 
 # Legacy Premium Endpoints (for backwards compatibility)
-@app.post("/premium_bmr")
 async def premium_bmr_legacy(req: BMRRequestLegacy) -> BMRResponse:
     """Legacy endpoint for BMR calculation (backwards compatibility).
 
@@ -3513,7 +3497,6 @@ def _generate_who_targets_response(
         ) from e
 
 
-@app.post("/premium_targets", dependencies=[Depends(_get_api_key_dynamic)])
 async def premium_targets_legacy(req: WHOTargetsRequest) -> WHOTargetsResponse:
     """Legacy endpoint for WHO targets (backwards compatibility).
 
@@ -3544,16 +3527,6 @@ async def premium_targets_legacy(req: WHOTargetsRequest) -> WHOTargetsResponse:
 # WHO-Based Nutrition Endpoints
 
 
-@app.post(
-    "/api/v1/premium/targets",
-    dependencies=[Depends(_get_api_key_dynamic)],
-    response_model=WHOTargetsResponse,
-    deprecated=True,
-    openapi_extra={
-        "x-alias-of": "/api/v1/pro/nutrition/targets",
-        "x-migration-path": "Migrate to /api/v1/pro/nutrition/targets (same contract)",
-    },
-)
 async def api_who_targets(payload: Dict[str, Any] = Body(...)) -> WHOTargetsResponse:
     """[DEPRECATED] Alias for canonical `POST /api/v1/pro/nutrition/targets`.
 
@@ -3624,11 +3597,6 @@ async def api_weekly_menu(
         ) from e
 
 
-@app.post(
-    "/api/v1/premium/gaps",
-    dependencies=[Depends(_get_api_key_dynamic)],
-    response_model=NutrientGapsResponse,
-)
 async def api_nutrient_gaps(req: NutrientGapsRequest) -> NutrientGapsResponse:
     """
     RU: Анализирует дефициты нутриентов и даёт рекомендации.

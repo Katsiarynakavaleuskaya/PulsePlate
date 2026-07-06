@@ -94,13 +94,7 @@ ALLOWED_LEGACY_ROUTE_FACTS = frozenset(
         LegacyFact("decorator", "middleware", "http", "log_requests"),
         LegacyFact("decorator", "post", "/api/v1/insight", "insight_v1_route"),
         LegacyFact("decorator", "post", "/insight", "insight_route"),
-        LegacyFact("decorator", "post", "/api/v1/premium/plate", "api_premium_plate"),
-        LegacyFact("decorator", "post", "/api/v1/premium/bmr", "api_premium_bmr"),
-        LegacyFact("decorator", "post", "/premium_bmr", "premium_bmr_legacy"),
-        LegacyFact("decorator", "post", "/premium_targets", "premium_targets_legacy"),
-        LegacyFact("decorator", "post", "/api/v1/premium/targets", "api_who_targets"),
         LegacyFact("decorator", "post", "/api/v1/premium/plan/week", "api_weekly_menu"),
-        LegacyFact("decorator", "post", "/api/v1/premium/gaps", "api_nutrient_gaps"),
     }
 )
 

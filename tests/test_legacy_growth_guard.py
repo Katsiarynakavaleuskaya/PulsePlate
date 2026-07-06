@@ -49,6 +49,34 @@ def test_legacy_growth_guard_rejects_new_route() -> None:
     ]
 
 
+@pytest.mark.parametrize(
+    ("path", "owner"),
+    [
+        ("/api/v1/premium/plate", "api_premium_plate"),
+        ("/api/v1/premium/bmr", "api_premium_bmr"),
+        ("/premium_bmr", "premium_bmr_legacy"),
+        ("/api/v1/premium/targets", "api_who_targets"),
+        ("/premium_targets", "premium_targets_legacy"),
+        ("/api/v1/premium/gaps", "api_nutrient_gaps"),
+    ],
+)
+def test_legacy_growth_guard_rejects_reintroduced_premium_nutrition_routes(
+    path: str,
+    owner: str,
+) -> None:
+    source = textwrap.dedent(f"""
+        @app.post("{path}")
+        async def {owner}():
+            return {{"ok": True}}
+        """)
+
+    errors = legacy_guard.validate_legacy_growth(source)
+
+    assert errors == [
+        f"legacy_app.py: unexpected legacy route growth: decorator:post:{path} -> {owner}"
+    ]
+
+
 def test_legacy_growth_guard_rejects_reintroduced_legal_routes() -> None:
     source = textwrap.dedent("""
         @app.get("/privacy")
@@ -2169,7 +2197,7 @@ def test_legacy_growth_guard_rejects_api_key_surface_growth_on_current_baseline(
         @app.post("/api/v1/insight", dependencies=[Depends(api_key_guard)])
         def insight_v1_route():
             return {"ok": True}
-        """)
+        """) * 6
 
     errors = legacy_guard.validate_legacy_growth(source)
 
