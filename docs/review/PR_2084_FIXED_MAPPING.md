@@ -50,9 +50,27 @@ Evidence: `tests/test_legacy_premium_nutrition_registration_bootstrap.py:196`,
 `tests/test_legacy_premium_nutrition_registration_bootstrap.py:253`,
 `tests/test_legacy_premium_nutrition_registration_bootstrap.py:339`
 Reason: Codecov and CI diff coverage reported uncovered new legacy premium
-wrapper and fail-closed lines. The follow-up commit adds direct delegation
-coverage for all six moved wrappers plus the missing API key dependency branch.
+wrapper and fail-closed lines. This follow-up commit adds direct delegation
+coverage for all six moved wrappers plus the missing API key dependency branch
+in the focused bootstrap suite.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2084#issuecomment-4892601123 -> 299af9e32b01ae76162a3dbd4a0c3b67331053ef
+
+Disposition: FIXED
+Commit: fd7c742ece3e01cbc90782b165a87ca33efa7a34
+Evidence: `tests/test_route_family_bootstrap.py:236`,
+`tests/test_route_family_bootstrap.py:270`,
+`tests/test_route_family_bootstrap.py:308`,
+`tests/test_route_family_bootstrap.py:346`,
+`tests/test_route_family_bootstrap.py:377`,
+`tests/test_route_family_bootstrap.py:404`,
+`tests/test_route_family_bootstrap.py:438`
+Reason: Current-head CI showed that `test-pr (3.13)` coverage artifacts are
+generated from the selected `route_contract_safety` suite, which did not include
+`tests/test_legacy_premium_nutrition_registration_bootstrap.py`. This follow-up
+commit mirrors the wrapper/fail-closed coverage inside
+`tests/test_route_family_bootstrap.py`, a suite already selected by the current
+CI risk profile, without changing runtime behavior.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/28791482277/job/85374712649 -> fd7c742ece3e01cbc90782b165a87ca33efa7a34
 
 No review-thread URLs were mapped at PR open because no review threads existed.
 
@@ -127,6 +145,13 @@ dependency installer, or public API authority.
   - PASS after `299af9e32b01ae76162a3dbd4a0c3b67331053ef`; diff coverage
   `app/main.py (100%)`, `app/routers/legacy_premium_nutrition.py (100%)`,
   total changed lines `49`, missing `0`, coverage `100%`.
+- `coverage run -m pytest -q tests/test_route_family_bootstrap.py` plus
+  `diff-cover /tmp/pr2084_route_family_coverage.xml --compare-branch origin/main --fail-under 97 ...`
+  - PASS after `fd7c742ece3e01cbc90782b165a87ca33efa7a34`; diff coverage
+  `app/main.py (100%)`, `app/routers/legacy_premium_nutrition.py (100%)`,
+  total changed lines `49`, missing `0`, coverage `100%`.
+- `pytest -q tests/test_route_family_bootstrap.py tests/test_legacy_premium_nutrition_registration_bootstrap.py tests/test_legacy_growth_guard.py tests/test_pro_premium_contract_parity.py`
+  - PASS after `fd7c742ece3e01cbc90782b165a87ca33efa7a34`.
 - `make validate-changed` - PASS after
   `299af9e32b01ae76162a3dbd4a0c3b67331053ef`; selected
   `tests/test_legacy_growth_guard.py` and
