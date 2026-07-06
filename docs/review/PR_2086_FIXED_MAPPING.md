@@ -94,6 +94,7 @@ Artifact:
 - `VENV_PYTHON="$(. scripts/hooks/repo_python.sh; resolve_repo_python "$PWD")"; "$VENV_PYTHON" -m pytest -q tests/test_route_family_bootstrap.py tests/test_legacy_premium_nutrition_registration_bootstrap.py` - PASS, `45 passed`.
 - `make validate-changed` - PASS.
 - `pre-commit run --all-files` - PASS.
+- `python3 scripts/ci/check_pr_size_governance.py --base-sha 0fea9394a78d75856a37acbd639746b4b00fdbbc --head-sha HEAD --body "$(gh pr view 2086 --json body --jq .body)"` - PASS.
 - Push hook - PASS, including backend pre-push tests, full-repo Bandit,
   pip-audit, and Docker build test skip/no files.
 
