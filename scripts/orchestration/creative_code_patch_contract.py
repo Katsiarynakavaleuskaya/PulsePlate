@@ -182,6 +182,9 @@ RESULT_KEYS = frozenset(
     }
 )
 PATCH_SUMMARY_KEYS = frozenset({"patch_fingerprint", "patch_bytes", "diff_lines"})
+PATCH_METADATA_KEYS = frozenset(
+    {"changed_paths", "changed_path_statuses", "patch_fingerprint", "patch_bytes", "diff_lines"}
+)
 WORKSPACE_SUMMARY_KEYS = frozenset(
     {
         "detached_base_sha",
@@ -1148,6 +1151,50 @@ def _patch_changed_paths(patch_text: str) -> list[str]:
     return sorted(paths)
 
 
+def validate_creative_code_patch_metadata(payload: Mapping[str, Any]) -> dict[str, Any]:
+    """Validate PR-2 patch metadata sidecars with an exact sanitized shape."""
+
+    label = "patch_metadata"
+    _require_exact_keys(payload, PATCH_METADATA_KEYS, label=label)
+    changed_paths = _normalize_path_list(payload, "changed_paths", label=label)
+    statuses = payload["changed_path_statuses"]
+    if not isinstance(statuses, dict):
+        raise CreativeCodePatchContractError("patch_metadata.changed_path_statuses is invalid.")
+    if set(statuses) != set(changed_paths):
+        raise CreativeCodePatchContractError(
+            "patch_metadata.changed_path_statuses must match changed_paths."
+        )
+    normalized_statuses: dict[str, str] = {}
+    for path in changed_paths:
+        status = statuses[path]
+        if status not in {"A", "M"}:
+            raise CreativeCodePatchContractError(
+                "patch_metadata.changed_path_statuses values must be A or M."
+            )
+        normalized_statuses[path] = status
+    normalized = {
+        "changed_paths": changed_paths,
+        "changed_path_statuses": normalized_statuses,
+        "patch_fingerprint": _require_fingerprint(payload, "patch_fingerprint", label=label),
+        "patch_bytes": _require_int(
+            payload,
+            "patch_bytes",
+            min_value=1,
+            max_value=HARD_MAX_PATCH_BYTES,
+            label=label,
+        ),
+        "diff_lines": _require_int(
+            payload,
+            "diff_lines",
+            min_value=1,
+            max_value=HARD_MAX_DIFF_LINES,
+            label=label,
+        ),
+    }
+    _reject_result_leaks(normalized, label=label)
+    return normalized
+
+
 def validate_creative_code_patch_run_sidecars(
     *,
     request: Mapping[str, Any],
@@ -1222,14 +1269,15 @@ def validate_creative_code_patch_run_sidecars(
     patch_changed_paths = _patch_changed_paths(patch_text)
     if patch_changed_paths != sorted(result["changed_paths"]):
         raise CreativeCodePatchContractError("candidate.patch changed paths mismatch.")
-    if patch_metadata.get("changed_paths") != result["changed_paths"]:
+    metadata = validate_creative_code_patch_metadata(patch_metadata)
+    if metadata["changed_paths"] != result["changed_paths"]:
         raise CreativeCodePatchContractError("patch_metadata changed paths mismatch.")
     for key, expected in (
         ("patch_fingerprint", patch_fingerprint),
         ("patch_bytes", patch_bytes),
         ("diff_lines", diff_lines),
     ):
-        if patch_metadata.get(key) != expected:
+        if metadata[key] != expected:
             raise CreativeCodePatchContractError(f"patch_metadata {key} mismatch.")
     return {
         "patch_fingerprint": patch_fingerprint,

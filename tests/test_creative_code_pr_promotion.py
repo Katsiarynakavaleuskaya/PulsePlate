@@ -170,6 +170,7 @@ def _make_patch_run(
         run_dir / PATCH_METADATA_FILE,
         {
             "changed_paths": ["core/rag/orchestration.py"],
+            "changed_path_statuses": {"core/rag/orchestration.py": "M"},
             "patch_fingerprint": patch_fingerprint,
             "patch_bytes": len(patch_text.encode("utf-8")),
             "diff_lines": len(patch_text.splitlines()),
@@ -562,10 +563,36 @@ def test_plan_rejects_patch_metadata_mismatch(
     metadata["changed_paths"] = ["core/rag/other.py"]
     _write_json(metadata_path, metadata)
 
-    with pytest.raises(CreativeCodePRPromotionError, match="patch_metadata changed paths"):
+    with pytest.raises(CreativeCodePRPromotionError, match="changed_path_statuses"):
         creative_code_pr_promotion.plan(
             patch_run=run_id,
             promotion_id="promotion-pr3-metadata",
+            git=FakeGit(),
+        )
+
+
+def test_plan_rejects_patch_metadata_extra_unsafe_fields(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo, run_id, _result = _make_patch_run(monkeypatch, tmp_path)
+    metadata_path = (
+        repo
+        / "artifacts"
+        / "orchestration"
+        / "creative_code"
+        / "patch_runs"
+        / run_id
+        / PATCH_METADATA_FILE
+    )
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    metadata["raw_prompt"] = "/Users/example diff --git Authorization: Bearer ghp_secret"
+    _write_json(metadata_path, metadata)
+
+    with pytest.raises(CreativeCodePRPromotionError, match="unsupported fields"):
+        creative_code_pr_promotion.plan(
+            patch_run=run_id,
+            promotion_id="promotion-pr3-metadata-extra",
             git=FakeGit(),
         )
 

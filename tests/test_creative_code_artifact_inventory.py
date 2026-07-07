@@ -256,6 +256,25 @@ def test_missing_or_tampered_sidecar_fails_closed(
     assert "invalid_patch_run_sidecar" in blockers
 
 
+def test_patch_metadata_extra_unsafe_fields_blocks_promotion(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo, run_id, result = _make_patch_run(monkeypatch, tmp_path, accepted=True)
+    metadata_path = _run_dir(repo, run_id) / PATCH_METADATA_FILE
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    metadata["raw_prompt"] = "/Users/example diff --git Authorization: Bearer ghp_secret"
+    _write_json(metadata_path, metadata)
+    report = _report(monkeypatch, repo, origin_main=result["base_commit_sha"])
+
+    assert report["patch_runs"][0]["valid"] is False
+    assert report["read_errors"][0]["error_code"] == "invalid_patch_run_sidecar"
+    ok, blockers = inventory_cli.assert_ready_for_promotion(run_id)
+    assert ok is False
+    assert "artifact_read_error" in blockers
+    assert "invalid_patch_run_sidecar" in blockers
+
+
 def test_base_sha_drift_blocks_promotion(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
