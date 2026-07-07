@@ -4,7 +4,7 @@ import ast
 from copy import deepcopy
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import pytest
 
@@ -242,7 +242,7 @@ def test_rejected_run_blocks_promotion_without_blocking_cleanup(
 def test_missing_or_tampered_sidecar_fails_closed(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
-    mutate: Any,
+    mutate: Callable[[Path], None],
     expected_code: str,
 ) -> None:
     repo, run_id, result = _make_patch_run(monkeypatch, tmp_path, accepted=True)
