@@ -96,6 +96,11 @@ This seam keeps weekly request/response models and legacy helper ownership in
 - Result: complete, report generated, `findingCount=0`
 - Coverage: every `deep_review_input.jsonl` row has a completed
   `no_issue_found` receipt in `work_ledger.jsonl`.
+- Current-head rescan id:
+  `336401f4-75e7-4081-8765-ae81f756d7b4`
+- Current-head target:
+  `0484805160536882a82d75b6f3b6e99e75535647..938ea33a3c2907cea2f8f15971526777375ecf2a`
+- Current-head result: complete, report generated, `findingCount=0`.
 
 ## PulsePlate PR Review Evidence
 
@@ -156,7 +161,9 @@ client, dependency installer, or public API authority.
 - `make validate-changed` with repo `VENV_PYTHON` and `DEV_PYTHON` - PASS after commit; selected changed-file backend tests.
 - `pre-commit run --all-files` with repo `VENV_PYTHON` and `DEV_PYTHON` - PASS before commit and after commit.
 - Push hook - PASS, including backend pre-push tests, full-repo Bandit, dependency audit, and Docker build test.
-- Codex Security diff scan / finding discovery - PASS, 0 findings.
+- Codex Security diff scan / finding discovery - PASS, 0 findings. Current-head
+  rescan `336401f4-75e7-4081-8765-ae81f756d7b4` covers
+  `938ea33a3c2907cea2f8f15971526777375ecf2a`.
 - `pulseplate-pr-review` dry-run report and calibration tests - PASS, note-level
   large-diff advisory dispositioned above as NOT-A-BUG.
 - CodeRabbit review findings - fixed/dispositioned in
