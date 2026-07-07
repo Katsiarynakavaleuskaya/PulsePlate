@@ -259,9 +259,7 @@ def _reject_duplicate_json_object_keys(pairs: list[tuple[str, Any]]) -> dict[str
     payload: dict[str, Any] = {}
     for key, value in pairs:
         if key in seen:
-            raise CreativeCodePatchWorkspaceError(
-                f"creative-code artifact JSON has duplicate key: {key}"
-            )
+            raise CreativeCodePatchWorkspaceError("creative-code artifact JSON has duplicate key.")
         seen.add(key)
         payload[key] = value
     return payload

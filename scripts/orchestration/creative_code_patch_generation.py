@@ -398,7 +398,7 @@ def _reject_duplicate_json_object_keys(pairs: list[tuple[str, Any]]) -> dict[str
     for key, value in pairs:
         if key in seen:
             raise CreativeCodePatchGenerationError(
-                f"creative-code patch generation JSON has duplicate key: {key}"
+                "creative-code patch generation JSON has duplicate key."
             )
         seen.add(key)
         payload[key] = value

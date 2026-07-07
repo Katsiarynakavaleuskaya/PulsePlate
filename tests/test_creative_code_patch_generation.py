@@ -531,6 +531,39 @@ def test_validate_artifacts_rejects_unsafe_patch_metadata_extra_fields(
     assert "raw_prompt" not in stderr
 
 
+def test_validate_artifacts_rejects_duplicate_patch_metadata_key_without_echoing_key(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo, base_sha = _init_patch_repo(tmp_path)
+    _patch_modules_to_repo(monkeypatch, repo)
+    run_id = "duplicate-patch-metadata"
+    admission_path = _prepare_admission(repo=repo, base_sha=base_sha, run_id=run_id)
+    _mock_successful_builder_edges(monkeypatch)
+    gate_path = _write_gate(repo=repo, admission_path=admission_path, run_id=run_id)
+    assert generation_cli.main(["generate-candidate", "--gate", str(gate_path)]) == 0
+    receipt_path = gate_path.parent / generation_cli.RECEIPT_FILENAME
+    run_dir = creative_code_patch_workspace.resolve_run_dir(run_id, create=False)
+    metadata_path = run_dir / creative_code_patch_builder.PATCH_METADATA_FILE
+    metadata_path.write_text(
+        '{"changed_paths":[],"GH_TOKEN=ghs_secretsecretsecret":1,'
+        '"GH_TOKEN=ghs_secretsecretsecret":2}',
+        encoding="utf-8",
+    )
+
+    assert (
+        generation_cli.main(
+            ["validate-artifacts", "--gate", str(gate_path), "--receipt", str(receipt_path)]
+        )
+        == 1
+    )
+    stderr = capsys.readouterr().err
+    assert "duplicate key" in stderr
+    assert "GH_TOKEN" not in stderr
+    assert "ghs_secret" not in stderr
+
+
 def test_generation_gate_rejects_unprepared_admission(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

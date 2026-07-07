@@ -371,6 +371,38 @@ def test_generation_receipt_mismatch_blocks_promotion(
     assert "generation_receipt_mismatch" in blockers
 
 
+def test_generation_receipt_unsafe_path_blocker_is_preserved(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo, run_id, result = _make_patch_run(monkeypatch, tmp_path, accepted=True)
+    hidden_dir = (
+        repo / "artifacts" / "orchestration" / "creative_code" / "patch_generation" / ".hidden"
+    )
+    hidden_dir.mkdir(parents=True)
+    _write_generation_receipt(repo, run_id=run_id)
+    safe_receipt_path = (
+        repo
+        / "artifacts"
+        / "orchestration"
+        / "creative_code"
+        / "patch_generation"
+        / run_id
+        / generation_cli.RECEIPT_FILENAME
+    )
+    unsafe_receipt_path = hidden_dir / generation_cli.RECEIPT_FILENAME
+    unsafe_receipt_path.write_text(safe_receipt_path.read_text(encoding="utf-8"), encoding="utf-8")
+    safe_receipt_path.unlink()
+    report = _report(monkeypatch, repo, origin_main=result["base_commit_sha"])
+
+    assert report["generation_receipts"][0]["valid"] is False
+    assert report["generation_receipts"][0]["blockers"] == ["unsafe_artifact_ref"]
+    assert report["read_errors"][0]["error_code"] == "unsafe_artifact_ref"
+    ok, blockers = inventory_cli.assert_ready_for_promotion(run_id)
+    assert ok is False
+    assert "artifact_read_error" in blockers
+
+
 def test_malformed_unlinked_generation_receipt_blocks_promotion(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

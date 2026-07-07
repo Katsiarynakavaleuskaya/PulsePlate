@@ -467,6 +467,15 @@ def _inspect_generation_receipt(
         "failure_class": None,
         "blockers": blockers,
     }
+    if blockers:
+        errors.append(
+            _error_entry(
+                artifact_ref=receipt_ref,
+                artifact_type="generation_receipt",
+                error_code=blockers[0],
+            )
+        )
+        return entry
     try:
         receipt = generation_cli.validate_generation_receipt(_read_json_object(receipt_path))
         entry.update(
