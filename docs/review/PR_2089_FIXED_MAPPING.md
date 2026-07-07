@@ -14,6 +14,15 @@ provider, semantic-cache, or graph-truth authority is added.
 - Starter: `scripts/orchestration/start_pr_lane.sh`
 - Operator override: current `main` monitoring handled by colleague; lane
   continued without treating main CI state as this PR's merge evidence.
+- Main sync: merged `origin/main`
+  (`76ffb6e4e8eab21070b93b076fc5552caa5aed25`) into this branch after the
+  operator noted main had moved ahead.
+- Closeout cleanup constraint: after merge, preserve any creative-code PR-2
+  artifact needed for the later PR-3 launch. Clean only ordinary caches,
+  temporary files, and unrelated junk; do not remove
+  `artifacts/orchestration/creative_code/**` unless the inventory cleanup guard
+  passes and the operator explicitly confirms the PR-3 artifact is no longer
+  needed.
 - Role order preserved pre-open:
   `agent-coordinator -> architecture-specialist -> security-auditor -> qa-engineer-agent -> bug-hunter -> cursor-specialist-agent`
 
@@ -337,6 +346,13 @@ Evidence: `docs/review/PR_2089_FIXED_MAPPING.md` now records the commit that int
 - Post-existing-promotion-receipt-fix `python3 scripts/orchestration/check_agent_consistency.py` - PASS.
 - Post-existing-promotion-receipt-fix `make validate-changed` - PASS.
 - Post-existing-promotion-receipt-fix `pre-commit run --all-files` - PASS after fixing initial `ruff` F821 (`Mapping` import) failure.
+- Post-main-sync focused rerun:
+  `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest tests/test_creative_code_artifact_inventory.py tests/test_creative_code_patch_generation.py tests/test_creative_code_pr_promotion.py -q` - PASS.
+- Post-main-sync `python3 scripts/orchestration/check_preflight.py` - PASS.
+- Post-main-sync `python3 scripts/orchestration/check_agent_consistency.py` - PASS.
+- Post-main-sync `python3 scripts/orchestration/review_mapping_artifact.py --pr-number 2089` - PASS.
+- Post-main-sync `make validate-changed` - PASS.
+- Post-main-sync `pre-commit run --all-files` - PASS.
 
 ## Merge Readiness
 
@@ -354,3 +370,8 @@ Evidence: `docs/review/PR_2089_FIXED_MAPPING.md` now records the commit that int
 - PR-3 promotion remains separate and out of scope for this PR.
 - After merge, restore or rerun PR-2 generation/evaluation and retain the
   resulting accepted `patch_runs/<run-id>` artifact before any PR-3 lane.
+- Merge closeout must not clean the accepted PR-2
+  `artifacts/orchestration/creative_code/patch_runs/<run-id>` artifact needed
+  for PR-3. Only cache, temporary, and unrelated junk cleanup is allowed unless
+  `creative_code_artifact_inventory.py assert-ready-for-cleanup` passes and the
+  operator explicitly confirms the PR-3 artifact is no longer needed.
