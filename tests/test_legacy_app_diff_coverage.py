@@ -7,6 +7,7 @@ EN: Tests for diff-coverage on legacy_app.py (execute branches reported missing 
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass
 import importlib
 import logging
 import sys
@@ -21,6 +22,95 @@ from sqlalchemy import create_engine
 from app.routers import legacy_premium_weekly_plan
 from app.routers import health as health_router
 import legacy_app
+
+
+class _InsightProviderStub:
+    name = "stub"
+
+    async def generate(self, text: str) -> str:
+        return text
+
+
+@dataclass
+class _StructuredRAGChunkStub:
+    chunk_id: str
+    file: str
+    content: str
+    score: float
+    hop: int = 1
+
+
+@dataclass
+class _StructuredRAGContextStub:
+    query: str
+    refined_queries: list[str]
+    chunks: list[_StructuredRAGChunkStub]
+    confidence: float
+    hops: int
+    latency_ms: int
+    agent_id: str | None = None
+    user_tier: str | None = None
+
+
+def _patch_stub_insight_provider(monkeypatch: pytest.MonkeyPatch) -> None:
+    import llm
+
+    monkeypatch.setattr(llm, "get_insight_provider", lambda: _InsightProviderStub())
+
+
+def _patch_structured_rag_context(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    query: str,
+    content: str,
+) -> None:
+    import core.rag.vector_rag as vector_rag
+
+    def _fake_structured(*_a: object, **_k: object) -> _StructuredRAGContextStub:
+        return _StructuredRAGContextStub(
+            query=query,
+            refined_queries=[query],
+            chunks=[
+                _StructuredRAGChunkStub(
+                    chunk_id="a:1",
+                    file="a.md",
+                    content=content,
+                    score=0.9,
+                )
+            ],
+            confidence=0.9,
+            hops=1,
+            latency_ms=10,
+        )
+
+    monkeypatch.setattr(vector_rag, "retrieve_context_structured", _fake_structured)
+
+
+def _patch_long_prompt_orchestration(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    prompt: str,
+) -> None:
+    from core.rag.contracts import RAGChunk
+    from core.rag.orchestration import RAGOrchestrationResult
+    import core.rag.orchestration as orch_mod
+
+    chunk = RAGChunk(chunk_id="a:1", file="a.md", content="ctx", score=0.9)
+
+    async def _mock_orchestration(*_a: object, **_k: object) -> RAGOrchestrationResult:
+        return RAGOrchestrationResult(
+            chunks=[chunk],
+            formatted_prompt=prompt,
+            rag_actually_used=True,
+            confidence=0.9,
+            hops=1,
+            latency_ms=10,
+            warnings=[],
+            chunks_retrieved=1,
+            chunks_filtered=0,
+        )
+
+    monkeypatch.setattr(orch_mod, "retrieve_and_validate_rag", _mock_orchestration)
 
 
 def _legacy_week_plan_request() -> legacy_app.LegacyWeekPlanRequest:
@@ -353,52 +443,8 @@ def test_insight_v1_rag_path_builds_prompt(monkeypatch: pytest.MonkeyPatch) -> N
         monkeypatch.setenv("FEATURE_INSIGHT", "true")
         monkeypatch.setenv("FEATURE_RAG", "true")
 
-        class _Provider:
-            name = "stub"
-
-            async def generate(self, text: str) -> str:
-                return text
-
-        # Patch llm.get_provider import inside legacy_app endpoints
-        import llm
-
-        monkeypatch.setattr(llm, "get_insight_provider", lambda: _Provider())
-
-        # Patch retrieve_context_structured to return a context with chunks
-        import core.rag.vector_rag as vector_rag
-        from dataclasses import dataclass
-        from typing import Optional
-
-        @dataclass
-        class _Chunk:
-            chunk_id: str
-            file: str
-            content: str
-            score: float
-            hop: int = 1
-
-        @dataclass
-        class _Ctx:
-            query: str
-            refined_queries: list[str]
-            chunks: list[_Chunk]
-            confidence: float
-            hops: int
-            latency_ms: int
-            agent_id: Optional[str] = None
-            user_tier: Optional[str] = None
-
-        def _fake_structured(*_a: object, **_k: object) -> _Ctx:
-            return _Ctx(
-                query="question",
-                refined_queries=["question"],
-                chunks=[_Chunk(chunk_id="a:1", file="a.md", content="ctx", score=0.9)],
-                confidence=0.9,
-                hops=1,
-                latency_ms=10,
-            )
-
-        monkeypatch.setattr(vector_rag, "retrieve_context_structured", _fake_structured)
+        _patch_stub_insight_provider(monkeypatch)
+        _patch_structured_rag_context(monkeypatch, query="question", content="ctx")
 
         req = legacy_app.InsightRequest(text="question")
         out = await legacy_app.insight_v1(req)
@@ -414,39 +460,9 @@ def test_insight_v1_trims_prompt_text(monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("FEATURE_INSIGHT", "true")
         monkeypatch.setenv("FEATURE_RAG", "true")
 
-        class _Provider:
-            name = "stub"
-
-            async def generate(self, text: str) -> str:
-                return text
-
-        import llm
-
-        monkeypatch.setattr(llm, "get_insight_provider", lambda: _Provider())
-
-        # Mock the orchestration to return a prompt longer than max length
-        from core.rag.orchestration import RAGOrchestrationResult
-        from core.rag.contracts import RAGChunk
-
+        _patch_stub_insight_provider(monkeypatch)
         long_prompt = "x" * (legacy_app.INSIGHT_TEXT_MAX_LENGTH + 5)
-        chunk = RAGChunk(chunk_id="a:1", file="a.md", content="ctx", score=0.9)
-
-        async def _mock_orchestration(*_a: object, **_k: object) -> RAGOrchestrationResult:
-            return RAGOrchestrationResult(
-                chunks=[chunk],
-                formatted_prompt=long_prompt,
-                rag_actually_used=True,
-                confidence=0.9,
-                hops=1,
-                latency_ms=10,
-                warnings=[],
-                chunks_retrieved=1,
-                chunks_filtered=0,
-            )
-
-        import core.rag.orchestration as orch_mod
-
-        monkeypatch.setattr(orch_mod, "retrieve_and_validate_rag", _mock_orchestration)
+        _patch_long_prompt_orchestration(monkeypatch, prompt=long_prompt)
 
         out = await legacy_app.insight_v1(legacy_app.InsightRequest(text="q"))
         assert len(out.insight) == legacy_app.INSIGHT_TEXT_MAX_LENGTH
@@ -460,52 +476,10 @@ def test_legacy_insight_rag_path_trims(monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("FEATURE_INSIGHT", "true")
         monkeypatch.setenv("FEATURE_RAG", "true")
 
-        class _Provider:
-            name = "stub"
-
-            async def generate(self, text: str) -> str:
-                return text
-
-        import llm
-
-        monkeypatch.setattr(llm, "get_insight_provider", lambda: _Provider())
-        import core.rag.vector_rag as vector_rag
-        from dataclasses import dataclass
-        from typing import Optional
-
-        @dataclass
-        class _Chunk:
-            chunk_id: str
-            file: str
-            content: str
-            score: float
-            hop: int = 1
-
-        @dataclass
-        class _Ctx:
-            query: str
-            refined_queries: list[str]
-            chunks: list[_Chunk]
-            confidence: float
-            hops: int
-            latency_ms: int
-            agent_id: Optional[str] = None
-            user_tier: Optional[str] = None
-
+        _patch_stub_insight_provider(monkeypatch)
         # Return a large context to force prompt trimming
         big_content = "c" * (legacy_app.INSIGHT_TEXT_MAX_LENGTH * 2)
-
-        def _fake_structured(*_a: object, **_k: object) -> _Ctx:
-            return _Ctx(
-                query="q",
-                refined_queries=["q"],
-                chunks=[_Chunk(chunk_id="a:1", file="a.md", content=big_content, score=0.9)],
-                confidence=0.9,
-                hops=1,
-                latency_ms=10,
-            )
-
-        monkeypatch.setattr(vector_rag, "retrieve_context_structured", _fake_structured)
+        _patch_structured_rag_context(monkeypatch, query="q", content=big_content)
 
         req = legacy_app.InsightRequest(text="q")
         out = await legacy_app.insight(req)
@@ -521,39 +495,9 @@ def test_legacy_insight_trims_prompt_text(monkeypatch: pytest.MonkeyPatch) -> No
         monkeypatch.setenv("FEATURE_INSIGHT", "true")
         monkeypatch.setenv("FEATURE_RAG", "true")
 
-        class _Provider:
-            name = "stub"
-
-            async def generate(self, text: str) -> str:
-                return text
-
-        import llm
-
-        monkeypatch.setattr(llm, "get_insight_provider", lambda: _Provider())
-
-        # Mock the orchestration to return a prompt longer than max length
-        from core.rag.orchestration import RAGOrchestrationResult
-        from core.rag.contracts import RAGChunk
-
+        _patch_stub_insight_provider(monkeypatch)
         long_prompt = "x" * (legacy_app.INSIGHT_TEXT_MAX_LENGTH + 5)
-        chunk = RAGChunk(chunk_id="a:1", file="a.md", content="ctx", score=0.9)
-
-        async def _mock_orchestration(*_a: object, **_k: object) -> RAGOrchestrationResult:
-            return RAGOrchestrationResult(
-                chunks=[chunk],
-                formatted_prompt=long_prompt,
-                rag_actually_used=True,
-                confidence=0.9,
-                hops=1,
-                latency_ms=10,
-                warnings=[],
-                chunks_retrieved=1,
-                chunks_filtered=0,
-            )
-
-        import core.rag.orchestration as orch_mod
-
-        monkeypatch.setattr(orch_mod, "retrieve_and_validate_rag", _mock_orchestration)
+        _patch_long_prompt_orchestration(monkeypatch, prompt=long_prompt)
 
         out = await legacy_app.insight(legacy_app.InsightRequest(text="q"))
         assert len(out.insight) == legacy_app.INSIGHT_TEXT_MAX_LENGTH
