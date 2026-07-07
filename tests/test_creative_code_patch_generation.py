@@ -7,11 +7,15 @@ from typing import Any
 
 import pytest
 
+from core.evidence.fingerprints import fingerprint_payload
 from scripts.orchestration import creative_code_patch_builder
 from scripts.orchestration import creative_code_patch_generation as generation_cli
 from scripts.orchestration import creative_code_patch_workspace
 from scripts.orchestration import creative_spec_learning_rollup_contract
 from scripts.orchestration import creative_spec_patch_admission as admission_cli
+from scripts.orchestration.creative_code_patch_contract import (
+    build_creative_code_patch_result,
+)
 from scripts.orchestration.creative_code_patch_generation import (
     CreativeCodePatchGenerationError,
     validate_generation_gate,
@@ -560,6 +564,132 @@ def test_validate_artifacts_rejects_duplicate_patch_metadata_key_without_echoing
     )
     stderr = capsys.readouterr().err
     assert "duplicate key" in stderr
+    assert "GH_TOKEN" not in stderr
+    assert "ghs_secret" not in stderr
+
+
+def test_validate_artifacts_rejects_forged_sidecars_outside_request_allowlist(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo, base_sha = _init_patch_repo(tmp_path)
+    _patch_modules_to_repo(monkeypatch, repo)
+    run_id = "forged-sidecar-allowlist"
+    admission_path = _prepare_admission(repo=repo, base_sha=base_sha, run_id=run_id)
+    _mock_successful_builder_edges(monkeypatch)
+    gate_path = _write_gate(repo=repo, admission_path=admission_path, run_id=run_id)
+    assert generation_cli.main(["generate-candidate", "--gate", str(gate_path)]) == 0
+    receipt_path = gate_path.parent / generation_cli.RECEIPT_FILENAME
+    run_dir = creative_code_patch_workspace.resolve_run_dir(run_id, create=False)
+    patch_text = (
+        (run_dir / creative_code_patch_builder.CANDIDATE_PATCH_FILE)
+        .read_text(encoding="utf-8")
+        .replace(
+            "core/rag/orchestration.py",
+            "core/rag/other.py",
+        )
+    )
+    patch_fingerprint = fingerprint_payload({"candidate_patch": patch_text})
+    request = json.loads(
+        (run_dir / creative_code_patch_builder.REQUEST_FILE).read_text(encoding="utf-8")
+    )
+    result = build_creative_code_patch_result(
+        request=request,
+        changed_paths=["core/rag/other.py"],
+        patch_fingerprint=patch_fingerprint,
+        patch_bytes=len(patch_text.encode("utf-8")),
+        diff_lines=len(patch_text.splitlines()),
+        runner_result={
+            "experiment_id": "exp-reference",
+            "status": "accepted",
+            "failure_class": None,
+            "mutated_paths": ["core/rag/other.py"],
+            "budget_observations": {
+                "oracle_commands_configured": 1,
+                "attempts": 1,
+                "retries_consumed": 0,
+            },
+            "oracle_results": [{"status": "passed"}],
+            "shared_tree_untouched": True,
+        },
+        checkout_destroyed=True,
+        origin_removed=True,
+        shared_tree_untouched=True,
+        failure_class=None,
+    )
+    metadata = {
+        "changed_paths": ["core/rag/other.py"],
+        "changed_path_statuses": {"core/rag/other.py": "M"},
+        "patch_fingerprint": patch_fingerprint,
+        "patch_bytes": len(patch_text.encode("utf-8")),
+        "diff_lines": len(patch_text.splitlines()),
+    }
+    (run_dir / creative_code_patch_builder.CANDIDATE_PATCH_FILE).write_text(
+        patch_text,
+        encoding="utf-8",
+    )
+    _write_json(run_dir / creative_code_patch_builder.PATCH_METADATA_FILE, metadata)
+    _write_json(run_dir / creative_code_patch_builder.RESULT_FILE, result)
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    receipt.update(
+        {
+            "patch_metadata_fingerprint": fingerprint_payload(metadata),
+            "result_id": result["result_id"],
+            "result_fingerprint": fingerprint_payload(result),
+            "status": result["status"],
+            "failure_class": result["failure_class"],
+            "changed_paths": result["changed_paths"],
+            "patch_summary": result["patch_summary"],
+            "workspace_summary": result["workspace_summary"],
+            "runner_summary": result["runner_summary"],
+            "promotion_ready": result["promotion_ready"],
+        }
+    )
+    generation_cli._set_identity(
+        receipt,
+        id_key="receipt_id",
+        asset_type=generation_cli.RECEIPT_ARTIFACT_TYPE,
+    )
+    _write_json(receipt_path, receipt)
+
+    assert (
+        generation_cli.main(
+            ["validate-artifacts", "--gate", str(gate_path), "--receipt", str(receipt_path)]
+        )
+        == 1
+    )
+    assert "outside PR-2 request allowlist" in capsys.readouterr().err
+
+
+def test_validate_artifacts_rejects_duplicate_result_key_without_echoing_key(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo, base_sha = _init_patch_repo(tmp_path)
+    _patch_modules_to_repo(monkeypatch, repo)
+    run_id = "duplicate-result-key"
+    admission_path = _prepare_admission(repo=repo, base_sha=base_sha, run_id=run_id)
+    _mock_successful_builder_edges(monkeypatch)
+    gate_path = _write_gate(repo=repo, admission_path=admission_path, run_id=run_id)
+    assert generation_cli.main(["generate-candidate", "--gate", str(gate_path)]) == 0
+    receipt_path = gate_path.parent / generation_cli.RECEIPT_FILENAME
+    run_dir = creative_code_patch_workspace.resolve_run_dir(run_id, create=False)
+    result_path = run_dir / creative_code_patch_builder.RESULT_FILE
+    result_path.write_text(
+        '{"schema_version":"1.0","GH_TOKEN=ghs_secretsecretsecret":1,'
+        '"GH_TOKEN=ghs_secretsecretsecret":2}',
+        encoding="utf-8",
+    )
+
+    assert (
+        generation_cli.main(
+            ["validate-artifacts", "--gate", str(gate_path), "--receipt", str(receipt_path)]
+        )
+        == 1
+    )
+    stderr = capsys.readouterr().err
     assert "GH_TOKEN" not in stderr
     assert "ghs_secret" not in stderr
 

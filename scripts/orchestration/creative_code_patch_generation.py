@@ -21,9 +21,11 @@ from scripts.orchestration import creative_code_patch_builder
 from scripts.orchestration import creative_spec_patch_admission as admission_cli
 from scripts.orchestration.creative_code_patch_contract import (
     CreativeCodePatchContractError,
+    read_creative_code_patch_build_request,
     read_creative_code_patch_result,
     validate_creative_code_patch_build_request,
     validate_creative_code_patch_result,
+    validate_creative_code_patch_run_sidecars,
 )
 from scripts.orchestration.creative_code_patch_workspace import (
     CreativeCodePatchWorkspaceError,
@@ -36,6 +38,7 @@ from scripts.orchestration.creative_code_patch_workspace import (
     write_json_atomic,
 )
 from scripts.orchestration.creative_code_specification import (
+    CreativeCodeSpecificationError,
     validate_creative_code_specification_bundle,
 )
 from scripts.orchestration.experiment_contract import validate_experiment_packet
@@ -1458,12 +1461,22 @@ def _read_experiment_packet(path: Path) -> dict[str, Any]:
 
 
 def _validate_receipt_linked_artifacts(receipt: Mapping[str, Any]) -> None:
+    run_dir = resolve_existing_run_dir(str(receipt["run_id"]))
     (
         expected_candidate_patch,
         expected_patch_metadata,
         expected_experiment_packet,
         expected_result,
-    ) = _candidate_artifact_paths(resolve_existing_run_dir(str(receipt["run_id"])))
+    ) = _candidate_artifact_paths(run_dir)
+    expected_request = resolve_run_file(run_dir, creative_code_patch_builder.REQUEST_FILE)
+    expected_source_bundle = resolve_run_file(
+        run_dir,
+        creative_code_patch_builder.SOURCE_BUNDLE_FILE,
+    )
+    expected_selected_variant = resolve_run_file(
+        run_dir,
+        creative_code_patch_builder.SELECTED_VARIANT_FILE,
+    )
     expected_refs = {
         "candidate_patch_ref": _repo_ref(expected_candidate_patch),
         "patch_metadata_ref": _repo_ref(expected_patch_metadata),
@@ -1514,9 +1527,32 @@ def _validate_receipt_linked_artifacts(receipt: Mapping[str, Any]) -> None:
     }
     if actual_patch_summary != receipt["patch_summary"]:
         raise CreativeCodePatchGenerationError("candidate patch does not match receipt summary.")
-    metadata = _normalize_patch_metadata(read_json(patch_metadata), label="patch metadata")
-    experiment_packet_payload = _read_experiment_packet(experiment_packet)
-    result = validate_creative_code_patch_result(read_creative_code_patch_result(str(result_path)))
+    try:
+        source_bundle = validate_creative_code_specification_bundle(
+            read_json(expected_source_bundle)
+        )
+        request = validate_creative_code_patch_build_request(
+            read_creative_code_patch_build_request(str(expected_request)),
+            source_bundle=source_bundle,
+        )
+        selected_variant = read_json(expected_selected_variant)
+        if not isinstance(selected_variant, dict):
+            raise CreativeCodePatchGenerationError("selected variant must be a JSON object.")
+        metadata = _normalize_patch_metadata(read_json(patch_metadata), label="patch metadata")
+        experiment_packet_payload = _read_experiment_packet(experiment_packet)
+        result = validate_creative_code_patch_result(
+            read_creative_code_patch_result(str(result_path))
+        )
+        validate_creative_code_patch_run_sidecars(
+            request=request,
+            result=result,
+            patch_text=patch_text,
+            selected_variant=selected_variant,
+            patch_metadata=metadata,
+            require_accepted=result["status"] == "accepted",
+        )
+    except (CreativeCodePatchContractError, CreativeCodeSpecificationError) as exc:
+        raise CreativeCodePatchGenerationError(str(exc)) from exc
     if fingerprint_payload(metadata) != receipt["patch_metadata_fingerprint"]:
         raise CreativeCodePatchGenerationError(
             "generation receipt patch metadata fingerprint is stale."

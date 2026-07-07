@@ -465,6 +465,37 @@ def test_generation_receipt_unsafe_path_blocker_is_preserved(
     assert "artifact_read_error" in blockers
 
 
+def test_directory_iteration_errors_are_sanitized(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _patch_inventory_roots(monkeypatch, repo)
+    patch_runs_root = repo / "artifacts" / "orchestration" / "creative_code" / "patch_runs"
+    patch_runs_root.mkdir(parents=True)
+    original_iterdir = Path.iterdir
+
+    def flaky_iterdir(path: Path) -> Any:
+        if path == patch_runs_root:
+            raise OSError("/Users/example/secret-artifact-root")
+        return original_iterdir(path)
+
+    monkeypatch.setattr(Path, "iterdir", flaky_iterdir)
+    report = inventory_cli.build_creative_code_artifact_inventory_report()
+
+    assert report["read_errors"][0]["artifact_ref"] == (
+        "artifacts/orchestration/creative_code/patch_runs"
+    )
+    assert report["read_errors"][0]["error_code"] == "unreadable_directory"
+    assert inventory_cli.main(["status", "--format", "text"]) == 0
+    captured = capsys.readouterr()
+    assert "READ_ERRORS=1" in captured.out
+    assert "/Users/example" not in captured.out
+    assert "/Users/example" not in captured.err
+
+
 def test_malformed_unlinked_generation_receipt_blocks_promotion(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

@@ -244,7 +244,17 @@ def _iter_child_dirs(root: Path, *, errors: list[dict[str, Any]], artifact_type:
         _append_error(errors, path=root, artifact_type=artifact_type, error_code="artifact_not_dir")
         return []
     children: list[Path] = []
-    for child in sorted(root.iterdir(), key=lambda item: item.name):
+    try:
+        root_children = sorted(root.iterdir(), key=lambda item: item.name)
+    except OSError:
+        _append_error(
+            errors,
+            path=root,
+            artifact_type=artifact_type,
+            error_code="unreadable_directory",
+        )
+        return []
+    for child in root_children:
         if child.is_symlink():
             _append_error(
                 errors,
@@ -282,7 +292,17 @@ def _iter_named_files(
     stack = [root]
     while stack:
         current = stack.pop()
-        for child in sorted(current.iterdir(), key=lambda item: item.name):
+        try:
+            current_children = sorted(current.iterdir(), key=lambda item: item.name)
+        except OSError:
+            _append_error(
+                errors,
+                path=current,
+                artifact_type=artifact_type,
+                error_code="unreadable_directory",
+            )
+            continue
+        for child in current_children:
             if child.is_symlink():
                 _append_error(
                     errors,
@@ -616,9 +636,21 @@ def _inspect_promotion_dir(
             if receipt["pull_request_state"] == "partial_failure":
                 blockers.append("promotion_partial_failure")
     else:
-        known_files = [
-            child.name for child in promotion_dir.iterdir() if child.name in KNOWN_PROMOTION_FILES
-        ]
+        try:
+            known_files = [
+                child.name
+                for child in promotion_dir.iterdir()
+                if child.name in KNOWN_PROMOTION_FILES
+            ]
+        except OSError:
+            blockers.append("unreadable_directory")
+            _append_error(
+                errors,
+                path=promotion_dir,
+                artifact_type="promotion_artifact",
+                error_code="unreadable_directory",
+            )
+            known_files = []
         if known_files:
             blockers.append("promotion_in_progress")
     entry_blockers = sorted(set(blockers))
