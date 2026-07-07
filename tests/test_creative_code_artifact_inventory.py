@@ -275,6 +275,25 @@ def test_patch_metadata_extra_unsafe_fields_blocks_promotion(
     assert "invalid_patch_run_sidecar" in blockers
 
 
+def test_patch_metadata_status_mismatch_blocks_promotion(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo, run_id, result = _make_patch_run(monkeypatch, tmp_path, accepted=True)
+    metadata_path = _run_dir(repo, run_id) / PATCH_METADATA_FILE
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    metadata["changed_path_statuses"]["core/rag/orchestration.py"] = "A"
+    _write_json(metadata_path, metadata)
+    report = _report(monkeypatch, repo, origin_main=result["base_commit_sha"])
+
+    assert report["patch_runs"][0]["valid"] is False
+    assert report["read_errors"][0]["error_code"] == "invalid_patch_run_sidecar"
+    ok, blockers = inventory_cli.assert_ready_for_promotion(run_id)
+    assert ok is False
+    assert "artifact_read_error" in blockers
+    assert "invalid_patch_run_sidecar" in blockers
+
+
 def test_base_sha_drift_blocks_promotion(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -358,6 +377,29 @@ def test_completed_promotion_receipt_blocks_duplicate_promotion_and_allows_clean
     ok, blockers = inventory_cli.assert_ready_for_promotion(run_id)
     assert ok is False
     assert "promotion_receipt_exists" in blockers
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("pull_request_number", 0, "promotion_artifact.pull_request_number invalid"),
+        ("head_branch", "feature/not-experiment", "promotion_artifact.head_branch invalid"),
+    ],
+)
+def test_report_rejects_invalid_promotion_receipt_fields(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    field: str,
+    value: Any,
+    message: str,
+) -> None:
+    repo, _run_id, result = _make_patch_run(monkeypatch, tmp_path, accepted=True)
+    _write_promotion_receipt(repo, result=result)
+    report = _report(monkeypatch, repo, origin_main=result["base_commit_sha"])
+    report["promotion_artifacts"][0][field] = value
+
+    with pytest.raises(inventory_cli.CreativeCodeArtifactInventoryError, match=message):
+        inventory_cli.validate_creative_code_artifact_inventory_report(report)
 
 
 def test_in_progress_promotion_artifact_blocks_cleanup(

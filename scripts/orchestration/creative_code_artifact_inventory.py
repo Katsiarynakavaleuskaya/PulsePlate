@@ -56,9 +56,9 @@ PROMOTION_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 SHA_RE = re.compile(r"^[a-f0-9]{40}$")
 SHA256_RE = re.compile(r"^sha256:[a-f0-9]{64}$")
 ARTIFACT_REF_RE = re.compile(
-    r"^artifacts/orchestration/creative_code"
-    r"(?:/[A-Za-z0-9][A-Za-z0-9._:-]{0,127}(?:\.[A-Za-z0-9._:-]+)?)*$"
+    r"^artifacts/orchestration/creative_code" r"(?:/[A-Za-z0-9][A-Za-z0-9._:-]{0,127})*$"
 )
+EXPERIMENT_BRANCH_RE = re.compile(r"^experiment/[a-z0-9][a-z0-9._-]{0,68}$")
 LEAK_TEXT_RE = re.compile(
     r"(diff --git|^\+\+\+ |^--- |@@ |raw[_ -]?(prompt|response|context|patch)|"
     r"chain[_ -]?of[_ -]?thought|provider[_ -]?payload|oracle stdout|oracle stderr|"
@@ -1045,8 +1045,13 @@ def _validate_promotion_entry(entry: Any) -> dict[str, Any]:
     if entry["pull_request_number"] is not None and (
         not isinstance(entry["pull_request_number"], int)
         or isinstance(entry["pull_request_number"], bool)
+        or entry["pull_request_number"] < 1
     ):
         raise CreativeCodeArtifactInventoryError("promotion_artifact.pull_request_number invalid.")
+    if entry["head_branch"] is not None and not EXPERIMENT_BRANCH_RE.fullmatch(
+        entry["head_branch"]
+    ):
+        raise CreativeCodeArtifactInventoryError("promotion_artifact.head_branch invalid.")
     if not isinstance(entry["blockers"], list) or not all(
         isinstance(item, str) for item in entry["blockers"]
     ):

@@ -1126,29 +1126,68 @@ def validate_creative_code_patch_result(payload: dict[str, Any]) -> dict[str, An
     return normalized
 
 
-def _patch_changed_paths(patch_text: str) -> list[str]:
-    paths: set[str] = set()
+def _patch_changed_path_statuses(patch_text: str) -> dict[str, str]:
+    statuses: dict[str, str] = {}
+    current_path: str | None = None
+    current_status = "M"
+
+    def flush_current_path() -> None:
+        nonlocal current_path, current_status
+        if current_path is None:
+            return
+        statuses[current_path] = current_status
+        current_path = None
+        current_status = "M"
+
     for line in patch_text.splitlines():
-        if not line.startswith("diff --git "):
+        if line.startswith("diff --git "):
+            flush_current_path()
+            parts = line.split()
+            if len(parts) != 4 or not parts[2].startswith("a/") or not parts[3].startswith("b/"):
+                raise CreativeCodePatchContractError(
+                    "candidate.patch contains unsupported diff header."
+                )
+            old_path = parts[2][2:]
+            new_path = parts[3][2:]
+            if old_path != new_path:
+                raise CreativeCodePatchContractError("candidate.patch renames are not supported.")
+            path = Path(new_path)
+            if (
+                path.is_absolute()
+                or ".." in path.parts
+                or "\\" in new_path
+                or new_path in {"", "."}
+            ):
+                raise CreativeCodePatchContractError(
+                    "candidate.patch contains unsafe changed path."
+                )
+            current_path = new_path
+            current_status = "M"
             continue
-        parts = line.split()
-        if len(parts) != 4 or not parts[2].startswith("a/") or not parts[3].startswith("b/"):
+
+        if current_path is None:
+            continue
+        if line.startswith("new file mode "):
+            current_status = "A"
+        elif (
+            line.startswith("deleted file mode ")
+            or line.startswith("rename ")
+            or line.startswith("copy ")
+        ):
             raise CreativeCodePatchContractError(
-                "candidate.patch contains unsupported diff header."
+                "candidate.patch contains unsupported diff status."
             )
-        old_path = parts[2][2:]
-        new_path = parts[3][2:]
-        if old_path != new_path:
-            raise CreativeCodePatchContractError("candidate.patch renames are not supported.")
-        path = Path(new_path)
-        if path.is_absolute() or ".." in path.parts or "\\" in new_path or new_path in {"", "."}:
-            raise CreativeCodePatchContractError("candidate.patch contains unsafe changed path.")
-        paths.add(new_path)
-    if not paths:
+
+    flush_current_path()
+    if not statuses:
         raise CreativeCodePatchContractError(
             "candidate.patch must contain at least one diff header."
         )
-    return sorted(paths)
+    return dict(sorted(statuses.items()))
+
+
+def _patch_changed_paths(patch_text: str) -> list[str]:
+    return sorted(_patch_changed_path_statuses(patch_text))
 
 
 def validate_creative_code_patch_metadata(payload: Mapping[str, Any]) -> dict[str, Any]:
@@ -1266,12 +1305,15 @@ def validate_creative_code_patch_run_sidecars(
         raise CreativeCodePatchContractError("candidate.patch diff line count mismatch.")
     if not result["changed_paths"]:
         raise CreativeCodePatchContractError("PR-2 result must include changed paths.")
-    patch_changed_paths = _patch_changed_paths(patch_text)
+    patch_changed_path_statuses = _patch_changed_path_statuses(patch_text)
+    patch_changed_paths = sorted(patch_changed_path_statuses)
     if patch_changed_paths != sorted(result["changed_paths"]):
         raise CreativeCodePatchContractError("candidate.patch changed paths mismatch.")
     metadata = validate_creative_code_patch_metadata(patch_metadata)
     if metadata["changed_paths"] != result["changed_paths"]:
         raise CreativeCodePatchContractError("patch_metadata changed paths mismatch.")
+    if metadata["changed_path_statuses"] != patch_changed_path_statuses:
+        raise CreativeCodePatchContractError("patch_metadata changed_path_statuses mismatch.")
     for key, expected in (
         ("patch_fingerprint", patch_fingerprint),
         ("patch_bytes", patch_bytes),

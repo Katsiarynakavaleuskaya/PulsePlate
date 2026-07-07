@@ -135,7 +135,7 @@
   "$defs": {
     "artifact_ref": {
       "type": "string",
-      "pattern": "^artifacts/orchestration/creative_code(?:/[A-Za-z0-9][A-Za-z0-9._:-]{0,127}(?:\\.[A-Za-z0-9._:-]+)?)*$"
+      "pattern": "^artifacts/orchestration/creative_code(?:/[A-Za-z0-9][A-Za-z0-9._:-]{0,127})*$"
     },
     "count": { "type": "integer", "minimum": 0 },
     "fingerprint": {
@@ -148,6 +148,15 @@
     },
     "id_or_null": {
       "anyOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }]
+    },
+    "experiment_branch_or_null": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^experiment/[a-z0-9][a-z0-9._-]{0,68}$"
+        },
+        { "type": "null" }
+      ]
     },
     "id_list": {
       "type": "array",
@@ -294,9 +303,9 @@
           "anyOf": [{ "enum": ["open", "partial_failure"] }, { "type": "null" }]
         },
         "pull_request_number": {
-          "anyOf": [{ "type": "integer", "minimum": 0 }, { "type": "null" }]
+          "anyOf": [{ "type": "integer", "minimum": 1 }, { "type": "null" }]
         },
-        "head_branch": { "$ref": "#/$defs/id_or_null" },
+        "head_branch": { "$ref": "#/$defs/experiment_branch_or_null" },
         "blockers": { "$ref": "#/$defs/reason_list" }
       }
     },
