@@ -116,6 +116,26 @@ provider, semantic-cache, or graph-truth authority is added.
     accepted runs with `require_accepted=True` in the shared PR-2 sidecar
     helper; regression coverage rejects accepted results with no oracle proof
     before `assert-ready-for-promotion` can pass.
+- Codex Security current-head finding: unsafe generation-receipt artifact refs
+  could record a blocker and then lose that blocker when receipt content later
+  validated successfully.
+  - Disposition: FIXED
+  - Commit: `edb43fb0e`
+  - Evidence:
+    `scripts/orchestration/creative_code_artifact_inventory.py` now records the
+    unsafe artifact-ref read error and returns before content validation can
+    clear it; regression coverage preserves the blocker in the inventory
+    report.
+- Codex Security current-head finding: duplicate JSON keys in PR-2 workspace
+  artifacts could echo the attacker-controlled duplicate key name before output
+  redaction.
+  - Disposition: FIXED
+  - Commit: `edb43fb0e`
+  - Evidence:
+    `scripts/orchestration/creative_code_patch_workspace.py` and
+    `scripts/orchestration/creative_code_patch_generation.py` now use generic
+    duplicate-key errors; regression coverage asserts token-shaped duplicate
+    key names are not echoed.
 
 ## Discussion Thread Pass
 
@@ -181,6 +201,12 @@ Evidence: `scripts/orchestration/creative_code_patch_contract.py` now derives st
 - Post-Codex-Security-fix `python3 scripts/orchestration/check_agent_consistency.py` - PASS.
 - Post-Codex-Security-fix `make validate-changed` - PASS.
 - Post-Codex-Security-fix `pre-commit run --all-files` - PASS.
+- Post-current-head-security-fix focused rerun:
+  `python -m pytest tests/test_creative_code_artifact_inventory.py tests/test_creative_code_pr_promotion.py tests/test_creative_code_patch_generation.py -q` - PASS.
+- Post-current-head-security-fix `python3 scripts/orchestration/check_preflight.py` - PASS.
+- Post-current-head-security-fix `python3 scripts/orchestration/check_agent_consistency.py` - PASS.
+- Post-current-head-security-fix `make validate-changed` - PASS.
+- Post-current-head-security-fix `pre-commit run --all-files` - PASS.
 
 ## Merge Readiness
 
