@@ -60,6 +60,14 @@ def registered_route_counts(
     return counts
 
 
+def _route_summary_endpoint_module(route: object) -> str:
+    endpoint = route_endpoint(route)
+    if endpoint is None:
+        return "<unresolved>"
+    module = getattr(endpoint, "__module__", None)
+    return module if isinstance(module, str) else "<unknown-module>"
+
+
 def find_single_route(
     target_app: FastAPI,
     path: str,
@@ -73,7 +81,7 @@ def find_single_route(
         route for route in family_routes(target_app, {path}) if method in route_methods(route)
     ]
     route_summaries = [
-        f"{route_path(route)}:{sorted(route_methods(route))}:{route_endpoint(route).__module__}"
+        f"{route_path(route)}:{sorted(route_methods(route))}:{_route_summary_endpoint_module(route)}"
         for route in matches
     ]
     assert len(matches) == 1, (
