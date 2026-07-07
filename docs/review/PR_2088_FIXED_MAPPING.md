@@ -30,11 +30,7 @@ Evidence: `app/routers/legacy_premium_weekly_plan.py:65`; `tests/test_premium_we
 
 Disposition: FIXED
 Commit: 5f7cc45599dc183c6f84b5e5c253903817aa2182
-Evidence: `tests/test_legacy_app_diff_coverage.py:27`,
-`tests/test_legacy_app_diff_coverage.py:446`,
-`tests/test_legacy_app_diff_coverage.py:463`,
-`tests/test_legacy_app_diff_coverage.py:479`,
-`tests/test_legacy_app_diff_coverage.py:498`
+Evidence: `tests/test_legacy_app_diff_coverage.py:27`, `tests/test_legacy_app_diff_coverage.py:446`, `tests/test_legacy_app_diff_coverage.py:463`, `tests/test_legacy_app_diff_coverage.py:479`, `tests/test_legacy_app_diff_coverage.py:498`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2088#pullrequestreview-4642412775 -> 5f7cc45599dc183c6f84b5e5c253903817aa2182
 
 ## Implementation Evidence
@@ -75,11 +71,7 @@ commit proof to the full SHA.
 
 Disposition: FIXED
 Commit: 5f7cc45599dc183c6f84b5e5c253903817aa2182
-Evidence: `tests/test_legacy_app_diff_coverage.py:27`,
-`tests/test_legacy_app_diff_coverage.py:446`,
-`tests/test_legacy_app_diff_coverage.py:463`,
-`tests/test_legacy_app_diff_coverage.py:479`,
-`tests/test_legacy_app_diff_coverage.py:498`
+Evidence: `tests/test_legacy_app_diff_coverage.py:27`, `tests/test_legacy_app_diff_coverage.py:446`, `tests/test_legacy_app_diff_coverage.py:463`, `tests/test_legacy_app_diff_coverage.py:479`, `tests/test_legacy_app_diff_coverage.py:498`
 Reason: CodeRabbit's duplicate RAG test-scaffold finding is fixed by moving the
 stub insight provider, structured RAG context, and long-prompt orchestration
 scaffolding into reusable module-level helpers used by all four insight/RAG
