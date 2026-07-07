@@ -499,9 +499,7 @@ def _require_exact_keys(
             f"{label} is missing required fields: {', '.join(missing)}"
         )
     if extra:
-        raise CreativeCodePatchGenerationError(
-            f"{label} has unsupported fields: {', '.join(extra)}"
-        )
+        raise CreativeCodePatchGenerationError(f"{label} has unsupported fields.")
 
 
 def _normalize_repo_ref(value: Any, *, label: str, required_suffix: str) -> str:

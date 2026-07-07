@@ -403,7 +403,7 @@ def _inspect_patch_run(run_dir: Path, errors: list[dict[str, Any]]) -> dict[str,
                 patch_text=patch_text,
                 selected_variant=selected_variant,
                 patch_metadata=patch_metadata,
-                require_accepted=False,
+                require_accepted=result["status"] == "accepted",
             )
         except CreativeCodePatchContractError as exc:
             raise InventoryArtifactError("invalid_patch_run_sidecar") from exc

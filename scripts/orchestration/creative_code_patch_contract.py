@@ -324,7 +324,7 @@ def _require_exact_keys(
             f"{label} is missing required fields: {', '.join(missing)}"
         )
     if extra:
-        raise CreativeCodePatchContractError(f"{label} has unsupported fields: {', '.join(extra)}")
+        raise CreativeCodePatchContractError(f"{label} has unsupported fields.")
 
 
 def _require_const(payload: Mapping[str, Any], key: str, expected: Any, *, label: str) -> Any:

@@ -526,7 +526,9 @@ def test_validate_artifacts_rejects_unsafe_patch_metadata_extra_fields(
         )
         == 1
     )
-    assert "patch metadata has unsupported fields: raw_prompt" in capsys.readouterr().err
+    stderr = capsys.readouterr().err
+    assert "patch metadata has unsupported fields." in stderr
+    assert "raw_prompt" not in stderr
 
 
 def test_generation_gate_rejects_unprepared_admission(

@@ -13,9 +13,14 @@ from scripts.orchestration import creative_code_artifact_inventory as inventory_
 from scripts.orchestration import creative_code_patch_generation as generation_cli
 from scripts.orchestration import creative_code_patch_workspace
 from scripts.orchestration.creative_code_patch_builder import (
+    CANDIDATE_PATCH_FILE,
     EXPERIMENT_PACKET_FILE,
     PATCH_METADATA_FILE,
+    REQUEST_FILE,
     RESULT_FILE,
+)
+from scripts.orchestration.creative_code_patch_contract import (
+    build_creative_code_patch_result,
 )
 from scripts.orchestration.creative_code_pr_promotion_contract import (
     build_creative_code_pr_promotion_receipt,
@@ -284,6 +289,49 @@ def test_patch_metadata_status_mismatch_blocks_promotion(
     metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
     metadata["changed_path_statuses"]["core/rag/orchestration.py"] = "A"
     _write_json(metadata_path, metadata)
+    report = _report(monkeypatch, repo, origin_main=result["base_commit_sha"])
+
+    assert report["patch_runs"][0]["valid"] is False
+    assert report["read_errors"][0]["error_code"] == "invalid_patch_run_sidecar"
+    ok, blockers = inventory_cli.assert_ready_for_promotion(run_id)
+    assert ok is False
+    assert "artifact_read_error" in blockers
+    assert "invalid_patch_run_sidecar" in blockers
+
+
+def test_accepted_run_without_oracle_proof_blocks_promotion(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo, run_id, result = _make_patch_run(monkeypatch, tmp_path, accepted=True)
+    run_dir = _run_dir(repo, run_id)
+    request = json.loads((run_dir / REQUEST_FILE).read_text(encoding="utf-8"))
+    patch_text = (run_dir / CANDIDATE_PATCH_FILE).read_text(encoding="utf-8")
+    result_without_oracle_proof = build_creative_code_patch_result(
+        request=request,
+        changed_paths=["core/rag/orchestration.py"],
+        patch_fingerprint=result["patch_summary"]["patch_fingerprint"],
+        patch_bytes=len(patch_text.encode("utf-8")),
+        diff_lines=len(patch_text.splitlines()),
+        runner_result={
+            "experiment_id": "exp-pr3-reference",
+            "status": "accepted",
+            "failure_class": None,
+            "mutated_paths": ["core/rag/orchestration.py"],
+            "budget_observations": {
+                "oracle_commands_configured": 0,
+                "attempts": 1,
+                "retries_consumed": 0,
+            },
+            "oracle_results": [],
+            "shared_tree_untouched": True,
+        },
+        checkout_destroyed=True,
+        origin_removed=True,
+        shared_tree_untouched=True,
+        failure_class=None,
+    )
+    _write_json(run_dir / RESULT_FILE, result_without_oracle_proof)
     report = _report(monkeypatch, repo, origin_main=result["base_commit_sha"])
 
     assert report["patch_runs"][0]["valid"] is False
