@@ -8,6 +8,7 @@ from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 
 from app.effective_routes import (
     iter_effective_route_candidates,
@@ -15,6 +16,11 @@ from app.effective_routes import (
     route_methods,
     route_path,
 )
+from app.schemas.legacy_premium_weekly_plan import (
+    LegacyWeekPlanRequest,
+    WeeklyMenuResponse,
+)
+import app.services.legacy_premium_weekly_plan as weekly_plan_service
 import legacy_app
 
 
@@ -232,10 +238,107 @@ def test_legacy_weekly_alias_honors_explicit_none_package_override(
     assert response.json()["detail"] == "Weekly menu generation feature not available"
 
 
+def test_legacy_weekly_plan_contracts_are_canonically_owned() -> None:
+    """legacy_app keeps import compatibility, while app modules own the contracts."""
+
+    import app.routers.legacy_premium_weekly_plan as weekly_plan_router
+
+    assert legacy_app.LegacyWeekPlanRequest is LegacyWeekPlanRequest
+    assert legacy_app.WeeklyMenuResponse is WeeklyMenuResponse
+    assert weekly_plan_router.LegacyWeekPlanRequest is LegacyWeekPlanRequest
+    assert weekly_plan_router.WeeklyMenuResponse is WeeklyMenuResponse
+    assert weekly_plan_router.build_legacy_weekly_menu_response is (
+        weekly_plan_service.build_legacy_weekly_menu_response
+    )
+    assert weekly_plan_router.resolve_legacy_weekly_menu_builder is (
+        weekly_plan_service.resolve_legacy_weekly_menu_builder
+    )
+    assert not hasattr(weekly_plan_router, "_legacy_module")
+
+
+def test_legacy_week_plan_request_normalizes_legacy_goal_aliases() -> None:
+    """Legacy goal aliases must keep the pre-extraction request contract."""
+
+    base_payload = {
+        "sex": "female",
+        "age": 30,
+        "height_cm": 168.0,
+        "weight_kg": 62.0,
+        "activity": "moderate",
+    }
+
+    assert (
+        LegacyWeekPlanRequest.model_validate({**base_payload, "goal": "weight_loss"}).goal == "loss"
+    )
+    assert (
+        LegacyWeekPlanRequest.model_validate({**base_payload, "goal": "weight_gain"}).goal == "gain"
+    )
+    with pytest.raises(ValidationError):
+        LegacyWeekPlanRequest.model_validate({**base_payload, "goal": "unsupported"})
+
+
+def test_legacy_week_plan_request_validates_structured_targets() -> None:
+    """Structured targets still flow through the canonical TargetsIn validator."""
+
+    with pytest.raises(ValidationError, match="Invalid targets payload"):
+        LegacyWeekPlanRequest.model_validate(
+            {
+                "targets": {
+                    "kcal": 2000,
+                    "macros": {"protein": "bad"},
+                    "micro": {},
+                    "water_ml": 1000,
+                }
+            }
+        )
+
+
+def test_legacy_week_plan_request_requires_targets_or_profile_fields() -> None:
+    """Profile-mode requests must still require the full legacy profile."""
+
+    with pytest.raises(ValidationError, match="Either 'targets' must be provided"):
+        LegacyWeekPlanRequest.model_validate({"goal": "maintain"})
+
+
+def test_legacy_week_plan_request_normalizer_preserves_non_dict_values() -> None:
+    """Non-dict validator inputs should pass through unchanged."""
+
+    request = LegacyWeekPlanRequest.model_construct(targets={"calories": 1800})
+
+    assert LegacyWeekPlanRequest._normalize_values(request) is request
+
+
+def test_legacy_app_weekly_plan_helpers_delegate_to_canonical_service() -> None:
+    """Compatibility helper output must stay identical to the canonical service."""
+
+    payload = {
+        "week_start": "2026-03-09",
+        "daily_menus": [
+            {
+                "date": "2026-03-10",
+                "meals": [{"title": "Lunch", "kcal": 420}],
+                "total_kcal": 420,
+                "daily_cost": 12.25,
+            }
+        ],
+        "weekly_coverage": {"fiber": 0.84},
+        "shopping_list": {"rice": 250.0},
+        "total_cost": 12.25,
+        "adherence_score": 0.1,
+    }
+
+    assert legacy_app._build_legacy_weekly_menu_response(payload) == (
+        weekly_plan_service.build_legacy_weekly_menu_response(payload)
+    )
+    assert legacy_app._resolve_legacy_weekly_menu_builder() is (
+        weekly_plan_service.resolve_legacy_weekly_menu_builder()
+    )
+
+
 def test_build_legacy_weekly_menu_response_ignores_non_dict_days() -> None:
     """Legacy adapter must skip malformed daily menu entries without crashing."""
 
-    response = legacy_app._build_legacy_weekly_menu_response(
+    response = weekly_plan_service.build_legacy_weekly_menu_response(
         {
             "week_start": "2026-03-09",
             "daily_menus": [
@@ -273,7 +376,7 @@ def test_build_legacy_weekly_menu_response_ignores_non_dict_days() -> None:
 def test_build_legacy_weekly_menu_response_accepts_estimated_cost_fallback() -> None:
     """Canonical day menus may expose estimated_cost instead of daily_cost."""
 
-    response = legacy_app._build_legacy_weekly_menu_response(
+    response = weekly_plan_service.build_legacy_weekly_menu_response(
         {
             "week_start": "2026-03-09",
             "daily_menus": [
@@ -297,7 +400,7 @@ def test_build_legacy_weekly_menu_response_accepts_estimated_cost_fallback() -> 
 def test_build_legacy_weekly_menu_response_uses_returned_days_for_avg_cost() -> None:
     """Week summary average must derive from returned day payloads, not top-level total_cost."""
 
-    response = legacy_app._build_legacy_weekly_menu_response(
+    response = weekly_plan_service.build_legacy_weekly_menu_response(
         {
             "week_start": "2026-03-09",
             "daily_menus": [
@@ -328,7 +431,7 @@ def test_build_legacy_weekly_menu_response_uses_returned_days_for_avg_cost() -> 
 def test_build_legacy_weekly_menu_response_rejects_bool_numeric_values() -> None:
     """Boolean-like numeric fields must fall back to defaults in the legacy adapter."""
 
-    response = legacy_app._build_legacy_weekly_menu_response(
+    response = weekly_plan_service.build_legacy_weekly_menu_response(
         {
             "week_start": "2026-03-09",
             "daily_menus": [],
@@ -348,7 +451,7 @@ def test_build_legacy_weekly_menu_response_rejects_bool_numeric_values() -> None
 def test_build_legacy_weekly_menu_response_recovers_from_bool_day_values() -> None:
     """Bool day numerics must fall back instead of zeroing valid day data."""
 
-    response = legacy_app._build_legacy_weekly_menu_response(
+    response = weekly_plan_service.build_legacy_weekly_menu_response(
         {
             "week_start": "2026-03-09",
             "daily_menus": [
@@ -377,7 +480,7 @@ def test_build_legacy_weekly_menu_response_recovers_from_bool_day_values() -> No
 def test_build_legacy_weekly_menu_response_rejects_non_finite_numeric_values() -> None:
     """NaN and Infinity must collapse to safe legacy defaults instead of leaking to JSON."""
 
-    response = legacy_app._build_legacy_weekly_menu_response(
+    response = weekly_plan_service.build_legacy_weekly_menu_response(
         {
             "week_start": "2026-03-09",
             "daily_menus": [
@@ -406,7 +509,7 @@ def test_build_legacy_weekly_menu_response_rejects_non_finite_numeric_values() -
 def test_build_legacy_weekly_menu_response_recovers_from_non_finite_day_values() -> None:
     """Non-finite day numerics must still recover valid meal sum and estimated cost."""
 
-    response = legacy_app._build_legacy_weekly_menu_response(
+    response = weekly_plan_service.build_legacy_weekly_menu_response(
         {
             "week_start": "2026-03-09",
             "daily_menus": [
@@ -436,7 +539,7 @@ def test_build_legacy_weekly_menu_response_rejects_overflow_numeric_values() -> 
     """Huge integer numerics must be dropped instead of raising overflow errors."""
 
     huge_number = 10**1000
-    response = legacy_app._build_legacy_weekly_menu_response(
+    response = weekly_plan_service.build_legacy_weekly_menu_response(
         {
             "week_start": "2026-03-09",
             "daily_menus": [

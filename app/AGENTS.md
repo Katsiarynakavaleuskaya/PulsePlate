@@ -311,6 +311,10 @@ Avoid `# type: ignore[no-any-return]` and prefer typed locals over `cast()`.
   - Observability and operational endpoints are infrastructure concerns, but their route
     ownership belongs in canonical routers/bootstrap such as `app/routers/health.py`
     and `app/main.py`, not new `legacy_app.py` decorators.
+- After a legacy route owner moves into `app/routers/*`, request/response schemas
+  belong in `app/schemas/*` and reusable behavior helpers belong in
+  `app/services/*`; `legacy_app.py` may only re-export or delegate unless a PR
+  documents a narrower exception.
 
 ## Common pitfalls
 

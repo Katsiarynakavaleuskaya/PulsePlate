@@ -10,6 +10,7 @@ import asyncio
 from dataclasses import dataclass
 import importlib
 import logging
+import math
 import sys
 from types import ModuleType
 from typing import Any, Callable
@@ -17,10 +18,12 @@ from typing import Any, Callable
 import pytest
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 from sqlalchemy import create_engine
 
 from app.routers import legacy_premium_weekly_plan
 from app.routers import health as health_router
+import app.services.legacy_premium_weekly_plan as weekly_plan_service
 import legacy_app
 
 
@@ -129,6 +132,221 @@ def _legacy_week_plan_request() -> legacy_app.LegacyWeekPlanRequest:
         life_stage=None,
         lang="en",
     )
+
+
+def test_week_plan_schema_preserves_legacy_aliases_and_request_modes() -> None:
+    """Cover the canonical schema through the legacy_app compatibility export."""
+
+    base_payload = {
+        "sex": "female",
+        "age": 30,
+        "height_cm": 168.0,
+        "weight_kg": 62.0,
+        "activity": "moderate",
+    }
+
+    assert (
+        legacy_app.LegacyWeekPlanRequest.model_validate(
+            {**base_payload, "goal": "weight_loss"}
+        ).goal
+        == "loss"
+    )
+    assert (
+        legacy_app.LegacyWeekPlanRequest.model_validate(
+            {**base_payload, "goal": "maintenance"}
+        ).goal
+        == "maintain"
+    )
+    assert (
+        legacy_app.LegacyWeekPlanRequest.model_validate(
+            {**base_payload, "goal": "weight_gain"}
+        ).goal
+        == "gain"
+    )
+    with pytest.raises(ValidationError):
+        legacy_app.LegacyWeekPlanRequest.model_validate({**base_payload, "goal": "unsupported"})
+    with pytest.raises(ValidationError, match="Invalid targets payload"):
+        legacy_app.LegacyWeekPlanRequest.model_validate(
+            {
+                "targets": {
+                    "kcal": 2000,
+                    "macros": {"protein": "bad"},
+                    "micro": {},
+                    "water_ml": 1000,
+                }
+            }
+        )
+    with pytest.raises(ValidationError, match="Either 'targets' must be provided"):
+        legacy_app.LegacyWeekPlanRequest.model_validate({"goal": "maintain"})
+
+    request = legacy_app.LegacyWeekPlanRequest.model_construct(targets={"calories": 1800})
+    assert legacy_app.LegacyWeekPlanRequest._normalize_values(request) is request
+
+
+def test_week_plan_response_builder_filters_and_normalizes_malformed_values() -> None:
+    """Cover legacy weekly-menu response normalization through the public service seam."""
+
+    huge_number = 10**1000
+
+    response = weekly_plan_service.build_legacy_weekly_menu_response(
+        {
+            "week_start": "2026-03-09",
+            "daily_menus": [
+                "bad-day-entry",
+                {"date": "", "meals": [], "total_kcal": 0, "daily_cost": 0},
+                {
+                    "date": "2026-03-09",
+                    "meals": "bad-meals",
+                    "total_kcal": 0,
+                    "daily_cost": 0,
+                },
+                {
+                    "date": "2026-03-10",
+                    "meals": [
+                        {"title": "Breakfast", "kcal": True},
+                        {"title": "Snack", "kcal": math.nan},
+                        {"title": "Dinner", "kcal": huge_number},
+                        {"title": "Lunch", "kcal": 420},
+                    ],
+                    "total_kcal": huge_number,
+                    "daily_cost": math.inf,
+                    "estimated_cost": 14.5,
+                },
+                {
+                    "date": "2026-03-11",
+                    "meals": [],
+                    "total_kcal": 500,
+                    "daily_cost": 20.0,
+                },
+            ],
+            "weekly_coverage": "bad-map",
+            "shopping_list": {
+                "oats": huge_number,
+                "rice": 250.0,
+                123: 5.0,
+                "salt": True,
+                "oil": math.inf,
+            },
+            "total_cost": huge_number,
+            "adherence_score": True,
+        }
+    )
+
+    assert [day["date"] for day in response.daily_menus] == [
+        "2026-03-10",
+        "2026-03-11",
+    ]
+    assert response.daily_menus[0]["total_kcal"] == 420.0
+    assert response.daily_menus[0]["daily_cost"] == 14.5
+    assert response.daily_menus[1]["total_kcal"] == 500.0
+    assert response.daily_menus[1]["daily_cost"] == 20.0
+    assert response.week_summary["total_days"] == 2
+    assert response.week_summary["avg_daily_cost"] == 17.25
+    assert response.weekly_coverage == {}
+    assert response.shopping_list == {"rice": 250.0}
+    assert response.total_cost == 0.0
+    assert response.adherence_score == 0.0
+
+    non_numeric_response = weekly_plan_service.build_legacy_weekly_menu_response(
+        {
+            "daily_menus": [],
+            "weekly_coverage": {},
+            "shopping_list": {},
+            "total_cost": "bad",
+            "adherence_score": "bad",
+        }
+    )
+
+    assert non_numeric_response.total_cost == 0.0
+    assert non_numeric_response.adherence_score == 0.0
+
+
+def test_week_plan_service_resolver_respects_overrides_and_fallbacks() -> None:
+    """Cover builder-resolution behavior through the public resolver seam."""
+
+    def _legacy_builder(profile: object) -> dict[str, object]:
+        return {"profile": profile}
+
+    explicit_package = ModuleType("explicit_package")
+    setattr(explicit_package, "make_weekly_menu", None)
+    legacy_module = ModuleType("legacy_module")
+    setattr(legacy_module, "make_weekly_menu", _legacy_builder)
+
+    assert (
+        weekly_plan_service.resolve_legacy_weekly_menu_builder(
+            get_app_package_module=lambda: explicit_package,
+            get_legacy_app_module=lambda: legacy_module,
+        )
+        is None
+    )
+    assert (
+        weekly_plan_service.resolve_legacy_weekly_menu_builder(
+            get_app_package_module=lambda: None,
+            get_legacy_app_module=lambda: legacy_module,
+        )
+        is _legacy_builder
+    )
+    assert (
+        weekly_plan_service.resolve_legacy_weekly_menu_builder(
+            get_app_package_module=lambda: None,
+            get_legacy_app_module=lambda: None,
+        )
+        is None
+    )
+
+    class _ImportErrorPackage:
+        __slots__ = ()
+
+        def __getattr__(self, name: str) -> object:
+            if name == "make_weekly_menu":
+                raise ImportError("weekly menu export unavailable")
+            raise AttributeError(name)
+
+    assert (
+        weekly_plan_service.resolve_legacy_weekly_menu_builder(
+            get_app_package_module=lambda: _ImportErrorPackage(),
+            get_legacy_app_module=lambda: None,
+        )
+        is None
+    )
+
+
+def test_week_plan_legacy_app_compatibility_shims_delegate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """legacy_app keeps compatibility wrappers, but app.services owns behavior."""
+
+    payload = {
+        "week_start": "2026-03-09",
+        "daily_menus": [
+            {
+                "date": "2026-03-10",
+                "meals": [{"title": "Lunch", "kcal": 420}],
+                "total_kcal": 420,
+                "daily_cost": 12.25,
+            }
+        ],
+        "weekly_coverage": {"fiber": 0.84},
+        "shopping_list": {"rice": 250.0},
+        "total_cost": 12.25,
+        "adherence_score": 0.1,
+    }
+
+    def _builder(profile: object) -> dict[str, object]:
+        return {"profile": profile}
+
+    package = ModuleType("weekly_package")
+    setattr(package, "make_weekly_menu", _builder)
+
+    assert legacy_app._build_legacy_weekly_menu_response(payload) == (
+        weekly_plan_service.build_legacy_weekly_menu_response(payload)
+    )
+    assert legacy_app._get_app_package_module() is weekly_plan_service._get_app_package_module()
+    assert legacy_app._resolve_package_weekly_menu_export(package) is _builder
+
+    monkeypatch.setattr(legacy_app, "_get_app_package_module", lambda: None)
+    monkeypatch.setattr(legacy_app, "make_weekly_menu", None)
+    assert legacy_app._resolve_legacy_weekly_menu_builder() is None
 
 
 def test_language_cookie_has_samesite_and_secure_guard() -> None:
@@ -668,7 +886,7 @@ def test_week_plan_rejects_disabled_vip_module_flag(
 ) -> None:
     async def _run() -> None:
         monkeypatch.delenv("VIP_MODULE_ENABLED", raising=False)
-        monkeypatch.setattr(legacy_app, "VIP_MODULE_ENABLED", False, raising=False)
+        monkeypatch.setattr(legacy_premium_weekly_plan, "is_vip_module_enabled", lambda: False)
 
         with pytest.raises(HTTPException) as exc:
             await legacy_premium_weekly_plan.api_weekly_menu(_legacy_week_plan_request())
@@ -683,8 +901,8 @@ def test_week_plan_rejects_missing_menu_builder(monkeypatch: pytest.MonkeyPatch)
     async def _run() -> None:
         monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
         monkeypatch.setattr(
-            legacy_app,
-            "_resolve_legacy_weekly_menu_builder",
+            legacy_premium_weekly_plan,
+            "resolve_legacy_weekly_menu_builder",
             lambda: None,
         )
 
@@ -697,14 +915,58 @@ def test_week_plan_rejects_missing_menu_builder(monkeypatch: pytest.MonkeyPatch)
     asyncio.run(_run())
 
 
+def test_week_plan_handler_returns_normalized_weekly_menu(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _run() -> None:
+        monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
+        monkeypatch.setattr(
+            legacy_premium_weekly_plan,
+            "resolve_legacy_weekly_menu_builder",
+            lambda: object(),
+        )
+
+        import app.routers.vip as vip_router
+
+        async def _return_weekly_menu(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+            return {
+                "week_start": "2026-03-09",
+                "daily_menus": [
+                    {
+                        "date": "2026-03-10",
+                        "meals": [{"title": "Lunch", "kcal": 420}],
+                        "total_kcal": 420,
+                        "daily_cost": 12.25,
+                    }
+                ],
+                "weekly_coverage": {"fiber": 0.84},
+                "shopping_list": {"rice": 250.0},
+                "total_cost": 12.25,
+                "adherence_score": 0.1,
+            }
+
+        monkeypatch.setattr(
+            vip_router,
+            "execute_legacy_premium_week_alias_payload",
+            _return_weekly_menu,
+        )
+
+        response = await legacy_premium_weekly_plan.api_weekly_menu(_legacy_week_plan_request())
+
+        assert response.week_summary["week_start"] == "2026-03-09"
+        assert response.daily_menus[0]["daily_cost"] == 12.25
+
+    asyncio.run(_run())
+
+
 def test_week_plan_wraps_value_error_with_client_safe_detail(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     async def _run() -> None:
         monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
         monkeypatch.setattr(
-            legacy_app,
-            "_resolve_legacy_weekly_menu_builder",
+            legacy_premium_weekly_plan,
+            "resolve_legacy_weekly_menu_builder",
             lambda: object(),
         )
 
@@ -734,8 +996,8 @@ def test_week_plan_wraps_unexpected_error_with_client_safe_detail(
     async def _run() -> None:
         monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
         monkeypatch.setattr(
-            legacy_app,
-            "_resolve_legacy_weekly_menu_builder",
+            legacy_premium_weekly_plan,
+            "resolve_legacy_weekly_menu_builder",
             lambda: object(),
         )
 
