@@ -32,6 +32,7 @@ and deleting `legacy_app.py`.
 - `d8e45dbdd36d938bbb8c9adfd1aec02bed794acd` - sync current `origin/main`.
 - `454aeff6d3f5e935594ae5be28ba4d8b0187fa0f` - fix CodeRabbit stale-comment nitpick.
 - `fdbe38435a6d418df32b7357cc065ebedc4f0eae` - cover moved schema/service branches.
+- `d5aa0771c0892febb6653a26106fb50a86f17446` - move coverage probes into the CI-visible diff-coverage suite.
 
 ## Lane Start Provenance
 
@@ -46,7 +47,7 @@ Packet: `artifacts/orchestration/task_packets/a61539e84620.json`
 - [x] `bug-hunter` completed.
 - [x] `security-auditor` completed.
 - [x] Codex Security diff scan completed for material code range `76ffb6e4..f334214ed`.
-- [x] Creative-code private-pilot state collected for real PR #2090 head `d06be5785`.
+- [x] Creative-code private-pilot state collected for real PR #2090 head `ec1e9230`.
 - [x] `pulseplate-pr-review` completed after compact mapping and main-sync push.
 - [x] CodeRabbit stale-comment nitpick fixed and mapped.
 - [x] Codecov patch-coverage feedback fixed and mapped.
@@ -60,10 +61,10 @@ Disposition: FIXED
 Commit: 454aeff6d3f5e935594ae5be28ba4d8b0187fa0f
 Evidence: CodeRabbit stale-comment nitpick fixed in `tests/test_premium_week_app_coverage.py`.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2090#issuecomment-4903419521 -> fdbe38435a6d418df32b7357cc065ebedc4f0eae
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2090#issuecomment-4903419521 -> d5aa0771c0892febb6653a26106fb50a86f17446
 Disposition: FIXED
-Commit: fdbe38435a6d418df32b7357cc065ebedc4f0eae
-Evidence: Added focused schema/resolver branch tests; local coverage probe reports 100% for `app/schemas/legacy_premium_weekly_plan.py` and `app/services/legacy_premium_weekly_plan.py`.
+Commit: d5aa0771c0892febb6653a26106fb50a86f17446
+Evidence: Added CI-visible diff-coverage probes in `tests/test_legacy_app_diff_coverage.py`; local `diff-cover coverage.xml --compare-branch=origin/main --fail-under=97` reports 100% for the changed weekly-plan source files.
 
 ## Role Findings
 
@@ -131,12 +132,13 @@ gates passed (`282` focused/adjacent tests, `make validate-changed`,
 Local gitignored artifact, not committed:
 `artifacts/orchestration/creative_code/private_pilot/2090/pilot_state.json`
 
-- Artifact file SHA-256 at latest refresh before this mapping update:
-  `6f6be875cda39ef6be4fd4deab2dab202b2da8bd1af3c90133180e1f98acfe17`.
-- Source PR head at collection time: `d06be5785dab0904d2ccd6815d4d1b496b692f39`.
+- Artifact file SHA-256 at latest preserved local refresh:
+  `181bf522458220107b57ba12c85b20401f7c804f7ed878a45cf309e8fc523044`.
+- Source PR head at collection time: `ec1e9230d377ce02cc8e62ec02458323137a8b41`.
+- Generated at: `2026-07-07T14:10:08Z`.
 - Decision: `fix_current_pr`.
 - Required checks at collection time: `0` failing, `0` pending, `0` missing.
-- Current checks at collection time: `1` failing, `5` pending, `2` success.
+- Current checks at collection time: `1` failing, `6` pending, `1` success.
 - GitHub App capability: `manual_only`.
 
 Interpretation: use the latest private-pilot artifact from the local worktree,
@@ -144,6 +146,9 @@ not a stale PR-body summary. It proves the private pilot evaluated real PR
 #2090 metadata and chose `fix_current_pr`, but it is gitignored evidence only:
 do not commit the artifact, and do not treat it as merge-readiness, PR
 promotion, patch-generation, or GitHub App authority.
+It was intentionally preserved, not rewritten, after the later coverage-fix
+commit; current-head readiness must come from GitHub CI and the strict
+merge-readiness wrapper.
 
 ## Validation Evidence
 
@@ -151,8 +156,9 @@ promotion, patch-generation, or GitHub App authority.
 - `python3 scripts/orchestration/check_agent_consistency.py` - PASS.
 - `python -m mypy app/schemas/legacy_premium_weekly_plan.py app/routers/legacy_premium_weekly_plan.py app/services/legacy_premium_weekly_plan.py legacy_app.py` - PASS.
 - `python -m pytest tests/test_premium_week_app_coverage.py` - PASS (`9` passed).
-- Focused weekly-plan pytest - PASS (`91` passed, `3` existing Pydantic serializer warnings).
+- Focused weekly-plan pytest - PASS (`96` passed, `4` existing Pydantic serializer warnings).
 - Coverage probe for moved schema/service modules - PASS (`100%` for `app/schemas/legacy_premium_weekly_plan.py` and `app/services/legacy_premium_weekly_plan.py`).
+- CI-visible diff-coverage probe - PASS (`100%` for changed weekly-plan source files).
 - Adjacent OpenAPI/auth/policy pytest subset - PASS (`196` passed).
 - `make validate-changed` - PASS.
 - `pre-commit run --all-files` - PASS.
@@ -167,7 +173,7 @@ checkout; full/heavy verification remains GitHub current-head CI.
 
 ## Merge Readiness
 
-- [x] Local narrow bundle completed for pushed head `d06be5785`.
+- [x] Local narrow bundle completed for code-fix head `d5aa0771`.
 - [x] Post-open role order completed through `qa-engineer-agent -> bug-hunter -> security-auditor`.
 - [x] Codex Security diff scan completed for material code diff.
 - [x] `pulseplate-pr-review` completed after compact mapping and main-sync push.
