@@ -53,6 +53,17 @@ provider, semantic-cache, or graph-truth authority is added.
     same closed artifact-ref pattern as the schema; regression coverage rejects
     traversal, empty path segments, hidden unsafe segments, spaces, and
     non-ASCII refs.
+- Bug-hunter finding: PR-2 `patch_metadata.json` sidecars could carry
+  unsupported or unsafe extra fields while the shared sidecar helper still let
+  inventory promotion assertions and PR-3 planning pass.
+  - Disposition: FIXED
+  - Commit: `130a44a8a`
+  - Evidence:
+    `scripts/orchestration/creative_code_patch_contract.py` now exact-key
+    validates PR-2 patch metadata sidecars, checks `changed_path_statuses`,
+    and rejects unsafe metadata before inventory or PR-3 promotion can treat
+    the run as valid. Regression tests cover both
+    `assert-ready-for-promotion` and PR-3 `plan()` rejection.
 
 ## Discussion Thread Pass
 
@@ -78,6 +89,10 @@ provider, semantic-cache, or graph-truth authority is added.
   files, pip-audit, backend pre-push tests, full-repo Bandit, and docker build
   test.
 - `python3 -m scripts.orchestration.creative_code_artifact_inventory status --format text` - PASS on this worktree with empty local creative-code artifacts.
+- Post-QA/bug-hunter focused rerun:
+  `python -m pytest tests/test_creative_code_artifact_inventory.py tests/test_creative_code_pr_promotion.py tests/test_creative_code_patch_generation.py -q` - PASS.
+- Post-QA/bug-hunter `make validate-changed` - PASS.
+- Post-QA/bug-hunter `pre-commit run --all-files` - PASS.
 
 ## Merge Readiness
 
