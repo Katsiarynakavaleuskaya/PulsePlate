@@ -43,6 +43,7 @@ provider, semantic-cache, or graph-truth authority is added.
 - QA finding: Phase 2 governance artifact was missing after the initial PR
   open.
   - Disposition: FIXED
+  - Commit: `d2c76d049d98e6b8d74c908137722700d8eae5ea`
   - Evidence: this canonical artifact exists at
     `docs/review/PR_2089_FIXED_MAPPING.md` and the PR body is mirrored from it.
 - QA finding: runtime artifact-ref validation was looser than the report schema.
