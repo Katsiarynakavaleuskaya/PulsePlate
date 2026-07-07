@@ -267,6 +267,11 @@ Evidence: `tests/test_creative_code_artifact_inventory.py` keeps malformed gener
 Reason: Parametrizing these cases would reduce local clarity for two different lifecycle branches without improving behavior coverage.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2089#pullrequestreview-4641108463
 
+Disposition: FIXED
+Commit: 550e3689d37d9440ae26a9ccb920b1e56878d242
+Evidence: `docs/review/PR_2089_FIXED_MAPPING.md` now records the commit that introduced the Phase 2 mapping artifact in the QA finding's FIXED proof block.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2089#pullrequestreview-4642492740 -> 550e3689d37d9440ae26a9ccb920b1e56878d242
+
 ## Local Validation Evidence
 
 - `python3 scripts/orchestration/check_preflight.py` - PASS
