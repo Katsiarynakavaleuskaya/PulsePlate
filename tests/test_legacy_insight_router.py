@@ -192,7 +192,13 @@ def test_insight_quota_exceeded_returns_429(
     def _quota_exceeded(*_args: object, **_kwargs: object) -> None:
         raise HTTPException(status_code=429, detail="quota_exceeded")
 
+    async def _provider_must_not_run(*_args: object, **_kwargs: object) -> object:
+        pytest.fail("provider must not run after quota exhaustion")
+
     monkeypatch.setattr(legacy_app, "_enforce_vip_llm_monthly_quota", _quota_exceeded, raising=True)
+    monkeypatch.setattr(
+        legacy_app, "_execute_insight_request", _provider_must_not_run, raising=True
+    )
 
     resp = client.post(path, json={"text": "hello"}, headers=vip_headers)
 
