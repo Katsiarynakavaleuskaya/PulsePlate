@@ -96,6 +96,26 @@ provider, semantic-cache, or graph-truth authority is added.
   - Evidence:
     `tests/test_creative_code_artifact_inventory.py` now annotates the parameter
     as `Callable[[Path], None]`.
+- Codex Security superseded-head finding: unsupported PR-2
+  `patch_metadata.json` key names could be echoed in validation errors before
+  leak screening.
+  - Disposition: FIXED
+  - Commit: `a115be6d1`
+  - Evidence:
+    `scripts/orchestration/creative_code_patch_contract.py` and
+    `scripts/orchestration/creative_code_patch_generation.py` now emit generic
+    unsupported-field errors without untrusted field names; regression tests
+    assert token-shaped key names and `raw_prompt` are not echoed.
+- Codex Security superseded-head finding: inventory could mark an accepted
+  run eligible when the result was self-consistent but lacked strict runner /
+  oracle proof that PR-3 planning would require.
+  - Disposition: FIXED
+  - Commit: `a115be6d1`
+  - Evidence:
+    `scripts/orchestration/creative_code_artifact_inventory.py` now validates
+    accepted runs with `require_accepted=True` in the shared PR-2 sidecar
+    helper; regression coverage rejects accepted results with no oracle proof
+    before `assert-ready-for-promotion` can pass.
 
 ## Discussion Thread Pass
 
@@ -155,6 +175,12 @@ Evidence: `scripts/orchestration/creative_code_patch_contract.py` now derives st
   `python -m pytest tests/test_creative_code_artifact_inventory.py -q` - PASS.
 - Post-review typing fix `make validate-changed` - PASS.
 - Post-review typing fix `pre-commit run --all-files` - PASS.
+- Post-Codex-Security-fix focused rerun:
+  `python -m pytest tests/test_creative_code_artifact_inventory.py tests/test_creative_code_pr_promotion.py tests/test_creative_code_patch_generation.py -q` - PASS.
+- Post-Codex-Security-fix `python3 scripts/orchestration/check_preflight.py` - PASS.
+- Post-Codex-Security-fix `python3 scripts/orchestration/check_agent_consistency.py` - PASS.
+- Post-Codex-Security-fix `make validate-changed` - PASS.
+- Post-Codex-Security-fix `pre-commit run --all-files` - PASS.
 
 ## Merge Readiness
 
