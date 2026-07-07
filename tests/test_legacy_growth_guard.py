@@ -2193,16 +2193,19 @@ def test_legacy_growth_guard_rejects_sensitive_dependency_aliases(
 
 def test_legacy_growth_guard_rejects_api_key_surface_growth_on_current_baseline() -> None:
     source = (REPO_ROOT / "legacy_app.py").read_text(encoding="utf-8")
+    limit = legacy_guard.SENSITIVE_APP_SURFACE_LIMITS["api_key"]
     source += textwrap.dedent("""
 
         @app.post("/api/v1/insight", dependencies=[Depends(api_key_guard)])
         def insight_v1_route():
             return {"ok": True}
-        """) * (legacy_guard.SENSITIVE_APP_SURFACE_LIMITS["api_key"] + 1)
+        """) * (limit + 1)
 
     errors = legacy_guard.validate_legacy_growth(source)
 
-    assert errors == ["legacy_app.py: sensitive app surface grew for api_key: 7 > 6"]
+    assert errors == [
+        f"legacy_app.py: sensitive app surface grew for api_key: {limit + 1} > {limit}"
+    ]
 
 
 def test_legacy_growth_guard_ignores_comments_and_strings() -> None:

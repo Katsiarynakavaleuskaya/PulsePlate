@@ -10,8 +10,8 @@ This PR moves hidden legacy `POST /api/v1/premium/plan/week` route ownership
 from `legacy_app.py` into `app/routers/legacy_premium_weekly_plan.py`, registers
 it through `ensure_route_family_registered(...)`, and preserves legacy API-key
 auth, VIP feature gating, canonical VIP delegation, hidden OpenAPI visibility,
-and current error envelopes. `/api/v1/premium/plan/week-flexible` and weekly
-planning algorithms are intentionally out of scope.
+and client-safe unexpected-error envelopes. `/api/v1/premium/plan/week-flexible`
+and weekly planning algorithms are intentionally out of scope.
 
 ## Discussion Thread Pass
 
@@ -40,7 +40,7 @@ behavior, removes the old `legacy_app.py` decorator owner, and tightens the
 legacy growth guard so route regrowth fails.
 
 Disposition: FIXED
-Commit: 051fd9774
+Commit: 051fd9774696a196c77170792f37cfbc1b19161b
 Evidence: `docs/review/PR_2088_FIXED_MAPPING.md`
 Reason: Current-head CI found the canonical PR-specific fixed-mapping artifact
 was missing. This follow-up artifact closes the PR Body Phase2 and merge

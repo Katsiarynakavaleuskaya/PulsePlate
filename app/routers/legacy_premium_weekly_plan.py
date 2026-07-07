@@ -63,8 +63,6 @@ async def api_weekly_menu(
         # Pass through expected HTTP errors
         raise
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=f"Invalid input: {str(e)}") from e
+        raise HTTPException(status_code=400, detail="Invalid input") from e
     except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Weekly menu generation failed: {str(e)}"
-        ) from e
+        raise HTTPException(status_code=500, detail="Weekly menu generation failed") from e
