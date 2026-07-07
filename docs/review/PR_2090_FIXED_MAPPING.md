@@ -30,6 +30,7 @@ and deleting `legacy_app.py`.
 - `f334214edf49d0aaae1ff58e585ecb58cebb8fa2` - preserve resolver monkeypatch seam.
 - `043b68351ff001a7a99b152f615621bedac51c4f` - add PR mapping artifact.
 - `d8e45dbdd36d938bbb8c9adfd1aec02bed794acd` - sync current `origin/main`.
+- `454aeff6d3f5e935594ae5be28ba4d8b0187fa0f` - fix CodeRabbit stale-comment nitpick.
 
 ## Lane Start Provenance
 
@@ -46,12 +47,20 @@ Packet: `artifacts/orchestration/task_packets/a61539e84620.json`
 - [x] Codex Security diff scan completed for material code range `76ffb6e4..f334214ed`.
 - [x] Creative-code private-pilot state collected for real PR #2090 head `f334214ed`.
 - [x] `pulseplate-pr-review` completed after compact mapping and main-sync push.
+- [x] CodeRabbit stale-comment nitpick fixed and mapped.
 - [ ] Current-head CI complete before readiness language.
 - [ ] Strict merge-readiness checks run after final review/check cycle.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2090#issuecomment-4902964873 -> 454aeff6d3f5e935594ae5be28ba4d8b0187fa0f
+
+Disposition: FIXED
+
+Evidence: CodeRabbit flagged stale test comment wording for the second
+weekly-menu builder resolution path. Commit `454aeff6d` updates the comment in
+`tests/test_premium_week_app_coverage.py` to match the current
+`legacy_app` lookup seam.
 
 ## Role Findings
 
@@ -134,6 +143,7 @@ not merge-readiness evidence and not patch-generation authority.
 - `python3 scripts/orchestration/check_preflight.py` - PASS.
 - `python3 scripts/orchestration/check_agent_consistency.py` - PASS.
 - `python -m mypy app/schemas/legacy_premium_weekly_plan.py app/routers/legacy_premium_weekly_plan.py app/services/legacy_premium_weekly_plan.py legacy_app.py` - PASS.
+- `python -m pytest tests/test_premium_week_app_coverage.py` - PASS (`9` passed).
 - Focused weekly-plan pytest - PASS (`86` passed, `3` existing Pydantic serializer warnings).
 - Adjacent OpenAPI/auth/policy pytest subset - PASS (`196` passed).
 - `make validate-changed` - PASS.
