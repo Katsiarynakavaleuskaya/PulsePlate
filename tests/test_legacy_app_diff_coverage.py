@@ -14,13 +14,31 @@ from types import ModuleType
 from typing import Any, Callable
 
 import pytest
-from fastapi import HTTPException
+from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 
 from app.routers import legacy_premium_weekly_plan
 from app.routers import health as health_router
 import legacy_app
+
+
+def _legacy_week_plan_request() -> legacy_app.LegacyWeekPlanRequest:
+    return legacy_app.LegacyWeekPlanRequest.model_construct(
+        sex="female",
+        age=30,
+        height_cm=168.0,
+        weight_kg=62.0,
+        activity="moderate",
+        goal="maintain",
+        deficit_pct=None,
+        surplus_pct=None,
+        bodyfat=None,
+        diet_flags=[],
+        targets=None,
+        life_stage=None,
+        lang="en",
+    )
 
 
 def test_language_cookie_has_samesite_and_secure_guard() -> None:
@@ -684,6 +702,131 @@ def test_week_plan_missing_required_fields_raises_422(
         assert exc.value.status_code == 422
 
     asyncio.run(_run())
+
+
+def test_week_plan_rejects_explicitly_disabled_vip_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _run() -> None:
+        monkeypatch.setenv("VIP_MODULE_ENABLED", "false")
+
+        with pytest.raises(HTTPException) as exc:
+            await legacy_premium_weekly_plan.api_weekly_menu(_legacy_week_plan_request())
+
+        assert exc.value.status_code == 503
+        assert exc.value.detail == "VIP module is disabled"
+
+    asyncio.run(_run())
+
+
+def test_week_plan_rejects_disabled_vip_module_flag(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _run() -> None:
+        monkeypatch.delenv("VIP_MODULE_ENABLED", raising=False)
+        monkeypatch.setattr(legacy_app, "VIP_MODULE_ENABLED", False, raising=False)
+
+        with pytest.raises(HTTPException) as exc:
+            await legacy_premium_weekly_plan.api_weekly_menu(_legacy_week_plan_request())
+
+        assert exc.value.status_code == 503
+        assert exc.value.detail == "VIP module is disabled"
+
+    asyncio.run(_run())
+
+
+def test_week_plan_rejects_missing_menu_builder(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def _run() -> None:
+        monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
+        monkeypatch.setattr(
+            legacy_app,
+            "_resolve_legacy_weekly_menu_builder",
+            lambda: None,
+        )
+
+        with pytest.raises(HTTPException) as exc:
+            await legacy_premium_weekly_plan.api_weekly_menu(_legacy_week_plan_request())
+
+        assert exc.value.status_code == 503
+        assert exc.value.detail == "Weekly menu generation feature not available"
+
+    asyncio.run(_run())
+
+
+def test_week_plan_wraps_value_error_with_client_safe_detail(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _run() -> None:
+        monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
+        monkeypatch.setattr(
+            legacy_app,
+            "_resolve_legacy_weekly_menu_builder",
+            lambda: object(),
+        )
+
+        import app.routers.vip as vip_router
+
+        async def _raise_value_error(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+            raise ValueError("internal validation detail")
+
+        monkeypatch.setattr(
+            vip_router,
+            "execute_legacy_premium_week_alias_payload",
+            _raise_value_error,
+        )
+
+        with pytest.raises(HTTPException) as exc:
+            await legacy_premium_weekly_plan.api_weekly_menu(_legacy_week_plan_request())
+
+        assert exc.value.status_code == 400
+        assert exc.value.detail == "Invalid input"
+
+    asyncio.run(_run())
+
+
+def test_week_plan_wraps_unexpected_error_with_client_safe_detail(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _run() -> None:
+        monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
+        monkeypatch.setattr(
+            legacy_app,
+            "_resolve_legacy_weekly_menu_builder",
+            lambda: object(),
+        )
+
+        import app.routers.vip as vip_router
+
+        async def _raise_runtime_error(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+            raise RuntimeError("internal runtime detail")
+
+        monkeypatch.setattr(
+            vip_router,
+            "execute_legacy_premium_week_alias_payload",
+            _raise_runtime_error,
+        )
+
+        with pytest.raises(HTTPException) as exc:
+            await legacy_premium_weekly_plan.api_weekly_menu(_legacy_week_plan_request())
+
+        assert exc.value.status_code == 500
+        assert exc.value.detail == "Weekly menu generation failed"
+
+    asyncio.run(_run())
+
+
+def test_week_plan_registration_requires_api_key_dependency(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import app.main as app_main
+
+    monkeypatch.setattr(app_main._legacy_module, "_get_api_key_dynamic", None)
+
+    with pytest.raises(
+        RuntimeError,
+        match="Legacy premium weekly-plan API key dependency is unavailable",
+    ):
+        app_main._include_legacy_premium_weekly_plan_router_if_needed(FastAPI())
 
 
 def test_export_day_csv_error_paths(monkeypatch: pytest.MonkeyPatch) -> None:
