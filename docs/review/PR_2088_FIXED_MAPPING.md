@@ -26,6 +26,7 @@ Evidence: `app/routers/legacy_premium_weekly_plan.py:65`; `tests/test_premium_we
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2088#discussion_r3532002323 -> e19d8dcb842d4f736145dc9711c8a8eadb35dc24
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2088#pullrequestreview-4639693359 -> e19d8dcb842d4f736145dc9711c8a8eadb35dc24
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2088#discussion_r3533156936 -> e19d8dcb842d4f736145dc9711c8a8eadb35dc24
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2088#pullrequestreview-4641106085 -> e19d8dcb842d4f736145dc9711c8a8eadb35dc24
 
 ## Implementation Evidence
 
