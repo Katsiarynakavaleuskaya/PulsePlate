@@ -6,6 +6,7 @@ EN: Tests for diff-coverage on legacy_app.py (execute branches reported missing 
 
 from __future__ import annotations
 
+import asyncio
 import importlib
 import logging
 import sys
@@ -32,33 +33,35 @@ def test_language_cookie_has_samesite_and_secure_guard() -> None:
     assert "; Secure" in resp.text
 
 
-@pytest.mark.asyncio
-async def test_readiness_logs_warning_when_insight_runtime_probe_fails(
+def test_readiness_logs_warning_when_insight_runtime_probe_fails(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Cover `/ready` fallback when insight runtime readiness probe raises."""
+    async def _run() -> None:
+        """Cover `/ready` fallback when insight runtime readiness probe raises."""
 
-    async def _database_health_stub(*, session: Any) -> dict[str, Any]:
-        assert session is None
-        return {"status": "ok"}
+        async def _database_health_stub(*, session: Any) -> dict[str, Any]:
+            assert session is None
+            return {"status": "ok"}
 
-    def _raise_runtime_probe() -> dict[str, Any]:
-        raise RuntimeError("insight runtime boom")
+        def _raise_runtime_probe() -> dict[str, Any]:
+            raise RuntimeError("insight runtime boom")
 
-    import llm
+        import llm
 
-    monkeypatch.setattr(health_router, "database_health", _database_health_stub)
-    monkeypatch.setattr(llm, "get_insight_runtime_readiness", _raise_runtime_probe)
+        monkeypatch.setattr(health_router, "database_health", _database_health_stub)
+        monkeypatch.setattr(llm, "get_insight_runtime_readiness", _raise_runtime_probe)
 
-    with caplog.at_level(logging.WARNING):
-        payload = await health_router.ready(session=None)
+        with caplog.at_level(logging.WARNING):
+            payload = await health_router.ready(session=None)
 
-    assert payload["status"] == "ok"
-    assert payload["insight_runtime"] == {"status": "unavailable"}
-    assert any(
-        "Insight runtime readiness unavailable" in record.message for record in caplog.records
-    )
+        assert payload["status"] == "ok"
+        assert payload["insight_runtime"] == {"status": "unavailable"}
+        assert any(
+            "Insight runtime readiness unavailable" in record.message for record in caplog.records
+        )
+
+    asyncio.run(_run())
 
 
 def test_export_pdf_generic_requires_api_key() -> None:
@@ -84,13 +87,15 @@ def test_export_daily_csv_preserves_503_when_helper_missing(
     assert resp.status_code == 503
 
 
-@pytest.mark.asyncio
-async def test_aggregate_day_micros_accepts_sync_callable() -> None:
-    """Support sync callable result per contract comment in aggregate_day_micros."""
-    sync_mod = ModuleType("sync_candidate")
-    setattr(sync_mod, "_aggregate_day_micronutrients", lambda _meals: {"iron_mg": 1.0})
-    res = await legacy_app.aggregate_day_micros(meals=[], candidates=[sync_mod])
-    assert res == {"iron_mg": 1.0}
+def test_aggregate_day_micros_accepts_sync_callable() -> None:
+    async def _run() -> None:
+        """Support sync callable result per contract comment in aggregate_day_micros."""
+        sync_mod = ModuleType("sync_candidate")
+        setattr(sync_mod, "_aggregate_day_micronutrients", lambda _meals: {"iron_mg": 1.0})
+        res = await legacy_app.aggregate_day_micros(meals=[], candidates=[sync_mod])
+        assert res == {"iron_mg": 1.0}
+
+    asyncio.run(_run())
 
 
 def test_legacy_scheduler_stop_wrapper_executes() -> None:
@@ -106,20 +111,22 @@ def test_legacy_scheduler_stop_wrapper_executes() -> None:
     assert callable(stopper)
 
 
-@pytest.mark.asyncio
-async def test_get_update_scheduler_late_getter_path(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Cover legacy_app.get_update_scheduler branch that uses late getter (line ~386)."""
+def test_get_update_scheduler_late_getter_path(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def _run() -> None:
+        """Cover legacy_app.get_update_scheduler branch that uses late getter (line ~386)."""
 
-    async def _late_getter() -> Any:
-        return object()
+        async def _late_getter() -> Any:
+            return object()
 
-    monkeypatch.setattr(legacy_app, "_scheduler_getter", None, raising=False)
+        monkeypatch.setattr(legacy_app, "_scheduler_getter", None, raising=False)
 
-    import core.food_apis.scheduler as sched
+        import core.food_apis.scheduler as sched
 
-    monkeypatch.setattr(sched, "get_update_scheduler", _late_getter)
-    res = await legacy_app.get_update_scheduler()
-    assert res is not None
+        monkeypatch.setattr(sched, "get_update_scheduler", _late_getter)
+        res = await legacy_app.get_update_scheduler()
+        assert res is not None
+
+    asyncio.run(_run())
 
 
 def test_configure_session_bindings_sets_sessionlocal_when_none(
@@ -322,568 +329,608 @@ def test_build_insight_prompt_final_truncation_branch(monkeypatch: pytest.Monkey
         monkeypatch.setattr(legacy_app, "INSIGHT_TEXT_MAX_LENGTH", original_max, raising=False)
 
 
-@pytest.mark.asyncio
-async def test_insight_v1_rag_path_builds_prompt(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Cover RAG path in insight_v1 where ctx is retrieved and prompt is rebuilt."""
-    monkeypatch.setenv("FEATURE_INSIGHT", "true")
-    monkeypatch.setenv("FEATURE_RAG", "true")
+def test_insight_v1_rag_path_builds_prompt(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def _run() -> None:
+        """Cover RAG path in insight_v1 where ctx is retrieved and prompt is rebuilt."""
+        monkeypatch.setenv("FEATURE_INSIGHT", "true")
+        monkeypatch.setenv("FEATURE_RAG", "true")
 
-    class _Provider:
-        name = "stub"
+        class _Provider:
+            name = "stub"
 
-        async def generate(self, text: str) -> str:
-            return text
+            async def generate(self, text: str) -> str:
+                return text
 
-    # Patch llm.get_provider import inside legacy_app endpoints
-    import llm
+        # Patch llm.get_provider import inside legacy_app endpoints
+        import llm
 
-    monkeypatch.setattr(llm, "get_insight_provider", lambda: _Provider())
+        monkeypatch.setattr(llm, "get_insight_provider", lambda: _Provider())
 
-    # Patch retrieve_context_structured to return a context with chunks
-    import core.rag.vector_rag as vector_rag
-    from dataclasses import dataclass
-    from typing import Optional
+        # Patch retrieve_context_structured to return a context with chunks
+        import core.rag.vector_rag as vector_rag
+        from dataclasses import dataclass
+        from typing import Optional
 
-    @dataclass
-    class _Chunk:
-        chunk_id: str
-        file: str
-        content: str
-        score: float
-        hop: int = 1
+        @dataclass
+        class _Chunk:
+            chunk_id: str
+            file: str
+            content: str
+            score: float
+            hop: int = 1
 
-    @dataclass
-    class _Ctx:
-        query: str
-        refined_queries: list[str]
-        chunks: list[_Chunk]
-        confidence: float
-        hops: int
-        latency_ms: int
-        agent_id: Optional[str] = None
-        user_tier: Optional[str] = None
+        @dataclass
+        class _Ctx:
+            query: str
+            refined_queries: list[str]
+            chunks: list[_Chunk]
+            confidence: float
+            hops: int
+            latency_ms: int
+            agent_id: Optional[str] = None
+            user_tier: Optional[str] = None
 
-    def _fake_structured(*_a: object, **_k: object) -> _Ctx:
-        return _Ctx(
-            query="question",
-            refined_queries=["question"],
-            chunks=[_Chunk(chunk_id="a:1", file="a.md", content="ctx", score=0.9)],
-            confidence=0.9,
-            hops=1,
-            latency_ms=10,
+        def _fake_structured(*_a: object, **_k: object) -> _Ctx:
+            return _Ctx(
+                query="question",
+                refined_queries=["question"],
+                chunks=[_Chunk(chunk_id="a:1", file="a.md", content="ctx", score=0.9)],
+                confidence=0.9,
+                hops=1,
+                latency_ms=10,
+            )
+
+        monkeypatch.setattr(vector_rag, "retrieve_context_structured", _fake_structured)
+
+        req = legacy_app.InsightRequest(text="question")
+        out = await legacy_app.insight_v1(req)
+        assert out.provider == "stub"
+        assert "Context:" in out.insight
+
+    asyncio.run(_run())
+
+
+def test_insight_v1_trims_prompt_text(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def _run() -> None:
+        """Cover prompt_text trimming in insight_v1 (line ~2159)."""
+        monkeypatch.setenv("FEATURE_INSIGHT", "true")
+        monkeypatch.setenv("FEATURE_RAG", "true")
+
+        class _Provider:
+            name = "stub"
+
+            async def generate(self, text: str) -> str:
+                return text
+
+        import llm
+
+        monkeypatch.setattr(llm, "get_insight_provider", lambda: _Provider())
+
+        # Mock the orchestration to return a prompt longer than max length
+        from core.rag.orchestration import RAGOrchestrationResult
+        from core.rag.contracts import RAGChunk
+
+        long_prompt = "x" * (legacy_app.INSIGHT_TEXT_MAX_LENGTH + 5)
+        chunk = RAGChunk(chunk_id="a:1", file="a.md", content="ctx", score=0.9)
+
+        async def _mock_orchestration(*_a: object, **_k: object) -> RAGOrchestrationResult:
+            return RAGOrchestrationResult(
+                chunks=[chunk],
+                formatted_prompt=long_prompt,
+                rag_actually_used=True,
+                confidence=0.9,
+                hops=1,
+                latency_ms=10,
+                warnings=[],
+                chunks_retrieved=1,
+                chunks_filtered=0,
+            )
+
+        import core.rag.orchestration as orch_mod
+
+        monkeypatch.setattr(orch_mod, "retrieve_and_validate_rag", _mock_orchestration)
+
+        out = await legacy_app.insight_v1(legacy_app.InsightRequest(text="q"))
+        assert len(out.insight) == legacy_app.INSIGHT_TEXT_MAX_LENGTH
+
+    asyncio.run(_run())
+
+
+def test_legacy_insight_rag_path_trims(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def _run() -> None:
+        """Cover legacy /insight RAG branch and prompt trimming (lines ~2182-2202)."""
+        monkeypatch.setenv("FEATURE_INSIGHT", "true")
+        monkeypatch.setenv("FEATURE_RAG", "true")
+
+        class _Provider:
+            name = "stub"
+
+            async def generate(self, text: str) -> str:
+                return text
+
+        import llm
+
+        monkeypatch.setattr(llm, "get_insight_provider", lambda: _Provider())
+        import core.rag.vector_rag as vector_rag
+        from dataclasses import dataclass
+        from typing import Optional
+
+        @dataclass
+        class _Chunk:
+            chunk_id: str
+            file: str
+            content: str
+            score: float
+            hop: int = 1
+
+        @dataclass
+        class _Ctx:
+            query: str
+            refined_queries: list[str]
+            chunks: list[_Chunk]
+            confidence: float
+            hops: int
+            latency_ms: int
+            agent_id: Optional[str] = None
+            user_tier: Optional[str] = None
+
+        # Return a large context to force prompt trimming
+        big_content = "c" * (legacy_app.INSIGHT_TEXT_MAX_LENGTH * 2)
+
+        def _fake_structured(*_a: object, **_k: object) -> _Ctx:
+            return _Ctx(
+                query="q",
+                refined_queries=["q"],
+                chunks=[_Chunk(chunk_id="a:1", file="a.md", content=big_content, score=0.9)],
+                confidence=0.9,
+                hops=1,
+                latency_ms=10,
+            )
+
+        monkeypatch.setattr(vector_rag, "retrieve_context_structured", _fake_structured)
+
+        req = legacy_app.InsightRequest(text="q")
+        out = await legacy_app.insight(req)
+        assert out.provider == "stub"
+        assert len(out.insight) <= legacy_app.INSIGHT_TEXT_MAX_LENGTH
+
+    asyncio.run(_run())
+
+
+def test_legacy_insight_trims_prompt_text(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def _run() -> None:
+        """Cover prompt_text trimming in legacy insight (line ~2202)."""
+        monkeypatch.setenv("FEATURE_INSIGHT", "true")
+        monkeypatch.setenv("FEATURE_RAG", "true")
+
+        class _Provider:
+            name = "stub"
+
+            async def generate(self, text: str) -> str:
+                return text
+
+        import llm
+
+        monkeypatch.setattr(llm, "get_insight_provider", lambda: _Provider())
+
+        # Mock the orchestration to return a prompt longer than max length
+        from core.rag.orchestration import RAGOrchestrationResult
+        from core.rag.contracts import RAGChunk
+
+        long_prompt = "x" * (legacy_app.INSIGHT_TEXT_MAX_LENGTH + 5)
+        chunk = RAGChunk(chunk_id="a:1", file="a.md", content="ctx", score=0.9)
+
+        async def _mock_orchestration(*_a: object, **_k: object) -> RAGOrchestrationResult:
+            return RAGOrchestrationResult(
+                chunks=[chunk],
+                formatted_prompt=long_prompt,
+                rag_actually_used=True,
+                confidence=0.9,
+                hops=1,
+                latency_ms=10,
+                warnings=[],
+                chunks_retrieved=1,
+                chunks_filtered=0,
+            )
+
+        import core.rag.orchestration as orch_mod
+
+        monkeypatch.setattr(orch_mod, "retrieve_and_validate_rag", _mock_orchestration)
+
+        out = await legacy_app.insight(legacy_app.InsightRequest(text="q"))
+        assert len(out.insight) == legacy_app.INSIGHT_TEXT_MAX_LENGTH
+
+    asyncio.run(_run())
+
+
+def test_premium_bmr_resolve_wrapper_prefers_patched_app(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _run() -> None:
+        """Cover api_premium_bmr wrapper resolution that returns patched callable from app package."""
+        monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
+
+        # Patch wrappers on app package so api_premium_bmr picks them up via sys.modules["app"].
+        import app as app_pkg
+
+        def bmr_wrapper(*_a: Any, **_kw: Any) -> dict[str, float]:
+            return {"mifflin": 1000.0}
+
+        def tdee_wrapper(*_a: Any, **_kw: Any) -> dict[str, float]:
+            return {"mifflin": 2000.0}
+
+        monkeypatch.setattr(app_pkg, "_calculate_all_bmr_wrapper", bmr_wrapper, raising=False)
+        monkeypatch.setattr(app_pkg, "_calculate_all_tdee_wrapper", tdee_wrapper, raising=False)
+
+        req = legacy_app.BMRRequest(
+            weight_kg=70.0,
+            height_cm=175.0,
+            age=30,
+            sex="male",
+            activity="moderate",
+            bodyfat=None,
+            lang="en",
         )
+        resp = await legacy_app.api_premium_bmr(req)
+        assert resp.bmr
 
-    monkeypatch.setattr(vector_rag, "retrieve_context_structured", _fake_structured)
-
-    req = legacy_app.InsightRequest(text="question")
-    out = await legacy_app.insight_v1(req)
-    assert out.provider == "stub"
-    assert "Context:" in out.insight
+    asyncio.run(_run())
 
 
-@pytest.mark.asyncio
-async def test_insight_v1_trims_prompt_text(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Cover prompt_text trimming in insight_v1 (line ~2159)."""
-    monkeypatch.setenv("FEATURE_INSIGHT", "true")
-    monkeypatch.setenv("FEATURE_RAG", "true")
+def test_premium_bmr_resolve_wrapper_uses_pkg_candidates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _run() -> None:
+        """Cover api_premium_bmr wrapper resolution that returns a candidate from _iter_app_modules."""
+        monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
 
-    class _Provider:
-        name = "stub"
+        dummy_mod = ModuleType("dummy_app_module")
 
-        async def generate(self, text: str) -> str:
-            return text
+        def bmr_wrapper(*_a: Any, **_kw: Any) -> dict[str, float]:
+            return {"mifflin": 1100.0}
 
-    import llm
+        def tdee_wrapper(*_a: Any, **_kw: Any) -> dict[str, float]:
+            return {"mifflin": 2100.0}
 
-    monkeypatch.setattr(llm, "get_insight_provider", lambda: _Provider())
+        setattr(dummy_mod, "_calculate_all_bmr_wrapper", bmr_wrapper)
+        setattr(dummy_mod, "_calculate_all_tdee_wrapper", tdee_wrapper)
 
-    # Mock the orchestration to return a prompt longer than max length
-    from core.rag.orchestration import RAGOrchestrationResult
-    from core.rag.contracts import RAGChunk
+        # Ensure sys.modules["app"] doesn't short-circuit the resolution
+        import app as app_pkg
 
-    long_prompt = "x" * (legacy_app.INSIGHT_TEXT_MAX_LENGTH + 5)
-    chunk = RAGChunk(chunk_id="a:1", file="a.md", content="ctx", score=0.9)
+        # app is a PEP 562 forwarding module; delattr() would trigger __getattr__ and fail even when
+        # the attribute is not actually present on the module. Remove only real module attributes.
+        monkeypatch.delitem(app_pkg.__dict__, "_calculate_all_bmr_wrapper", raising=False)
+        monkeypatch.delitem(app_pkg.__dict__, "_calculate_all_tdee_wrapper", raising=False)
 
-    async def _mock_orchestration(*_a: object, **_k: object) -> RAGOrchestrationResult:
-        return RAGOrchestrationResult(
-            chunks=[chunk],
-            formatted_prompt=long_prompt,
-            rag_actually_used=True,
-            confidence=0.9,
-            hops=1,
-            latency_ms=10,
-            warnings=[],
-            chunks_retrieved=1,
-            chunks_filtered=0,
+        monkeypatch.setattr(legacy_app, "_iter_app_modules", lambda: [dummy_mod])
+
+        req = legacy_app.BMRRequest(
+            weight_kg=70.0,
+            height_cm=175.0,
+            age=30,
+            sex="male",
+            activity="moderate",
+            bodyfat=None,
+            lang="en",
         )
+        resp = await legacy_app.api_premium_bmr(req)
+        assert resp.tdee
 
-    import core.rag.orchestration as orch_mod
-
-    monkeypatch.setattr(orch_mod, "retrieve_and_validate_rag", _mock_orchestration)
-
-    out = await legacy_app.insight_v1(legacy_app.InsightRequest(text="q"))
-    assert len(out.insight) == legacy_app.INSIGHT_TEXT_MAX_LENGTH
+    asyncio.run(_run())
 
 
-@pytest.mark.asyncio
-async def test_legacy_insight_rag_path_trims(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Cover legacy /insight RAG branch and prompt trimming (lines ~2182-2202)."""
-    monkeypatch.setenv("FEATURE_INSIGHT", "true")
-    monkeypatch.setenv("FEATURE_RAG", "true")
+def test_premium_bmr_legacy_executes_wrapper_resolution(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _run() -> None:
+        """Cover premium_bmr_legacy wrapper resolution return path."""
+        monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
 
-    class _Provider:
-        name = "stub"
+        def bmr_wrapper(*_a: Any, **_kw: Any) -> dict[str, float]:
+            return {"mifflin": 1000.0}
 
-        async def generate(self, text: str) -> str:
-            return text
+        def tdee_wrapper(*_a: Any, **_kw: Any) -> dict[str, float]:
+            return {"mifflin": 2000.0}
 
-    import llm
+        import app as app_pkg
 
-    monkeypatch.setattr(llm, "get_insight_provider", lambda: _Provider())
-    import core.rag.vector_rag as vector_rag
-    from dataclasses import dataclass
-    from typing import Optional
+        monkeypatch.setattr(app_pkg, "_calculate_all_bmr_wrapper", bmr_wrapper, raising=False)
+        monkeypatch.setattr(app_pkg, "_calculate_all_tdee_wrapper", tdee_wrapper, raising=False)
 
-    @dataclass
-    class _Chunk:
-        chunk_id: str
-        file: str
-        content: str
-        score: float
-        hop: int = 1
-
-    @dataclass
-    class _Ctx:
-        query: str
-        refined_queries: list[str]
-        chunks: list[_Chunk]
-        confidence: float
-        hops: int
-        latency_ms: int
-        agent_id: Optional[str] = None
-        user_tier: Optional[str] = None
-
-    # Return a large context to force prompt trimming
-    big_content = "c" * (legacy_app.INSIGHT_TEXT_MAX_LENGTH * 2)
-
-    def _fake_structured(*_a: object, **_k: object) -> _Ctx:
-        return _Ctx(
-            query="q",
-            refined_queries=["q"],
-            chunks=[_Chunk(chunk_id="a:1", file="a.md", content=big_content, score=0.9)],
-            confidence=0.9,
-            hops=1,
-            latency_ms=10,
+        req = legacy_app.BMRRequestLegacy(
+            weight_kg=70.0,
+            height_cm=175.0,
+            age=30,
+            sex="male",
+            activity="moderate",
+            bodyfat=None,
+            lang="en",
         )
+        resp = await legacy_app.premium_bmr_legacy(req)
+        assert resp.bmr
 
-    monkeypatch.setattr(vector_rag, "retrieve_context_structured", _fake_structured)
-
-    req = legacy_app.InsightRequest(text="q")
-    out = await legacy_app.insight(req)
-    assert out.provider == "stub"
-    assert len(out.insight) <= legacy_app.INSIGHT_TEXT_MAX_LENGTH
+    asyncio.run(_run())
 
 
-@pytest.mark.asyncio
-async def test_legacy_insight_trims_prompt_text(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Cover prompt_text trimming in legacy insight (line ~2202)."""
-    monkeypatch.setenv("FEATURE_INSIGHT", "true")
-    monkeypatch.setenv("FEATURE_RAG", "true")
+def test_week_plan_missing_required_fields_raises_422(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _run() -> None:
+        """Cover the required-fields 422 branch inside api_weekly_menu.
 
-    class _Provider:
-        name = "stub"
-
-        async def generate(self, text: str) -> str:
-            return text
-
-    import llm
-
-    monkeypatch.setattr(llm, "get_insight_provider", lambda: _Provider())
-
-    # Mock the orchestration to return a prompt longer than max length
-    from core.rag.orchestration import RAGOrchestrationResult
-    from core.rag.contracts import RAGChunk
-
-    long_prompt = "x" * (legacy_app.INSIGHT_TEXT_MAX_LENGTH + 5)
-    chunk = RAGChunk(chunk_id="a:1", file="a.md", content="ctx", score=0.9)
-
-    async def _mock_orchestration(*_a: object, **_k: object) -> RAGOrchestrationResult:
-        return RAGOrchestrationResult(
-            chunks=[chunk],
-            formatted_prompt=long_prompt,
-            rag_actually_used=True,
-            confidence=0.9,
-            hops=1,
-            latency_ms=10,
-            warnings=[],
-            chunks_retrieved=1,
-            chunks_filtered=0,
+        NOTE: WeekPlanRequest validators enforce required profile fields when targets is None.
+        To exercise the handler's internal guard (diff-coverage), we bypass validation via
+        model_construct.
+        """
+        monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
+        req = legacy_app.LegacyWeekPlanRequest.model_construct(
+            sex=None,
+            age=None,
+            height_cm=None,
+            weight_kg=None,
+            activity=None,
+            goal="maintain",
+            deficit_pct=None,
+            surplus_pct=None,
+            bodyfat=None,
+            diet_flags=[],
+            targets=None,
+            life_stage=None,
+            lang="en",
         )
+        with pytest.raises(HTTPException) as exc:
+            await legacy_premium_weekly_plan.api_weekly_menu(req)
+        assert exc.value.status_code == 422
 
-    import core.rag.orchestration as orch_mod
-
-    monkeypatch.setattr(orch_mod, "retrieve_and_validate_rag", _mock_orchestration)
-
-    out = await legacy_app.insight(legacy_app.InsightRequest(text="q"))
-    assert len(out.insight) == legacy_app.INSIGHT_TEXT_MAX_LENGTH
+    asyncio.run(_run())
 
 
-@pytest.mark.asyncio
-async def test_premium_bmr_resolve_wrapper_prefers_patched_app(
+def test_export_day_csv_error_paths(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def _run() -> None:
+        """Cover export_daily_plan_csv exception handling (500 path)."""
+        if not getattr(legacy_app, "EXPORTS_ENABLED", False):
+            pytest.skip("Exports are not enabled in this environment.")
+
+        async def _call() -> Any:
+            return await legacy_app.export_daily_plan_csv("p1")
+
+        def boom(_: Any) -> bytes:
+            raise RuntimeError("boom")
+
+        # Ensure dynamic helper resolution uses our boom() function.
+        import app as app_pkg
+
+        monkeypatch.setattr(app_pkg, "to_csv_day", boom, raising=False)
+        monkeypatch.setattr(legacy_app, "to_csv_day", boom, raising=False)
+        with pytest.raises(HTTPException) as exc:
+            await _call()
+        assert exc.value.status_code == 500
+
+    asyncio.run(_run())
+
+
+def test_export_pdf_generic_success_and_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def _run() -> None:
+        """Cover export_pdf_generic helper import and error paths."""
+        if not getattr(legacy_app, "EXPORTS_ENABLED", False):
+            pytest.skip("Exports are not enabled in this environment.")
+
+        import app as app_pkg
+
+        # Ensure helper resolution sees a callable (it prefers app.to_pdf_day if present).
+        monkeypatch.setattr(app_pkg, "to_pdf_day", lambda _p: b"%PDF", raising=False)
+        monkeypatch.setattr(legacy_app, "to_pdf_day", lambda _p: b"%PDF", raising=False)
+        resp = await legacy_app.export_pdf_generic({"meals": [], "totals": {}})
+        assert resp.media_type == "application/pdf"
+
+        def boom(_: Any) -> bytes:
+            raise RuntimeError("boom")
+
+        monkeypatch.setattr(app_pkg, "to_pdf_day", boom, raising=False)
+        monkeypatch.setattr(legacy_app, "to_pdf_day", boom, raising=False)
+        with pytest.raises(HTTPException) as exc:
+            await legacy_app.export_pdf_generic({"meals": [], "totals": {}})
+        assert exc.value.status_code == 500
+
+    asyncio.run(_run())
+
+
+def test_export_week_csv_error_path(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def _run() -> None:
+        """Cover export_weekly_plan_csv exception -> 500."""
+        if not getattr(legacy_app, "EXPORTS_ENABLED", False):
+            pytest.skip("Exports are not enabled in this environment.")
+
+        def boom(_: Any) -> bytes:
+            raise RuntimeError("boom")
+
+        monkeypatch.setattr(legacy_app, "to_csv_week", boom, raising=False)
+        with pytest.raises(HTTPException) as exc:
+            await legacy_app.export_weekly_plan_csv("p1")
+        assert exc.value.status_code == 500
+
+    asyncio.run(_run())
+
+
+def test_export_day_pdf_paths(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def _run() -> None:
+        """Cover export_daily_plan_pdf success, importerror, and generic error paths."""
+        if not getattr(legacy_app, "EXPORTS_ENABLED", False):
+            pytest.skip("Exports are not enabled in this environment.")
+
+        import app as app_pkg
+
+        # export_daily_plan_pdf may resolve PDF helper via app.to_pdf_day if present.
+        monkeypatch.setattr(app_pkg, "to_pdf_day", lambda _p: b"pdf", raising=False)
+        monkeypatch.setattr(legacy_app, "to_pdf_day", lambda _p: b"pdf", raising=False)
+        resp = await legacy_app.export_daily_plan_pdf("p1")
+        assert resp.media_type == "application/pdf"
+
+        def raise_import(_: Any) -> bytes:
+            raise ImportError("no reportlab")
+
+        monkeypatch.setattr(app_pkg, "to_pdf_day", raise_import, raising=False)
+        monkeypatch.setattr(legacy_app, "to_pdf_day", raise_import, raising=False)
+        with pytest.raises(HTTPException) as exc:
+            await legacy_app.export_daily_plan_pdf("p1")
+        assert exc.value.status_code == 500
+
+        def raise_generic(_: Any) -> bytes:
+            raise RuntimeError("boom")
+
+        monkeypatch.setattr(app_pkg, "to_pdf_day", raise_generic, raising=False)
+        monkeypatch.setattr(legacy_app, "to_pdf_day", raise_generic, raising=False)
+        with pytest.raises(HTTPException) as exc2:
+            await legacy_app.export_daily_plan_pdf("p1")
+        assert exc2.value.status_code == 500
+
+    asyncio.run(_run())
+
+
+def test_export_day_csv_helper_missing_503(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def _run() -> None:
+        """Cover CSV helper-not-callable branch (line ~4915)."""
+        if not getattr(legacy_app, "EXPORTS_ENABLED", False):
+            pytest.skip("Exports are not enabled in this environment.")
+        import app as app_pkg
+
+        monkeypatch.setattr(app_pkg, "to_csv_day", None, raising=False)
+        monkeypatch.setattr(legacy_app, "to_csv_day", None, raising=False)
+        with pytest.raises(HTTPException) as exc:
+            await legacy_app.export_daily_plan_csv("p1")
+        # Preserve the explicit "helper missing" semantics as 503.
+        assert exc.value.status_code == 503
+        assert "CSV export helper is not available" in str(exc.value.detail)
+
+    asyncio.run(_run())
+
+
+def test_export_day_csv_success_path(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def _run() -> None:
+        """Cover CSV success path returning Response (line ~4919)."""
+        if not getattr(legacy_app, "EXPORTS_ENABLED", False):
+            pytest.skip("Exports are not enabled in this environment.")
+
+        monkeypatch.setattr(legacy_app, "to_csv_day", lambda _p: b"a,b\n", raising=False)
+        resp = await legacy_app.export_daily_plan_csv("p1")
+        assert resp.media_type == "text/csv"
+
+    asyncio.run(_run())
+
+
+def test_export_pdf_generic_empty_payload_400() -> None:
+    async def _run() -> None:
+        """Cover empty payload guard (line ~4946)."""
+        if not getattr(legacy_app, "EXPORTS_ENABLED", False):
+            pytest.skip("Exports are not enabled in this environment.")
+        with pytest.raises(HTTPException) as exc:
+            await legacy_app.export_pdf_generic({})
+        assert exc.value.status_code == 400
+
+    asyncio.run(_run())
+
+
+def test_export_pdf_generic_helper_missing_503(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def _run() -> None:
+        """Cover PDF helper missing -> HTTPException passthrough (lines ~4959, ~4972)."""
+        if not getattr(legacy_app, "EXPORTS_ENABLED", False):
+            pytest.skip("Exports are not enabled in this environment.")
+        import app as app_pkg
+
+        monkeypatch.setattr(app_pkg, "to_pdf_day", None, raising=False)
+        monkeypatch.setattr(legacy_app, "to_pdf_day", None, raising=False)
+        with pytest.raises(HTTPException) as exc:
+            await legacy_app.export_pdf_generic({"x": 1})
+        assert exc.value.status_code == 503
+
+    asyncio.run(_run())
+
+
+def test_export_week_csv_fallback_when_helper_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Cover api_premium_bmr wrapper resolution that returns patched callable from app package."""
-    monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
-
-    # Patch wrappers on app package so api_premium_bmr picks them up via sys.modules["app"].
-    import app as app_pkg
-
-    def bmr_wrapper(*_a: Any, **_kw: Any) -> dict[str, float]:
-        return {"mifflin": 1000.0}
-
-    def tdee_wrapper(*_a: Any, **_kw: Any) -> dict[str, float]:
-        return {"mifflin": 2000.0}
-
-    monkeypatch.setattr(app_pkg, "_calculate_all_bmr_wrapper", bmr_wrapper, raising=False)
-    monkeypatch.setattr(app_pkg, "_calculate_all_tdee_wrapper", tdee_wrapper, raising=False)
-
-    req = legacy_app.BMRRequest(
-        weight_kg=70.0,
-        height_cm=175.0,
-        age=30,
-        sex="male",
-        activity="moderate",
-        bodyfat=None,
-        lang="en",
-    )
-    resp = await legacy_app.api_premium_bmr(req)
-    assert resp.bmr
-
-
-@pytest.mark.asyncio
-async def test_premium_bmr_resolve_wrapper_uses_pkg_candidates(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Cover api_premium_bmr wrapper resolution that returns a candidate from _iter_app_modules."""
-    monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
-
-    dummy_mod = ModuleType("dummy_app_module")
-
-    def bmr_wrapper(*_a: Any, **_kw: Any) -> dict[str, float]:
-        return {"mifflin": 1100.0}
-
-    def tdee_wrapper(*_a: Any, **_kw: Any) -> dict[str, float]:
-        return {"mifflin": 2100.0}
-
-    setattr(dummy_mod, "_calculate_all_bmr_wrapper", bmr_wrapper)
-    setattr(dummy_mod, "_calculate_all_tdee_wrapper", tdee_wrapper)
-
-    # Ensure sys.modules["app"] doesn't short-circuit the resolution
-    import app as app_pkg
-
-    # app is a PEP 562 forwarding module; delattr() would trigger __getattr__ and fail even when
-    # the attribute is not actually present on the module. Remove only real module attributes.
-    monkeypatch.delitem(app_pkg.__dict__, "_calculate_all_bmr_wrapper", raising=False)
-    monkeypatch.delitem(app_pkg.__dict__, "_calculate_all_tdee_wrapper", raising=False)
-
-    monkeypatch.setattr(legacy_app, "_iter_app_modules", lambda: [dummy_mod])
-
-    req = legacy_app.BMRRequest(
-        weight_kg=70.0,
-        height_cm=175.0,
-        age=30,
-        sex="male",
-        activity="moderate",
-        bodyfat=None,
-        lang="en",
-    )
-    resp = await legacy_app.api_premium_bmr(req)
-    assert resp.tdee
-
-
-@pytest.mark.asyncio
-async def test_premium_bmr_legacy_executes_wrapper_resolution(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Cover premium_bmr_legacy wrapper resolution return path."""
-    monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
-
-    def bmr_wrapper(*_a: Any, **_kw: Any) -> dict[str, float]:
-        return {"mifflin": 1000.0}
-
-    def tdee_wrapper(*_a: Any, **_kw: Any) -> dict[str, float]:
-        return {"mifflin": 2000.0}
-
-    import app as app_pkg
-
-    monkeypatch.setattr(app_pkg, "_calculate_all_bmr_wrapper", bmr_wrapper, raising=False)
-    monkeypatch.setattr(app_pkg, "_calculate_all_tdee_wrapper", tdee_wrapper, raising=False)
-
-    req = legacy_app.BMRRequestLegacy(
-        weight_kg=70.0,
-        height_cm=175.0,
-        age=30,
-        sex="male",
-        activity="moderate",
-        bodyfat=None,
-        lang="en",
-    )
-    resp = await legacy_app.premium_bmr_legacy(req)
-    assert resp.bmr
-
-
-@pytest.mark.asyncio
-async def test_week_plan_missing_required_fields_raises_422(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Cover the required-fields 422 branch inside api_weekly_menu.
-
-    NOTE: WeekPlanRequest validators enforce required profile fields when targets is None.
-    To exercise the handler's internal guard (diff-coverage), we bypass validation via
-    model_construct.
-    """
-    monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
-    req = legacy_app.LegacyWeekPlanRequest.model_construct(
-        sex=None,
-        age=None,
-        height_cm=None,
-        weight_kg=None,
-        activity=None,
-        goal="maintain",
-        deficit_pct=None,
-        surplus_pct=None,
-        bodyfat=None,
-        diet_flags=[],
-        targets=None,
-        life_stage=None,
-        lang="en",
-    )
-    with pytest.raises(HTTPException) as exc:
-        await legacy_premium_weekly_plan.api_weekly_menu(req)
-    assert exc.value.status_code == 422
-
-
-@pytest.mark.asyncio
-async def test_export_day_csv_error_paths(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Cover export_daily_plan_csv exception handling (500 path)."""
-    if not getattr(legacy_app, "EXPORTS_ENABLED", False):
-        pytest.skip("Exports are not enabled in this environment.")
-
-    async def _call() -> Any:
-        return await legacy_app.export_daily_plan_csv("p1")
-
-    def boom(_: Any) -> bytes:
-        raise RuntimeError("boom")
-
-    # Ensure dynamic helper resolution uses our boom() function.
-    import app as app_pkg
-
-    monkeypatch.setattr(app_pkg, "to_csv_day", boom, raising=False)
-    monkeypatch.setattr(legacy_app, "to_csv_day", boom, raising=False)
-    with pytest.raises(HTTPException) as exc:
-        await _call()
-    assert exc.value.status_code == 500
-
-
-@pytest.mark.asyncio
-async def test_export_pdf_generic_success_and_error(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Cover export_pdf_generic helper import and error paths."""
-    if not getattr(legacy_app, "EXPORTS_ENABLED", False):
-        pytest.skip("Exports are not enabled in this environment.")
-
-    import app as app_pkg
-
-    # Ensure helper resolution sees a callable (it prefers app.to_pdf_day if present).
-    monkeypatch.setattr(app_pkg, "to_pdf_day", lambda _p: b"%PDF", raising=False)
-    monkeypatch.setattr(legacy_app, "to_pdf_day", lambda _p: b"%PDF", raising=False)
-    resp = await legacy_app.export_pdf_generic({"meals": [], "totals": {}})
-    assert resp.media_type == "application/pdf"
-
-    def boom(_: Any) -> bytes:
-        raise RuntimeError("boom")
-
-    monkeypatch.setattr(app_pkg, "to_pdf_day", boom, raising=False)
-    monkeypatch.setattr(legacy_app, "to_pdf_day", boom, raising=False)
-    with pytest.raises(HTTPException) as exc:
-        await legacy_app.export_pdf_generic({"meals": [], "totals": {}})
-    assert exc.value.status_code == 500
-
-
-@pytest.mark.asyncio
-async def test_export_week_csv_error_path(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Cover export_weekly_plan_csv exception -> 500."""
-    if not getattr(legacy_app, "EXPORTS_ENABLED", False):
-        pytest.skip("Exports are not enabled in this environment.")
-
-    def boom(_: Any) -> bytes:
-        raise RuntimeError("boom")
-
-    monkeypatch.setattr(legacy_app, "to_csv_week", boom, raising=False)
-    with pytest.raises(HTTPException) as exc:
-        await legacy_app.export_weekly_plan_csv("p1")
-    assert exc.value.status_code == 500
-
-
-@pytest.mark.asyncio
-async def test_export_day_pdf_paths(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Cover export_daily_plan_pdf success, importerror, and generic error paths."""
-    if not getattr(legacy_app, "EXPORTS_ENABLED", False):
-        pytest.skip("Exports are not enabled in this environment.")
-
-    import app as app_pkg
-
-    # export_daily_plan_pdf may resolve PDF helper via app.to_pdf_day if present.
-    monkeypatch.setattr(app_pkg, "to_pdf_day", lambda _p: b"pdf", raising=False)
-    monkeypatch.setattr(legacy_app, "to_pdf_day", lambda _p: b"pdf", raising=False)
-    resp = await legacy_app.export_daily_plan_pdf("p1")
-    assert resp.media_type == "application/pdf"
-
-    def raise_import(_: Any) -> bytes:
-        raise ImportError("no reportlab")
-
-    monkeypatch.setattr(app_pkg, "to_pdf_day", raise_import, raising=False)
-    monkeypatch.setattr(legacy_app, "to_pdf_day", raise_import, raising=False)
-    with pytest.raises(HTTPException) as exc:
-        await legacy_app.export_daily_plan_pdf("p1")
-    assert exc.value.status_code == 500
-
-    def raise_generic(_: Any) -> bytes:
-        raise RuntimeError("boom")
-
-    monkeypatch.setattr(app_pkg, "to_pdf_day", raise_generic, raising=False)
-    monkeypatch.setattr(legacy_app, "to_pdf_day", raise_generic, raising=False)
-    with pytest.raises(HTTPException) as exc2:
-        await legacy_app.export_daily_plan_pdf("p1")
-    assert exc2.value.status_code == 500
-
-
-@pytest.mark.asyncio
-async def test_export_day_csv_helper_missing_503(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Cover CSV helper-not-callable branch (line ~4915)."""
-    if not getattr(legacy_app, "EXPORTS_ENABLED", False):
-        pytest.skip("Exports are not enabled in this environment.")
-    import app as app_pkg
-
-    monkeypatch.setattr(app_pkg, "to_csv_day", None, raising=False)
-    monkeypatch.setattr(legacy_app, "to_csv_day", None, raising=False)
-    with pytest.raises(HTTPException) as exc:
-        await legacy_app.export_daily_plan_csv("p1")
-    # Preserve the explicit "helper missing" semantics as 503.
-    assert exc.value.status_code == 503
-    assert "CSV export helper is not available" in str(exc.value.detail)
-
-
-@pytest.mark.asyncio
-async def test_export_day_csv_success_path(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Cover CSV success path returning Response (line ~4919)."""
-    if not getattr(legacy_app, "EXPORTS_ENABLED", False):
-        pytest.skip("Exports are not enabled in this environment.")
-
-    monkeypatch.setattr(legacy_app, "to_csv_day", lambda _p: b"a,b\n", raising=False)
-    resp = await legacy_app.export_daily_plan_csv("p1")
-    assert resp.media_type == "text/csv"
-
-
-@pytest.mark.asyncio
-async def test_export_pdf_generic_empty_payload_400() -> None:
-    """Cover empty payload guard (line ~4946)."""
-    if not getattr(legacy_app, "EXPORTS_ENABLED", False):
-        pytest.skip("Exports are not enabled in this environment.")
-    with pytest.raises(HTTPException) as exc:
-        await legacy_app.export_pdf_generic({})
-    assert exc.value.status_code == 400
-
-
-@pytest.mark.asyncio
-async def test_export_pdf_generic_helper_missing_503(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Cover PDF helper missing -> HTTPException passthrough (lines ~4959, ~4972)."""
-    if not getattr(legacy_app, "EXPORTS_ENABLED", False):
-        pytest.skip("Exports are not enabled in this environment.")
-    import app as app_pkg
-
-    monkeypatch.setattr(app_pkg, "to_pdf_day", None, raising=False)
-    monkeypatch.setattr(legacy_app, "to_pdf_day", None, raising=False)
-    with pytest.raises(HTTPException) as exc:
-        await legacy_app.export_pdf_generic({"x": 1})
-    assert exc.value.status_code == 503
-
-
-@pytest.mark.asyncio
-async def test_export_week_csv_fallback_when_helper_missing(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Cover weekly CSV fallback Response when helper missing (line ~5069)."""
-    if not getattr(legacy_app, "EXPORTS_ENABLED", False):
-        pytest.skip("Exports are not enabled in this environment.")
-
-    monkeypatch.setattr(legacy_app, "to_csv_week", None, raising=False)
-    resp = await legacy_app.export_weekly_plan_csv("p1")
-    assert resp.media_type == "text/csv"
-    assert b"plan_id" in resp.body
-
-
-@pytest.mark.asyncio
-async def test_export_day_pdf_helper_missing_503(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Cover export_daily_plan_pdf helper-missing path (lines ~5151, ~5165)."""
-    if not getattr(legacy_app, "EXPORTS_ENABLED", False):
-        pytest.skip("Exports are not enabled in this environment.")
-    monkeypatch.setattr(legacy_app, "to_pdf_day", None, raising=False)
-    with pytest.raises(HTTPException) as exc:
-        await legacy_app.export_daily_plan_pdf("p1")
-    assert exc.value.status_code == 503
-
-
-@pytest.mark.asyncio
-async def test_export_week_pdf_paths(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Cover export_weekly_plan_pdf success, missing helper, importerror, and generic error paths."""
-    if not getattr(legacy_app, "EXPORTS_ENABLED", False):
-        pytest.skip("Exports are not enabled in this environment.")
-
-    monkeypatch.setattr(legacy_app, "to_pdf_week", lambda _p: b"pdf", raising=False)
-    resp = await legacy_app.export_weekly_plan_pdf("p1")
-    assert resp.media_type == "application/pdf"
-
-    monkeypatch.setattr(legacy_app, "to_pdf_week", None, raising=False)
-    with pytest.raises(HTTPException) as exc:
-        await legacy_app.export_weekly_plan_pdf("p1")
-    assert exc.value.status_code == 503
-
-    def raise_import(_: Any) -> bytes:
-        raise ImportError("no reportlab")
-
-    monkeypatch.setattr(legacy_app, "to_pdf_week", raise_import, raising=False)
-    with pytest.raises(HTTPException) as exc2:
-        await legacy_app.export_weekly_plan_pdf("p1")
-    assert exc2.value.status_code == 500
-
-    def raise_generic(_: Any) -> bytes:
-        raise RuntimeError("boom")
-
-    monkeypatch.setattr(legacy_app, "to_pdf_week", raise_generic, raising=False)
-    with pytest.raises(HTTPException) as exc3:
-        await legacy_app.export_weekly_plan_pdf("p1")
-    assert exc3.value.status_code == 500
-
-
-@pytest.mark.asyncio
-async def test_rollback_database_coroutine_callable_path(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Cover coroutine rollback_callable branch (line ~4782)."""
-
-    class _UpdateManager:
-        async def rollback_database(self, source: str, target_version: str) -> bool:
-            return True
-
-    class _Scheduler:
-        update_manager = _UpdateManager()
-
-    async def _getter() -> Any:
-        return _Scheduler()
-
-    import app as app_pkg
-
-    monkeypatch.setattr(app_pkg, "get_update_scheduler", _getter, raising=False)
-    out = await legacy_app.rollback_database("usda", "v1")
-    assert out["success"] is True
+    async def _run() -> None:
+        """Cover weekly CSV fallback Response when helper missing (line ~5069)."""
+        if not getattr(legacy_app, "EXPORTS_ENABLED", False):
+            pytest.skip("Exports are not enabled in this environment.")
+
+        monkeypatch.setattr(legacy_app, "to_csv_week", None, raising=False)
+        resp = await legacy_app.export_weekly_plan_csv("p1")
+        assert resp.media_type == "text/csv"
+        assert b"plan_id" in resp.body
+
+    asyncio.run(_run())
+
+
+def test_export_day_pdf_helper_missing_503(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def _run() -> None:
+        """Cover export_daily_plan_pdf helper-missing path (lines ~5151, ~5165)."""
+        if not getattr(legacy_app, "EXPORTS_ENABLED", False):
+            pytest.skip("Exports are not enabled in this environment.")
+        monkeypatch.setattr(legacy_app, "to_pdf_day", None, raising=False)
+        with pytest.raises(HTTPException) as exc:
+            await legacy_app.export_daily_plan_pdf("p1")
+        assert exc.value.status_code == 503
+
+    asyncio.run(_run())
+
+
+def test_export_week_pdf_paths(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def _run() -> None:
+        """Cover export_weekly_plan_pdf success, missing helper, importerror, and generic error paths."""
+        if not getattr(legacy_app, "EXPORTS_ENABLED", False):
+            pytest.skip("Exports are not enabled in this environment.")
+
+        monkeypatch.setattr(legacy_app, "to_pdf_week", lambda _p: b"pdf", raising=False)
+        resp = await legacy_app.export_weekly_plan_pdf("p1")
+        assert resp.media_type == "application/pdf"
+
+        monkeypatch.setattr(legacy_app, "to_pdf_week", None, raising=False)
+        with pytest.raises(HTTPException) as exc:
+            await legacy_app.export_weekly_plan_pdf("p1")
+        assert exc.value.status_code == 503
+
+        def raise_import(_: Any) -> bytes:
+            raise ImportError("no reportlab")
+
+        monkeypatch.setattr(legacy_app, "to_pdf_week", raise_import, raising=False)
+        with pytest.raises(HTTPException) as exc2:
+            await legacy_app.export_weekly_plan_pdf("p1")
+        assert exc2.value.status_code == 500
+
+        def raise_generic(_: Any) -> bytes:
+            raise RuntimeError("boom")
+
+        monkeypatch.setattr(legacy_app, "to_pdf_week", raise_generic, raising=False)
+        with pytest.raises(HTTPException) as exc3:
+            await legacy_app.export_weekly_plan_pdf("p1")
+        assert exc3.value.status_code == 500
+
+    asyncio.run(_run())
+
+
+def test_rollback_database_coroutine_callable_path(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def _run() -> None:
+        """Cover coroutine rollback_callable branch (line ~4782)."""
+
+        class _UpdateManager:
+            async def rollback_database(self, source: str, target_version: str) -> bool:
+                return True
+
+        class _Scheduler:
+            update_manager = _UpdateManager()
+
+        async def _getter() -> Any:
+            return _Scheduler()
+
+        import app as app_pkg
+
+        monkeypatch.setattr(app_pkg, "get_update_scheduler", _getter, raising=False)
+        out = await legacy_app.rollback_database("usda", "v1")
+        assert out["success"] is True
+
+    asyncio.run(_run())
 
 
 def test_targets_disabled_detects_explicit_none_on_app_and_alias(
@@ -948,115 +995,121 @@ def test_build_fallback_plate_invalid_fiber_uses_fiber_min(monkeypatch: pytest.M
     assert out.macros["fiber_g"] >= int(round(legacy_app.FIBER_MIN_G))
 
 
-@pytest.mark.asyncio
-async def test_aggregate_day_micros_awaits_resolved_callable(
+def test_aggregate_day_micros_awaits_resolved_callable(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Cover await path in aggregate_day_micros (line ~3565)."""
+    async def _run() -> None:
+        """Cover await path in aggregate_day_micros (line ~3565)."""
 
-    async def _agg(_meals: Any) -> dict[str, float]:
-        return {"iron_mg": 1.0}
+        async def _agg(_meals: Any) -> dict[str, float]:
+            return {"iron_mg": 1.0}
 
-    monkeypatch.setattr(legacy_app.core_utils, "resolve_attr", lambda *_a, **_k: _agg)
-    out = await legacy_app.aggregate_day_micros(meals=[{"x": 1}], candidates=[])
-    assert out["iron_mg"] == 1.0
+        monkeypatch.setattr(legacy_app.core_utils, "resolve_attr", lambda *_a, **_k: _agg)
+        out = await legacy_app.aggregate_day_micros(meals=[{"x": 1}], candidates=[])
+        assert out["iron_mg"] == 1.0
 
-
-@pytest.mark.asyncio
-async def test_premium_plate_calls_bmr_tdee_and_make_plate(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Cover BMR/TDEE + make_plate call path in api_premium_plate (lines ~3684-3690)."""
-    monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
-
-    monkeypatch.setattr(legacy_app, "sanitize_plate_data", lambda x: x, raising=False)
-
-    async def _empty_micros(*_a: Any, **_k: Any) -> dict[str, float]:
-        return {}
-
-    monkeypatch.setattr(legacy_app, "aggregate_day_micros", _empty_micros, raising=False)
-    monkeypatch.setattr(
-        legacy_app,
-        "align_macros_with_targets",
-        lambda *_a, **_k: (
-            {"protein_g": 100, "fat_g": 50, "carbs_g": 200, "fiber_g": 25},
-            None,
-            False,
-        ),
-        raising=False,
-    )
-
-    monkeypatch.setattr(
-        legacy_app, "calculate_all_bmr", lambda *_a, **_k: {"mifflin": 1500.0}, raising=False
-    )
-    monkeypatch.setattr(
-        legacy_app, "calculate_all_tdee", lambda *_a, **_k: {"mifflin": 2000.0}, raising=False
-    )
-
-    def _make_plate(**_kw: Any) -> dict[str, Any]:
-        return {
-            "kcal": 2000,
-            "macros": {"protein_g": 120, "fat_g": 50, "carbs_g": 200, "fiber_g": 25},
-            "portions": {
-                "protein_palm": 1.0,
-                "fat_thumbs": 1.0,
-                "carb_cups": 1.0,
-                "veg_cups": 1.0,
-            },
-            "layout": [{"kind": "plate_sector", "fraction": 1.0, "label": "x", "tooltip": "x"}],
-            "meals": [{"title": "m", "kcal": 500, "protein_g": 30, "fat_g": 10, "carbs_g": 60}],
-        }
-
-    monkeypatch.setattr(legacy_app, "make_plate", _make_plate, raising=False)
-
-    req = legacy_app.PlateRequest(
-        sex="male",
-        age=30,
-        height_cm=175.0,
-        weight_kg=70.0,
-        activity="moderate",
-        goal="maintain",
-        deficit_pct=None,
-        surplus_pct=None,
-        bodyfat=None,
-        diet_flags=set(),
-        life_stage="adult",
-        lang="en",
-    )
-    out = await legacy_app.api_premium_plate(req)
-    assert out.kcal >= 0
+    asyncio.run(_run())
 
 
-@pytest.mark.asyncio
-async def test_premium_bmr_legacy_hits_globals_fallback_path(
+def test_premium_plate_calls_bmr_tdee_and_make_plate(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def _run() -> None:
+        """Cover BMR/TDEE + make_plate call path in api_premium_plate (lines ~3684-3690)."""
+        monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
+
+        monkeypatch.setattr(legacy_app, "sanitize_plate_data", lambda x: x, raising=False)
+
+        async def _empty_micros(*_a: Any, **_k: Any) -> dict[str, float]:
+            return {}
+
+        monkeypatch.setattr(legacy_app, "aggregate_day_micros", _empty_micros, raising=False)
+        monkeypatch.setattr(
+            legacy_app,
+            "align_macros_with_targets",
+            lambda *_a, **_k: (
+                {"protein_g": 100, "fat_g": 50, "carbs_g": 200, "fiber_g": 25},
+                None,
+                False,
+            ),
+            raising=False,
+        )
+
+        monkeypatch.setattr(
+            legacy_app, "calculate_all_bmr", lambda *_a, **_k: {"mifflin": 1500.0}, raising=False
+        )
+        monkeypatch.setattr(
+            legacy_app, "calculate_all_tdee", lambda *_a, **_k: {"mifflin": 2000.0}, raising=False
+        )
+
+        def _make_plate(**_kw: Any) -> dict[str, Any]:
+            return {
+                "kcal": 2000,
+                "macros": {"protein_g": 120, "fat_g": 50, "carbs_g": 200, "fiber_g": 25},
+                "portions": {
+                    "protein_palm": 1.0,
+                    "fat_thumbs": 1.0,
+                    "carb_cups": 1.0,
+                    "veg_cups": 1.0,
+                },
+                "layout": [{"kind": "plate_sector", "fraction": 1.0, "label": "x", "tooltip": "x"}],
+                "meals": [{"title": "m", "kcal": 500, "protein_g": 30, "fat_g": 10, "carbs_g": 60}],
+            }
+
+        monkeypatch.setattr(legacy_app, "make_plate", _make_plate, raising=False)
+
+        req = legacy_app.PlateRequest(
+            sex="male",
+            age=30,
+            height_cm=175.0,
+            weight_kg=70.0,
+            activity="moderate",
+            goal="maintain",
+            deficit_pct=None,
+            surplus_pct=None,
+            bodyfat=None,
+            diet_flags=set(),
+            life_stage="adult",
+            lang="en",
+        )
+        out = await legacy_app.api_premium_plate(req)
+        assert out.kcal >= 0
+
+    asyncio.run(_run())
+
+
+def test_premium_bmr_legacy_hits_globals_fallback_path(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Cover premium_bmr_legacy _resolve_wrapper final globals() return (line ~4007)."""
-    monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
+    async def _run() -> None:
+        """Cover premium_bmr_legacy _resolve_wrapper final globals() return (line ~4007)."""
+        monkeypatch.setenv("FEATURE_PREMIUM_NUTRITION", "true")
 
-    import app as app_pkg
+        import app as app_pkg
 
-    # app is a PEP 562 forwarding module; delattr() would trigger __getattr__ and fail even when
-    # the attribute is not actually present on the module. Remove only real module attributes.
-    monkeypatch.delitem(app_pkg.__dict__, "_calculate_all_bmr_wrapper", raising=False)
-    monkeypatch.delitem(app_pkg.__dict__, "_calculate_all_tdee_wrapper", raising=False)
+        # app is a PEP 562 forwarding module; delattr() would trigger __getattr__ and fail even when
+        # the attribute is not actually present on the module. Remove only real module attributes.
+        monkeypatch.delitem(app_pkg.__dict__, "_calculate_all_bmr_wrapper", raising=False)
+        monkeypatch.delitem(app_pkg.__dict__, "_calculate_all_tdee_wrapper", raising=False)
 
-    monkeypatch.setattr(
-        legacy_app, "_calculate_all_bmr_wrapper", lambda *_a, **_k: {"mifflin": 1000.0}
-    )
-    monkeypatch.setattr(
-        legacy_app, "_calculate_all_tdee_wrapper", lambda *_a, **_k: {"mifflin": 2000.0}
-    )
+        monkeypatch.setattr(
+            legacy_app, "_calculate_all_bmr_wrapper", lambda *_a, **_k: {"mifflin": 1000.0}
+        )
+        monkeypatch.setattr(
+            legacy_app, "_calculate_all_tdee_wrapper", lambda *_a, **_k: {"mifflin": 2000.0}
+        )
 
-    req = legacy_app.BMRRequestLegacy(
-        weight_kg=70.0,
-        height_cm=175.0,
-        age=30,
-        sex="male",
-        activity="moderate",
-        bodyfat=None,
-        lang="en",
-    )
-    resp = await legacy_app.premium_bmr_legacy(req)
-    assert resp.bmr
+        req = legacy_app.BMRRequestLegacy(
+            weight_kg=70.0,
+            height_cm=175.0,
+            age=30,
+            sex="male",
+            activity="moderate",
+            bodyfat=None,
+            lang="en",
+        )
+        resp = await legacy_app.premium_bmr_legacy(req)
+        assert resp.bmr
+
+    asyncio.run(_run())
 
 
 def test_exports_flag_warning_outside_tests_is_coverable(
