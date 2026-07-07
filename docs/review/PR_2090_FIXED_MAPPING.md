@@ -30,7 +30,7 @@ and deleting `legacy_app.py`.
 - `f334214edf49d0aaae1ff58e585ecb58cebb8fa2` - preserve resolver monkeypatch seam.
 - `043b68351ff001a7a99b152f615621bedac51c4f` - add PR mapping artifact.
 - `d8e45dbdd36d938bbb8c9adfd1aec02bed794acd` - sync current `origin/main`.
-- `454aeff6d3f5e935594ae5be28ba4d8b0187fa0f` - fix CodeRabbit stale-comment nitpick.
+- `454aeff6d72f16fc046e938002c35d816494f8e7` - fix CodeRabbit stale-comment nitpick.
 - `fdbe38435a6d418df32b7357cc065ebedc4f0eae` - cover moved schema/service branches.
 - `d5aa0771c0892febb6653a26106fb50a86f17446` - move coverage probes into the CI-visible diff-coverage suite.
 
@@ -56,9 +56,9 @@ Packet: `artifacts/orchestration/task_packets/a61539e84620.json`
 
 ## Fixed in Commit Mapping
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2090#issuecomment-4902964873 -> 454aeff6d3f5e935594ae5be28ba4d8b0187fa0f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2090#issuecomment-4902964873 -> 454aeff6d72f16fc046e938002c35d816494f8e7
 Disposition: FIXED
-Commit: 454aeff6d3f5e935594ae5be28ba4d8b0187fa0f
+Commit: 454aeff6d72f16fc046e938002c35d816494f8e7
 Evidence: CodeRabbit stale-comment nitpick fixed in `tests/test_premium_week_app_coverage.py`.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2090#issuecomment-4903419521 -> d5aa0771c0892febb6653a26106fb50a86f17446
