@@ -148,6 +148,40 @@ provider, semantic-cache, or graph-truth authority is added.
     including `allowed_existing_paths`, `allowed_new_paths`, and
     `max_changed_files`; regression tests cover both inventory promotion
     assertion and PR-3 planning rejection for forged consistent sidecars.
+- Codex Security current-head finding: directory iteration errors under local
+  creative-code artifact roots could escape as raw Python exceptions with local
+  absolute paths instead of sanitized inventory read-error blockers.
+  - Disposition: FIXED
+  - Commit: `7a84128b1`
+  - Evidence:
+    `scripts/orchestration/creative_code_artifact_inventory.py` now converts
+    `iterdir()` `OSError` failures into `unreadable_directory` read errors for
+    patch-run, generation-receipt, and promotion artifact scans; regression
+    coverage verifies text output does not echo a token-like local absolute
+    path.
+- Codex Security current-head finding: generation receipt validation could
+  accept self-consistent forged PR-2 sidecars without replaying the PR-2
+  request-authority validator.
+  - Disposition: FIXED
+  - Commit: `7a84128b1`
+  - Evidence:
+    `scripts/orchestration/creative_code_patch_generation.py` now loads the
+    canonical request, source bundle, selected variant, patch metadata, result,
+    and candidate patch sidecars and reuses
+    `validate_creative_code_patch_run_sidecars(...)`; regression coverage
+    rejects a recomputed forged receipt whose changed path falls outside the
+    original request allowlist.
+- Codex Security current-head finding: duplicate JSON keys in linked
+  `result.json` could echo token-shaped key names through the shared patch
+  contract reader during generation receipt validation.
+  - Disposition: FIXED
+  - Commit: `7a84128b1`
+  - Evidence:
+    `scripts/orchestration/creative_code_patch_contract.py` now emits a generic
+    duplicate-key error without the attacker-controlled key name, and
+    generation receipt validation converts shared contract failures into
+    sanitized generation errors; regression coverage asserts `GH_TOKEN` and
+    token fragments are absent from stderr.
 
 ## Discussion Thread Pass
 
@@ -227,6 +261,13 @@ Evidence: `scripts/orchestration/creative_code_patch_contract.py` now derives st
 - Post-request-authority-fix `pre-commit run --all-files` - PASS after Black
   formatted `tests/test_creative_code_artifact_inventory.py` and the focused
   test bundle plus `make validate-changed` were rerun.
+- Post-artifact-validation-sanitization focused rerun:
+  `python -m pytest tests/test_creative_code_artifact_inventory.py tests/test_creative_code_patch_generation.py tests/test_creative_code_pr_promotion.py -q` - PASS.
+- Post-artifact-validation-sanitization `python3 scripts/orchestration/check_preflight.py` - PASS.
+- Post-artifact-validation-sanitization `python3 scripts/orchestration/check_agent_consistency.py` - PASS.
+- Post-artifact-validation-sanitization `git diff --check` - PASS.
+- Post-artifact-validation-sanitization `make validate-changed` - PASS.
+- Post-artifact-validation-sanitization `pre-commit run --all-files` - PASS.
 
 ## Merge Readiness
 
