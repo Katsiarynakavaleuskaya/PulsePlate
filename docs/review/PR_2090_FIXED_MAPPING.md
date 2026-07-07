@@ -61,6 +61,21 @@ Disposition: FIXED
 Commit: 454aeff6d72f16fc046e938002c35d816494f8e7
 Evidence: CodeRabbit stale-comment nitpick fixed in `tests/test_premium_week_app_coverage.py`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2090#pullrequestreview-4644350748 -> 454aeff6d72f16fc046e938002c35d816494f8e7
+Disposition: FIXED
+Commit: 454aeff6d72f16fc046e938002c35d816494f8e7
+Evidence: CodeRabbit stale-comment nitpick review summary is the review-level wrapper for the mapped issue comment above; the test comment was clarified in `tests/test_premium_week_app_coverage.py`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2090#discussion_r3535819163 -> f334214edf49d0aaae1ff58e585ecb58cebb8fa2
+Disposition: FIXED
+Commit: f334214edf49d0aaae1ff58e585ecb58cebb8fa2
+Evidence: `legacy_app._resolve_legacy_weekly_menu_builder()` now composes the legacy shim helpers through the canonical service resolver, preserving historical monkeypatch seams (`legacy_app.py:2078`).
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2090#discussion_r3535819171
+Disposition: NOT-A-BUG
+Evidence: `app/routers/legacy_premium_weekly_plan.py:45` checks request-time `is_vip_module_enabled()`, whose canonical env contract lives in `app/utils/feature_flags.py:37`; deterministic disabled-env and canonical-helper patch behavior is covered in `tests/test_legacy_app_diff_coverage.py`.
+Reason: This PR intentionally removes the router's `legacy_app.VIP_MODULE_ENABLED` module-global fallback and uses the canonical request-time feature flag helper. Test-only monkeypatches moved to env/canonical helper seams by scope.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2090#issuecomment-4903419521 -> d5aa0771c0892febb6653a26106fb50a86f17446
 Disposition: FIXED
 Commit: d5aa0771c0892febb6653a26106fb50a86f17446
