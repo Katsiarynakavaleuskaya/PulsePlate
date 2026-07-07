@@ -54,13 +54,9 @@ Packet: `artifacts/orchestration/task_packets/a61539e84620.json`
 ## Fixed in Commit Mapping
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2090#issuecomment-4902964873 -> 454aeff6d3f5e935594ae5be28ba4d8b0187fa0f
-
 Disposition: FIXED
-
-Evidence: CodeRabbit flagged stale test comment wording for the second
-weekly-menu builder resolution path. Commit `454aeff6d` updates the comment in
-`tests/test_premium_week_app_coverage.py` to match the current
-`legacy_app` lookup seam.
+Commit: 454aeff6d3f5e935594ae5be28ba4d8b0187fa0f
+Evidence: CodeRabbit stale-comment nitpick fixed in `tests/test_premium_week_app_coverage.py`.
 
 ## Role Findings
 
