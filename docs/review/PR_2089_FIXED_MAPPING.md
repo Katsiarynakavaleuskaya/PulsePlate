@@ -64,16 +64,68 @@ provider, semantic-cache, or graph-truth authority is added.
     and rejects unsafe metadata before inventory or PR-3 promotion can treat
     the run as valid. Regression tests cover both
     `assert-ready-for-promotion` and PR-3 `plan()` rejection.
+- Security-auditor / CodeQL finding: artifact-ref regex contained a redundant
+  optional dotted suffix that CodeQL flagged as inefficient backtracking risk.
+  - Disposition: FIXED
+  - Commit: `0b4ccb79e`
+  - Evidence:
+    `scripts/orchestration/creative_code_artifact_inventory.py` and
+    `docs/orchestration/contracts/creative_code_artifact_inventory_report.v1.schema.json`
+    now use the same bounded segment pattern without the nested optional dotted
+    suffix.
+- Security-auditor finding: `patch_metadata.changed_path_statuses` accepted
+  tampered `A` / `M` values when keys matched.
+  - Disposition: FIXED
+  - Commit: `0b4ccb79e`
+  - Evidence:
+    `scripts/orchestration/creative_code_patch_contract.py` now derives
+    changed-path statuses from `candidate.patch` and rejects sidecar status
+    mismatches. Regression tests cover inventory and PR-3 planner rejection.
+- Security-auditor / CodeRabbit finding: promotion artifact contract allowed
+  `pull_request_number=0` and did not bind `head_branch` to the PR-3
+  `experiment/*` branch contract.
+  - Disposition: FIXED
+  - Commit: `0b4ccb79e`
+  - Evidence:
+    runtime validation now rejects zero PR numbers and non-`experiment/*`
+    branches; the JSON schema mirrors the same constraints.
+- CodeRabbit finding: `test_missing_or_tampered_sidecar_fails_closed` used
+  `Any` for a callable mutation parameter.
+  - Disposition: FIXED
+  - Commit: `2c456b995`
+  - Evidence:
+    `tests/test_creative_code_artifact_inventory.py` now annotates the parameter
+    as `Callable[[Path], None]`.
 
 ## Discussion Thread Pass
 
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
-- No GitHub review-thread actionables were mapped at artifact creation time.
+- Current GitHub review-thread actionables queried through GraphQL and mapped
+  below. GitHub thread resolution remains pending until the fixed commits are
+  pushed and review/bot state is rechecked.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: 0b4ccb79ecdb2d8958034c98f67e59343639e174
+Evidence: `docs/orchestration/contracts/creative_code_artifact_inventory_report.v1.schema.json` now requires `pull_request_number >= 1`; runtime validation also rejects zero PR numbers.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2089#discussion_r3532026922 -> 0b4ccb79ecdb2d8958034c98f67e59343639e174
+
+Disposition: FIXED
+Commit: 2c456b9958c6d451f28daf11cbb03cfb3bb715c8
+Evidence: `tests/test_creative_code_artifact_inventory.py` now uses `Callable[[Path], None]` for the mutation callback parameter.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2089#discussion_r3532026935 -> 2c456b9958c6d451f28daf11cbb03cfb3bb715c8
+
+Disposition: FIXED
+Commit: 0b4ccb79ecdb2d8958034c98f67e59343639e174
+Evidence: `scripts/orchestration/creative_code_artifact_inventory.py` and the inventory schema now use the bounded artifact-ref regex without the redundant optional dotted suffix.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2089#discussion_r3533153971 -> 0b4ccb79ecdb2d8958034c98f67e59343639e174
+
+Disposition: FIXED
+Commit: 0b4ccb79ecdb2d8958034c98f67e59343639e174
+Evidence: `scripts/orchestration/creative_code_patch_contract.py` now derives statuses from `candidate.patch` and rejects `patch_metadata.changed_path_statuses` mismatches.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2089#discussion_r3533209774 -> 0b4ccb79ecdb2d8958034c98f67e59343639e174
 
 ## Local Validation Evidence
 
@@ -93,6 +145,16 @@ provider, semantic-cache, or graph-truth authority is added.
   `python -m pytest tests/test_creative_code_artifact_inventory.py tests/test_creative_code_pr_promotion.py tests/test_creative_code_patch_generation.py -q` - PASS.
 - Post-QA/bug-hunter `make validate-changed` - PASS.
 - Post-QA/bug-hunter `pre-commit run --all-files` - PASS.
+- Post-security focused rerun:
+  `python -m pytest tests/test_creative_code_artifact_inventory.py tests/test_creative_code_pr_promotion.py tests/test_creative_code_patch_generation.py -q` - PASS.
+- Post-security `python3 scripts/orchestration/check_preflight.py` - PASS.
+- Post-security `python3 scripts/orchestration/check_agent_consistency.py` - PASS.
+- Post-security `make validate-changed` - PASS.
+- Post-security `pre-commit run --all-files` - PASS.
+- Post-review typing fix:
+  `python -m pytest tests/test_creative_code_artifact_inventory.py -q` - PASS.
+- Post-review typing fix `make validate-changed` - PASS.
+- Post-review typing fix `pre-commit run --all-files` - PASS.
 
 ## Merge Readiness
 
