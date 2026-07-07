@@ -55,7 +55,7 @@ class TestPremiumWeekAppCoverage:
 
         # Null out the app-level attribute (covers path 1: app.__dict__ lookup)
         monkeypatch.setattr(app_module, "make_weekly_menu", None)
-        # Null out the legacy_app-level attribute (covers path 2: globals() fallback)
+        # Null out the legacy_app-level attribute (covers path 2: legacy_app lookup)
         monkeypatch.setattr(legacy_app, "make_weekly_menu", None)
 
         response = self.client.post(
