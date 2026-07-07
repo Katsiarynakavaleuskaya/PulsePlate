@@ -667,7 +667,7 @@ def test_inventory_cli_has_no_action_imports_or_write_delete_calls() -> None:
     assert "requests" not in imports
     assert "httpx" not in imports
 
-    forbidden_calls = {"unlink", "write_text", "mkdir", "rmtree"}
+    forbidden_calls = {"unlink", "write_text", "mkdir", "rmtree", "remove", "rmdir"}
     called = {
         node.func.attr
         for node in ast.walk(tree)

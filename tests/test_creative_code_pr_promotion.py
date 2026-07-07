@@ -623,6 +623,35 @@ def test_plan_rejects_patch_metadata_extra_unsafe_fields(
         )
 
 
+def test_plan_rejects_patch_metadata_allowed_unsafe_field(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo, run_id, _result = _make_patch_run(monkeypatch, tmp_path)
+    metadata_path = (
+        repo
+        / "artifacts"
+        / "orchestration"
+        / "creative_code"
+        / "patch_runs"
+        / run_id
+        / PATCH_METADATA_FILE
+    )
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    unsafe_path = "core/ghs_secretsecretsecret.py"
+    metadata["changed_paths"] = [unsafe_path]
+    metadata["changed_path_statuses"] = {unsafe_path: "A"}
+    _write_json(metadata_path, metadata)
+
+    with pytest.raises(CreativeCodePRPromotionError, match="unsafe result text") as exc_info:
+        creative_code_pr_promotion.plan(
+            patch_run=run_id,
+            promotion_id="promotion-pr3-metadata-allowed-unsafe-field",
+            git=FakeGit(),
+        )
+    assert "ghs_secretsecretsecret" not in str(exc_info.value)
+
+
 def test_plan_rejects_patch_metadata_extra_unsafe_key_without_echoing_key(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
