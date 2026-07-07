@@ -17,6 +17,7 @@ from app.effective_routes import (
     route_methods,
     route_path,
 )
+from app.schemas.legacy_premium_weekly_plan import WeeklyMenuResponse
 
 _EXPECTED_ROUTE_SPECS = app_main._LEGACY_PREMIUM_WEEKLY_PLAN_ROUTE_SPECS
 _EXPECTED_ROUTE_KEYS = {
@@ -28,7 +29,7 @@ _EXPECTED_ENDPOINTS = {
     ("/api/v1/premium/plan/week", "POST"): "api_weekly_menu",
 }
 _RESPONSE_MODELS = {
-    ("/api/v1/premium/plan/week", "POST"): app_main._legacy_module.WeeklyMenuResponse,
+    ("/api/v1/premium/plan/week", "POST"): WeeklyMenuResponse,
 }
 _WEEKLY_PLAN_PATH = "/api/v1/premium/plan/week"
 _WEEKLY_PLAN_METHOD = "POST"
@@ -182,7 +183,7 @@ def test_legacy_premium_weekly_plan_source_route_preserves_metadata() -> None:
     route = _source_route(_WEEKLY_PLAN_PATH, _WEEKLY_PLAN_METHOD)
 
     assert route_include_in_schema(route) is False
-    _assert_same_response_model(route.response_model, app_main._legacy_module.WeeklyMenuResponse)
+    _assert_same_response_model(route.response_model, WeeklyMenuResponse)
     assert bool(route.deprecated) is True
     assert route_has_dependency_call(route, app_main._legacy_module._get_api_key_dynamic)
 
@@ -364,7 +365,7 @@ def test_legacy_premium_weekly_plan_registration_accepts_reloaded_canonical_hand
         _WEEKLY_PLAN_PATH,
         endpoint,
         methods=[_WEEKLY_PLAN_METHOD],
-        response_model=app_main._legacy_module.WeeklyMenuResponse,
+        response_model=WeeklyMenuResponse,
         include_in_schema=False,
         deprecated=True,
         dependencies=[Depends(app_main._legacy_module._get_api_key_dynamic)],

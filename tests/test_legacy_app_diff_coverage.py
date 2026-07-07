@@ -668,7 +668,7 @@ def test_week_plan_rejects_disabled_vip_module_flag(
 ) -> None:
     async def _run() -> None:
         monkeypatch.delenv("VIP_MODULE_ENABLED", raising=False)
-        monkeypatch.setattr(legacy_app, "VIP_MODULE_ENABLED", False, raising=False)
+        monkeypatch.setattr(legacy_premium_weekly_plan, "is_vip_module_enabled", lambda: False)
 
         with pytest.raises(HTTPException) as exc:
             await legacy_premium_weekly_plan.api_weekly_menu(_legacy_week_plan_request())
@@ -683,8 +683,8 @@ def test_week_plan_rejects_missing_menu_builder(monkeypatch: pytest.MonkeyPatch)
     async def _run() -> None:
         monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
         monkeypatch.setattr(
-            legacy_app,
-            "_resolve_legacy_weekly_menu_builder",
+            legacy_premium_weekly_plan,
+            "resolve_legacy_weekly_menu_builder",
             lambda: None,
         )
 
@@ -703,8 +703,8 @@ def test_week_plan_wraps_value_error_with_client_safe_detail(
     async def _run() -> None:
         monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
         monkeypatch.setattr(
-            legacy_app,
-            "_resolve_legacy_weekly_menu_builder",
+            legacy_premium_weekly_plan,
+            "resolve_legacy_weekly_menu_builder",
             lambda: object(),
         )
 
@@ -734,8 +734,8 @@ def test_week_plan_wraps_unexpected_error_with_client_safe_detail(
     async def _run() -> None:
         monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
         monkeypatch.setattr(
-            legacy_app,
-            "_resolve_legacy_weekly_menu_builder",
+            legacy_premium_weekly_plan,
+            "resolve_legacy_weekly_menu_builder",
             lambda: object(),
         )
 

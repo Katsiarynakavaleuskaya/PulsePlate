@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import importlib
 import logging
-import math
 import os
 import secrets
 import sys
@@ -32,10 +31,8 @@ from fastapi import APIRouter, Body, Depends, FastAPI, HTTPException
 from fastapi.responses import JSONResponse, Response
 from pydantic import (
     BaseModel,
-    ConfigDict,
     Field,
     ValidationError,
-    model_validator,
 )
 from starlette import status as fastapi_status
 from starlette.concurrency import run_in_threadpool
@@ -64,6 +61,13 @@ from app.schemas.premium_contracts import (
     build_who_targets_ui_labels,
 )
 from app.schemas.nutrition_targets import TargetsIn as CanonicalTargetsIn
+from app.schemas.legacy_premium_weekly_plan import LegacyWeekPlanRequest, WeeklyMenuResponse
+from app.services.legacy_premium_weekly_plan import (
+    _get_app_package_module as _canonical_get_app_package_module,
+    _resolve_package_weekly_menu_export as _canonical_resolve_package_weekly_menu_export,
+    build_legacy_weekly_menu_response as _canonical_build_legacy_weekly_menu_response,
+    resolve_legacy_weekly_menu_builder as _canonical_resolve_legacy_weekly_menu_builder,
+)
 from app.services import recipe_store
 from app.services.food_store import get_food
 from app.services.intervention_trigger_engine import build_targets_next_action
@@ -2026,53 +2030,9 @@ def _ensure_priority_micros(values: Dict[str, float]) -> Dict[str, float]:
 #
 # NOTE (PR-633): `TargetsIn` is canonical in `app.schemas.nutrition_targets` (import-safe).
 # Legacy endpoints must not define a second validation path to avoid drift.
-
-
-class LegacyWeekPlanRequest(WHOTargetsRequest):
-    """Extended request for week plan with optional pre-calculated targets.
-
-    Supports two modes:
-    - Mode A: With targets (pre-calculated nutrition goals)
-    - Mode B: Calculate targets from user profile (sex, age, etc.)
-    """
-
-    model_config = ConfigDict(title="LegacyWeekPlanRequest")
-
-    # Make base fields optional when targets are provided
-    sex: Optional[Sex] = None  # type: ignore[assignment]
-    age: Optional[int] = Field(None, ge=1, le=120)  # type: ignore[assignment]
-    height_cm: Optional[float] = Field(None, gt=0)  # type: ignore[assignment]
-    weight_kg: Optional[float] = Field(None, gt=0)  # type: ignore[assignment]
-    activity: Optional[Activity] = None  # type: ignore[assignment]
-
-    @model_validator(mode="after")
-    def _validate_request_mode(self) -> "LegacyWeekPlanRequest":
-        """Ensure either targets or profile data is provided.
-
-        - If ``targets`` contains a structured payload with ``macros`` / ``micro``,
-          run strict validation via ``TargetsIn`` (non-negative, finite values).
-        - Otherwise, accept legacy flat targets payloads as-is.
-        """
-        # Optional strict validation when structured targets are provided
-        if isinstance(self.targets, dict) and ("macros" in self.targets or "micro" in self.targets):
-            try:
-                TargetsIn.model_validate(self.targets)
-            except ValidationError as exc:
-                # Surface as a standard validation error at the request level
-                raise ValueError(f"Invalid targets payload: {exc}") from exc
-
-        if self.targets is None:
-            # Mode B: validate profile data
-            # Use explicit None checks to allow valid zero/falsy values (e.g., age=0, activity=0)
-            if not all(
-                x is not None
-                for x in [self.sex, self.age, self.height_cm, self.weight_kg, self.activity]
-            ):
-                raise ValueError(
-                    "Either 'targets' must be provided, or all profile fields "
-                    "(sex, age, height_cm, weight_kg, activity) must be present"
-                )
-        return self
+#
+# NOTE: Legacy weekly-plan contracts are now owned by
+# `app.schemas.legacy_premium_weekly_plan`; `legacy_app` only re-exports them.
 
 
 class NutrientGapsRequest(BaseModel):
@@ -2094,205 +2054,28 @@ class NutrientGapsResponse(BaseModel):
     adherence_score: float  # Overall adequacy score
 
 
-class WeeklyMenuResponse(BaseModel):
-    """RU: Ответ с недельным меню.
-    EN: Response with weekly menu.
-    """
-
-    week_summary: Dict[str, Any]
-    daily_menus: List[Dict[str, Any]]
-    weekly_coverage: Dict[str, float]  # Average nutrient coverage
-    shopping_list: Dict[str, float]  # Weekly shopping needs
-    total_cost: float
-    adherence_score: float
-
-
-def _coerce_weekly_menu_float(value: Any, default: float = 0.0) -> float:
-    """Normalize weekly-menu numeric values for legacy compatibility.
-
-    RU: Нормализовать numeric поля недельного меню для legacy-совместимости.
-    EN: Normalize weekly-menu numeric values for legacy compatibility.
-    """
-    if isinstance(value, bool):
-        return default
-    if isinstance(value, (int, float)):
-        try:
-            coerced = float(value)
-        except OverflowError:
-            return default
-        return coerced if math.isfinite(coerced) else default
-    return default
-
-
-def _is_valid_weekly_menu_number(value: Any) -> bool:
-    """Check whether a weekly-menu numeric value is JSON-safe.
-
-    RU: Проверить, что numeric значение weekly menu корректно и конечно.
-    EN: Check that a weekly-menu numeric value is valid and finite.
-    """
-    if not isinstance(value, (int, float)) or isinstance(value, bool):
-        return False
-    try:
-        return math.isfinite(float(value))
-    except OverflowError:
-        return False
-
-
-def _normalize_weekly_menu_number_map(raw_values: Any) -> Dict[str, float]:
-    """Keep only finite numeric values in weekly-menu maps.
-
-    RU: Оставить только конечные numeric значения в weekly-menu словарях.
-    EN: Keep only finite numeric values in weekly-menu dictionaries.
-    """
-    if not isinstance(raw_values, dict):
-        return {}
-
-    return {
-        key: _coerce_weekly_menu_float(value, 0.0)
-        for key, value in raw_values.items()
-        if isinstance(key, str) and _is_valid_weekly_menu_number(value)
-    }
-
-
 def _build_legacy_weekly_menu_response(menu_payload: Dict[str, Any]) -> WeeklyMenuResponse:
-    """Translate canonical VIP weekly payload into legacy weekly-menu response.
+    """Compatibility shim; canonical implementation lives in app/services."""
 
-    RU: Перевести canonical VIP weekly payload в legacy weekly-menu response.
-    EN: Translate the canonical VIP weekly payload into the legacy weekly-menu response.
-    """
-    raw_daily_menus = menu_payload.get("daily_menus")
-    daily_menus_payload: List[Dict[str, Any]] = []
-    if isinstance(raw_daily_menus, list):
-        for raw_menu in raw_daily_menus:
-            if not isinstance(raw_menu, dict):
-                continue
-            raw_date = raw_menu.get("date")
-            raw_meals = raw_menu.get("meals")
-            if not isinstance(raw_date, str) or not raw_date.strip():
-                continue
-            if not isinstance(raw_meals, list):
-                continue
-            meals = list(raw_meals)
-            raw_total_kcal = raw_menu.get("total_kcal")
-            if not _is_valid_weekly_menu_number(raw_total_kcal):
-                total_kcal = sum(
-                    meal.get("kcal", 0)
-                    for meal in meals
-                    if isinstance(meal, dict) and _is_valid_weekly_menu_number(meal.get("kcal"))
-                )
-            else:
-                total_kcal = raw_total_kcal
-            raw_daily_cost = raw_menu.get("daily_cost")
-            if not _is_valid_weekly_menu_number(raw_daily_cost):
-                raw_daily_cost = raw_menu.get("estimated_cost")
-            daily_menus_payload.append(
-                {
-                    "date": raw_date,
-                    "meals": meals,
-                    "total_kcal": _coerce_weekly_menu_float(total_kcal, 0.0),
-                    "daily_cost": _coerce_weekly_menu_float(raw_daily_cost, 0.0),
-                }
-            )
-
-    weekly_coverage = _normalize_weekly_menu_number_map(menu_payload.get("weekly_coverage"))
-    shopping_list = _normalize_weekly_menu_number_map(menu_payload.get("shopping_list"))
-
-    total_cost = _coerce_weekly_menu_float(menu_payload.get("total_cost"), 0.0)
-    adherence_score = _coerce_weekly_menu_float(menu_payload.get("adherence_score"), 0.0)
-    week_start = menu_payload.get("week_start", "")
-    total_days = len(daily_menus_payload)
-    returned_day_cost_total = sum(
-        _coerce_weekly_menu_float(day.get("daily_cost"), 0.0) for day in daily_menus_payload
-    )
-
-    return WeeklyMenuResponse(
-        week_summary={
-            "week_start": str(week_start),
-            "total_days": total_days,
-            "avg_daily_cost": round(returned_day_cost_total / total_days, 2) if total_days else 0.0,
-        },
-        daily_menus=daily_menus_payload,
-        weekly_coverage=weekly_coverage,
-        shopping_list=shopping_list,
-        total_cost=total_cost,
-        adherence_score=adherence_score,
-    )
+    return _canonical_build_legacy_weekly_menu_response(menu_payload)
 
 
 def _get_app_package_module() -> Optional[Any]:
-    """Return the loaded `app` package module if present.
+    """Compatibility shim for tests that patch the historical helper name."""
 
-    RU: Выделено в helper, чтобы тесты не мутировали `sys.modules`.
-    EN: Extracted into a helper so tests can avoid mutating `sys.modules`.
-    """
-
-    import sys as _sys
-
-    return _sys.modules.get("app")
+    return _canonical_get_app_package_module()
 
 
 def _resolve_package_weekly_menu_export(package_module: Any) -> Optional[Callable[..., Any]]:
-    """Resolve lazy `app.make_weekly_menu` export without surfacing ImportError.
+    """Compatibility shim; canonical implementation lives in app/services."""
 
-    RU: PEP-562 facade может поднять ImportError при lazy export; для legacy alias
-    это трактуется как «feature unavailable», а не как 500.
-    EN: The PEP-562 facade may raise ImportError during lazy export; for the
-    legacy alias this should mean "feature unavailable", not a 500.
-    """
-
-    try:
-        package_builder = getattr(package_module, "make_weekly_menu", None)
-    except ImportError:
-        return None
-
-    return cast(Callable[..., Any], package_builder) if callable(package_builder) else None
+    return _canonical_resolve_package_weekly_menu_export(package_module)
 
 
 def _resolve_legacy_weekly_menu_builder() -> Optional[Callable[..., Any]]:
-    """Resolve the canonical weekly-menu builder for the legacy premium alias.
+    """Compatibility shim; canonical implementation lives in app/services."""
 
-    RU: Разрешить canonical weekly-menu builder для legacy premium alias.
-    EN: Resolve the canonical weekly-menu builder for the legacy premium alias.
-    """
-
-    def _callable_or_none(value: Any) -> Optional[Callable[..., Any]]:
-        """Return a typed callable or None for explicit override semantics.
-
-        RU: Явно сохраняем семантику override: невызываемое значение означает
-        отключение, а не молчаливый fallback.
-        EN: Preserve explicit override semantics: a non-callable value means
-        disable/override, not a silent fallback.
-        """
-
-        return cast(Callable[..., Any], value) if callable(value) else None
-
-    package_module = _get_app_package_module()
-    package_namespace = getattr(package_module, "__dict__", {}) if package_module else {}
-
-    # RU: Приоритет №1 — явный override в `app.__dict__`.
-    # EN: Priority #1 — explicit override in `app.__dict__`.
-    if "make_weekly_menu" in package_namespace:
-        return _callable_or_none(package_namespace.get("make_weekly_menu"))
-
-    # RU: Приоритет №2 — legacy_app global, если он всё ещё вызываемый.
-    # EN: Priority #2 — legacy_app global, if it is still callable.
-    local_builder = globals().get("make_weekly_menu")
-    resolved_local_builder = _callable_or_none(local_builder)
-    if resolved_local_builder is not None:
-        return resolved_local_builder
-
-    # RU: Если legacy_app.make_weekly_menu временно пропатчен в None, но пакет
-    # `app` по-прежнему экспортирует canonical builder через lazy facade,
-    # используем package export как стабильный fallback.
-    # EN: If legacy_app.make_weekly_menu is temporarily patched to None while the
-    # `app` package still exports the canonical builder through the lazy facade,
-    # use the package export as the stable fallback.
-    if package_module is None:
-        return None
-
-    # RU: Приоритет №3 — lazy package export через `app.__getattr__`.
-    # EN: Priority #3 — lazy package export via `app.__getattr__`.
-    return _resolve_package_weekly_menu_export(package_module)
+    return _canonical_resolve_legacy_weekly_menu_builder()
 
 
 class WeeklyPlanFlexibleRequest(BaseModel):

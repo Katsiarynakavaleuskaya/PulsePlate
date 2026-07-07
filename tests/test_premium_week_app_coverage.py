@@ -12,6 +12,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import legacy_app
+import app.services.legacy_premium_weekly_plan as weekly_plan_service
 from app import app
 
 # Common test payload for weekly menu tests (DRY)
@@ -42,9 +43,9 @@ class TestPremiumWeekAppCoverage:
     ) -> None:
         """Test when make_weekly_menu is not available (503 error).
 
-        The endpoint resolves make_weekly_menu via two paths (legacy_app.py L4277-4282):
+        The endpoint resolves make_weekly_menu via two paths:
           1. getattr(sys.modules["app"], "make_weekly_menu", None)  — app module dict
-          2. globals().get("make_weekly_menu")                       — legacy_app namespace
+          2. sys.modules["legacy_app"].make_weekly_menu               — legacy_app namespace
 
         Previous tests using ``patch("app.make_weekly_menu", ...)`` leave the real
         function in ``app.__dict__`` after cleanup (patch restores via setattr).
@@ -83,7 +84,7 @@ class TestPremiumWeekAppCoverage:
         monkeypatch.delitem(app_package.__dict__, "make_weekly_menu", raising=False)
         monkeypatch.setattr(legacy_app, "make_weekly_menu", None)
 
-        builder = legacy_app._resolve_legacy_weekly_menu_builder()
+        builder = weekly_plan_service.resolve_legacy_weekly_menu_builder()
 
         assert callable(builder)
 
@@ -109,7 +110,7 @@ class TestPremiumWeekAppCoverage:
 
         monkeypatch.setattr(app_package, "__getattr__", _package_getattr)
 
-        builder = legacy_app._resolve_legacy_weekly_menu_builder()
+        builder = weekly_plan_service.resolve_legacy_weekly_menu_builder()
 
         assert builder is None
 
@@ -117,10 +118,10 @@ class TestPremiumWeekAppCoverage:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Resolver returns None when the package lookup helper yields no module."""
-        monkeypatch.setattr(legacy_app, "_get_app_package_module", lambda: None)
+        monkeypatch.setattr(weekly_plan_service, "_get_app_package_module", lambda: None)
         monkeypatch.setattr(legacy_app, "make_weekly_menu", None)
 
-        builder = legacy_app._resolve_legacy_weekly_menu_builder()
+        builder = weekly_plan_service.resolve_legacy_weekly_menu_builder()
 
         assert builder is None
 
@@ -135,10 +136,14 @@ class TestPremiumWeekAppCoverage:
                     raise ImportError("menu engine unavailable")
                 raise AttributeError(name)
 
-        monkeypatch.setattr(legacy_app, "_get_app_package_module", lambda: _ImportErrorPackage())
+        monkeypatch.setattr(
+            weekly_plan_service,
+            "_get_app_package_module",
+            lambda: _ImportErrorPackage(),
+        )
         monkeypatch.setattr(legacy_app, "make_weekly_menu", None)
 
-        builder = legacy_app._resolve_legacy_weekly_menu_builder()
+        builder = weekly_plan_service.resolve_legacy_weekly_menu_builder()
 
         assert builder is None
 
