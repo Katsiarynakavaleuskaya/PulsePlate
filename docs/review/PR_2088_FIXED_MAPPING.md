@@ -40,7 +40,7 @@ behavior, removes the old `legacy_app.py` decorator owner, and tightens the
 legacy growth guard so route regrowth fails.
 
 Disposition: FIXED
-Commit: 35a613922
+Commit: 051fd9774
 Evidence: `docs/review/PR_2088_FIXED_MAPPING.md`
 Reason: Current-head CI found the canonical PR-specific fixed-mapping artifact
 was missing. This follow-up artifact closes the PR Body Phase2 and merge
@@ -54,8 +54,40 @@ readiness governance blocker introduced at PR open.
 - Post-open QA role completed. Finding: missing
   `docs/review/PR_2088_FIXED_MAPPING.md`; route behavior had no blocking QA
   finding.
-- Post-open bug-hunter and security-auditor passes are pending at the time this
-  artifact is added and must complete before readiness claims.
+- Post-open bug-hunter role completed. Finding: no route-behavior blocker;
+  mapping artifact governance gap was already tracked.
+- Post-open security-auditor role completed. Finding: no code-level
+  security/auth blocker; mapping artifact governance gap was already tracked.
+
+## Codex Security Evidence
+
+- Scan id: `463ea408-a816-4c9a-9949-1ceaffcc9f8e`
+- Target: `0484805160536882a82d75b6f3b6e99e75535647..051fd9774696a196c77170792f37cfbc1b19161b`
+- Mode: diff / branch-diff
+- Reviewed diff-scoped rows:
+  `app/main.py`, `app/routers/legacy_premium_weekly_plan.py`, `legacy_app.py`
+- Result: complete, report generated, `findingCount=0`
+- Coverage: every `deep_review_input.jsonl` row has a completed
+  `no_issue_found` receipt in `work_ledger.jsonl`.
+
+## PulsePlate PR Review Evidence
+
+- Context command:
+  `python3 scripts/orchestration/pr_review_context.py --pr 2088 --output /tmp/pulseplate_pr_2088_review_context.json`
+- Markdown/json report commands:
+  `python3 scripts/orchestration/pr_review_report.py --context /tmp/pulseplate_pr_2088_review_context.json --format markdown|json`
+- Calibration tests:
+  `python3 -m pytest tests/test_pr_review_report.py tests/test_pr_review_context.py -q` - PASS.
+
+Disposition: NOT-A-BUG
+Evidence: `make validate-changed` PASS, Codex Security scan
+`463ea408-a816-4c9a-9949-1ceaffcc9f8e` completed with `findingCount=0`, and
+the PR diff is a single coherent legacy-route extraction plus tests/docs.
+Reason: The dry-run report raised a note-level large-diff planning advisory
+because the diff has 819 changed lines, barely above the 800-line review-risk
+threshold. The added lines are dominated by focused regression tests and
+premortem/mapping evidence for one route-family seam; splitting would separate
+the guard/test evidence from the route-owner move it is meant to prove.
 
 ## Premortem Evidence
 
@@ -92,15 +124,16 @@ client, dependency installer, or public API authority.
 - `pytest -q tests/test_legacy_premium_weekly_plan_registration_bootstrap.py tests/test_legacy_weekly_plan_alias_api.py tests/test_legacy_growth_guard.py tests/test_app_openapi_coverage.py` - PASS.
 - `pytest -q tests/test_premium_week_app_coverage.py tests/test_pro_premium_contract_parity.py tests/security/test_api_auth_tier_contract_pack.py tests/security/test_api_authz_contract_static.py` - PASS.
 - `python3 scripts/ci/check_legacy_growth_guard.py` - PASS.
-- `DEV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python make openapi-check` - PASS.
+- `DEV_PYTHON=<repo-venv-python> make openapi-check` - PASS.
 - `git diff --exit-code -- app/static/openapi.json frontend/src/api/openapi.json frontend/src/api/schema.ts` - PASS.
 - `make validate-changed` with repo `VENV_PYTHON` and `DEV_PYTHON` - PASS after commit; selected changed-file backend tests.
 - `pre-commit run --all-files` with repo `VENV_PYTHON` and `DEV_PYTHON` - PASS before commit and after commit.
 - Push hook - PASS, including backend pre-push tests, full-repo Bandit, dependency audit, and Docker build test.
+- Codex Security diff scan / finding discovery - PASS, 0 findings.
+- `pulseplate-pr-review` dry-run report and calibration tests - PASS, note-level
+  large-diff advisory dispositioned above as NOT-A-BUG.
 
 ## Merge Readiness
 
 Not claimed here. Requires current-head GitHub CI after the latest pushed
-commit, post-open bug-hunter and security-auditor passes, Codex Security diff
-scan/finding discovery, `pulseplate-pr-review`, bot review dispositions, and
-strict merge-readiness with auth.
+commit, bot review dispositions, and strict merge-readiness with auth.
