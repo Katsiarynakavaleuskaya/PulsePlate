@@ -11,7 +11,6 @@ import legacy_app
 from app.bootstrap.route_family import route_has_dependency_call
 from app.effective_routes import (
     is_api_route_candidate,
-    iter_effective_route_candidates,
     route_endpoint,
     route_include_in_schema,
     route_methods,
@@ -19,6 +18,12 @@ from app.effective_routes import (
     route_responses,
 )
 from app.middleware.api_tiers import require_vip_tier
+from tests.helpers.route_lookup import (
+    all_api_paths,
+    family_routes,
+    find_single_route,
+    registered_route_counts,
+)
 
 _EXPECTED_ROUTE_SPECS = app_main._LEGACY_INSIGHT_ROUTE_SPECS
 _EXPECTED_ROUTE_KEYS = {
@@ -45,46 +50,19 @@ def _assert_same_response_model(actual: object, expected: object) -> None:
 
 
 def _all_api_paths(target_app: FastAPI) -> set[str]:
-    return {
-        route_path(route)
-        for route in iter_effective_route_candidates(target_app.routes)
-        if is_api_route_candidate(route)
-    }
+    return all_api_paths(target_app)
 
 
 def _insight_routes(target_app: FastAPI) -> list[object]:
-    return [
-        route
-        for route in iter_effective_route_candidates(target_app.routes)
-        if is_api_route_candidate(route) and route_path(route) in _EXPECTED_ROUTE_PATHS
-    ]
+    return family_routes(target_app, _EXPECTED_ROUTE_PATHS)
 
 
 def _registered_route_counts(target_app: FastAPI) -> Counter[tuple[str, str]]:
-    counts: Counter[tuple[str, str]] = Counter()
-    for route in _insight_routes(target_app):
-        for method in route_methods(route):
-            key = (route_path(route), method)
-            if key in _EXPECTED_ROUTE_KEYS:
-                counts[key] += 1
-    return counts
+    return registered_route_counts(target_app, _EXPECTED_ROUTE_KEYS)
 
 
 def _insight_route(target_app: FastAPI, path: str, method: str) -> object:
-    matches = [
-        route
-        for route in _insight_routes(target_app)
-        if route_path(route) == path and method in route_methods(route)
-    ]
-    route_summaries = [
-        f"{route_path(route)}:{sorted(route_methods(route))}:{route_endpoint(route).__module__}"
-        for route in matches
-    ]
-    assert len(matches) == 1, (
-        f"expected exactly one legacy insight route for {method} {path}; "
-        f"found {len(matches)}: {route_summaries}"
-    )
-    return matches[0]
+    return find_single_route(target_app, path, method, family_label="legacy insight")
 
 
 def _source_route(path: str, method: str) -> object:
