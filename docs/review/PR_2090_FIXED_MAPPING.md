@@ -45,7 +45,7 @@ Packet: `artifacts/orchestration/task_packets/a61539e84620.json`
 - [x] `bug-hunter` completed.
 - [x] `security-auditor` completed.
 - [x] Codex Security diff scan completed for material code range `76ffb6e4..f334214ed`.
-- [x] Creative-code private-pilot state collected for real PR #2090 head `f334214ed`.
+- [x] Creative-code private-pilot state collected for real PR #2090 head `d06be5785`.
 - [x] `pulseplate-pr-review` completed after compact mapping and main-sync push.
 - [x] CodeRabbit stale-comment nitpick fixed and mapped.
 - [ ] Current-head CI complete before readiness language.
@@ -125,18 +125,22 @@ gates passed (`282` focused/adjacent tests, `make validate-changed`,
 
 ## Creative-Code Private-Pilot Evidence
 
-Local artifact, not committed:
+Local gitignored artifact, not committed:
 `artifacts/orchestration/creative_code/private_pilot/2090/pilot_state.json`
 
-- Fingerprint: `sha256:1e221c48334db753bbaba128fe6ad68da51d505125f5499bca1db171e1ae5348`.
-- Source PR head at collection time: `f334214edf49d0aaae1ff58e585ecb58cebb8fa2`.
-- Decision: `hold_for_governance`.
-- Checks at collection time: `0` failing, `15` pending, `0` stale diagnostics.
-- Candidate plan was correctly blocked: `candidate plan requires prepare_next_candidate_plan decision`.
+- Artifact file SHA-256 at latest refresh before this mapping update:
+  `6f6be875cda39ef6be4fd4deab2dab202b2da8bd1af3c90133180e1f98acfe17`.
+- Source PR head at collection time: `d06be5785dab0904d2ccd6815d4d1b496b692f39`.
+- Decision: `fix_current_pr`.
+- Required checks at collection time: `0` failing, `0` pending, `0` missing.
+- Current checks at collection time: `1` failing, `5` pending, `2` success.
+- GitHub App capability: `manual_only`.
 
-Interpretation: the pilot ran on real PR #2090 metadata and refused to advance
-while governance/CI were incomplete. This is employee-facing pipeline evidence,
-not merge-readiness evidence and not patch-generation authority.
+Interpretation: use the latest private-pilot artifact from the local worktree,
+not a stale PR-body summary. It proves the private pilot evaluated real PR
+#2090 metadata and chose `fix_current_pr`, but it is gitignored evidence only:
+do not commit the artifact, and do not treat it as merge-readiness, PR
+promotion, patch-generation, or GitHub App authority.
 
 ## Validation Evidence
 
@@ -148,7 +152,7 @@ not merge-readiness evidence and not patch-generation authority.
 - Adjacent OpenAPI/auth/policy pytest subset - PASS (`196` passed).
 - `make validate-changed` - PASS.
 - `pre-commit run --all-files` - PASS.
-- Pre-push hook for `f334214ed` - PASS, including mypy, `pip-audit`, backend tests, full-repo Bandit, and docker build test.
+- Pre-push hook for `d06be5785` - PASS, including `pip-audit`, backend tests, full-repo Bandit, and docker build status as selected by hooks.
 - `python3 scripts/orchestration/pr_review_context.py --pr 2090 --output /tmp/pulseplate_pr_2090_review_context_final.json` - PASS.
 - `python3 scripts/orchestration/pr_review_report.py --context /tmp/pulseplate_pr_2090_review_context_final.json --format markdown` - PASS with advisory large-diff note dispositioned above.
 
@@ -159,7 +163,7 @@ checkout; full/heavy verification remains GitHub current-head CI.
 
 ## Merge Readiness
 
-- [x] Local narrow bundle completed for material code head `f334214ed`.
+- [x] Local narrow bundle completed for pushed head `d06be5785`.
 - [x] Post-open role order completed through `qa-engineer-agent -> bug-hunter -> security-auditor`.
 - [x] Codex Security diff scan completed for material code diff.
 - [x] `pulseplate-pr-review` completed after compact mapping and main-sync push.
