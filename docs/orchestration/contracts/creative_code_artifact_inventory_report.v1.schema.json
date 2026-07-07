@@ -1,0 +1,324 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pulseplate.local/contracts/creative_code_artifact_inventory_report.v1.schema.json",
+  "title": "Creative Code Artifact Inventory Report v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "policy_version",
+    "source_root_ref",
+    "origin_main",
+    "counts",
+    "patch_runs",
+    "generation_receipts",
+    "promotion_artifacts",
+    "read_errors",
+    "cleanup",
+    "authority",
+    "sanitized"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "artifact_type": { "const": "creative_code_artifact_inventory_report" },
+    "policy_version": { "const": "creative-code-artifact-inventory-v1" },
+    "source_root_ref": { "const": "artifacts/orchestration/creative_code" },
+    "origin_main": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["available", "sha", "error_code"],
+      "properties": {
+        "available": { "type": "boolean" },
+        "sha": { "anyOf": [{ "$ref": "#/$defs/sha" }, { "type": "null" }] },
+        "error_code": { "anyOf": [{ "$ref": "#/$defs/reason_code" }, { "type": "null" }] }
+      }
+    },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "patch_runs_total",
+        "patch_runs_valid",
+        "patch_runs_accepted",
+        "patch_runs_rejected",
+        "patch_runs_invalid",
+        "generation_receipts_total",
+        "generation_receipts_valid",
+        "generation_receipts_invalid",
+        "promotion_dirs_total",
+        "promotion_receipts_completed",
+        "promotion_receipts_partial_failure",
+        "promotion_artifacts_in_progress",
+        "promotion_artifacts_invalid",
+        "read_errors"
+      ],
+      "properties": {
+        "patch_runs_total": { "$ref": "#/$defs/count" },
+        "patch_runs_valid": { "$ref": "#/$defs/count" },
+        "patch_runs_accepted": { "$ref": "#/$defs/count" },
+        "patch_runs_rejected": { "$ref": "#/$defs/count" },
+        "patch_runs_invalid": { "$ref": "#/$defs/count" },
+        "generation_receipts_total": { "$ref": "#/$defs/count" },
+        "generation_receipts_valid": { "$ref": "#/$defs/count" },
+        "generation_receipts_invalid": { "$ref": "#/$defs/count" },
+        "promotion_dirs_total": { "$ref": "#/$defs/count" },
+        "promotion_receipts_completed": { "$ref": "#/$defs/count" },
+        "promotion_receipts_partial_failure": { "$ref": "#/$defs/count" },
+        "promotion_artifacts_in_progress": { "$ref": "#/$defs/count" },
+        "promotion_artifacts_invalid": { "$ref": "#/$defs/count" },
+        "read_errors": { "$ref": "#/$defs/count" }
+      }
+    },
+    "patch_runs": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/patch_run" }
+    },
+    "generation_receipts": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/generation_receipt" }
+    },
+    "promotion_artifacts": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/promotion_artifact" }
+    },
+    "read_errors": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/read_error" }
+    },
+    "cleanup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "safe",
+        "blockers",
+        "accepted_unpromoted_run_ids",
+        "in_progress_promotion_ids"
+      ],
+      "properties": {
+        "safe": { "type": "boolean" },
+        "blockers": { "$ref": "#/$defs/reason_list" },
+        "accepted_unpromoted_run_ids": { "$ref": "#/$defs/id_list" },
+        "in_progress_promotion_ids": { "$ref": "#/$defs/id_list" }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "inventory_only",
+        "delete_artifacts",
+        "create_patch_run",
+        "promote_patch_run",
+        "write_repository",
+        "open_pull_request",
+        "resolve_review_threads",
+        "merge",
+        "call_providers",
+        "call_github"
+      ],
+      "properties": {
+        "inventory_only": { "const": true },
+        "delete_artifacts": { "const": false },
+        "create_patch_run": { "const": false },
+        "promote_patch_run": { "const": false },
+        "write_repository": { "const": false },
+        "open_pull_request": { "const": false },
+        "resolve_review_threads": { "const": false },
+        "merge": { "const": false },
+        "call_providers": { "const": false },
+        "call_github": { "const": false }
+      }
+    },
+    "sanitized": { "const": true }
+  },
+  "$defs": {
+    "artifact_ref": {
+      "type": "string",
+      "pattern": "^artifacts/orchestration/creative_code(?:/[A-Za-z0-9][A-Za-z0-9._:-]{0,127})*$"
+    },
+    "count": { "type": "integer", "minimum": 0 },
+    "fingerprint": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,160}$"
+    },
+    "id_or_null": {
+      "anyOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }]
+    },
+    "experiment_branch_or_null": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^experiment/[a-z0-9][a-z0-9._-]{0,68}$"
+        },
+        { "type": "null" }
+      ]
+    },
+    "id_list": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/id" },
+      "uniqueItems": true
+    },
+    "reason_code": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,95}$"
+    },
+    "reason_list": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/reason_code" },
+      "uniqueItems": true
+    },
+    "sha": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{40}$"
+    },
+    "patch_run": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "run_id",
+        "run_ref",
+        "valid",
+        "result_id",
+        "request_id",
+        "base_commit_sha",
+        "status",
+        "failure_class",
+        "promotion_ready",
+        "sanitized",
+        "patch_fingerprint",
+        "changed_path_count",
+        "workspace_proof",
+        "generation_receipt_ids",
+        "promotion_receipt_ids",
+        "promotion_linkage",
+        "promotion_candidate_state",
+        "blockers"
+      ],
+      "properties": {
+        "run_id": { "$ref": "#/$defs/id" },
+        "run_ref": { "$ref": "#/$defs/artifact_ref" },
+        "valid": { "type": "boolean" },
+        "result_id": { "$ref": "#/$defs/id_or_null" },
+        "request_id": { "$ref": "#/$defs/id_or_null" },
+        "base_commit_sha": {
+          "anyOf": [{ "$ref": "#/$defs/sha" }, { "type": "null" }]
+        },
+        "status": { "enum": ["accepted", "rejected", "invalid"] },
+        "failure_class": {
+          "anyOf": [{ "$ref": "#/$defs/reason_code" }, { "type": "null" }]
+        },
+        "promotion_ready": {
+          "anyOf": [{ "const": false }, { "type": "null" }]
+        },
+        "sanitized": {
+          "anyOf": [{ "const": true }, { "type": "null" }]
+        },
+        "patch_fingerprint": {
+          "anyOf": [{ "$ref": "#/$defs/fingerprint" }, { "type": "null" }]
+        },
+        "changed_path_count": { "$ref": "#/$defs/count" },
+        "workspace_proof": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["origin_removed", "checkout_destroyed", "shared_tree_untouched"],
+          "properties": {
+            "origin_removed": { "type": "boolean" },
+            "checkout_destroyed": { "type": "boolean" },
+            "shared_tree_untouched": { "type": "boolean" }
+          }
+        },
+        "generation_receipt_ids": { "$ref": "#/$defs/id_list" },
+        "promotion_receipt_ids": { "$ref": "#/$defs/id_list" },
+        "promotion_linkage": {
+          "enum": ["none", "completed", "partial_failure", "invalid"]
+        },
+        "promotion_candidate_state": {
+          "enum": [
+            "eligible",
+            "rejected",
+            "invalid",
+            "base_sha_drift",
+            "already_promoted",
+            "promotion_in_progress",
+            "origin_main_unknown"
+          ]
+        },
+        "blockers": { "$ref": "#/$defs/reason_list" }
+      }
+    },
+    "generation_receipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "receipt_ref",
+        "valid",
+        "receipt_id",
+        "run_id",
+        "result_id",
+        "status",
+        "failure_class",
+        "blockers"
+      ],
+      "properties": {
+        "receipt_ref": { "$ref": "#/$defs/artifact_ref" },
+        "valid": { "type": "boolean" },
+        "receipt_id": { "$ref": "#/$defs/id_or_null" },
+        "run_id": { "$ref": "#/$defs/id_or_null" },
+        "result_id": { "$ref": "#/$defs/id_or_null" },
+        "status": { "enum": ["accepted", "rejected", "invalid"] },
+        "failure_class": {
+          "anyOf": [{ "$ref": "#/$defs/reason_code" }, { "type": "null" }]
+        },
+        "blockers": { "$ref": "#/$defs/reason_list" }
+      }
+    },
+    "promotion_artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "promotion_id",
+        "promotion_ref",
+        "valid",
+        "state",
+        "receipt_id",
+        "source_result_id",
+        "pull_request_state",
+        "pull_request_number",
+        "head_branch",
+        "blockers"
+      ],
+      "properties": {
+        "promotion_id": { "$ref": "#/$defs/id" },
+        "promotion_ref": { "$ref": "#/$defs/artifact_ref" },
+        "valid": { "type": "boolean" },
+        "state": { "enum": ["open", "partial_failure", "in_progress", "invalid"] },
+        "receipt_id": { "$ref": "#/$defs/id_or_null" },
+        "source_result_id": { "$ref": "#/$defs/id_or_null" },
+        "pull_request_state": {
+          "anyOf": [{ "enum": ["open", "partial_failure"] }, { "type": "null" }]
+        },
+        "pull_request_number": {
+          "anyOf": [{ "type": "integer", "minimum": 1 }, { "type": "null" }]
+        },
+        "head_branch": { "$ref": "#/$defs/experiment_branch_or_null" },
+        "blockers": { "$ref": "#/$defs/reason_list" }
+      }
+    },
+    "read_error": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["artifact_ref", "artifact_type", "error_code", "error_fingerprint"],
+      "properties": {
+        "artifact_ref": { "$ref": "#/$defs/artifact_ref" },
+        "artifact_type": { "$ref": "#/$defs/id" },
+        "error_code": { "$ref": "#/$defs/reason_code" },
+        "error_fingerprint": { "$ref": "#/$defs/fingerprint" }
+      }
+    }
+  }
+}

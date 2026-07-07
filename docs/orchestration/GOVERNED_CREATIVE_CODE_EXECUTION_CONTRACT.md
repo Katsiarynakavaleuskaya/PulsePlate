@@ -145,6 +145,17 @@ The PR-3 human-approved non-draft PR promotion artifacts are:
 - `scripts/orchestration/creative_code_pr_promotion_contract.py`
 - `scripts/orchestration/creative_code_pr_promotion.py`
 
+The local creative-code artifact lifecycle guard is:
+
+- `docs/orchestration/contracts/creative_code_artifact_inventory_report.v1.schema.json`
+- `scripts/orchestration/creative_code_artifact_inventory.py`
+
+It is read-only inventory/retention evidence. It does not create accepted PR-2
+artifacts, run PR-3 promotion, write branches, open PRs, call providers, call
+GitHub, resolve review threads, edit fixed mappings, or claim merge readiness.
+Its closed report contract is the JSON schema above; PR-2/PR-3 lifecycle rules
+remain documented in the patch-builder and PR-promotion contracts.
+
 The PR-6 local applied-candidate run-plan artifacts are:
 
 - `scripts/orchestration/creative_code_applied_candidate_pr6.py`

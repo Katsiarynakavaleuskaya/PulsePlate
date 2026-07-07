@@ -9,6 +9,10 @@ OpenAPI/client changes, Slack/GitHub authority, or public multi-tenant use.
 PR-3 consumes accepted PR-2 results through a separate
 `CreativeCodePRPromotion` contract; PR-2 result artifacts themselves still keep
 `promotion_ready=false`.
+Before PR-3 promotion planning, the local artifact lifecycle guard must pass
+`assert-ready-for-promotion --patch-run-id <run-id>`. The guard validates
+canonical PR-2 sidecars and current-base evidence, but it does not create,
+restore, promote, or delete PR-2 artifacts.
 
 ## Artifacts
 
@@ -153,6 +157,11 @@ The builder must:
   creative-code artifacts;
 - destroy the generation checkout in a `finally` path;
 - expose `cleanup --run-dir <run>` that removes only the contained run directory.
+
+Ordinary derived cache cleanup is allowed. Cleanup of
+`artifacts/orchestration/creative_code/**` requires
+`creative_code_artifact_inventory.py assert-ready-for-cleanup` to pass first;
+that guard is read-only and never deletes artifacts.
 
 ## Patch Policy
 
