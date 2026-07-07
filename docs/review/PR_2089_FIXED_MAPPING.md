@@ -96,6 +96,32 @@ provider, semantic-cache, or graph-truth authority is added.
   - Evidence:
     `tests/test_creative_code_artifact_inventory.py` now annotates the parameter
     as `Callable[[Path], None]`.
+- CodeRabbit review-summary finding: the inventory CLI no-write/no-delete AST
+  guard did not include `os.remove` / `os.rmdir` style calls.
+  - Disposition: FIXED
+  - Commit: `2a4117d28`
+  - Evidence:
+    `tests/test_creative_code_artifact_inventory.py` now includes `remove` and
+    `rmdir` in the disallowed AST attribute call set.
+- CodeRabbit review-summary finding: malformed generation-receipt and
+  promotion-receipt tests have similar structure and could be parametrized.
+  - Disposition: NOT-A-BUG
+  - Evidence:
+    `tests/test_creative_code_artifact_inventory.py` keeps the two tests
+    separate so the distinct artifact families and expected read-error codes
+    remain explicit at the assertion site.
+  - Reason:
+    This is a low-value maintainability nit, not a behavior or coverage defect;
+    parametrizing would hide the branch-specific lifecycle contract being
+    tested.
+- CodeRabbit review-summary finding: PR-3 tests needed coverage for unsafe text
+  in an allowed `patch_metadata` field rather than only unsupported fields.
+  - Disposition: FIXED
+  - Commit: `2a4117d28`
+  - Evidence:
+    `tests/test_creative_code_pr_promotion.py` now injects token-shaped text
+    into allowed `changed_paths` / `changed_path_statuses` metadata and asserts
+    the sanitized unsafe-text failure path.
 - Codex Security superseded-head finding: unsupported PR-2
   `patch_metadata.json` key names could be echoed in validation errors before
   leak screening.
@@ -213,6 +239,17 @@ Commit: 0b4ccb79ecdb2d8958034c98f67e59343639e174
 Evidence: `scripts/orchestration/creative_code_patch_contract.py` now derives statuses from `candidate.patch` and rejects `patch_metadata.changed_path_statuses` mismatches.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2089#discussion_r3533209774 -> 0b4ccb79ecdb2d8958034c98f67e59343639e174
 
+Disposition: FIXED
+Commit: 2a4117d28e8a28ad546db507af4f36e49342568f
+Evidence: `tests/test_creative_code_artifact_inventory.py` now rejects `remove` and `rmdir` AST calls in the inventory CLI, and `tests/test_creative_code_pr_promotion.py` covers unsafe text inside allowed `patch_metadata` fields.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2089#pullrequestreview-4639722519 -> 2a4117d28e8a28ad546db507af4f36e49342568f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2089#pullrequestreview-4641175862 -> 2a4117d28e8a28ad546db507af4f36e49342568f
+
+Disposition: NOT-A-BUG
+Evidence: `tests/test_creative_code_artifact_inventory.py` keeps malformed generation-receipt and promotion-receipt cases separate so each artifact family and expected sanitized read-error code remains explicit.
+Reason: Parametrizing these cases would reduce local clarity for two different lifecycle branches without improving behavior coverage.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2089#pullrequestreview-4641108463
+
 ## Local Validation Evidence
 
 - `python3 scripts/orchestration/check_preflight.py` - PASS
@@ -268,6 +305,8 @@ Evidence: `scripts/orchestration/creative_code_patch_contract.py` now derives st
 - Post-artifact-validation-sanitization `git diff --check` - PASS.
 - Post-artifact-validation-sanitization `make validate-changed` - PASS.
 - Post-artifact-validation-sanitization `pre-commit run --all-files` - PASS.
+- Post-CodeRabbit-summary-test-fix focused rerun:
+  `python -m pytest tests/test_creative_code_artifact_inventory.py tests/test_creative_code_pr_promotion.py -q` - PASS.
 
 ## Merge Readiness
 
