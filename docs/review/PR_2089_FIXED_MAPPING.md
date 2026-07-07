@@ -136,6 +136,18 @@ provider, semantic-cache, or graph-truth authority is added.
     `scripts/orchestration/creative_code_patch_generation.py` now use generic
     duplicate-key errors; regression coverage asserts token-shaped duplicate
     key names are not echoed.
+- Codex Security current-head finding: recomputed PR-2 sidecars could agree
+  with each other while changing paths outside the original request allowlist,
+  allowing inventory and PR-3 planning to treat the tampered local artifacts as
+  promotion-eligible.
+  - Disposition: FIXED
+  - Commit: `b64046fbb`
+  - Evidence:
+    `scripts/orchestration/creative_code_patch_contract.py` now binds derived
+    `candidate.patch` path/statuses back to the PR-2 request authority,
+    including `allowed_existing_paths`, `allowed_new_paths`, and
+    `max_changed_files`; regression tests cover both inventory promotion
+    assertion and PR-3 planning rejection for forged consistent sidecars.
 
 ## Discussion Thread Pass
 
@@ -207,6 +219,14 @@ Evidence: `scripts/orchestration/creative_code_patch_contract.py` now derives st
 - Post-current-head-security-fix `python3 scripts/orchestration/check_agent_consistency.py` - PASS.
 - Post-current-head-security-fix `make validate-changed` - PASS.
 - Post-current-head-security-fix `pre-commit run --all-files` - PASS.
+- Post-request-authority-fix focused rerun:
+  `python -m pytest tests/test_creative_code_artifact_inventory.py tests/test_creative_code_pr_promotion.py tests/test_creative_code_patch_generation.py -q` - PASS.
+- Post-request-authority-fix `python3 scripts/orchestration/check_preflight.py` - PASS.
+- Post-request-authority-fix `python3 scripts/orchestration/check_agent_consistency.py` - PASS.
+- Post-request-authority-fix `make validate-changed` - PASS.
+- Post-request-authority-fix `pre-commit run --all-files` - PASS after Black
+  formatted `tests/test_creative_code_artifact_inventory.py` and the focused
+  test bundle plus `make validate-changed` were rerun.
 
 ## Merge Readiness
 
