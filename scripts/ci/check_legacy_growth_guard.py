@@ -64,18 +64,18 @@ SENSITIVE_CALL_KEYWORDS: tuple[str, ...] = (
     "subscription",
 )
 SENSITIVE_CALL_LIMITS: Mapping[str, int] = {
-    "api_key": 5,
+    "api_key": 4,
     "auth": 0,
     "billing": 0,
     "entitlement": 0,
-    "llm": 2,
+    "llm": 1,
     "provider": 1,
     "quota": 1,
     "receipt": 0,
     "subscription": 0,
 }
 SENSITIVE_APP_SURFACE_LIMITS: Mapping[str, int] = {
-    "api_key": 6,
+    "api_key": 0,
     "auth": 0,
     "billing": 0,
     "entitlement": 0,
@@ -92,8 +92,6 @@ ALLOWED_LEGACY_ROUTE_FACTS = frozenset(
     {
         LegacyFact("decorator", "middleware", "http", "csp_nonce_middleware"),
         LegacyFact("decorator", "middleware", "http", "log_requests"),
-        LegacyFact("decorator", "post", "/api/v1/insight", "insight_v1_route"),
-        LegacyFact("decorator", "post", "/insight", "insight_route"),
     }
 )
 

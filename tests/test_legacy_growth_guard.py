@@ -1995,6 +1995,7 @@ def test_legacy_growth_guard_rejects_reintroduced_restaurant_moderation_registra
         "legacy_app.py: unexpected app.routers import growth: "
         "router_import:app.routers.restaurants:moderation_router -> "
         "restaurant_moderation_router",
+        "legacy_app.py: sensitive app surface grew for api_key: 1 > 0",
     ]
 
 
@@ -2012,6 +2013,7 @@ def test_legacy_growth_guard_rejects_direct_restaurant_moderation_import() -> No
         "registration:include_router:moderation_router",
         "legacy_app.py: unexpected app.routers import growth: "
         "router_import:app.routers.restaurants:moderation_router",
+        "legacy_app.py: sensitive app surface grew for api_key: 1 > 0",
     ]
 
 
@@ -2048,7 +2050,12 @@ def test_legacy_growth_guard_rejects_sensitive_call_growth() -> None:
         ),
         ("auth", "auth_guard()\n"),
         ("entitlement", "entitlement.check()\n"),
-        ("llm", "llm.generate()\nllm.generate()\nllm.generate()\n"),
+        (
+            "llm",
+            "\n".join(
+                "llm.generate()" for _ in range(legacy_guard.SENSITIVE_CALL_LIMITS["llm"] + 1)
+            ),
+        ),
         ("provider", "provider.generate()\nprovider.generate()\n"),
         ("quota", "quota.consume()\nquota.consume()\n"),
     ],
@@ -2128,7 +2135,7 @@ def test_legacy_growth_guard_rejects_sensitive_local_assignment_alias_calls(
     assert errors == [expected]
 
 
-def test_legacy_growth_guard_rejects_auth_dependency_on_allowed_route() -> None:
+def test_legacy_growth_guard_rejects_auth_dependency_on_reintroduced_route() -> None:
     source = textwrap.dedent("""
         @app.post("/api/v1/insight", dependencies=[Depends(auth_guard)])
         def insight_v1_route():
@@ -2137,7 +2144,11 @@ def test_legacy_growth_guard_rejects_auth_dependency_on_allowed_route() -> None:
 
     errors = legacy_guard.validate_legacy_growth(source)
 
-    assert errors == ["legacy_app.py: sensitive app surface grew for auth: 1 > 0"]
+    assert errors == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "decorator:post:/api/v1/insight -> insight_v1_route",
+        "legacy_app.py: sensitive app surface grew for auth: 1 > 0",
+    ]
 
 
 def test_legacy_growth_guard_rejects_auth_dependency_on_allowed_router() -> None:
@@ -2163,7 +2174,11 @@ def test_legacy_growth_guard_rejects_auth_dependency_on_allowed_router() -> None
                 def insight_v1_route():
                     return {"ok": True}
                 """),
-            ["legacy_app.py: sensitive app surface grew for auth: 1 > 0"],
+            [
+                "legacy_app.py: unexpected legacy route growth: "
+                "decorator:post:/api/v1/insight -> insight_v1_route",
+                "legacy_app.py: sensitive app surface grew for auth: 1 > 0",
+            ],
         ),
         (
             textwrap.dedent("""
@@ -2204,8 +2219,105 @@ def test_legacy_growth_guard_rejects_api_key_surface_growth_on_current_baseline(
     errors = legacy_guard.validate_legacy_growth(source)
 
     assert errors == [
-        f"legacy_app.py: sensitive app surface grew for api_key: {limit + 1} > {limit}"
+        "legacy_app.py: unexpected legacy route growth: "
+        "decorator:post:/api/v1/insight -> insight_v1_route",
+        f"legacy_app.py: sensitive app surface grew for api_key: {limit + 1} > {limit}",
     ]
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        (
+            textwrap.dedent("""
+                @app.post("/api/v1/insight")
+                async def insight_v1_route():
+                    return {"ok": True}
+                """),
+            [
+                "legacy_app.py: unexpected legacy route growth: "
+                "decorator:post:/api/v1/insight -> insight_v1_route",
+            ],
+        ),
+        (
+            textwrap.dedent("""
+                @app.post("/insight")
+                async def insight_route():
+                    return {"ok": True}
+                """),
+            [
+                "legacy_app.py: unexpected legacy route growth: "
+                "decorator:post:/insight -> insight_route",
+            ],
+        ),
+        (
+            'app.router.add_api_route("/api/v1/insight", handler, methods=["POST"])\n',
+            [
+                "legacy_app.py: unexpected legacy route growth: "
+                "registration:router.add_api_route:/api/v1/insight",
+            ],
+        ),
+        (
+            'app.add_api_route("/insight", handler, methods=["POST"])\n',
+            [
+                "legacy_app.py: unexpected legacy route growth: "
+                "registration:add_api_route:/insight",
+            ],
+        ),
+        (
+            textwrap.dedent("""
+                legacy = app
+
+                @legacy.post("/insight")
+                async def wrapped_insight_route():
+                    return {"ok": True}
+                """),
+            [
+                "legacy_app.py: unexpected legacy route growth: "
+                "decorator:post:/insight -> wrapped_insight_route",
+            ],
+        ),
+        (
+            "app.include_router(insight_router)\n",
+            [
+                "legacy_app.py: unexpected legacy route growth: "
+                "registration:include_router:insight_router",
+            ],
+        ),
+        (
+            textwrap.dedent("""
+                import importlib
+
+                _mod = importlib.import_module("app.routers.legacy_insight")
+                app.include_router(_mod.router)
+                """),
+            [
+                "legacy_app.py: unexpected legacy route growth: "
+                "registration:include_router:_mod.router",
+                "legacy_app.py: unexpected app.routers import growth: "
+                "router_import:dynamic:app.routers.legacy_insight -> _mod",
+            ],
+        ),
+    ],
+    ids=[
+        "direct_decorator_v1",
+        "direct_decorator_legacy",
+        "router_add_api_route",
+        "app_add_api_route",
+        "aliased_app_wrapper",
+        "include_router",
+        "dynamic_imported_router",
+    ],
+)
+def test_legacy_growth_guard_blocks_insight_route_reintroduction(
+    source: str,
+    expected: list[str],
+) -> None:
+    """Extracted insight routes must never regrow inside legacy_app.py."""
+
+    errors = legacy_guard.validate_legacy_growth(source)
+
+    assert errors == expected
 
 
 def test_legacy_growth_guard_ignores_comments_and_strings() -> None:
