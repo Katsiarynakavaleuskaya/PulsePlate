@@ -84,6 +84,10 @@ from app.routers.legacy_premium_nutrition import (
     LEGACY_PREMIUM_NUTRITION_ROUTE_SPECS,
     router as legacy_premium_nutrition_router,
 )
+from app.routers.legacy_premium_weekly_plan import (
+    LEGACY_PREMIUM_WEEKLY_PLAN_ROUTE_SPECS,
+    router as legacy_premium_weekly_plan_router,
+)
 from app.routers.nutrition_recommendations import (
     NUTRITION_RECOMMENDATIONS_ROUTE_SPECS,
     router as nutrition_recommendations_router,
@@ -180,6 +184,10 @@ _BODYFAT_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = tuple(
 _LEGACY_PREMIUM_NUTRITION_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = tuple(
     (path, method.upper(), include_in_schema)
     for path, method, include_in_schema in LEGACY_PREMIUM_NUTRITION_ROUTE_SPECS
+)
+_LEGACY_PREMIUM_WEEKLY_PLAN_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = tuple(
+    (path, method.upper(), include_in_schema)
+    for path, method, include_in_schema in LEGACY_PREMIUM_WEEKLY_PLAN_ROUTE_SPECS
 )
 _BUSINESS_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = tuple(
     (path, method.upper(), include_in_schema)
@@ -463,6 +471,20 @@ def _legacy_premium_nutrition_route_members(
             required_dependencies=() if path == "/premium_bmr" else (api_key_dependency,),
         )
         for path, method, include_in_schema in _LEGACY_PREMIUM_NUTRITION_ROUTE_SPECS
+    )
+
+
+def _legacy_premium_weekly_plan_route_members(
+    api_key_dependency: Callable[..., object],
+) -> tuple[RouteMemberContract, ...]:
+    return tuple(
+        RouteMemberContract(
+            path=path,
+            method=method,
+            include_in_schema=include_in_schema,
+            required_dependencies=(api_key_dependency,),
+        )
+        for path, method, include_in_schema in _LEGACY_PREMIUM_WEEKLY_PLAN_ROUTE_SPECS
     )
 
 
@@ -1089,6 +1111,22 @@ def _include_legacy_premium_nutrition_router_if_needed(target_app: FastAPI) -> N
     )
 
 
+def _include_legacy_premium_weekly_plan_router_if_needed(target_app: FastAPI) -> None:
+    """Register legacy premium weekly-plan alias as one exact compatibility family."""
+
+    api_key_dependency = getattr(_legacy_module, "_get_api_key_dynamic", None)
+    if not callable(api_key_dependency):
+        raise RuntimeError("Legacy premium weekly-plan API key dependency is unavailable.")
+    api_key_dependency = cast(Callable[..., object], api_key_dependency)
+
+    ensure_route_family_registered(
+        target_app,
+        family_name="Legacy premium weekly-plan",
+        routers=(legacy_premium_weekly_plan_router,),
+        members=_legacy_premium_weekly_plan_route_members(api_key_dependency),
+    )
+
+
 def _include_business_router_if_enabled(target_app: FastAPI) -> None:
     """Register business routes as one explicitly feature-flagged static family."""
 
@@ -1344,6 +1382,7 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
     _include_plan_export_routers_if_needed(app)
     _include_shoplist_export_router_if_needed(app)
     _include_legacy_premium_nutrition_router_if_needed(app)
+    _include_legacy_premium_weekly_plan_router_if_needed(app)
     _include_shopping_list_routers_if_needed(app)
     _include_legacy_export_alias_router_if_needed(app)
     _include_restaurants_router_if_needed(app)

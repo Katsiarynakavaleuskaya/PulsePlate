@@ -183,8 +183,8 @@ class TestPremiumWeekAppCoverage:
         assert response.status_code == 500
         assert response.headers["content-type"].startswith("application/json")
         data = response.json()
-        assert "detail" in data
-        assert "Weekly menu generation failed" in data["detail"]
+        assert data["detail"] == "Weekly menu generation failed"
+        assert "Test exception" not in data["detail"]
 
     def test_api_weekly_menu_with_optional_fields(self) -> None:
         """Test with optional fields like deficit_pct, surplus_pct, bodyfat, life_stage."""
