@@ -125,6 +125,22 @@ class TestPremiumWeekAppCoverage:
 
         assert builder is None
 
+    def test_resolver_uses_legacy_builder_when_package_override_absent(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Resolver keeps the legacy module fallback when app has no explicit override."""
+        import app as app_package
+
+        def _legacy_builder(profile: object) -> dict[str, object]:
+            return {"profile": profile}
+
+        monkeypatch.delitem(app_package.__dict__, "make_weekly_menu", raising=False)
+        monkeypatch.setattr(legacy_app, "make_weekly_menu", _legacy_builder)
+
+        builder = weekly_plan_service.resolve_legacy_weekly_menu_builder()
+
+        assert builder is _legacy_builder
+
     def test_legacy_resolver_shim_preserves_historical_package_lookup_patch(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:

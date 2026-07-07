@@ -8,6 +8,7 @@ from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 
 from app.effective_routes import (
     iter_effective_route_candidates,
@@ -253,6 +254,58 @@ def test_legacy_weekly_plan_contracts_are_canonically_owned() -> None:
         weekly_plan_service.resolve_legacy_weekly_menu_builder
     )
     assert not hasattr(weekly_plan_router, "_legacy_module")
+
+
+def test_legacy_week_plan_request_normalizes_legacy_goal_aliases() -> None:
+    """Legacy goal aliases must keep the pre-extraction request contract."""
+
+    base_payload = {
+        "sex": "female",
+        "age": 30,
+        "height_cm": 168.0,
+        "weight_kg": 62.0,
+        "activity": "moderate",
+    }
+
+    assert (
+        LegacyWeekPlanRequest.model_validate({**base_payload, "goal": "weight_loss"}).goal == "loss"
+    )
+    assert (
+        LegacyWeekPlanRequest.model_validate({**base_payload, "goal": "weight_gain"}).goal == "gain"
+    )
+    with pytest.raises(ValidationError):
+        LegacyWeekPlanRequest.model_validate({**base_payload, "goal": "unsupported"})
+
+
+def test_legacy_week_plan_request_validates_structured_targets() -> None:
+    """Structured targets still flow through the canonical TargetsIn validator."""
+
+    with pytest.raises(ValidationError, match="Invalid targets payload"):
+        LegacyWeekPlanRequest.model_validate(
+            {
+                "targets": {
+                    "kcal": 2000,
+                    "macros": {"protein": "bad"},
+                    "micro": {},
+                    "water_ml": 1000,
+                }
+            }
+        )
+
+
+def test_legacy_week_plan_request_requires_targets_or_profile_fields() -> None:
+    """Profile-mode requests must still require the full legacy profile."""
+
+    with pytest.raises(ValidationError, match="Either 'targets' must be provided"):
+        LegacyWeekPlanRequest.model_validate({"goal": "maintain"})
+
+
+def test_legacy_week_plan_request_normalizer_preserves_non_dict_values() -> None:
+    """Non-dict validator inputs should pass through unchanged."""
+
+    request = LegacyWeekPlanRequest.model_construct(targets={"calories": 1800})
+
+    assert LegacyWeekPlanRequest._normalize_values(request) is request
 
 
 def test_legacy_app_weekly_plan_helpers_delegate_to_canonical_service() -> None:
