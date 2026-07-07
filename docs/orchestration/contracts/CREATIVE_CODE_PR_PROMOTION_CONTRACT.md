@@ -10,6 +10,18 @@ flags, atomically create the target branch with a create-ref primitive, and open
 a non-draft PR only after isolated pre-open validation and explicit TTY human
 approval.
 
+Before `plan` is run, the local lifecycle guard must pass:
+
+```bash
+python -m scripts.orchestration.creative_code_artifact_inventory \
+  assert-ready-for-promotion --patch-run-id <run-id>
+```
+
+The guard is read-only and validates local PR-2 artifact inventory, current
+base linkage, and absence of existing promotion receipts. It does not replace
+PR-3 `plan`, `validate`, `approve`, or `promote`, and it does not grant merge
+readiness.
+
 It does not authorize draft PRs, branch updates, force push, default-branch
 writes, review requests, review submissions, review-thread resolution,
 fixed-mapping edits, merge-readiness claims, merge, release, Slack changes,
@@ -39,6 +51,8 @@ artifacts/orchestration/creative_code/promotions/<promotion-id>/
 ```
 
 That directory is local-only and gitignored. It must never be committed.
+Cleanup of `artifacts/orchestration/creative_code/**` requires the read-only
+inventory guard's `assert-ready-for-cleanup` command to pass first.
 
 ## Flow
 

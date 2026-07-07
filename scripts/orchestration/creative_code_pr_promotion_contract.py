@@ -941,8 +941,19 @@ def validate_creative_code_pr_promotion_receipt(payload: dict[str, Any]) -> dict
         raise CreativeCodePRPromotionContractError(
             "CreativeCodePRPromotionReceipt.pull_request_state is unsupported."
         )
-    if state == "open" and partial_failure is not None:
-        raise CreativeCodePRPromotionContractError("open receipts must not record partial_failure.")
+    if state == "open":
+        if partial_failure is not None:
+            raise CreativeCodePRPromotionContractError(
+                "open receipts must not record partial_failure."
+            )
+        if normalized["pull_request_number"] < 1 or normalized["pull_request_url"] == "":
+            raise CreativeCodePRPromotionContractError(
+                "open receipts require pull_request_number and pull_request_url."
+            )
+        if normalized["review_cycle_started"] is not True:
+            raise CreativeCodePRPromotionContractError(
+                "open receipts require review_cycle_started=true."
+            )
     if state == "partial_failure" and not partial_failure:
         raise CreativeCodePRPromotionContractError(
             "partial failure receipts require partial_failure."

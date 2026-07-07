@@ -1,0 +1,377 @@
+# PR #2089 Fixed in Commit Mapping
+
+## Summary
+
+This PR adds a read-only local inventory and retention guard for creative-code
+PR-2 / PR-3 artifacts. It remains orchestration/local-artifact only: no product
+runtime, OpenAPI/client, iOS/frontend, DB, dependency, workflow, branch-write,
+review-thread, fixed-mapping automation, merge, Slack/GitHub authority,
+provider, semantic-cache, or graph-truth authority is added.
+
+## Lane Start Provenance
+
+- Packet: `artifacts/orchestration/task_packets/51bba2e22975.json`
+- Starter: `scripts/orchestration/start_pr_lane.sh`
+- Operator override: current `main` monitoring handled by colleague; lane
+  continued without treating main CI state as this PR's merge evidence.
+- Main sync: merged `origin/main`
+  (`76ffb6e4e8eab21070b93b076fc5552caa5aed25`) into this branch after the
+  operator noted main had moved ahead.
+- Closeout cleanup constraint: after merge, preserve any creative-code PR-2
+  artifact needed for the later PR-3 launch. Clean only ordinary caches,
+  temporary files, and unrelated junk; do not remove
+  `artifacts/orchestration/creative_code/**` unless the inventory cleanup guard
+  passes and the operator explicitly confirms the PR-3 artifact is no longer
+  needed.
+- Role order preserved pre-open:
+  `agent-coordinator -> architecture-specialist -> security-auditor -> qa-engineer-agent -> bug-hunter -> cursor-specialist-agent`
+
+## Experiment Runner Evidence
+
+- Artifact: `artifacts/orchestration/experiments/results/exp-18a69bccdc52.json`
+- Status: accepted
+- Mode: `oracle_only_governance_reviewer`
+- Oracle: `python -m pytest tests/test_creative_code_artifact_inventory.py tests/test_creative_code_pr_promotion.py tests/test_creative_code_patch_generation.py -q`
+- Mutation boundary: `mutated_paths=[]`, `source_diff_applied=true`,
+  `shared_tree_untouched=true`
+- Co-author: required (`contribution_kind=oracle_review`,
+  `coauthor_required=true`)
+
+## Post-Open Review Closure
+
+- QA finding: promotion guard could false-pass when malformed generation or
+  promotion receipts produced global read errors but could not be linked to a
+  specific accepted patch run.
+  - Disposition: FIXED
+  - Commit: `12b68cee6`
+  - Evidence:
+    `scripts/orchestration/creative_code_artifact_inventory.py` now blocks
+    `assert-ready-for-promotion` whenever inventory scanning records
+    `read_errors`; regression tests cover malformed unlinked generation and
+    promotion receipts in `tests/test_creative_code_artifact_inventory.py`.
+- QA finding: Phase 2 governance artifact was missing after the initial PR
+  open.
+  - Disposition: FIXED
+  - Commit: `d2c76d049d98e6b8d74c908137722700d8eae5ea`
+  - Evidence: this canonical artifact exists at
+    `docs/review/PR_2089_FIXED_MAPPING.md` and the PR body is mirrored from it.
+- QA finding: runtime artifact-ref validation was looser than the report schema.
+  - Disposition: FIXED
+  - Commit: `12b68cee6`
+  - Evidence:
+    `scripts/orchestration/creative_code_artifact_inventory.py` now uses the
+    same closed artifact-ref pattern as the schema; regression coverage rejects
+    traversal, empty path segments, hidden unsafe segments, spaces, and
+    non-ASCII refs.
+- Bug-hunter finding: PR-2 `patch_metadata.json` sidecars could carry
+  unsupported or unsafe extra fields while the shared sidecar helper still let
+  inventory promotion assertions and PR-3 planning pass.
+  - Disposition: FIXED
+  - Commit: `130a44a8a`
+  - Evidence:
+    `scripts/orchestration/creative_code_patch_contract.py` now exact-key
+    validates PR-2 patch metadata sidecars, checks `changed_path_statuses`,
+    and rejects unsafe metadata before inventory or PR-3 promotion can treat
+    the run as valid. Regression tests cover both
+    `assert-ready-for-promotion` and PR-3 `plan()` rejection.
+- Security-auditor / CodeQL finding: artifact-ref regex contained a redundant
+  optional dotted suffix that CodeQL flagged as inefficient backtracking risk.
+  - Disposition: FIXED
+  - Commit: `0b4ccb79e`
+  - Evidence:
+    `scripts/orchestration/creative_code_artifact_inventory.py` and
+    `docs/orchestration/contracts/creative_code_artifact_inventory_report.v1.schema.json`
+    now use the same bounded segment pattern without the nested optional dotted
+    suffix.
+- Security-auditor finding: `patch_metadata.changed_path_statuses` accepted
+  tampered `A` / `M` values when keys matched.
+  - Disposition: FIXED
+  - Commit: `0b4ccb79e`
+  - Evidence:
+    `scripts/orchestration/creative_code_patch_contract.py` now derives
+    changed-path statuses from `candidate.patch` and rejects sidecar status
+    mismatches. Regression tests cover inventory and PR-3 planner rejection.
+- Security-auditor / CodeRabbit finding: promotion artifact contract allowed
+  `pull_request_number=0` and did not bind `head_branch` to the PR-3
+  `experiment/*` branch contract.
+  - Disposition: FIXED
+  - Commit: `0b4ccb79e`
+  - Evidence:
+    runtime validation now rejects zero PR numbers and non-`experiment/*`
+    branches; the JSON schema mirrors the same constraints.
+- CodeRabbit finding: `test_missing_or_tampered_sidecar_fails_closed` used
+  `Any` for a callable mutation parameter.
+  - Disposition: FIXED
+  - Commit: `2c456b995`
+  - Evidence:
+    `tests/test_creative_code_artifact_inventory.py` now annotates the parameter
+    as `Callable[[Path], None]`.
+- CodeRabbit review-summary finding: the inventory CLI no-write/no-delete AST
+  guard did not include `os.remove` / `os.rmdir` style calls.
+  - Disposition: FIXED
+  - Commit: `2a4117d28`
+  - Evidence:
+    `tests/test_creative_code_artifact_inventory.py` now includes `remove` and
+    `rmdir` in the disallowed AST attribute call set.
+- CodeRabbit review-summary finding: malformed generation-receipt and
+  promotion-receipt tests have similar structure and could be parametrized.
+  - Disposition: NOT-A-BUG
+  - Evidence:
+    `tests/test_creative_code_artifact_inventory.py` keeps the two tests
+    separate so the distinct artifact families and expected read-error codes
+    remain explicit at the assertion site.
+  - Reason:
+    This is a low-value maintainability nit, not a behavior or coverage defect;
+    parametrizing would hide the branch-specific lifecycle contract being
+    tested.
+- CodeRabbit review-summary finding: PR-3 tests needed coverage for unsafe text
+  in an allowed `patch_metadata` field rather than only unsupported fields.
+  - Disposition: FIXED
+  - Commit: `2a4117d28`
+  - Evidence:
+    `tests/test_creative_code_pr_promotion.py` now injects token-shaped text
+    into allowed `changed_paths` / `changed_path_statuses` metadata and asserts
+    the sanitized unsafe-text failure path.
+- Codex Security superseded-head finding: unsupported PR-2
+  `patch_metadata.json` key names could be echoed in validation errors before
+  leak screening.
+  - Disposition: FIXED
+  - Commit: `a115be6d1`
+  - Evidence:
+    `scripts/orchestration/creative_code_patch_contract.py` and
+    `scripts/orchestration/creative_code_patch_generation.py` now emit generic
+    unsupported-field errors without untrusted field names; regression tests
+    assert token-shaped key names and `raw_prompt` are not echoed.
+- Codex Security superseded-head finding: inventory could mark an accepted
+  run eligible when the result was self-consistent but lacked strict runner /
+  oracle proof that PR-3 planning would require.
+  - Disposition: FIXED
+  - Commit: `a115be6d1`
+  - Evidence:
+    `scripts/orchestration/creative_code_artifact_inventory.py` now validates
+    accepted runs with `require_accepted=True` in the shared PR-2 sidecar
+    helper; regression coverage rejects accepted results with no oracle proof
+    before `assert-ready-for-promotion` can pass.
+- Codex Security current-head finding: unsafe generation-receipt artifact refs
+  could record a blocker and then lose that blocker when receipt content later
+  validated successfully.
+  - Disposition: FIXED
+  - Commit: `edb43fb0e`
+  - Evidence:
+    `scripts/orchestration/creative_code_artifact_inventory.py` now records the
+    unsafe artifact-ref read error and returns before content validation can
+    clear it; regression coverage preserves the blocker in the inventory
+    report.
+- Codex Security current-head finding: duplicate JSON keys in PR-2 workspace
+  artifacts could echo the attacker-controlled duplicate key name before output
+  redaction.
+  - Disposition: FIXED
+  - Commit: `edb43fb0e`
+  - Evidence:
+    `scripts/orchestration/creative_code_patch_workspace.py` and
+    `scripts/orchestration/creative_code_patch_generation.py` now use generic
+    duplicate-key errors; regression coverage asserts token-shaped duplicate
+    key names are not echoed.
+- Codex Security current-head finding: recomputed PR-2 sidecars could agree
+  with each other while changing paths outside the original request allowlist,
+  allowing inventory and PR-3 planning to treat the tampered local artifacts as
+  promotion-eligible.
+  - Disposition: FIXED
+  - Commit: `b64046fbb`
+  - Evidence:
+    `scripts/orchestration/creative_code_patch_contract.py` now binds derived
+    `candidate.patch` path/statuses back to the PR-2 request authority,
+    including `allowed_existing_paths`, `allowed_new_paths`, and
+    `max_changed_files`; regression tests cover both inventory promotion
+    assertion and PR-3 planning rejection for forged consistent sidecars.
+- Codex Security current-head finding: directory iteration errors under local
+  creative-code artifact roots could escape as raw Python exceptions with local
+  absolute paths instead of sanitized inventory read-error blockers.
+  - Disposition: FIXED
+  - Commit: `7a84128b1`
+  - Evidence:
+    `scripts/orchestration/creative_code_artifact_inventory.py` now converts
+    `iterdir()` `OSError` failures into `unreadable_directory` read errors for
+    patch-run, generation-receipt, and promotion artifact scans; regression
+    coverage verifies text output does not echo a token-like local absolute
+    path.
+- Codex Security current-head finding: generation receipt validation could
+  accept self-consistent forged PR-2 sidecars without replaying the PR-2
+  request-authority validator.
+  - Disposition: FIXED
+  - Commit: `7a84128b1`
+  - Evidence:
+    `scripts/orchestration/creative_code_patch_generation.py` now loads the
+    canonical request, source bundle, selected variant, patch metadata, result,
+    and candidate patch sidecars and reuses
+    `validate_creative_code_patch_run_sidecars(...)`; regression coverage
+    rejects a recomputed forged receipt whose changed path falls outside the
+    original request allowlist.
+- Codex Security current-head finding: duplicate JSON keys in linked
+  `result.json` could echo token-shaped key names through the shared patch
+  contract reader during generation receipt validation.
+  - Disposition: FIXED
+  - Commit: `7a84128b1`
+  - Evidence:
+    `scripts/orchestration/creative_code_patch_contract.py` now emits a generic
+    duplicate-key error without the attacker-controlled key name, and
+    generation receipt validation converts shared contract failures into
+    sanitized generation errors; regression coverage asserts `GH_TOKEN` and
+    token fragments are absent from stderr.
+- Codex Security exact-range finding: existing PR-3
+  `promotion_receipt.json` artifacts could be replayed through `promote()`
+  without live GitHub PR readback, allowing a stale local receipt to report
+  promotion success after the PR had closed, drifted, or failed readback.
+  - Disposition: FIXED
+  - Commit: `0b30a9f2916fc1c75d4a558311d4993b5d18ad4f`
+  - Evidence:
+    `scripts/orchestration/creative_code_pr_promotion.py` now validates
+    existing receipts against the same open, non-draft, base/head/head-SHA
+    GitHub readback used for newly created PRs;
+    `scripts/orchestration/creative_code_pr_promotion_contract.py` and
+    `docs/orchestration/contracts/creative_code_pr_promotion_receipt.v1.schema.json`
+    require `open` receipts to carry a nonzero PR number, nonempty PulsePlate PR
+    URL, `review_cycle_started=true`, and `partial_failure=null`. Regression
+    tests cover open receipt identity rejection, successful idempotent replay
+    only after `pr view`, and stale closed-readback rejection.
+
+## Discussion Thread Pass
+
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+- Current GitHub review-thread actionables queried through GraphQL and mapped
+  below. GitHub thread resolution remains pending until the fixed commits are
+  pushed and review/bot state is rechecked.
+
+## Fixed in Commit Mapping
+
+Disposition: FIXED
+Commit: 0b4ccb79ecdb2d8958034c98f67e59343639e174
+Evidence: `docs/orchestration/contracts/creative_code_artifact_inventory_report.v1.schema.json` now requires `pull_request_number >= 1`; runtime validation also rejects zero PR numbers.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2089#discussion_r3532026922 -> 0b4ccb79ecdb2d8958034c98f67e59343639e174
+
+Disposition: FIXED
+Commit: 2c456b9958c6d451f28daf11cbb03cfb3bb715c8
+Evidence: `tests/test_creative_code_artifact_inventory.py` now uses `Callable[[Path], None]` for the mutation callback parameter.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2089#discussion_r3532026935 -> 2c456b9958c6d451f28daf11cbb03cfb3bb715c8
+
+Disposition: FIXED
+Commit: 0b4ccb79ecdb2d8958034c98f67e59343639e174
+Evidence: `scripts/orchestration/creative_code_artifact_inventory.py` and the inventory schema now use the bounded artifact-ref regex without the redundant optional dotted suffix.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2089#discussion_r3533153971 -> 0b4ccb79ecdb2d8958034c98f67e59343639e174
+
+Disposition: FIXED
+Commit: 0b4ccb79ecdb2d8958034c98f67e59343639e174
+Evidence: `scripts/orchestration/creative_code_patch_contract.py` now derives statuses from `candidate.patch` and rejects `patch_metadata.changed_path_statuses` mismatches.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2089#discussion_r3533209774 -> 0b4ccb79ecdb2d8958034c98f67e59343639e174
+
+Disposition: FIXED
+Commit: 2a4117d28e8a28ad546db507af4f36e49342568f
+Evidence: `tests/test_creative_code_artifact_inventory.py` now rejects `remove` and `rmdir` AST calls in the inventory CLI, and `tests/test_creative_code_pr_promotion.py` covers unsafe text inside allowed `patch_metadata` fields.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2089#pullrequestreview-4639722519 -> 2a4117d28e8a28ad546db507af4f36e49342568f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2089#pullrequestreview-4641175862 -> 2a4117d28e8a28ad546db507af4f36e49342568f
+
+Disposition: NOT-A-BUG
+Evidence: `tests/test_creative_code_artifact_inventory.py` keeps malformed generation-receipt and promotion-receipt cases separate so each artifact family and expected sanitized read-error code remains explicit.
+Reason: Parametrizing these cases would reduce local clarity for two different lifecycle branches without improving behavior coverage.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2089#pullrequestreview-4641108463
+
+Disposition: FIXED
+Commit: 550e3689d37d9440ae26a9ccb920b1e56878d242
+Evidence: `docs/review/PR_2089_FIXED_MAPPING.md` now records the commit that introduced the Phase 2 mapping artifact in the QA finding's FIXED proof block.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2089#pullrequestreview-4642492740 -> 550e3689d37d9440ae26a9ccb920b1e56878d242
+
+## Local Validation Evidence
+
+- `python3 scripts/orchestration/check_preflight.py` - PASS
+- `python3 scripts/orchestration/check_agent_consistency.py` - PASS
+- `python -m pytest tests/test_creative_code_artifact_inventory.py tests/test_creative_code_pr_promotion.py tests/test_creative_code_patch_generation.py -q` - PASS
+- `make validate-changed` - PASS
+- `pre-commit run --all-files` - PASS
+- Initial `git push` pre-push hooks - PASS except MyPy, which found typed
+  return/member issues in the new inventory/promoter code; fixed before push.
+- `pre-commit run --hook-stage pre-push mypy` - PASS after the type fix.
+- `git push` pre-push hooks - PASS after the type fix, including MyPy changed
+  files, pip-audit, backend pre-push tests, full-repo Bandit, and docker build
+  test.
+- `python3 -m scripts.orchestration.creative_code_artifact_inventory status --format text` - PASS on this worktree with empty local creative-code artifacts.
+- Post-QA/bug-hunter focused rerun:
+  `python -m pytest tests/test_creative_code_artifact_inventory.py tests/test_creative_code_pr_promotion.py tests/test_creative_code_patch_generation.py -q` - PASS.
+- Post-QA/bug-hunter `make validate-changed` - PASS.
+- Post-QA/bug-hunter `pre-commit run --all-files` - PASS.
+- Post-security focused rerun:
+  `python -m pytest tests/test_creative_code_artifact_inventory.py tests/test_creative_code_pr_promotion.py tests/test_creative_code_patch_generation.py -q` - PASS.
+- Post-security `python3 scripts/orchestration/check_preflight.py` - PASS.
+- Post-security `python3 scripts/orchestration/check_agent_consistency.py` - PASS.
+- Post-security `make validate-changed` - PASS.
+- Post-security `pre-commit run --all-files` - PASS.
+- Post-review typing fix:
+  `python -m pytest tests/test_creative_code_artifact_inventory.py -q` - PASS.
+- Post-review typing fix `make validate-changed` - PASS.
+- Post-review typing fix `pre-commit run --all-files` - PASS.
+- Post-Codex-Security-fix focused rerun:
+  `python -m pytest tests/test_creative_code_artifact_inventory.py tests/test_creative_code_pr_promotion.py tests/test_creative_code_patch_generation.py -q` - PASS.
+- Post-Codex-Security-fix `python3 scripts/orchestration/check_preflight.py` - PASS.
+- Post-Codex-Security-fix `python3 scripts/orchestration/check_agent_consistency.py` - PASS.
+- Post-Codex-Security-fix `make validate-changed` - PASS.
+- Post-Codex-Security-fix `pre-commit run --all-files` - PASS.
+- Post-current-head-security-fix focused rerun:
+  `python -m pytest tests/test_creative_code_artifact_inventory.py tests/test_creative_code_pr_promotion.py tests/test_creative_code_patch_generation.py -q` - PASS.
+- Post-current-head-security-fix `python3 scripts/orchestration/check_preflight.py` - PASS.
+- Post-current-head-security-fix `python3 scripts/orchestration/check_agent_consistency.py` - PASS.
+- Post-current-head-security-fix `make validate-changed` - PASS.
+- Post-current-head-security-fix `pre-commit run --all-files` - PASS.
+- Post-request-authority-fix focused rerun:
+  `python -m pytest tests/test_creative_code_artifact_inventory.py tests/test_creative_code_pr_promotion.py tests/test_creative_code_patch_generation.py -q` - PASS.
+- Post-request-authority-fix `python3 scripts/orchestration/check_preflight.py` - PASS.
+- Post-request-authority-fix `python3 scripts/orchestration/check_agent_consistency.py` - PASS.
+- Post-request-authority-fix `make validate-changed` - PASS.
+- Post-request-authority-fix `pre-commit run --all-files` - PASS after Black
+  formatted `tests/test_creative_code_artifact_inventory.py` and the focused
+  test bundle plus `make validate-changed` were rerun.
+- Post-artifact-validation-sanitization focused rerun:
+  `python -m pytest tests/test_creative_code_artifact_inventory.py tests/test_creative_code_patch_generation.py tests/test_creative_code_pr_promotion.py -q` - PASS.
+- Post-artifact-validation-sanitization `python3 scripts/orchestration/check_preflight.py` - PASS.
+- Post-artifact-validation-sanitization `python3 scripts/orchestration/check_agent_consistency.py` - PASS.
+- Post-artifact-validation-sanitization `git diff --check` - PASS.
+- Post-artifact-validation-sanitization `make validate-changed` - PASS.
+- Post-artifact-validation-sanitization `pre-commit run --all-files` - PASS.
+- Post-CodeRabbit-summary-test-fix focused rerun:
+  `python -m pytest tests/test_creative_code_artifact_inventory.py tests/test_creative_code_pr_promotion.py -q` - PASS.
+- Post-existing-promotion-receipt-fix focused rerun:
+  `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest tests/test_creative_code_pr_promotion.py -q` - PASS (`64 passed`).
+- Post-existing-promotion-receipt-fix `python3 -m py_compile scripts/orchestration/creative_code_pr_promotion.py scripts/orchestration/creative_code_pr_promotion_contract.py` - PASS.
+- Post-existing-promotion-receipt-fix `python3 -m json.tool docs/orchestration/contracts/creative_code_pr_promotion_receipt.v1.schema.json` - PASS.
+- Post-existing-promotion-receipt-fix `python3 scripts/orchestration/check_preflight.py` - PASS.
+- Post-existing-promotion-receipt-fix `python3 scripts/orchestration/check_agent_consistency.py` - PASS.
+- Post-existing-promotion-receipt-fix `make validate-changed` - PASS.
+- Post-existing-promotion-receipt-fix `pre-commit run --all-files` - PASS after fixing initial `ruff` F821 (`Mapping` import) failure.
+- Post-main-sync focused rerun:
+  `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest tests/test_creative_code_artifact_inventory.py tests/test_creative_code_patch_generation.py tests/test_creative_code_pr_promotion.py -q` - PASS.
+- Post-main-sync `python3 scripts/orchestration/check_preflight.py` - PASS.
+- Post-main-sync `python3 scripts/orchestration/check_agent_consistency.py` - PASS.
+- Post-main-sync `python3 scripts/orchestration/review_mapping_artifact.py --pr-number 2089` - PASS.
+- Post-main-sync `make validate-changed` - PASS.
+- Post-main-sync `pre-commit run --all-files` - PASS.
+
+## Merge Readiness
+
+- [ ] Current-head GitHub CI terminal success confirmed after this artifact
+  commit.
+- [ ] Required post-open role sequence complete after all review fixes.
+- [ ] Codex Security diff scan / finding discovery complete on current head.
+- [ ] `pulseplate-pr-review` complete on current head.
+- [ ] Strict review-thread disposition passes with auth.
+- [ ] Strict merge-readiness guard passes with auth.
+- [ ] Mandatory wait-window after latest bot/review activity completed.
+
+## Deferred / Follow-ups
+
+- PR-3 promotion remains separate and out of scope for this PR.
+- After merge, restore or rerun PR-2 generation/evaluation and retain the
+  resulting accepted `patch_runs/<run-id>` artifact before any PR-3 lane.
+- Merge closeout must not clean the accepted PR-2
+  `artifacts/orchestration/creative_code/patch_runs/<run-id>` artifact needed
+  for PR-3. Only cache, temporary, and unrelated junk cleanup is allowed unless
+  `creative_code_artifact_inventory.py assert-ready-for-cleanup` passes and the
+  operator explicitly confirms the PR-3 artifact is no longer needed.

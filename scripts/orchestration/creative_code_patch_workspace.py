@@ -93,6 +93,19 @@ def ensure_artifact_root() -> Path:
     return root
 
 
+def resolve_existing_artifact_root() -> Path:
+    """Return the existing resolved PR-2 artifact root without creating it."""
+
+    _reject_symlink_components(ARTIFACT_ROOT, label="artifact root")
+    try:
+        root = ARTIFACT_ROOT.resolve(strict=True)
+    except OSError as exc:
+        raise CreativeCodePatchWorkspaceError("artifact root must exist.") from exc
+    if not root.is_dir():
+        raise CreativeCodePatchWorkspaceError("artifact root must be a directory.")
+    return root
+
+
 def ensure_creative_code_root() -> Path:
     """Create and return the resolved creative-code artifact root."""
 
@@ -171,6 +184,26 @@ def resolve_run_dir(run_id: str, *, create: bool = False) -> Path:
     return resolved
 
 
+def resolve_existing_run_dir(run_id: str) -> Path:
+    """Resolve an existing run directory below the PR-2 artifact root without writes."""
+
+    normalized = run_id.strip()
+    if not normalized or not RUN_ID_RE.fullmatch(normalized):
+        raise CreativeCodePatchWorkspaceError("run id must be a safe identifier.")
+    root = resolve_existing_artifact_root()
+    run_dir = ARTIFACT_ROOT / normalized
+    _reject_symlink_components(run_dir, label="run directory")
+    try:
+        resolved = run_dir.resolve(strict=True)
+    except OSError as exc:
+        raise CreativeCodePatchWorkspaceError("run directory must exist.") from exc
+    if not _is_relative_to(resolved, root):
+        raise CreativeCodePatchWorkspaceError("run directory must stay under artifact root.")
+    if not resolved.is_dir():
+        raise CreativeCodePatchWorkspaceError("run directory must be a directory.")
+    return resolved
+
+
 def resolve_run_file(run_dir: Path, filename: str, *, for_write: bool = False) -> Path:
     """Resolve a direct file below a contained run directory."""
 
@@ -226,9 +259,7 @@ def _reject_duplicate_json_object_keys(pairs: list[tuple[str, Any]]) -> dict[str
     payload: dict[str, Any] = {}
     for key, value in pairs:
         if key in seen:
-            raise CreativeCodePatchWorkspaceError(
-                f"creative-code artifact JSON has duplicate key: {key}"
-            )
+            raise CreativeCodePatchWorkspaceError("creative-code artifact JSON has duplicate key.")
         seen.add(key)
         payload[key] = value
     return payload

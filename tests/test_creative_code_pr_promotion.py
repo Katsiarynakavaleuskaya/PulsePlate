@@ -170,6 +170,7 @@ def _make_patch_run(
         run_dir / PATCH_METADATA_FILE,
         {
             "changed_paths": ["core/rag/orchestration.py"],
+            "changed_path_statuses": {"core/rag/orchestration.py": "M"},
             "patch_fingerprint": patch_fingerprint,
             "patch_bytes": len(patch_text.encode("utf-8")),
             "diff_lines": len(patch_text.splitlines()),
@@ -400,6 +401,42 @@ class TimeoutDeleteGitHub(FakeGitHub):
         raise subprocess.TimeoutExpired(cmd="gh api delete", timeout=120)
 
 
+def _write_ready_promotion_artifacts(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    *,
+    promotion_id: str,
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], Path]:
+    _repo, run_id, _result = _make_patch_run(monkeypatch, tmp_path)
+    planned = creative_code_pr_promotion.plan(
+        patch_run=run_id,
+        promotion_id=promotion_id,
+        git=FakeGit(),
+    )
+    plan = planned["plan"]
+    validation = build_creative_code_pr_promotion_validation(
+        promotion_id=promotion_id,
+        plan_fingerprint=promotion_plan_fingerprint(plan),
+        patch_fingerprint=plan["patch_fingerprint"],
+        base_commit_sha=plan["base_commit_sha"],
+        oracle_commands_configured=1,
+        oracle_commands_executed=1,
+    )
+    approval = build_creative_code_pr_promotion_approval(
+        promotion_id=promotion_id,
+        plan_fingerprint=promotion_plan_fingerprint(plan),
+        validation_fingerprint=validation["validation_fingerprint"],
+        approved_by_login="Katsiarynakavaleuskaya",
+        confirmed_patch_fingerprint=plan["patch_fingerprint"],
+        confirmed_base_commit_sha=plan["base_commit_sha"],
+        confirmed_target_branch=plan["target_head_branch"],
+    )
+    promotion_dir = Path(planned["promotion_dir"])
+    _write_json(promotion_dir / creative_code_pr_promotion.VALIDATION_FILE, validation)
+    _write_json(promotion_dir / creative_code_pr_promotion.APPROVAL_FILE, approval)
+    return plan, validation, approval, promotion_dir
+
+
 def test_pr3_schemas_are_closed() -> None:
     for schema_path in (PLAN_SCHEMA, VALIDATION_SCHEMA, APPROVAL_SCHEMA, RECEIPT_SCHEMA):
         schema = json.loads(schema_path.read_text(encoding="utf-8"))
@@ -415,6 +452,31 @@ def test_pr3_schemas_are_closed() -> None:
         plan_schema["$defs"]["authority"]["properties"]["open_draft_pull_request"]["const"] is False
     )
     assert plan_schema["$defs"]["authority"]["properties"]["merge"]["const"] is False
+    receipt_schema = json.loads(RECEIPT_SCHEMA.read_text(encoding="utf-8"))
+    open_receipt_properties = receipt_schema["allOf"][0]["then"]["properties"]
+    assert open_receipt_properties["pull_request_number"]["minimum"] == 1
+    assert open_receipt_properties["review_cycle_started"]["const"] is True
+    assert open_receipt_properties["partial_failure"]["type"] == "null"
+
+
+def test_open_promotion_receipt_requires_pr_identity() -> None:
+    with pytest.raises(
+        CreativeCodePRPromotionContractError,
+        match="open receipts require pull_request_number and pull_request_url",
+    ):
+        build_creative_code_pr_promotion_receipt(
+            promotion_id="promotion-pr3-open-receipt",
+            plan_fingerprint="sha256:" + "1" * 64,
+            validation_fingerprint="sha256:" + "2" * 64,
+            approval_id="evidence:approval",
+            source_result_id="evidence:result",
+            patch_fingerprint="sha256:" + "3" * 64,
+            head_branch="experiment/open-receipt",
+            commit_sha="b" * 40,
+            pull_request_number=0,
+            pull_request_url="",
+            approved_by_login="Katsiarynakavaleuskaya",
+        )
 
 
 def test_valid_artifacts_round_trip_and_identity_drifts() -> None:
@@ -562,12 +624,122 @@ def test_plan_rejects_patch_metadata_mismatch(
     metadata["changed_paths"] = ["core/rag/other.py"]
     _write_json(metadata_path, metadata)
 
-    with pytest.raises(CreativeCodePRPromotionError, match="patch_metadata changed paths"):
+    with pytest.raises(CreativeCodePRPromotionError, match="changed_path_statuses"):
         creative_code_pr_promotion.plan(
             patch_run=run_id,
             promotion_id="promotion-pr3-metadata",
             git=FakeGit(),
         )
+
+
+def test_plan_rejects_patch_metadata_status_mismatch(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo, run_id, _result = _make_patch_run(monkeypatch, tmp_path)
+    metadata_path = (
+        repo
+        / "artifacts"
+        / "orchestration"
+        / "creative_code"
+        / "patch_runs"
+        / run_id
+        / PATCH_METADATA_FILE
+    )
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    metadata["changed_path_statuses"]["core/rag/orchestration.py"] = "A"
+    _write_json(metadata_path, metadata)
+
+    with pytest.raises(CreativeCodePRPromotionError, match="changed_path_statuses"):
+        creative_code_pr_promotion.plan(
+            patch_run=run_id,
+            promotion_id="promotion-pr3-status-metadata",
+            git=FakeGit(),
+        )
+
+
+def test_plan_rejects_patch_metadata_extra_unsafe_fields(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo, run_id, _result = _make_patch_run(monkeypatch, tmp_path)
+    metadata_path = (
+        repo
+        / "artifacts"
+        / "orchestration"
+        / "creative_code"
+        / "patch_runs"
+        / run_id
+        / PATCH_METADATA_FILE
+    )
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    metadata["raw_prompt"] = "/Users/example diff --git Authorization: Bearer ghp_secret"
+    _write_json(metadata_path, metadata)
+
+    with pytest.raises(CreativeCodePRPromotionError, match="unsupported fields"):
+        creative_code_pr_promotion.plan(
+            patch_run=run_id,
+            promotion_id="promotion-pr3-metadata-extra",
+            git=FakeGit(),
+        )
+
+
+def test_plan_rejects_patch_metadata_allowed_unsafe_field(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo, run_id, _result = _make_patch_run(monkeypatch, tmp_path)
+    metadata_path = (
+        repo
+        / "artifacts"
+        / "orchestration"
+        / "creative_code"
+        / "patch_runs"
+        / run_id
+        / PATCH_METADATA_FILE
+    )
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    unsafe_path = "core/ghs_secretsecretsecret.py"
+    metadata["changed_paths"] = [unsafe_path]
+    metadata["changed_path_statuses"] = {unsafe_path: "A"}
+    _write_json(metadata_path, metadata)
+
+    with pytest.raises(CreativeCodePRPromotionError, match="unsafe result text") as exc_info:
+        creative_code_pr_promotion.plan(
+            patch_run=run_id,
+            promotion_id="promotion-pr3-metadata-allowed-unsafe-field",
+            git=FakeGit(),
+        )
+    assert "ghs_secretsecretsecret" not in str(exc_info.value)
+
+
+def test_plan_rejects_patch_metadata_extra_unsafe_key_without_echoing_key(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo, run_id, _result = _make_patch_run(monkeypatch, tmp_path)
+    metadata_path = (
+        repo
+        / "artifacts"
+        / "orchestration"
+        / "creative_code"
+        / "patch_runs"
+        / run_id
+        / PATCH_METADATA_FILE
+    )
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    unsafe_key = "GH_TOKEN=ghs_secretsecretsecret"
+    metadata[unsafe_key] = "ignored"
+    _write_json(metadata_path, metadata)
+
+    with pytest.raises(CreativeCodePRPromotionError, match="unsupported fields") as exc_info:
+        creative_code_pr_promotion.plan(
+            patch_run=run_id,
+            promotion_id="promotion-pr3-metadata-extra-key",
+            git=FakeGit(),
+        )
+    assert unsafe_key not in str(exc_info.value)
+    assert "GH_TOKEN" not in str(exc_info.value)
 
 
 def test_plan_rejects_patch_changed_paths_mismatch(
@@ -620,6 +792,60 @@ def test_plan_rejects_patch_changed_paths_mismatch(
         creative_code_pr_promotion.plan(
             patch_run=run_id,
             promotion_id="promotion-pr3-path-mismatch",
+            git=FakeGit(),
+        )
+
+
+def test_plan_rejects_patch_paths_outside_request_allowlist(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo, run_id, _result = _make_patch_run(monkeypatch, tmp_path)
+    run_dir = repo / "artifacts" / "orchestration" / "creative_code" / "patch_runs" / run_id
+    patch_text = _candidate_patch().replace("core/rag/orchestration.py", "core/rag/other.py")
+    patch_fingerprint = fingerprint_payload({"candidate_patch": patch_text})
+    request = json.loads((run_dir / REQUEST_FILE).read_text(encoding="utf-8"))
+    result = build_creative_code_patch_result(
+        request=request,
+        changed_paths=["core/rag/other.py"],
+        patch_fingerprint=patch_fingerprint,
+        patch_bytes=len(patch_text.encode("utf-8")),
+        diff_lines=len(patch_text.splitlines()),
+        runner_result={
+            "experiment_id": "exp-pr3-reference",
+            "status": "accepted",
+            "failure_class": None,
+            "mutated_paths": ["core/rag/other.py"],
+            "budget_observations": {
+                "oracle_commands_configured": 1,
+                "attempts": 1,
+                "retries_consumed": 0,
+            },
+            "oracle_results": [{"status": "passed"}],
+            "shared_tree_untouched": True,
+        },
+        checkout_destroyed=True,
+        origin_removed=True,
+        shared_tree_untouched=True,
+        failure_class=None,
+    )
+    _write_json(run_dir / RESULT_FILE, result)
+    _write_json(
+        run_dir / PATCH_METADATA_FILE,
+        {
+            "changed_paths": ["core/rag/other.py"],
+            "changed_path_statuses": {"core/rag/other.py": "M"},
+            "patch_fingerprint": patch_fingerprint,
+            "patch_bytes": len(patch_text.encode("utf-8")),
+            "diff_lines": len(patch_text.splitlines()),
+        },
+    )
+    (run_dir / CANDIDATE_PATCH_FILE).write_text(patch_text, encoding="utf-8")
+
+    with pytest.raises(CreativeCodePRPromotionError, match="outside PR-2 request allowlist"):
+        creative_code_pr_promotion.plan(
+            patch_run=run_id,
+            promotion_id="promotion-pr3-outside-allowlist",
             git=FakeGit(),
         )
 
@@ -1227,6 +1453,93 @@ def test_promote_rejects_stale_receipt_replay(
         )
 
     assert github.calls == []
+
+
+def test_promote_existing_receipt_requires_live_pr_readback(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    plan, validation, approval, promotion_dir = _write_ready_promotion_artifacts(
+        monkeypatch,
+        tmp_path,
+        promotion_id="promotion-pr3-existing-receipt-live",
+    )
+    existing_receipt = build_creative_code_pr_promotion_receipt(
+        promotion_id="promotion-pr3-existing-receipt-live",
+        plan_fingerprint=promotion_plan_fingerprint(plan),
+        validation_fingerprint=validation["validation_fingerprint"],
+        approval_id=approval["approval_id"],
+        source_result_id=plan["source_result_id"],
+        patch_fingerprint=plan["patch_fingerprint"],
+        head_branch=plan["target_head_branch"],
+        commit_sha="b" * 40,
+        pull_request_number=9999,
+        pull_request_url="https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/9999",
+        approved_by_login="Katsiarynakavaleuskaya",
+    )
+    _write_json(promotion_dir / creative_code_pr_promotion.RECEIPT_FILE, existing_receipt)
+
+    github = FakeGitHub()
+    github.head_branch = plan["target_head_branch"]
+    receipt = creative_code_pr_promotion.promote(
+        promotion_id="promotion-pr3-existing-receipt-live",
+        git=FakeGit(),
+        github=github,
+    )
+
+    assert receipt == existing_receipt
+    assert github.calls == [["pr", "view", existing_receipt["pull_request_url"]]]
+
+
+def test_promote_rejects_existing_receipt_when_live_pr_readback_is_stale(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    plan, validation, approval, promotion_dir = _write_ready_promotion_artifacts(
+        monkeypatch,
+        tmp_path,
+        promotion_id="promotion-pr3-existing-receipt-closed",
+    )
+    existing_receipt = build_creative_code_pr_promotion_receipt(
+        promotion_id="promotion-pr3-existing-receipt-closed",
+        plan_fingerprint=promotion_plan_fingerprint(plan),
+        validation_fingerprint=validation["validation_fingerprint"],
+        approval_id=approval["approval_id"],
+        source_result_id=plan["source_result_id"],
+        patch_fingerprint=plan["patch_fingerprint"],
+        head_branch=plan["target_head_branch"],
+        commit_sha="b" * 40,
+        pull_request_number=9999,
+        pull_request_url="https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/9999",
+        approved_by_login="Katsiarynakavaleuskaya",
+    )
+    _write_json(promotion_dir / creative_code_pr_promotion.RECEIPT_FILE, existing_receipt)
+
+    class ClosedReadbackGitHub(FakeGitHub):
+        def read_pull_request(self, *, pr_ref: str) -> dict[str, Any]:
+            self.calls.append(["pr", "view", pr_ref])
+            return {
+                "number": 9999,
+                "url": pr_ref,
+                "state": "CLOSED",
+                "isDraft": False,
+                "baseRefName": "main",
+                "headRefName": plan["target_head_branch"],
+                "headRefOid": "b" * 40,
+            }
+
+    github = ClosedReadbackGitHub()
+    with pytest.raises(
+        CreativeCodePRPromotionError,
+        match="existing promotion receipt failed live PR readback verification",
+    ):
+        creative_code_pr_promotion.promote(
+            promotion_id="promotion-pr3-existing-receipt-closed",
+            git=FakeGit(),
+            github=github,
+        )
+
+    assert github.calls == [["pr", "view", existing_receipt["pull_request_url"]]]
 
 
 def test_promote_rejects_stale_patch_file_before_mutation(
