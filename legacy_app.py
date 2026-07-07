@@ -2075,7 +2075,11 @@ def _resolve_package_weekly_menu_export(package_module: Any) -> Optional[Callabl
 def _resolve_legacy_weekly_menu_builder() -> Optional[Callable[..., Any]]:
     """Compatibility shim; canonical implementation lives in app/services."""
 
-    return _canonical_resolve_legacy_weekly_menu_builder()
+    return _canonical_resolve_legacy_weekly_menu_builder(
+        get_app_package_module=_get_app_package_module,
+        get_legacy_app_module=lambda: sys.modules.get("legacy_app"),
+        resolve_package_weekly_menu_export=_resolve_package_weekly_menu_export,
+    )
 
 
 class WeeklyPlanFlexibleRequest(BaseModel):

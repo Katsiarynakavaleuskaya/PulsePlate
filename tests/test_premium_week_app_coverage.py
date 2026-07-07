@@ -125,6 +125,18 @@ class TestPremiumWeekAppCoverage:
 
         assert builder is None
 
+    def test_legacy_resolver_shim_preserves_historical_package_lookup_patch(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """legacy_app compatibility wrapper must honor the historical helper seam."""
+
+        monkeypatch.setattr(legacy_app, "_get_app_package_module", lambda: None)
+        monkeypatch.setattr(legacy_app, "make_weekly_menu", None)
+
+        builder = legacy_app._resolve_legacy_weekly_menu_builder()
+
+        assert builder is None
+
     def test_resolver_returns_none_when_package_export_raises_import_error(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:

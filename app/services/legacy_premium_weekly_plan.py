@@ -132,19 +132,32 @@ def _resolve_package_weekly_menu_export(package_module: Any) -> Optional[Callabl
     return cast(Callable[..., Any], package_builder) if callable(package_builder) else None
 
 
-def resolve_legacy_weekly_menu_builder() -> Optional[Callable[..., Any]]:
+def resolve_legacy_weekly_menu_builder(
+    *,
+    get_app_package_module: Optional[Callable[[], Optional[Any]]] = None,
+    get_legacy_app_module: Optional[Callable[[], Optional[Any]]] = None,
+    resolve_package_weekly_menu_export: Optional[
+        Callable[[Any], Optional[Callable[..., Any]]]
+    ] = None,
+) -> Optional[Callable[..., Any]]:
     """Resolve the canonical weekly-menu builder for the legacy premium alias."""
+
+    get_app_package_module = get_app_package_module or _get_app_package_module
+    get_legacy_app_module = get_legacy_app_module or _get_legacy_app_module
+    resolve_package_weekly_menu_export = (
+        resolve_package_weekly_menu_export or _resolve_package_weekly_menu_export
+    )
 
     def _callable_or_none(value: Any) -> Optional[Callable[..., Any]]:
         return cast(Callable[..., Any], value) if callable(value) else None
 
-    package_module = _get_app_package_module()
+    package_module = get_app_package_module()
     package_namespace = getattr(package_module, "__dict__", {}) if package_module else {}
 
     if "make_weekly_menu" in package_namespace:
         return _callable_or_none(package_namespace.get("make_weekly_menu"))
 
-    legacy_module = _get_legacy_app_module()
+    legacy_module = get_legacy_app_module()
     legacy_namespace = getattr(legacy_module, "__dict__", {}) if legacy_module else {}
     resolved_legacy_builder = _callable_or_none(legacy_namespace.get("make_weekly_menu"))
     if resolved_legacy_builder is not None:
@@ -153,4 +166,4 @@ def resolve_legacy_weekly_menu_builder() -> Optional[Callable[..., Any]]:
     if package_module is None:
         return None
 
-    return _resolve_package_weekly_menu_export(package_module)
+    return resolve_package_weekly_menu_export(package_module)
