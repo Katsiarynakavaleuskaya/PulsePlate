@@ -19,7 +19,7 @@ import subprocess  # nosec B404: fixed git/gh subprocess wrappers only (remove-b
 import sys
 import tempfile
 import uuid
-from typing import Any, Protocol, cast
+from typing import Any, Mapping, Protocol, cast
 from urllib.parse import urlparse
 
 from core.evidence.fingerprints import fingerprint_payload
@@ -947,6 +947,58 @@ def _require_receipt_matches_plan_validation_approval(
             raise CreativeCodePRPromotionError(f"existing receipt {key} mismatch.")
 
 
+def _require_open_pr_readback(
+    readback: Mapping[str, Any],
+    *,
+    branch: str,
+    commit_sha: str,
+    pr_url: str,
+    expected_number: int | None,
+    error_message: str,
+) -> tuple[int, str]:
+    number = readback.get("number")
+    url = readback.get("url")
+    if (
+        not isinstance(number, int)
+        or number < 1
+        or not isinstance(url, str)
+        or not url
+        or url != pr_url
+        or (expected_number is not None and number != expected_number)
+        or readback.get("state") != "OPEN"
+        or readback.get("isDraft") is not False
+        or readback.get("baseRefName") != TARGET_BASE_BRANCH
+        or readback.get("headRefName") != branch
+        or readback.get("headRefOid") != commit_sha
+    ):
+        raise CreativeCodePRPromotionError(error_message)
+    return number, url
+
+
+def _require_existing_receipt_live_pr(
+    *,
+    receipt: dict[str, Any],
+    github: GitHubTransport,
+) -> None:
+    if (
+        receipt["pull_request_state"] != "open"
+        or receipt["partial_failure"] is not None
+        or receipt["pull_request_number"] < 1
+        or not receipt["pull_request_url"]
+        or receipt["review_cycle_started"] is not True
+    ):
+        raise CreativeCodePRPromotionError("existing receipt is not a completed open PR.")
+    readback = github.read_pull_request(pr_ref=receipt["pull_request_url"])
+    _require_open_pr_readback(
+        readback,
+        branch=receipt["head_branch"],
+        commit_sha=receipt["commit_sha"],
+        pr_url=receipt["pull_request_url"],
+        expected_number=receipt["pull_request_number"],
+        error_message="existing promotion receipt failed live PR readback verification",
+    )
+
+
 def _load_current_patch_text_for_plan(
     *,
     promotion_dir: Path,
@@ -1305,6 +1357,7 @@ def promote(
             validation_artifact=validation_artifact,
             approval_artifact=approval_artifact,
         )
+        _require_existing_receipt_live_pr(receipt=receipt, github=github)
         return receipt
     if approval_artifact["approved_by_login"] != github.current_login():
         raise CreativeCodePRPromotionError("current gh actor does not match approval.")
@@ -1400,15 +1453,18 @@ def promote(
             body_file=body_file,
         )
         readback = github.read_pull_request(pr_ref=pr_url)
-        if (
-            readback.get("state") != "OPEN"
-            or readback.get("isDraft") is not False
-            or readback.get("baseRefName") != TARGET_BASE_BRANCH
-            or readback.get("headRefName") != branch
-            or readback.get("headRefOid") != commit_sha
-        ):
+        try:
+            pull_request_number, pull_request_url = _require_open_pr_readback(
+                readback,
+                branch=branch,
+                commit_sha=commit_sha,
+                pr_url=pr_url,
+                expected_number=None,
+                error_message="created PR failed non-draft readback verification",
+            )
+        except CreativeCodePRPromotionError as exc:
             partial_failure = "created PR failed non-draft readback verification"
-            raise CreativeCodePRPromotionError(partial_failure)
+            raise CreativeCodePRPromotionError(partial_failure) from exc
         success_receipt: dict[str, Any] = build_creative_code_pr_promotion_receipt(
             promotion_id=promotion_id,
             plan_fingerprint=plan_fp,
@@ -1418,8 +1474,8 @@ def promote(
             patch_fingerprint=plan_artifact["patch_fingerprint"],
             head_branch=branch,
             commit_sha=commit_sha,
-            pull_request_number=int(readback["number"]),
-            pull_request_url=str(readback["url"]),
+            pull_request_number=pull_request_number,
+            pull_request_url=pull_request_url,
             approved_by_login=approval_artifact["approved_by_login"],
         )
         write_json_atomic(receipt_path, success_receipt)

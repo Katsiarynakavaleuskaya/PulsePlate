@@ -401,6 +401,42 @@ class TimeoutDeleteGitHub(FakeGitHub):
         raise subprocess.TimeoutExpired(cmd="gh api delete", timeout=120)
 
 
+def _write_ready_promotion_artifacts(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    *,
+    promotion_id: str,
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], Path]:
+    _repo, run_id, _result = _make_patch_run(monkeypatch, tmp_path)
+    planned = creative_code_pr_promotion.plan(
+        patch_run=run_id,
+        promotion_id=promotion_id,
+        git=FakeGit(),
+    )
+    plan = planned["plan"]
+    validation = build_creative_code_pr_promotion_validation(
+        promotion_id=promotion_id,
+        plan_fingerprint=promotion_plan_fingerprint(plan),
+        patch_fingerprint=plan["patch_fingerprint"],
+        base_commit_sha=plan["base_commit_sha"],
+        oracle_commands_configured=1,
+        oracle_commands_executed=1,
+    )
+    approval = build_creative_code_pr_promotion_approval(
+        promotion_id=promotion_id,
+        plan_fingerprint=promotion_plan_fingerprint(plan),
+        validation_fingerprint=validation["validation_fingerprint"],
+        approved_by_login="Katsiarynakavaleuskaya",
+        confirmed_patch_fingerprint=plan["patch_fingerprint"],
+        confirmed_base_commit_sha=plan["base_commit_sha"],
+        confirmed_target_branch=plan["target_head_branch"],
+    )
+    promotion_dir = Path(planned["promotion_dir"])
+    _write_json(promotion_dir / creative_code_pr_promotion.VALIDATION_FILE, validation)
+    _write_json(promotion_dir / creative_code_pr_promotion.APPROVAL_FILE, approval)
+    return plan, validation, approval, promotion_dir
+
+
 def test_pr3_schemas_are_closed() -> None:
     for schema_path in (PLAN_SCHEMA, VALIDATION_SCHEMA, APPROVAL_SCHEMA, RECEIPT_SCHEMA):
         schema = json.loads(schema_path.read_text(encoding="utf-8"))
@@ -416,6 +452,31 @@ def test_pr3_schemas_are_closed() -> None:
         plan_schema["$defs"]["authority"]["properties"]["open_draft_pull_request"]["const"] is False
     )
     assert plan_schema["$defs"]["authority"]["properties"]["merge"]["const"] is False
+    receipt_schema = json.loads(RECEIPT_SCHEMA.read_text(encoding="utf-8"))
+    open_receipt_properties = receipt_schema["allOf"][0]["then"]["properties"]
+    assert open_receipt_properties["pull_request_number"]["minimum"] == 1
+    assert open_receipt_properties["review_cycle_started"]["const"] is True
+    assert open_receipt_properties["partial_failure"]["type"] == "null"
+
+
+def test_open_promotion_receipt_requires_pr_identity() -> None:
+    with pytest.raises(
+        CreativeCodePRPromotionContractError,
+        match="open receipts require pull_request_number and pull_request_url",
+    ):
+        build_creative_code_pr_promotion_receipt(
+            promotion_id="promotion-pr3-open-receipt",
+            plan_fingerprint="sha256:" + "1" * 64,
+            validation_fingerprint="sha256:" + "2" * 64,
+            approval_id="evidence:approval",
+            source_result_id="evidence:result",
+            patch_fingerprint="sha256:" + "3" * 64,
+            head_branch="experiment/open-receipt",
+            commit_sha="b" * 40,
+            pull_request_number=0,
+            pull_request_url="",
+            approved_by_login="Katsiarynakavaleuskaya",
+        )
 
 
 def test_valid_artifacts_round_trip_and_identity_drifts() -> None:
@@ -1392,6 +1453,93 @@ def test_promote_rejects_stale_receipt_replay(
         )
 
     assert github.calls == []
+
+
+def test_promote_existing_receipt_requires_live_pr_readback(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    plan, validation, approval, promotion_dir = _write_ready_promotion_artifacts(
+        monkeypatch,
+        tmp_path,
+        promotion_id="promotion-pr3-existing-receipt-live",
+    )
+    existing_receipt = build_creative_code_pr_promotion_receipt(
+        promotion_id="promotion-pr3-existing-receipt-live",
+        plan_fingerprint=promotion_plan_fingerprint(plan),
+        validation_fingerprint=validation["validation_fingerprint"],
+        approval_id=approval["approval_id"],
+        source_result_id=plan["source_result_id"],
+        patch_fingerprint=plan["patch_fingerprint"],
+        head_branch=plan["target_head_branch"],
+        commit_sha="b" * 40,
+        pull_request_number=9999,
+        pull_request_url="https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/9999",
+        approved_by_login="Katsiarynakavaleuskaya",
+    )
+    _write_json(promotion_dir / creative_code_pr_promotion.RECEIPT_FILE, existing_receipt)
+
+    github = FakeGitHub()
+    github.head_branch = plan["target_head_branch"]
+    receipt = creative_code_pr_promotion.promote(
+        promotion_id="promotion-pr3-existing-receipt-live",
+        git=FakeGit(),
+        github=github,
+    )
+
+    assert receipt == existing_receipt
+    assert github.calls == [["pr", "view", existing_receipt["pull_request_url"]]]
+
+
+def test_promote_rejects_existing_receipt_when_live_pr_readback_is_stale(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    plan, validation, approval, promotion_dir = _write_ready_promotion_artifacts(
+        monkeypatch,
+        tmp_path,
+        promotion_id="promotion-pr3-existing-receipt-closed",
+    )
+    existing_receipt = build_creative_code_pr_promotion_receipt(
+        promotion_id="promotion-pr3-existing-receipt-closed",
+        plan_fingerprint=promotion_plan_fingerprint(plan),
+        validation_fingerprint=validation["validation_fingerprint"],
+        approval_id=approval["approval_id"],
+        source_result_id=plan["source_result_id"],
+        patch_fingerprint=plan["patch_fingerprint"],
+        head_branch=plan["target_head_branch"],
+        commit_sha="b" * 40,
+        pull_request_number=9999,
+        pull_request_url="https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/9999",
+        approved_by_login="Katsiarynakavaleuskaya",
+    )
+    _write_json(promotion_dir / creative_code_pr_promotion.RECEIPT_FILE, existing_receipt)
+
+    class ClosedReadbackGitHub(FakeGitHub):
+        def read_pull_request(self, *, pr_ref: str) -> dict[str, Any]:
+            self.calls.append(["pr", "view", pr_ref])
+            return {
+                "number": 9999,
+                "url": pr_ref,
+                "state": "CLOSED",
+                "isDraft": False,
+                "baseRefName": "main",
+                "headRefName": plan["target_head_branch"],
+                "headRefOid": "b" * 40,
+            }
+
+    github = ClosedReadbackGitHub()
+    with pytest.raises(
+        CreativeCodePRPromotionError,
+        match="existing promotion receipt failed live PR readback verification",
+    ):
+        creative_code_pr_promotion.promote(
+            promotion_id="promotion-pr3-existing-receipt-closed",
+            git=FakeGit(),
+            github=github,
+        )
+
+    assert github.calls == [["pr", "view", existing_receipt["pull_request_url"]]]
 
 
 def test_promote_rejects_stale_patch_file_before_mutation(

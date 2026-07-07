@@ -96,5 +96,26 @@
       "maxLength": 80,
       "pattern": "^experiment/[a-z0-9][a-z0-9._-]{0,68}$"
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "pull_request_state": { "const": "open" }
+        },
+        "required": ["pull_request_state"]
+      },
+      "then": {
+        "properties": {
+          "pull_request_number": { "type": "integer", "minimum": 1, "maximum": 999999 },
+          "pull_request_url": {
+            "type": "string",
+            "pattern": "^https://github\\.com/Katsiarynakavaleuskaya/PulsePlate/pull/[0-9]+$"
+          },
+          "review_cycle_started": { "const": true },
+          "partial_failure": { "type": "null" }
+        }
+      }
+    }
+  ]
 }
