@@ -45,7 +45,7 @@ These routes are the current canonical operator surface.
 | Weekly menu repair | `/api/v1/vip/menu/weekly/repair` | POST | VIP | Canonical VIP repair route |
 | Shoplist export | `/api/v1/vip/shoplist/export` | POST | VIP | Canonical VIP export surface |
 | Recipe synthesis | `/api/v1/vip/recipes/synthesize` | POST | VIP | Canonical VIP recipe synthesis route |
-| Insight | `/api/v1/insight` | POST | VIP-only (`require_vip_tier()`) | AI insight route; API-key access is enforced through VIP middleware, and bounded-context extraction remains planned |
+| Insight | `/api/v1/insight` | POST | VIP-only (`require_vip_tier()`) | AI insight route; API-key access is enforced through VIP middleware. Route ownership lives in `app/routers/legacy_insight.py` (registered via `app/main.py` route-family bootstrap); execution orchestration stays in `app/services/insight_application_service.py` |
 | FitChef mascot insight | `/api/v1/insight/fitchef` | POST | VIP-only (`require_vip_tier()`) | Canonical FitChef mascot coaching route under the insight namespace; feature-gated by `FEATURE_FITCHEF_MASCOT` |
 | FitChef weekly reflection | `/api/v1/insight/fitchef/weekly-reflection` | POST | VIP-only (`require_vip_tier()`) | Canonical FitChef weekly reflection route under the insight namespace; feature-gated by `FEATURE_FITCHEF_MASCOT` |
 | FitChef slip support | `/api/v1/insight/fitchef/slip-support` | POST | VIP-only (`require_vip_tier()`) | Canonical FitChef slip-support route under the insight namespace; feature-gated by `FEATURE_FITCHEF_MASCOT` |
@@ -73,6 +73,7 @@ These routes remain for compatibility and migration. They must not be described 
 | `/api/v1/premium/plan/week` | POST | VIP | `/api/v1/vip/menu/weekly/plan` | Broken naming compatibility route under deprecated namespace |
 | `/api/v1/premium/exports/*` | POST | VIP | `/api/v1/vip/shoplist/export` | Wrong-namespace compatibility exports |
 | `/api/v1/vip/weekly-plan` | POST | VIP | `/api/v1/vip/menu/weekly/plan` | Deprecated VIP alias |
+| `/insight` | POST | VIP | `/api/v1/insight` | Hidden deprecated legacy alias; owned by `app/routers/legacy_insight.py` |
 
 ### Compatibility Notes
 
