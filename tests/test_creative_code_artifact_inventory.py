@@ -299,6 +299,68 @@ def test_patch_metadata_status_mismatch_blocks_promotion(
     assert "invalid_patch_run_sidecar" in blockers
 
 
+def test_patch_run_paths_outside_request_allowlist_block_promotion(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo, run_id, result = _make_patch_run(monkeypatch, tmp_path, accepted=True)
+    run_dir = _run_dir(repo, run_id)
+    request = json.loads((run_dir / REQUEST_FILE).read_text(encoding="utf-8"))
+    patch_text = (
+        (run_dir / CANDIDATE_PATCH_FILE)
+        .read_text(encoding="utf-8")
+        .replace(
+            "core/rag/orchestration.py",
+            "core/rag/other.py",
+        )
+    )
+    patch_fingerprint = fingerprint_payload({"candidate_patch": patch_text})
+    forged_result = build_creative_code_patch_result(
+        request=request,
+        changed_paths=["core/rag/other.py"],
+        patch_fingerprint=patch_fingerprint,
+        patch_bytes=len(patch_text.encode("utf-8")),
+        diff_lines=len(patch_text.splitlines()),
+        runner_result={
+            "experiment_id": "exp-pr3-reference",
+            "status": "accepted",
+            "failure_class": None,
+            "mutated_paths": ["core/rag/other.py"],
+            "budget_observations": {
+                "oracle_commands_configured": 1,
+                "attempts": 1,
+                "retries_consumed": 0,
+            },
+            "oracle_results": [{"status": "passed"}],
+            "shared_tree_untouched": True,
+        },
+        checkout_destroyed=True,
+        origin_removed=True,
+        shared_tree_untouched=True,
+        failure_class=None,
+    )
+    _write_json(run_dir / RESULT_FILE, forged_result)
+    _write_json(
+        run_dir / PATCH_METADATA_FILE,
+        {
+            "changed_paths": ["core/rag/other.py"],
+            "changed_path_statuses": {"core/rag/other.py": "M"},
+            "patch_fingerprint": patch_fingerprint,
+            "patch_bytes": len(patch_text.encode("utf-8")),
+            "diff_lines": len(patch_text.splitlines()),
+        },
+    )
+    (run_dir / CANDIDATE_PATCH_FILE).write_text(patch_text, encoding="utf-8")
+    report = _report(monkeypatch, repo, origin_main=result["base_commit_sha"])
+
+    assert report["patch_runs"][0]["valid"] is False
+    assert report["read_errors"][0]["error_code"] == "invalid_patch_run_sidecar"
+    ok, blockers = inventory_cli.assert_ready_for_promotion(run_id)
+    assert ok is False
+    assert "artifact_read_error" in blockers
+    assert "invalid_patch_run_sidecar" in blockers
+
+
 def test_accepted_run_without_oracle_proof_blocks_promotion(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

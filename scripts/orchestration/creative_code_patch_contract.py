@@ -1234,6 +1234,34 @@ def validate_creative_code_patch_metadata(payload: Mapping[str, Any]) -> dict[st
     return normalized
 
 
+def _validate_patch_paths_against_request_authority(
+    patch_changed_path_statuses: Mapping[str, str],
+    *,
+    request: Mapping[str, Any],
+) -> None:
+    allowed_existing = set(request["allowed_existing_paths"])
+    allowed_new = set(request["allowed_new_paths"])
+    allowed_paths = allowed_existing | allowed_new
+    changed_paths = sorted(patch_changed_path_statuses)
+    if len(changed_paths) > request["budgets"]["max_changed_files"]:
+        raise CreativeCodePatchContractError(
+            "candidate.patch exceeds request max_changed_files budget."
+        )
+    for path, status in patch_changed_path_statuses.items():
+        if path not in allowed_paths:
+            raise CreativeCodePatchContractError(
+                "candidate.patch touches path outside PR-2 request allowlist."
+            )
+        if status == "A" and path not in allowed_new:
+            raise CreativeCodePatchContractError(
+                "candidate.patch adds path outside PR-2 request new-path allowlist."
+            )
+        if status == "M" and path not in allowed_existing:
+            raise CreativeCodePatchContractError(
+                "candidate.patch modifies path outside PR-2 request existing-path allowlist."
+            )
+
+
 def validate_creative_code_patch_run_sidecars(
     *,
     request: Mapping[str, Any],
@@ -1309,6 +1337,10 @@ def validate_creative_code_patch_run_sidecars(
     patch_changed_paths = sorted(patch_changed_path_statuses)
     if patch_changed_paths != sorted(result["changed_paths"]):
         raise CreativeCodePatchContractError("candidate.patch changed paths mismatch.")
+    _validate_patch_paths_against_request_authority(
+        patch_changed_path_statuses,
+        request=request,
+    )
     metadata = validate_creative_code_patch_metadata(patch_metadata)
     if metadata["changed_paths"] != result["changed_paths"]:
         raise CreativeCodePatchContractError("patch_metadata changed paths mismatch.")
