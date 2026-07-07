@@ -285,6 +285,46 @@ def test_generation_receipt_mismatch_blocks_promotion(
     assert "generation_receipt_mismatch" in blockers
 
 
+def test_malformed_unlinked_generation_receipt_blocks_promotion(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo, run_id, result = _make_patch_run(monkeypatch, tmp_path, accepted=True)
+    receipt_path = (
+        repo
+        / "artifacts"
+        / "orchestration"
+        / "creative_code"
+        / "patch_generation"
+        / "malformed"
+        / generation_cli.RECEIPT_FILENAME
+    )
+    receipt_path.parent.mkdir(parents=True)
+    receipt_path.write_text('{"schema_version":"1.0",', encoding="utf-8")
+    report = _report(monkeypatch, repo, origin_main=result["base_commit_sha"])
+
+    assert report["read_errors"][0]["error_code"] == "unreadable_json"
+    ok, blockers = inventory_cli.assert_ready_for_promotion(run_id)
+    assert ok is False
+    assert "artifact_read_error" in blockers
+
+
+def test_malformed_unlinked_promotion_receipt_blocks_promotion(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo, run_id, result = _make_patch_run(monkeypatch, tmp_path, accepted=True)
+    receipt_path = _promotion_dir(repo, "promotion-malformed") / inventory_cli.RECEIPT_FILE
+    receipt_path.parent.mkdir(parents=True)
+    receipt_path.write_text('{"schema_version":"1.0",', encoding="utf-8")
+    report = _report(monkeypatch, repo, origin_main=result["base_commit_sha"])
+
+    assert report["read_errors"][0]["error_code"] == "invalid_promotion_receipt"
+    ok, blockers = inventory_cli.assert_ready_for_promotion(run_id)
+    assert ok is False
+    assert "artifact_read_error" in blockers
+
+
 def test_completed_promotion_receipt_blocks_duplicate_promotion_and_allows_cleanup(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -357,6 +397,21 @@ def test_schema_and_runtime_report_are_closed(
     mutated["unexpected"] = True
     with pytest.raises(inventory_cli.CreativeCodeArtifactInventoryError):
         inventory_cli.validate_creative_code_artifact_inventory_report(mutated)
+
+
+@pytest.mark.parametrize(
+    "artifact_ref",
+    [
+        "artifacts/orchestration/creative_code/../secret.json",
+        "artifacts/orchestration/creative_code//result.json",
+        "artifacts/orchestration/creative_code/.hidden/result.json",
+        "artifacts/orchestration/creative_code/unsafe path/result.json",
+        "artifacts/orchestration/creative_code/patch_runs/путь/result.json",
+    ],
+)
+def test_runtime_artifact_ref_validation_matches_schema_pattern(artifact_ref: str) -> None:
+    with pytest.raises(inventory_cli.InventoryArtifactError):
+        inventory_cli._validate_artifact_ref(artifact_ref)
 
 
 def test_inventory_cli_has_no_action_imports_or_write_delete_calls() -> None:

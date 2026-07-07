@@ -55,6 +55,10 @@ RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$")
 PROMOTION_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 SHA_RE = re.compile(r"^[a-f0-9]{40}$")
 SHA256_RE = re.compile(r"^sha256:[a-f0-9]{64}$")
+ARTIFACT_REF_RE = re.compile(
+    r"^artifacts/orchestration/creative_code"
+    r"(?:/[A-Za-z0-9][A-Za-z0-9._:-]{0,127}(?:\.[A-Za-z0-9._:-]+)?)*$"
+)
 LEAK_TEXT_RE = re.compile(
     r"(diff --git|^\+\+\+ |^--- |@@ |raw[_ -]?(prompt|response|context|patch)|"
     r"chain[_ -]?of[_ -]?thought|provider[_ -]?payload|oracle stdout|oracle stderr|"
@@ -136,13 +140,7 @@ def _repo_ref(path: Path) -> str:
 
 
 def _validate_artifact_ref(value: str) -> str:
-    if (
-        not value
-        or value.startswith(("/", "~"))
-        or "\\" in value
-        or ".." in Path(value).parts
-        or (value != CREATIVE_CODE_ROOT_REF and not value.startswith(f"{CREATIVE_CODE_ROOT_REF}/"))
-    ):
+    if not ARTIFACT_REF_RE.fullmatch(value):
         raise InventoryArtifactError("unsafe_artifact_ref")
     return value
 
@@ -1230,6 +1228,8 @@ def assert_ready_for_promotion(patch_run_id: str) -> tuple[bool, list[str]]:
         return False, ["patch_run_not_found"]
     run = matches[0]
     blockers = set(run["blockers"])
+    if report["read_errors"]:
+        blockers.add("artifact_read_error")
     if not run["valid"]:
         blockers.add("invalid_patch_run_sidecar")
     if run["status"] != "accepted":
