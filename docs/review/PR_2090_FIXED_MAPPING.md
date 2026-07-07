@@ -31,6 +31,7 @@ and deleting `legacy_app.py`.
 - `043b68351ff001a7a99b152f615621bedac51c4f` - add PR mapping artifact.
 - `d8e45dbdd36d938bbb8c9adfd1aec02bed794acd` - sync current `origin/main`.
 - `454aeff6d3f5e935594ae5be28ba4d8b0187fa0f` - fix CodeRabbit stale-comment nitpick.
+- `fdbe38435a6d418df32b7357cc065ebedc4f0eae` - cover moved schema/service branches.
 
 ## Lane Start Provenance
 
@@ -48,6 +49,7 @@ Packet: `artifacts/orchestration/task_packets/a61539e84620.json`
 - [x] Creative-code private-pilot state collected for real PR #2090 head `d06be5785`.
 - [x] `pulseplate-pr-review` completed after compact mapping and main-sync push.
 - [x] CodeRabbit stale-comment nitpick fixed and mapped.
+- [x] Codecov patch-coverage feedback fixed and mapped.
 - [ ] Current-head CI complete before readiness language.
 - [ ] Strict merge-readiness checks run after final review/check cycle.
 
@@ -57,6 +59,11 @@ Packet: `artifacts/orchestration/task_packets/a61539e84620.json`
 Disposition: FIXED
 Commit: 454aeff6d3f5e935594ae5be28ba4d8b0187fa0f
 Evidence: CodeRabbit stale-comment nitpick fixed in `tests/test_premium_week_app_coverage.py`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2090#issuecomment-4903419521 -> fdbe38435a6d418df32b7357cc065ebedc4f0eae
+Disposition: FIXED
+Commit: fdbe38435a6d418df32b7357cc065ebedc4f0eae
+Evidence: Added focused schema/resolver branch tests; local coverage probe reports 100% for `app/schemas/legacy_premium_weekly_plan.py` and `app/services/legacy_premium_weekly_plan.py`.
 
 ## Role Findings
 
@@ -144,7 +151,8 @@ promotion, patch-generation, or GitHub App authority.
 - `python3 scripts/orchestration/check_agent_consistency.py` - PASS.
 - `python -m mypy app/schemas/legacy_premium_weekly_plan.py app/routers/legacy_premium_weekly_plan.py app/services/legacy_premium_weekly_plan.py legacy_app.py` - PASS.
 - `python -m pytest tests/test_premium_week_app_coverage.py` - PASS (`9` passed).
-- Focused weekly-plan pytest - PASS (`86` passed, `3` existing Pydantic serializer warnings).
+- Focused weekly-plan pytest - PASS (`91` passed, `3` existing Pydantic serializer warnings).
+- Coverage probe for moved schema/service modules - PASS (`100%` for `app/schemas/legacy_premium_weekly_plan.py` and `app/services/legacy_premium_weekly_plan.py`).
 - Adjacent OpenAPI/auth/policy pytest subset - PASS (`196` passed).
 - `make validate-changed` - PASS.
 - `pre-commit run --all-files` - PASS.
