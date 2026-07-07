@@ -208,6 +208,22 @@ provider, semantic-cache, or graph-truth authority is added.
     generation receipt validation converts shared contract failures into
     sanitized generation errors; regression coverage asserts `GH_TOKEN` and
     token fragments are absent from stderr.
+- Codex Security exact-range finding: existing PR-3
+  `promotion_receipt.json` artifacts could be replayed through `promote()`
+  without live GitHub PR readback, allowing a stale local receipt to report
+  promotion success after the PR had closed, drifted, or failed readback.
+  - Disposition: FIXED
+  - Commit: `0b30a9f2916fc1c75d4a558311d4993b5d18ad4f`
+  - Evidence:
+    `scripts/orchestration/creative_code_pr_promotion.py` now validates
+    existing receipts against the same open, non-draft, base/head/head-SHA
+    GitHub readback used for newly created PRs;
+    `scripts/orchestration/creative_code_pr_promotion_contract.py` and
+    `docs/orchestration/contracts/creative_code_pr_promotion_receipt.v1.schema.json`
+    require `open` receipts to carry a nonzero PR number, nonempty PulsePlate PR
+    URL, `review_cycle_started=true`, and `partial_failure=null`. Regression
+    tests cover open receipt identity rejection, successful idempotent replay
+    only after `pr view`, and stale closed-readback rejection.
 
 ## Discussion Thread Pass
 
@@ -307,6 +323,14 @@ Reason: Parametrizing these cases would reduce local clarity for two different l
 - Post-artifact-validation-sanitization `pre-commit run --all-files` - PASS.
 - Post-CodeRabbit-summary-test-fix focused rerun:
   `python -m pytest tests/test_creative_code_artifact_inventory.py tests/test_creative_code_pr_promotion.py -q` - PASS.
+- Post-existing-promotion-receipt-fix focused rerun:
+  `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest tests/test_creative_code_pr_promotion.py -q` - PASS (`64 passed`).
+- Post-existing-promotion-receipt-fix `python3 -m py_compile scripts/orchestration/creative_code_pr_promotion.py scripts/orchestration/creative_code_pr_promotion_contract.py` - PASS.
+- Post-existing-promotion-receipt-fix `python3 -m json.tool docs/orchestration/contracts/creative_code_pr_promotion_receipt.v1.schema.json` - PASS.
+- Post-existing-promotion-receipt-fix `python3 scripts/orchestration/check_preflight.py` - PASS.
+- Post-existing-promotion-receipt-fix `python3 scripts/orchestration/check_agent_consistency.py` - PASS.
+- Post-existing-promotion-receipt-fix `make validate-changed` - PASS.
+- Post-existing-promotion-receipt-fix `pre-commit run --all-files` - PASS after fixing initial `ruff` F821 (`Mapping` import) failure.
 
 ## Merge Readiness
 
