@@ -94,7 +94,6 @@ ALLOWED_LEGACY_ROUTE_FACTS = frozenset(
         LegacyFact("decorator", "middleware", "http", "log_requests"),
         LegacyFact("decorator", "post", "/api/v1/insight", "insight_v1_route"),
         LegacyFact("decorator", "post", "/insight", "insight_route"),
-        LegacyFact("decorator", "post", "/api/v1/premium/plan/week", "api_weekly_menu"),
     }
 )
 

@@ -164,7 +164,7 @@
 
 | Функция       | Endpoint                     | Статус        | Требует tier | Проблема | Канонический endpoint | Код-доказательство                |
 | ------------- | ---------------------------- | ------------- | ------------ | -------- | --------------------- | ---------------------------------- |
-| Weekly plan   | `/api/v1/premium/plan/week`  | 🔴 **broken naming** | VIP (через VIP_MODULE_ENABLED) | Wrong namespace (`/premium/*` вместо `/vip/*`) | `/api/v1/vip/menu/weekly/plan` | `legacy_app.py:4706`               |
+| Weekly plan   | `/api/v1/premium/plan/week`  | 🔴 **broken naming** | VIP (через VIP_MODULE_ENABLED) | Wrong namespace (`/premium/*` вместо `/vip/*`) | `/api/v1/vip/menu/weekly/plan` | `app/routers/legacy_premium_weekly_plan.py:23` |
 | Exports       | `/api/v1/premium/exports/*`  | ⚠️ legacy     | VIP          | Wrong namespace | `/api/v1/vip/shoplist/export` | `legacy_app.py:5194, 5440, 5525`  |
 
 > ⚠️ **Ключевая проблема:**
@@ -272,7 +272,7 @@
 
 ### 🔴 Критические несоответствия
 
-1. **`/api/v1/premium/plan/week`** (`legacy_app.py:4706`):
+1. **`/api/v1/premium/plan/week`** (`app/routers/legacy_premium_weekly_plan.py:23`):
    - Требует: `VIP_MODULE_ENABLED` (VIP tier)
    - Но namespace: `/premium/*` (deprecated PRO namespace)
    - **Путаница:** premium namespace, но VIP tier
