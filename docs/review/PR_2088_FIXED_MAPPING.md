@@ -20,7 +20,12 @@ and weekly planning algorithms are intentionally out of scope.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: e19d8dcb842d4f736145dc9711c8a8eadb35dc24
+Evidence: `app/routers/legacy_premium_weekly_plan.py:65`; `tests/test_premium_week_app_coverage.py:186`; `tests/test_legacy_growth_guard.py:2196`; `docs/review/PR_2088_FIXED_MAPPING.md:45`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2088#discussion_r3532002323 -> e19d8dcb842d4f736145dc9711c8a8eadb35dc24
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2088#pullrequestreview-4639693359 -> e19d8dcb842d4f736145dc9711c8a8eadb35dc24
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2088#discussion_r3533156936 -> e19d8dcb842d4f736145dc9711c8a8eadb35dc24
 
 ## Implementation Evidence
 
@@ -45,6 +50,28 @@ Evidence: `docs/review/PR_2088_FIXED_MAPPING.md`
 Reason: Current-head CI found the canonical PR-specific fixed-mapping artifact
 was missing. This follow-up artifact closes the PR Body Phase2 and merge
 readiness governance blocker introduced at PR open.
+
+Disposition: FIXED
+Commit: e19d8dcb842d4f736145dc9711c8a8eadb35dc24
+Evidence: `app/routers/legacy_premium_weekly_plan.py:65`,
+`tests/test_premium_week_app_coverage.py:186`,
+`tests/test_legacy_growth_guard.py:2196`,
+`docs/review/PR_2088_FIXED_MAPPING.md:43`
+Reason: CodeRabbit review comments are fixed by returning generic client-safe
+unexpected-error details, keeping the original exception only through exception
+chaining, deriving the growth-guard expected message from
+`SENSITIVE_APP_SURFACE_LIMITS["api_key"]`, and expanding the prior mapping
+commit proof to the full SHA.
+
+Disposition: NOT-A-BUG
+Evidence: `docs/review/PR_2088_FIXED_MAPPING.md:9`,
+`app/routers/legacy_premium_weekly_plan.py:30`,
+`legacy_app.py:2097`, `legacy_app.py:2251`,
+`tests/test_legacy_premium_weekly_plan_registration_bootstrap.py:232`
+Reason: CodeRabbit's router-thinness nitpick is valid general guidance, but a
+new service-layer migration is intentionally outside this route-ownership PR.
+This seam keeps weekly request/response models and legacy helper ownership in
+`legacy_app.py` while proving the route-family registration boundary first.
 
 ## Role-Agent Evidence
 
@@ -132,6 +159,8 @@ client, dependency installer, or public API authority.
 - Codex Security diff scan / finding discovery - PASS, 0 findings.
 - `pulseplate-pr-review` dry-run report and calibration tests - PASS, note-level
   large-diff advisory dispositioned above as NOT-A-BUG.
+- CodeRabbit review findings - fixed/dispositioned in
+  `e19d8dcb842d4f736145dc9711c8a8eadb35dc24`; targeted regression tests passed.
 
 ## Merge Readiness
 
