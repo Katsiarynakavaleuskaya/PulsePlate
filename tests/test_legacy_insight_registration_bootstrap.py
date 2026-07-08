@@ -69,7 +69,7 @@ def _source_route(path: str, method: str) -> object:
     for route in app_main.legacy_insight_router.routes:
         if not is_api_route_candidate(route):
             continue
-        if str(route.path) == path and method in (route.methods or set()):
+        if route_path(route) == path and method in route_methods(route):
             return route
     raise AssertionError(f"missing source route: {method} {path}")
 

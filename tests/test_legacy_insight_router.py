@@ -78,8 +78,7 @@ def test_insight_route_metadata_preserved(app: FastAPI) -> None:
     for route in (v1_route, legacy_route):
         assert 429 in route_responses(route)
         assert route_has_dependency_call(route, require_vip_tier)
-        response_model = getattr(route, "response_model", None)
-        assert getattr(response_model, "__name__", None) == legacy_app.InsightResponse.__name__
+        assert getattr(route, "response_model", None) is legacy_app.InsightResponse
 
     assert bool(getattr(v1_route, "deprecated", False)) is False
     assert bool(getattr(legacy_route, "deprecated", False)) is True
@@ -174,6 +173,7 @@ def test_insight_transparency_failure_blocks_before_quota(
     resp = client.post(path, json={"text": "hello"}, headers=vip_headers)
 
     assert resp.status_code == 503
+    assert resp.headers.get("content-type", "").startswith("application/json")
     assert resp.json() == {"detail": "transparency_registry_unavailable"}
 
 
@@ -203,6 +203,7 @@ def test_insight_quota_exceeded_returns_429(
     resp = client.post(path, json={"text": "hello"}, headers=vip_headers)
 
     assert resp.status_code == 429
+    assert resp.headers.get("content-type", "").startswith("application/json")
     assert resp.json() == {"detail": "quota_exceeded"}
 
 
@@ -253,5 +254,6 @@ def test_insight_provider_failure_returns_stable_503_envelope(
     resp = client.post(path, json={"text": "hello"}, headers=vip_headers)
 
     assert resp.status_code == 503
+    assert resp.headers.get("content-type", "").startswith("application/json")
     assert resp.json() == {"detail": legacy_app.INSIGHT_TEMP_UNAVAILABLE_MESSAGE}
     assert "secret" not in resp.text
