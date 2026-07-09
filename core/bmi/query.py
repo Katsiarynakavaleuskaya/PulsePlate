@@ -65,26 +65,44 @@ def _parse_bounded_number(text: str, start: int) -> tuple[float, int] | None:
     return float(text[start:index]), index
 
 
+def _next_valid_unit_match(
+    lowered: str,
+    units: tuple[str, ...],
+    search_from: int,
+) -> tuple[int, str] | None:
+    """Return the earliest boundary-valid unit match at or after ``search_from``."""
+
+    next_unit_at: int | None = None
+    matched_unit = ""
+    for unit in units:
+        cursor = search_from
+        while cursor < len(lowered):
+            unit_at = lowered.find(unit, cursor)
+            if unit_at < 0:
+                break
+            unit_end = unit_at + len(unit)
+            if unit_end < len(lowered) and not _is_unit_boundary(lowered[unit_end]):
+                cursor = unit_end
+                continue
+            if next_unit_at is None or unit_at < next_unit_at:
+                next_unit_at = unit_at
+                matched_unit = unit
+            break
+    if next_unit_at is None:
+        return None
+    return next_unit_at, matched_unit
+
+
 def _find_number_before_unit(text: str, units: tuple[str, ...]) -> float | None:
     """Find the first bounded number immediately before one of ``units``."""
 
     lowered = text.lower()
     search_from = 0
     while search_from < len(lowered):
-        next_unit_at: int | None = None
-        matched_unit = ""
-        for unit in units:
-            unit_at = lowered.find(unit, search_from)
-            if unit_at < 0:
-                continue
-            unit_end = unit_at + len(unit)
-            if unit_end < len(lowered) and not _is_unit_boundary(lowered[unit_end]):
-                continue
-            if next_unit_at is None or unit_at < next_unit_at:
-                next_unit_at = unit_at
-                matched_unit = unit
-        if next_unit_at is None:
+        unit_match = _next_valid_unit_match(lowered, units, search_from)
+        if unit_match is None:
             return None
+        next_unit_at, matched_unit = unit_match
 
         index = next_unit_at
         while index > 0 and text[index - 1].isspace():

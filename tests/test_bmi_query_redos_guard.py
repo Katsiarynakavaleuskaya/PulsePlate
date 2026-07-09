@@ -8,6 +8,12 @@ from core.bmi.query import _MAX_BMI_QUERY_CHARS, extract_bmi_inputs, render_bmi_
 def test_extract_bmi_inputs_accepts_normal_query() -> None:
     assert extract_bmi_inputs("Calculate BMI for 70kg and 175cm") == (70.0, 1.75)
     assert extract_bmi_inputs("70 кг и 1.75 м") == (70.0, 1.75)
+    assert extract_bmi_inputs("70,5 кг и 175 см") == (70.5, 1.75)
+
+
+def test_extract_bmi_inputs_skips_invalid_unit_token_then_matches() -> None:
+    assert extract_bmi_inputs("I weigh about 3kgs but actually 70kg and 175cm") == (70.0, 1.75)
+    assert extract_bmi_inputs("70kgx 175cm") is None
 
 
 def test_extract_bmi_inputs_rejects_overlong_query() -> None:
