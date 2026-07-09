@@ -62,6 +62,7 @@ Disposition: FIXED
 Commit: d67f3eab2e90168bd68f3342e8727b42f36756bf
 Evidence: `trivy/ignore-policy.rego:47-59` defines shared bookworm util-linux package/version helpers used by both CVE rules.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2094#discussion_r3554695587 -> d67f3eab2e90168bd68f3342e8727b42f36756bf
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2094#pullrequestreview-4666611821 -> d67f3eab2e90168bd68f3342e8727b42f36756bf
 
 ## Post-open Role Pass Dispositions
 
