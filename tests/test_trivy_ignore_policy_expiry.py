@@ -426,9 +426,9 @@ def test_util_linux_suppression_requires_exact_pkgid_scope() -> None:
     policy = _policy_text()
 
     assert "cve_2026_3184_pkgid_match" in policy
-    util_linux_ignore_rule = policy[
-        policy.index('ignore if {\n\tinput.VulnerabilityID == "CVE-2026-3184"') :
-    ]
+    start = policy.index('ignore if {\n\tinput.VulnerabilityID == "CVE-2026-3184"')
+    next_ignore = policy.find("\nignore if {", start + 1)
+    util_linux_ignore_rule = policy[start:] if next_ignore < 0 else policy[start:next_ignore]
     assert "util_linux_bookworm_pkg_match" in util_linux_ignore_rule
     assert "util_linux_bookworm_version_match" in util_linux_ignore_rule
     assert "cve_2026_3184_pkgid_match" in util_linux_ignore_rule
