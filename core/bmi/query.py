@@ -68,10 +68,8 @@ def _parse_bounded_number(text: str, start: int) -> tuple[float, int] | None:
         if fraction_digits == 0:
             return None
 
-    try:
-        return float(text[start:index]), index
-    except ValueError:
-        return None
+    # ASCII digit/dot tokens are always float()-safe; no Unicode digit path remains.
+    return float(text[start:index]), index
 
 
 def _next_valid_unit_match(
