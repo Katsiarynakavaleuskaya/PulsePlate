@@ -157,8 +157,8 @@ ignore if {
 	util_linux_bookworm_pkg_match
 	util_linux_bookworm_version_match
 	cve_2026_53615_pkgid_match
-	# Only suppress while Trivy reports no fixed version for this finding.
-	input.FixedVersion == ""
+	# Trivy omits empty FixedVersion (omitempty); missing/empty means unfixed.
+	object.get(input, "FixedVersion", "") == ""
 }
 
 

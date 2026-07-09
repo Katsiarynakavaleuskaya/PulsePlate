@@ -447,6 +447,17 @@ def test_util_linux_suppression_requires_exact_pkgid_scope() -> None:
         assert f'startswith(input.PkgID, "{package}@{version}")' in policy
 
 
+def _fixed_version_clause_treats_finding_as_unfixed(finding: dict[str, str]) -> bool:
+    """Mirror the Rego object.get default used for FixedVersion."""
+    return finding.get("FixedVersion", "") == ""
+
+
+def test_util_linux_cve_2026_53615_fixed_version_predicate_semantics() -> None:
+    assert _fixed_version_clause_treats_finding_as_unfixed({})
+    assert _fixed_version_clause_treats_finding_as_unfixed({"FixedVersion": ""})
+    assert not _fixed_version_clause_treats_finding_as_unfixed({"FixedVersion": "2.42-1"})
+
+
 def test_util_linux_cve_2026_53615_suppression_requires_exact_pkgid_scope() -> None:
     policy = _policy_text()
 
@@ -461,10 +472,11 @@ def test_util_linux_cve_2026_53615_suppression_requires_exact_pkgid_scope() -> N
     assert "util_linux_bookworm_version_match" in util_linux_ignore_rule
     assert "cve_2026_53615_pkgid_match" in util_linux_ignore_rule
     assert (
-        "# Only suppress while Trivy reports no fixed version for this finding."
+        "# Trivy omits empty FixedVersion (omitempty); missing/empty means unfixed."
         in util_linux_ignore_rule
     )
-    assert 'input.FixedVersion == ""' in util_linux_ignore_rule
+    # Trivy v0.71.2 omits empty FixedVersion, so the policy must default a missing key.
+    assert 'object.get(input, "FixedVersion", "") == ""' in util_linux_ignore_rule
     assert "cve_2026_3184_pkgid_match" not in util_linux_ignore_rule
 
     helper_region = policy[policy.index("cve_2026_53615_pkgid_match if {") : start]
