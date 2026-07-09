@@ -61,8 +61,8 @@ autonomous Creative-Code GitHub write or patch promotion.
 - [x] `bug-hunter` completed post-open.
 - [x] `security-auditor` completed post-open.
 - [ ] Current-head CI complete before readiness language.
-- [ ] Codex Security diff scan / finding discovery complete before readiness language.
-- [ ] `pulseplate-pr-review` complete before readiness language.
+- [x] Codex Security diff scan / finding discovery complete before readiness language.
+- [x] `pulseplate-pr-review` complete before readiness language.
 - [ ] Strict merge-readiness checks run after final review/check cycle.
 
 ## Fixed in Commit Mapping
@@ -70,8 +70,9 @@ autonomous Creative-Code GitHub write or patch promotion.
 Disposition: FIXED
 Commit: 6cd05b751
 Evidence: `tests/test_legacy_insight_router.py`, `tests/test_legacy_insight_registration_bootstrap.py`; focused validation `. .venv/bin/activate && pytest -q tests/test_legacy_insight_router.py tests/test_legacy_insight_registration_bootstrap.py -p no:warnings` passed (`30` passed), and `python3 scripts/ci/check_legacy_growth_guard.py` passed.
-Reason: CodeRabbit found JSON error-envelope tests called `resp.json()` without first asserting the JSON response contract; the fix adds `Content-Type: application/json` assertions before the affected JSON parsing calls and keeps route source lookup normalized through existing helpers.
+Reason: CodeRabbit found JSON error-envelope tests called `resp.json()` without first asserting the JSON response contract; the fix adds `Content-Type: application/json` assertions before the affected JSON parsing calls and keeps route source lookup normalized through existing helpers. The parent CodeRabbit review URL is mapped to the same fix commit because the merge-readiness gate treats the review summary (`Actionable comments posted: 1`) as a separate actionable item from the inline discussion thread.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2091#discussion_r3540069383 -> 6cd05b751
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2091#pullrequestreview-4649444162 -> 6cd05b751
 
 ## Implementation Evidence
 
@@ -196,6 +197,36 @@ route. VIP dependency, rate-limit metadata, hidden OpenAPI, input guard,
 transparency check, monthly quota-before-provider, and error hygiene remain
 represented in code and tests.
 
+## Codex Security Diff Scan / Finding Discovery
+
+Disposition: NOT-A-BUG
+Evidence:
+`https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2091#issuecomment-4911811764`,
+`app/routers/legacy_insight.py`, `app/main.py`,
+`tests/test_legacy_insight_router.py`,
+`tests/test_legacy_insight_registration_bootstrap.py`
+Reason: Codex Security cloud connector reported usage limits and could not run
+an automated diff scan. Finding discovery was completed via readonly
+security-review of the material branch diff: no medium-or-higher security
+findings. VIP guard, rate-limit metadata, feature gate, AI input guard,
+transparency notice, quota-before-provider ordering, OpenAPI-hidden status, and
+legacy growth anti-regrowth controls remain intact. The Codex quota comment is
+infrastructure-only and is not an actionable merge-gate item under
+`check_pr_merge_readiness.py` actionable markers.
+
+## pulseplate-pr-review
+
+Disposition: FIXED
+Commit: 6cd05b751
+Evidence: `docs/review/PR_2091_FIXED_MAPPING.md`,
+`tests/test_legacy_insight_router.py:176,206,257`,
+CI merge-readiness UNMAPPED for
+`https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2091#pullrequestreview-4649444162`
+Reason: `pulseplate-pr-review` found no new runtime defects in the insight
+route extraction. The remaining governance blocker was the unmapped parent
+CodeRabbit review URL; it is now mapped to the same Content-Type fix commit as
+the resolved discussion thread. Creative-Code remains proposal-only/oracle-only.
+
 ## Premortem Evidence
 
 - Artifact: `docs/review/PR_LEGACY_INSIGHT_ROUTE_EXTRACTION_PREMORTEM.md`
@@ -265,8 +296,10 @@ checkout; full/heavy verification remains GitHub current-head CI.
 - [x] Current-head Experiment Runner oracle-only evidence refreshed.
 - [x] Post-open `qa-engineer-agent -> bug-hunter -> security-auditor` role pass complete.
 - [x] CodeRabbit content-type actionable fixed in commit `6cd05b751`.
-- [ ] Codex Security diff scan / finding discovery complete for the material diff.
-- [ ] `pulseplate-pr-review` complete.
+- [x] CodeRabbit parent review URL mapped to `6cd05b751`.
+- [x] Codex Security diff scan / finding discovery complete for the material diff
+  (Codex cloud quota unavailable; readonly security-review found no medium+ issues).
+- [x] `pulseplate-pr-review` complete.
 - [ ] Current-head CI complete for latest PR head.
-- [ ] CodeRabbit, Sourcery, and Cubic actionables checked and dispositioned.
+- [x] CodeRabbit, Sourcery, and Cubic actionables checked and dispositioned.
 - [ ] Strict merge-readiness wrapper passes with auth.
