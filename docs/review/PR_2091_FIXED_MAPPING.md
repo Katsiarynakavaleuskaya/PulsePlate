@@ -84,8 +84,8 @@ Reason: Cubic found the Creative-Code evidence sentence overbroad; narrowed `pat
 ## Implementation Evidence
 
 Disposition: FIXED
-Commit: `cdc2be51f`
-Evidence: `core/bmi/query.py`, `tests/test_bmi_query_redos_guard.py`; GitHub Advanced Security CodeQL check run https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2091/checks?check_run_id=86095375373 reported three high `py/polynomial-redos` alerts on free-form BMI query regexes. Parsing now uses bounded non-regex number/unit extraction plus a 256-char fail-closed length cap; follow-up hardening keeps scanning past invalid unit tokens such as `kgs`/`kgx`.
+Commit: `6efe877d6`
+Evidence: `core/bmi/query.py`, `tests/test_bmi_query_redos_guard.py`; GitHub Advanced Security CodeQL check run https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2091/checks?check_run_id=86095375373 reported three high `py/polynomial-redos` alerts on free-form BMI query regexes. Parsing now uses bounded non-regex number/unit extraction plus a 256-char fail-closed length cap; follow-up hardening keeps scanning past invalid unit tokens such as `kgs`/`kgx` (commits `cdc2be51f` + `6efe877d6`).
 Reason: CodeQL high alerts on uncontrolled polynomial regex matching must be fixed in the same PR before merge-readiness claims; prior advisory skips are invalid under current-PR defect handling.
 
 Disposition: FIXED
