@@ -90,6 +90,12 @@ Reason: Cubic P1 found Unicode `str.isdigit()` accepted non-ASCII digits that `f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2091#pullrequestreview-4662350958 -> a0eb1d33e
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2091#pullrequestreview-4662324440 -> a0eb1d33e
 
+Disposition: FIXED
+Commit: e36f7a07d
+Evidence: `core/bmi/query.py`, `tests/test_bmi_query_redos_guard.py`; focused `pytest -q tests/test_bmi_query_redos_guard.py` passed.
+Reason: Cubic P2 found mixed Unicode+ASCII numeric tokens (e.g. `¹70kg`) were accepted via the ASCII suffix after the backward scan stopped at a non-ASCII digit; parser now fail-closes when a non-ASCII digit immediately precedes the parsed ASCII number.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2091#discussion_r3551440754 -> e36f7a07d
+
 ## Implementation Evidence
 
 Disposition: FIXED
