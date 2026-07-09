@@ -43,6 +43,12 @@ def _is_ascii_digit(char: str) -> bool:
     return "0" <= char <= "9"
 
 
+def _is_non_ascii_digit(char: str) -> bool:
+    """Return True for Unicode digit-like chars that must fail closed."""
+
+    return char.isdigit() and not _is_ascii_digit(char)
+
+
 def _parse_bounded_number(text: str, start: int) -> tuple[float, int] | None:
     """Parse a bounded decimal number starting at ``start`` without regex."""
 
@@ -117,6 +123,11 @@ def _find_number_before_unit(text: str, units: tuple[str, ...]) -> float | None:
         end = index
         while index > 0 and (_is_ascii_digit(text[index - 1]) or text[index - 1] == "."):
             index -= 1
+        # Reject mixed Unicode+ASCII numeric tokens (e.g. "¹70kg"): the ASCII
+        # suffix must not be accepted when a non-ASCII digit immediately precedes.
+        if index > 0 and _is_non_ascii_digit(text[index - 1]):
+            search_from = next_unit_at + len(matched_unit)
+            continue
         parsed = _parse_bounded_number(text, index)
 
         if parsed is not None and parsed[1] == end:
