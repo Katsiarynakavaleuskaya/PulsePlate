@@ -6,14 +6,15 @@ RU: Простые тесты для покрытия эндпоинта premium
 EN: Simple tests for premium week endpoint coverage in main.py
 """
 
+from types import ModuleType
 from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
 
-import legacy_app
 import app.services.legacy_premium_weekly_plan as weekly_plan_service
 from app import app
+from tests.helpers.module_resolve import resolve_legacy_app
 
 # Common test payload for weekly menu tests (DRY)
 _BASE_WEEKLY_PAYLOAD: dict = {
@@ -26,6 +27,20 @@ _BASE_WEEKLY_PAYLOAD: dict = {
     "diet_flags": [],
     "lang": "en",
 }
+
+
+def _live_legacy_app() -> ModuleType:
+    """Resolve ``legacy_app`` at call time (reload/purge-safe).
+
+    RU: Не держим module-level ``import legacy_app`` — после reload в том же
+    pytest-процессе это stale ref; патч не попадает в ``sys.modules`` object,
+    который читает resolver (см. tests/AGENTS.md Module purge / reload).
+    EN: Avoid module-level ``import legacy_app`` — after reload in the same
+    pytest process that binding goes stale; patches miss the ``sys.modules``
+    object the resolver reads (see tests/AGENTS.md Module purge / reload).
+    """
+
+    return resolve_legacy_app()
 
 
 class TestPremiumWeekAppCoverage:
@@ -55,8 +70,8 @@ class TestPremiumWeekAppCoverage:
 
         # Null out the app-level attribute (covers path 1: app.__dict__ lookup)
         monkeypatch.setattr(app_module, "make_weekly_menu", None)
-        # Null out the legacy_app-level attribute (covers path 2: legacy_app lookup)
-        monkeypatch.setattr(legacy_app, "make_weekly_menu", None)
+        # Null out the live legacy_app attribute (covers path 2: legacy_app lookup)
+        monkeypatch.setattr(_live_legacy_app(), "make_weekly_menu", None)
 
         response = self.client.post(
             "/api/v1/premium/plan/week",
@@ -82,7 +97,7 @@ class TestPremiumWeekAppCoverage:
         import app as app_package
 
         monkeypatch.delitem(app_package.__dict__, "make_weekly_menu", raising=False)
-        monkeypatch.setattr(legacy_app, "make_weekly_menu", None)
+        monkeypatch.setattr(_live_legacy_app(), "make_weekly_menu", None)
 
         builder = weekly_plan_service.resolve_legacy_weekly_menu_builder()
 
@@ -101,7 +116,7 @@ class TestPremiumWeekAppCoverage:
         original_getattr = getattr(app_package, "__getattr__")
 
         monkeypatch.delitem(app_package.__dict__, "make_weekly_menu", raising=False)
-        monkeypatch.setattr(legacy_app, "make_weekly_menu", None)
+        monkeypatch.setattr(_live_legacy_app(), "make_weekly_menu", None)
 
         def _package_getattr(name: str):
             if name == "make_weekly_menu":
@@ -119,7 +134,7 @@ class TestPremiumWeekAppCoverage:
     ) -> None:
         """Resolver returns None when the package lookup helper yields no module."""
         monkeypatch.setattr(weekly_plan_service, "_get_app_package_module", lambda: None)
-        monkeypatch.setattr(legacy_app, "make_weekly_menu", None)
+        monkeypatch.setattr(_live_legacy_app(), "make_weekly_menu", None)
 
         builder = weekly_plan_service.resolve_legacy_weekly_menu_builder()
 
@@ -135,7 +150,7 @@ class TestPremiumWeekAppCoverage:
             return {"profile": profile}
 
         monkeypatch.delitem(app_package.__dict__, "make_weekly_menu", raising=False)
-        monkeypatch.setattr(legacy_app, "make_weekly_menu", _legacy_builder)
+        monkeypatch.setattr(_live_legacy_app(), "make_weekly_menu", _legacy_builder)
 
         builder = weekly_plan_service.resolve_legacy_weekly_menu_builder()
 
@@ -146,6 +161,7 @@ class TestPremiumWeekAppCoverage:
     ) -> None:
         """legacy_app compatibility wrapper must honor the historical helper seam."""
 
+        legacy_app = _live_legacy_app()
         monkeypatch.setattr(legacy_app, "_get_app_package_module", lambda: None)
         monkeypatch.setattr(legacy_app, "make_weekly_menu", None)
 
@@ -169,7 +185,7 @@ class TestPremiumWeekAppCoverage:
             "_get_app_package_module",
             lambda: _ImportErrorPackage(),
         )
-        monkeypatch.setattr(legacy_app, "make_weekly_menu", None)
+        monkeypatch.setattr(_live_legacy_app(), "make_weekly_menu", None)
 
         builder = weekly_plan_service.resolve_legacy_weekly_menu_builder()
 
@@ -206,7 +222,7 @@ class TestPremiumWeekAppCoverage:
 
         # Use monkeypatch.setattr for both modules to ensure globals() sees the mock
         monkeypatch.setattr("app.make_weekly_menu", raise_exception)
-        monkeypatch.setattr(legacy_app, "make_weekly_menu", raise_exception)
+        monkeypatch.setattr(_live_legacy_app(), "make_weekly_menu", raise_exception)
 
         response = self.client.post(
             "/api/v1/premium/plan/week",

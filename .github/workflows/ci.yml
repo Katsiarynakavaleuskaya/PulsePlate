@@ -886,6 +886,7 @@ jobs:
                 ;;
               insight_ai)
                 add_suite \
+                  tests/test_bmi_query_redos_guard.py \
                   tests/test_core_ai_insight_runtime.py \
                   tests/test_fitchef_insight_api.py \
                   tests/test_fitchef_companion_helpers.py \
@@ -894,6 +895,8 @@ jobs:
                   tests/test_insight_error_hygiene.py \
                   tests/test_insight_vip_guard_api.py \
                   tests/test_insight_vip_monthly_quota_api.py \
+                  tests/test_legacy_insight_registration_bootstrap.py \
+                  tests/test_legacy_insight_router.py \
                   tests/test_llm_extras.py \
                   tests/test_rag_orchestration.py \
                   tests/test_vector_rag.py \
@@ -1180,6 +1183,7 @@ jobs:
                 ;;
               insight_ai)
                 add_suite \
+                  tests/test_bmi_query_redos_guard.py \
                   tests/test_core_ai_insight_runtime.py \
                   tests/test_fitchef_insight_api.py \
                   tests/test_fitchef_companion_helpers.py \
@@ -1188,6 +1192,8 @@ jobs:
                   tests/test_insight_error_hygiene.py \
                   tests/test_insight_vip_guard_api.py \
                   tests/test_insight_vip_monthly_quota_api.py \
+                  tests/test_legacy_insight_registration_bootstrap.py \
+                  tests/test_legacy_insight_router.py \
                   tests/test_llm_extras.py \
                   tests/test_rag_orchestration.py \
                   tests/test_vector_rag.py \

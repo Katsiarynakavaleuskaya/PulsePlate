@@ -35,7 +35,6 @@ from pydantic import (
     ValidationError,
 )
 from starlette import status as fastapi_status
-from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
 from settings import get_runtime_env_name, is_explicit_developer_env, is_production_like_env
 
@@ -61,7 +60,13 @@ from app.schemas.premium_contracts import (
     build_who_targets_ui_labels,
 )
 from app.schemas.nutrition_targets import TargetsIn as CanonicalTargetsIn
-from app.schemas.legacy_premium_weekly_plan import LegacyWeekPlanRequest, WeeklyMenuResponse
+
+# LegacyWeekPlanRequest is a compat re-export contract asserted by
+# tests/test_legacy_weekly_plan_alias_api.py; WeeklyMenuResponse is also used below.
+from app.schemas.legacy_premium_weekly_plan import (  # noqa: F401
+    LegacyWeekPlanRequest,
+    WeeklyMenuResponse,
+)
 from app.services.legacy_premium_weekly_plan import (
     _get_app_package_module as _canonical_get_app_package_module,
     _resolve_package_weekly_menu_export as _canonical_resolve_package_weekly_menu_export,
@@ -107,7 +112,6 @@ from app.scheduler_helpers import (
 )
 from app.utils.helpers import _resolve_app_callable, _short_git_sha as _short_git_sha
 from app.utils.feature_flags import _is_truthy
-from app.middleware.api_tiers import derive_subject_id_from_api_key, require_vip_tier
 from app.security.llm_monthly_quota import (
     attempt_consume_vip_llm_monthly_quota,
 )
@@ -1300,45 +1304,6 @@ def _enforce_vip_llm_monthly_quota(vip_key: str) -> None:
     allowed = attempt_consume_vip_llm_monthly_quota(vip_key)
     if not allowed:
         raise HTTPException(status_code=429, detail="quota_exceeded")
-
-
-@app.post(
-    "/api/v1/insight",
-    response_model=InsightResponse,
-    responses=RATE_LIMIT_429_RESPONSES,
-    include_in_schema=False,
-)
-@limit_if_available(RATE_LIMIT_INSIGHT)
-async def insight_v1_route(
-    request: Request, req: InsightRequest, vip_key: str = Depends(require_vip_tier)
-) -> InsightResponse:
-    if not _is_truthy(os.getenv("FEATURE_INSIGHT", "false")):
-        raise HTTPException(status_code=503, detail="FEATURE_INSIGHT is disabled")
-    require_safe_ai_agent_input(req.text)
-    _require_ai_generated_insight_notice()
-    await run_in_threadpool(_enforce_vip_llm_monthly_quota, vip_key)
-    subject_id = derive_subject_id_from_api_key(vip_key)
-    return await insight_v1(req, subject_id=subject_id)
-
-
-# Backward-compatible simple insight endpoint (no API key)
-@app.post(
-    "/insight",
-    include_in_schema=False,
-    deprecated=True,
-    response_model=InsightResponse,
-    responses=RATE_LIMIT_429_RESPONSES,
-)
-@limit_if_available(RATE_LIMIT_INSIGHT)
-async def insight_route(
-    request: Request, req: InsightRequest, vip_key: str = Depends(require_vip_tier)
-) -> InsightResponse:
-    if not _is_truthy(os.getenv("FEATURE_INSIGHT", "false")):
-        raise HTTPException(status_code=503, detail="FEATURE_INSIGHT is disabled")
-    require_safe_ai_agent_input(req.text)
-    _require_ai_generated_insight_notice()
-    await run_in_threadpool(_enforce_vip_llm_monthly_quota, vip_key)
-    return await insight(req)
 
 
 MenuEngineCallable = Callable[..., Any]

@@ -145,6 +145,22 @@ The PR-3 human-approved non-draft PR promotion artifacts are:
 - `scripts/orchestration/creative_code_pr_promotion_contract.py`
 - `scripts/orchestration/creative_code_pr_promotion.py`
 
+Candidate-patch promotion evidence is valid only when it is materialized under
+`artifacts/orchestration/creative_code/patch_runs/<run-id>/` with a valid
+`result.json` and a `base_commit_sha` matching the run's request/source-bundle
+binding. Other Creative-Code artifact families defined by this contract
+(private-pilot state, spec-bridge outputs, learning rollups, applied-candidate
+run plans, patch-admission records, and inventory reports) remain valid local
+proposal/fail-closed evidence in their own directories, but they do not authorize
+promotion. PR bodies, chat summaries, and oracle-only Experiment Runner evidence
+also do not authorize promotion. Candidate patches from Creative-Code must be
+human-reviewed, fixed-command validated, and never executed from untrusted
+PR/comment text. When a pilot run fails closed before patch generation (for
+example at candidate-surface admission), record the fail-closed gate, fixed
+command, and disposition as local evidence and in the PR body; a `not-generated`
+outcome never blocks manual implementation and never substitutes for accepted
+patch-run evidence.
+
 The local creative-code artifact lifecycle guard is:
 
 - `docs/orchestration/contracts/creative_code_artifact_inventory_report.v1.schema.json`
