@@ -81,6 +81,15 @@ Reason: Cubic found the Creative-Code evidence sentence overbroad; narrowed `pat
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2091#discussion_r3550613909 -> 89164cd1c
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2091#pullrequestreview-4661873449 -> 89164cd1c
 
+Disposition: FIXED
+Commit: a0eb1d33e
+Evidence: `core/bmi/query.py`, `tests/test_bmi_query_redos_guard.py`
+Reason: Cubic P1 found Unicode `str.isdigit()` accepted non-ASCII digits that `float()` cannot parse; parser now accepts ASCII digits only and fails closed. CodeRabbit line-length nit on the unit-token test assertion is wrapped to Black 100.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2091#discussion_r3551035614 -> a0eb1d33e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2091#discussion_r3551012930 -> a0eb1d33e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2091#pullrequestreview-4662350958 -> a0eb1d33e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2091#pullrequestreview-4662324440 -> a0eb1d33e
+
 ## Implementation Evidence
 
 Disposition: FIXED
