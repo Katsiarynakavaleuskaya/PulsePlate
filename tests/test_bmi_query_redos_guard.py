@@ -16,6 +16,12 @@ def test_extract_bmi_inputs_skips_invalid_unit_token_then_matches() -> None:
     assert extract_bmi_inputs("70kgx 175cm") is None
 
 
+def test_extract_bmi_inputs_rejects_unicode_digits_fail_closed() -> None:
+    # Unicode digits must not reach float() or raise; fail closed instead.
+    assert extract_bmi_inputs("²kg 175cm") is None
+    assert extract_bmi_inputs("70kg ¹⁷⁵cm") is None
+
+
 def test_extract_bmi_inputs_rejects_overlong_query() -> None:
     payload = ("0" * (_MAX_BMI_QUERY_CHARS + 1)) + "70kg 175cm"
     assert extract_bmi_inputs(payload) is None

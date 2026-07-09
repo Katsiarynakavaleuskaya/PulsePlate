@@ -37,13 +37,19 @@ def _is_unit_boundary(char: str) -> bool:
     return not (char.isalnum() or char == "_")
 
 
+def _is_ascii_digit(char: str) -> bool:
+    """Return True for ASCII digits only (Unicode digits are rejected)."""
+
+    return "0" <= char <= "9"
+
+
 def _parse_bounded_number(text: str, start: int) -> tuple[float, int] | None:
     """Parse a bounded decimal number starting at ``start`` without regex."""
 
     index = start
     length = len(text)
     integer_digits = 0
-    while index < length and text[index].isdigit():
+    while index < length and _is_ascii_digit(text[index]):
         integer_digits += 1
         if integer_digits > _MAX_INTEGER_DIGITS:
             return None
@@ -54,7 +60,7 @@ def _parse_bounded_number(text: str, start: int) -> tuple[float, int] | None:
     if index < length and text[index] == ".":
         index += 1
         fraction_digits = 0
-        while index < length and text[index].isdigit():
+        while index < length and _is_ascii_digit(text[index]):
             fraction_digits += 1
             if fraction_digits > _MAX_FRACTION_DIGITS:
                 return None
@@ -62,7 +68,10 @@ def _parse_bounded_number(text: str, start: int) -> tuple[float, int] | None:
         if fraction_digits == 0:
             return None
 
-    return float(text[start:index]), index
+    try:
+        return float(text[start:index]), index
+    except ValueError:
+        return None
 
 
 def _next_valid_unit_match(
@@ -108,9 +117,10 @@ def _find_number_before_unit(text: str, units: tuple[str, ...]) -> float | None:
         while index > 0 and text[index - 1].isspace():
             index -= 1
         end = index
-        while index > 0 and (text[index - 1].isdigit() or text[index - 1] == "."):
+        while index > 0 and (_is_ascii_digit(text[index - 1]) or text[index - 1] == "."):
             index -= 1
         parsed = _parse_bounded_number(text, index)
+
         if parsed is not None and parsed[1] == end:
             return parsed[0]
         search_from = next_unit_at + len(matched_unit)
