@@ -34,7 +34,7 @@ and weakening the fail-closed Docker publish scan.
 
 ## Discussion Thread Pass
 
-- [x] Initial discussion-thread inventory completed; no review threads existed at artifact creation.
+- [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed for the implementation fallout.
 - [ ] Post-open `qa-engineer-agent -> bug-hunter -> security-auditor` pass completed.
 - [ ] Codex Security diff scan / finding discovery completed.
@@ -44,20 +44,11 @@ and weakening the fail-closed Docker publish scan.
 
 ## Fixed in Commit Mapping
 
-### PR #2094 Docker publish fallout
-
-Disposition: FIXED
-Commit: `3d0b8356f`
-Evidence: `trivy/ignore-policy.rego:157-161` uses omission-safe `object.get` while
-`tests/test_trivy_ignore_policy_expiry.py:450-468` guards the exact predicate,
-and `docs/security/CVE-2026-53615-util-linux.md:48-72` records the failed run.
-Reason: Trivy v0.71.2 omits empty `FixedVersion` values from Rego input, so the
-prior direct equality could not match the eight otherwise-correct findings.
+- No actionable review comments
 
 ## Experiment Runner Evidence
 
-- Infrastructure blocker: oracle-only packet bootstrap stalled locally before
-  artifact creation; no result artifact or readiness authority is claimed.
+- Not applicable: oracle-only packet bootstrap stalled locally before artifact creation; no result artifact or readiness authority is claimed.
 - The operator explicitly requested the canonical co-author trailer on the
   implementation commit for this urgent hotfix.
 
