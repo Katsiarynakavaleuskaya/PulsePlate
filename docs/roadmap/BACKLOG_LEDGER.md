@@ -5181,8 +5181,25 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - **Rego suppressions last reviewed: 2026-07-09**
     - PR #929: Removed 4 upstream-fixed CVE suppressions (gpgv, gnutls, p11-kit)
     - PR #930: Extended review-by dates to 2026-05-27 for unfixed CVEs
-    - PR-TBD: Removed resolved Faraday scanner-lag suppression and retained only residual OS-package suppressions through 2026-10-07; CVE-2026-53615 util-linux HIGH suppression added on branch security/cve-2026-53615-util-linux; residual zlib/3184/ncurses Review-by dates re-aligned to shared file expiry after 2026-07-09 re-review (rule bodies unchanged)
+    - PR-TBD: Removed resolved Faraday scanner-lag suppression; CVE-2026-53615 util-linux HIGH suppression added on branch security/cve-2026-53615-util-linux through the 2026-10-07 file expiry; residual zlib/3184/ncurses Review-by dates set to 2026-08-08 after the 2026-07-09 re-review (rule bodies unchanged)
   - **`.trivyignore` review remains out of scope for this Rego-only expiry lane.**
+
+
+<a id="ledger-p1-cve-2026-3184-exact-pkgid-match"></a>
+- [ ] P1: Tighten CVE-2026-3184 PkgID matching to exact equality
+  - Owner: @katsiaryna_kavaleuskaya (Security/SRE)
+  - Priority: P1
+  - Target PR: TBD
+  - Area: security / container / Trivy policy
+  - Reason (EN): The CVE-2026-3184 suppression still uses `startswith` for observed util-linux PkgIDs, which can match unintended suffix variants. A dedicated follow-up should adopt the exact-equality set pattern used by CVE-2026-53615 without expanding this CVE-scoped PR.
+  - Links:
+    - `trivy/ignore-policy.rego`
+    - `docs/security/CVE-2026-3184-util-linux.md`
+    - `tests/test_trivy_ignore_policy_expiry.py`
+  - DoD:
+    - Replace CVE-2026-3184 PkgID prefix checks with exact equality against the observed package/version tuples
+    - Add deterministic positive and suffix-negative tests for every allowed PkgID
+    - Run the Trivy expiry checker and focused policy tests successfully
 
 - [ ] Triage open Trivy glibc code-scanning alerts (CVE-2026-4046)
   - Owner: @katsiaryna_kavaleuskaya

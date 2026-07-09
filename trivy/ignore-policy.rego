@@ -11,11 +11,11 @@ default ignore := false
 #
 # Suppression expires: 2026-10-07 (manual removal)
 # Last reviewed: 2026-07-09
-# Residual Review-by dates were re-aligned to the shared file-level expiry after 2026-07-09 re-review; rule bodies for zlib/3184/ncurses are unchanged.
+# Residual Review-by dates were set to 2026-08-08 (~30-day re-check) after 2026-07-09 re-review; rule bodies for zlib/3184/ncurses are unchanged; only CVE-2026-53615 uses the shared file expiry horizon.
 # Documented in: docs/security/CVE-2026-27171-zlib1g.md, docs/security/CVE-2026-3184-util-linux.md, docs/security/CVE-2025-69720-ncurses.md, docs/security/CVE-2026-53615-util-linux.md
 
 # CVE-2026-27171 (zlib1g) - no fixed release for Debian bookworm at review time
-# Review-by: 2026-10-07 (manual removal)
+# Review-by: 2026-08-08 (manual removal)
 # Rationale: Debian bookworm still has no fixed zlib1g package for this CVE at the 2026-07-05 review; no repository-level remediation is available until Debian publishes a fixed package or Trivy metadata gains a Fixed Version.
 # Note: CI expiry is enforced once per policy file (see header); do not add another "Suppression expires:" line.
 # Monitor: https://security-tracker.debian.org/tracker/CVE-2026-27171
@@ -38,7 +38,7 @@ ignore if {
 }
 
 # CVE-2026-3184 (util-linux family) - Debian bookworm no-dsa / not applicable to login in this release context at review time
-# Review-by: 2026-10-07 (manual removal)
+# Review-by: 2026-08-08 (manual removal)
 # Rationale: Trivy v0.71.2 reports this util-linux issue as MEDIUM, while Debian bookworm still marks it ignored/non-applicable for the login binary context at the 2026-07-05 review; keep exact package/version/PkgID scope while monitoring Debian/Trivy metadata.
 # Monitor: https://security-tracker.debian.org/tracker/CVE-2026-3184
 # Documented in: docs/security/CVE-2026-3184-util-linux.md
@@ -174,7 +174,7 @@ ignore if {
 
 
 # CVE-2025-69720 (ncurses family) - no fixed release for Debian bookworm at review time
-# Review-by: 2026-10-07 (manual removal)
+# Review-by: 2026-08-08 (manual removal)
 # Rationale: Debian bookworm remains no-dsa/minor for ncurses packages at the 2026-07-05 review; keep exact package/version scope while monitoring Debian/Trivy metadata.
 # Monitor: https://security-tracker.debian.org/tracker/CVE-2025-69720
 # Documented in: docs/security/CVE-2025-69720-ncurses.md
