@@ -303,7 +303,7 @@ checkout; full/heavy verification remains GitHub current-head CI.
 ## Merge Readiness
 
 - [x] Pre-open role order completed.
-- [x] Current local narrow bundle completed for PR-open head `395230ea2`.
+- [x] Current local narrow bundle completed for pushed head `bd2f8d027`.
 - [x] Pre-open premortem completed with findings closed.
 - [x] Current-head Experiment Runner oracle-only evidence refreshed.
 - [x] Post-open `qa-engineer-agent -> bug-hunter -> security-auditor` role pass complete.
@@ -312,6 +312,8 @@ checkout; full/heavy verification remains GitHub current-head CI.
 - [x] Codex Security diff scan / finding discovery complete for the material diff
   (Codex cloud quota unavailable; readonly security-review found no medium+ issues).
 - [x] `pulseplate-pr-review` complete.
-- [ ] Current-head CI complete for latest PR head.
+- [x] CodeQL `py/polynomial-redos` high alerts on `core/bmi/query.py` fixed in
+  `cdc2be51f` + `6efe877d6` (non-regex bounded parser; security-auditor PASS).
+- [ ] Current-head CI complete for latest PR head `bd2f8d027` (including CodeQL).
 - [x] CodeRabbit, Sourcery, and Cubic actionables checked and dispositioned.
 - [ ] Strict merge-readiness wrapper passes with auth.
