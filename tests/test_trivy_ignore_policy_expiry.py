@@ -447,6 +447,17 @@ def test_util_linux_suppression_requires_exact_pkgid_scope() -> None:
         assert f'startswith(input.PkgID, "{package}@{version}")' in policy
 
 
+def _fixed_version_clause_treats_finding_as_unfixed(finding: dict[str, str]) -> bool:
+    """Mirror the Rego object.get default used for FixedVersion."""
+    return finding.get("FixedVersion", "") == ""
+
+
+def test_util_linux_cve_2026_53615_fixed_version_predicate_semantics() -> None:
+    assert _fixed_version_clause_treats_finding_as_unfixed({})
+    assert _fixed_version_clause_treats_finding_as_unfixed({"FixedVersion": ""})
+    assert not _fixed_version_clause_treats_finding_as_unfixed({"FixedVersion": "2.42-1"})
+
+
 def test_util_linux_cve_2026_53615_suppression_requires_exact_pkgid_scope() -> None:
     policy = _policy_text()
 
