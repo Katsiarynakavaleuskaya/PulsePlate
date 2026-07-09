@@ -552,10 +552,31 @@ def test_completed_promotion_receipt_blocks_duplicate_promotion_and_allows_clean
     assert "promotion_receipt_exists" in blockers
 
 
+def test_partial_failure_promotion_receipt_with_zero_pr_number_is_reported(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo, run_id, result = _make_patch_run(monkeypatch, tmp_path, accepted=True)
+    receipt = _write_promotion_receipt(repo, result=result, partial_failure="pr creation failed")
+    receipt["pull_request_number"] = 0
+    receipt["pull_request_url"] = ""
+    _write_json(_promotion_dir(repo, "promotion-test") / inventory_cli.RECEIPT_FILE, receipt)
+
+    report = _report(monkeypatch, repo, origin_main=result["base_commit_sha"])
+
+    assert report["promotion_artifacts"][0]["state"] == "partial_failure"
+    assert report["promotion_artifacts"][0]["pull_request_number"] == 0
+    assert report["patch_runs"][0]["promotion_linkage"] == "partial_failure"
+    assert "promotion_partial_failure" in report["promotion_artifacts"][0]["blockers"]
+    ok, blockers = inventory_cli.assert_ready_for_promotion(run_id)
+    assert ok is False
+    assert "promotion_partial_failure" in blockers
+
+
 @pytest.mark.parametrize(
     ("field", "value", "message"),
     [
-        ("pull_request_number", 0, "promotion_artifact.pull_request_number invalid"),
+        ("pull_request_number", -1, "promotion_artifact.pull_request_number invalid"),
         ("head_branch", "feature/not-experiment", "promotion_artifact.head_branch invalid"),
     ],
 )

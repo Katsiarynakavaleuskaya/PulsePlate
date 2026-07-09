@@ -303,7 +303,7 @@
           "anyOf": [{ "enum": ["open", "partial_failure"] }, { "type": "null" }]
         },
         "pull_request_number": {
-          "anyOf": [{ "type": "integer", "minimum": 1 }, { "type": "null" }]
+          "anyOf": [{ "type": "integer", "minimum": 0 }, { "type": "null" }]
         },
         "head_branch": { "$ref": "#/$defs/experiment_branch_or_null" },
         "blockers": { "$ref": "#/$defs/reason_list" }

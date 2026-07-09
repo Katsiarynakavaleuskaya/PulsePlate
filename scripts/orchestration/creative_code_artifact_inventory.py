@@ -1086,7 +1086,7 @@ def _validate_promotion_entry(entry: Any) -> dict[str, Any]:
     if entry["pull_request_number"] is not None and (
         not isinstance(entry["pull_request_number"], int)
         or isinstance(entry["pull_request_number"], bool)
-        or entry["pull_request_number"] < 1
+        or entry["pull_request_number"] < 0
     ):
         raise CreativeCodeArtifactInventoryError("promotion_artifact.pull_request_number invalid.")
     if entry["head_branch"] is not None and not EXPERIMENT_BRANCH_RE.fullmatch(
