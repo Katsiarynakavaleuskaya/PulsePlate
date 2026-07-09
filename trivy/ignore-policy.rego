@@ -44,7 +44,7 @@ ignore if {
 # Documented in: docs/security/CVE-2026-3184-util-linux.md
 # Removal condition: Remove when Debian bookworm publishes a fixed util-linux package or Trivy metadata includes Fixed Version
 
-cve_2026_3184_pkg_match if {
+util_linux_bookworm_pkg_match if {
 	util_linux_pkgs := {
 		"bsdutils", "libblkid1", "libmount1", "libsmartcols1",
 		"libuuid1", "mount", "util-linux", "util-linux-extra",
@@ -52,7 +52,7 @@ cve_2026_3184_pkg_match if {
 	util_linux_pkgs[input.PkgName]
 }
 
-cve_2026_3184_version_match if {
+util_linux_bookworm_version_match if {
 	affected_versions := {"2.38.1-5+deb12u3", "1:2.38.1-5+deb12u3"}
 	affected_versions[input.InstalledVersion]
 }
@@ -99,8 +99,8 @@ cve_2026_3184_pkgid_match if {
 
 ignore if {
 	input.VulnerabilityID == "CVE-2026-3184"
-	cve_2026_3184_pkg_match
-	cve_2026_3184_version_match
+	util_linux_bookworm_pkg_match
+	util_linux_bookworm_version_match
 	cve_2026_3184_pkgid_match
 }
 
@@ -111,19 +111,6 @@ ignore if {
 # Monitor: https://security-tracker.debian.org/tracker/CVE-2026-53615
 # Documented in: docs/security/CVE-2026-53615-util-linux.md
 # Removal condition: Remove when Debian bookworm publishes a fixed util-linux package or Trivy metadata includes Fixed Version
-
-cve_2026_53615_pkg_match if {
-	util_linux_pkgs := {
-		"bsdutils", "libblkid1", "libmount1", "libsmartcols1",
-		"libuuid1", "mount", "util-linux", "util-linux-extra",
-	}
-	util_linux_pkgs[input.PkgName]
-}
-
-cve_2026_53615_version_match if {
-	affected_versions := {"2.38.1-5+deb12u3", "1:2.38.1-5+deb12u3"}
-	affected_versions[input.InstalledVersion]
-}
 
 cve_2026_53615_pkgid_match if {
 	input.PkgName == "bsdutils"
@@ -167,9 +154,11 @@ cve_2026_53615_pkgid_match if {
 
 ignore if {
 	input.VulnerabilityID == "CVE-2026-53615"
-	cve_2026_53615_pkg_match
-	cve_2026_53615_version_match
+	util_linux_bookworm_pkg_match
+	util_linux_bookworm_version_match
 	cve_2026_53615_pkgid_match
+	# Only suppress while Trivy reports no fixed version for this finding.
+	input.FixedVersion == ""
 }
 
 

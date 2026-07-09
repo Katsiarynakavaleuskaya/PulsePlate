@@ -429,6 +429,8 @@ def test_util_linux_suppression_requires_exact_pkgid_scope() -> None:
     util_linux_ignore_rule = policy[
         policy.index('ignore if {\n\tinput.VulnerabilityID == "CVE-2026-3184"') :
     ]
+    assert "util_linux_bookworm_pkg_match" in util_linux_ignore_rule
+    assert "util_linux_bookworm_version_match" in util_linux_ignore_rule
     assert "cve_2026_3184_pkgid_match" in util_linux_ignore_rule
 
     for package, version in (
@@ -455,14 +457,17 @@ def test_util_linux_cve_2026_53615_suppression_requires_exact_pkgid_scope() -> N
     util_linux_ignore_rule = policy[start:] if next_ignore < 0 else policy[start:next_ignore]
 
     assert 'input.VulnerabilityID == "CVE-2026-53615"' in util_linux_ignore_rule
-    assert "cve_2026_53615_pkg_match" in util_linux_ignore_rule
-    assert "cve_2026_53615_version_match" in util_linux_ignore_rule
+    assert "util_linux_bookworm_pkg_match" in util_linux_ignore_rule
+    assert "util_linux_bookworm_version_match" in util_linux_ignore_rule
     assert "cve_2026_53615_pkgid_match" in util_linux_ignore_rule
+    assert (
+        "# Only suppress while Trivy reports no fixed version for this finding."
+        in util_linux_ignore_rule
+    )
+    assert 'input.FixedVersion == ""' in util_linux_ignore_rule
     assert "cve_2026_3184_pkgid_match" not in util_linux_ignore_rule
 
-    helper_region = policy[policy.index("cve_2026_53615_pkg_match if {") : start]
-    assert "cve_2026_53615_pkg_match if {" in helper_region
-    assert "cve_2026_53615_version_match if {" in helper_region
+    helper_region = policy[policy.index("cve_2026_53615_pkgid_match if {") : start]
     assert "startswith(input.PkgID" not in helper_region
 
     for package, version in (
