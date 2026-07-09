@@ -67,6 +67,23 @@ def test_insight_routes_hidden_from_public_openapi(app: FastAPI) -> None:
         assert path not in paths
 
 
+def _assert_same_response_model(actual: object, expected: object) -> None:
+    """Compare response models by stable identity, not object ``is``.
+
+    RU: После ``importlib.reload(legacy_app)`` в том же pytest-процессе класс
+    ``InsightResponse`` пересоздаётся; route держит старый объект, а
+    ``resolve_legacy_app()`` отдаёт новый — ``is`` ломается при том же
+    ``__module__``/``__qualname__``. Сравниваем семантически (как в bootstrap).
+    EN: After ``importlib.reload(legacy_app)`` in the same pytest process the
+    ``InsightResponse`` class is recreated; the route keeps the old object while
+    ``resolve_legacy_app()`` returns the new one, so ``is`` fails despite matching
+    ``__module__``/``__qualname__``. Compare semantically (same as bootstrap).
+    """
+
+    assert getattr(actual, "__module__", None) == getattr(expected, "__module__", None)
+    assert getattr(actual, "__qualname__", None) == getattr(expected, "__qualname__", None)
+
+
 def test_insight_route_metadata_preserved(app: FastAPI) -> None:
     """Route metadata contract: 429 responses, VIP guard, deprecation flags."""
 
@@ -78,7 +95,10 @@ def test_insight_route_metadata_preserved(app: FastAPI) -> None:
     for route in (v1_route, legacy_route):
         assert 429 in route_responses(route)
         assert route_has_dependency_call(route, require_vip_tier)
-        assert getattr(route, "response_model", None) is legacy_app.InsightResponse
+        _assert_same_response_model(
+            getattr(route, "response_model", None),
+            legacy_app.InsightResponse,
+        )
 
     assert bool(getattr(v1_route, "deprecated", False)) is False
     assert bool(getattr(legacy_route, "deprecated", False)) is True
