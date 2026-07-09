@@ -26,6 +26,7 @@ weakening, and unrelated CVE suppression changes.
 
 - `e50a871748298f5e669a92c6d3a7c1c58be3b46d` - add the scoped CVE-2026-53615 suppression, security note, guard, and monitoring.
 - `041cbb6287d146650529988b0b8dc0b22b2bc0d1` - close premortem findings and record the CVE-2026-3184 exact-match follow-up.
+- `d67f3eab2e90168bd68f3342e8727b42f36756bf` - fix review findings with exact evidence anchors, a FixedVersion fail-closed guard, and shared util-linux helpers.
 
 ## Lane Start Provenance
 
@@ -38,8 +39,8 @@ weakening, and unrelated CVE suppression changes.
 
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
-- [x] Initial post-open discussion inventory completed; no actionable review comments existed when this artifact was created.
-- [ ] Post-open `qa-engineer-agent -> bug-hunter -> security-auditor` pass complete.
+- [x] Initial post-open discussion inventory and disposition pass completed.
+- [x] Post-open `qa-engineer-agent -> bug-hunter -> security-auditor` pass complete.
 - [ ] Codex Security diff scan / finding discovery complete.
 - [ ] `pulseplate-pr-review` complete.
 - [ ] Current-head CI complete.
@@ -47,7 +48,26 @@ weakening, and unrelated CVE suppression changes.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: d67f3eab2e90168bd68f3342e8727b42f36756bf
+Evidence: `docs/security/CVE-2026-53615-util-linux.md:66-67` now records explicit policy and guard-test anchors.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2094#discussion_r3554690417 -> d67f3eab2e90168bd68f3342e8727b42f36756bf
+
+Disposition: FIXED
+Commit: d67f3eab2e90168bd68f3342e8727b42f36756bf
+Evidence: `trivy/ignore-policy.rego:155-161` requires an empty `input.FixedVersion`; `tests/test_trivy_ignore_policy_expiry.py:450-470` guards the fail-closed behavior.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2094#discussion_r3554695583 -> d67f3eab2e90168bd68f3342e8727b42f36756bf
+
+Disposition: FIXED
+Commit: d67f3eab2e90168bd68f3342e8727b42f36756bf
+Evidence: `trivy/ignore-policy.rego:47-59` defines shared bookworm util-linux package/version helpers used by both CVE rules.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2094#discussion_r3554695587 -> d67f3eab2e90168bd68f3342e8727b42f36756bf
+
+## Post-open Role Pass Dispositions
+
+- `qa-engineer-agent`: initial FAIL on incomplete evidence anchors; FIXED by `d67f3eab2e90168bd68f3342e8727b42f36756bf` at `docs/security/CVE-2026-53615-util-linux.md:66-67`.
+- `bug-hunter`: P1 FixedVersion fail-open risk and P2 duplicated util-linux package/version sets; both FIXED by `d67f3eab2e90168bd68f3342e8727b42f36756bf` in `trivy/ignore-policy.rego:47-59` and `trivy/ignore-policy.rego:155-161`.
+- `security-auditor`: FixedVersion suppression-sunset requirement; FIXED by `d67f3eab2e90168bd68f3342e8727b42f36756bf`, with deterministic coverage in `tests/test_trivy_ignore_policy_expiry.py:450-470`.
 
 ## Premortem Dispositions
 
@@ -78,12 +98,31 @@ Disposition: NOT-A-BUG
 Evidence: `trivy/ignore-policy.rego`, `docs/security/CVE-2026-53615-util-linux.md`, and `.github/workflows/build.yml` retain fail-closed scanning and exact observed package scope.
 Reason: The change neither disables Trivy nor broadens package/version matching, and rollback restores fail-closed failure on this CVE.
 
+### F5 — not raised
+
+Disposition: N/A — F5 was not present in the premortem finding set; no closure claim or mapping is required.
+
 ### Main suppression implementation
 
 Disposition: FIXED
 Commit: `e50a871748298f5e669a92c6d3a7c1c58be3b46d`
 Evidence: `trivy/ignore-policy.rego`, `docs/security/CVE-2026-53615-util-linux.md`, `tests/test_trivy_ignore_policy_expiry.py`, and `docs/roadmap/BACKLOG_LEDGER.md`.
 Reason: The implementation suppresses only the observed CVE/package/version/PkgID tuples and records expiry, monitoring, and removal conditions.
+
+## GitHub Code Scanning Trivy Tool Status
+
+Disposition: NOT-A-BUG for PR #2094 scope.
+
+- Symptom: GitHub Code Scanning reports `2 configurations not found` for `.github/workflows/build.yml:publish` and `.github/workflows/trivy.yml:build`.
+- Reason: this is a configuration-comparison warning, not a scanner failure or outdated-action finding. The publish job intentionally skips pull requests, while the standalone Trivy workflow runs only on `main` pushes, schedules, and manual dispatches.
+- Evidence: `.github/workflows/build.yml:410-413` gates `publish` with `github.event_name != 'pull_request'`; `.github/workflows/trivy.yml:12-18` defines push/schedule/manual triggers; `.github/workflows/trivy.yml:189` pins `aquasecurity/trivy-action` v0.36.0; `.github/workflows/trivy.yml:206` pins standalone CLI v0.71.2.
+- Alert lifecycle: alerts #623-#630 are expected to auto-close only after merge, when the `main` publish job uploads SARIF without those findings. They must not be manually dismissed as part of this PR closeout.
+
+### Optional Trivy CLI maintenance
+
+Disposition: DEFERRED
+Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-trivy-cli-0-72-0`
+Reason: Upgrading the standalone CLI pin from v0.71.2 to upstream v0.72.0 is optional maintenance and belongs in a separate focused PR; it is not required to resolve the PR #2094 configuration-comparison warning.
 
 ## Experiment Runner Evidence
 
@@ -112,7 +151,8 @@ full-verify budget rule. Heavy verification remains a current-head CI signal.
 - [x] Premortem findings fixed, dispositioned, or backlog-tracked.
 - [x] Experiment Runner oracle-only evidence recorded.
 - [x] Branch pushed and non-draft PR opened.
-- [ ] Mandatory post-open role and review chain completed.
+- [x] Mandatory post-open role-agent pass completed.
+- [ ] Codex Security and `pulseplate-pr-review` tool passes completed.
 - [ ] Current-head required CI completed successfully.
 - [ ] Review bots report no unresolved actionable findings.
 - [ ] Strict authenticated merge-readiness wrapper passes after the wait-window.

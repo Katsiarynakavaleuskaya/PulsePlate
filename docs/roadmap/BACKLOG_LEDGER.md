@@ -5185,6 +5185,25 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - **`.trivyignore` review remains out of scope for this Rego-only expiry lane.**
 
 
+<a id="ledger-p2-trivy-cli-0-72-0"></a>
+- [ ] P2: Upgrade standalone Trivy CLI pin to v0.72.0
+  - Owner: @katsiaryna_kavaleuskaya (Security/SRE)
+  - Priority: P2
+  - Target PR: TBD
+  - Area: security / CI maintenance
+  - Reason (EN): PR #2094's `2 configurations not found` message is a GitHub Code
+    Scanning configuration-comparison warning, not a scanner failure. The action pin is
+    already v0.36.0; upgrading the separate CLI pin from v0.71.2 to v0.72.0 is optional
+    maintenance that should not expand the CVE-scoped PR.
+  - Links:
+    - `.github/workflows/trivy.yml:189`
+    - `.github/workflows/trivy.yml:206`
+    - `docs/review/PR_2094_FIXED_MAPPING.md#github-code-scanning-trivy-tool-status`
+  - DoD:
+    - Update the standalone Trivy CLI pin from v0.71.2 to v0.72.0 in a focused PR.
+    - Verify the standalone scan and SARIF upload complete without weakening fail-closed behavior.
+    - Record current-head CI evidence and close this ledger item after merge.
+
 <a id="ledger-p1-cve-2026-3184-exact-pkgid-match"></a>
 - [ ] P1: Tighten CVE-2026-3184 PkgID matching to exact equality
   - Owner: @katsiaryna_kavaleuskaya (Security/SRE)
