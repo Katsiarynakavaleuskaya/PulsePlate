@@ -41,7 +41,12 @@ from scripts.orchestration.creative_code_specification import (
     CreativeCodeSpecificationError,
     validate_creative_code_specification_bundle,
 )
-from scripts.orchestration.experiment_contract import validate_experiment_packet
+from scripts.orchestration.experiment_contract import (
+    DEFAULT_METRIC_ACCEPTANCE_THRESHOLD,
+    DEFAULT_METRIC_BASELINE_REF,
+    DEFAULT_STOP_CONDITION,
+    validate_experiment_packet,
+)
 from scripts.orchestration.creative_spec_learning_rollup_contract import (
     CreativeSpecLearningRollupError,
     validate_coordinator_advisory_hints,
@@ -1020,8 +1025,22 @@ def _build_receipt(
     for artifact in (candidate_patch, patch_metadata, experiment_packet, result_path):
         if not artifact.exists() or not artifact.is_file():
             raise CreativeCodePatchGenerationError(f"missing generated artifact: {artifact.name}")
+    source_bundle = validate_creative_code_specification_bundle(
+        read_json(resolve_run_file(run_dir, creative_code_patch_builder.SOURCE_BUNDLE_FILE))
+    )
+    request = validate_creative_code_patch_build_request(
+        read_creative_code_patch_build_request(
+            str(resolve_run_file(run_dir, creative_code_patch_builder.REQUEST_FILE))
+        ),
+        source_bundle=source_bundle,
+    )
     metadata = _normalize_patch_metadata(read_json(patch_metadata), label="patch metadata")
     experiment_packet_payload = _read_experiment_packet(experiment_packet)
+    _validate_experiment_packet_matches_result(
+        experiment_packet_payload=experiment_packet_payload,
+        request=request,
+        result=result,
+    )
     expected_patch_summary = {
         "patch_fingerprint": result["patch_summary"]["patch_fingerprint"],
         "patch_bytes": result["patch_summary"]["patch_bytes"],
@@ -1434,6 +1453,74 @@ def _validate_result_matches_gate(result: Mapping[str, Any], gate: Mapping[str, 
             raise CreativeCodePatchGenerationError(f"result {key} does not match generation gate.")
 
 
+def _expected_experiment_budgets(request: Mapping[str, Any]) -> dict[str, int]:
+    """Return the PR-2 evaluation budget envelope derived from the build request."""
+
+    budgets = request["budgets"]
+    return {
+        "wall_clock_seconds": budgets["evaluation_timeout_seconds"],
+        "retry_budget": 1,
+        "max_changed_files": budgets["max_changed_files"],
+        "network_budget": 0,
+        "benchmark_budget": 1,
+        "test_budget": min(3, max(1, len(request["oracle_commands"]))),
+        "stop_condition": DEFAULT_STOP_CONDITION,
+    }
+
+
+def _validate_experiment_packet_matches_result(
+    *,
+    experiment_packet_payload: Mapping[str, Any],
+    request: Mapping[str, Any],
+    result: Mapping[str, Any],
+) -> None:
+    """Fail closed when the current experiment packet no longer matches evaluation evidence."""
+
+    runner_summary = result["runner_summary"]
+    if experiment_packet_payload["experiment_id"] != runner_summary["experiment_id"]:
+        raise CreativeCodePatchGenerationError(
+            "generation receipt experiment packet experiment_id is stale."
+        )
+    if sorted(experiment_packet_payload["mutable_candidate_surface"]) != sorted(
+        result["changed_paths"]
+    ):
+        raise CreativeCodePatchGenerationError(
+            "generation receipt experiment packet mutable surface is stale."
+        )
+
+    packet_oracle_commands = [
+        oracle["command"] for oracle in experiment_packet_payload["immutable_oracles"]
+    ]
+    if packet_oracle_commands != request["oracle_commands"]:
+        raise CreativeCodePatchGenerationError(
+            "generation receipt experiment packet immutable oracles are stale."
+        )
+    if len(packet_oracle_commands) != runner_summary["oracle_commands_configured"]:
+        raise CreativeCodePatchGenerationError(
+            "generation receipt experiment packet oracle count is stale."
+        )
+    if runner_summary["oracle_commands_executed"] > len(packet_oracle_commands):
+        raise CreativeCodePatchGenerationError(
+            "generation receipt runner oracle executions exceed configured packet oracles."
+        )
+
+    if experiment_packet_payload["budgets"] != _expected_experiment_budgets(request):
+        raise CreativeCodePatchGenerationError(
+            "generation receipt experiment packet budgets are stale."
+        )
+
+    expected_metrics = {
+        "primary": request["metrics"][0],
+        "secondary": list(request["metrics"][1:]),
+        "baseline_reference": DEFAULT_METRIC_BASELINE_REF,
+        "acceptance_threshold": DEFAULT_METRIC_ACCEPTANCE_THRESHOLD,
+    }
+    if experiment_packet_payload["metrics"] != expected_metrics:
+        raise CreativeCodePatchGenerationError(
+            "generation receipt experiment packet metrics are stale."
+        )
+
+
 def _validate_receipt_matches_gate(
     receipt: Mapping[str, Any], gate: Mapping[str, Any], gate_path: Path
 ) -> None:
@@ -1542,6 +1629,11 @@ def _validate_receipt_linked_artifacts(receipt: Mapping[str, Any]) -> None:
         experiment_packet_payload = _read_experiment_packet(experiment_packet)
         result = validate_creative_code_patch_result(
             read_creative_code_patch_result(str(result_path))
+        )
+        _validate_experiment_packet_matches_result(
+            experiment_packet_payload=experiment_packet_payload,
+            request=request,
+            result=result,
         )
         validate_creative_code_patch_run_sidecars(
             request=request,

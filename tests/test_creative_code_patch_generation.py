@@ -424,6 +424,19 @@ def test_validate_artifacts_rejects_tampered_experiment_packet(
     )
     assert "experiment packet fingerprint is stale" in capsys.readouterr().err
 
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    receipt["experiment_packet_fingerprint"] = fingerprint_payload(packet)
+    _reset_receipt_identity(receipt)
+    _write_json(receipt_path, receipt)
+
+    assert (
+        generation_cli.main(
+            ["validate-artifacts", "--gate", str(gate_path), "--receipt", str(receipt_path)]
+        )
+        == 1
+    )
+    assert "experiment packet budgets are stale" in capsys.readouterr().err
+
 
 def test_validate_artifacts_rejects_cross_run_sidecar_refs(
     monkeypatch: pytest.MonkeyPatch,
