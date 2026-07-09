@@ -74,6 +74,18 @@ Reason: CodeRabbit found JSON error-envelope tests called `resp.json()` without 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2091#discussion_r3540069383 -> 6cd05b751
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2091#pullrequestreview-4649444162 -> 6cd05b751
 
+Disposition: FIXED
+Commit: 89164cd1c
+Evidence: `docs/orchestration/GOVERNED_CREATIVE_CODE_EXECUTION_CONTRACT.md`
+Reason: Cubic found the Creative-Code evidence sentence overbroad: it could be
+read as invalidating valid non-`patch_runs` artifact families. The contract now
+limits the `patch_runs/<run-id>/` requirement to candidate-patch promotion
+evidence and explicitly preserves private-pilot, spec-bridge, learning-rollup,
+applied-candidate, patch-admission, and inventory artifacts as non-promotion
+local evidence.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2091#discussion_r3550613909 -> 89164cd1c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2091#pullrequestreview-4661873449 -> 89164cd1c
+
 ## Implementation Evidence
 
 Disposition: FIXED
