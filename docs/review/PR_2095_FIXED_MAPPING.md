@@ -48,18 +48,26 @@ and weakening the fail-closed Docker publish scan.
 
 ## Fixed in Commit Mapping
 
-- Post-open role-agent advisory about executable `FixedVersion` semantics - FIXED.
-  Commit: `38478dc94`. Evidence:
-  `tests/test_trivy_ignore_policy_expiry.py:455` covers missing, empty, and
-  non-empty values; `tests/test_trivy_ignore_policy_expiry.py:479` preserves
-  the exact Rego source assertion.
-- No actionable GitHub inline review comments were present after the pass.
-- Codex Security - NOT-A-BUG / tool unavailable. Evidence:
-  <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2095#issuecomment-4929960512>
-  records the provider code-review usage limit.
-- `pulseplate-pr-review` - NOT-A-BUG / provider unavailable. Evidence:
-  <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2095#issuecomment-4929963885>
-  records the temporary automated-review limit; post-open role agents completed.
+Disposition: NOT-A-BUG
+Evidence: Provider response states that the Codex code-review usage limit was reached; no code finding was emitted.
+Reason: Tool unavailability is documented and the mandatory post-open role-agent chain completed.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2095#issuecomment-4929960512
+
+Disposition: NOT-A-BUG
+Evidence: CodeRabbit recorded a temporary automated-review usage limit and emitted no actionable finding.
+Reason: Provider unavailability is documented and the mandatory post-open role-agent chain completed.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2095#issuecomment-4929963885
+
+## Post-open Role Pass Dispositions
+
+- `qa-engineer-agent`: PASS; the focused policy test remains deterministic and the
+  local required gates passed.
+- `bug-hunter`: PASS after verifying missing and empty `FixedVersion` values are
+  treated as unfixed while `"2.42-1"` fails closed.
+- `security-auditor`: advisory FIXED by `38478dc94`. Evidence:
+  `tests/test_trivy_ignore_policy_expiry.py:455-458` covers all three semantic
+  cases and `tests/test_trivy_ignore_policy_expiry.py:479` preserves the exact
+  Rego source assertion.
 
 ## Experiment Runner Evidence
 
