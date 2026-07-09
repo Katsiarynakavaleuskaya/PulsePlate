@@ -443,3 +443,44 @@ def test_util_linux_suppression_requires_exact_pkgid_scope() -> None:
     ):
         assert f'input.PkgName == "{package}"' in policy
         assert f'startswith(input.PkgID, "{package}@{version}")' in policy
+
+
+def test_util_linux_cve_2026_53615_suppression_requires_exact_pkgid_scope() -> None:
+    policy = _policy_text()
+
+    assert "cve_2026_53615_pkgid_match" in policy
+    start = policy.index('ignore if {\n\tinput.VulnerabilityID == "CVE-2026-53615"')
+    # Bound the CVE-2026-53615 ignore rule before any later ignore block.
+    next_ignore = policy.find("\nignore if {", start + 1)
+    util_linux_ignore_rule = policy[start:] if next_ignore < 0 else policy[start:next_ignore]
+
+    assert 'input.VulnerabilityID == "CVE-2026-53615"' in util_linux_ignore_rule
+    assert "cve_2026_53615_pkg_match" in util_linux_ignore_rule
+    assert "cve_2026_53615_version_match" in util_linux_ignore_rule
+    assert "cve_2026_53615_pkgid_match" in util_linux_ignore_rule
+    assert "cve_2026_3184_pkgid_match" not in util_linux_ignore_rule
+
+    helper_region = policy[policy.index("cve_2026_53615_pkg_match if {") : start]
+    assert "cve_2026_53615_pkg_match if {" in helper_region
+    assert "cve_2026_53615_version_match if {" in helper_region
+    assert "startswith(input.PkgID" not in helper_region
+
+    for package, version in (
+        ("bsdutils", "1:2.38.1-5+deb12u3"),
+        ("libblkid1", "2.38.1-5+deb12u3"),
+        ("libmount1", "2.38.1-5+deb12u3"),
+        ("libsmartcols1", "2.38.1-5+deb12u3"),
+        ("libuuid1", "2.38.1-5+deb12u3"),
+        ("mount", "2.38.1-5+deb12u3"),
+        ("util-linux", "2.38.1-5+deb12u3"),
+        ("util-linux-extra", "2.38.1-5+deb12u3"),
+    ):
+        pkgid_rule = (
+            f'cve_2026_53615_pkgid_match if {{\n\tinput.PkgName == "{package}"'
+            f'\n\tinput.PkgID == "{package}@{version}"\n}}'
+        )
+        assert pkgid_rule in helper_region
+
+    # Negative mismatches: prefix/wildcard forms must not appear for this CVE.
+    assert 'input.PkgID == "util-linux@2.38.1-5+deb12u30"' not in helper_region
+    assert 'startswith(input.PkgID, "util-linux@2.38.1-5+deb12u3")' not in helper_region

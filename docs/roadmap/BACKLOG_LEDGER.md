@@ -5134,6 +5134,31 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Mark `docs/security/CVE-2026-41989-libgcrypt20.md` resolved or remove after fix
     - Trivy Code Scanning alert `#586` remains closed on `main`
 
+- [ ] Remove Trivy suppression for util-linux CVE (CVE-2026-53615)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: TBD (branch security/cve-2026-53615-util-linux)
+  - Area: security / base-image / code-scanning
+  - Finding Type: container base image vulnerability
+  - Reason: Trivy publish scan reports Debian bookworm `util-linux` family packages
+    (`bsdutils`, `libblkid1`, `libmount1`, `libsmartcols1`, `libuuid1`, `mount`,
+    `util-linux`, `util-linux-extra`) as HIGH at `2.38.1-5+deb12u3` /
+    `1:2.38.1-5+deb12u3` with no actionable fixed version in the current bookworm
+    image line as of 2026-07-09; we suppress narrowly in `trivy/ignore-policy.rego`
+    until Debian bookworm or Trivy metadata catches up.
+  - Links:
+    - `trivy/ignore-policy.rego` (rule for CVE-2026-53615)
+    - `docs/security/CVE-2026-53615-util-linux.md`
+    - https://security-tracker.debian.org/tracker/CVE-2026-53615
+    - https://github.com/util-linux/util-linux/security/advisories/GHSA-h4rw-gv36-wmp5
+    - `.github/workflows/build.yml`
+  - DoD:
+    - Debian bookworm publishes a fixed `util-linux` package line (or Trivy reports a
+      fixed version in our image context)
+    - Remove CVE-2026-53615 suppression from `trivy/ignore-policy.rego`
+    - Remove `docs/security/CVE-2026-53615-util-linux.md` (or mark as resolved)
+    - Trivy Code Scanning alerts #623-#630 remain closed on `main`
+
 - [ ] Security suppression expiry monitoring
   - Owner: @katsiaryna_kavaleuskaya
   - Target PR: N/A (ongoing)
@@ -5141,21 +5166,22 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Area: security
   - Finding Type: policy exception
   - Locations:
-    - `trivy/ignore-policy.rego` — Suppression expires: 2026-07-12 for retained residual suppressions
+    - `trivy/ignore-policy.rego` — Suppression expires: 2026-10-07 for retained residual suppressions
     - `.trivyignore` — historical review note remains out of scope for this Rego-only expiry lane
   - Reason: Retained residual unfixed/non-applicable distro CVEs require short review windows; fixed/resolved suppressions were removed instead of extended
   - Links:
     - docs/security/CVE-2026-27171-zlib1g.md
     - docs/security/CVE-2026-3184-util-linux.md
     - docs/security/CVE-2025-69720-ncurses.md
+    - docs/security/CVE-2026-53615-util-linux.md
   - DoD:
     - Weekly monitoring for upstream fixes
     - Remove suppressions when fixed versions available
     - Update base image when fixes land
-  - **Rego suppressions last reviewed: 2026-07-05**
+  - **Rego suppressions last reviewed: 2026-07-09**
     - PR #929: Removed 4 upstream-fixed CVE suppressions (gpgv, gnutls, p11-kit)
     - PR #930: Extended review-by dates to 2026-05-27 for unfixed CVEs
-    - PR-TBD: Removed resolved Faraday scanner-lag suppression and retained only residual OS-package suppressions through 2026-07-12
+    - PR-TBD: Removed resolved Faraday scanner-lag suppression and retained only residual OS-package suppressions through 2026-10-07; CVE-2026-53615 util-linux HIGH suppression added on branch security/cve-2026-53615-util-linux; residual zlib/3184/ncurses Review-by dates re-aligned to shared file expiry after 2026-07-09 re-review (rule bodies unchanged)
   - **`.trivyignore` review remains out of scope for this Rego-only expiry lane.**
 
 - [ ] Triage open Trivy glibc code-scanning alerts (CVE-2026-4046)
