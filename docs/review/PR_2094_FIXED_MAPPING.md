@@ -27,6 +27,7 @@ weakening, and unrelated CVE suppression changes.
 - `e50a871748298f5e669a92c6d3a7c1c58be3b46d` - add the scoped CVE-2026-53615 suppression, security note, guard, and monitoring.
 - `041cbb6287d146650529988b0b8dc0b22b2bc0d1` - close premortem findings and record the CVE-2026-3184 exact-match follow-up.
 - `d67f3eab2e90168bd68f3342e8727b42f36756bf` - fix review findings with exact evidence anchors, a FixedVersion fail-closed guard, and shared util-linux helpers.
+- `5815c3456b338dde90408541920c0d965a92ba30` - close Cubic review findings by clarifying residual expiry provenance and bounding the CVE-2026-3184 rule guard.
 
 ## Lane Start Provenance
 
@@ -63,6 +64,21 @@ Commit: d67f3eab2e90168bd68f3342e8727b42f36756bf
 Evidence: `trivy/ignore-policy.rego:47-59` defines shared bookworm util-linux package/version helpers used by both CVE rules.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2094#discussion_r3554695587 -> d67f3eab2e90168bd68f3342e8727b42f36756bf
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2094#pullrequestreview-4666611821 -> d67f3eab2e90168bd68f3342e8727b42f36756bf
+
+Disposition: FIXED
+Commit: 5815c3456b338dde90408541920c0d965a92ba30
+Evidence: `docs/security/CVE-2026-27171-zlib1g.md:54-60` distinguishes the shortened `2026-08-08` residual review window from the separately updated shared file expiry.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2094#discussion_r3554877424 -> 5815c3456b338dde90408541920c0d965a92ba30
+
+Disposition: FIXED
+Commit: 5815c3456b338dde90408541920c0d965a92ba30
+Evidence: `tests/test_trivy_ignore_policy_expiry.py:425-434` bounds the CVE-2026-3184 ignore-rule slice before asserting shared helper references, preventing later blocks from satisfying the guard.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2094#discussion_r3554877440 -> 5815c3456b338dde90408541920c0d965a92ba30
+
+Disposition: FIXED
+Commit: 5815c3456b338dde90408541920c0d965a92ba30
+Evidence: The two review-level Cubic findings are closed by the documentation clarification and bounded rule-slice guard above.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2094#pullrequestreview-4666822571 -> 5815c3456b338dde90408541920c0d965a92ba30
 
 ## Post-open Role Pass Dispositions
 
