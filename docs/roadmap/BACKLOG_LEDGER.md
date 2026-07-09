@@ -5134,6 +5134,31 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Mark `docs/security/CVE-2026-41989-libgcrypt20.md` resolved or remove after fix
     - Trivy Code Scanning alert `#586` remains closed on `main`
 
+- [ ] Remove Trivy suppression for util-linux CVE (CVE-2026-53615)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: TBD (branch security/cve-2026-53615-util-linux)
+  - Area: security / base-image / code-scanning
+  - Finding Type: container base image vulnerability
+  - Reason: Trivy publish scan reports Debian bookworm `util-linux` family packages
+    (`bsdutils`, `libblkid1`, `libmount1`, `libsmartcols1`, `libuuid1`, `mount`,
+    `util-linux`, `util-linux-extra`) as HIGH at `2.38.1-5+deb12u3` /
+    `1:2.38.1-5+deb12u3` with no actionable fixed version in the current bookworm
+    image line as of 2026-07-09; we suppress narrowly in `trivy/ignore-policy.rego`
+    until Debian bookworm or Trivy metadata catches up.
+  - Links:
+    - `trivy/ignore-policy.rego` (rule for CVE-2026-53615)
+    - `docs/security/CVE-2026-53615-util-linux.md`
+    - https://security-tracker.debian.org/tracker/CVE-2026-53615
+    - https://github.com/util-linux/util-linux/security/advisories/GHSA-h4rw-gv36-wmp5
+    - `.github/workflows/build.yml`
+  - DoD:
+    - Debian bookworm publishes a fixed `util-linux` package line (or Trivy reports a
+      fixed version in our image context)
+    - Remove CVE-2026-53615 suppression from `trivy/ignore-policy.rego`
+    - Remove `docs/security/CVE-2026-53615-util-linux.md` (or mark as resolved)
+    - Trivy Code Scanning alerts #623-#630 remain closed on `main`
+
 - [ ] Security suppression expiry monitoring
   - Owner: @katsiaryna_kavaleuskaya
   - Target PR: N/A (ongoing)
@@ -5141,22 +5166,59 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Area: security
   - Finding Type: policy exception
   - Locations:
-    - `trivy/ignore-policy.rego` — Suppression expires: 2026-07-12 for retained residual suppressions
+    - `trivy/ignore-policy.rego` — Suppression expires: 2026-10-07 for retained residual suppressions
     - `.trivyignore` — historical review note remains out of scope for this Rego-only expiry lane
   - Reason: Retained residual unfixed/non-applicable distro CVEs require short review windows; fixed/resolved suppressions were removed instead of extended
   - Links:
     - docs/security/CVE-2026-27171-zlib1g.md
     - docs/security/CVE-2026-3184-util-linux.md
     - docs/security/CVE-2025-69720-ncurses.md
+    - docs/security/CVE-2026-53615-util-linux.md
   - DoD:
     - Weekly monitoring for upstream fixes
     - Remove suppressions when fixed versions available
     - Update base image when fixes land
-  - **Rego suppressions last reviewed: 2026-07-05**
+  - **Rego suppressions last reviewed: 2026-07-09**
     - PR #929: Removed 4 upstream-fixed CVE suppressions (gpgv, gnutls, p11-kit)
     - PR #930: Extended review-by dates to 2026-05-27 for unfixed CVEs
-    - PR-TBD: Removed resolved Faraday scanner-lag suppression and retained only residual OS-package suppressions through 2026-07-12
+    - PR #2094: Removed resolved Faraday scanner-lag suppression; CVE-2026-53615 util-linux HIGH suppression added on branch security/cve-2026-53615-util-linux through the 2026-10-07 file expiry; residual zlib/3184/ncurses Review-by dates set to 2026-08-08 after the 2026-07-09 re-review (rule bodies unchanged)
   - **`.trivyignore` review remains out of scope for this Rego-only expiry lane.**
+
+
+<a id="ledger-p2-trivy-cli-0-72-0"></a>
+- [ ] P2: Upgrade standalone Trivy CLI pin to v0.72.0
+  - Owner: @katsiaryna_kavaleuskaya (Security/SRE)
+  - Priority: P2
+  - Target PR: TBD
+  - Area: security / CI maintenance
+  - Reason (EN): PR #2094's `2 configurations not found` message is a GitHub Code
+    Scanning configuration-comparison warning, not a scanner failure. The action pin is
+    already v0.36.0; upgrading the separate CLI pin from v0.71.2 to v0.72.0 is optional
+    maintenance that should not expand the CVE-scoped PR.
+  - Links:
+    - `.github/workflows/trivy.yml:189`
+    - `.github/workflows/trivy.yml:206`
+    - `docs/review/PR_2094_FIXED_MAPPING.md#github-code-scanning-trivy-tool-status`
+  - DoD:
+    - Update the standalone Trivy CLI pin from v0.71.2 to v0.72.0 in a focused PR.
+    - Verify the standalone scan and SARIF upload complete without weakening fail-closed behavior.
+    - Record current-head CI evidence and close this ledger item after merge.
+
+<a id="ledger-p1-cve-2026-3184-exact-pkgid-match"></a>
+- [ ] P1: Tighten CVE-2026-3184 PkgID matching to exact equality
+  - Owner: @katsiaryna_kavaleuskaya (Security/SRE)
+  - Priority: P1
+  - Target PR: TBD
+  - Area: security / container / Trivy policy
+  - Reason (EN): The CVE-2026-3184 suppression still uses `startswith` for observed util-linux PkgIDs, which can match unintended suffix variants. A dedicated follow-up should adopt the exact-equality set pattern used by CVE-2026-53615 without expanding this CVE-scoped PR.
+  - Links:
+    - `trivy/ignore-policy.rego`
+    - `docs/security/CVE-2026-3184-util-linux.md`
+    - `tests/test_trivy_ignore_policy_expiry.py`
+  - DoD:
+    - Replace CVE-2026-3184 PkgID prefix checks with exact equality against the observed package/version tuples
+    - Add deterministic positive and suffix-negative tests for every allowed PkgID
+    - Run the Trivy expiry checker and focused policy tests successfully
 
 - [ ] Triage open Trivy glibc code-scanning alerts (CVE-2026-4046)
   - Owner: @katsiaryna_kavaleuskaya
