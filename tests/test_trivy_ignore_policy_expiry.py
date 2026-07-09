@@ -461,10 +461,11 @@ def test_util_linux_cve_2026_53615_suppression_requires_exact_pkgid_scope() -> N
     assert "util_linux_bookworm_version_match" in util_linux_ignore_rule
     assert "cve_2026_53615_pkgid_match" in util_linux_ignore_rule
     assert (
-        "# Only suppress while Trivy reports no fixed version for this finding."
+        "# Trivy omits empty FixedVersion (omitempty); missing/empty means unfixed."
         in util_linux_ignore_rule
     )
-    assert 'input.FixedVersion == ""' in util_linux_ignore_rule
+    # Trivy v0.71.2 omits empty FixedVersion, so the policy must default a missing key.
+    assert 'object.get(input, "FixedVersion", "") == ""' in util_linux_ignore_rule
     assert "cve_2026_3184_pkgid_match" not in util_linux_ignore_rule
 
     helper_region = policy[policy.index("cve_2026_53615_pkgid_match if {") : start]
