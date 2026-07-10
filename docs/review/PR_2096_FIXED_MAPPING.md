@@ -31,6 +31,12 @@ mutable-surface expansion.
 - `8218a0c13` - canonicalize HTTP middleware ownership, harden SlowAPI wiring,
   remove duplicate logging/dead fingerprint code, tighten the legacy guard, and
   add production-focused tests.
+- `83bb059f9` - discard stale rate-limit receipts as cache-only state, close the
+  functional `getattr` legacy-guard bypass, and make CSP policy preservation
+  tests independent of the implementation constant.
+- `a8a004acb` - type the static middleware alias state added by the QA guard fix.
+- `d99f79aae` - require the exact `RateLimitExceeded` exception-class key and
+  block package-module aliases for forbidden runtime registrars.
 
 ## Lane Start Provenance
 
@@ -45,15 +51,102 @@ mutable-surface expansion.
   review threads existed at this pass.
 - [x] Fixed in commit mapping completed for published head `b90e8dc36`; the
   no-actionable marker will be replaced if post-open review emits findings.
-- [ ] Post-open `qa-engineer-agent -> bug-hunter -> security-auditor` completed.
-- [ ] Codex Security diff scan / finding discovery completed.
-- [ ] `pulseplate-pr-review` completed.
+- [x] Post-open `qa-engineer-agent -> bug-hunter -> security-auditor` completed
+  on implementation head `d99f79aae`.
+- [x] Codex Security diff scan / finding discovery completed on
+  `e7748291c..d99f79aae`: 6/6 source files reviewed, zero reportable findings.
+- [x] `pulseplate-pr-review` completed against the merge-base-corrected 15-file
+  diff; its size advisory was reviewed and dispositioned below.
 - [ ] Current-head CI completed.
 - [ ] Strict merge-readiness checks completed after the final review cycle.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: NOT-A-BUG
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2096#discussion_r3558343216
+Evidence: `8218a0c13495a5fb8b94420351115be4024f57f4` is an ancestor of current implementation head `d99f79aae5c52b86fd59e6035cc3779972700c2a`.
+Reason: The comment described a transient published-head mismatch that no longer exists in the current branch history.
+
+Disposition: FIXED
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2096#discussion_r3558343226 -> d99f79aae5c52b86fd59e6035cc3779972700c2a
+Commit: d99f79aae5c52b86fd59e6035cc3779972700c2a
+Evidence: Package-module registrar aliases are detected by `scripts/ci/check_legacy_growth_guard.py` and covered by `tests/test_legacy_growth_guard.py`.
+
+Disposition: NOT-A-BUG
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2096#pullrequestreview-4670658879
+Evidence: Snapshot rollback, callable/state classification, and all partial/foreign/late failure paths are covered by `tests/test_production_runtime_invariants.py` within the approved 15-file budget.
+Reason: The three Sourcery items are maintainability alternatives, while the current implementation is isolated, fail-closed, and deterministically tested.
+
+## Post-Open Review Dispositions
+
+Disposition: NOT-A-BUG
+Thread: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2096#discussion_r3558343216
+Evidence: `git merge-base --is-ancestor 8218a0c13495a5fb8b94420351115be4024f57f4 d99f79aae5c52b86fd59e6035cc3779972700c2a`
+Reason: The comment correctly identified a transient published-head mismatch,
+but the current implementation head contains `8218a0c13` in its ancestry. The
+canonical mapping now lists every post-open implementation fix explicitly.
+
+Disposition: FIXED
+Thread: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2096#discussion_r3558343226
+Commit: `d99f79aae5c52b86fd59e6035cc3779972700c2a`
+Evidence: `scripts/ci/check_legacy_growth_guard.py`,
+`tests/test_legacy_growth_guard.py`; the guard now tracks package-module imports
+such as `from app.security import rate_limit` and rejects calls through those
+aliases.
+
+Disposition: NOT-A-BUG
+Review: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2096#pullrequestreview-4670658879
+Evidence: `tests/test_production_runtime_invariants.py` exercises exact snapshot
+restore, partial/foreign/late failure, and callable/state classification; the
+15-file cap remains satisfied.
+Reason: Sourcery's three items are maintainability alternatives rather than
+runtime defects. The private FastAPI/Starlette fields are isolated in one
+transactional registrar and guarded by focused compatibility tests; callable
+identity stays local to its two ownership boundaries to avoid a new cross-layer
+utility; exhaustive literal states are closed by fail-closed branches and tests.
+
+Disposition: NOT-A-BUG
+Evidence: `git diff --stat e7748291ced0f9a79f93fda9757506ecc722a50e..d99f79aae5c52b86fd59e6035cc3779972700c2a`,
+98% runtime diff coverage, 554-test focused bundle, and the operator-approved
+15-file privileged-change budget.
+Reason: `pulseplate-pr-review` emitted only the calibrated `large-diff-risk`
+advisory. The diff is cohesive around one security-critical middleware ownership
+boundary; most added lines are deterministic failure-state and guard tests, so
+splitting production code from its rollback/security evidence would weaken
+reviewability.
+
+### Post-Open Role Findings
+
+Disposition: FIXED
+Commit: `83bb059f9`
+Evidence: `app/security/rate_limit.py`,
+`scripts/ci/check_legacy_growth_guard.py`,
+`tests/test_production_runtime_invariants.py`, `tests/test_legacy_growth_guard.py`
+Reason: QA found stale-receipt false partial state, a functional `getattr`
+middleware-guard bypass, and a self-referential CSP policy assertion; all three
+were fixed in runtime/guard code and independent tests before mapping.
+
+Disposition: FIXED
+Commit: `a8a004acb`
+Evidence: focused MyPy pass for the typed static middleware alias map.
+Reason: The QA guard fix exposed a precise type annotation gap; it was corrected
+without suppression.
+
+Disposition: FIXED
+Commit: `d99f79aae`
+Evidence: `app/security/rate_limit.py`,
+`scripts/ci/check_legacy_growth_guard.py`,
+`tests/test_production_runtime_invariants.py`, `tests/test_legacy_growth_guard.py`
+Reason: Bug-hunter found reload-equivalent exception keys could be accepted and
+package-module aliases could bypass the legacy registrar guard; both controls now
+require the intended exact/fail-closed behavior.
+
+Disposition: NOT-A-BUG
+Evidence: Codex Security scan
+`8e4e293d-cebe-4f8b-ad3d-553f9be39159`, 6/6 changed source files with full-file
+receipts and zero reportable findings.
+Reason: Post-fix security review closed the CSP, SlowAPI, canonical stack,
+legacy ownership, and deleted fingerprint-adapter paths without candidates.
 
 ## Pre-Open Implementation Evidence
 
