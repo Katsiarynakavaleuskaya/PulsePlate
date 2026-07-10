@@ -156,6 +156,113 @@ def _reset_receipt_identity(receipt: dict[str, Any]) -> None:
     )
 
 
+def _semantic_binding_inputs(
+    *, metrics: list[str] | None = None
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+    request = {
+        "budgets": {
+            "evaluation_timeout_seconds": 120,
+            "max_changed_files": 1,
+        },
+        "oracle_commands": ["pytest -q tests/test_example.py"],
+        "metrics": ["quality"] if metrics is None else metrics,
+    }
+    packet = {
+        "experiment_id": "experiment:test",
+        "mutable_candidate_surface": ["core/rag/example.py"],
+        "immutable_oracles": [
+            {
+                "command": "pytest -q tests/test_example.py",
+                "expected_signal": "must pass",
+            }
+        ],
+        "budgets": generation_cli._expected_experiment_budgets(request),
+        "metrics": {
+            "primary": "quality",
+            "secondary": [],
+            "baseline_reference": "current-main",
+            "acceptance_threshold": "strict_improvement",
+        },
+    }
+    result = {
+        "changed_paths": ["core/rag/example.py"],
+        "runner_summary": {
+            "experiment_id": "experiment:test",
+            "oracle_commands_configured": 1,
+            "oracle_commands_executed": 1,
+        },
+    }
+    return request, packet, result
+
+
+def test_generation_budget_envelope_uses_builder_overrides() -> None:
+    request, _packet, _result = _semantic_binding_inputs()
+
+    expected = generation_cli._expected_experiment_budgets(request)
+    stop_condition = expected.pop("stop_condition")
+
+    assert expected == creative_code_patch_builder.build_pr2_experiment_budget_overrides(request)
+    assert isinstance(stop_condition, str)
+    assert stop_condition
+
+
+@pytest.mark.parametrize("metrics", [[], [" "]])
+def test_semantic_binding_rejects_invalid_metrics_with_domain_error(metrics: list[str]) -> None:
+    request, packet, result = _semantic_binding_inputs(metrics=metrics)
+
+    with pytest.raises(
+        CreativeCodePatchGenerationError,
+        match="generation receipt request metrics are invalid",
+    ):
+        generation_cli._validate_experiment_packet_matches_result(
+            experiment_packet_payload=packet,
+            request=request,
+            source_bundle={},
+            result=result,
+        )
+
+
+@pytest.mark.parametrize(
+    ("mismatch", "message"),
+    [
+        ("experiment_id", "experiment_id is stale"),
+        ("mutable_surface", "mutable surface is stale"),
+        ("oracle_command", "immutable oracles are stale"),
+        ("oracle_count", "oracle count is stale"),
+        ("oracle_executions", "oracle executions exceed"),
+        ("budgets", "budgets are stale"),
+        ("metrics", "metrics are stale"),
+    ],
+)
+def test_semantic_binding_rejects_cross_artifact_mismatches(
+    mismatch: str,
+    message: str,
+) -> None:
+    request, packet, result = _semantic_binding_inputs()
+    if mismatch == "experiment_id":
+        packet["experiment_id"] = "experiment:stale"
+    elif mismatch == "mutable_surface":
+        packet["mutable_candidate_surface"] = ["core/rag/stale.py"]
+    elif mismatch == "oracle_command":
+        packet["immutable_oracles"][0]["command"] = "pytest -q tests/test_stale.py"
+    elif mismatch == "oracle_count":
+        result["runner_summary"]["oracle_commands_configured"] = 2
+    elif mismatch == "oracle_executions":
+        result["runner_summary"]["oracle_commands_executed"] = 2
+    elif mismatch == "budgets":
+        packet["budgets"]["network_budget"] = 1
+    else:
+        packet["metrics"]["primary"] = "stale"
+
+    with pytest.raises(CreativeCodePatchGenerationError, match=message):
+        generation_cli._validate_experiment_packet_matches_result(
+            experiment_packet_payload=packet,
+            request=request,
+            source_bundle={},
+            result=result,
+        )
+
+
 def test_generate_candidate_happy_path_writes_sanitized_receipt(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -436,6 +543,39 @@ def test_validate_artifacts_rejects_tampered_experiment_packet(
         == 1
     )
     assert "experiment packet budgets are stale" in capsys.readouterr().err
+
+
+def test_validate_artifacts_rejects_recomputed_noncanonical_experiment_packet(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo, base_sha = _init_patch_repo(tmp_path)
+    _patch_modules_to_repo(monkeypatch, repo)
+    run_id = "noncanonical-experiment-packet"
+    admission_path = _prepare_admission(repo=repo, base_sha=base_sha, run_id=run_id)
+    _mock_successful_builder_edges(monkeypatch)
+    gate_path = _write_gate(repo=repo, admission_path=admission_path, run_id=run_id)
+    assert generation_cli.main(["generate-candidate", "--gate", str(gate_path)]) == 0
+    receipt_path = gate_path.parent / generation_cli.RECEIPT_FILENAME
+    run_dir = creative_code_patch_workspace.resolve_run_dir(run_id, create=False)
+    packet_path = run_dir / creative_code_patch_builder.EXPERIMENT_PACKET_FILE
+    packet = json.loads(packet_path.read_text(encoding="utf-8"))
+    packet["negative_controls"][0] = "noncanonical but structurally valid control"
+    _write_json(packet_path, packet)
+
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    receipt["experiment_packet_fingerprint"] = fingerprint_payload(packet)
+    _reset_receipt_identity(receipt)
+    _write_json(receipt_path, receipt)
+
+    assert (
+        generation_cli.main(
+            ["validate-artifacts", "--gate", str(gate_path), "--receipt", str(receipt_path)]
+        )
+        == 1
+    )
+    assert "experiment packet semantics are stale" in capsys.readouterr().err
 
 
 def test_validate_artifacts_rejects_cross_run_sidecar_refs(

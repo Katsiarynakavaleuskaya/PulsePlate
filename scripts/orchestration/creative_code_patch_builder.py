@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Mapping
 import os
 from pathlib import Path
 import sys
@@ -460,7 +461,9 @@ def generate(*, run_id: str) -> dict[str, Any]:
         write_json_atomic(resolve_run_file(run_dir, STATE_FILE, for_write=True), state)
 
 
-def _experiment_budgets(request: dict[str, Any]) -> dict[str, int]:
+def build_pr2_experiment_budget_overrides(request: Mapping[str, Any]) -> dict[str, int]:
+    """Map a normalized PR-2 request to Experiment Runner budget overrides."""
+
     return {
         "wall_clock_seconds": request["budgets"]["evaluation_timeout_seconds"],
         # Experiment Runner requires a positive infra retry budget; PR-2's one-attempt
@@ -527,6 +530,32 @@ def _creative_research_origin(bundle: dict[str, Any]) -> dict[str, str]:
     }
 
 
+def build_pr2_experiment_packet(
+    *,
+    request: Mapping[str, Any],
+    source_bundle: dict[str, Any],
+    changed_paths: list[str],
+) -> dict[str, Any]:
+    """Build the canonical Experiment Runner packet for a normalized PR-2 request."""
+
+    selected_variant = _selected_variant(source_bundle)
+    return build_experiment_packet(
+        decision_question=selected_variant["problem_statement"],
+        task_class="Experimentation",
+        mutable_paths=changed_paths,
+        oracle_commands=request["oracle_commands"],
+        metrics=request["metrics"],
+        negative_controls=selected_variant["negative_controls"],
+        promotion_target="audit_artifact",
+        budgets=build_pr2_experiment_budget_overrides(request),
+        cv_context=_cv_context_for_candidate(
+            selected_variant=selected_variant,
+            changed_paths=changed_paths,
+        ),
+        creative_research_origin=_creative_research_origin(source_bundle),
+    )
+
+
 def _verified_patch_metadata(
     *,
     run_dir: Path,
@@ -576,22 +605,11 @@ def evaluate(*, run_id: str) -> dict[str, Any]:
             metadata=metadata,
         )
     )
-    selected_variant = _selected_variant(bundle)
     shared_status_before = shared_tree_status()
-    packet = build_experiment_packet(
-        decision_question=selected_variant["problem_statement"],
-        task_class="Experimentation",
-        mutable_paths=changed_paths,
-        oracle_commands=normalized_request["oracle_commands"],
-        metrics=normalized_request["metrics"],
-        negative_controls=selected_variant["negative_controls"],
-        promotion_target="audit_artifact",
-        budgets=_experiment_budgets(normalized_request),
-        cv_context=_cv_context_for_candidate(
-            selected_variant=selected_variant,
-            changed_paths=changed_paths,
-        ),
-        creative_research_origin=_creative_research_origin(bundle),
+    packet = build_pr2_experiment_packet(
+        request=normalized_request,
+        source_bundle=bundle,
+        changed_paths=changed_paths,
     )
     write_json_atomic(resolve_run_file(run_dir, EXPERIMENT_PACKET_FILE, for_write=True), packet)
     failure_class: str | None = None

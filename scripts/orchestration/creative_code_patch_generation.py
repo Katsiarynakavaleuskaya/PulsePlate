@@ -42,10 +42,10 @@ from scripts.orchestration.creative_code_specification import (
     validate_creative_code_specification_bundle,
 )
 from scripts.orchestration.experiment_contract import (
-    DEFAULT_METRIC_ACCEPTANCE_THRESHOLD,
-    DEFAULT_METRIC_BASELINE_REF,
     DEFAULT_STOP_CONDITION,
+    validate_budget_payload,
     validate_experiment_packet,
+    validate_metrics,
 )
 from scripts.orchestration.creative_spec_learning_rollup_contract import (
     CreativeSpecLearningRollupError,
@@ -1039,6 +1039,7 @@ def _build_receipt(
     _validate_experiment_packet_matches_result(
         experiment_packet_payload=experiment_packet_payload,
         request=request,
+        source_bundle=source_bundle,
         result=result,
     )
     expected_patch_summary = {
@@ -1453,17 +1454,13 @@ def _validate_result_matches_gate(result: Mapping[str, Any], gate: Mapping[str, 
             raise CreativeCodePatchGenerationError(f"result {key} does not match generation gate.")
 
 
-def _expected_experiment_budgets(request: Mapping[str, Any]) -> dict[str, int]:
+def _expected_experiment_budgets(request: Mapping[str, Any]) -> dict[str, int | str]:
     """Return the PR-2 evaluation budget envelope derived from the build request."""
 
-    budgets = request["budgets"]
     return {
-        "wall_clock_seconds": budgets["evaluation_timeout_seconds"],
-        "retry_budget": 1,
-        "max_changed_files": budgets["max_changed_files"],
-        "network_budget": 0,
-        "benchmark_budget": 1,
-        "test_budget": min(3, max(1, len(request["oracle_commands"]))),
+        **validate_budget_payload(
+            creative_code_patch_builder.build_pr2_experiment_budget_overrides(request)
+        ),
         "stop_condition": DEFAULT_STOP_CONDITION,
     }
 
@@ -1472,6 +1469,7 @@ def _validate_experiment_packet_matches_result(
     *,
     experiment_packet_payload: Mapping[str, Any],
     request: Mapping[str, Any],
+    source_bundle: dict[str, Any],
     result: Mapping[str, Any],
 ) -> None:
     """Fail closed when the current experiment packet no longer matches evaluation evidence."""
@@ -1509,15 +1507,24 @@ def _validate_experiment_packet_matches_result(
             "generation receipt experiment packet budgets are stale."
         )
 
-    expected_metrics = {
-        "primary": request["metrics"][0],
-        "secondary": list(request["metrics"][1:]),
-        "baseline_reference": DEFAULT_METRIC_BASELINE_REF,
-        "acceptance_threshold": DEFAULT_METRIC_ACCEPTANCE_THRESHOLD,
-    }
+    try:
+        expected_metrics = validate_metrics(request["metrics"])
+    except (AttributeError, TypeError, ValueError) as exc:
+        raise CreativeCodePatchGenerationError(
+            "generation receipt request metrics are invalid."
+        ) from exc
     if experiment_packet_payload["metrics"] != expected_metrics:
         raise CreativeCodePatchGenerationError(
             "generation receipt experiment packet metrics are stale."
+        )
+    expected_packet = creative_code_patch_builder.build_pr2_experiment_packet(
+        request=request,
+        source_bundle=source_bundle,
+        changed_paths=list(result["changed_paths"]),
+    )
+    if experiment_packet_payload != expected_packet:
+        raise CreativeCodePatchGenerationError(
+            "generation receipt experiment packet semantics are stale."
         )
 
 
@@ -1630,11 +1637,6 @@ def _validate_receipt_linked_artifacts(receipt: Mapping[str, Any]) -> None:
         result = validate_creative_code_patch_result(
             read_creative_code_patch_result(str(result_path))
         )
-        _validate_experiment_packet_matches_result(
-            experiment_packet_payload=experiment_packet_payload,
-            request=request,
-            result=result,
-        )
         validate_creative_code_patch_run_sidecars(
             request=request,
             result=result,
@@ -1655,6 +1657,12 @@ def _validate_receipt_linked_artifacts(receipt: Mapping[str, Any]) -> None:
         )
     if fingerprint_payload(result) != receipt["result_fingerprint"]:
         raise CreativeCodePatchGenerationError("generation receipt result fingerprint is stale.")
+    _validate_experiment_packet_matches_result(
+        experiment_packet_payload=experiment_packet_payload,
+        request=request,
+        source_bundle=source_bundle,
+        result=result,
+    )
     if result["result_id"] != receipt["result_id"]:
         raise CreativeCodePatchGenerationError("generation receipt result id is stale.")
     for key in RESULT_RECEIPT_PROVENANCE_KEYS:
