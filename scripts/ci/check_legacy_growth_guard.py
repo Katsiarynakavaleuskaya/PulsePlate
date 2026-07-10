@@ -282,6 +282,7 @@ def _collect_bound_app_call_aliases(
                 and value.args[0].id in app_aliases
             ):
                 method_node = value.args[1]
+                method_name: str | None
                 if isinstance(method_node, ast.Constant) and isinstance(method_node.value, str):
                     method_name = method_node.value
                 elif isinstance(method_node, ast.Name):
