@@ -1465,6 +1465,24 @@ def _expected_experiment_budgets(request: Mapping[str, Any]) -> dict[str, int | 
     }
 
 
+REPLAY_VOLATILE_EXPERIMENT_PACKET_FIELDS = frozenset(
+    {
+        "recommended_agents",
+        "routing_context",
+    }
+)
+
+
+def _stable_experiment_packet_semantics(packet: Mapping[str, Any]) -> dict[str, Any]:
+    """Exclude advisory telemetry projections from replay semantic equality."""
+
+    return {
+        key: value
+        for key, value in packet.items()
+        if key not in REPLAY_VOLATILE_EXPERIMENT_PACKET_FIELDS
+    }
+
+
 def _validate_experiment_packet_matches_result(
     *,
     experiment_packet_payload: Mapping[str, Any],
@@ -1522,7 +1540,9 @@ def _validate_experiment_packet_matches_result(
         source_bundle=source_bundle,
         changed_paths=list(result["changed_paths"]),
     )
-    if experiment_packet_payload != expected_packet:
+    if _stable_experiment_packet_semantics(
+        experiment_packet_payload
+    ) != _stable_experiment_packet_semantics(expected_packet):
         raise CreativeCodePatchGenerationError(
             "generation receipt experiment packet semantics are stale."
         )

@@ -263,6 +263,51 @@ def test_semantic_binding_rejects_cross_artifact_mismatches(
         )
 
 
+def test_semantic_binding_ignores_telemetry_derived_routing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request, packet, result = _semantic_binding_inputs()
+    expected_packet = {
+        **packet,
+        "negative_controls": ["stable control"],
+        "recommended_agents": ["agent-coordinator", "backend-engineer"],
+        "routing_context": {
+            "primary": "backend-engineer",
+            "secondary": None,
+        },
+    }
+    actual_packet = deepcopy(expected_packet)
+    actual_packet["recommended_agents"] = ["agent-coordinator", "security-auditor"]
+    actual_packet["routing_context"] = {
+        "primary": "security-auditor",
+        "secondary": "backend-engineer",
+    }
+    monkeypatch.setattr(
+        creative_code_patch_builder,
+        "build_pr2_experiment_packet",
+        lambda **_kwargs: expected_packet,
+    )
+
+    generation_cli._validate_experiment_packet_matches_result(
+        experiment_packet_payload=actual_packet,
+        request=request,
+        source_bundle={},
+        result=result,
+    )
+
+    actual_packet["negative_controls"] = ["tampered control"]
+    with pytest.raises(
+        CreativeCodePatchGenerationError,
+        match="experiment packet semantics are stale",
+    ):
+        generation_cli._validate_experiment_packet_matches_result(
+            experiment_packet_payload=actual_packet,
+            request=request,
+            source_bundle={},
+            result=result,
+        )
+
+
 def test_generate_candidate_happy_path_writes_sanitized_receipt(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
