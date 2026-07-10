@@ -28,7 +28,7 @@ from app.bootstrap.direct_api_root import (
     serve_legacy_bmi_calculator_web,
 )
 from app.bootstrap.food_search import register_food_search_backend
-from app.bootstrap.metrics import register_metrics
+from app.bootstrap.http_stack import register_http_middleware_stack
 from app.bootstrap.pro_contracts import register_pro_contract_routes
 from app.bootstrap.public_discovery import SITEMAP_ROUTE_PATH, serve_public_sitemap
 from app.effective_routes import (
@@ -39,8 +39,6 @@ from app.effective_routes import (
     route_path,
 )
 from app.bootstrap.route_family import RouteMemberContract, ensure_route_family_registered
-from app.bootstrap.telemetry import register_request_telemetry
-from app.bootstrap.tracing import register_tracing
 from app.middleware.api_tiers import get_current_user, require_pro_tier, require_vip_tier
 from app.routers.creative_research_internal import router as creative_research_internal_router
 from app.routers.paywall_analytics import ingest_paywall_event, router as paywall_analytics_router
@@ -1353,6 +1351,7 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
     """
     global app
 
+    register_http_middleware_stack(target_app)
     app = target_app
     _internalize_users_openapi_surface(app)
     _install_openapi_builder(app)
@@ -1383,9 +1382,6 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
             include_in_schema=False,
         )
     register_food_search_backend(app)
-    register_metrics(app)
-    register_request_telemetry(app)
-    register_tracing(app)
     _register_paid_tier_routes(app)
     register_pro_contract_routes(app)
     _include_recipe_nutrition_reference_routers_if_needed(app)

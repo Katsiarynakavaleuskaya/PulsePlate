@@ -21,10 +21,9 @@ import hmac
 import logging
 import os
 import secrets
-from collections.abc import Mapping
 from functools import lru_cache
 from pathlib import Path
-from typing import Final, Protocol, runtime_checkable
+from typing import Final
 
 logger = logging.getLogger(__name__)
 
@@ -164,68 +163,4 @@ def compute_secret_marker(secret: str, *, truncate: int = 32) -> str:
     return digest[:length]
 
 
-@runtime_checkable
-class _ClientLike(Protocol):
-    """Protocol for request.client attribute."""
-
-    @property
-    def host(self) -> str | None: ...  # pragma: no cover
-
-
-@runtime_checkable
-class ClientFingerprintRequest(Protocol):
-    """Protocol for request objects used by _client_fingerprint.
-
-    Avoids FastAPI dependency in core module while providing type safety.
-    """
-
-    @property
-    def client(self) -> _ClientLike | None: ...  # pragma: no cover
-
-    @property
-    def headers(self) -> Mapping[str, str]: ...  # pragma: no cover
-
-
-def _client_fingerprint(request: ClientFingerprintRequest) -> str | None:
-    """Return a stable, non-PII identifier for the requesting client.
-
-    RU: Возвращает стабильный, не-ПДН идентификатор для запрашивающего клиента.
-    EN: Returns a stable, non-PII identifier for the requesting client.
-
-    This function produces pseudonymous identifiers (hashed+truncated IPs)
-    that must be treated as pseudonymous data per GDPR and privacy regulations.
-
-    Args:
-        request: Request object with `client.host` and `headers.get()` attributes.
-                Uses Protocol to avoid FastAPI dependency in core module.
-
-    Returns:
-        Pseudonymous fingerprint string or None if source IP cannot be determined.
-    """
-    import ipaddress
-
-    trusted_proxies_str = os.getenv("TRUSTED_PROXIES", "")
-    trusted_proxies = {proxy.strip() for proxy in trusted_proxies_str.split(",") if proxy.strip()}
-
-    remote_host = request.client.host if request.client else ""
-
-    source = remote_host
-    if remote_host in trusted_proxies:
-        forwarded_for = request.headers.get("x-forwarded-for", "")
-        if forwarded_for:
-            forwarded_ips = [ip.strip() for ip in forwarded_for.split(",")]
-            if forwarded_ips:
-                try:
-                    ipaddress.ip_address(forwarded_ips[0])
-                    source = forwarded_ips[0]
-                except ValueError:
-                    pass
-
-    if not source:
-        return None
-    # Hash with salt so raw IP is never logged while keeping ability to correlate requests.
-    # Uses secure salt storage - see core.fingerprint_security for details.
-    return compute_fingerprint(source)
-
-
-__all__ = ["compute_fingerprint", "compute_secret_marker", "_client_fingerprint"]
+__all__ = ["compute_fingerprint", "compute_secret_marker"]

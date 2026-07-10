@@ -14,6 +14,7 @@ def test_current_legacy_app_passes_growth_guard() -> None:
     source = (REPO_ROOT / "legacy_app.py").read_text(encoding="utf-8")
 
     assert legacy_guard.validate_legacy_growth(source) == []
+    assert legacy_guard.ALLOWED_LEGACY_ROUTE_FACTS == frozenset()
 
 
 def test_legacy_seam_doc_passes_contract() -> None:
@@ -481,6 +482,87 @@ def test_legacy_growth_guard_rejects_middleware_decorator() -> None:
     assert errors == [
         "legacy_app.py: unexpected legacy route growth: "
         "decorator:middleware:http -> new_legacy_middleware"
+    ]
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        'app.middleware("http")(new_legacy_middleware)\n',
+        'legacy = app\nlegacy.middleware("http")(new_legacy_middleware)\n',
+        'middleware = app.middleware\nmiddleware("http")(new_legacy_middleware)\n',
+        (
+            'middleware = app.middleware\nregister_http = middleware("http")\n'
+            "register_http(new_legacy_middleware)\n"
+        ),
+    ],
+)
+def test_legacy_growth_guard_rejects_functional_middleware_registration(
+    source: str,
+) -> None:
+    errors = legacy_guard.validate_legacy_growth(source)
+
+    assert errors == [
+        "legacy_app.py: unexpected legacy route growth: " "registration:middleware:http"
+    ]
+
+
+@pytest.mark.parametrize(
+    ("source", "registrar"),
+    [
+        (
+            "from app.security.rate_limit import wire_rate_limiting\n" "wire_rate_limiting(app)\n",
+            "wire_rate_limiting",
+        ),
+        (
+            "from app.security.rate_limit import wire_rate_limiting as wire\n"
+            "alias = wire\nalias(app)\n",
+            "wire_rate_limiting",
+        ),
+        (
+            "import app.security.rate_limit as rate_limit\n" "rate_limit.wire_rate_limiting(app)\n",
+            "wire_rate_limiting",
+        ),
+        (
+            "import app.security.rate_limit\n" "app.security.rate_limit.wire_rate_limiting(app)\n",
+            "wire_rate_limiting",
+        ),
+        (
+            "import app.security.rate_limit as rate_limit\n"
+            'wire = getattr(rate_limit, "wire_rate_limiting")\nwire(app)\n',
+            "wire_rate_limiting",
+        ),
+        (
+            "from importlib import import_module as load\n"
+            'module = load("app.security.rate_limit")\n'
+            "module.wire_rate_limiting(app)\n",
+            "wire_rate_limiting",
+        ),
+        (
+            "from app.bootstrap.http_stack import register_http_middleware_stack\n"
+            "register_http_middleware_stack(app)\n",
+            "register_http_middleware_stack",
+        ),
+    ],
+)
+def test_legacy_growth_guard_rejects_runtime_middleware_registrars(
+    source: str,
+    registrar: str,
+) -> None:
+    errors = legacy_guard.validate_legacy_growth(source)
+
+    assert errors == [
+        "legacy_app.py: forbidden legacy runtime registration: "
+        f"runtime_registration:{registrar}:app"
+    ]
+
+
+def test_legacy_growth_guard_rejects_aliased_add_middleware() -> None:
+    source = "add = app.add_middleware\nregister = add\nregister(NewMiddleware)\n"
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:add_middleware:NewMiddleware"
     ]
 
 

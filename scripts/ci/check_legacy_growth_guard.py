@@ -88,12 +88,12 @@ SENSITIVE_APP_SURFACE_LIMITS: Mapping[str, int] = {
 UNRESOLVED_APP_ROUTER_IMPORT = "<unresolved app.routers import>"
 UNRESOLVED_DYNAMIC_ROUTER_IMPORT = "<unresolved dynamic router import>"
 
-ALLOWED_LEGACY_ROUTE_FACTS = frozenset(
-    {
-        LegacyFact("decorator", "middleware", "http", "csp_nonce_middleware"),
-        LegacyFact("decorator", "middleware", "http", "log_requests"),
-    }
-)
+ALLOWED_LEGACY_ROUTE_FACTS: frozenset[LegacyFact] = frozenset()
+
+FORBIDDEN_LEGACY_RUNTIME_REGISTRARS: Mapping[str, str] = {
+    "app.bootstrap.http_stack.register_http_middleware_stack": ("register_http_middleware_stack"),
+    "app.security.rate_limit.wire_rate_limiting": "wire_rate_limiting",
+}
 
 ALLOWED_ROUTER_IMPORT_FACTS = frozenset(
     {
@@ -243,6 +243,83 @@ def _app_call_action(
     return None
 
 
+def _collect_bound_app_call_aliases(
+    tree: ast.Module,
+    *,
+    app_aliases: AbstractSet[str],
+) -> dict[str, str]:
+    aliases: dict[str, str] = {}
+    changed = True
+    while changed:
+        changed = False
+        for node in ast.walk(tree):
+            value: ast.AST | None = None
+            targets: list[ast.expr] = []
+            if isinstance(node, ast.Assign):
+                value = node.value
+                targets = list(node.targets)
+            elif isinstance(node, ast.AnnAssign) and node.value is not None:
+                value = node.value
+                targets = [node.target]
+            if value is None:
+                continue
+
+            action: str | None = None
+            if (
+                isinstance(value, ast.Attribute)
+                and isinstance(value.value, ast.Name)
+                and value.value.id in app_aliases
+                and value.attr in APP_ROUTE_METHODS | APP_REGISTRATION_METHODS
+            ):
+                action = value.attr
+            elif isinstance(value, ast.Name):
+                action = aliases.get(value.id)
+            if action is None:
+                continue
+            for target in targets:
+                if isinstance(target, ast.Name) and aliases.get(target.id) != action:
+                    aliases[target.id] = action
+                    changed = True
+    return aliases
+
+
+def _collect_middleware_decorator_aliases(
+    tree: ast.Module,
+    *,
+    app_aliases: frozenset[str],
+    router_aliases: frozenset[str],
+    bound_call_aliases: Mapping[str, str],
+    static_string_bindings: Mapping[str, str],
+) -> dict[str, str]:
+    aliases: dict[str, str] = {}
+    for node in ast.walk(tree):
+        value: ast.AST | None = None
+        targets: list[ast.expr] = []
+        if isinstance(node, ast.Assign):
+            value = node.value
+            targets = list(node.targets)
+        elif isinstance(node, ast.AnnAssign) and node.value is not None:
+            value = node.value
+            targets = [node.target]
+        if not isinstance(value, ast.Call):
+            continue
+        action = _app_call_action(
+            value.func,
+            APP_ROUTE_METHODS,
+            app_aliases=app_aliases,
+            router_aliases=router_aliases,
+            static_string_bindings=static_string_bindings,
+        )
+        if action is None and isinstance(value.func, ast.Name):
+            action = bound_call_aliases.get(value.func.id)
+        if action != "middleware":
+            continue
+        for target in targets:
+            if isinstance(target, ast.Name):
+                aliases[target.id] = _first_arg_label(value)
+    return aliases
+
+
 def _getattr_app_call_action(
     func: ast.AST,
     methods: AbstractSet[str],
@@ -283,9 +360,32 @@ def collect_legacy_route_facts(source_text: str, *, filename: str = LEGACY_APP) 
     facts: set[LegacyFact] = set()
     app_aliases, router_aliases = _collect_app_aliases(tree)
     static_string_bindings = _collect_static_string_bindings(tree)
+    bound_call_aliases = _collect_bound_app_call_aliases(
+        tree,
+        app_aliases=app_aliases,
+    )
+    middleware_decorator_aliases = _collect_middleware_decorator_aliases(
+        tree,
+        app_aliases=app_aliases,
+        router_aliases=router_aliases,
+        bound_call_aliases=bound_call_aliases,
+        static_string_bindings=static_string_bindings,
+    )
     for node in ast.walk(tree):
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             for decorator in node.decorator_list:
+                if isinstance(decorator, ast.Name):
+                    target = middleware_decorator_aliases.get(decorator.id)
+                    if target is not None:
+                        facts.add(
+                            LegacyFact(
+                                "decorator",
+                                "middleware",
+                                target,
+                                node.name,
+                            )
+                        )
+                    continue
                 if not isinstance(decorator, ast.Call):
                     continue
                 action = _app_call_action(
@@ -295,12 +395,33 @@ def collect_legacy_route_facts(source_text: str, *, filename: str = LEGACY_APP) 
                     router_aliases=router_aliases,
                     static_string_bindings=static_string_bindings,
                 )
+                if action is None and isinstance(decorator.func, ast.Name):
+                    action = bound_call_aliases.get(decorator.func.id)
                 if action is not None:
                     facts.add(
                         LegacyFact("decorator", action, _first_arg_label(decorator), node.name)
                     )
         elif isinstance(node, ast.Call):
             call = node
+            if isinstance(call.func, ast.Call):
+                action = _app_call_action(
+                    call.func.func,
+                    APP_ROUTE_METHODS,
+                    app_aliases=app_aliases,
+                    router_aliases=router_aliases,
+                    static_string_bindings=static_string_bindings,
+                )
+                if action is None and isinstance(call.func.func, ast.Name):
+                    action = bound_call_aliases.get(call.func.func.id)
+                if action is not None:
+                    facts.add(
+                        LegacyFact(
+                            "registration",
+                            action,
+                            _first_arg_label(call.func),
+                            "",
+                        )
+                    )
             action = _app_call_action(
                 call.func,
                 APP_REGISTRATION_METHODS,
@@ -308,8 +429,189 @@ def collect_legacy_route_facts(source_text: str, *, filename: str = LEGACY_APP) 
                 router_aliases=router_aliases,
                 static_string_bindings=static_string_bindings,
             )
+            if action is None and isinstance(call.func, ast.Name):
+                action = bound_call_aliases.get(call.func.id)
+            if isinstance(call.func, ast.Name):
+                middleware_target = middleware_decorator_aliases.get(call.func.id)
+                if middleware_target is not None:
+                    facts.add(
+                        LegacyFact(
+                            "registration",
+                            "middleware",
+                            middleware_target,
+                            "",
+                        )
+                    )
             if action is not None:
                 facts.add(LegacyFact("registration", action, _first_arg_label(call), ""))
+    return facts
+
+
+def _static_module_reference(
+    node: ast.AST,
+    *,
+    module_aliases: Mapping[str, str],
+    import_module_aliases: AbstractSet[str],
+) -> str | None:
+    if isinstance(node, ast.Name):
+        return module_aliases.get(node.id)
+    if isinstance(node, ast.Attribute):
+        parent = _static_module_reference(
+            node.value,
+            module_aliases=module_aliases,
+            import_module_aliases=import_module_aliases,
+        )
+        if parent is not None:
+            return f"{parent}.{node.attr}"
+        return None
+    if not isinstance(node, ast.Call):
+        return None
+
+    is_import_module = (
+        isinstance(node.func, ast.Name) and node.func.id in import_module_aliases
+    ) or (
+        isinstance(node.func, ast.Attribute)
+        and node.func.attr == "import_module"
+        and isinstance(node.func.value, ast.Name)
+        and module_aliases.get(node.func.value.id) == "importlib"
+    )
+    if not is_import_module or not node.args:
+        return None
+    module_arg = node.args[0]
+    if isinstance(module_arg, ast.Constant) and isinstance(module_arg.value, str):
+        return module_arg.value
+    return None
+
+
+def _forbidden_registrar_label(
+    node: ast.AST,
+    *,
+    callable_aliases: Mapping[str, str],
+    module_aliases: Mapping[str, str],
+    import_module_aliases: AbstractSet[str],
+) -> str | None:
+    if isinstance(node, ast.Name):
+        return callable_aliases.get(node.id)
+    if isinstance(node, ast.Attribute):
+        module_name = _static_module_reference(
+            node.value,
+            module_aliases=module_aliases,
+            import_module_aliases=import_module_aliases,
+        )
+        if module_name is None:
+            return None
+        return FORBIDDEN_LEGACY_RUNTIME_REGISTRARS.get(f"{module_name}.{node.attr}")
+    if (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "getattr"
+        and len(node.args) >= 2
+        and isinstance(node.args[1], ast.Constant)
+        and isinstance(node.args[1].value, str)
+    ):
+        module_name = _static_module_reference(
+            node.args[0],
+            module_aliases=module_aliases,
+            import_module_aliases=import_module_aliases,
+        )
+        if module_name is None:
+            return None
+        return FORBIDDEN_LEGACY_RUNTIME_REGISTRARS.get(f"{module_name}.{node.args[1].value}")
+    return None
+
+
+def collect_forbidden_runtime_registration_facts(
+    source_text: str,
+    *,
+    filename: str = LEGACY_APP,
+) -> set[LegacyFact]:
+    """Return canonical runtime registrars invoked from the legacy seam."""
+
+    tree, errors = _parse_source(source_text, filename=filename)
+    if errors or tree is None:
+        return set()
+
+    module_aliases: dict[str, str] = {}
+    import_module_aliases: set[str] = {"import_module"}
+    callable_aliases: dict[str, str] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name in {
+                    "app.bootstrap.http_stack",
+                    "app.security.rate_limit",
+                    "importlib",
+                }:
+                    local_name = alias.asname or alias.name.split(".")[0]
+                    module_aliases[local_name] = alias.name if alias.asname else local_name
+        elif isinstance(node, ast.ImportFrom) and node.module is not None:
+            for alias in node.names:
+                local_name = alias.asname or alias.name
+                qualified = f"{node.module}.{alias.name}"
+                label = FORBIDDEN_LEGACY_RUNTIME_REGISTRARS.get(qualified)
+                if label is not None:
+                    callable_aliases[local_name] = label
+                elif node.module == "importlib" and alias.name == "import_module":
+                    import_module_aliases.add(local_name)
+
+    changed = True
+    while changed:
+        changed = False
+        for node in ast.walk(tree):
+            value: ast.AST | None = None
+            targets: list[ast.expr] = []
+            if isinstance(node, ast.Assign):
+                value = node.value
+                targets = list(node.targets)
+            elif isinstance(node, ast.AnnAssign) and node.value is not None:
+                value = node.value
+                targets = [node.target]
+            elif isinstance(node, ast.NamedExpr):
+                value = node.value
+                targets = [node.target]
+            if value is None:
+                continue
+
+            module_name = _static_module_reference(
+                value,
+                module_aliases=module_aliases,
+                import_module_aliases=import_module_aliases,
+            )
+            label = _forbidden_registrar_label(
+                value,
+                callable_aliases=callable_aliases,
+                module_aliases=module_aliases,
+                import_module_aliases=import_module_aliases,
+            )
+            for target in targets:
+                if not isinstance(target, ast.Name):
+                    continue
+                if module_name is not None and module_aliases.get(target.id) != module_name:
+                    module_aliases[target.id] = module_name
+                    changed = True
+                if label is not None and callable_aliases.get(target.id) != label:
+                    callable_aliases[target.id] = label
+                    changed = True
+
+    facts: set[LegacyFact] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        label = _forbidden_registrar_label(
+            node.func,
+            callable_aliases=callable_aliases,
+            module_aliases=module_aliases,
+            import_module_aliases=import_module_aliases,
+        )
+        if label is not None:
+            facts.add(
+                LegacyFact(
+                    "runtime_registration",
+                    label,
+                    _first_arg_label(node),
+                    "",
+                )
+            )
     return facts
 
 
@@ -1124,6 +1426,10 @@ def validate_legacy_growth(
 
     errors: list[str] = []
     route_facts = collect_legacy_route_facts(source_text, filename=filename)
+    runtime_registration_facts = collect_forbidden_runtime_registration_facts(
+        source_text,
+        filename=filename,
+    )
     router_import_facts = collect_router_import_facts(source_text, filename=filename)
     sensitive_counts = collect_sensitive_call_counts(source_text, filename=filename)
     sensitive_app_surface_counts = collect_sensitive_app_surface_counts(
@@ -1133,6 +1439,8 @@ def validate_legacy_growth(
 
     for fact in sorted(route_facts - set(allowed_route_facts)):
         errors.append(f"{filename}: unexpected legacy route growth: {fact.display()}")
+    for fact in sorted(runtime_registration_facts):
+        errors.append(f"{filename}: forbidden legacy runtime registration: {fact.display()}")
     for fact in sorted(router_import_facts - set(allowed_router_import_facts)):
         errors.append(f"{filename}: unexpected app.routers import growth: {fact.display()}")
     for keyword, limit in sorted(sensitive_call_limits.items()):

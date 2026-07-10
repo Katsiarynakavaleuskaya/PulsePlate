@@ -2,13 +2,23 @@
 
 from __future__ import annotations
 
+import asyncio
 import ast
 from pathlib import Path
+import re
+from types import SimpleNamespace
+from typing import Any
 
 import pytest
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import StreamingResponse
+from fastapi.testclient import TestClient
+from starlette.middleware.base import BaseHTTPMiddleware
 
+from app.bootstrap import http_stack
+from app.bootstrap.direct_api_root import serve_legacy_bmi_calculator_web
 from app.bootstrap import startup_guards
+from app.middleware.csp import CSP_HEADER_NAME, CSPNonceMiddleware, build_csp_header
 from app.security import production_invariants, rate_limit, web_session
 from scripts.ci.check_production_runtime_invariants import (
     _UNSAFE_FALSE_FLAG_OVERRIDES,
@@ -380,24 +390,415 @@ def test_wire_rate_limiting_attaches_app_limiter_handler_and_middleware(
     rate_limit.require_rate_limiting_ready_for_production(app=app)
 
 
-def test_legacy_app_wires_rate_limiting_to_serving_app_call_site() -> None:
-    module = ast.parse(Path("legacy_app.py").read_text(encoding="utf-8"))
+def test_wire_rate_limiting_is_idempotent_and_rejects_partial_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("TESTING", "false")
+    monkeypatch.setattr(rate_limit, "_rate_limiting_wired_app_ids", set())
+    app = FastAPI()
+
+    rate_limit.wire_rate_limiting(app)
+    first_middleware = tuple(app.user_middleware)
+    first_handlers = dict(app.exception_handlers)
+    rate_limit.wire_rate_limiting(app)
+
+    assert tuple(app.user_middleware) == first_middleware
+    assert app.exception_handlers == first_handlers
+
+    partial_app = FastAPI()
+    partial_app.state.limiter = rate_limit.limiter
+    with pytest.raises(RuntimeError, match="Partial SlowAPI"):
+        rate_limit.wire_rate_limiting(partial_app)
+
+
+def test_wire_rate_limiting_rolls_back_failed_registration(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("TESTING", "false")
+    monkeypatch.setattr(rate_limit, "_rate_limiting_wired_app_ids", set())
+    app = FastAPI()
+    original_enabled = rate_limit.limiter.enabled
+
+    def _fail_handler_registration(*args: object, **kwargs: object) -> None:
+        raise RuntimeError("synthetic handler failure")
+
+    monkeypatch.setattr(app, "add_exception_handler", _fail_handler_registration)
+
+    with pytest.raises(RuntimeError, match="synthetic handler failure"):
+        rate_limit.wire_rate_limiting(app)
+
+    assert app.user_middleware == []
+    assert not hasattr(app.state, "limiter")
+    assert id(app) not in rate_limit._rate_limiting_wired_app_ids
+    assert rate_limit.limiter.enabled is original_enabled
+
+
+def test_rate_limiting_disabled_rejects_existing_wiring(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("TESTING", "false")
+    monkeypatch.setattr(rate_limit, "_rate_limiting_wired_app_ids", set())
+    app = FastAPI()
+    rate_limit.wire_rate_limiting(app)
+
+    monkeypatch.setenv("TESTING", "true")
+    monkeypatch.delenv("RATE_LIMITING_IN_TESTS", raising=False)
+
+    with pytest.raises(RuntimeError, match="exists while rate limiting is disabled"):
+        rate_limit.wire_rate_limiting(app)
+
+
+def test_wire_rate_limiting_rejects_duplicate_foreign_and_late_states(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("TESTING", "false")
+    monkeypatch.setattr(rate_limit, "_rate_limiting_wired_app_ids", set())
+
+    duplicate_app = FastAPI()
+    rate_limit.wire_rate_limiting(duplicate_app)
+    duplicate_app.add_middleware(rate_limit.SlowAPIMiddleware)
+    with pytest.raises(RuntimeError, match="Partial SlowAPI"):
+        rate_limit.wire_rate_limiting(duplicate_app)
+
+    foreign_handler_app = FastAPI()
+    foreign_handler_app.add_exception_handler(
+        rate_limit.RateLimitExceeded,
+        lambda request, exc: None,
+    )
+    with pytest.raises(RuntimeError, match="Partial SlowAPI"):
+        rate_limit.wire_rate_limiting(foreign_handler_app)
+
+    late_app = FastAPI()
+    late_app.middleware_stack = late_app.build_middleware_stack()
+    with pytest.raises(RuntimeError, match="after the middleware stack is built"):
+        rate_limit.wire_rate_limiting(late_app)
+
+
+def test_rate_limit_wiring_classification_covers_optional_and_foreign_components(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = FastAPI()
+    monkeypatch.setattr(rate_limit, "SlowAPIMiddleware", None)
+    monkeypatch.setattr(rate_limit, "RateLimitExceeded", None)
+
+    assert rate_limit._slowapi_middleware_counts(app) == (0, 0)
+    assert rate_limit._rate_limit_handler_state(app) == (0, False, False)
+
+    class SlowAPIMiddleware:
+        pass
+
+    monkeypatch.setattr(rate_limit, "SlowAPIMiddleware", type("SlowAPIMiddleware", (), {}))
+    app.add_middleware(SlowAPIMiddleware)
+
+    assert rate_limit._slowapi_middleware_counts(app) == (0, 1)
+
+
+def test_rate_limit_wiring_snapshot_restores_state_and_receipt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(rate_limit, "_rate_limiting_wired_app_ids", set())
+    app = FastAPI()
+    app.state.limiter = rate_limit.limiter
+    rate_limit._rate_limiting_wired_app_ids.add(id(app))
+    populated_snapshot = rate_limit._capture_rate_limit_wiring(app)
+
+    delattr(app.state, "limiter")
+    rate_limit._rate_limiting_wired_app_ids.clear()
+    rate_limit._restore_rate_limit_wiring(app, populated_snapshot)
+
+    assert app.state.limiter is rate_limit.limiter
+    assert id(app) in rate_limit._rate_limiting_wired_app_ids
+
+    empty_app = FastAPI()
+    empty_snapshot = rate_limit._capture_rate_limit_wiring(empty_app)
+    empty_app.state.limiter = rate_limit.limiter
+    rate_limit._restore_rate_limit_wiring(empty_app, empty_snapshot)
+
+    assert not hasattr(empty_app.state, "limiter")
+
+
+def test_wire_rate_limiting_rejects_unavailable_or_invalid_final_components(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("TESTING", "false")
+    monkeypatch.setattr(rate_limit, "_rate_limiting_wired_app_ids", set())
+    real_slowapi_middleware = rate_limit.SlowAPIMiddleware
+    monkeypatch.setattr(rate_limit, "SlowAPIMiddleware", None)
+
+    with pytest.raises(RuntimeError, match="middleware and exception handler are unavailable"):
+        rate_limit.wire_rate_limiting(FastAPI())
+
+    monkeypatch.setattr(rate_limit, "SlowAPIMiddleware", real_slowapi_middleware)
+    calls = 0
+
+    def _fail_final_validation(app: FastAPI) -> rate_limit.RateLimitWiringState:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return "none"
+        return "partial"
+
+    monkeypatch.setattr(rate_limit, "_classify_rate_limit_wiring", _fail_final_validation)
+
+    with pytest.raises(RuntimeError, match="wiring validation failed"):
+        rate_limit.wire_rate_limiting(FastAPI())
+
+
+def test_canonical_http_stack_owns_rate_limiting_call_site() -> None:
+    main_module = ast.parse(Path("app/main.py").read_text(encoding="utf-8"))
+    legacy_module = ast.parse(Path("legacy_app.py").read_text(encoding="utf-8"))
 
     assert any(
         isinstance(node, ast.ImportFrom)
-        and node.module == "app.security.rate_limit"
-        and any(alias.name == "wire_rate_limiting" for alias in node.names)
-        for node in ast.walk(module)
+        and node.module == "app.bootstrap.http_stack"
+        and any(alias.name == "register_http_middleware_stack" for alias in node.names)
+        for node in ast.walk(main_module)
     )
     assert any(
         isinstance(node, ast.Call)
         and isinstance(node.func, ast.Name)
-        and node.func.id == "wire_rate_limiting"
+        and node.func.id == "register_http_middleware_stack"
         and len(node.args) == 1
         and isinstance(node.args[0], ast.Name)
-        and node.args[0].id == "app"
-        for node in ast.walk(module)
+        and node.args[0].id == "target_app"
+        for node in ast.walk(main_module)
     )
+    assert not any(
+        isinstance(node, ast.Name)
+        and node.id in {"wire_rate_limiting", "register_http_middleware_stack"}
+        for node in ast.walk(legacy_module)
+    )
+
+
+def _fresh_canonical_stack_app(monkeypatch: pytest.MonkeyPatch) -> FastAPI:
+    monkeypatch.setenv("TESTING", "true")
+    monkeypatch.delenv("RATE_LIMITING_IN_TESTS", raising=False)
+    monkeypatch.setattr(rate_limit, "_rate_limiting_wired_app_ids", set())
+    app = FastAPI()
+    http_stack.register_http_middleware_stack(app)
+    return app
+
+
+def test_canonical_http_stack_registers_exact_order_and_is_idempotent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = _fresh_canonical_stack_app(monkeypatch)
+
+    assert http_stack._owned_middleware_projection(app) == (
+        "tracing",
+        "request_telemetry",
+        "metrics",
+        "csp",
+    )
+    first_middleware = tuple(app.user_middleware)
+    first_routes = tuple(app.routes)
+
+    http_stack.register_http_middleware_stack(app)
+
+    assert tuple(app.user_middleware) == first_middleware
+    assert tuple(app.routes) == first_routes
+
+
+def test_canonical_http_stack_preserves_enabled_slowapi_order(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("TESTING", "false")
+    monkeypatch.setattr(rate_limit, "_rate_limiting_wired_app_ids", set())
+    app = FastAPI()
+
+    http_stack.register_http_middleware_stack(app)
+
+    assert http_stack._owned_middleware_projection(app) == (
+        "tracing",
+        "request_telemetry",
+        "metrics",
+        "csp",
+        "rate_limit",
+    )
+    rate_limit.require_rate_limiting_ready_for_production(app=app)
+
+
+def test_http_stack_owned_middleware_classifier_is_fail_closed() -> None:
+    assert http_stack._callable_key(object()) is None
+    assert (
+        http_stack._middleware_label(
+            SimpleNamespace(
+                cls=BaseHTTPMiddleware,
+                kwargs=None,
+                options={"dispatch": http_stack.metrics_middleware},
+            )
+        )
+        == "metrics"
+    )
+    assert (
+        http_stack._middleware_label(
+            SimpleNamespace(cls=type("CSPNonceMiddleware", (), {}), kwargs={})
+        )
+        == "foreign_csp"
+    )
+    assert (
+        http_stack._middleware_label(
+            SimpleNamespace(
+                cls=type(rate_limit.SlowAPIMiddleware.__name__, (), {}),
+                kwargs={},
+            )
+        )
+        == "foreign_rate_limit"
+    )
+    assert http_stack._middleware_label(SimpleNamespace(cls=object, kwargs={})) is None
+    assert (
+        http_stack._middleware_label(
+            SimpleNamespace(
+                cls=BaseHTTPMiddleware,
+                kwargs={"dispatch": lambda request, call_next: None},
+            )
+        )
+        is None
+    )
+
+
+def test_http_stack_complete_validation_rejects_missing_ancillary_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = _fresh_canonical_stack_app(monkeypatch)
+    expected = http_stack._expected_owned_projection()
+    metrics_routes = http_stack._metrics_routes(app)
+    assert len(metrics_routes) == 1
+    app.router.routes.remove(metrics_routes[0])
+
+    with pytest.raises(RuntimeError, match="/metrics route ownership"):
+        http_stack._validate_complete_stack(app, expected)
+
+    app = _fresh_canonical_stack_app(monkeypatch)
+    delattr(app.state, "request_telemetry_recorder")
+    with pytest.raises(RuntimeError, match="telemetry recorder"):
+        http_stack._validate_complete_stack(app, expected)
+
+
+def test_canonical_http_stack_rejects_partial_foreign_and_late_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("TESTING", "true")
+    monkeypatch.delenv("RATE_LIMITING_IN_TESTS", raising=False)
+    monkeypatch.setattr(rate_limit, "_rate_limiting_wired_app_ids", set())
+
+    partial_app = FastAPI()
+    partial_app.add_middleware(CSPNonceMiddleware)
+    with pytest.raises(RuntimeError, match="partial, duplicated, foreign, or out of order"):
+        http_stack.register_http_middleware_stack(partial_app)
+
+    async def _foreign_dispatch(request: Request, call_next: Any) -> Any:
+        return await call_next(request)
+
+    _foreign_dispatch.__name__ = "metrics_middleware"
+    foreign_app = FastAPI()
+    foreign_app.add_middleware(BaseHTTPMiddleware, dispatch=_foreign_dispatch)
+    with pytest.raises(RuntimeError, match="partial, duplicated, foreign, or out of order"):
+        http_stack.register_http_middleware_stack(foreign_app)
+
+    late_app = FastAPI()
+    late_app.middleware_stack = late_app.build_middleware_stack()
+    with pytest.raises(RuntimeError, match="after startup"):
+        http_stack.register_http_middleware_stack(late_app)
+
+
+def test_canonical_http_stack_rolls_back_every_owned_surface(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("TESTING", "true")
+    monkeypatch.delenv("RATE_LIMITING_IN_TESTS", raising=False)
+    monkeypatch.setattr(rate_limit, "_rate_limiting_wired_app_ids", set())
+    app = FastAPI()
+    original_routes = tuple(app.routes)
+    original_state = dict(vars(app.state)["_state"])
+
+    def _fail_telemetry(target_app: FastAPI) -> None:
+        raise RuntimeError("synthetic telemetry failure")
+
+    monkeypatch.setattr(http_stack, "register_request_telemetry", _fail_telemetry)
+
+    with pytest.raises(RuntimeError, match="synthetic telemetry failure"):
+        http_stack.register_http_middleware_stack(app)
+
+    assert app.user_middleware == []
+    assert tuple(app.routes) == original_routes
+    assert dict(vars(app.state)["_state"]) == original_state
+    assert app.middleware_stack is None
+
+
+def test_canonical_bootstrap_stack_failure_preserves_global_app_identity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import app.main as app_main
+
+    original_app = app_main.app
+
+    def _fail_stack(target_app: FastAPI) -> None:
+        raise RuntimeError("synthetic canonical stack failure")
+
+    monkeypatch.setattr(app_main, "register_http_middleware_stack", _fail_stack)
+
+    with pytest.raises(RuntimeError, match="synthetic canonical stack failure"):
+        app_main.ensure_canonical_app_bootstrap(FastAPI())
+
+    assert app_main.app is original_app
+
+
+def test_csp_nonce_matches_legacy_bmi_html_and_streaming_response(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = _fresh_canonical_stack_app(monkeypatch)
+    app.add_api_route(
+        "/legacy/bmi-calculator",
+        serve_legacy_bmi_calculator_web,
+        methods=["GET"],
+    )
+
+    async def _stream() -> StreamingResponse:
+        async def _chunks() -> Any:
+            yield b"pulse"
+            yield b"plate"
+
+        return StreamingResponse(_chunks(), media_type="text/plain")
+
+    app.add_api_route("/stream", _stream, methods=["GET"])
+
+    with TestClient(app) as client:
+        first = client.get("/legacy/bmi-calculator")
+        second = client.get("/legacy/bmi-calculator")
+        streamed = client.get("/stream")
+        missing = client.get("/missing")
+
+    assert first.status_code == 200
+    assert streamed.text == "pulseplate"
+    nonce_match = re.search(r'nonce="([A-Za-z0-9_-]+)"', first.text)
+    assert nonce_match is not None
+    nonce = nonce_match.group(1)
+    assert first.headers[CSP_HEADER_NAME] == build_csp_header(nonce)
+    assert f'nonce="{nonce}"' in first.text
+    assert second.headers[CSP_HEADER_NAME] != first.headers[CSP_HEADER_NAME]
+    assert streamed.headers[CSP_HEADER_NAME].startswith("default-src 'self'")
+    assert missing.status_code == 404
+    assert missing.headers[CSP_HEADER_NAME].startswith("default-src 'self'")
+
+
+def test_csp_middleware_bypasses_non_http_scopes() -> None:
+    observed: list[dict[str, Any]] = []
+
+    async def _inner(scope: Any, receive: Any, send: Any) -> None:
+        observed.append(dict(scope))
+
+    async def _receive() -> dict[str, str]:
+        return {"type": "websocket.disconnect"}
+
+    async def _send(message: Any) -> None:
+        raise AssertionError(f"unexpected send: {message}")
+
+    scope: dict[str, Any] = {"type": "websocket"}
+    asyncio.run(CSPNonceMiddleware(_inner)(scope, _receive, _send))
+
+    assert observed == [{"type": "websocket"}]
+    assert "state" not in scope
 
 
 def test_rate_limit_readiness_allows_local_noop(
