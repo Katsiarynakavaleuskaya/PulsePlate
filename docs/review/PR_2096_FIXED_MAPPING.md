@@ -37,6 +37,8 @@ mutable-surface expansion.
 - `a8a004acb` - type the static middleware alias state added by the QA guard fix.
 - `d99f79aae` - require the exact `RateLimitExceeded` exception-class key and
   block package-module aliases for forbidden runtime registrars.
+- `7d75b972d` - isolate mutable limiter state in the focused invariant test and
+  close static-string and star-import legacy registrar guard bypasses.
 
 ## Lane Start Provenance
 
@@ -77,7 +79,24 @@ Disposition: NOT-A-BUG
 Evidence: Snapshot rollback, callable/state classification, and all partial/foreign/late failure paths are covered by `tests/test_production_runtime_invariants.py` within the approved 15-file budget.
 Reason: The three Sourcery items are maintainability alternatives, while the current implementation is isolated, fail-closed, and deterministically tested.
 
+Disposition: FIXED
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2096#discussion_r3558593404 -> 7d75b972dcbcccbb0c54c2f17453b9ac62e797fd
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2096#discussion_r3558631549 -> 7d75b972dcbcccbb0c54c2f17453b9ac62e797fd
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2096#discussion_r3558631554 -> 7d75b972dcbcccbb0c54c2f17453b9ac62e797fd
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2096#discussion_r3558631559 -> 7d75b972dcbcccbb0c54c2f17453b9ac62e797fd
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2096#pullrequestreview-4671065704 -> 7d75b972dcbcccbb0c54c2f17453b9ac62e797fd
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2096#pullrequestreview-4671105883 -> 7d75b972dcbcccbb0c54c2f17453b9ac62e797fd
+Commit: 7d75b972dcbcccbb0c54c2f17453b9ac62e797fd
+Evidence: `tests/test_production_runtime_invariants.py`, `scripts/ci/check_legacy_growth_guard.py`, and `tests/test_legacy_growth_guard.py`; focused pytest, guard, MyPy, `make validate-changed`, pre-commit, and pre-push hooks pass.
+
 ## Post-Open Review Dispositions
+
+Disposition: FIXED
+Threads: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2096#discussion_r3558593404, https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2096#discussion_r3558631549, https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2096#discussion_r3558631554, https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2096#discussion_r3558631559
+Reviews: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2096#pullrequestreview-4671065704, https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2096#pullrequestreview-4671105883
+Commit: `7d75b972dcbcccbb0c54c2f17453b9ac62e797fd`
+Evidence: The production-invariant test restores the limiter singleton through `monkeypatch`; the legacy guard reuses `_resolve_static_string()` for `getattr()` and rejects star imports from the two forbidden registrar modules, with direct synthetic regression coverage.
+Reason: These were actionable current-PR defects and were fixed before this mapping was updated.
 
 Disposition: NOT-A-BUG
 Thread: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2096#discussion_r3558343216
