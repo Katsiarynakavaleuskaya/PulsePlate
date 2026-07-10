@@ -1693,6 +1693,7 @@ def _registers_lifecycle_event(tree: ast.Module) -> bool:
 def _uses_noncanonical_fastapi_lifespan(tree: ast.Module) -> bool:
     references, canonical_lifespan_aliases = _collect_lifecycle_references(tree)
     static_string_bindings = _collect_static_string_bindings(tree)
+    static_mapping_bindings = _collect_static_mapping_bindings(tree)
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
@@ -1706,13 +1707,114 @@ def _uses_noncanonical_fastapi_lifespan(tree: ast.Module) -> bool:
         ):
             continue
         for keyword in node.keywords:
+            if keyword.arg is None:
+                expanded_mapping = _resolve_static_mapping(
+                    keyword.value,
+                    static_mapping_bindings,
+                )
+                if expanded_mapping is None:
+                    return True
+                for key, value in expanded_mapping:
+                    if key is None:
+                        return True
+                    resolved_key = _resolve_static_string(key, static_string_bindings)
+                    if resolved_key is None:
+                        return True
+                    if resolved_key == "lifespan" and not _is_canonical_lifespan_value(
+                        value,
+                        canonical_lifespan_aliases,
+                    ):
+                        return True
+                continue
             if keyword.arg != "lifespan":
                 continue
-            if not isinstance(keyword.value, ast.Name):
-                return True
-            if keyword.value.id not in canonical_lifespan_aliases:
+            if not _is_canonical_lifespan_value(
+                keyword.value,
+                canonical_lifespan_aliases,
+            ):
                 return True
     return False
+
+
+def _collect_static_mapping_bindings(tree: ast.Module) -> Mapping[str, ast.Dict]:
+    """Return simple literal mappings that are safe to inspect for ``**kwargs``."""
+
+    candidates: dict[str, ast.Dict] = {}
+    assignment_counts: Counter[str] = Counter()
+    mutated_names: set[str] = set()
+    expansion_name_nodes = {
+        id(keyword.value)
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        for keyword in node.keywords
+        if keyword.arg is None and isinstance(keyword.value, ast.Name)
+    }
+    for node in ast.walk(tree):
+        value: ast.AST | None = None
+        targets: list[ast.expr] = []
+        if isinstance(node, ast.Assign):
+            value = node.value
+            targets = list(node.targets)
+        elif isinstance(node, ast.AnnAssign) and node.value is not None:
+            value = node.value
+            targets = [node.target]
+        elif isinstance(node, ast.AugAssign):
+            for target_name in _assignment_target_names(node.target):
+                mutated_names.add(target_name)
+            continue
+        for target in targets:
+            target_names = tuple(_assignment_target_names(target))
+            for target_name in target_names:
+                assignment_counts[target_name] += 1
+            if isinstance(value, ast.Dict):
+                for target_name in target_names:
+                    candidates[target_name] = value
+        if isinstance(node, ast.Subscript) and isinstance(node.ctx, (ast.Store, ast.Del)):
+            if isinstance(node.value, ast.Name):
+                mutated_names.add(node.value.id)
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and isinstance(node.func.value, ast.Name)
+        ):
+            mutated_names.add(node.func.value.id)
+        if (
+            isinstance(node, ast.Name)
+            and isinstance(node.ctx, ast.Load)
+            and node.id in candidates
+            and id(node) not in expansion_name_nodes
+        ):
+            mutated_names.add(node.id)
+    return {
+        name: value
+        for name, value in candidates.items()
+        if assignment_counts[name] == 1 and name not in mutated_names
+    }
+
+
+def _resolve_static_mapping(
+    node: ast.AST,
+    bindings: Mapping[str, ast.Dict],
+) -> tuple[tuple[ast.AST | None, ast.AST], ...] | None:
+    if isinstance(node, ast.Name):
+        resolved = bindings.get(node.id)
+        if resolved is None:
+            return None
+        node = resolved
+    if not isinstance(node, ast.Dict):
+        return None
+    return tuple(zip(node.keys, node.values, strict=True))
+
+
+def _is_canonical_lifespan_value(
+    node: ast.AST,
+    canonical_lifespan_aliases: AbstractSet[str],
+) -> bool:
+    return isinstance(node, ast.Name) and node.id in canonical_lifespan_aliases
+
+
+def _is_facade_module_name(module_name: str) -> bool:
+    return module_name in {"app", "legacy_app"} or module_name.startswith(("app.", "legacy_app."))
 
 
 def _uses_dynamic_facade_lookup(tree: ast.Module) -> bool:
@@ -1741,7 +1843,8 @@ def _uses_dynamic_facade_lookup(tree: ast.Module) -> bool:
                 module_node = keyword.value
         if module_node is None:
             continue
-        if _resolve_static_string(module_node, static_string_bindings) in {"app", "legacy_app"}:
+        module_name = _resolve_static_string(module_node, static_string_bindings)
+        if module_name is not None and _is_facade_module_name(module_name):
             return True
     return False
 
