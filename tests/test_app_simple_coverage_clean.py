@@ -4,7 +4,7 @@
 
 import os
 import sys
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from fastapi import HTTPException
@@ -193,26 +193,6 @@ class TestImportCoverage:
         # get_api_key loaded at module level (line 26)
         assert get_api_key is not None
         assert callable(get_api_key)
-
-
-class TestLifespanCoverage:
-    """Тесты для покрытия lifespan"""
-
-    @pytest.mark.asyncio
-    async def test_lifespan_context_manager(self):
-        """Тест lifespan как контекстного менеджера"""
-        from app import lifespan
-
-        # Создаем mock app для lifespan
-        mock_app = MagicMock()
-
-        # Тестируем lifespan - он должен работать без ошибок
-        try:
-            async with lifespan(mock_app):
-                pass  # Просто проверяем что не падает
-        except Exception as e:
-            # Если есть ошибка, она должна быть обработана gracefully
-            print(f"Lifespan error handled: {e}")
 
 
 class TestBMIEndpoints:

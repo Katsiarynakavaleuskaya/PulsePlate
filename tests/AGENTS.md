@@ -29,9 +29,12 @@
   After editing selected tests, scan the whole selected bundle for
   `pytest.mark.asyncio` and `async def`, then run the backend-tests hook command
   and `pre-commit run --all-files`. See `docs/ENGINEERING_LESSONS.md` lesson 25.
-- For background update / lifespan tests, patch both `app` facade and `legacy_app` / `app_module`
-  alias surfaces when replacing `start_background_updates` or `stop_background_updates`.
-  Patching only one side is forbidden because production resolvers read multiple module aliases.
+- Canonical lifespan tests must use `TestClient` as a context manager or call
+  `_application_lifespan_with_hooks(...)` through synchronous `asyncio.run(...)`
+  tests. Inject `LifespanHooks`; do not patch `lifespan.__wrapped__.__globals__`
+  or fan one scheduler mock across `app`, `legacy_app`, and `app_module`.
+- Direct alias patching remains allowed only in focused compatibility tests for
+  the legacy synchronous scheduler wrappers; it is not lifecycle evidence.
 - For extracted legacy AI routes (e.g. `/insight`, `/api/v1/insight`), prefer client/route
   behavior tests against `app.main` or the canonical router. Direct `legacy_app` callable tests
   are allowed only as compatibility-shim tests and must assert delegation to `app/routers` or

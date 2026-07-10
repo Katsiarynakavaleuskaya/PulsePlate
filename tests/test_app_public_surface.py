@@ -40,6 +40,19 @@ def test_app_public_surface_smoke() -> None:
     assert hasattr(app, "metrics"), "app.metrics must be exported (for patch('app.metrics'))"
 
 
+def test_canonical_lifespan_preserves_legacy_created_app_identity() -> None:
+    import app
+    import app.main as app_main
+    import legacy_app
+    from app.bootstrap.lifespan import application_lifespan
+
+    assert app.lifespan is application_lifespan
+    assert legacy_app.lifespan is application_lifespan
+    assert app.app is legacy_app.app
+    assert app_main.app is legacy_app.app
+    assert legacy_app.app.router.lifespan_context is not None
+
+
 def test_no_dynamic_exec_module_in_app_package() -> None:
     """Prevent regression to dynamic import patterns (spec.loader.exec_module).
 

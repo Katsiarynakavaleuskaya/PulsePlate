@@ -231,6 +231,21 @@ def _attempt_db_fallback(
     _configure_session_bindings(fallback_engine, is_production, fallback_url, env_name)
 
 
+def attempt_db_fallback(
+    env_name: Optional[str],
+    is_production: bool,
+    db_err: Exception,
+) -> None:
+    """Run the canonical startup fallback policy with fixed truthy tokens."""
+
+    _attempt_db_fallback(
+        env_name,
+        is_production,
+        db_err,
+        {"1", "true", "yes", "on"},
+    )
+
+
 # --- Public helpers (avoid cross-module writes to _db_fallback_active) ---
 
 

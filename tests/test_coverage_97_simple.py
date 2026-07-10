@@ -220,18 +220,6 @@ class TestCoverage97Simple:
         response = client.get("/health")
         assert response.status_code == 200
 
-    def test_app_lifespan_coverage(self) -> None:
-        """Тест покрытия lifespan"""
-        from fastapi.testclient import TestClient
-
-        import app
-
-        client = TestClient(cast(ASGIApp, app.app))
-
-        # Проверяем, что приложение может быть запущено
-        response = client.get("/health")
-        assert response.status_code == 200
-
     def test_app_router_coverage(self) -> None:
         """Тест покрытия роутеров"""
         import app

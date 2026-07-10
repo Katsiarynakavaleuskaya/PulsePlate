@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-import contextlib
 import logging
 import threading
-from collections.abc import AsyncIterator, Callable, Mapping
+from collections.abc import Callable, Mapping
 from unittest.mock import MagicMock
 from fastapi import FastAPI
 import httpx
@@ -11,12 +10,14 @@ import pytest
 from typing import Literal
 
 import app.metrics as app_metrics
+import app.bootstrap.food_search as food_search_module
 from app.bootstrap.food_search import (
+    FoodSearchLifecycleLease,
     _safe_index_name,
     _safe_show_performance_details,
     _safe_timeout_seconds,
-    dispose_food_search_meili_http_client,
-    register_food_search_backend,
+    configure_food_search_backend,
+    dispose_food_search_backend,
 )
 from app.services import food_store, search_meili as search_meili_module
 from app.services.food_search_indexing import (
@@ -647,21 +648,20 @@ def test_get_legacy_search_backend_exposes_legacy_singleton(
     assert food_store.get_legacy_search_backend() is food_store.get_search_backend()
 
 
-def test_register_food_search_backend_falls_back_to_baseline_without_meili_url(
+def test_configure_food_search_backend_falls_back_to_baseline_without_meili_url(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     app = FastAPI()
     monkeypatch.setenv("FOOD_SEARCH_BACKEND_STRATEGY", "hybrid_shadow")
     monkeypatch.delenv("MEILI_URL", raising=False)
+    lease = configure_food_search_backend(app)
     try:
-        register_food_search_backend(app)
         assert app.state.food_search_strategy == "baseline_fts"
     finally:
-        dispose_food_search_meili_http_client(app)
-        food_store.reset_strategy_search_backend_adapter()
+        dispose_food_search_backend(app, lease)
 
 
-def test_register_food_search_backend_registers_meili_strategy(
+def test_configure_food_search_backend_registers_meili_strategy(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     app = FastAPI()
@@ -670,8 +670,8 @@ def test_register_food_search_backend_registers_meili_strategy(
     monkeypatch.setenv("MEILI_FOODS_INDEX", "   ")
     monkeypatch.setenv("MEILI_TIMEOUT_SECONDS", "bad-timeout")
     monkeypatch.setenv("MEILI_SHOW_PERFORMANCE_DETAILS", "true")
+    lease = configure_food_search_backend(app)
     try:
-        register_food_search_backend(app)
         assert app.state.food_search_strategy == "meili"
         backend = food_store.get_search_backend()
         assert isinstance(backend, MeiliSearchBackend)
@@ -679,23 +679,21 @@ def test_register_food_search_backend_registers_meili_strategy(
         assert backend._timeout_seconds == 2.0
         assert backend._show_performance_details is True
     finally:
-        dispose_food_search_meili_http_client(app)
-        food_store.reset_strategy_search_backend_adapter()
+        dispose_food_search_backend(app, lease)
 
 
-def test_register_food_search_backend_registers_shadow_strategy(
+def test_configure_food_search_backend_registers_shadow_strategy(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     app = FastAPI()
     monkeypatch.setenv("FOOD_SEARCH_BACKEND_STRATEGY", "hybrid_shadow")
     monkeypatch.setenv("MEILI_URL", "https://meili.example")
+    lease = configure_food_search_backend(app)
     try:
-        register_food_search_backend(app)
         assert app.state.food_search_strategy == "hybrid_shadow"
         assert isinstance(food_store.get_search_backend(), ShadowSearchBackend)
     finally:
-        dispose_food_search_meili_http_client(app)
-        food_store.reset_strategy_search_backend_adapter()
+        dispose_food_search_backend(app, lease)
 
 
 def test_meili_foods_search_helpers_match_contract_shape() -> None:
@@ -773,184 +771,163 @@ def test_pooled_httpx_transport_propagates_http_status_errors() -> None:
             pooled("http://testserver/indexes/i/search", {"q": "a"}, {}, 2.0)
 
 
-def test_register_food_search_backend_replaces_pooled_client(
+def test_overlapping_food_search_acquisition_is_rejected_without_replacing_client(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    app = FastAPI()
+    first_app = FastAPI()
+    second_app = FastAPI()
     monkeypatch.setenv("FOOD_SEARCH_BACKEND_STRATEGY", "meili")
-    monkeypatch.setenv("MEILI_URL", "https://meili.example")
+    monkeypatch.setenv("MEILI_URL", "http://127.0.0.1:7700")
+    lease = configure_food_search_backend(first_app)
     try:
-        register_food_search_backend(app)
-        first = app.state.meili_http_client
+        first = first_app.state.meili_http_client
         assert first is not None
         assert not first.is_closed
-        register_food_search_backend(app)
-        second = app.state.meili_http_client
-        assert second is not first
-        assert first.is_closed
-        assert not second.is_closed
+        with pytest.raises(RuntimeError, match="already active"):
+            configure_food_search_backend(second_app)
+        with pytest.raises(RuntimeError, match="already active"):
+            configure_food_search_backend(first_app)
+        assert first_app.state.meili_http_client is first
+        assert not first.is_closed
     finally:
-        dispose_food_search_meili_http_client(app)
-        food_store.reset_strategy_search_backend_adapter()
+        dispose_food_search_backend(first_app, lease)
 
 
-def test_food_search_meili_client_closed_on_app_shutdown(
+def test_sequential_food_search_acquisition_uses_fresh_client(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from starlette.testclient import TestClient
-
     monkeypatch.setenv("FOOD_SEARCH_BACKEND_STRATEGY", "meili")
-    monkeypatch.setenv("MEILI_URL", "https://meili.example")
+    monkeypatch.setenv("MEILI_URL", "http://127.0.0.1:7700")
     app = FastAPI()
-    register_food_search_backend(app)
-    client = app.state.meili_http_client
-    assert client is not None
-    assert not client.is_closed
+    first_lease = configure_food_search_backend(app)
+    first_client = app.state.meili_http_client
+    dispose_food_search_backend(app, first_lease)
+    assert first_client.is_closed
+
+    second_lease = configure_food_search_backend(app)
+    second_client = app.state.meili_http_client
     try:
-        with TestClient(app):
-            pass
-        assert client.is_closed
-        assert getattr(app.state, "meili_http_client", None) is None
-        assert getattr(app.state, "meili_http_shutdown_event", None) is None
+        assert second_lease is not first_lease
+        assert second_client is not first_client
+        assert not second_client.is_closed
     finally:
-        dispose_food_search_meili_http_client(app)
-        food_store.reset_strategy_search_backend_adapter()
+        dispose_food_search_backend(app, second_lease)
 
 
-def test_food_search_shutdown_hook_preserves_existing_lifespan(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from starlette.testclient import TestClient
-
-    events: list[str] = []
-
-    @contextlib.asynccontextmanager
-    async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
-        events.append("startup")
-        yield
-        events.append("shutdown")
-
-    monkeypatch.setenv("FOOD_SEARCH_BACKEND_STRATEGY", "meili")
-    monkeypatch.setenv("MEILI_URL", "https://meili.example")
-    app = FastAPI(lifespan=_lifespan)
-    register_food_search_backend(app)
-    client = app.state.meili_http_client
-    assert client is not None
-    try:
-        with TestClient(app):
-            assert events == ["startup"]
-            assert not client.is_closed
-        assert events == ["startup", "shutdown"]
-        assert client.is_closed
-        assert getattr(app.state, "meili_http_client", None) is None
-    finally:
-        dispose_food_search_meili_http_client(app)
-        food_store.reset_strategy_search_backend_adapter()
-
-
-def test_food_search_shutdown_hook_handles_missing_lifespan_context(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from starlette.testclient import TestClient
-
-    monkeypatch.setenv("FOOD_SEARCH_BACKEND_STRATEGY", "meili")
-    monkeypatch.setenv("MEILI_URL", "https://meili.example")
-    app = FastAPI()
-    setattr(app.router, "lifespan_context", None)
-    register_food_search_backend(app)
-    client = app.state.meili_http_client
-    assert client is not None
-    try:
-        with TestClient(app):
-            assert not client.is_closed
-        assert client.is_closed
-        assert getattr(app.state, "meili_http_client", None) is None
-    finally:
-        dispose_food_search_meili_http_client(app)
-        food_store.reset_strategy_search_backend_adapter()
-
-
-def test_food_search_shutdown_hook_disposes_when_existing_lifespan_raises(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from starlette.testclient import TestClient
-
-    @contextlib.asynccontextmanager
-    async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
-        yield
-        raise RuntimeError("shutdown boom")
-
-    monkeypatch.setenv("FOOD_SEARCH_BACKEND_STRATEGY", "meili")
-    monkeypatch.setenv("MEILI_URL", "https://meili.example")
-    app = FastAPI(lifespan=_lifespan)
-    register_food_search_backend(app)
-    client = app.state.meili_http_client
-    assert client is not None
-    try:
-        with pytest.raises(RuntimeError, match="shutdown boom"):
-            with TestClient(app):
-                assert not client.is_closed
-        assert client.is_closed
-        assert getattr(app.state, "meili_http_client", None) is None
-    finally:
-        dispose_food_search_meili_http_client(app)
-        food_store.reset_strategy_search_backend_adapter()
-
-
-def test_register_food_search_baseline_disposes_pooled_client_after_meili(
+def test_configure_food_search_does_not_mutate_lifespan_context(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     app = FastAPI()
-    monkeypatch.setenv("FOOD_SEARCH_BACKEND_STRATEGY", "meili")
-    monkeypatch.setenv("MEILI_URL", "https://meili.example")
+    original_lifespan = app.router.lifespan_context
+    monkeypatch.setenv("FOOD_SEARCH_BACKEND_STRATEGY", "baseline_fts")
+    lease = configure_food_search_backend(app)
     try:
-        register_food_search_backend(app)
-        pooled = app.state.meili_http_client
-        assert pooled is not None
-        monkeypatch.setenv("FOOD_SEARCH_BACKEND_STRATEGY", "baseline_fts")
-        register_food_search_backend(app)
-        assert app.state.food_search_strategy == "baseline_fts"
-        assert getattr(app.state, "meili_http_client", None) is None
-        assert pooled.is_closed
+        assert app.router.lifespan_context is original_lifespan
     finally:
-        dispose_food_search_meili_http_client(app)
-        food_store.reset_strategy_search_backend_adapter()
+        dispose_food_search_backend(app, lease)
 
 
-def test_dispose_food_search_meili_http_client_is_idempotent(
+def test_dispose_food_search_backend_is_idempotent_and_warns_when_close_raises(
     monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    app = FastAPI()
-    monkeypatch.setenv("FOOD_SEARCH_BACKEND_STRATEGY", "meili")
-    monkeypatch.setenv("MEILI_URL", "https://meili.example")
-    try:
-        register_food_search_backend(app)
-        dispose_food_search_meili_http_client(app)
-        assert getattr(app.state, "meili_http_client", None) is None
-        assert getattr(app.state, "meili_http_shutdown_event", None) is None
-        dispose_food_search_meili_http_client(app)
-        assert getattr(app.state, "meili_http_client", None) is None
-        assert getattr(app.state, "meili_http_shutdown_event", None) is None
-    finally:
-        food_store.reset_strategy_search_backend_adapter()
-
-
-def test_dispose_food_search_meili_http_client_warns_when_close_raises(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     app = FastAPI()
     mock_client = MagicMock()
     mock_client.close.side_effect = RuntimeError("simulated close failure")
-    app.state.meili_http_client = mock_client
-    app.state.meili_http_shutdown_event = threading.Event()
+    monkeypatch.setenv("FOOD_SEARCH_BACKEND_STRATEGY", "meili")
+    monkeypatch.setenv("MEILI_URL", "http://127.0.0.1:7700")
+    monkeypatch.setattr(
+        "app.bootstrap.food_search._build_meili_http_client",
+        lambda: mock_client,
+    )
+    lease = configure_food_search_backend(app)
 
     with caplog.at_level(logging.WARNING, logger="app.bootstrap.food_search"):
-        dispose_food_search_meili_http_client(app)
+        dispose_food_search_backend(app, lease)
+        dispose_food_search_backend(app, lease)
 
     assert "Meili HTTP client close failed" in caplog.text
     mock_client.close.assert_called_once_with()
     assert getattr(app.state, "meili_http_client", None) is None
     assert getattr(app.state, "meili_http_shutdown_event", None) is None
+
+
+def test_foreign_lease_cannot_dispose_active_owner(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    owner = FastAPI()
+    foreign = FastAPI()
+    monkeypatch.setenv("FOOD_SEARCH_BACKEND_STRATEGY", "baseline_fts")
+    lease = configure_food_search_backend(owner)
+    try:
+        with pytest.raises(RuntimeError, match="another application"):
+            dispose_food_search_backend(foreign, FoodSearchLifecycleLease())
+        assert owner.state._food_search_lifecycle_lease is lease
+    finally:
+        dispose_food_search_backend(owner, lease)
+
+
+def test_failed_client_construction_releases_food_search_reservation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("FOOD_SEARCH_BACKEND_STRATEGY", "meili")
+    monkeypatch.setenv("MEILI_URL", "http://127.0.0.1:7700")
+    monkeypatch.setattr(
+        "app.bootstrap.food_search._build_meili_http_client",
+        lambda: (_ for _ in ()).throw(RuntimeError("client failed")),
+    )
+    with pytest.raises(RuntimeError, match="client failed"):
+        configure_food_search_backend(FastAPI())
+
+    monkeypatch.setenv("FOOD_SEARCH_BACKEND_STRATEGY", "baseline_fts")
+    app = FastAPI()
+    lease = configure_food_search_backend(app)
+    dispose_food_search_backend(app, lease)
+
+
+def test_failed_adapter_commit_closes_candidate_and_releases_reservation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = MagicMock()
+    monkeypatch.setenv("FOOD_SEARCH_BACKEND_STRATEGY", "meili")
+    monkeypatch.setenv("MEILI_URL", "http://127.0.0.1:7700")
+    monkeypatch.setattr(food_search_module, "_build_meili_http_client", lambda: client)
+    monkeypatch.setattr(
+        food_store,
+        "compare_and_swap_strategy_search_backend_adapter",
+        lambda _expected, _replacement: False,
+    )
+
+    with pytest.raises(RuntimeError, match="ownership changed"):
+        configure_food_search_backend(FastAPI())
+
+    client.close.assert_called_once_with()
+    assert food_search_module._ACTIVE_FOOD_SEARCH_LIFECYCLE is None
+
+
+def test_stale_disposal_cannot_change_newer_owner(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("FOOD_SEARCH_BACKEND_STRATEGY", "baseline_fts")
+    first_app = FastAPI()
+    first_lease = configure_food_search_backend(first_app)
+    dispose_food_search_backend(first_app, first_lease)
+
+    second_app = FastAPI()
+    second_lease = configure_food_search_backend(second_app)
+    try:
+        with pytest.raises(RuntimeError, match="another application"):
+            dispose_food_search_backend(first_app, first_lease)
+        assert second_app.state._food_search_lifecycle_lease is second_lease
+    finally:
+        dispose_food_search_backend(second_app, second_lease)
+
+
+def test_food_search_lease_repr_is_opaque() -> None:
+    lease = FoodSearchLifecycleLease()
+
+    assert repr(lease) == "<FoodSearchLifecycleLease>"
+    assert not hasattr(lease, "_token")
 
 
 def test_safe_timeout_and_index_helpers_use_fallbacks() -> None:

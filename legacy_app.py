@@ -9,12 +9,11 @@ import sys
 import threading
 import inspect
 import time
-from contextlib import asynccontextmanager, suppress
+from contextlib import suppress
 from types import ModuleType
 from typing import (
     TYPE_CHECKING,
     Any,
-    AsyncIterator,
     Awaitable,
     Callable,
     Dict,
@@ -36,10 +35,9 @@ from pydantic import (
 )
 from starlette import status as fastapi_status
 from starlette.requests import Request
-from settings import get_runtime_env_name, is_explicit_developer_env, is_production_like_env
+from settings import get_runtime_env_name, is_explicit_developer_env
 
-from app.bootstrap.startup_guards import run_startup_guards
-from app.dependencies import validate_template_dir
+from app.bootstrap.lifespan import application_lifespan as lifespan
 from app.http_error_details import (
     ENHANCED_PLATE_GENERATION_FAILED_DETAIL,
     INVALID_PREMIUM_PLATE_INPUT_DETAIL,
@@ -87,7 +85,7 @@ from core.log_retention import (
     get_retention_manager,
     LogRetentionManager,
 )
-from core.db import get_session, init_db
+from core.db import get_session
 from core.i18n import Language, normalize_lang, t
 from core.targets import FIBER_MIN_G
 from core.utils import get_activity_factor, resolve_attr
@@ -108,7 +106,7 @@ from app.scheduler_helpers import (
     execute_async_starter,
     safe_stop_with_cleanup,
 )
-from app.utils.helpers import _resolve_app_callable, _short_git_sha as _short_git_sha
+from app.utils.helpers import _short_git_sha as _short_git_sha
 from app.utils.feature_flags import _is_truthy
 from app.security.llm_monthly_quota import (
     attempt_consume_vip_llm_monthly_quota,
@@ -494,114 +492,6 @@ def reset_targets_cache() -> None:
             setattr(pkg, "_targets_disabled_cache_time", 0.0)
 
 
-# Lifespan event handler
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    # Startup
-    # Detect environment first (before any DB operations)
-    env_name = get_runtime_env_name()
-    is_production = is_production_like_env()
-    truthy = {"1", "true", "yes", "on"}
-
-    # RU: Делегируем startup hard guards в bootstrap seam, чтобы legacy layer оставался thin.
-    # EN: Delegate startup hard guards to bootstrap seam to keep legacy layer thin.
-    run_startup_guards(app)
-
-    try:
-        init_db()
-        logger.info("Database schema initialized")
-        # Clear degraded marker if a real database is available
-        import core.db_fallback as _fallback_mod
-
-        _fallback_mod.clear_fallback_active()
-        os.environ.pop("DB_HEALTH_DEGRADED", None)
-    except Exception as db_err:
-        from core.db_fallback import _attempt_db_fallback
-
-        _attempt_db_fallback(env_name, is_production, db_err, truthy)
-
-    try:
-        validate_template_dir()
-    except RuntimeError as template_err:
-        logger.error("Failed to validate recipe templates directory: %s", template_err)
-        raise
-    except Exception as template_err:
-        logger.error("Unexpected error validating recipe templates directory: %s", template_err)
-        raise
-
-    try:
-        import inspect as _inspect
-
-        _start = _resolve_app_callable("start_background_updates", start_background_updates)
-        _task: Optional[asyncio.Task[Any]] = None
-        started_background_updates = False
-        testing_mode = (os.getenv("TESTING") or "").strip().lower() in truthy or (
-            os.getenv("CI") or ""
-        ).strip().lower() in truthy
-        force_background = (os.getenv("FORCE_BACKGROUND_UPDATES") or "").strip().lower() in truthy
-        disable_background = (
-            os.getenv("DISABLE_BACKGROUND_UPDATES") or ""
-        ).strip().lower() in truthy
-        if callable(_start) and not disable_background and (force_background or not testing_mode):
-            started_background_updates = True
-            result = _start(update_interval_hours=24)
-            if _inspect.isawaitable(result):
-                # Apply a configurable timeout to avoid hangs on startup
-                _timeout = float(os.getenv("BACKGROUND_START_TIMEOUT_SEC", "10"))
-                try:
-                    # Ensure we have a Task to be able to cancel on timeout
-                    _task = asyncio.ensure_future(result)
-                    await asyncio.wait_for(_task, timeout=_timeout)
-                except asyncio.TimeoutError:
-                    logger.error(
-                        f"Background updates startup timed out after {_timeout:.0f} seconds"
-                    )
-                    if _task is not None:
-                        _task.cancel()
-                        # CancelledError is a BaseException in modern Python (3.8+).
-                        # Swallow it here since we intentionally cancelled the task due to timeout.
-                        with suppress(asyncio.CancelledError, Exception):
-                            await _task
-                except Exception as e:
-                    logger.error("Failed to start background updates (async): %s", e)
-        # Log only when start succeeded to reduce noise
-        start_ok = started_background_updates
-        if start_ok and _task is not None and _task.done():
-            try:
-                start_ok = _task.exception() is None
-            except asyncio.CancelledError:
-                start_ok = False
-        if start_ok:
-            logger.info("Started background database updates")
-        if callable(_start) and not started_background_updates:
-            logger.info(
-                "Skipping background database updates (env=%s, testing=%s, forced=%s, disabled=%s)",
-                env_name or "unknown",
-                testing_mode,
-                force_background,
-                disable_background,
-            )
-    except Exception as e:
-        logger.error("Failed to start background updates: %s", e)
-
-    yield
-
-    # Shutdown
-    try:
-        _stop = _resolve_app_callable("stop_background_updates", stop_background_updates)
-        if callable(_stop):
-            import inspect as _inspect
-
-            result = _stop()
-            if _inspect.isawaitable(result):
-                await result
-        logger.info("Stopped background database updates")
-    except Exception as e:
-        logger.error("Error stopping background updates: %s", e)
-
-
 # OpenAPI/Swagger metadata for API documentation
 tags_metadata: list[dict[str, str]] = [
     {
@@ -810,10 +700,8 @@ def _install_openapi_builder(target_app: FastAPI) -> None:
     target_app.state._canonical_openapi_builder_installed = True
 
 
-# The previous explicit startup handler using @app.on_event("startup")
-# has been removed in favor of the lifespan handler above to avoid
-# FastAPI deprecation warnings. The lifespan startup already performs
-# init_db() and template validation, which covers TestClient usage.
+# Startup/shutdown behavior is owned by app.bootstrap.lifespan. This module
+# only passes the canonical context manager to the legacy-created FastAPI app.
 
 
 # --- API key guard and helpers (must be above endpoints using Depends(get_api_key)) ---

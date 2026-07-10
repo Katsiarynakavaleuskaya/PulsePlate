@@ -84,38 +84,36 @@ class TestFitChefDistortionSimulatorRoute:
     @pytest.fixture(autouse=True)
     def setup(
         self,
-        app: FastAPI,
+        client: TestClient,
         pro_headers: dict[str, str],
         vip_headers: dict[str, str],
         monkeypatch: pytest.MonkeyPatch,
         tmp_path: Path,
     ) -> None:
-        with TestClient(app) as test_client:
-            self.client = test_client
-            self.pro_headers = pro_headers
-            self.vip_headers = vip_headers
-            self.monkeypatch = monkeypatch
-            self.url = "/api/v1/pro/fitchef/explain"
-            self.monkeypatch.setenv("FEATURE_FITCHEF_STRUCTURED_COACH", "true")
-            self.monkeypatch.setenv("FITCHEF_STRUCTURED_COACH_EXECUTION_MODE", "auto-safe")
-            self.monkeypatch.setenv(
-                "AGENT_CONTROL_AUDIT_LOG_PATH",
-                str(tmp_path / "fitchef-structured-audit.jsonl"),
-            )
-            self.monkeypatch.setattr(
-                "app.services.fitchef_runtime.get_transparency_registry",
-                lambda: {
-                    "fitchef_structured_v1": {
-                        "surface_id": "fitchef_structured_v1",
-                        "boundary": "Wellness coaching only.",
-                    }
-                },
-            )
-            self.monkeypatch.setattr(
-                "core.rag.vector_rag.retrieve_context_structured",
-                lambda *args, **kwargs: _make_rag_context(),
-            )
-            yield
+        self.client = client
+        self.pro_headers = pro_headers
+        self.vip_headers = vip_headers
+        self.monkeypatch = monkeypatch
+        self.url = "/api/v1/pro/fitchef/explain"
+        self.monkeypatch.setenv("FEATURE_FITCHEF_STRUCTURED_COACH", "true")
+        self.monkeypatch.setenv("FITCHEF_STRUCTURED_COACH_EXECUTION_MODE", "auto-safe")
+        self.monkeypatch.setenv(
+            "AGENT_CONTROL_AUDIT_LOG_PATH",
+            str(tmp_path / "fitchef-structured-audit.jsonl"),
+        )
+        self.monkeypatch.setattr(
+            "app.services.fitchef_runtime.get_transparency_registry",
+            lambda: {
+                "fitchef_structured_v1": {
+                    "surface_id": "fitchef_structured_v1",
+                    "boundary": "Wellness coaching only.",
+                }
+            },
+        )
+        self.monkeypatch.setattr(
+            "core.rag.vector_rag.retrieve_context_structured",
+            lambda *args, **kwargs: _make_rag_context(),
+        )
 
     def test_missing_api_key_returns_401(self) -> None:
         """Structured PRO route must reject missing auth."""
@@ -378,38 +376,36 @@ class TestFitChefIdentityLoopMapperRoute:
     @pytest.fixture(autouse=True)
     def setup(
         self,
-        app: FastAPI,
+        client: TestClient,
         pro_headers: dict[str, str],
         vip_headers: dict[str, str],
         monkeypatch: pytest.MonkeyPatch,
         tmp_path: Path,
     ) -> None:
-        with TestClient(app) as test_client:
-            self.client = test_client
-            self.pro_headers = pro_headers
-            self.vip_headers = vip_headers
-            self.monkeypatch = monkeypatch
-            self.url = "/api/v1/vip/fitchef/insight"
-            self.monkeypatch.setenv("FEATURE_FITCHEF_STRUCTURED_COACH", "true")
-            self.monkeypatch.setenv("FITCHEF_STRUCTURED_COACH_EXECUTION_MODE", "auto-safe")
-            self.monkeypatch.setenv(
-                "AGENT_CONTROL_AUDIT_LOG_PATH",
-                str(tmp_path / "fitchef-identity-loop-audit.jsonl"),
-            )
-            self.monkeypatch.setattr(
-                "app.services.fitchef_runtime.get_transparency_registry",
-                lambda: {
-                    "fitchef_structured_v1": {
-                        "surface_id": "fitchef_structured_v1",
-                        "boundary": "Wellness coaching only.",
-                    }
-                },
-            )
-            self.monkeypatch.setattr(
-                "core.rag.vector_rag.retrieve_context_structured",
-                lambda *args, **kwargs: _make_rag_context(),
-            )
-            yield
+        self.client = client
+        self.pro_headers = pro_headers
+        self.vip_headers = vip_headers
+        self.monkeypatch = monkeypatch
+        self.url = "/api/v1/vip/fitchef/insight"
+        self.monkeypatch.setenv("FEATURE_FITCHEF_STRUCTURED_COACH", "true")
+        self.monkeypatch.setenv("FITCHEF_STRUCTURED_COACH_EXECUTION_MODE", "auto-safe")
+        self.monkeypatch.setenv(
+            "AGENT_CONTROL_AUDIT_LOG_PATH",
+            str(tmp_path / "fitchef-identity-loop-audit.jsonl"),
+        )
+        self.monkeypatch.setattr(
+            "app.services.fitchef_runtime.get_transparency_registry",
+            lambda: {
+                "fitchef_structured_v1": {
+                    "surface_id": "fitchef_structured_v1",
+                    "boundary": "Wellness coaching only.",
+                }
+            },
+        )
+        self.monkeypatch.setattr(
+            "core.rag.vector_rag.retrieve_context_structured",
+            lambda *args, **kwargs: _make_rag_context(),
+        )
 
     @staticmethod
     def _payload() -> dict[str, str]:
@@ -806,7 +802,6 @@ def test_canonical_bootstrap_registers_structured_route_idempotently(
     monkeypatch.setattr(app_main, "_install_openapi_builder", lambda target_app: None)
     monkeypatch.setattr(app_main, "_internalize_users_openapi_surface", lambda target_app: None)
     monkeypatch.setattr(app_main, "app", original_app)
-    monkeypatch.setattr(app_main, "register_food_search_backend", lambda target_app: None)
     monkeypatch.setattr(app_main, "register_http_middleware_stack", lambda target_app: None)
     monkeypatch.setattr(app_main, "register_pro_contract_routes", lambda target_app: None)
     monkeypatch.setattr(app_main, "register_billing_routes", lambda target_app: None)

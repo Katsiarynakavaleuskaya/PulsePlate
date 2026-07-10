@@ -27,7 +27,6 @@ from app.bootstrap.direct_api_root import (
     serve_direct_api_root_probe,
     serve_legacy_bmi_calculator_web,
 )
-from app.bootstrap.food_search import register_food_search_backend
 from app.bootstrap.http_stack import register_http_middleware_stack
 from app.bootstrap.pro_contracts import register_pro_contract_routes
 from app.bootstrap.public_discovery import SITEMAP_ROUTE_PATH, serve_public_sitemap
@@ -1381,7 +1380,6 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
             methods=["GET"],
             include_in_schema=False,
         )
-    register_food_search_backend(app)
     _register_paid_tier_routes(app)
     register_pro_contract_routes(app)
     _include_recipe_nutrition_reference_routers_if_needed(app)

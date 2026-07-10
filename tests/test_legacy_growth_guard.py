@@ -17,6 +17,100 @@ def test_current_legacy_app_passes_growth_guard() -> None:
     assert legacy_guard.ALLOWED_LEGACY_ROUTE_FACTS == frozenset()
 
 
+def test_current_lifecycle_ownership_passes_growth_guard() -> None:
+    legacy_source = (REPO_ROOT / "legacy_app.py").read_text(encoding="utf-8")
+    food_source = (REPO_ROOT / "app/bootstrap/food_search.py").read_text(encoding="utf-8")
+    lifespan_source = (REPO_ROOT / "app/bootstrap/lifespan.py").read_text(encoding="utf-8")
+
+    assert (
+        legacy_guard.validate_lifecycle_ownership(
+            legacy_source,
+            food_source,
+            lifespan_source,
+        )
+        == []
+    )
+
+
+@pytest.mark.parametrize(
+    ("legacy_source", "expected"),
+    [
+        (
+            "async def lifespan(app):\n    yield\n",
+            "legacy_app.py: lifecycle implementation must be canonical",
+        ),
+        (
+            '@app.on_event("startup")\nasync def start():\n    pass\n',
+            "legacy_app.py: startup/shutdown event registration is forbidden",
+        ),
+        (
+            "app.router.lifespan_context = wrapper\n",
+            "legacy_app.py: lifespan_context mutation is forbidden",
+        ),
+    ],
+)
+def test_lifecycle_guard_rejects_legacy_ownership(
+    legacy_source: str,
+    expected: str,
+) -> None:
+    errors = legacy_guard.validate_lifecycle_ownership(
+        legacy_source,
+        "pass\n",
+        "pass\n",
+    )
+
+    assert errors == [expected]
+
+
+@pytest.mark.parametrize(
+    "food_source",
+    [
+        "app.router.lifespan_context = wrapper\n",
+        'setattr(app.router, "lifespan_context", wrapper)\n',
+    ],
+)
+def test_lifecycle_guard_rejects_food_search_lifespan_wrapping(
+    food_source: str,
+) -> None:
+    errors = legacy_guard.validate_lifecycle_ownership(
+        "pass\n",
+        food_source,
+        "pass\n",
+    )
+
+    assert errors == ["app/bootstrap/food_search.py: lifespan_context mutation is forbidden"]
+
+
+@pytest.mark.parametrize(
+    ("lifespan_source", "expected"),
+    [
+        (
+            "import legacy_app\n",
+            "app/bootstrap/lifespan.py: forbidden facade import: legacy_app",
+        ),
+        (
+            "import sys\nvalue = sys.modules.get('app')\n",
+            "app/bootstrap/lifespan.py: sys.modules lookup is forbidden",
+        ),
+        (
+            "value = app_module.start_background_updates\n",
+            "app/bootstrap/lifespan.py: forbidden legacy dependency lookup: app_module",
+        ),
+    ],
+)
+def test_lifecycle_guard_rejects_legacy_dependency_resolution(
+    lifespan_source: str,
+    expected: str,
+) -> None:
+    errors = legacy_guard.validate_lifecycle_ownership(
+        "pass\n",
+        "pass\n",
+        lifespan_source,
+    )
+
+    assert expected in errors
+
+
 def test_legacy_seam_doc_passes_contract() -> None:
     text = (REPO_ROOT / "docs/architecture/LEGACY_COMPATIBILITY_SEAM.md").read_text(
         encoding="utf-8"

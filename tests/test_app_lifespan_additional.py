@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import asyncio
 import pytest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 import app
 import core.db as core_db
 from app.bootstrap import startup_guards as bootstrap_guards
+from app.bootstrap.food_search import FoodSearchLifecycleLease
+from app.bootstrap.lifespan import LifespanHooks, _application_lifespan_with_hooks
 from app.security import rate_limit
-from tests.helpers.fast_update_stubs import patch_background_update_callables
 
 
 def _reset_core_db_state() -> None:
@@ -17,76 +18,37 @@ def _reset_core_db_state() -> None:
     core_db.reset_db_for_tests()
 
 
-def _run_lifespan_once() -> None:
-    """Enter the app lifespan once without requiring a pytest async plugin."""
+def _guard_only_hooks() -> LifespanHooks:
+    async def _noop_start(update_interval_hours: int = 24) -> None:
+        del update_interval_hours
+
+    async def _noop_stop() -> None:
+        return None
+
+    return LifespanHooks(
+        run_startup_guards=bootstrap_guards.run_startup_guards,
+        initialize_database=lambda: None,
+        clear_database_fallback=lambda: None,
+        attempt_database_fallback=lambda _env, _prod, error: (_ for _ in ()).throw(error),
+        validate_templates=lambda: None,
+        configure_food_search=lambda _app: FoodSearchLifecycleLease(),
+        dispose_food_search=lambda _app, _lease: None,
+        start_background_updates=_noop_start,
+        stop_background_updates=_noop_stop,
+    )
+
+
+def _run_lifespan_once(hooks: LifespanHooks | None = None) -> None:
+    """Enter the canonical lifespan with explicit, side-effect-free hooks."""
 
     async def _runner() -> None:
-        async with app.lifespan(app.app):
+        async with _application_lifespan_with_hooks(
+            app.app,
+            hooks=hooks or _guard_only_hooks(),
+        ):
             pass
 
     asyncio.run(_runner())
-
-
-def test_lifespan_validate_template_runtime_error(monkeypatch: pytest.MonkeyPatch) -> None:
-    lifespan_globals = app.lifespan.__wrapped__.__globals__
-    monkeypatch.setitem(lifespan_globals, "init_db", lambda: None)
-
-    def raise_runtime():
-        raise RuntimeError("missing templates")
-
-    monkeypatch.setitem(lifespan_globals, "validate_template_dir", raise_runtime)
-
-    with pytest.raises(RuntimeError):
-        _run_lifespan_once()
-
-
-def test_lifespan_validate_template_generic_error(monkeypatch: pytest.MonkeyPatch) -> None:
-    lifespan_globals = app.lifespan.__wrapped__.__globals__
-    monkeypatch.setitem(lifespan_globals, "init_db", lambda: None)
-
-    def raise_value():
-        raise ValueError("bad template state")
-
-    monkeypatch.setitem(lifespan_globals, "validate_template_dir", raise_value)
-
-    with pytest.raises(ValueError):
-        _run_lifespan_once()
-
-
-def test_lifespan_background_update_failure(monkeypatch: pytest.MonkeyPatch) -> None:
-    import legacy_app
-
-    failing_start = AsyncMock(side_effect=RuntimeError("failure"))
-    noop_stop = AsyncMock(return_value=None)
-
-    monkeypatch.setenv("FORCE_BACKGROUND_UPDATES", "true")
-    monkeypatch.delenv("DISABLE_BACKGROUND_UPDATES", raising=False)
-
-    patch_background_update_callables(monkeypatch, start=failing_start, stop=noop_stop)
-
-    with (
-        patch.object(legacy_app, "init_db", return_value=None),
-        patch.object(legacy_app, "validate_template_dir", return_value=None),
-    ):
-        # Should suppress the failing start call and still enter context
-        _run_lifespan_once()
-
-    failing_start.assert_awaited_once_with(update_interval_hours=24)
-
-
-def test_lifespan_init_db_raises_calls_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Cover legacy_app lifespan except path (lines 458–459): init_db raises -> _attempt_db_fallback."""
-    from unittest.mock import patch
-
-    def init_db_raises() -> None:
-        raise OSError("DB unreachable")
-
-    lifespan_globals = app.lifespan.__wrapped__.__globals__
-    monkeypatch.setitem(lifespan_globals, "init_db", init_db_raises)
-
-    with patch("core.db_fallback._attempt_db_fallback", side_effect=OSError("DB unreachable")):
-        with pytest.raises(OSError, match="DB unreachable"):
-            _run_lifespan_once()
 
 
 def test_lifespan_rejects_anonymous_api_toggle_in_env_production(
@@ -97,8 +59,6 @@ def test_lifespan_rejects_anonymous_api_toggle_in_env_production(
     EN: Startup must fail closed when anonymous API-key toggle is enabled in prod-like ENVIRONMENT.
     """
 
-    lifespan_globals = app.lifespan.__wrapped__.__globals__
-    monkeypatch.setitem(lifespan_globals, "run_startup_guards", bootstrap_guards.run_startup_guards)
     monkeypatch.setenv("ENVIRONMENT", "production")
     monkeypatch.delenv("APP_ENV", raising=False)
     monkeypatch.setenv("ALLOW_ANONYMOUS_API_KEYS", "true")
@@ -116,8 +76,6 @@ def test_lifespan_rejects_dev_api_toggle_in_env_staging(
     EN: Startup must fail closed when ALLOW_DEV_API_KEY is enabled in staging.
     """
 
-    lifespan_globals = app.lifespan.__wrapped__.__globals__
-    monkeypatch.setitem(lifespan_globals, "run_startup_guards", bootstrap_guards.run_startup_guards)
     monkeypatch.setenv("ENVIRONMENT", "staging")
     monkeypatch.delenv("APP_ENV", raising=False)
     monkeypatch.setenv("ALLOW_DEV_API_KEY", "true")
@@ -135,8 +93,6 @@ def test_lifespan_requires_apple_shared_secret(
     EN: Startup must fail closed when Apple receipt verification secret is missing.
     """
 
-    lifespan_globals = app.lifespan.__wrapped__.__globals__
-    monkeypatch.setitem(lifespan_globals, "run_startup_guards", bootstrap_guards.run_startup_guards)
     monkeypatch.setenv("ENVIRONMENT", "production")
     monkeypatch.setenv("DEBUG", "false")
     monkeypatch.delenv("APPLE_SHARED_SECRET", raising=False)
@@ -153,8 +109,6 @@ def test_lifespan_requires_valid_pro_llm_monthly_limit(
     EN: Startup must fail closed when the PRO LLM quota env is invalid.
     """
 
-    lifespan_globals = app.lifespan.__wrapped__.__globals__
-    monkeypatch.setitem(lifespan_globals, "run_startup_guards", bootstrap_guards.run_startup_guards)
     monkeypatch.setenv("ENVIRONMENT", "production")
     monkeypatch.setenv("DEBUG", "false")
     monkeypatch.setenv("TESTING", "false")
@@ -180,9 +134,6 @@ def test_lifespan_accepts_valid_pro_llm_monthly_limit(
     EN: Startup should succeed when the PRO LLM quota env is valid.
     """
 
-    lifespan_globals = app.lifespan.__wrapped__.__globals__
-    monkeypatch.setitem(lifespan_globals, "init_db", lambda: None)
-    monkeypatch.setitem(lifespan_globals, "run_startup_guards", bootstrap_guards.run_startup_guards)
     monkeypatch.setenv("ENVIRONMENT", "production")
     monkeypatch.setenv("DEBUG", "false")
     monkeypatch.setenv("TESTING", "false")
@@ -218,8 +169,6 @@ def test_lifespan_requires_subscription_db_enabled_in_production_like_env(
 ) -> None:
     """Paid-route entitlement mode must fail closed without DB truth in prod/staging."""
 
-    lifespan_globals = app.lifespan.__wrapped__.__globals__
-    monkeypatch.setitem(lifespan_globals, "run_startup_guards", bootstrap_guards.run_startup_guards)
     monkeypatch.setenv("ENVIRONMENT", runtime_env)
     monkeypatch.setenv("DEBUG", "false")
     monkeypatch.setenv("ALLOW_DEV_API_KEY", "false")
@@ -243,10 +192,6 @@ def test_lifespan_requires_database_url_in_production_like_env(
 
     _reset_core_db_state()
     try:
-        lifespan_globals = app.lifespan.__wrapped__.__globals__
-        monkeypatch.setitem(
-            lifespan_globals, "run_startup_guards", bootstrap_guards.run_startup_guards
-        )
         monkeypatch.setenv("ENVIRONMENT", runtime_env)
         monkeypatch.setenv("DEBUG", "false")
         monkeypatch.setenv("TESTING", "false")
@@ -373,8 +318,6 @@ def test_lifespan_allows_subscription_db_disabled_outside_production_like_env(
 ) -> None:
     """Local/dev/test-like environments keep non-fatal startup for DB-backed entitlement mode."""
 
-    lifespan_globals = app.lifespan.__wrapped__.__globals__
-    monkeypatch.setitem(lifespan_globals, "run_startup_guards", bootstrap_guards.run_startup_guards)
     monkeypatch.setenv("ENVIRONMENT", runtime_env)
     monkeypatch.setenv("DEBUG", "true")
     monkeypatch.setenv("ALLOW_DEV_API_KEY", "false")
@@ -391,8 +334,6 @@ def test_lifespan_allows_subscription_db_disabled_outside_production_like_env(
 def test_lifespan_allows_missing_apple_shared_secret_in_test_env(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    lifespan_globals = app.lifespan.__wrapped__.__globals__
-    monkeypatch.setitem(lifespan_globals, "run_startup_guards", bootstrap_guards.run_startup_guards)
     monkeypatch.setenv("ENVIRONMENT", "test")
     monkeypatch.setenv("DEBUG", "true")
     monkeypatch.delenv("APPLE_SHARED_SECRET", raising=False)

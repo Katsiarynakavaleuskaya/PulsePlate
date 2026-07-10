@@ -762,6 +762,31 @@ def register_strategy_search_backend_adapter(adapter: FoodSearchBackend | None) 
         _STRATEGY_SEARCH_BACKEND = adapter
 
 
+def get_registered_strategy_search_backend_adapter() -> FoodSearchBackend | None:
+    """Return the raw strategy adapter without resolving feature precedence."""
+
+    with _SEARCH_BACKEND_LOCK:
+        return _STRATEGY_SEARCH_BACKEND
+
+
+def compare_and_swap_strategy_search_backend_adapter(
+    expected: FoodSearchBackend | None,
+    replacement: FoodSearchBackend | None,
+) -> bool:
+    """Replace the strategy adapter only when ownership still matches.
+
+    The canonical food-search lifecycle uses this compare-and-swap boundary so
+    a stale shutdown cannot reset an adapter installed by another owner.
+    """
+
+    global _STRATEGY_SEARCH_BACKEND
+    with _SEARCH_BACKEND_LOCK:
+        if _STRATEGY_SEARCH_BACKEND is not expected:
+            return False
+        _STRATEGY_SEARCH_BACKEND = replacement
+        return True
+
+
 def reset_search_backend_adapter() -> None:
     """Reset compatibility search backend adapter to legacy-only state."""
     register_search_backend_adapter(None)

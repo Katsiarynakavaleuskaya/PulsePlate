@@ -315,6 +315,24 @@ Avoid `# type: ignore[no-any-return]` and prefer typed locals over `cast()`.
 - Do not add a second request-lifecycle logging layer when canonical metrics,
   request telemetry, and tracing already provide the required signal.
 
+### Canonical application lifecycle ownership
+
+- Application startup/shutdown ownership belongs in `app/bootstrap/lifespan.py`.
+  Until app-factory inversion, `legacy_app.py` may only re-export the canonical
+  lifespan and pass it to `FastAPI(...)`; it must not implement lifecycle
+  behavior or mutate `app.router.lifespan_context`.
+- Shared clients and process-wide adapters must be acquired during lifespan
+  startup, never additive route bootstrap or module import, and released with
+  deterministic reverse-order cleanup after partial startup and cancellation.
+- Startup failure policy must remain explicit: security, production DB, and
+  template failures are fail-closed; optional background updates are
+  best-effort only where the existing contract says so.
+- Canonical lifecycle dependencies must be direct typed callables. Do not
+  resolve them through `sys.modules`, caller frames, `app_module`, the `app`
+  facade, or legacy monkeypatch precedence.
+- A lifespan-only PR must not also change FastAPI instance identity, OpenAPI
+  policy, deployment entrypoints, or worker topology.
+
 ## No duplicated business logic (app vs core)
 
 - Routers and services must not re-implement domain logic.

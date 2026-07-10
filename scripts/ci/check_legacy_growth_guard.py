@@ -17,6 +17,8 @@ from typing import AbstractSet
 REPO_ROOT = Path(__file__).resolve().parents[2]
 LEGACY_APP = "legacy_app.py"
 LEGACY_SEAM_DOC = "docs/architecture/LEGACY_COMPATIBILITY_SEAM.md"
+FOOD_SEARCH_BOOTSTRAP = "app/bootstrap/food_search.py"
+CANONICAL_LIFESPAN = "app/bootstrap/lifespan.py"
 
 
 @dataclass(frozen=True, order=True)
@@ -1525,6 +1527,92 @@ def validate_legacy_growth(
     return errors
 
 
+def _assigns_lifespan_context(tree: ast.Module) -> bool:
+    for node in ast.walk(tree):
+        targets: list[ast.AST] = []
+        if isinstance(node, ast.Assign):
+            targets.extend(node.targets)
+        elif isinstance(node, ast.AnnAssign):
+            targets.append(node.target)
+        elif isinstance(node, ast.AugAssign):
+            targets.append(node.target)
+        for target in targets:
+            if isinstance(target, ast.Attribute) and target.attr == "lifespan_context":
+                return True
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "setattr"
+            and len(node.args) >= 2
+            and isinstance(node.args[1], ast.Constant)
+            and node.args[1].value == "lifespan_context"
+        ):
+            return True
+    return False
+
+
+def validate_lifecycle_ownership(
+    legacy_source: str,
+    food_search_source: str,
+    lifespan_source: str,
+) -> list[str]:
+    """Return errors when lifecycle ownership leaks outside the canonical module."""
+
+    errors: list[str] = []
+    legacy_tree, legacy_parse_errors = _parse_source(legacy_source, filename=LEGACY_APP)
+    food_tree, food_parse_errors = _parse_source(
+        food_search_source,
+        filename=FOOD_SEARCH_BOOTSTRAP,
+    )
+    lifespan_tree, lifespan_parse_errors = _parse_source(
+        lifespan_source,
+        filename=CANONICAL_LIFESPAN,
+    )
+    errors.extend(legacy_parse_errors)
+    errors.extend(food_parse_errors)
+    errors.extend(lifespan_parse_errors)
+    if legacy_tree is not None:
+        if any(
+            isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == "lifespan"
+            for node in ast.walk(legacy_tree)
+        ):
+            errors.append(f"{LEGACY_APP}: lifecycle implementation must be canonical")
+        if any(
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "on_event"
+            for node in ast.walk(legacy_tree)
+        ):
+            errors.append(f"{LEGACY_APP}: startup/shutdown event registration is forbidden")
+        if _assigns_lifespan_context(legacy_tree):
+            errors.append(f"{LEGACY_APP}: lifespan_context mutation is forbidden")
+    if food_tree is not None and _assigns_lifespan_context(food_tree):
+        errors.append(f"{FOOD_SEARCH_BOOTSTRAP}: lifespan_context mutation is forbidden")
+    if lifespan_tree is not None:
+        forbidden_names = {"app_module", "legacy_app", "_resolve_app_callable"}
+        used_names = {node.id for node in ast.walk(lifespan_tree) if isinstance(node, ast.Name)}
+        forbidden_used = sorted(forbidden_names & used_names)
+        for name in forbidden_used:
+            errors.append(f"{CANONICAL_LIFESPAN}: forbidden legacy dependency lookup: {name}")
+        for node in ast.walk(lifespan_tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name in {"app", "legacy_app"}:
+                        errors.append(
+                            f"{CANONICAL_LIFESPAN}: forbidden facade import: {alias.name}"
+                        )
+            elif isinstance(node, ast.ImportFrom) and node.module in {"app", "legacy_app"}:
+                errors.append(f"{CANONICAL_LIFESPAN}: forbidden facade import: {node.module}")
+            elif (
+                isinstance(node, ast.Attribute)
+                and node.attr == "modules"
+                and isinstance(node.value, ast.Name)
+                and node.value.id == "sys"
+            ):
+                errors.append(f"{CANONICAL_LIFESPAN}: sys.modules lookup is forbidden")
+    return sorted(set(errors))
+
+
 def _markers(text: str) -> dict[str, str]:
     return {match.group(1): match.group(2).strip() for match in MARKER_RE.finditer(text)}
 
@@ -1568,14 +1656,26 @@ def validate_repo(repo_root: Path) -> list[str]:
     errors: list[str] = []
     legacy_path = repo_root / LEGACY_APP
     doc_path = repo_root / LEGACY_SEAM_DOC
+    food_search_path = repo_root / FOOD_SEARCH_BOOTSTRAP
+    lifespan_path = repo_root / CANONICAL_LIFESPAN
     legacy_source = _read(legacy_path, repo_root, errors)
     doc_text = _read(doc_path, repo_root, errors)
+    food_search_source = _read(food_search_path, repo_root, errors)
+    lifespan_source = _read(lifespan_path, repo_root, errors)
     if legacy_source is not None:
         errors.extend(
             validate_legacy_growth(legacy_source, filename=_display(legacy_path, repo_root))
         )
     if doc_text is not None:
         errors.extend(validate_legacy_seam_doc(doc_text, filename=_display(doc_path, repo_root)))
+    if legacy_source is not None and food_search_source is not None and lifespan_source is not None:
+        errors.extend(
+            validate_lifecycle_ownership(
+                legacy_source,
+                food_search_source,
+                lifespan_source,
+            )
+        )
     return errors
 
 

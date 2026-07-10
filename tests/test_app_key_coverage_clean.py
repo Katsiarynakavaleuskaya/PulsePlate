@@ -180,50 +180,6 @@ class TestImportFallbacks:
         assert app.app is not None
 
 
-class TestLifespanFallbacks:
-    """Тесты lifespan startup/shutdown веток"""
-
-    @pytest.mark.asyncio
-    async def test_lifespan_start_success(self) -> None:
-        """Тест успешного запуска lifespan"""
-        # Создаем mock app для lifespan
-        mock_app = MagicMock()
-
-        # Тестируем lifespan
-        async with app.lifespan(mock_app):
-            pass  # Просто проверяем что не падает
-
-    @pytest.mark.asyncio
-    async def test_lifespan_start_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Тест обработки ошибки при запуске"""
-        monkeypatch.setattr(
-            app,
-            "start_background_updates",
-            MagicMock(side_effect=Exception("Test error")),
-            raising=False,
-        )
-        mock_app = MagicMock()
-
-        # Должен перехватить ошибку и продолжить
-        async with app.lifespan(mock_app):
-            pass
-
-    @pytest.mark.asyncio
-    async def test_lifespan_stop_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Тест обработки ошибки при остановке"""
-        monkeypatch.setattr(
-            app,
-            "stop_background_updates",
-            MagicMock(side_effect=Exception("Test error")),
-            raising=False,
-        )
-        mock_app = MagicMock()
-
-        # Должен перехватить ошибку при shutdown
-        async with app.lifespan(mock_app):
-            pass
-
-
 class TestEdgeCases:
     """Тесты edge cases для main.py"""
 
