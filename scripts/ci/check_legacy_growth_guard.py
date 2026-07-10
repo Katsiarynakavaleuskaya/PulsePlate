@@ -472,6 +472,7 @@ def _static_module_reference(
     *,
     module_aliases: Mapping[str, str],
     import_module_aliases: AbstractSet[str],
+    static_string_bindings: Mapping[str, str],
 ) -> str | None:
     if isinstance(node, ast.Name):
         return module_aliases.get(node.id)
@@ -480,6 +481,7 @@ def _static_module_reference(
             node.value,
             module_aliases=module_aliases,
             import_module_aliases=import_module_aliases,
+            static_string_bindings=static_string_bindings,
         )
         if parent is not None:
             return f"{parent}.{node.attr}"
@@ -497,10 +499,7 @@ def _static_module_reference(
     )
     if not is_import_module or not node.args:
         return None
-    module_arg = node.args[0]
-    if isinstance(module_arg, ast.Constant) and isinstance(module_arg.value, str):
-        return module_arg.value
-    return None
+    return _resolve_static_string(node.args[0], static_string_bindings)
 
 
 def _forbidden_registrar_label(
@@ -518,6 +517,7 @@ def _forbidden_registrar_label(
             node.value,
             module_aliases=module_aliases,
             import_module_aliases=import_module_aliases,
+            static_string_bindings=static_string_bindings,
         )
         if module_name is None:
             return None
@@ -532,6 +532,7 @@ def _forbidden_registrar_label(
             node.args[0],
             module_aliases=module_aliases,
             import_module_aliases=import_module_aliases,
+            static_string_bindings=static_string_bindings,
         )
         if module_name is None:
             return None
@@ -618,6 +619,7 @@ def collect_forbidden_runtime_registration_facts(
                 value,
                 module_aliases=module_aliases,
                 import_module_aliases=import_module_aliases,
+                static_string_bindings=static_string_bindings,
             )
             label = _forbidden_registrar_label(
                 value,
