@@ -516,6 +516,30 @@ def test_rate_limit_wiring_classification_covers_optional_and_foreign_components
     assert rate_limit._slowapi_middleware_counts(app) == (0, 1)
 
 
+def test_rate_limit_wiring_rejects_reload_equivalent_exception_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = FastAPI()
+    stale_exception = type("RateLimitExceeded", (Exception,), {})
+    stale_exception.__module__ = rate_limit.RateLimitExceeded.__module__
+    stale_exception.__qualname__ = rate_limit.RateLimitExceeded.__qualname__
+    app.state.limiter = rate_limit.limiter
+    app.add_middleware(rate_limit.SlowAPIMiddleware)
+    app.add_exception_handler(
+        stale_exception,
+        rate_limit._rate_limit_exceeded_json_handler,
+    )
+    monkeypatch.setattr(rate_limit, "_rate_limiting_wired_app_ids", {id(app)})
+
+    assert rate_limit.RateLimitExceeded not in app.exception_handlers
+    assert rate_limit._rate_limit_handler_state(app) == (0, False, True)
+    assert rate_limit._classify_rate_limit_wiring(app) == "partial"
+
+    monkeypatch.setenv("TESTING", "false")
+    with pytest.raises(RuntimeError, match="Partial SlowAPI"):
+        rate_limit.wire_rate_limiting(app)
+
+
 def test_rate_limit_wiring_snapshot_restores_state_and_receipt(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

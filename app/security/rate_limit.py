@@ -275,11 +275,11 @@ def _rate_limit_handler_state(app: FastAPI) -> tuple[int, bool, bool]:
     matching_handlers = [
         handler
         for error_type, handler in app.exception_handlers.items()
-        if _same_callable(error_type, RateLimitExceeded)
+        if error_type is RateLimitExceeded
     ]
     foreign_named = any(
         getattr(error_type, "__name__", None) == expected_name
-        and not _same_callable(error_type, RateLimitExceeded)
+        and error_type is not RateLimitExceeded
         for error_type in app.exception_handlers
     )
     exact_handler = len(matching_handlers) == 1 and _same_callable(

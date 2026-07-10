@@ -509,6 +509,7 @@ def _forbidden_registrar_label(
     callable_aliases: Mapping[str, str],
     module_aliases: Mapping[str, str],
     import_module_aliases: AbstractSet[str],
+    static_string_bindings: Mapping[str, str],
 ) -> str | None:
     if isinstance(node, ast.Name):
         return callable_aliases.get(node.id)
@@ -526,8 +527,6 @@ def _forbidden_registrar_label(
         and isinstance(node.func, ast.Name)
         and node.func.id == "getattr"
         and len(node.args) >= 2
-        and isinstance(node.args[1], ast.Constant)
-        and isinstance(node.args[1].value, str)
     ):
         module_name = _static_module_reference(
             node.args[0],
@@ -536,7 +535,17 @@ def _forbidden_registrar_label(
         )
         if module_name is None:
             return None
-        return FORBIDDEN_LEGACY_RUNTIME_REGISTRARS.get(f"{module_name}.{node.args[1].value}")
+        method_node = node.args[1]
+        method_name: str | None
+        if isinstance(method_node, ast.Constant) and isinstance(method_node.value, str):
+            method_name = method_node.value
+        elif isinstance(method_node, ast.Name):
+            method_name = static_string_bindings.get(method_node.id)
+        else:
+            method_name = None
+        if method_name is None:
+            return None
+        return FORBIDDEN_LEGACY_RUNTIME_REGISTRARS.get(f"{module_name}.{method_name}")
     return None
 
 
@@ -554,6 +563,7 @@ def collect_forbidden_runtime_registration_facts(
     module_aliases: dict[str, str] = {}
     import_module_aliases: set[str] = {"import_module"}
     callable_aliases: dict[str, str] = {}
+    static_string_bindings = _collect_static_string_bindings(tree)
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             for alias in node.names:
@@ -571,6 +581,11 @@ def collect_forbidden_runtime_registration_facts(
                 label = FORBIDDEN_LEGACY_RUNTIME_REGISTRARS.get(qualified)
                 if label is not None:
                     callable_aliases[local_name] = label
+                elif qualified in {
+                    "app.bootstrap.http_stack",
+                    "app.security.rate_limit",
+                }:
+                    module_aliases[local_name] = qualified
                 elif node.module == "importlib" and alias.name == "import_module":
                     import_module_aliases.add(local_name)
 
@@ -602,6 +617,7 @@ def collect_forbidden_runtime_registration_facts(
                 callable_aliases=callable_aliases,
                 module_aliases=module_aliases,
                 import_module_aliases=import_module_aliases,
+                static_string_bindings=static_string_bindings,
             )
             for target in targets:
                 if not isinstance(target, ast.Name):
@@ -622,6 +638,7 @@ def collect_forbidden_runtime_registration_facts(
             callable_aliases=callable_aliases,
             module_aliases=module_aliases,
             import_module_aliases=import_module_aliases,
+            static_string_bindings=static_string_bindings,
         )
         if label is not None:
             facts.add(
