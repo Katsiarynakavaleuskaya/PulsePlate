@@ -13,65 +13,6 @@ from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
 
 
-class TestVIPImportErrorCoverage:
-    """Покрытие VIP import error paths (строки 86-89)"""
-
-    def setup_method(self):
-        """Setup test environment"""
-        os.environ["API_KEY"] = "test_key"
-        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
-
-    def test_vip_import_error_simulation(self):
-        """Симуляция ImportError для VIP router"""
-        # Тестируем логику обработки ImportError для VIP модуля
-        original_vip_env = os.environ.get("VIP_MODULE_ENABLED")
-
-        try:
-            # Устанавливаем VIP_MODULE_ENABLED = true
-            os.environ["VIP_MODULE_ENABLED"] = "true"
-
-            # Симулируем ImportError при импорте VIP router
-            vip_router_available = True
-            try:
-                # Пытаемся импортировать VIP router
-                import app.routers.vip  # noqa: F401 - testing import
-            except ImportError:
-                # ImportError обработан
-                vip_router_available = False
-
-            # Проверяем что обработка ImportError работает
-            assert isinstance(vip_router_available, bool)
-
-            # Дополнительная проверка: симулируем отсутствие модуля
-            # Remove module from sys.modules to simulate it's not available
-            original_module = sys.modules.get("app.routers.vip")
-            if "app.routers.vip" in sys.modules:
-                del sys.modules["app.routers.vip"]
-
-            try:
-                vip_available = False
-                try:
-                    import app.routers.vip  # noqa: F401 - testing import
-
-                    vip_available = True
-                except (ImportError, AttributeError):
-                    vip_available = False
-
-                # Строки 86-89 должны обрабатывать этот случай
-                assert isinstance(vip_available, bool)
-            finally:
-                # Restore original module if it existed
-                if original_module is not None:
-                    sys.modules["app.routers.vip"] = original_module
-
-        finally:
-            # Восстанавливаем environment
-            if original_vip_env is not None:
-                os.environ["VIP_MODULE_ENABLED"] = original_vip_env
-            elif "VIP_MODULE_ENABLED" in os.environ:
-                del os.environ["VIP_MODULE_ENABLED"]
-
-
 class TestRateLimitingCoverage:
     """Покрытие rate limiting paths (строки 113-114, 118-119)"""
 

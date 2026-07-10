@@ -926,7 +926,7 @@ def test_week_plan_handler_returns_normalized_weekly_menu(
             lambda: object(),
         )
 
-        import app.routers.vip as vip_router
+        vip_router = importlib.import_module("app.routers.vip")
 
         async def _return_weekly_menu(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
             return {
@@ -970,7 +970,7 @@ def test_week_plan_wraps_value_error_with_client_safe_detail(
             lambda: object(),
         )
 
-        import app.routers.vip as vip_router
+        vip_router = importlib.import_module("app.routers.vip")
 
         async def _raise_value_error(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
             raise ValueError("internal validation detail")
@@ -1001,7 +1001,7 @@ def test_week_plan_wraps_unexpected_error_with_client_safe_detail(
             lambda: object(),
         )
 
-        import app.routers.vip as vip_router
+        vip_router = importlib.import_module("app.routers.vip")
 
         async def _raise_runtime_error(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
             raise RuntimeError("internal runtime detail")
