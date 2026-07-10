@@ -8,6 +8,7 @@ import ast
 from collections import Counter
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from importlib.util import resolve_name
 from pathlib import Path
 import re
 import sys
@@ -497,9 +498,30 @@ def _static_module_reference(
         and isinstance(node.func.value, ast.Name)
         and module_aliases.get(node.func.value.id) == "importlib"
     )
-    if not is_import_module or not node.args:
+    if not is_import_module:
         return None
-    return _resolve_static_string(node.args[0], static_string_bindings)
+    module_node = node.args[0] if node.args else None
+    package_node = node.args[1] if len(node.args) >= 2 else None
+    for keyword in node.keywords:
+        if keyword.arg == "name":
+            module_node = keyword.value
+        elif keyword.arg == "package":
+            package_node = keyword.value
+    if module_node is None:
+        return None
+
+    module_name = _resolve_static_string(module_node, static_string_bindings)
+    if module_name is None or not module_name.startswith("."):
+        return module_name
+    if package_node is None:
+        return None
+    package_name = _resolve_static_string(package_node, static_string_bindings)
+    if not package_name:
+        return None
+    try:
+        return resolve_name(module_name, package_name)
+    except ImportError:
+        return None
 
 
 def _forbidden_registrar_label(

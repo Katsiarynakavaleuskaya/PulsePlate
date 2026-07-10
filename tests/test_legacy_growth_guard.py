@@ -574,6 +574,22 @@ def test_legacy_growth_guard_rejects_functional_middleware_registration(
             "register_http_middleware_stack",
         ),
         (
+            "import importlib\n"
+            'importlib.import_module(".http_stack", "app.bootstrap")'
+            ".register_http_middleware_stack(app)\n",
+            "register_http_middleware_stack",
+        ),
+        (
+            "from importlib import import_module\n"
+            'module_name = ".rate_limit"\n'
+            'package_name = "app.security"\n'
+            "getattr(\n"
+            "    import_module(name=module_name, package=package_name),\n"
+            '    "wire_rate_limiting",\n'
+            ")(app)\n",
+            "wire_rate_limiting",
+        ),
+        (
             "from app.bootstrap.http_stack import register_http_middleware_stack\n"
             "register_http_middleware_stack(app)\n",
             "register_http_middleware_stack",
