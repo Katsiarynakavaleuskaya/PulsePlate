@@ -303,11 +303,49 @@
           "anyOf": [{ "enum": ["open", "partial_failure"] }, { "type": "null" }]
         },
         "pull_request_number": {
-          "anyOf": [{ "type": "integer", "minimum": 1 }, { "type": "null" }]
+          "anyOf": [{ "type": "integer", "minimum": 0 }, { "type": "null" }]
         },
         "head_branch": { "$ref": "#/$defs/experiment_branch_or_null" },
         "blockers": { "$ref": "#/$defs/reason_list" }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "state": { "const": "open" } },
+            "required": ["state"]
+          },
+          "then": {
+            "properties": {
+              "pull_request_state": { "const": "open" },
+              "pull_request_number": { "type": "integer", "minimum": 1 }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "state": { "const": "partial_failure" } },
+            "required": ["state"]
+          },
+          "then": {
+            "properties": {
+              "pull_request_state": { "const": "partial_failure" },
+              "pull_request_number": { "type": "integer", "minimum": 0 }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "state": { "enum": ["in_progress", "invalid"] } },
+            "required": ["state"]
+          },
+          "then": {
+            "properties": {
+              "pull_request_state": { "type": "null" },
+              "pull_request_number": { "type": "null" }
+            }
+          }
+        }
+      ]
     },
     "read_error": {
       "type": "object",

@@ -233,6 +233,40 @@ def test_generation_prompt_includes_budget_and_no_test_contract() -> None:
     assert "The wrapper will validate and export the patch." in prompt
 
 
+def test_pr2_experiment_budget_overrides_follow_normalized_request() -> None:
+    request = _reference_request()
+
+    assert creative_code_patch_builder.build_pr2_experiment_budget_overrides(request) == {
+        "wall_clock_seconds": 60,
+        "retry_budget": 1,
+        "max_changed_files": 3,
+        "network_budget": 0,
+        "benchmark_budget": 1,
+        "test_budget": 1,
+    }
+
+
+def test_pr2_experiment_packet_binds_builder_owned_semantics() -> None:
+    request = _reference_request()
+    bundle = _reference_bundle()
+    selected_variant = creative_code_patch_builder._selected_variant(bundle)
+
+    packet = creative_code_patch_builder.build_pr2_experiment_packet(
+        request=request,
+        source_bundle=bundle,
+        changed_paths=["core/rag/orchestration.py"],
+    )
+
+    assert packet["decision_question"] == selected_variant["problem_statement"]
+    assert packet["task_class"] == "Experimentation"
+    assert packet["negative_controls"] == selected_variant["negative_controls"]
+    assert packet["promotion_target"] == "audit_artifact"
+    assert packet["creative_research_origin"] == {
+        key: bundle["source_creative_research"][key]
+        for key in ("bundle_id", "candidate_id", "promotion_decision")
+    }
+
+
 def test_generation_prompt_uses_single_file_wording_for_single_file_budget() -> None:
     bundle = _reference_bundle()
     request = deepcopy(_reference_request())
