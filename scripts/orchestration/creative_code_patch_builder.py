@@ -539,20 +539,23 @@ def build_pr2_experiment_packet(
     """Build the canonical Experiment Runner packet for a normalized PR-2 request."""
 
     selected_variant = _selected_variant(source_bundle)
-    return build_experiment_packet(
-        decision_question=selected_variant["problem_statement"],
-        task_class="Experimentation",
-        mutable_paths=changed_paths,
-        oracle_commands=request["oracle_commands"],
-        metrics=request["metrics"],
-        negative_controls=selected_variant["negative_controls"],
-        promotion_target="audit_artifact",
-        budgets=build_pr2_experiment_budget_overrides(request),
-        cv_context=_cv_context_for_candidate(
-            selected_variant=selected_variant,
-            changed_paths=changed_paths,
+    return cast(
+        dict[str, Any],
+        build_experiment_packet(
+            decision_question=selected_variant["problem_statement"],
+            task_class="Experimentation",
+            mutable_paths=changed_paths,
+            oracle_commands=request["oracle_commands"],
+            metrics=request["metrics"],
+            negative_controls=selected_variant["negative_controls"],
+            promotion_target="audit_artifact",
+            budgets=build_pr2_experiment_budget_overrides(request),
+            cv_context=_cv_context_for_candidate(
+                selected_variant=selected_variant,
+                changed_paths=changed_paths,
+            ),
+            creative_research_origin=_creative_research_origin(source_bundle),
         ),
-        creative_research_origin=_creative_research_origin(source_bundle),
     )
 
 
