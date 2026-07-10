@@ -39,6 +39,8 @@ mutable-surface expansion.
   block package-module aliases for forbidden runtime registrars.
 - `7d75b972d` - isolate mutable limiter state in the focused invariant test and
   close static-string and star-import legacy registrar guard bypasses.
+- `4444eac4a` - resolve statically bound `import_module(...)` targets and close
+  the remaining dynamic registrar guard bypass.
 
 ## Lane Start Provenance
 
@@ -89,7 +91,18 @@ Disposition: FIXED
 Commit: 7d75b972dcbcccbb0c54c2f17453b9ac62e797fd
 Evidence: `tests/test_production_runtime_invariants.py`, `scripts/ci/check_legacy_growth_guard.py`, and `tests/test_legacy_growth_guard.py`; focused pytest, guard, MyPy, `make validate-changed`, pre-commit, and pre-push hooks pass.
 
+Disposition: FIXED
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2096#discussion_r3558937879 -> 4444eac4aaf7b29abc59a44c2621a8d8c6cdf0fa
+Commit: 4444eac4aaf7b29abc59a44c2621a8d8c6cdf0fa
+Evidence: `_static_module_reference()` now resolves `import_module()` arguments through `_resolve_static_string()`; the exact static module/method binding bypass is covered by `tests/test_legacy_growth_guard.py`, with focused pytest, guard, MyPy, `make validate-changed`, pre-commit, and pre-push PASS.
+
 ## Post-Open Review Dispositions
+
+Disposition: FIXED
+Thread: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2096#discussion_r3558937879
+Commit: `4444eac4aaf7b29abc59a44c2621a8d8c6cdf0fa`
+Evidence: `scripts/ci/check_legacy_growth_guard.py` passes `static_string_bindings` through `_static_module_reference()` and resolves the `import_module()` target with the existing static-string helper; `tests/test_legacy_growth_guard.py` covers the direct static module and registrar binding combination.
+Reason: The finding was a valid fail-closed guard bypass and was fixed before this mapping update.
 
 Disposition: FIXED
 Threads: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2096#discussion_r3558593404, https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2096#discussion_r3558631549, https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2096#discussion_r3558631554, https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2096#discussion_r3558631559
