@@ -41,6 +41,8 @@ mutable-surface expansion.
   close static-string and star-import legacy registrar guard bypasses.
 - `4444eac4a` - resolve statically bound `import_module(...)` targets and close
   the remaining dynamic registrar guard bypass.
+- `7c197b718` - resolve relative and keyword-form `import_module(...)` targets
+  before forbidden registrar matching.
 
 ## Lane Start Provenance
 
@@ -96,7 +98,18 @@ Disposition: FIXED
 Commit: 4444eac4aaf7b29abc59a44c2621a8d8c6cdf0fa
 Evidence: `_static_module_reference()` now resolves `import_module()` arguments through `_resolve_static_string()`; the exact static module/method binding bypass is covered by `tests/test_legacy_growth_guard.py`, with focused pytest, guard, MyPy, `make validate-changed`, pre-commit, and pre-push PASS.
 
+Disposition: FIXED
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2096#discussion_r3559081173 -> 7c197b71858c9e5887bec7d1c441f90c279e0f83
+Commit: 7c197b71858c9e5887bec7d1c441f90c279e0f83
+Evidence: `_static_module_reference()` resolves positional and keyword `import_module()` arguments plus relative module/package pairs through `importlib.util.resolve_name`; direct and statically bound relative bypasses are covered by focused tests, with guard, MyPy, `make validate-changed`, pre-commit, and pre-push PASS.
+
 ## Post-Open Review Dispositions
+
+Disposition: FIXED
+Thread: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2096#discussion_r3559081173
+Commit: `7c197b71858c9e5887bec7d1c441f90c279e0f83`
+Evidence: `scripts/ci/check_legacy_growth_guard.py` normalizes relative `import_module()` names against a statically resolved package and supports keyword arguments; `tests/test_legacy_growth_guard.py` covers the reported direct bypass and a statically bound keyword-form variant.
+Reason: The finding was a valid indirect legacy registrar bypass and was fixed before mapping.
 
 Disposition: FIXED
 Thread: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2096#discussion_r3558937879
