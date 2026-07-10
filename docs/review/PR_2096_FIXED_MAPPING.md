@@ -41,9 +41,10 @@ mutable-surface expansion.
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed after post-open review.
-- [ ] Fixed in commit mapping completed after all findings are fixed or
-  dispositioned.
+- [x] Discussion-thread pass completed for published head `b90e8dc36`; no
+  review threads existed at this pass.
+- [x] Fixed in commit mapping completed for published head `b90e8dc36`; the
+  no-actionable marker will be replaced if post-open review emits findings.
 - [ ] Post-open `qa-engineer-agent -> bug-hunter -> security-auditor` completed.
 - [ ] Codex Security diff scan / finding discovery completed.
 - [ ] `pulseplate-pr-review` completed.
@@ -52,8 +53,7 @@ mutable-surface expansion.
 
 ## Fixed in Commit Mapping
 
-No post-open review threads have been dispositioned yet. Findings must be fixed
-before they are mapped or resolved.
+- No actionable review comments
 
 ## Pre-Open Implementation Evidence
 
