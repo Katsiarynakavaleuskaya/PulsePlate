@@ -315,6 +315,19 @@ Avoid `# type: ignore[no-any-return]` and prefer typed locals over `cast()`.
   belong in `app/schemas/*` and reusable behavior helpers belong in
   `app/services/*`; `legacy_app.py` may only re-export or delegate unless a PR
   documents a narrower exception.
+- Legacy AI/insight routes must not own provider orchestration in
+  `legacy_app.py`. When extracting insight routes, route handlers live in
+  `app/routers/*` (canonical owner: `app/routers/legacy_insight.py`), reusable
+  orchestration stays in `app/services/insight_application_service.py` and
+  `core/ai/*`, and `legacy_app.py` may only re-export/delegate for documented
+  direct-import compatibility (e.g. `insight_v1`, `insight`,
+  `_execute_insight_request`). Any AI route extraction must preserve
+  wellness-only transparency, input guards, quota/rate-limit behavior, provider
+  fallbacks, and OpenAPI hiding; do not introduce new provider behavior,
+  semantic-cache serving, or medical/therapy claims in a route-ownership PR.
+  Extracted-route handlers must resolve patchable legacy compat callables via
+  module attribute access at call time (never import-time symbol binding), so
+  existing `monkeypatch.setattr(legacy_app, ...)` test seams keep working.
 
 ## Common pitfalls
 

@@ -149,7 +149,7 @@
 | -------------------- | ---------------------------------- | ----------- | ------------ | ----------------------------------------- |
 | Weekly plan          | `/api/v1/vip/menu/weekly/plan`     | ✅ canonical | VIP          | `app/routers/vip.py` (main endpoint)      |
 | Weekly plan (legacy) | `/api/v1/vip/weekly-plan`         | ⚠️ deprecated | VIP        | `app/routers/vip.py:733` (deprecated)     |
-| Insight              | `/api/v1/insight`                 | ⚠️ flag     | VIP          | `legacy_app.py:2443` (`FEATURE_INSIGHT`, VIP guard) |
+| Insight              | `/api/v1/insight`                 | ⚠️ flag     | VIP          | `app/routers/legacy_insight.py` via `app/main.py` route-family bootstrap (`FEATURE_INSIGHT`, VIP guard) |
 | FitChef mascot insight | `/api/v1/insight/fitchef`       | ⚠️ flag     | VIP          | `app/routers/fitchef_insight.py` (`FEATURE_FITCHEF_MASCOT`) |
 | FitChef weekly reflection | `/api/v1/insight/fitchef/weekly-reflection` | ⚠️ flag | VIP | `app/routers/fitchef_insight.py` (`FEATURE_FITCHEF_MASCOT`) |
 | FitChef slip support | `/api/v1/insight/fitchef/slip-support` | ⚠️ flag | VIP | `app/routers/fitchef_insight.py` (`FEATURE_FITCHEF_MASCOT`) |

@@ -32,6 +32,11 @@
 - For background update / lifespan tests, patch both `app` facade and `legacy_app` / `app_module`
   alias surfaces when replacing `start_background_updates` or `stop_background_updates`.
   Patching only one side is forbidden because production resolvers read multiple module aliases.
+- For extracted legacy AI routes (e.g. `/insight`, `/api/v1/insight`), prefer client/route
+  behavior tests against `app.main` or the canonical router. Direct `legacy_app` callable tests
+  are allowed only as compatibility-shim tests and must assert delegation to `app/routers` or
+  `app/services`. Extracted-route handlers resolve legacy compat callables via module attributes,
+  so `monkeypatch.setattr(legacy_app, "<symbol>", ...)` remains the supported patch seam.
 - **When fixing `@patch` tests, scan ALL sibling files** for the same pattern
   (e.g., `_boost.py`, `_v2.py` variants). Fixing one file and missing its twin is a recurring incident.
 - Repo policy guards must not reference temporary/untracked files; AST scan path lists must filter by `.exists()`.

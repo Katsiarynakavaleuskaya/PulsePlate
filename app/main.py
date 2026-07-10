@@ -41,7 +41,7 @@ from app.effective_routes import (
 from app.bootstrap.route_family import RouteMemberContract, ensure_route_family_registered
 from app.bootstrap.telemetry import register_request_telemetry
 from app.bootstrap.tracing import register_tracing
-from app.middleware.api_tiers import get_current_user, require_pro_tier
+from app.middleware.api_tiers import get_current_user, require_pro_tier, require_vip_tier
 from app.routers.creative_research_internal import router as creative_research_internal_router
 from app.routers.paywall_analytics import ingest_paywall_event, router as paywall_analytics_router
 import app.routers.realtime_ws as realtime_ws
@@ -83,6 +83,10 @@ from app.routers.legacy_nutrition_alias import (
 from app.routers.legacy_premium_nutrition import (
     LEGACY_PREMIUM_NUTRITION_ROUTE_SPECS,
     router as legacy_premium_nutrition_router,
+)
+from app.routers.legacy_insight import (
+    LEGACY_INSIGHT_ROUTE_SPECS,
+    router as legacy_insight_router,
 )
 from app.routers.legacy_premium_weekly_plan import (
     LEGACY_PREMIUM_WEEKLY_PLAN_ROUTE_SPECS,
@@ -188,6 +192,10 @@ _LEGACY_PREMIUM_NUTRITION_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = tuple
 _LEGACY_PREMIUM_WEEKLY_PLAN_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = tuple(
     (path, method.upper(), include_in_schema)
     for path, method, include_in_schema in LEGACY_PREMIUM_WEEKLY_PLAN_ROUTE_SPECS
+)
+_LEGACY_INSIGHT_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = tuple(
+    (path, method.upper(), include_in_schema)
+    for path, method, include_in_schema in LEGACY_INSIGHT_ROUTE_SPECS
 )
 _BUSINESS_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = tuple(
     (path, method.upper(), include_in_schema)
@@ -485,6 +493,19 @@ def _legacy_premium_weekly_plan_route_members(
             required_dependencies=(api_key_dependency,),
         )
         for path, method, include_in_schema in _LEGACY_PREMIUM_WEEKLY_PLAN_ROUTE_SPECS
+    )
+
+
+def _legacy_insight_route_members() -> tuple[RouteMemberContract, ...]:
+    return tuple(
+        RouteMemberContract(
+            path=path,
+            method=method,
+            include_in_schema=include_in_schema,
+            required_status_codes=frozenset({429}),
+            required_dependencies=(require_vip_tier,),
+        )
+        for path, method, include_in_schema in _LEGACY_INSIGHT_ROUTE_SPECS
     )
 
 
@@ -1127,6 +1148,17 @@ def _include_legacy_premium_weekly_plan_router_if_needed(target_app: FastAPI) ->
     )
 
 
+def _include_legacy_insight_router_if_needed(target_app: FastAPI) -> None:
+    """Register legacy insight routes as one exact compatibility family."""
+
+    ensure_route_family_registered(
+        target_app,
+        family_name="Legacy insight",
+        routers=(legacy_insight_router,),
+        members=_legacy_insight_route_members(),
+    )
+
+
 def _include_business_router_if_enabled(target_app: FastAPI) -> None:
     """Register business routes as one explicitly feature-flagged static family."""
 
@@ -1383,6 +1415,7 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
     _include_shoplist_export_router_if_needed(app)
     _include_legacy_premium_nutrition_router_if_needed(app)
     _include_legacy_premium_weekly_plan_router_if_needed(app)
+    _include_legacy_insight_router_if_needed(app)
     _include_shopping_list_routers_if_needed(app)
     _include_legacy_export_alias_router_if_needed(app)
     _include_restaurants_router_if_needed(app)
