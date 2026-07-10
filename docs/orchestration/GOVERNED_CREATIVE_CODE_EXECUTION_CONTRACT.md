@@ -56,6 +56,7 @@ open the semantic-cache gate.
 | `private-pilot-lifecycle` | Reads sanitized lifecycle metadata and emits local next-action artifacts. | Allowed only through the private-pilot loop operator; no candidate generation or GitHub write authority. |
 | `pr-creative-context` | Expands eligible PR context into 3-5 hypotheses, validates operator-supplied local hypothesis JSON, assigns normalized hypothesis IDs, records cross-domain analogies, emits agent routing/coordinator dispatch, and prepares approval reservations. | Allowed only through local sanitized Experiment Runner creative-context artifacts; no repo-side provider/model call, patch generation, workflow mutation, semantic cache, or GitHub write authority. |
 | `approved-hypothesis-spec-bridge` | Converts a human-approved creative hypothesis into a validated PR-0 creative-code candidate and existing PR-1 prepare artifacts. | Allowed only through local `creative_hypothesis_spec_bridge.py`; no mutable-surface widening, provider calls, patch generation, PR writes, role execution, finalization, semantic cache, graph truth, or product runtime authority. |
+| `adaptive-production-pilot` | Binds one or two exact tracked `core/rag` or `core/insight` files to Git object truth, dispatches independent structured critique, allows one conflict-scoped rebuttal, and emits a human-approved v2 lineage receipt into the existing candidate-v1 / PR-1 prepare path. | Planning authority only through `creative_pilot_workspace.py`; the existing PR-2 mutable allowlist is reused unchanged. Provider, patch, runtime, cache, graph-truth, GitHub, Slack, and repository-write authority remain closed. |
 | `reviewed-spec-finalize` | Attaches sanitized local skeptic-review evidence to a prepared bridge run and delegates to existing PR-1 finalize in a sibling reviewed directory. | Allowed only through local `creative_specification_skeptic_review.py`; must preserve `spec_prepare/`; no agent execution, provider calls, patch generation, PR writes, workflow changes, semantic cache, graph truth, product runtime, fixed-mapping edits, review-thread actions, or readiness claims. |
 | `reviewed-spec-learning-rollup` | Converts finalized creative specification outcomes into proposal-only learning records and coordinator advisory hints. | Allowed only through local `creative_spec_learning_rollup.py` and optional `task_bootstrap.py --creative-learning-hints`; no provider calls, agent execution, patch generation, routing authority, required-role changes, lifecycle-gate changes, PR/GitHub/Slack writes, semantic cache, graph truth, product runtime truth, or merge-readiness authority. |
 
@@ -83,6 +84,10 @@ attachment remains a separate follow-up PR.
 The approved-hypothesis bridge adds only local candidate/specification handoff
 artifacts after human approval. The approval must bind to the exact source
 hypothesis packet id, packet fingerprint, and selected hypothesis fingerprint;
+the adaptive production-pilot v2 path additionally binds the synthesis,
+target-manifest fingerprint, base SHA, and head SHA. Existing v1 behavior
+remains unchanged. Adaptive role results are independent on the first pass,
+may use at most one claim-scoped rebuttal, and cannot approve by majority vote.
 approval targets outside the current `CreativeCodeCandidatePacket` mutable
 allowlist become immutable oracles, and the bridge fails closed when no allowed
 mutable target remains.

@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "creative_pilot_workspace.v2.schema.json",
+  "title": "CreativePilotWorkspace",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "artifact_type", "policy_version", "surface_policy", "workspace_id", "intent_fingerprint", "revision_fingerprint", "idempotency_key", "intent", "target_manifest", "evidence_allowlist", "role_plan", "assignments", "role_results", "conflicts", "synthesis_ref", "handoff_ref", "rebuttal_rounds_used", "state", "revision", "authority", "sanitized"],
+  "properties": {
+    "schema_version": {"const": "2.0"}, "artifact_type": {"const": "creative_pilot_workspace"}, "policy_version": {"const": "creative-production-adjacent-pilot-v2"}, "surface_policy": {"const": "production_adjacent_pilot"},
+    "workspace_id": {"type": "string"}, "intent_fingerprint": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}, "revision_fingerprint": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}, "idempotency_key": {"type": "string"},
+    "intent": {"$ref": "#/$defs/intent"}, "target_manifest": {"$ref": "creative_protocol_context_map.v2.schema.json#/$defs/targetManifest"},
+    "evidence_allowlist": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string"}},
+    "role_plan": {"type": "object", "additionalProperties": false, "required": ["required_roles", "conditional_roles", "independent_first_pass", "max_rebuttal_rounds", "majority_vote_allowed", "raw_reasoning_allowed"], "properties": {"required_roles": {"type": "array", "minItems": 3, "uniqueItems": true, "items": {"type": "string"}}, "conditional_roles": {"type": "array", "items": {"$ref": "#/$defs/conditionalRole"}}, "independent_first_pass": {"const": true}, "max_rebuttal_rounds": {"const": 1}, "majority_vote_allowed": {"const": false}, "raw_reasoning_allowed": {"const": false}}},
+    "assignments": {
+      "type": "array",
+      "minItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["assignment_id", "role", "phase", "review_mode", "diff_expected", "review_question", "input_fingerprint", "input_refs"],
+        "properties": {
+          "assignment_id": {"type": "string"},
+          "role": {"type": "string"},
+          "phase": {"enum": ["independent", "rebuttal"]},
+          "review_mode": {"const": "specification_planning"},
+          "diff_expected": {"const": false},
+          "review_question": {"type": "string", "minLength": 12},
+          "input_fingerprint": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+          "input_refs": {"type": "array", "uniqueItems": true, "items": {"type": "string"}}
+        }
+      }
+    },
+    "role_results": {"type": "array", "items": {"$ref": "creative_pilot_role_result.v2.schema.json"}}, "conflicts": {"type": "array", "items": {"$ref": "#/$defs/conflict"}},
+    "synthesis_ref": {"anyOf": [{"$ref": "#/$defs/synthesisRef"}, {"type": "null"}]}, "handoff_ref": {"anyOf": [{"$ref": "#/$defs/handoffRef"}, {"type": "null"}]}, "rebuttal_rounds_used": {"type": "integer", "minimum": 0, "maximum": 1},
+    "state": {"type": "object", "additionalProperties": false, "required": ["phase", "terminal"], "properties": {"phase": {"enum": ["created", "target_bound", "independent_dispatched", "independent_complete", "rebuttal_required", "synthesis_ready", "rebuttal_complete", "synthesized", "approved_for_pr1_spec", "revise", "reject", "blocked"]}, "terminal": {"type": "boolean"}}},
+    "revision": {"type": "integer", "minimum": 1}, "authority": {"$ref": "creative_protocol_context_map.v2.schema.json#/$defs/authority"}, "sanitized": {"const": true}
+  },
+  "$defs": {
+    "fingerprint": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "intent": {"type": "object", "additionalProperties": false, "required": ["context_id", "context_fingerprint", "packet_id", "packet_fingerprint", "hypothesis_id", "hypothesis_fingerprint", "target_manifest_fingerprint", "base_sha", "head_sha"], "properties": {"context_id": {"type": "string"}, "context_fingerprint": {"$ref": "#/$defs/fingerprint"}, "packet_id": {"type": "string"}, "packet_fingerprint": {"$ref": "#/$defs/fingerprint"}, "hypothesis_id": {"type": "string"}, "hypothesis_fingerprint": {"$ref": "#/$defs/fingerprint"}, "target_manifest_fingerprint": {"$ref": "#/$defs/fingerprint"}, "base_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"}, "head_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"}}},
+    "conditionalRole": {"type": "object", "additionalProperties": false, "required": ["role", "fallback"], "properties": {"role": {"type": "string"}, "fallback": {"type": "string", "minLength": 12}}},
+    "conflict": {"type": "object", "additionalProperties": false, "required": ["conflict_id", "claim_id", "stances", "oracle_gap_sets"], "properties": {"conflict_id": {"type": "string"}, "claim_id": {"type": "string"}, "stances": {"type": "array", "uniqueItems": true, "items": {"enum": ["pass", "revise", "reject", "abstain"]}}, "oracle_gap_sets": {"type": "array", "items": {"type": "array", "uniqueItems": true, "items": {"type": "string"}}}}},
+    "synthesisRef": {"type": "object", "additionalProperties": false, "required": ["synthesis_id", "synthesis_fingerprint", "reviewed_revision_fingerprint"], "properties": {"synthesis_id": {"type": "string"}, "synthesis_fingerprint": {"$ref": "#/$defs/fingerprint"}, "reviewed_revision_fingerprint": {"$ref": "#/$defs/fingerprint"}}},
+    "handoffRef": {"type": "object", "additionalProperties": false, "required": ["approval_id", "approval_fingerprint", "bridge_id", "bridge_fingerprint", "candidate_id", "candidate_fingerprint"], "properties": {"approval_id": {"type": "string"}, "approval_fingerprint": {"$ref": "#/$defs/fingerprint"}, "bridge_id": {"type": "string"}, "bridge_fingerprint": {"$ref": "#/$defs/fingerprint"}, "candidate_id": {"type": "string"}, "candidate_fingerprint": {"$ref": "#/$defs/fingerprint"}}}
+  }
+}

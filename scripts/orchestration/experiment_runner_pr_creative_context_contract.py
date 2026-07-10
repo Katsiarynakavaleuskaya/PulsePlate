@@ -18,6 +18,13 @@ import sys
 from typing import Any, cast
 
 from core.evidence.fingerprints import build_asset_id, build_idempotency_key, fingerprint_payload
+from scripts.orchestration.creative_pilot_workspace_contract import (
+    POLICY_VERSION as PILOT_POLICY_VERSION,
+    SCHEMA_VERSION as PILOT_SCHEMA_VERSION,
+    validate_approval_v2,
+    validate_context_map_v2,
+    validate_hypothesis_packet_v2,
+)
 from scripts.orchestration.agent_consistency_loader import load_inventory_agents
 
 SCHEMA_VERSION = "1.0"
@@ -2878,6 +2885,57 @@ def validate_creative_hypothesis_approval(payload: Mapping[str, Any]) -> dict[st
     )
     reject_unsafe_creative_context_value(normalized, label=label)
     return normalized
+
+
+def validate_creative_protocol_context_map_versioned(
+    payload: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Dispatch context validation without making strict v1 permissive."""
+
+    version = (payload.get("schema_version"), payload.get("policy_version"))
+    if version == (SCHEMA_VERSION, POLICY_VERSION):
+        return validate_creative_protocol_context_map(payload)
+    if version == (PILOT_SCHEMA_VERSION, PILOT_POLICY_VERSION):
+        return cast(dict[str, Any], validate_context_map_v2(payload))
+    raise ExperimentRunnerCreativeContextContractError(
+        "CreativeProtocolContextMap version tuple is unsupported."
+    )
+
+
+def validate_creative_hypothesis_packet_versioned(
+    payload: Mapping[str, Any],
+    *,
+    context_map: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Dispatch hypothesis validation without v2-to-v1 fallback."""
+
+    version = (payload.get("schema_version"), payload.get("policy_version"))
+    if version == (SCHEMA_VERSION, POLICY_VERSION):
+        if context_map is not None and context_map.get("schema_version") != SCHEMA_VERSION:
+            raise ExperimentRunnerCreativeContextContractError(
+                "v1 hypothesis packet requires v1 context."
+            )
+        return validate_creative_hypothesis_packet(payload)
+    if version == (PILOT_SCHEMA_VERSION, PILOT_POLICY_VERSION):
+        return cast(dict[str, Any], validate_hypothesis_packet_v2(payload, context_map=context_map))
+    raise ExperimentRunnerCreativeContextContractError(
+        "CreativeHypothesisPacket version tuple is unsupported."
+    )
+
+
+def validate_creative_hypothesis_approval_versioned(
+    payload: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Dispatch approval validation without weakening v1 target restrictions."""
+
+    version = (payload.get("schema_version"), payload.get("policy_version"))
+    if version == (SCHEMA_VERSION, POLICY_VERSION):
+        return validate_creative_hypothesis_approval(payload)
+    if version == (PILOT_SCHEMA_VERSION, PILOT_POLICY_VERSION):
+        return cast(dict[str, Any], validate_approval_v2(payload))
+    raise ExperimentRunnerCreativeContextContractError(
+        "CreativeHypothesisApproval version tuple is unsupported."
+    )
 
 
 def _validate_identity(

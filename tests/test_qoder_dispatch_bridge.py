@@ -1364,6 +1364,31 @@ def test_runtime_implementation_owner_cli_requires_packet(
     assert "--implementation-owner requires --packet" in captured.err
 
 
+def test_duplicate_key_json_packet_fails_closed_before_dispatch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    packet_file = tmp_path / "packet.json"
+    packet_file.write_text(
+        "{"
+        '"requested_agents":["agent-coordinator"],'
+        '"native_subagent_bridge":{"primary":{"repo_agent_slug":"agent-coordinator"},"secondary":[],"advisory":[]},'
+        '"creative_pilot_context":null,'
+        '"creative_pilot_context":{"phase":"independent"}'
+        "}",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(qoder_dispatch_bridge, "REPO_ROOT", tmp_path)
+
+    result = qoder_dispatch_bridge.main(["--packet", str(packet_file), "--mode", "analysis"])
+
+    captured = capsys.readouterr()
+    assert result == 1
+    assert "invalid strict JSON task packet" in captured.err
+    assert captured.out == ""
+
+
 def test_runtime_implementation_owner_cli_packet_success(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

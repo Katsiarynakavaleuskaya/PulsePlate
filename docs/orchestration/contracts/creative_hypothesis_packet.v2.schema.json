@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "creative_hypothesis_packet.v2.schema.json",
+  "title": "CreativeHypothesisPacketV2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "artifact_type", "policy_version", "surface_policy", "packet_id", "idempotency_key", "source_context_id", "source_context_fingerprint", "target_manifest_fingerprint", "hypotheses", "hypothesis_count", "authority", "sanitized"],
+  "properties": {
+    "schema_version": {"const": "2.0"},
+    "artifact_type": {"const": "creative_hypothesis_packet"},
+    "policy_version": {"const": "creative-production-adjacent-pilot-v2"},
+    "surface_policy": {"const": "production_adjacent_pilot"},
+    "packet_id": {"type": "string", "minLength": 1},
+    "idempotency_key": {"type": "string", "minLength": 1},
+    "source_context_id": {"type": "string", "minLength": 1},
+    "source_context_fingerprint": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "target_manifest_fingerprint": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "hypotheses": {"type": "array", "minItems": 1, "maxItems": 2, "items": {"type": "object", "additionalProperties": false, "required": ["hypothesis_id", "statement", "mechanism", "target_symbols", "tests_or_oracles", "negative_controls", "tags", "attempt", "hypothesis_fingerprint"], "properties": {"hypothesis_id": {"type": "string", "minLength": 1}, "statement": {"type": "string", "minLength": 12}, "mechanism": {"type": "string", "minLength": 12}, "target_symbols": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string"}}, "tests_or_oracles": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "pattern": "^tests/"}}, "negative_controls": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string"}}, "tags": {"type": "array", "uniqueItems": true, "items": {"type": "string"}}, "attempt": {"type": "integer", "minimum": 1, "maximum": 2}, "hypothesis_fingerprint": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}}}},
+    "hypothesis_count": {"type": "integer", "minimum": 1, "maximum": 2},
+    "authority": {"$ref": "creative_protocol_context_map.v2.schema.json#/$defs/authority"},
+    "sanitized": {"const": true}
+  }
+}
