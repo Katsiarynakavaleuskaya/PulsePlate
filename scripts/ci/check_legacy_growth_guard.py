@@ -535,14 +535,7 @@ def _forbidden_registrar_label(
         )
         if module_name is None:
             return None
-        method_node = node.args[1]
-        method_name: str | None
-        if isinstance(method_node, ast.Constant) and isinstance(method_node.value, str):
-            method_name = method_node.value
-        elif isinstance(method_node, ast.Name):
-            method_name = static_string_bindings.get(method_node.id)
-        else:
-            method_name = None
+        method_name = _resolve_static_string(node.args[1], static_string_bindings)
         if method_name is None:
             return None
         return FORBIDDEN_LEGACY_RUNTIME_REGISTRARS.get(f"{module_name}.{method_name}")
@@ -563,6 +556,7 @@ def collect_forbidden_runtime_registration_facts(
     module_aliases: dict[str, str] = {}
     import_module_aliases: set[str] = {"import_module"}
     callable_aliases: dict[str, str] = {}
+    facts: set[LegacyFact] = set()
     static_string_bindings = _collect_static_string_bindings(tree)
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
@@ -576,6 +570,19 @@ def collect_forbidden_runtime_registration_facts(
                     module_aliases[local_name] = alias.name if alias.asname else local_name
         elif isinstance(node, ast.ImportFrom) and node.module is not None:
             for alias in node.names:
+                if alias.name == "*":
+                    module_prefix = f"{node.module}."
+                    for qualified, registrar_label in FORBIDDEN_LEGACY_RUNTIME_REGISTRARS.items():
+                        if qualified.startswith(module_prefix):
+                            facts.add(
+                                LegacyFact(
+                                    "runtime_registration",
+                                    registrar_label,
+                                    "star_import",
+                                    "",
+                                )
+                            )
+                    continue
                 local_name = alias.asname or alias.name
                 qualified = f"{node.module}.{alias.name}"
                 label = FORBIDDEN_LEGACY_RUNTIME_REGISTRARS.get(qualified)
@@ -629,7 +636,6 @@ def collect_forbidden_runtime_registration_facts(
                     callable_aliases[target.id] = label
                     changed = True
 
-    facts: set[LegacyFact] = set()
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue

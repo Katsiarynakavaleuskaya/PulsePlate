@@ -550,6 +550,17 @@ def test_legacy_growth_guard_rejects_functional_middleware_registration(
             "wire_rate_limiting",
         ),
         (
+            "import app.security.rate_limit as rate_limit\n"
+            'wire = getattr(rate_limit, "wire_" + "rate_limiting")\nwire(app)\n',
+            "wire_rate_limiting",
+        ),
+        (
+            "import app.security.rate_limit as rate_limit\n"
+            'suffix = "rate_limiting"\n'
+            'wire = getattr(rate_limit, f"wire_{suffix}")\nwire(app)\n',
+            "wire_rate_limiting",
+        ),
+        (
             "from importlib import import_module as load\n"
             'module = load("app.security.rate_limit")\n'
             "module.wire_rate_limiting(app)\n",
@@ -571,6 +582,31 @@ def test_legacy_growth_guard_rejects_runtime_middleware_registrars(
     assert errors == [
         "legacy_app.py: forbidden legacy runtime registration: "
         f"runtime_registration:{registrar}:app"
+    ]
+
+
+@pytest.mark.parametrize(
+    ("source", "registrar"),
+    [
+        (
+            "from app.security.rate_limit import *\n",
+            "wire_rate_limiting",
+        ),
+        (
+            "from app.bootstrap.http_stack import *\n",
+            "register_http_middleware_stack",
+        ),
+    ],
+)
+def test_legacy_growth_guard_rejects_forbidden_runtime_registrar_star_imports(
+    source: str,
+    registrar: str,
+) -> None:
+    errors = legacy_guard.validate_legacy_growth(source)
+
+    assert errors == [
+        "legacy_app.py: forbidden legacy runtime registration: "
+        f"runtime_registration:{registrar}:star_import"
     ]
 
 

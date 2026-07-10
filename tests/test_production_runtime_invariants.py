@@ -414,6 +414,7 @@ def test_wire_rate_limiting_is_idempotent_and_rejects_partial_state(
 def test_wire_rate_limiting_ignores_and_refreshes_stale_receipts(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setattr(rate_limit.limiter, "enabled", rate_limit.limiter.enabled)
     monkeypatch.setattr(rate_limit, "_rate_limiting_wired_app_ids", set())
 
     enabled_app = FastAPI()
