@@ -495,6 +495,8 @@ def test_legacy_growth_guard_rejects_middleware_decorator() -> None:
             'middleware = app.middleware\nregister_http = middleware("http")\n'
             "register_http(new_legacy_middleware)\n"
         ),
+        'register = getattr(app, "middleware")\nregister("http")(handler)\n',
+        ('method = "middleware"\nregister = getattr(app, method)\n' 'register("http")(handler)\n'),
     ],
 )
 def test_legacy_growth_guard_rejects_functional_middleware_registration(
@@ -559,6 +561,15 @@ def test_legacy_growth_guard_rejects_runtime_middleware_registrars(
 
 def test_legacy_growth_guard_rejects_aliased_add_middleware() -> None:
     source = "add = app.add_middleware\nregister = add\nregister(NewMiddleware)\n"
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:add_middleware:NewMiddleware"
+    ]
+
+
+def test_legacy_growth_guard_rejects_getattr_add_middleware() -> None:
+    source = 'register = getattr(app, "add_middleware")\nregister(NewMiddleware)\n'
 
     assert legacy_guard.validate_legacy_growth(source) == [
         "legacy_app.py: unexpected legacy route growth: "

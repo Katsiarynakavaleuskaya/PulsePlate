@@ -293,8 +293,6 @@ def _classify_rate_limit_wiring(app: FastAPI) -> RateLimitWiringState:
     state_limiter_exact = state_limiter_present and app.state.limiter is limiter
     handler_count, handler_exact, foreign_handler = _rate_limit_handler_state(app)
     middleware_count, foreign_middleware = _slowapi_middleware_counts(app)
-    receipt_present = id(app) in _rate_limiting_wired_app_ids
-
     if not any(
         (
             state_limiter_present,
@@ -302,7 +300,6 @@ def _classify_rate_limit_wiring(app: FastAPI) -> RateLimitWiringState:
             middleware_count,
             foreign_handler,
             foreign_middleware,
-            receipt_present,
         )
     ):
         return "none"
@@ -410,6 +407,9 @@ def wire_rate_limiting(app: FastAPI) -> None:
     """
     wiring_state = _classify_rate_limit_wiring(app)
     enabled = _rate_limiting_enabled()
+
+    if wiring_state == "none":
+        _rate_limiting_wired_app_ids.discard(id(app))
 
     if limiter is None:  # pragma: no cover - optional dependency
         if wiring_state != "none":

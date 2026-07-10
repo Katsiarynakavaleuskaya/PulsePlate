@@ -18,7 +18,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from app.bootstrap import http_stack
 from app.bootstrap.direct_api_root import serve_legacy_bmi_calculator_web
 from app.bootstrap import startup_guards
-from app.middleware.csp import CSP_HEADER_NAME, CSPNonceMiddleware, build_csp_header
+from app.middleware.csp import CSP_HEADER_NAME, CSPNonceMiddleware
 from app.security import production_invariants, rate_limit, web_session
 from scripts.ci.check_production_runtime_invariants import (
     _UNSAFE_FALSE_FLAG_OVERRIDES,
@@ -411,6 +411,29 @@ def test_wire_rate_limiting_is_idempotent_and_rejects_partial_state(
         rate_limit.wire_rate_limiting(partial_app)
 
 
+def test_wire_rate_limiting_ignores_and_refreshes_stale_receipts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(rate_limit, "_rate_limiting_wired_app_ids", set())
+
+    enabled_app = FastAPI()
+    rate_limit._rate_limiting_wired_app_ids.add(id(enabled_app))
+    monkeypatch.setenv("TESTING", "false")
+    rate_limit.wire_rate_limiting(enabled_app)
+
+    assert rate_limit._classify_rate_limit_wiring(enabled_app) == "complete"
+    assert id(enabled_app) in rate_limit._rate_limiting_wired_app_ids
+
+    disabled_app = FastAPI()
+    rate_limit._rate_limiting_wired_app_ids.add(id(disabled_app))
+    monkeypatch.setenv("TESTING", "true")
+    monkeypatch.delenv("RATE_LIMITING_IN_TESTS", raising=False)
+    rate_limit.wire_rate_limiting(disabled_app)
+
+    assert rate_limit._classify_rate_limit_wiring(disabled_app) == "none"
+    assert id(disabled_app) not in rate_limit._rate_limiting_wired_app_ids
+
+
 def test_wire_rate_limiting_rolls_back_failed_registration(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -774,7 +797,24 @@ def test_csp_nonce_matches_legacy_bmi_html_and_streaming_response(
     nonce_match = re.search(r'nonce="([A-Za-z0-9_-]+)"', first.text)
     assert nonce_match is not None
     nonce = nonce_match.group(1)
-    assert first.headers[CSP_HEADER_NAME] == build_csp_header(nonce)
+    expected_csp = "; ".join(
+        [
+            "default-src 'self'",
+            (
+                "script-src 'self' "
+                f"'nonce-{nonce}' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com"
+            ),
+            (
+                "style-src 'self' "
+                f"'nonce-{nonce}' https://fonts.googleapis.com https://cdn.jsdelivr.net"
+            ),
+            "img-src 'self' data: https:",
+            "font-src 'self' https://fonts.gstatic.com",
+            "frame-ancestors 'none'",
+            "object-src 'none'",
+        ]
+    )
+    assert first.headers[CSP_HEADER_NAME] == expected_csp
     assert f'nonce="{nonce}"' in first.text
     assert second.headers[CSP_HEADER_NAME] != first.headers[CSP_HEADER_NAME]
     assert streamed.headers[CSP_HEADER_NAME].startswith("default-src 'self'")

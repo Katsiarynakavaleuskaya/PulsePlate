@@ -247,6 +247,7 @@ def _collect_bound_app_call_aliases(
     tree: ast.Module,
     *,
     app_aliases: AbstractSet[str],
+    static_string_bindings: Mapping[str, str],
 ) -> dict[str, str]:
     aliases: dict[str, str] = {}
     changed = True
@@ -272,6 +273,23 @@ def _collect_bound_app_call_aliases(
                 and value.attr in APP_ROUTE_METHODS | APP_REGISTRATION_METHODS
             ):
                 action = value.attr
+            elif (
+                isinstance(value, ast.Call)
+                and isinstance(value.func, ast.Name)
+                and value.func.id == "getattr"
+                and len(value.args) >= 2
+                and isinstance(value.args[0], ast.Name)
+                and value.args[0].id in app_aliases
+            ):
+                method_node = value.args[1]
+                if isinstance(method_node, ast.Constant) and isinstance(method_node.value, str):
+                    method_name = method_node.value
+                elif isinstance(method_node, ast.Name):
+                    method_name = static_string_bindings.get(method_node.id)
+                else:
+                    method_name = None
+                if method_name in APP_ROUTE_METHODS | APP_REGISTRATION_METHODS:
+                    action = method_name
             elif isinstance(value, ast.Name):
                 action = aliases.get(value.id)
             if action is None:
@@ -363,6 +381,7 @@ def collect_legacy_route_facts(source_text: str, *, filename: str = LEGACY_APP) 
     bound_call_aliases = _collect_bound_app_call_aliases(
         tree,
         app_aliases=app_aliases,
+        static_string_bindings=static_string_bindings,
     )
     middleware_decorator_aliases = _collect_middleware_decorator_aliases(
         tree,
