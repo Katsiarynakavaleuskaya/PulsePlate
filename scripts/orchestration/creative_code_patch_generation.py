@@ -1637,14 +1637,6 @@ def _validate_receipt_linked_artifacts(receipt: Mapping[str, Any]) -> None:
         result = validate_creative_code_patch_result(
             read_creative_code_patch_result(str(result_path))
         )
-        validate_creative_code_patch_run_sidecars(
-            request=request,
-            result=result,
-            patch_text=patch_text,
-            selected_variant=selected_variant,
-            patch_metadata=metadata,
-            require_accepted=result["status"] == "accepted",
-        )
     except (CreativeCodePatchContractError, CreativeCodeSpecificationError) as exc:
         raise CreativeCodePatchGenerationError(str(exc)) from exc
     if fingerprint_payload(metadata) != receipt["patch_metadata_fingerprint"]:
@@ -1657,6 +1649,17 @@ def _validate_receipt_linked_artifacts(receipt: Mapping[str, Any]) -> None:
         )
     if fingerprint_payload(result) != receipt["result_fingerprint"]:
         raise CreativeCodePatchGenerationError("generation receipt result fingerprint is stale.")
+    try:
+        validate_creative_code_patch_run_sidecars(
+            request=request,
+            result=result,
+            patch_text=patch_text,
+            selected_variant=selected_variant,
+            patch_metadata=metadata,
+            require_accepted=result["status"] == "accepted",
+        )
+    except CreativeCodePatchContractError as exc:
+        raise CreativeCodePatchGenerationError(str(exc)) from exc
     _validate_experiment_packet_matches_result(
         experiment_packet_payload=experiment_packet_payload,
         request=request,
