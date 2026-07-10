@@ -36,6 +36,9 @@ deletion.
 - `6f629181cc1fca5a10d8e98e02811348a594ca03` - extract canonical lifecycle
   ownership, transactional food-search resources, architecture guards, focused
   tests, and scoped documentation.
+- `1e2d4918c5b6f6cf67d11865d218bf0253728f16` - release food-search ownership
+  after resolver failures, close lifecycle-guard alias/dynamic bypasses, and add
+  explicit body-cancellation and scheduler-start-failure evidence.
 
 ## Lane Start Provenance
 
@@ -55,7 +58,7 @@ deletion.
 - [x] Initial fixed-in-commit mapping completed for published head
   `6f629181cc1fca5a10d8e98e02811348a594ca03`; this no-actionable state must be
   replaced if post-open review emits findings.
-- [ ] Mandatory post-open `qa-engineer-agent -> bug-hunter -> security-auditor`
+- [x] Mandatory post-open `qa-engineer-agent -> bug-hunter -> security-auditor`
   pass completed.
 - [ ] Codex Security diff scan / finding discovery completed.
 - [ ] `pulseplate-pr-review` completed.
@@ -79,7 +82,8 @@ Evidence: `app/bootstrap/lifespan.py`, `app/bootstrap/food_search.py`,
 Reason: Canonical startup order, explicit failure policy, process-wide
 food-search ownership, transactional publication/rollback, reverse cleanup,
 sequential resource freshness, overlap rejection, cancellation, and
-application-body failure are implemented and deterministically tested.
+application-body failure are implemented and deterministically tested, with
+post-open gaps closed by `1e2d4918c5b6f6cf67d11865d218bf0253728f16`.
 
 Disposition: FIXED
 Commit: `6f629181cc1fca5a10d8e98e02811348a594ca03`
@@ -119,6 +123,13 @@ required before multi-worker deployment is enabled.
   `TestClient` lifespan integration.
 - `bug-hunter`: reviewed partial acquisition, sequential/overlapping starts,
   stale state, timeout drain, and exception-masking edges.
+
+## Post-Open Role Evidence
+
+Disposition: FIXED
+Commit: `1e2d4918c5b6f6cf67d11865d218bf0253728f16`
+Evidence: Mandatory `qa-engineer-agent -> bug-hunter -> security-auditor` review on published head `1bf8f19b770339575bca94ff980c9147f9021d2e`, followed by the focused 295-test lifecycle/food-search/guard bundle, legacy guard, and scoped MyPy.
+Reason: All three roles confirmed the missing cancellation/start-failure evidence and lifecycle guard bypasses; QA and security independently reproduced the food-search reservation leak. All actionables were fixed before this mapping update. No additional secret, race, resource, fail-open, or app-identity defect was found.
 
 ## Premortem Evidence
 
