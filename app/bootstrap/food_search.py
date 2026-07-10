@@ -139,17 +139,19 @@ def configure_food_search_backend(app: FastAPI) -> FoodSearchLifecycleLease:
             raise RuntimeError("Application already owns food search resources.")
         _ACTIVE_FOOD_SEARCH_LIFECYCLE = active
 
-    strategy = food_store.get_search_backend_strategy()
-    meili_url = (os.getenv("MEILI_URL") or "").strip()
-    if strategy != "baseline_fts" and not meili_url:
-        strategy = "baseline_fts"
-
-    previous_adapter = food_store.get_registered_strategy_search_backend_adapter()
+    strategy = "baseline_fts"
+    previous_adapter: food_store.FoodSearchBackend | None = None
     shutdown_event: threading.Event | None = None
     pooled_client: httpx.Client | None = None
     adapter: food_store.FoodSearchBackend | None = None
     adapter_committed = False
     try:
+        strategy = food_store.get_search_backend_strategy()
+        meili_url = (os.getenv("MEILI_URL") or "").strip()
+        if strategy != "baseline_fts" and not meili_url:
+            strategy = "baseline_fts"
+
+        previous_adapter = food_store.get_registered_strategy_search_backend_adapter()
         if strategy != "baseline_fts":
             shutdown_event = threading.Event()
             pooled_client = _build_meili_http_client()

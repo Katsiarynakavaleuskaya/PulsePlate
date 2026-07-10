@@ -309,6 +309,50 @@ def test_stop_cancellation_does_not_mask_body_exception(
     assert events[-2:] == ["scheduler-stop", "food-dispose"]
 
 
+def test_body_cancellation_propagates_after_reverse_cleanup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("FORCE_BACKGROUND_UPDATES", "true")
+    events: list[str] = []
+
+    async def _body() -> None:
+        events.append("body")
+        raise asyncio.CancelledError("body cancelled")
+
+    with pytest.raises(asyncio.CancelledError, match="body cancelled"):
+        _run_lifespan(_base_hooks(events), body=_body)
+
+    assert events[-3:] == ["body", "scheduler-stop", "food-dispose"]
+
+
+def test_scheduler_start_exception_logs_continues_and_cleans_up(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    monkeypatch.setenv("FORCE_BACKGROUND_UPDATES", "true")
+    events: list[str] = []
+
+    async def _start(update_interval_hours: int = 24) -> None:
+        assert update_interval_hours == 24
+        events.append("scheduler-start-failed")
+        raise RuntimeError("start failed")
+
+    async def _body() -> None:
+        events.append("body")
+
+    hooks = replace(_base_hooks(events), start_background_updates=_start)
+    with caplog.at_level("ERROR", logger="app.bootstrap.lifespan"):
+        _run_lifespan(hooks, body=_body)
+
+    assert "Failed to start background updates" in caplog.text
+    assert events[-4:] == [
+        "scheduler-start-failed",
+        "body",
+        "scheduler-stop",
+        "food-dispose",
+    ]
+
+
 @pytest.mark.parametrize("body_raises", [False, True])
 def test_legacy_created_app_runs_real_food_search_lifecycle(
     monkeypatch: pytest.MonkeyPatch,

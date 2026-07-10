@@ -885,6 +885,35 @@ def test_failed_client_construction_releases_food_search_reservation(
     dispose_food_search_backend(app, lease)
 
 
+@pytest.mark.parametrize(
+    "failing_resolver",
+    [
+        "get_search_backend_strategy",
+        "get_registered_strategy_search_backend_adapter",
+    ],
+)
+def test_failed_resolver_releases_food_search_reservation(
+    monkeypatch: pytest.MonkeyPatch,
+    failing_resolver: str,
+) -> None:
+    original = getattr(food_store, failing_resolver)
+    monkeypatch.setattr(
+        food_store,
+        failing_resolver,
+        lambda: (_ for _ in ()).throw(RuntimeError("resolver failed")),
+    )
+
+    with pytest.raises(RuntimeError, match="resolver failed"):
+        configure_food_search_backend(FastAPI())
+
+    assert food_search_module._ACTIVE_FOOD_SEARCH_LIFECYCLE is None
+    monkeypatch.setattr(food_store, failing_resolver, original)
+    monkeypatch.setenv("FOOD_SEARCH_BACKEND_STRATEGY", "baseline_fts")
+    app = FastAPI()
+    lease = configure_food_search_backend(app)
+    dispose_food_search_backend(app, lease)
+
+
 def test_failed_adapter_commit_closes_candidate_and_releases_reservation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
