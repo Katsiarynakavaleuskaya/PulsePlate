@@ -39,6 +39,8 @@ deletion.
 - `1e2d4918c5b6f6cf67d11865d218bf0253728f16` - release food-search ownership
   after resolver failures, close lifecycle-guard alias/dynamic bypasses, and add
   explicit body-cancellation and scheduler-start-failure evidence.
+- `e28fb34c3` - reject FastAPI keyword-expansion and qualified dynamic-facade
+  bypasses reported by the sealed Codex Security diff scan.
 
 ## Lane Start Provenance
 
@@ -60,7 +62,9 @@ deletion.
   replaced if post-open review emits findings.
 - [x] Mandatory post-open `qa-engineer-agent -> bug-hunter -> security-auditor`
   pass completed.
-- [ ] Codex Security diff scan / finding discovery completed.
+- [x] Codex Security diff scan / finding discovery completed; scan
+  `fe7a0056-e0d1-4b90-b5ba-84adc40060dc` reviewed 8/8 bounded surfaces and
+  reported two Medium/P2 lifecycle-guard findings fixed in `e28fb34c3`.
 - [ ] `pulseplate-pr-review` completed.
 - [ ] Current-head CI completed.
 - [ ] Strict merge-readiness checks completed after the final review cycle.
@@ -131,6 +135,30 @@ Commit: `1e2d4918c5b6f6cf67d11865d218bf0253728f16`
 Evidence: Mandatory `qa-engineer-agent -> bug-hunter -> security-auditor` review on published head `1bf8f19b770339575bca94ff980c9147f9021d2e`, followed by the focused 295-test lifecycle/food-search/guard bundle, legacy guard, and scoped MyPy.
 Reason: All three roles confirmed the missing cancellation/start-failure evidence and lifecycle guard bypasses; QA and security independently reproduced the food-search reservation leak. All actionables were fixed before this mapping update. No additional secret, race, resource, fail-open, or app-identity defect was found.
 
+## Codex Security Diff Scan Evidence
+
+Disposition: FIXED
+Commit: `e28fb34c3`
+Evidence: Codex Security scan `fe7a0056-e0d1-4b90-b5ba-84adc40060dc`, finding
+`FastAPI keyword expansion bypasses lifecycle ownership enforcement`, plus
+`tests/test_legacy_growth_guard.py`.
+Reason: `FastAPI(**kwargs)` now resolves bounded literal mappings, validates a
+resolved `lifespan` against the canonical re-export, and fails closed when the
+mapping cannot be proven static or has escaped/mutated.
+
+Disposition: FIXED
+Commit: `e28fb34c3`
+Evidence: Codex Security scan `fe7a0056-e0d1-4b90-b5ba-84adc40060dc`, finding
+`Qualified dynamic imports bypass lifecycle facade lookup enforcement`, plus
+`tests/test_legacy_growth_guard.py`.
+Reason: Dynamic imports now reject both exact facade names and their dotted
+descendants while legitimate static imports of canonical `app.*` modules remain
+allowed.
+
+The sealed scan report remains a local plugin artifact, as required for local
+security artifacts. Its validated summary is mirrored here; it is not used as
+an unpublished merge-readiness substitute.
+
 ## Premortem Evidence
 
 - Result: PROCEED after all actual-diff findings were closed.
@@ -156,11 +184,13 @@ Artifact: `artifacts/orchestration/experiments/results/exp-2dba53ad6a27.json`
 
 - Preflight, agent consistency, and legacy growth guard - PASS.
 - Focused lifecycle, food-search, DB fallback, production invariant, public
-  surface, and guard tests - PASS.
+  surface, and guard tests - PASS (568 tests after the security fixes).
 - `make validate-changed` after commit - PASS.
 - Scoped MyPy through `.venv/bin/python` - PASS.
 - `make openapi-check` and explicit three-artifact check - zero diff.
 - `pre-commit run --all-files` - PASS.
+- Codex Security diff scan - completed with 8/8 bounded surfaces; two Medium/P2
+  findings were fixed in `e28fb34c3` before this evidence update.
 - Pre-push hooks - PASS, including MyPy, pip-audit, backend tests, full-repo
   Bandit, and Docker build.
 - Full local `make verify` was not run under repository machine-budget policy.
