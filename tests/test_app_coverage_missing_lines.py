@@ -108,14 +108,6 @@ class TestAppMissingLinesCoverage:
             # Should be 503 when scheduler is unavailable
             assert response.status_code in [200, 500, 503]
 
-    def test_log_requests_middleware(self, client):
-        """Test the logging middleware."""
-        client = client
-
-        # Test a simple endpoint to trigger the middleware
-        response = client.get("/health")
-        assert response.status_code == 200
-
     def test_database_health_success(self, client):
         """Test database health endpoint success."""
         client = client

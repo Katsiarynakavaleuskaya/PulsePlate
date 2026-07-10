@@ -15,8 +15,9 @@ from __future__ import annotations
 import ipaddress
 import logging
 import os
+from dataclasses import dataclass
 from functools import lru_cache
-from typing import TYPE_CHECKING, Any, Callable, TypeVar, cast
+from typing import TYPE_CHECKING, Any, Callable, Literal, TypeVar, cast
 
 from fastapi import Request
 from fastapi.responses import JSONResponse
@@ -218,6 +219,138 @@ except ImportError:  # pragma: no cover - optional dependency
     _rate_limit_exceeded_handler = None  # type: ignore[assignment]
 
 _rate_limiting_wired_app_ids: set[int] = set()
+_MISSING = object()
+
+RateLimitWiringState = Literal["none", "complete", "partial"]
+
+
+@dataclass(frozen=True, slots=True)
+class _RateLimitWiringSnapshot:
+    user_middleware: tuple[Any, ...]
+    exception_handlers: dict[Any, Any]
+    state_limiter: Any
+    receipt_present: bool
+    limiter_enabled: Any
+
+
+def _callable_key(value: object) -> tuple[str, str] | None:
+    module = getattr(value, "__module__", None)
+    qualname = getattr(value, "__qualname__", None)
+    if not isinstance(module, str) or not isinstance(qualname, str):
+        return None
+    return module, qualname
+
+
+def _same_callable(existing: object, expected: object) -> bool:
+    return existing is expected or (
+        _callable_key(existing) is not None and _callable_key(existing) == _callable_key(expected)
+    )
+
+
+def _middleware_class(middleware: object) -> object:
+    return getattr(middleware, "cls", None)
+
+
+def _slowapi_middleware_counts(app: FastAPI) -> tuple[int, int]:
+    if SlowAPIMiddleware is None:
+        return 0, 0
+
+    expected_name = getattr(SlowAPIMiddleware, "__name__", "SlowAPIMiddleware")
+    matching = 0
+    foreign_named = 0
+    for middleware in app.user_middleware:
+        middleware_class = _middleware_class(middleware)
+        if _same_callable(middleware_class, SlowAPIMiddleware):
+            matching += 1
+        elif getattr(middleware_class, "__name__", None) == expected_name:
+            foreign_named += 1
+    return matching, foreign_named
+
+
+def _rate_limit_handler_state(app: FastAPI) -> tuple[int, bool, bool]:
+    if RateLimitExceeded is None:
+        return 0, False, False
+
+    expected_name = getattr(RateLimitExceeded, "__name__", "RateLimitExceeded")
+    matching_handlers = [
+        handler
+        for error_type, handler in app.exception_handlers.items()
+        if error_type is RateLimitExceeded
+    ]
+    foreign_named = any(
+        getattr(error_type, "__name__", None) == expected_name
+        and error_type is not RateLimitExceeded
+        for error_type in app.exception_handlers
+    )
+    exact_handler = len(matching_handlers) == 1 and _same_callable(
+        matching_handlers[0], _rate_limit_exceeded_json_handler
+    )
+    return len(matching_handlers), exact_handler, foreign_named
+
+
+def _classify_rate_limit_wiring(app: FastAPI) -> RateLimitWiringState:
+    state_limiter_present = hasattr(app.state, "limiter")
+    state_limiter_exact = state_limiter_present and app.state.limiter is limiter
+    handler_count, handler_exact, foreign_handler = _rate_limit_handler_state(app)
+    middleware_count, foreign_middleware = _slowapi_middleware_counts(app)
+    if not any(
+        (
+            state_limiter_present,
+            handler_count,
+            middleware_count,
+            foreign_handler,
+            foreign_middleware,
+        )
+    ):
+        return "none"
+
+    if (
+        state_limiter_exact
+        and handler_count == 1
+        and handler_exact
+        and middleware_count == 1
+        and not foreign_handler
+        and not foreign_middleware
+    ):
+        return "complete"
+    return "partial"
+
+
+def _capture_rate_limit_wiring(app: FastAPI) -> _RateLimitWiringSnapshot:
+    state_limiter = getattr(app.state, "limiter", _MISSING)
+    limiter_enabled = getattr(limiter, "enabled", _MISSING)
+    return _RateLimitWiringSnapshot(
+        user_middleware=tuple(app.user_middleware),
+        exception_handlers=dict(app.exception_handlers),
+        state_limiter=state_limiter,
+        receipt_present=id(app) in _rate_limiting_wired_app_ids,
+        limiter_enabled=limiter_enabled,
+    )
+
+
+def _restore_rate_limit_wiring(app: FastAPI, snapshot: _RateLimitWiringSnapshot) -> None:
+    app.user_middleware[:] = snapshot.user_middleware
+    app.exception_handlers.clear()
+    app.exception_handlers.update(snapshot.exception_handlers)
+    if snapshot.state_limiter is _MISSING:
+        if hasattr(app.state, "limiter"):
+            delattr(app.state, "limiter")
+    else:
+        app.state.limiter = snapshot.state_limiter
+
+    if snapshot.receipt_present:
+        _rate_limiting_wired_app_ids.add(id(app))
+    else:
+        _rate_limiting_wired_app_ids.discard(id(app))
+
+    if limiter is not None and snapshot.limiter_enabled is not _MISSING:
+        limiter.enabled = cast(bool, snapshot.limiter_enabled)
+
+
+def rate_limiting_should_be_wired() -> bool:
+    """Return whether this process expects the optional SlowAPI stack."""
+
+    return limiter is not None and _rate_limiting_enabled()
 
 
 def _rate_limit_exceeded_json_handler(request: Request, exc: Exception) -> JSONResponse:
@@ -272,27 +405,50 @@ def wire_rate_limiting(app: FastAPI) -> None:
     Args:
         app: FastAPI application instance
     """
+    wiring_state = _classify_rate_limit_wiring(app)
+    enabled = _rate_limiting_enabled()
+
+    if wiring_state == "none":
+        _rate_limiting_wired_app_ids.discard(id(app))
+
     if limiter is None:  # pragma: no cover - optional dependency
+        if wiring_state != "none":
+            raise RuntimeError("Partial SlowAPI rate-limit wiring detected.")
         logger.warning("SlowAPI not available; rate limiting disabled")  # pragma: no cover
         return  # pragma: no cover
 
-    limiter.enabled = _rate_limiting_enabled()
-    if not getattr(limiter, "enabled", True):
+    if not enabled:
+        if wiring_state != "none":
+            raise RuntimeError("SlowAPI rate-limit wiring exists while rate limiting is disabled.")
+        limiter.enabled = False
         logger.debug("Rate limiting disabled by environment")
         return
 
-    # Attach limiter to app state
-    app.state.limiter = limiter
+    if RateLimitExceeded is None or SlowAPIMiddleware is None:
+        raise RuntimeError("SlowAPI middleware and exception handler are unavailable.")
 
-    # Register 429 handler
-    if RateLimitExceeded is not None:
-        app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_json_handler)
+    if wiring_state == "complete":
+        limiter.enabled = True
+        _rate_limiting_wired_app_ids.add(id(app))
+        return
+    if wiring_state == "partial":
+        raise RuntimeError("Partial SlowAPI rate-limit wiring detected.")
+    if getattr(app, "middleware_stack", None) is not None:
+        raise RuntimeError("Cannot wire SlowAPI after the middleware stack is built.")
 
-    # Add middleware
-    if SlowAPIMiddleware is not None:
+    snapshot = _capture_rate_limit_wiring(app)
+    try:
+        limiter.enabled = True
         app.add_middleware(SlowAPIMiddleware)
+        app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_json_handler)
+        app.state.limiter = limiter
+        _rate_limiting_wired_app_ids.add(id(app))
+        if _classify_rate_limit_wiring(app) != "complete":
+            raise RuntimeError("SlowAPI rate-limit wiring validation failed.")
+    except Exception:
+        _restore_rate_limit_wiring(app, snapshot)
+        raise
 
-    _rate_limiting_wired_app_ids.add(id(app))
     logger.info("Rate limiting enabled (slowapi)")
 
 
@@ -301,12 +457,7 @@ def _is_rate_limiting_wired_for_app(app: FastAPI | None) -> bool:
     # production invariants with a pre-populated wired-app receipt.
     if app is None:
         return bool(_rate_limiting_wired_app_ids)
-    return (
-        id(app) in _rate_limiting_wired_app_ids
-        and getattr(app.state, "limiter", None) is limiter
-        and RateLimitExceeded in app.exception_handlers
-        and any(middleware.cls is SlowAPIMiddleware for middleware in app.user_middleware)
-    )
+    return _classify_rate_limit_wiring(app) == "complete"
 
 
 def require_rate_limiting_ready_for_production(app: FastAPI | None = None) -> None:
@@ -371,6 +522,7 @@ __all__ = [
     "limiter",
     "rate_limit_client_key",
     "wire_rate_limiting",
+    "rate_limiting_should_be_wired",
     "limit_if_available",
     "require_rate_limiting_ready_for_production",
     "RATE_LIMIT_429_RESPONSES",

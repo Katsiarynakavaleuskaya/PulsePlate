@@ -82,9 +82,7 @@ from app.services.bmi_compat import (
     add_visualization_if_requested,
     generate_bmi_visualization,
 )
-from core.fingerprint_security import _client_fingerprint
 from core.log_retention import (
-    DATA_CLASS_PSEUDONYMOUS,
     DataClass,
     get_retention_manager,
     LogRetentionManager,
@@ -220,7 +218,6 @@ else:
     DatabaseUpdateScheduler = Any
 
 Limiter: Optional[type[LimiterType]]
-CallNextHandler = Callable[[Request], Awaitable[Response]]
 try:
     from slowapi import Limiter as _Limiter
 
@@ -813,17 +810,6 @@ def _install_openapi_builder(target_app: FastAPI) -> None:
     target_app.state._canonical_openapi_builder_installed = True
 
 
-# Wire rate limiting (PR-628)
-# RU: Подключаем rate-limiting для дорогих endpoints (LLM, exports).
-# EN: Wire rate limiting for expensive endpoints (LLM, exports).
-try:
-    from app.security.rate_limit import wire_rate_limiting
-
-    wire_rate_limiting(app)
-except ImportError:  # pragma: no cover - optional dependency
-    logger.warning("Rate limiting module not available; rate limiting disabled")  # pragma: no cover
-
-
 # The previous explicit startup handler using @app.on_event("startup")
 # has been removed in favor of the lifespan handler above to avoid
 # FastAPI deprecation warnings. The lifespan startup already performs
@@ -942,84 +928,6 @@ with suppress(Exception):
 # Legacy event handlers - replaced with lifespan
 # @app.on_event("startup")
 # @app.on_event("shutdown")
-
-
-# Add CSP nonce middleware for secure inline scripts/styles
-@app.middleware("http")
-async def csp_nonce_middleware(request: Request, call_next: CallNextHandler) -> Response:
-    """Generate cryptographically random nonce per request and set CSP header.
-
-    The nonce is stored in request.state.csp_nonce for use in templates.
-    """
-    # Generate a cryptographically random nonce (base64-encoded, 16 bytes = 24 chars)
-    nonce = secrets.token_urlsafe(16)
-    request.state.csp_nonce = nonce
-
-    response = await call_next(request)
-
-    # Build CSP header with nonce
-    csp_parts = [
-        "default-src 'self'",
-        f"script-src 'self' 'nonce-{nonce}' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com",
-        f"style-src 'self' 'nonce-{nonce}' https://fonts.googleapis.com https://cdn.jsdelivr.net",
-        "img-src 'self' data: https:",
-        "font-src 'self' https://fonts.gstatic.com",
-        "frame-ancestors 'none'",
-        "object-src 'none'",
-    ]
-    csp_header = "; ".join(csp_parts)
-    response.headers["Content-Security-Policy"] = csp_header
-
-    return response
-
-
-# Add logging middleware with data classification
-@app.middleware("http")
-async def log_requests(request: Request, call_next: CallNextHandler) -> Response:
-    """Log requests with pseudonymous identifier classification.
-
-    RU: Логирует запросы с классификацией псевдонимных идентификаторов.
-    EN: Logs requests with pseudonymous identifier classification.
-
-    Logs containing client fingerprints are classified as PSEUDONYMOUS data
-    and subject to short retention periods per GDPR best practices.
-    """
-    start_time_req = time.time()
-    fingerprint = _client_fingerprint(request)
-    contains_pseudonymous_data = fingerprint is not None
-
-    # Classify and label log entries
-    data_class = DATA_CLASS_PSEUDONYMOUS if contains_pseudonymous_data else "PUBLIC"
-
-    if fingerprint:
-        # Log with classification label for audit and retention purposes
-        logger.debug(
-            "Request: %s %s [client=%s] [data_class=%s]",
-            request.method,
-            request.url.path,
-            fingerprint,
-            data_class,
-        )
-    else:
-        logger.debug("Request: %s %s [data_class=%s]", request.method, request.url.path, data_class)
-
-    response = await call_next(request)
-    process_time = time.time() - start_time_req
-
-    if fingerprint:
-        logger.debug(
-            "Response: %s in %.4fs [client=%s] [data_class=%s]",
-            response.status_code,
-            process_time,
-            fingerprint,
-            data_class,
-        )
-    else:
-        logger.debug(
-            "Response: %s in %.4fs [data_class=%s]", response.status_code, process_time, data_class
-        )
-
-    return response
 
 
 # ---------- Helpers ----------

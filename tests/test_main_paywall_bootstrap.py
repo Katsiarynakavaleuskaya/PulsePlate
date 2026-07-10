@@ -908,9 +908,7 @@ def _prepare_bootstrap_dependencies(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(app_main, "_install_openapi_builder", lambda target_app: None)
     monkeypatch.setattr(app_main, "_internalize_users_openapi_surface", lambda target_app: None)
     monkeypatch.setattr(app_main, "register_food_search_backend", lambda target_app: None)
-    monkeypatch.setattr(app_main, "register_metrics", lambda target_app: None)
-    monkeypatch.setattr(app_main, "register_request_telemetry", lambda target_app: None)
-    monkeypatch.setattr(app_main, "register_tracing", lambda target_app: None)
+    monkeypatch.setattr(app_main, "register_http_middleware_stack", lambda target_app: None)
     monkeypatch.setattr(app_main, "register_vip_routes", lambda target_app: None)
     monkeypatch.setattr(app_main, "register_pro_routes", lambda target_app: (None, None))
     monkeypatch.setattr(

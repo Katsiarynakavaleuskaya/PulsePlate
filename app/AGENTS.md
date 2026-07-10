@@ -302,6 +302,19 @@ Avoid `# type: ignore[no-any-return]` and prefer typed locals over `cast()`.
   compatibility aliases such as dynamic legacy export aliases; keep those on
   their dedicated alias helper.
 
+### Canonical HTTP middleware ownership
+
+- HTTP middleware implementations belong in `app/middleware/*`, and their
+  registration order belongs to the canonical
+  `app/bootstrap/http_stack.py` registrar invoked from `app/main.py`.
+  `legacy_app.py` must not register middleware directly or indirectly.
+- New custom HTTP middleware should use pure ASGI unless the PR documents why
+  `BaseHTTPMiddleware` is required. Middleware changes must prove ordering,
+  idempotency, partial-state failure, non-HTTP behavior, streaming behavior,
+  OpenAPI neutrality, and sensitive-log minimization.
+- Do not add a second request-lifecycle logging layer when canonical metrics,
+  request telemetry, and tracing already provide the required signal.
+
 ## No duplicated business logic (app vs core)
 
 - Routers and services must not re-implement domain logic.
