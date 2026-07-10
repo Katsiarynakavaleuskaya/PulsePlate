@@ -79,22 +79,34 @@ def _parse_bounded_number(text: str, start: int) -> tuple[float, int] | None:
 
 
 def _next_valid_unit_match(
-    lowered: str,
+    text: str,
     units: tuple[str, ...],
     search_from: int,
 ) -> tuple[int, str] | None:
-    """Return the earliest boundary-valid unit match at or after ``search_from``."""
+    """Return the earliest boundary-valid unit match at or after ``search_from``.
+
+    Unit offsets are always computed in the original string index space.  Full-string
+    lowercasing is intentionally avoided because some Unicode characters expand
+    when lowercased (for example, U+0130), which would make unit offsets unsafe
+    for indexing back into ``text``.
+    """
 
     next_unit_at: int | None = None
     matched_unit = ""
+    text_length = len(text)
     for unit in units:
         cursor = search_from
-        while cursor < len(lowered):
-            unit_at = lowered.find(unit, cursor)
+        unit_length = len(unit)
+        while cursor < text_length:
+            unit_at = -1
+            for candidate_at in range(cursor, text_length - unit_length + 1):
+                if text[candidate_at : candidate_at + unit_length].lower() == unit:
+                    unit_at = candidate_at
+                    break
             if unit_at < 0:
                 break
-            unit_end = unit_at + len(unit)
-            if unit_end < len(lowered) and not _is_unit_boundary(lowered[unit_end]):
+            unit_end = unit_at + unit_length
+            if unit_end < text_length and not _is_unit_boundary(text[unit_end]):
                 cursor = unit_end
                 continue
             if next_unit_at is None or unit_at < next_unit_at:
@@ -109,10 +121,9 @@ def _next_valid_unit_match(
 def _find_number_before_unit(text: str, units: tuple[str, ...]) -> float | None:
     """Find the first bounded number immediately before one of ``units``."""
 
-    lowered = text.lower()
     search_from = 0
-    while search_from < len(lowered):
-        unit_match = _next_valid_unit_match(lowered, units, search_from)
+    while search_from < len(text):
+        unit_match = _next_valid_unit_match(text, units, search_from)
         if unit_match is None:
             return None
         next_unit_at, matched_unit = unit_match

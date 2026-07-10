@@ -33,10 +33,16 @@ def test_extract_bmi_inputs_rejects_unicode_digits_fail_closed() -> None:
     assert extract_bmi_inputs("70kg and ¹75cm") is None
 
 
+def test_extract_bmi_inputs_handles_lowercase_expansion_fail_closed() -> None:
+    # U+0130 lowercases to two code points; parser indexes must stay in the
+    # original string space and must not raise IndexError.
+    assert extract_bmi_inputs(("İ" * 9) + "70kg 175cm") == (70.0, 1.75)
+    assert extract_bmi_inputs(("İ" * 12) + "text only") is None
+
+
 def test_extract_bmi_inputs_rejects_overlong_query() -> None:
     payload = ("0" * (_MAX_BMI_QUERY_CHARS + 1)) + "70kg 175cm"
     assert extract_bmi_inputs(payload) is None
-
 
 def test_extract_bmi_inputs_handles_repetitive_digits_without_match() -> None:
     # Pathological digit runs must fail closed quickly rather than hang.
