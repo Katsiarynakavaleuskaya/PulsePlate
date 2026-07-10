@@ -47,7 +47,7 @@ and new GitHub/Slack/provider authority.
 
 ## Discussion Thread Pass
 
-- [x] Discussion-thread inventory and disposition pass completed.
+- [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed.
 - [x] Post-open packet role order completed.
 - [x] Codex Security diff scan completed with 3/3 production rows and no reportable findings.
