@@ -783,6 +783,7 @@ def _collect_static_string_bindings(tree: ast.Module) -> Mapping[str, str]:
     """Return statically resolvable string assignments used by dynamic imports."""
 
     bindings: dict[str, str] = {}
+    binding_counts = _collect_binding_counts(tree)
     changed = True
     while changed:
         changed = False
@@ -805,10 +806,33 @@ def _collect_static_string_bindings(tree: ast.Module) -> Mapping[str, str]:
                 continue
             for target in targets:
                 for target_name in _assignment_target_names(target):
-                    if target_name not in bindings:
+                    if binding_counts[target_name] == 1 and target_name not in bindings:
                         bindings[target_name] = resolved
                         changed = True
     return bindings
+
+
+def _collect_binding_counts(tree: ast.Module) -> Counter[str]:
+    """Count bindings so static security facts never survive reassignment."""
+
+    counts: Counter[str] = Counter()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name) and isinstance(
+            node.ctx,
+            (ast.Store, ast.Del),
+        ):
+            counts[node.id] += 1
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            counts[node.name] += 1
+        elif isinstance(node, ast.Import):
+            for alias in node.names:
+                counts[alias.asname or alias.name.split(".", maxsplit=1)[0]] += 1
+        elif isinstance(node, ast.ImportFrom):
+            for alias in node.names:
+                counts[alias.asname or alias.name] += 1
+        elif isinstance(node, ast.ExceptHandler) and node.name is not None:
+            counts[node.name] += 1
+    return counts
 
 
 def _resolve_static_string(node: ast.AST, bindings: Mapping[str, str]) -> str | None:
@@ -1592,7 +1616,11 @@ def _collect_lifecycle_references(
                     if references.get(target_name) != reference:
                         references[target_name] = reference
                         changed = True
-    return references, frozenset(canonical_lifespan_aliases)
+    binding_counts = _collect_binding_counts(tree)
+    stable_canonical_aliases = {
+        name for name in canonical_lifespan_aliases if binding_counts[name] == 1
+    }
+    return references, frozenset(stable_canonical_aliases)
 
 
 def _resolve_lifecycle_reference(
@@ -1844,7 +1872,7 @@ def _uses_dynamic_facade_lookup(tree: ast.Module) -> bool:
         if module_node is None:
             continue
         module_name = _resolve_static_string(module_node, static_string_bindings)
-        if module_name is not None and _is_facade_module_name(module_name):
+        if module_name is None or _is_facade_module_name(module_name):
             return True
     return False
 

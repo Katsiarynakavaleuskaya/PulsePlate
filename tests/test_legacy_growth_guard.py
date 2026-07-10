@@ -80,6 +80,32 @@ def test_current_lifecycle_ownership_passes_growth_guard() -> None:
             "app = FastAPI(**options)\n",
             "legacy_app.py: FastAPI lifespan must use the canonical re-export",
         ),
+        (
+            "from fastapi import FastAPI\n"
+            "from app.bootstrap.lifespan import application_lifespan as lifespan\n"
+            "async def runtime_context(app):\n    yield\n"
+            "lifespan = runtime_context\n"
+            "app = FastAPI(lifespan=lifespan)\n",
+            "legacy_app.py: FastAPI lifespan must use the canonical re-export",
+        ),
+        (
+            "from fastapi import FastAPI\n"
+            "from app.bootstrap.lifespan import application_lifespan as lifespan\n"
+            "async def runtime_context(app):\n    yield\n"
+            "lifespan = runtime_context\n"
+            'options = {"lifespan": lifespan}\n'
+            "app = FastAPI(**options)\n",
+            "legacy_app.py: FastAPI lifespan must use the canonical re-export",
+        ),
+        (
+            "from fastapi import FastAPI\n"
+            "async def runtime_context(app):\n    yield\n"
+            "key = 'title'\n"
+            "key = 'lifespan'\n"
+            "options = {key: runtime_context}\n"
+            "app = FastAPI(**options)\n",
+            "legacy_app.py: FastAPI lifespan must use the canonical re-export",
+        ),
     ],
 )
 def test_lifecycle_guard_rejects_legacy_ownership(
@@ -166,6 +192,18 @@ def test_lifecycle_guard_rejects_food_search_lifespan_wrapping(
             "app/bootstrap/lifespan.py: dynamic facade lookup is forbidden",
         ),
         (
+            "from importlib import import_module\n"
+            "module_name = 'json'\n"
+            "module_name = 'app.main'\n"
+            "value = import_module(name=module_name)\n",
+            "app/bootstrap/lifespan.py: dynamic facade lookup is forbidden",
+        ),
+        (
+            "from importlib import import_module\n"
+            "value = import_module(resolve_module_name())\n",
+            "app/bootstrap/lifespan.py: dynamic facade lookup is forbidden",
+        ),
+        (
             "value = app_module.start_background_updates\n",
             "app/bootstrap/lifespan.py: forbidden legacy dependency lookup: app_module",
         ),
@@ -215,6 +253,24 @@ def test_lifecycle_guard_rejects_static_mapping_that_escapes_before_expansion() 
 
 def test_lifecycle_guard_allows_static_canonical_submodule_imports() -> None:
     lifespan_source = "from app.bootstrap.food_search import configure_food_search_backend\n"
+
+    assert (
+        legacy_guard.validate_lifecycle_ownership(
+            "pass\n",
+            "pass\n",
+            lifespan_source,
+        )
+        == []
+    )
+
+
+def test_lifecycle_guard_allows_statically_known_nonfacade_dynamic_import() -> None:
+    lifespan_source = textwrap.dedent("""
+        from importlib import import_module
+
+        module_name = "json"
+        value = import_module(module_name)
+        """)
 
     assert (
         legacy_guard.validate_lifecycle_ownership(
