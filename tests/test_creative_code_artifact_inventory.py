@@ -83,7 +83,14 @@ def _write_promotion_receipt(
     result: dict[str, Any],
     promotion_id: str = "promotion-test",
     partial_failure: str | None = None,
+    pull_request_number: int = 9999,
+    pull_request_url: str | None = None,
 ) -> dict[str, Any]:
+    resolved_pull_request_url = (
+        "https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/9999"
+        if pull_request_url is None
+        else pull_request_url
+    )
     receipt = build_creative_code_pr_promotion_receipt(
         promotion_id=promotion_id,
         plan_fingerprint="sha256:" + ("1" * 64),
@@ -93,8 +100,8 @@ def _write_promotion_receipt(
         patch_fingerprint=result["patch_summary"]["patch_fingerprint"],
         head_branch="experiment/inventory-test-12345678",
         commit_sha="b" * 40,
-        pull_request_number=9999,
-        pull_request_url="https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/9999",
+        pull_request_number=pull_request_number,
+        pull_request_url=resolved_pull_request_url,
         approved_by_login="Katsiarynakavaleuskaya",
         partial_failure=partial_failure,
     )
@@ -552,10 +559,38 @@ def test_completed_promotion_receipt_blocks_duplicate_promotion_and_allows_clean
     assert "promotion_receipt_exists" in blockers
 
 
+def test_partial_failure_promotion_receipt_with_zero_pr_number_is_reported(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo, run_id, result = _make_patch_run(monkeypatch, tmp_path, accepted=True)
+    receipt = _write_promotion_receipt(
+        repo,
+        result=result,
+        partial_failure="pr creation failed",
+        pull_request_number=0,
+        pull_request_url="",
+    )
+    report = _report(monkeypatch, repo, origin_main=result["base_commit_sha"])
+
+    assert report["promotion_artifacts"][0]["state"] == "partial_failure"
+    assert report["promotion_artifacts"][0]["pull_request_number"] == 0
+    assert report["promotion_artifacts"][0]["receipt_id"] == receipt["receipt_id"]
+    assert report["patch_runs"][0]["promotion_linkage"] == "partial_failure"
+    assert "promotion_partial_failure" in report["promotion_artifacts"][0]["blockers"]
+    ok, blockers = inventory_cli.assert_ready_for_promotion(run_id)
+    assert ok is False
+    assert "promotion_partial_failure" in blockers
+
+
 @pytest.mark.parametrize(
     ("field", "value", "message"),
     [
         ("pull_request_number", 0, "promotion_artifact.pull_request_number invalid"),
+        ("pull_request_number", -1, "promotion_artifact.pull_request_number invalid"),
+        ("pull_request_number", True, "promotion_artifact.pull_request_number invalid"),
+        ("pull_request_number", "1", "promotion_artifact.pull_request_number invalid"),
+        ("pull_request_number", 1.5, "promotion_artifact.pull_request_number invalid"),
         ("head_branch", "feature/not-experiment", "promotion_artifact.head_branch invalid"),
     ],
 )
@@ -573,6 +608,43 @@ def test_report_rejects_invalid_promotion_receipt_fields(
 
     with pytest.raises(inventory_cli.CreativeCodeArtifactInventoryError, match=message):
         inventory_cli.validate_creative_code_artifact_inventory_report(report)
+
+
+@pytest.mark.parametrize(
+    ("state", "pull_request_state", "pull_request_number", "accepted"),
+    [
+        ("open", "open", 1, True),
+        ("partial_failure", "partial_failure", 0, True),
+        ("partial_failure", "partial_failure", 1, True),
+        ("open", "partial_failure", 1, False),
+        ("partial_failure", "open", 0, False),
+        ("in_progress", None, None, True),
+        ("invalid", None, None, True),
+        ("in_progress", "open", 1, False),
+        ("invalid", "partial_failure", 0, False),
+    ],
+)
+def test_promotion_report_state_fields_are_consistent(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    state: str,
+    pull_request_state: str | None,
+    pull_request_number: int | None,
+    accepted: bool,
+) -> None:
+    repo, _run_id, result = _make_patch_run(monkeypatch, tmp_path, accepted=True)
+    _write_promotion_receipt(repo, result=result)
+    report = _report(monkeypatch, repo, origin_main=result["base_commit_sha"])
+    entry = deepcopy(report["promotion_artifacts"][0])
+    entry["state"] = state
+    entry["pull_request_state"] = pull_request_state
+    entry["pull_request_number"] = pull_request_number
+
+    if accepted:
+        assert inventory_cli._validate_promotion_entry(entry) == entry
+    else:
+        with pytest.raises(inventory_cli.CreativeCodeArtifactInventoryError):
+            inventory_cli._validate_promotion_entry(entry)
 
 
 def test_in_progress_promotion_artifact_blocks_cleanup(
@@ -625,6 +697,23 @@ def test_schema_and_runtime_report_are_closed(
 
     assert schema["additionalProperties"] is False
     assert schema["properties"]["authority"]["additionalProperties"] is False
+    promotion_schema = schema["$defs"]["promotion_artifact"]
+    open_rule, partial_failure_rule, inactive_rule = promotion_schema["allOf"]
+    assert open_rule["if"]["properties"]["state"]["const"] == "open"
+    assert open_rule["then"]["properties"]["pull_request_state"]["const"] == "open"
+    assert open_rule["then"]["properties"]["pull_request_number"]["minimum"] == 1
+    assert partial_failure_rule["if"]["properties"]["state"]["const"] == "partial_failure"
+    assert (
+        partial_failure_rule["then"]["properties"]["pull_request_state"]["const"]
+        == "partial_failure"
+    )
+    assert partial_failure_rule["then"]["properties"]["pull_request_number"]["minimum"] == 0
+    assert inactive_rule["if"]["properties"]["state"]["enum"] == [
+        "in_progress",
+        "invalid",
+    ]
+    assert inactive_rule["then"]["properties"]["pull_request_state"]["type"] == "null"
+    assert inactive_rule["then"]["properties"]["pull_request_number"]["type"] == "null"
     assert inventory_cli.validate_creative_code_artifact_inventory_report(report) == report
 
     mutated = deepcopy(report)

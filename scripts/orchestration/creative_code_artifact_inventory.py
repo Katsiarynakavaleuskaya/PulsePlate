@@ -1083,12 +1083,28 @@ def _validate_promotion_entry(entry: Any) -> dict[str, Any]:
         raise CreativeCodeArtifactInventoryError("promotion_artifact.state unsupported.")
     for key in ("receipt_id", "source_result_id", "pull_request_state", "head_branch"):
         _require_optional_string(entry[key], label=f"promotion_artifact.{key}")
-    if entry["pull_request_number"] is not None and (
-        not isinstance(entry["pull_request_number"], int)
-        or isinstance(entry["pull_request_number"], bool)
-        or entry["pull_request_number"] < 1
+    pull_request_number = entry["pull_request_number"]
+    if pull_request_number is not None and (
+        not isinstance(pull_request_number, int)
+        or isinstance(pull_request_number, bool)
+        or pull_request_number < 0
     ):
         raise CreativeCodeArtifactInventoryError("promotion_artifact.pull_request_number invalid.")
+    state = entry["state"]
+    pull_request_state = entry["pull_request_state"]
+    if state in {"open", "partial_failure"}:
+        if pull_request_state != state:
+            raise CreativeCodeArtifactInventoryError(
+                "promotion_artifact.pull_request_state does not match state."
+            )
+        if pull_request_number is None or (state == "open" and pull_request_number < 1):
+            raise CreativeCodeArtifactInventoryError(
+                "promotion_artifact.pull_request_number invalid."
+            )
+    elif pull_request_state is not None or pull_request_number is not None:
+        raise CreativeCodeArtifactInventoryError(
+            "promotion_artifact inactive state fields must be null."
+        )
     if entry["head_branch"] is not None and not EXPERIMENT_BRANCH_RE.fullmatch(
         entry["head_branch"]
     ):
@@ -1289,7 +1305,9 @@ def assert_ready_for_promotion(patch_run_id: str) -> tuple[bool, list[str]]:
         blockers.add("workspace_proof_missing")
     if run["promotion_linkage"] == "completed":
         blockers.add("promotion_receipt_exists")
-    if run["promotion_linkage"] in {"partial_failure", "invalid"}:
+    if run["promotion_linkage"] == "partial_failure":
+        blockers.add("promotion_partial_failure")
+    if run["promotion_linkage"] == "invalid":
         blockers.add("promotion_in_progress")
     if run["promotion_candidate_state"] == "base_sha_drift":
         blockers.add("base_sha_drift")
