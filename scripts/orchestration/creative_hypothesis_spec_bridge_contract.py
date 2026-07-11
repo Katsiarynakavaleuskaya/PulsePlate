@@ -261,9 +261,9 @@ def build_creative_pilot_spec_bridge_bundle(
         "base_sha": pilot_workspace["target_manifest"]["base_sha"],
         "head_sha": pilot_workspace["target_manifest"]["head_sha"],
         "synthesis_id": pilot_synthesis["synthesis_id"],
-        "synthesis_fingerprint": fingerprint_payload(cast(dict[str, Any], pilot_synthesis)),
+        "synthesis_fingerprint": fingerprint_payload(pilot_synthesis),
         "approval_id": pilot_approval["approval_id"],
-        "approval_fingerprint": fingerprint_payload(cast(dict[str, Any], pilot_approval)),
+        "approval_fingerprint": fingerprint_payload(pilot_approval),
     }
     for key in (
         "packet_id",
@@ -356,7 +356,7 @@ def build_creative_pilot_spec_bridge_bundle(
         "authority": default_bridge_authority(),
         "sanitized": True,
     }
-    bridge_fingerprint = cast(str, fingerprint_payload(bridge_body))
+    bridge_fingerprint = fingerprint_payload(bridge_body)
     upstream_ids = (
         str(packet["packet_id"]),
         str(pilot_synthesis["synthesis_id"]),
@@ -467,7 +467,7 @@ def validate_creative_pilot_spec_bridge(payload: Mapping[str, Any]) -> dict[str,
     body = dict(payload)
     observed_id = body.pop("bridge_id")
     observed_key = body.pop("idempotency_key")
-    bridge_fingerprint = cast(str, fingerprint_payload(body))
+    bridge_fingerprint = fingerprint_payload(body)
     upstream_ids = (
         str(lineage["packet_id"]),
         str(lineage["synthesis_id"]),
@@ -836,7 +836,7 @@ def _validate_sources(
         normalized_approval = validate_creative_hypothesis_approval(approval)
     except ExperimentRunnerCreativeContextContractError as exc:
         raise CreativeHypothesisSpecBridgeError(str(exc)) from exc
-    context_fingerprint = fingerprint_payload(cast(dict[str, Any], normalized_context))
+    context_fingerprint = fingerprint_payload(normalized_context)
     if normalized_packet["context_map_id"] != normalized_context["context_id"]:
         raise CreativeHypothesisSpecBridgeError(
             "fingerprint_mismatch: hypothesis packet context_map_id does not match context map.",
@@ -848,7 +848,7 @@ def _validate_sources(
             "match context map.",
             blocked_reason="fingerprint_mismatch",
         )
-    packet_fingerprint = fingerprint_payload(cast(dict[str, Any], normalized_packet))
+    packet_fingerprint = fingerprint_payload(normalized_packet)
     if normalized_dispatch["source_hypothesis_packet_id"] != normalized_packet["packet_id"]:
         raise CreativeHypothesisSpecBridgeError(
             "dispatch_packet_mismatch: coordinator dispatch references a different packet.",
@@ -1079,7 +1079,7 @@ def _build_candidate_packet(
         "idempotency_key": idempotency_key,
     }
     try:
-        return cast(dict[str, Any], validate_creative_code_candidate_packet(candidate))
+        return validate_creative_code_candidate_packet(candidate)
     except CreativeCodeContractError as exc:
         raise CreativeHypothesisSpecBridgeError(
             f"invalid_candidate_packet: {exc}",
@@ -1300,7 +1300,7 @@ def _artifact_identity(
     upstream_ids: tuple[str, ...] = (),
     policy_version: str = POLICY_VERSION,
 ) -> tuple[str, str]:
-    fingerprint = cast(str, fingerprint_payload(cast(dict[str, Any], dict(payload))))
+    fingerprint = fingerprint_payload(dict(payload))
     return (
         build_asset_id(
             asset_type=artifact_type,

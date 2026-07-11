@@ -72,6 +72,14 @@ dead interpreter. Missing scripts are OK; see
   merge-readiness claims. Do not classify such findings as "known inherited
   debt" or leave them for a later PR merely to preserve the original narrow
   diff.
+- Pre-existing defects discovered while validating the active execution path,
+  touched dependency graph, or required gate surface MUST NOT be dismissed as
+  inherited debt. Fix every bounded, relevant defect in the current PR. If a
+  safe fix requires a materially different authority boundary or a broad
+  migration, stop the current readiness claim, register and open a dedicated
+  prerequisite/remediation lane with explicit evidence, and complete that lane
+  before treating the dependent work as ready. Unrelated repository-wide
+  cleanup is still forbidden inside a narrow PR.
 - Duplicate FastAPI method/path route registrations are forbidden. If a
   duplicate route is found in the live app or touched route family, remove the
   duplicate owner or add a fail-closed registration guard in the same PR. Do not

@@ -964,7 +964,7 @@ def _artifact_identity(
     upstream_ids: tuple[str, ...] = (),
     policy_version: str = POLICY_VERSION,
 ) -> tuple[str, str]:
-    fingerprint = cast(str, fingerprint_payload(cast(dict[str, Any], dict(payload))))
+    fingerprint = fingerprint_payload(dict(payload))
     return (
         build_asset_id(
             asset_type=artifact_type,
@@ -1478,7 +1478,7 @@ def build_creative_hypothesis_packet(
             "artifact_type": HYPOTHESIS_PACKET_TYPE,
             "policy_version": POLICY_VERSION,
             "context_map_id": context["context_id"],
-            "context_map_fingerprint": cast(str, fingerprint_payload(context)),
+            "context_map_fingerprint": fingerprint_payload(context),
             "creative_status": "no_creative_action",
             "reason_code": classification["reason_code"],
             "hypothesis_generation_mode": "deterministic_templates_v1",
@@ -1513,7 +1513,7 @@ def build_creative_hypothesis_packet(
         "artifact_type": HYPOTHESIS_PACKET_TYPE,
         "policy_version": POLICY_VERSION,
         "context_map_id": context["context_id"],
-        "context_map_fingerprint": cast(str, fingerprint_payload(context)),
+        "context_map_fingerprint": fingerprint_payload(context),
         "creative_status": "hypotheses_generated",
         "reason_code": classification["reason_code"],
         "hypothesis_generation_mode": "deterministic_templates_v1",
@@ -1564,11 +1564,11 @@ def build_creative_hypothesis_packet_from_model_intake(
         "artifact_type": HYPOTHESIS_PACKET_TYPE,
         "policy_version": POLICY_VERSION,
         "context_map_id": context["context_id"],
-        "context_map_fingerprint": cast(str, fingerprint_payload(context)),
+        "context_map_fingerprint": fingerprint_payload(context),
         "creative_status": "hypotheses_generated",
         "reason_code": context["classification"]["reason_code"],
         "hypothesis_generation_mode": "operator_validated_intake_v1",
-        "source_model_intake_fingerprint": cast(str, fingerprint_payload(intake)),
+        "source_model_intake_fingerprint": fingerprint_payload(intake),
         "repo_provider_calls": False,
         "raw_model_payload_stored": False,
         "semantic_cache_used": False,
@@ -2141,7 +2141,7 @@ def build_creative_hypothesis_agent_routing(
         "artifact_type": AGENT_ROUTING_TYPE,
         "policy_version": POLICY_VERSION,
         "source_hypothesis_packet_id": packet["packet_id"],
-        "source_hypothesis_packet_fingerprint": cast(str, fingerprint_payload(packet)),
+        "source_hypothesis_packet_fingerprint": fingerprint_payload(packet),
         "routing": routing,
         "agent_review_mode": "critique_refine_only",
         "authority": default_creative_context_authority(),
@@ -2335,7 +2335,7 @@ def build_creative_hypothesis_coordinator_dispatch(
         "artifact_type": COORDINATOR_DISPATCH_TYPE,
         "policy_version": COORDINATOR_DISPATCH_POLICY_VERSION,
         "source_hypothesis_packet_id": packet["packet_id"],
-        "source_hypothesis_packet_fingerprint": cast(str, fingerprint_payload(packet)),
+        "source_hypothesis_packet_fingerprint": fingerprint_payload(packet),
         "dispatch": dispatch,
         "authority": default_coordinator_dispatch_authority(),
         "sanitized": True,
@@ -2562,7 +2562,7 @@ def build_agent_consumption_summary(
         raise ExperimentRunnerCreativeContextContractError(
             "agent routing must reference the supplied hypothesis packet."
         )
-    packet_fingerprint = cast(str, fingerprint_payload(packet))
+    packet_fingerprint = fingerprint_payload(packet)
     if routing_payload["source_hypothesis_packet_fingerprint"] != packet_fingerprint:
         raise ExperimentRunnerCreativeContextContractError(
             "agent routing fingerprint must match the supplied hypothesis packet."
@@ -2723,10 +2723,10 @@ def build_creative_hypothesis_approval(
     if hypothesis_packet is not None:
         packet = validate_creative_hypothesis_packet(hypothesis_packet)
         source_packet_id = str(packet["packet_id"])
-        source_packet_fingerprint = cast(str, fingerprint_payload(packet))
+        source_packet_fingerprint = fingerprint_payload(packet)
         for row in packet["hypotheses"]:
             if row["hypothesis_id"] == hypothesis_id:
-                hypothesis_fingerprint = cast(str, fingerprint_payload(cast(dict[str, Any], row)))
+                hypothesis_fingerprint = fingerprint_payload(row)
                 break
         if hypothesis_fingerprint is None:
             raise ExperimentRunnerCreativeContextContractError(
@@ -2898,7 +2898,7 @@ def validate_creative_protocol_context_map_versioned(
         return validate_creative_protocol_context_map(payload)
     if version == (PILOT_SCHEMA_VERSION, PILOT_POLICY_VERSION):
         try:
-            return cast(dict[str, Any], validate_context_map_v2(payload))
+            return validate_context_map_v2(payload)
         except CreativePilotContractError as exc:
             raise ExperimentRunnerCreativeContextContractError(str(exc)) from exc
     raise ExperimentRunnerCreativeContextContractError(
@@ -2922,10 +2922,7 @@ def validate_creative_hypothesis_packet_versioned(
         return validate_creative_hypothesis_packet(payload)
     if version == (PILOT_SCHEMA_VERSION, PILOT_POLICY_VERSION):
         try:
-            return cast(
-                dict[str, Any],
-                validate_hypothesis_packet_v2(payload, context_map=context_map),
-            )
+            return validate_hypothesis_packet_v2(payload, context_map=context_map)
         except CreativePilotContractError as exc:
             raise ExperimentRunnerCreativeContextContractError(str(exc)) from exc
     raise ExperimentRunnerCreativeContextContractError(
@@ -2943,7 +2940,7 @@ def validate_creative_hypothesis_approval_versioned(
         return validate_creative_hypothesis_approval(payload)
     if version == (PILOT_SCHEMA_VERSION, PILOT_POLICY_VERSION):
         try:
-            return cast(dict[str, Any], validate_approval_v2(payload))
+            return validate_approval_v2(payload)
         except CreativePilotContractError as exc:
             raise ExperimentRunnerCreativeContextContractError(str(exc)) from exc
     raise ExperimentRunnerCreativeContextContractError(

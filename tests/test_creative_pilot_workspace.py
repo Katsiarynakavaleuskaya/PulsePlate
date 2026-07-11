@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -19,6 +20,7 @@ from scripts.orchestration.qoder_dispatch_bridge import build_dispatch_manifest,
 from scripts.orchestration.creative_hypothesis_spec_bridge_contract import (
     build_creative_pilot_spec_bridge_bundle,
 )
+from scripts.orchestration.creative_code_spec_pipeline import CreativeCodeSpecPipelineError
 from scripts.orchestration.creative_pilot_workspace_contract import (
     CreativePilotContractError,
     add_rebuttal_assignments,
@@ -503,12 +505,195 @@ def test_cli_read_rejects_symlink_outside_root_and_invalid_utf8(tmp_path: Path) 
         link.symlink_to(outside)
         with pytest.raises(CreativePilotContractError, match="symlink"):
             pilot_cli._read(link)
-        with pytest.raises(CreativePilotContractError, match="safe repo-local"):
+        with pytest.raises(CreativePilotContractError, match="stay inside repository"):
             pilot_cli._read(outside)
         invalid = run_dir / "invalid.json"
         invalid.write_bytes(b"\xff\xfe")
         with pytest.raises(CreativePilotContractError, match="safe repo-local"):
             pilot_cli._read(invalid)
+
+
+def test_atomic_write_pins_parent_directory_against_symlink_swap(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    artifact_root = REPO_ROOT / "artifacts" / "orchestration"
+    artifact_root.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="pilot-write-test-", dir=artifact_root) as raw_dir:
+        root = Path(raw_dir)
+        target_parent = root / "target"
+        moved_parent = root / "target-pinned"
+        target_parent.mkdir()
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        target = target_parent / "workspace.json"
+        real_replace = pilot_cli.os.replace
+
+        def swap_parent_then_replace(
+            src: str,
+            dst: str,
+            *,
+            src_dir_fd: int,
+            dst_dir_fd: int,
+        ) -> None:
+            os.rename(target_parent, moved_parent)
+            os.symlink(outside, target_parent)
+            real_replace(
+                src,
+                dst,
+                src_dir_fd=src_dir_fd,
+                dst_dir_fd=dst_dir_fd,
+            )
+
+        monkeypatch.setattr(pilot_cli.os, "replace", swap_parent_then_replace)
+        pilot_cli._atomic_write(target, {"safe": True})
+        assert json.loads((moved_parent / "workspace.json").read_text(encoding="utf-8")) == {
+            "safe": True
+        }
+        assert not (outside / "workspace.json").exists()
+        target_parent.unlink()
+
+
+def test_read_pins_parent_directory_against_symlink_swap(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    artifact_root = REPO_ROOT / "artifacts" / "orchestration"
+    artifact_root.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="pilot-read-race-test-", dir=artifact_root) as raw_dir:
+        root = Path(raw_dir)
+        target_parent = root / "target"
+        moved_parent = root / "target-pinned"
+        target_parent.mkdir()
+        target = target_parent / "workspace.json"
+        target.write_text('{"source":"pinned"}', encoding="utf-8")
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        (outside / "workspace.json").write_text('{"source":"outside"}', encoding="utf-8")
+        real_open_parent = pilot_cli._open_pinned_parent
+
+        def pin_parent_then_swap(path: Path, *, create: bool) -> tuple[int, str]:
+            parent_fd, filename = real_open_parent(path, create=create)
+            os.rename(target_parent, moved_parent)
+            os.symlink(outside, target_parent)
+            return parent_fd, filename
+
+        monkeypatch.setattr(pilot_cli, "_open_pinned_parent", pin_parent_then_swap)
+        assert pilot_cli._read(target) == {"source": "pinned"}
+        target_parent.unlink()
+
+
+def test_atomic_write_cleanup_preserves_primary_error_and_closes_parent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifact_root = REPO_ROOT / "artifacts" / "orchestration"
+    artifact_root.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="pilot-cleanup-test-", dir=artifact_root) as raw_dir:
+        target = Path(raw_dir) / "workspace.json"
+        real_open_parent = pilot_cli._open_pinned_parent
+        real_close = pilot_cli.os.close
+        parent_descriptors: list[int] = []
+        closed_descriptors: list[int] = []
+
+        def capture_parent(path: Path, *, create: bool) -> tuple[int, str]:
+            parent_fd, filename = real_open_parent(path, create=create)
+            parent_descriptors.append(parent_fd)
+            return parent_fd, filename
+
+        def fail_replace(
+            _src: str,
+            _dst: str,
+            *,
+            src_dir_fd: int,
+            dst_dir_fd: int,
+        ) -> None:
+            del src_dir_fd, dst_dir_fd
+            raise OSError("simulated primary write failure")
+
+        def fail_unlink(_path: str, *, dir_fd: int) -> None:
+            del dir_fd
+            raise PermissionError("simulated cleanup failure")
+
+        def capture_close(descriptor: int) -> None:
+            closed_descriptors.append(descriptor)
+            real_close(descriptor)
+
+        with monkeypatch.context() as context:
+            context.setattr(pilot_cli, "_open_pinned_parent", capture_parent)
+            context.setattr(pilot_cli.os, "replace", fail_replace)
+            context.setattr(pilot_cli.os, "unlink", fail_unlink)
+            context.setattr(pilot_cli.os, "close", capture_close)
+            with pytest.raises(CreativePilotContractError, match="unable to write"):
+                pilot_cli._atomic_write(target, {"safe": True})
+
+        assert parent_descriptors
+        assert parent_descriptors[-1] in closed_descriptors
+
+
+def test_atomic_write_translates_missing_dir_fd_support(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifact_root = REPO_ROOT / "artifacts" / "orchestration"
+    artifact_root.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="pilot-platform-test-", dir=artifact_root) as raw_dir:
+        target = Path(raw_dir) / "workspace.json"
+
+        def unsupported_replace(
+            _src: str,
+            _dst: str,
+            *,
+            src_dir_fd: int,
+            dst_dir_fd: int,
+        ) -> None:
+            del src_dir_fd, dst_dir_fd
+            raise NotImplementedError("dir_fd unsupported")
+
+        monkeypatch.setattr(pilot_cli.os, "replace", unsupported_replace)
+        with pytest.raises(CreativePilotContractError, match="unable to write"):
+            pilot_cli._atomic_write(target, {"safe": True})
+
+
+def test_pinned_traversal_closes_child_when_previous_close_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifact_root = REPO_ROOT / "artifacts" / "orchestration"
+    artifact_root.mkdir(parents=True, exist_ok=True)
+    target = artifact_root / "pilot-fd-transfer" / "workspace.json"
+    real_open = pilot_cli.os.open
+    real_close = pilot_cli.os.close
+    opened: list[int] = []
+    fail_next_close = True
+
+    def capture_open(*args: object, **kwargs: object) -> int:
+        descriptor = real_open(*args, **kwargs)
+        opened.append(descriptor)
+        return descriptor
+
+    def fail_first_close(descriptor: int) -> None:
+        nonlocal fail_next_close
+        if fail_next_close:
+            fail_next_close = False
+            raise OSError("simulated descriptor transfer failure")
+        real_close(descriptor)
+
+    with monkeypatch.context() as context:
+        context.setattr(pilot_cli.os, "open", capture_open)
+        context.setattr(pilot_cli.os, "close", fail_first_close)
+        with pytest.raises(CreativePilotContractError, match="transfer pinned"):
+            pilot_cli._open_pinned_parent(target, create=True)
+
+    assert opened
+    with pytest.raises(OSError):
+        os.fstat(opened[-1])
+
+
+def test_cli_catches_specification_pipeline_failure(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    def fail(_args: object) -> None:
+        raise CreativeCodeSpecPipelineError("specification preparation failed")
+
+    monkeypatch.setattr(pilot_cli, "_cmd_status", fail)
+    assert pilot_cli.main(["status", "--pilot-id", "safe-pilot"]) == 1
+    assert capsys.readouterr().out == "FAIL: specification preparation failed\n"
 
 
 def test_pilot_v2_schemas_are_closed_and_version_aligned() -> None:
@@ -837,7 +1022,10 @@ def test_record_role_result_exact_replay_is_idempotent(
         ]
         assert pilot_cli.main(argv) == 0
         after_first = (pilot_dir / "workspace.json").read_text(encoding="utf-8")
-        assert pilot_cli.main(argv) == 0
+        replay_argv = list(argv)
+        replay_argv[replay_argv.index("claim-replay")] = " claim-replay "
+        replay_argv[replay_argv.index("core/rag/orchestration.py")] = " core/rag/orchestration.py "
+        assert pilot_cli.main(replay_argv) == 0
         assert (pilot_dir / "workspace.json").read_text(encoding="utf-8") == after_first
 
 

@@ -5,12 +5,14 @@ from __future__ import annotations
 
 import argparse
 from datetime import datetime, timezone
+import errno
 import json
 import os
 from pathlib import Path
+import secrets
+import stat
 import sys
-import tempfile
-from typing import Any, cast
+from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
@@ -37,7 +39,10 @@ from scripts.orchestration.creative_pilot_workspace_contract import (
     validate_synthesis,
     validate_workspace,
 )
-from scripts.orchestration.creative_code_spec_pipeline import prepare as prepare_specification
+from scripts.orchestration.creative_code_spec_pipeline import (
+    CreativeCodeSpecPipelineError,
+    prepare as prepare_specification,
+)
 from scripts.orchestration.creative_hypothesis_spec_bridge_contract import (
     CreativeHypothesisSpecBridgeError,
     build_creative_pilot_spec_bridge_bundle,
@@ -58,37 +63,159 @@ FIXED_FILENAMES = {
 
 
 def _read(path: Path) -> dict[str, Any]:
-    candidate = path if path.is_absolute() else REPO_ROOT / path
-    _reject_symlink_components(candidate)
+    parent_fd = -1
+    file_fd = -1
     try:
-        resolved = candidate.resolve(strict=True)
-        resolved.relative_to(REPO_ROOT.resolve())
-        if not resolved.is_file():
+        parent_fd, filename = _open_pinned_parent(path, create=False)
+        flags = os.O_RDONLY | _required_open_flag("O_NOFOLLOW")
+        flags |= getattr(os, "O_CLOEXEC", 0)
+        file_fd = os.open(filename, flags, dir_fd=parent_fd)
+        if not stat.S_ISREG(os.fstat(file_fd).st_mode):
             raise CreativePilotContractError("pilot input must be a regular file")
-        flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
-        descriptor = os.open(candidate, flags)
-        with os.fdopen(descriptor, "r", encoding="utf-8") as handle:
-            return cast(dict[str, Any], load_json_strict(handle.read()))
+        with os.fdopen(file_fd, "r", encoding="utf-8") as handle:
+            file_fd = -1
+            return load_json_strict(handle.read())
     except CreativePilotContractError:
         raise
-    except (OSError, UnicodeDecodeError, ValueError) as exc:
+    except (OSError, UnicodeDecodeError, ValueError, NotImplementedError) as exc:
+        if isinstance(exc, OSError) and exc.errno == errno.ELOOP:
+            raise CreativePilotContractError(
+                "pilot artifact path must not traverse symlinks"
+            ) from exc
         raise CreativePilotContractError("unable to read safe repo-local pilot JSON") from exc
+    finally:
+        active_error = sys.exc_info()[1]
+        cleanup_error = _close_descriptors(file_fd, parent_fd)
+        if active_error is None and cleanup_error is not None:
+            raise CreativePilotContractError(
+                "unable to close pilot input safely"
+            ) from cleanup_error
 
 
 def _atomic_write(path: Path, payload: Any) -> None:
-    _reject_symlink_components(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    _reject_symlink_components(path)
-    fd, raw_temp = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
-    temp = Path(raw_temp)
+    parent_fd = -1
+    file_fd = -1
+    temp_name: str | None = None
     try:
-        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+        parent_fd, filename = _open_pinned_parent(path, create=True)
+        try:
+            existing = os.stat(filename, dir_fd=parent_fd, follow_symlinks=False)
+        except FileNotFoundError:
+            pass
+        else:
+            if not stat.S_ISREG(existing.st_mode):
+                raise CreativePilotContractError("pilot artifact target must be a regular file")
+
+        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | _required_open_flag("O_NOFOLLOW")
+        flags |= getattr(os, "O_CLOEXEC", 0)
+        for _attempt in range(32):
+            candidate_name = f".{filename}.{secrets.token_hex(8)}.tmp"
+            try:
+                file_fd = os.open(candidate_name, flags, 0o600, dir_fd=parent_fd)
+                temp_name = candidate_name
+                break
+            except FileExistsError:
+                continue
+        else:
+            raise CreativePilotContractError("unable to allocate pilot artifact temp file")
+
+        with os.fdopen(file_fd, "w", encoding="utf-8") as handle:
+            file_fd = -1
             handle.write(json.dumps(payload, indent=2, ensure_ascii=True, sort_keys=True) + "\n")
             handle.flush()
             os.fsync(handle.fileno())
-        temp.replace(path)
+        os.replace(
+            temp_name,
+            filename,
+            src_dir_fd=parent_fd,
+            dst_dir_fd=parent_fd,
+        )
+        temp_name = None
+        os.fsync(parent_fd)
+    except CreativePilotContractError:
+        raise
+    except (OSError, NotImplementedError) as exc:
+        raise CreativePilotContractError("unable to write safe repo-local pilot JSON") from exc
     finally:
-        temp.unlink(missing_ok=True)
+        active_error = sys.exc_info()[1]
+        cleanup_error: OSError | NotImplementedError | None = None
+        if parent_fd >= 0:
+            if temp_name is not None:
+                try:
+                    os.unlink(temp_name, dir_fd=parent_fd)
+                except FileNotFoundError:
+                    pass
+                except (OSError, NotImplementedError) as exc:
+                    cleanup_error = exc
+        descriptor_error = _close_descriptors(file_fd, parent_fd)
+        cleanup_error = cleanup_error or descriptor_error
+        if active_error is None and cleanup_error is not None:
+            raise CreativePilotContractError(
+                "unable to clean up pilot artifact safely"
+            ) from cleanup_error
+
+
+def _close_descriptors(*descriptors: int) -> OSError | None:
+    first_error: OSError | None = None
+    for descriptor in descriptors:
+        if descriptor < 0:
+            continue
+        try:
+            os.close(descriptor)
+        except OSError as exc:
+            first_error = first_error or exc
+    return first_error
+
+
+def _required_open_flag(name: str) -> int:
+    value = getattr(os, name, None)
+    if not isinstance(value, int):
+        raise CreativePilotContractError(f"platform lacks required {name} support")
+    return value
+
+
+def _repo_relative_parts(path: Path) -> tuple[str, ...]:
+    candidate = path if path.is_absolute() else REPO_ROOT / path
+    try:
+        relative = candidate.relative_to(REPO_ROOT)
+    except ValueError as exc:
+        raise CreativePilotContractError("pilot artifact path must stay inside repository") from exc
+    parts = relative.parts
+    if not parts or any(part in {"", ".", ".."} for part in parts):
+        raise CreativePilotContractError("pilot artifact path must be a safe repo-relative file")
+    return parts
+
+
+def _open_pinned_parent(path: Path, *, create: bool) -> tuple[int, str]:
+    parts = _repo_relative_parts(path)
+    directory_flags = os.O_RDONLY | _required_open_flag("O_DIRECTORY")
+    directory_flags |= _required_open_flag("O_NOFOLLOW") | getattr(os, "O_CLOEXEC", 0)
+    descriptor = os.open(REPO_ROOT, directory_flags)
+    try:
+        for component in parts[:-1]:
+            try:
+                child = os.open(component, directory_flags, dir_fd=descriptor)
+            except FileNotFoundError:
+                if not create:
+                    raise
+                try:
+                    os.mkdir(component, mode=0o700, dir_fd=descriptor)
+                except FileExistsError:
+                    pass
+                child = os.open(component, directory_flags, dir_fd=descriptor)
+            previous = descriptor
+            descriptor = child
+            close_error = _close_descriptors(previous)
+            if close_error is not None:
+                _close_descriptors(previous, descriptor)
+                descriptor = -1
+                raise CreativePilotContractError(
+                    "unable to transfer pinned directory ownership"
+                ) from close_error
+        return descriptor, parts[-1]
+    except (CreativePilotContractError, OSError, NotImplementedError):
+        _close_descriptors(descriptor)
+        raise
 
 
 def _reject_symlink_components(path: Path) -> None:
@@ -198,11 +325,11 @@ def _cmd_record_role_result(args: argparse.Namespace) -> None:
     if existing is not None:
         requested = {
             "stance": args.stance,
-            "claim_ids": args.claim_id,
-            "evidence_refs": args.evidence_ref,
-            "blocker_codes": args.blocker_code,
-            "oracle_gap_codes": args.oracle_gap_code,
-            "peer_result_refs": args.peer_result_ref,
+            "claim_ids": [value.strip() for value in args.claim_id],
+            "evidence_refs": [value.strip() for value in args.evidence_ref],
+            "blocker_codes": [value.strip() for value in args.blocker_code],
+            "oracle_gap_codes": [value.strip() for value in args.oracle_gap_code],
+            "peer_result_refs": [value.strip() for value in args.peer_result_ref],
         }
         if any(existing[key] != value for key, value in requested.items()):
             raise CreativePilotContractError("conflicting role-result replay")
@@ -443,6 +570,7 @@ def main(argv: list[str] | None = None) -> int:
         CreativePilotContractError,
         CreativeHypothesisSpecBridgeError,
         CreativeCodeContractError,
+        CreativeCodeSpecPipelineError,
     ) as exc:
         print(f"FAIL: {exc}")
         return 1

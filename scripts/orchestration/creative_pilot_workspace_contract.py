@@ -360,7 +360,7 @@ def build_target_manifest(
     missing_symbols = sorted(set(normalized_symbols) - available_symbols)
     if missing_symbols:
         raise CreativePilotContractError(f"target symbols do not exist: {missing_symbols}")
-    body = {
+    body: dict[str, Any] = {
         "surface_policy": SURFACE_POLICY,
         "base_sha": base,
         "head_sha": head,
@@ -454,7 +454,7 @@ def _tracked_file_binding(commit_sha: str, path: str) -> dict[str, str]:
 def _identity(
     body: Mapping[str, Any], *, artifact_type: str, upstream_ids: Sequence[str]
 ) -> tuple[str, str]:
-    fingerprint = cast(str, fingerprint_payload(cast(dict[str, Any], dict(body))))
+    fingerprint = fingerprint_payload(dict(body))
     return (
         build_asset_id(
             asset_type=artifact_type,
@@ -570,7 +570,7 @@ def build_hypothesis_packet_v2(
             },
             "hypothesis",
         )
-        row = {
+        row: dict[str, Any] = {
             "hypothesis_id": _token(raw["hypothesis_id"], "hypothesis_id"),
             "statement": _bounded_text(raw["statement"], "statement"),
             "mechanism": _bounded_text(raw["mechanism"], "mechanism"),
@@ -708,7 +708,7 @@ def _build_assignment(
         role,
         "Assess the bounded specification against repository evidence and declared oracles.",
     )
-    identity = {
+    identity: dict[str, Any] = {
         "intent": dict(intent),
         "role": role,
         "phase": phase,
@@ -832,16 +832,13 @@ def _phase_dispatch_fingerprint_unchecked(workspace: Mapping[str, Any], *, phase
     ]
     if not assignments:
         raise CreativePilotContractError(f"workspace has no {phase} assignments")
-    return cast(
-        str,
-        fingerprint_payload(
-            {
-                "workspace_id": workspace["workspace_id"],
-                "workspace_intent_fingerprint": workspace["intent_fingerprint"],
-                "phase": phase,
-                "assignments": assignments,
-            }
-        ),
+    return fingerprint_payload(
+        {
+            "workspace_id": workspace["workspace_id"],
+            "workspace_intent_fingerprint": workspace["intent_fingerprint"],
+            "phase": phase,
+            "assignments": assignments,
+        }
     )
 
 
@@ -1993,27 +1990,21 @@ def build_evidence_events(
     ]
     events: list[EvidenceEvalEvent] = []
     for event_type, metadata in payloads:
-        event_fingerprint = cast(
-            str,
-            fingerprint_payload(
-                {
-                    "event_type": event_type,
-                    "workspace": ws["workspace_id"],
-                    "synthesis": syn["synthesis_id"],
-                    "metadata": metadata,
-                }
-            ),
+        event_fingerprint = fingerprint_payload(
+            {
+                "event_type": event_type,
+                "workspace": ws["workspace_id"],
+                "synthesis": syn["synthesis_id"],
+                "metadata": metadata,
+            }
         )
-        event_key = cast(
-            str,
-            build_idempotency_key(
-                asset_type=event_type,
-                rail="control_plane",
-                version=SCHEMA_VERSION,
-                policy_version=POLICY_VERSION,
-                fingerprint=event_fingerprint,
-                upstream_ids=(ws["workspace_id"], syn["synthesis_id"]),
-            ),
+        event_key = build_idempotency_key(
+            asset_type=event_type,
+            rail="control_plane",
+            version=SCHEMA_VERSION,
+            policy_version=POLICY_VERSION,
+            fingerprint=event_fingerprint,
+            upstream_ids=(ws["workspace_id"], syn["synthesis_id"]),
         )
         events.append(
             create_eval_event(

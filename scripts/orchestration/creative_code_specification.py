@@ -1210,7 +1210,7 @@ def validate_source_candidate_packet(payload: Mapping[str, Any]) -> dict[str, An
     """Validate PR-0 source packet and convert contract errors to PR-1 errors."""
 
     try:
-        return cast(dict[str, Any], validate_creative_code_candidate_packet(dict(payload)))
+        return validate_creative_code_candidate_packet(dict(payload))
     except CreativeCodeContractError as exc:
         raise CreativeCodeSpecificationError(str(exc)) from exc
 
