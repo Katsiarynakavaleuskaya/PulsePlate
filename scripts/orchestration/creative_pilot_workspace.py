@@ -145,7 +145,13 @@ def _read_array(path: Path) -> list[dict[str, Any]]:
         return payload
     except CreativePilotContractError:
         raise
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError, NotImplementedError) as exc:
+    except (
+        OSError,
+        UnicodeDecodeError,
+        ValueError,
+        RecursionError,
+        NotImplementedError,
+    ) as exc:
         raise CreativePilotContractError("unable to read safe exact variant declarations") from exc
     finally:
         active_error = sys.exc_info()[1]
@@ -170,7 +176,13 @@ def _read_json_value(path: Path) -> Any:
             return json.loads(handle.read(), object_pairs_hook=_reject_duplicate_keys)
     except CreativePilotContractError:
         raise
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError, NotImplementedError) as exc:
+    except (
+        OSError,
+        UnicodeDecodeError,
+        ValueError,
+        RecursionError,
+        NotImplementedError,
+    ) as exc:
         raise CreativePilotContractError("unable to read safe pilot JSON value") from exc
     finally:
         active_error = sys.exc_info()[1]
@@ -727,7 +739,13 @@ def _read_json_at(directory_fd: int, filename: str) -> Any:
             return json.loads(handle.read(), object_pairs_hook=_reject_duplicate_keys)
     except CreativePilotContractError:
         raise
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError, NotImplementedError) as exc:
+    except (
+        OSError,
+        UnicodeDecodeError,
+        ValueError,
+        RecursionError,
+        NotImplementedError,
+    ) as exc:
         raise CreativePilotContractError(
             f"adaptive_publish_validation_failed: unable to read {filename}"
         ) from exc
@@ -744,6 +762,38 @@ def _json_payloads_equal(observed: Any, expected: Any) -> bool:
         return fingerprint_payload(observed) == fingerprint_payload(expected)
     except (TypeError, ValueError):
         return False
+
+
+def _assert_pinned_resume_payloads_match(
+    directory_fd: int,
+    prepare_fd: int,
+    *,
+    intake: dict[str, Any],
+    candidate: dict[str, Any],
+    binding: dict[str, Any],
+    snapshots: dict[str, Any],
+) -> None:
+    final_intake = _read_json_at(directory_fd, RESUME_INTAKE_FILENAME)
+    final_candidate = _read_json_at(directory_fd, RESUME_CANDIDATE_FILENAME)
+    final_binding = _read_json_at(directory_fd, RESUME_BINDING_FILENAME)
+    if (
+        not _json_payloads_equal(final_intake, intake)
+        or not _json_payloads_equal(final_candidate, candidate)
+        or not _json_payloads_equal(final_binding, binding)
+    ):
+        raise CreativePilotContractError(
+            "adaptive_publish_validation_failed: canonical resume payload mismatch"
+        )
+    final_snapshots = {
+        filename: _read_json_at(prepare_fd, filename) for filename in ADAPTIVE_PR1_PREPARE_FILENAMES
+    }
+    if any(
+        not _json_payloads_equal(final_snapshots[filename], snapshots[filename])
+        for filename in ADAPTIVE_PR1_PREPARE_FILENAMES
+    ):
+        raise CreativePilotContractError(
+            "adaptive_publish_validation_failed: canonical spec_prepare payload mismatch"
+        )
 
 
 def _validate_pinned_resume_bundle(
@@ -790,28 +840,14 @@ def _validate_pinned_resume_bundle(
             candidate=candidate,
             revalidate_git=True,
         )
-        final_intake = _read_json_at(directory_fd, RESUME_INTAKE_FILENAME)
-        final_candidate = _read_json_at(directory_fd, RESUME_CANDIDATE_FILENAME)
-        final_binding = _read_json_at(directory_fd, RESUME_BINDING_FILENAME)
-        if (
-            not _json_payloads_equal(final_intake, intake)
-            or not _json_payloads_equal(final_candidate, candidate)
-            or not _json_payloads_equal(final_binding, binding)
-        ):
-            raise CreativePilotContractError(
-                "adaptive_publish_validation_failed: canonical resume payload mismatch"
-            )
-        final_snapshots = {
-            filename: _read_json_at(prepare_fd, filename)
-            for filename in ADAPTIVE_PR1_PREPARE_FILENAMES
-        }
-        if any(
-            not _json_payloads_equal(final_snapshots[filename], snapshots[filename])
-            for filename in ADAPTIVE_PR1_PREPARE_FILENAMES
-        ):
-            raise CreativePilotContractError(
-                "adaptive_publish_validation_failed: canonical spec_prepare payload mismatch"
-            )
+        _assert_pinned_resume_payloads_match(
+            directory_fd,
+            prepare_fd,
+            intake=intake,
+            candidate=candidate,
+            binding=binding,
+            snapshots=snapshots,
+        )
         if set(os.listdir(prepare_fd)) != set(ADAPTIVE_PR1_PREPARE_FILENAMES):
             raise CreativePilotContractError(
                 "adaptive_publish_validation_failed: fixed spec_prepare set required"
@@ -820,6 +856,14 @@ def _validate_pinned_resume_bundle(
             raise CreativePilotContractError(
                 "adaptive_publish_validation_failed: fixed resume output set required"
             )
+        _assert_pinned_resume_payloads_match(
+            directory_fd,
+            prepare_fd,
+            intake=intake,
+            candidate=candidate,
+            binding=binding,
+            snapshots=snapshots,
+        )
     finally:
         cleanup_error = _close_descriptors(prepare_fd)
         if sys.exc_info()[1] is None and cleanup_error is not None:

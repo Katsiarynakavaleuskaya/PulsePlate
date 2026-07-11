@@ -858,6 +858,45 @@ def test_pipeline_duplicate_keys_in_artifacts_fail_closed() -> None:
         shutil.rmtree(run_dir, ignore_errors=True)
 
 
+def test_pipeline_json_reader_translates_parser_limits_to_domain_error() -> None:
+    run_dir = creative_code_spec_pipeline.ARTIFACT_ROOT / f"pytest-{uuid.uuid4().hex}"
+    path = run_dir / "oversized.json"
+    try:
+        run_dir.mkdir(parents=True)
+        path.write_text('{"value":' + ("9" * 5000) + "}", encoding="utf-8")
+        with pytest.raises(CreativeCodeSpecPipelineError, match="Unable to read safe test JSON"):
+            creative_code_spec_pipeline._read_json_file(
+                path,
+                allowed_root=creative_code_spec_pipeline.ARTIFACT_ROOT,
+                label="test",
+            )
+    finally:
+        shutil.rmtree(run_dir, ignore_errors=True)
+
+
+def test_pipeline_json_reader_translates_recursion_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_dir = creative_code_spec_pipeline.ARTIFACT_ROOT / f"pytest-{uuid.uuid4().hex}"
+    path = run_dir / "recursive.json"
+    try:
+        run_dir.mkdir(parents=True)
+        path.write_text("{}", encoding="utf-8")
+
+        def raise_recursion(*_args: object, **_kwargs: object) -> object:
+            raise RecursionError("simulated parser depth limit")
+
+        monkeypatch.setattr(creative_code_spec_pipeline.json, "loads", raise_recursion)
+        with pytest.raises(CreativeCodeSpecPipelineError, match="Unable to read safe test JSON"):
+            creative_code_spec_pipeline._read_json_file(
+                path,
+                allowed_root=creative_code_spec_pipeline.ARTIFACT_ROOT,
+                label="test",
+            )
+    finally:
+        shutil.rmtree(run_dir, ignore_errors=True)
+
+
 def test_pr1_modules_do_not_import_network_provider_or_runtime_modules() -> None:
     forbidden_roots = {"app", "requests", "httpx", "urllib", "slack_sdk", "github", "openai"}
     for module_path in (

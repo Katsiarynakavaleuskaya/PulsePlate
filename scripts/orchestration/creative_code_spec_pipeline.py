@@ -257,7 +257,13 @@ def _read_json_file(path: Path, *, allowed_root: Path, label: str) -> Any:
         )
     except CreativeCodeSpecPipelineError:
         raise
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError, NotImplementedError) as exc:
+    except (
+        OSError,
+        UnicodeDecodeError,
+        ValueError,
+        RecursionError,
+        NotImplementedError,
+    ) as exc:
         raise CreativeCodeSpecPipelineError(f"Unable to read safe {label} JSON.") from exc
     finally:
         active_error = sys.exc_info()[1]

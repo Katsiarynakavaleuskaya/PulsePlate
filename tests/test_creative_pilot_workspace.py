@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import uuid
 
 import pytest
 
@@ -469,6 +470,67 @@ def test_evidence_events_reject_cross_workspace_synthesis() -> None:
 def test_duplicate_json_keys_are_rejected() -> None:
     with pytest.raises(CreativePilotContractError, match="duplicate JSON key"):
         load_json_strict('{"phase":"one","phase":"two"}')
+
+
+@pytest.mark.parametrize(
+    ("reader", "error"),
+    [
+        ("value", "unable to read safe pilot JSON value"),
+        ("array", "unable to read safe exact variant"),
+        ("at", "unable to read oversized.json"),
+    ],
+)
+def test_workspace_json_readers_translate_parser_limits_to_domain_errors(
+    reader: str,
+    error: str,
+) -> None:
+    run_dir = pilot_cli.PILOT_ROOT / f"pytest-{uuid.uuid4().hex}"
+    path = run_dir / "oversized.json"
+    payload = "[" + ("9" * 5000) + "]" if reader == "array" else '{"value":' + ("9" * 5000) + "}"
+    run_dir.mkdir(parents=True)
+    path.write_text(payload, encoding="utf-8")
+    try:
+        if reader == "value":
+            with pytest.raises(CreativePilotContractError, match=error):
+                pilot_cli._read_json_value(path)
+            return
+        if reader == "array":
+            with pytest.raises(CreativePilotContractError, match=error):
+                pilot_cli._read_array(path)
+            return
+        directory_fd = os.open(
+            run_dir,
+            os.O_RDONLY | pilot_cli._required_open_flag("O_DIRECTORY"),
+        )
+        try:
+            with pytest.raises(CreativePilotContractError, match=error):
+                pilot_cli._read_json_at(directory_fd, path.name)
+        finally:
+            os.close(directory_fd)
+    finally:
+        shutil.rmtree(run_dir, ignore_errors=True)
+
+
+def test_workspace_json_reader_translates_recursion_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_dir = pilot_cli.PILOT_ROOT / f"pytest-{uuid.uuid4().hex}"
+    path = run_dir / "recursive.json"
+    try:
+        run_dir.mkdir(parents=True)
+        path.write_text("{}", encoding="utf-8")
+
+        def raise_recursion(*_args: object, **_kwargs: object) -> object:
+            raise RecursionError("simulated parser depth limit")
+
+        monkeypatch.setattr(pilot_cli.json, "loads", raise_recursion)
+        with pytest.raises(
+            CreativePilotContractError,
+            match="unable to read safe pilot JSON value",
+        ):
+            pilot_cli._read_json_value(path)
+    finally:
+        shutil.rmtree(run_dir, ignore_errors=True)
 
 
 @pytest.mark.parametrize(
@@ -1618,6 +1680,76 @@ def test_pinned_resume_bundle_rechecks_contents_after_semantic_validation(
             )
     finally:
         os.close(directory_fd)
+
+
+def test_pinned_resume_bundle_rechecks_content_after_final_entry_scan(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    intake: dict[str, object] = {"materialized_variants": []}
+    candidate: dict[str, object] = {"candidate_id": "candidate:expected"}
+    binding: dict[str, object] = {}
+    payloads = {
+        pilot_cli.RESUME_INTAKE_FILENAME: intake,
+        pilot_cli.RESUME_CANDIDATE_FILENAME: candidate,
+        pilot_cli.RESUME_BINDING_FILENAME: binding,
+    }
+    for filename, payload in payloads.items():
+        (tmp_path / filename).write_text(json.dumps(payload), encoding="utf-8")
+    prepare_dir = tmp_path / "spec_prepare"
+    prepare_dir.mkdir()
+    for filename in pilot_contract.ADAPTIVE_PR1_PREPARE_FILENAMES:
+        (prepare_dir / filename).write_text("{}", encoding="utf-8")
+
+    semantic_validation_complete = False
+    mutated = False
+    real_listdir = pilot_cli.os.listdir
+
+    def complete_binding_validation(*_args: object, **_kwargs: object) -> dict[str, object]:
+        nonlocal semantic_validation_complete
+        semantic_validation_complete = True
+        return binding
+
+    def mutate_during_final_entry_scan(path: int) -> list[str]:
+        nonlocal mutated
+        if semantic_validation_complete and not mutated:
+            mutated = True
+            (tmp_path / pilot_cli.RESUME_CANDIDATE_FILENAME).write_text(
+                json.dumps({"candidate_id": "candidate:late-mutation"}),
+                encoding="utf-8",
+            )
+        return real_listdir(path)
+
+    monkeypatch.setattr(
+        pilot_cli,
+        "validate_exact_prepare_artifact_snapshots",
+        lambda **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        pilot_cli,
+        "validate_adaptive_pr1_resume_binding",
+        complete_binding_validation,
+    )
+    monkeypatch.setattr(pilot_cli.os, "listdir", mutate_during_final_entry_scan)
+    directory_fd = os.open(
+        tmp_path,
+        os.O_RDONLY | pilot_cli._required_open_flag("O_DIRECTORY"),
+    )
+    try:
+        with pytest.raises(
+            CreativePilotContractError,
+            match="canonical resume payload mismatch",
+        ):
+            pilot_cli._validate_pinned_resume_bundle(
+                directory_fd,
+                intake=intake,
+                candidate=candidate,
+                binding=binding,
+            )
+    finally:
+        os.close(directory_fd)
+
+    assert mutated
 
 
 @pytest.mark.parametrize(
