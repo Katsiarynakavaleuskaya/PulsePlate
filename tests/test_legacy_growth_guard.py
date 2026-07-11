@@ -60,6 +60,14 @@ def test_current_lifecycle_ownership_passes_growth_guard() -> None:
             "legacy_app.py: startup/shutdown event registration is forbidden",
         ),
         (
+            'app.router.__dict__["on_startup"].append(start)\n',
+            "legacy_app.py: startup/shutdown event registration is forbidden",
+        ),
+        (
+            'vars(app.router)["on_shutdown"].append(stop)\n',
+            "legacy_app.py: startup/shutdown event registration is forbidden",
+        ),
+        (
             "app.router.lifespan_context = wrapper\n",
             "legacy_app.py: lifespan_context mutation is forbidden",
         ),
@@ -95,6 +103,10 @@ def test_current_lifecycle_ownership_passes_growth_guard() -> None:
             "import fastapi.applications\n"
             "async def runtime_context(app):\n    yield\n"
             "app = fastapi.applications.FastAPI(lifespan=runtime_context)\n",
+            "legacy_app.py: FastAPI lifespan must use the canonical re-export",
+        ),
+        (
+            "from fastapi import applications\napp = applications.FastAPI()\n",
             "legacy_app.py: FastAPI lifespan must use the canonical re-export",
         ),
         (
@@ -178,6 +190,8 @@ def test_lifecycle_guard_rejects_legacy_ownership(
         'app.router.__dict__["lifespan_context"] = wrapper\n',
         'app.router.__dict__.update({"lifespan_context": wrapper})\n',
         'vars(app.router).update({"lifespan_context": wrapper})\n',
+        'app.router.__dict__.setdefault("lifespan_context", wrapper)\n',
+        'vars(app.router).setdefault("lifespan_context", wrapper)\n',
     ],
 )
 def test_lifecycle_guard_rejects_food_search_lifespan_wrapping(
@@ -190,6 +204,18 @@ def test_lifecycle_guard_rejects_food_search_lifespan_wrapping(
     )
 
     assert errors == ["app/bootstrap/food_search.py: lifespan_context mutation is forbidden"]
+
+
+@pytest.mark.parametrize(
+    "food_source",
+    [
+        'vars(app.state).update({"food_search_strategy": strategy})\n',
+        'some_object.__dict__.update({"x": value})\n',
+        'vars(app.state).setdefault("food_search_strategy", strategy)\n',
+    ],
+)
+def test_lifecycle_guard_allows_unrelated_namespace_mutation(food_source: str) -> None:
+    assert legacy_guard.validate_lifecycle_ownership("pass\n", food_source, "pass\n") == []
 
 
 @pytest.mark.parametrize(
@@ -225,6 +251,14 @@ def test_lifecycle_guard_rejects_food_search_lifespan_wrapping(
         ),
         (
             "value = __import__('app.main')\n",
+            "app/bootstrap/lifespan.py: dynamic facade lookup is forbidden",
+        ),
+        (
+            "value = __builtins__['__import__']('legacy_app')\n",
+            "app/bootstrap/lifespan.py: dynamic facade lookup is forbidden",
+        ),
+        (
+            "value = __builtins__.__import__('app.main')\n",
             "app/bootstrap/lifespan.py: dynamic facade lookup is forbidden",
         ),
         (

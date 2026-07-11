@@ -1567,6 +1567,7 @@ def _collect_lifecycle_references(
 
     references: dict[str, str] = {
         "FastAPI": "fastapi.FastAPI",
+        "__builtins__": "builtins",
         "__import__": "builtins.__import__",
         "getattr": "builtins.getattr",
         "setattr": "builtins.setattr",
@@ -1598,6 +1599,7 @@ def _collect_lifecycle_references(
                     "builtins.setattr",
                     "builtins.vars",
                     "fastapi.FastAPI",
+                    "fastapi.applications",
                     "fastapi.applications.FastAPI",
                     "importlib.import_module",
                     "sys.modules",
@@ -1651,6 +1653,21 @@ def _resolve_lifecycle_reference(
 ) -> str | None:
     if isinstance(node, ast.Name):
         return references.get(node.id)
+    if isinstance(node, ast.Subscript):
+        parent = _resolve_lifecycle_reference(
+            node.value,
+            references=references,
+            static_string_bindings=static_string_bindings,
+        )
+        member_name = _resolve_static_string(node.slice, static_string_bindings)
+        if parent == "builtins" and member_name in {
+            "__import__",
+            "getattr",
+            "setattr",
+            "vars",
+        }:
+            return f"builtins.{member_name}"
+        return None
     if isinstance(node, ast.Attribute):
         parent = _resolve_lifecycle_reference(
             node.value,
@@ -1691,6 +1708,7 @@ def _resolve_lifecycle_reference(
 def _assigns_lifespan_context(tree: ast.Module) -> bool:
     references, _canonical_lifespan_aliases = _collect_lifecycle_references(tree)
     static_string_bindings = _collect_static_string_bindings(tree)
+    static_mapping_bindings = _collect_static_mapping_bindings(tree)
     for node in ast.walk(tree):
         targets: list[ast.AST] = []
         if isinstance(node, ast.Assign):
@@ -1728,23 +1746,83 @@ def _assigns_lifespan_context(tree: ast.Module) -> bool:
             and _resolve_static_string(node.args[1], static_string_bindings) == "lifespan_context"
         ):
             return True
-        if (
-            isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Attribute)
-            and node.func.attr == "update"
-            and (
-                (isinstance(node.func.value, ast.Attribute) and node.func.value.attr == "__dict__")
-                or (
-                    isinstance(node.func.value, ast.Call)
-                    and _resolve_lifecycle_reference(
-                        node.func.value.func,
-                        references=references,
-                        static_string_bindings=static_string_bindings,
-                    )
-                    == "builtins.vars"
-                )
-            )
+        if isinstance(node, ast.Call) and _mutates_lifespan_namespace(
+            node,
+            references=references,
+            static_string_bindings=static_string_bindings,
+            static_mapping_bindings=static_mapping_bindings,
         ):
+            return True
+    return False
+
+
+def _is_object_namespace_mapping(
+    node: ast.AST,
+    *,
+    references: Mapping[str, str],
+    static_string_bindings: Mapping[str, str],
+) -> bool:
+    return (isinstance(node, ast.Attribute) and node.attr == "__dict__") or (
+        isinstance(node, ast.Call)
+        and _resolve_lifecycle_reference(
+            node.func,
+            references=references,
+            static_string_bindings=static_string_bindings,
+        )
+        == "builtins.vars"
+    )
+
+
+def _mutates_lifespan_namespace(
+    node: ast.Call,
+    *,
+    references: Mapping[str, str],
+    static_string_bindings: Mapping[str, str],
+    static_mapping_bindings: Mapping[str, ast.Dict],
+) -> bool:
+    if not isinstance(node.func, ast.Attribute) or not _is_object_namespace_mapping(
+        node.func.value,
+        references=references,
+        static_string_bindings=static_string_bindings,
+    ):
+        return False
+    if node.func.attr == "update":
+        if any(keyword.arg == "lifespan_context" for keyword in node.keywords):
+            return True
+        for argument in node.args:
+            mapping = _resolve_static_mapping(argument, static_mapping_bindings)
+            if mapping is None:
+                return True
+            for key, _value in mapping:
+                if key is None:
+                    return True
+                resolved_key = _resolve_static_string(key, static_string_bindings)
+                if resolved_key is None or resolved_key == "lifespan_context":
+                    return True
+        return False
+    if node.func.attr in {"__setitem__", "setdefault"}:
+        if not node.args:
+            return True
+        key_name = _resolve_static_string(node.args[0], static_string_bindings)
+        return key_name is None or key_name == "lifespan_context"
+    return False
+
+
+def _accesses_lifecycle_event_namespace(
+    tree: ast.Module,
+    *,
+    references: Mapping[str, str],
+    static_string_bindings: Mapping[str, str],
+) -> bool:
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Subscript) or not _is_object_namespace_mapping(
+            node.value,
+            references=references,
+            static_string_bindings=static_string_bindings,
+        ):
+            continue
+        event_name = _resolve_static_string(node.slice, static_string_bindings)
+        if event_name in {"on_shutdown", "on_startup"}:
             return True
     return False
 
@@ -1752,6 +1830,12 @@ def _assigns_lifespan_context(tree: ast.Module) -> bool:
 def _registers_lifecycle_event(tree: ast.Module) -> bool:
     references, _canonical_lifespan_aliases = _collect_lifecycle_references(tree)
     static_string_bindings = _collect_static_string_bindings(tree)
+    if _accesses_lifecycle_event_namespace(
+        tree,
+        references=references,
+        static_string_bindings=static_string_bindings,
+    ):
+        return True
     for node in ast.walk(tree):
         if isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign)):
             raw_targets = node.targets if isinstance(node, ast.Assign) else [node.target]

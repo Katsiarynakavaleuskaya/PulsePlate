@@ -47,21 +47,31 @@ async def _unavailable_background_update_stop() -> None:
     """No-op counterpart for an unavailable optional scheduler."""
 
 
+def _import_background_update_hooks() -> tuple[
+    BackgroundUpdateStarter,
+    BackgroundUpdateStopper,
+]:
+    """Import the optional scheduler behind a narrow test seam."""
+
+    from core.food_apis.scheduler import (
+        start_background_updates,
+        stop_background_updates,
+    )
+
+    return start_background_updates, stop_background_updates
+
+
 def _load_background_update_hooks() -> tuple[BackgroundUpdateStarter, BackgroundUpdateStopper]:
     """Load optional scheduler hooks without making them a startup dependency."""
 
     try:
-        from core.food_apis.scheduler import (
-            start_background_updates,
-            stop_background_updates,
-        )
+        return _import_background_update_hooks()
     except ImportError:
         logger.warning(
             "Background update scheduler is unavailable; continuing without it.",
             exc_info=True,
         )
         return _unavailable_background_update_start, _unavailable_background_update_stop
-    return start_background_updates, stop_background_updates
 
 
 @dataclass(frozen=True, slots=True)
