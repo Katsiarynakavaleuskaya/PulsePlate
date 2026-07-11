@@ -84,6 +84,31 @@ Evidence: Current reachable material commits `af3e960e97a55bcc2152cdfdf29fce39b1
 Reason: The review inspected stale commit `70c598d`; the actual material commits that will land satisfy the Experiment Runner attribution invariant.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2098#discussion_r3564256710
 
+Disposition: NOT-A-BUG
+Evidence: GitHub reports PR `headRefOid=aba5be27e3391e4715414a360051c9b58ad020b2`, while repository commit lookup for synthetic review id `d28766e` returns HTTP 422 `No commit found`; the real head contains the mapped commits.
+Reason: The reviewer treated a connector-local synthetic patch id as the PR branch head, so its ancestry conclusion does not apply to the GitHub commit graph enforced by the repository guard.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2098#discussion_r3564318817
+
+Disposition: NOT-A-BUG
+Evidence: The claimed reviewed id `d28766e` is not a GitHub commit; actual head `aba5be27e` contains only mapping changes after exact material head `a44cdf714`, and its current-head CI passed lint, security, OpenAPI, `test-pr (3.13)`, and 100% diff coverage.
+Reason: The validation evidence names the real tested SHA and does not certify the nonexistent connector-local synthetic id.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2098#discussion_r3564318818
+
+Disposition: NOT-A-BUG
+Evidence: GitHub commit `6fab2e4ceaf39b8afeb539070bbec448b3bf625e` for merged PR #2099 has two parents, proving this lane uses merge commits that preserve the PR's unsquashed parent history; material commits `af3e960e` and `989882c80` retain the canonical Experiment Runner trailer, and synthetic id `d28766e` is not a repository commit.
+Reason: The attribution invariant applies to the real material commits that land in merge history, not to an unpersisted connector-local squash projection.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2098#discussion_r3564318819
+
+## Synthetic Reviewer Commit Evidence
+
+- GitHub PR head at the second Codex review: `aba5be27e3391e4715414a360051c9b58ad020b2`.
+- GitHub REST commit lookup for `70c598d` and `d28766e`: HTTP 422,
+  `No commit found for SHA`.
+- Actual PR commit history is the canonical ancestry source for fixed-mapping,
+  exact-head validation, and Experiment Runner attribution.
+- The repository uses merge commits for this lane; PR #2099 landed as
+  `6fab2e4ce` with two parents and preserved its unsquashed branch history.
+
 ## Pre-Implementation Role Findings
 
 ### Agent Coordinator
