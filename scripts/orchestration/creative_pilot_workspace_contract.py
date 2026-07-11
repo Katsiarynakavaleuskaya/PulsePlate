@@ -93,6 +93,24 @@ FORBIDDEN_TEXT_RE = re.compile(
     r"pull request body|review body|github comment|bearer\s+|sk-[A-Za-z0-9])",
     re.IGNORECASE,
 )
+SECRET_TEXT_RE = re.compile(
+    r"(sk-[A-Za-z0-9_-]{12,}|gh[psoru]_[A-Za-z0-9_.-]{12,}|github_pat_|"
+    r"xox[abprs]-|authorization:\s*bearer|private[_ -]?key|api[_ -]?key|"
+    r"GH_TOKEN|GITHUB_TOKEN)",
+    re.IGNORECASE,
+)
+LEAK_TEXT_RE = re.compile(
+    r"(diff --git|^\+\+\+ |^--- |@@ |candidate\.patch|candidate_patch|"
+    r"candidate[_. -]?patch|raw[_. -]?(model[_. -]?payload|"
+    r"body|prompt|response|context|patch|review|pr)|"
+    r"review[_. -]?thread[_. -]?body|pull[_. -]?request[_. -]?body|"
+    r"chain[_. -]?of[_. -]?thought|provider[_. -]?payload|"
+    r"oracle[_. -]?(stdout|stderr|output)|file://|"
+    r"/(?:Users|home|private/var|var/folders|tmp|etc|opt|usr|Volumes|mnt|root|"
+    r"workspace|workspaces)(?:/|$)|~[/\\]|[A-Za-z]:[\\/]|\.venv/|\.git/|"
+    r"worktrees([:/._-]|$)|merge[-_ ]?ready|ready to merge|mergeable)",
+    re.IGNORECASE | re.MULTILINE,
+)
 
 AUTHORITY = {
     "bind_planning_target": True,
@@ -182,7 +200,11 @@ def _string_list(
         if not isinstance(item, str) or not item.strip() or len(item) > 320:
             raise CreativePilotContractError(f"{label} contains an invalid string")
         normalized = item.strip()
-        if FORBIDDEN_TEXT_RE.search(normalized):
+        if (
+            FORBIDDEN_TEXT_RE.search(normalized)
+            or SECRET_TEXT_RE.search(normalized)
+            or LEAK_TEXT_RE.search(normalized)
+        ):
             raise CreativePilotContractError(
                 f"{label} contains forbidden raw or secret-shaped text"
             )
@@ -284,6 +306,7 @@ def build_target_manifest(
     paths: Sequence[str],
     symbols: Sequence[str],
     immutable_oracles: Sequence[str],
+    require_current_origin_main: bool = True,
 ) -> dict[str, Any]:
     """Bind an exact production-adjacent planning target to Git objects."""
 
@@ -291,15 +314,18 @@ def build_target_manifest(
     head = _sha(head_sha, "head_sha")
     _require_commit(base, "base_sha")
     _require_commit(head, "head_sha")
-    origin_main = current_origin_main_sha()
-    if base != origin_main or head != origin_main:
+    origin_main = current_origin_main_sha() if require_current_origin_main else None
+    if require_current_origin_main and (base != origin_main or head != origin_main):
         raise CreativePilotContractError(
             "production-adjacent pilot base_sha and head_sha must equal current origin/main"
         )
     normalized_paths = [_path(item, "target.paths") for item in paths]
     if not 1 <= len(normalized_paths) <= 2 or len(set(normalized_paths)) != len(normalized_paths):
         raise CreativePilotContractError("target.paths must contain one or two exact files")
-    validate_mutable_candidate_surface(normalized_paths)
+    try:
+        validate_mutable_candidate_surface(normalized_paths)
+    except ValueError as exc:
+        raise CreativePilotContractError(str(exc)) from exc
     if any(not item.startswith(ALLOWED_TARGET_PREFIXES) for item in normalized_paths):
         raise CreativePilotContractError(
             "production-adjacent targets are limited to core/rag or core/insight"
@@ -404,6 +430,7 @@ def validate_target_manifest(
             immutable_oracles=_string_list(
                 payload["immutable_oracles"], "immutable_oracles", min_items=1, max_items=32
             ),
+            require_current_origin_main=False,
         )
         if revalidate_git
         else dict(payload)
@@ -462,8 +489,10 @@ def build_context_map_v2(
 ) -> dict[str, Any]:
     target = validate_target_manifest(target_manifest)
     refs = [_path(item, "context_refs") for item in context_refs]
-    if not refs:
-        raise CreativePilotContractError("context refs must contain tracked read-only evidence")
+    if not 1 <= len(refs) <= 32:
+        raise CreativePilotContractError(
+            "context refs must contain 1..32 tracked read-only evidence paths"
+        )
     if any(item.startswith("artifacts/") for item in refs):
         raise CreativePilotContractError("context refs must be tracked repository paths")
     context_bindings = [
@@ -508,7 +537,9 @@ def validate_context_map_v2(
     expected = (
         build_context_map_v2(
             target_manifest=target,
-            context_refs=_string_list(payload["context_refs"], "context_refs", max_items=32),
+            context_refs=_string_list(
+                payload["context_refs"], "context_refs", min_items=1, max_items=32
+            ),
         )
         if revalidate_git
         else dict(payload)
@@ -629,7 +660,11 @@ def _bounded_text(value: Any, label: str) -> str:
     if not isinstance(value, str) or not 12 <= len(value.strip()) <= 1200:
         raise CreativePilotContractError(f"{label} must contain 12..1200 characters")
     normalized = value.strip()
-    if FORBIDDEN_TEXT_RE.search(normalized):
+    if (
+        FORBIDDEN_TEXT_RE.search(normalized)
+        or SECRET_TEXT_RE.search(normalized)
+        or LEAK_TEXT_RE.search(normalized)
+    ):
         raise CreativePilotContractError(f"{label} contains forbidden raw or secret-shaped text")
     return normalized
 
@@ -1594,6 +1629,8 @@ def apply_synthesis_transition(
 
     ws = validate_workspace(workspace)
     syn = validate_synthesis(synthesis)
+    if syn != build_synthesis(ws):
+        raise CreativePilotContractError("synthesis is not deterministic workspace truth")
     if (
         syn["workspace_id"] != ws["workspace_id"]
         or syn["workspace_intent_fingerprint"] != ws["intent_fingerprint"]
@@ -1770,6 +1807,30 @@ def validate_approval_v2(payload: Mapping[str, Any]) -> dict[str, Any]:
         "target_manifest_fingerprint",
     ):
         _fingerprint(payload[key], f"approval.{key}")
+    for key in ("base_sha", "head_sha"):
+        _sha(payload[key], f"approval.{key}")
+    for key in (
+        "workspace_id",
+        "synthesis_id",
+        "source_hypothesis_packet_id",
+        "hypothesis_id",
+        "approved_by",
+    ):
+        _token(payload[key], f"approval.{key}")
+    surfaces = _string_list(
+        payload["approved_target_surfaces"],
+        "approval.approved_target_surfaces",
+        min_items=1,
+        max_items=2,
+    )
+    for surface in surfaces:
+        normalized = _path(surface, "approval.approved_target_surfaces")
+        if not normalized.startswith(ALLOWED_TARGET_PREFIXES):
+            raise CreativePilotContractError("approval target is outside production-adjacent scope")
+        try:
+            validate_mutable_candidate_surface([normalized])
+        except ValueError as exc:
+            raise CreativePilotContractError(str(exc)) from exc
     _validate_artifact_identity(
         payload,
         artifact_type=APPROVAL_TYPE,
@@ -1803,25 +1864,53 @@ def complete_handoff(
         for key in ("synthesis_id", "synthesis_fingerprint")
     ):
         raise CreativePilotContractError("handoff approval synthesis binding mismatch")
-    for payload, id_key, label in (
-        (bridge, "bridge_id", "bridge"),
-        (candidate, "candidate_id", "candidate"),
-    ):
-        if not isinstance(payload, Mapping) or id_key not in payload:
-            raise CreativePilotContractError(f"handoff {label} artifact is invalid")
-        _token(payload[id_key], f"handoff.{id_key}")
-    if bridge.get("candidate_id") != candidate.get("candidate_id"):
+    # Lazy imports avoid a module cycle: the bridge builder consumes these pilot contracts.
+    from scripts.orchestration.creative_code_contract import (
+        CreativeCodeContractError,
+        validate_creative_code_candidate_packet,
+    )
+    from scripts.orchestration.creative_hypothesis_spec_bridge_contract import (
+        CreativeHypothesisSpecBridgeError,
+        validate_creative_pilot_spec_bridge,
+    )
+
+    try:
+        validated_bridge = validate_creative_pilot_spec_bridge(bridge)
+        validated_candidate = validate_creative_code_candidate_packet(dict(candidate))
+    except (CreativeCodeContractError, CreativeHypothesisSpecBridgeError) as exc:
+        raise CreativePilotContractError(f"handoff artifact is invalid: {exc}") from exc
+    expected_lineage = {
+        "packet_id": ws["intent"]["packet_id"],
+        "workspace_id": ws["workspace_id"],
+        "workspace_intent_fingerprint": ws["intent_fingerprint"],
+        "workspace_reviewed_revision_fingerprint": approved[
+            "workspace_reviewed_revision_fingerprint"
+        ],
+        "workspace_synthesized_revision_fingerprint": ws["revision_fingerprint"],
+        "hypothesis_id": ws["intent"]["hypothesis_id"],
+        "hypothesis_fingerprint": ws["intent"]["hypothesis_fingerprint"],
+        "target_manifest_fingerprint": ws["target_manifest"]["manifest_fingerprint"],
+        "base_sha": ws["target_manifest"]["base_sha"],
+        "head_sha": ws["target_manifest"]["head_sha"],
+        "synthesis_id": approved["synthesis_id"],
+        "synthesis_fingerprint": approved["synthesis_fingerprint"],
+        "approval_id": approved["approval_id"],
+        "approval_fingerprint": fingerprint_payload(approved),
+    }
+    if validated_bridge["lineage"] != expected_lineage:
+        raise CreativePilotContractError("handoff bridge lineage mismatch")
+    if validated_bridge["candidate_id"] != validated_candidate["candidate_id"]:
         raise CreativePilotContractError("handoff bridge candidate binding mismatch")
-    if bridge.get("candidate_fingerprint") != fingerprint_payload(dict(candidate)):
+    if validated_bridge["candidate_fingerprint"] != fingerprint_payload(validated_candidate):
         raise CreativePilotContractError("handoff candidate fingerprint mismatch")
     updated = dict(ws)
     updated["handoff_ref"] = {
         "approval_id": approved["approval_id"],
         "approval_fingerprint": fingerprint_payload(approved),
-        "bridge_id": bridge["bridge_id"],
-        "bridge_fingerprint": fingerprint_payload(dict(bridge)),
-        "candidate_id": candidate["candidate_id"],
-        "candidate_fingerprint": fingerprint_payload(dict(candidate)),
+        "bridge_id": validated_bridge["bridge_id"],
+        "bridge_fingerprint": fingerprint_payload(validated_bridge),
+        "candidate_id": validated_candidate["candidate_id"],
+        "candidate_fingerprint": fingerprint_payload(validated_candidate),
     }
     return _next_revision(updated, phase="approved_for_pr1_spec")
 
@@ -1831,6 +1920,40 @@ def build_evidence_events(
 ) -> list[EvidenceEvalEvent]:
     ws = validate_workspace(workspace)
     syn = validate_synthesis(synthesis)
+    for key, observed in (
+        ("workspace_id", ws["workspace_id"]),
+        ("workspace_intent_fingerprint", ws["intent_fingerprint"]),
+        ("hypothesis_id", ws["intent"]["hypothesis_id"]),
+        ("hypothesis_fingerprint", ws["intent"]["hypothesis_fingerprint"]),
+        ("target_manifest_fingerprint", ws["target_manifest"]["manifest_fingerprint"]),
+        ("base_sha", ws["target_manifest"]["base_sha"]),
+        ("head_sha", ws["target_manifest"]["head_sha"]),
+    ):
+        if syn[key] != observed:
+            raise CreativePilotContractError(f"evidence synthesis {key} binding mismatch")
+    if ws["state"]["phase"] == "synthesized":
+        expected_ref = {
+            "synthesis_id": syn["synthesis_id"],
+            "synthesis_fingerprint": fingerprint_payload(syn),
+            "reviewed_revision_fingerprint": syn["workspace_revision_fingerprint"],
+        }
+        if ws["synthesis_ref"] != expected_ref:
+            raise CreativePilotContractError("evidence synthesis is not canonical workspace truth")
+        reviewed_workspace = dict(ws)
+        reviewed_workspace["state"] = {"phase": "synthesis_ready", "terminal": False}
+        reviewed_workspace["revision"] = int(ws["revision"]) - 1
+        reviewed_workspace["synthesis_ref"] = None
+        reviewed_workspace["handoff_ref"] = None
+        reviewed_workspace["revision_fingerprint"] = syn["workspace_revision_fingerprint"]
+        expected_synthesis = build_synthesis(validate_workspace(reviewed_workspace))
+    elif ws["state"]["phase"] == "synthesis_ready":
+        expected_synthesis = build_synthesis(ws)
+    else:
+        raise CreativePilotContractError(
+            "evidence events require synthesis-ready or synthesized workspace"
+        )
+    if syn != expected_synthesis:
+        raise CreativePilotContractError("evidence synthesis is not deterministic workspace truth")
     source = ws["target_manifest"]["files"][0]["path"]
     producer = "creative_pilot_workspace"
     common = {
@@ -1910,6 +2033,26 @@ def phase_dispatch_fingerprint(workspace: Mapping[str, Any], *, phase: str) -> s
 
     ws = validate_workspace(workspace)
     return _phase_dispatch_fingerprint_unchecked(ws, phase=phase)
+
+
+def validate_dispatch_phase(workspace: Mapping[str, Any], *, phase: str) -> dict[str, Any]:
+    """Require one dispatch phase to match the workspace FSM exactly."""
+
+    ws = validate_workspace(workspace)
+    expected_state = {
+        "independent": "independent_dispatched",
+        "rebuttal": "rebuttal_required",
+        "synthesis": "synthesis_ready",
+    }
+    if phase not in expected_state:
+        raise CreativePilotContractError("creative pilot dispatch phase is unsupported")
+    if ws["state"]["terminal"]:
+        raise CreativePilotContractError("terminal workspace cannot be dispatched")
+    if ws["state"]["phase"] != expected_state[phase]:
+        raise CreativePilotContractError(
+            f"{phase} dispatch requires workspace phase {expected_state[phase]}"
+        )
+    return ws
 
 
 def validate_task_pilot_context(payload: Mapping[str, Any]) -> dict[str, Any]:

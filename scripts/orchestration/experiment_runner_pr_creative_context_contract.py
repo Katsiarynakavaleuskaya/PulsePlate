@@ -19,6 +19,7 @@ from typing import Any, cast
 
 from core.evidence.fingerprints import build_asset_id, build_idempotency_key, fingerprint_payload
 from scripts.orchestration.creative_pilot_workspace_contract import (
+    CreativePilotContractError,
     POLICY_VERSION as PILOT_POLICY_VERSION,
     SCHEMA_VERSION as PILOT_SCHEMA_VERSION,
     validate_approval_v2,
@@ -2896,7 +2897,10 @@ def validate_creative_protocol_context_map_versioned(
     if version == (SCHEMA_VERSION, POLICY_VERSION):
         return validate_creative_protocol_context_map(payload)
     if version == (PILOT_SCHEMA_VERSION, PILOT_POLICY_VERSION):
-        return cast(dict[str, Any], validate_context_map_v2(payload))
+        try:
+            return cast(dict[str, Any], validate_context_map_v2(payload))
+        except CreativePilotContractError as exc:
+            raise ExperimentRunnerCreativeContextContractError(str(exc)) from exc
     raise ExperimentRunnerCreativeContextContractError(
         "CreativeProtocolContextMap version tuple is unsupported."
     )
@@ -2917,7 +2921,13 @@ def validate_creative_hypothesis_packet_versioned(
             )
         return validate_creative_hypothesis_packet(payload)
     if version == (PILOT_SCHEMA_VERSION, PILOT_POLICY_VERSION):
-        return cast(dict[str, Any], validate_hypothesis_packet_v2(payload, context_map=context_map))
+        try:
+            return cast(
+                dict[str, Any],
+                validate_hypothesis_packet_v2(payload, context_map=context_map),
+            )
+        except CreativePilotContractError as exc:
+            raise ExperimentRunnerCreativeContextContractError(str(exc)) from exc
     raise ExperimentRunnerCreativeContextContractError(
         "CreativeHypothesisPacket version tuple is unsupported."
     )
@@ -2932,7 +2942,10 @@ def validate_creative_hypothesis_approval_versioned(
     if version == (SCHEMA_VERSION, POLICY_VERSION):
         return validate_creative_hypothesis_approval(payload)
     if version == (PILOT_SCHEMA_VERSION, PILOT_POLICY_VERSION):
-        return cast(dict[str, Any], validate_approval_v2(payload))
+        try:
+            return cast(dict[str, Any], validate_approval_v2(payload))
+        except CreativePilotContractError as exc:
+            raise ExperimentRunnerCreativeContextContractError(str(exc)) from exc
     raise ExperimentRunnerCreativeContextContractError(
         "CreativeHypothesisApproval version tuple is unsupported."
     )
@@ -2964,14 +2977,22 @@ def _validate_identity(
         )
 
 
-def validate_artifact_by_type(artifact_type: str, payload: Mapping[str, Any]) -> dict[str, Any]:
+def validate_artifact_by_type(
+    artifact_type: str,
+    payload: Mapping[str, Any],
+    *,
+    context_map: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    if artifact_type == CONTEXT_MAP_TYPE:
+        return validate_creative_protocol_context_map_versioned(payload)
+    if artifact_type == HYPOTHESIS_PACKET_TYPE:
+        return validate_creative_hypothesis_packet_versioned(payload, context_map=context_map)
+    if artifact_type == APPROVAL_TYPE:
+        return validate_creative_hypothesis_approval_versioned(payload)
     validators: dict[str, Callable[[Mapping[str, Any]], dict[str, Any]]] = {
         ORACLE_ATTACHMENT_TYPE: validate_experiment_runner_pr_oracle_attachment,
-        CONTEXT_MAP_TYPE: validate_creative_protocol_context_map,
-        HYPOTHESIS_PACKET_TYPE: validate_creative_hypothesis_packet,
         AGENT_ROUTING_TYPE: validate_creative_hypothesis_agent_routing,
         CONSUMPTION_SUMMARY_TYPE: validate_agent_consumption_summary,
-        APPROVAL_TYPE: validate_creative_hypothesis_approval,
         OPERATOR_MODEL_INTAKE_TYPE: validate_creative_hypothesis_operator_model_intake,
         COORDINATOR_DISPATCH_TYPE: validate_creative_hypothesis_coordinator_dispatch,
     }
@@ -2989,13 +3010,19 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--artifact-type", required=True)
     parser.add_argument("--path", required=True)
+    parser.add_argument("--context-path")
     return parser.parse_args(argv)
 
 
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
     try:
-        validate_artifact_by_type(args.artifact_type, read_json_object(args.path))
+        context_map = read_json_object(args.context_path) if args.context_path else None
+        validate_artifact_by_type(
+            args.artifact_type,
+            read_json_object(args.path),
+            context_map=context_map,
+        )
     except ExperimentRunnerCreativeContextContractError as exc:
         print(f"FAIL: {exc}", file=sys.stderr)
         return 1

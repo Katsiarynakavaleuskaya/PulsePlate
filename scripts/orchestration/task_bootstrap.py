@@ -47,6 +47,7 @@ from scripts.orchestration.creative_pilot_workspace_contract import (
     load_json_strict as load_creative_pilot_json_strict,
     phase_dispatch_fingerprint,
     validate_task_pilot_context,
+    validate_dispatch_phase,
     validate_workspace as validate_creative_pilot_workspace,
 )
 from scripts.orchestration.embedding_retrieval_admission_telemetry import (
@@ -227,6 +228,7 @@ def _read_creative_pilot_workspace(
         workspace = validate_creative_pilot_workspace(
             load_creative_pilot_json_strict(resolved.read_text(encoding="utf-8"))
         )
+        workspace = validate_dispatch_phase(workspace, phase=phase)
     except (OSError, CreativePilotContractError) as exc:
         raise ValueError(f"invalid creative pilot workspace: {exc}") from exc
     assignments = [
@@ -1159,8 +1161,17 @@ def build_task_packet(
         if creative_pilot_context is not None
         else []
     )
-    normalized_requested_agents = normalize_requested_agents([*requested_agents, *pilot_roles])
+    normalized_requested_agents = normalize_requested_agents(
+        pilot_roles if creative_pilot_context is not None else requested_agents
+    )
     normalized_pr_phase = _normalize_pr_phase(pr_phase)
+    if creative_pilot_context is not None and normalized_pr_phase in {
+        PR_PHASE_POST_OPEN_REVIEW,
+        PR_PHASE_MERGE_READY,
+    }:
+        raise ValueError(
+            "creative pilot dispatch cannot be combined with post-open or merge-ready PR phases"
+        )
     creative_learning_hints = _read_creative_learning_hints(creative_learning_hints_path)
     creative_learning_hints_fingerprint = (
         fingerprint_payload(creative_learning_hints) if creative_learning_hints is not None else ""
@@ -1261,6 +1272,14 @@ def build_task_packet(
         secondary_agents=requested_agent_resolution["secondary_agents"],
         reviewer=requested_agent_resolution["reviewer"],
     )
+    if creative_pilot_context is not None:
+        exact_roles = list(dict.fromkeys(pilot_roles))
+        requested_agent_resolution = {
+            "primary_agent": exact_roles[0],
+            "secondary_agents": exact_roles[1:-1],
+            "reviewer": exact_roles[-1],
+            "requested_agent_disposition": [],
+        }
     skill_routing = route_skills(
         goal=goal,
         task_class=task_class,

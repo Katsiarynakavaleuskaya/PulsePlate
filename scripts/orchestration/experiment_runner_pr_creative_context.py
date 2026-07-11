@@ -372,7 +372,12 @@ def _cmd_prepare(args: argparse.Namespace) -> int:
 
 
 def _cmd_validate(args: argparse.Namespace) -> int:
-    payload = validate_artifact_by_type(args.artifact_type, read_json_object(args.path))
+    context_map = read_json_object(args.context_path) if args.context_path else None
+    payload = validate_artifact_by_type(
+        args.artifact_type,
+        read_json_object(args.path),
+        context_map=context_map,
+    )
     if args.output:
         _write_json(Path(args.output), payload)
     else:
@@ -476,6 +481,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             }
         ),
     )
+    validate_parser.add_argument("--context-path")
     validate_parser.add_argument("--path", required=True)
     validate_parser.add_argument("--output")
     validate_parser.set_defaults(func=_cmd_validate)

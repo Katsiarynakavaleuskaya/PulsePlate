@@ -1087,6 +1087,10 @@ def _load_creative_pilot_context(packet_path: Path) -> Optional[Dict[str, Any]]:
         return None
     if not isinstance(context, dict):
         raise ValueError("creative_pilot_context must be an object")
+    if payload.get("pr_phase") in {PR_PHASE_POST_OPEN_REVIEW, PR_PHASE_MERGE_READY}:
+        raise ValueError(
+            "creative pilot dispatch cannot be combined with post-open or merge-ready PR phases"
+        )
     try:
         return cast(Dict[str, Any], validate_task_pilot_context(context))
     except CreativePilotContractError as exc:

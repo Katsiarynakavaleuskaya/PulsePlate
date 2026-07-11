@@ -46,7 +46,6 @@ from scripts.orchestration.creative_hypothesis_spec_bridge_contract import (
 )
 from scripts.orchestration.creative_pilot_workspace_contract import (
     CreativePilotContractError,
-    load_json_strict as load_creative_pilot_json_strict,
     validate_approval_v2,
     validate_synthesis,
     validate_workspace as validate_creative_pilot_workspace,
@@ -1353,9 +1352,7 @@ def build_adaptive_pilot_inventory_report() -> dict[str, Any]:
     ):
         workspace_path = pilot_dir / "workspace.json"
         try:
-            workspace = validate_creative_pilot_workspace(
-                load_creative_pilot_json_strict(workspace_path.read_text(encoding="utf-8"))
-            )
+            workspace = validate_creative_pilot_workspace(_read_json_object(workspace_path))
             approval_path = pilot_dir / "approval.v2.json"
             synthesis_path = pilot_dir / "synthesis.json"
             bridge_path = pilot_dir / "spec_bridge.v2.json"
@@ -1375,25 +1372,47 @@ def build_adaptive_pilot_inventory_report() -> dict[str, Any]:
                     or not handoff_files_complete
                 ):
                     raise CreativePilotContractError("approved pilot is missing handoff sidecars")
-                synthesis = validate_synthesis(
-                    load_creative_pilot_json_strict(synthesis_path.read_text(encoding="utf-8"))
-                )
-                approval = validate_approval_v2(
-                    load_creative_pilot_json_strict(approval_path.read_text(encoding="utf-8"))
-                )
-                bridge = validate_creative_pilot_spec_bridge(
-                    load_creative_pilot_json_strict(bridge_path.read_text(encoding="utf-8"))
-                )
+                synthesis = validate_synthesis(_read_json_object(synthesis_path))
+                approval = validate_approval_v2(_read_json_object(approval_path))
+                bridge = validate_creative_pilot_spec_bridge(_read_json_object(bridge_path))
                 candidate = validate_creative_code_candidate_packet(
-                    load_creative_pilot_json_strict(candidate_path.read_text(encoding="utf-8"))
+                    _read_json_object(candidate_path)
                 )
                 source_packet = validate_creative_code_candidate_packet(
-                    load_creative_pilot_json_strict(source_packet_path.read_text(encoding="utf-8"))
+                    _read_json_object(source_packet_path)
                 )
                 if source_packet != candidate:
                     raise CreativePilotContractError(
                         "PR-1 source packet differs from handoff candidate"
                     )
+                expected_lineage = {
+                    "packet_id": workspace["intent"]["packet_id"],
+                    "workspace_id": workspace["workspace_id"],
+                    "workspace_intent_fingerprint": workspace["intent_fingerprint"],
+                    "workspace_reviewed_revision_fingerprint": approval[
+                        "workspace_reviewed_revision_fingerprint"
+                    ],
+                    "workspace_synthesized_revision_fingerprint": approval[
+                        "workspace_synthesized_revision_fingerprint"
+                    ],
+                    "hypothesis_id": workspace["intent"]["hypothesis_id"],
+                    "hypothesis_fingerprint": workspace["intent"]["hypothesis_fingerprint"],
+                    "target_manifest_fingerprint": workspace["target_manifest"][
+                        "manifest_fingerprint"
+                    ],
+                    "base_sha": workspace["target_manifest"]["base_sha"],
+                    "head_sha": workspace["target_manifest"]["head_sha"],
+                    "synthesis_id": synthesis["synthesis_id"],
+                    "synthesis_fingerprint": fingerprint_payload(synthesis),
+                    "approval_id": approval["approval_id"],
+                    "approval_fingerprint": fingerprint_payload(approval),
+                }
+                if bridge["lineage"] != expected_lineage:
+                    raise CreativePilotContractError("adaptive pilot bridge lineage mismatch")
+                if bridge["candidate_id"] != candidate["candidate_id"] or bridge[
+                    "candidate_fingerprint"
+                ] != fingerprint_payload(candidate):
+                    raise CreativePilotContractError("adaptive pilot candidate lineage mismatch")
                 expected_handoff = {
                     "approval_id": approval["approval_id"],
                     "approval_fingerprint": fingerprint_payload(approval),
@@ -1434,10 +1453,17 @@ def build_adaptive_pilot_inventory_report() -> dict[str, Any]:
             CreativeCodeContractError,
             CreativeHypothesisSpecBridgeError,
         ) as exc:
-            errors.append({"pilot_id": pilot_dir.name, "error_code": type(exc).__name__})
+            errors.append(
+                {
+                    "pilot_id": pilot_dir.name,
+                    "artifact_ref": f"adaptive_pilots/{pilot_dir.name}",
+                    "error_code": getattr(exc, "code", type(exc).__name__),
+                }
+            )
     errors.extend(
         {
             "pilot_id": "invalid",
+            "artifact_ref": str(row.get("artifact_ref", "adaptive_pilots/invalid")),
             "error_code": str(row.get("error_code", "adaptive_pilot_scan_error")),
         }
         for row in scan_errors

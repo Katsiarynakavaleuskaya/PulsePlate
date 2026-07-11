@@ -6,13 +6,16 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import tempfile
 
 import pytest
 
-from core.evidence.fingerprints import fingerprint_payload
+from core.evidence.fingerprints import build_asset_id, build_idempotency_key, fingerprint_payload
 from scripts.orchestration import creative_code_artifact_inventory as inventory
+from scripts.orchestration import creative_pilot_workspace as pilot_cli
+from scripts.orchestration import creative_pilot_workspace_contract as pilot_contract
 from scripts.orchestration import task_bootstrap
-from scripts.orchestration.qoder_dispatch_bridge import build_dispatch_manifest
+from scripts.orchestration.qoder_dispatch_bridge import build_dispatch_manifest, main as qoder_main
 from scripts.orchestration.creative_hypothesis_spec_bridge_contract import (
     build_creative_pilot_spec_bridge_bundle,
 )
@@ -149,6 +152,14 @@ def test_target_rejects_stale_head_and_untracked_context() -> None:
             target_manifest=context["target_manifest"],
             context_refs=["core/rag/does_not_exist.py"],
         )
+
+
+def test_bound_workspace_replays_after_origin_main_advances(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _context, _packet, workspace = _chain()
+    monkeypatch.setattr(pilot_contract, "current_origin_main_sha", lambda: "f" * 40)
+    assert validate_workspace(workspace) == workspace
 
 
 def test_version_router_accepts_v2_without_v1_downgrade() -> None:
@@ -410,9 +421,94 @@ def test_evidence_events_use_control_plane_and_tracked_target() -> None:
     assert {event.source_artifact for event in events} == {"core/rag/orchestration.py"}
 
 
+def test_evidence_events_reject_cross_workspace_synthesis() -> None:
+    _context, _packet, workspace = _chain()
+    completed = _complete(workspace)
+    synthesis = build_synthesis(completed)
+    forged = deepcopy(synthesis)
+    forged["workspace_id"] = "unrelated-workspace"
+    body = dict(forged)
+    body.pop("synthesis_id")
+    body.pop("idempotency_key")
+    fingerprint = fingerprint_payload(body)
+    upstream = (forged["workspace_id"], *forged["role_result_ids"])
+    forged["synthesis_id"] = build_asset_id(
+        asset_type="creative_pilot_synthesis",
+        rail="orchestration",
+        version="2.0",
+        policy_version="creative-production-adjacent-pilot-v2",
+        fingerprint=fingerprint,
+        upstream_ids=upstream,
+    )
+    forged["idempotency_key"] = build_idempotency_key(
+        asset_type="creative_pilot_synthesis",
+        rail="orchestration",
+        version="2.0",
+        policy_version="creative-production-adjacent-pilot-v2",
+        fingerprint=fingerprint,
+        upstream_ids=upstream,
+    )
+    with pytest.raises(CreativePilotContractError, match="workspace_id binding mismatch"):
+        build_evidence_events(
+            workspace=completed,
+            synthesis=forged,
+            produced_at="2026-07-10T00:00:00+00:00",
+        )
+
+
 def test_duplicate_json_keys_are_rejected() -> None:
     with pytest.raises(CreativePilotContractError, match="duplicate JSON key"):
         load_json_strict('{"phase":"one","phase":"two"}')
+
+
+@pytest.mark.parametrize(
+    "unsafe_text",
+    [
+        "github_" + "pat_" + ("a" * 24),
+        "ghp_" + ("b" * 24),
+        "xoxb-" + ("c" * 24),
+        "-----BEGIN " + "PRIVATE KEY-----",
+        "contains api_key marker",
+        "diff --git a/file b/file",
+        "/Users/example/private.json",
+    ],
+)
+def test_v2_hypothesis_rejects_secret_and_leak_shaped_text(unsafe_text: str) -> None:
+    context, _packet, _workspace = _chain()
+    with pytest.raises(CreativePilotContractError, match="forbidden raw or secret-shaped text"):
+        build_hypothesis_packet_v2(
+            context_map=context,
+            hypotheses=[
+                {
+                    "hypothesis_id": "unsafe-hypothesis",
+                    "statement": f"Unsafe hypothesis payload {unsafe_text}",
+                    "mechanism": "A deterministic mechanism description that remains bounded.",
+                    "target_symbols": ["RAGOrchestrationResult"],
+                    "tests_or_oracles": ["tests/test_rag_orchestration.py"],
+                    "negative_controls": ["successful output remains unchanged"],
+                    "tags": ["verification"],
+                }
+            ],
+        )
+
+
+def test_cli_read_rejects_symlink_outside_root_and_invalid_utf8(tmp_path: Path) -> None:
+    artifact_root = REPO_ROOT / "artifacts" / "orchestration"
+    artifact_root.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="pilot-read-test-", dir=artifact_root) as raw_dir:
+        run_dir = Path(raw_dir)
+        outside = tmp_path / "outside.json"
+        outside.write_text('{"safe": true}', encoding="utf-8")
+        link = run_dir / "linked.json"
+        link.symlink_to(outside)
+        with pytest.raises(CreativePilotContractError, match="symlink"):
+            pilot_cli._read(link)
+        with pytest.raises(CreativePilotContractError, match="safe repo-local"):
+            pilot_cli._read(outside)
+        invalid = run_dir / "invalid.json"
+        invalid.write_bytes(b"\xff\xfe")
+        with pytest.raises(CreativePilotContractError, match="safe repo-local"):
+            pilot_cli._read(invalid)
 
 
 def test_pilot_v2_schemas_are_closed_and_version_aligned() -> None:
@@ -421,6 +517,10 @@ def test_pilot_v2_schemas_are_closed_and_version_aligned() -> None:
         "creative_pilot_workspace.v2.schema.json",
         "creative_pilot_role_result.v2.schema.json",
         "creative_pilot_synthesis.v2.schema.json",
+        "creative_hypothesis_approval.v2.schema.json",
+        "creative_hypothesis_packet.v2.schema.json",
+        "creative_hypothesis_specification_bridge.v2.schema.json",
+        "creative_protocol_context_map.v2.schema.json",
     ):
         schema = json.loads((contracts / filename).read_text(encoding="utf-8"))
         assert schema["$id"] == filename
@@ -447,6 +547,44 @@ def test_non_tty_approval_fails_closed(tmp_path: Path) -> None:
     )
     assert result.returncode == 1
     assert "interactive TTY" in result.stdout
+
+
+def test_prepare_invalid_surface_uses_stable_cli_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(pilot_cli, "PILOT_ROOT", tmp_path / "adaptive_pilots")
+    hypotheses = tmp_path / "hypotheses.json"
+    hypotheses.write_text('{"hypotheses": []}', encoding="utf-8")
+    sha = _sha()
+    assert (
+        pilot_cli.main(
+            [
+                "prepare",
+                "--pilot-id",
+                "invalid-surface",
+                "--base-sha",
+                sha,
+                "--head-sha",
+                sha,
+                "--target",
+                "app/main.py",
+                "--symbol",
+                "app",
+                "--oracle",
+                "tests/test_app.py",
+                "--context-ref",
+                "tests/test_app.py",
+                "--hypotheses",
+                str(hypotheses),
+                "--selected-hypothesis",
+                "invalid",
+            ]
+        )
+        == 1
+    )
+    output = capsys.readouterr().out
+    assert output.startswith("FAIL: ")
+    assert "Traceback" not in output
 
 
 def test_adaptive_inventory_blocks_nonterminal_workspace(
@@ -541,6 +679,199 @@ def test_task_bootstrap_binds_explicit_pilot_phase(
         "qa-engineer-agent",
         "security-auditor",
     }
+    artifact_root = REPO_ROOT / "artifacts" / "orchestration"
+    artifact_root.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="pilot-dispatch-test-", dir=artifact_root) as raw_dir:
+        packet_path = Path(raw_dir) / "task_packet.json"
+        packet_path.write_text(json.dumps(pilot), encoding="utf-8")
+        manifest_path = Path(raw_dir) / "dispatch_manifest.json"
+        assert (
+            qoder_main(
+                [
+                    "--packet",
+                    str(packet_path),
+                    "--mode",
+                    "runtime",
+                    "--output",
+                    str(manifest_path),
+                ]
+            )
+            == 0
+        )
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert [row["role_slug"] for row in manifest["dispatch_sequence"]] == [
+        row["role"] for row in pilot["creative_pilot_context"]["assignments"]
+    ]
+
+
+def test_terminal_and_wrong_phase_workspace_cannot_dispatch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    context, packet, workspace = _chain()
+    completed = _complete(workspace)
+    synthesis = build_synthesis(completed)
+    synthesized = apply_synthesis_transition(completed, synthesis)
+    approval = build_approval_v2(
+        workspace=synthesized, synthesis=synthesis, approved_by="test-operator"
+    )
+    bundle = build_creative_pilot_spec_bridge_bundle(
+        context_map=context,
+        hypothesis_packet=packet,
+        workspace=synthesized,
+        synthesis=synthesis,
+        approval=approval,
+        variant_count=3,
+    )
+    terminal = complete_handoff(
+        workspace=synthesized,
+        approval=approval,
+        bridge=bundle["bridge"],
+        candidate=bundle["candidate"],
+    )
+    root = tmp_path / "adaptive_pilots"
+    workspace_path = root / "pilot-terminal" / "workspace.json"
+    workspace_path.parent.mkdir(parents=True)
+    monkeypatch.setattr(task_bootstrap, "CREATIVE_PILOT_ROOT", root)
+    workspace_path.write_text(json.dumps(terminal), encoding="utf-8")
+    with pytest.raises(ValueError, match="terminal workspace"):
+        task_bootstrap.build_task_packet(
+            goal="invalid replay",
+            task_class="orchestration",
+            candidate_paths=["core/rag/orchestration.py"],
+            creative_pilot_workspace_path=workspace_path,
+            creative_pilot_phase="independent",
+        )
+    workspace_path.write_text(json.dumps(workspace), encoding="utf-8")
+    with pytest.raises(ValueError, match="synthesis dispatch requires"):
+        task_bootstrap.build_task_packet(
+            goal="invalid early synthesis",
+            task_class="orchestration",
+            candidate_paths=["core/rag/orchestration.py"],
+            creative_pilot_workspace_path=workspace_path,
+            creative_pilot_phase="synthesis",
+        )
+
+
+def test_creative_pilot_rejects_post_open_and_merge_ready_lifecycle_phases(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _context, _packet, workspace = _chain()
+    root = tmp_path / "adaptive_pilots"
+    workspace_path = root / "pilot-lifecycle" / "workspace.json"
+    workspace_path.parent.mkdir(parents=True)
+    workspace_path.write_text(json.dumps(workspace), encoding="utf-8")
+    monkeypatch.setattr(task_bootstrap, "CREATIVE_PILOT_ROOT", root)
+    for phase in ("post_open_review", "merge_ready"):
+        with pytest.raises(ValueError, match="cannot be combined"):
+            task_bootstrap.build_task_packet(
+                goal="invalid lifecycle composition",
+                task_class="orchestration",
+                candidate_paths=["core/rag/orchestration.py"],
+                pr_phase=phase,
+                creative_pilot_workspace_path=workspace_path,
+                creative_pilot_phase="independent",
+            )
+
+    ordinary = task_bootstrap.build_task_packet(
+        goal="pilot packet for direct bridge guard",
+        task_class="orchestration",
+        candidate_paths=["core/rag/orchestration.py"],
+        creative_pilot_workspace_path=workspace_path,
+        creative_pilot_phase="independent",
+    )
+    ordinary["pr_phase"] = "post_open_review"
+    artifact_root = REPO_ROOT / "artifacts" / "orchestration"
+    artifact_root.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="pilot-lifecycle-test-", dir=artifact_root) as raw_dir:
+        packet_path = Path(raw_dir) / "task_packet.json"
+        packet_path.write_text(json.dumps(ordinary), encoding="utf-8")
+        assert qoder_main(["--packet", str(packet_path), "--mode", "review"]) == 1
+
+
+def test_handoff_rejects_minimal_forged_bridge_and_candidate() -> None:
+    _context, _packet, workspace = _chain()
+    completed = _complete(workspace)
+    synthesis = build_synthesis(completed)
+    synthesized = apply_synthesis_transition(completed, synthesis)
+    approval = build_approval_v2(
+        workspace=synthesized, synthesis=synthesis, approved_by="test-operator"
+    )
+    with pytest.raises(CreativePilotContractError, match="handoff artifact is invalid"):
+        complete_handoff(
+            workspace=synthesized,
+            approval=approval,
+            bridge={
+                "bridge_id": "fake-bridge",
+                "candidate_id": "fake-candidate",
+                "candidate_fingerprint": fingerprint_payload({"candidate_id": "fake-candidate"}),
+            },
+            candidate={"candidate_id": "fake-candidate"},
+        )
+
+
+def test_record_role_result_exact_replay_is_idempotent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _context, _packet, workspace = _chain()
+    artifact_root = REPO_ROOT / "artifacts" / "orchestration"
+    artifact_root.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="pilot-replay-test-", dir=artifact_root) as raw_dir:
+        root = Path(raw_dir)
+        pilot_dir = root / "pilot-replay"
+        pilot_dir.mkdir(parents=True)
+        (pilot_dir / "workspace.json").write_text(json.dumps(workspace), encoding="utf-8")
+        monkeypatch.setattr(pilot_cli, "PILOT_ROOT", root)
+        assignment = workspace["assignments"][0]
+        argv = [
+            "record-role-result",
+            "--pilot-id",
+            "pilot-replay",
+            "--assignment-id",
+            assignment["assignment_id"],
+            "--stance",
+            "pass",
+            "--claim-id",
+            "claim-replay",
+            "--evidence-ref",
+            "core/rag/orchestration.py",
+        ]
+        assert pilot_cli.main(argv) == 0
+        after_first = (pilot_dir / "workspace.json").read_text(encoding="utf-8")
+        assert pilot_cli.main(argv) == 0
+        assert (pilot_dir / "workspace.json").read_text(encoding="utf-8") == after_first
+
+
+def test_apply_synthesis_rejects_structurally_valid_forgery() -> None:
+    _context, _packet, workspace = _chain()
+    completed = _complete(workspace)
+    synthesis = build_synthesis(completed)
+    forged = deepcopy(synthesis)
+    forged["decision"] = "revise"
+    forged["next_allowed_action"] = "revise_or_stop"
+    body = dict(forged)
+    body.pop("synthesis_id")
+    body.pop("idempotency_key")
+    # Rebuild a structurally valid identity without changing workspace truth.
+    fingerprint = fingerprint_payload(body)
+    upstream = (completed["workspace_id"], *forged["role_result_ids"])
+    forged["synthesis_id"] = build_asset_id(
+        asset_type="creative_pilot_synthesis",
+        rail="orchestration",
+        version="2.0",
+        policy_version="creative-production-adjacent-pilot-v2",
+        fingerprint=fingerprint,
+        upstream_ids=upstream,
+    )
+    forged["idempotency_key"] = build_idempotency_key(
+        asset_type="creative_pilot_synthesis",
+        rail="orchestration",
+        version="2.0",
+        policy_version="creative-production-adjacent-pilot-v2",
+        fingerprint=fingerprint,
+        upstream_ids=upstream,
+    )
+    with pytest.raises(CreativePilotContractError, match="deterministic workspace truth"):
+        apply_synthesis_transition(completed, forged)
 
 
 def test_canonical_dispatch_carries_role_specific_refs_read_only() -> None:

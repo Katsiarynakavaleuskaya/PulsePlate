@@ -6,8 +6,10 @@ from __future__ import annotations
 import argparse
 from datetime import datetime, timezone
 import json
+import os
 from pathlib import Path
 import sys
+import tempfile
 from typing import Any, cast
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -31,13 +33,16 @@ from scripts.orchestration.creative_pilot_workspace_contract import (
     ingest_role_result,
     load_json_strict,
     terminate_workspace,
+    validate_dispatch_phase,
     validate_synthesis,
     validate_workspace,
 )
 from scripts.orchestration.creative_code_spec_pipeline import prepare as prepare_specification
 from scripts.orchestration.creative_hypothesis_spec_bridge_contract import (
+    CreativeHypothesisSpecBridgeError,
     build_creative_pilot_spec_bridge_bundle,
 )
+from scripts.orchestration.creative_code_contract import CreativeCodeContractError
 
 PILOT_ROOT = REPO_ROOT / "artifacts" / "orchestration" / "creative_code" / "adaptive_pilots"
 FIXED_FILENAMES = {
@@ -53,20 +58,46 @@ FIXED_FILENAMES = {
 
 
 def _read(path: Path) -> dict[str, Any]:
+    candidate = path if path.is_absolute() else REPO_ROOT / path
+    _reject_symlink_components(candidate)
     try:
-        return cast(dict[str, Any], load_json_strict(path.read_text(encoding="utf-8")))
-    except OSError as exc:
-        raise CreativePilotContractError(f"unable to read {path}") from exc
+        resolved = candidate.resolve(strict=True)
+        resolved.relative_to(REPO_ROOT.resolve())
+        if not resolved.is_file():
+            raise CreativePilotContractError("pilot input must be a regular file")
+        flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+        descriptor = os.open(candidate, flags)
+        with os.fdopen(descriptor, "r", encoding="utf-8") as handle:
+            return cast(dict[str, Any], load_json_strict(handle.read()))
+    except CreativePilotContractError:
+        raise
+    except (OSError, UnicodeDecodeError, ValueError) as exc:
+        raise CreativePilotContractError("unable to read safe repo-local pilot JSON") from exc
 
 
 def _atomic_write(path: Path, payload: Any) -> None:
+    _reject_symlink_components(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    temp = path.with_suffix(path.suffix + ".tmp")
-    temp.write_text(
-        json.dumps(payload, indent=2, ensure_ascii=True, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )
-    temp.replace(path)
+    _reject_symlink_components(path)
+    fd, raw_temp = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
+    temp = Path(raw_temp)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(json.dumps(payload, indent=2, ensure_ascii=True, sort_keys=True) + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        temp.replace(path)
+    finally:
+        temp.unlink(missing_ok=True)
+
+
+def _reject_symlink_components(path: Path) -> None:
+    current = Path(path.anchor) if path.anchor else Path(".")
+    parts = path.parts[1:] if path.anchor else path.parts
+    for part in parts:
+        current = current / part
+        if (current.exists() or current.is_symlink()) and current.is_symlink():
+            raise CreativePilotContractError("pilot artifact path must not traverse symlinks")
 
 
 def _run_dir(pilot_id: str) -> Path:
@@ -75,8 +106,11 @@ def _run_dir(pilot_id: str) -> Path:
         for char in pilot_id
     ):
         raise CreativePilotContractError("pilot-id must be a safe token")
+    _reject_symlink_components(PILOT_ROOT)
+    unresolved = PILOT_ROOT / pilot_id
+    _reject_symlink_components(unresolved)
     root = PILOT_ROOT.resolve()
-    candidate = (root / pilot_id).resolve()
+    candidate = unresolved.resolve()
     if candidate.parent != root:
         raise CreativePilotContractError("pilot directory escaped the adaptive-pilot root")
     current = candidate
@@ -119,7 +153,7 @@ def _cmd_prepare(args: argparse.Namespace) -> None:
 
 
 def _cmd_emit_dispatch(args: argparse.Namespace) -> None:
-    workspace = validate_workspace(_read(_workspace_path(args)))
+    workspace = validate_dispatch_phase(_read(_workspace_path(args)), phase=args.phase)
     phase = args.phase
     assignments = [row for row in workspace["assignments"] if row["phase"] == phase]
     if not assignments:
@@ -157,6 +191,25 @@ def _cmd_record_role_result(args: argparse.Namespace) -> None:
     run_dir = _run_dir(args.pilot_id)
     path = run_dir / FIXED_FILENAMES["workspace"]
     workspace = validate_workspace(_read(path))
+    existing = next(
+        (row for row in workspace["role_results"] if row["assignment_id"] == args.assignment_id),
+        None,
+    )
+    if existing is not None:
+        requested = {
+            "stance": args.stance,
+            "claim_ids": args.claim_id,
+            "evidence_refs": args.evidence_ref,
+            "blocker_codes": args.blocker_code,
+            "oracle_gap_codes": args.oracle_gap_code,
+            "peer_result_refs": args.peer_result_ref,
+        }
+        if any(existing[key] != value for key, value in requested.items()):
+            raise CreativePilotContractError("conflicting role-result replay")
+        print(
+            f"PASS result_id={existing['result_id']} phase={workspace['state']['phase']} replay=idempotent"
+        )
+        return
     result = build_role_result(
         workspace=workspace,
         assignment_id=args.assignment_id,
@@ -386,7 +439,11 @@ def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
         args.func(args)
-    except CreativePilotContractError as exc:
+    except (
+        CreativePilotContractError,
+        CreativeHypothesisSpecBridgeError,
+        CreativeCodeContractError,
+    ) as exc:
         print(f"FAIL: {exc}")
         return 1
     return 0
