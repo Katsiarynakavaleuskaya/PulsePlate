@@ -19,6 +19,8 @@ LEGACY_APP = "legacy_app.py"
 LEGACY_SEAM_DOC = "docs/architecture/LEGACY_COMPATIBILITY_SEAM.md"
 FOOD_SEARCH_BOOTSTRAP = "app/bootstrap/food_search.py"
 CANONICAL_LIFESPAN = "app/bootstrap/lifespan.py"
+CANONICAL_API_KEY = "app/routers/api_key.py"  # pragma: allowlist secret
+CANONICAL_API_KEY_SYMBOLS = frozenset({"get_api_key", "_get_api_key_dynamic"})
 ALLOWED_CANONICAL_LIFESPAN_APP_IMPORTS = frozenset(
     {
         "app.bootstrap.food_search",
@@ -74,7 +76,7 @@ SENSITIVE_CALL_KEYWORDS: tuple[str, ...] = (
     "subscription",
 )
 SENSITIVE_CALL_LIMITS: Mapping[str, int] = {
-    "api_key": 4,
+    "api_key": 0,
     "auth": 0,
     "billing": 0,
     "entitlement": 0,
@@ -108,7 +110,13 @@ FORBIDDEN_LEGACY_RUNTIME_REGISTRARS: Mapping[str, str] = {
 ALLOWED_ROUTER_IMPORT_FACTS = frozenset(
     {
         LegacyFact("router_import", "app.routers", "vip", "_vip_mod"),
-        LegacyFact("router_import", "app.routers.api_key", "api_key_header", ""),
+        LegacyFact(
+            "router_import",
+            "app.routers.api_key",
+            "_get_api_key_dynamic",
+            "_get_api_key_dynamic",
+        ),
+        LegacyFact("router_import", "app.routers.api_key", "get_api_key", "get_api_key"),
         LegacyFact("router_import", "app.routers.bmi", "bmi_calculate_handler", ""),
         LegacyFact("router_import", "dynamic", "app.routers.plan_export", "_plan_mod"),
         LegacyFact(
@@ -1560,6 +1568,135 @@ def validate_legacy_growth(
     return errors
 
 
+def validate_api_key_dependency_ownership(
+    legacy_source: str,
+    app_sources: Mapping[str, str],
+) -> list[str]:
+    """Keep client API-key dependency ownership canonical and identity-preserving."""
+
+    errors: list[str] = []
+    legacy_tree, parse_errors = _parse_source(legacy_source, filename=LEGACY_APP)
+    errors.extend(parse_errors)
+    if legacy_tree is not None:
+        locally_defined = {
+            node.name
+            for node in ast.walk(legacy_tree)
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and node.name in CANONICAL_API_KEY_SYMBOLS
+        }
+        for name in sorted(locally_defined):
+            errors.append(f"{LEGACY_APP}: API-key dependency must not be defined locally: {name}")
+
+        exact_aliases: set[str] = set()
+        for node in ast.walk(legacy_tree):
+            if not isinstance(node, ast.ImportFrom) or node.module != "app.routers.api_key":
+                continue
+            for alias in node.names:
+                if alias.name in CANONICAL_API_KEY_SYMBOLS and alias.asname == alias.name:
+                    exact_aliases.add(alias.name)
+        for name in sorted(CANONICAL_API_KEY_SYMBOLS - exact_aliases):
+            errors.append(
+                f"{LEGACY_APP}: canonical API-key compatibility re-export must preserve "
+                f"identity: {name}"
+            )
+
+        rebound_names: set[str] = set()
+        for statement in legacy_tree.body:
+            if isinstance(statement, ast.Assign):
+                for target in statement.targets:
+                    rebound_names.update(_assignment_target_names(target))
+            elif isinstance(statement, ast.AnnAssign):
+                rebound_names.update(_assignment_target_names(statement.target))
+            elif isinstance(statement, ast.AugAssign):
+                rebound_names.update(_assignment_target_names(statement.target))
+            else:
+
+                class _TopLevelNamedExprVisitor(ast.NodeVisitor):
+                    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+                        return
+
+                    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+                        return
+
+                    def visit_ClassDef(self, node: ast.ClassDef) -> None:
+                        return
+
+                    def visit_Lambda(self, node: ast.Lambda) -> None:
+                        return
+
+                    def visit_NamedExpr(self, node: ast.NamedExpr) -> None:
+                        rebound_names.update(_assignment_target_names(node.target))
+
+                _TopLevelNamedExprVisitor().visit(statement)
+        for name in sorted(rebound_names & CANONICAL_API_KEY_SYMBOLS):
+            errors.append(
+                f"{LEGACY_APP}: canonical API-key compatibility re-export must not be "
+                f"rebound: {name}"
+            )
+
+    for filename, source_text in sorted(app_sources.items()):
+        tree, source_errors = _parse_source(source_text, filename=filename)
+        errors.extend(source_errors)
+        if tree is None:
+            continue
+        module_aliases: dict[str, str] = {}
+        import_module_aliases: set[str] = set()
+        static_string_bindings = _collect_static_string_bindings(tree)
+        for import_node in ast.walk(tree):
+            if isinstance(import_node, ast.Import):
+                for alias in import_node.names:
+                    if alias.name in {"importlib", "legacy_app"}:
+                        module_aliases[alias.asname or alias.name] = alias.name
+            elif isinstance(import_node, ast.ImportFrom) and import_node.module == "importlib":
+                for alias in import_node.names:
+                    if alias.name == "import_module":
+                        import_module_aliases.add(alias.asname or alias.name)
+
+        def legacy_module_reference(node: ast.AST) -> bool:
+            return (
+                _static_module_reference(
+                    node,
+                    module_aliases=module_aliases,
+                    import_module_aliases=import_module_aliases,
+                    static_string_bindings=static_string_bindings,
+                )
+                == "legacy_app"
+            )
+
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.module == "legacy_app":
+                for alias in node.names:
+                    if alias.name in CANONICAL_API_KEY_SYMBOLS:
+                        errors.append(
+                            f"{filename}: canonical code must import API-key dependency "
+                            f"from {CANONICAL_API_KEY}, not legacy_app: {alias.name}"
+                        )
+            elif (
+                isinstance(node, ast.Attribute)
+                and node.attr in CANONICAL_API_KEY_SYMBOLS
+                and legacy_module_reference(node.value)
+            ):
+                errors.append(
+                    f"{filename}: legacy API-key dependency attribute access is forbidden: "
+                    f"{node.attr}"
+                )
+            elif (
+                filename != CANONICAL_API_KEY
+                and isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Name)
+                and node.func.id == "getattr"
+                and len(node.args) >= 2
+                and legacy_module_reference(node.args[0])
+                and isinstance(node.args[1], ast.Constant)
+                and node.args[1].value in CANONICAL_API_KEY_SYMBOLS
+            ):
+                errors.append(
+                    f"{filename}: dynamic legacy API-key dependency lookup is forbidden: "
+                    f"{node.args[1].value}"
+                )
+    return sorted(set(errors))
+
+
 def _collect_lifecycle_references(
     tree: ast.Module,
 ) -> tuple[dict[str, str], frozenset[str]]:
@@ -2344,6 +2481,11 @@ def validate_repo(repo_root: Path) -> list[str]:
     doc_text = _read(doc_path, repo_root, errors)
     food_search_source = _read(food_search_path, repo_root, errors)
     lifespan_source = _read(lifespan_path, repo_root, errors)
+    app_sources: dict[str, str] = {}
+    for app_path in sorted((repo_root / "app").rglob("*.py")):
+        source = _read(app_path, repo_root, errors)
+        if source is not None:
+            app_sources[_display(app_path, repo_root)] = source
     if legacy_source is not None:
         errors.extend(
             validate_legacy_growth(legacy_source, filename=_display(legacy_path, repo_root))
@@ -2358,6 +2500,8 @@ def validate_repo(repo_root: Path) -> list[str]:
                 lifespan_source,
             )
         )
+    if legacy_source is not None:
+        errors.extend(validate_api_key_dependency_ownership(legacy_source, app_sources))
     return errors
 
 

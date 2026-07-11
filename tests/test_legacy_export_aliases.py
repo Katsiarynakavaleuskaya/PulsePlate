@@ -20,6 +20,7 @@ from app.effective_routes import (
     route_responses,
 )
 import app.main as app_main
+from app.routers import api_key as canonical_api_key
 import legacy_app
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -33,14 +34,14 @@ def _matching_routes(path: str, method: str) -> list[object]:
     ]
 
 
-def _is_legacy_api_key_dependency(dependency: object) -> bool:
+def _is_canonical_api_key_dependency(dependency: object) -> bool:
     callable_dependency = getattr(dependency, "dependency", None)
     resolved_module = (
         inspect.getmodule(callable_dependency) if callable(callable_dependency) else None
     )
     return (
         callable(callable_dependency)
-        and getattr(resolved_module, "__name__", "") == legacy_app.__name__
+        and getattr(resolved_module, "__name__", "") == canonical_api_key.__name__
         and getattr(callable_dependency, "__name__", "") == "_get_api_key_dynamic"
     )
 
@@ -62,8 +63,8 @@ def test_legacy_export_alias_routes_are_hidden_shim_owned_and_protected() -> Non
         dependencies = getattr(route, "dependencies", None)
         if dependencies is None:
             dependencies = getattr(getattr(route, "original_route", None), "dependencies", [])
-        assert any(_is_legacy_api_key_dependency(dependency) for dependency in dependencies), (
-            f"Expected legacy API-key dependency on {method} {path}, "
+        assert any(_is_canonical_api_key_dependency(dependency) for dependency in dependencies), (
+            f"Expected canonical API-key dependency on {method} {path}, "
             f"got {[getattr(dependency, 'dependency', dependency) for dependency in dependencies]}"
         )
 

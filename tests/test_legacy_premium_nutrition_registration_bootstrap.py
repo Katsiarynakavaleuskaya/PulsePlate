@@ -145,12 +145,10 @@ def _assert_premium_routes_registered_once(target_app: FastAPI) -> None:
         assert route.response_model is _RESPONSE_MODELS[key]
         assert bool(route.deprecated) is (key in _DEPRECATED_ROUTES)
         if key in _API_KEY_PROTECTED_ROUTES:
-            assert route_has_dependency_call(route, app_main._legacy_module._get_api_key_dynamic)
+            assert route_has_dependency_call(route, app_main._get_api_key_dynamic)
         else:
             assert key == _PUBLIC_LEGACY_EXCEPTION
-            assert not route_has_dependency_call(
-                route, app_main._legacy_module._get_api_key_dynamic
-            )
+            assert not route_has_dependency_call(route, app_main._get_api_key_dynamic)
 
 
 def test_empty_app_registers_all_legacy_premium_nutrition_routes_once() -> None:
@@ -182,7 +180,7 @@ def test_legacy_premium_nutrition_route_members_encode_api_key_exception() -> No
     members = {
         (member.path, member.method): member
         for member in app_main._legacy_premium_nutrition_route_members(
-            app_main._legacy_module._get_api_key_dynamic
+            app_main._get_api_key_dynamic
         )
     }
 
@@ -191,7 +189,7 @@ def test_legacy_premium_nutrition_route_members_encode_api_key_exception() -> No
         if key == _PUBLIC_LEGACY_EXCEPTION:
             assert member.required_dependencies == ()
         else:
-            assert member.required_dependencies == (app_main._legacy_module._get_api_key_dynamic,)
+            assert member.required_dependencies == (app_main._get_api_key_dynamic,)
 
 
 def _who_targets_response() -> app_main._legacy_module.WHOTargetsResponse:
@@ -418,7 +416,7 @@ def test_legacy_premium_gaps_wrapper_delegates_to_legacy_app(
 def test_legacy_premium_nutrition_registration_rejects_missing_api_key_symbol(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(app_main._legacy_module, "_get_api_key_dynamic", None)
+    monkeypatch.setattr(app_main, "_get_api_key_dynamic", None)
 
     with pytest.raises(
         RuntimeError,
@@ -436,12 +434,10 @@ def test_legacy_premium_nutrition_source_routes_preserve_metadata() -> None:
         assert route.response_model is _RESPONSE_MODELS[key]
         assert bool(route.deprecated) is (key in _DEPRECATED_ROUTES)
         if key in _API_KEY_PROTECTED_ROUTES:
-            assert route_has_dependency_call(route, app_main._legacy_module._get_api_key_dynamic)
+            assert route_has_dependency_call(route, app_main._get_api_key_dynamic)
         else:
             assert key == _PUBLIC_LEGACY_EXCEPTION
-            assert not route_has_dependency_call(
-                route, app_main._legacy_module._get_api_key_dynamic
-            )
+            assert not route_has_dependency_call(route, app_main._get_api_key_dynamic)
 
 
 def test_legacy_premium_nutrition_public_openapi_paths_remain_hidden() -> None:
@@ -553,11 +549,7 @@ def test_legacy_premium_nutrition_registration_accepts_reloaded_canonical_handle
     for path, method, include_in_schema in _EXPECTED_ROUTE_SPECS:
         source = _source_route(path, method)
         key = (path, method)
-        dependency = (
-            None
-            if key == _PUBLIC_LEGACY_EXCEPTION
-            else app_main._legacy_module._get_api_key_dynamic
-        )
+        dependency = None if key == _PUBLIC_LEGACY_EXCEPTION else app_main._get_api_key_dynamic
         endpoint = _clone_endpoint_with_matching_identity(route_endpoint(source), dependency)
         dependencies = [] if dependency is None else [Depends(dependency)]
         target_app.add_api_route(

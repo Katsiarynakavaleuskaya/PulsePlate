@@ -23,6 +23,12 @@ Food-search clients and the process-wide strategy adapter are acquired and
 released inside that lifespan; additive route bootstrap must not create shared
 runtime resources or wrap `app.router.lifespan_context`.
 
+App-client API-key extraction and validation dependencies are canonically owned
+by `app/routers/api_key.py`. Canonical routers and bootstrap code import those
+callables directly. `legacy_app.py` may only re-export the exact same callable
+objects while compatibility imports remain; wrappers or mutable legacy-owned
+warning state would break FastAPI dependency identity.
+
 The current policy is compatibility first:
 
 - keep existing legacy routes callable when current clients still depend on
@@ -66,6 +72,7 @@ Forbidden in `legacy_app.py`:
 | Operational health/readiness routes | `app/routers/health.py` + `app/main.py` | Runtime paths unchanged; no legacy decorator ownership. |
 | Infra and observability bootstrap | `app/bootstrap/` | Register from canonical entrypoint, not from `legacy_app.py`. |
 | Application lifecycle and shared resources | `app/bootstrap/lifespan.py` | One explicit startup/shutdown owner; deterministic reverse-order cleanup. |
+| App-client API-key dependencies | `app/routers/api_key.py` | Canonical owner; legacy compatibility is identity-preserving re-export only. |
 | Domain logic | `core/` and `app/services/` | Backend truth stays outside route shims. |
 | Public API contract | Backend OpenAPI gates | Legacy aliases must not become client contract truth. |
 
@@ -76,8 +83,10 @@ analysis. It parses `legacy_app.py` and the canonical lifecycle/food-search
 bootstrap modules without importing application modules. It compares route,
 router-import, and sensitive-call facts against the frozen baseline and rejects
 legacy lifecycle implementations, startup/shutdown event registration, or
-hidden `lifespan_context` mutation. Current facts may disappear as the seam
-shrinks; new facts fail closed with repo-relative diagnostics.
+hidden `lifespan_context` mutation. It also rejects legacy API-key dependency
+implementations and canonical `app/**` reverse imports or dynamic lookups for
+those callables. Current facts may disappear as the seam shrinks; new facts fail
+closed with repo-relative diagnostics.
 
 The guard does not authorize runtime behavior. It only prevents unreviewed seam
 growth while later extraction PRs move routes behind canonical routers.

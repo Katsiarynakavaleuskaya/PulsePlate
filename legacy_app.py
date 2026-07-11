@@ -4,7 +4,6 @@ import asyncio
 import importlib
 import logging
 import os
-import secrets
 import sys
 import threading
 import inspect
@@ -26,7 +25,7 @@ from typing import (
 )
 
 import dotenv
-from fastapi import APIRouter, Body, Depends, FastAPI, HTTPException
+from fastapi import APIRouter, Body, FastAPI, HTTPException
 from fastapi.responses import JSONResponse, Response
 from pydantic import (
     BaseModel,
@@ -34,15 +33,17 @@ from pydantic import (
     ValidationError,
 )
 from starlette import status as fastapi_status
-from starlette.requests import Request
-from settings import get_runtime_env_name, is_explicit_developer_env
+from settings import get_runtime_env_name
 
 from app.bootstrap.lifespan import application_lifespan as lifespan
 from app.http_error_details import (
     ENHANCED_PLATE_GENERATION_FAILED_DETAIL,
     INVALID_PREMIUM_PLATE_INPUT_DETAIL,
 )
-from app.routers.api_key import api_key_header
+from app.routers.api_key import (  # noqa: F401 - identity-preserving compatibility re-exports
+    _get_api_key_dynamic as _get_api_key_dynamic,
+    get_api_key as get_api_key,
+)
 from app.schemas.bmr import BMRRequest, BMRRequestLegacy, BMRResponse
 from app.schemas.bmi_compat import BMIRequest, BMIRequestV1
 from app.schemas.premium_contracts import (
@@ -227,9 +228,6 @@ slowapi_available = Limiter is not None
 
 vip_router: Optional[APIRouter] = None
 _scheduler_getter: Optional[Callable[[], Awaitable[DatabaseUpdateScheduler]]] = None
-
-# Track if lenient API key mode warning has already been logged to avoid log flooding
-_lenient_mode_warning_logged = False
 
 # VIP router registration is owned by app.main canonical bootstrap.
 try:
@@ -702,75 +700,6 @@ def _install_openapi_builder(target_app: FastAPI) -> None:
 
 # Startup/shutdown behavior is owned by app.bootstrap.lifespan. This module
 # only passes the canonical context manager to the legacy-created FastAPI app.
-
-
-# --- API key guard and helpers (must be above endpoints using Depends(get_api_key)) ---
-def get_api_key(api_key: str = Depends(api_key_header)) -> str:
-    """API key guard with optional strict mode.
-
-    - If API_KEY is set: strict equality check.
-    - If API_KEY is not set:
-        - If API_KEY_REQUIRED=true → reject requests (enforce configuration)
-        - else (default in tests/dev): accept non-trivial tokens when in dev/test mode
-    """
-    api_key_value = api_key or ""
-    dev_mode = is_explicit_developer_env() and _is_truthy(os.getenv("ALLOW_DEV_API_KEY", "true"))
-    if dev_mode:
-        # Warn once when lenient mode is enabled - provides no real security
-        global _lenient_mode_warning_logged
-        if not _lenient_mode_warning_logged:
-            logger.warning(
-                "Lenient API key mode enabled - for development only, provides no real security"
-            )
-            _lenient_mode_warning_logged = True
-    if expected := os.getenv("API_KEY"):
-        if secrets.compare_digest(api_key_value, expected):
-            return api_key_value
-        allow_normalize = dev_mode and _is_truthy(os.getenv("ALLOW_DEV_API_KEY_NORMALIZE"))
-        if (
-            allow_normalize
-            and api_key_value
-            and secrets.compare_digest(api_key_value.replace("-", "_"), expected.replace("-", "_"))
-        ):
-            # Optional dev-only normalization: off by default for strictness
-            return expected
-        raise HTTPException(status_code=403, detail="Invalid API Key")
-
-    # No configured API key
-    if _is_truthy(os.getenv("API_KEY_REQUIRED")):
-        # Strict mode without a configured key → treat as misconfiguration and block
-        raise HTTPException(status_code=403, detail="API key required but not configured")
-
-    if not dev_mode:
-        # Production/staging without API key configured (non-strict)
-        raise HTTPException(status_code=403, detail="API key required but not configured")
-
-    # Lenient mode (tests/dev): allow missing token, but reject obviously invalid ones
-    if not api_key_value:
-        raise HTTPException(status_code=403, detail="Missing API Key")
-    token = api_key_value.strip()
-    forbidden_tokens = {"invalid", "invalid_key", "wrong", "bad", "null"}
-    if len(token) < 4 or token.lower() in forbidden_tokens:
-        raise HTTPException(status_code=403, detail="Invalid API Key")
-    return token
-
-
-# Dependency wrapper that resolves get_api_key dynamically at runtime so tests can patch it
-def _get_api_key_dynamic(api_key: str = Depends(api_key_header)) -> str:
-    import sys as _sys
-
-    _pkg = _sys.modules.get("app")
-    _guard = getattr(_pkg, "get_api_key", get_api_key)
-    try:
-        return _guard(api_key)
-    except Exception as exc:
-        # Preserve HTTPException semantics (e.g., 403 for auth), convert other errors to 500
-        if isinstance(exc, HTTPException):
-            raise
-        # Log the actual exception server-side for debugging
-        logger.exception("Authentication dependency error: %s", exc)
-        # Return generic error to client to avoid exposing internal details
-        raise HTTPException(status_code=500, detail="Authentication service error") from exc
 
 
 # (moved to top with other imports)
