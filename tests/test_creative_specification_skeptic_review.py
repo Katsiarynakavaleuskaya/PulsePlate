@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 from collections.abc import Callable
 from copy import deepcopy
+import errno
 import json
 from pathlib import Path
 import re
@@ -769,6 +770,193 @@ def test_reviewed_run_cleanup_pins_original_parent_across_path_swap(
             bridge_dir.unlink()
         shutil.rmtree(detached, ignore_errors=True)
         shutil.rmtree(bridge_dir, ignore_errors=True)
+
+
+@pytest.mark.parametrize("failure_point", ["open", "fstat"])
+def test_reviewed_run_creation_cleans_exact_directory_after_post_mkdir_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    failure_point: str,
+) -> None:
+    bridge_dir = review_cli.SPEC_BRIDGE_ROOT / f"pytest-{uuid.uuid4().hex}"
+    reviewed = bridge_dir / review_contract.REVIEWED_RUN_DIRNAME
+    try:
+        bridge_dir.mkdir(parents=True)
+        if failure_point == "open":
+            real_open = review_cli.os.open
+
+            def fail_reviewed_open(
+                path: Any,
+                flags: int,
+                mode: int = 0o777,
+                *,
+                dir_fd: int | None = None,
+            ) -> int:
+                if path == review_contract.REVIEWED_RUN_DIRNAME and dir_fd is not None:
+                    raise OSError(errno.EMFILE, "simulated descriptor exhaustion")
+                return real_open(path, flags, mode, dir_fd=dir_fd)
+
+            monkeypatch.setattr(review_cli.os, "open", fail_reviewed_open)
+        else:
+            real_fstat = review_cli.os.fstat
+            fail_next = True
+
+            def fail_reviewed_fstat(descriptor: int) -> Any:
+                nonlocal fail_next
+                if fail_next:
+                    fail_next = False
+                    raise OSError("simulated reviewed fstat failure")
+                return real_fstat(descriptor)
+
+            monkeypatch.setattr(review_cli.os, "fstat", fail_reviewed_fstat)
+
+        with pytest.raises(
+            review_cli.CreativeSpecificationSkepticReviewCliError,
+            match="could not be created safely",
+        ):
+            review_cli._create_pinned_reviewed_run(reviewed)
+        assert not reviewed.exists()
+    finally:
+        shutil.rmtree(bridge_dir, ignore_errors=True)
+
+
+def test_attach_fails_closed_when_bridge_parent_moves_before_reviewed_writes(
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output_dir, input_dir = _prepared_bridge(capsys, suffix="attach-parent-move")
+    detached = output_dir.with_name(f"{output_dir.name}-detached")
+    reviews_path = _write_review_input(output_dir, _review_input(output_dir))
+    real_write_json_at = review_cli._write_json_at
+    moved = False
+
+    def move_parent_before_first_write(
+        directory_fd: int,
+        filename: str,
+        payload: Any,
+    ) -> None:
+        nonlocal moved
+        if not moved:
+            moved = True
+            output_dir.rename(detached)
+        real_write_json_at(directory_fd, filename, payload)
+
+    monkeypatch.setattr(review_cli, "_write_json_at", move_parent_before_first_write)
+    try:
+        assert (
+            review_cli.main(
+                [
+                    "attach",
+                    "--bridge",
+                    str(output_dir / bridge_cli.BRIDGE_FILENAME),
+                    "--reviews",
+                    str(reviews_path),
+                ]
+            )
+            == 1
+        )
+        captured = capsys.readouterr()
+        assert "reviewed finalize run canonical identity changed" in captured.err
+        assert moved
+        assert not output_dir.exists()
+        assert not (detached / review_contract.REVIEWED_RUN_DIRNAME).exists()
+    finally:
+        if detached.exists() and not output_dir.exists():
+            detached.rename(output_dir)
+        shutil.rmtree(output_dir, ignore_errors=True)
+        shutil.rmtree(input_dir, ignore_errors=True)
+
+
+def test_attach_rejects_unexpected_sidecar_added_during_reviewed_writes(
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output_dir, input_dir = _prepared_bridge(capsys, suffix="attach-extra-sidecar")
+    reviews_path = _write_review_input(output_dir, _review_input(output_dir))
+    reviewed_dir = output_dir / review_contract.REVIEWED_RUN_DIRNAME
+    real_write_json_at = review_cli._write_json_at
+    writes = 0
+
+    def add_sidecar_after_writes(
+        directory_fd: int,
+        filename: str,
+        payload: Any,
+    ) -> None:
+        nonlocal writes
+        real_write_json_at(directory_fd, filename, payload)
+        writes += 1
+        if writes == 5:
+            (reviewed_dir / "unexpected.json").write_text("{}", encoding="utf-8")
+
+    monkeypatch.setattr(review_cli, "_write_json_at", add_sidecar_after_writes)
+    try:
+        assert (
+            review_cli.main(
+                [
+                    "attach",
+                    "--bridge",
+                    str(output_dir / bridge_cli.BRIDGE_FILENAME),
+                    "--reviews",
+                    str(reviews_path),
+                ]
+            )
+            == 1
+        )
+        captured = capsys.readouterr()
+        assert "exact initial artifact set" in captured.err
+        assert not reviewed_dir.exists()
+    finally:
+        shutil.rmtree(output_dir, ignore_errors=True)
+        shutil.rmtree(input_dir, ignore_errors=True)
+
+
+def test_attach_parent_symlink_swap_during_reviewed_ref_is_stable_and_local(
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    output_dir, input_dir = _prepared_bridge(capsys, suffix="attach-ref-symlink-swap")
+    detached = output_dir.with_name(f"{output_dir.name}-detached")
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    reviews_path = _write_review_input(output_dir, _review_input(output_dir))
+    real_artifact_ref = review_cli._artifact_ref
+    swapped = False
+
+    def swap_parent_on_reviewed_ref(path: Path) -> str:
+        nonlocal swapped
+        if review_contract.REVIEWED_RUN_DIRNAME in path.parts and not swapped:
+            swapped = True
+            output_dir.rename(detached)
+            output_dir.symlink_to(outside, target_is_directory=True)
+        return real_artifact_ref(path)
+
+    monkeypatch.setattr(review_cli, "_artifact_ref", swap_parent_on_reviewed_ref)
+    try:
+        assert (
+            review_cli.main(
+                [
+                    "attach",
+                    "--bridge",
+                    str(output_dir / bridge_cli.BRIDGE_FILENAME),
+                    "--reviews",
+                    str(reviews_path),
+                ]
+            )
+            == 1
+        )
+        captured = capsys.readouterr()
+        assert "reviewed finalize run canonical identity changed" in captured.err
+        assert "Traceback" not in captured.err
+        assert swapped
+        assert not (outside / review_contract.REVIEWED_RUN_DIRNAME).exists()
+        assert not (detached / review_contract.REVIEWED_RUN_DIRNAME).exists()
+    finally:
+        if output_dir.is_symlink():
+            output_dir.unlink()
+        if detached.exists() and not output_dir.exists():
+            detached.rename(output_dir)
+        shutil.rmtree(output_dir, ignore_errors=True)
+        shutil.rmtree(input_dir, ignore_errors=True)
 
 
 def test_validate_rejects_reviewed_child_symlink_before_read(

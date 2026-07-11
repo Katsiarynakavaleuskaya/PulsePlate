@@ -4,8 +4,10 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 from pathlib import Path
+import secrets
 import stat
 import sys
 from typing import Any, Mapping, Sequence, cast
@@ -167,7 +169,17 @@ def _resolve_repo_artifact_ref(ref: str, *, label: str, expect_dir: bool = False
 
 
 def _artifact_ref(path: Path) -> str:
-    return path.resolve(strict=False).relative_to(REPO_ROOT.resolve()).as_posix()
+    try:
+        _candidate, parts = creative_code_spec_pipeline._candidate_and_repo_parts(
+            path,
+            allowed_root=creative_code_spec_pipeline.ARTIFACT_ROOT,
+            label="artifact ref",
+        )
+    except creative_code_spec_pipeline.CreativeCodeSpecPipelineError as exc:
+        raise CreativeSpecificationSkepticReviewCliError(
+            "artifact ref must stay under creative-code artifacts."
+        ) from exc
+    return Path(*parts).as_posix()
 
 
 def _read_json_file(path: Path) -> Any:
@@ -553,12 +565,35 @@ def _create_pinned_reviewed_run(path: Path) -> tuple[int, int, DirectoryIdentity
             raise CreativeSpecificationSkepticReviewCliError(
                 "reviewed finalize run already exists; remove the local sibling artifact to rerun."
             ) from exc
-        reviewed_fd = os.open(
-            name,
-            creative_code_spec_pipeline._directory_flags(),
-            dir_fd=parent_fd,
-        )
-        info = os.fstat(reviewed_fd)
+        created_info = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+        created_identity = (created_info.st_dev, created_info.st_ino)
+        try:
+            reviewed_fd = os.open(
+                name,
+                creative_code_spec_pipeline._directory_flags(),
+                dir_fd=parent_fd,
+            )
+            info = os.fstat(reviewed_fd)
+            if (info.st_dev, info.st_ino) != created_identity:
+                raise CreativeSpecificationSkepticReviewCliError(
+                    "reviewed finalize run identity changed during creation."
+                )
+        except Exception as primary_error:
+            cleanup_error: Exception | None = None
+            try:
+                current = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+                if (current.st_dev, current.st_ino) != created_identity:
+                    raise CreativeSpecificationSkepticReviewCliError(
+                        "reviewed finalize run cleanup identity changed."
+                    )
+                os.rmdir(name, dir_fd=parent_fd)
+            except Exception as exc:
+                cleanup_error = exc
+            if cleanup_error is not None:
+                raise CreativeSpecificationSkepticReviewCliError(
+                    f"{primary_error}; cleanup_diagnostic={cleanup_error}"
+                ) from primary_error
+            raise
         result = (parent_fd, reviewed_fd, (info.st_dev, info.st_ino))
         parent_fd = -1
         reviewed_fd = -1
@@ -601,6 +636,172 @@ def _remove_pinned_reviewed_run(
             )
         os.unlink(child_name, dir_fd=reviewed_fd)
     os.rmdir(name, dir_fd=parent_fd)
+
+
+def _write_json_at(directory_fd: int, filename: str, payload: Any) -> None:
+    if Path(filename).name != filename or not filename.endswith(".json"):
+        raise CreativeSpecificationSkepticReviewCliError(
+            "reviewed artifact filename must be a safe JSON basename."
+        )
+    content = json.dumps(payload, indent=2, sort_keys=True) + "\n"
+    file_fd = -1
+    temp_name: str | None = None
+    try:
+        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+        flags |= creative_code_spec_pipeline._required_open_flag("O_NOFOLLOW")
+        flags |= getattr(os, "O_CLOEXEC", 0)
+        for _attempt in range(32):
+            candidate = f".{filename}.{secrets.token_hex(8)}.tmp"
+            try:
+                file_fd = os.open(candidate, flags, 0o600, dir_fd=directory_fd)
+                temp_name = candidate
+                break
+            except FileExistsError:
+                continue
+        else:
+            raise CreativeSpecificationSkepticReviewCliError(
+                "unable to allocate reviewed artifact temp file."
+            )
+        with os.fdopen(file_fd, "w", encoding="utf-8") as handle:
+            file_fd = -1
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(
+            temp_name,
+            filename,
+            src_dir_fd=directory_fd,
+            dst_dir_fd=directory_fd,
+        )
+        temp_name = None
+        os.fsync(directory_fd)
+    except CreativeSpecificationSkepticReviewCliError:
+        raise
+    except (OSError, ValueError, RecursionError, NotImplementedError) as exc:
+        raise CreativeSpecificationSkepticReviewCliError(
+            "Unable to write reviewed JSON artifact safely."
+        ) from exc
+    finally:
+        active_error = sys.exc_info()[1]
+        cleanup_error: Exception | None = None
+        if temp_name is not None:
+            try:
+                os.unlink(temp_name, dir_fd=directory_fd)
+            except FileNotFoundError:
+                pass
+            except (OSError, NotImplementedError) as exc:
+                cleanup_error = exc
+        close_error = creative_code_spec_pipeline._close_descriptors(file_fd)
+        cleanup_error = cleanup_error or close_error
+        if active_error is None and cleanup_error is not None:
+            raise CreativeSpecificationSkepticReviewCliError(
+                "Unable to clean up reviewed JSON artifact safely."
+            ) from cleanup_error
+
+
+def _read_json_at(directory_fd: int, filename: str) -> Any:
+    file_fd = -1
+    try:
+        flags = os.O_RDONLY | creative_code_spec_pipeline._required_open_flag("O_NOFOLLOW")
+        flags |= getattr(os, "O_CLOEXEC", 0)
+        file_fd = os.open(filename, flags, dir_fd=directory_fd)
+        if not stat.S_ISREG(os.fstat(file_fd).st_mode):
+            raise CreativeSpecificationSkepticReviewCliError(
+                f"reviewed artifact {filename} must be a regular file."
+            )
+        with os.fdopen(file_fd, "r", encoding="utf-8") as handle:
+            file_fd = -1
+            return json.loads(
+                handle.read(),
+                object_pairs_hook=creative_code_spec_pipeline._reject_duplicate_json_object_keys,
+            )
+    except CreativeSpecificationSkepticReviewCliError:
+        raise
+    except (
+        creative_code_spec_pipeline.CreativeCodeSpecPipelineError,
+        OSError,
+        UnicodeDecodeError,
+        ValueError,
+        RecursionError,
+        NotImplementedError,
+    ) as exc:
+        raise CreativeSpecificationSkepticReviewCliError(
+            f"reviewed artifact {filename} could not be read safely."
+        ) from exc
+    finally:
+        close_error = creative_code_spec_pipeline._close_descriptors(file_fd)
+        if sys.exc_info()[1] is None and close_error is not None:
+            raise CreativeSpecificationSkepticReviewCliError(
+                f"reviewed artifact {filename} could not be closed safely."
+            ) from close_error
+
+
+def _assert_exact_reviewed_run_payloads(
+    reviewed_fd: int,
+    *,
+    expected_payloads: Mapping[str, Any],
+) -> None:
+    expected_names = set(expected_payloads)
+    if set(os.listdir(reviewed_fd)) != expected_names:
+        raise CreativeSpecificationSkepticReviewCliError(
+            "reviewed finalize run must contain the exact initial artifact set."
+        )
+    for filename, expected_payload in expected_payloads.items():
+        observed = _read_json_at(reviewed_fd, filename)
+        try:
+            matches = fingerprint_payload(observed) == fingerprint_payload(expected_payload)
+        except (TypeError, ValueError):
+            matches = False
+        if not matches:
+            raise CreativeSpecificationSkepticReviewCliError(
+                f"reviewed artifact {filename} fingerprint mismatch."
+            )
+    if set(os.listdir(reviewed_fd)) != expected_names:
+        raise CreativeSpecificationSkepticReviewCliError(
+            "reviewed finalize run must contain the exact initial artifact set."
+        )
+
+
+def _assert_canonical_reviewed_run_identity(
+    path: Path,
+    *,
+    expected_identity: DirectoryIdentity,
+) -> None:
+    parent_fd = -1
+    reviewed_fd = -1
+    try:
+        parent_fd, name, _candidate = creative_code_spec_pipeline._open_pinned_parent(
+            path,
+            allowed_root=creative_code_spec_pipeline.ARTIFACT_ROOT,
+            create=False,
+            label="reviewed finalize run",
+        )
+        reviewed_fd = os.open(
+            name,
+            creative_code_spec_pipeline._directory_flags(),
+            dir_fd=parent_fd,
+        )
+        info = os.fstat(reviewed_fd)
+        if (info.st_dev, info.st_ino) != expected_identity:
+            raise CreativeSpecificationSkepticReviewCliError(
+                "reviewed finalize run canonical identity changed."
+            )
+    except CreativeSpecificationSkepticReviewCliError:
+        raise
+    except (
+        creative_code_spec_pipeline.CreativeCodeSpecPipelineError,
+        OSError,
+        NotImplementedError,
+    ) as exc:
+        raise CreativeSpecificationSkepticReviewCliError(
+            "reviewed finalize run canonical identity changed."
+        ) from exc
+    finally:
+        close_error = creative_code_spec_pipeline._close_descriptors(reviewed_fd, parent_fd)
+        if sys.exc_info()[1] is None and close_error is not None:
+            raise CreativeSpecificationSkepticReviewCliError(
+                "reviewed finalize run identity descriptors could not be closed safely."
+            ) from close_error
 
 
 def _attach_from_bridge(bridge_path: Path, reviews_path: Path) -> dict[str, Any]:
@@ -684,11 +885,29 @@ def _attach_from_bridge(bridge_path: Path, reviews_path: Path) -> dict[str, Any]
             ),
             label="skeptic review attachment",
         )
-        _write_json_atomic(reviewed_source_packet, source_packet)
-        _write_json_atomic(reviewed_variants, variants)
-        _write_json_atomic(reviewed_reviews, normalized_reviews)
-        _write_json_atomic(reviewed_context_pack, cast(dict[str, Any], prepared["context_pack"]))
-        _write_json_atomic(attachment_path, attachment)
+        _write_json_at(reviewed_fd, reviewed_source_packet.name, source_packet)
+        _write_json_at(reviewed_fd, reviewed_variants.name, variants)
+        _write_json_at(reviewed_fd, reviewed_reviews.name, normalized_reviews)
+        _write_json_at(
+            reviewed_fd,
+            reviewed_context_pack.name,
+            cast(dict[str, Any], prepared["context_pack"]),
+        )
+        _write_json_at(reviewed_fd, attachment_path.name, attachment)
+        _assert_canonical_reviewed_run_identity(
+            reviewed_dir,
+            expected_identity=reviewed_identity,
+        )
+        _assert_exact_reviewed_run_payloads(
+            reviewed_fd,
+            expected_payloads={
+                reviewed_source_packet.name: source_packet,
+                reviewed_variants.name: variants,
+                reviewed_reviews.name: normalized_reviews,
+                reviewed_context_pack.name: cast(dict[str, Any], prepared["context_pack"]),
+                attachment_path.name: attachment,
+            },
+        )
     except Exception as primary_error:
         cleanup_error: Exception | None = None
         try:
