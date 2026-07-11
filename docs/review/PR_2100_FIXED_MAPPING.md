@@ -29,14 +29,9 @@ findings were corrected in `065b8d7b1` before their threads were resolved.
 ## Fixed in Commit Mapping
 
 Disposition: FIXED
-Commit: b56dfbcba
-Evidence: `scripts/orchestration/creative_code_artifact_inventory.py` preserves
-scan artifact references, rejects symlinked sidecars, and binds terminal
-workspace, synthesis, approval, bridge, candidate, and PR-1 source-packet
-lineage. `scripts/orchestration/creative_pilot_workspace_contract.py` validates
-approval values, reconstructs deterministic synthesis truth, distinguishes
-creation-time freshness from replay, and binds evidence events across the
-workspace/synthesis boundary. Focused inventory/workspace tests pass.
+Commit: see mapping entries below
+Evidence: Initial and current-head findings are fixed by the mapped commits; focused lineage, inventory, CLI, MyPy, and pinned artifact I/O tests pass.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2100#discussion_r3562505151 -> b56dfbcba
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2100#discussion_r3562505158 -> b56dfbcba
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2100#discussion_r3562523117 -> b56dfbcba
@@ -56,10 +51,6 @@ workspace/synthesis boundary. Focused inventory/workspace tests pass.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2100#discussion_r3563473735 -> 065b8d7b1
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2100#discussion_r3563488048 -> 065b8d7b1
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2100#discussion_r3563488049 -> 065b8d7b1
-
-The CodeRabbit review-level nitpicks are also fixed in `b56dfbcba`: all seven
-v2 schemas are included in closure/version tests, and the CLI converts sibling
-bridge/candidate contract failures into stable `FAIL:` results.
 
 ## Review Source Status
 
@@ -181,6 +172,9 @@ remaining reportable finding.
   provider, workflow, GitHub, Slack, cache, graph, or mutation code is changed.
 
 ## Experiment Runner Evidence
+
+Artifact: artifacts/orchestration/experiments/results/adaptive-production-pilot-pr-oracle-python-current-diff-result.json
+Artifact: artifacts/orchestration/experiments/results/adaptive-production-pilot-pr-oracle-typing-fix-result.json
 
 - Full initial PR diff: `artifacts/orchestration/experiments/results/adaptive-production-pilot-pr-oracle-python-current-diff-result.json` — accepted, 3/3 oracles, shared tree untouched.
 - Typing remediation delta: `artifacts/orchestration/experiments/results/adaptive-production-pilot-pr-oracle-typing-fix-result.json` — accepted, 3/3 oracles, shared tree untouched.
