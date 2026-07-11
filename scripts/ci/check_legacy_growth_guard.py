@@ -1884,24 +1884,23 @@ def _mutates_protected_namespace(
     static_string_bindings: Mapping[str, str],
     static_mapping_bindings: Mapping[str, ast.Dict],
 ) -> bool:
-    if not isinstance(node.func, ast.Attribute):
-        return False
-    method_name = node.func.attr
     arguments = list(node.args)
-    if _is_object_namespace_mapping(
+    if isinstance(node.func, ast.Attribute) and _is_object_namespace_mapping(
         node.func.value,
         references=references,
         static_string_bindings=static_string_bindings,
     ):
-        pass
+        method_name = node.func.attr
     else:
         function_reference = _resolve_lifecycle_reference(
             node.func,
             references=references,
             static_string_bindings=static_string_bindings,
         )
+        dict_method_prefix = "builtins.dict."
         if (
-            function_reference != f"builtins.dict.{method_name}"
+            function_reference is None
+            or not function_reference.startswith(dict_method_prefix)
             or not arguments
             or not _is_object_namespace_mapping(
                 arguments[0],
@@ -1910,6 +1909,7 @@ def _mutates_protected_namespace(
             )
         ):
             return False
+        method_name = function_reference.removeprefix(dict_method_prefix)
         arguments = arguments[1:]
     if method_name in {"__ior__", "update"}:
         if any(keyword.arg in protected_names for keyword in node.keywords):
