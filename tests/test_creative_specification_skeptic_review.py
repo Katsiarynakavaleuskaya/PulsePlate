@@ -783,6 +783,7 @@ def test_reviewed_run_creation_cleans_exact_directory_after_post_mkdir_failure(
         bridge_dir.mkdir(parents=True)
         if failure_point == "open":
             real_open = review_cli.os.open
+            fail_next_open = True
 
             def fail_reviewed_open(
                 path: Any,
@@ -791,7 +792,13 @@ def test_reviewed_run_creation_cleans_exact_directory_after_post_mkdir_failure(
                 *,
                 dir_fd: int | None = None,
             ) -> int:
-                if path == review_contract.REVIEWED_RUN_DIRNAME and dir_fd is not None:
+                nonlocal fail_next_open
+                if (
+                    path == review_contract.REVIEWED_RUN_DIRNAME
+                    and dir_fd is not None
+                    and fail_next_open
+                ):
+                    fail_next_open = False
                     raise OSError(errno.EMFILE, "simulated descriptor exhaustion")
                 return real_open(path, flags, mode, dir_fd=dir_fd)
 

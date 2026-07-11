@@ -565,8 +565,6 @@ def _create_pinned_reviewed_run(path: Path) -> tuple[int, int, DirectoryIdentity
             raise CreativeSpecificationSkepticReviewCliError(
                 "reviewed finalize run already exists; remove the local sibling artifact to rerun."
             ) from exc
-        created_info = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
-        created_identity = (created_info.st_dev, created_info.st_ino)
         try:
             reviewed_fd = os.open(
                 name,
@@ -574,21 +572,36 @@ def _create_pinned_reviewed_run(path: Path) -> tuple[int, int, DirectoryIdentity
                 dir_fd=parent_fd,
             )
             info = os.fstat(reviewed_fd)
-            if (info.st_dev, info.st_ino) != created_identity:
-                raise CreativeSpecificationSkepticReviewCliError(
-                    "reviewed finalize run identity changed during creation."
-                )
         except Exception as primary_error:
             cleanup_error: Exception | None = None
+            cleanup_fd = -1
             try:
+                cleanup_fd = (
+                    reviewed_fd
+                    if reviewed_fd >= 0
+                    else os.open(
+                        name,
+                        creative_code_spec_pipeline._directory_flags(),
+                        dir_fd=parent_fd,
+                    )
+                )
+                pinned = os.fstat(cleanup_fd)
                 current = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
-                if (current.st_dev, current.st_ino) != created_identity:
+                if (current.st_dev, current.st_ino) != (pinned.st_dev, pinned.st_ino):
                     raise CreativeSpecificationSkepticReviewCliError(
                         "reviewed finalize run cleanup identity changed."
+                    )
+                if os.listdir(cleanup_fd):
+                    raise CreativeSpecificationSkepticReviewCliError(
+                        "reviewed finalize run cleanup found unexpected children."
                     )
                 os.rmdir(name, dir_fd=parent_fd)
             except Exception as exc:
                 cleanup_error = exc
+            finally:
+                if cleanup_fd != reviewed_fd:
+                    close_error = creative_code_spec_pipeline._close_descriptors(cleanup_fd)
+                    cleanup_error = cleanup_error or close_error
             if cleanup_error is not None:
                 raise CreativeSpecificationSkepticReviewCliError(
                     f"{primary_error}; cleanup_diagnostic={cleanup_error}"
