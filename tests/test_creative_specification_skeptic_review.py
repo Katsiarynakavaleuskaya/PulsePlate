@@ -772,7 +772,7 @@ def test_reviewed_run_cleanup_pins_original_parent_across_path_swap(
         shutil.rmtree(bridge_dir, ignore_errors=True)
 
 
-@pytest.mark.parametrize("failure_point", ["stat", "open", "fstat"])
+@pytest.mark.parametrize("failure_point", ["stat", "open", "open_persistent", "fstat"])
 def test_reviewed_run_creation_cleans_exact_directory_after_post_mkdir_failure(
     monkeypatch: pytest.MonkeyPatch,
     failure_point: str,
@@ -793,7 +793,7 @@ def test_reviewed_run_creation_cleans_exact_directory_after_post_mkdir_failure(
                 return real_stat(*args, **kwargs)
 
             monkeypatch.setattr(review_cli.os, "stat", fail_created_stat)
-        elif failure_point == "open":
+        elif failure_point in {"open", "open_persistent"}:
             real_open = review_cli.os.open
             fail_next_open = True
 
@@ -808,9 +808,10 @@ def test_reviewed_run_creation_cleans_exact_directory_after_post_mkdir_failure(
                 if (
                     path == review_contract.REVIEWED_RUN_DIRNAME
                     and dir_fd is not None
-                    and fail_next_open
+                    and (fail_next_open or failure_point == "open_persistent")
                 ):
-                    fail_next_open = False
+                    if failure_point == "open":
+                        fail_next_open = False
                     raise OSError(errno.EMFILE, "simulated descriptor exhaustion")
                 return real_open(path, flags, mode, dir_fd=dir_fd)
 
@@ -1011,6 +1012,55 @@ def test_attach_parent_symlink_swap_during_reviewed_ref_is_stable_and_local(
         if output_dir.is_symlink():
             output_dir.unlink()
         if detached.exists() and not output_dir.exists():
+            detached.rename(output_dir)
+        shutil.rmtree(output_dir, ignore_errors=True)
+        shutil.rmtree(input_dir, ignore_errors=True)
+
+
+def test_attach_rechecks_canonical_identity_after_exact_payload_snapshot(
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output_dir, input_dir = _prepared_bridge(capsys, suffix="attach-late-parent-move")
+    detached = output_dir.with_name(f"{output_dir.name}-detached")
+    reviews_path = _write_review_input(output_dir, _review_input(output_dir))
+    real_assert_exact = review_cli._assert_exact_reviewed_run_payloads
+    moved = False
+
+    def move_parent_after_exact_snapshot(*args: Any, **kwargs: Any) -> None:
+        nonlocal moved
+        real_assert_exact(*args, **kwargs)
+        if not moved:
+            moved = True
+            output_dir.rename(detached)
+            output_dir.mkdir()
+
+    monkeypatch.setattr(
+        review_cli,
+        "_assert_exact_reviewed_run_payloads",
+        move_parent_after_exact_snapshot,
+    )
+    try:
+        assert (
+            review_cli.main(
+                [
+                    "attach",
+                    "--bridge",
+                    str(output_dir / bridge_cli.BRIDGE_FILENAME),
+                    "--reviews",
+                    str(reviews_path),
+                ]
+            )
+            == 1
+        )
+        captured = capsys.readouterr()
+        assert "reviewed finalize run canonical identity changed" in captured.err
+        assert moved
+        assert not (detached / review_contract.REVIEWED_RUN_DIRNAME).exists()
+        assert not (output_dir / review_contract.REVIEWED_RUN_DIRNAME).exists()
+    finally:
+        shutil.rmtree(output_dir, ignore_errors=True)
+        if detached.exists():
             detached.rename(output_dir)
         shutil.rmtree(output_dir, ignore_errors=True)
         shutil.rmtree(input_dir, ignore_errors=True)

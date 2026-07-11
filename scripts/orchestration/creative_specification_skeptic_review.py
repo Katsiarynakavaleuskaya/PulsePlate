@@ -581,38 +581,16 @@ def _create_pinned_reviewed_run(path: Path) -> tuple[int, int, DirectoryIdentity
                 )
         except Exception as primary_error:
             cleanup_error: Exception | None = None
-            cleanup_fd = -1
             try:
-                cleanup_fd = (
-                    reviewed_fd
-                    if reviewed_fd >= 0
-                    else os.open(
-                        name,
-                        creative_code_spec_pipeline._directory_flags(),
-                        dir_fd=parent_fd,
-                    )
-                )
-                pinned = os.fstat(cleanup_fd)
                 current = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
-                pinned_identity = (pinned.st_dev, pinned.st_ino)
                 current_identity = (current.st_dev, current.st_ino)
-                if pinned_identity != current_identity or (
-                    created_identity is not None and current_identity != created_identity
-                ):
+                if created_identity is not None and current_identity != created_identity:
                     raise CreativeSpecificationSkepticReviewCliError(
                         "reviewed finalize run cleanup identity changed."
-                    )
-                if os.listdir(cleanup_fd):
-                    raise CreativeSpecificationSkepticReviewCliError(
-                        "reviewed finalize run cleanup found unexpected children."
                     )
                 os.rmdir(name, dir_fd=parent_fd)
             except Exception as exc:
                 cleanup_error = exc
-            finally:
-                if cleanup_fd != reviewed_fd:
-                    close_error = creative_code_spec_pipeline._close_descriptors(cleanup_fd)
-                    cleanup_error = cleanup_error or close_error
             if cleanup_error is not None:
                 raise CreativeSpecificationSkepticReviewCliError(
                     f"{primary_error}; cleanup_diagnostic={cleanup_error}"
@@ -931,6 +909,10 @@ def _attach_from_bridge(bridge_path: Path, reviews_path: Path) -> dict[str, Any]
                 reviewed_context_pack.name: cast(dict[str, Any], prepared["context_pack"]),
                 attachment_path.name: attachment,
             },
+        )
+        _assert_canonical_reviewed_run_identity(
+            reviewed_dir,
+            expected_identity=reviewed_identity,
         )
     except Exception as primary_error:
         cleanup_error: Exception | None = None
