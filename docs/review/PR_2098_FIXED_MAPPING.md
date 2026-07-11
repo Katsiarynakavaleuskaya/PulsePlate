@@ -99,10 +99,37 @@ Evidence: GitHub commit `6fab2e4ceaf39b8afeb539070bbec448b3bf625e` shows that me
 Reason: PR #2099's topology is precedent, not proof of PR #2098's future result; preserving the material commits is an explicit merge-time gate for this PR.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2098#discussion_r3564318819
 
+Disposition: FIXED
+Commit: f2afb3bc2bc36ac6df0a37a11f4e7047dc54d0f1
+Evidence: The attribution evidence now treats PR #2099 only as proof that merge commits are available and makes merge-commit-only a hard PR #2098 precondition, with an explicit stop instead of squash/rebase fallback.
+Reason: This removes the unsupported claim that another PR's topology guarantees PR #2098's future merge result.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2098#discussion_r3564363215 -> f2afb3bc2bc36ac6df0a37a11f4e7047dc54d0f1
+
+Disposition: NOT-A-BUG
+Evidence: GitHub reports actual PR head `55f790ff915cf062c34b43b3cedb352248bc646a`, while repository commit lookup for reviewer id `b937a5d` returns HTTP 422 `No commit found`; the real branch contains `af3e960e` and all mapped proof.
+Reason: The reviewed squash id is a connector-local projection, not GitHub PR ancestry or a candidate merge head.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2098#discussion_r3564369259
+
+Disposition: NOT-A-BUG
+Evidence: Reviewer id `b937a5d` is not a GitHub commit; real material commits `af3e960e` and `989882c80` retain the canonical Experiment Runner trailer, and PR #2098 is now merge-commit-only.
+Reason: A nonexistent connector-local squash projection cannot replace the attributed material commits in the controlled merge history.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2098#discussion_r3564369263
+
+Disposition: NOT-A-BUG
+Evidence: Reviewer id `b937a5d` is not a GitHub commit; exact material head `a44cdf714` has local narrow-bundle evidence, later heads are mapping-only, and actual final-head `55f790ff9` CI passed lint, security, OpenAPI, `test-pr (3.13)`, and 100% diff coverage.
+Reason: Validation is tied to real GitHub commits and current-head CI, not to a connector-local squash projection.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2098#discussion_r3564369265
+
+Disposition: FIXED
+Commit: f2afb3bc2bc36ac6df0a37a11f4e7047dc54d0f1
+Evidence: The CodeRabbit/Sourcery/Cubic current-head checkbox is now unchecked and remains blocked until the next final-head bot cycle completes without actionables.
+Reason: The mapping no longer contradicts its own Merge Readiness section or prematurely certifies external review.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2098#discussion_r3564369269 -> f2afb3bc2bc36ac6df0a37a11f4e7047dc54d0f1
+
 ## Synthetic Reviewer Commit Evidence
 
 - GitHub PR head at the second Codex review: `aba5be27e3391e4715414a360051c9b58ad020b2`.
-- GitHub REST commit lookup for `70c598d` and `d28766e`: HTTP 422,
+- GitHub REST commit lookup for `70c598d`, `d28766e`, and `b937a5d`: HTTP 422,
   `No commit found for SHA`.
 - Actual PR commit history is the canonical ancestry source for fixed-mapping,
   exact-head validation, and Experiment Runner attribution.
