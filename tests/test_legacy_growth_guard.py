@@ -17,6 +17,527 @@ def test_current_legacy_app_passes_growth_guard() -> None:
     assert legacy_guard.ALLOWED_LEGACY_ROUTE_FACTS == frozenset()
 
 
+def test_current_lifecycle_ownership_passes_growth_guard() -> None:
+    legacy_source = (REPO_ROOT / "legacy_app.py").read_text(encoding="utf-8")
+    food_source = (REPO_ROOT / "app/bootstrap/food_search.py").read_text(encoding="utf-8")
+    lifespan_source = (REPO_ROOT / "app/bootstrap/lifespan.py").read_text(encoding="utf-8")
+
+    assert (
+        legacy_guard.validate_lifecycle_ownership(
+            legacy_source,
+            food_source,
+            lifespan_source,
+        )
+        == []
+    )
+
+
+@pytest.mark.parametrize(
+    ("legacy_source", "expected"),
+    [
+        (
+            "async def lifespan(app):\n    yield\n",
+            "legacy_app.py: lifecycle implementation must be canonical",
+        ),
+        (
+            '@app.on_event("startup")\nasync def start():\n    pass\n',
+            "legacy_app.py: startup/shutdown event registration is forbidden",
+        ),
+        (
+            'app.add_event_handler("startup", start)\n',
+            "legacy_app.py: startup/shutdown event registration is forbidden",
+        ),
+        (
+            "app.router.on_shutdown.append(stop)\n",
+            "legacy_app.py: startup/shutdown event registration is forbidden",
+        ),
+        (
+            "callbacks = app.router.on_startup\ncallbacks.append(start)\n",
+            "legacy_app.py: startup/shutdown event registration is forbidden",
+        ),
+        (
+            'getattr(app.router, "on_startup").append(start)\n',
+            "legacy_app.py: startup/shutdown event registration is forbidden",
+        ),
+        (
+            'app.router.__getattribute__("on_startup").append(start)\n',
+            "legacy_app.py: startup/shutdown event registration is forbidden",
+        ),
+        (
+            'object.__getattribute__(app.router, "on_shutdown").append(stop)\n',
+            "legacy_app.py: startup/shutdown event registration is forbidden",
+        ),
+        (
+            'register = app.__getattribute__("on_event")\n'
+            '@register("shutdown")\n'
+            "async def stop():\n    pass\n",
+            "legacy_app.py: startup/shutdown event registration is forbidden",
+        ),
+        (
+            'app.router.__dict__["on_startup"].append(start)\n',
+            "legacy_app.py: startup/shutdown event registration is forbidden",
+        ),
+        (
+            'vars(app.router)["on_shutdown"].append(stop)\n',
+            "legacy_app.py: startup/shutdown event registration is forbidden",
+        ),
+        (
+            'getattr(app.router, "__dict__")["on_startup"].append(start)\n',
+            "legacy_app.py: startup/shutdown event registration is forbidden",
+        ),
+        (
+            'app.router.__dict__.update({"on_startup": [start]})\n',
+            "legacy_app.py: startup/shutdown event registration is forbidden",
+        ),
+        (
+            "app.router.lifespan_context = wrapper\n",
+            "legacy_app.py: lifespan_context mutation is forbidden",
+        ),
+        (
+            'register = app.on_event\n@register("startup")\nasync def start():\n    pass\n',
+            "legacy_app.py: startup/shutdown event registration is forbidden",
+        ),
+        (
+            'register = getattr(app, "on_event")\n@register("shutdown")\nasync def stop():\n    pass\n',
+            "legacy_app.py: startup/shutdown event registration is forbidden",
+        ),
+        (
+            "from fastapi import FastAPI\n"
+            "async def runtime_context(app):\n    yield\n"
+            "app = FastAPI(lifespan=runtime_context)\n",
+            "legacy_app.py: FastAPI lifespan must use the canonical re-export",
+        ),
+        (
+            "from fastapi import FastAPI\napp = FastAPI()\n",
+            "legacy_app.py: FastAPI lifespan must use the canonical re-export",
+        ),
+        (
+            'from fastapi import FastAPI\napp = FastAPI(**{"title": "PulsePlate"})\n',
+            "legacy_app.py: FastAPI lifespan must use the canonical re-export",
+        ),
+        (
+            "from fastapi.applications import FastAPI\n"
+            "async def runtime_context(app):\n    yield\n"
+            "app = FastAPI(lifespan=runtime_context)\n",
+            "legacy_app.py: FastAPI lifespan must use the canonical re-export",
+        ),
+        (
+            "import fastapi.applications\n"
+            "async def runtime_context(app):\n    yield\n"
+            "app = fastapi.applications.FastAPI(lifespan=runtime_context)\n",
+            "legacy_app.py: FastAPI lifespan must use the canonical re-export",
+        ),
+        (
+            "from fastapi import applications\napp = applications.FastAPI()\n",
+            "legacy_app.py: FastAPI lifespan must use the canonical re-export",
+        ),
+        (
+            "from fastapi import FastAPI\n"
+            "async def runtime_context(app):\n    yield\n"
+            'app = FastAPI(**{"lifespan": runtime_context})\n',
+            "legacy_app.py: FastAPI lifespan must use the canonical re-export",
+        ),
+        (
+            "from fastapi import FastAPI\n"
+            "async def runtime_context(app):\n    yield\n"
+            'options = {"lifespan": runtime_context}\n'
+            "app = FastAPI(**options)\n",
+            "legacy_app.py: FastAPI lifespan must use the canonical re-export",
+        ),
+        (
+            "from fastapi import FastAPI\n"
+            "options = build_options()\n"
+            "app = FastAPI(**options)\n",
+            "legacy_app.py: FastAPI lifespan must use the canonical re-export",
+        ),
+        (
+            "from fastapi import FastAPI\n"
+            "from app.bootstrap.lifespan import application_lifespan as lifespan\n"
+            "async def runtime_context(app):\n    yield\n"
+            "lifespan = runtime_context\n"
+            "app = FastAPI(lifespan=lifespan)\n",
+            "legacy_app.py: FastAPI lifespan must use the canonical re-export",
+        ),
+        (
+            "from fastapi import FastAPI\n"
+            "from app.bootstrap.lifespan import application_lifespan as lifespan\n"
+            "def build_app(lifespan):\n"
+            "    return FastAPI(lifespan=lifespan)\n",
+            "legacy_app.py: FastAPI lifespan must use the canonical re-export",
+        ),
+        (
+            "from fastapi import FastAPI\n"
+            "from app.bootstrap.lifespan import application_lifespan as lifespan\n"
+            "async def runtime_context(app):\n    yield\n"
+            "lifespan = runtime_context\n"
+            'options = {"lifespan": lifespan}\n'
+            "app = FastAPI(**options)\n",
+            "legacy_app.py: FastAPI lifespan must use the canonical re-export",
+        ),
+        (
+            "from fastapi import FastAPI\n"
+            "async def runtime_context(app):\n    yield\n"
+            "key = 'title'\n"
+            "key = 'lifespan'\n"
+            "options = {key: runtime_context}\n"
+            "app = FastAPI(**options)\n",
+            "legacy_app.py: FastAPI lifespan must use the canonical re-export",
+        ),
+    ],
+)
+def test_lifecycle_guard_rejects_legacy_ownership(
+    legacy_source: str,
+    expected: str,
+) -> None:
+    errors = legacy_guard.validate_lifecycle_ownership(
+        legacy_source,
+        "pass\n",
+        "pass\n",
+    )
+
+    assert errors == [expected]
+
+
+@pytest.mark.parametrize(
+    "food_source",
+    [
+        "app.router.lifespan_context = wrapper\n",
+        "del app.router.lifespan_context\n",
+        'setattr(app.router, "lifespan_context", wrapper)\n',
+        'import builtins\nbuiltins.setattr(app.router, "lifespan_context", wrapper)\n',
+        'from builtins import setattr as assign\nassign(app.router, "lifespan_context", wrapper)\n',
+        'object.__setattr__(app.router, "lifespan_context", wrapper)\n',
+        'app.router.__setattr__("lifespan_context", wrapper)\n',
+        'assign = object.__setattr__\nassign(app.router, "lifespan_context", wrapper)\n',
+        'vars(app.router)["lifespan_context"] = wrapper\n',
+        'app.router.__dict__["lifespan_context"] = wrapper\n',
+        'del app.router.__dict__["lifespan_context"]\n',
+        'del vars(app.router)["lifespan_context"]\n',
+        'app.router.__dict__.update({"lifespan_context": wrapper})\n',
+        'vars(app.router).update({"lifespan_context": wrapper})\n',
+        'app.router.__dict__.update(**{"lifespan_context": wrapper})\n',
+        'options = {"lifespan_context": wrapper}\nvars(app.router).update(**options)\n',
+        "vars(app.router).update(**build_options())\n",
+        'vars(app.router).__ior__({"lifespan_context": wrapper})\n',
+        'app.router.__dict__ |= {"lifespan_context": wrapper}\n',
+        'app.router.__dict__ = app.router.__dict__ | {"lifespan_context": wrapper}\n',
+        'getattr(app.router, "__dict__").update({"lifespan_context": wrapper})\n',
+        'app.router.__getattribute__("__dict__").update({"lifespan_context": wrapper})\n',
+        'dict.__setitem__(app.router.__dict__, "lifespan_context", wrapper)\n',
+        'mutate = dict.__setitem__\nmutate(vars(app.router), "lifespan_context", wrapper)\n',
+        "dict.clear(vars(app.router))\n",
+        'app.router.__dict__.setdefault("lifespan_context", wrapper)\n',
+        'vars(app.router).setdefault("lifespan_context", wrapper)\n',
+        'app.router.__dict__.pop("lifespan_context")\n',
+        'vars(app.router).__delitem__("lifespan_context")\n',
+        "app.router.__dict__.clear()\n",
+    ],
+)
+def test_lifecycle_guard_rejects_food_search_lifespan_wrapping(
+    food_source: str,
+) -> None:
+    errors = legacy_guard.validate_lifecycle_ownership(
+        "pass\n",
+        food_source,
+        "pass\n",
+    )
+
+    lifespan_error = "app/bootstrap/food_search.py: lifespan_context mutation is forbidden"
+    event_error = "app/bootstrap/food_search.py: startup/shutdown event registration is forbidden"
+    assert lifespan_error in errors
+    assert set(errors) <= {lifespan_error, event_error}
+
+
+@pytest.mark.parametrize(
+    "food_source",
+    [
+        'app.add_event_handler("startup", start)\n',
+        "app.router.on_shutdown.append(stop)\n",
+        'app.router.__dict__.update({"on_startup": [start]})\n',
+        'dict.update(app.router.__dict__, {"on_startup": [start]})\n',
+        'mutate = dict.update\nmutate(vars(app.router), {"on_startup": [start]})\n',
+        "from builtins import dict as mapping\n"
+        "mutate = mapping.update\n"
+        'mutate(vars(app.router), {"on_shutdown": [stop]})\n',
+        "from builtins import dict as mapping\n"
+        'mapping.__setitem__(vars(app.router), "on_shutdown", [stop])\n',
+    ],
+)
+def test_lifecycle_guard_rejects_food_search_event_registration(
+    food_source: str,
+) -> None:
+    errors = legacy_guard.validate_lifecycle_ownership(
+        "pass\n",
+        food_source,
+        "pass\n",
+    )
+
+    assert errors == [
+        "app/bootstrap/food_search.py: startup/shutdown event registration is forbidden"
+    ]
+
+
+@pytest.mark.parametrize(
+    "food_source",
+    [
+        'vars(app.state).update({"food_search_strategy": strategy})\n',
+        'vars(app.state).update(**{"food_search_strategy": strategy})\n',
+        'vars(app.state).__ior__({"food_search_strategy": strategy})\n',
+        'getattr(app.state, "__dict__").update({"food_search_strategy": strategy})\n',
+        'app.state.__dict__ = {"food_search_strategy": strategy}\n',
+        'dict.update(vars(app.state), {"food_search_strategy": strategy})\n',
+        'mutate = dict.update\nmutate(vars(app.state), {"food_search_strategy": strategy})\n',
+        'some_object.__dict__.update({"x": value})\n',
+        'vars(app.state).setdefault("food_search_strategy", strategy)\n',
+    ],
+)
+def test_lifecycle_guard_allows_unrelated_namespace_mutation(food_source: str) -> None:
+    assert legacy_guard.validate_lifecycle_ownership("pass\n", food_source, "pass\n") == []
+
+
+@pytest.mark.parametrize(
+    ("lifespan_source", "expected"),
+    [
+        (
+            "import legacy_app\n",
+            "app/bootstrap/lifespan.py: forbidden facade import: legacy_app",
+        ),
+        (
+            "import sys\nvalue = sys.modules.get('app')\n",
+            "app/bootstrap/lifespan.py: dynamic facade lookup is forbidden",
+        ),
+        (
+            "import sys as _sys\nvalue = _sys.modules.get('app')\n",
+            "app/bootstrap/lifespan.py: dynamic facade lookup is forbidden",
+        ),
+        (
+            "from sys import modules as loaded\nvalue = loaded.get('legacy_app')\n",
+            "app/bootstrap/lifespan.py: dynamic facade lookup is forbidden",
+        ),
+        (
+            "import importlib\nvalue = importlib.import_module('legacy_app')\n",
+            "app/bootstrap/lifespan.py: dynamic facade lookup is forbidden",
+        ),
+        (
+            "from importlib import import_module as load\nvalue = load('app')\n",
+            "app/bootstrap/lifespan.py: dynamic facade lookup is forbidden",
+        ),
+        (
+            "value = __import__('legacy_app')\n",
+            "app/bootstrap/lifespan.py: dynamic facade lookup is forbidden",
+        ),
+        (
+            "value = __import__('app.main')\n",
+            "app/bootstrap/lifespan.py: dynamic facade lookup is forbidden",
+        ),
+        (
+            "value = __builtins__['__import__']('legacy_app')\n",
+            "app/bootstrap/lifespan.py: dynamic facade lookup is forbidden",
+        ),
+        (
+            "value = __builtins__.__import__('app.main')\n",
+            "app/bootstrap/lifespan.py: dynamic facade lookup is forbidden",
+        ),
+        (
+            "import importlib\nvalue = importlib.import_module('legacy_app.runtime')\n",
+            "app/bootstrap/lifespan.py: dynamic facade lookup is forbidden",
+        ),
+        (
+            "from importlib import import_module\n"
+            "module_name = 'app.bootstrap.' + 'lifespan'\n"
+            "value = import_module(module_name)\n",
+            "app/bootstrap/lifespan.py: dynamic facade lookup is forbidden",
+        ),
+        (
+            "from importlib import import_module\n"
+            "module_name = 'json'\n"
+            "module_name = 'app.main'\n"
+            "value = import_module(name=module_name)\n",
+            "app/bootstrap/lifespan.py: dynamic facade lookup is forbidden",
+        ),
+        (
+            "from importlib import import_module\n"
+            "value = import_module(resolve_module_name())\n",
+            "app/bootstrap/lifespan.py: dynamic facade lookup is forbidden",
+        ),
+        (
+            "from importlib import import_module\n"
+            "module_name = 'json'\n"
+            "def load(module_name):\n"
+            "    return import_module(module_name)\n",
+            "app/bootstrap/lifespan.py: dynamic facade lookup is forbidden",
+        ),
+        (
+            "from importlib import import_module\n"
+            "value = import_module('.main', package='app')\n",
+            "app/bootstrap/lifespan.py: dynamic facade lookup is forbidden",
+        ),
+        (
+            "import builtins\n" 'value = builtins.__dict__["__import__"]("legacy_app")\n',
+            "app/bootstrap/lifespan.py: dynamic facade lookup is forbidden",
+        ),
+        (
+            "import builtins\n" 'value = vars(builtins)["__import__"]("app.main")\n',
+            "app/bootstrap/lifespan.py: dynamic facade lookup is forbidden",
+        ),
+        (
+            "import importlib\n" 'value = importlib.__dict__["import_module"]("legacy_app")\n',
+            "app/bootstrap/lifespan.py: dynamic facade lookup is forbidden",
+        ),
+        (
+            "import importlib\n" 'value = vars(importlib)["import_module"]("app")\n',
+            "app/bootstrap/lifespan.py: dynamic facade lookup is forbidden",
+        ),
+        (
+            "import importlib\n" 'value = importlib.__dict__.get("import_module")("legacy_app")\n',
+            "app/bootstrap/lifespan.py: dynamic facade lookup is forbidden",
+        ),
+        (
+            "import builtins\n" 'value = vars(builtins).get("__import__")("app.main")\n',
+            "app/bootstrap/lifespan.py: dynamic facade lookup is forbidden",
+        ),
+        (
+            "import importlib\n" 'value = importlib.__dict__.__getitem__("import_module")("app")\n',
+            "app/bootstrap/lifespan.py: dynamic facade lookup is forbidden",
+        ),
+        (
+            "import importlib\n"
+            'value = object.__getattribute__(importlib, "import_module")("legacy_app")\n',
+            "app/bootstrap/lifespan.py: dynamic facade lookup is forbidden",
+        ),
+        (
+            "import importlib\n" 'value = importlib.__getattribute__("import_module")("app")\n',
+            "app/bootstrap/lifespan.py: dynamic facade lookup is forbidden",
+        ),
+        (
+            "import importlib\n"
+            "getter = importlib.__getattribute__\n"
+            'value = getter("import_module")("legacy_app")\n',
+            "app/bootstrap/lifespan.py: dynamic facade lookup is forbidden",
+        ),
+        (
+            "import importlib\n"
+            'value = getattr(importlib, "__getattribute__")("import_module")("app")\n',
+            "app/bootstrap/lifespan.py: dynamic facade lookup is forbidden",
+        ),
+        (
+            "import app.main\n",
+            "app/bootstrap/lifespan.py: forbidden facade import: app.main",
+        ),
+        (
+            "from app.main import app\n",
+            "app/bootstrap/lifespan.py: forbidden facade import: app.main",
+        ),
+        (
+            "value = app_module.start_background_updates\n",
+            "app/bootstrap/lifespan.py: forbidden legacy dependency lookup: app_module",
+        ),
+    ],
+)
+def test_lifecycle_guard_rejects_legacy_dependency_resolution(
+    lifespan_source: str,
+    expected: str,
+) -> None:
+    errors = legacy_guard.validate_lifecycle_ownership(
+        "pass\n",
+        "pass\n",
+        lifespan_source,
+    )
+
+    assert expected in errors
+
+
+def test_lifecycle_guard_accepts_canonical_lifespan_in_static_keyword_mapping() -> None:
+    legacy_source = textwrap.dedent("""
+        from fastapi import FastAPI
+        from app.bootstrap.lifespan import application_lifespan as lifespan
+
+        options = {"lifespan": lifespan}
+        app = FastAPI(**options)
+        """)
+
+    assert legacy_guard.validate_lifecycle_ownership(legacy_source, "pass\n", "pass\n") == []
+
+
+@pytest.mark.parametrize(
+    "constructor",
+    [
+        'fastapi.__dict__["FastAPI"]',
+        'vars(fastapi)["FastAPI"]',
+        'fastapi.__dict__.get("FastAPI")',
+        'vars(fastapi).get("FastAPI")',
+        'fastapi.__dict__.__getitem__("FastAPI")',
+        'object.__getattribute__(fastapi, "FastAPI")',
+        'getattr(fastapi, "__getattribute__")("FastAPI")',
+    ],
+)
+def test_lifecycle_guard_rejects_namespace_mediated_fastapi_constructor(
+    constructor: str,
+) -> None:
+    legacy_source = textwrap.dedent(f"""
+        import fastapi
+
+        async def runtime_context(app):
+            yield
+
+        app = {constructor}(lifespan=runtime_context)
+        """)
+
+    assert legacy_guard.validate_lifecycle_ownership(
+        legacy_source,
+        "pass\n",
+        "pass\n",
+    ) == ["legacy_app.py: FastAPI lifespan must use the canonical re-export"]
+
+
+def test_lifecycle_guard_rejects_static_mapping_that_escapes_before_expansion() -> None:
+    legacy_source = textwrap.dedent("""
+        from fastapi import FastAPI
+        from app.bootstrap.lifespan import application_lifespan as lifespan
+
+        options = {"lifespan": lifespan}
+        alias = options
+        app = FastAPI(**options)
+        """)
+
+    assert legacy_guard.validate_lifecycle_ownership(
+        legacy_source,
+        "pass\n",
+        "pass\n",
+    ) == ["legacy_app.py: FastAPI lifespan must use the canonical re-export"]
+
+
+def test_lifecycle_guard_allows_static_canonical_submodule_imports() -> None:
+    lifespan_source = "from app.bootstrap.food_search import configure_food_search_backend\n"
+
+    assert (
+        legacy_guard.validate_lifecycle_ownership(
+            "pass\n",
+            "pass\n",
+            lifespan_source,
+        )
+        == []
+    )
+
+
+def test_lifecycle_guard_allows_statically_known_nonfacade_dynamic_import() -> None:
+    lifespan_source = textwrap.dedent("""
+        from importlib import import_module
+
+        module_name = "json"
+        value = import_module(module_name)
+        """)
+
+    assert (
+        legacy_guard.validate_lifecycle_ownership(
+            "pass\n",
+            "pass\n",
+            lifespan_source,
+        )
+        == []
+    )
+
+
 def test_legacy_seam_doc_passes_contract() -> None:
     text = (REPO_ROOT / "docs/architecture/LEGACY_COMPATIBILITY_SEAM.md").read_text(
         encoding="utf-8"

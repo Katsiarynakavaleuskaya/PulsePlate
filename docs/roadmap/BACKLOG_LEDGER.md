@@ -6665,7 +6665,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Target PR: TBD (v2.0 timeline, after all migrations)
   - Priority: P2 (long-term cleanup)
-  - Reason: After all critical security fixes and endpoint migrations complete, eventually delete `legacy_app.py` entirely. All logic should be in modular routers (`app/routers/*`) and core modules (`core/*`). Current state: 5382 lines, ~60% migrated.
+  - Reason: After all critical security fixes and endpoint migrations complete, eventually delete `legacy_app.py` entirely. Legacy business and route logic should move to its canonical owners: modular routers (`app/routers/*`), services (`app/services/*`), bootstrap modules (`app/bootstrap/*`), or core modules (`core/*`) according to responsibility. The current train extracts lifecycle ownership first, then cuts canonical `app/*` dependencies on legacy compatibility symbols, inverts app-factory/OpenAPI ownership, and finally inventories/removes the remaining facade exports.
   - Links:
     - docs/audit/LEGACY_APP_MIGRATION_STATUS.md (overall progress, migration status)
     - docs/pr/PR_THIN_PROXY_CLEANUP_PLAN.md
@@ -6680,6 +6680,27 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `legacy_app.py` deleted (or reduced to minimal compatibility shim)
     - Tests pass (no functionality broken)
     - OpenAPI unchanged (all canonical endpoints present)
+
+
+<a id="ledger-p1-background-scheduler-multi-worker-ownership"></a>
+- [ ] P1: Isolate background food-update scheduling before multi-worker deployment
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (runtime correctness / operations)
+  - Target PR: PR-TBD-BACKGROUND-SCHEDULER-OWNERSHIP
+  - Status: Opened during canonical lifespan extraction planning
+  - Reason: ASGI lifespan runs once per worker process. The current in-process
+    food update scheduler is process-global only, so enabling `WEB_CONCURRENCY`
+    above one can start duplicate update jobs even though each process correctly
+    owns its own lifespan resources.
+  - Links:
+    - `app/bootstrap/lifespan.py`
+    - `core/food_apis/scheduler.py`
+  - DoD:
+    - deployment uses one dedicated scheduler worker, a distributed lease/leader
+      election, or an external job scheduler before multi-worker API rollout
+    - duplicate execution is prevented deterministically across processes
+    - failure/recovery and observability behavior are documented and tested
+    - API worker count can increase without multiplying background update jobs
 
 
 - [ ] P2: Cross-feature integration tests (BMI → Sports → Shoplist flows)

@@ -39,22 +39,6 @@ class TestAppMissingLinesExtra:
             # If function doesn't exist, skip the test
             pytest.skip("get_update_scheduler function not available")
 
-    def test_lifespan_error_branches(self):
-        # Make startup/shutdown raise to hit except blocks (112-125)
-        async def _boom_start(*a, **kw):
-            raise RuntimeError("boom-start")
-
-        async def _boom_stop(*a, **kw):
-            raise RuntimeError("boom-stop")
-
-        with (
-            patch.object(app_mod, "start_background_updates", _boom_start),
-            patch.object(app_mod, "stop_background_updates", _boom_stop),
-        ):
-            with get_client() as c:
-                r = c.get("/health")
-                assert r.status_code == 200
-
     def test_bmi_pregnancy_visualization_branch(self):
         # include_chart True + pregnant path should attach visualization (405-410)
         with patch.object(

@@ -16,6 +16,13 @@ Status: Accepted guardrail
 owns new canonical route registration. This is a transitional seam, not the
 desired final architecture.
 
+Application startup/shutdown behavior is canonically owned by
+`app/bootstrap/lifespan.py`. `legacy_app.py` only passes that context manager to
+its existing `FastAPI(...)` instance until app-factory ownership is inverted.
+Food-search clients and the process-wide strategy adapter are acquired and
+released inside that lifespan; additive route bootstrap must not create shared
+runtime resources or wrap `app.router.lifespan_context`.
+
 The current policy is compatibility first:
 
 - keep existing legacy routes callable when current clients still depend on
@@ -58,16 +65,19 @@ Forbidden in `legacy_app.py`:
 | New route implementations | `app/routers/` | Canonical route families own new behavior. |
 | Operational health/readiness routes | `app/routers/health.py` + `app/main.py` | Runtime paths unchanged; no legacy decorator ownership. |
 | Infra and observability bootstrap | `app/bootstrap/` | Register from canonical entrypoint, not from `legacy_app.py`. |
+| Application lifecycle and shared resources | `app/bootstrap/lifespan.py` | One explicit startup/shutdown owner; deterministic reverse-order cleanup. |
 | Domain logic | `core/` and `app/services/` | Backend truth stays outside route shims. |
 | Public API contract | Backend OpenAPI gates | Legacy aliases must not become client contract truth. |
 
 ## Guard Contract
 
 `scripts/ci/check_legacy_growth_guard.py` enforces this seam with static source
-analysis. It parses `legacy_app.py` without importing application modules and
-compares route, router-import, and sensitive-call facts against the frozen
-baseline. Current facts may disappear as the seam shrinks; new facts fail
-closed with repo-relative diagnostics.
+analysis. It parses `legacy_app.py` and the canonical lifecycle/food-search
+bootstrap modules without importing application modules. It compares route,
+router-import, and sensitive-call facts against the frozen baseline and rejects
+legacy lifecycle implementations, startup/shutdown event registration, or
+hidden `lifespan_context` mutation. Current facts may disappear as the seam
+shrinks; new facts fail closed with repo-relative diagnostics.
 
 The guard does not authorize runtime behavior. It only prevents unreviewed seam
 growth while later extraction PRs move routes behind canonical routers.

@@ -351,12 +351,20 @@ def make_pooled_httpx_transport(
                 f"Meilisearch HTTP client is shutting down before POST {url!r}",
                 request=httpx.Request("POST", url),
             )
-        response = client.post(
-            url,
-            json=payload,
-            headers=dict(headers),
-            timeout=timeout_seconds,
-        )
+        try:
+            response = client.post(
+                url,
+                json=payload,
+                headers=dict(headers),
+                timeout=timeout_seconds,
+            )
+        except RuntimeError as exc:
+            if shutdown_event is None or (not shutdown_event.is_set() and not client.is_closed):
+                raise
+            raise httpx.RequestError(
+                f"Meilisearch HTTP client shut down during POST {url!r}",
+                request=httpx.Request("POST", url),
+            ) from exc
         response.raise_for_status()
         return response.json()
 

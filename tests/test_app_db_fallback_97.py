@@ -8,6 +8,7 @@ Covers _attempt_db_fallback function branches:
 """
 
 import os
+import inspect
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -42,6 +43,31 @@ class TestAppDBFallback97:
                     db_err=mock_err,
                     truthy=self.TRUTHY,
                 )
+
+    def test_public_attempt_db_fallback_owns_fixed_truthy_policy(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        import core.db_fallback as fallback_mod
+
+        captured: list[tuple[str | None, bool, Exception, set[str]]] = []
+        error = OSError("primary failed")
+        monkeypatch.setattr(
+            fallback_mod,
+            "_attempt_db_fallback",
+            lambda env, production, db_err, truthy: captured.append(
+                (env, production, db_err, truthy)
+            ),
+        )
+
+        fallback_mod.attempt_db_fallback("local", False, error)
+
+        assert captured == [("local", False, error, {"1", "true", "yes", "on"})]
+        assert list(inspect.signature(fallback_mod.attempt_db_fallback).parameters) == [
+            "env_name",
+            "is_production",
+            "db_err",
+        ]
 
     def test_attempt_db_fallback_production_inmemory_rejected_logs(
         self, caplog: pytest.LogCaptureFixture

@@ -38,6 +38,7 @@ _LOCAL_EXPORTS: dict[str, tuple[str, str]] = {
     "build_nutrition_targets": ("core.recommendations", "build_nutrition_targets"),
     # Expose metrics_endpoint for patch-based tests (patch("app.metrics"))
     "metrics": ("app.bootstrap.metrics", "metrics_endpoint"),
+    "lifespan": ("app.bootstrap.lifespan", "application_lifespan"),
     # BMI router ownership lives in app.main; these remain compatibility attrs.
     "FEATURE_BMI_PRO_ENABLED": ("app.main", "FEATURE_BMI_PRO_ENABLED"),
     "bmi_router": ("app.main", "bmi_router"),
@@ -131,6 +132,7 @@ __all__ = [
     # Forwarded from legacy_app via __getattr__
     "app",
     "get_update_scheduler",
+    "lifespan",
     # Local explicit re-exports
     "resolve_attr",
     "make_weekly_menu",

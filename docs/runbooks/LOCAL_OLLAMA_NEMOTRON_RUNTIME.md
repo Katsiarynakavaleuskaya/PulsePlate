@@ -109,7 +109,7 @@ Allowed focused gates:
 python3 scripts/orchestration/check_preflight.py
 python3 scripts/orchestration/check_agent_consistency.py
 pytest tests/test_llm.py tests/test_llm_extras.py tests/test_llm_lite_providers.py tests/test_providers_unit.py
-pytest tests/test_lifespan_background_updates.py
+pytest tests/test_canonical_application_lifespan.py
 ```
 
 If this later becomes a PR, run `pre-commit run --all-files` before any push and

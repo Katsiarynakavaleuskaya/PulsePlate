@@ -36,7 +36,6 @@ COVERAGE_BOOST_PATTERNS: Final[tuple[str, ...]] = (
     "test_vip_integration",
     "test_vip_production",
     "test_app_middleware_coverage",
-    "test_app_lifespan_coverage",
     "test_app_openapi_coverage",
     "test_app_router_inclusion_coverage",
     "test_app_additional_critical_paths",

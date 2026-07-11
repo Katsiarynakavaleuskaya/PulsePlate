@@ -92,23 +92,6 @@ def _patch_background_module_attr(
     monkeypatch.setattr(module, attr_name, value, raising=False)
 
 
-def patch_background_update_callables(
-    monkeypatch: Any,
-    *,
-    start: BackgroundUpdateCallable | None = None,
-    stop: BackgroundUpdateCallable | None = None,
-) -> None:
-    """
-    Patch background update callables across facade and legacy aliases.
-    Applies the same callable to `app`, `legacy_app`, and `app_module`.
-    """
-    for module in _iter_background_modules():
-        if start is not None:
-            _patch_background_module_attr(monkeypatch, module, "start_background_updates", start)
-        if stop is not None:
-            _patch_background_module_attr(monkeypatch, module, "stop_background_updates", stop)
-
-
 def patch_background_update_scheduler_targets(
     monkeypatch: Any,
     *,

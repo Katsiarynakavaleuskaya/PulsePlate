@@ -154,7 +154,8 @@ def test_lifespan_success_clears_fallback_flag(monkeypatch: pytest.MonkeyPatch) 
 def test_lifespan_init_db_failure_triggers_fallback(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Cover legacy_app lifespan fallback import path when init_db fails."""
+    """Canonical lifespan delegates DB failures through the public fallback seam."""
+    import core.db as core_db
     import core.db_fallback as fallback_mod
 
     called: list[Exception] = []
@@ -167,7 +168,7 @@ def test_lifespan_init_db_failure_triggers_fallback(
     ) -> None:
         called.append(db_err)
 
-    monkeypatch.setattr(legacy_app, "init_db", _raise_init_db)
+    monkeypatch.setattr(core_db, "init_db", _raise_init_db)
     monkeypatch.setattr(fallback_mod, "_attempt_db_fallback", _fake_attempt)
 
     with TestClient(cast(ASGIApp, legacy_app.app)) as client:
