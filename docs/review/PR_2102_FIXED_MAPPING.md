@@ -46,13 +46,32 @@ dispositioned here before thread resolution or merge-readiness claims.
 
 ## Fixed in Commit Mapping
 
-### FIXED
-
-Commit: `276ca9b6087149dc5b89a375fa4f189e64a40a3f`
-
-Evidence: focused API-key ownership, legacy-growth, export, business, metrics,
-and warning suites; `make validate-changed`; full pre-commit; pre-push MyPy,
-pip-audit, backend tests, Bandit, and Docker build.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024580
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024583
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024587
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024591
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024592
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024593
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024594
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024595
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024600
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024601
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024602
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024855
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024857
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565030449
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565030453
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565030460
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565030462
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565030464
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565030465
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565030468
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565030470
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565030472
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565030475
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: Focused API-key ownership, legacy-growth, export, business, metrics, and warning suites; `make validate-changed`; full pre-commit; pre-push MyPy, pip-audit, backend tests, Bandit, and Docker build all pass.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024580 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024583 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
@@ -78,18 +97,10 @@ pip-audit, backend tests, Bandit, and Docker build.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565030472 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565030475 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
 
-### NOT-A-BUG
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024584
-
 Disposition: NOT-A-BUG
-Evidence: `artifacts/orchestration/experiments/results/exp-6fdd2ed789f8.json`
-records `mutated_paths: []` and `shared_tree_untouched: true`; the production
-guard diff was implemented in the coordinator-owned PR lane and independently
-reviewed by the Runner as an immutable oracle.
-Reason: Creative-Code mutation authority remains denied. The comment's proposed
-threat model applies to autonomous candidate mutation, not to normal reviewed
-repository edits made by this PR lane.
+Evidence: `artifacts/orchestration/experiments/results/exp-6fdd2ed789f8.json` records `mutated_paths: []` and `shared_tree_untouched: true`; the production guard diff was implemented in the coordinator-owned PR lane and independently reviewed by the Runner as an immutable oracle.
+Reason: Creative-Code mutation authority remains denied; the comment's proposed threat model applies to autonomous candidate mutation, not to normal reviewed repository edits made by this PR lane.
 
 ## Pre-Implementation Role Findings
 
