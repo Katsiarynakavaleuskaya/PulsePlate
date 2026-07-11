@@ -6,6 +6,7 @@ from core.bmi.query import (
     _MAX_BMI_QUERY_CHARS,
     _MAX_FRACTION_DIGITS,
     _MAX_INTEGER_DIGITS,
+    _next_valid_unit_match,
     _parse_bounded_number,
     extract_bmi_inputs,
     render_bmi_query_answer,
@@ -22,6 +23,9 @@ def test_extract_bmi_inputs_accepts_normal_query() -> None:
 def test_extract_bmi_inputs_skips_invalid_unit_token_then_matches() -> None:
     assert extract_bmi_inputs("I weigh about 3kgs but actually 70kg and 175cm") == (70.0, 1.75)
     assert extract_bmi_inputs("70kgx 175cm") is None
+    assert extract_bmi_inputs("3kgX then 70KG and 175CM") == (70.0, 1.75)
+    assert extract_bmi_inputs("3КГ1 затем 70кГ и 175СМ") == (70.0, 1.75)
+    assert extract_bmi_inputs("70kg 150cm_ then 175CM") == (70.0, 1.75)
 
 
 def test_extract_bmi_inputs_rejects_unicode_digits_fail_closed() -> None:
@@ -33,9 +37,45 @@ def test_extract_bmi_inputs_rejects_unicode_digits_fail_closed() -> None:
     assert extract_bmi_inputs("70kg and ¹75cm") is None
 
 
+def test_extract_bmi_inputs_handles_lowercase_expansion_fail_closed() -> None:
+    # U+0130 lowercases to two code points; parser indexes must stay in the
+    # original string space and must not raise IndexError.
+    assert extract_bmi_inputs(("İ" * 9) + "70kg 175cm") == (70.0, 1.75)
+    assert extract_bmi_inputs(("İ" * 12) + "text only") is None
+    assert extract_bmi_inputs("70kgİ then 80kg 175cm") == (80.0, 1.75)
+    assert extract_bmi_inputs("70İkg 175cm") is None
+
+
+def test_extract_bmi_inputs_accepts_mixed_case_units_and_punctuation_boundaries() -> None:
+    assert extract_bmi_inputs("70KG 175CM") == (70.0, 1.75)
+    assert extract_bmi_inputs("70Kg 1.75M") == (70.0, 1.75)
+    assert extract_bmi_inputs("70kG 175Cm") == (70.0, 1.75)
+    assert extract_bmi_inputs("70КГ 175СМ") == (70.0, 1.75)
+    assert extract_bmi_inputs("70Кг 1.75М") == (70.0, 1.75)
+    assert extract_bmi_inputs("70кГ 175См") == (70.0, 1.75)
+    assert extract_bmi_inputs("70kg* 175cm!") == (70.0, 1.75)
+
+
+def test_next_valid_unit_match_handles_short_and_missing_candidates() -> None:
+    assert _next_valid_unit_match("k", ("kg",), 0) is None
+    assert _next_valid_unit_match("no unit", ("kg", "кг"), 0) is None
+    assert _next_valid_unit_match("prefix KG", ("kg",), 0) == (7, "kg")
+
+
 def test_extract_bmi_inputs_rejects_overlong_query() -> None:
     payload = ("0" * (_MAX_BMI_QUERY_CHARS + 1)) + "70kg 175cm"
     assert extract_bmi_inputs(payload) is None
+
+
+def test_extract_bmi_inputs_enforces_exact_query_length_boundary() -> None:
+    suffix = "70kg 175cm"
+    max_length_query = ("x" * (_MAX_BMI_QUERY_CHARS - len(suffix))) + suffix
+    over_limit_query = "x" + max_length_query
+
+    assert len(max_length_query) == _MAX_BMI_QUERY_CHARS
+    assert extract_bmi_inputs(max_length_query) == (70.0, 1.75)
+    assert len(over_limit_query) == _MAX_BMI_QUERY_CHARS + 1
+    assert extract_bmi_inputs(over_limit_query) is None
 
 
 def test_extract_bmi_inputs_handles_repetitive_digits_without_match() -> None:

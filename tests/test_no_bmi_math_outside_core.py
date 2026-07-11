@@ -70,11 +70,6 @@ EXCLUDED_SCAN_DIR_NAMES: Final[set[str]] = {
     ".turbo",
 }
 
-# Temp file created by test_skip_context_does_not_filter_whr_thresholds; exclude from
-# main guard to avoid xdist race (other worker may still have the file on disk).
-_GUARD_WHR_SKIP_TEMP_BASENAME = "test_guard_whr_skip_temp.py"
-_GUARD_WHR_SKIP_TEMP_REL_PATH = f"app/{_GUARD_WHR_SKIP_TEMP_BASENAME}"
-
 # Forbidden patterns (domain signatures for BMI math)
 # Pattern 1: BMI formula (weight / height^2) - must be in context of BMI calculation
 # More specific: look for BMI-related context (bmi =, calc_bmi, etc.)
@@ -234,16 +229,6 @@ def _path_has_excluded_scan_part(path: Path) -> bool:
     return any(part in EXCLUDED_SCAN_DIR_NAMES for part in path.parts)
 
 
-def _normalize_rel_path(rel_path: str) -> str:
-    """Normalize repo-relative paths for guard comparisons across platforms."""
-    return rel_path.replace("\\", "/")
-
-
-def _is_allowed_transient_read_error(rel_path: str) -> bool:
-    """Return whether read-time disappearance is an expected xdist helper race."""
-    return _normalize_rel_path(rel_path) == _GUARD_WHR_SKIP_TEMP_REL_PATH
-
-
 def _iter_repo_python_files(root: Path) -> Iterator[Path]:
     """Yield repo Python files while pruning generated/transient directories."""
 
@@ -298,37 +283,27 @@ def _scan(
             if _is_whitelisted(rel):
                 continue
 
-        try:
-            text = path.read_text(encoding="utf-8", errors="ignore").splitlines()
-            in_docstring = False
-            doc_quote: str | None = None
-            for idx, line in enumerate(text, start=1):
-                # Track docstring state FIRST (before SKIP_LINE_RE check)
-                # This ensures docstring state is updated even for lines that start with """
-                in_docstring, doc_quote = _update_docstring_state(line, in_docstring, doc_quote)
-                # Skip lines inside docstrings
-                if in_docstring:
-                    continue
-                # Skip comment-only lines and docstring markers (after docstring state check)
-                if SKIP_LINE_RE.match(line):
-                    continue
-                # Skip docstrings and type hints (but keep BMI/WHR-related lines)
-                lower = line.lower()
-                if SKIP_CONTEXT_RE.search(line) and not any(
-                    k in lower for k in ("bmi", "whr", "waist", "hip")
-                ):
-                    continue
-                if pattern.search(line):
-                    hits.append(f"{rel}:{idx}: {line.strip()}")
-        except (OSError, UnicodeDecodeError) as e:
-            if not _is_allowed_transient_read_error(rel):
-                raise
-            # Skip explicitly transient helper files that disappear under xdist.
-            if _DEBUG_GUARD:
-                print(
-                    f"REPO_POLICY_GUARD_DEBUG: skip unreadable file {rel}: {e!r}", file=sys.stderr
-                )
-            continue
+        text = path.read_text(encoding="utf-8", errors="ignore").splitlines()
+        in_docstring = False
+        doc_quote: str | None = None
+        for idx, line in enumerate(text, start=1):
+            # Track docstring state FIRST (before SKIP_LINE_RE check)
+            # This ensures docstring state is updated even for lines that start with """
+            in_docstring, doc_quote = _update_docstring_state(line, in_docstring, doc_quote)
+            # Skip lines inside docstrings
+            if in_docstring:
+                continue
+            # Skip comment-only lines and docstring markers (after docstring state check)
+            if SKIP_LINE_RE.match(line):
+                continue
+            # Skip docstrings and type hints (but keep BMI/WHR-related lines)
+            lower = line.lower()
+            if SKIP_CONTEXT_RE.search(line) and not any(
+                k in lower for k in ("bmi", "whr", "waist", "hip")
+            ):
+                continue
+            if pattern.search(line):
+                hits.append(f"{rel}:{idx}: {line.strip()}")
 
     return hits
 
@@ -462,78 +437,6 @@ def test_scan_reraises_source_read_errors(tmp_path: Path, monkeypatch: pytest.Mo
         _scan(BMI_FORMULA_RE, "BMI formula", repo_root=tmp_path)
 
 
-def test_scan_temp_read_error_exception_is_path_scoped(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Only the exact xdist helper path may tolerate read-time disappearance."""
-    source_file = tmp_path / "core" / _GUARD_WHR_SKIP_TEMP_BASENAME
-    source_file.parent.mkdir()
-    source_file.write_text("VALUE = 1\n", encoding="utf-8")
-    original_read_text = Path.read_text
-
-    def fake_read_text(
-        self: Path,
-        encoding: str | None = None,
-        errors: str | None = None,
-    ) -> str:
-        if self == source_file:
-            raise FileNotFoundError(2, "source file disappeared", str(source_file))
-        return original_read_text(self, encoding=encoding, errors=errors)
-
-    monkeypatch.setattr(Path, "read_text", fake_read_text)
-
-    with pytest.raises(FileNotFoundError, match="source file disappeared"):
-        _scan(BMI_FORMULA_RE, "BMI formula", repo_root=tmp_path)
-
-
-def test_scan_allows_exact_temp_read_error(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """The xdist helper path remains the only tolerated read-time race."""
-    source_file = tmp_path / _GUARD_WHR_SKIP_TEMP_REL_PATH
-    source_file.parent.mkdir()
-    source_file.write_text("VALUE = 1\n", encoding="utf-8")
-    original_read_text = Path.read_text
-
-    def fake_read_text(
-        self: Path,
-        encoding: str | None = None,
-        errors: str | None = None,
-    ) -> str:
-        if self == source_file:
-            raise FileNotFoundError(2, "source file disappeared", str(source_file))
-        return original_read_text(self, encoding=encoding, errors=errors)
-
-    monkeypatch.setattr(Path, "read_text", fake_read_text)
-
-    assert _scan(BMI_FORMULA_RE, "BMI formula", repo_root=tmp_path) == []
-
-
-def test_transient_read_error_path_match_is_separator_normalized() -> None:
-    """Windows-style separators must still match the exact transient helper path."""
-    assert _is_allowed_transient_read_error(r"app\test_guard_whr_skip_temp.py") is True
-
-
-def test_threshold_filter_temp_exception_is_path_scoped(tmp_path: Path) -> None:
-    """Similarly named files outside app/ must not bypass threshold hits."""
-    source_file = tmp_path / "core" / _GUARD_WHR_SKIP_TEMP_BASENAME
-    source_file.parent.mkdir()
-    source_file.write_text(
-        "WHR_THRESHOLD: float = 0.90  # whr threshold\n",
-        encoding="utf-8",
-    )
-
-    hits = _scan(BMI_THRESHOLDS_RE, "BMI threshold violation", repo_root=tmp_path)
-    filtered_hits: list[str] = []
-    for hit in hits:
-        path_part = _normalize_rel_path(hit.split(":", 1)[0])
-        if path_part == _GUARD_WHR_SKIP_TEMP_REL_PATH:
-            continue
-        filtered_hits.append(hit)
-
-    assert filtered_hits == [
-        f"core/{_GUARD_WHR_SKIP_TEMP_BASENAME}:1: " "WHR_THRESHOLD: float = 0.90  # whr threshold"
-    ]
-
-
 def test_no_bmi_thresholds_outside_core() -> None:
     """
     RU: Проверяет, что пороги BMI (18.5, 25.0, 30.0, etc.) не встречаются вне whitelist.
@@ -543,13 +446,6 @@ def test_no_bmi_thresholds_outside_core() -> None:
     to prevent hardcoded thresholds outside core/bmi/risk.py.
     """
     hits = _scan(BMI_THRESHOLDS_RE, "BMI thresholds", skip_threshold_check=True)
-    filtered_hits: list[str] = []
-    for hit in hits:
-        path_part = _normalize_rel_path(hit.split(":", 1)[0])
-        if path_part == _GUARD_WHR_SKIP_TEMP_REL_PATH:
-            continue
-        filtered_hits.append(hit)
-    hits = filtered_hits
     assert not hits, (
         "BMI thresholds found outside core/bmi (violates canonical rule):\n"
         + "\n".join(f"  {hit}" for hit in hits)
@@ -701,32 +597,24 @@ def test_docstring_tracker_known_limitation_triple_quotes_in_string_literals() -
     ), "Next line after false-positive toggle would be incorrectly skipped (known limitation)"
 
 
-@pytest.mark.serial
-def test_skip_context_does_not_filter_whr_thresholds() -> None:
+def test_skip_context_does_not_filter_whr_thresholds(tmp_path: Path) -> None:
     """Test that SKIP_CONTEXT filter does not skip WHR thresholds in type-hinted constants."""
-    # Create test file outside tests/ to avoid whitelist (use app/ as it's scanned)
-    test_file = REPO_ROOT / "app" / _GUARD_WHR_SKIP_TEMP_BASENAME
-    try:
-        test_file.write_text(
-            '"""Module docstring"""\n'
-            "WHR_THRESHOLD: float = 0.90  # whr threshold\n"
-            "# This should be detected as a violation\n"
-        )
+    test_file = tmp_path / "app" / "whr_threshold.py"
+    test_file.parent.mkdir()
+    test_file.write_text(
+        '"""Module docstring"""\n'
+        "WHR_THRESHOLD: float = 0.90  # whr threshold\n"
+        "# This should be detected as a violation\n",
+        encoding="utf-8",
+    )
 
-        # Use BMI_THRESHOLDS_RE to scan the repository
-        hits = _scan(BMI_THRESHOLDS_RE, "BMI threshold violation", skip_threshold_check=False)
+    hits = _scan(
+        BMI_THRESHOLDS_RE,
+        "BMI threshold violation",
+        repo_root=tmp_path,
+    )
 
-        # Filter hits to only our test file
-        test_hits = [h for h in hits if _GUARD_WHR_SKIP_TEMP_BASENAME in h]
-
-        assert len(test_hits) > 0, "Should detect WHR threshold even with type hint"
-        # Verify the violation is on line 2 (after docstring)
-        assert any(
-            f"{_GUARD_WHR_SKIP_TEMP_BASENAME}:2:" in h for h in test_hits
-        ), "WHR threshold with type hint should not be skipped by SKIP_CONTEXT filter"
-    finally:
-        # Clean up: remove test file
-        test_file.unlink(missing_ok=True)
+    assert hits == ["app/whr_threshold.py:2: WHR_THRESHOLD: float = 0.90  # whr threshold"]
 
 
 def test_bmi_thresholds_re_matches_new_whr_thresholds() -> None:
