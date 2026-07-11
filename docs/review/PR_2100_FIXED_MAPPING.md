@@ -157,13 +157,15 @@ emitted.
 ### Current-head Remediation Revalidation
 
 Disposition: FIXED
-Commit: 065b8d7b1
+Commits: 065b8d7b1, d1f8e8e22
 Evidence: Direct MyPy over the imported orchestration graph reports `Success:
 no issues found in 1 source file`; 29 surfaced redundant-cast/JSON typing
-findings were removed without ignores. Security and bug-hunter revalidation
-closed all parent-swap, cleanup-masking, portability, and descriptor-transfer
-findings with 11 focused fault-injection tests and no remaining reportable
-finding.
+findings were removed without ignores. The canonical changed-file pre-push
+MyPy hook then exposed seven isolated-module return boundaries; `d1f8e8e22`
+adds runtime object/string narrowing and the hook passes. Security and
+bug-hunter revalidation closed all parent-swap, cleanup-masking, portability,
+and descriptor-transfer findings with 11 focused fault-injection tests and no
+remaining reportable finding.
 
 ## Premortem
 
@@ -193,6 +195,7 @@ finding.
   inventory, PR-1, PR-2 builder, and generation tests, including the hardened
   PR-1 specification pipeline.
 - PASS: direct MyPy import-graph validation with zero findings.
+- PASS: canonical changed-file pre-push MyPy hook with zero findings.
 - PASS: `make validate-changed`.
 - PASS: `pre-commit run --all-files`; no hook modifications after final rerun.
 - PASS: pre-push MyPy, pip-audit, backend pytest, full-repo Bandit, and Docker build.
