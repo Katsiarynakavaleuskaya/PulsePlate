@@ -1809,6 +1809,47 @@ def test_pinned_resume_bundle_rechecks_entry_sets_after_validation(
         os.close(directory_fd)
 
 
+@pytest.mark.parametrize("reviewed_kind", ["symlink", "file"])
+def test_pinned_resume_entry_set_requires_reviewed_sibling_directory(
+    tmp_path: Path,
+    reviewed_kind: str,
+) -> None:
+    for filename in (
+        pilot_cli.RESUME_INTAKE_FILENAME,
+        pilot_cli.RESUME_CANDIDATE_FILENAME,
+        pilot_cli.RESUME_BINDING_FILENAME,
+    ):
+        (tmp_path / filename).write_text("{}", encoding="utf-8")
+    (tmp_path / "spec_prepare").mkdir()
+    reviewed = tmp_path / "spec_finalize_reviewed"
+    outside: Path | None = None
+    if reviewed_kind == "symlink":
+        outside = tmp_path.parent / f"outside-{uuid.uuid4().hex}"
+        outside.mkdir()
+        reviewed.symlink_to(outside, target_is_directory=True)
+    else:
+        reviewed.write_text("not-a-directory", encoding="utf-8")
+
+    directory_fd = os.open(
+        tmp_path,
+        os.O_RDONLY | pilot_cli._required_open_flag("O_DIRECTORY"),
+    )
+    try:
+        with pytest.raises(
+            CreativePilotContractError,
+            match="adaptive_source_symlink: nested resume child",
+        ):
+            pilot_cli._assert_pinned_resume_entry_set(
+                directory_fd,
+                allow_reviewed_run=True,
+                error_prefix="adaptive_partial_output",
+            )
+    finally:
+        os.close(directory_fd)
+        if outside is not None:
+            shutil.rmtree(outside, ignore_errors=True)
+
+
 @pytest.mark.parametrize("mutation_scope", ["resume", "spec_prepare"])
 def test_pinned_resume_bundle_rechecks_contents_after_semantic_validation(
     monkeypatch: pytest.MonkeyPatch,

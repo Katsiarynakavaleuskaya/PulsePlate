@@ -470,18 +470,23 @@ def _pending_skeptic_review_count(reviews: Sequence[Any]) -> int:
 
 
 def _reject_unexpected_entries(path: Path, *, allowed: set[str], label: str) -> None:
+    parent_fd = -1
     directory_fd = -1
     try:
-        _candidate, parts = creative_code_spec_pipeline._candidate_and_repo_parts(
+        parent_fd, name, _candidate = creative_code_spec_pipeline._open_pinned_parent(
             path,
             allowed_root=creative_code_spec_pipeline.ARTIFACT_ROOT,
-            label=label,
-        )
-        directory_fd = creative_code_spec_pipeline._walk_pinned_directory(
-            parts,
             create=False,
             label=label,
         )
+        try:
+            directory_fd = os.open(
+                name,
+                creative_code_spec_pipeline._directory_flags(),
+                dir_fd=parent_fd,
+            )
+        except FileNotFoundError:
+            return
         entries = os.listdir(directory_fd)
         symlink_children = sorted(
             name
@@ -497,8 +502,10 @@ def _reject_unexpected_entries(path: Path, *, allowed: set[str], label: str) -> 
             raise CreativeSpecificationSkepticReviewCliError(
                 f"{label} contains unexpected artifact(s): {', '.join(unexpected)}."
             )
-    except FileNotFoundError:
-        return
+    except FileNotFoundError as exc:
+        raise CreativeSpecificationSkepticReviewCliError(
+            f"{label} changed during inspection."
+        ) from exc
     except CreativeSpecificationSkepticReviewCliError:
         raise
     except creative_code_spec_pipeline.CreativeCodeSpecPipelineError as exc:
@@ -510,7 +517,7 @@ def _reject_unexpected_entries(path: Path, *, allowed: set[str], label: str) -> 
             f"{label} could not be inspected safely."
         ) from exc
     finally:
-        close_error = creative_code_spec_pipeline._close_descriptors(directory_fd)
+        close_error = creative_code_spec_pipeline._close_descriptors(directory_fd, parent_fd)
         if sys.exc_info()[1] is None and close_error is not None:
             raise CreativeSpecificationSkepticReviewCliError(
                 f"{label} could not be closed safely."

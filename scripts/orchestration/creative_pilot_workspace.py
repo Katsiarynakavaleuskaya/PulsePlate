@@ -691,6 +691,21 @@ def _assert_pinned_resume_entry_set(
     allowed = _expected_resume_entries(allow_reviewed_run=allow_reviewed_run)
     if not required.issubset(observed) or not observed.issubset(allowed):
         raise CreativePilotContractError(f"{error_prefix}: fixed resume output set required")
+    if allow_reviewed_run and "spec_finalize_reviewed" in observed:
+        reviewed_fd = -1
+        try:
+            reviewed_fd = _open_directory_at(directory_fd, "spec_finalize_reviewed")
+        except (OSError, NotImplementedError) as exc:
+            raise CreativePilotContractError(
+                "adaptive_source_symlink: nested resume child"
+            ) from exc
+        finally:
+            active_error = sys.exc_info()[1]
+            cleanup_error = _close_descriptors(reviewed_fd)
+            if active_error is None and cleanup_error is not None:
+                raise CreativePilotContractError(
+                    "adaptive_publish_validation_failed: unable to close reviewed run"
+                ) from cleanup_error
 
 
 def _assert_complete_resume_dir(path: Path, *, allow_reviewed_run: bool = False) -> None:

@@ -649,6 +649,41 @@ def test_attach_rejects_prepared_child_symlink_before_read(
         shutil.rmtree(input_dir, ignore_errors=True)
 
 
+def test_entry_scan_fails_closed_when_child_disappears_after_listing(
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output_dir, input_dir = _prepared_bridge(capsys, suffix="entry-disappearance")
+    try:
+        spec_prepare = output_dir / "spec_prepare"
+        (spec_prepare / "vanish").write_text("{}", encoding="utf-8")
+        (spec_prepare / "evil").write_text("{}", encoding="utf-8")
+        real_stat = review_cli.os.stat
+
+        def disappear_on_stat(
+            path: Any,
+            *args: Any,
+            **kwargs: Any,
+        ) -> Any:
+            if path == "vanish":
+                raise FileNotFoundError("simulated child disappearance")
+            return real_stat(path, *args, **kwargs)
+
+        monkeypatch.setattr(review_cli.os, "stat", disappear_on_stat)
+        with pytest.raises(
+            review_cli.CreativeSpecificationSkepticReviewCliError,
+            match="changed during inspection",
+        ):
+            review_cli._reject_unexpected_entries(
+                spec_prepare,
+                allowed=set(PREPARE_FILENAMES),
+                label="spec_prepare",
+            )
+    finally:
+        shutil.rmtree(output_dir, ignore_errors=True)
+        shutil.rmtree(input_dir, ignore_errors=True)
+
+
 def test_validate_rejects_reviewed_child_symlink_before_read(
     capsys: pytest.CaptureFixture[str],
     tmp_path: Path,
