@@ -19,8 +19,7 @@ from tests.helpers.fast_update_stubs import patch_background_update_scheduler_ta
 class TestAppErrorPaths97:
     """Tests for app.py error paths and edge cases."""
 
-    @pytest.mark.asyncio
-    async def test_get_update_scheduler_late_import(self) -> None:
+    def test_get_update_scheduler_late_import(self) -> None:
         """Test get_update_scheduler when _scheduler_getter is None (late import path)."""
         import app
 
@@ -28,13 +27,12 @@ class TestAppErrorPaths97:
         try:
             app._scheduler_getter = None
             # This triggers the late import path (lines 210-213)
-            scheduler = await app.get_update_scheduler()  # type: ignore[misc]
+            scheduler = asyncio.run(app.get_update_scheduler())
             assert scheduler is not None
         finally:
             app._scheduler_getter = original_getter
 
-    @pytest.mark.asyncio
-    async def test_get_update_scheduler_test_override(self) -> None:
+    def test_get_update_scheduler_test_override(self) -> None:
         """Test get_update_scheduler with _test_scheduler_override set."""
         import app
 
@@ -46,7 +44,7 @@ class TestAppErrorPaths97:
 
         try:
             app._test_scheduler_override = fake_override
-            result = await app.get_update_scheduler()  # type: ignore[misc]
+            result = asyncio.run(app.get_update_scheduler())
             assert result is mock_scheduler
         finally:
             app._test_scheduler_override = original_override
