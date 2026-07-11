@@ -1738,6 +1738,8 @@ def _resolve_lifecycle_reference(
             if parent_node is not None
             else None
         )
+        if parent is None and function_reference != "object.__getattribute__":
+            parent = function_reference.removesuffix(".__getattribute__")
         if parent is not None and attribute_name is not None:
             return f"{parent}.{attribute_name}"
         if attribute_name in {"add_event_handler", "on_event", "on_shutdown", "on_startup"}:
