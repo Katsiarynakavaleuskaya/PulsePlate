@@ -42,6 +42,14 @@ from scripts.orchestration.context_pack_compression import (
 from scripts.orchestration.creative_spec_learning_rollup_contract import (
     validate_coordinator_advisory_hints,
 )
+from scripts.orchestration.creative_pilot_workspace_contract import (
+    CreativePilotContractError,
+    load_json_strict as load_creative_pilot_json_strict,
+    phase_dispatch_fingerprint,
+    validate_task_pilot_context,
+    validate_dispatch_phase,
+    validate_workspace as validate_creative_pilot_workspace,
+)
 from scripts.orchestration.embedding_retrieval_admission_telemetry import (
     build_embedding_retrieval_admission_telemetry,
     embedding_retrieval_admission_to_stable_mapping,
@@ -112,6 +120,10 @@ TASK_PACKET_DIR: Path = REPO_ROOT / "artifacts" / "orchestration" / "task_packet
 CREATIVE_LEARNING_HINTS_ROOT: Path = (
     REPO_ROOT / "artifacts" / "orchestration" / "creative_code" / "learning_rollup"
 )
+CREATIVE_PILOT_ROOT: Path = (
+    REPO_ROOT / "artifacts" / "orchestration" / "creative_code" / "adaptive_pilots"
+)
+CREATIVE_PILOT_PHASES: tuple[str, ...] = ("independent", "rebuttal", "synthesis")
 REQUESTED_AGENT_STATUS_REJECTED_UNKNOWN = "rejected_unknown_agent"
 REQUESTED_AGENT_STATUS_HONORED_PRIMARY = "honored_primary"
 REQUESTED_AGENT_STATUS_HONORED_SECONDARY = "honored_secondary"
@@ -187,6 +199,90 @@ def _read_json(path: Path) -> dict[str, Any] | None:
     except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return None
     return payload if isinstance(payload, dict) else None
+
+
+def _read_creative_pilot_workspace(
+    raw_path: str | Path | None,
+    phase: str | None,
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    if raw_path is None and phase is None:
+        return None, None
+    if raw_path is None or phase is None:
+        raise ValueError(
+            "--creative-pilot-workspace and --creative-pilot-phase must be supplied together"
+        )
+    if phase not in CREATIVE_PILOT_PHASES:
+        raise ValueError("--creative-pilot-phase is unsupported")
+    candidate = Path(raw_path)
+    if not candidate.is_absolute():
+        candidate = REPO_ROOT / candidate
+    _reject_symlink_components(candidate, label="--creative-pilot-workspace")
+    try:
+        resolved = candidate.resolve(strict=True)
+        resolved.relative_to(CREATIVE_PILOT_ROOT.resolve())
+    except (OSError, ValueError) as exc:
+        raise ValueError(
+            "--creative-pilot-workspace must be an existing JSON file under adaptive_pilots"
+        ) from exc
+    try:
+        workspace = validate_creative_pilot_workspace(
+            load_creative_pilot_json_strict(resolved.read_text(encoding="utf-8"))
+        )
+        workspace = validate_dispatch_phase(workspace, phase=phase)
+    except (OSError, CreativePilotContractError) as exc:
+        raise ValueError(f"invalid creative pilot workspace: {exc}") from exc
+    assignments = [
+        {
+            "assignment_id": row["assignment_id"],
+            "role": row["role"],
+            "phase": row["phase"],
+            "review_mode": row.get("review_mode", "specification_planning"),
+            "diff_expected": row.get("diff_expected", False),
+            "review_question": row.get(
+                "review_question",
+                "Assess the bounded specification against repository evidence and declared oracles.",
+            ),
+            "input_fingerprint": row["input_fingerprint"],
+            "input_refs": list(row["input_refs"]),
+        }
+        for row in workspace["assignments"]
+        if row["phase"] == phase
+    ]
+    if phase == "synthesis":
+        assignments = [
+            {
+                "assignment_id": "synthesis:agent-coordinator",
+                "role": "agent-coordinator",
+                "phase": "synthesis",
+                "review_mode": "specification_planning",
+                "diff_expected": False,
+                "review_question": "Synthesize only validated role results using deterministic hard gates.",
+                "input_fingerprint": workspace["revision_fingerprint"],
+                "input_refs": [workspace["workspace_id"], workspace["revision_fingerprint"]],
+            }
+        ]
+    if not assignments:
+        raise ValueError(f"creative pilot workspace has no {phase} assignments")
+    context = {
+        "schema_version": "creative_pilot_context.v2",
+        "workspace_id": workspace["workspace_id"],
+        "workspace_intent_fingerprint": workspace["intent_fingerprint"],
+        "workspace_revision_fingerprint": workspace["revision_fingerprint"],
+        "phase": phase,
+        "dispatch_input_fingerprint": (
+            workspace["revision_fingerprint"]
+            if phase == "synthesis"
+            else phase_dispatch_fingerprint(workspace, phase=phase)
+        ),
+        "assignments": assignments,
+        "authority": {
+            "read_structured_inputs": True,
+            "generate_patch": False,
+            "write_repository": False,
+            "call_provider": False,
+        },
+    }
+    return workspace, validate_task_pilot_context(context)
 
 
 def _reject_duplicate_json_object_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -1042,6 +1138,8 @@ def build_task_packet(
     native_bridge_transport: str = BRIDGE_TRANSPORT,
     telemetry_path: Path = TELEMETRY_PATH,
     creative_learning_hints_path: str | Path | None = None,
+    creative_pilot_workspace_path: str | Path | None = None,
+    creative_pilot_phase: str | None = None,
 ) -> dict[str, Any]:
     """Build a deterministic task packet for orchestration tooling."""
 
@@ -1054,11 +1152,32 @@ def build_task_packet(
             "Unsupported native_bridge_transport: "
             f"{native_bridge_transport}. Supported: {supported}"
         )
-    normalized_requested_agents = normalize_requested_agents(requested_agents)
+    creative_pilot_workspace, creative_pilot_context = _read_creative_pilot_workspace(
+        creative_pilot_workspace_path,
+        creative_pilot_phase,
+    )
+    pilot_roles = (
+        [row["role"] for row in creative_pilot_context["assignments"]]
+        if creative_pilot_context is not None
+        else []
+    )
+    normalized_requested_agents = normalize_requested_agents(
+        pilot_roles if creative_pilot_context is not None else requested_agents
+    )
     normalized_pr_phase = _normalize_pr_phase(pr_phase)
+    if creative_pilot_context is not None and normalized_pr_phase in {
+        PR_PHASE_POST_OPEN_REVIEW,
+        PR_PHASE_MERGE_READY,
+    }:
+        raise ValueError(
+            "creative pilot dispatch cannot be combined with post-open or merge-ready PR phases"
+        )
     creative_learning_hints = _read_creative_learning_hints(creative_learning_hints_path)
     creative_learning_hints_fingerprint = (
         fingerprint_payload(creative_learning_hints) if creative_learning_hints is not None else ""
+    )
+    creative_pilot_fingerprint = (
+        fingerprint_payload(creative_pilot_context) if creative_pilot_context is not None else ""
     )
     design_lane_mode, design_lane_contract, design_lane_enabled = _build_design_lane_contract(
         design_source=design_source,
@@ -1096,7 +1215,16 @@ def build_task_packet(
             design_lane_mode=design_lane_mode,
             design_lane_contract=design_lane_contract,
         ),
-        creative_learning_hints_fingerprint=creative_learning_hints_fingerprint,
+        creative_learning_hints_fingerprint=(
+            creative_learning_hints_fingerprint
+            if not creative_pilot_fingerprint
+            else fingerprint_payload(
+                {
+                    "creative_learning_hints": creative_learning_hints_fingerprint,
+                    "creative_pilot": creative_pilot_fingerprint,
+                }
+            )
+        ),
     )
     context_pack = collect_context_pack(
         normalized_paths,
@@ -1144,6 +1272,14 @@ def build_task_packet(
         secondary_agents=requested_agent_resolution["secondary_agents"],
         reviewer=requested_agent_resolution["reviewer"],
     )
+    if creative_pilot_context is not None:
+        exact_roles = list(dict.fromkeys(pilot_roles))
+        requested_agent_resolution = {
+            "primary_agent": exact_roles[0],
+            "secondary_agents": exact_roles[1:-1],
+            "reviewer": exact_roles[-1],
+            "requested_agent_disposition": [],
+        }
     skill_routing = route_skills(
         goal=goal,
         task_class=task_class,
@@ -1430,6 +1566,12 @@ def build_task_packet(
         "native_subagent_bridge": native_subagent_bridge,
         "routing_rationale": decision.rationale,
     }
+    if creative_pilot_context is not None:
+        packet["creative_pilot_context"] = creative_pilot_context
+        packet["automation_flags"]["creative_pilot_enabled"] = True
+        packet["creative_pilot_workspace_source"] = str(
+            Path(cast(str | Path, creative_pilot_workspace_path)).as_posix()
+        )
     return packet
 
 
@@ -1486,6 +1628,17 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "Optional coordinator advisory hints JSON under "
             "artifacts/orchestration/creative_code/learning_rollup."
         ),
+    )
+    parser.add_argument(
+        "--creative-pilot-workspace",
+        default=None,
+        help="Optional validated workspace JSON under adaptive_pilots.",
+    )
+    parser.add_argument(
+        "--creative-pilot-phase",
+        choices=CREATIVE_PILOT_PHASES,
+        default=None,
+        help="Explicit creative-pilot role phase bound into the task packet.",
     )
     parser.add_argument(
         "--design-source",
@@ -1552,6 +1705,8 @@ def main(argv: list[str] | None = None) -> int:
             native_bridge_transport=args.native_bridge_transport,
             telemetry_path=Path(args.telemetry),
             creative_learning_hints_path=args.creative_learning_hints,
+            creative_pilot_workspace_path=args.creative_pilot_workspace,
+            creative_pilot_phase=args.creative_pilot_phase,
         )
     except ValueError as exc:
         print(f"FAIL: {exc}")

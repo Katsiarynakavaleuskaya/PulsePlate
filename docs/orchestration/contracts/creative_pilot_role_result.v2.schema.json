@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "creative_pilot_role_result.v2.schema.json",
+  "title": "CreativePilotRoleResult",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "artifact_type", "policy_version", "surface_policy", "result_id", "idempotency_key", "workspace_id", "workspace_intent_fingerprint", "workspace_revision", "assignment_id", "assignment_input_fingerprint", "dispatch_input_fingerprint", "target_manifest_fingerprint", "hypothesis_id", "role", "phase", "stance", "claim_ids", "evidence_refs", "blocker_codes", "oracle_gap_codes", "peer_result_refs", "authority", "sanitized"],
+  "properties": {
+    "schema_version": {"const": "2.0"}, "artifact_type": {"const": "creative_pilot_role_result"}, "policy_version": {"const": "creative-production-adjacent-pilot-v2"}, "surface_policy": {"const": "production_adjacent_pilot"},
+    "result_id": {"type": "string"}, "idempotency_key": {"type": "string"}, "workspace_id": {"type": "string"}, "workspace_intent_fingerprint": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}, "workspace_revision": {"type": "integer", "minimum": 1}, "assignment_id": {"type": "string"}, "assignment_input_fingerprint": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}, "dispatch_input_fingerprint": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}, "target_manifest_fingerprint": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}, "hypothesis_id": {"type": "string"}, "role": {"type": "string"}, "phase": {"enum": ["independent", "rebuttal"]}, "stance": {"enum": ["pass", "revise", "reject", "abstain"]},
+    "claim_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}, "evidence_refs": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string"}}, "blocker_codes": {"type": "array", "uniqueItems": true, "items": {"type": "string"}}, "oracle_gap_codes": {"type": "array", "uniqueItems": true, "items": {"type": "string"}}, "peer_result_refs": {"type": "array", "uniqueItems": true, "items": {"type": "string"}}, "authority": {"$ref": "creative_protocol_context_map.v2.schema.json#/$defs/authority"}, "sanitized": {"const": true}
+  }
+}

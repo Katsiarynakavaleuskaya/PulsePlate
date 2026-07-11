@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "creative_hypothesis_approval.v2.schema.json",
+  "title": "CreativeHypothesisApprovalV2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "artifact_type", "policy_version", "surface_policy", "approval_id", "idempotency_key", "workspace_id", "workspace_intent_fingerprint", "workspace_reviewed_revision_fingerprint", "workspace_synthesized_revision_fingerprint", "synthesis_id", "synthesis_fingerprint", "source_hypothesis_packet_id", "hypothesis_id", "hypothesis_fingerprint", "target_manifest_fingerprint", "base_sha", "head_sha", "approved_target_surfaces", "approved_by", "decision", "generate_patch", "next_step", "authority", "sanitized"],
+  "properties": {
+    "schema_version": {"const": "2.0"}, "artifact_type": {"const": "creative_hypothesis_approval"}, "policy_version": {"const": "creative-production-adjacent-pilot-v2"}, "surface_policy": {"const": "production_adjacent_pilot"},
+    "approval_id": {"type": "string", "minLength": 1}, "idempotency_key": {"type": "string", "minLength": 1}, "workspace_id": {"type": "string", "minLength": 1},
+    "workspace_intent_fingerprint": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}, "workspace_reviewed_revision_fingerprint": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}, "workspace_synthesized_revision_fingerprint": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}, "synthesis_id": {"type": "string", "minLength": 1}, "synthesis_fingerprint": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}, "source_hypothesis_packet_id": {"type": "string", "minLength": 1}, "hypothesis_id": {"type": "string", "minLength": 1}, "hypothesis_fingerprint": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}, "target_manifest_fingerprint": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "base_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"}, "head_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "approved_target_surfaces": {"type": "array", "minItems": 1, "maxItems": 2, "uniqueItems": true, "items": {"type": "string", "pattern": "^core/(rag|insight)/"}}, "approved_by": {"type": "string", "minLength": 1}, "decision": {"const": "approve_for_pr1_specification"}, "generate_patch": {"const": false}, "next_step": {"const": "create_pr1_specification"}, "authority": {"$ref": "creative_protocol_context_map.v2.schema.json#/$defs/authority"}, "sanitized": {"const": true}
+  }
+}

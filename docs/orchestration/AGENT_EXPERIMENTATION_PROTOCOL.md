@@ -298,6 +298,16 @@ Until that later PR lands, candidate-patch mode must continue to reject
 `scripts/ci/**`, and oracle-only mode may evaluate validators only as immutable
 oracles.
 
+### Adaptive production-adjacent creative pilots
+
+The adaptive creative-pilot sublane is local control-plane planning only. It
+may bind one or two exact tracked files already admitted by
+`validate_mutable_candidate_surface()` under `core/rag/` or `core/insight/`,
+but it does not widen that allowlist or grant mutation. Its v2 workspace,
+structured role results, deterministic synthesis, operator approval, and
+control-plane evidence events remain local and non-canonical until existing
+PR-1/PR-2/PR-3 gates admit later artifacts.
+
 ---
 
 ## 3. Execution environment and isolation

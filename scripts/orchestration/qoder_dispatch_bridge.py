@@ -30,7 +30,7 @@ import sys
 from datetime import datetime, timezone
 from importlib import import_module
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, cast, Dict, Iterable, List, Optional, Tuple
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
@@ -41,6 +41,11 @@ from scripts.orchestration.requested_agents import (
     MANDATORY_POST_OPEN_GATES,
     MANDATORY_POST_OPEN_ORDER,
     normalize_implementation_owner_slugs,
+)
+from scripts.orchestration.creative_pilot_workspace_contract import (
+    CreativePilotContractError,
+    load_json_strict as load_creative_pilot_json_strict,
+    validate_task_pilot_context,
 )
 
 PR_PHASE_NONE = "none"
@@ -937,8 +942,14 @@ def build_dispatch_manifest(
     chained_successors: Optional[set[str]] = None,
     enforce_mandatory_post_open_tail: bool = True,
     implementation_owners: Optional[Iterable[str]] = None,
+    creative_pilot_context: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Build the full JSON dispatch manifest for the given role order."""
+    if creative_pilot_context is not None:
+        try:
+            creative_pilot_context = validate_task_pilot_context(creative_pilot_context)
+        except CreativePilotContractError as exc:
+            raise ValueError(f"invalid creative_pilot_context: {exc}") from exc
     context_map = _parse_context_map()
     routing = _ensure_routing_graph()
     primary_slugs = _primary_slugs_from_routing(routing)
@@ -1013,6 +1024,15 @@ def build_dispatch_manifest(
                 slug, agent_def, previous_slug, chained_successors
             ),
         }
+        if creative_pilot_context is not None:
+            matching = [row for row in creative_pilot_context["assignments"] if row["role"] == slug]
+            if len(matching) != 1:
+                raise ValueError(
+                    f"creative pilot dispatch requires exactly one assignment for {slug}"
+                )
+            item["creative_pilot_assignment"] = matching[0]
+            item["readonly"] = True
+            item["implementation_owner_override"] = False
         dispatch_sequence.append(item)
         previous_slug = slug
 
@@ -1038,8 +1058,43 @@ def build_dispatch_manifest(
         "mandatory_post_open_role_agents": list(MANDATORY_POST_OPEN_ORDER),
         "missing_agents": missing_agents,
     }
+    if creative_pilot_context is not None:
+        manifest["creative_pilot_context"] = {
+            key: creative_pilot_context[key]
+            for key in (
+                "schema_version",
+                "workspace_id",
+                "workspace_intent_fingerprint",
+                "workspace_revision_fingerprint",
+                "phase",
+                "dispatch_input_fingerprint",
+                "authority",
+            )
+        }
 
     return manifest
+
+
+def _load_creative_pilot_context(packet_path: Path) -> Optional[Dict[str, Any]]:
+    if packet_path.suffix != ".json":
+        return None
+    try:
+        payload = load_creative_pilot_json_strict(packet_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, CreativePilotContractError) as exc:
+        raise ValueError(f"invalid strict JSON task packet: {exc}") from exc
+    context = payload.get("creative_pilot_context") if isinstance(payload, dict) else None
+    if context is None:
+        return None
+    if not isinstance(context, dict):
+        raise ValueError("creative_pilot_context must be an object")
+    if payload.get("pr_phase") in {PR_PHASE_POST_OPEN_REVIEW, PR_PHASE_MERGE_READY}:
+        raise ValueError(
+            "creative pilot dispatch cannot be combined with post-open or merge-ready PR phases"
+        )
+    try:
+        return cast(Dict[str, Any], validate_task_pilot_context(context))
+    except CreativePilotContractError as exc:
+        raise ValueError(f"invalid creative_pilot_context: {exc}") from exc
 
 
 # ---------------------------------------------------------------------------
@@ -1144,8 +1199,17 @@ def main(argv: Optional[List[str]] = None) -> int:
                 file=sys.stderr,
             )
             return 1
+        try:
+            creative_pilot_context = _load_creative_pilot_context(packet_path)
+        except ValueError as exc:
+            print(f"FAIL: {exc}", file=sys.stderr)
+            return 1
+        if creative_pilot_context is not None:
+            role_slugs = [row["role"] for row in creative_pilot_context["assignments"]]
+            enforce_mandatory_post_open_tail = False
     else:
         role_slugs = list(args.roles)
+        creative_pilot_context = None
         if args.pr_phase in {PR_PHASE_POST_OPEN_REVIEW, PR_PHASE_MERGE_READY}:
             missing_post_open_roles = [
                 slug for slug in MANDATORY_POST_OPEN_ORDER if slug not in role_slugs
@@ -1204,6 +1268,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         chained_successors=packet_chained_successors,
         enforce_mandatory_post_open_tail=enforce_mandatory_post_open_tail,
         implementation_owners=implementation_owner_slugs,
+        creative_pilot_context=creative_pilot_context,
     )
     if manifest.get("missing_agents"):
         print(

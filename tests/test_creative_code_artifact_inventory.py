@@ -50,6 +50,7 @@ def _patch_inventory_roots(
         creative_root / "patch_generation",
     )
     monkeypatch.setattr(inventory_cli, "PROMOTIONS_ROOT", creative_root / "promotions")
+    monkeypatch.setattr(inventory_cli, "ADAPTIVE_PILOTS_ROOT", creative_root / "adaptive_pilots")
     monkeypatch.setattr(generation_cli, "REPO_ROOT", repo)
     monkeypatch.setattr(generation_cli, "CREATIVE_CODE_ROOT", creative_root)
     monkeypatch.setattr(generation_cli, "PATCH_GENERATION_ROOT", creative_root / "patch_generation")

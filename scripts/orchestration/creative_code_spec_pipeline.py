@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import argparse
+import errno
 import json
 import os
 from pathlib import Path
+import secrets
+import stat
 import sys
-import tempfile
 from typing import Any
 
 from scripts.orchestration.context_pack_compression import (
@@ -16,7 +18,6 @@ from scripts.orchestration.context_pack_compression import (
 )
 from scripts.orchestration.creative_code_contract import (
     CreativeCodeContractError,
-    read_creative_code_candidate_packet,
 )
 from scripts.orchestration.creative_code_specification import (
     CreativeCodeSpecificationError,
@@ -48,131 +49,168 @@ class CreativeCodeSpecPipelineError(ValueError):
     """Raised when the local PR-1 pipeline cannot safely read or write artifacts."""
 
 
-def _is_relative_to(path: Path, parent: Path) -> bool:
+def _required_open_flag(name: str) -> int:
+    value = getattr(os, name, None)
+    if not isinstance(value, int):
+        raise CreativeCodeSpecPipelineError(f"platform lacks required {name} support")
+    return value
+
+
+def _candidate_and_repo_parts(
+    raw_path: Path, *, allowed_root: Path, label: str
+) -> tuple[Path, tuple[str, ...]]:
+    candidate = raw_path if raw_path.is_absolute() else allowed_root / raw_path
     try:
-        path.relative_to(parent)
-    except ValueError:
-        return False
-    return True
+        candidate.relative_to(allowed_root)
+        repo_relative = candidate.relative_to(REPO_ROOT)
+    except ValueError as exc:
+        raise CreativeCodeSpecPipelineError(f"{label} must stay inside its allowed root.") from exc
+    parts = repo_relative.parts
+    if not parts or any(part in {"", ".", ".."} for part in parts):
+        raise CreativeCodeSpecPipelineError(f"{label} must be a safe repo-relative path.")
+    return candidate, parts
 
 
-def _existing_components(path: Path) -> list[Path]:
-    components: list[Path] = []
-    current = path.anchor
-    if not current:
-        current_path = Path(".")
-    else:
-        current_path = Path(current)
-    parts = path.parts[1:] if path.anchor else path.parts
-    for part in parts:
-        current_path = current_path / part
-        if current_path.exists() or current_path.is_symlink():
-            components.append(current_path)
-    return components
+def _directory_flags() -> int:
+    return (
+        os.O_RDONLY
+        | _required_open_flag("O_DIRECTORY")
+        | _required_open_flag("O_NOFOLLOW")
+        | getattr(os, "O_CLOEXEC", 0)
+    )
 
 
-def _reject_symlink_components(path: Path, *, label: str) -> None:
-    for component in _existing_components(path):
-        if component.is_symlink():
-            raise CreativeCodeSpecPipelineError(f"{label} must not traverse symlinks.")
+def _walk_pinned_directory(parts: tuple[str, ...], *, create: bool, label: str) -> int:
+    descriptor = -1
+    try:
+        descriptor = os.open(REPO_ROOT, _directory_flags())
+        for component in parts:
+            try:
+                child = os.open(component, _directory_flags(), dir_fd=descriptor)
+            except FileNotFoundError:
+                if not create:
+                    raise
+                try:
+                    os.mkdir(component, mode=0o700, dir_fd=descriptor)
+                except FileExistsError:
+                    pass
+                child = os.open(component, _directory_flags(), dir_fd=descriptor)
+            previous = descriptor
+            descriptor = child
+            close_error = _close_descriptors(previous)
+            if close_error is not None:
+                _close_descriptors(previous, descriptor)
+                descriptor = -1
+                raise CreativeCodeSpecPipelineError(
+                    f"{label} could not transfer pinned directory ownership."
+                ) from close_error
+        return descriptor
+    except CreativeCodeSpecPipelineError:
+        _close_descriptors(descriptor)
+        raise
+    except (OSError, NotImplementedError) as exc:
+        _close_descriptors(descriptor)
+        if isinstance(exc, OSError) and exc.errno in {errno.ELOOP, errno.ENOTDIR}:
+            raise CreativeCodeSpecPipelineError(
+                f"{label} must not traverse symlinks or non-directory components."
+            ) from exc
+        raise CreativeCodeSpecPipelineError(f"{label} could not be opened safely.") from exc
+
+
+def _open_pinned_parent(
+    raw_path: Path, *, allowed_root: Path, create: bool, label: str
+) -> tuple[int, str, Path]:
+    candidate, parts = _candidate_and_repo_parts(raw_path, allowed_root=allowed_root, label=label)
+    parent_fd = _walk_pinned_directory(parts[:-1], create=create, label=label)
+    return parent_fd, parts[-1], candidate
+
+
+def _close_descriptors(*descriptors: int) -> OSError | None:
+    first_error: OSError | None = None
+    for descriptor in descriptors:
+        if descriptor < 0:
+            continue
+        try:
+            os.close(descriptor)
+        except OSError as exc:
+            first_error = first_error or exc
+    return first_error
 
 
 def _ensure_artifact_root() -> Path:
-    _reject_symlink_components(ARTIFACT_ROOT, label="artifact root")
-    try:
-        ARTIFACT_ROOT.mkdir(parents=True, exist_ok=True)
-    except OSError as exc:
-        raise CreativeCodeSpecPipelineError("artifact root could not be created.") from exc
-    _reject_symlink_components(ARTIFACT_ROOT, label="artifact root")
-    root = ARTIFACT_ROOT.resolve(strict=True)
-    if not root.is_dir():
-        raise CreativeCodeSpecPipelineError("artifact root must be a directory.")
-    return root
+    _candidate, parts = _candidate_and_repo_parts(
+        ARTIFACT_ROOT, allowed_root=ARTIFACT_ROOT, label="artifact root"
+    )
+    descriptor = _walk_pinned_directory(parts, create=True, label="artifact root")
+    close_error = _close_descriptors(descriptor)
+    if close_error is not None:
+        raise CreativeCodeSpecPipelineError("artifact root could not be closed safely.")
+    return ARTIFACT_ROOT
 
 
 def _resolve_repo_input_file(raw_path: Path) -> Path:
-    path = raw_path if raw_path.is_absolute() else REPO_ROOT / raw_path
-    _reject_symlink_components(path, label="input path")
+    parent_fd = -1
     try:
-        resolved = path.resolve(strict=True)
-    except OSError as exc:
-        raise CreativeCodeSpecPipelineError("input path must be an existing file.") from exc
-    repo_root = REPO_ROOT.resolve()
-    if not _is_relative_to(resolved, repo_root):
-        raise CreativeCodeSpecPipelineError("input path must stay inside the repository.")
-    if not resolved.is_file():
-        raise CreativeCodeSpecPipelineError("input path must be a file.")
-    if resolved.suffix != ".json":
-        raise CreativeCodeSpecPipelineError("input path must be a JSON file.")
-    return resolved
+        parent_fd, filename, candidate = _open_pinned_parent(
+            raw_path, allowed_root=REPO_ROOT, create=False, label="input path"
+        )
+        info = os.stat(filename, dir_fd=parent_fd, follow_symlinks=False)
+        if not stat.S_ISREG(info.st_mode):
+            raise CreativeCodeSpecPipelineError("input path must be a regular file.")
+        if candidate.suffix != ".json":
+            raise CreativeCodeSpecPipelineError("input path must be a JSON file.")
+        return candidate
+    except CreativeCodeSpecPipelineError:
+        raise
+    except (OSError, NotImplementedError) as exc:
+        raise CreativeCodeSpecPipelineError("input path must be an existing safe file.") from exc
+    finally:
+        close_error = _close_descriptors(parent_fd)
+        if sys.exc_info()[1] is None and close_error is not None:
+            raise CreativeCodeSpecPipelineError("input path could not be closed safely.")
 
 
 def _resolve_artifact_dir(raw_path: Path, *, create: bool) -> Path:
-    root = _ensure_artifact_root()
-    path = raw_path if raw_path.is_absolute() else ARTIFACT_ROOT / raw_path
-    if path.is_absolute():
-        try:
-            path.relative_to(root)
-        except ValueError as exc:
-            raise CreativeCodeSpecPipelineError(
-                "artifact directory must stay under creative-code artifacts."
-            ) from exc
-    _reject_symlink_components(path, label="artifact directory")
-    candidate_resolved = path.resolve(strict=False)
-    if not _is_relative_to(candidate_resolved, root):
-        raise CreativeCodeSpecPipelineError(
-            "artifact directory must stay under creative-code artifacts."
-        )
-    if create:
-        path.mkdir(parents=True, exist_ok=True)
-    try:
-        resolved = path.resolve(strict=True)
-    except OSError as exc:
-        raise CreativeCodeSpecPipelineError("artifact directory must exist.") from exc
-    if not _is_relative_to(resolved, root):
-        raise CreativeCodeSpecPipelineError(
-            "artifact directory must stay under creative-code artifacts."
-        )
-    if not resolved.is_dir():
-        raise CreativeCodeSpecPipelineError("artifact directory must be a directory.")
-    return resolved
+    _ensure_artifact_root()
+    candidate, parts = _candidate_and_repo_parts(
+        raw_path, allowed_root=ARTIFACT_ROOT, label="artifact directory"
+    )
+    descriptor = _walk_pinned_directory(parts, create=create, label="artifact directory")
+    close_error = _close_descriptors(descriptor)
+    if close_error is not None:
+        raise CreativeCodeSpecPipelineError("artifact directory could not be closed safely.")
+    return candidate
 
 
 def _resolve_artifact_file(raw_path: Path, *, for_write: bool) -> Path:
-    root = _ensure_artifact_root()
-    path = raw_path if raw_path.is_absolute() else ARTIFACT_ROOT / raw_path
-    if path.is_absolute():
-        try:
-            path.relative_to(root)
-        except ValueError as exc:
-            raise CreativeCodeSpecPipelineError(
-                "artifact file must stay under creative-code artifacts."
-            ) from exc
-    parent = path.parent
-    _reject_symlink_components(parent, label="artifact file parent")
-    parent_candidate = parent.resolve(strict=False)
-    if not _is_relative_to(parent_candidate, root):
-        raise CreativeCodeSpecPipelineError(
-            "artifact file must stay under creative-code artifacts."
-        )
-    if for_write:
-        parent.mkdir(parents=True, exist_ok=True)
-        _reject_symlink_components(parent, label="artifact file parent")
+    _ensure_artifact_root()
+    parent_fd = -1
     try:
-        parent_resolved = parent.resolve(strict=True)
-    except OSError as exc:
-        raise CreativeCodeSpecPipelineError("artifact file parent must exist.") from exc
-    if not _is_relative_to(parent_resolved, root):
-        raise CreativeCodeSpecPipelineError(
-            "artifact file must stay under creative-code artifacts."
+        parent_fd, filename, candidate = _open_pinned_parent(
+            raw_path,
+            allowed_root=ARTIFACT_ROOT,
+            create=for_write,
+            label="artifact file",
         )
-    if path.exists() or path.is_symlink():
-        _reject_symlink_components(path, label="artifact file")
-        if path.is_symlink():
-            raise CreativeCodeSpecPipelineError("artifact file must not be a symlink.")
-    if path.suffix != ".json":
-        raise CreativeCodeSpecPipelineError("artifact file must be JSON.")
-    return parent_resolved / path.name
+        if candidate.suffix != ".json":
+            raise CreativeCodeSpecPipelineError("artifact file must be JSON.")
+        try:
+            info = os.stat(filename, dir_fd=parent_fd, follow_symlinks=False)
+        except FileNotFoundError:
+            if not for_write:
+                raise CreativeCodeSpecPipelineError("artifact file must exist.") from None
+        else:
+            if not stat.S_ISREG(info.st_mode):
+                raise CreativeCodeSpecPipelineError("artifact file must be a regular file.")
+        return candidate
+    except CreativeCodeSpecPipelineError:
+        raise
+    except (OSError, NotImplementedError) as exc:
+        raise CreativeCodeSpecPipelineError("artifact file could not be validated safely.") from exc
+    finally:
+        close_error = _close_descriptors(parent_fd)
+        if sys.exc_info()[1] is None and close_error is not None:
+            raise CreativeCodeSpecPipelineError("artifact file could not be closed safely.")
 
 
 def _reject_duplicate_json_object_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -188,46 +226,99 @@ def _reject_duplicate_json_object_keys(pairs: list[tuple[str, Any]]) -> dict[str
     return payload
 
 
-def _read_json_artifact(path: Path) -> Any:
-    artifact = _resolve_artifact_file(path, for_write=False)
+def _read_json_file(path: Path, *, allowed_root: Path, label: str) -> Any:
+    parent_fd = -1
+    file_fd = -1
     try:
+        parent_fd, filename, _candidate = _open_pinned_parent(
+            path, allowed_root=allowed_root, create=False, label=label
+        )
+        flags = os.O_RDONLY | _required_open_flag("O_NOFOLLOW")
+        flags |= getattr(os, "O_CLOEXEC", 0)
+        file_fd = os.open(filename, flags, dir_fd=parent_fd)
+        if not stat.S_ISREG(os.fstat(file_fd).st_mode):
+            raise CreativeCodeSpecPipelineError(f"{label} must be a regular file.")
+        with os.fdopen(file_fd, "r", encoding="utf-8") as handle:
+            file_fd = -1
+            raw = handle.read()
         return json.loads(
-            artifact.read_text(encoding="utf-8"),
+            raw,
             object_pairs_hook=_reject_duplicate_json_object_keys,
         )
     except CreativeCodeSpecPipelineError:
         raise
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise CreativeCodeSpecPipelineError(
-            "Unable to read creative-code specification pipeline JSON."
-        ) from exc
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, NotImplementedError) as exc:
+        raise CreativeCodeSpecPipelineError(f"Unable to read safe {label} JSON.") from exc
+    finally:
+        active_error = sys.exc_info()[1]
+        close_error = _close_descriptors(file_fd, parent_fd)
+        if active_error is None and close_error is not None:
+            raise CreativeCodeSpecPipelineError(f"{label} could not be closed safely.")
+
+
+def _read_json_artifact(path: Path) -> Any:
+    artifact = _resolve_artifact_file(path, for_write=False)
+    return _read_json_file(artifact, allowed_root=ARTIFACT_ROOT, label="artifact file")
 
 
 def _write_json_atomic(path: Path, payload: Any) -> None:
     output = _resolve_artifact_file(path, for_write=True)
+    content = json.dumps(payload, sort_keys=True, indent=2) + "\n"
+    parent_fd = -1
+    file_fd = -1
     temp_name: str | None = None
     try:
-        with tempfile.NamedTemporaryFile(
-            "w",
-            encoding="utf-8",
-            dir=output.parent,
-            prefix=f".{output.name}.",
-            suffix=".tmp",
-            delete=False,
-        ) as temp_file:
-            temp_name = temp_file.name
-            json.dump(payload, temp_file, sort_keys=True, indent=2)
-            temp_file.write("\n")
-            temp_file.flush()
-            os.fsync(temp_file.fileno())
-        os.replace(temp_name, output)
-        temp_name = None
-    finally:
-        if temp_name is not None:
+        parent_fd, filename, _candidate = _open_pinned_parent(
+            output,
+            allowed_root=ARTIFACT_ROOT,
+            create=True,
+            label="artifact file",
+        )
+        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | _required_open_flag("O_NOFOLLOW")
+        flags |= getattr(os, "O_CLOEXEC", 0)
+        for _attempt in range(32):
+            candidate_name = f".{filename}.{secrets.token_hex(8)}.tmp"
             try:
-                Path(temp_name).unlink()
+                file_fd = os.open(candidate_name, flags, 0o600, dir_fd=parent_fd)
+                temp_name = candidate_name
+                break
+            except FileExistsError:
+                continue
+        else:
+            raise CreativeCodeSpecPipelineError("unable to allocate artifact temp file")
+        with os.fdopen(file_fd, "w", encoding="utf-8") as handle:
+            file_fd = -1
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(
+            temp_name,
+            filename,
+            src_dir_fd=parent_fd,
+            dst_dir_fd=parent_fd,
+        )
+        temp_name = None
+        os.fsync(parent_fd)
+    except CreativeCodeSpecPipelineError:
+        raise
+    except (OSError, NotImplementedError) as exc:
+        raise CreativeCodeSpecPipelineError("unable to write artifact safely") from exc
+    finally:
+        active_error = sys.exc_info()[1]
+        cleanup_error: OSError | NotImplementedError | None = None
+        if parent_fd >= 0 and temp_name is not None:
+            try:
+                os.unlink(temp_name, dir_fd=parent_fd)
             except FileNotFoundError:
                 pass
+            except (OSError, NotImplementedError) as exc:
+                cleanup_error = exc
+        close_error = _close_descriptors(file_fd, parent_fd)
+        cleanup_error = cleanup_error or close_error
+        if active_error is None and cleanup_error is not None:
+            raise CreativeCodeSpecPipelineError(
+                "unable to clean up artifact safely"
+            ) from cleanup_error
 
 
 def _context_pack_for_packet(packet: dict[str, Any]) -> dict[str, Any]:
@@ -266,7 +357,11 @@ def _context_pack_for_packet(packet: dict[str, Any]) -> dict[str, Any]:
 def prepare(packet_path: Path, run_dir: Path) -> None:
     source_path = _resolve_repo_input_file(packet_path)
     try:
-        packet = read_creative_code_candidate_packet(source_path)
+        packet = _read_json_file(source_path, allowed_root=REPO_ROOT, label="input path")
+        if not isinstance(packet, dict):
+            raise CreativeCodeSpecPipelineError(
+                "CreativeCodeCandidatePacket must be a JSON object."
+            )
         normalized_packet = validate_source_candidate_packet(packet)
     except CreativeCodeContractError as exc:
         raise CreativeCodeSpecPipelineError(str(exc)) from exc

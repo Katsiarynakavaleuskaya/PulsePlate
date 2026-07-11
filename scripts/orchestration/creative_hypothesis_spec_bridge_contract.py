@@ -29,6 +29,17 @@ from scripts.orchestration.creative_code_contract import (
     validate_creative_code_candidate_packet,
 )
 from scripts.orchestration.experiment_contract import validate_mutable_candidate_surface
+from scripts.orchestration.creative_pilot_workspace_contract import (
+    BRIDGE_TYPE as PILOT_BRIDGE_TYPE,
+    POLICY_VERSION as PILOT_POLICY_VERSION,
+    SCHEMA_VERSION as PILOT_SCHEMA_VERSION,
+    CreativePilotContractError,
+    validate_approval_v2,
+    validate_context_map_v2,
+    validate_hypothesis_packet_v2,
+    validate_synthesis,
+    validate_workspace,
+)
 from scripts.orchestration.experiment_runner_pr_creative_context_contract import (
     ExperimentRunnerCreativeContextContractError,
     reject_unsafe_creative_context_value,
@@ -209,6 +220,279 @@ class CreativeHypothesisSpecBridgeError(ValueError):
     def __init__(self, message: str, *, blocked_reason: str | None = None) -> None:
         super().__init__(message)
         self.blocked_reason = blocked_reason
+
+
+def build_creative_pilot_spec_bridge_bundle(
+    *,
+    context_map: Mapping[str, Any],
+    hypothesis_packet: Mapping[str, Any],
+    workspace: Mapping[str, Any],
+    synthesis: Mapping[str, Any],
+    approval: Mapping[str, Any],
+    variant_count: int,
+) -> dict[str, dict[str, Any]]:
+    """Build a v2 lineage receipt while retaining CandidatePacket v1 truth."""
+
+    if variant_count not in VARIANT_COUNTS:
+        raise CreativeHypothesisSpecBridgeError("variant_count must be one of 3, 4, or 5.")
+    try:
+        context = validate_context_map_v2(context_map)
+        packet = validate_hypothesis_packet_v2(hypothesis_packet, context_map=context)
+        pilot_workspace = validate_workspace(workspace)
+        pilot_synthesis = validate_synthesis(synthesis)
+        pilot_approval = validate_approval_v2(approval)
+    except CreativePilotContractError as exc:
+        raise CreativeHypothesisSpecBridgeError(
+            f"invalid_production_adjacent_source: {exc}",
+            blocked_reason="fingerprint_mismatch",
+        ) from exc
+
+    bindings = {
+        "packet_id": packet["packet_id"],
+        "workspace_id": pilot_workspace["workspace_id"],
+        "workspace_intent_fingerprint": pilot_workspace["intent_fingerprint"],
+        "workspace_reviewed_revision_fingerprint": pilot_synthesis[
+            "workspace_revision_fingerprint"
+        ],
+        "workspace_synthesized_revision_fingerprint": pilot_workspace["revision_fingerprint"],
+        "hypothesis_id": pilot_workspace["intent"]["hypothesis_id"],
+        "hypothesis_fingerprint": pilot_workspace["intent"]["hypothesis_fingerprint"],
+        "target_manifest_fingerprint": pilot_workspace["target_manifest"]["manifest_fingerprint"],
+        "base_sha": pilot_workspace["target_manifest"]["base_sha"],
+        "head_sha": pilot_workspace["target_manifest"]["head_sha"],
+        "synthesis_id": pilot_synthesis["synthesis_id"],
+        "synthesis_fingerprint": fingerprint_payload(pilot_synthesis),
+        "approval_id": pilot_approval["approval_id"],
+        "approval_fingerprint": fingerprint_payload(pilot_approval),
+    }
+    for key in (
+        "packet_id",
+        "hypothesis_id",
+        "hypothesis_fingerprint",
+        "target_manifest_fingerprint",
+        "base_sha",
+        "head_sha",
+    ):
+        approval_key = "source_hypothesis_packet_id" if key == "packet_id" else key
+        if pilot_approval[approval_key] != bindings[key]:
+            raise CreativeHypothesisSpecBridgeError(
+                f"production-adjacent approval {key} binding mismatch",
+                blocked_reason="fingerprint_mismatch",
+            )
+    if pilot_approval["synthesis_id"] != bindings["synthesis_id"] or (
+        pilot_approval["synthesis_fingerprint"] != bindings["synthesis_fingerprint"]
+    ):
+        raise CreativeHypothesisSpecBridgeError(
+            "production-adjacent approval synthesis binding mismatch",
+            blocked_reason="fingerprint_mismatch",
+        )
+    if pilot_workspace["state"]["phase"] != "synthesized":
+        raise CreativeHypothesisSpecBridgeError(
+            "production-adjacent workspace must be synthesized before handoff",
+            blocked_reason="fingerprint_mismatch",
+        )
+    expected_synthesis_ref = {
+        "synthesis_id": pilot_synthesis["synthesis_id"],
+        "synthesis_fingerprint": bindings["synthesis_fingerprint"],
+        "reviewed_revision_fingerprint": bindings["workspace_reviewed_revision_fingerprint"],
+    }
+    if pilot_workspace["synthesis_ref"] != expected_synthesis_ref:
+        raise CreativeHypothesisSpecBridgeError(
+            "production-adjacent workspace synthesis reference mismatch",
+            blocked_reason="fingerprint_mismatch",
+        )
+    for key in (
+        "workspace_reviewed_revision_fingerprint",
+        "workspace_synthesized_revision_fingerprint",
+    ):
+        if pilot_approval[key] != bindings[key]:
+            raise CreativeHypothesisSpecBridgeError(
+                f"production-adjacent approval {key} binding mismatch",
+                blocked_reason="fingerprint_mismatch",
+            )
+    if pilot_synthesis["decision"] != "approve":
+        raise CreativeHypothesisSpecBridgeError(
+            "production-adjacent synthesis must approve PR-1 handoff",
+            blocked_reason="approval_not_pr1_specification",
+        )
+
+    hypothesis = next(
+        (
+            row
+            for row in packet["hypotheses"]
+            if row["hypothesis_id"] == pilot_workspace["intent"]["hypothesis_id"]
+        ),
+        None,
+    )
+    if hypothesis is None:
+        raise CreativeHypothesisSpecBridgeError(
+            "production-adjacent hypothesis is missing",
+            blocked_reason="hypothesis_not_found",
+        )
+    target_paths = [row["path"] for row in pilot_workspace["target_manifest"]["files"]]
+    candidate = _build_candidate_packet(
+        packet=packet,
+        hypothesis=hypothesis,
+        target_surface=target_paths,
+        immutable_oracles=pilot_workspace["target_manifest"]["immutable_oracles"],
+        variant_count=variant_count,
+        source_fingerprint_override=fingerprint_payload(bindings),
+    )
+    bridge_body: dict[str, Any] = {
+        "schema_version": PILOT_SCHEMA_VERSION,
+        "artifact_type": PILOT_BRIDGE_TYPE,
+        "policy_version": PILOT_POLICY_VERSION,
+        "surface_policy": "production_adjacent_pilot",
+        "lineage": bindings,
+        "candidate_id": candidate["candidate_id"],
+        "candidate_fingerprint": fingerprint_payload(candidate),
+        "candidate_schema_version": candidate["schema_version"],
+        "spec_prepare": {
+            "expected_files": list(PREPARE_FILENAMES),
+            "prepared": False,
+            "finalized": False,
+            "next_allowed_action": "prepare_specification",
+        },
+        "authority": default_bridge_authority(),
+        "sanitized": True,
+    }
+    bridge_fingerprint = fingerprint_payload(bridge_body)
+    upstream_ids = (
+        str(packet["packet_id"]),
+        str(pilot_synthesis["synthesis_id"]),
+        str(pilot_approval["approval_id"]),
+        str(candidate["candidate_id"]),
+    )
+    bridge = {
+        **bridge_body,
+        "bridge_id": build_asset_id(
+            asset_type=PILOT_BRIDGE_TYPE,
+            rail="orchestration",
+            version=PILOT_SCHEMA_VERSION,
+            policy_version=PILOT_POLICY_VERSION,
+            fingerprint=bridge_fingerprint,
+            upstream_ids=upstream_ids,
+        ),
+        "idempotency_key": build_idempotency_key(
+            asset_type=PILOT_BRIDGE_TYPE,
+            rail="orchestration",
+            version=PILOT_SCHEMA_VERSION,
+            policy_version=PILOT_POLICY_VERSION,
+            fingerprint=bridge_fingerprint,
+            upstream_ids=upstream_ids,
+        ),
+    }
+    return {"bridge": bridge, "candidate": candidate}
+
+
+def validate_creative_pilot_spec_bridge(payload: Mapping[str, Any]) -> dict[str, Any]:
+    """Validate a production-adjacent v2 bridge receipt and its stable identity."""
+
+    expected = {
+        "schema_version",
+        "artifact_type",
+        "policy_version",
+        "surface_policy",
+        "lineage",
+        "candidate_id",
+        "candidate_fingerprint",
+        "candidate_schema_version",
+        "spec_prepare",
+        "authority",
+        "sanitized",
+        "bridge_id",
+        "idempotency_key",
+    }
+    if set(payload) != expected:
+        raise CreativeHypothesisSpecBridgeError("production-adjacent bridge keys mismatch")
+    if (
+        payload["schema_version"] != PILOT_SCHEMA_VERSION
+        or payload["artifact_type"] != PILOT_BRIDGE_TYPE
+        or payload["policy_version"] != PILOT_POLICY_VERSION
+        or payload["surface_policy"] != "production_adjacent_pilot"
+        or payload["candidate_schema_version"] != SCHEMA_VERSION
+        or payload["authority"] != default_bridge_authority()
+        or payload["sanitized"] is not True
+    ):
+        raise CreativeHypothesisSpecBridgeError("production-adjacent bridge policy mismatch")
+    lineage = payload["lineage"]
+    if not isinstance(lineage, Mapping):
+        raise CreativeHypothesisSpecBridgeError("production-adjacent bridge lineage is invalid")
+    expected_lineage = {
+        "packet_id",
+        "workspace_id",
+        "workspace_intent_fingerprint",
+        "workspace_reviewed_revision_fingerprint",
+        "workspace_synthesized_revision_fingerprint",
+        "hypothesis_id",
+        "hypothesis_fingerprint",
+        "target_manifest_fingerprint",
+        "base_sha",
+        "head_sha",
+        "synthesis_id",
+        "synthesis_fingerprint",
+        "approval_id",
+        "approval_fingerprint",
+    }
+    if set(lineage) != expected_lineage:
+        raise CreativeHypothesisSpecBridgeError("production-adjacent bridge lineage keys mismatch")
+    spec_prepare = payload["spec_prepare"]
+    if not isinstance(spec_prepare, Mapping) or set(spec_prepare) != {
+        "expected_files",
+        "prepared",
+        "finalized",
+        "next_allowed_action",
+    }:
+        raise CreativeHypothesisSpecBridgeError("production-adjacent spec_prepare is invalid")
+    if (
+        spec_prepare["expected_files"] != list(PREPARE_FILENAMES)
+        or spec_prepare["prepared"] is not False
+        or spec_prepare["finalized"] is not False
+        or spec_prepare["next_allowed_action"] != "prepare_specification"
+    ):
+        raise CreativeHypothesisSpecBridgeError("production-adjacent spec_prepare policy mismatch")
+    for key in (
+        "workspace_intent_fingerprint",
+        "workspace_reviewed_revision_fingerprint",
+        "workspace_synthesized_revision_fingerprint",
+        "hypothesis_fingerprint",
+        "target_manifest_fingerprint",
+        "synthesis_fingerprint",
+        "approval_fingerprint",
+        "candidate_fingerprint",
+    ):
+        value = lineage[key] if key in lineage else payload[key]
+        if not isinstance(value, str) or not SHA256_RE.fullmatch(value):
+            raise CreativeHypothesisSpecBridgeError(f"production-adjacent {key} is invalid")
+    body = dict(payload)
+    observed_id = body.pop("bridge_id")
+    observed_key = body.pop("idempotency_key")
+    bridge_fingerprint = fingerprint_payload(body)
+    upstream_ids = (
+        str(lineage["packet_id"]),
+        str(lineage["synthesis_id"]),
+        str(lineage["approval_id"]),
+        str(payload["candidate_id"]),
+    )
+    expected_id = build_asset_id(
+        asset_type=PILOT_BRIDGE_TYPE,
+        rail="orchestration",
+        version=PILOT_SCHEMA_VERSION,
+        policy_version=PILOT_POLICY_VERSION,
+        fingerprint=bridge_fingerprint,
+        upstream_ids=upstream_ids,
+    )
+    expected_key = build_idempotency_key(
+        asset_type=PILOT_BRIDGE_TYPE,
+        rail="orchestration",
+        version=PILOT_SCHEMA_VERSION,
+        policy_version=PILOT_POLICY_VERSION,
+        fingerprint=bridge_fingerprint,
+        upstream_ids=upstream_ids,
+    )
+    if observed_id != expected_id or observed_key != expected_key:
+        raise CreativeHypothesisSpecBridgeError("production-adjacent bridge identity mismatch")
+    return dict(payload)
 
 
 def default_bridge_authority() -> dict[str, bool]:
@@ -552,7 +836,7 @@ def _validate_sources(
         normalized_approval = validate_creative_hypothesis_approval(approval)
     except ExperimentRunnerCreativeContextContractError as exc:
         raise CreativeHypothesisSpecBridgeError(str(exc)) from exc
-    context_fingerprint = fingerprint_payload(cast(dict[str, Any], normalized_context))
+    context_fingerprint = fingerprint_payload(normalized_context)
     if normalized_packet["context_map_id"] != normalized_context["context_id"]:
         raise CreativeHypothesisSpecBridgeError(
             "fingerprint_mismatch: hypothesis packet context_map_id does not match context map.",
@@ -564,7 +848,7 @@ def _validate_sources(
             "match context map.",
             blocked_reason="fingerprint_mismatch",
         )
-    packet_fingerprint = fingerprint_payload(cast(dict[str, Any], normalized_packet))
+    packet_fingerprint = fingerprint_payload(normalized_packet)
     if normalized_dispatch["source_hypothesis_packet_id"] != normalized_packet["packet_id"]:
         raise CreativeHypothesisSpecBridgeError(
             "dispatch_packet_mismatch: coordinator dispatch references a different packet.",
@@ -710,6 +994,7 @@ def _build_candidate_packet(
     target_surface: Sequence[str],
     immutable_oracles: Sequence[str],
     variant_count: int,
+    source_fingerprint_override: str | None = None,
 ) -> dict[str, Any]:
     candidate_body: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
@@ -721,7 +1006,10 @@ def _build_candidate_packet(
             "bundle_id": packet["packet_id"],
             "candidate_id": hypothesis["hypothesis_id"],
             "promotion_decision": "promote",
-            "fingerprint": fingerprint_payload(cast(dict[str, Any], dict(hypothesis))),
+            "fingerprint": (
+                source_fingerprint_override
+                or fingerprint_payload(cast(dict[str, Any], dict(hypothesis)))
+            ),
             "evidence_ref": (
                 "docs/orchestration/contracts/" "EXPERIMENT_RUNNER_PR_CREATIVE_CONTEXT_CONTRACT.md"
             ),
@@ -791,12 +1079,18 @@ def _build_candidate_packet(
         "idempotency_key": idempotency_key,
     }
     try:
-        return cast(dict[str, Any], validate_creative_code_candidate_packet(candidate))
+        validated = validate_creative_code_candidate_packet(candidate)
     except CreativeCodeContractError as exc:
         raise CreativeHypothesisSpecBridgeError(
             f"invalid_candidate_packet: {exc}",
             blocked_reason="invalid_candidate_packet",
         ) from exc
+    if not isinstance(validated, dict):
+        raise CreativeHypothesisSpecBridgeError(
+            "invalid_candidate_packet: validator must return an object",
+            blocked_reason="invalid_candidate_packet",
+        )
+    return validated
 
 
 def _candidate_authority() -> dict[str, bool]:
@@ -1012,7 +1306,7 @@ def _artifact_identity(
     upstream_ids: tuple[str, ...] = (),
     policy_version: str = POLICY_VERSION,
 ) -> tuple[str, str]:
-    fingerprint = cast(str, fingerprint_payload(cast(dict[str, Any], dict(payload))))
+    fingerprint = fingerprint_payload(dict(payload))
     return (
         build_asset_id(
             asset_type=artifact_type,

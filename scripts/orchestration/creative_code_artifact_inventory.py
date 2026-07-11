@@ -36,6 +36,20 @@ from scripts.orchestration.creative_code_specification import (
     CreativeCodeSpecificationError,
     validate_creative_code_specification_bundle,
 )
+from scripts.orchestration.creative_code_contract import (
+    CreativeCodeContractError,
+    validate_creative_code_candidate_packet,
+)
+from scripts.orchestration.creative_hypothesis_spec_bridge_contract import (
+    CreativeHypothesisSpecBridgeError,
+    validate_creative_pilot_spec_bridge,
+)
+from scripts.orchestration.creative_pilot_workspace_contract import (
+    CreativePilotContractError,
+    validate_approval_v2,
+    validate_synthesis,
+    validate_workspace as validate_creative_pilot_workspace,
+)
 
 SCHEMA_VERSION = "1.0"
 ARTIFACT_TYPE = "creative_code_artifact_inventory_report"
@@ -49,6 +63,7 @@ CREATIVE_CODE_ROOT = REPO_ROOT / "artifacts" / "orchestration" / "creative_code"
 PATCH_RUNS_ROOT = CREATIVE_CODE_ROOT / "patch_runs"
 PATCH_GENERATION_ROOT = CREATIVE_CODE_ROOT / "patch_generation"
 PROMOTIONS_ROOT = CREATIVE_CODE_ROOT / "promotions"
+ADAPTIVE_PILOTS_ROOT = CREATIVE_CODE_ROOT / "adaptive_pilots"
 CREATIVE_CODE_ROOT_REF = "artifacts/orchestration/creative_code"
 
 RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,95}$")
@@ -1319,7 +1334,161 @@ def assert_ready_for_promotion(patch_run_id: str) -> tuple[bool, list[str]]:
 def assert_ready_for_cleanup() -> tuple[bool, list[str]]:
     report = build_creative_code_artifact_inventory_report()
     cleanup = report["cleanup"]
-    return bool(cleanup["safe"]), list(cleanup["blockers"])
+    adaptive = build_adaptive_pilot_inventory_report()
+    blockers = [*cleanup["blockers"], *adaptive["cleanup_blockers"]]
+    return not blockers, list(dict.fromkeys(blockers))
+
+
+def build_adaptive_pilot_inventory_report() -> dict[str, Any]:
+    """Build a separate v2 report without changing the strict v1 inventory."""
+
+    entries: list[dict[str, Any]] = []
+    errors: list[dict[str, str]] = []
+    scan_errors: list[dict[str, Any]] = []
+    for pilot_dir in _iter_child_dirs(
+        ADAPTIVE_PILOTS_ROOT,
+        errors=scan_errors,
+        artifact_type="adaptive_pilot",
+    ):
+        workspace_path = pilot_dir / "workspace.json"
+        try:
+            workspace = validate_creative_pilot_workspace(_read_json_object(workspace_path))
+            approval_path = pilot_dir / "approval.v2.json"
+            synthesis_path = pilot_dir / "synthesis.json"
+            bridge_path = pilot_dir / "spec_bridge.v2.json"
+            candidate_path = pilot_dir / "creative_code_candidate.v1.json"
+            source_packet_path = pilot_dir / "pr1_prepare" / "source_packet.json"
+            approval_exists = approval_path.is_file()
+            handoff_paths = (bridge_path, candidate_path, source_packet_path)
+            handoff_files_complete = all(path.is_file() for path in handoff_paths)
+            handoff_files_partial = (
+                any(path.is_file() for path in handoff_paths) and not handoff_files_complete
+            )
+            handoff_valid = False
+            if workspace["state"]["phase"] == "approved_for_pr1_spec":
+                if (
+                    not synthesis_path.is_file()
+                    or not approval_exists
+                    or not handoff_files_complete
+                ):
+                    raise CreativePilotContractError("approved pilot is missing handoff sidecars")
+                synthesis = validate_synthesis(_read_json_object(synthesis_path))
+                approval = validate_approval_v2(_read_json_object(approval_path))
+                bridge = validate_creative_pilot_spec_bridge(_read_json_object(bridge_path))
+                candidate = validate_creative_code_candidate_packet(
+                    _read_json_object(candidate_path)
+                )
+                source_packet = validate_creative_code_candidate_packet(
+                    _read_json_object(source_packet_path)
+                )
+                if source_packet != candidate:
+                    raise CreativePilotContractError(
+                        "PR-1 source packet differs from handoff candidate"
+                    )
+                expected_lineage = {
+                    "packet_id": workspace["intent"]["packet_id"],
+                    "workspace_id": workspace["workspace_id"],
+                    "workspace_intent_fingerprint": workspace["intent_fingerprint"],
+                    "workspace_reviewed_revision_fingerprint": approval[
+                        "workspace_reviewed_revision_fingerprint"
+                    ],
+                    "workspace_synthesized_revision_fingerprint": approval[
+                        "workspace_synthesized_revision_fingerprint"
+                    ],
+                    "hypothesis_id": workspace["intent"]["hypothesis_id"],
+                    "hypothesis_fingerprint": workspace["intent"]["hypothesis_fingerprint"],
+                    "target_manifest_fingerprint": workspace["target_manifest"][
+                        "manifest_fingerprint"
+                    ],
+                    "base_sha": workspace["target_manifest"]["base_sha"],
+                    "head_sha": workspace["target_manifest"]["head_sha"],
+                    "synthesis_id": synthesis["synthesis_id"],
+                    "synthesis_fingerprint": fingerprint_payload(synthesis),
+                    "approval_id": approval["approval_id"],
+                    "approval_fingerprint": fingerprint_payload(approval),
+                }
+                if bridge["lineage"] != expected_lineage:
+                    raise CreativePilotContractError("adaptive pilot bridge lineage mismatch")
+                if bridge["candidate_id"] != candidate["candidate_id"] or bridge[
+                    "candidate_fingerprint"
+                ] != fingerprint_payload(candidate):
+                    raise CreativePilotContractError("adaptive pilot candidate lineage mismatch")
+                expected_handoff = {
+                    "approval_id": approval["approval_id"],
+                    "approval_fingerprint": fingerprint_payload(approval),
+                    "bridge_id": bridge["bridge_id"],
+                    "bridge_fingerprint": fingerprint_payload(bridge),
+                    "candidate_id": candidate["candidate_id"],
+                    "candidate_fingerprint": fingerprint_payload(candidate),
+                }
+                if workspace["handoff_ref"] != expected_handoff or (
+                    workspace["synthesis_ref"]["synthesis_id"] != synthesis["synthesis_id"]
+                ):
+                    raise CreativePilotContractError("workspace terminal handoff lineage mismatch")
+                handoff_valid = True
+            terminal = bool(workspace["state"]["terminal"])
+            blockers: list[str] = []
+            if not terminal:
+                blockers.append("adaptive_pilot_nonterminal")
+            if handoff_files_partial:
+                blockers.append("adaptive_pilot_partial_handoff")
+            if approval_exists and not handoff_valid and not workspace["state"]["terminal"]:
+                blockers.append("adaptive_pilot_approved_without_handoff")
+            entries.append(
+                {
+                    "pilot_id": pilot_dir.name,
+                    "workspace_id": workspace["workspace_id"],
+                    "phase": workspace["state"]["phase"],
+                    "terminal": terminal,
+                    "approval_exists": approval_exists,
+                    "handoff_exists": handoff_files_complete,
+                    "handoff_valid": handoff_valid,
+                    "blockers": blockers,
+                }
+            )
+        except (
+            OSError,
+            UnicodeDecodeError,
+            CreativePilotContractError,
+            CreativeCodeContractError,
+            CreativeHypothesisSpecBridgeError,
+        ) as exc:
+            errors.append(
+                {
+                    "pilot_id": pilot_dir.name,
+                    "artifact_ref": f"adaptive_pilots/{pilot_dir.name}",
+                    "error_code": getattr(exc, "code", type(exc).__name__),
+                }
+            )
+    errors.extend(
+        {
+            "pilot_id": "invalid",
+            "artifact_ref": str(row.get("artifact_ref", "adaptive_pilots/invalid")),
+            "error_code": str(row.get("error_code", "adaptive_pilot_scan_error")),
+        }
+        for row in scan_errors
+    )
+    cleanup_blockers: list[str] = []
+    if any(entry["blockers"] for entry in entries):
+        cleanup_blockers.append("adaptive_pilot_in_progress")
+    if errors:
+        cleanup_blockers.append("adaptive_pilot_read_error")
+    return {
+        "schema_version": "2.0",
+        "artifact_type": "creative_code_adaptive_pilot_inventory_report",
+        "policy_version": "creative-code-adaptive-pilot-inventory-v2",
+        "counts": {
+            "adaptive_pilots_total": len(entries) + len(errors),
+            "adaptive_pilots_active": sum(1 for entry in entries if not entry["terminal"]),
+            "adaptive_pilots_terminal": sum(1 for entry in entries if entry["terminal"]),
+            "adaptive_pilots_invalid": len(errors),
+        },
+        "adaptive_pilots": entries,
+        "read_errors": errors,
+        "cleanup_blockers": cleanup_blockers,
+        "authority": {"inventory_only": True, "delete_artifacts": False},
+        "sanitized": True,
+    }
 
 
 def _status(args: argparse.Namespace) -> int:
@@ -1328,6 +1497,19 @@ def _status(args: argparse.Namespace) -> int:
         print(json.dumps(report, sort_keys=True, indent=2))
     else:
         print(render_text_report(report), end="")
+    return 0
+
+
+def _adaptive_status(args: argparse.Namespace) -> int:
+    report = build_adaptive_pilot_inventory_report()
+    if args.format == "json":
+        print(json.dumps(report, sort_keys=True, indent=2))
+    else:
+        counts = report["counts"]
+        print(f"ADAPTIVE_PILOT_RUNS_TOTAL={counts['adaptive_pilots_total']}")
+        print(f"ADAPTIVE_PILOT_RUNS_ACTIVE={counts['adaptive_pilots_active']}")
+        print(f"ADAPTIVE_PILOT_RUNS_TERMINAL={counts['adaptive_pilots_terminal']}")
+        print(f"ADAPTIVE_PILOT_RUNS_INVALID={counts['adaptive_pilots_invalid']}")
     return 0
 
 
@@ -1361,6 +1543,10 @@ def build_parser() -> argparse.ArgumentParser:
     status_parser = subparsers.add_parser("status")
     status_parser.add_argument("--format", choices=("text", "json"), default="text")
     status_parser.set_defaults(func=_status)
+
+    adaptive_parser = subparsers.add_parser("adaptive-status")
+    adaptive_parser.add_argument("--format", choices=("text", "json"), default="text")
+    adaptive_parser.set_defaults(func=_adaptive_status)
 
     promotion_parser = subparsers.add_parser("assert-ready-for-promotion")
     promotion_parser.add_argument("--patch-run-id", required=True)

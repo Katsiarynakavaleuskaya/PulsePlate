@@ -221,6 +221,13 @@
 - `role_dispatch_bridge.py` is the runtime-agnostic custom role dispatch
   manifest CLI. The older `qoder_dispatch_bridge.py` filename is a compatibility
   facade only; new packets should point at `role_dispatch_bridge.py`.
+- `creative_pilot_workspace.py` is the local adaptive production-adjacent
+  planning entrypoint. It may bind one or two exact tracked files only under
+  `core/rag/` or `core/insight/`, reuses the existing mutable-surface validator
+  unchanged, and writes only gitignored adaptive-pilot artifacts. All pilot
+  dispatch items are read-only. Handoff approval requires an interactive TTY
+  and exact phrase; provider, patch, repository, runtime, cache, graph-truth,
+  GitHub, Slack, review-thread, and merge authority stay closed.
 - The role dispatch bridge treats `readonly: true` in `.cursor/agents/*.md` as
   the safe default. In `--mode runtime`, write-capable dispatch for a native
   bridge `execution_mode: read_write` primary/secondary role must be explicit

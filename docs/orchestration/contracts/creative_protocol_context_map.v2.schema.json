@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "creative_protocol_context_map.v2.schema.json",
+  "title": "CreativeProtocolContextMapV2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "artifact_type", "policy_version", "surface_policy", "context_id", "idempotency_key", "target_manifest", "context_refs", "context_bindings", "authority", "sanitized"],
+  "properties": {
+    "schema_version": {"const": "2.0"},
+    "artifact_type": {"const": "creative_protocol_context_map"},
+    "policy_version": {"const": "creative-production-adjacent-pilot-v2"},
+    "surface_policy": {"const": "production_adjacent_pilot"},
+    "context_id": {"type": "string", "minLength": 1},
+    "idempotency_key": {"type": "string", "minLength": 1},
+    "target_manifest": {"$ref": "#/$defs/targetManifest"},
+    "context_refs": {"type": "array", "minItems": 1, "maxItems": 32, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "context_bindings": {"type": "array", "minItems": 1, "maxItems": 32, "uniqueItems": true, "items": {"$ref": "#/$defs/fileBinding"}},
+    "authority": {"$ref": "#/$defs/authority"},
+    "sanitized": {"const": true}
+  },
+  "$defs": {
+    "authority": {
+      "const": {
+        "bind_planning_target": true,
+        "emit_role_assignments": true,
+        "ingest_structured_role_results": true,
+        "emit_synthesis": true,
+        "call_provider": false,
+        "generate_patch": false,
+        "write_runtime": false,
+        "write_repository": false,
+        "open_pr": false,
+        "push": false,
+        "merge": false,
+        "use_semantic_cache": false,
+        "write_graph_truth": false,
+        "modify_workflows": false
+      }
+    },
+    "targetManifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["surface_policy", "base_sha", "head_sha", "files", "symbols", "immutable_oracles", "oracle_bindings", "public_contract_change", "provider_behavior_change", "feature_flag_change", "user_data_access_change", "manifest_fingerprint"],
+      "properties": {
+        "surface_policy": {"const": "production_adjacent_pilot"},
+        "base_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "head_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "files": {"type": "array", "minItems": 1, "maxItems": 2, "uniqueItems": true, "items": {"type": "object", "additionalProperties": false, "required": ["path", "blob_oid", "content_fingerprint"], "properties": {"path": {"type": "string", "pattern": "^core/(rag|insight)/[^/].*\\.py$"}, "blob_oid": {"type": "string", "pattern": "^[0-9a-f]{40}$"}, "content_fingerprint": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}}}},
+        "symbols": {"type": "array", "minItems": 1, "maxItems": 16, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "immutable_oracles": {"type": "array", "minItems": 1, "maxItems": 32, "uniqueItems": true, "items": {"type": "string", "pattern": "^tests/"}},
+        "oracle_bindings": {"type": "array", "minItems": 1, "maxItems": 32, "uniqueItems": true, "items": {"$ref": "#/$defs/oracleFileBinding"}},
+        "public_contract_change": {"const": false},
+        "provider_behavior_change": {"const": false},
+        "feature_flag_change": {"const": false},
+        "user_data_access_change": {"const": false},
+        "manifest_fingerprint": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+      }
+    },
+    "fileBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "blob_oid", "content_fingerprint"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "blob_oid": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "content_fingerprint": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+      }
+    },
+    "oracleFileBinding": {
+      "allOf": [
+        {"$ref": "#/$defs/fileBinding"},
+        {"type": "object", "properties": {"path": {"type": "string", "pattern": "^tests/"}}}
+      ]
+    }
+  }
+}

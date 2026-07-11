@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "creative_pilot_synthesis.v2.schema.json",
+  "title": "CreativePilotSynthesis",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "artifact_type", "policy_version", "surface_policy", "synthesis_id", "idempotency_key", "workspace_id", "workspace_intent_fingerprint", "workspace_revision_fingerprint", "hypothesis_id", "hypothesis_fingerprint", "target_manifest_fingerprint", "base_sha", "head_sha", "role_result_ids", "role_coverage", "conflict_ids", "blocker_codes", "oracle_gap_codes", "evidence_sufficiency", "disagreement_class", "decision", "human_approval_required", "next_allowed_action", "authority", "sanitized"],
+  "properties": {
+    "schema_version": {"const": "2.0"}, "artifact_type": {"const": "creative_pilot_synthesis"}, "policy_version": {"const": "creative-production-adjacent-pilot-v2"}, "surface_policy": {"const": "production_adjacent_pilot"},
+    "synthesis_id": {"type": "string"}, "idempotency_key": {"type": "string"}, "workspace_id": {"type": "string"}, "workspace_intent_fingerprint": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}, "workspace_revision_fingerprint": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}, "hypothesis_id": {"type": "string"}, "hypothesis_fingerprint": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}, "target_manifest_fingerprint": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}, "base_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"}, "head_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "role_result_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string"}}, "role_coverage": {"type": "object", "additionalProperties": false, "required": ["required", "completed", "missing"], "properties": {"required": {"type": "array", "uniqueItems": true, "items": {"type": "string"}}, "completed": {"type": "array", "uniqueItems": true, "items": {"type": "string"}}, "missing": {"type": "array", "uniqueItems": true, "items": {"type": "string"}}}}, "conflict_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string"}}, "blocker_codes": {"type": "array", "uniqueItems": true, "items": {"type": "string"}}, "oracle_gap_codes": {"type": "array", "uniqueItems": true, "items": {"type": "string"}}, "evidence_sufficiency": {"enum": ["complete", "partial", "insufficient"]}, "disagreement_class": {"enum": ["none", "bounded", "material"]}, "decision": {"enum": ["approve", "revise", "reject", "hold"]}, "human_approval_required": {"const": true}, "next_allowed_action": {"enum": ["approve_handoff", "revise_or_stop"]}, "authority": {"$ref": "creative_protocol_context_map.v2.schema.json#/$defs/authority"}, "sanitized": {"const": true}
+  }
+}

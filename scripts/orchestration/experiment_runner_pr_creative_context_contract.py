@@ -18,6 +18,14 @@ import sys
 from typing import Any, cast
 
 from core.evidence.fingerprints import build_asset_id, build_idempotency_key, fingerprint_payload
+from scripts.orchestration.creative_pilot_workspace_contract import (
+    CreativePilotContractError,
+    POLICY_VERSION as PILOT_POLICY_VERSION,
+    SCHEMA_VERSION as PILOT_SCHEMA_VERSION,
+    validate_approval_v2,
+    validate_context_map_v2,
+    validate_hypothesis_packet_v2,
+)
 from scripts.orchestration.agent_consistency_loader import load_inventory_agents
 
 SCHEMA_VERSION = "1.0"
@@ -956,7 +964,7 @@ def _artifact_identity(
     upstream_ids: tuple[str, ...] = (),
     policy_version: str = POLICY_VERSION,
 ) -> tuple[str, str]:
-    fingerprint = cast(str, fingerprint_payload(cast(dict[str, Any], dict(payload))))
+    fingerprint = fingerprint_payload(dict(payload))
     return (
         build_asset_id(
             asset_type=artifact_type,
@@ -1470,7 +1478,7 @@ def build_creative_hypothesis_packet(
             "artifact_type": HYPOTHESIS_PACKET_TYPE,
             "policy_version": POLICY_VERSION,
             "context_map_id": context["context_id"],
-            "context_map_fingerprint": cast(str, fingerprint_payload(context)),
+            "context_map_fingerprint": fingerprint_payload(context),
             "creative_status": "no_creative_action",
             "reason_code": classification["reason_code"],
             "hypothesis_generation_mode": "deterministic_templates_v1",
@@ -1505,7 +1513,7 @@ def build_creative_hypothesis_packet(
         "artifact_type": HYPOTHESIS_PACKET_TYPE,
         "policy_version": POLICY_VERSION,
         "context_map_id": context["context_id"],
-        "context_map_fingerprint": cast(str, fingerprint_payload(context)),
+        "context_map_fingerprint": fingerprint_payload(context),
         "creative_status": "hypotheses_generated",
         "reason_code": classification["reason_code"],
         "hypothesis_generation_mode": "deterministic_templates_v1",
@@ -1556,11 +1564,11 @@ def build_creative_hypothesis_packet_from_model_intake(
         "artifact_type": HYPOTHESIS_PACKET_TYPE,
         "policy_version": POLICY_VERSION,
         "context_map_id": context["context_id"],
-        "context_map_fingerprint": cast(str, fingerprint_payload(context)),
+        "context_map_fingerprint": fingerprint_payload(context),
         "creative_status": "hypotheses_generated",
         "reason_code": context["classification"]["reason_code"],
         "hypothesis_generation_mode": "operator_validated_intake_v1",
-        "source_model_intake_fingerprint": cast(str, fingerprint_payload(intake)),
+        "source_model_intake_fingerprint": fingerprint_payload(intake),
         "repo_provider_calls": False,
         "raw_model_payload_stored": False,
         "semantic_cache_used": False,
@@ -2133,7 +2141,7 @@ def build_creative_hypothesis_agent_routing(
         "artifact_type": AGENT_ROUTING_TYPE,
         "policy_version": POLICY_VERSION,
         "source_hypothesis_packet_id": packet["packet_id"],
-        "source_hypothesis_packet_fingerprint": cast(str, fingerprint_payload(packet)),
+        "source_hypothesis_packet_fingerprint": fingerprint_payload(packet),
         "routing": routing,
         "agent_review_mode": "critique_refine_only",
         "authority": default_creative_context_authority(),
@@ -2327,7 +2335,7 @@ def build_creative_hypothesis_coordinator_dispatch(
         "artifact_type": COORDINATOR_DISPATCH_TYPE,
         "policy_version": COORDINATOR_DISPATCH_POLICY_VERSION,
         "source_hypothesis_packet_id": packet["packet_id"],
-        "source_hypothesis_packet_fingerprint": cast(str, fingerprint_payload(packet)),
+        "source_hypothesis_packet_fingerprint": fingerprint_payload(packet),
         "dispatch": dispatch,
         "authority": default_coordinator_dispatch_authority(),
         "sanitized": True,
@@ -2554,7 +2562,7 @@ def build_agent_consumption_summary(
         raise ExperimentRunnerCreativeContextContractError(
             "agent routing must reference the supplied hypothesis packet."
         )
-    packet_fingerprint = cast(str, fingerprint_payload(packet))
+    packet_fingerprint = fingerprint_payload(packet)
     if routing_payload["source_hypothesis_packet_fingerprint"] != packet_fingerprint:
         raise ExperimentRunnerCreativeContextContractError(
             "agent routing fingerprint must match the supplied hypothesis packet."
@@ -2715,10 +2723,10 @@ def build_creative_hypothesis_approval(
     if hypothesis_packet is not None:
         packet = validate_creative_hypothesis_packet(hypothesis_packet)
         source_packet_id = str(packet["packet_id"])
-        source_packet_fingerprint = cast(str, fingerprint_payload(packet))
+        source_packet_fingerprint = fingerprint_payload(packet)
         for row in packet["hypotheses"]:
             if row["hypothesis_id"] == hypothesis_id:
-                hypothesis_fingerprint = cast(str, fingerprint_payload(cast(dict[str, Any], row)))
+                hypothesis_fingerprint = fingerprint_payload(row)
                 break
         if hypothesis_fingerprint is None:
             raise ExperimentRunnerCreativeContextContractError(
@@ -2880,6 +2888,81 @@ def validate_creative_hypothesis_approval(payload: Mapping[str, Any]) -> dict[st
     return normalized
 
 
+def validate_creative_protocol_context_map_versioned(
+    payload: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Dispatch context validation without making strict v1 permissive."""
+
+    version = (payload.get("schema_version"), payload.get("policy_version"))
+    if version == (SCHEMA_VERSION, POLICY_VERSION):
+        return validate_creative_protocol_context_map(payload)
+    if version == (PILOT_SCHEMA_VERSION, PILOT_POLICY_VERSION):
+        try:
+            validated = validate_context_map_v2(payload)
+        except CreativePilotContractError as exc:
+            raise ExperimentRunnerCreativeContextContractError(str(exc)) from exc
+        if not isinstance(validated, dict):
+            raise ExperimentRunnerCreativeContextContractError(
+                "CreativeProtocolContextMap v2 validator must return an object."
+            )
+        return validated
+    raise ExperimentRunnerCreativeContextContractError(
+        "CreativeProtocolContextMap version tuple is unsupported."
+    )
+
+
+def validate_creative_hypothesis_packet_versioned(
+    payload: Mapping[str, Any],
+    *,
+    context_map: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Dispatch hypothesis validation without v2-to-v1 fallback."""
+
+    version = (payload.get("schema_version"), payload.get("policy_version"))
+    if version == (SCHEMA_VERSION, POLICY_VERSION):
+        if context_map is not None and context_map.get("schema_version") != SCHEMA_VERSION:
+            raise ExperimentRunnerCreativeContextContractError(
+                "v1 hypothesis packet requires v1 context."
+            )
+        return validate_creative_hypothesis_packet(payload)
+    if version == (PILOT_SCHEMA_VERSION, PILOT_POLICY_VERSION):
+        try:
+            validated = validate_hypothesis_packet_v2(payload, context_map=context_map)
+        except CreativePilotContractError as exc:
+            raise ExperimentRunnerCreativeContextContractError(str(exc)) from exc
+        if not isinstance(validated, dict):
+            raise ExperimentRunnerCreativeContextContractError(
+                "CreativeHypothesisPacket v2 validator must return an object."
+            )
+        return validated
+    raise ExperimentRunnerCreativeContextContractError(
+        "CreativeHypothesisPacket version tuple is unsupported."
+    )
+
+
+def validate_creative_hypothesis_approval_versioned(
+    payload: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Dispatch approval validation without weakening v1 target restrictions."""
+
+    version = (payload.get("schema_version"), payload.get("policy_version"))
+    if version == (SCHEMA_VERSION, POLICY_VERSION):
+        return validate_creative_hypothesis_approval(payload)
+    if version == (PILOT_SCHEMA_VERSION, PILOT_POLICY_VERSION):
+        try:
+            validated = validate_approval_v2(payload)
+        except CreativePilotContractError as exc:
+            raise ExperimentRunnerCreativeContextContractError(str(exc)) from exc
+        if not isinstance(validated, dict):
+            raise ExperimentRunnerCreativeContextContractError(
+                "CreativeHypothesisApproval v2 validator must return an object."
+            )
+        return validated
+    raise ExperimentRunnerCreativeContextContractError(
+        "CreativeHypothesisApproval version tuple is unsupported."
+    )
+
+
 def _validate_identity(
     normalized: Mapping[str, Any],
     *,
@@ -2906,14 +2989,22 @@ def _validate_identity(
         )
 
 
-def validate_artifact_by_type(artifact_type: str, payload: Mapping[str, Any]) -> dict[str, Any]:
+def validate_artifact_by_type(
+    artifact_type: str,
+    payload: Mapping[str, Any],
+    *,
+    context_map: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    if artifact_type == CONTEXT_MAP_TYPE:
+        return validate_creative_protocol_context_map_versioned(payload)
+    if artifact_type == HYPOTHESIS_PACKET_TYPE:
+        return validate_creative_hypothesis_packet_versioned(payload, context_map=context_map)
+    if artifact_type == APPROVAL_TYPE:
+        return validate_creative_hypothesis_approval_versioned(payload)
     validators: dict[str, Callable[[Mapping[str, Any]], dict[str, Any]]] = {
         ORACLE_ATTACHMENT_TYPE: validate_experiment_runner_pr_oracle_attachment,
-        CONTEXT_MAP_TYPE: validate_creative_protocol_context_map,
-        HYPOTHESIS_PACKET_TYPE: validate_creative_hypothesis_packet,
         AGENT_ROUTING_TYPE: validate_creative_hypothesis_agent_routing,
         CONSUMPTION_SUMMARY_TYPE: validate_agent_consumption_summary,
-        APPROVAL_TYPE: validate_creative_hypothesis_approval,
         OPERATOR_MODEL_INTAKE_TYPE: validate_creative_hypothesis_operator_model_intake,
         COORDINATOR_DISPATCH_TYPE: validate_creative_hypothesis_coordinator_dispatch,
     }
@@ -2931,13 +3022,19 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--artifact-type", required=True)
     parser.add_argument("--path", required=True)
+    parser.add_argument("--context-path")
     return parser.parse_args(argv)
 
 
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
     try:
-        validate_artifact_by_type(args.artifact_type, read_json_object(args.path))
+        context_map = read_json_object(args.context_path) if args.context_path else None
+        validate_artifact_by_type(
+            args.artifact_type,
+            read_json_object(args.path),
+            context_map=context_map,
+        )
     except ExperimentRunnerCreativeContextContractError as exc:
         print(f"FAIL: {exc}", file=sys.stderr)
         return 1

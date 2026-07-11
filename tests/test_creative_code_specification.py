@@ -3,6 +3,7 @@ from __future__ import annotations
 from copy import deepcopy
 import ast
 import json
+import os
 import re
 import shutil
 import uuid
@@ -609,6 +610,73 @@ def test_pipeline_rejects_traversal_artifact_paths_without_creating_them() -> No
         creative_code_spec_pipeline.prepare(REFERENCE_PACKET, Path("..") / traversal_name)
 
     assert not traversal_parent.exists()
+
+
+def test_pipeline_writer_rejects_parent_swap_without_writing_outside(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    run_dir = creative_code_spec_pipeline.ARTIFACT_ROOT / f"pytest-{uuid.uuid4().hex}"
+    moved_dir = run_dir.with_name(f"{run_dir.name}-pinned")
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    run_dir.mkdir(parents=True)
+    target = run_dir / "result.json"
+    real_resolve = creative_code_spec_pipeline._resolve_artifact_file
+
+    def resolve_then_swap(path: Path, *, for_write: bool) -> Path:
+        output = real_resolve(path, for_write=for_write)
+        run_dir.rename(moved_dir)
+        run_dir.symlink_to(outside, target_is_directory=True)
+        return output
+
+    try:
+        monkeypatch.setattr(
+            creative_code_spec_pipeline, "_resolve_artifact_file", resolve_then_swap
+        )
+        with pytest.raises(CreativeCodeSpecPipelineError, match="symlinks"):
+            creative_code_spec_pipeline._write_json_atomic(target, {"safe": True})
+        assert not (outside / "result.json").exists()
+    finally:
+        if run_dir.is_symlink():
+            run_dir.unlink()
+        shutil.rmtree(moved_dir, ignore_errors=True)
+
+
+def test_pipeline_pinned_traversal_closes_child_on_transfer_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target = creative_code_spec_pipeline.ARTIFACT_ROOT / "fd-transfer" / "result.json"
+    real_open = creative_code_spec_pipeline.os.open
+    real_close = creative_code_spec_pipeline.os.close
+    opened: list[int] = []
+    fail_next_close = True
+
+    def capture_open(*args: object, **kwargs: object) -> int:
+        descriptor = real_open(*args, **kwargs)
+        opened.append(descriptor)
+        return descriptor
+
+    def fail_first_close(descriptor: int) -> None:
+        nonlocal fail_next_close
+        if fail_next_close:
+            fail_next_close = False
+            raise OSError("simulated descriptor transfer failure")
+        real_close(descriptor)
+
+    with monkeypatch.context() as context:
+        context.setattr(creative_code_spec_pipeline.os, "open", capture_open)
+        context.setattr(creative_code_spec_pipeline.os, "close", fail_first_close)
+        with pytest.raises(CreativeCodeSpecPipelineError, match="transfer pinned"):
+            creative_code_spec_pipeline._open_pinned_parent(
+                target,
+                allowed_root=creative_code_spec_pipeline.ARTIFACT_ROOT,
+                create=True,
+                label="artifact file",
+            )
+
+    assert opened
+    with pytest.raises(OSError):
+        os.fstat(opened[-1])
 
 
 def test_pipeline_duplicate_keys_in_artifacts_fail_closed() -> None:
