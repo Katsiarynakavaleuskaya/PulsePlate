@@ -1675,6 +1675,8 @@ def _resolve_lifecycle_reference(
             return f"{parent}.{node.attr}"
         if node.attr in {"add_event_handler", "on_event", "on_shutdown", "on_startup"}:
             return f"*.{node.attr}"
+        if node.attr == "__getattribute__":
+            return "object.__getattribute__"
         if node.attr == "__setattr__":
             return "object.__setattr__"
         return None
@@ -1691,6 +1693,11 @@ def _resolve_lifecycle_reference(
             references=references,
             static_string_bindings=static_string_bindings,
         )
+    if function_reference == "object.__getattribute__" and node.args:
+        attribute_name = _resolve_static_string(node.args[0], static_string_bindings)
+        if attribute_name in {"add_event_handler", "on_event", "on_shutdown", "on_startup"}:
+            return f"*.{attribute_name}"
+        return None
     if function_reference != "builtins.getattr" or len(node.args) < 2:
         return None
     attribute_name = _resolve_static_string(node.args[1], static_string_bindings)

@@ -60,6 +60,16 @@ def test_current_lifecycle_ownership_passes_growth_guard() -> None:
             "legacy_app.py: startup/shutdown event registration is forbidden",
         ),
         (
+            'app.router.__getattribute__("on_startup").append(start)\n',
+            "legacy_app.py: startup/shutdown event registration is forbidden",
+        ),
+        (
+            'register = app.__getattribute__("on_event")\n'
+            '@register("shutdown")\n'
+            "async def stop():\n    pass\n",
+            "legacy_app.py: startup/shutdown event registration is forbidden",
+        ),
+        (
             'app.router.__dict__["on_startup"].append(start)\n',
             "legacy_app.py: startup/shutdown event registration is forbidden",
         ),
@@ -311,6 +321,14 @@ def test_lifecycle_guard_allows_unrelated_namespace_mutation(food_source: str) -
         ),
         (
             "import builtins\n" 'value = vars(builtins)["__import__"]("app.main")\n',
+            "app/bootstrap/lifespan.py: dynamic facade lookup is forbidden",
+        ),
+        (
+            "import importlib\n" 'value = importlib.__dict__["import_module"]("legacy_app")\n',
+            "app/bootstrap/lifespan.py: dynamic facade lookup is forbidden",
+        ),
+        (
+            "import importlib\n" 'value = vars(importlib)["import_module"]("app")\n',
             "app/bootstrap/lifespan.py: dynamic facade lookup is forbidden",
         ),
         (
