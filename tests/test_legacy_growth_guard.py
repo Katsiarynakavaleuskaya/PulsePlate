@@ -223,6 +223,8 @@ def test_lifecycle_guard_rejects_legacy_ownership(
         'app.router.__dict__ = app.router.__dict__ | {"lifespan_context": wrapper}\n',
         'getattr(app.router, "__dict__").update({"lifespan_context": wrapper})\n',
         'app.router.__getattribute__("__dict__").update({"lifespan_context": wrapper})\n',
+        'dict.__setitem__(app.router.__dict__, "lifespan_context", wrapper)\n',
+        "dict.clear(vars(app.router))\n",
         'app.router.__dict__.setdefault("lifespan_context", wrapper)\n',
         'vars(app.router).setdefault("lifespan_context", wrapper)\n',
         'app.router.__dict__.pop("lifespan_context")\n',
@@ -251,6 +253,9 @@ def test_lifecycle_guard_rejects_food_search_lifespan_wrapping(
         'app.add_event_handler("startup", start)\n',
         "app.router.on_shutdown.append(stop)\n",
         'app.router.__dict__.update({"on_startup": [start]})\n',
+        'dict.update(app.router.__dict__, {"on_startup": [start]})\n',
+        "from builtins import dict as mapping\n"
+        'mapping.__setitem__(vars(app.router), "on_shutdown", [stop])\n',
     ],
 )
 def test_lifecycle_guard_rejects_food_search_event_registration(
@@ -275,6 +280,7 @@ def test_lifecycle_guard_rejects_food_search_event_registration(
         'vars(app.state).__ior__({"food_search_strategy": strategy})\n',
         'getattr(app.state, "__dict__").update({"food_search_strategy": strategy})\n',
         'app.state.__dict__ = {"food_search_strategy": strategy}\n',
+        'dict.update(vars(app.state), {"food_search_strategy": strategy})\n',
         'some_object.__dict__.update({"x": value})\n',
         'vars(app.state).setdefault("food_search_strategy", strategy)\n',
     ],

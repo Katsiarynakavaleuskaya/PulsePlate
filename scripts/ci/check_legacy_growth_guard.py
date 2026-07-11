@@ -1569,6 +1569,7 @@ def _collect_lifecycle_references(
         "FastAPI": "fastapi.FastAPI",
         "__builtins__": "builtins",
         "__import__": "builtins.__import__",
+        "dict": "builtins.dict",
         "getattr": "builtins.getattr",
         "setattr": "builtins.setattr",
         "vars": "builtins.vars",
@@ -1595,6 +1596,7 @@ def _collect_lifecycle_references(
                 qualified = f"{node.module}.{alias.name}"
                 if qualified in {
                     "builtins.__import__",
+                    "builtins.dict",
                     "builtins.getattr",
                     "builtins.setattr",
                     "builtins.vars",
@@ -1861,17 +1863,38 @@ def _mutates_protected_namespace(
     static_string_bindings: Mapping[str, str],
     static_mapping_bindings: Mapping[str, ast.Dict],
 ) -> bool:
-    if not isinstance(node.func, ast.Attribute) or not _is_object_namespace_mapping(
+    if not isinstance(node.func, ast.Attribute):
+        return False
+    method_name = node.func.attr
+    arguments = list(node.args)
+    if _is_object_namespace_mapping(
         node.func.value,
         references=references,
         static_string_bindings=static_string_bindings,
     ):
-        return False
-    if node.func.attr in {"__ior__", "update"}:
+        pass
+    else:
+        function_reference = _resolve_lifecycle_reference(
+            node.func,
+            references=references,
+            static_string_bindings=static_string_bindings,
+        )
+        if (
+            function_reference != f"builtins.dict.{method_name}"
+            or not arguments
+            or not _is_object_namespace_mapping(
+                arguments[0],
+                references=references,
+                static_string_bindings=static_string_bindings,
+            )
+        ):
+            return False
+        arguments = arguments[1:]
+    if method_name in {"__ior__", "update"}:
         if any(keyword.arg in protected_names for keyword in node.keywords):
             return True
         mapping_arguments = [
-            *node.args,
+            *arguments,
             *(keyword.value for keyword in node.keywords if keyword.arg is None),
         ]
         for argument in mapping_arguments:
@@ -1883,12 +1906,12 @@ def _mutates_protected_namespace(
             ):
                 return True
         return False
-    if node.func.attr == "clear":
+    if method_name == "clear":
         return True
-    if node.func.attr in {"__delitem__", "__setitem__", "pop", "setdefault"}:
-        if not node.args:
+    if method_name in {"__delitem__", "__setitem__", "pop", "setdefault"}:
+        if not arguments:
             return True
-        key_name = _resolve_static_string(node.args[0], static_string_bindings)
+        key_name = _resolve_static_string(arguments[0], static_string_bindings)
         return key_name is None or key_name in protected_names
     return False
 
