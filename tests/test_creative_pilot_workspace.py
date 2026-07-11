@@ -1620,6 +1620,47 @@ def test_pinned_resume_bundle_rechecks_contents_after_semantic_validation(
         os.close(directory_fd)
 
 
+@pytest.mark.parametrize(
+    "non_finite",
+    [float("nan"), float("inf"), float("-inf")],
+)
+def test_pinned_resume_bundle_rejects_non_finite_json_as_domain_mismatch(
+    tmp_path: Path,
+    non_finite: float,
+) -> None:
+    intake: dict[str, object] = {"materialized_variants": []}
+    candidate: dict[str, object] = {"candidate_id": "candidate:expected"}
+    binding: dict[str, object] = {}
+    payloads = {
+        pilot_cli.RESUME_INTAKE_FILENAME: intake,
+        pilot_cli.RESUME_CANDIDATE_FILENAME: {
+            "candidate_id": "candidate:expected",
+            "score": non_finite,
+        },
+        pilot_cli.RESUME_BINDING_FILENAME: binding,
+    }
+    for filename, payload in payloads.items():
+        (tmp_path / filename).write_text(json.dumps(payload), encoding="utf-8")
+    (tmp_path / "spec_prepare").mkdir()
+    directory_fd = os.open(
+        tmp_path,
+        os.O_RDONLY | pilot_cli._required_open_flag("O_DIRECTORY"),
+    )
+    try:
+        with pytest.raises(
+            CreativePilotContractError,
+            match="canonical resume payload mismatch",
+        ):
+            pilot_cli._validate_pinned_resume_bundle(
+                directory_fd,
+                intake=intake,
+                candidate=candidate,
+                binding=binding,
+            )
+    finally:
+        os.close(directory_fd)
+
+
 @pytest.mark.parametrize("tamper_kind", ["context", "reviews"])
 def test_adaptive_attach_and_reentry_recompute_exact_prepare_artifacts(
     monkeypatch: pytest.MonkeyPatch,

@@ -740,7 +740,10 @@ def _read_json_at(directory_fd: int, filename: str) -> Any:
 
 
 def _json_payloads_equal(observed: Any, expected: Any) -> bool:
-    return fingerprint_payload(observed) == fingerprint_payload(expected)
+    try:
+        return fingerprint_payload(observed) == fingerprint_payload(expected)
+    except (TypeError, ValueError):
+        return False
 
 
 def _validate_pinned_resume_bundle(

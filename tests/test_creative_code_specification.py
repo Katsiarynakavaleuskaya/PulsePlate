@@ -700,6 +700,18 @@ def test_prepare_snapshot_validation_rejects_json_number_type_drift() -> None:
             expected_variants=variants,
         )
 
+    for non_finite in (float("nan"), float("inf"), float("-inf")):
+        non_finite_snapshots = creative_code_spec_pipeline.build_default_prepare_artifacts(packet)
+        non_finite_snapshots["source_packet.json"]["variant_count"] = non_finite
+        with pytest.raises(
+            CreativeCodeSpecPipelineError,
+            match="retained source_packet.json is not canonical",
+        ):
+            creative_code_spec_pipeline.validate_default_prepare_artifact_snapshots(
+                non_finite_snapshots,
+                expected_packet=packet,
+            )
+
 
 def test_pipeline_rejects_symlinked_artifact_directory(tmp_path: Path) -> None:
     creative_code_spec_pipeline.ARTIFACT_ROOT.mkdir(parents=True, exist_ok=True)
