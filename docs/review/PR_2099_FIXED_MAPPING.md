@@ -65,6 +65,8 @@ deletion.
   mutation and lifecycle-event enforcement.
 - `3663352d6` - inspect assigned namespace replacement values and fail closed
   when a composed mapping can install lifecycle state.
+- `7f9d2cead` - remove a stale coverage test that required the retired private
+  lifecycle resolver through the legacy app facade.
 
 ## Lane Start Provenance
 
@@ -255,6 +257,11 @@ application while the fixture-owned lifespan was active. The production
 food-search overlap rejection remains fail-closed; the tests now reuse the
 already isolated fixture client instead of starting a redundant nested
 application lifecycle.
+
+Disposition: FIXED
+Commit: `7f9d2cead90da9aa33633d58825ddb4dda9a5376`
+Evidence: `tests/test_app_error_paths_97.py` and the canonical utility coverage in `tests/test_app_coverage_branches_extra.py`; both files, the lifecycle/guard bundle, `make validate-changed`, and `pre-commit run --all-files` pass.
+Reason: Python 3.12 CI selected a stale duplicate test that required the removed private `app._resolve_app_callable` facade export. The canonical utility remains directly tested; restoring the legacy private export would contradict the lifecycle dependency-cutover contract.
 
 ## Codex Security Diff Scan Evidence
 
