@@ -82,6 +82,10 @@ def test_current_lifecycle_ownership_passes_growth_guard() -> None:
             "legacy_app.py: startup/shutdown event registration is forbidden",
         ),
         (
+            'getattr(app.router, "__dict__")["on_startup"].append(start)\n',
+            "legacy_app.py: startup/shutdown event registration is forbidden",
+        ),
+        (
             "app.router.lifespan_context = wrapper\n",
             "legacy_app.py: lifespan_context mutation is forbidden",
         ),
@@ -212,6 +216,8 @@ def test_lifecycle_guard_rejects_legacy_ownership(
         "vars(app.router).update(**build_options())\n",
         'vars(app.router).__ior__({"lifespan_context": wrapper})\n',
         'app.router.__dict__ |= {"lifespan_context": wrapper}\n',
+        'getattr(app.router, "__dict__").update({"lifespan_context": wrapper})\n',
+        'app.router.__getattribute__("__dict__").update({"lifespan_context": wrapper})\n',
         'app.router.__dict__.setdefault("lifespan_context", wrapper)\n',
         'vars(app.router).setdefault("lifespan_context", wrapper)\n',
         'app.router.__dict__.pop("lifespan_context")\n',
@@ -237,6 +243,7 @@ def test_lifecycle_guard_rejects_food_search_lifespan_wrapping(
         'vars(app.state).update({"food_search_strategy": strategy})\n',
         'vars(app.state).update(**{"food_search_strategy": strategy})\n',
         'vars(app.state).__ior__({"food_search_strategy": strategy})\n',
+        'getattr(app.state, "__dict__").update({"food_search_strategy": strategy})\n',
         'some_object.__dict__.update({"x": value})\n',
         'vars(app.state).setdefault("food_search_strategy", strategy)\n',
     ],

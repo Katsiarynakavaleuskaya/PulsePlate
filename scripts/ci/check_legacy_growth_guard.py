@@ -1719,6 +1719,8 @@ def _resolve_lifecycle_reference(
         attribute_name = _resolve_static_string(attribute_node, static_string_bindings)
         if attribute_name in {"add_event_handler", "on_event", "on_shutdown", "on_startup"}:
             return f"*.{attribute_name}"
+        if attribute_name == "__dict__":
+            return "*.__dict__"
         return None
     if function_reference != "builtins.getattr" or len(node.args) < 2:
         return None
@@ -1734,6 +1736,8 @@ def _resolve_lifecycle_reference(
         return f"{parent}.{attribute_name}"
     if attribute_name in {"add_event_handler", "on_event", "on_shutdown", "on_startup"}:
         return f"*.{attribute_name}"
+    if attribute_name == "__dict__":
+        return "*.__dict__"
     return None
 
 
@@ -1811,7 +1815,7 @@ def _is_object_namespace_mapping(
     references: Mapping[str, str],
     static_string_bindings: Mapping[str, str],
 ) -> bool:
-    return (isinstance(node, ast.Attribute) and node.attr == "__dict__") or (
+    if (isinstance(node, ast.Attribute) and node.attr == "__dict__") or (
         isinstance(node, ast.Call)
         and _resolve_lifecycle_reference(
             node.func,
@@ -1819,7 +1823,14 @@ def _is_object_namespace_mapping(
             static_string_bindings=static_string_bindings,
         )
         == "builtins.vars"
+    ):
+        return True
+    resolved = _resolve_lifecycle_reference(
+        node,
+        references=references,
+        static_string_bindings=static_string_bindings,
     )
+    return resolved is not None and resolved.endswith(".__dict__")
 
 
 def _mutates_lifespan_namespace(
