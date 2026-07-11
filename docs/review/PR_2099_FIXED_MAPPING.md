@@ -79,6 +79,8 @@ deletion.
   accessors so dynamic imports and FastAPI constructors remain guarded.
 - `1c5b368df` - make the touched scheduler-facade tests independent of the
   optional pytest-asyncio plugin used outside the pre-commit hook environment.
+- `ccdc88222` - isolate scheduler-facade overrides with pytest monkeypatch so
+  failed assertions cannot leak mutated compatibility state.
 
 ## Lane Start Provenance
 
@@ -157,9 +159,10 @@ deletion.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3563829956
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3563860555
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3563878192
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#pullrequestreview-4677501898
 Disposition: FIXED
 Commit: see mapping entries below
-Evidence: `1e2d4918c`, `e28fb34c3`, `31bd2d457`, `ef4a03da0`, `f16b7663b`, `056a8aaf6`, `c800c13ee`, `bf4ee059e`, `1609d8ce9`, `3663352d6`, `e2e040fa0`, `fbb5d3060`, `bc8391d4b`, `8cd66638b`, and `e44d9859e` contain the post-comment production, guard, regression-test, architecture, and governance fixes; the focused suite, legacy guard, MyPy, OpenAPI zero-diff, validate-changed, pre-commit, and pre-push gates pass.
+Evidence: `1e2d4918c`, `e28fb34c3`, `31bd2d457`, `ef4a03da0`, `f16b7663b`, `056a8aaf6`, `c800c13ee`, `bf4ee059e`, `1609d8ce9`, `3663352d6`, `e2e040fa0`, `fbb5d3060`, `bc8391d4b`, `8cd66638b`, `e44d9859e`, and `ccdc88222` contain the post-comment production, guard, regression-test, architecture, and governance fixes; the focused suite, legacy guard, MyPy, OpenAPI zero-diff, validate-changed, pre-commit, and pre-push gates pass.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3562131781 -> 1e2d4918c5b6f6cf67d11865d218bf0253728f16
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3562249863 -> e28fb34c3a0d6c044194e9cc90e81504cbb2adbf
@@ -205,6 +208,7 @@ Evidence: `1e2d4918c`, `e28fb34c3`, `31bd2d457`, `ef4a03da0`, `f16b7663b`, `056a
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3563829956 -> bc8391d4b5be817f7c3d8d1560b7c05a2d05fcb3
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3563860555 -> 8cd66638bf7cf60232e9662df0ac2525428936cf
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3563878192 -> e44d9859e3c6a9b559a8b2fcbc0fc4fc68861a77
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#pullrequestreview-4677501898 -> ccdc88222290e390e7367451fdb4529afd0eb85f
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3563609195
 Disposition: NOT-A-BUG
