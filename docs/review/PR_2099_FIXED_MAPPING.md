@@ -48,6 +48,11 @@ deletion.
   correct durable review documentation.
 - `2b0f393d1` - require every guarded `FastAPI(...)` construction to retain the
   canonical lifespan and reject parameter-shadowed static security facts.
+- `79e1a19f7` - cover transactional rollback/cancellation paths and route the
+  canonical lifecycle bundle into Tier 1 CI diff coverage.
+- `4751548dc` - narrow namespace mutation detection, close remaining import and
+  lifecycle-event bypasses, and replace the forbidden global import mock.
+- `6ff7e62e8` - reject direct and namespace-based deletion of lifecycle state.
 
 ## Lane Start Provenance
 
@@ -100,6 +105,16 @@ deletion.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3562425024
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3563306164
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3563315060
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#pullrequestreview-4675099095
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#pullrequestreview-4675277921
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#pullrequestreview-4676789851
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3563410379
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3563415182
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3563415186
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3563415190
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3563415192
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3563415196
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3563496282
 Disposition: FIXED
 Commit: see mapping entries below
 Evidence: `1e2d4918c`, `e28fb34c3`, `31bd2d457`, `ef4a03da0`, and `f16b7663b` contain the post-comment production, guard, regression-test, architecture, and governance fixes; the focused suite, legacy guard, MyPy, OpenAPI zero-diff, validate-changed, pre-commit, and pre-push gates pass.
@@ -122,6 +137,16 @@ Evidence: `1e2d4918c`, `e28fb34c3`, `31bd2d457`, `ef4a03da0`, and `f16b7663b` co
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3562425024 -> f16b7663bfd606d72d4e45f518b20e1e0c676365
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3563306164 -> 2b0f393d10d9eb4ccb0e3c598138d24d3c8d2f9f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3563315060 -> 2b0f393d10d9eb4ccb0e3c598138d24d3c8d2f9f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#pullrequestreview-4675099095 -> f16b7663bfd606d72d4e45f518b20e1e0c676365
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#pullrequestreview-4675277921 -> f16b7663bfd606d72d4e45f518b20e1e0c676365
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#pullrequestreview-4676789851 -> 4751548dcad7b60542bb04834170a7b6f8482883
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3563410379 -> 4751548dcad7b60542bb04834170a7b6f8482883
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3563415182 -> 4751548dcad7b60542bb04834170a7b6f8482883
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3563415186 -> 4751548dcad7b60542bb04834170a7b6f8482883
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3563415190 -> 4751548dcad7b60542bb04834170a7b6f8482883
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3563415192 -> 4751548dcad7b60542bb04834170a7b6f8482883
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3563415196 -> 4751548dcad7b60542bb04834170a7b6f8482883
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3563496282 -> 6ff7e62e84ade37305bab9cc9a45302f979fb0ea
 
 ## Pre-Open Implementation Evidence
 
