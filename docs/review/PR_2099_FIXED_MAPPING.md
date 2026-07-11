@@ -43,6 +43,9 @@ deletion.
   bypasses reported by the sealed Codex Security diff scan.
 - `31bd2d457` - require stable single bindings for canonical lifespan aliases and
   static strings, closing the targeted security-rescan findings.
+- `f16b7663b` - preserve optional scheduler imports, map Meili shutdown races to
+  the existing fallback path, close remaining lifecycle-guard bypasses, and
+  correct durable review documentation.
 
 ## Lane Start Provenance
 
@@ -77,10 +80,22 @@ deletion.
 
 ## Fixed in Commit Mapping
 
-Disposition: NOT-A-BUG
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099
-Evidence: Initial published-head review inventory on `6f629181cc1fca5a10d8e98e02811348a594ca03` contained no review threads.
-Reason: This is the parser-safe initial no-actionable marker; it must be replaced if post-open review emits findings.
+Disposition: FIXED
+Commit: f16b7663bfd606d72d4e45f518b20e1e0c676365
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3562096556 -> f16b7663bfd606d72d4e45f518b20e1e0c676365
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3562118864 -> f16b7663bfd606d72d4e45f518b20e1e0c676365
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3562131786 -> f16b7663bfd606d72d4e45f518b20e1e0c676365
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3562249878 -> f16b7663bfd606d72d4e45f518b20e1e0c676365
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3562249883 -> f16b7663bfd606d72d4e45f518b20e1e0c676365
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3562256404 -> f16b7663bfd606d72d4e45f518b20e1e0c676365
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3562256412 -> f16b7663bfd606d72d4e45f518b20e1e0c676365
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3562399636 -> f16b7663bfd606d72d4e45f518b20e1e0c676365
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3562399643 -> f16b7663bfd606d72d4e45f518b20e1e0c676365
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3562425016 -> f16b7663bfd606d72d4e45f518b20e1e0c676365
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3562425022 -> f16b7663bfd606d72d4e45f518b20e1e0c676365
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3562425024 -> f16b7663bfd606d72d4e45f518b20e1e0c676365
+Evidence: `app/bootstrap/lifespan.py`, `app/services/search_meili.py`, `scripts/ci/check_legacy_growth_guard.py`, focused regression tests, `docs/architecture/LEGACY_COMPATIBILITY_SEAM.md`, `docs/roadmap/BACKLOG_LEDGER.md`, and the durable Experiment Runner summary in this artifact.
+Reason: All published actionables were fixed after their comment timestamps: optional scheduler loading remains best effort; Meili shutdown races enter the existing fallback; direct/dynamic lifecycle ownership bypasses fail closed; and the architecture/governance wording now matches actual ownership and artifact durability.
 
 ## Pre-Open Implementation Evidence
 
@@ -211,8 +226,8 @@ evidence addresses the note without changing runtime scope.
 
 ## Experiment Runner Evidence
 
-Local artifact (gitignored; not durable merge authority):
-`artifacts/orchestration/experiments/results/exp-2dba53ad6a27.json`
+Artifact: `artifacts/orchestration/experiments/results/exp-2dba53ad6a27.json`
+(Local and gitignored; not durable merge authority.)
 
 Content identifier (SHA-256):
 `93b1d313fde78e123a85c8c50026fc29f3f0f1e0946e650a00db68c88741c317`
