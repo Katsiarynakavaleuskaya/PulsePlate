@@ -39,7 +39,7 @@ Creative-Code authority remain unchanged.
 - [x] Mandatory post-push `qa-engineer-agent -> bug-hunter -> security-auditor` pass completed.
 - [x] Codex Security current-diff scan completed.
 - [x] `pulseplate-pr-review` completed.
-- [x] CodeRabbit, Sourcery, and Cubic current-head reviews contain no actionables.
+- [ ] CodeRabbit, Sourcery, and Cubic current-head reviews contain no actionables.
 - [ ] Current-head CI completed.
 - [ ] Strict authenticated merge readiness and mandatory wait window completed.
 
@@ -95,8 +95,8 @@ Reason: The validation evidence names the real tested SHA and does not certify t
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2098#discussion_r3564318818
 
 Disposition: NOT-A-BUG
-Evidence: GitHub commit `6fab2e4ceaf39b8afeb539070bbec448b3bf625e` for merged PR #2099 has two parents, proving this lane uses merge commits that preserve the PR's unsquashed parent history; material commits `af3e960e` and `989882c80` retain the canonical Experiment Runner trailer, and synthetic id `d28766e` is not a repository commit.
-Reason: The attribution invariant applies to the real material commits that land in merge history, not to an unpersisted connector-local squash projection.
+Evidence: GitHub commit `6fab2e4ceaf39b8afeb539070bbec448b3bf625e` shows that merge commits are available, while material commits `af3e960e` and `989882c80` retain the canonical Experiment Runner trailer; PR #2098 has an explicit merge-commit-only precondition and must stop rather than use squash or rebase if that method is unavailable.
+Reason: PR #2099's topology is precedent, not proof of PR #2098's future result; preserving the material commits is an explicit merge-time gate for this PR.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2098#discussion_r3564318819
 
 ## Synthetic Reviewer Commit Evidence
@@ -106,8 +106,9 @@ Reason: The attribution invariant applies to the real material commits that land
   `No commit found for SHA`.
 - Actual PR commit history is the canonical ancestry source for fixed-mapping,
   exact-head validation, and Experiment Runner attribution.
-- The repository uses merge commits for this lane; PR #2099 landed as
-  `6fab2e4ce` with two parents and preserved its unsquashed branch history.
+- PR #2099 landed as `6fab2e4ce` with two parents, proving merge-commit support.
+  PR #2098 must use a merge commit; squash/rebase is forbidden for this merge
+  because it would require a separately attributed landed material commit.
 
 ## Pre-Implementation Role Findings
 
@@ -241,6 +242,9 @@ Not claimed. Exact-lease publication and the post-push role, Codex Security,
 and PR-review chain are complete through `a44cdf714`; the remaining gates are
 publication of this mapping update, refreshed final-head bot reviews and CI,
 strict authenticated merge readiness, and the final wait window.
+
+Merge method precondition: merge commit only. If GitHub does not permit a merge
+commit at merge time, stop; do not fall back to squash or rebase.
 
 ## Deferred / Follow-ups
 
