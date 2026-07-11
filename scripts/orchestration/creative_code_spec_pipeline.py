@@ -54,7 +54,7 @@ class CreativeCodeSpecPipelineError(ValueError):
 
 def _json_payloads_equal(observed: Any, expected: Any) -> bool:
     try:
-        return fingerprint_payload(observed) == fingerprint_payload(expected)
+        return bool(fingerprint_payload(observed) == fingerprint_payload(expected))
     except (TypeError, ValueError):
         return False
 

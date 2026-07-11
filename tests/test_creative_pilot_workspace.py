@@ -2501,7 +2501,7 @@ def _assert_adaptive_publish_fault(
     spec_root = artifact_root / "spec_bridge"
     declarations = root / "declarations.json"
     existing_names: set[str] = set()
-    state: dict[str, object] = {}
+    state: dict[str, object] = {"pilot_id": pilot_id, "spec_root": spec_root}
     try:
         candidate = _write_terminal_pilot(pilot_dir)
         declarations.write_text(
@@ -2535,7 +2535,7 @@ def _assert_adaptive_publish_fault(
             assert fragment in captured.out
         verify(spec_root, state)
     finally:
-        for entry in list(spec_root.iterdir()) if spec_root.exists() else []:
+        for entry in _new_spec_entries(spec_root, state):
             if entry.name not in existing_names:
                 shutil.rmtree(entry, ignore_errors=True)
         shutil.rmtree(pilot_dir, ignore_errors=True)
@@ -2544,7 +2544,30 @@ def _assert_adaptive_publish_fault(
 
 def _new_spec_entries(spec_root: Path, state: dict[str, object]) -> list[Path]:
     existing = set(state["existing_names"])
-    return [entry for entry in spec_root.iterdir() if entry.name not in existing]
+    return [
+        entry
+        for entry in spec_root.iterdir()
+        if entry.name not in existing and _spec_entry_belongs_to_fault_pilot(entry, state)
+    ]
+
+
+def _spec_entry_belongs_to_fault_pilot(entry: Path, state: dict[str, object]) -> bool:
+    spec_root = Path(state["spec_root"])
+    for value in state.values():
+        if isinstance(value, Path) and value == entry:
+            return True
+        if isinstance(value, str) and spec_root / value == entry:
+            return True
+    pilot_id = str(state["pilot_id"])
+    for filename in (pilot_cli.RESUME_INTAKE_FILENAME, pilot_cli.RESUME_BINDING_FILENAME):
+        artifact = entry / filename
+        try:
+            payload = json.loads(artifact.read_text(encoding="utf-8"))
+        except (FileNotFoundError, NotADirectoryError, OSError, ValueError):
+            continue
+        if isinstance(payload, dict) and payload.get("pilot_id") == pilot_id:
+            return True
+    return False
 
 
 def test_resume_rejects_pre_rename_staging_path_swap(
