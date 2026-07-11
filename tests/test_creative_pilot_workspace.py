@@ -1850,6 +1850,61 @@ def test_pinned_resume_entry_set_requires_reviewed_sibling_directory(
             shutil.rmtree(outside, ignore_errors=True)
 
 
+@pytest.mark.parametrize(
+    ("open_error", "expected_error"),
+    [
+        (
+            FileNotFoundError("simulated reviewed-run disappearance"),
+            "reviewed run changed during inspection",
+        ),
+        (
+            OSError(pilot_cli.errno.EMFILE, "simulated descriptor exhaustion"),
+            "unable to open reviewed run",
+        ),
+        (
+            NotImplementedError("simulated unsupported directory open"),
+            "unable to open reviewed run",
+        ),
+    ],
+)
+def test_pinned_resume_entry_set_preserves_reviewed_open_failure_taxonomy(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    open_error: Exception,
+    expected_error: str,
+) -> None:
+    for filename in (
+        pilot_cli.RESUME_INTAKE_FILENAME,
+        pilot_cli.RESUME_CANDIDATE_FILENAME,
+        pilot_cli.RESUME_BINDING_FILENAME,
+    ):
+        (tmp_path / filename).write_text("{}", encoding="utf-8")
+    (tmp_path / "spec_prepare").mkdir()
+    (tmp_path / "spec_finalize_reviewed").mkdir()
+
+    real_open_directory_at = pilot_cli._open_directory_at
+
+    def fail_only_reviewed(parent_fd: int, name: str) -> int:
+        if name == "spec_finalize_reviewed":
+            raise open_error
+        return real_open_directory_at(parent_fd, name)
+
+    monkeypatch.setattr(pilot_cli, "_open_directory_at", fail_only_reviewed)
+    directory_fd = os.open(
+        tmp_path,
+        os.O_RDONLY | pilot_cli._required_open_flag("O_DIRECTORY"),
+    )
+    try:
+        with pytest.raises(CreativePilotContractError, match=expected_error):
+            pilot_cli._assert_pinned_resume_entry_set(
+                directory_fd,
+                allow_reviewed_run=True,
+                error_prefix="adaptive_partial_output",
+            )
+    finally:
+        os.close(directory_fd)
+
+
 @pytest.mark.parametrize("mutation_scope", ["resume", "spec_prepare"])
 def test_pinned_resume_bundle_rechecks_contents_after_semantic_validation(
     monkeypatch: pytest.MonkeyPatch,

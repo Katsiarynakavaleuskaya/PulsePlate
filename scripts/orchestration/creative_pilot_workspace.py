@@ -695,9 +695,21 @@ def _assert_pinned_resume_entry_set(
         reviewed_fd = -1
         try:
             reviewed_fd = _open_directory_at(directory_fd, "spec_finalize_reviewed")
-        except (OSError, NotImplementedError) as exc:
+        except FileNotFoundError as exc:
             raise CreativePilotContractError(
-                "adaptive_source_symlink: nested resume child"
+                f"{error_prefix}: reviewed run changed during inspection"
+            ) from exc
+        except OSError as exc:
+            if exc.errno in {errno.ELOOP, errno.ENOTDIR}:
+                raise CreativePilotContractError(
+                    "adaptive_source_symlink: nested resume child"
+                ) from exc
+            raise CreativePilotContractError(
+                "adaptive_publish_validation_failed: unable to open reviewed run"
+            ) from exc
+        except NotImplementedError as exc:
+            raise CreativePilotContractError(
+                "adaptive_publish_validation_failed: unable to open reviewed run"
             ) from exc
         finally:
             active_error = sys.exc_info()[1]
