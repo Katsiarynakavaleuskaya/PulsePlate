@@ -53,6 +53,8 @@ deletion.
 - `4751548dc` - narrow namespace mutation detection, close remaining import and
   lifecycle-event bypasses, and replace the forbidden global import mock.
 - `6ff7e62e8` - reject direct and namespace-based deletion of lifecycle state.
+- `6df7d472e` - remove redundant nested `TestClient` lifespans from the RAG
+  contract suite while retaining its per-test client identity.
 
 ## Lane Start Provenance
 
@@ -206,6 +208,20 @@ Disposition: FIXED
 Commit: `1e2d4918c5b6f6cf67d11865d218bf0253728f16`
 Evidence: Mandatory `qa-engineer-agent -> bug-hunter -> security-auditor` review on published head `1bf8f19b770339575bca94ff980c9147f9021d2e`, followed by the focused 295-test lifecycle/food-search/guard bundle, legacy guard, and scoped MyPy.
 Reason: All three roles confirmed the missing cancellation/start-failure evidence and lifecycle guard bypasses; QA and security independently reproduced the food-search reservation leak. All actionables were fixed before this mapping update. No additional secret, race, resource, fail-open, or app-identity defect was found.
+
+## Current-Head CI Regression Evidence
+
+Disposition: FIXED
+Commit: `6df7d472ee4d8393283f7b5d267c128f5a24b00a`
+Evidence: `tests/test_insight_rag_response_fields.py`; the four failing RAG
+cases and the complete 17-test file pass locally, followed by the focused
+lifecycle/food-search/guard bundle, `make validate-changed`, scoped MyPy,
+OpenAPI zero-diff, `pre-commit run --all-files`, and pre-push tests.
+Reason: CI exposed four tests that opened a second lifespan for the same
+application while the fixture-owned lifespan was active. The production
+food-search overlap rejection remains fail-closed; the tests now reuse the
+already isolated fixture client instead of starting a redundant nested
+application lifecycle.
 
 ## Codex Security Diff Scan Evidence
 
