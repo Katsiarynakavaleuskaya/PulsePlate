@@ -395,6 +395,15 @@ def test_lifecycle_guard_allows_unrelated_namespace_mutation(food_source: str) -
             "app/bootstrap/lifespan.py: dynamic facade lookup is forbidden",
         ),
         (
+            "import importlib\n"
+            'value = object.__getattribute__(importlib, "import_module")("legacy_app")\n',
+            "app/bootstrap/lifespan.py: dynamic facade lookup is forbidden",
+        ),
+        (
+            "import importlib\n" 'value = importlib.__getattribute__("import_module")("app")\n',
+            "app/bootstrap/lifespan.py: dynamic facade lookup is forbidden",
+        ),
+        (
             "import app.main\n",
             "app/bootstrap/lifespan.py: forbidden facade import: app.main",
         ),
@@ -441,6 +450,7 @@ def test_lifecycle_guard_accepts_canonical_lifespan_in_static_keyword_mapping() 
         'fastapi.__dict__.get("FastAPI")',
         'vars(fastapi).get("FastAPI")',
         'fastapi.__dict__.__getitem__("FastAPI")',
+        'object.__getattribute__(fastapi, "FastAPI")',
     ],
 )
 def test_lifecycle_guard_rejects_namespace_mediated_fastapi_constructor(

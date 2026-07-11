@@ -1716,9 +1716,30 @@ def _resolve_lifecycle_reference(
             references=references,
             static_string_bindings=static_string_bindings,
         )
-    if function_reference == "object.__getattribute__" and node.args:
-        attribute_node = node.args[1] if len(node.args) >= 2 else node.args[0]
+    if (
+        function_reference is not None
+        and function_reference.endswith(".__getattribute__")
+        and node.args
+    ):
+        parent_node: ast.AST | None
+        if len(node.args) >= 2:
+            parent_node = node.args[0]
+            attribute_node = node.args[1]
+        else:
+            parent_node = node.func.value if isinstance(node.func, ast.Attribute) else None
+            attribute_node = node.args[0]
         attribute_name = _resolve_static_string(attribute_node, static_string_bindings)
+        parent = (
+            _resolve_lifecycle_reference(
+                parent_node,
+                references=references,
+                static_string_bindings=static_string_bindings,
+            )
+            if parent_node is not None
+            else None
+        )
+        if parent is not None and attribute_name is not None:
+            return f"{parent}.{attribute_name}"
         if attribute_name in {"add_event_handler", "on_event", "on_shutdown", "on_startup"}:
             return f"*.{attribute_name}"
         if attribute_name == "__dict__":
