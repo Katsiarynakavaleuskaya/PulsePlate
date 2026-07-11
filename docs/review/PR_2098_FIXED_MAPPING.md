@@ -158,10 +158,10 @@ Artifact: `artifacts/orchestration/experiments/results/exp-5101dc885b1d.json`
 
 ## Merge Readiness
 
-Not claimed. A force-with-lease push, refreshed exact-head bot reviews, the
-mandatory post-push role/security/PR-review chain, canonical current-head CI,
-strict authenticated merge readiness, and the final wait window remain
-required.
+Not claimed. Published head `49f02322a` completed the exact-lease push; the
+remaining gates are the in-progress post-push role/security/PR-review chain,
+refreshed exact-head bot reviews, canonical current-head CI, strict
+authenticated merge readiness, and the final wait window.
 
 ## Deferred / Follow-ups
 
