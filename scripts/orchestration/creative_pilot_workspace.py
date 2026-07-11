@@ -113,11 +113,18 @@ def _read(path: Path) -> dict[str, Any]:
         return payload
     except CreativePilotContractError:
         raise
-    except (OSError, UnicodeDecodeError, ValueError, NotImplementedError) as exc:
-        if isinstance(exc, OSError) and exc.errno == errno.ELOOP:
+    except OSError as exc:
+        if exc.errno in {errno.ELOOP, errno.ENOTDIR}:
             raise CreativePilotContractError(
                 "pilot artifact path must not traverse symlinks"
             ) from exc
+        raise CreativePilotContractError("unable to read safe repo-local pilot JSON") from exc
+    except (
+        UnicodeDecodeError,
+        ValueError,
+        RecursionError,
+        NotImplementedError,
+    ) as exc:
         raise CreativePilotContractError("unable to read safe repo-local pilot JSON") from exc
     finally:
         active_error = sys.exc_info()[1]
@@ -145,8 +152,9 @@ def _read_array(path: Path) -> list[dict[str, Any]]:
         return payload
     except CreativePilotContractError:
         raise
+    except OSError as exc:
+        raise CreativePilotContractError("unable to read safe exact variant declarations") from exc
     except (
-        OSError,
         UnicodeDecodeError,
         ValueError,
         RecursionError,
@@ -660,13 +668,29 @@ def _revalidate_exact_source_bindings(
         raise CreativePilotContractError(f"adaptive_source_lineage_mismatch: {exc}") from exc
 
 
-def _expected_resume_entries() -> set[str]:
-    return {
+def _expected_resume_entries(*, allow_reviewed_run: bool = False) -> set[str]:
+    expected = {
         RESUME_INTAKE_FILENAME,
         RESUME_BINDING_FILENAME,
         RESUME_CANDIDATE_FILENAME,
         "spec_prepare",
     }
+    if allow_reviewed_run:
+        expected.add("spec_finalize_reviewed")
+    return expected
+
+
+def _assert_pinned_resume_entry_set(
+    directory_fd: int,
+    *,
+    allow_reviewed_run: bool,
+    error_prefix: str,
+) -> None:
+    observed = set(os.listdir(directory_fd))
+    required = _expected_resume_entries()
+    allowed = _expected_resume_entries(allow_reviewed_run=allow_reviewed_run)
+    if not required.issubset(observed) or not observed.issubset(allowed):
+        raise CreativePilotContractError(f"{error_prefix}: fixed resume output set required")
 
 
 def _assert_complete_resume_dir(path: Path, *, allow_reviewed_run: bool = False) -> None:
@@ -725,6 +749,76 @@ def _open_directory_at(parent_fd: int, name: str) -> int:
     return os.open(name, flags, dir_fd=parent_fd)
 
 
+def _open_pinned_directory_if_exists(path: Path, *, create_parent: bool) -> int | None:
+    parent_fd = -1
+    directory_fd = -1
+    try:
+        parent_fd, name = _open_pinned_parent(path, create=create_parent)
+        try:
+            directory_fd = _open_directory_at(parent_fd, name)
+        except FileNotFoundError:
+            return None
+        result = directory_fd
+        directory_fd = -1
+        return result
+    except CreativePilotContractError:
+        raise
+    except (OSError, NotImplementedError) as exc:
+        raise CreativePilotContractError("unable to open pinned artifact directory") from exc
+    finally:
+        active_error = sys.exc_info()[1]
+        cleanup_error = _close_descriptors(directory_fd, parent_fd)
+        if active_error is None and cleanup_error is not None:
+            raise CreativePilotContractError(
+                "unable to close pinned artifact directory"
+            ) from cleanup_error
+
+
+def _create_new_pinned_directory(path: Path) -> DirectoryIdentity:
+    parent_fd = -1
+    directory_fd = -1
+    try:
+        parent_fd, name = _open_pinned_parent(path, create=True)
+        try:
+            os.mkdir(name, mode=0o700, dir_fd=parent_fd)
+        except FileExistsError as exc:
+            raise CreativePilotContractError("adaptive_partial_output: staging collision") from exc
+        directory_fd = _open_directory_at(parent_fd, name)
+        return _directory_identity(directory_fd)
+    except CreativePilotContractError:
+        raise
+    except (OSError, NotImplementedError) as exc:
+        raise CreativePilotContractError("adaptive_publish_failed: staging create") from exc
+    finally:
+        active_error = sys.exc_info()[1]
+        cleanup_error = _close_descriptors(directory_fd, parent_fd)
+        if active_error is None and cleanup_error is not None:
+            raise CreativePilotContractError(
+                "adaptive_publish_failed: staging close"
+            ) from cleanup_error
+
+
+def _unlink_pinned_file(path: Path) -> None:
+    parent_fd = -1
+    try:
+        parent_fd, name = _open_pinned_parent(path, create=False)
+        info = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+        if not stat.S_ISREG(info.st_mode):
+            raise CreativePilotContractError("pilot artifact target must be a regular file")
+        os.unlink(name, dir_fd=parent_fd)
+    except CreativePilotContractError:
+        raise
+    except (OSError, NotImplementedError) as exc:
+        raise CreativePilotContractError("unable to remove pinned pilot artifact") from exc
+    finally:
+        active_error = sys.exc_info()[1]
+        cleanup_error = _close_descriptors(parent_fd)
+        if active_error is None and cleanup_error is not None:
+            raise CreativePilotContractError(
+                "unable to close pinned pilot artifact parent"
+            ) from cleanup_error
+
+
 def _read_json_at(directory_fd: int, filename: str) -> Any:
     file_fd = -1
     try:
@@ -739,8 +833,15 @@ def _read_json_at(directory_fd: int, filename: str) -> Any:
             return json.loads(handle.read(), object_pairs_hook=_reject_duplicate_keys)
     except CreativePilotContractError:
         raise
+    except OSError as exc:
+        if exc.errno in {errno.ELOOP, errno.ENOTDIR}:
+            raise CreativePilotContractError(
+                "adaptive_source_symlink: nested resume child"
+            ) from exc
+        raise CreativePilotContractError(
+            f"adaptive_publish_validation_failed: unable to read {filename}"
+        ) from exc
     except (
-        OSError,
         UnicodeDecodeError,
         ValueError,
         RecursionError,
@@ -802,11 +903,14 @@ def _validate_pinned_resume_bundle(
     intake: dict[str, Any],
     candidate: dict[str, Any],
     binding: dict[str, Any],
+    allow_reviewed_run: bool = False,
+    entry_error_prefix: str = "adaptive_publish_validation_failed",
 ) -> None:
-    if set(os.listdir(directory_fd)) != _expected_resume_entries():
-        raise CreativePilotContractError(
-            "adaptive_publish_validation_failed: fixed resume output set required"
-        )
+    _assert_pinned_resume_entry_set(
+        directory_fd,
+        allow_reviewed_run=allow_reviewed_run,
+        error_prefix=entry_error_prefix,
+    )
     observed_intake = _read_json_at(directory_fd, RESUME_INTAKE_FILENAME)
     observed_candidate = _read_json_at(directory_fd, RESUME_CANDIDATE_FILENAME)
     observed_binding = _read_json_at(directory_fd, RESUME_BINDING_FILENAME)
@@ -823,7 +927,7 @@ def _validate_pinned_resume_bundle(
         prepare_fd = _open_directory_at(directory_fd, "spec_prepare")
         if set(os.listdir(prepare_fd)) != set(ADAPTIVE_PR1_PREPARE_FILENAMES):
             raise CreativePilotContractError(
-                "adaptive_publish_validation_failed: fixed spec_prepare set required"
+                f"{entry_error_prefix}: fixed spec_prepare set required"
             )
         snapshots = {
             filename: _read_json_at(prepare_fd, filename)
@@ -850,12 +954,13 @@ def _validate_pinned_resume_bundle(
         )
         if set(os.listdir(prepare_fd)) != set(ADAPTIVE_PR1_PREPARE_FILENAMES):
             raise CreativePilotContractError(
-                "adaptive_publish_validation_failed: fixed spec_prepare set required"
+                f"{entry_error_prefix}: fixed spec_prepare set required"
             )
-        if set(os.listdir(directory_fd)) != _expected_resume_entries():
-            raise CreativePilotContractError(
-                "adaptive_publish_validation_failed: fixed resume output set required"
-            )
+        _assert_pinned_resume_entry_set(
+            directory_fd,
+            allow_reviewed_run=allow_reviewed_run,
+            error_prefix=entry_error_prefix,
+        )
         _assert_pinned_resume_payloads_match(
             directory_fd,
             prepare_fd,
@@ -866,12 +971,13 @@ def _validate_pinned_resume_bundle(
         )
         if set(os.listdir(prepare_fd)) != set(ADAPTIVE_PR1_PREPARE_FILENAMES):
             raise CreativePilotContractError(
-                "adaptive_publish_validation_failed: fixed spec_prepare set required"
+                f"{entry_error_prefix}: fixed spec_prepare set required"
             )
-        if set(os.listdir(directory_fd)) != _expected_resume_entries():
-            raise CreativePilotContractError(
-                "adaptive_publish_validation_failed: fixed resume output set required"
-            )
+        _assert_pinned_resume_entry_set(
+            directory_fd,
+            allow_reviewed_run=allow_reviewed_run,
+            error_prefix=entry_error_prefix,
+        )
     finally:
         cleanup_error = _close_descriptors(prepare_fd)
         if sys.exc_info()[1] is None and cleanup_error is not None:
@@ -1125,39 +1231,50 @@ def _cmd_resume_pr1(args: argparse.Namespace) -> None:
         old_target_manifest=old_manifest,
         current_target_manifest=current_manifest,
     )
-    _reject_symlink_components(SPEC_BRIDGE_ROOT)
     final_dir = SPEC_BRIDGE_ROOT / resume_id
     _revalidate_exact_source_bindings(source_rows, prepare_rows)
-    SPEC_BRIDGE_ROOT.mkdir(parents=True, exist_ok=True)
-    _reject_symlink_components(SPEC_BRIDGE_ROOT)
-    if final_dir.exists() or final_dir.is_symlink():
-        _assert_complete_resume_dir(final_dir, allow_reviewed_run=True)
-        existing_intake = _read(final_dir / RESUME_INTAKE_FILENAME)
-        existing_candidate = _read(final_dir / RESUME_CANDIDATE_FILENAME)
-        existing_binding = _read(final_dir / RESUME_BINDING_FILENAME)
-        if existing_intake != intake or existing_candidate != candidate:
-            raise CreativePilotContractError("adaptive_divergent_replay: resume inputs changed")
-        validate_exact_prepare_artifacts(
-            run_dir=final_dir / "spec_prepare",
-            expected_packet=existing_candidate,
-            expected_variants=existing_intake["materialized_variants"],
-        )
-        validate_adaptive_pr1_resume_binding(
-            existing_binding,
-            intake=existing_intake,
-            candidate=existing_candidate,
-            revalidate_git=True,
-        )
-        _revalidate_exact_source_bindings(source_rows, prepare_rows)
-        print(f"PASS resume_id={resume_id} replay=idempotent next=agent-skeptic-review")
-        return
+    existing_directory_fd = _open_pinned_directory_if_exists(
+        final_dir,
+        create_parent=True,
+    )
+    if existing_directory_fd is not None:
+        try:
+            existing_intake = _read_json_at(
+                existing_directory_fd,
+                RESUME_INTAKE_FILENAME,
+            )
+            existing_candidate = _read_json_at(
+                existing_directory_fd,
+                RESUME_CANDIDATE_FILENAME,
+            )
+            existing_binding = _read_json_at(
+                existing_directory_fd,
+                RESUME_BINDING_FILENAME,
+            )
+            if not _json_payloads_equal(existing_intake, intake) or not _json_payloads_equal(
+                existing_candidate, candidate
+            ):
+                raise CreativePilotContractError("adaptive_divergent_replay: resume inputs changed")
+            _validate_pinned_resume_bundle(
+                existing_directory_fd,
+                intake=existing_intake,
+                candidate=existing_candidate,
+                binding=existing_binding,
+                allow_reviewed_run=True,
+                entry_error_prefix="adaptive_partial_output",
+            )
+            _revalidate_exact_source_bindings(source_rows, prepare_rows)
+            print(f"PASS resume_id={resume_id} replay=idempotent " "next=agent-skeptic-review")
+            return
+        finally:
+            cleanup_error = _close_descriptors(existing_directory_fd)
+            if sys.exc_info()[1] is None and cleanup_error is not None:
+                raise CreativePilotContractError(
+                    "adaptive_publish_validation_failed: unable to close replay directory"
+                ) from cleanup_error
 
     staging = SPEC_BRIDGE_ROOT / f".{resume_id}.{secrets.token_hex(8)}.staging"
-    if staging.exists() or staging.is_symlink():
-        raise CreativePilotContractError("adaptive_partial_output: staging collision")
-    staging.mkdir(mode=0o700)
-    staging_info = os.stat(staging, follow_symlinks=False)
-    created_staging_identity = (staging_info.st_dev, staging_info.st_ino)
+    created_staging_identity = _create_new_pinned_directory(staging)
     try:
         _atomic_write(staging / RESUME_INTAKE_FILENAME, intake)
         _atomic_write(staging / RESUME_CANDIDATE_FILENAME, candidate)
@@ -1168,7 +1285,7 @@ def _cmd_resume_pr1(args: argparse.Namespace) -> None:
             staged_declarations,
             staging / "spec_prepare",
         )
-        staged_declarations.unlink()
+        _unlink_pinned_file(staged_declarations)
         validate_exact_prepare_artifacts(
             run_dir=staging / "spec_prepare",
             expected_packet=candidate,
@@ -1202,22 +1319,23 @@ def _cmd_resume_pr1(args: argparse.Namespace) -> None:
         )
     except Exception as primary:
         cleanup_diagnostics: list[str] = []
-        if staging.exists() or staging.is_symlink():
-            cleanup_parent_fd = -1
-            try:
-                cleanup_parent_fd, _name = _open_pinned_parent(staging, create=False)
-                _quarantine_entry(
-                    cleanup_parent_fd,
-                    entry_name=staging.name,
-                    expected_identity=created_staging_identity,
-                    label="staging",
-                )
-            except Exception as exc:
-                cleanup_diagnostics.append(str(exc) or exc.__class__.__name__)
-            finally:
-                descriptor_error = _close_descriptors(cleanup_parent_fd)
-                if descriptor_error is not None:
-                    cleanup_diagnostics.append(f"descriptor_close_failed: {descriptor_error}")
+        cleanup_parent_fd = -1
+        try:
+            cleanup_parent_fd, _name = _open_pinned_parent(staging, create=False)
+            _quarantine_entry(
+                cleanup_parent_fd,
+                entry_name=staging.name,
+                expected_identity=created_staging_identity,
+                label="staging",
+            )
+        except FileNotFoundError:
+            pass
+        except Exception as exc:
+            cleanup_diagnostics.append(str(exc) or exc.__class__.__name__)
+        finally:
+            descriptor_error = _close_descriptors(cleanup_parent_fd)
+            if descriptor_error is not None:
+                cleanup_diagnostics.append(f"descriptor_close_failed: {descriptor_error}")
         if cleanup_diagnostics:
             raise CreativePilotContractError(
                 f"{primary}; cleanup_diagnostic={' | '.join(cleanup_diagnostics)}"

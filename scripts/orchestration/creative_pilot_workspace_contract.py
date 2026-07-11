@@ -9,11 +9,16 @@ from __future__ import annotations
 
 import ast
 from collections.abc import Mapping, Sequence
+import errno
 from hashlib import sha256
+import json
+import os
 from pathlib import Path, PurePosixPath
 import re
 import shutil
+import stat
 import subprocess  # nosec B404: bounded Git object reads require subprocess (remove-by: 2026-09-30, ref: ledger-p1-agent-experimentation-lane)
+import sys
 from typing import Any, cast
 
 from core.evidence.events import EvidenceEvalEvent, create_eval_event
@@ -859,26 +864,58 @@ def _reject_duplicate_json_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
 
 
 def _revalidate_bound_json(ref: str, *, filename: str, artifact_type: str, fingerprint: str) -> Any:
-    path = REPO_ROOT / ref
-    current = REPO_ROOT
+    parts = PurePosixPath(ref).parts
+    directory_fd = -1
+    file_fd = -1
     try:
-        for part in PurePosixPath(ref).parts:
-            current = current / part
-            if current.is_symlink():
-                raise CreativePilotContractError(f"adaptive_source_symlink: {filename}")
-        resolved = path.resolve(strict=True)
-    except OSError as exc:
-        raise CreativePilotContractError(f"adaptive_source_missing: {filename}") from exc
-    if not resolved.is_file() or not resolved.is_relative_to(REPO_ROOT.resolve()):
-        raise CreativePilotContractError(f"adaptive_source_missing: {filename}")
-    import json
-
-    try:
-        payload = json.loads(
-            resolved.read_text(encoding="utf-8"), object_pairs_hook=_reject_duplicate_json_keys
-        )
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        directory_flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0)
+        for flag_name in ("O_DIRECTORY", "O_NOFOLLOW"):
+            flag = getattr(os, flag_name, None)
+            if not isinstance(flag, int):
+                raise CreativePilotContractError(f"adaptive_source_invalid_platform: {flag_name}")
+            directory_flags |= flag
+        directory_fd = os.open(REPO_ROOT, directory_flags)
+        for part in parts[:-1]:
+            child_fd = os.open(part, directory_flags, dir_fd=directory_fd)
+            previous_fd = directory_fd
+            directory_fd = child_fd
+            try:
+                os.close(previous_fd)
+            except OSError:
+                os.close(child_fd)
+                directory_fd = -1
+                raise
+        file_flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0)
+        nofollow = getattr(os, "O_NOFOLLOW", None)
+        if not isinstance(nofollow, int):
+            raise CreativePilotContractError("adaptive_source_invalid_platform: O_NOFOLLOW")
+        file_fd = os.open(parts[-1], file_flags | nofollow, dir_fd=directory_fd)
+        if not stat.S_ISREG(os.fstat(file_fd).st_mode):
+            raise CreativePilotContractError(f"adaptive_source_missing: {filename}")
+        with os.fdopen(file_fd, "r", encoding="utf-8") as handle:
+            file_fd = -1
+            payload = json.loads(handle.read(), object_pairs_hook=_reject_duplicate_json_keys)
+    except CreativePilotContractError:
+        raise
+    except (UnicodeDecodeError, ValueError, RecursionError) as exc:
         raise CreativePilotContractError(f"adaptive_source_invalid_json: {filename}") from exc
+    except OSError as exc:
+        if exc.errno in {errno.ELOOP, errno.ENOTDIR}:
+            raise CreativePilotContractError(f"adaptive_source_symlink: {filename}") from exc
+        raise CreativePilotContractError(f"adaptive_source_missing: {filename}") from exc
+    finally:
+        active_error = sys.exc_info()[1]
+        close_error: OSError | None = None
+        for descriptor in (file_fd, directory_fd):
+            if descriptor >= 0:
+                try:
+                    os.close(descriptor)
+                except OSError as exc:
+                    close_error = close_error or exc
+        if active_error is None and close_error is not None:
+            raise CreativePilotContractError(
+                f"adaptive_source_close_failed: {filename}"
+            ) from close_error
     observed_type = (
         payload.get("artifact_type") or payload.get("packet_type")
         if isinstance(payload, Mapping)
@@ -888,7 +925,13 @@ def _revalidate_bound_json(ref: str, *, filename: str, artifact_type: str, finge
         observed_type = "json"
     if artifact_type != "json" and observed_type != artifact_type:
         raise CreativePilotContractError(f"adaptive_source_type_mismatch: {filename}")
-    if fingerprint_payload(payload) != fingerprint:
+    try:
+        observed_fingerprint = fingerprint_payload(payload)
+    except (TypeError, ValueError) as exc:
+        raise CreativePilotContractError(
+            f"adaptive_source_fingerprint_mismatch: {filename}"
+        ) from exc
+    if observed_fingerprint != fingerprint:
         raise CreativePilotContractError(f"adaptive_source_fingerprint_mismatch: {filename}")
     return payload
 
@@ -900,7 +943,7 @@ def load_json_strict(text: str) -> dict[str, Any]:
 
     try:
         payload = json.loads(text, object_pairs_hook=_reject_duplicate_json_keys)
-    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+    except (ValueError, UnicodeDecodeError, RecursionError) as exc:
         raise CreativePilotContractError(f"invalid JSON: {exc}") from exc
     if not isinstance(payload, dict):
         raise CreativePilotContractError("artifact must be a JSON object")

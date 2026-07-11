@@ -4,12 +4,11 @@
 from __future__ import annotations
 
 import argparse
-import json
 import os
 from pathlib import Path
 import shutil
+import stat
 import sys
-import tempfile
 from typing import Any, Mapping, Sequence, cast
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -120,13 +119,15 @@ def _reject_symlink_components(path: Path, *, label: str) -> None:
 
 
 def _ensure_spec_bridge_root() -> Path:
-    _reject_symlink_components(SPEC_BRIDGE_ROOT, label="spec bridge root")
-    SPEC_BRIDGE_ROOT.mkdir(parents=True, exist_ok=True)
-    _reject_symlink_components(SPEC_BRIDGE_ROOT, label="spec bridge root")
-    root: Path = SPEC_BRIDGE_ROOT.resolve(strict=True)
-    if not root.is_dir():
-        raise CreativeSpecificationSkepticReviewCliError("spec bridge root must be a directory.")
-    return root
+    try:
+        return creative_code_spec_pipeline._resolve_artifact_dir(
+            SPEC_BRIDGE_ROOT,
+            create=True,
+        )
+    except creative_code_spec_pipeline.CreativeCodeSpecPipelineError as exc:
+        raise CreativeSpecificationSkepticReviewCliError(
+            "spec bridge root could not be opened safely."
+        ) from exc
 
 
 def _resolve_repo_json_file(raw_path: Path, *, label: str) -> Path:
@@ -171,16 +172,15 @@ def _artifact_ref(path: Path) -> str:
 
 
 def _read_json_file(path: Path) -> Any:
-    _reject_symlink_components(path, label="JSON artifact")
     try:
-        return json.loads(
-            path.read_text(encoding="utf-8"),
-            object_pairs_hook=_reject_duplicate_json_object_keys,
+        return creative_code_spec_pipeline._read_json_file(
+            path,
+            allowed_root=REPO_ROOT,
+            label="JSON artifact",
         )
-    except CreativeSpecificationSkepticReviewCliError:
-        raise
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise CreativeSpecificationSkepticReviewCliError("Unable to read JSON artifact.") from exc
+    except creative_code_spec_pipeline.CreativeCodeSpecPipelineError as exc:
+        message = str(exc).replace("duplicate JSON key:", "duplicate key:")
+        raise CreativeSpecificationSkepticReviewCliError(message) from exc
 
 
 def _read_json_object(path: Path, *, label: str) -> dict[str, Any]:
@@ -197,50 +197,15 @@ def _read_json_array(path: Path, *, label: str) -> list[Any]:
     return payload
 
 
-def _reject_duplicate_json_object_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
-    seen: set[str] = set()
-    payload: dict[str, Any] = {}
-    for key, value in pairs:
-        if key in seen:
-            raise CreativeSpecificationSkepticReviewCliError(
-                f"creative specification skeptic review JSON has duplicate key: {key}"
-            )
-        seen.add(key)
-        payload[key] = value
-    return payload
-
-
 def _write_json_atomic(path: Path, payload: Any) -> None:
     if path.suffix != ".json":
         raise CreativeSpecificationSkepticReviewCliError("output artifact must be JSON.")
-    _reject_symlink_components(path.parent, label="output artifact parent")
-    path.parent.mkdir(parents=True, exist_ok=True)
-    _reject_symlink_components(path.parent, label="output artifact parent")
-    if path.is_symlink():
-        raise CreativeSpecificationSkepticReviewCliError("output artifact must not be a symlink.")
-    temp_name: str | None = None
     try:
-        with tempfile.NamedTemporaryFile(
-            "w",
-            encoding="utf-8",
-            dir=path.parent,
-            prefix=f".{path.name}.",
-            suffix=".tmp",
-            delete=False,
-        ) as temp_file:
-            temp_name = temp_file.name
-            json.dump(payload, temp_file, indent=2, sort_keys=True)
-            temp_file.write("\n")
-            temp_file.flush()
-            os.fsync(temp_file.fileno())
-        os.replace(temp_name, path)
-        temp_name = None
-    finally:
-        if temp_name is not None:
-            try:
-                Path(temp_name).unlink()
-            except FileNotFoundError:
-                pass
+        creative_code_spec_pipeline._write_json_atomic(path, payload)
+    except creative_code_spec_pipeline.CreativeCodeSpecPipelineError as exc:
+        raise CreativeSpecificationSkepticReviewCliError(
+            "Unable to write JSON artifact safely."
+        ) from exc
 
 
 def _read_prepared_bridge(bridge_path: Path) -> dict[str, Any]:
@@ -505,20 +470,51 @@ def _pending_skeptic_review_count(reviews: Sequence[Any]) -> int:
 
 
 def _reject_unexpected_entries(path: Path, *, allowed: set[str], label: str) -> None:
-    if path.exists() and not path.is_dir():
-        raise CreativeSpecificationSkepticReviewCliError(f"{label} must be a directory.")
-    if not path.exists():
+    directory_fd = -1
+    try:
+        _candidate, parts = creative_code_spec_pipeline._candidate_and_repo_parts(
+            path,
+            allowed_root=creative_code_spec_pipeline.ARTIFACT_ROOT,
+            label=label,
+        )
+        directory_fd = creative_code_spec_pipeline._walk_pinned_directory(
+            parts,
+            create=False,
+            label=label,
+        )
+        entries = os.listdir(directory_fd)
+        symlink_children = sorted(
+            name
+            for name in entries
+            if stat.S_ISLNK(os.stat(name, dir_fd=directory_fd, follow_symlinks=False).st_mode)
+        )
+        if symlink_children:
+            raise CreativeSpecificationSkepticReviewCliError(
+                f"{label} contains symlink artifact(s): {', '.join(symlink_children)}."
+            )
+        unexpected = sorted(name for name in entries if name not in allowed)
+        if unexpected:
+            raise CreativeSpecificationSkepticReviewCliError(
+                f"{label} contains unexpected artifact(s): {', '.join(unexpected)}."
+            )
+    except FileNotFoundError:
         return
-    symlink_children = sorted(child.name for child in path.iterdir() if child.is_symlink())
-    if symlink_children:
+    except CreativeSpecificationSkepticReviewCliError:
+        raise
+    except creative_code_spec_pipeline.CreativeCodeSpecPipelineError as exc:
         raise CreativeSpecificationSkepticReviewCliError(
-            f"{label} contains symlink artifact(s): {', '.join(symlink_children)}."
-        )
-    unexpected = sorted(child.name for child in path.iterdir() if child.name not in allowed)
-    if unexpected:
+            f"{label} could not be opened safely."
+        ) from exc
+    except (OSError, NotImplementedError) as exc:
         raise CreativeSpecificationSkepticReviewCliError(
-            f"{label} contains unexpected artifact(s): {', '.join(unexpected)}."
-        )
+            f"{label} could not be inspected safely."
+        ) from exc
+    finally:
+        close_error = creative_code_spec_pipeline._close_descriptors(directory_fd)
+        if sys.exc_info()[1] is None and close_error is not None:
+            raise CreativeSpecificationSkepticReviewCliError(
+                f"{label} could not be closed safely."
+            ) from close_error
 
 
 def _reviewed_run_dir(bridge_dir: Path) -> Path:

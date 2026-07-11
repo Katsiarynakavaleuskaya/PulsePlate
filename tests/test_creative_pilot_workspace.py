@@ -533,6 +533,99 @@ def test_workspace_json_reader_translates_recursion_error(
         shutil.rmtree(run_dir, ignore_errors=True)
 
 
+def test_primary_workspace_reader_and_contract_translate_recursion_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_dir = pilot_cli.PILOT_ROOT / f"pytest-{uuid.uuid4().hex}"
+    path = run_dir / "recursive.json"
+    try:
+        run_dir.mkdir(parents=True)
+        path.write_text("{}", encoding="utf-8")
+
+        def raise_recursion(*_args: object, **_kwargs: object) -> object:
+            raise RecursionError("simulated parser depth limit")
+
+        monkeypatch.setattr(pilot_cli, "load_json_strict", raise_recursion)
+        with pytest.raises(
+            CreativePilotContractError,
+            match="unable to read safe repo-local pilot JSON",
+        ):
+            pilot_cli._read(path)
+
+        monkeypatch.setattr(pilot_contract.json, "loads", raise_recursion)
+        with pytest.raises(CreativePilotContractError, match="invalid JSON"):
+            pilot_contract.load_json_strict("{}")
+    finally:
+        shutil.rmtree(run_dir, ignore_errors=True)
+
+
+def test_bound_json_revalidation_pins_final_file_against_symlink_swap(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    run_dir = pilot_cli.PILOT_ROOT / f"pytest-{uuid.uuid4().hex}"
+    source = run_dir / "source.json"
+    outside = tmp_path / "outside.json"
+    payload = {"artifact_type": "json", "value": "expected"}
+    try:
+        run_dir.mkdir(parents=True)
+        source.write_text(json.dumps(payload), encoding="utf-8")
+        outside.write_text(json.dumps(payload), encoding="utf-8")
+        real_open = pilot_contract.os.open
+        swapped = False
+
+        def swap_before_final_open(
+            path: object,
+            flags: int,
+            mode: int = 0o777,
+            *,
+            dir_fd: int | None = None,
+        ) -> int:
+            nonlocal swapped
+            if path == source.name and dir_fd is not None and not swapped:
+                swapped = True
+                source.unlink()
+                source.symlink_to(outside)
+            return real_open(path, flags, mode, dir_fd=dir_fd)
+
+        monkeypatch.setattr(pilot_contract.os, "open", swap_before_final_open)
+        with pytest.raises(CreativePilotContractError, match="adaptive_source_symlink"):
+            pilot_contract._revalidate_bound_json(
+                source.relative_to(pilot_contract.REPO_ROOT).as_posix(),
+                filename=source.name,
+                artifact_type="json",
+                fingerprint=fingerprint_payload(payload),
+            )
+        assert swapped
+    finally:
+        shutil.rmtree(run_dir, ignore_errors=True)
+
+
+def test_pinned_staging_creation_rejects_symlink_parent_and_collision(
+    tmp_path: Path,
+) -> None:
+    parent = pilot_cli.PILOT_ROOT / f"pytest-{uuid.uuid4().hex}"
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    try:
+        parent.symlink_to(outside, target_is_directory=True)
+        with pytest.raises(CreativePilotContractError, match="staging create"):
+            pilot_cli._create_new_pinned_directory(parent / "staging")
+        assert not (outside / "staging").exists()
+    finally:
+        if parent.is_symlink():
+            parent.unlink()
+
+    collision_parent = pilot_cli.PILOT_ROOT / f"pytest-{uuid.uuid4().hex}"
+    collision = collision_parent / "staging"
+    try:
+        collision.mkdir(parents=True)
+        with pytest.raises(CreativePilotContractError, match="staging collision"):
+            pilot_cli._create_new_pinned_directory(collision)
+    finally:
+        shutil.rmtree(collision_parent, ignore_errors=True)
+
+
 @pytest.mark.parametrize(
     "unsafe_text",
     [
