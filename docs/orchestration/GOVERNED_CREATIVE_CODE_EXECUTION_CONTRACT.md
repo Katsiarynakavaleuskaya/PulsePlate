@@ -131,6 +131,10 @@ through the rename; the final directory is reopened with `O_NOFOLLOW` and its
 complete payload, exact prepare artifacts, and resume binding are revalidated
 descriptor-relative before PASS. Identity or validation failures quarantine
 only the matching inode and retain both primary and cleanup diagnostics.
+This validation bounds races observable during the publication transaction;
+it is not an exclusive lock against an uncooperative same-UID writer after the
+terminal observation. Every downstream stage must therefore revalidate the
+bound fingerprints before consuming the retained artifacts.
 
 Premortem is part of this creative line, not a documentation closeout ritual.
 For Experiment Runner creative-context work, premortem should forecast plausible

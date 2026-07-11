@@ -1752,6 +1752,77 @@ def test_pinned_resume_bundle_rechecks_content_after_final_entry_scan(
     assert mutated
 
 
+@pytest.mark.parametrize("mutation_scope", ["resume", "spec_prepare"])
+def test_pinned_resume_bundle_rechecks_entries_after_second_content_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    mutation_scope: str,
+) -> None:
+    intake: dict[str, object] = {"materialized_variants": []}
+    candidate: dict[str, object] = {"candidate_id": "candidate:expected"}
+    binding: dict[str, object] = {}
+    payloads = {
+        pilot_cli.RESUME_INTAKE_FILENAME: intake,
+        pilot_cli.RESUME_CANDIDATE_FILENAME: candidate,
+        pilot_cli.RESUME_BINDING_FILENAME: binding,
+    }
+    for filename, payload in payloads.items():
+        (tmp_path / filename).write_text(json.dumps(payload), encoding="utf-8")
+    prepare_dir = tmp_path / "spec_prepare"
+    prepare_dir.mkdir()
+    for filename in pilot_contract.ADAPTIVE_PR1_PREPARE_FILENAMES:
+        (prepare_dir / filename).write_text("{}", encoding="utf-8")
+
+    final_prepare_reads = 0
+    real_read_json_at = pilot_cli._read_json_at
+
+    def inject_during_second_content_snapshot(
+        directory_fd: int,
+        filename: str,
+    ) -> object:
+        nonlocal final_prepare_reads
+        payload = real_read_json_at(directory_fd, filename)
+        if filename == pilot_contract.ADAPTIVE_PR1_PREPARE_FILENAMES[-1]:
+            final_prepare_reads += 1
+            if final_prepare_reads == 3:
+                target = tmp_path if mutation_scope == "resume" else prepare_dir
+                (target / "unexpected.json").write_text("{}", encoding="utf-8")
+        return payload
+
+    monkeypatch.setattr(pilot_cli, "_read_json_at", inject_during_second_content_snapshot)
+    monkeypatch.setattr(
+        pilot_cli,
+        "validate_exact_prepare_artifact_snapshots",
+        lambda **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        pilot_cli,
+        "validate_adaptive_pr1_resume_binding",
+        lambda *_args, **_kwargs: binding,
+    )
+    directory_fd = os.open(
+        tmp_path,
+        os.O_RDONLY | pilot_cli._required_open_flag("O_DIRECTORY"),
+    )
+    expected_error = (
+        "fixed resume output set required"
+        if mutation_scope == "resume"
+        else "fixed spec_prepare set required"
+    )
+    try:
+        with pytest.raises(CreativePilotContractError, match=expected_error):
+            pilot_cli._validate_pinned_resume_bundle(
+                directory_fd,
+                intake=intake,
+                candidate=candidate,
+                binding=binding,
+            )
+    finally:
+        os.close(directory_fd)
+
+    assert final_prepare_reads == 3
+
+
 @pytest.mark.parametrize(
     "non_finite",
     [float("nan"), float("inf"), float("-inf")],

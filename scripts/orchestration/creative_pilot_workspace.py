@@ -864,6 +864,14 @@ def _validate_pinned_resume_bundle(
             binding=binding,
             snapshots=snapshots,
         )
+        if set(os.listdir(prepare_fd)) != set(ADAPTIVE_PR1_PREPARE_FILENAMES):
+            raise CreativePilotContractError(
+                "adaptive_publish_validation_failed: fixed spec_prepare set required"
+            )
+        if set(os.listdir(directory_fd)) != _expected_resume_entries():
+            raise CreativePilotContractError(
+                "adaptive_publish_validation_failed: fixed resume output set required"
+            )
     finally:
         cleanup_error = _close_descriptors(prepare_fd)
         if sys.exc_info()[1] is None and cleanup_error is not None:
