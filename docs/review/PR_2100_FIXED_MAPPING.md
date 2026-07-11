@@ -10,7 +10,8 @@ This PR activates a production-adjacent creative-pilot planning rail over exact
 tracked `core/rag` and `core/insight` targets. It keeps provider, patch,
 runtime, repository-write, GitHub, semantic-cache, and graph-truth authority
 closed. Post-open review found real integrity and filesystem-boundary defects;
-all were corrected in `b56dfbcba` before this mapping was authored.
+the initial set was corrected in `b56dfbcba`, and current-head follow-up
+findings were corrected in `065b8d7b1` before their threads were resolved.
 
 ## Discussion Thread Pass
 
@@ -51,6 +52,10 @@ workspace/synthesis boundary. Focused inventory/workspace tests pass.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2100#discussion_r3562523149 -> b56dfbcba
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2100#pullrequestreview-4675562687 -> b56dfbcba
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2100#pullrequestreview-4675583663 -> b56dfbcba
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2100#discussion_r3563473732 -> 065b8d7b1
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2100#discussion_r3563473735 -> 065b8d7b1
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2100#discussion_r3563488048 -> 065b8d7b1
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2100#discussion_r3563488049 -> 065b8d7b1
 
 The CodeRabbit review-level nitpicks are also fixed in `b56dfbcba`: all seven
 v2 schemas are included in closure/version tests, and the CLI converts sibling
@@ -86,6 +91,16 @@ Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2100#pullreq
 Commit: b56dfbcba
 Reason: All 11 reported schema, artifact-validation, symlink, lineage, FSM,
 atomic-write, and deterministic-synthesis issues were fixed and tested.
+
+Disposition: FIXED
+Source: Current-head CodeRabbit and Cubic follow-up
+Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2100#discussion_r3563473732
+Commit: 065b8d7b1
+Reason: The CLI now catches PR-1 preparation failures, replay comparison uses
+the same normalized values as persisted role results, and both adaptive-pilot
+and PR-1 artifact I/O pin every directory component with descriptor-relative
+read/write/replace operations. Parent-swap, cleanup double-failure,
+unsupported-platform, and descriptor-transfer fault-injection tests pass.
 
 ## Post-open Role Findings
 
@@ -139,6 +154,17 @@ CLI/test vertical.
 Reason: No additional correctness, architecture, security, or test defect was
 emitted.
 
+### Current-head Remediation Revalidation
+
+Disposition: FIXED
+Commit: 065b8d7b1
+Evidence: Direct MyPy over the imported orchestration graph reports `Success:
+no issues found in 1 source file`; 29 surfaced redundant-cast/JSON typing
+findings were removed without ignores. Security and bug-hunter revalidation
+closed all parent-swap, cleanup-masking, portability, and descriptor-transfer
+findings with 11 focused fault-injection tests and no remaining reportable
+finding.
+
 ## Premortem
 
 - Forged or stale lineage: FIXED in `b56dfbcba`; synthesis, approval, bridge,
@@ -164,7 +190,9 @@ emitted.
 - PASS: `python3 scripts/orchestration/check_preflight.py`.
 - PASS: `python3 scripts/orchestration/check_agent_consistency.py`.
 - PASS: focused/regression creative-context, workspace, bootstrap, qoder,
-  inventory, PR-1, PR-2 builder, and generation tests.
+  inventory, PR-1, PR-2 builder, and generation tests, including the hardened
+  PR-1 specification pipeline.
+- PASS: direct MyPy import-graph validation with zero findings.
 - PASS: `make validate-changed`.
 - PASS: `pre-commit run --all-files`; no hook modifications after final rerun.
 - PASS: pre-push MyPy, pip-audit, backend pytest, full-repo Bandit, and Docker build.
