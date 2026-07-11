@@ -1747,10 +1747,13 @@ def _assigns_lifespan_context(tree: ast.Module) -> bool:
     static_mapping_bindings = _collect_static_mapping_bindings(tree)
     for node in ast.walk(tree):
         targets: list[ast.AST] = []
+        assigned_value: ast.AST | None = None
         if isinstance(node, ast.Assign):
             targets.extend(node.targets)
+            assigned_value = node.value
         elif isinstance(node, ast.AnnAssign):
             targets.append(node.target)
+            assigned_value = node.value
         elif isinstance(node, ast.AugAssign):
             targets.append(node.target)
         elif isinstance(node, ast.Delete):
@@ -1762,6 +1765,20 @@ def _assigns_lifespan_context(tree: ast.Module) -> bool:
                 isinstance(target, ast.Subscript)
                 and _resolve_static_string(target.slice, static_string_bindings)
                 == "lifespan_context"
+            ):
+                return True
+            if (
+                assigned_value is not None
+                and _is_object_namespace_mapping(
+                    target,
+                    references=references,
+                    static_string_bindings=static_string_bindings,
+                )
+                and _mapping_may_mutate_lifespan(
+                    assigned_value,
+                    static_string_bindings=static_string_bindings,
+                    static_mapping_bindings=static_mapping_bindings,
+                )
             ):
                 return True
         if (
