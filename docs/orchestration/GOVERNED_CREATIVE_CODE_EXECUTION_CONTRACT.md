@@ -125,7 +125,12 @@ the pinned on-disk artifacts are checked against those snapshots before a
 replay decision and again immediately before atomic publication. Publication
 uses a pinned-parent kernel no-replace rename (`RENAME_NOREPLACE` on Linux,
 `RENAME_EXCL` on macOS), fails closed when that primitive is unavailable, and
-never replaces an empty or non-empty canonical resume directory.
+never replaces an empty or non-empty canonical resume directory. The validated
+staging directory and canonical parent remain bound by device/inode identity
+through the rename; the final directory is reopened with `O_NOFOLLOW` and its
+complete payload, exact prepare artifacts, and resume binding are revalidated
+descriptor-relative before PASS. Identity or validation failures quarantine
+only the matching inode and retain both primary and cleanup diagnostics.
 
 Premortem is part of this creative line, not a documentation closeout ritual.
 For Experiment Runner creative-context work, premortem should forecast plausible

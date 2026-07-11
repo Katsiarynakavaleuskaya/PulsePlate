@@ -444,10 +444,41 @@ def validate_exact_prepare_artifacts(
     """Revalidate all exact PR-1 sidecars for idempotent resume replay."""
 
     source_dir = _resolve_artifact_dir(run_dir, create=False)
-    source_packet = _read_json_artifact(source_dir / "source_packet.json")
-    variants = _read_json_artifact(source_dir / "variants.json")
-    skeptic_reviews = _read_json_artifact(source_dir / "skeptic_reviews.json")
-    context_pack = _read_json_artifact(source_dir / "context_pack.json")
+    snapshots = {
+        "source_packet.json": _read_json_artifact(source_dir / "source_packet.json"),
+        "variants.json": _read_json_artifact(source_dir / "variants.json"),
+        "skeptic_reviews.json": _read_json_artifact(source_dir / "skeptic_reviews.json"),
+        "context_pack.json": _read_json_artifact(source_dir / "context_pack.json"),
+    }
+    validate_exact_prepare_artifact_snapshots(
+        snapshots=snapshots,
+        expected_packet=expected_packet,
+        expected_variants=expected_variants,
+    )
+
+
+def validate_exact_prepare_artifact_snapshots(
+    *,
+    snapshots: Mapping[str, Any],
+    expected_packet: Mapping[str, Any],
+    expected_variants: Sequence[Mapping[str, Any]],
+) -> None:
+    """Recompute exact PR-1 sidecars from descriptor-bound JSON snapshots."""
+
+    expected_names = (
+        "source_packet.json",
+        "variants.json",
+        "skeptic_reviews.json",
+        "context_pack.json",
+    )
+    if set(snapshots) != set(expected_names):
+        raise CreativeCodeSpecPipelineError(
+            "adaptive_partial_output: fixed exact prepare artifact set required"
+        )
+    source_packet = snapshots["source_packet.json"]
+    variants = snapshots["variants.json"]
+    skeptic_reviews = snapshots["skeptic_reviews.json"]
+    context_pack = snapshots["context_pack.json"]
     normalized_packet = validate_source_candidate_packet(expected_packet)
     normalized_variants = [dict(row) for row in expected_variants]
     if source_packet != normalized_packet:

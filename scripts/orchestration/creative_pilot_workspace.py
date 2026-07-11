@@ -14,7 +14,7 @@ import secrets
 import shutil
 import stat
 import sys
-from typing import Any
+from typing import Any, Callable
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
@@ -57,6 +57,7 @@ from scripts.orchestration.creative_code_spec_pipeline import (
     prepare as prepare_specification,
     prepare_exact as prepare_exact_specification,
     validate_default_prepare_artifact_snapshots,
+    validate_exact_prepare_artifact_snapshots,
     validate_exact_prepare_artifacts,
 )
 from scripts.orchestration.creative_hypothesis_spec_bridge_contract import (
@@ -693,69 +694,269 @@ def _assert_complete_resume_dir(path: Path, *, allow_reviewed_run: bool = False)
         )
 
 
-def _atomic_publish_directory_noreplace(staging: Path, final_dir: Path) -> None:
-    """Atomically publish one complete directory without replacing a destination."""
+DirectoryIdentity = tuple[int, int]
+
+
+def _directory_identity(descriptor: int) -> DirectoryIdentity:
+    info = os.fstat(descriptor)
+    if not stat.S_ISDIR(info.st_mode):
+        raise CreativePilotContractError("adaptive_publish_failed: expected directory descriptor")
+    return (info.st_dev, info.st_ino)
+
+
+def _entry_identity(parent_fd: int, name: str) -> DirectoryIdentity:
+    info = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+    if not stat.S_ISDIR(info.st_mode):
+        raise CreativePilotContractError("adaptive_publish_failed: expected directory entry")
+    return (info.st_dev, info.st_ino)
+
+
+def _open_directory_at(parent_fd: int, name: str) -> int:
+    flags = os.O_RDONLY | _required_open_flag("O_DIRECTORY") | _required_open_flag("O_NOFOLLOW")
+    flags |= getattr(os, "O_CLOEXEC", 0)
+    return os.open(name, flags, dir_fd=parent_fd)
+
+
+def _read_json_at(directory_fd: int, filename: str) -> Any:
+    file_fd = -1
+    try:
+        flags = os.O_RDONLY | _required_open_flag("O_NOFOLLOW") | getattr(os, "O_CLOEXEC", 0)
+        file_fd = os.open(filename, flags, dir_fd=directory_fd)
+        if not stat.S_ISREG(os.fstat(file_fd).st_mode):
+            raise CreativePilotContractError(
+                f"adaptive_publish_validation_failed: {filename} is not a regular file"
+            )
+        with os.fdopen(file_fd, "r", encoding="utf-8") as handle:
+            file_fd = -1
+            return json.loads(handle.read(), object_pairs_hook=_reject_duplicate_keys)
+    except CreativePilotContractError:
+        raise
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, NotImplementedError) as exc:
+        raise CreativePilotContractError(
+            f"adaptive_publish_validation_failed: unable to read {filename}"
+        ) from exc
+    finally:
+        cleanup_error = _close_descriptors(file_fd)
+        if sys.exc_info()[1] is None and cleanup_error is not None:
+            raise CreativePilotContractError(
+                f"adaptive_publish_validation_failed: unable to close {filename}"
+            ) from cleanup_error
+
+
+def _validate_pinned_resume_bundle(
+    directory_fd: int,
+    *,
+    intake: dict[str, Any],
+    candidate: dict[str, Any],
+    binding: dict[str, Any],
+) -> None:
+    if set(os.listdir(directory_fd)) != _expected_resume_entries():
+        raise CreativePilotContractError(
+            "adaptive_publish_validation_failed: fixed resume output set required"
+        )
+    observed_intake = _read_json_at(directory_fd, RESUME_INTAKE_FILENAME)
+    observed_candidate = _read_json_at(directory_fd, RESUME_CANDIDATE_FILENAME)
+    observed_binding = _read_json_at(directory_fd, RESUME_BINDING_FILENAME)
+    if observed_intake != intake or observed_candidate != candidate or observed_binding != binding:
+        raise CreativePilotContractError(
+            "adaptive_publish_validation_failed: canonical resume payload mismatch"
+        )
+    prepare_fd = -1
+    try:
+        prepare_fd = _open_directory_at(directory_fd, "spec_prepare")
+        snapshots = {
+            filename: _read_json_at(prepare_fd, filename)
+            for filename in ADAPTIVE_PR1_PREPARE_FILENAMES
+        }
+        validate_exact_prepare_artifact_snapshots(
+            snapshots=snapshots,
+            expected_packet=candidate,
+            expected_variants=intake["materialized_variants"],
+        )
+        validate_adaptive_pr1_resume_binding(
+            binding,
+            intake=intake,
+            candidate=candidate,
+            revalidate_git=True,
+        )
+    finally:
+        cleanup_error = _close_descriptors(prepare_fd)
+        if sys.exc_info()[1] is None and cleanup_error is not None:
+            raise CreativePilotContractError(
+                "adaptive_publish_validation_failed: unable to close spec_prepare"
+            ) from cleanup_error
+
+
+def _canonical_parent_identity(final_dir: Path) -> DirectoryIdentity:
+    descriptor = -1
+    try:
+        descriptor, _name = _open_pinned_parent(final_dir, create=False)
+        return _directory_identity(descriptor)
+    finally:
+        cleanup_error = _close_descriptors(descriptor)
+        if sys.exc_info()[1] is None and cleanup_error is not None:
+            raise CreativePilotContractError(
+                "adaptive_publish_failed: unable to close canonical parent"
+            ) from cleanup_error
+
+
+def _kernel_rename_noreplace(parent_fd: int, source_name: str, destination_name: str) -> None:
+    libc = ctypes.CDLL(None, use_errno=True)
+    if sys.platform == "darwin":
+        rename_noreplace = getattr(libc, "renameatx_np", None)
+        flag = 0x00000004  # RENAME_EXCL
+    elif sys.platform.startswith("linux"):
+        rename_noreplace = getattr(libc, "renameat2", None)
+        flag = 1  # RENAME_NOREPLACE
+    else:
+        rename_noreplace = None
+        flag = 0
+    if rename_noreplace is None:
+        raise CreativePilotContractError(
+            "adaptive_atomic_publish_unsupported: no kernel no-replace rename"
+        )
+    rename_noreplace.argtypes = [
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_uint,
+    ]
+    rename_noreplace.restype = ctypes.c_int
+    ctypes.set_errno(0)
+    result = rename_noreplace(
+        parent_fd,
+        os.fsencode(source_name),
+        parent_fd,
+        os.fsencode(destination_name),
+        flag,
+    )
+    if result != 0:
+        error_number = ctypes.get_errno()
+        if error_number in {errno.EEXIST, errno.ENOTEMPTY}:
+            raise CreativePilotContractError(
+                "adaptive_publish_collision: canonical resume directory already exists"
+            )
+        raise CreativePilotContractError(
+            f"adaptive_publish_failed: no-replace rename errno={error_number}"
+        )
+
+
+def _quarantine_entry(
+    parent_fd: int,
+    *,
+    entry_name: str,
+    expected_identity: DirectoryIdentity,
+    label: str,
+) -> str:
+    try:
+        observed = _entry_identity(parent_fd, entry_name)
+    except FileNotFoundError as exc:
+        raise CreativePilotContractError(
+            f"adaptive_publish_cleanup_failed: {label} entry is missing"
+        ) from exc
+    if observed != expected_identity:
+        raise CreativePilotContractError(
+            f"adaptive_publish_cleanup_failed: {label} inode changed; left untouched"
+        )
+    quarantine_name = f".{entry_name}.{secrets.token_hex(8)}.quarantine"
+    _kernel_rename_noreplace(parent_fd, entry_name, quarantine_name)
+    if _entry_identity(parent_fd, quarantine_name) != expected_identity:
+        raise CreativePilotContractError(
+            f"adaptive_publish_cleanup_failed: {label} quarantine inode mismatch"
+        )
+    os.fsync(parent_fd)
+    return quarantine_name
+
+
+def _atomic_publish_directory_noreplace(
+    staging: Path,
+    final_dir: Path,
+    *,
+    intake: dict[str, Any],
+    candidate: dict[str, Any],
+    binding: dict[str, Any],
+) -> None:
+    """Publish one descriptor-validated directory and verify its final identity."""
 
     parent_fd = -1
+    staging_fd = -1
+    final_fd = -1
+    published = False
+    staging_identity: DirectoryIdentity | None = None
+    final_name = final_dir.name
     try:
         if staging.parent != final_dir.parent:
             raise CreativePilotContractError(
                 "adaptive_publish_failed: staging and destination must share a parent"
             )
-        parent_fd, final_name = _open_pinned_parent(final_dir, create=False)
-        staging_name = staging.name
-        libc = ctypes.CDLL(None, use_errno=True)
-        if sys.platform == "darwin":
-            rename_noreplace = getattr(libc, "renameatx_np", None)
-            flag = 0x00000004  # RENAME_EXCL
-        elif sys.platform.startswith("linux"):
-            rename_noreplace = getattr(libc, "renameat2", None)
-            flag = 1  # RENAME_NOREPLACE
-        else:
-            rename_noreplace = None
-            flag = 0
-        if rename_noreplace is None:
-            raise CreativePilotContractError(
-                "adaptive_atomic_publish_unsupported: no kernel no-replace rename"
-            )
-        rename_noreplace.argtypes = [
-            ctypes.c_int,
-            ctypes.c_char_p,
-            ctypes.c_int,
-            ctypes.c_char_p,
-            ctypes.c_uint,
-        ]
-        rename_noreplace.restype = ctypes.c_int
-        ctypes.set_errno(0)
-        result = rename_noreplace(
-            parent_fd,
-            os.fsencode(staging_name),
-            parent_fd,
-            os.fsencode(final_name),
-            flag,
+        parent_fd, canonical_final_name = _open_pinned_parent(final_dir, create=False)
+        if canonical_final_name != final_name:
+            raise CreativePilotContractError("adaptive_publish_failed: final name changed")
+        parent_identity = _directory_identity(parent_fd)
+        staging_fd = _open_directory_at(parent_fd, staging.name)
+        staging_identity = _directory_identity(staging_fd)
+        _validate_pinned_resume_bundle(
+            staging_fd,
+            intake=intake,
+            candidate=candidate,
+            binding=binding,
         )
-        if result != 0:
-            error_number = ctypes.get_errno()
-            if error_number in {errno.EEXIST, errno.ENOTEMPTY}:
-                raise CreativePilotContractError(
-                    "adaptive_publish_collision: canonical resume directory already exists"
-                )
+        if _canonical_parent_identity(final_dir) != parent_identity:
             raise CreativePilotContractError(
-                f"adaptive_publish_failed: no-replace rename errno={error_number}"
+                "adaptive_publish_parent_mismatch: canonical parent changed"
+            )
+        if _entry_identity(parent_fd, staging.name) != staging_identity:
+            raise CreativePilotContractError("adaptive_staging_source_swap_at_publish")
+        _kernel_rename_noreplace(parent_fd, staging.name, final_name)
+        published = True
+        if _canonical_parent_identity(final_dir) != parent_identity:
+            raise CreativePilotContractError(
+                "adaptive_publish_parent_mismatch: canonical parent changed"
+            )
+        final_fd = _open_directory_at(parent_fd, final_name)
+        if _directory_identity(final_fd) != staging_identity:
+            raise CreativePilotContractError("adaptive_staging_source_swap_at_publish")
+        _validate_pinned_resume_bundle(
+            final_fd,
+            intake=intake,
+            candidate=candidate,
+            binding=binding,
+        )
+        if _entry_identity(parent_fd, final_name) != staging_identity:
+            raise CreativePilotContractError("adaptive_publish_final_inode_mismatch")
+        if _canonical_parent_identity(final_dir) != parent_identity:
+            raise CreativePilotContractError(
+                "adaptive_publish_parent_mismatch: canonical parent changed"
             )
         os.fsync(parent_fd)
-    except CreativePilotContractError:
-        raise
-    except (OSError, NotImplementedError) as exc:
-        raise CreativePilotContractError(
-            "adaptive_publish_failed: unable to publish canonical resume directory"
-        ) from exc
+    except Exception as primary:
+        cleanup_diagnostics: list[str] = []
+        if parent_fd >= 0 and staging_identity is not None:
+            cleanup_name = final_name if published else staging.name
+            try:
+                _quarantine_entry(
+                    parent_fd,
+                    entry_name=cleanup_name,
+                    expected_identity=staging_identity,
+                    label="published final" if published else "staging",
+                )
+            except Exception as exc:
+                cleanup_diagnostics.append(str(exc) or exc.__class__.__name__)
+        descriptor_error = _close_descriptors(final_fd, staging_fd, parent_fd)
+        final_fd = staging_fd = parent_fd = -1
+        if descriptor_error is not None:
+            cleanup_diagnostics.append(f"descriptor_close_failed: {descriptor_error}")
+        primary_message = str(primary) or primary.__class__.__name__
+        if cleanup_diagnostics:
+            primary_message += f"; cleanup_diagnostic={' | '.join(cleanup_diagnostics)}"
+        raise CreativePilotContractError(primary_message) from primary
     finally:
         active_error = sys.exc_info()[1]
-        cleanup_error = _close_descriptors(parent_fd)
+        cleanup_error = _close_descriptors(final_fd, staging_fd, parent_fd)
         if active_error is None and cleanup_error is not None:
             raise CreativePilotContractError(
-                "adaptive_publish_failed: unable to close publish directory"
+                "adaptive_publish_failed: unable to close publish descriptors"
             ) from cleanup_error
 
 
@@ -861,6 +1062,8 @@ def _cmd_resume_pr1(args: argparse.Namespace) -> None:
     if staging.exists() or staging.is_symlink():
         raise CreativePilotContractError("adaptive_partial_output: staging collision")
     staging.mkdir(mode=0o700)
+    staging_info = os.stat(staging, follow_symlinks=False)
+    created_staging_identity = (staging_info.st_dev, staging_info.st_ino)
     try:
         _atomic_write(staging / RESUME_INTAKE_FILENAME, intake)
         _atomic_write(staging / RESUME_CANDIDATE_FILENAME, candidate)
@@ -896,9 +1099,35 @@ def _cmd_resume_pr1(args: argparse.Namespace) -> None:
         _atomic_write(staging / RESUME_BINDING_FILENAME, binding)
         _assert_complete_resume_dir(staging)
         _revalidate_exact_source_bindings(source_rows, prepare_rows)
-        _atomic_publish_directory_noreplace(staging, final_dir)
-    except Exception:
-        shutil.rmtree(staging, ignore_errors=True)
+        _atomic_publish_directory_noreplace(
+            staging,
+            final_dir,
+            intake=intake,
+            candidate=candidate,
+            binding=binding,
+        )
+    except Exception as primary:
+        cleanup_diagnostics: list[str] = []
+        if staging.exists() or staging.is_symlink():
+            cleanup_parent_fd = -1
+            try:
+                cleanup_parent_fd, _name = _open_pinned_parent(staging, create=False)
+                _quarantine_entry(
+                    cleanup_parent_fd,
+                    entry_name=staging.name,
+                    expected_identity=created_staging_identity,
+                    label="staging",
+                )
+            except Exception as exc:
+                cleanup_diagnostics.append(str(exc) or exc.__class__.__name__)
+            finally:
+                descriptor_error = _close_descriptors(cleanup_parent_fd)
+                if descriptor_error is not None:
+                    cleanup_diagnostics.append(f"descriptor_close_failed: {descriptor_error}")
+        if cleanup_diagnostics:
+            raise CreativePilotContractError(
+                f"{primary}; cleanup_diagnostic={' | '.join(cleanup_diagnostics)}"
+            ) from primary
         raise
     print(f"PASS resume_id={resume_id} replay=new next=agent-skeptic-review")
 

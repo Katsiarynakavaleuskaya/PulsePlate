@@ -249,7 +249,11 @@
   immediately before atomic publication; a second unconstrained source read
   must never become binding truth. Publication must use an atomic kernel
   no-replace directory rename and fail as `adaptive_publish_collision` rather
-  than replacing any concurrent canonical resume directory. The adaptive
+  than replacing any concurrent canonical resume directory. Publication must
+  bind staging and parent device/inode identities, reopen the final directory
+  with `O_NOFOLLOW`, and descriptor-revalidate the complete bundle, exact
+  prepare sidecars, and binding before PASS. Failures may quarantine only the
+  matching inode and must preserve cleanup diagnostics. The adaptive
   intake identity is the documented compatibility alias for existing
   attachment `metrics_*` fields; no fake v1 metrics artifact or widened
   attachment/finalize schema is allowed. Patch/provider/network/runtime/cache,

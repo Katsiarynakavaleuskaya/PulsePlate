@@ -1509,24 +1509,28 @@ def _assert_concurrent_resume_destination_is_not_overwritten(
     final_dir: Path | None = None
     staging_dir: Path | None = None
     marker = b"concurrent-owner\n"
+    existing_names: set[str] = set()
     try:
         candidate = _write_terminal_pilot(pilot_dir)
         declarations.write_text(
             json.dumps(_resume_declarations(candidate), indent=2), encoding="utf-8"
         )
         spec_root.mkdir(parents=True, exist_ok=True)
+        existing_names = {entry.name for entry in spec_root.iterdir()}
         monkeypatch.setattr(pilot_cli, "PILOT_ROOT", pilot_root)
         monkeypatch.setattr(pilot_cli, "SPEC_BRIDGE_ROOT", spec_root)
         publish_noreplace = pilot_cli._atomic_publish_directory_noreplace
 
-        def create_destination_then_publish(staging: Path, destination: Path) -> None:
+        def create_destination_then_publish(
+            staging: Path, destination: Path, **expected: dict
+        ) -> None:
             nonlocal final_dir, staging_dir
             final_dir = destination
             staging_dir = staging
             destination.mkdir()
             if nonempty:
                 (destination / "owner.marker").write_bytes(marker)
-            publish_noreplace(staging, destination)
+            publish_noreplace(staging, destination, **expected)
 
         monkeypatch.setattr(
             pilot_cli,
@@ -1559,8 +1563,9 @@ def _assert_concurrent_resume_destination_is_not_overwritten(
             assert list(final_dir.iterdir()) == []
         assert staging_dir is not None and not staging_dir.exists()
     finally:
-        if final_dir is not None:
-            shutil.rmtree(final_dir, ignore_errors=True)
+        for entry in list(spec_root.iterdir()) if spec_root.exists() else []:
+            if entry.name not in existing_names:
+                shutil.rmtree(entry, ignore_errors=True)
         shutil.rmtree(pilot_dir, ignore_errors=True)
         shutil.rmtree(root, ignore_errors=True)
 
@@ -1584,6 +1589,266 @@ def test_resume_atomic_publish_does_not_replace_concurrent_nonempty_destination(
         monkeypatch=monkeypatch,
         capsys=capsys,
         nonempty=True,
+    )
+
+
+def _assert_adaptive_publish_fault(
+    *,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    prefix: str,
+    install_fault: Callable[[Path, dict[str, object]], None],
+    expected_fragments: tuple[str, ...],
+    verify: Callable[[Path, dict[str, object]], None],
+) -> None:
+    artifact_root = creative_code_spec_pipeline.ARTIFACT_ROOT
+    artifact_root.mkdir(parents=True, exist_ok=True)
+    root = Path(tempfile.mkdtemp(prefix=f"pytest-{prefix}-", dir=artifact_root))
+    pilot_root = artifact_root / "adaptive_pilots"
+    pilot_id = f"pilot-{root.name}"
+    pilot_dir = pilot_root / pilot_id
+    spec_root = artifact_root / "spec_bridge"
+    declarations = root / "declarations.json"
+    existing_names: set[str] = set()
+    state: dict[str, object] = {}
+    try:
+        candidate = _write_terminal_pilot(pilot_dir)
+        declarations.write_text(
+            json.dumps(_resume_declarations(candidate), indent=2), encoding="utf-8"
+        )
+        spec_root.mkdir(parents=True, exist_ok=True)
+        existing_names = {entry.name for entry in spec_root.iterdir()}
+        state["existing_names"] = existing_names
+        monkeypatch.setattr(pilot_cli, "PILOT_ROOT", pilot_root)
+        monkeypatch.setattr(pilot_cli, "SPEC_BRIDGE_ROOT", spec_root)
+        install_fault(spec_root, state)
+        capsys.readouterr()
+        assert (
+            pilot_cli.main(
+                [
+                    "resume-pr1",
+                    "--pilot-id",
+                    pilot_id,
+                    "--variant-declarations",
+                    str(declarations),
+                    "--current-base-sha",
+                    _sha(),
+                ]
+            )
+            == 1
+        )
+        captured = capsys.readouterr()
+        assert "PASS resume_id=" not in captured.out
+        assert "Traceback" not in captured.out
+        for fragment in expected_fragments:
+            assert fragment in captured.out
+        verify(spec_root, state)
+    finally:
+        for entry in list(spec_root.iterdir()) if spec_root.exists() else []:
+            if entry.name not in existing_names:
+                shutil.rmtree(entry, ignore_errors=True)
+        shutil.rmtree(pilot_dir, ignore_errors=True)
+        shutil.rmtree(root, ignore_errors=True)
+
+
+def _new_spec_entries(spec_root: Path, state: dict[str, object]) -> list[Path]:
+    existing = set(state["existing_names"])
+    return [entry for entry in spec_root.iterdir() if entry.name not in existing]
+
+
+def test_resume_rejects_pre_rename_staging_path_swap(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    original_validate = pilot_cli._validate_pinned_resume_bundle
+
+    def install(spec_root: Path, state: dict[str, object]) -> None:
+        calls = 0
+
+        def swap_after_validation(descriptor: int, **expected: dict) -> None:
+            nonlocal calls
+            original_validate(descriptor, **expected)
+            calls += 1
+            if calls == 1:
+                staging = next(
+                    path
+                    for path in _new_spec_entries(spec_root, state)
+                    if path.name.endswith(".staging")
+                )
+                binding = json.loads(
+                    (staging / pilot_cli.RESUME_BINDING_FILENAME).read_text(encoding="utf-8")
+                )
+                backup = staging.with_name(f"{staging.name}.validated")
+                staging.rename(backup)
+                staging.mkdir()
+                state.update(staging=staging, backup=backup, final=spec_root / binding["resume_id"])
+
+        monkeypatch.setattr(pilot_cli, "_validate_pinned_resume_bundle", swap_after_validation)
+
+    def verify(_root: Path, state: dict[str, object]) -> None:
+        assert Path(state["staging"]).is_dir()
+        assert list(Path(state["staging"]).iterdir()) == []
+        assert Path(state["backup"]).is_dir()
+        assert not Path(state["final"]).exists()
+
+    _assert_adaptive_publish_fault(
+        monkeypatch=monkeypatch,
+        capsys=capsys,
+        prefix="source-swap-before",
+        install_fault=install,
+        expected_fragments=("adaptive_staging_source_swap_at_publish", "cleanup_diagnostic="),
+        verify=verify,
+    )
+
+
+def test_resume_rejects_staging_swap_inside_kernel_rename_seam(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    original_kernel = pilot_cli._kernel_rename_noreplace
+
+    def install(_root: Path, state: dict[str, object]) -> None:
+        intercepted = False
+
+        def swap_then_rename(parent_fd: int, source: str, destination: str) -> None:
+            nonlocal intercepted
+            if not intercepted and source.endswith(".staging"):
+                intercepted = True
+                backup = f"{source}.validated"
+                os.rename(source, backup, src_dir_fd=parent_fd, dst_dir_fd=parent_fd)
+                os.mkdir(source, mode=0o700, dir_fd=parent_fd)
+                state.update(backup=backup, final=destination)
+            original_kernel(parent_fd, source, destination)
+
+        monkeypatch.setattr(pilot_cli, "_kernel_rename_noreplace", swap_then_rename)
+
+    def verify(spec_root: Path, state: dict[str, object]) -> None:
+        assert (spec_root / str(state["backup"])).is_dir()
+        final = spec_root / str(state["final"])
+        assert final.is_dir()
+        assert list(final.iterdir()) == []
+
+    _assert_adaptive_publish_fault(
+        monkeypatch=monkeypatch,
+        capsys=capsys,
+        prefix="source-swap-kernel",
+        install_fault=install,
+        expected_fragments=("adaptive_staging_source_swap_at_publish", "cleanup_diagnostic="),
+        verify=verify,
+    )
+
+
+def test_resume_rejects_canonical_parent_identity_change(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    original_identity = pilot_cli._canonical_parent_identity
+
+    def install(_root: Path, _state: dict[str, object]) -> None:
+        calls = 0
+
+        def changed_identity(path: Path) -> tuple[int, int]:
+            nonlocal calls
+            calls += 1
+            identity = original_identity(path)
+            return identity if calls == 1 else (identity[0], identity[1] + 1)
+
+        monkeypatch.setattr(pilot_cli, "_canonical_parent_identity", changed_identity)
+
+    def verify(spec_root: Path, state: dict[str, object]) -> None:
+        assert any(
+            path.name.endswith(".quarantine") for path in _new_spec_entries(spec_root, state)
+        )
+        assert not any(
+            path.is_dir() and not path.name.startswith(".")
+            for path in _new_spec_entries(spec_root, state)
+        )
+
+    _assert_adaptive_publish_fault(
+        monkeypatch=monkeypatch,
+        capsys=capsys,
+        prefix="parent-swap",
+        install_fault=install,
+        expected_fragments=("adaptive_publish_parent_mismatch",),
+        verify=verify,
+    )
+
+
+def _install_final_mutation(
+    monkeypatch: pytest.MonkeyPatch,
+    spec_root: Path,
+    state: dict[str, object],
+) -> None:
+    original_validate = pilot_cli._validate_pinned_resume_bundle
+    calls = 0
+
+    def mutate_before_final_validation(descriptor: int, **expected: dict) -> None:
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            final = next(
+                path
+                for path in _new_spec_entries(spec_root, state)
+                if path.is_dir() and not path.name.startswith(".")
+            )
+            candidate_path = final / pilot_cli.RESUME_CANDIDATE_FILENAME
+            payload = json.loads(candidate_path.read_text(encoding="utf-8"))
+            payload["post_publish_mutation"] = True
+            candidate_path.write_text(json.dumps(payload), encoding="utf-8")
+            state["final"] = final
+        original_validate(descriptor, **expected)
+
+    monkeypatch.setattr(pilot_cli, "_validate_pinned_resume_bundle", mutate_before_final_validation)
+
+
+def test_resume_quarantines_final_mutated_before_post_publish_validation(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    def install(spec_root: Path, state: dict[str, object]) -> None:
+        _install_final_mutation(monkeypatch, spec_root, state)
+
+    def verify(spec_root: Path, state: dict[str, object]) -> None:
+        assert not Path(state["final"]).exists()
+        assert any(
+            path.name.endswith(".quarantine") for path in _new_spec_entries(spec_root, state)
+        )
+
+    _assert_adaptive_publish_fault(
+        monkeypatch=monkeypatch,
+        capsys=capsys,
+        prefix="final-mutation",
+        install_fault=install,
+        expected_fragments=("adaptive_publish_validation_failed",),
+        verify=verify,
+    )
+
+
+def test_resume_preserves_primary_and_rollback_failure_diagnostics(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    def install(spec_root: Path, state: dict[str, object]) -> None:
+        _install_final_mutation(monkeypatch, spec_root, state)
+
+        def fail_quarantine(*_args: object, **_kwargs: object) -> str:
+            raise CreativePilotContractError("injected rollback failure")
+
+        monkeypatch.setattr(pilot_cli, "_quarantine_entry", fail_quarantine)
+
+    def verify(_root: Path, state: dict[str, object]) -> None:
+        assert Path(state["final"]).is_dir()
+
+    _assert_adaptive_publish_fault(
+        monkeypatch=monkeypatch,
+        capsys=capsys,
+        prefix="rollback-failure",
+        install_fault=install,
+        expected_fragments=(
+            "adaptive_publish_validation_failed",
+            "cleanup_diagnostic=injected rollback failure",
+        ),
+        verify=verify,
     )
 
 
