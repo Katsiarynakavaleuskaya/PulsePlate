@@ -86,6 +86,10 @@ def test_current_lifecycle_ownership_passes_growth_guard() -> None:
             "legacy_app.py: startup/shutdown event registration is forbidden",
         ),
         (
+            'app.router.__dict__.update({"on_startup": [start]})\n',
+            "legacy_app.py: startup/shutdown event registration is forbidden",
+        ),
+        (
             "app.router.lifespan_context = wrapper\n",
             "legacy_app.py: lifespan_context mutation is forbidden",
         ),
@@ -235,7 +239,32 @@ def test_lifecycle_guard_rejects_food_search_lifespan_wrapping(
         "pass\n",
     )
 
-    assert errors == ["app/bootstrap/food_search.py: lifespan_context mutation is forbidden"]
+    lifespan_error = "app/bootstrap/food_search.py: lifespan_context mutation is forbidden"
+    event_error = "app/bootstrap/food_search.py: startup/shutdown event registration is forbidden"
+    assert lifespan_error in errors
+    assert set(errors) <= {lifespan_error, event_error}
+
+
+@pytest.mark.parametrize(
+    "food_source",
+    [
+        'app.add_event_handler("startup", start)\n',
+        "app.router.on_shutdown.append(stop)\n",
+        'app.router.__dict__.update({"on_startup": [start]})\n',
+    ],
+)
+def test_lifecycle_guard_rejects_food_search_event_registration(
+    food_source: str,
+) -> None:
+    errors = legacy_guard.validate_lifecycle_ownership(
+        "pass\n",
+        food_source,
+        "pass\n",
+    )
+
+    assert errors == [
+        "app/bootstrap/food_search.py: startup/shutdown event registration is forbidden"
+    ]
 
 
 @pytest.mark.parametrize(

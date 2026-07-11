@@ -1774,8 +1774,9 @@ def _assigns_lifespan_context(tree: ast.Module) -> bool:
                     references=references,
                     static_string_bindings=static_string_bindings,
                 )
-                and _mapping_may_mutate_lifespan(
+                and _mapping_may_mutate_protected_namespace(
                     assigned_value,
+                    protected_names={"lifespan_context"},
                     static_string_bindings=static_string_bindings,
                     static_mapping_bindings=static_mapping_bindings,
                 )
@@ -1789,8 +1790,9 @@ def _assigns_lifespan_context(tree: ast.Module) -> bool:
                 references=references,
                 static_string_bindings=static_string_bindings,
             )
-            and _mapping_may_mutate_lifespan(
+            and _mapping_may_mutate_protected_namespace(
                 node.value,
+                protected_names={"lifespan_context"},
                 static_string_bindings=static_string_bindings,
                 static_mapping_bindings=static_mapping_bindings,
             )
@@ -1816,8 +1818,9 @@ def _assigns_lifespan_context(tree: ast.Module) -> bool:
             and _resolve_static_string(node.args[1], static_string_bindings) == "lifespan_context"
         ):
             return True
-        if isinstance(node, ast.Call) and _mutates_lifespan_namespace(
+        if isinstance(node, ast.Call) and _mutates_protected_namespace(
             node,
+            protected_names={"lifespan_context"},
             references=references,
             static_string_bindings=static_string_bindings,
             static_mapping_bindings=static_mapping_bindings,
@@ -1850,9 +1853,10 @@ def _is_object_namespace_mapping(
     return resolved is not None and resolved.endswith(".__dict__")
 
 
-def _mutates_lifespan_namespace(
+def _mutates_protected_namespace(
     node: ast.Call,
     *,
+    protected_names: AbstractSet[str],
     references: Mapping[str, str],
     static_string_bindings: Mapping[str, str],
     static_mapping_bindings: Mapping[str, ast.Dict],
@@ -1864,15 +1868,16 @@ def _mutates_lifespan_namespace(
     ):
         return False
     if node.func.attr in {"__ior__", "update"}:
-        if any(keyword.arg == "lifespan_context" for keyword in node.keywords):
+        if any(keyword.arg in protected_names for keyword in node.keywords):
             return True
         mapping_arguments = [
             *node.args,
             *(keyword.value for keyword in node.keywords if keyword.arg is None),
         ]
         for argument in mapping_arguments:
-            if _mapping_may_mutate_lifespan(
+            if _mapping_may_mutate_protected_namespace(
                 argument,
+                protected_names=protected_names,
                 static_string_bindings=static_string_bindings,
                 static_mapping_bindings=static_mapping_bindings,
             ):
@@ -1884,13 +1889,14 @@ def _mutates_lifespan_namespace(
         if not node.args:
             return True
         key_name = _resolve_static_string(node.args[0], static_string_bindings)
-        return key_name is None or key_name == "lifespan_context"
+        return key_name is None or key_name in protected_names
     return False
 
 
-def _mapping_may_mutate_lifespan(
+def _mapping_may_mutate_protected_namespace(
     node: ast.AST,
     *,
+    protected_names: AbstractSet[str],
     static_string_bindings: Mapping[str, str],
     static_mapping_bindings: Mapping[str, ast.Dict],
 ) -> bool:
@@ -1901,7 +1907,7 @@ def _mapping_may_mutate_lifespan(
         if key is None:
             return True
         resolved_key = _resolve_static_string(key, static_string_bindings)
-        if resolved_key is None or resolved_key == "lifespan_context":
+        if resolved_key is None or resolved_key in protected_names:
             return True
     return False
 
@@ -1928,6 +1934,7 @@ def _accesses_lifecycle_event_namespace(
 def _registers_lifecycle_event(tree: ast.Module) -> bool:
     references, _canonical_lifespan_aliases = _collect_lifecycle_references(tree)
     static_string_bindings = _collect_static_string_bindings(tree)
+    static_mapping_bindings = _collect_static_mapping_bindings(tree)
     if _accesses_lifecycle_event_namespace(
         tree,
         references=references,
@@ -1942,8 +1949,48 @@ def _registers_lifecycle_event(tree: ast.Module) -> bool:
                 for target in raw_targets
             ):
                 return True
+            assigned_value = node.value if isinstance(node, (ast.Assign, ast.AnnAssign)) else None
+            if assigned_value is not None and any(
+                _is_object_namespace_mapping(
+                    target,
+                    references=references,
+                    static_string_bindings=static_string_bindings,
+                )
+                and _mapping_may_mutate_protected_namespace(
+                    assigned_value,
+                    protected_names={"on_shutdown", "on_startup"},
+                    static_string_bindings=static_string_bindings,
+                    static_mapping_bindings=static_mapping_bindings,
+                )
+                for target in raw_targets
+            ):
+                return True
+            if (
+                isinstance(node, ast.AugAssign)
+                and isinstance(node.op, ast.BitOr)
+                and _is_object_namespace_mapping(
+                    node.target,
+                    references=references,
+                    static_string_bindings=static_string_bindings,
+                )
+                and _mapping_may_mutate_protected_namespace(
+                    node.value,
+                    protected_names={"on_shutdown", "on_startup"},
+                    static_string_bindings=static_string_bindings,
+                    static_mapping_bindings=static_mapping_bindings,
+                )
+            ):
+                return True
         if not isinstance(node, ast.Call):
             continue
+        if _mutates_protected_namespace(
+            node,
+            protected_names={"on_shutdown", "on_startup"},
+            references=references,
+            static_string_bindings=static_string_bindings,
+            static_mapping_bindings=static_mapping_bindings,
+        ):
+            return True
         reference = _resolve_lifecycle_reference(
             node.func,
             references=references,
@@ -2168,8 +2215,13 @@ def validate_lifecycle_ownership(
             errors.append(f"{LEGACY_APP}: lifespan_context mutation is forbidden")
         if _uses_noncanonical_fastapi_lifespan(legacy_tree):
             errors.append(f"{LEGACY_APP}: FastAPI lifespan must use the canonical re-export")
-    if food_tree is not None and _assigns_lifespan_context(food_tree):
-        errors.append(f"{FOOD_SEARCH_BOOTSTRAP}: lifespan_context mutation is forbidden")
+    if food_tree is not None:
+        if _registers_lifecycle_event(food_tree):
+            errors.append(
+                f"{FOOD_SEARCH_BOOTSTRAP}: startup/shutdown event registration is forbidden"
+            )
+        if _assigns_lifespan_context(food_tree):
+            errors.append(f"{FOOD_SEARCH_BOOTSTRAP}: lifespan_context mutation is forbidden")
     if lifespan_tree is not None:
         forbidden_names = {"app_module", "legacy_app", "_resolve_app_callable"}
         used_names = {node.id for node in ast.walk(lifespan_tree) if isinstance(node, ast.Name)}
