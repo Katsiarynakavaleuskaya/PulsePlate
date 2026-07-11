@@ -123,9 +123,12 @@ def _reject_symlink_components(path: Path, *, label: str) -> None:
 
 def _ensure_spec_bridge_root() -> Path:
     try:
-        return creative_code_spec_pipeline._resolve_artifact_dir(
-            SPEC_BRIDGE_ROOT,
-            create=True,
+        return cast(
+            Path,
+            creative_code_spec_pipeline._resolve_artifact_dir(
+                SPEC_BRIDGE_ROOT,
+                create=True,
+            ),
         )
     except creative_code_spec_pipeline.CreativeCodeSpecPipelineError as exc:
         raise CreativeSpecificationSkepticReviewCliError(
@@ -598,18 +601,17 @@ def _create_pinned_reviewed_run(path: Path) -> tuple[int, int, DirectoryIdentity
                 )
         except Exception as primary_error:
             cleanup_error: Exception | None = None
+            retained_name: str | None = None
             try:
                 if created_identity is None:
                     raise CreativeSpecificationSkepticReviewCliError(
                         "reviewed finalize run cleanup identity unavailable."
                     )
-                current = os.stat(staging_name, dir_fd=parent_fd, follow_symlinks=False)
-                current_identity = (current.st_dev, current.st_ino)
-                if current_identity != created_identity:
-                    raise CreativeSpecificationSkepticReviewCliError(
-                        "reviewed finalize run cleanup identity changed."
-                    )
-                os.rmdir(staging_name, dir_fd=parent_fd)
+                retained_name = _quarantine_pinned_reviewed_run(
+                    parent_fd,
+                    name=staging_name,
+                    expected_identity=created_identity,
+                )
             except Exception as exc:
                 cleanup_error = exc
             if cleanup_error is not None:
@@ -617,7 +619,10 @@ def _create_pinned_reviewed_run(path: Path) -> tuple[int, int, DirectoryIdentity
                     "reviewed finalize run could not be created safely; "
                     f"cleanup_diagnostic={cleanup_error}"
                 ) from primary_error
-            raise
+            raise CreativeSpecificationSkepticReviewCliError(
+                "reviewed finalize run could not be created safely; "
+                f"failure_artifact_retained={retained_name}"
+            ) from primary_error
         result = (parent_fd, reviewed_fd, (info.st_dev, info.st_ino), staging_name)
         parent_fd = -1
         reviewed_fd = -1
@@ -640,29 +645,42 @@ def _create_pinned_reviewed_run(path: Path) -> tuple[int, int, DirectoryIdentity
             ) from close_error
 
 
-def _remove_pinned_reviewed_run(
+def _quarantine_pinned_reviewed_run(
     parent_fd: int,
-    reviewed_fd: int,
     *,
     name: str,
     expected_identity: DirectoryIdentity,
-) -> None:
+) -> str:
     current = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
     if not stat.S_ISDIR(current.st_mode) or (current.st_dev, current.st_ino) != expected_identity:
         raise CreativeSpecificationSkepticReviewCliError(
-            "reviewed finalize run cleanup identity changed."
+            "reviewed finalize run quarantine identity changed."
         )
-    for child_name in os.listdir(reviewed_fd):
-        child = os.stat(child_name, dir_fd=reviewed_fd, follow_symlinks=False)
-        if not stat.S_ISREG(child.st_mode):
-            raise CreativeSpecificationSkepticReviewCliError(
-                "reviewed finalize run cleanup found a non-file child."
-            )
-        os.unlink(child_name, dir_fd=reviewed_fd)
-    os.rmdir(name, dir_fd=parent_fd)
+    quarantine_name = f".{REVIEWED_RUN_DIRNAME}.{secrets.token_hex(8)}.failed"
+    _kernel_rename_noreplace(
+        parent_fd,
+        name,
+        quarantine_name,
+        collision_message="reviewed finalize failure quarantine already exists.",
+    )
+    quarantined = os.stat(quarantine_name, dir_fd=parent_fd, follow_symlinks=False)
+    if (quarantined.st_dev, quarantined.st_ino) != expected_identity:
+        raise CreativeSpecificationSkepticReviewCliError(
+            "reviewed finalize run identity changed during quarantine."
+        )
+    os.fsync(parent_fd)
+    return quarantine_name
 
 
-def _kernel_rename_noreplace(parent_fd: int, source_name: str, destination_name: str) -> None:
+def _kernel_rename_noreplace(
+    parent_fd: int,
+    source_name: str,
+    destination_name: str,
+    *,
+    collision_message: str = (
+        "reviewed finalize run already exists; remove the local sibling artifact to rerun."
+    ),
+) -> None:
     libc = ctypes.CDLL(None, use_errno=True)
     if sys.platform == "darwin":
         rename_noreplace = getattr(libc, "renameatx_np", None)
@@ -696,9 +714,7 @@ def _kernel_rename_noreplace(parent_fd: int, source_name: str, destination_name:
     if result != 0:
         error_number = ctypes.get_errno()
         if error_number in {errno.EEXIST, errno.ENOTEMPTY}:
-            raise CreativeSpecificationSkepticReviewCliError(
-                "reviewed finalize run already exists; remove the local sibling artifact to rerun."
-            )
+            raise CreativeSpecificationSkepticReviewCliError(collision_message)
         raise CreativeSpecificationSkepticReviewCliError(
             f"reviewed finalize run no-replace publication failed: errno={error_number}."
         )
@@ -1038,11 +1054,11 @@ def _attach_from_bridge(bridge_path: Path, reviews_path: Path) -> dict[str, Any]
         )
     except Exception as primary_error:
         cleanup_error: Exception | None = None
+        retained_name: str | None = reviewed_dir.name if cleanup_name is None else None
         try:
             if cleanup_name is not None:
-                _remove_pinned_reviewed_run(
+                retained_name = _quarantine_pinned_reviewed_run(
                     reviewed_parent_fd,
-                    reviewed_fd,
                     name=cleanup_name,
                     expected_identity=reviewed_identity,
                 )
@@ -1058,7 +1074,9 @@ def _attach_from_bridge(bridge_path: Path, reviews_path: Path) -> dict[str, Any]
             raise CreativeSpecificationSkepticReviewCliError(
                 f"{primary_error}; cleanup_diagnostic={cleanup_error}"
             ) from primary_error
-        raise
+        raise CreativeSpecificationSkepticReviewCliError(
+            f"{primary_error}; failure_artifact_retained={retained_name}"
+        ) from primary_error
     close_error = creative_code_spec_pipeline._close_descriptors(
         reviewed_fd,
         reviewed_parent_fd,

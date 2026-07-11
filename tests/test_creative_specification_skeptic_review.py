@@ -723,13 +723,13 @@ def test_reviewed_run_creation_pins_parent_across_path_swap(
         assert (detached / staging_name).is_dir()
         assert not (detached / review_contract.REVIEWED_RUN_DIRNAME).exists()
         assert not (outside / review_contract.REVIEWED_RUN_DIRNAME).exists()
-        review_cli._remove_pinned_reviewed_run(
+        quarantine_name = review_cli._quarantine_pinned_reviewed_run(
             parent_fd,
-            reviewed_fd,
             name=staging_name,
             expected_identity=identity,
         )
         assert not (detached / staging_name).exists()
+        assert (detached / quarantine_name).is_dir()
     finally:
         review_cli.creative_code_spec_pipeline._close_descriptors(reviewed_fd, parent_fd)
         if bridge_dir.is_symlink():
@@ -760,14 +760,14 @@ def test_reviewed_run_cleanup_pins_original_parent_across_path_swap(
         sentinel = outside_reviewed / "sentinel.json"
         sentinel.write_text("{}", encoding="utf-8")
 
-        review_cli._remove_pinned_reviewed_run(
+        quarantine_name = review_cli._quarantine_pinned_reviewed_run(
             parent_fd,
-            reviewed_fd,
             name=staging_name,
             expected_identity=identity,
         )
 
         assert not (detached / staging_name).exists()
+        assert (detached / quarantine_name).is_dir()
         assert sentinel.read_text(encoding="utf-8") == "{}"
     finally:
         review_cli.creative_code_spec_pipeline._close_descriptors(reviewed_fd, parent_fd)
@@ -848,10 +848,13 @@ def test_reviewed_run_creation_cleans_exact_directory_after_post_mkdir_failure(
         ):
             review_cli._create_pinned_reviewed_run(reviewed)
         staging_paths = list(bridge_dir.glob(f".{review_contract.REVIEWED_RUN_DIRNAME}.*.staging"))
+        retained_paths = list(bridge_dir.glob(f".{review_contract.REVIEWED_RUN_DIRNAME}.*.failed"))
         if failure_point == "stat":
             assert len(staging_paths) == 1
+            assert retained_paths == []
         else:
             assert staging_paths == []
+            assert len(retained_paths) == 1
         assert not reviewed.exists()
     finally:
         shutil.rmtree(bridge_dir, ignore_errors=True)
@@ -972,12 +975,12 @@ def test_reviewed_run_publication_rejects_canonical_collision_without_overwrite(
 
         assert sentinel.read_text(encoding="utf-8") == "{}"
         assert (bridge_dir / staging_name).is_dir()
-        review_cli._remove_pinned_reviewed_run(
+        quarantine_name = review_cli._quarantine_pinned_reviewed_run(
             parent_fd,
-            reviewed_fd,
             name=staging_name,
             expected_identity=identity,
         )
+        assert (bridge_dir / quarantine_name).is_dir()
     finally:
         review_cli.creative_code_spec_pipeline._close_descriptors(reviewed_fd, parent_fd)
         shutil.rmtree(bridge_dir, ignore_errors=True)
@@ -1012,12 +1015,108 @@ def test_reviewed_run_publication_rejects_staging_identity_swap() -> None:
         assert detached.is_dir()
         assert staging_path.is_dir()
         assert not reviewed.exists()
-        review_cli._remove_pinned_reviewed_run(
+        quarantine_name = review_cli._quarantine_pinned_reviewed_run(
             parent_fd,
-            reviewed_fd,
             name=detached.name,
             expected_identity=identity,
         )
+        assert (bridge_dir / quarantine_name).is_dir()
+    finally:
+        review_cli.creative_code_spec_pipeline._close_descriptors(reviewed_fd, parent_fd)
+        shutil.rmtree(bridge_dir, ignore_errors=True)
+
+
+def test_reviewed_run_quarantine_retains_children_without_path_deletion(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bridge_dir = review_cli.SPEC_BRIDGE_ROOT / f"pytest-{uuid.uuid4().hex}"
+    reviewed = bridge_dir / review_contract.REVIEWED_RUN_DIRNAME
+    parent_fd = -1
+    reviewed_fd = -1
+    try:
+        bridge_dir.mkdir(parents=True)
+        parent_fd, reviewed_fd, identity, staging_name = review_cli._create_pinned_reviewed_run(
+            reviewed
+        )
+        review_cli._write_json_at(reviewed_fd, "owned.json", {"owned": True})
+
+        def forbid_path_deletion(*args: Any, **kwargs: Any) -> None:
+            raise AssertionError("failure quarantine must not delete pathname entries")
+
+        with monkeypatch.context() as context:
+            context.setattr(review_cli.os, "unlink", forbid_path_deletion)
+            context.setattr(review_cli.os, "rmdir", forbid_path_deletion)
+            quarantine_name = review_cli._quarantine_pinned_reviewed_run(
+                parent_fd,
+                name=staging_name,
+                expected_identity=identity,
+            )
+
+        retained_child = bridge_dir / quarantine_name / "owned.json"
+        assert json.loads(retained_child.read_text(encoding="utf-8")) == {"owned": True}
+        assert not (bridge_dir / staging_name).exists()
+    finally:
+        review_cli.creative_code_spec_pipeline._close_descriptors(reviewed_fd, parent_fd)
+        shutil.rmtree(bridge_dir, ignore_errors=True)
+
+
+def test_reviewed_run_quarantine_preserves_unknown_directory_replacement(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bridge_dir = review_cli.SPEC_BRIDGE_ROOT / f"pytest-{uuid.uuid4().hex}"
+    reviewed = bridge_dir / review_contract.REVIEWED_RUN_DIRNAME
+    detached = bridge_dir / "detached-owned-staging"
+    parent_fd = -1
+    reviewed_fd = -1
+    real_rename_noreplace = review_cli._kernel_rename_noreplace
+    quarantine_name: str | None = None
+    try:
+        bridge_dir.mkdir(parents=True)
+        parent_fd, reviewed_fd, identity, staging_name = review_cli._create_pinned_reviewed_run(
+            reviewed
+        )
+
+        def swap_source_during_quarantine(
+            directory_fd: int,
+            source_name: str,
+            destination_name: str,
+            **kwargs: Any,
+        ) -> None:
+            nonlocal quarantine_name
+            quarantine_name = destination_name
+            review_cli.os.rename(
+                source_name,
+                detached.name,
+                src_dir_fd=directory_fd,
+                dst_dir_fd=directory_fd,
+            )
+            review_cli.os.mkdir(source_name, mode=0o700, dir_fd=directory_fd)
+            real_rename_noreplace(
+                directory_fd,
+                source_name,
+                destination_name,
+                **kwargs,
+            )
+
+        monkeypatch.setattr(
+            review_cli,
+            "_kernel_rename_noreplace",
+            swap_source_during_quarantine,
+        )
+        with pytest.raises(
+            review_cli.CreativeSpecificationSkepticReviewCliError,
+            match="identity changed during quarantine",
+        ):
+            review_cli._quarantine_pinned_reviewed_run(
+                parent_fd,
+                name=staging_name,
+                expected_identity=identity,
+            )
+
+        assert detached.is_dir()
+        assert quarantine_name is not None
+        assert (bridge_dir / quarantine_name).is_dir()
+        assert not (bridge_dir / staging_name).exists()
     finally:
         review_cli.creative_code_spec_pipeline._close_descriptors(reviewed_fd, parent_fd)
         shutil.rmtree(bridge_dir, ignore_errors=True)

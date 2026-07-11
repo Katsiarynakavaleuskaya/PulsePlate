@@ -77,6 +77,7 @@ REVIEW_INPUT_KEYS = frozenset(
         "sanitized",
     }
 )
+MAX_REVIEWS_PER_DECISION = 15
 REVIEW_INPUT_ROW_KEYS = frozenset(
     {
         "variant_id",
@@ -915,10 +916,10 @@ def _normalize_attachment_coverage(raw_counts: Any, *, label: str) -> dict[str, 
         maxima={
             "variant_count": 5,
             "required_reviewer_count": len(REQUIRED_SKEPTIC_REVIEWERS),
-            "review_count": 15,
-            "pass_review_count": 15,
-            "revise_review_count": 15,
-            "reject_review_count": 15,
+            "review_count": MAX_REVIEWS_PER_DECISION,
+            "pass_review_count": MAX_REVIEWS_PER_DECISION,
+            "revise_review_count": MAX_REVIEWS_PER_DECISION,
+            "reject_review_count": MAX_REVIEWS_PER_DECISION,
             "unsafe_authority_flag_count": MAX_TOTAL_REVIEW_TOKEN_COUNT,
             "blocker_count": MAX_TOTAL_REVIEW_TOKEN_COUNT,
         },
@@ -941,7 +942,7 @@ def _normalize_receipt_counts(raw_counts: Any, *, label: str) -> dict[str, int]:
         label=label,
         maxima={
             "variant_count": 5,
-            "review_count": 15,
+            "review_count": MAX_REVIEWS_PER_DECISION,
             "selected_variant_count": 1,
             "rejected_variant_count": 5,
             "unresolved_blocker_count": MAX_TOTAL_REVIEW_TOKEN_COUNT,

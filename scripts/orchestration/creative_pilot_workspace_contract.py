@@ -83,6 +83,7 @@ CONDITIONAL_ROLE_RULES: tuple[tuple[frozenset[str], str], ...] = (
     (frozenset({"confidence", "ranking", "statistics"}), "data-scientist-agent"),
     (frozenset({"prompt", "output", "language"}), "prompt-engineering-eval-agent"),
 )
+REQUIRE_INDEPENDENT_REVIEW = True
 PHASES = frozenset(
     {
         "created",
@@ -1571,7 +1572,7 @@ def build_workspace(
         "role_plan": {
             "required_roles": roles,
             "conditional_roles": conditional,
-            "independent_first_pass": True,
+            "independent_first_pass": REQUIRE_INDEPENDENT_REVIEW,
             "max_rebuttal_rounds": 1,
             "majority_vote_allowed": False,
             "raw_reasoning_allowed": False,
