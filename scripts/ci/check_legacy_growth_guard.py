@@ -831,6 +831,8 @@ def _collect_binding_counts(tree: ast.Module) -> Counter[str]:
             counts[node.id] += 1
         elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
             counts[node.name] += 1
+        elif isinstance(node, ast.arg):
+            counts[node.arg] += 1
         elif isinstance(node, ast.Import):
             for alias in node.names:
                 counts[alias.asname or alias.name.split(".", maxsplit=1)[0]] += 1
@@ -1786,6 +1788,7 @@ def _uses_noncanonical_fastapi_lifespan(tree: ast.Module) -> bool:
         )
         if resolved_constructor not in {"fastapi.FastAPI", "fastapi.applications.FastAPI"}:
             continue
+        has_canonical_lifespan = False
         for keyword in node.keywords:
             if keyword.arg is None:
                 expanded_mapping = _resolve_static_mapping(
@@ -1800,11 +1803,13 @@ def _uses_noncanonical_fastapi_lifespan(tree: ast.Module) -> bool:
                     resolved_key = _resolve_static_string(key, static_string_bindings)
                     if resolved_key is None:
                         return True
-                    if resolved_key == "lifespan" and not _is_canonical_lifespan_value(
-                        value,
-                        canonical_lifespan_aliases,
-                    ):
-                        return True
+                    if resolved_key == "lifespan":
+                        if not _is_canonical_lifespan_value(
+                            value,
+                            canonical_lifespan_aliases,
+                        ):
+                            return True
+                        has_canonical_lifespan = True
                 continue
             if keyword.arg != "lifespan":
                 continue
@@ -1813,6 +1818,9 @@ def _uses_noncanonical_fastapi_lifespan(tree: ast.Module) -> bool:
                 canonical_lifespan_aliases,
             ):
                 return True
+            has_canonical_lifespan = True
+        if not has_canonical_lifespan:
+            return True
     return False
 
 

@@ -78,6 +78,14 @@ def test_current_lifecycle_ownership_passes_growth_guard() -> None:
             "legacy_app.py: FastAPI lifespan must use the canonical re-export",
         ),
         (
+            "from fastapi import FastAPI\napp = FastAPI()\n",
+            "legacy_app.py: FastAPI lifespan must use the canonical re-export",
+        ),
+        (
+            'from fastapi import FastAPI\napp = FastAPI(**{"title": "PulsePlate"})\n',
+            "legacy_app.py: FastAPI lifespan must use the canonical re-export",
+        ),
+        (
             "from fastapi.applications import FastAPI\n"
             "async def runtime_context(app):\n    yield\n"
             "app = FastAPI(lifespan=runtime_context)\n",
@@ -114,6 +122,13 @@ def test_current_lifecycle_ownership_passes_growth_guard() -> None:
             "async def runtime_context(app):\n    yield\n"
             "lifespan = runtime_context\n"
             "app = FastAPI(lifespan=lifespan)\n",
+            "legacy_app.py: FastAPI lifespan must use the canonical re-export",
+        ),
+        (
+            "from fastapi import FastAPI\n"
+            "from app.bootstrap.lifespan import application_lifespan as lifespan\n"
+            "def build_app(lifespan):\n"
+            "    return FastAPI(lifespan=lifespan)\n",
             "legacy_app.py: FastAPI lifespan must use the canonical re-export",
         ),
         (
@@ -232,6 +247,13 @@ def test_lifecycle_guard_rejects_food_search_lifespan_wrapping(
         (
             "from importlib import import_module\n"
             "value = import_module(resolve_module_name())\n",
+            "app/bootstrap/lifespan.py: dynamic facade lookup is forbidden",
+        ),
+        (
+            "from importlib import import_module\n"
+            "module_name = 'json'\n"
+            "def load(module_name):\n"
+            "    return import_module(module_name)\n",
             "app/bootstrap/lifespan.py: dynamic facade lookup is forbidden",
         ),
         (
