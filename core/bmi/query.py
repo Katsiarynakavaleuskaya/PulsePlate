@@ -91,31 +91,18 @@ def _next_valid_unit_match(
     for indexing back into ``text``.
     """
 
-    next_unit_at: int | None = None
-    matched_unit = ""
     text_length = len(text)
-    for unit in units:
-        cursor = search_from
-        unit_length = len(unit)
-        while cursor < text_length:
-            unit_at = -1
-            for candidate_at in range(cursor, text_length - unit_length + 1):
-                if text[candidate_at : candidate_at + unit_length].lower() == unit:
-                    unit_at = candidate_at
-                    break
-            if unit_at < 0:
-                break
-            unit_end = unit_at + unit_length
-            if unit_end < text_length and not _is_unit_boundary(text[unit_end]):
-                cursor = unit_end
+    for candidate_at in range(search_from, text_length):
+        for unit in units:
+            unit_end = candidate_at + len(unit)
+            if unit_end > text_length:
                 continue
-            if next_unit_at is None or unit_at < next_unit_at:
-                next_unit_at = unit_at
-                matched_unit = unit
-            break
-    if next_unit_at is None:
-        return None
-    return next_unit_at, matched_unit
+            if text[candidate_at:unit_end].lower() != unit:
+                continue
+            if unit_end < text_length and not _is_unit_boundary(text[unit_end]):
+                continue
+            return candidate_at, unit
+    return None
 
 
 def _find_number_before_unit(text: str, units: tuple[str, ...]) -> float | None:
