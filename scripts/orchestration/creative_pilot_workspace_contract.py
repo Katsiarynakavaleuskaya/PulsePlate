@@ -881,10 +881,17 @@ def _revalidate_bound_json(ref: str, *, filename: str, artifact_type: str, finge
             directory_fd = child_fd
             try:
                 os.close(previous_fd)
-            except OSError:
-                os.close(child_fd)
+            except OSError as transfer_error:
+                cleanup_error: OSError | None = None
+                for descriptor in (previous_fd, child_fd):
+                    try:
+                        os.close(descriptor)
+                    except OSError as exc:
+                        cleanup_error = cleanup_error or exc
                 directory_fd = -1
-                raise
+                raise CreativePilotContractError(f"adaptive_source_close_failed: {filename}") from (
+                    cleanup_error or transfer_error
+                )
         file_flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0)
         nofollow = getattr(os, "O_NOFOLLOW", None)
         if not isinstance(nofollow, int):

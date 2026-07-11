@@ -1255,6 +1255,7 @@ def _cmd_resume_pr1(args: argparse.Namespace) -> None:
                 existing_candidate, candidate
             ):
                 raise CreativePilotContractError("adaptive_divergent_replay: resume inputs changed")
+            _revalidate_exact_source_bindings(source_rows, prepare_rows)
             _validate_pinned_resume_bundle(
                 existing_directory_fd,
                 intake=existing_intake,
@@ -1263,7 +1264,6 @@ def _cmd_resume_pr1(args: argparse.Namespace) -> None:
                 allow_reviewed_run=True,
                 entry_error_prefix="adaptive_partial_output",
             )
-            _revalidate_exact_source_bindings(source_rows, prepare_rows)
             print(f"PASS resume_id={resume_id} replay=idempotent " "next=agent-skeptic-review")
             return
         finally:

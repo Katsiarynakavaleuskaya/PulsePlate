@@ -601,6 +601,46 @@ def test_bound_json_revalidation_pins_final_file_against_symlink_swap(
         shutil.rmtree(run_dir, ignore_errors=True)
 
 
+def test_bound_json_revalidation_closes_both_descriptors_on_transfer_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_dir = pilot_cli.PILOT_ROOT / f"pytest-{uuid.uuid4().hex}"
+    source = run_dir / "source.json"
+    payload = {"artifact_type": "json", "value": "expected"}
+    failed_descriptor = -1
+    fail_next_close = True
+    real_close = pilot_contract.os.close
+
+    def fail_first_close(descriptor: int) -> None:
+        nonlocal failed_descriptor, fail_next_close
+        if fail_next_close:
+            fail_next_close = False
+            failed_descriptor = descriptor
+            raise OSError("simulated descriptor transfer failure")
+        real_close(descriptor)
+
+    try:
+        run_dir.mkdir(parents=True)
+        source.write_text(json.dumps(payload), encoding="utf-8")
+        with monkeypatch.context() as context:
+            context.setattr(pilot_contract.os, "close", fail_first_close)
+            with pytest.raises(
+                CreativePilotContractError,
+                match="adaptive_source_close_failed",
+            ):
+                pilot_contract._revalidate_bound_json(
+                    source.relative_to(pilot_contract.REPO_ROOT).as_posix(),
+                    filename=source.name,
+                    artifact_type="json",
+                    fingerprint=fingerprint_payload(payload),
+                )
+        assert failed_descriptor >= 0
+        with pytest.raises(OSError):
+            os.fstat(failed_descriptor)
+    finally:
+        shutil.rmtree(run_dir, ignore_errors=True)
+
+
 def test_pinned_staging_creation_rejects_symlink_parent_and_collision(
     tmp_path: Path,
 ) -> None:
@@ -1083,6 +1123,60 @@ def _cleanup_published_adaptive_resume(fixture: dict[str, object]) -> None:
     shutil.rmtree(Path(fixture["output"]), ignore_errors=True)
     shutil.rmtree(Path(fixture["pilot_dir"]), ignore_errors=True)
     shutil.rmtree(Path(fixture["root"]), ignore_errors=True)
+
+
+def test_idempotent_replay_revalidates_bundle_after_source_checks(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    fixture = _publish_adaptive_resume_for_test(
+        monkeypatch=monkeypatch,
+        capsys=capsys,
+        prefix="replay-terminal-snapshot",
+    )
+    output = Path(fixture["output"])
+    candidate_path = output / pilot_cli.RESUME_CANDIDATE_FILENAME
+    declarations = Path(fixture["root"]) / "declarations.json"
+    real_revalidate = pilot_cli._revalidate_exact_source_bindings
+    calls = 0
+
+    def mutate_on_terminal_source_check(*args: object, **kwargs: object) -> None:
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            candidate_path.write_text(
+                json.dumps({"candidate_id": "candidate:late-replay-mutation"}),
+                encoding="utf-8",
+            )
+        real_revalidate(*args, **kwargs)
+
+    monkeypatch.setattr(
+        pilot_cli,
+        "_revalidate_exact_source_bindings",
+        mutate_on_terminal_source_check,
+    )
+    try:
+        capsys.readouterr()
+        assert (
+            pilot_cli.main(
+                [
+                    "resume-pr1",
+                    "--pilot-id",
+                    str(fixture["pilot_id"]),
+                    "--variant-declarations",
+                    str(declarations),
+                    "--current-base-sha",
+                    _sha(),
+                ]
+            )
+            == 1
+        )
+        output_text = capsys.readouterr().out
+        assert "canonical resume payload mismatch" in output_text
+        assert "replay=idempotent" not in output_text
+        assert calls == 2
+    finally:
+        _cleanup_published_adaptive_resume(fixture)
 
 
 def _rederive_resume_binding_identity(
