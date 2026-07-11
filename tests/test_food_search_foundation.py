@@ -760,6 +760,34 @@ def test_pooled_httpx_transport_refuses_when_shutdown_event_set() -> None:
         assert request_count == 1
 
 
+def test_pooled_httpx_transport_maps_client_close_race_to_request_error() -> None:
+    shutdown = threading.Event()
+    client = MagicMock(spec=httpx.Client)
+    client.is_closed = False
+
+    def _race_with_shutdown(*_args: object, **_kwargs: object) -> None:
+        shutdown.set()
+        client.is_closed = True
+        raise RuntimeError("connection pool closed during request")
+
+    client.post.side_effect = _race_with_shutdown
+    pooled = make_pooled_httpx_transport(client, shutdown_event=shutdown)
+
+    with pytest.raises(httpx.RequestError, match="shut down during POST"):
+        pooled("http://testserver/indexes/i/search", {"q": "a"}, {}, 2.0)
+
+
+def test_pooled_httpx_transport_does_not_mask_unrelated_runtime_error() -> None:
+    shutdown = threading.Event()
+    client = MagicMock(spec=httpx.Client)
+    client.is_closed = False
+    client.post.side_effect = RuntimeError("unrelated transport bug")
+    pooled = make_pooled_httpx_transport(client, shutdown_event=shutdown)
+
+    with pytest.raises(RuntimeError, match="unrelated transport bug"):
+        pooled("http://testserver/indexes/i/search", {"q": "a"}, {}, 2.0)
+
+
 def test_pooled_httpx_transport_propagates_http_status_errors() -> None:
     def _handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(500, json={"detail": "server error"})

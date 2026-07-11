@@ -44,6 +44,22 @@ def test_current_lifecycle_ownership_passes_growth_guard() -> None:
             "legacy_app.py: startup/shutdown event registration is forbidden",
         ),
         (
+            'app.add_event_handler("startup", start)\n',
+            "legacy_app.py: startup/shutdown event registration is forbidden",
+        ),
+        (
+            "app.router.on_shutdown.append(stop)\n",
+            "legacy_app.py: startup/shutdown event registration is forbidden",
+        ),
+        (
+            "callbacks = app.router.on_startup\ncallbacks.append(start)\n",
+            "legacy_app.py: startup/shutdown event registration is forbidden",
+        ),
+        (
+            'getattr(app.router, "on_startup").append(start)\n',
+            "legacy_app.py: startup/shutdown event registration is forbidden",
+        ),
+        (
             "app.router.lifespan_context = wrapper\n",
             "legacy_app.py: lifespan_context mutation is forbidden",
         ),
@@ -59,6 +75,18 @@ def test_current_lifecycle_ownership_passes_growth_guard() -> None:
             "from fastapi import FastAPI\n"
             "async def runtime_context(app):\n    yield\n"
             "app = FastAPI(lifespan=runtime_context)\n",
+            "legacy_app.py: FastAPI lifespan must use the canonical re-export",
+        ),
+        (
+            "from fastapi.applications import FastAPI\n"
+            "async def runtime_context(app):\n    yield\n"
+            "app = FastAPI(lifespan=runtime_context)\n",
+            "legacy_app.py: FastAPI lifespan must use the canonical re-export",
+        ),
+        (
+            "import fastapi.applications\n"
+            "async def runtime_context(app):\n    yield\n"
+            "app = fastapi.applications.FastAPI(lifespan=runtime_context)\n",
             "legacy_app.py: FastAPI lifespan must use the canonical re-export",
         ),
         (
@@ -129,9 +157,12 @@ def test_lifecycle_guard_rejects_legacy_ownership(
         'import builtins\nbuiltins.setattr(app.router, "lifespan_context", wrapper)\n',
         'from builtins import setattr as assign\nassign(app.router, "lifespan_context", wrapper)\n',
         'object.__setattr__(app.router, "lifespan_context", wrapper)\n',
+        'app.router.__setattr__("lifespan_context", wrapper)\n',
         'assign = object.__setattr__\nassign(app.router, "lifespan_context", wrapper)\n',
         'vars(app.router)["lifespan_context"] = wrapper\n',
         'app.router.__dict__["lifespan_context"] = wrapper\n',
+        'app.router.__dict__.update({"lifespan_context": wrapper})\n',
+        'vars(app.router).update({"lifespan_context": wrapper})\n',
     ],
 )
 def test_lifecycle_guard_rejects_food_search_lifespan_wrapping(
@@ -202,6 +233,19 @@ def test_lifecycle_guard_rejects_food_search_lifespan_wrapping(
             "from importlib import import_module\n"
             "value = import_module(resolve_module_name())\n",
             "app/bootstrap/lifespan.py: dynamic facade lookup is forbidden",
+        ),
+        (
+            "from importlib import import_module\n"
+            "value = import_module('.main', package='app')\n",
+            "app/bootstrap/lifespan.py: dynamic facade lookup is forbidden",
+        ),
+        (
+            "import app.main\n",
+            "app/bootstrap/lifespan.py: forbidden facade import: app.main",
+        ),
+        (
+            "from app.main import app\n",
+            "app/bootstrap/lifespan.py: forbidden facade import: app.main",
         ),
         (
             "value = app_module.start_background_updates\n",

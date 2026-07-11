@@ -16,7 +16,7 @@ Status: Accepted guardrail
 owns new canonical route registration. This is a transitional seam, not the
 desired final architecture.
 
-Application startup/shutdown behavior is canonical-owned by
+Application startup/shutdown behavior is canonically owned by
 `app/bootstrap/lifespan.py`. `legacy_app.py` only passes that context manager to
 its existing `FastAPI(...)` instance until app-factory ownership is inverted.
 Food-search clients and the process-wide strategy adapter are acquired and

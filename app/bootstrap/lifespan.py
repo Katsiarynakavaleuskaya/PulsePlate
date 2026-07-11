@@ -35,6 +35,35 @@ class BackgroundUpdateStarter(Protocol):
 BackgroundUpdateStopper = Callable[[], Awaitable[None]]
 
 
+async def _unavailable_background_update_start(
+    update_interval_hours: int = BACKGROUND_UPDATE_INTERVAL_HOURS,
+) -> None:
+    """Keep startup best-effort when the optional scheduler cannot import."""
+
+    del update_interval_hours
+
+
+async def _unavailable_background_update_stop() -> None:
+    """No-op counterpart for an unavailable optional scheduler."""
+
+
+def _load_background_update_hooks() -> tuple[BackgroundUpdateStarter, BackgroundUpdateStopper]:
+    """Load optional scheduler hooks without making them a startup dependency."""
+
+    try:
+        from core.food_apis.scheduler import (
+            start_background_updates,
+            stop_background_updates,
+        )
+    except ImportError:
+        logger.warning(
+            "Background update scheduler is unavailable; continuing without it.",
+            exc_info=True,
+        )
+        return _unavailable_background_update_start, _unavailable_background_update_stop
+    return start_background_updates, stop_background_updates
+
+
 @dataclass(frozen=True, slots=True)
 class LifespanHooks:
     """Explicit lifecycle dependencies for deterministic startup tests."""
@@ -61,10 +90,8 @@ def build_default_lifespan_hooks() -> LifespanHooks:
     from app.dependencies import validate_template_dir
     from core.db import init_db
     from core.db_fallback import attempt_db_fallback, clear_fallback_active
-    from core.food_apis.scheduler import (
-        start_background_updates,
-        stop_background_updates,
-    )
+
+    start_background_updates, stop_background_updates = _load_background_update_hooks()
 
     return LifespanHooks(
         run_startup_guards=run_startup_guards,

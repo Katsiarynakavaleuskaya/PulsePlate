@@ -6665,7 +6665,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Target PR: TBD (v2.0 timeline, after all migrations)
   - Priority: P2 (long-term cleanup)
-  - Reason: After all critical security fixes and endpoint migrations complete, eventually delete `legacy_app.py` entirely. All logic should be in modular routers (`app/routers/*`) and core modules (`core/*`). The current train extracts lifecycle ownership first, then cuts canonical `app/*` dependencies on legacy compatibility symbols, inverts app-factory/OpenAPI ownership, and finally inventories/removes the remaining facade exports.
+  - Reason: After all critical security fixes and endpoint migrations complete, eventually delete `legacy_app.py` entirely. Legacy business and route logic should move to its canonical owners: modular routers (`app/routers/*`), services (`app/services/*`), bootstrap modules (`app/bootstrap/*`), or core modules (`core/*`) according to responsibility. The current train extracts lifecycle ownership first, then cuts canonical `app/*` dependencies on legacy compatibility symbols, inverts app-factory/OpenAPI ownership, and finally inventories/removes the remaining facade exports.
   - Links:
     - docs/audit/LEGACY_APP_MIGRATION_STATUS.md (overall progress, migration status)
     - docs/pr/PR_THIN_PROXY_CLEANUP_PLAN.md

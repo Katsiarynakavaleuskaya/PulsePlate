@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import builtins
+import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import replace
 
@@ -76,6 +78,32 @@ def test_canonical_lifespan_uses_exact_startup_and_cleanup_order(
         "scheduler-stop",
         "food-dispose",
     ]
+
+
+def test_missing_optional_scheduler_uses_best_effort_noop_hooks(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    real_import = builtins.__import__
+
+    def _import_with_missing_scheduler(
+        name: str,
+        globals: dict[str, object] | None = None,
+        locals: dict[str, object] | None = None,
+        fromlist: tuple[str, ...] = (),
+        level: int = 0,
+    ) -> object:
+        if name == "core.food_apis.scheduler":
+            raise ImportError("optional scheduler dependency unavailable")
+        return real_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", _import_with_missing_scheduler)
+    with caplog.at_level(logging.WARNING, logger="app.bootstrap.lifespan"):
+        starter, stopper = lifespan_module._load_background_update_hooks()
+
+    asyncio.run(starter())
+    asyncio.run(stopper())
+    assert "scheduler is unavailable" in caplog.text
 
 
 def test_startup_guard_failure_stops_all_later_work() -> None:

@@ -211,10 +211,21 @@ evidence addresses the note without changing runtime scope.
 
 ## Experiment Runner Evidence
 
-Artifact: `artifacts/orchestration/experiments/results/exp-2dba53ad6a27.json`
+Local artifact (gitignored; not durable merge authority):
+`artifacts/orchestration/experiments/results/exp-2dba53ad6a27.json`
+
+Content identifier (SHA-256):
+`93b1d313fde78e123a85c8c50026fc29f3f0f1e0946e650a00db68c88741c317`
+
+The committed summary below is the durable review record. The local artifact
+cannot be independently recovered from Git and is not promotion,
+thread-disposition, or merge-readiness authority.
 
 - Mode: `oracle_only_governance_reviewer`; status: `accepted`;
   `failure_class: null`; `mutated_paths: []`; `shared_tree_untouched: true`.
+- Recorded oracle results: 289 lifecycle/food-search/guard/public-surface tests,
+  the legacy compatibility guard, and 106 DB-fallback/health/production
+  invariant tests all exited `0`; `promotion_ready: false`.
 - Contribution: `commit_decision`; canonical Experiment Runner co-author trailer
   is present in `6f629181cc1fca5a10d8e98e02811348a594ca03`.
 - Rejected infra-only predecessor `exp-71c19a6e2e14` is not evidence or

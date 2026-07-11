@@ -19,6 +19,13 @@ LEGACY_APP = "legacy_app.py"
 LEGACY_SEAM_DOC = "docs/architecture/LEGACY_COMPATIBILITY_SEAM.md"
 FOOD_SEARCH_BOOTSTRAP = "app/bootstrap/food_search.py"
 CANONICAL_LIFESPAN = "app/bootstrap/lifespan.py"
+ALLOWED_CANONICAL_LIFESPAN_APP_IMPORTS = frozenset(
+    {
+        "app.bootstrap.food_search",
+        "app.bootstrap.startup_guards",
+        "app.dependencies",
+    }
+)
 
 
 @dataclass(frozen=True, order=True)
@@ -1567,8 +1574,18 @@ def _collect_lifecycle_references(
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             for alias in node.names:
-                if alias.name in {"builtins", "fastapi", "importlib", "sys"}:
-                    references[alias.asname or alias.name] = alias.name
+                if alias.name in {
+                    "builtins",
+                    "fastapi",
+                    "fastapi.applications",
+                    "importlib",
+                    "sys",
+                }:
+                    if alias.asname is not None:
+                        references[alias.asname] = alias.name
+                    else:
+                        root_module = alias.name.partition(".")[0]
+                        references[root_module] = root_module
         elif isinstance(node, ast.ImportFrom) and node.module is not None:
             for alias in node.names:
                 local_name = alias.asname or alias.name
@@ -1579,6 +1596,7 @@ def _collect_lifecycle_references(
                     "builtins.setattr",
                     "builtins.vars",
                     "fastapi.FastAPI",
+                    "fastapi.applications.FastAPI",
                     "importlib.import_module",
                     "sys.modules",
                 }:
@@ -1639,10 +1657,10 @@ def _resolve_lifecycle_reference(
         )
         if parent is not None:
             return f"{parent}.{node.attr}"
-        if node.attr == "on_event":
-            return "*.on_event"
-        if node.attr == "__setattr__" and isinstance(node.value, ast.Name):
-            return f"{node.value.id}.__setattr__"
+        if node.attr in {"add_event_handler", "on_event", "on_shutdown", "on_startup"}:
+            return f"*.{node.attr}"
+        if node.attr == "__setattr__":
+            return "object.__setattr__"
         return None
     if not isinstance(node, ast.Call):
         return None
@@ -1663,8 +1681,8 @@ def _resolve_lifecycle_reference(
     )
     if parent is not None:
         return f"{parent}.{attribute_name}"
-    if attribute_name == "on_event":
-        return "*.on_event"
+    if attribute_name in {"add_event_handler", "on_event", "on_shutdown", "on_startup"}:
+        return f"*.{attribute_name}"
     return None
 
 
@@ -1690,6 +1708,14 @@ def _assigns_lifespan_context(tree: ast.Module) -> bool:
                 return True
         if (
             isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "__setattr__"
+            and len(node.args) >= 1
+            and _resolve_static_string(node.args[0], static_string_bindings) == "lifespan_context"
+        ):
+            return True
+        if (
+            isinstance(node, ast.Call)
             and len(node.args) >= 2
             and _resolve_lifecycle_reference(
                 node.func,
@@ -1700,22 +1726,50 @@ def _assigns_lifespan_context(tree: ast.Module) -> bool:
             and _resolve_static_string(node.args[1], static_string_bindings) == "lifespan_context"
         ):
             return True
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "update"
+            and (
+                (isinstance(node.func.value, ast.Attribute) and node.func.value.attr == "__dict__")
+                or (
+                    isinstance(node.func.value, ast.Call)
+                    and _resolve_lifecycle_reference(
+                        node.func.value.func,
+                        references=references,
+                        static_string_bindings=static_string_bindings,
+                    )
+                    == "builtins.vars"
+                )
+            )
+        ):
+            return True
     return False
 
 
 def _registers_lifecycle_event(tree: ast.Module) -> bool:
     references, _canonical_lifespan_aliases = _collect_lifecycle_references(tree)
     static_string_bindings = _collect_static_string_bindings(tree)
-    return any(
-        isinstance(node, ast.Call)
-        and _resolve_lifecycle_reference(
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign)):
+            raw_targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            if any(
+                isinstance(target, ast.Attribute) and target.attr in {"on_shutdown", "on_startup"}
+                for target in raw_targets
+            ):
+                return True
+        if not isinstance(node, ast.Call):
+            continue
+        reference = _resolve_lifecycle_reference(
             node.func,
             references=references,
             static_string_bindings=static_string_bindings,
         )
-        == "*.on_event"
-        for node in ast.walk(tree)
-    )
+        if reference in {"*.add_event_handler", "*.on_event"}:
+            return True
+        if reference is not None and reference.startswith(("*.on_shutdown.", "*.on_startup.")):
+            return True
+    return False
 
 
 def _uses_noncanonical_fastapi_lifespan(tree: ast.Module) -> bool:
@@ -1725,14 +1779,12 @@ def _uses_noncanonical_fastapi_lifespan(tree: ast.Module) -> bool:
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
-        if (
-            _resolve_lifecycle_reference(
-                node.func,
-                references=references,
-                static_string_bindings=static_string_bindings,
-            )
-            != "fastapi.FastAPI"
-        ):
+        resolved_constructor = _resolve_lifecycle_reference(
+            node.func,
+            references=references,
+            static_string_bindings=static_string_bindings,
+        )
+        if resolved_constructor not in {"fastapi.FastAPI", "fastapi.applications.FastAPI"}:
             continue
         for keyword in node.keywords:
             if keyword.arg is None:
@@ -1866,12 +1918,29 @@ def _uses_dynamic_facade_lookup(tree: ast.Module) -> bool:
         if function_reference not in {"builtins.__import__", "importlib.import_module"}:
             continue
         module_node = node.args[0] if node.args else None
+        package_node = (
+            node.args[1]
+            if function_reference == "importlib.import_module" and len(node.args) >= 2
+            else None
+        )
         for keyword in node.keywords:
             if keyword.arg in {"name", "module"}:
                 module_node = keyword.value
+            elif keyword.arg == "package" and function_reference == "importlib.import_module":
+                package_node = keyword.value
         if module_node is None:
             continue
         module_name = _resolve_static_string(module_node, static_string_bindings)
+        if module_name is not None and module_name.startswith("."):
+            if package_node is None:
+                return True
+            package_name = _resolve_static_string(package_node, static_string_bindings)
+            if package_name is None:
+                return True
+            try:
+                module_name = resolve_name(module_name, package_name)
+            except ImportError:
+                return True
         if module_name is None or _is_facade_module_name(module_name):
             return True
     return False
@@ -1920,11 +1989,18 @@ def validate_lifecycle_ownership(
         for node in ast.walk(lifespan_tree):
             if isinstance(node, ast.Import):
                 for alias in node.names:
-                    if alias.name in {"app", "legacy_app"}:
+                    if _is_facade_module_name(alias.name) and (
+                        alias.name not in ALLOWED_CANONICAL_LIFESPAN_APP_IMPORTS
+                    ):
                         errors.append(
                             f"{CANONICAL_LIFESPAN}: forbidden facade import: {alias.name}"
                         )
-            elif isinstance(node, ast.ImportFrom) and node.module in {"app", "legacy_app"}:
+            elif (
+                isinstance(node, ast.ImportFrom)
+                and node.module is not None
+                and _is_facade_module_name(node.module)
+                and node.module not in ALLOWED_CANONICAL_LIFESPAN_APP_IMPORTS
+            ):
                 errors.append(f"{CANONICAL_LIFESPAN}: forbidden facade import: {node.module}")
         if _uses_dynamic_facade_lookup(lifespan_tree):
             errors.append(f"{CANONICAL_LIFESPAN}: dynamic facade lookup is forbidden")
