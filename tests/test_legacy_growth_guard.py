@@ -193,6 +193,9 @@ def test_lifecycle_guard_rejects_legacy_ownership(
         'del vars(app.router)["lifespan_context"]\n',
         'app.router.__dict__.update({"lifespan_context": wrapper})\n',
         'vars(app.router).update({"lifespan_context": wrapper})\n',
+        'app.router.__dict__.update(**{"lifespan_context": wrapper})\n',
+        'options = {"lifespan_context": wrapper}\nvars(app.router).update(**options)\n',
+        "vars(app.router).update(**build_options())\n",
         'app.router.__dict__.setdefault("lifespan_context", wrapper)\n',
         'vars(app.router).setdefault("lifespan_context", wrapper)\n',
         'app.router.__dict__.pop("lifespan_context")\n',
@@ -216,6 +219,7 @@ def test_lifecycle_guard_rejects_food_search_lifespan_wrapping(
     "food_source",
     [
         'vars(app.state).update({"food_search_strategy": strategy})\n',
+        'vars(app.state).update(**{"food_search_strategy": strategy})\n',
         'some_object.__dict__.update({"x": value})\n',
         'vars(app.state).setdefault("food_search_strategy", strategy)\n',
     ],
@@ -302,6 +306,14 @@ def test_lifecycle_guard_allows_unrelated_namespace_mutation(food_source: str) -
             "app/bootstrap/lifespan.py: dynamic facade lookup is forbidden",
         ),
         (
+            "import builtins\n" 'value = builtins.__dict__["__import__"]("legacy_app")\n',
+            "app/bootstrap/lifespan.py: dynamic facade lookup is forbidden",
+        ),
+        (
+            "import builtins\n" 'value = vars(builtins)["__import__"]("app.main")\n',
+            "app/bootstrap/lifespan.py: dynamic facade lookup is forbidden",
+        ),
+        (
             "import app.main\n",
             "app/bootstrap/lifespan.py: forbidden facade import: app.main",
         ),
@@ -338,6 +350,32 @@ def test_lifecycle_guard_accepts_canonical_lifespan_in_static_keyword_mapping() 
         """)
 
     assert legacy_guard.validate_lifecycle_ownership(legacy_source, "pass\n", "pass\n") == []
+
+
+@pytest.mark.parametrize(
+    "constructor",
+    [
+        'fastapi.__dict__["FastAPI"]',
+        'vars(fastapi)["FastAPI"]',
+    ],
+)
+def test_lifecycle_guard_rejects_namespace_mediated_fastapi_constructor(
+    constructor: str,
+) -> None:
+    legacy_source = textwrap.dedent(f"""
+        import fastapi
+
+        async def runtime_context(app):
+            yield
+
+        app = {constructor}(lifespan=runtime_context)
+        """)
+
+    assert legacy_guard.validate_lifecycle_ownership(
+        legacy_source,
+        "pass\n",
+        "pass\n",
+    ) == ["legacy_app.py: FastAPI lifespan must use the canonical re-export"]
 
 
 def test_lifecycle_guard_rejects_static_mapping_that_escapes_before_expansion() -> None:

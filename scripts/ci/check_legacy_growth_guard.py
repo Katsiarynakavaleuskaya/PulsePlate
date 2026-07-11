@@ -1660,13 +1660,10 @@ def _resolve_lifecycle_reference(
             static_string_bindings=static_string_bindings,
         )
         member_name = _resolve_static_string(node.slice, static_string_bindings)
-        if parent == "builtins" and member_name in {
-            "__import__",
-            "getattr",
-            "setattr",
-            "vars",
-        }:
-            return f"builtins.{member_name}"
+        if parent is not None and parent.endswith(".__dict__"):
+            parent = parent.removesuffix(".__dict__")
+        if parent is not None and member_name is not None:
+            return f"{parent}.{member_name}"
         return None
     if isinstance(node, ast.Attribute):
         parent = _resolve_lifecycle_reference(
@@ -1688,6 +1685,12 @@ def _resolve_lifecycle_reference(
         references=references,
         static_string_bindings=static_string_bindings,
     )
+    if function_reference == "builtins.vars" and len(node.args) == 1 and not node.keywords:
+        return _resolve_lifecycle_reference(
+            node.args[0],
+            references=references,
+            static_string_bindings=static_string_bindings,
+        )
     if function_reference != "builtins.getattr" or len(node.args) < 2:
         return None
     attribute_name = _resolve_static_string(node.args[1], static_string_bindings)
@@ -1791,7 +1794,11 @@ def _mutates_lifespan_namespace(
     if node.func.attr == "update":
         if any(keyword.arg == "lifespan_context" for keyword in node.keywords):
             return True
-        for argument in node.args:
+        mapping_arguments = [
+            *node.args,
+            *(keyword.value for keyword in node.keywords if keyword.arg is None),
+        ]
+        for argument in mapping_arguments:
             mapping = _resolve_static_mapping(argument, static_mapping_bindings)
             if mapping is None:
                 return True
