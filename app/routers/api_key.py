@@ -64,19 +64,25 @@ def get_api_key(api_key: str | None = Depends(api_key_header)) -> str:
             and secrets.compare_digest(api_key_value.replace("-", "_"), expected.replace("-", "_"))
         ):
             return expected
-        raise HTTPException(status_code=403, detail="Invalid API Key")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid API Key")
 
     if is_truthy_env_var("API_KEY_REQUIRED"):
-        raise HTTPException(status_code=403, detail="API key required but not configured")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="API key required but not configured",
+        )
     if not dev_mode:
-        raise HTTPException(status_code=403, detail="API key required but not configured")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="API key required but not configured",
+        )
     if not api_key_value:
-        raise HTTPException(status_code=403, detail="Missing API Key")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Missing API Key")
 
     token = api_key_value.strip()
     forbidden_tokens = {"invalid", "invalid_key", "wrong", "bad", "null"}
     if len(token) < 4 or token.lower() in forbidden_tokens:
-        raise HTTPException(status_code=403, detail="Invalid API Key")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid API Key")
     return token
 
 
@@ -87,7 +93,10 @@ def _get_api_key_dynamic(api_key: str | None = Depends(api_key_header)) -> str:
     guard = getattr(app_package, "get_api_key", get_api_key)
     if not callable(guard):
         logger.error("Authentication dependency is unavailable")
-        raise HTTPException(status_code=500, detail="Authentication service error")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Authentication service error",
+        )
     try:
         result = guard(api_key)
     except HTTPException:
@@ -97,10 +106,16 @@ def _get_api_key_dynamic(api_key: str | None = Depends(api_key_header)) -> str:
             "Authentication dependency failed with unexpected exception type %s",
             type(exc).__name__,
         )
-        raise HTTPException(status_code=500, detail="Authentication service error") from exc
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Authentication service error",
+        ) from exc
     if not isinstance(result, str) or not result.strip():
         logger.error("Authentication dependency returned an invalid string result")
-        raise HTTPException(status_code=500, detail="Authentication service error")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Authentication service error",
+        )
     return result
 
 
@@ -121,12 +136,18 @@ def validate_app_api_key(api_key: str | None) -> str:
             and secrets.compare_digest(api_key_value.replace("-", "_"), expected.replace("-", "_"))
         ):
             return expected
-        raise HTTPException(status_code=403, detail="Invalid API Key")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid API Key")
 
     if is_truthy_env_var("API_KEY_REQUIRED"):
-        raise HTTPException(status_code=403, detail="API key required but not configured")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="API key required but not configured",
+        )
 
-    raise HTTPException(status_code=403, detail="API key required but not configured")
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="API key required but not configured",
+    )
 
 
 def require_app_api_key(api_key: str | None = Depends(api_key_header)) -> str:

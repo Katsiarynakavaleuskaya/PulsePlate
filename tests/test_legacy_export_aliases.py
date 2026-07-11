@@ -36,14 +36,7 @@ def _matching_routes(path: str, method: str) -> list[object]:
 
 def _is_canonical_api_key_dependency(dependency: object) -> bool:
     callable_dependency = getattr(dependency, "dependency", None)
-    resolved_module = (
-        inspect.getmodule(callable_dependency) if callable(callable_dependency) else None
-    )
-    return (
-        callable(callable_dependency)
-        and getattr(resolved_module, "__name__", "") == canonical_api_key.__name__
-        and getattr(callable_dependency, "__name__", "") == "_get_api_key_dynamic"
-    )
+    return callable_dependency is canonical_api_key._get_api_key_dynamic
 
 
 def test_legacy_export_alias_routes_are_hidden_shim_owned_and_protected() -> None:
@@ -59,6 +52,7 @@ def test_legacy_export_alias_routes_are_hidden_shim_owned_and_protected() -> Non
         assert route_include_in_schema(route) is include_in_schema
         assert path not in openapi_paths
         assert 429 in route_responses(route)
+        assert callable(endpoint)
         assert "request" in inspect.signature(endpoint).parameters
         dependencies = getattr(route, "dependencies", None)
         if dependencies is None:

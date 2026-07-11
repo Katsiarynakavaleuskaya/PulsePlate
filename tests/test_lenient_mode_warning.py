@@ -22,15 +22,25 @@ class TestLenientModeWarning:
     We reset the flag to False before AND after each test to ensure proper isolation.
     """
 
+    @staticmethod
+    def _configure_lenient_env(monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("APP_ENV", "dev")
+        for name in (
+            "API_KEY",
+            "ENVIRONMENT",
+            "API_KEY_REQUIRED",
+            "ALLOW_DEV_API_KEY",
+            "ALLOW_DEV_API_KEY_NORMALIZE",
+        ):
+            monkeypatch.delenv(name, raising=False)
+
     def test_lenient_mode_warning_logged_only_once(
         self,
         monkeypatch: pytest.MonkeyPatch,
         caplog: pytest.LogCaptureFixture,
     ) -> None:
         """Verify that lenient mode warning is logged only once, not on every call."""
-        # Set up environment for lenient mode
-        monkeypatch.setenv("APP_ENV", "dev")
-        monkeypatch.delenv("API_KEY", raising=False)
+        self._configure_lenient_env(monkeypatch)
 
         with caplog.at_level(logging.WARNING):
             for _ in range(5):
@@ -49,12 +59,16 @@ class TestLenientModeWarning:
         monkeypatch: pytest.MonkeyPatch,
         caplog: pytest.LogCaptureFixture,
     ) -> None:
-        monkeypatch.setenv("APP_ENV", "dev")
-        monkeypatch.delenv("API_KEY", raising=False)
+        self._configure_lenient_env(monkeypatch)
 
         with caplog.at_level(logging.WARNING):
             with ThreadPoolExecutor(max_workers=8) as executor:
-                results = list(executor.map(canonical_api_key.get_api_key, ["test-valid-key"] * 32))
+                results = list(
+                    executor.map(
+                        canonical_api_key.get_api_key,
+                        ["test-valid-key"] * 32,
+                    )
+                )
 
         assert results == ["test-valid-key"] * 32
         assert (
@@ -67,8 +81,7 @@ class TestLenientModeWarning:
         caplog: pytest.LogCaptureFixture,
     ) -> None:
         """Verify the warning message contains the expected security notice."""
-        monkeypatch.setenv("APP_ENV", "dev")
-        monkeypatch.delenv("API_KEY", raising=False)
+        self._configure_lenient_env(monkeypatch)
 
         caplog.clear()
 

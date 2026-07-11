@@ -294,7 +294,10 @@ def test_fastapi_dependency_override_uses_canonical_callable_identity() -> None:
     def protected() -> dict[str, str]:
         return {"status": "ok"}
 
-    target_app.dependency_overrides[canonical_api_key._get_api_key_dynamic] = lambda: "override"
+    def override_api_key() -> str:
+        return "override"
+
+    target_app.dependency_overrides[canonical_api_key._get_api_key_dynamic] = override_api_key
 
     response = TestClient(target_app).get("/protected")
 

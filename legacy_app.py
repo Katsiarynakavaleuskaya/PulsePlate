@@ -25,14 +25,13 @@ from typing import (
 )
 
 import dotenv
-from fastapi import APIRouter, Body, FastAPI, HTTPException
+from fastapi import APIRouter, Body, FastAPI, HTTPException, status as fastapi_status
 from fastapi.responses import JSONResponse, Response
 from pydantic import (
     BaseModel,
     Field,
     ValidationError,
 )
-from starlette import status as fastapi_status
 from settings import get_runtime_env_name
 
 from app.bootstrap.lifespan import application_lifespan as lifespan

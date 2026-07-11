@@ -926,7 +926,7 @@ def test_metrics_http_guard_rejects_missing_api_key_when_bypass_disabled(
 ) -> None:
     """/metrics must reject requests without an API key when bypass is disabled."""
     _configure_metrics_auth_env(monkeypatch)
-    client.auto_metrics_api_key = False
+    setattr(client, "auto_metrics_api_key", False)
     client.headers.pop("X-API-Key", None)
 
     response = client.get("/metrics")
@@ -954,7 +954,7 @@ def test_metrics_http_guard_rejects_wrong_api_key_when_bypass_disabled(
 ) -> None:
     """/metrics must reject an incorrect API key when bypass is disabled."""
     _configure_metrics_auth_env(monkeypatch)
-    client.auto_metrics_api_key = False
+    setattr(client, "auto_metrics_api_key", False)
 
     response = client.get("/metrics", headers={"X-API-Key": "wrong"})
 
@@ -966,36 +966,36 @@ def test_metrics_shared_api_key_runtime_env_falls_back_to_app_env(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Shared API key helper must honor APP_ENV when ENVIRONMENT is unset."""
-    from app.routers import api_key as api_key_mod
+    from settings import get_runtime_env_name
 
     monkeypatch.setenv("APP_ENV", "qa")
     monkeypatch.delenv("ENVIRONMENT", raising=False)
 
-    assert api_key_mod._get_runtime_env_name() == "qa"
+    assert get_runtime_env_name() == "qa"
 
 
 def test_metrics_shared_api_key_runtime_env_prefers_environment(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Shared API key helper must prefer ENVIRONMENT over non-prod APP_ENV."""
-    from app.routers import api_key as api_key_mod
+    from settings import get_runtime_env_name
 
     monkeypatch.setenv("APP_ENV", "qa")
     monkeypatch.setenv("ENVIRONMENT", "review")
 
-    assert api_key_mod._get_runtime_env_name() == "review"
+    assert get_runtime_env_name() == "review"
 
 
 def test_metrics_shared_api_key_runtime_env_defaults_to_local(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Shared API key helper must default to local when env labels are absent."""
-    from app.routers import api_key as api_key_mod
+    from settings import get_runtime_env_name
 
     monkeypatch.delenv("APP_ENV", raising=False)
     monkeypatch.delenv("ENVIRONMENT", raising=False)
 
-    assert api_key_mod._get_runtime_env_name() == "local"
+    assert get_runtime_env_name() == "local"
 
 
 def test_metrics_shared_api_key_normalizes_dev_token(

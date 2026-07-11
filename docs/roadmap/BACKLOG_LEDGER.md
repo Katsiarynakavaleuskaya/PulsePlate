@@ -6663,7 +6663,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 - [ ] P2: Complete legacy_app.py migration (delete legacy endpoints)
   - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: PR-TBD-CANONICAL-API-KEY-DEPENDENCY -> PR-TBD-APP-METADATA-OPENAPI -> PR-TBD-REMAINING-LEGACY-CUTOVERS -> PR-TBD-APP-FACTORY -> PR-TBD-LEGACY-DELETION
+  - Target PR: PR #2102 -> PR-TBD-APP-METADATA-OPENAPI -> PR-TBD-REMAINING-LEGACY-CUTOVERS -> PR-TBD-APP-FACTORY -> PR-TBD-LEGACY-DELETION
   - Priority: P2 (long-term cleanup)
   - Status: In progress. Route, middleware, and lifespan ownership are canonical; the active slice moves app-client API-key dependency ownership to `app/routers/api_key.py` without changing auth behavior. Application metadata/OpenAPI policy is the next slice, followed by remaining reverse-dependency cutovers, app-factory inversion, and final compatibility inventory/deletion.
   - Reason: After all critical security fixes and endpoint migrations complete, eventually delete `legacy_app.py` entirely. Legacy business and route logic should move to its canonical owners: modular routers (`app/routers/*`), services (`app/services/*`), bootstrap modules (`app/bootstrap/*`), or core modules (`core/*`) according to responsibility. The current train has extracted lifecycle ownership and now cuts canonical `app/*` dependencies on legacy compatibility symbols before app-factory/OpenAPI ownership inversion and final facade removal.

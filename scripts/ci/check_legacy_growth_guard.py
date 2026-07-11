@@ -20,7 +20,16 @@ LEGACY_SEAM_DOC = "docs/architecture/LEGACY_COMPATIBILITY_SEAM.md"
 FOOD_SEARCH_BOOTSTRAP = "app/bootstrap/food_search.py"
 CANONICAL_LIFESPAN = "app/bootstrap/lifespan.py"
 CANONICAL_API_KEY = "app/routers/api_key.py"  # pragma: allowlist secret
-CANONICAL_API_KEY_SYMBOLS = frozenset({"get_api_key", "_get_api_key_dynamic"})
+CANONICAL_API_KEY_SYMBOLS = frozenset(
+    {
+        "api_key_header",
+        "get_api_key",
+        "_get_api_key_dynamic",
+        "validate_app_api_key",
+        "require_app_api_key",
+    }
+)
+LEGACY_API_KEY_REEXPORT_SYMBOLS = frozenset({"get_api_key", "_get_api_key_dynamic"})
 ALLOWED_CANONICAL_LIFESPAN_APP_IMPORTS = frozenset(
     {
         "app.bootstrap.food_search",
@@ -1568,132 +1577,597 @@ def validate_legacy_growth(
     return errors
 
 
+class _ModuleScopeBindingCollector(ast.NodeVisitor):
+    """Collect module-scope bindings without entering nested Python scopes."""
+
+    def __init__(
+        self,
+        ignored_import_names: Mapping[int, frozenset[str]] | None = None,
+    ) -> None:
+        self.bindings: set[str] = set()
+        self.function_definitions: set[str] = set()
+        self.global_declarations: set[str] = set()
+        self.nonlocal_declarations: set[str] = set()
+        self._ignored_import_names = ignored_import_names or {}
+
+    def _add_target(self, target: ast.AST) -> None:
+        self.bindings.update(_assignment_target_names(target))
+
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+        self.bindings.add(node.name)
+        self.function_definitions.add(node.name)
+
+    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+        self.bindings.add(node.name)
+        self.function_definitions.add(node.name)
+
+    def visit_ClassDef(self, node: ast.ClassDef) -> None:
+        self.bindings.add(node.name)
+
+    def visit_Lambda(self, node: ast.Lambda) -> None:
+        return
+
+    def visit_comprehension(self, node: ast.comprehension) -> None:
+        return
+
+    def visit_Import(self, node: ast.Import) -> None:
+        for alias in node.names:
+            self.bindings.add(alias.asname or alias.name.split(".", maxsplit=1)[0])
+
+    def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
+        for alias in node.names:
+            local_name = alias.asname or alias.name
+            if local_name in self._ignored_import_names.get(id(node), frozenset()):
+                continue
+            self.bindings.add(local_name)
+
+    def visit_Assign(self, node: ast.Assign) -> None:
+        for target in node.targets:
+            self._add_target(target)
+        self.visit(node.value)
+
+    def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
+        self._add_target(node.target)
+        if node.value is not None:
+            self.visit(node.value)
+
+    def visit_AugAssign(self, node: ast.AugAssign) -> None:
+        self._add_target(node.target)
+        self.visit(node.value)
+
+    def visit_NamedExpr(self, node: ast.NamedExpr) -> None:
+        self._add_target(node.target)
+        self.visit(node.value)
+
+    def visit_Delete(self, node: ast.Delete) -> None:
+        for target in node.targets:
+            self._add_target(target)
+
+    def visit_For(self, node: ast.For) -> None:
+        self._add_target(node.target)
+        self.generic_visit(node)
+
+    def visit_AsyncFor(self, node: ast.AsyncFor) -> None:
+        self._add_target(node.target)
+        self.generic_visit(node)
+
+    def visit_With(self, node: ast.With) -> None:
+        for item in node.items:
+            if item.optional_vars is not None:
+                self._add_target(item.optional_vars)
+        self.generic_visit(node)
+
+    def visit_AsyncWith(self, node: ast.AsyncWith) -> None:
+        for item in node.items:
+            if item.optional_vars is not None:
+                self._add_target(item.optional_vars)
+        self.generic_visit(node)
+
+    def visit_ExceptHandler(self, node: ast.ExceptHandler) -> None:
+        if node.name is not None:
+            self.bindings.add(node.name)
+        self.generic_visit(node)
+
+    def visit_Global(self, node: ast.Global) -> None:
+        self.global_declarations.update(node.names)
+
+    def visit_Nonlocal(self, node: ast.Nonlocal) -> None:
+        self.nonlocal_declarations.update(node.names)
+
+
+def _canonical_api_key_source_errors(app_sources: Mapping[str, str]) -> list[str]:
+    source_text = app_sources.get(CANONICAL_API_KEY)
+    if source_text is None:
+        return [f"{CANONICAL_API_KEY}: canonical API-key owner source is missing"]
+    tree, errors = _parse_source(source_text, filename=CANONICAL_API_KEY)
+    if tree is None:
+        return errors
+    collector = _ModuleScopeBindingCollector()
+    collector.visit(tree)
+    for name in sorted(CANONICAL_API_KEY_SYMBOLS - collector.bindings):
+        errors.append(f"{CANONICAL_API_KEY}: canonical API-key symbol is missing: {name}")
+    return errors
+
+
+def _legacy_api_key_export_errors(legacy_tree: ast.Module) -> list[str]:
+    errors: list[str] = []
+    exact_reexports: set[str] = set()
+    exact_import_names: dict[int, set[str]] = {}
+    for statement in legacy_tree.body:
+        if not isinstance(statement, ast.ImportFrom) or statement.module != "app.routers.api_key":
+            continue
+        for alias in statement.names:
+            local_name = alias.asname or alias.name
+            if alias.name in LEGACY_API_KEY_REEXPORT_SYMBOLS and local_name == alias.name:
+                exact_reexports.add(alias.name)
+                exact_import_names.setdefault(id(statement), set()).add(alias.name)
+
+    for name in sorted(LEGACY_API_KEY_REEXPORT_SYMBOLS - exact_reexports):
+        errors.append(
+            f"{LEGACY_APP}: canonical API-key compatibility re-export must preserve "
+            f"identity: {name}"
+        )
+
+    collector = _ModuleScopeBindingCollector(
+        {node_id: frozenset(names) for node_id, names in exact_import_names.items()}
+    )
+    collector.visit(legacy_tree)
+    local_definitions = collector.function_definitions & CANONICAL_API_KEY_SYMBOLS
+    for name in sorted(local_definitions):
+        errors.append(f"{LEGACY_APP}: API-key dependency must not be defined locally: {name}")
+    rebound_names = (collector.bindings & CANONICAL_API_KEY_SYMBOLS) - local_definitions
+    for name in sorted(rebound_names):
+        errors.append(
+            f"{LEGACY_APP}: canonical API-key compatibility re-export must not be rebound: {name}"
+        )
+    return errors
+
+
+class _LexicalScopeNodeCollector(ast.NodeVisitor):
+    """Collect nodes for one lexical scope and retain nested scopes separately."""
+
+    def __init__(self) -> None:
+        self.nodes: list[ast.AST] = []
+        self.nested_scopes: list[
+            ast.FunctionDef
+            | ast.AsyncFunctionDef
+            | ast.ClassDef
+            | ast.Lambda
+            | ast.ListComp
+            | ast.SetComp
+            | ast.DictComp
+            | ast.GeneratorExp
+        ] = []
+
+    def generic_visit(self, node: ast.AST) -> None:
+        self.nodes.append(node)
+        super().generic_visit(node)
+
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+        self.nodes.append(node)
+        self.nested_scopes.append(node)
+        self._visit_function_signature(node)
+
+    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+        self.nodes.append(node)
+        self.nested_scopes.append(node)
+        self._visit_function_signature(node)
+
+    def visit_ClassDef(self, node: ast.ClassDef) -> None:
+        self.nodes.append(node)
+        self.nested_scopes.append(node)
+        for decorator in node.decorator_list:
+            self.visit(decorator)
+        for base in node.bases:
+            self.visit(base)
+        for keyword in node.keywords:
+            self.visit(keyword.value)
+
+    def visit_Lambda(self, node: ast.Lambda) -> None:
+        self.nodes.append(node)
+        self.nested_scopes.append(node)
+        for positional_default in node.args.defaults:
+            self.visit(positional_default)
+        for keyword_default in node.args.kw_defaults:
+            if keyword_default is not None:
+                self.visit(keyword_default)
+
+    def visit_ListComp(self, node: ast.ListComp) -> None:
+        self._visit_comprehension(node)
+
+    def visit_SetComp(self, node: ast.SetComp) -> None:
+        self._visit_comprehension(node)
+
+    def visit_DictComp(self, node: ast.DictComp) -> None:
+        self._visit_comprehension(node)
+
+    def visit_GeneratorExp(self, node: ast.GeneratorExp) -> None:
+        self._visit_comprehension(node)
+
+    def _visit_comprehension(
+        self,
+        node: ast.ListComp | ast.SetComp | ast.DictComp | ast.GeneratorExp,
+    ) -> None:
+        self.nodes.append(node)
+        self.nested_scopes.append(node)
+        if node.generators:
+            self.visit(node.generators[0].iter)
+
+    def _visit_function_signature(
+        self,
+        node: ast.FunctionDef | ast.AsyncFunctionDef,
+    ) -> None:
+        for decorator in node.decorator_list:
+            self.visit(decorator)
+        for argument in (
+            *node.args.posonlyargs,
+            *node.args.args,
+            *node.args.kwonlyargs,
+        ):
+            if argument.annotation is not None:
+                self.visit(argument.annotation)
+        if node.args.vararg is not None and node.args.vararg.annotation is not None:
+            self.visit(node.args.vararg.annotation)
+        if node.args.kwarg is not None and node.args.kwarg.annotation is not None:
+            self.visit(node.args.kwarg.annotation)
+        for positional_default in node.args.defaults:
+            self.visit(positional_default)
+        for keyword_default in node.args.kw_defaults:
+            if keyword_default is not None:
+                self.visit(keyword_default)
+        if node.returns is not None:
+            self.visit(node.returns)
+
+
+def _ordered_lexical_scope_nodes(
+    statements: Sequence[ast.stmt],
+) -> tuple[
+    list[ast.AST],
+    list[
+        ast.FunctionDef
+        | ast.AsyncFunctionDef
+        | ast.ClassDef
+        | ast.Lambda
+        | ast.ListComp
+        | ast.SetComp
+        | ast.DictComp
+        | ast.GeneratorExp
+    ],
+]:
+    collector = _LexicalScopeNodeCollector()
+    for statement in statements:
+        collector.visit(statement)
+    return (
+        sorted(
+            collector.nodes,
+            key=lambda node: (
+                getattr(node, "lineno", -1),
+                getattr(node, "col_offset", -1),
+                type(node).__name__,
+            ),
+        ),
+        collector.nested_scopes,
+    )
+
+
+def _function_local_bindings(
+    node: ast.FunctionDef | ast.AsyncFunctionDef,
+) -> set[str]:
+    collector = _ModuleScopeBindingCollector()
+    for statement in node.body:
+        collector.visit(statement)
+    bindings = set(collector.bindings) - (
+        collector.global_declarations | collector.nonlocal_declarations
+    )
+    arguments = [
+        *node.args.posonlyargs,
+        *node.args.args,
+        *node.args.kwonlyargs,
+    ]
+    if node.args.vararg is not None:
+        arguments.append(node.args.vararg)
+    if node.args.kwarg is not None:
+        arguments.append(node.args.kwarg)
+    bindings.update(argument.arg for argument in arguments)
+    return bindings
+
+
+def _lambda_local_bindings(node: ast.Lambda) -> set[str]:
+    arguments = [
+        *node.args.posonlyargs,
+        *node.args.args,
+        *node.args.kwonlyargs,
+    ]
+    if node.args.vararg is not None:
+        arguments.append(node.args.vararg)
+    if node.args.kwarg is not None:
+        arguments.append(node.args.kwarg)
+    return {argument.arg for argument in arguments}
+
+
+def _scan_api_key_alias_expressions(
+    expressions: Sequence[ast.expr],
+    *,
+    filename: str,
+    inherited_module_aliases: Mapping[str, str],
+    inherited_import_module_aliases: AbstractSet[str],
+    local_bindings: AbstractSet[str],
+) -> list[str]:
+    return _scan_api_key_alias_scope(
+        [ast.Expr(value=expression) for expression in expressions],
+        filename=filename,
+        inherited_module_aliases=inherited_module_aliases,
+        inherited_import_module_aliases=inherited_import_module_aliases,
+        local_bindings=local_bindings,
+    )
+
+
+def _scan_api_key_comprehension_scope(
+    node: ast.ListComp | ast.SetComp | ast.DictComp | ast.GeneratorExp,
+    *,
+    filename: str,
+    inherited_module_aliases: Mapping[str, str],
+    inherited_import_module_aliases: AbstractSet[str],
+) -> list[str]:
+    errors: list[str] = []
+    bound_names: set[str] = set()
+    for index, generator in enumerate(node.generators):
+        if index > 0:
+            errors.extend(
+                _scan_api_key_alias_expressions(
+                    [generator.iter],
+                    filename=filename,
+                    inherited_module_aliases=inherited_module_aliases,
+                    inherited_import_module_aliases=inherited_import_module_aliases,
+                    local_bindings=bound_names,
+                )
+            )
+        bound_names.update(_assignment_target_names(generator.target))
+        errors.extend(
+            _scan_api_key_alias_expressions(
+                generator.ifs,
+                filename=filename,
+                inherited_module_aliases=inherited_module_aliases,
+                inherited_import_module_aliases=inherited_import_module_aliases,
+                local_bindings=bound_names,
+            )
+        )
+
+    result_expressions: list[ast.expr]
+    if isinstance(node, ast.DictComp):
+        result_expressions = [node.key, node.value]
+    else:
+        result_expressions = [node.elt]
+    errors.extend(
+        _scan_api_key_alias_expressions(
+            result_expressions,
+            filename=filename,
+            inherited_module_aliases=inherited_module_aliases,
+            inherited_import_module_aliases=inherited_import_module_aliases,
+            local_bindings=bound_names,
+        )
+    )
+    return errors
+
+
+def _scan_api_key_alias_scope(
+    statements: Sequence[ast.stmt],
+    *,
+    filename: str,
+    inherited_module_aliases: Mapping[str, str],
+    inherited_import_module_aliases: AbstractSet[str],
+    inherited_closure_module_aliases: Mapping[str, str] | None = None,
+    inherited_closure_import_module_aliases: AbstractSet[str] | None = None,
+    local_bindings: AbstractSet[str] = frozenset(),
+) -> list[str]:
+    errors: list[str] = []
+    module_aliases = {
+        name: module
+        for name, module in inherited_module_aliases.items()
+        if name not in local_bindings
+    }
+    import_module_aliases = set(inherited_import_module_aliases) - set(local_bindings)
+    if inherited_closure_module_aliases is None:
+        closure_module_aliases = module_aliases
+    else:
+        closure_module_aliases = dict(inherited_closure_module_aliases)
+    if inherited_closure_import_module_aliases is None:
+        closure_import_module_aliases = import_module_aliases
+    else:
+        closure_import_module_aliases = set(inherited_closure_import_module_aliases)
+    scope_tree = ast.Module(body=list(statements), type_ignores=[])
+    static_string_bindings = _collect_static_string_bindings(scope_tree)
+    scope_nodes, nested_scopes = _ordered_lexical_scope_nodes(statements)
+    lexical_scope_alias_snapshots: dict[
+        int,
+        tuple[dict[str, str], set[str]],
+    ] = {}
+
+    def module_reference(node: ast.AST) -> str | None:
+        return _static_module_reference(
+            node,
+            module_aliases=module_aliases,
+            import_module_aliases=import_module_aliases,
+            static_string_bindings=static_string_bindings,
+        )
+
+    for node in scope_nodes:
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                local_name = alias.asname or alias.name.split(".", maxsplit=1)[0]
+                if alias.name in {"importlib", "legacy_app"}:
+                    module_aliases[local_name] = alias.name
+                else:
+                    module_aliases.pop(local_name, None)
+        elif isinstance(node, ast.ImportFrom):
+            for alias in node.names:
+                local_name = alias.asname or alias.name
+                if node.module == "importlib" and alias.name == "import_module":
+                    import_module_aliases.add(local_name)
+                else:
+                    import_module_aliases.discard(local_name)
+                if node.module == "legacy_app" and alias.name in CANONICAL_API_KEY_SYMBOLS:
+                    errors.append(
+                        f"{filename}: canonical code must import API-key dependency "
+                        f"from {CANONICAL_API_KEY}, not legacy_app: {alias.name}"
+                    )
+        elif isinstance(node, (ast.Assign, ast.AnnAssign, ast.NamedExpr)):
+            targets: list[ast.expr]
+            value: ast.expr | None
+            if isinstance(node, ast.Assign):
+                targets = node.targets
+                value = node.value
+            else:
+                targets = [node.target]
+                value = node.value
+            resolved_module = module_reference(value) if value is not None else None
+            for target in targets:
+                for target_name in _assignment_target_names(target):
+                    if resolved_module in {"importlib", "legacy_app"}:
+                        module_aliases[target_name] = resolved_module
+                    else:
+                        module_aliases.pop(target_name, None)
+        elif isinstance(node, (ast.AugAssign, ast.Delete)):
+            targets = [node.target] if isinstance(node, ast.AugAssign) else node.targets
+            for target in targets:
+                for target_name in _assignment_target_names(target):
+                    module_aliases.pop(target_name, None)
+
+        if (
+            isinstance(node, ast.Attribute)
+            and node.attr in CANONICAL_API_KEY_SYMBOLS
+            and module_reference(node.value) == "legacy_app"
+        ):
+            errors.append(
+                f"{filename}: legacy API-key dependency attribute access is forbidden: {node.attr}"
+            )
+        elif (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "getattr"
+            and len(node.args) >= 2
+            and module_reference(node.args[0]) == "legacy_app"
+        ):
+            symbol_name = _resolve_static_string(node.args[1], static_string_bindings)
+            if symbol_name in CANONICAL_API_KEY_SYMBOLS:
+                errors.append(
+                    f"{filename}: dynamic legacy API-key dependency lookup is forbidden: "
+                    f"{symbol_name}"
+                )
+
+        if isinstance(node, ast.ClassDef):
+            lexical_scope_alias_snapshots[id(node)] = (
+                dict(module_aliases),
+                set(import_module_aliases),
+            )
+        elif isinstance(
+            node,
+            (ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp),
+        ):
+            comprehension_module_aliases = (
+                closure_module_aliases
+                if inherited_closure_module_aliases is not None
+                else module_aliases
+            )
+            comprehension_import_module_aliases = (
+                closure_import_module_aliases
+                if inherited_closure_import_module_aliases is not None
+                else import_module_aliases
+            )
+            lexical_scope_alias_snapshots[id(node)] = (
+                dict(comprehension_module_aliases),
+                set(comprehension_import_module_aliases),
+            )
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            module_aliases.pop(node.name, None)
+            import_module_aliases.discard(node.name)
+
+    for nested_scope in nested_scopes:
+        if isinstance(nested_scope, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            errors.extend(
+                _scan_api_key_alias_scope(
+                    nested_scope.body,
+                    filename=filename,
+                    inherited_module_aliases=closure_module_aliases,
+                    inherited_import_module_aliases=closure_import_module_aliases,
+                    local_bindings=_function_local_bindings(nested_scope),
+                )
+            )
+            continue
+
+        if isinstance(nested_scope, ast.Lambda):
+            errors.extend(
+                _scan_api_key_alias_scope(
+                    [ast.Expr(value=nested_scope.body)],
+                    filename=filename,
+                    inherited_module_aliases=closure_module_aliases,
+                    inherited_import_module_aliases=closure_import_module_aliases,
+                    local_bindings=_lambda_local_bindings(nested_scope),
+                )
+            )
+            continue
+
+        (
+            nested_module_aliases,
+            nested_import_module_aliases,
+        ) = lexical_scope_alias_snapshots[id(nested_scope)]
+        if isinstance(nested_scope, ast.ClassDef):
+            nested_statements = nested_scope.body
+            nested_local_bindings: AbstractSet[str] = frozenset()
+        else:
+            errors.extend(
+                _scan_api_key_comprehension_scope(
+                    nested_scope,
+                    filename=filename,
+                    inherited_module_aliases=nested_module_aliases,
+                    inherited_import_module_aliases=nested_import_module_aliases,
+                )
+            )
+            continue
+        errors.extend(
+            _scan_api_key_alias_scope(
+                nested_statements,
+                filename=filename,
+                inherited_module_aliases=nested_module_aliases,
+                inherited_import_module_aliases=nested_import_module_aliases,
+                inherited_closure_module_aliases=closure_module_aliases,
+                inherited_closure_import_module_aliases=closure_import_module_aliases,
+                local_bindings=nested_local_bindings,
+            )
+        )
+    return errors
+
+
+def _app_api_key_reverse_dependency_errors(
+    tree: ast.Module,
+    *,
+    filename: str,
+) -> list[str]:
+    return _scan_api_key_alias_scope(
+        tree.body,
+        filename=filename,
+        inherited_module_aliases={},
+        inherited_import_module_aliases=frozenset(),
+    )
+
+
 def validate_api_key_dependency_ownership(
     legacy_source: str,
     app_sources: Mapping[str, str],
 ) -> list[str]:
     """Keep client API-key dependency ownership canonical and identity-preserving."""
 
-    errors: list[str] = []
+    errors = _canonical_api_key_source_errors(app_sources)
     legacy_tree, parse_errors = _parse_source(legacy_source, filename=LEGACY_APP)
     errors.extend(parse_errors)
     if legacy_tree is not None:
-        locally_defined = {
-            node.name
-            for node in ast.walk(legacy_tree)
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-            and node.name in CANONICAL_API_KEY_SYMBOLS
-        }
-        for name in sorted(locally_defined):
-            errors.append(f"{LEGACY_APP}: API-key dependency must not be defined locally: {name}")
-
-        exact_aliases: set[str] = set()
-        for node in ast.walk(legacy_tree):
-            if not isinstance(node, ast.ImportFrom) or node.module != "app.routers.api_key":
-                continue
-            for alias in node.names:
-                if alias.name in CANONICAL_API_KEY_SYMBOLS and alias.asname == alias.name:
-                    exact_aliases.add(alias.name)
-        for name in sorted(CANONICAL_API_KEY_SYMBOLS - exact_aliases):
-            errors.append(
-                f"{LEGACY_APP}: canonical API-key compatibility re-export must preserve "
-                f"identity: {name}"
-            )
-
-        rebound_names: set[str] = set()
-        for statement in legacy_tree.body:
-            if isinstance(statement, ast.Assign):
-                for target in statement.targets:
-                    rebound_names.update(_assignment_target_names(target))
-            elif isinstance(statement, ast.AnnAssign):
-                rebound_names.update(_assignment_target_names(statement.target))
-            elif isinstance(statement, ast.AugAssign):
-                rebound_names.update(_assignment_target_names(statement.target))
-            else:
-
-                class _TopLevelNamedExprVisitor(ast.NodeVisitor):
-                    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
-                        return
-
-                    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
-                        return
-
-                    def visit_ClassDef(self, node: ast.ClassDef) -> None:
-                        return
-
-                    def visit_Lambda(self, node: ast.Lambda) -> None:
-                        return
-
-                    def visit_NamedExpr(self, node: ast.NamedExpr) -> None:
-                        rebound_names.update(_assignment_target_names(node.target))
-
-                _TopLevelNamedExprVisitor().visit(statement)
-        for name in sorted(rebound_names & CANONICAL_API_KEY_SYMBOLS):
-            errors.append(
-                f"{LEGACY_APP}: canonical API-key compatibility re-export must not be "
-                f"rebound: {name}"
-            )
+        errors.extend(_legacy_api_key_export_errors(legacy_tree))
 
     for filename, source_text in sorted(app_sources.items()):
         tree, source_errors = _parse_source(source_text, filename=filename)
         errors.extend(source_errors)
-        if tree is None:
-            continue
-        module_aliases: dict[str, str] = {}
-        import_module_aliases: set[str] = set()
-        static_string_bindings = _collect_static_string_bindings(tree)
-        for import_node in ast.walk(tree):
-            if isinstance(import_node, ast.Import):
-                for alias in import_node.names:
-                    if alias.name in {"importlib", "legacy_app"}:
-                        module_aliases[alias.asname or alias.name] = alias.name
-            elif isinstance(import_node, ast.ImportFrom) and import_node.module == "importlib":
-                for alias in import_node.names:
-                    if alias.name == "import_module":
-                        import_module_aliases.add(alias.asname or alias.name)
-
-        def legacy_module_reference(node: ast.AST) -> bool:
-            return (
-                _static_module_reference(
-                    node,
-                    module_aliases=module_aliases,
-                    import_module_aliases=import_module_aliases,
-                    static_string_bindings=static_string_bindings,
-                )
-                == "legacy_app"
-            )
-
-        for node in ast.walk(tree):
-            if isinstance(node, ast.ImportFrom) and node.module == "legacy_app":
-                for alias in node.names:
-                    if alias.name in CANONICAL_API_KEY_SYMBOLS:
-                        errors.append(
-                            f"{filename}: canonical code must import API-key dependency "
-                            f"from {CANONICAL_API_KEY}, not legacy_app: {alias.name}"
-                        )
-            elif (
-                isinstance(node, ast.Attribute)
-                and node.attr in CANONICAL_API_KEY_SYMBOLS
-                and legacy_module_reference(node.value)
-            ):
-                errors.append(
-                    f"{filename}: legacy API-key dependency attribute access is forbidden: "
-                    f"{node.attr}"
-                )
-            elif (
-                filename != CANONICAL_API_KEY
-                and isinstance(node, ast.Call)
-                and isinstance(node.func, ast.Name)
-                and node.func.id == "getattr"
-                and len(node.args) >= 2
-                and legacy_module_reference(node.args[0])
-                and isinstance(node.args[1], ast.Constant)
-                and node.args[1].value in CANONICAL_API_KEY_SYMBOLS
-            ):
-                errors.append(
-                    f"{filename}: dynamic legacy API-key dependency lookup is forbidden: "
-                    f"{node.args[1].value}"
-                )
+        if tree is not None:
+            errors.extend(_app_api_key_reverse_dependency_errors(tree, filename=filename))
     return sorted(set(errors))
 
 
@@ -2469,6 +2943,20 @@ def _read(path: Path, repo_root: Path, errors: list[str]) -> str | None:
         return None
 
 
+def _tracked_app_python_paths(repo_root: Path, errors: list[str]) -> list[Path]:
+    app_root = repo_root / "app"
+    if not app_root.is_dir():
+        errors.append("app: required canonical source root is missing")
+        return []
+
+    try:
+        paths = sorted(path for path in app_root.rglob("*.py") if path.is_file())
+    except OSError as exc:
+        errors.append(f"app: unable to enumerate canonical sources: {type(exc).__name__}")
+        return []
+    return paths
+
+
 def validate_repo(repo_root: Path) -> list[str]:
     """Validate the repo's legacy compatibility seam."""
 
@@ -2482,7 +2970,7 @@ def validate_repo(repo_root: Path) -> list[str]:
     food_search_source = _read(food_search_path, repo_root, errors)
     lifespan_source = _read(lifespan_path, repo_root, errors)
     app_sources: dict[str, str] = {}
-    for app_path in sorted((repo_root / "app").rglob("*.py")):
+    for app_path in _tracked_app_python_paths(repo_root, errors):
         source = _read(app_path, repo_root, errors)
         if source is not None:
             app_sources[_display(app_path, repo_root)] = source
