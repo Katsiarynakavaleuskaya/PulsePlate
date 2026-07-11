@@ -38,7 +38,6 @@ from scripts.orchestration.creative_hypothesis_spec_bridge_contract import (
     validate_creative_hypothesis_specification_bridge,
 )
 from scripts.orchestration.creative_pilot_workspace_contract import (
-    ADAPTIVE_PR1_INTAKE_TYPE,
     ADAPTIVE_PR1_RESUME_TYPE,
     CreativePilotContractError,
     validate_adaptive_pr1_resume_binding,
@@ -562,50 +561,45 @@ def _attach_from_bridge(bridge_path: Path, reviews_path: Path) -> dict[str, Any]
         reviewed_reviews = reviewed_dir / "skeptic_reviews.json"
         reviewed_context_pack = reviewed_dir / "context_pack.json"
         attachment_path = reviewed_dir / ATTACHMENT_FILENAME
-        attachment = cast(
-            dict[str, Any],
-            build_skeptic_review_attachment(
-                bridge_id=str(bridge["bridge_id"]),
-                bridge_fingerprint=fingerprint_payload(bridge),
-                bridge_ref=_artifact_ref(cast(Path, prepared["bridge_path"])),
-                candidate_id=str(candidate["candidate_id"]),
-                candidate_fingerprint=fingerprint_payload(candidate),
-                candidate_ref=_artifact_ref(cast(Path, prepared["candidate_path"])),
-                metrics_id=str(
-                    cast(Mapping[str, Any], prepared["metrics"]).get("metrics_id")
-                    or cast(Mapping[str, Any], prepared["metrics"])["intake_id"]
-                ),
-                metrics_fingerprint=fingerprint_payload(cast(dict[str, Any], prepared["metrics"])),
-                metrics_ref=_artifact_ref(cast(Path, prepared["metrics_path"])),
-                spec_prepare_ref=_artifact_ref(cast(Path, prepared["source_run_dir"])),
-                source_packet_ref=_artifact_ref(
-                    cast(Path, prepared["source_run_dir"]) / "source_packet.json"
-                ),
-                source_packet_fingerprint=fingerprint_payload(source_packet),
-                variants_ref=_artifact_ref(
-                    cast(Path, prepared["source_run_dir"]) / "variants.json"
-                ),
-                variants_fingerprint=fingerprint_payload(variants),
-                pending_reviews_ref=_artifact_ref(
-                    cast(Path, prepared["source_run_dir"]) / "skeptic_reviews.json"
-                ),
-                pending_reviews_fingerprint=fingerprint_payload(
-                    cast(Sequence[Any], prepared["pending_reviews"])
-                ),
-                context_pack_ref=_artifact_ref(
-                    cast(Path, prepared["source_run_dir"]) / "context_pack.json"
-                ),
-                context_pack_fingerprint=fingerprint_payload(
-                    cast(dict[str, Any], prepared["context_pack"])
-                ),
-                reviewed_run_dir_ref=_artifact_ref(reviewed_dir),
-                reviewed_source_packet_ref=_artifact_ref(reviewed_source_packet),
-                reviewed_variants_ref=_artifact_ref(reviewed_variants),
-                reviewed_reviews_ref=_artifact_ref(reviewed_reviews),
-                reviewed_context_pack_ref=_artifact_ref(reviewed_context_pack),
-                normalized_reviews=normalized_reviews,
-                variant_count=len(variants),
+        attachment = build_skeptic_review_attachment(
+            bridge_id=str(bridge["bridge_id"]),
+            bridge_fingerprint=fingerprint_payload(bridge),
+            bridge_ref=_artifact_ref(cast(Path, prepared["bridge_path"])),
+            candidate_id=str(candidate["candidate_id"]),
+            candidate_fingerprint=fingerprint_payload(candidate),
+            candidate_ref=_artifact_ref(cast(Path, prepared["candidate_path"])),
+            metrics_id=str(
+                cast(Mapping[str, Any], prepared["metrics"]).get("metrics_id")
+                or cast(Mapping[str, Any], prepared["metrics"])["intake_id"]
             ),
+            metrics_fingerprint=fingerprint_payload(cast(dict[str, Any], prepared["metrics"])),
+            metrics_ref=_artifact_ref(cast(Path, prepared["metrics_path"])),
+            spec_prepare_ref=_artifact_ref(cast(Path, prepared["source_run_dir"])),
+            source_packet_ref=_artifact_ref(
+                cast(Path, prepared["source_run_dir"]) / "source_packet.json"
+            ),
+            source_packet_fingerprint=fingerprint_payload(source_packet),
+            variants_ref=_artifact_ref(cast(Path, prepared["source_run_dir"]) / "variants.json"),
+            variants_fingerprint=fingerprint_payload(variants),
+            pending_reviews_ref=_artifact_ref(
+                cast(Path, prepared["source_run_dir"]) / "skeptic_reviews.json"
+            ),
+            pending_reviews_fingerprint=fingerprint_payload(
+                cast(Sequence[Any], prepared["pending_reviews"])
+            ),
+            context_pack_ref=_artifact_ref(
+                cast(Path, prepared["source_run_dir"]) / "context_pack.json"
+            ),
+            context_pack_fingerprint=fingerprint_payload(
+                cast(dict[str, Any], prepared["context_pack"])
+            ),
+            reviewed_run_dir_ref=_artifact_ref(reviewed_dir),
+            reviewed_source_packet_ref=_artifact_ref(reviewed_source_packet),
+            reviewed_variants_ref=_artifact_ref(reviewed_variants),
+            reviewed_reviews_ref=_artifact_ref(reviewed_reviews),
+            reviewed_context_pack_ref=_artifact_ref(reviewed_context_pack),
+            normalized_reviews=normalized_reviews,
+            variant_count=len(variants),
         )
         _write_json_atomic(reviewed_source_packet, source_packet)
         _write_json_atomic(reviewed_variants, variants)
@@ -879,14 +873,11 @@ def _finalize_from_attachment(attachment_path: Path) -> dict[str, Any]:
         bundle = validate_creative_code_specification_bundle(
             read_creative_code_specification_bundle(bundle_path)
         )
-        receipt = cast(
-            dict[str, Any],
-            build_finalize_receipt(
-                attachment=attachment,
-                attachment_ref=_artifact_ref(reviewed_dir / ATTACHMENT_FILENAME),
-                bundle=bundle,
-                bundle_ref=_artifact_ref(bundle_path),
-            ),
+        receipt = build_finalize_receipt(
+            attachment=attachment,
+            attachment_ref=_artifact_ref(reviewed_dir / ATTACHMENT_FILENAME),
+            bundle=bundle,
+            bundle_ref=_artifact_ref(bundle_path),
         )
         _write_json_atomic(receipt_path, receipt)
         validate_finalize_receipt(receipt)

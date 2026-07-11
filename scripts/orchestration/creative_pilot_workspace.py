@@ -11,10 +11,9 @@ import json
 import os
 from pathlib import Path
 import secrets
-import shutil
 import stat
 import sys
-from typing import Any, Callable
+from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
@@ -67,7 +66,6 @@ from scripts.orchestration.creative_hypothesis_spec_bridge_contract import (
 from scripts.orchestration.creative_code_contract import CreativeCodeContractError
 from scripts.orchestration.creative_code_specification import (
     CreativeCodeSpecificationError,
-    validate_source_candidate_packet,
 )
 from core.evidence.fingerprints import fingerprint_payload
 
@@ -1029,6 +1027,7 @@ def _cmd_resume_pr1(args: argparse.Namespace) -> None:
         candidate=candidate,
         source_artifacts=source_rows,
         original_prepare_bindings=prepare_rows,
+        old_target_manifest=old_manifest,
         current_target_manifest=current_manifest,
     )
     _reject_symlink_components(SPEC_BRIDGE_ROOT)

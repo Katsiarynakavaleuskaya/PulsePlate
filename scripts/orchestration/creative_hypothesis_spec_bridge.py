@@ -548,15 +548,12 @@ def _build_bundle_from_args(args: argparse.Namespace) -> dict[str, dict[str, Any
         expected_filename="coordinator_dispatch.json",
     )
     approval = _resolve_creative_context_input(args.approval, expected_filename="approval.json")
-    return cast(
-        dict[str, dict[str, Any]],
-        build_creative_hypothesis_spec_bridge_bundle(
-            context_map=read_json_object(context_map),
-            hypothesis_packet=read_json_object(hypothesis_packet),
-            coordinator_dispatch=read_json_object(coordinator_dispatch),
-            approval=read_json_object(approval),
-            variant_count=args.variant_count,
-        ),
+    return build_creative_hypothesis_spec_bridge_bundle(
+        context_map=read_json_object(context_map),
+        hypothesis_packet=read_json_object(hypothesis_packet),
+        coordinator_dispatch=read_json_object(coordinator_dispatch),
+        approval=read_json_object(approval),
+        variant_count=args.variant_count,
     )
 
 

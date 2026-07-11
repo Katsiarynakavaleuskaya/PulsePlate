@@ -732,6 +732,36 @@ def test_pilot_v2_schemas_are_closed_and_version_aligned() -> None:
             assert (
                 schema["$defs"]["declaration"]["properties"]["negative_controls"]["minItems"] == 2
             )
+            assert ":" not in schema["properties"]["pilot_id"]["pattern"]
+            declaration = schema["$defs"]["declaration"]["properties"]
+            assert declaration["problem_statement"]["$ref"].endswith("#/$defs/safe_text")
+            assert declaration["target_paths"]["items"]["$ref"].endswith("#/$defs/path")
+            assert declaration["tests_to_add"]["items"]["$ref"].endswith("#/$defs/test_path")
+        else:
+            assert schema["properties"]["resume_id"]["pattern"].startswith(
+                "^evidence:creative_adaptive_pr1_resume_binding"
+            )
+            assert schema["properties"]["idempotency_key"]["pattern"] == ("^idem:[a-f0-9]{64}$")
+            assert ":" not in schema["properties"]["pilot_id"]["pattern"]
+
+
+def test_adaptive_intake_schema_rejects_traversal_and_colon_pilot_ids() -> None:
+    schema = json.loads(
+        (
+            REPO_ROOT
+            / "docs/orchestration/contracts/creative_adaptive_pr1_variant_intake.v1.schema.json"
+        ).read_text(encoding="utf-8")
+    )
+    pilot_pattern = schema["properties"]["pilot_id"]["pattern"]
+    target_pattern = schema["properties"]["target_surface"]["items"]["allOf"][1]["pattern"]
+    test_pattern = schema["properties"]["required_tests"]["items"]["allOf"][1]["pattern"]
+
+    assert re.fullmatch(pilot_pattern, "safe-pilot_1")
+    assert re.fullmatch(pilot_pattern, "unsafe:pilot") is None
+    assert re.fullmatch(target_pattern, "core/rag/orchestration.py")
+    assert re.fullmatch(target_pattern, "core/rag/../../../etc/passwd.py") is None
+    assert re.fullmatch(test_pattern, "tests/test_rag_orchestration.py")
+    assert re.fullmatch(test_pattern, "tests/../../etc/passwd.py") is None
 
 
 def _resume_declarations(candidate: dict) -> list[dict]:
@@ -915,6 +945,7 @@ def _rederive_resume_binding_identity(
         candidate=candidate,
         source_artifacts=updated["source_lineage"]["source_artifacts"],
         original_prepare_bindings=updated["source_lineage"]["original_prepare_bindings"],
+        old_target_manifest=updated["source_lineage"]["old_target_manifest"],
         current_target_manifest=updated["source_lineage"]["current_target_manifest"],
     )
     updated["resume_id"] = resume_id
@@ -1072,8 +1103,10 @@ def test_resume_pr1_publishes_exact_new_only_bundle_and_replays(
             ],
             intake_payload["source_candidate"]["candidate_ref"],
         )
-        target_pattern = intake_schema["properties"]["target_surface"]["items"]["pattern"]
-        test_pattern = intake_schema["properties"]["required_tests"]["items"]["pattern"]
+        target_pattern = intake_schema["properties"]["target_surface"]["items"]["allOf"][1][
+            "pattern"
+        ]
+        test_pattern = intake_schema["properties"]["required_tests"]["items"]["allOf"][1]["pattern"]
         assert all(re.fullmatch(target_pattern, path) for path in intake_payload["target_surface"])
         assert all(re.fullmatch(test_pattern, path) for path in intake_payload["required_tests"])
         expected_families = [
@@ -1251,6 +1284,93 @@ def test_resume_binding_rejects_pilot_substitution_copied_evidence_and_mixed_ref
                 intake=intake,
                 candidate=candidate,
                 revalidate_git=False,
+            )
+    finally:
+        _cleanup_published_adaptive_resume(fixture)
+
+
+def test_resume_binding_structural_validation_binds_retained_manifest(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    fixture = _publish_adaptive_resume_for_test(
+        monkeypatch=monkeypatch,
+        capsys=capsys,
+        prefix="manifest-identity",
+    )
+    try:
+        binding = deepcopy(dict(fixture["binding"]))
+        binding["source_lineage"]["source_base_sha"] = "f" * 40
+        binding["source_lineage"]["source_head_sha"] = "f" * 40
+        binding["source_lineage"]["old_target_manifest"]["base_sha"] = "f" * 40
+        binding["source_lineage"]["old_target_manifest"]["head_sha"] = "f" * 40
+        with pytest.raises(CreativePilotContractError, match="identity mismatch"):
+            pilot_contract.validate_adaptive_pr1_resume_binding(
+                binding,
+                intake=dict(fixture["intake"]),
+                candidate=dict(fixture["candidate"]),
+                revalidate_git=False,
+            )
+    finally:
+        _cleanup_published_adaptive_resume(fixture)
+
+
+def test_resume_binding_structural_mode_does_not_require_git_or_source_files(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    fixture = _publish_adaptive_resume_for_test(
+        monkeypatch=monkeypatch,
+        capsys=capsys,
+        prefix="structural-mode",
+    )
+    try:
+        monkeypatch.setattr(
+            pilot_contract,
+            "current_origin_main_sha",
+            lambda: pytest.fail("structural validation must not inspect Git"),
+        )
+        assert pilot_contract.validate_adaptive_pr1_resume_binding(
+            dict(fixture["binding"]),
+            intake=dict(fixture["intake"]),
+            candidate=dict(fixture["candidate"]),
+            revalidate_git=False,
+        ) == dict(fixture["binding"])
+    finally:
+        _cleanup_published_adaptive_resume(fixture)
+
+
+def test_resume_binding_replays_retained_terminal_lineage_on_consumption(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    fixture = _publish_adaptive_resume_for_test(
+        monkeypatch=monkeypatch,
+        capsys=capsys,
+        prefix="retained-replay",
+    )
+    try:
+        context_path = Path(fixture["pilot_dir"]) / "context_map.v2.json"
+        context = json.loads(context_path.read_text(encoding="utf-8"))
+        context["forged_after_publication"] = True
+        context_path.write_text(json.dumps(context), encoding="utf-8")
+
+        binding = deepcopy(dict(fixture["binding"]))
+        context_row = binding["source_lineage"]["source_artifacts"][0]
+        assert context_row["filename"] == "context_map.v2.json"
+        context_row["fingerprint"] = fingerprint_payload(context)
+        binding = _rederive_resume_binding_identity(
+            binding,
+            intake=dict(fixture["intake"]),
+            candidate=dict(fixture["candidate"]),
+        )
+
+        with pytest.raises(CreativePilotContractError, match="adaptive_source_lineage_mismatch"):
+            pilot_contract.validate_adaptive_pr1_resume_binding(
+                binding,
+                intake=dict(fixture["intake"]),
+                candidate=dict(fixture["candidate"]),
+                revalidate_git=True,
             )
     finally:
         _cleanup_published_adaptive_resume(fixture)
