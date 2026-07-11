@@ -57,6 +57,8 @@ deletion.
   contract suite while retaining its per-test client identity.
 - `056a8aaf6` - resolve `vars()`/`__dict__` lifecycle references and inspect
   unpacked namespace updates, closing the late Cubic guard bypasses.
+- `c800c13ee` - reject reflective lifecycle event lookups and freeze explicit
+  module-namespace dynamic-import regressions.
 
 ## Lane Start Provenance
 
@@ -122,9 +124,10 @@ deletion.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#pullrequestreview-4676962649
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3563549257
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3563549260
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3563549609
 Disposition: FIXED
 Commit: see mapping entries below
-Evidence: `1e2d4918c`, `e28fb34c3`, `31bd2d457`, `ef4a03da0`, `f16b7663b`, and `056a8aaf6` contain the post-comment production, guard, regression-test, architecture, and governance fixes; the focused suite, legacy guard, MyPy, OpenAPI zero-diff, validate-changed, pre-commit, and pre-push gates pass.
+Evidence: `1e2d4918c`, `e28fb34c3`, `31bd2d457`, `ef4a03da0`, `f16b7663b`, `056a8aaf6`, and `c800c13ee` contain the post-comment production, guard, regression-test, architecture, and governance fixes; the focused suite, legacy guard, MyPy, OpenAPI zero-diff, validate-changed, pre-commit, and pre-push gates pass.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3562131781 -> 1e2d4918c5b6f6cf67d11865d218bf0253728f16
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3562249863 -> e28fb34c3a0d6c044194e9cc90e81504cbb2adbf
@@ -157,6 +160,12 @@ Evidence: `1e2d4918c`, `e28fb34c3`, `31bd2d457`, `ef4a03da0`, `f16b7663b`, and `
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#pullrequestreview-4676962649 -> 056a8aaf622472644672f03ff5741b6c9d437bd7
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3563549257 -> 056a8aaf622472644672f03ff5741b6c9d437bd7
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3563549260 -> 056a8aaf622472644672f03ff5741b6c9d437bd7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3563549609 -> c800c13ee5e546e5bd47b0b4b03ff27db6254817
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3563609195
+Disposition: NOT-A-BUG
+Evidence: `scripts/ci/check_legacy_growth_guard.py` normalizes static module namespace references; explicit builtins/importlib cases in `tests/test_legacy_growth_guard.py` return the canonical dynamic-facade error, and the complete guard suite passes.
+Reason: The comment was generated against the parent head after `056a8aaf6` had generalized namespace-mediated resolution; `c800c13ee` adds explicit importlib regression evidence without weakening the guard.
 
 ## Pre-Open Implementation Evidence
 
