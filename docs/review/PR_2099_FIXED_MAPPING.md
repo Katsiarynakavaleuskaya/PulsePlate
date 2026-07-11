@@ -46,6 +46,8 @@ deletion.
 - `f16b7663b` - preserve optional scheduler imports, map Meili shutdown races to
   the existing fallback path, close remaining lifecycle-guard bypasses, and
   correct durable review documentation.
+- `2b0f393d1` - require every guarded `FastAPI(...)` construction to retain the
+  canonical lifespan and reject parameter-shadowed static security facts.
 
 ## Lane Start Provenance
 
@@ -96,6 +98,8 @@ deletion.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3562425016
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3562425022
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3562425024
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3563306164
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3563315060
 Disposition: FIXED
 Commit: see mapping entries below
 Evidence: `1e2d4918c`, `e28fb34c3`, `31bd2d457`, `ef4a03da0`, and `f16b7663b` contain the post-comment production, guard, regression-test, architecture, and governance fixes; the focused suite, legacy guard, MyPy, OpenAPI zero-diff, validate-changed, pre-commit, and pre-push gates pass.
@@ -116,6 +120,8 @@ Evidence: `1e2d4918c`, `e28fb34c3`, `31bd2d457`, `ef4a03da0`, and `f16b7663b` co
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3562425016 -> f16b7663bfd606d72d4e45f518b20e1e0c676365
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3562425022 -> f16b7663bfd606d72d4e45f518b20e1e0c676365
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3562425024 -> f16b7663bfd606d72d4e45f518b20e1e0c676365
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3563306164 -> 2b0f393d10d9eb4ccb0e3c598138d24d3c8d2f9f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3563315060 -> 2b0f393d10d9eb4ccb0e3c598138d24d3c8d2f9f
 
 ## Pre-Open Implementation Evidence
 
