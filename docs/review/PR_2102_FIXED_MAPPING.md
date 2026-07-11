@@ -35,6 +35,8 @@ closes every bounded pre-open defect found in the touched auth/bootstrap graph.
   lookup and nested static-binding findings without changing runtime auth.
 - `6a9a563a69cbc5ffeefff2d8787a5edde22bc488` - preserve the canonical facade
   header and close star-import and assigned-loader guard bypasses.
+- `c5409d0de09bdae93dacce376a1a84d91f375253` - block keyed `pop` and
+  `setdefault` retrievals from the legacy module namespace.
 
 ## Discussion Thread Pass
 
@@ -83,9 +85,10 @@ dispositioned here before thread resolution or merge-readiness claims.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565204816
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565204818
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565204821
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565224748
 Disposition: FIXED
 Commit: see mapping entries below
-Evidence: Commits `276ca9b608`, `044e968a9`, `028b40fad`, and `6a9a563a6`; focused API-key ownership, full legacy-growth, export, business, metrics, and warning suites; `make validate-changed`; full pre-commit; pre-push MyPy, pip-audit, backend tests, Bandit, and Docker build all pass.
+Evidence: Commits `276ca9b608`, `044e968a9`, `028b40fad`, `6a9a563a6`, and `c5409d0de`; focused API-key ownership, full legacy-growth, export, business, metrics, and warning suites; `make validate-changed`; full pre-commit; pre-push MyPy, pip-audit, backend tests, Bandit, and Docker build all pass.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024580 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024583 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
@@ -117,6 +120,7 @@ Evidence: Commits `276ca9b608`, `044e968a9`, `028b40fad`, and `6a9a563a6`; focus
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565204816 -> 6a9a563a69cbc5ffeefff2d8787a5edde22bc488
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565204818 -> 6a9a563a69cbc5ffeefff2d8787a5edde22bc488
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565204821 -> 6a9a563a69cbc5ffeefff2d8787a5edde22bc488
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565224748 -> c5409d0de09bdae93dacce376a1a84d91f375253
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024584
 Disposition: NOT-A-BUG
@@ -287,12 +291,14 @@ Repair artifact:
 - PASS: 114-case facade/import ownership closure, focused coverage regression,
   security closure, validate-changed, full pre-commit, and pre-push gates on
   commit `6a9a563a6`.
+- PASS: keyed namespace retrieval regressions, full legacy-growth suite,
+  validate-changed, full pre-commit, and pre-push gates on commit `c5409d0de`.
 - PASS: `git diff --check`, conflict check, and local-artifact check.
 - Not run: local full `make verify`, per repository machine-budget policy.
 
 ## Merge Readiness
 
-Not claimed. The repaired implementation is published at `6a9a563a6`;
+Not claimed. The repaired implementation is published at `c5409d0de`;
 current-head CI, current-head external bot review, Codex Security diff scan,
 `pulseplate-pr-review`, strict authenticated merge readiness, and the final wait
 window remain required.
