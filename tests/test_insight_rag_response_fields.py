@@ -243,14 +243,6 @@ def _disable_vip_monthly_quota(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
-def _isolated_test_client(app_instance: FastAPI) -> TestClient:
-    """Create a per-test client identity to avoid inherited rate-limit keys."""
-    return TestClient(
-        app_instance,
-        client=(f"rag-contract-{uuid4().hex}", 50000),
-    )
-
-
 @dataclass
 class _SequenceEchoProvider:
     responses: list[str]
@@ -694,15 +686,14 @@ class TestInsightV1RAGFields:
             raising=True,
         )
 
-        with _isolated_test_client(rag_client.app) as isolated_client:
-            resp = isolated_client.post(
-                "/api/v1/insight",
-                json={"text": "What is BMI?"},
-                headers=vip_headers,
-            )
-            assert resp.status_code == 200, resp.text
-            assert resp.headers.get("content-type", "").startswith("application/json")
-            data = resp.json()
+        resp = rag_client.post(
+            "/api/v1/insight",
+            json={"text": "What is BMI?"},
+            headers=vip_headers,
+        )
+        assert resp.status_code == 200, resp.text
+        assert resp.headers.get("content-type", "").startswith("application/json")
+        data = resp.json()
         assert "Source:" not in data["insight"]
 
 
@@ -726,11 +717,10 @@ class TestInsightLegacyRAGFields:
             raising=True,
         )
 
-        with _isolated_test_client(rag_client.app) as isolated_client:
-            resp = isolated_client.post("/insight", json={"text": "test"}, headers=vip_headers)
-            assert resp.status_code == 200, resp.text
-            assert resp.headers.get("content-type", "").startswith("application/json")
-            data = resp.json()
+        resp = rag_client.post("/insight", json={"text": "test"}, headers=vip_headers)
+        assert resp.status_code == 200, resp.text
+        assert resp.headers.get("content-type", "").startswith("application/json")
+        data = resp.json()
         assert data["rag_used"] is True
         assert len(data["sources"]) == 2
         assert data["confidence"] == 0.75
@@ -760,11 +750,10 @@ class TestInsightLegacyRAGFields:
             raising=True,
         )
 
-        with _isolated_test_client(rag_client.app) as isolated_client:
-            resp = isolated_client.post("/insight", json={"text": "test"}, headers=vip_headers)
-            assert resp.status_code == 200, resp.text
-            assert resp.headers.get("content-type", "").startswith("application/json")
-            data = resp.json()
+        resp = rag_client.post("/insight", json={"text": "test"}, headers=vip_headers)
+        assert resp.status_code == 200, resp.text
+        assert resp.headers.get("content-type", "").startswith("application/json")
+        data = resp.json()
 
         assert data["rag_used"] is False
         assert data["sources"] == []
@@ -784,11 +773,10 @@ class TestInsightLegacyRAGFields:
         monkeypatch.setenv("FEATURE_RAG", "false")
         monkeypatch.setattr(llm, "get_insight_provider", lambda: _EchoProvider(), raising=True)
 
-        with _isolated_test_client(rag_client.app) as isolated_client:
-            resp = isolated_client.post("/insight", json={"text": "test"}, headers=vip_headers)
-            assert resp.status_code == 200, resp.text
-            assert resp.headers.get("content-type", "").startswith("application/json")
-            data = resp.json()
+        resp = rag_client.post("/insight", json={"text": "test"}, headers=vip_headers)
+        assert resp.status_code == 200, resp.text
+        assert resp.headers.get("content-type", "").startswith("application/json")
+        data = resp.json()
         assert data["rag_used"] is False
         assert data["sources"] == []
         assert data["confidence"] is None
