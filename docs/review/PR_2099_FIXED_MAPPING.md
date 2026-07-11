@@ -41,6 +41,8 @@ deletion.
   explicit body-cancellation and scheduler-start-failure evidence.
 - `e28fb34c3` - reject FastAPI keyword-expansion and qualified dynamic-facade
   bypasses reported by the sealed Codex Security diff scan.
+- `31bd2d457` - require stable single bindings for canonical lifespan aliases and
+  static strings, closing the targeted security-rescan findings.
 
 ## Lane Start Provenance
 
@@ -65,6 +67,10 @@ deletion.
 - [x] Codex Security diff scan / finding discovery completed; scan
   `fe7a0056-e0d1-4b90-b5ba-84adc40060dc` reviewed 8/8 bounded surfaces and
   reported two Medium/P2 lifecycle-guard findings fixed in `e28fb34c3`.
+- [x] Targeted Codex Security rescan
+  `98ca8e42-2586-4db9-812a-0301ed0a3289` reviewed 8/8 bounded surfaces and
+  reported two additional Medium/P2 binding-stability findings fixed in
+  `31bd2d457`.
 - [ ] `pulseplate-pr-review` completed.
 - [ ] Current-head CI completed.
 - [ ] Strict merge-readiness checks completed after the final review cycle.
@@ -159,6 +165,26 @@ The sealed scan report remains a local plugin artifact, as required for local
 security artifacts. Its validated summary is mirrored here; it is not used as
 an unpublished merge-readiness substitute.
 
+Disposition: FIXED
+Commit: `31bd2d457`
+Evidence: Targeted Codex Security rescan
+`98ca8e42-2586-4db9-812a-0301ed0a3289`, finding
+`Rebinding the canonical lifespan import name bypasses ownership enforcement`,
+plus `tests/test_legacy_growth_guard.py`.
+Reason: Canonical lifespan aliases are now accepted only when their import name
+has exactly one stable binding; explicit and static-mapping reassignment forms
+fail closed.
+
+Disposition: FIXED
+Commit: `31bd2d457`
+Evidence: Targeted Codex Security rescan
+`98ca8e42-2586-4db9-812a-0301ed0a3289`, finding
+`Stale first-assignment string resolution bypasses lifecycle and facade checks`,
+plus `tests/test_legacy_growth_guard.py`.
+Reason: Static string facts now require a single stable binding, and unresolved
+dynamic import names fail closed. Reassigned FastAPI keys and facade module names
+are rejected while a known-safe single-assignment import remains allowed.
+
 ## Premortem Evidence
 
 - Result: PROCEED after all actual-diff findings were closed.
@@ -184,13 +210,16 @@ Artifact: `artifacts/orchestration/experiments/results/exp-2dba53ad6a27.json`
 
 - Preflight, agent consistency, and legacy growth guard - PASS.
 - Focused lifecycle, food-search, DB fallback, production invariant, public
-  surface, and guard tests - PASS (568 tests after the security fixes).
+  surface, and guard tests - PASS (578 tests after the binding-stability fixes).
 - `make validate-changed` after commit - PASS.
 - Scoped MyPy through `.venv/bin/python` - PASS.
 - `make openapi-check` and explicit three-artifact check - zero diff.
 - `pre-commit run --all-files` - PASS.
 - Codex Security diff scan - completed with 8/8 bounded surfaces; two Medium/P2
   findings were fixed in `e28fb34c3` before this evidence update.
+- Targeted Codex Security rescan - completed with 8/8 bounded surfaces; two
+  Medium/P2 binding-stability findings were fixed in `31bd2d457` before this
+  evidence update.
 - Pre-push hooks - PASS, including MyPy, pip-audit, backend tests, full-repo
   Bandit, and Docker build.
 - Full local `make verify` was not run under repository machine-budget policy.
