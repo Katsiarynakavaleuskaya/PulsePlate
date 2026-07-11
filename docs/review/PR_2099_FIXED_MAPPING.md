@@ -80,8 +80,30 @@ deletion.
 
 ## Fixed in Commit Mapping
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3562131781
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3562249863
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3562249867
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3562256410
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3562096556
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3562118864
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3562131786
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3562249878
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3562249883
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3562256404
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3562256412
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3562399636
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3562399643
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3562425016
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3562425022
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3562425024
 Disposition: FIXED
-Commit: f16b7663bfd606d72d4e45f518b20e1e0c676365
+Commit: see mapping entries below
+Evidence: `1e2d4918c`, `e28fb34c3`, `31bd2d457`, `ef4a03da0`, and `f16b7663b` contain the post-comment production, guard, regression-test, architecture, and governance fixes; the focused suite, legacy guard, MyPy, OpenAPI zero-diff, validate-changed, pre-commit, and pre-push gates pass.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3562131781 -> 1e2d4918c5b6f6cf67d11865d218bf0253728f16
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3562249863 -> e28fb34c3a0d6c044194e9cc90e81504cbb2adbf
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3562249867 -> 31bd2d457f66aa4df7ed01b5cf8b179b2d27c3ea
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3562256410 -> ef4a03da04a414498c159b4e792a7b9579e20531
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3562096556 -> f16b7663bfd606d72d4e45f518b20e1e0c676365
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3562118864 -> f16b7663bfd606d72d4e45f518b20e1e0c676365
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3562131786 -> f16b7663bfd606d72d4e45f518b20e1e0c676365
@@ -94,8 +116,6 @@ Commit: f16b7663bfd606d72d4e45f518b20e1e0c676365
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3562425016 -> f16b7663bfd606d72d4e45f518b20e1e0c676365
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3562425022 -> f16b7663bfd606d72d4e45f518b20e1e0c676365
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3562425024 -> f16b7663bfd606d72d4e45f518b20e1e0c676365
-Evidence: `app/bootstrap/lifespan.py`, `app/services/search_meili.py`, `scripts/ci/check_legacy_growth_guard.py`, focused regression tests, `docs/architecture/LEGACY_COMPATIBILITY_SEAM.md`, `docs/roadmap/BACKLOG_LEDGER.md`, and the durable Experiment Runner summary in this artifact.
-Reason: All published actionables were fixed after their comment timestamps: optional scheduler loading remains best effort; Meili shutdown races enter the existing fallback; direct/dynamic lifecycle ownership bypasses fail closed; and the architecture/governance wording now matches actual ownership and artifact durability.
 
 ## Pre-Open Implementation Evidence
 
