@@ -180,6 +180,7 @@ def test_lifecycle_guard_rejects_legacy_ownership(
     "food_source",
     [
         "app.router.lifespan_context = wrapper\n",
+        "del app.router.lifespan_context\n",
         'setattr(app.router, "lifespan_context", wrapper)\n',
         'import builtins\nbuiltins.setattr(app.router, "lifespan_context", wrapper)\n',
         'from builtins import setattr as assign\nassign(app.router, "lifespan_context", wrapper)\n',
@@ -188,10 +189,15 @@ def test_lifecycle_guard_rejects_legacy_ownership(
         'assign = object.__setattr__\nassign(app.router, "lifespan_context", wrapper)\n',
         'vars(app.router)["lifespan_context"] = wrapper\n',
         'app.router.__dict__["lifespan_context"] = wrapper\n',
+        'del app.router.__dict__["lifespan_context"]\n',
+        'del vars(app.router)["lifespan_context"]\n',
         'app.router.__dict__.update({"lifespan_context": wrapper})\n',
         'vars(app.router).update({"lifespan_context": wrapper})\n',
         'app.router.__dict__.setdefault("lifespan_context", wrapper)\n',
         'vars(app.router).setdefault("lifespan_context", wrapper)\n',
+        'app.router.__dict__.pop("lifespan_context")\n',
+        'vars(app.router).__delitem__("lifespan_context")\n',
+        "app.router.__dict__.clear()\n",
     ],
 )
 def test_lifecycle_guard_rejects_food_search_lifespan_wrapping(

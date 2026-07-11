@@ -1717,6 +1717,8 @@ def _assigns_lifespan_context(tree: ast.Module) -> bool:
             targets.append(node.target)
         elif isinstance(node, ast.AugAssign):
             targets.append(node.target)
+        elif isinstance(node, ast.Delete):
+            targets.extend(node.targets)
         for target in targets:
             if isinstance(target, ast.Attribute) and target.attr == "lifespan_context":
                 return True
@@ -1800,7 +1802,9 @@ def _mutates_lifespan_namespace(
                 if resolved_key is None or resolved_key == "lifespan_context":
                     return True
         return False
-    if node.func.attr in {"__setitem__", "setdefault"}:
+    if node.func.attr == "clear":
+        return True
+    if node.func.attr in {"__delitem__", "__setitem__", "pop", "setdefault"}:
         if not node.args:
             return True
         key_name = _resolve_static_string(node.args[0], static_string_bindings)
