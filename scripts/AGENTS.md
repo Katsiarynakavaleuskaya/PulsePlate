@@ -228,6 +228,32 @@
   dispatch items are read-only. Handoff approval requires an interactive TTY
   and exact phrase; provider, patch, repository, runtime, cache, graph-truth,
   GitHub, Slack, review-thread, and merge authority stay closed.
+- `creative_pilot_workspace resume-pr1` may consume one retained, approved v2
+  pilot and exact `CreativeAdaptivePr1VariantIntakeV1` declarations only after
+  current `origin/main`, target blobs/content, and immutable-oracle
+  blobs/content match the retained target manifest. It publishes a new-only
+  `spec_bridge/<resume-id>/` bundle through complete staging and leaves the
+  original adaptive pilot byte-identical. Identical replay is no-write;
+  all prepared sidecars are recomputed and compared, and nested symlinks,
+  partial, divergent, or stale bindings fail closed. The adaptive
+  context/packet/workspace/synthesis/approval/bridge/candidate lineage and
+  terminal `handoff_ref` must be reconstructed before source fingerprinting;
+  valid-but-substituted artifacts fail closed before publication. Resume and
+  intake pilot IDs plus all original candidate/source/prepare refs must bind to
+  one exact `adaptive_pilots/<pilot-id>/` root. Adaptive downstream
+  attach/validate/finalize re-entry must reuse complete exact-prepare validation
+  so altered context packs or re-fingerprinted pending reviews fail closed. The
+  adaptive
+  source bindings must come from the validated in-memory lineage and canonical
+  retained-prepare snapshots, with pinned disk revalidation before replay and
+  immediately before atomic publication; a second unconstrained source read
+  must never become binding truth. Publication must use an atomic kernel
+  no-replace directory rename and fail as `adaptive_publish_collision` rather
+  than replacing any concurrent canonical resume directory. The adaptive
+  intake identity is the documented compatibility alias for existing
+  attachment `metrics_*` fields; no fake v1 metrics artifact or widened
+  attachment/finalize schema is allowed. Patch/provider/network/runtime/cache,
+  graph-truth, repository, GitHub, Slack, PR-2, and PR-3 authority remain false.
 - The role dispatch bridge treats `readonly: true` in `.cursor/agents/*.md` as
   the safe default. In `--mode runtime`, write-capable dispatch for a native
   bridge `execution_mode: read_write` primary/secondary role must be explicit

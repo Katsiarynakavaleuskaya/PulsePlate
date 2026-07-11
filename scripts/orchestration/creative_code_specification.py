@@ -161,6 +161,12 @@ VARIANT_KEYS = frozenset(
         "estimated_changed_files",
     }
 )
+EXACT_VARIANT_DECLARATION_KEYS = VARIANT_KEYS - {
+    "variant_id",
+    "source_packet_id",
+    "source_candidate_id",
+    "variant_fingerprint",
+}
 REVIEW_KEYS = frozenset(
     {
         "review_id",
@@ -1172,6 +1178,91 @@ def build_default_specification_variants(
         }
         variant["variant_fingerprint"] = fingerprint_payload(_variant_fingerprint_payload(variant))
         variants.append(variant)
+    return variants
+
+
+def build_exact_specification_variants(
+    source_packet: Mapping[str, Any],
+    declarations: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    """Materialize exact operator declarations into canonical PR-1 variants.
+
+    Unlike the legacy default builder, this path does not synthesize prose.  It
+    requires every semantic ``VARIANT_KEYS`` field, orders declarations by the
+    closed ``APPROACH_FAMILIES`` registry, and derives identity fields only.
+    """
+
+    normalized_packet = validate_source_candidate_packet(source_packet)
+    expected_count = int(normalized_packet["variant_count"])
+    if len(declarations) != expected_count:
+        raise CreativeCodeSpecificationError(
+            "exact variant declarations must match source candidate variant_count."
+        )
+    source_packet_id = str(normalized_packet["candidate_id"])
+    source_candidate_id = str(normalized_packet["source_creative_research"]["candidate_id"])
+    expected_targets = list(normalized_packet["target_surface"])
+    expected_tests = list(normalized_packet["evidence_bundle"]["required_tests"])
+    rows: list[dict[str, Any]] = []
+    seen_families: set[str] = set()
+    for raw in declarations:
+        if not isinstance(raw, Mapping):
+            raise CreativeCodeSpecificationError("exact variant declaration must be an object.")
+        _require_exact_keys(
+            raw,
+            EXACT_VARIANT_DECLARATION_KEYS,
+            label="CreativeAdaptivePr1VariantDeclaration",
+        )
+        family = raw.get("approach_family")
+        if not isinstance(family, str) or family not in APPROACH_FAMILIES:
+            raise CreativeCodeSpecificationError(
+                "CreativeAdaptivePr1VariantDeclaration.approach_family is unsupported."
+            )
+        if family in seen_families:
+            raise CreativeCodeSpecificationError(
+                "exact variant declarations must not repeat approach_family."
+            )
+        seen_families.add(family)
+        rows.append(dict(raw))
+    rows.sort(key=lambda row: APPROACH_FAMILIES.index(str(row["approach_family"])))
+    observed_families = [str(row["approach_family"]) for row in rows]
+    expected_families = list(APPROACH_FAMILIES[:expected_count])
+    if observed_families != expected_families:
+        raise CreativeCodeSpecificationError(
+            "exact variant declarations must use APPROACH_FAMILIES[:variant_count]."
+        )
+
+    variants: list[dict[str, Any]] = []
+    for index, declaration in enumerate(rows, start=1):
+        if declaration.get("target_paths") != expected_targets:
+            raise CreativeCodeSpecificationError(
+                "exact variant target_paths must equal source target_surface."
+            )
+        if declaration.get("tests_to_add") != expected_tests:
+            raise CreativeCodeSpecificationError(
+                "exact variant tests_to_add must equal source required_tests."
+            )
+        negative_controls = declaration.get("negative_controls")
+        if not isinstance(negative_controls, list) or len(negative_controls) < 2:
+            raise CreativeCodeSpecificationError(
+                "exact variant declarations require at least two negative_controls."
+            )
+        variant: dict[str, Any] = {
+            **declaration,
+            "variant_id": f"{source_packet_id}:spec-{index}",
+            "source_packet_id": source_packet_id,
+            "source_candidate_id": source_candidate_id,
+            "variant_fingerprint": "pending",
+        }
+        variant["variant_fingerprint"] = fingerprint_payload(_variant_fingerprint_payload(variant))
+        variants.append(
+            _validate_variant(
+                variant,
+                index=index - 1,
+                source_packet_id=source_packet_id,
+                source_candidate_id=source_candidate_id,
+                target_surface=expected_targets,
+            )
+        )
     return variants
 
 

@@ -14,6 +14,7 @@ import pytest
 from core.evidence.fingerprints import fingerprint_payload
 from scripts.orchestration import (
     creative_hypothesis_spec_bridge as bridge_cli,
+    creative_pilot_workspace_contract as pilot_contract,
     creative_specification_skeptic_review as review_cli,
     creative_specification_skeptic_review_contract as review_contract,
 )
@@ -550,6 +551,54 @@ def test_validate_rejects_noncanonical_attachment_path(
     finally:
         shutil.rmtree(output_dir, ignore_errors=True)
         shutil.rmtree(input_dir, ignore_errors=True)
+
+
+def test_adaptive_validate_stale_base_returns_stable_cli_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    attachment = tmp_path / review_cli.ATTACHMENT_FILENAME
+    attachment.write_text("{}\n", encoding="utf-8")
+    reviewed_dir = tmp_path / "spec_finalize_reviewed"
+    reviewed_dir.mkdir()
+
+    def stale_base(_path: Path) -> tuple[dict[str, object], Path]:
+        raise pilot_contract.CreativePilotContractError(
+            "adaptive_base_drift: current origin/main advanced"
+        )
+
+    monkeypatch.setattr(review_cli, "_validate_attachment_artifacts", stale_base)
+    assert review_cli.main(["validate", "--attachment", str(attachment)]) == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == "FAIL: adaptive_base_drift: current origin/main advanced\n"
+    assert not (reviewed_dir / review_cli.BUNDLE_FILENAME).exists()
+    assert not (reviewed_dir / review_cli.FINALIZE_RECEIPT_FILENAME).exists()
+
+
+def test_adaptive_finalize_stale_base_returns_stable_cli_failure_without_publication(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    reviewed_dir = tmp_path / "spec_finalize_reviewed"
+    reviewed_dir.mkdir()
+    attachment = reviewed_dir / review_cli.ATTACHMENT_FILENAME
+    attachment.write_text("{}\n", encoding="utf-8")
+
+    def stale_base(_path: Path) -> tuple[dict[str, object], Path]:
+        raise pilot_contract.CreativePilotContractError(
+            "adaptive_base_drift: current origin/main advanced"
+        )
+
+    monkeypatch.setattr(review_cli, "_validate_attachment_artifacts", stale_base)
+    assert review_cli.main(["finalize", "--attachment", str(attachment)]) == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == "FAIL: adaptive_base_drift: current origin/main advanced\n"
+    assert not (reviewed_dir / review_cli.BUNDLE_FILENAME).exists()
+    assert not (reviewed_dir / review_cli.FINALIZE_RECEIPT_FILENAME).exists()
 
 
 def test_attach_rejects_prepared_child_symlink_before_read(

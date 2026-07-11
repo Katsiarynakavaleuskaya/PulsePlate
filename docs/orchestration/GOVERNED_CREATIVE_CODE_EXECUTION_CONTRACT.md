@@ -57,6 +57,7 @@ open the semantic-cache gate.
 | `pr-creative-context` | Expands eligible PR context into 3-5 hypotheses, validates operator-supplied local hypothesis JSON, assigns normalized hypothesis IDs, records cross-domain analogies, emits agent routing/coordinator dispatch, and prepares approval reservations. | Allowed only through local sanitized Experiment Runner creative-context artifacts; no repo-side provider/model call, patch generation, workflow mutation, semantic cache, or GitHub write authority. |
 | `approved-hypothesis-spec-bridge` | Converts a human-approved creative hypothesis into a validated PR-0 creative-code candidate and existing PR-1 prepare artifacts. | Allowed only through local `creative_hypothesis_spec_bridge.py`; no mutable-surface widening, provider calls, patch generation, PR writes, role execution, finalization, semantic cache, graph truth, or product runtime authority. |
 | `adaptive-production-pilot` | Binds one or two exact tracked `core/rag` or `core/insight` files to Git object truth, dispatches independent structured critique, allows one conflict-scoped rebuttal, and emits a human-approved v2 lineage receipt into the existing candidate-v1 / PR-1 prepare path. | Planning authority only through `creative_pilot_workspace.py`; the existing PR-2 mutable allowlist is reused unchanged. Provider, patch, runtime, cache, graph-truth, GitHub, Slack, and repository-write authority remain closed. |
+| `adaptive-pr1-resume` | Rebinds one retained approved adaptive pilot to current `origin/main`, exact implementation-specific declarations, and the existing PR-1 skeptic/finalize path. | Allowed only through `creative_pilot_workspace resume-pr1`; source artifacts remain byte-immutable, exact target/oracle continuity is mandatory, and patch/provider/network/runtime/cache/graph/GitHub authority remains closed. |
 | `reviewed-spec-finalize` | Attaches sanitized local skeptic-review evidence to a prepared bridge run and delegates to existing PR-1 finalize in a sibling reviewed directory. | Allowed only through local `creative_specification_skeptic_review.py`; must preserve `spec_prepare/`; no agent execution, provider calls, patch generation, PR writes, workflow changes, semantic cache, graph truth, product runtime, fixed-mapping edits, review-thread actions, or readiness claims. |
 | `reviewed-spec-learning-rollup` | Converts finalized creative specification outcomes into proposal-only learning records and coordinator advisory hints. | Allowed only through local `creative_spec_learning_rollup.py` and optional `task_bootstrap.py --creative-learning-hints`; no provider calls, agent execution, patch generation, routing authority, required-role changes, lifecycle-gate changes, PR/GitHub/Slack writes, semantic cache, graph truth, product runtime truth, or merge-readiness authority. |
 
@@ -92,6 +93,40 @@ approval targets outside the current `CreativeCodeCandidatePacket` mutable
 allowlist become immutable oracles, and the bridge fails closed when no allowed
 mutable target remains.
 
+An approved adaptive pilot may enter PR-1 through the versioned
+`CreativeAdaptivePr1VariantIntakeV1` and `CreativeAdaptivePr1ResumeBindingV1`
+contracts. `resume-pr1` accepts complete exact declaration rows, canonicalizes
+them by the existing `APPROACH_FAMILIES` order, requires exact target and test
+equality, and emits a new-only `spec_bridge/<resume-id>/` directory through a
+complete staging directory. Original free-text negative controls remain bound
+by the retained candidate fingerprint; each implementation declaration requires
+at least two unique bounded safe-token negative controls so runtime/confidence
+invariance and immutable-oracle invariance remain independently falsifiable.
+Identical replay performs no writes. Partial,
+divergent, symlinked, stale-base, target-drift, and oracle-drift states fail
+closed. Replay revalidates all four prepared sidecars against the exact
+candidate, materialized variants, deterministic pending reviews, and context
+pack, and recursively rejects nested symlinks. The existing `prepare` command
+remains unchanged; `prepare-exact` is the only exact-declaration I/O path.
+Adaptive attach, validate, and finalize re-entry reuse that same complete exact
+prepare validator; a re-fingerprinted pending review or altered context pack
+cannot become downstream PR-1 truth. Resume/intake pilot IDs and every retained
+source/prepare ref must also share the exact
+`adaptive_pilots/<pilot-id>/` lineage root.
+Before fingerprinting or publication, resume also reconstructs the retained
+context → packet → workspace → synthesis → approval → bridge → candidate
+lineage, recomputes the deterministic approval and terminal handoff, and
+requires exact workspace `handoff_ref`, target, immutable-oracle, and selected
+hypothesis test bindings. Any forged or valid-but-substituted source artifact
+fails as `adaptive_source_lineage_mismatch`. Source binding fingerprints are
+derived from those validated in-memory lineage snapshots, including the
+canonical bridge/candidate and deterministic retained PR-1 prepare sidecars;
+the pinned on-disk artifacts are checked against those snapshots before a
+replay decision and again immediately before atomic publication. Publication
+uses a pinned-parent kernel no-replace rename (`RENAME_NOREPLACE` on Linux,
+`RENAME_EXCL` on macOS), fails closed when that primitive is unavailable, and
+never replaces an empty or non-empty canonical resume directory.
+
 Premortem is part of this creative line, not a documentation closeout ritual.
 For Experiment Runner creative-context work, premortem should forecast plausible
 future failures from the perspective of users, business outcomes, project
@@ -126,6 +161,16 @@ The PR-1 executable handoff artifact is a valid `CreativeCodeSpecificationBundle
 - `scripts/orchestration/creative_code_specification.py`
 - `scripts/orchestration/creative_code_spec_pipeline.py`
 - `scripts/orchestration/creative_code_rejection_index.py`
+
+The adaptive production-pilot and retained PR-1 resume contract inventory is:
+
+- `scripts/orchestration/creative_pilot_workspace_contract.py`
+- `docs/orchestration/contracts/creative_adaptive_pr1_variant_intake.v1.schema.json`
+- `docs/orchestration/contracts/creative_adaptive_pr1_resume_binding.v1.schema.json`
+
+These contracts add only local, gitignored planning and specification-resume
+evidence. They do not authorize patch generation, repository or network writes,
+runtime behavior, cache or graph truth, GitHub operations, PR-2, or PR-3.
 
 The PR-2 local candidate-patch handoff artifacts are:
 

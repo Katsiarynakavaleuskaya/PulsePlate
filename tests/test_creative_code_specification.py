@@ -25,6 +25,7 @@ from scripts.orchestration.creative_code_specification import (
     CreativeCodeSpecificationError,
     build_creative_code_specification_bundle,
     build_default_specification_variants,
+    build_exact_specification_variants,
     build_pending_skeptic_reviews,
     contains_unsafe_local_absolute_path,
     read_creative_code_specification_bundle,
@@ -547,6 +548,123 @@ def test_default_variants_do_not_share_mutable_lists() -> None:
         "docs/orchestration/contracts/CREATIVE_CODE_SPECIFICATION_CONTRACT.md"
         not in second["target_paths"]
     )
+
+
+def _exact_declarations(packet: dict[str, object]) -> list[dict[str, object]]:
+    targets = list(packet["target_surface"])
+    tests = list(packet["evidence_bundle"]["required_tests"])
+    return [
+        {
+            "approach_family": family,
+            "problem_statement": f"Bounded exact {family} specification.",
+            "implementation_steps": [f"Apply only the declared {family} contract."],
+            "target_paths": list(targets),
+            "tests_to_add": list(tests),
+            "negative_controls": ["runtime_behavior_unchanged", "immutable_oracles_unchanged"],
+            "rollback_plan": "Discard the specification before patch generation.",
+            "falsifier": "Reject any changed runtime value or extra path.",
+            "risk_notes": ["Specification-only control-plane artifact."],
+            "wellness_boundary": "No medical or health outcome claim.",
+            "estimated_changed_files": len(targets),
+        }
+        for family in ("fail_closed_guard", "minimal_surgical_change", "seam_extraction")
+    ]
+
+
+def test_exact_variants_are_canonical_and_tokenized() -> None:
+    packet = _packet()
+    variants = build_exact_specification_variants(packet, _exact_declarations(packet))
+    assert [row["approach_family"] for row in variants] == [
+        "minimal_surgical_change",
+        "seam_extraction",
+        "fail_closed_guard",
+    ]
+    assert all(set(row) == creative_code_specification.VARIANT_KEYS for row in variants)
+    assert all(
+        row["negative_controls"] == ["runtime_behavior_unchanged", "immutable_oracles_unchanged"]
+        for row in variants
+    )
+
+    invalid = _exact_declarations(packet)
+    invalid[0]["negative_controls"] = [
+        "runtime behavior unchanged",
+        "immutable_oracles_unchanged",
+    ]
+    with pytest.raises(CreativeCodeSpecificationError, match="must be a safe token"):
+        build_exact_specification_variants(packet, invalid)
+
+    substituted = _exact_declarations(packet)
+    substituted[0]["approach_family"] = "observable_metadata_only"
+    with pytest.raises(
+        CreativeCodeSpecificationError,
+        match=r"APPROACH_FAMILIES\[:variant_count\]",
+    ):
+        build_exact_specification_variants(packet, substituted)
+
+
+def test_exact_variant_declaration_requires_two_negative_controls() -> None:
+    packet = _packet()
+    declarations = _exact_declarations(packet)
+    declarations[0]["negative_controls"] = ["runtime_behavior_unchanged"]
+    with pytest.raises(
+        CreativeCodeSpecificationError,
+        match="require at least two negative_controls",
+    ):
+        build_exact_specification_variants(packet, declarations)
+
+
+def test_prepare_exact_preserves_legacy_prepare_and_rejects_test_drift() -> None:
+    packet = _packet()
+    root = creative_code_spec_pipeline.ARTIFACT_ROOT / f"pytest-{uuid.uuid4().hex}"
+    declarations_path = root / "declarations.json"
+    exact_dir = root / "exact"
+    legacy_dir = root / "legacy"
+    try:
+        root.mkdir(parents=True)
+        declarations_path.write_text(json.dumps(_exact_declarations(packet)), encoding="utf-8")
+        creative_code_spec_pipeline.prepare_exact(REFERENCE_PACKET, declarations_path, exact_dir)
+        creative_code_spec_pipeline.prepare(REFERENCE_PACKET, legacy_dir)
+        exact = json.loads((exact_dir / "variants.json").read_text(encoding="utf-8"))
+        legacy = json.loads((legacy_dir / "variants.json").read_text(encoding="utf-8"))
+        assert exact[0]["problem_statement"].startswith("Bounded exact")
+        assert legacy[0]["problem_statement"].startswith("Convert the promoted")
+        creative_code_spec_pipeline.validate_exact_prepare_artifacts(
+            run_dir=exact_dir,
+            expected_packet=packet,
+            expected_variants=exact,
+        )
+        tamper_cases = {
+            "source_packet.json": "adaptive_prepare_source_packet_mismatch",
+            "variants.json": "adaptive_prepare_variants_mismatch",
+            "skeptic_reviews.json": "adaptive_prepare_reviews_mismatch",
+            "context_pack.json": "adaptive_prepare_context_mismatch",
+        }
+        for filename, failure_code in tamper_cases.items():
+            sidecar = exact_dir / filename
+            original = sidecar.read_bytes()
+            payload = json.loads(original)
+            if isinstance(payload, list):
+                payload.append(deepcopy(payload[-1]))
+            else:
+                payload["tampered"] = True
+            sidecar.write_text(json.dumps(payload), encoding="utf-8")
+            with pytest.raises(CreativeCodeSpecPipelineError, match=failure_code):
+                creative_code_spec_pipeline.validate_exact_prepare_artifacts(
+                    run_dir=exact_dir,
+                    expected_packet=packet,
+                    expected_variants=exact,
+                )
+            sidecar.write_bytes(original)
+
+        drifted = _exact_declarations(packet)
+        drifted[0]["tests_to_add"] = ["tests/test_other.py"]
+        declarations_path.write_text(json.dumps(drifted), encoding="utf-8")
+        with pytest.raises(CreativeCodeSpecificationError, match="equal source required_tests"):
+            creative_code_spec_pipeline.prepare_exact(
+                REFERENCE_PACKET, declarations_path, root / "drifted"
+            )
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
 
 
 def test_pipeline_rejects_symlinked_artifact_directory(tmp_path: Path) -> None:

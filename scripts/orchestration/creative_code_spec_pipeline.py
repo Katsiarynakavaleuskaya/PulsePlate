@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Mapping, Sequence
 import errno
 import json
 import os
@@ -21,6 +22,7 @@ from scripts.orchestration.creative_code_contract import (
 )
 from scripts.orchestration.creative_code_specification import (
     CreativeCodeSpecificationError,
+    build_exact_specification_variants,
     build_creative_code_specification_bundle,
     build_default_specification_variants,
     build_pending_skeptic_reviews,
@@ -354,6 +356,41 @@ def _context_pack_for_packet(packet: dict[str, Any]) -> dict[str, Any]:
     return dict(to_stable_mapping(context_pack))
 
 
+def build_default_prepare_artifacts(packet: Mapping[str, Any]) -> dict[str, Any]:
+    """Build the canonical retained PR-1 prepare snapshot without filesystem reads."""
+
+    normalized_packet = validate_source_candidate_packet(packet)
+    variants = build_default_specification_variants(normalized_packet)
+    skeptic_reviews = build_pending_skeptic_reviews(
+        source_packet=normalized_packet,
+        variants=variants,
+    )
+    return {
+        "source_packet.json": normalized_packet,
+        "variants.json": variants,
+        "skeptic_reviews.json": skeptic_reviews,
+        "context_pack.json": _context_pack_for_packet(normalized_packet),
+    }
+
+
+def validate_default_prepare_artifact_snapshots(
+    snapshots: Mapping[str, Any], *, expected_packet: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Validate retained generic PR-1 sidecars against their canonical packet."""
+
+    expected = build_default_prepare_artifacts(expected_packet)
+    if list(snapshots) != list(expected):
+        raise CreativeCodeSpecPipelineError(
+            "adaptive_source_lineage_mismatch: retained prepare artifact set changed"
+        )
+    for filename, expected_payload in expected.items():
+        if snapshots[filename] != expected_payload:
+            raise CreativeCodeSpecPipelineError(
+                f"adaptive_source_lineage_mismatch: retained {filename} is not canonical"
+            )
+    return expected
+
+
 def prepare(packet_path: Path, run_dir: Path) -> None:
     source_path = _resolve_repo_input_file(packet_path)
     try:
@@ -362,10 +399,29 @@ def prepare(packet_path: Path, run_dir: Path) -> None:
             raise CreativeCodeSpecPipelineError(
                 "CreativeCodeCandidatePacket must be a JSON object."
             )
-        normalized_packet = validate_source_candidate_packet(packet)
+        artifacts = build_default_prepare_artifacts(packet)
     except CreativeCodeContractError as exc:
         raise CreativeCodeSpecPipelineError(str(exc)) from exc
-    variants = build_default_specification_variants(normalized_packet)
+    output_dir = _resolve_artifact_dir(run_dir, create=True)
+    for filename, payload in artifacts.items():
+        _write_json_atomic(output_dir / filename, payload)
+
+
+def prepare_exact(packet_path: Path, declarations_path: Path, run_dir: Path) -> None:
+    """Prepare PR-1 inputs from complete exact variant declarations."""
+
+    source_path = _resolve_repo_input_file(packet_path)
+    declaration_source = _resolve_repo_input_file(declarations_path)
+    packet = _read_json_file(source_path, allowed_root=REPO_ROOT, label="input path")
+    declarations = _read_json_file(
+        declaration_source, allowed_root=REPO_ROOT, label="variant declarations path"
+    )
+    if not isinstance(packet, dict):
+        raise CreativeCodeSpecPipelineError("CreativeCodeCandidatePacket must be a JSON object.")
+    if not isinstance(declarations, list):
+        raise CreativeCodeSpecPipelineError("exact variant declarations must be a JSON array.")
+    normalized_packet = validate_source_candidate_packet(packet)
+    variants = build_exact_specification_variants(normalized_packet, declarations)
     skeptic_reviews = build_pending_skeptic_reviews(
         source_packet=normalized_packet,
         variants=variants,
@@ -377,6 +433,44 @@ def prepare(packet_path: Path, run_dir: Path) -> None:
     _write_json_atomic(
         output_dir / "context_pack.json", _context_pack_for_packet(normalized_packet)
     )
+
+
+def validate_exact_prepare_artifacts(
+    *,
+    run_dir: Path,
+    expected_packet: Mapping[str, Any],
+    expected_variants: Sequence[Mapping[str, Any]],
+) -> None:
+    """Revalidate all exact PR-1 sidecars for idempotent resume replay."""
+
+    source_dir = _resolve_artifact_dir(run_dir, create=False)
+    source_packet = _read_json_artifact(source_dir / "source_packet.json")
+    variants = _read_json_artifact(source_dir / "variants.json")
+    skeptic_reviews = _read_json_artifact(source_dir / "skeptic_reviews.json")
+    context_pack = _read_json_artifact(source_dir / "context_pack.json")
+    normalized_packet = validate_source_candidate_packet(expected_packet)
+    normalized_variants = [dict(row) for row in expected_variants]
+    if source_packet != normalized_packet:
+        raise CreativeCodeSpecPipelineError(
+            "adaptive_prepare_source_packet_mismatch: source_packet.json drifted"
+        )
+    if variants != normalized_variants:
+        raise CreativeCodeSpecPipelineError(
+            "adaptive_prepare_variants_mismatch: variants.json drifted"
+        )
+    expected_reviews = build_pending_skeptic_reviews(
+        source_packet=normalized_packet,
+        variants=normalized_variants,
+    )
+    if skeptic_reviews != expected_reviews:
+        raise CreativeCodeSpecPipelineError(
+            "adaptive_prepare_reviews_mismatch: skeptic_reviews.json drifted"
+        )
+    expected_context_pack = _context_pack_for_packet(normalized_packet)
+    if context_pack != expected_context_pack:
+        raise CreativeCodeSpecPipelineError(
+            "adaptive_prepare_context_mismatch: context_pack.json drifted"
+        )
 
 
 def finalize(run_dir: Path, output: Path) -> None:
@@ -406,6 +500,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
     prepare_parser.add_argument("--packet", type=Path, required=True)
     prepare_parser.add_argument("--run-dir", type=Path, required=True)
 
+    prepare_exact_parser = subparsers.add_parser("prepare-exact")
+    prepare_exact_parser.add_argument("--packet", type=Path, required=True)
+    prepare_exact_parser.add_argument("--variant-declarations", type=Path, required=True)
+    prepare_exact_parser.add_argument("--run-dir", type=Path, required=True)
+
     finalize_parser = subparsers.add_parser("finalize")
     finalize_parser.add_argument("--run-dir", type=Path, required=True)
     finalize_parser.add_argument("--output", type=Path, required=True)
@@ -418,6 +517,10 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.command == "prepare":
             prepare(args.packet, args.run_dir)
+            print(PREPARE_SUCCESS_OUTPUT)
+            return 0
+        if args.command == "prepare-exact":
+            prepare_exact(args.packet, args.variant_declarations, args.run_dir)
             print(PREPARE_SUCCESS_OUTPUT)
             return 0
         if args.command == "finalize":

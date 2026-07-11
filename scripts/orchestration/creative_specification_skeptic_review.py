@@ -37,6 +37,13 @@ from scripts.orchestration.creative_hypothesis_spec_bridge_contract import (
     validate_bridge_metrics,
     validate_creative_hypothesis_specification_bridge,
 )
+from scripts.orchestration.creative_pilot_workspace_contract import (
+    ADAPTIVE_PR1_INTAKE_TYPE,
+    ADAPTIVE_PR1_RESUME_TYPE,
+    CreativePilotContractError,
+    validate_adaptive_pr1_resume_binding,
+    validate_adaptive_pr1_variant_intake,
+)
 from scripts.orchestration.creative_specification_skeptic_review_contract import (
     ATTACHMENT_ARTIFACT_TYPE,
     FINALIZE_RECEIPT_ARTIFACT_TYPE,
@@ -52,6 +59,8 @@ from scripts.orchestration.creative_specification_skeptic_review_contract import
 )
 
 SPEC_BRIDGE_ROOT: Path = creative_code_spec_pipeline.ARTIFACT_ROOT / "spec_bridge"
+ADAPTIVE_RESUME_FILENAME = "creative_adaptive_pr1_resume_binding.json"
+ADAPTIVE_INTAKE_FILENAME = "creative_adaptive_pr1_variant_intake.json"
 ATTACHMENT_FILENAME = "skeptic_review_attachment.json"
 BUNDLE_FILENAME = "creative_code_specification_bundle.json"
 FINALIZE_RECEIPT_FILENAME = "finalize_receipt.json"
@@ -226,13 +235,19 @@ def _write_json_atomic(path: Path, payload: Any) -> None:
 
 def _read_prepared_bridge(bridge_path: Path) -> dict[str, Any]:
     bridge_file = _resolve_repo_json_file(bridge_path, label="bridge input")
-    if bridge_file.name != BRIDGE_FILENAME:
+    raw_bridge = _read_json_object(bridge_file, label="bridge input")
+    artifact_type = raw_bridge.get("artifact_type")
+    if bridge_file.name == ADAPTIVE_RESUME_FILENAME and artifact_type == ADAPTIVE_PR1_RESUME_TYPE:
+        return _read_prepared_adaptive_resume(bridge_file, raw_bridge)
+    if (
+        bridge_file.name != BRIDGE_FILENAME
+        or artifact_type != "creative_hypothesis_specification_bridge"
+    ):
         raise CreativeSpecificationSkepticReviewCliError(
-            f"bridge input must point to canonical {BRIDGE_FILENAME}."
+            f"bridge input must point to canonical {BRIDGE_FILENAME} or "
+            f"{ADAPTIVE_RESUME_FILENAME} with matching artifact_type."
         )
-    bridge = validate_creative_hypothesis_specification_bridge(
-        _read_json_object(bridge_file, label="bridge input")
-    )
+    bridge = validate_creative_hypothesis_specification_bridge(raw_bridge)
     bridge_dir = _prepared_bridge_dir(bridge, bridge_file)
     candidate = _read_json_object(bridge_dir / CANDIDATE_FILENAME, label="candidate packet")
     metrics = validate_bridge_metrics(
@@ -268,6 +283,92 @@ def _read_prepared_bridge(bridge_path: Path) -> dict[str, Any]:
         "candidate_path": bridge_dir / CANDIDATE_FILENAME,
         "metrics": metrics,
         "metrics_path": bridge_dir / METRICS_FILENAME,
+        "source_run_dir": source_run_dir,
+        "source_packet": source_packet,
+        "variants": variants,
+        "pending_reviews": pending_reviews,
+        "context_pack": context_pack,
+    }
+
+
+def _read_prepared_adaptive_resume(
+    bridge_file: Path, raw_bridge: Mapping[str, Any]
+) -> dict[str, Any]:
+    bridge_dir = bridge_file.parent
+    _reject_unexpected_entries(
+        bridge_dir,
+        allowed={
+            ADAPTIVE_RESUME_FILENAME,
+            ADAPTIVE_INTAKE_FILENAME,
+            CANDIDATE_FILENAME,
+            "spec_prepare",
+            REVIEWED_RUN_DIRNAME,
+        },
+        label="adaptive resume",
+    )
+    candidate_path = bridge_dir / CANDIDATE_FILENAME
+    intake_path = bridge_dir / ADAPTIVE_INTAKE_FILENAME
+    candidate = validate_source_candidate_packet(
+        _read_json_object(candidate_path, label="candidate packet")
+    )
+    intake = validate_adaptive_pr1_variant_intake(
+        _read_json_object(intake_path, label="adaptive intake"), candidate=candidate
+    )
+    bridge = validate_adaptive_pr1_resume_binding(
+        raw_bridge, intake=intake, candidate=candidate, revalidate_git=True
+    )
+    bridge_dir = _prepared_bridge_dir(bridge, bridge_file)
+    source_run_dir = _resolve_repo_artifact_ref(
+        str(cast(Mapping[str, Any], bridge["spec_prepare"])["run_dir_ref"]),
+        label="spec_prepare ref",
+        expect_dir=True,
+    )
+    if source_run_dir.resolve(strict=True) != (bridge_dir / "spec_prepare").resolve(strict=True):
+        raise CreativeSpecificationSkepticReviewCliError(
+            "spec_prepare_ref must point to adaptive resume spec_prepare."
+        )
+    _reject_unexpected_entries(source_run_dir, allowed=set(PREPARE_FILENAMES), label="spec_prepare")
+    try:
+        creative_code_spec_pipeline.validate_exact_prepare_artifacts(
+            run_dir=source_run_dir,
+            expected_packet=candidate,
+            expected_variants=cast(Sequence[Mapping[str, Any]], intake["materialized_variants"]),
+        )
+    except creative_code_spec_pipeline.CreativeCodeSpecPipelineError as exc:
+        raise CreativeSpecificationSkepticReviewCliError(str(exc)) from exc
+    source_packet = _read_json_object(source_run_dir / "source_packet.json", label="source packet")
+    variants = _read_json_array(source_run_dir / "variants.json", label="variants")
+    pending_reviews = _read_json_array(
+        source_run_dir / "skeptic_reviews.json", label="pending skeptic reviews"
+    )
+    context_pack = _read_json_object(source_run_dir / "context_pack.json", label="context pack")
+    normalized_packet = validate_source_candidate_packet(source_packet)
+    if normalized_packet != candidate:
+        raise CreativeSpecificationSkepticReviewCliError(
+            "fingerprint_mismatch: adaptive source packet must equal candidate."
+        )
+    if variants != intake["materialized_variants"]:
+        raise CreativeSpecificationSkepticReviewCliError(
+            "fingerprint_mismatch: adaptive variants must equal intake materialization."
+        )
+    try:
+        build_creative_code_specification_bundle(
+            source_packet=source_packet,
+            variants=cast(Sequence[Mapping[str, Any]], variants),
+            skeptic_reviews=cast(Sequence[Mapping[str, Any]], pending_reviews),
+        )
+    except CreativeCodeSpecificationError as exc:
+        raise CreativeSpecificationSkepticReviewCliError(
+            f"prepared spec_prepare artifacts are not valid PR-1 inputs: {exc}"
+        ) from exc
+    return {
+        "bridge": bridge,
+        "bridge_dir": bridge_dir,
+        "bridge_path": bridge_file,
+        "candidate": candidate,
+        "candidate_path": candidate_path,
+        "metrics": intake,
+        "metrics_path": intake_path,
         "source_run_dir": source_run_dir,
         "source_packet": source_packet,
         "variants": variants,
@@ -470,7 +571,10 @@ def _attach_from_bridge(bridge_path: Path, reviews_path: Path) -> dict[str, Any]
                 candidate_id=str(candidate["candidate_id"]),
                 candidate_fingerprint=fingerprint_payload(candidate),
                 candidate_ref=_artifact_ref(cast(Path, prepared["candidate_path"])),
-                metrics_id=str(cast(Mapping[str, Any], prepared["metrics"])["metrics_id"]),
+                metrics_id=str(
+                    cast(Mapping[str, Any], prepared["metrics"]).get("metrics_id")
+                    or cast(Mapping[str, Any], prepared["metrics"])["intake_id"]
+                ),
                 metrics_fingerprint=fingerprint_payload(cast(dict[str, Any], prepared["metrics"])),
                 metrics_ref=_artifact_ref(cast(Path, prepared["metrics_path"])),
                 spec_prepare_ref=_artifact_ref(cast(Path, prepared["source_run_dir"])),
@@ -549,9 +653,18 @@ def _validate_attachment_artifacts(attachment_path: Path) -> tuple[dict[str, Any
         str(source["bridge_ref"]),
         label="source bridge ref",
     )
-    if source_bridge_path.name != BRIDGE_FILENAME:
+    source_bridge_payload = _read_json_object(source_bridge_path, label="source bridge")
+    supported_source = (
+        source_bridge_path.name == BRIDGE_FILENAME
+        and source_bridge_payload.get("artifact_type") == "creative_hypothesis_specification_bridge"
+    ) or (
+        source_bridge_path.name == ADAPTIVE_RESUME_FILENAME
+        and source_bridge_payload.get("artifact_type") == ADAPTIVE_PR1_RESUME_TYPE
+    )
+    if not supported_source:
         raise CreativeSpecificationSkepticReviewCliError(
-            f"source bridge ref must point to canonical {BRIDGE_FILENAME}."
+            f"source bridge ref must point to canonical {BRIDGE_FILENAME} or "
+            f"{ADAPTIVE_RESUME_FILENAME} with matching artifact_type."
         )
     prepared_source = _read_prepared_bridge(source_bridge_path)
     source_bridge = cast(Mapping[str, Any], prepared_source["bridge"])
@@ -581,7 +694,12 @@ def _validate_attachment_artifacts(attachment_path: Path) -> tuple[dict[str, Any
         raise CreativeSpecificationSkepticReviewCliError(
             "reviewed_run_dir_ref must be the sibling of the source bridge artifact."
         )
-    expected_metrics_ref = _artifact_ref(source_bridge_path.parent / METRICS_FILENAME)
+    expected_metrics_name = (
+        ADAPTIVE_INTAKE_FILENAME
+        if source_bridge_path.name == ADAPTIVE_RESUME_FILENAME
+        else METRICS_FILENAME
+    )
+    expected_metrics_ref = _artifact_ref(source_bridge_path.parent / expected_metrics_name)
     if source["metrics_ref"] != expected_metrics_ref:
         raise CreativeSpecificationSkepticReviewCliError(
             "fingerprint_mismatch: source metrics ref does not match bridge layout."
@@ -820,6 +938,7 @@ def main(argv: list[str] | None = None) -> int:
         CreativeSpecificationSkepticReviewError,
         CreativeCodeSpecificationError,
         CreativeHypothesisSpecBridgeError,
+        CreativePilotContractError,
     ) as exc:
         print(f"FAIL: {exc}", file=sys.stderr)
         return 1
