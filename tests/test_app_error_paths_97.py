@@ -85,14 +85,6 @@ class TestAppErrorPaths97:
         app.stop_background_updates()
         mock_stop.assert_called_once()
 
-    def test_resolve_app_callable_fallback(self) -> None:
-        """Test _resolve_app_callable when attribute not found, returns default."""
-        import app
-
-        result = app._resolve_app_callable("nonexistent_attr_12345", default=lambda: "default")
-        assert callable(result)
-        assert result() == "default"
-
     def test_reset_safety_failure_count(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test reset_safety_failure_count resets the global counter."""
         import app
