@@ -31,6 +31,8 @@ closes every bounded pre-open defect found in the touched auth/bootstrap graph.
 - `044e968a99368b2d6773a655b2e81d92ded8d18f` - close the two later Cubic
   control-flow findings and every bounded closure bypass found by the ordered
   bug-hunter/security reroutes.
+- `028b40fad73b3a07d391842cc944e0200da20852` - close current-head namespace
+  lookup and nested static-binding findings without changing runtime auth.
 
 ## Discussion Thread Pass
 
@@ -74,9 +76,11 @@ dispositioned here before thread resolution or merge-readiness claims.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565030475
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565131656
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565131657
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565152800
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565192808
 Disposition: FIXED
 Commit: see mapping entries below
-Evidence: Commits `276ca9b608` and `044e968a9`; focused API-key ownership, full legacy-growth, export, business, metrics, and warning suites; `make validate-changed`; full pre-commit; pre-push MyPy, pip-audit, backend tests, Bandit, and Docker build all pass.
+Evidence: Commits `276ca9b608`, `044e968a9`, and `028b40fad`; focused API-key ownership, full legacy-growth, export, business, metrics, and warning suites; `make validate-changed`; full pre-commit; pre-push MyPy, pip-audit, backend tests, Bandit, and Docker build all pass.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024580 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024583 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
@@ -103,6 +107,8 @@ Evidence: Commits `276ca9b608` and `044e968a9`; focused API-key ownership, full 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565030475 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565131656 -> 044e968a99368b2d6773a655b2e81d92ded8d18f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565131657 -> 044e968a99368b2d6773a655b2e81d92ded8d18f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565152800 -> 028b40fad73b3a07d391842cc944e0200da20852
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565192808 -> 028b40fad73b3a07d391842cc944e0200da20852
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024584
 Disposition: NOT-A-BUG
@@ -186,6 +192,9 @@ reroutes through the same coordinator.
   structured `if` joins, static-name and walrus expression state, ternary,
   comprehension zero-iteration, and Boolean short-circuit semantics. The final
   bug-hunter and security-auditor passes reported no remaining counterexample.
+- The next current-head closure fixed `__dict__`, `vars()`, and
+  `__getattribute__` namespace reads plus nested static lookup-name propagation;
+  bug-hunter and security-auditor closure passes both reported PASS.
 - Architecture confirmed the final guard remains a narrow canonical ownership
   boundary and does not claim arbitrary Python static-analysis completeness.
 
@@ -259,14 +268,17 @@ Repair artifact:
   and completed on commit `276ca9b608`.
 - PASS: post-open full pre-commit and pre-push hooks, including Bandit after
   replacing subprocess-based source discovery with direct fail-closed scanning.
-- PASS: final 400-case legacy-growth suite plus 26- and 15-probe independent
+- PASS: final full legacy-growth suite plus 26- and 15-probe independent
   control-flow closure passes on commit `044e968a9`.
+- PASS: full legacy-growth suite, 109-case targeted namespace/static-binding
+  bug-hunter pass, security closure, validate-changed, full pre-commit, and
+  pre-push gates on commit `028b40fad`.
 - PASS: `git diff --check`, conflict check, and local-artifact check.
 - Not run: local full `make verify`, per repository machine-budget policy.
 
 ## Merge Readiness
 
-Not claimed. The repaired implementation is published at `044e968a9`;
+Not claimed. The repaired implementation is published at `028b40fad`;
 current-head CI, current-head external bot review, Codex Security diff scan,
 `pulseplate-pr-review`, strict authenticated merge readiness, and the final wait
 window remain required.
