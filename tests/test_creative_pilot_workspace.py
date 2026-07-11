@@ -1560,6 +1560,66 @@ def test_pinned_resume_bundle_rechecks_entry_sets_after_validation(
         os.close(directory_fd)
 
 
+@pytest.mark.parametrize("mutation_scope", ["resume", "spec_prepare"])
+def test_pinned_resume_bundle_rechecks_contents_after_semantic_validation(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    mutation_scope: str,
+) -> None:
+    intake: dict[str, object] = {"materialized_variants": []}
+    candidate: dict[str, object] = {"candidate_id": "candidate:expected"}
+    binding: dict[str, object] = {}
+    payloads = {
+        pilot_cli.RESUME_INTAKE_FILENAME: intake,
+        pilot_cli.RESUME_CANDIDATE_FILENAME: candidate,
+        pilot_cli.RESUME_BINDING_FILENAME: binding,
+    }
+    for filename, payload in payloads.items():
+        (tmp_path / filename).write_text(json.dumps(payload), encoding="utf-8")
+    prepare_dir = tmp_path / "spec_prepare"
+    prepare_dir.mkdir()
+    for filename in pilot_contract.ADAPTIVE_PR1_PREPARE_FILENAMES:
+        (prepare_dir / filename).write_text("{}", encoding="utf-8")
+
+    def mutate_during_semantic_validation(**_kwargs: object) -> None:
+        target = (
+            tmp_path / pilot_cli.RESUME_CANDIDATE_FILENAME
+            if mutation_scope == "resume"
+            else prepare_dir / pilot_contract.ADAPTIVE_PR1_PREPARE_FILENAMES[-1]
+        )
+        target.write_text(json.dumps({"mutated": True}), encoding="utf-8")
+
+    monkeypatch.setattr(
+        pilot_cli,
+        "validate_exact_prepare_artifact_snapshots",
+        mutate_during_semantic_validation,
+    )
+    monkeypatch.setattr(
+        pilot_cli,
+        "validate_adaptive_pr1_resume_binding",
+        lambda *_args, **_kwargs: binding,
+    )
+    directory_fd = os.open(
+        tmp_path,
+        os.O_RDONLY | pilot_cli._required_open_flag("O_DIRECTORY"),
+    )
+    expected_error = (
+        "canonical resume payload mismatch"
+        if mutation_scope == "resume"
+        else "canonical spec_prepare payload mismatch"
+    )
+    try:
+        with pytest.raises(CreativePilotContractError, match=expected_error):
+            pilot_cli._validate_pinned_resume_bundle(
+                directory_fd,
+                intake=intake,
+                candidate=candidate,
+                binding=binding,
+            )
+    finally:
+        os.close(directory_fd)
+
+
 @pytest.mark.parametrize("tamper_kind", ["context", "reviews"])
 def test_adaptive_attach_and_reentry_recompute_exact_prepare_artifacts(
     monkeypatch: pytest.MonkeyPatch,

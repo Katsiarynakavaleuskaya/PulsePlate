@@ -667,6 +667,40 @@ def test_prepare_exact_preserves_legacy_prepare_and_rejects_test_drift() -> None
         shutil.rmtree(root, ignore_errors=True)
 
 
+def test_prepare_snapshot_validation_rejects_json_number_type_drift() -> None:
+    packet = _packet()
+    default_snapshots = creative_code_spec_pipeline.build_default_prepare_artifacts(packet)
+    default_snapshots["source_packet.json"]["variant_count"] = 3.0
+    with pytest.raises(
+        CreativeCodeSpecPipelineError,
+        match="retained source_packet.json is not canonical",
+    ):
+        creative_code_spec_pipeline.validate_default_prepare_artifact_snapshots(
+            default_snapshots,
+            expected_packet=packet,
+        )
+
+    variants = build_exact_specification_variants(packet, _exact_declarations(packet))
+    exact_snapshots = {
+        "source_packet.json": {**packet, "variant_count": 3.0},
+        "variants.json": variants,
+        "skeptic_reviews.json": build_pending_skeptic_reviews(
+            source_packet=packet,
+            variants=variants,
+        ),
+        "context_pack.json": creative_code_spec_pipeline._context_pack_for_packet(packet),
+    }
+    with pytest.raises(
+        CreativeCodeSpecPipelineError,
+        match="adaptive_prepare_source_packet_mismatch",
+    ):
+        creative_code_spec_pipeline.validate_exact_prepare_artifact_snapshots(
+            snapshots=exact_snapshots,
+            expected_packet=packet,
+            expected_variants=variants,
+        )
+
+
 def test_pipeline_rejects_symlinked_artifact_directory(tmp_path: Path) -> None:
     creative_code_spec_pipeline.ARTIFACT_ROOT.mkdir(parents=True, exist_ok=True)
     link = creative_code_spec_pipeline.ARTIFACT_ROOT / f"pytest-link-{uuid.uuid4().hex}"

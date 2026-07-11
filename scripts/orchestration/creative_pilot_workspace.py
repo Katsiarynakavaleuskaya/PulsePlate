@@ -739,6 +739,10 @@ def _read_json_at(directory_fd: int, filename: str) -> Any:
             ) from cleanup_error
 
 
+def _json_payloads_equal(observed: Any, expected: Any) -> bool:
+    return fingerprint_payload(observed) == fingerprint_payload(expected)
+
+
 def _validate_pinned_resume_bundle(
     directory_fd: int,
     *,
@@ -753,7 +757,11 @@ def _validate_pinned_resume_bundle(
     observed_intake = _read_json_at(directory_fd, RESUME_INTAKE_FILENAME)
     observed_candidate = _read_json_at(directory_fd, RESUME_CANDIDATE_FILENAME)
     observed_binding = _read_json_at(directory_fd, RESUME_BINDING_FILENAME)
-    if observed_intake != intake or observed_candidate != candidate or observed_binding != binding:
+    if (
+        not _json_payloads_equal(observed_intake, intake)
+        or not _json_payloads_equal(observed_candidate, candidate)
+        or not _json_payloads_equal(observed_binding, binding)
+    ):
         raise CreativePilotContractError(
             "adaptive_publish_validation_failed: canonical resume payload mismatch"
         )
@@ -779,6 +787,28 @@ def _validate_pinned_resume_bundle(
             candidate=candidate,
             revalidate_git=True,
         )
+        final_intake = _read_json_at(directory_fd, RESUME_INTAKE_FILENAME)
+        final_candidate = _read_json_at(directory_fd, RESUME_CANDIDATE_FILENAME)
+        final_binding = _read_json_at(directory_fd, RESUME_BINDING_FILENAME)
+        if (
+            not _json_payloads_equal(final_intake, intake)
+            or not _json_payloads_equal(final_candidate, candidate)
+            or not _json_payloads_equal(final_binding, binding)
+        ):
+            raise CreativePilotContractError(
+                "adaptive_publish_validation_failed: canonical resume payload mismatch"
+            )
+        final_snapshots = {
+            filename: _read_json_at(prepare_fd, filename)
+            for filename in ADAPTIVE_PR1_PREPARE_FILENAMES
+        }
+        if any(
+            not _json_payloads_equal(final_snapshots[filename], snapshots[filename])
+            for filename in ADAPTIVE_PR1_PREPARE_FILENAMES
+        ):
+            raise CreativePilotContractError(
+                "adaptive_publish_validation_failed: canonical spec_prepare payload mismatch"
+            )
         if set(os.listdir(prepare_fd)) != set(ADAPTIVE_PR1_PREPARE_FILENAMES):
             raise CreativePilotContractError(
                 "adaptive_publish_validation_failed: fixed spec_prepare set required"
