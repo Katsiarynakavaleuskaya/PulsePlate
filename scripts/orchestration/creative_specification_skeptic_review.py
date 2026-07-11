@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import ctypes
 import errno
+import fcntl
 import json
 import os
 from pathlib import Path
@@ -23,7 +24,6 @@ from scripts.orchestration import creative_code_spec_pipeline
 from scripts.orchestration.creative_code_specification import (
     CreativeCodeSpecificationError,
     build_creative_code_specification_bundle,
-    read_creative_code_specification_bundle,
     validate_creative_code_specification_bundle,
     validate_source_candidate_packet,
 )
@@ -211,17 +211,6 @@ def _read_json_array(path: Path, *, label: str) -> list[Any]:
     if not isinstance(payload, list):
         raise CreativeSpecificationSkepticReviewCliError(f"{label} must be a JSON array.")
     return payload
-
-
-def _write_json_atomic(path: Path, payload: Any) -> None:
-    if path.suffix != ".json":
-        raise CreativeSpecificationSkepticReviewCliError("output artifact must be JSON.")
-    try:
-        creative_code_spec_pipeline._write_json_atomic(path, payload)
-    except creative_code_spec_pipeline.CreativeCodeSpecPipelineError as exc:
-        raise CreativeSpecificationSkepticReviewCliError(
-            "Unable to write JSON artifact safely."
-        ) from exc
 
 
 def _read_prepared_bridge(bridge_path: Path) -> dict[str, Any]:
@@ -756,6 +745,7 @@ def _write_json_at(directory_fd: int, filename: str, payload: Any) -> None:
     content = json.dumps(payload, indent=2, sort_keys=True) + "\n"
     file_fd = -1
     temp_name: str | None = None
+    retained_name: str | None = None
     try:
         flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
         flags |= creative_code_spec_pipeline._required_open_flag("O_NOFOLLOW")
@@ -765,6 +755,7 @@ def _write_json_at(directory_fd: int, filename: str, payload: Any) -> None:
             try:
                 file_fd = os.open(candidate, flags, 0o600, dir_fd=directory_fd)
                 temp_name = candidate
+                retained_name = candidate
                 break
             except FileExistsError:
                 continue
@@ -772,41 +763,57 @@ def _write_json_at(directory_fd: int, filename: str, payload: Any) -> None:
             raise CreativeSpecificationSkepticReviewCliError(
                 "unable to allocate reviewed artifact temp file."
             )
+        created = os.fstat(file_fd)
+        created_identity = (created.st_dev, created.st_ino)
+        if not stat.S_ISREG(created.st_mode):
+            raise CreativeSpecificationSkepticReviewCliError(
+                "reviewed artifact temp entry must be a regular file."
+            )
         with os.fdopen(file_fd, "w", encoding="utf-8") as handle:
             file_fd = -1
             handle.write(content)
             handle.flush()
             os.fsync(handle.fileno())
-        os.replace(
+        staged = os.stat(temp_name, dir_fd=directory_fd, follow_symlinks=False)
+        if not stat.S_ISREG(staged.st_mode) or (staged.st_dev, staged.st_ino) != created_identity:
+            raise CreativeSpecificationSkepticReviewCliError(
+                "reviewed artifact temp identity changed before publication."
+            )
+        _kernel_rename_noreplace(
+            directory_fd,
             temp_name,
             filename,
-            src_dir_fd=directory_fd,
-            dst_dir_fd=directory_fd,
+            collision_message="reviewed artifact already exists; refusing overwrite.",
         )
         temp_name = None
+        retained_name = filename
+        published = os.stat(filename, dir_fd=directory_fd, follow_symlinks=False)
+        if (
+            not stat.S_ISREG(published.st_mode)
+            or (published.st_dev, published.st_ino) != created_identity
+        ):
+            raise CreativeSpecificationSkepticReviewCliError(
+                "reviewed artifact identity changed during publication."
+            )
         os.fsync(directory_fd)
-    except CreativeSpecificationSkepticReviewCliError:
-        raise
-    except (OSError, ValueError, RecursionError, NotImplementedError) as exc:
+        retained_name = None
+    except CreativeSpecificationSkepticReviewCliError as exc:
+        if retained_name is None:
+            raise
         raise CreativeSpecificationSkepticReviewCliError(
-            "Unable to write reviewed JSON artifact safely."
+            f"{exc}; failure_artifact_retained={retained_name}"
+        ) from exc
+    except (OSError, ValueError, RecursionError, NotImplementedError) as exc:
+        suffix = f"; failure_artifact_retained={retained_name}" if retained_name is not None else ""
+        raise CreativeSpecificationSkepticReviewCliError(
+            f"Unable to write reviewed JSON artifact safely{suffix}."
         ) from exc
     finally:
-        active_error = sys.exc_info()[1]
-        cleanup_error: Exception | None = None
-        if temp_name is not None:
-            try:
-                os.unlink(temp_name, dir_fd=directory_fd)
-            except FileNotFoundError:
-                pass
-            except (OSError, NotImplementedError) as exc:
-                cleanup_error = exc
         close_error = creative_code_spec_pipeline._close_descriptors(file_fd)
-        cleanup_error = cleanup_error or close_error
-        if active_error is None and cleanup_error is not None:
+        if sys.exc_info()[1] is None and close_error is not None:
             raise CreativeSpecificationSkepticReviewCliError(
-                "Unable to clean up reviewed JSON artifact safely."
-            ) from cleanup_error
+                "Unable to close reviewed JSON artifact safely."
+            ) from close_error
 
 
 def _read_json_at(directory_fd: int, filename: str) -> Any:
@@ -1088,7 +1095,9 @@ def _attach_from_bridge(bridge_path: Path, reviews_path: Path) -> dict[str, Any]
     return attachment
 
 
-def _validate_attachment_artifacts(attachment_path: Path) -> tuple[dict[str, Any], Path]:
+def _validate_attachment_artifacts(
+    attachment_path: Path,
+) -> tuple[dict[str, Any], Path, dict[str, Any]]:
     attachment_file = _resolve_repo_json_file(attachment_path, label="attachment input")
     attachment = validate_skeptic_review_attachment(
         _read_json_object(attachment_file, label="attachment input")
@@ -1278,7 +1287,7 @@ def _validate_attachment_artifacts(attachment_path: Path) -> tuple[dict[str, Any
             "fingerprint_mismatch: reviewed skeptic_reviews fingerprint does not match attachment."
         )
     try:
-        build_creative_code_specification_bundle(
+        bundle = build_creative_code_specification_bundle(
             source_packet=source_packet,
             variants=cast(Sequence[Mapping[str, Any]], variants),
             skeptic_reviews=cast(Sequence[Mapping[str, Any]], reviews),
@@ -1303,7 +1312,7 @@ def _validate_attachment_artifacts(attachment_path: Path) -> tuple[dict[str, Any
         raise CreativeSpecificationSkepticReviewCliError(
             "fingerprint_mismatch: reviewed variants do not match attachment."
         )
-    return attachment, reviewed_dir
+    return attachment, reviewed_dir, bundle
 
 
 def _assert_reviewed_ref(ref: str, expected_path: Path, label: str) -> None:
@@ -1334,36 +1343,95 @@ def _assert_artifact_ref(
 
 
 def _finalize_from_attachment(attachment_path: Path) -> dict[str, Any]:
-    attachment, reviewed_dir = _validate_attachment_artifacts(attachment_path)
+    attachment, reviewed_dir, bundle = _validate_attachment_artifacts(attachment_path)
     bundle_path = reviewed_dir / BUNDLE_FILENAME
-    receipt_path = reviewed_dir / FINALIZE_RECEIPT_FILENAME
-    if bundle_path.exists() or receipt_path.exists():
-        raise CreativeSpecificationSkepticReviewCliError(
-            "reviewed finalize outputs already exist; remove local artifacts to rerun."
+    reviewed_parent_fd = -1
+    reviewed_fd = -1
+    reviewed_identity: DirectoryIdentity | None = None
+    finalize_lock_acquired = False
+    try:
+        reviewed_parent_fd, reviewed_name, _candidate = (
+            creative_code_spec_pipeline._open_pinned_parent(
+                reviewed_dir,
+                allowed_root=creative_code_spec_pipeline.ARTIFACT_ROOT,
+                create=False,
+                label="reviewed finalize run",
+            )
         )
-    try:
-        creative_code_spec_pipeline.finalize(reviewed_dir, bundle_path)
-    except creative_code_spec_pipeline.CreativeCodeSpecPipelineError as exc:
-        raise CreativeSpecificationSkepticReviewCliError(str(exc)) from exc
-    try:
-        bundle = validate_creative_code_specification_bundle(
-            read_creative_code_specification_bundle(bundle_path)
+        reviewed_fd = os.open(
+            reviewed_name,
+            creative_code_spec_pipeline._directory_flags(),
+            dir_fd=reviewed_parent_fd,
+        )
+        reviewed_info = os.fstat(reviewed_fd)
+        reviewed_identity = (reviewed_info.st_dev, reviewed_info.st_ino)
+        try:
+            fcntl.flock(reviewed_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            finalize_lock_acquired = True
+        except BlockingIOError as exc:
+            raise CreativeSpecificationSkepticReviewCliError(
+                "reviewed finalize is already in progress."
+            ) from exc
+        for output_name in (BUNDLE_FILENAME, FINALIZE_RECEIPT_FILENAME):
+            try:
+                os.stat(output_name, dir_fd=reviewed_fd, follow_symlinks=False)
+            except FileNotFoundError:
+                continue
+            raise CreativeSpecificationSkepticReviewCliError(
+                "reviewed finalize outputs already exist; remove local artifacts to rerun."
+            )
+        _write_json_at(reviewed_fd, BUNDLE_FILENAME, bundle)
+        validated_bundle = validate_creative_code_specification_bundle(
+            cast(Mapping[str, Any], _read_json_at(reviewed_fd, BUNDLE_FILENAME))
         )
         receipt = _require_typed_json_object(
             build_finalize_receipt(
                 attachment=attachment,
                 attachment_ref=_artifact_ref(reviewed_dir / ATTACHMENT_FILENAME),
-                bundle=bundle,
+                bundle=validated_bundle,
                 bundle_ref=_artifact_ref(bundle_path),
             ),
             label="finalize receipt",
         )
-        _write_json_atomic(receipt_path, receipt)
+        _write_json_at(reviewed_fd, FINALIZE_RECEIPT_FILENAME, receipt)
         validate_finalize_receipt(receipt)
-    except Exception:
-        bundle_path.unlink(missing_ok=True)
-        receipt_path.unlink(missing_ok=True)
-        raise
+    except Exception as primary_error:
+        cleanup_error: Exception | None = None
+        retained_name: str | None = reviewed_dir.name
+        if (
+            finalize_lock_acquired
+            and reviewed_parent_fd >= 0
+            and reviewed_fd >= 0
+            and reviewed_identity is not None
+        ):
+            try:
+                retained_name = _quarantine_pinned_reviewed_run(
+                    reviewed_parent_fd,
+                    name=reviewed_dir.name,
+                    expected_identity=reviewed_identity,
+                )
+            except Exception as exc:
+                cleanup_error = exc
+        close_error = creative_code_spec_pipeline._close_descriptors(
+            reviewed_fd,
+            reviewed_parent_fd,
+        )
+        cleanup_error = cleanup_error or close_error
+        if cleanup_error is not None:
+            raise CreativeSpecificationSkepticReviewCliError(
+                f"{primary_error}; cleanup_diagnostic={cleanup_error}"
+            ) from primary_error
+        raise CreativeSpecificationSkepticReviewCliError(
+            f"{primary_error}; failure_artifact_retained={retained_name}"
+        ) from primary_error
+    close_error = creative_code_spec_pipeline._close_descriptors(
+        reviewed_fd,
+        reviewed_parent_fd,
+    )
+    if close_error is not None:
+        raise CreativeSpecificationSkepticReviewCliError(
+            "reviewed finalize descriptors could not be closed safely."
+        ) from close_error
     return receipt
 
 
