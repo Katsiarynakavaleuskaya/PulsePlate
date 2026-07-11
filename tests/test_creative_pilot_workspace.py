@@ -1065,6 +1065,32 @@ def _assert_resume_schema_binding_prefixes(binding: dict, schema: dict) -> None:
             assert re.search(properties["ref"]["pattern"], row["ref"])
 
 
+def _spec_entries_for_pilot(
+    spec_root: Path,
+    *,
+    existing_names: set[str],
+    pilot_id: str,
+    explicit_entries: tuple[Path, ...] = (),
+) -> list[Path]:
+    owned: list[Path] = []
+    for entry in spec_root.iterdir():
+        if entry.name in existing_names:
+            continue
+        if entry in explicit_entries:
+            owned.append(entry)
+            continue
+        for filename in (pilot_cli.RESUME_INTAKE_FILENAME, pilot_cli.RESUME_BINDING_FILENAME):
+            artifact = entry / filename
+            try:
+                payload = json.loads(artifact.read_text(encoding="utf-8"))
+            except (FileNotFoundError, NotADirectoryError, OSError, ValueError):
+                continue
+            if isinstance(payload, dict) and payload.get("pilot_id") == pilot_id:
+                owned.append(entry)
+                break
+    return owned
+
+
 def _publish_adaptive_resume_for_test(
     *,
     monkeypatch: pytest.MonkeyPatch,
@@ -1101,7 +1127,11 @@ def _publish_adaptive_resume_for_test(
         )
         == 0
     )
-    outputs = [entry for entry in spec_root.iterdir() if entry.name not in existing_outputs]
+    outputs = _spec_entries_for_pilot(
+        spec_root,
+        existing_names=existing_outputs,
+        pilot_id=pilot_id,
+    )
     assert len(outputs) == 1
     output = outputs[0]
     return {
@@ -1308,7 +1338,11 @@ def test_resume_pr1_publishes_exact_new_only_bundle_and_replays(
             _sha(),
         ]
         assert pilot_cli.main(args) == 0
-        outputs = [entry for entry in spec_root.iterdir() if entry.name not in existing_outputs]
+        outputs = _spec_entries_for_pilot(
+            spec_root,
+            existing_names=existing_outputs,
+            pilot_id=pilot_id,
+        )
         assert len(outputs) == 1
         output = outputs[0]
         assert {entry.name for entry in output.iterdir()} == {
@@ -2454,8 +2488,16 @@ def _assert_concurrent_resume_destination_is_not_overwritten(
             assert list(final_dir.iterdir()) == []
         assert staging_dir is not None and not staging_dir.exists()
     finally:
-        for entry in list(spec_root.iterdir()) if spec_root.exists() else []:
-            if entry.name not in existing_names:
+        explicit_entries = tuple(
+            entry for entry in (final_dir, staging_dir) if isinstance(entry, Path)
+        )
+        if spec_root.exists():
+            for entry in _spec_entries_for_pilot(
+                spec_root,
+                existing_names=existing_names,
+                pilot_id=pilot_id,
+                explicit_entries=explicit_entries,
+            ):
                 shutil.rmtree(entry, ignore_errors=True)
         shutil.rmtree(pilot_dir, ignore_errors=True)
         shutil.rmtree(root, ignore_errors=True)
@@ -2544,30 +2586,18 @@ def _assert_adaptive_publish_fault(
 
 def _new_spec_entries(spec_root: Path, state: dict[str, object]) -> list[Path]:
     existing = set(state["existing_names"])
-    return [
-        entry
-        for entry in spec_root.iterdir()
-        if entry.name not in existing and _spec_entry_belongs_to_fault_pilot(entry, state)
-    ]
-
-
-def _spec_entry_belongs_to_fault_pilot(entry: Path, state: dict[str, object]) -> bool:
-    spec_root = Path(state["spec_root"])
+    explicit_entries: list[Path] = []
     for value in state.values():
-        if isinstance(value, Path) and value == entry:
-            return True
-        if isinstance(value, str) and spec_root / value == entry:
-            return True
-    pilot_id = str(state["pilot_id"])
-    for filename in (pilot_cli.RESUME_INTAKE_FILENAME, pilot_cli.RESUME_BINDING_FILENAME):
-        artifact = entry / filename
-        try:
-            payload = json.loads(artifact.read_text(encoding="utf-8"))
-        except (FileNotFoundError, NotADirectoryError, OSError, ValueError):
-            continue
-        if isinstance(payload, dict) and payload.get("pilot_id") == pilot_id:
-            return True
-    return False
+        if isinstance(value, Path):
+            explicit_entries.append(value)
+        elif isinstance(value, str):
+            explicit_entries.append(spec_root / value)
+    return _spec_entries_for_pilot(
+        spec_root,
+        existing_names=existing,
+        pilot_id=str(state["pilot_id"]),
+        explicit_entries=tuple(explicit_entries),
+    )
 
 
 def test_resume_rejects_pre_rename_staging_path_swap(
