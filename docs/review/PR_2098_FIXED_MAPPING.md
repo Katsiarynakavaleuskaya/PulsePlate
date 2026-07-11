@@ -36,10 +36,10 @@ Creative-Code authority remain unchanged.
 - [x] Fixed in commit mapping completed
 - [x] Initial discussion-thread pass found no inline review threads.
 - [x] Initial fixed-in-commit mapping covers the material code/test fixes.
-- [ ] Mandatory post-push `qa-engineer-agent -> bug-hunter -> security-auditor` pass completed.
-- [ ] Codex Security current-diff scan completed.
-- [ ] `pulseplate-pr-review` completed.
-- [ ] CodeRabbit, Sourcery, and Cubic current-head reviews contain no actionables.
+- [x] Mandatory post-push `qa-engineer-agent -> bug-hunter -> security-auditor` pass completed.
+- [x] Codex Security current-diff scan completed.
+- [x] `pulseplate-pr-review` completed.
+- [x] CodeRabbit, Sourcery, and Cubic current-head reviews contain no actionables.
 - [ ] Current-head CI completed.
 - [ ] Strict authenticated merge readiness and mandatory wait window completed.
 
@@ -67,6 +67,22 @@ Reason: Cursor Bugbot was unavailable, Sourcery's guide and CodeRabbit's comment
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2098#issuecomment-4939339330
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2098#issuecomment-4939340205
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2098#pullrequestreview-4674863560
+
+Disposition: NOT-A-BUG
+Evidence: `git merge-base --is-ancestor af3e960e97a55bcc2152cdfdf29fce39b1f6c04c a44cdf714cc41e620c0d771678776908a469290e` passes, and the published branch history contains `af3e960e`, `989882c80`, `49f02322a`, and `a44cdf714`.
+Reason: The review analyzed a stale alternate commit `70c598d`; on the actual current branch, the mapped parser fix is reachable and remains valid proof.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2098#discussion_r3564256704
+
+Disposition: FIXED
+Commit: a44cdf714cc41e620c0d771678776908a469290e
+Evidence: At exact head `a44cdf714`, the focused four-file pytest bundle, `make validate-changed`, `pre-commit run --all-files`, and `git diff --check` all pass after the review comment.
+Reason: The current-head rerun supplies the exact validation evidence requested by the thread without weakening or skipping a gate.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2098#discussion_r3564256708 -> a44cdf714cc41e620c0d771678776908a469290e
+
+Disposition: NOT-A-BUG
+Evidence: Current reachable material commits `af3e960e97a55bcc2152cdfdf29fce39b1f6c04c` and `989882c80846984285435f268ba6d0373f54ba04`, plus mapping commit `49f02322ae936d5949e44d340234fa1fdfa769e7`, contain the exact `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>` trailer.
+Reason: The review inspected stale commit `70c598d`; the actual material commits that will land satisfy the Experiment Runner attribution invariant.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2098#discussion_r3564256710
 
 ## Pre-Implementation Role Findings
 
@@ -107,6 +123,39 @@ the matcher remains bounded and original-indexed; no transient source-read
 suppression remains; Experiment Runner immutable security/guard oracles pass.
 Reason: No remaining availability, Unicode-index, boundary-bypass, TOCTOU, or
 fail-open finding was identified in the implemented scope.
+
+## Post-Push Current-Diff Review
+
+### QA Engineer Agent
+
+Disposition: NOT-A-BUG
+Evidence: Exact published code head `49f02322a` passed 37 focused parser/guard tests, five 82-test xdist runs, 100% line and branch coverage with zero partials, four-file scope, and clean-worktree verification.
+Reason: No current-diff QA defect was found; the later `a44cdf714` change is mapping-only.
+
+### Bug Hunter
+
+Disposition: FIXED
+Commit: `a44cdf714`
+Evidence: The only finding was stale merge-readiness prose claiming force-with-lease publication remained pending; the Merge Readiness section now records the completed publication and only real remaining gates.
+Reason: Production implementation passed; the mapping-truth defect was corrected and reverified.
+
+### Security Auditor
+
+Disposition: NOT-A-BUG
+Evidence: Exact head `a44cdf714` retained the 256-character cap, bounded `O(N * U * L)` traversal, original-index reads, fail-closed source errors, isolated `tmp_path/app` fixtures, and consistent governance attribution.
+Reason: No availability, boundary-bypass, Unicode-integrity, TOCTOU, or fail-open actionable survived.
+
+### Codex Security
+
+Disposition: NOT-A-BUG
+Evidence: Sealed scan `70e61556-5359-4b18-9f8b-992fbbc42873` covered 1/1 source-like worklist row at `a44cdf714` and completed with zero reportable findings.
+Reason: No technically plausible security candidate survived full-file and exact-diff discovery.
+
+### PulsePlate PR Review
+
+Disposition: NOT-A-BUG
+Evidence: The dry-run report found only the advisory 443-line review-risk threshold; the operator-approved `Why not split` rationale, four-file scope, focused gates, and exact-head reruns provide the required human decision and deterministic evidence. Its 22 calibration/context tests pass through the repository virtual environment.
+Reason: Large-diff risk is review-planning evidence, not a defect or merge-readiness claim, and the explicitly approved combined BMI scope has already received the full required review chain.
 
 ## Premortem
 
@@ -152,16 +201,21 @@ Artifact: `artifacts/orchestration/experiments/results/exp-5101dc885b1d.json`
 - PASS: `make validate-changed`.
 - PASS: `pre-commit run --all-files`; no hook modifications.
 - PASS: `git diff --check`.
+- PASS at exact head `a44cdf714`: focused four-file pytest bundle,
+  `make validate-changed`, full pre-commit, and ancestry/trailer verification.
+- PASS: 22 `pulseplate-pr-review` calibration/context tests via repo `.venv`.
+- PASS: sealed Codex Security diff scan `70e61556-5359-4b18-9f8b-992fbbc42873`;
+  1/1 worklist rows closed and zero findings.
 - PASS: final implementation diff contains only the parser and two test files;
   no OpenAPI/generated-client artifact is changed.
 - Not run: local full `make verify`, per repository machine-budget policy.
 
 ## Merge Readiness
 
-Not claimed. Published head `49f02322a` completed the exact-lease push; the
-remaining gates are the in-progress post-push role/security/PR-review chain,
-refreshed exact-head bot reviews, canonical current-head CI, strict
-authenticated merge readiness, and the final wait window.
+Not claimed. Exact-lease publication and the post-push role, Codex Security,
+and PR-review chain are complete through `a44cdf714`; the remaining gates are
+publication of this mapping update, refreshed final-head bot reviews and CI,
+strict authenticated merge readiness, and the final wait window.
 
 ## Deferred / Follow-ups
 
