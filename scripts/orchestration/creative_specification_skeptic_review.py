@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import argparse
+import ctypes
+import errno
 import json
 import os
 from pathlib import Path
@@ -549,7 +551,7 @@ def _reviewed_run_dir(bridge_dir: Path) -> Path:
 DirectoryIdentity = tuple[int, int]
 
 
-def _create_pinned_reviewed_run(path: Path) -> tuple[int, int, DirectoryIdentity]:
+def _create_pinned_reviewed_run(path: Path) -> tuple[int, int, DirectoryIdentity, str]:
     parent_fd = -1
     reviewed_fd = -1
     try:
@@ -560,17 +562,32 @@ def _create_pinned_reviewed_run(path: Path) -> tuple[int, int, DirectoryIdentity
             label="reviewed finalize run",
         )
         try:
-            os.mkdir(name, mode=0o700, dir_fd=parent_fd)
-        except FileExistsError as exc:
+            os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+        except FileNotFoundError:
+            pass
+        else:
             raise CreativeSpecificationSkepticReviewCliError(
                 "reviewed finalize run already exists; remove the local sibling artifact to rerun."
-            ) from exc
+            )
+        staging_name: str | None = None
+        for _attempt in range(32):
+            candidate = f".{name}.{secrets.token_hex(8)}.staging"
+            try:
+                os.mkdir(candidate, mode=0o700, dir_fd=parent_fd)
+                staging_name = candidate
+                break
+            except FileExistsError:
+                continue
+        if staging_name is None:
+            raise CreativeSpecificationSkepticReviewCliError(
+                "unable to allocate reviewed finalize staging directory."
+            )
         created_identity: DirectoryIdentity | None = None
         try:
-            created = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+            created = os.stat(staging_name, dir_fd=parent_fd, follow_symlinks=False)
             created_identity = (created.st_dev, created.st_ino)
             reviewed_fd = os.open(
-                name,
+                staging_name,
                 creative_code_spec_pipeline._directory_flags(),
                 dir_fd=parent_fd,
             )
@@ -582,21 +599,26 @@ def _create_pinned_reviewed_run(path: Path) -> tuple[int, int, DirectoryIdentity
         except Exception as primary_error:
             cleanup_error: Exception | None = None
             try:
-                current = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+                if created_identity is None:
+                    raise CreativeSpecificationSkepticReviewCliError(
+                        "reviewed finalize run cleanup identity unavailable."
+                    )
+                current = os.stat(staging_name, dir_fd=parent_fd, follow_symlinks=False)
                 current_identity = (current.st_dev, current.st_ino)
-                if created_identity is not None and current_identity != created_identity:
+                if current_identity != created_identity:
                     raise CreativeSpecificationSkepticReviewCliError(
                         "reviewed finalize run cleanup identity changed."
                     )
-                os.rmdir(name, dir_fd=parent_fd)
+                os.rmdir(staging_name, dir_fd=parent_fd)
             except Exception as exc:
                 cleanup_error = exc
             if cleanup_error is not None:
                 raise CreativeSpecificationSkepticReviewCliError(
-                    f"{primary_error}; cleanup_diagnostic={cleanup_error}"
+                    "reviewed finalize run could not be created safely; "
+                    f"cleanup_diagnostic={cleanup_error}"
                 ) from primary_error
             raise
-        result = (parent_fd, reviewed_fd, (info.st_dev, info.st_ino))
+        result = (parent_fd, reviewed_fd, (info.st_dev, info.st_ino), staging_name)
         parent_fd = -1
         reviewed_fd = -1
         return result
@@ -638,6 +660,76 @@ def _remove_pinned_reviewed_run(
             )
         os.unlink(child_name, dir_fd=reviewed_fd)
     os.rmdir(name, dir_fd=parent_fd)
+
+
+def _kernel_rename_noreplace(parent_fd: int, source_name: str, destination_name: str) -> None:
+    libc = ctypes.CDLL(None, use_errno=True)
+    if sys.platform == "darwin":
+        rename_noreplace = getattr(libc, "renameatx_np", None)
+        flag = 0x00000004  # RENAME_EXCL
+    elif sys.platform.startswith("linux"):
+        rename_noreplace = getattr(libc, "renameat2", None)
+        flag = 1  # RENAME_NOREPLACE
+    else:
+        rename_noreplace = None
+        flag = 0
+    if rename_noreplace is None:
+        raise CreativeSpecificationSkepticReviewCliError(
+            "reviewed finalize publication requires kernel no-replace rename."
+        )
+    rename_noreplace.argtypes = [
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_uint,
+    ]
+    rename_noreplace.restype = ctypes.c_int
+    ctypes.set_errno(0)
+    result = rename_noreplace(
+        parent_fd,
+        os.fsencode(source_name),
+        parent_fd,
+        os.fsencode(destination_name),
+        flag,
+    )
+    if result != 0:
+        error_number = ctypes.get_errno()
+        if error_number in {errno.EEXIST, errno.ENOTEMPTY}:
+            raise CreativeSpecificationSkepticReviewCliError(
+                "reviewed finalize run already exists; remove the local sibling artifact to rerun."
+            )
+        raise CreativeSpecificationSkepticReviewCliError(
+            f"reviewed finalize run no-replace publication failed: errno={error_number}."
+        )
+
+
+def _publish_pinned_reviewed_run(
+    parent_fd: int,
+    *,
+    staging_name: str,
+    destination_name: str,
+    expected_identity: DirectoryIdentity,
+) -> None:
+    staging = os.stat(staging_name, dir_fd=parent_fd, follow_symlinks=False)
+    if (staging.st_dev, staging.st_ino) != expected_identity:
+        raise CreativeSpecificationSkepticReviewCliError(
+            "reviewed finalize staging identity changed before publication."
+        )
+    _kernel_rename_noreplace(parent_fd, staging_name, destination_name)
+
+
+def _assert_published_reviewed_run_identity(
+    parent_fd: int,
+    *,
+    destination_name: str,
+    expected_identity: DirectoryIdentity,
+) -> None:
+    published = os.stat(destination_name, dir_fd=parent_fd, follow_symlinks=False)
+    if (published.st_dev, published.st_ino) != expected_identity:
+        raise CreativeSpecificationSkepticReviewCliError(
+            "reviewed finalize run identity changed during publication."
+        )
 
 
 def _write_json_at(directory_fd: int, filename: str, payload: Any) -> None:
@@ -835,7 +927,10 @@ def _attach_from_bridge(bridge_path: Path, reviews_path: Path) -> dict[str, Any]
         variants=variants,
     )
     reviewed_dir = _reviewed_run_dir(cast(Path, prepared["bridge_dir"]))
-    reviewed_parent_fd, reviewed_fd, reviewed_identity = _create_pinned_reviewed_run(reviewed_dir)
+    reviewed_parent_fd, reviewed_fd, reviewed_identity, staging_name = _create_pinned_reviewed_run(
+        reviewed_dir
+    )
+    cleanup_name: str | None = staging_name
     try:
         reviewed_source_packet = reviewed_dir / "source_packet.json"
         reviewed_variants = reviewed_dir / "variants.json"
@@ -896,6 +991,33 @@ def _attach_from_bridge(bridge_path: Path, reviews_path: Path) -> dict[str, Any]
             cast(dict[str, Any], prepared["context_pack"]),
         )
         _write_json_at(reviewed_fd, attachment_path.name, attachment)
+        _assert_exact_reviewed_run_payloads(
+            reviewed_fd,
+            expected_payloads={
+                reviewed_source_packet.name: source_packet,
+                reviewed_variants.name: variants,
+                reviewed_reviews.name: normalized_reviews,
+                reviewed_context_pack.name: cast(dict[str, Any], prepared["context_pack"]),
+                attachment_path.name: attachment,
+            },
+        )
+        _publish_pinned_reviewed_run(
+            reviewed_parent_fd,
+            staging_name=staging_name,
+            destination_name=reviewed_dir.name,
+            expected_identity=reviewed_identity,
+        )
+        # The no-replace rename has consumed staging_name. Until the published
+        # inode is verified, preserve an unknown canonical entry for inspection
+        # instead of risking deletion of an attacker-controlled replacement.
+        cleanup_name = None
+        _assert_published_reviewed_run_identity(
+            reviewed_parent_fd,
+            destination_name=reviewed_dir.name,
+            expected_identity=reviewed_identity,
+        )
+        cleanup_name = reviewed_dir.name
+        os.fsync(reviewed_parent_fd)
         _assert_canonical_reviewed_run_identity(
             reviewed_dir,
             expected_identity=reviewed_identity,
@@ -917,12 +1039,13 @@ def _attach_from_bridge(bridge_path: Path, reviews_path: Path) -> dict[str, Any]
     except Exception as primary_error:
         cleanup_error: Exception | None = None
         try:
-            _remove_pinned_reviewed_run(
-                reviewed_parent_fd,
-                reviewed_fd,
-                name=reviewed_dir.name,
-                expected_identity=reviewed_identity,
-            )
+            if cleanup_name is not None:
+                _remove_pinned_reviewed_run(
+                    reviewed_parent_fd,
+                    reviewed_fd,
+                    name=cleanup_name,
+                    expected_identity=reviewed_identity,
+                )
         except Exception as exc:
             cleanup_error = exc
         finally:

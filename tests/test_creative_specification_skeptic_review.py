@@ -716,17 +716,20 @@ def test_reviewed_run_creation_pins_parent_across_path_swap(
             "_open_pinned_parent",
             swap_after_parent_open,
         )
-        parent_fd, reviewed_fd, identity = review_cli._create_pinned_reviewed_run(reviewed)
+        parent_fd, reviewed_fd, identity, staging_name = review_cli._create_pinned_reviewed_run(
+            reviewed
+        )
         assert swapped
-        assert (detached / review_contract.REVIEWED_RUN_DIRNAME).is_dir()
+        assert (detached / staging_name).is_dir()
+        assert not (detached / review_contract.REVIEWED_RUN_DIRNAME).exists()
         assert not (outside / review_contract.REVIEWED_RUN_DIRNAME).exists()
         review_cli._remove_pinned_reviewed_run(
             parent_fd,
             reviewed_fd,
-            name=review_contract.REVIEWED_RUN_DIRNAME,
+            name=staging_name,
             expected_identity=identity,
         )
-        assert not (detached / review_contract.REVIEWED_RUN_DIRNAME).exists()
+        assert not (detached / staging_name).exists()
     finally:
         review_cli.creative_code_spec_pipeline._close_descriptors(reviewed_fd, parent_fd)
         if bridge_dir.is_symlink():
@@ -747,7 +750,9 @@ def test_reviewed_run_cleanup_pins_original_parent_across_path_swap(
     try:
         bridge_dir.mkdir(parents=True)
         outside.mkdir()
-        parent_fd, reviewed_fd, identity = review_cli._create_pinned_reviewed_run(reviewed)
+        parent_fd, reviewed_fd, identity, staging_name = review_cli._create_pinned_reviewed_run(
+            reviewed
+        )
         bridge_dir.rename(detached)
         bridge_dir.symlink_to(outside, target_is_directory=True)
         outside_reviewed = outside / review_contract.REVIEWED_RUN_DIRNAME
@@ -758,11 +763,11 @@ def test_reviewed_run_cleanup_pins_original_parent_across_path_swap(
         review_cli._remove_pinned_reviewed_run(
             parent_fd,
             reviewed_fd,
-            name=review_contract.REVIEWED_RUN_DIRNAME,
+            name=staging_name,
             expected_identity=identity,
         )
 
-        assert not (detached / review_contract.REVIEWED_RUN_DIRNAME).exists()
+        assert not (detached / staging_name).exists()
         assert sentinel.read_text(encoding="utf-8") == "{}"
     finally:
         review_cli.creative_code_spec_pipeline._close_descriptors(reviewed_fd, parent_fd)
@@ -787,7 +792,13 @@ def test_reviewed_run_creation_cleans_exact_directory_after_post_mkdir_failure(
 
             def fail_created_stat(*args: Any, **kwargs: Any) -> Any:
                 nonlocal fail_next_stat
-                if fail_next_stat:
+                path = args[0] if args else kwargs.get("path")
+                if (
+                    fail_next_stat
+                    and isinstance(path, str)
+                    and path.startswith(f".{review_contract.REVIEWED_RUN_DIRNAME}.")
+                    and path.endswith(".staging")
+                ):
                     fail_next_stat = False
                     raise OSError("simulated reviewed stat failure")
                 return real_stat(*args, **kwargs)
@@ -806,7 +817,9 @@ def test_reviewed_run_creation_cleans_exact_directory_after_post_mkdir_failure(
             ) -> int:
                 nonlocal fail_next_open
                 if (
-                    path == review_contract.REVIEWED_RUN_DIRNAME
+                    isinstance(path, str)
+                    and path.startswith(f".{review_contract.REVIEWED_RUN_DIRNAME}.")
+                    and path.endswith(".staging")
                     and dir_fd is not None
                     and (fail_next_open or failure_point == "open_persistent")
                 ):
@@ -834,6 +847,11 @@ def test_reviewed_run_creation_cleans_exact_directory_after_post_mkdir_failure(
             match="could not be created safely",
         ):
             review_cli._create_pinned_reviewed_run(reviewed)
+        staging_paths = list(bridge_dir.glob(f".{review_contract.REVIEWED_RUN_DIRNAME}.*.staging"))
+        if failure_point == "stat":
+            assert len(staging_paths) == 1
+        else:
+            assert staging_paths == []
         assert not reviewed.exists()
     finally:
         shutil.rmtree(bridge_dir, ignore_errors=True)
@@ -858,10 +876,17 @@ def test_reviewed_run_creation_rejects_entry_swap_after_identity_capture(
             dir_fd: int | None = None,
         ) -> int:
             nonlocal swapped
-            if path == review_contract.REVIEWED_RUN_DIRNAME and dir_fd is not None and not swapped:
+            if (
+                isinstance(path, str)
+                and path.startswith(f".{review_contract.REVIEWED_RUN_DIRNAME}.")
+                and path.endswith(".staging")
+                and dir_fd is not None
+                and not swapped
+            ):
                 swapped = True
-                reviewed.rename(detached)
-                reviewed.mkdir()
+                staging_path = bridge_dir / path
+                staging_path.rename(detached)
+                staging_path.mkdir()
             return real_open(path, flags, mode, dir_fd=dir_fd)
 
         monkeypatch.setattr(review_cli.os, "open", swap_before_reviewed_open)
@@ -872,9 +897,186 @@ def test_reviewed_run_creation_rejects_entry_swap_after_identity_capture(
             review_cli._create_pinned_reviewed_run(reviewed)
         assert swapped
         assert detached.is_dir()
-        assert reviewed.is_dir()
+        assert not reviewed.exists()
+        assert len(list(bridge_dir.glob(f".{reviewed.name}.*.staging"))) == 1
     finally:
         shutil.rmtree(bridge_dir, ignore_errors=True)
+
+
+def test_reviewed_run_stat_capture_failure_never_deletes_unowned_replacement(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bridge_dir = review_cli.SPEC_BRIDGE_ROOT / f"pytest-{uuid.uuid4().hex}"
+    reviewed = bridge_dir / review_contract.REVIEWED_RUN_DIRNAME
+    detached = bridge_dir / "detached-created"
+    real_stat = review_cli.os.stat
+    swapped = False
+    try:
+        bridge_dir.mkdir(parents=True)
+
+        def swap_during_identity_capture(*args: Any, **kwargs: Any) -> Any:
+            nonlocal swapped
+            path = args[0] if args else kwargs.get("path")
+            if (
+                not swapped
+                and isinstance(path, str)
+                and path.startswith(f".{review_contract.REVIEWED_RUN_DIRNAME}.")
+                and path.endswith(".staging")
+            ):
+                swapped = True
+                staging_path = bridge_dir / path
+                staging_path.rename(detached)
+                staging_path.mkdir()
+                raise OSError("simulated identity capture failure")
+            return real_stat(*args, **kwargs)
+
+        with monkeypatch.context() as context:
+            context.setattr(review_cli.os, "stat", swap_during_identity_capture)
+            with pytest.raises(
+                review_cli.CreativeSpecificationSkepticReviewCliError,
+                match="cleanup identity unavailable",
+            ):
+                review_cli._create_pinned_reviewed_run(reviewed)
+        assert swapped
+        assert detached.is_dir()
+        assert not reviewed.exists()
+        assert len(list(bridge_dir.glob(f".{reviewed.name}.*.staging"))) == 1
+    finally:
+        shutil.rmtree(bridge_dir, ignore_errors=True)
+
+
+def test_reviewed_run_publication_rejects_canonical_collision_without_overwrite() -> None:
+    bridge_dir = review_cli.SPEC_BRIDGE_ROOT / f"pytest-{uuid.uuid4().hex}"
+    reviewed = bridge_dir / review_contract.REVIEWED_RUN_DIRNAME
+    parent_fd = -1
+    reviewed_fd = -1
+    try:
+        bridge_dir.mkdir(parents=True)
+        parent_fd, reviewed_fd, identity, staging_name = review_cli._create_pinned_reviewed_run(
+            reviewed
+        )
+        reviewed.mkdir()
+        sentinel = reviewed / "sentinel.json"
+        sentinel.write_text("{}", encoding="utf-8")
+
+        with pytest.raises(
+            review_cli.CreativeSpecificationSkepticReviewCliError,
+            match="already exists",
+        ):
+            review_cli._publish_pinned_reviewed_run(
+                parent_fd,
+                staging_name=staging_name,
+                destination_name=reviewed.name,
+                expected_identity=identity,
+            )
+
+        assert sentinel.read_text(encoding="utf-8") == "{}"
+        assert (bridge_dir / staging_name).is_dir()
+        review_cli._remove_pinned_reviewed_run(
+            parent_fd,
+            reviewed_fd,
+            name=staging_name,
+            expected_identity=identity,
+        )
+    finally:
+        review_cli.creative_code_spec_pipeline._close_descriptors(reviewed_fd, parent_fd)
+        shutil.rmtree(bridge_dir, ignore_errors=True)
+
+
+def test_reviewed_run_publication_rejects_staging_identity_swap() -> None:
+    bridge_dir = review_cli.SPEC_BRIDGE_ROOT / f"pytest-{uuid.uuid4().hex}"
+    reviewed = bridge_dir / review_contract.REVIEWED_RUN_DIRNAME
+    detached = bridge_dir / "detached-staging"
+    parent_fd = -1
+    reviewed_fd = -1
+    try:
+        bridge_dir.mkdir(parents=True)
+        parent_fd, reviewed_fd, identity, staging_name = review_cli._create_pinned_reviewed_run(
+            reviewed
+        )
+        staging_path = bridge_dir / staging_name
+        staging_path.rename(detached)
+        staging_path.mkdir()
+
+        with pytest.raises(
+            review_cli.CreativeSpecificationSkepticReviewCliError,
+            match="staging identity changed",
+        ):
+            review_cli._publish_pinned_reviewed_run(
+                parent_fd,
+                staging_name=staging_name,
+                destination_name=reviewed.name,
+                expected_identity=identity,
+            )
+
+        assert detached.is_dir()
+        assert staging_path.is_dir()
+        assert not reviewed.exists()
+        review_cli._remove_pinned_reviewed_run(
+            parent_fd,
+            reviewed_fd,
+            name=detached.name,
+            expected_identity=identity,
+        )
+    finally:
+        review_cli.creative_code_spec_pipeline._close_descriptors(reviewed_fd, parent_fd)
+        shutil.rmtree(bridge_dir, ignore_errors=True)
+
+
+def test_attach_preserves_unknown_replacement_published_during_staging_swap(
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output_dir, input_dir = _prepared_bridge(capsys, suffix="attach-publish-swap")
+    reviews_path = _write_review_input(output_dir, _review_input(output_dir))
+    reviewed_dir = output_dir / review_contract.REVIEWED_RUN_DIRNAME
+    detached_name = ".detached-reviewed-staging"
+    real_rename_noreplace = review_cli._kernel_rename_noreplace
+    swapped = False
+
+    def swap_staging_before_kernel_rename(
+        parent_fd: int,
+        source_name: str,
+        destination_name: str,
+    ) -> None:
+        nonlocal swapped
+        if not swapped:
+            swapped = True
+            review_cli.os.rename(
+                source_name,
+                detached_name,
+                src_dir_fd=parent_fd,
+                dst_dir_fd=parent_fd,
+            )
+            review_cli.os.mkdir(source_name, mode=0o700, dir_fd=parent_fd)
+        real_rename_noreplace(parent_fd, source_name, destination_name)
+
+    monkeypatch.setattr(
+        review_cli,
+        "_kernel_rename_noreplace",
+        swap_staging_before_kernel_rename,
+    )
+    try:
+        assert (
+            review_cli.main(
+                [
+                    "attach",
+                    "--bridge",
+                    str(output_dir / bridge_cli.BRIDGE_FILENAME),
+                    "--reviews",
+                    str(reviews_path),
+                ]
+            )
+            == 1
+        )
+        captured = capsys.readouterr()
+        assert "identity changed during publication" in captured.err
+        assert swapped
+        assert reviewed_dir.is_dir()
+        assert (output_dir / detached_name).is_dir()
+    finally:
+        shutil.rmtree(output_dir, ignore_errors=True)
+        shutil.rmtree(input_dir, ignore_errors=True)
 
 
 def test_attach_fails_closed_when_bridge_parent_moves_before_reviewed_writes(
@@ -943,7 +1145,7 @@ def test_attach_rejects_unexpected_sidecar_added_during_reviewed_writes(
         real_write_json_at(directory_fd, filename, payload)
         writes += 1
         if writes == 5:
-            (reviewed_dir / "unexpected.json").write_text("{}", encoding="utf-8")
+            real_write_json_at(directory_fd, "unexpected.json", {})
 
     monkeypatch.setattr(review_cli, "_write_json_at", add_sidecar_after_writes)
     try:
