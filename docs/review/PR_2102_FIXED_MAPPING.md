@@ -25,13 +25,16 @@ closes every bounded pre-open defect found in the touched auth/bootstrap graph.
 - `2c4aaa00c5c4bd66839d5b45d415cc090bfb6ec0` - canonicalize API-key
   dependency ownership, exact compatibility aliases, production consumers,
   fail-closed guards, behavior/identity tests, and scoped architecture guidance.
+- `276ca9b6087149dc5b89a375fa4f189e64a40a3f` - close every bounded post-open
+  auth/guard finding, including lexical alias analysis, sanitized failure paths,
+  exact dependency identity, test isolation, and the Bandit-safe app-source scan.
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 - [x] Pre-open packet role order completed and every bounded finding closed.
-- [ ] Mandatory post-open `qa-engineer-agent -> bug-hunter -> security-auditor` pass completed.
+- [x] Mandatory post-open `qa-engineer-agent -> bug-hunter -> security-auditor` pass completed.
 - [ ] Codex Security current-diff scan completed.
 - [ ] `pulseplate-pr-review` completed.
 - [ ] CodeRabbit, Sourcery, and Cubic current-head reviews contain no actionables.
@@ -43,9 +46,50 @@ dispositioned here before thread resolution or merge-readiness claims.
 
 ## Fixed in Commit Mapping
 
-No GitHub review thread has been resolved yet. Thread-specific mappings will be
-added only after an actionable is fixed or evidence supports `NOT-A-BUG` or
-`DEFERRED` disposition under repository policy.
+### FIXED
+
+Commit: `276ca9b6087149dc5b89a375fa4f189e64a40a3f`
+
+Evidence: focused API-key ownership, legacy-growth, export, business, metrics,
+and warning suites; `make validate-changed`; full pre-commit; pre-push MyPy,
+pip-audit, backend tests, Bandit, and Docker build.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024580 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024583 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024587 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024591 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024592 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024593 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024594 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024595 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024600 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024601 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024602 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024855 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024857 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565030449 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565030453 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565030460 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565030462 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565030464 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565030465 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565030468 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565030470 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565030472 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565030475 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
+
+### NOT-A-BUG
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024584
+
+Disposition: NOT-A-BUG
+Evidence: `artifacts/orchestration/experiments/results/exp-6fdd2ed789f8.json`
+records `mutated_paths: []` and `shared_tree_untouched: true`; the production
+guard diff was implemented in the coordinator-owned PR lane and independently
+reviewed by the Runner as an immutable oracle.
+Reason: Creative-Code mutation authority remains denied. The comment's proposed
+threat model applies to autonomous candidate mutation, not to normal reviewed
+repository edits made by this PR lane.
 
 ## Pre-Implementation Role Findings
 
@@ -107,6 +151,22 @@ lookups, alias rebinding, and stale header reintroduction.
 Reason: No remaining lint, dependency-override, or ownership-guard actionable
 survived the closure pass.
 
+## Post-Open Role Evidence
+
+The post-open packet `05dfe3b5523c` was executed in its declared serial order:
+`agent-coordinator -> qa-engineer-agent -> bug-hunter -> security-auditor ->
+architecture-specialist`. Material security repairs triggered targeted closure
+reroutes through the same coordinator.
+
+- QA reproduced the initial review findings and passed the expanded 19-file
+  regression suite after repair.
+- Bug hunter exercised 21 lexical-scope and alias-binding probes; the final
+  closure pass found no reproducible bypass.
+- Security auditor found comprehension, class-scope, lambda, annotation,
+  `global`, and `nonlocal` false-green paths; all were fixed and re-reviewed.
+- Architecture confirmed the final guard remains a narrow canonical ownership
+  boundary and does not claim arbitrary Python static-analysis completeness.
+
 ## Premortem
 
 - Callable wrappers break FastAPI override identity: FIXED through exact aliases
@@ -147,6 +207,19 @@ Preceding attempt `exp-4ee89b07e873` was rejected as an infrastructure flake
 because the macOS network-disabled sandbox lacked `unshare`; no oracle ran and
 that artifact is not used as review or attribution evidence.
 
+Repair artifact:
+`artifacts/orchestration/experiments/results/exp-677234b9d985.json`
+
+- Mode: `oracle_only_governance_reviewer`
+- Status: `accepted`
+- Contribution: `review_disposition`
+- Immutable oracles: 3/3 passed
+- `mutated_paths: []`; `shared_tree_untouched: true`
+- Co-author required: true; the canonical trailer is present on repair commit
+  `276ca9b608`.
+- SHA-256:
+  `11f46628bdcfa8e9a69daa7f532f5d747cf9b279ac5d343817b4b5fe4f4c6f89`.
+
 ## Validation Evidence
 
 - PASS: execute-mode preflight and agent consistency.
@@ -158,15 +231,21 @@ that artifact is not used as review or attribution evidence.
   files selected and completed.
 - PASS: `pre-commit run --all-files`; no final hook modifications.
 - PASS: pre-push MyPy, pip-audit, backend tests, full Bandit, and Docker build.
+- PASS: post-open focused ownership/guard suite and expanded 19-file regression
+  suite after every review repair.
+- PASS: post-open `make validate-changed`; 15 backend/security suites selected
+  and completed on commit `276ca9b608`.
+- PASS: post-open full pre-commit and pre-push hooks, including Bandit after
+  replacing subprocess-based source discovery with direct fail-closed scanning.
 - PASS: `git diff --check`, conflict check, and local-artifact check.
 - Not run: local full `make verify`, per repository machine-budget policy.
 
 ## Merge Readiness
 
-Not claimed. The implementation is published at `2c4aaa00c`; current-head CI,
-external bot review, mandatory post-open role/security review, fixed mapping,
-strict authenticated merge readiness, and the final wait window remain
-required.
+Not claimed. The repaired implementation is published at `276ca9b608`;
+current-head CI, current-head external bot review, Codex Security diff scan,
+`pulseplate-pr-review`, strict authenticated merge readiness, and the final wait
+window remain required.
 
 ## Deferred / Follow-ups
 
