@@ -1682,6 +1682,27 @@ def _resolve_lifecycle_reference(
         return None
     if not isinstance(node, ast.Call):
         return None
+    if (
+        isinstance(node.func, ast.Attribute)
+        and node.func.attr in {"__getitem__", "get"}
+        and node.args
+        and _is_object_namespace_mapping(
+            node.func.value,
+            references=references,
+            static_string_bindings=static_string_bindings,
+        )
+    ):
+        namespace_owner = _resolve_lifecycle_reference(
+            node.func.value,
+            references=references,
+            static_string_bindings=static_string_bindings,
+        )
+        if namespace_owner is not None and namespace_owner.endswith(".__dict__"):
+            namespace_owner = namespace_owner.removesuffix(".__dict__")
+        member_name = _resolve_static_string(node.args[0], static_string_bindings)
+        if namespace_owner is not None and member_name is not None:
+            return f"{namespace_owner}.{member_name}"
+        return None
     function_reference = _resolve_lifecycle_reference(
         node.func,
         references=references,
@@ -1694,7 +1715,8 @@ def _resolve_lifecycle_reference(
             static_string_bindings=static_string_bindings,
         )
     if function_reference == "object.__getattribute__" and node.args:
-        attribute_name = _resolve_static_string(node.args[0], static_string_bindings)
+        attribute_node = node.args[1] if len(node.args) >= 2 else node.args[0]
+        attribute_name = _resolve_static_string(attribute_node, static_string_bindings)
         if attribute_name in {"add_event_handler", "on_event", "on_shutdown", "on_startup"}:
             return f"*.{attribute_name}"
         return None
@@ -1738,6 +1760,21 @@ def _assigns_lifespan_context(tree: ast.Module) -> bool:
                 == "lifespan_context"
             ):
                 return True
+        if (
+            isinstance(node, ast.AugAssign)
+            and isinstance(node.op, ast.BitOr)
+            and _is_object_namespace_mapping(
+                node.target,
+                references=references,
+                static_string_bindings=static_string_bindings,
+            )
+            and _mapping_may_mutate_lifespan(
+                node.value,
+                static_string_bindings=static_string_bindings,
+                static_mapping_bindings=static_mapping_bindings,
+            )
+        ):
+            return True
         if (
             isinstance(node, ast.Call)
             and isinstance(node.func, ast.Attribute)
@@ -1798,7 +1835,7 @@ def _mutates_lifespan_namespace(
         static_string_bindings=static_string_bindings,
     ):
         return False
-    if node.func.attr == "update":
+    if node.func.attr in {"__ior__", "update"}:
         if any(keyword.arg == "lifespan_context" for keyword in node.keywords):
             return True
         mapping_arguments = [
@@ -1806,15 +1843,12 @@ def _mutates_lifespan_namespace(
             *(keyword.value for keyword in node.keywords if keyword.arg is None),
         ]
         for argument in mapping_arguments:
-            mapping = _resolve_static_mapping(argument, static_mapping_bindings)
-            if mapping is None:
+            if _mapping_may_mutate_lifespan(
+                argument,
+                static_string_bindings=static_string_bindings,
+                static_mapping_bindings=static_mapping_bindings,
+            ):
                 return True
-            for key, _value in mapping:
-                if key is None:
-                    return True
-                resolved_key = _resolve_static_string(key, static_string_bindings)
-                if resolved_key is None or resolved_key == "lifespan_context":
-                    return True
         return False
     if node.func.attr == "clear":
         return True
@@ -1823,6 +1857,24 @@ def _mutates_lifespan_namespace(
             return True
         key_name = _resolve_static_string(node.args[0], static_string_bindings)
         return key_name is None or key_name == "lifespan_context"
+    return False
+
+
+def _mapping_may_mutate_lifespan(
+    node: ast.AST,
+    *,
+    static_string_bindings: Mapping[str, str],
+    static_mapping_bindings: Mapping[str, ast.Dict],
+) -> bool:
+    mapping = _resolve_static_mapping(node, static_mapping_bindings)
+    if mapping is None:
+        return True
+    for key, _value in mapping:
+        if key is None:
+            return True
+        resolved_key = _resolve_static_string(key, static_string_bindings)
+        if resolved_key is None or resolved_key == "lifespan_context":
+            return True
     return False
 
 

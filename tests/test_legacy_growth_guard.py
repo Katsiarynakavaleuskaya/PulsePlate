@@ -64,6 +64,10 @@ def test_current_lifecycle_ownership_passes_growth_guard() -> None:
             "legacy_app.py: startup/shutdown event registration is forbidden",
         ),
         (
+            'object.__getattribute__(app.router, "on_shutdown").append(stop)\n',
+            "legacy_app.py: startup/shutdown event registration is forbidden",
+        ),
+        (
             'register = app.__getattribute__("on_event")\n'
             '@register("shutdown")\n'
             "async def stop():\n    pass\n",
@@ -206,6 +210,8 @@ def test_lifecycle_guard_rejects_legacy_ownership(
         'app.router.__dict__.update(**{"lifespan_context": wrapper})\n',
         'options = {"lifespan_context": wrapper}\nvars(app.router).update(**options)\n',
         "vars(app.router).update(**build_options())\n",
+        'vars(app.router).__ior__({"lifespan_context": wrapper})\n',
+        'app.router.__dict__ |= {"lifespan_context": wrapper}\n',
         'app.router.__dict__.setdefault("lifespan_context", wrapper)\n',
         'vars(app.router).setdefault("lifespan_context", wrapper)\n',
         'app.router.__dict__.pop("lifespan_context")\n',
@@ -230,6 +236,7 @@ def test_lifecycle_guard_rejects_food_search_lifespan_wrapping(
     [
         'vars(app.state).update({"food_search_strategy": strategy})\n',
         'vars(app.state).update(**{"food_search_strategy": strategy})\n',
+        'vars(app.state).__ior__({"food_search_strategy": strategy})\n',
         'some_object.__dict__.update({"x": value})\n',
         'vars(app.state).setdefault("food_search_strategy", strategy)\n',
     ],
@@ -332,6 +339,18 @@ def test_lifecycle_guard_allows_unrelated_namespace_mutation(food_source: str) -
             "app/bootstrap/lifespan.py: dynamic facade lookup is forbidden",
         ),
         (
+            "import importlib\n" 'value = importlib.__dict__.get("import_module")("legacy_app")\n',
+            "app/bootstrap/lifespan.py: dynamic facade lookup is forbidden",
+        ),
+        (
+            "import builtins\n" 'value = vars(builtins).get("__import__")("app.main")\n',
+            "app/bootstrap/lifespan.py: dynamic facade lookup is forbidden",
+        ),
+        (
+            "import importlib\n" 'value = importlib.__dict__.__getitem__("import_module")("app")\n',
+            "app/bootstrap/lifespan.py: dynamic facade lookup is forbidden",
+        ),
+        (
             "import app.main\n",
             "app/bootstrap/lifespan.py: forbidden facade import: app.main",
         ),
@@ -375,6 +394,9 @@ def test_lifecycle_guard_accepts_canonical_lifespan_in_static_keyword_mapping() 
     [
         'fastapi.__dict__["FastAPI"]',
         'vars(fastapi)["FastAPI"]',
+        'fastapi.__dict__.get("FastAPI")',
+        'vars(fastapi).get("FastAPI")',
+        'fastapi.__dict__.__getitem__("FastAPI")',
     ],
 )
 def test_lifecycle_guard_rejects_namespace_mediated_fastapi_constructor(
