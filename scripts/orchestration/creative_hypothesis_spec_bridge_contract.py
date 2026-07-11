@@ -1079,12 +1079,18 @@ def _build_candidate_packet(
         "idempotency_key": idempotency_key,
     }
     try:
-        return validate_creative_code_candidate_packet(candidate)
+        validated = validate_creative_code_candidate_packet(candidate)
     except CreativeCodeContractError as exc:
         raise CreativeHypothesisSpecBridgeError(
             f"invalid_candidate_packet: {exc}",
             blocked_reason="invalid_candidate_packet",
         ) from exc
+    if not isinstance(validated, dict):
+        raise CreativeHypothesisSpecBridgeError(
+            "invalid_candidate_packet: validator must return an object",
+            blocked_reason="invalid_candidate_packet",
+        )
+    return validated
 
 
 def _candidate_authority() -> dict[str, bool]:

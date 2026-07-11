@@ -1210,9 +1210,12 @@ def validate_source_candidate_packet(payload: Mapping[str, Any]) -> dict[str, An
     """Validate PR-0 source packet and convert contract errors to PR-1 errors."""
 
     try:
-        return validate_creative_code_candidate_packet(dict(payload))
+        validated = validate_creative_code_candidate_packet(dict(payload))
     except CreativeCodeContractError as exc:
         raise CreativeCodeSpecificationError(str(exc)) from exc
+    if not isinstance(validated, dict):
+        raise CreativeCodeSpecificationError("source candidate validator must return an object")
+    return validated
 
 
 def build_creative_code_specification_bundle(

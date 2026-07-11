@@ -74,7 +74,10 @@ def _read(path: Path) -> dict[str, Any]:
             raise CreativePilotContractError("pilot input must be a regular file")
         with os.fdopen(file_fd, "r", encoding="utf-8") as handle:
             file_fd = -1
-            return load_json_strict(handle.read())
+            payload = load_json_strict(handle.read())
+        if not isinstance(payload, dict):
+            raise CreativePilotContractError("pilot input must be a JSON object")
+        return payload
     except CreativePilotContractError:
         raise
     except (OSError, UnicodeDecodeError, ValueError, NotImplementedError) as exc:

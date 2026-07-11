@@ -832,7 +832,7 @@ def _phase_dispatch_fingerprint_unchecked(workspace: Mapping[str, Any], *, phase
     ]
     if not assignments:
         raise CreativePilotContractError(f"workspace has no {phase} assignments")
-    return fingerprint_payload(
+    fingerprint = fingerprint_payload(
         {
             "workspace_id": workspace["workspace_id"],
             "workspace_intent_fingerprint": workspace["intent_fingerprint"],
@@ -840,6 +840,9 @@ def _phase_dispatch_fingerprint_unchecked(workspace: Mapping[str, Any], *, phase
             "assignments": assignments,
         }
     )
+    if not isinstance(fingerprint, str):
+        raise CreativePilotContractError("phase dispatch fingerprint must be a string")
+    return fingerprint
 
 
 def _derive_conflicts(

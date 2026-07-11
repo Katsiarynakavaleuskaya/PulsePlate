@@ -2898,9 +2898,14 @@ def validate_creative_protocol_context_map_versioned(
         return validate_creative_protocol_context_map(payload)
     if version == (PILOT_SCHEMA_VERSION, PILOT_POLICY_VERSION):
         try:
-            return validate_context_map_v2(payload)
+            validated = validate_context_map_v2(payload)
         except CreativePilotContractError as exc:
             raise ExperimentRunnerCreativeContextContractError(str(exc)) from exc
+        if not isinstance(validated, dict):
+            raise ExperimentRunnerCreativeContextContractError(
+                "CreativeProtocolContextMap v2 validator must return an object."
+            )
+        return validated
     raise ExperimentRunnerCreativeContextContractError(
         "CreativeProtocolContextMap version tuple is unsupported."
     )
@@ -2922,9 +2927,14 @@ def validate_creative_hypothesis_packet_versioned(
         return validate_creative_hypothesis_packet(payload)
     if version == (PILOT_SCHEMA_VERSION, PILOT_POLICY_VERSION):
         try:
-            return validate_hypothesis_packet_v2(payload, context_map=context_map)
+            validated = validate_hypothesis_packet_v2(payload, context_map=context_map)
         except CreativePilotContractError as exc:
             raise ExperimentRunnerCreativeContextContractError(str(exc)) from exc
+        if not isinstance(validated, dict):
+            raise ExperimentRunnerCreativeContextContractError(
+                "CreativeHypothesisPacket v2 validator must return an object."
+            )
+        return validated
     raise ExperimentRunnerCreativeContextContractError(
         "CreativeHypothesisPacket version tuple is unsupported."
     )
@@ -2940,9 +2950,14 @@ def validate_creative_hypothesis_approval_versioned(
         return validate_creative_hypothesis_approval(payload)
     if version == (PILOT_SCHEMA_VERSION, PILOT_POLICY_VERSION):
         try:
-            return validate_approval_v2(payload)
+            validated = validate_approval_v2(payload)
         except CreativePilotContractError as exc:
             raise ExperimentRunnerCreativeContextContractError(str(exc)) from exc
+        if not isinstance(validated, dict):
+            raise ExperimentRunnerCreativeContextContractError(
+                "CreativeHypothesisApproval v2 validator must return an object."
+            )
+        return validated
     raise ExperimentRunnerCreativeContextContractError(
         "CreativeHypothesisApproval version tuple is unsupported."
     )
