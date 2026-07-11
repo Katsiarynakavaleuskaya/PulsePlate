@@ -60,6 +60,22 @@ SCHEMA_FILES = (
 )
 
 
+def test_typed_json_object_narrows_mapping_and_rejects_non_string_keys() -> None:
+    assert review_cli._require_typed_json_object({"receipt_id": "receipt-1"}, label="receipt") == {
+        "receipt_id": "receipt-1"
+    }
+    with pytest.raises(
+        review_cli.CreativeSpecificationSkepticReviewCliError,
+        match="must be a JSON object",
+    ):
+        review_cli._require_typed_json_object([], label="receipt")
+    with pytest.raises(
+        review_cli.CreativeSpecificationSkepticReviewCliError,
+        match="must use string keys",
+    ):
+        review_cli._require_typed_json_object({1: "invalid"}, label="receipt")
+
+
 def _context() -> dict[str, Any]:
     return build_creative_protocol_context_map(
         changed_paths=[
