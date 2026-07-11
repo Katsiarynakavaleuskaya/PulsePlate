@@ -1340,6 +1340,76 @@ def test_resume_binding_structural_mode_does_not_require_git_or_source_files(
         _cleanup_published_adaptive_resume(fixture)
 
 
+def test_retained_resume_lineage_rejects_manifest_substitution() -> None:
+    old_manifest = {"base_sha": "a" * 40, "head_sha": "a" * 40}
+    candidate = {"candidate_id": "candidate:expected"}
+    retained = {
+        "workspace": {"target_manifest": {**old_manifest, "head_sha": "b" * 40}},
+        "candidate": candidate,
+    }
+
+    with pytest.raises(
+        CreativePilotContractError,
+        match="retained target manifest does not match old_target_manifest",
+    ):
+        pilot_contract._assert_retained_resume_lineage(
+            retained,
+            old_target_manifest=old_manifest,
+            candidate=candidate,
+            candidate_fingerprint=fingerprint_payload(candidate),
+        )
+
+
+@pytest.mark.parametrize("splice_kind", ["candidate", "fingerprint"])
+def test_retained_resume_lineage_rejects_candidate_or_fingerprint_splice(
+    splice_kind: str,
+) -> None:
+    old_manifest = {"base_sha": "a" * 40, "head_sha": "a" * 40}
+    candidate = {"candidate_id": "candidate:expected"}
+    retained_candidate = (
+        {"candidate_id": "candidate:substituted"} if splice_kind == "candidate" else candidate
+    )
+    candidate_fingerprint = (
+        "sha256:" + ("f" * 64) if splice_kind == "fingerprint" else fingerprint_payload(candidate)
+    )
+    retained = {
+        "workspace": {"target_manifest": old_manifest},
+        "candidate": retained_candidate,
+    }
+
+    with pytest.raises(
+        CreativePilotContractError,
+        match="retained candidate does not match resume candidate",
+    ):
+        pilot_contract._assert_retained_resume_lineage(
+            retained,
+            old_target_manifest=old_manifest,
+            candidate=candidate,
+            candidate_fingerprint=candidate_fingerprint,
+        )
+
+
+@pytest.mark.parametrize(
+    ("base_sha", "head_sha"),
+    [
+        ("a" * 40, "b" * 40),
+        ("b" * 40, "a" * 40),
+    ],
+)
+def test_current_resume_manifest_requires_base_and_head_at_origin_main(
+    base_sha: str,
+    head_sha: str,
+) -> None:
+    with pytest.raises(
+        CreativePilotContractError,
+        match="current target manifest must equal origin/main",
+    ):
+        pilot_contract._assert_current_manifest_at_origin_main(
+            {"base_sha": base_sha, "head_sha": head_sha},
+            "a" * 40,
+        )
+
+
 def test_resume_binding_replays_retained_terminal_lineage_on_consumption(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -1374,6 +1444,58 @@ def test_resume_binding_replays_retained_terminal_lineage_on_consumption(
             )
     finally:
         _cleanup_published_adaptive_resume(fixture)
+
+
+@pytest.mark.parametrize("entry_kind", ["regular_file", "symlink"])
+def test_pinned_resume_bundle_rejects_raced_extra_prepare_entry(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    entry_kind: str,
+) -> None:
+    intake: dict[str, object] = {"materialized_variants": []}
+    candidate: dict[str, object] = {}
+    binding: dict[str, object] = {}
+    payloads = {
+        pilot_cli.RESUME_INTAKE_FILENAME: intake,
+        pilot_cli.RESUME_CANDIDATE_FILENAME: candidate,
+        pilot_cli.RESUME_BINDING_FILENAME: binding,
+    }
+    for filename, payload in payloads.items():
+        (tmp_path / filename).write_text(json.dumps(payload), encoding="utf-8")
+    prepare_dir = tmp_path / "spec_prepare"
+    prepare_dir.mkdir()
+    for filename in pilot_contract.ADAPTIVE_PR1_PREPARE_FILENAMES:
+        (prepare_dir / filename).write_text("{}", encoding="utf-8")
+
+    real_open_directory_at = pilot_cli._open_directory_at
+
+    def inject_extra_entry(parent_fd: int, name: str) -> int:
+        descriptor = real_open_directory_at(parent_fd, name)
+        unexpected = prepare_dir / "unexpected.json"
+        if entry_kind == "symlink":
+            unexpected.symlink_to("source_packet.json")
+        else:
+            unexpected.write_text("{}", encoding="utf-8")
+        return descriptor
+
+    monkeypatch.setattr(pilot_cli, "_open_directory_at", inject_extra_entry)
+    directory_fd = os.open(
+        tmp_path,
+        os.O_RDONLY | pilot_cli._required_open_flag("O_DIRECTORY"),
+    )
+    try:
+        with pytest.raises(
+            CreativePilotContractError,
+            match="adaptive_publish_validation_failed: fixed spec_prepare set required",
+        ):
+            pilot_cli._validate_pinned_resume_bundle(
+                directory_fd,
+                intake=intake,
+                candidate=candidate,
+                binding=binding,
+            )
+    finally:
+        os.close(directory_fd)
 
 
 @pytest.mark.parametrize("tamper_kind", ["context", "reviews"])

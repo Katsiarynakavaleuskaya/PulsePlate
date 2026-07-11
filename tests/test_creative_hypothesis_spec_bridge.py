@@ -57,6 +57,11 @@ def test_typed_bundle_narrows_only_string_keyed_artifact_objects() -> None:
         match="string-keyed artifact objects",
     ):
         cli._require_typed_bundle({"bridge": []})
+    with pytest.raises(
+        cli.CreativeHypothesisSpecBridgeCliError,
+        match="bridge artifacts must use string keys",
+    ):
+        cli._require_typed_bundle({"bridge": {1: "invalid"}})
 
 
 def _context() -> dict[str, Any]:

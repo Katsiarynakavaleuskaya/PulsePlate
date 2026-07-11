@@ -40,8 +40,6 @@ from scripts.orchestration.creative_pilot_workspace_contract import (
     load_json_strict,
     terminate_workspace,
     validate_dispatch_phase,
-    validate_context_map_v2,
-    validate_hypothesis_packet_v2,
     validate_retained_terminal_handoff,
     validate_adaptive_pr1_resume_binding,
     validate_approval_v2,
@@ -762,6 +760,10 @@ def _validate_pinned_resume_bundle(
     prepare_fd = -1
     try:
         prepare_fd = _open_directory_at(directory_fd, "spec_prepare")
+        if set(os.listdir(prepare_fd)) != set(ADAPTIVE_PR1_PREPARE_FILENAMES):
+            raise CreativePilotContractError(
+                "adaptive_publish_validation_failed: fixed spec_prepare set required"
+            )
         snapshots = {
             filename: _read_json_at(prepare_fd, filename)
             for filename in ADAPTIVE_PR1_PREPARE_FILENAMES

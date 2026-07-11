@@ -607,8 +607,11 @@ def validate_adaptive_pr1_resume_binding(
     ):
         raise CreativePilotContractError("adaptive resume SHA binding mismatch")
     _assert_target_continuity(old_manifest, current_manifest)
-    if revalidate_git and current_manifest["base_sha"] != current_origin_main_sha():
-        raise CreativePilotContractError("adaptive_base_drift: current origin/main advanced")
+    if revalidate_git:
+        _assert_current_manifest_at_origin_main(
+            current_manifest,
+            current_origin_main_sha(),
+        )
     source_rows = _normalize_binding_rows(
         cast(Sequence[Mapping[str, Any]], lineage["source_artifacts"]),
         expected=ADAPTIVE_PR1_SOURCE_TYPES,
@@ -652,7 +655,7 @@ def validate_adaptive_pr1_resume_binding(
                 artifact_type=row["artifact_type"],
                 fingerprint=row["fingerprint"],
             )
-        validate_retained_terminal_handoff(
+        retained_lineage = validate_retained_terminal_handoff(
             context_map=cast(Mapping[str, Any], retained["context_map.v2.json"]),
             hypothesis_packet=cast(Mapping[str, Any], retained["hypothesis_packet.v2.json"]),
             workspace=cast(Mapping[str, Any], retained["workspace.json"]),
@@ -661,6 +664,12 @@ def validate_adaptive_pr1_resume_binding(
             bridge=cast(Mapping[str, Any], retained["spec_bridge.v2.json"]),
             candidate=cast(Mapping[str, Any], retained["creative_code_candidate.v1.json"]),
             current_target_manifest=current_manifest,
+        )
+        _assert_retained_resume_lineage(
+            retained_lineage,
+            old_target_manifest=old_manifest,
+            candidate=normalized_candidate,
+            candidate_fingerprint=str(candidate_ref["candidate_fingerprint"]),
         )
     prepare = payload["spec_prepare"]
     if not isinstance(prepare, Mapping):
@@ -765,6 +774,45 @@ def _assert_target_continuity(old: Mapping[str, Any], current: Mapping[str, Any]
                 else "adaptive_target_drift"
             )
             raise CreativePilotContractError(f"{code}: {key} changed")
+
+
+def _assert_current_manifest_at_origin_main(
+    current_manifest: Mapping[str, Any], origin_main_sha: str
+) -> None:
+    if (
+        current_manifest["base_sha"] != origin_main_sha
+        or current_manifest["head_sha"] != origin_main_sha
+    ):
+        raise CreativePilotContractError(
+            "adaptive_base_drift: current target manifest must equal origin/main"
+        )
+
+
+def _assert_retained_resume_lineage(
+    retained_lineage: Mapping[str, Any],
+    *,
+    old_target_manifest: Mapping[str, Any],
+    candidate: Mapping[str, Any],
+    candidate_fingerprint: str,
+) -> None:
+    retained_workspace = retained_lineage.get("workspace")
+    if (
+        not isinstance(retained_workspace, Mapping)
+        or retained_workspace.get("target_manifest") != old_target_manifest
+    ):
+        raise CreativePilotContractError(
+            "adaptive_source_lineage_mismatch: retained target manifest does not match "
+            "old_target_manifest"
+        )
+    retained_candidate = retained_lineage.get("candidate")
+    if (
+        not isinstance(retained_candidate, Mapping)
+        or retained_candidate != candidate
+        or fingerprint_payload(dict(retained_candidate)) != candidate_fingerprint
+    ):
+        raise CreativePilotContractError(
+            "adaptive_source_lineage_mismatch: retained candidate does not match resume candidate"
+        )
 
 
 def _normalize_binding_rows(
