@@ -6,7 +6,7 @@ from __future__ import annotations
 import argparse
 import ast
 from collections import Counter
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from importlib.util import resolve_name
 from pathlib import Path
@@ -2118,12 +2118,63 @@ def _function_header_expressions(
     )
 
 
+def _legacy_api_key_dynamic_lookup_name(
+    node: ast.AST,
+    *,
+    module_reference: Callable[[ast.AST], str | None],
+    static_string_bindings: Mapping[str, str],
+) -> str | None:
+    def is_legacy_namespace(candidate: ast.AST) -> bool:
+        if (
+            isinstance(candidate, ast.Attribute)
+            and candidate.attr == "__dict__"
+            and module_reference(candidate.value) == "legacy_app"
+        ):
+            return True
+        return bool(
+            isinstance(candidate, ast.Call)
+            and isinstance(candidate.func, ast.Name)
+            and candidate.func.id == "vars"
+            and len(candidate.args) == 1
+            and not candidate.keywords
+            and module_reference(candidate.args[0]) == "legacy_app"
+        )
+
+    if isinstance(node, ast.Subscript) and is_legacy_namespace(node.value):
+        return _resolve_static_string(node.slice, static_string_bindings)
+    if not isinstance(node, ast.Call):
+        return None
+    if (
+        isinstance(node.func, ast.Name)
+        and node.func.id == "getattr"
+        and len(node.args) >= 2
+        and module_reference(node.args[0]) == "legacy_app"
+    ):
+        return _resolve_static_string(node.args[1], static_string_bindings)
+    if (
+        isinstance(node.func, ast.Attribute)
+        and node.func.attr == "__getattribute__"
+        and module_reference(node.func.value) == "legacy_app"
+        and node.args
+    ):
+        return _resolve_static_string(node.args[0], static_string_bindings)
+    if (
+        isinstance(node.func, ast.Attribute)
+        and node.func.attr in {"get", "__getitem__"}
+        and is_legacy_namespace(node.func.value)
+        and node.args
+    ):
+        return _resolve_static_string(node.args[0], static_string_bindings)
+    return None
+
+
 def _scan_api_key_comprehension_scope(
     node: ast.ListComp | ast.SetComp | ast.DictComp | ast.GeneratorExp,
     *,
     filename: str,
     inherited_module_aliases: Mapping[str, str],
     inherited_import_module_aliases: AbstractSet[str],
+    inherited_static_string_bindings: Mapping[str, str] | None = None,
 ) -> list[str]:
     errors: list[str] = []
     bound_names: set[str] = set()
@@ -2135,6 +2186,7 @@ def _scan_api_key_comprehension_scope(
                     filename=filename,
                     inherited_module_aliases=inherited_module_aliases,
                     inherited_import_module_aliases=inherited_import_module_aliases,
+                    inherited_static_string_bindings=inherited_static_string_bindings,
                     local_bindings=bound_names,
                 )
             )
@@ -2145,6 +2197,7 @@ def _scan_api_key_comprehension_scope(
                 filename=filename,
                 inherited_module_aliases=inherited_module_aliases,
                 inherited_import_module_aliases=inherited_import_module_aliases,
+                inherited_static_string_bindings=inherited_static_string_bindings,
                 local_bindings=bound_names,
             )
         )
@@ -2160,6 +2213,7 @@ def _scan_api_key_comprehension_scope(
             filename=filename,
             inherited_module_aliases=inherited_module_aliases,
             inherited_import_module_aliases=inherited_import_module_aliases,
+            inherited_static_string_bindings=inherited_static_string_bindings,
             local_bindings=bound_names,
         )
     )
@@ -2328,8 +2382,13 @@ def _scan_api_key_alias_scope(
     else:
         closure_import_module_aliases = set(inherited_closure_import_module_aliases)
     scope_tree = ast.Module(body=list(statements), type_ignores=[])
-    static_string_bindings = dict(inherited_static_string_bindings or {})
-    static_string_bindings.update(_collect_static_string_bindings(scope_tree))
+    local_static_string_bindings = _collect_static_string_bindings(scope_tree)
+    static_string_bindings = {
+        name: value
+        for name, value in (inherited_static_string_bindings or {}).items()
+        if name not in local_bindings
+    }
+    static_string_bindings.update(local_static_string_bindings)
     scope_nodes, nested_scopes = _ordered_lexical_scope_nodes(statements)
     all_if_nodes = [node for node in scope_nodes if isinstance(node, ast.If)]
     nested_if_ids = {nested_id for node in all_if_nodes for nested_id in _nested_if_node_ids(node)}
@@ -2472,14 +2531,12 @@ def _scan_api_key_alias_scope(
             errors.append(
                 f"{filename}: legacy API-key dependency attribute access is forbidden: {node.attr}"
             )
-        elif (
-            isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Name)
-            and node.func.id == "getattr"
-            and len(node.args) >= 2
-            and module_reference(node.args[0]) == "legacy_app"
-        ):
-            symbol_name = _resolve_static_string(node.args[1], static_string_bindings)
+        else:
+            symbol_name = _legacy_api_key_dynamic_lookup_name(
+                node,
+                module_reference=module_reference,
+                static_string_bindings=static_string_bindings,
+            )
             if symbol_name in CANONICAL_API_KEY_SYMBOLS:
                 errors.append(
                     f"{filename}: dynamic legacy API-key dependency lookup is forbidden: "
@@ -2562,6 +2619,7 @@ def _scan_api_key_alias_scope(
                         filename=filename,
                         inherited_module_aliases=function_modules,
                         inherited_import_module_aliases=function_imports,
+                        inherited_static_string_bindings=static_string_bindings,
                         local_bindings=_function_local_bindings(nested_scope),
                     )
                 )
@@ -2574,6 +2632,7 @@ def _scan_api_key_alias_scope(
                     filename=filename,
                     inherited_module_aliases=final_closure_module_aliases,
                     inherited_import_module_aliases=final_closure_import_module_aliases,
+                    inherited_static_string_bindings=static_string_bindings,
                     local_bindings=_lambda_local_bindings(nested_scope),
                 )
             )
@@ -2593,6 +2652,7 @@ def _scan_api_key_alias_scope(
                     filename=filename,
                     inherited_module_aliases=nested_module_aliases,
                     inherited_import_module_aliases=nested_import_module_aliases,
+                    inherited_static_string_bindings=static_string_bindings,
                 )
             )
             continue
@@ -2604,6 +2664,7 @@ def _scan_api_key_alias_scope(
                 inherited_import_module_aliases=nested_import_module_aliases,
                 inherited_closure_module_aliases=final_closure_module_aliases,
                 inherited_closure_import_module_aliases=final_closure_import_module_aliases,
+                inherited_static_string_bindings=static_string_bindings,
                 local_bindings=nested_local_bindings,
             )
         )

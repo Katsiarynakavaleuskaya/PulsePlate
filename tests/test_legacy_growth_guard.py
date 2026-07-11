@@ -268,6 +268,91 @@ def test_api_key_ownership_guard_rejects_dynamic_legacy_lookup() -> None:
     ]
 
 
+@pytest.mark.parametrize(
+    ("lookup", "symbol"),
+    [
+        ('legacy.__dict__["get_api_key"]', "get_api_key"),
+        ('vars(legacy)["_get_api_key_dynamic"]', "_get_api_key_dynamic"),
+        ('legacy.__getattribute__("get_api_key")', "get_api_key"),
+        ('legacy.__dict__.get("get_api_key")', "get_api_key"),
+        ('vars(legacy).__getitem__("_get_api_key_dynamic")', "_get_api_key_dynamic"),
+    ],
+)
+def test_api_key_ownership_guard_rejects_namespace_legacy_lookup(
+    lookup: str,
+    symbol: str,
+) -> None:
+    legacy_source = (
+        "from app.routers.api_key import (\n"
+        "    _get_api_key_dynamic as _get_api_key_dynamic,\n"
+        "    get_api_key as get_api_key,\n"
+        ")\n"
+    )
+    app_source = f"import legacy_app as legacy\ndependency = {lookup}\n"
+
+    errors = legacy_guard.validate_api_key_dependency_ownership(
+        legacy_source,
+        _app_sources({"app/main.py": app_source}),
+    )
+
+    assert errors == [
+        f"app/main.py: dynamic legacy API-key dependency lookup is forbidden: {symbol}"
+    ]
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "def resolve():\n    return getattr(legacy, symbol, None)\n",
+        "resolver = lambda: getattr(legacy, symbol, None)\n",
+        "class Resolver:\n    dependency = getattr(legacy, symbol, None)\n",
+        "dependencies = [getattr(legacy, symbol, None) for item in items]\n",
+    ],
+    ids=["function", "lambda", "class", "comprehension"],
+)
+def test_api_key_ownership_guard_propagates_static_lookup_name_into_nested_scope(
+    body: str,
+) -> None:
+    legacy_source = (
+        "from app.routers.api_key import (\n"
+        "    _get_api_key_dynamic as _get_api_key_dynamic,\n"
+        "    get_api_key as get_api_key,\n"
+        ")\n"
+    )
+    app_source = "import legacy_app as legacy\n" 'symbol = "get_api_key"\n' f"{body}"
+
+    errors = legacy_guard.validate_api_key_dependency_ownership(
+        legacy_source,
+        _app_sources({"app/main.py": app_source}),
+    )
+
+    assert errors == [
+        "app/main.py: dynamic legacy API-key dependency lookup is forbidden: get_api_key"
+    ]
+
+
+def test_api_key_ownership_guard_nested_static_lookup_respects_argument_shadow() -> None:
+    legacy_source = (
+        "from app.routers.api_key import (\n"
+        "    _get_api_key_dynamic as _get_api_key_dynamic,\n"
+        "    get_api_key as get_api_key,\n"
+        ")\n"
+    )
+    app_source = (
+        "import legacy_app as legacy\n"
+        'symbol = "get_api_key"\n'
+        "def resolve(symbol):\n"
+        "    return getattr(legacy, symbol, None)\n"
+    )
+
+    errors = legacy_guard.validate_api_key_dependency_ownership(
+        legacy_source,
+        _app_sources({"app/main.py": app_source}),
+    )
+
+    assert errors == []
+
+
 @pytest.mark.parametrize("symbol", sorted(legacy_guard.CANONICAL_API_KEY_SYMBOLS))
 def test_api_key_ownership_guard_rejects_legacy_module_attribute_access(symbol: str) -> None:
     legacy_source = (
