@@ -565,13 +565,20 @@ def _create_pinned_reviewed_run(path: Path) -> tuple[int, int, DirectoryIdentity
             raise CreativeSpecificationSkepticReviewCliError(
                 "reviewed finalize run already exists; remove the local sibling artifact to rerun."
             ) from exc
+        created_identity: DirectoryIdentity | None = None
         try:
+            created = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+            created_identity = (created.st_dev, created.st_ino)
             reviewed_fd = os.open(
                 name,
                 creative_code_spec_pipeline._directory_flags(),
                 dir_fd=parent_fd,
             )
             info = os.fstat(reviewed_fd)
+            if (info.st_dev, info.st_ino) != created_identity:
+                raise CreativeSpecificationSkepticReviewCliError(
+                    "reviewed finalize run identity changed during creation."
+                )
         except Exception as primary_error:
             cleanup_error: Exception | None = None
             cleanup_fd = -1
@@ -587,7 +594,11 @@ def _create_pinned_reviewed_run(path: Path) -> tuple[int, int, DirectoryIdentity
                 )
                 pinned = os.fstat(cleanup_fd)
                 current = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
-                if (current.st_dev, current.st_ino) != (pinned.st_dev, pinned.st_ino):
+                pinned_identity = (pinned.st_dev, pinned.st_ino)
+                current_identity = (current.st_dev, current.st_ino)
+                if pinned_identity != current_identity or (
+                    created_identity is not None and current_identity != created_identity
+                ):
                     raise CreativeSpecificationSkepticReviewCliError(
                         "reviewed finalize run cleanup identity changed."
                     )

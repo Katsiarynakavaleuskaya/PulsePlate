@@ -772,7 +772,7 @@ def test_reviewed_run_cleanup_pins_original_parent_across_path_swap(
         shutil.rmtree(bridge_dir, ignore_errors=True)
 
 
-@pytest.mark.parametrize("failure_point", ["open", "fstat"])
+@pytest.mark.parametrize("failure_point", ["stat", "open", "fstat"])
 def test_reviewed_run_creation_cleans_exact_directory_after_post_mkdir_failure(
     monkeypatch: pytest.MonkeyPatch,
     failure_point: str,
@@ -781,7 +781,19 @@ def test_reviewed_run_creation_cleans_exact_directory_after_post_mkdir_failure(
     reviewed = bridge_dir / review_contract.REVIEWED_RUN_DIRNAME
     try:
         bridge_dir.mkdir(parents=True)
-        if failure_point == "open":
+        if failure_point == "stat":
+            real_stat = review_cli.os.stat
+            fail_next_stat = True
+
+            def fail_created_stat(*args: Any, **kwargs: Any) -> Any:
+                nonlocal fail_next_stat
+                if fail_next_stat:
+                    fail_next_stat = False
+                    raise OSError("simulated reviewed stat failure")
+                return real_stat(*args, **kwargs)
+
+            monkeypatch.setattr(review_cli.os, "stat", fail_created_stat)
+        elif failure_point == "open":
             real_open = review_cli.os.open
             fail_next_open = True
 
@@ -822,6 +834,44 @@ def test_reviewed_run_creation_cleans_exact_directory_after_post_mkdir_failure(
         ):
             review_cli._create_pinned_reviewed_run(reviewed)
         assert not reviewed.exists()
+    finally:
+        shutil.rmtree(bridge_dir, ignore_errors=True)
+
+
+def test_reviewed_run_creation_rejects_entry_swap_after_identity_capture(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bridge_dir = review_cli.SPEC_BRIDGE_ROOT / f"pytest-{uuid.uuid4().hex}"
+    reviewed = bridge_dir / review_contract.REVIEWED_RUN_DIRNAME
+    detached = bridge_dir / "detached-created"
+    real_open = review_cli.os.open
+    swapped = False
+    try:
+        bridge_dir.mkdir(parents=True)
+
+        def swap_before_reviewed_open(
+            path: Any,
+            flags: int,
+            mode: int = 0o777,
+            *,
+            dir_fd: int | None = None,
+        ) -> int:
+            nonlocal swapped
+            if path == review_contract.REVIEWED_RUN_DIRNAME and dir_fd is not None and not swapped:
+                swapped = True
+                reviewed.rename(detached)
+                reviewed.mkdir()
+            return real_open(path, flags, mode, dir_fd=dir_fd)
+
+        monkeypatch.setattr(review_cli.os, "open", swap_before_reviewed_open)
+        with pytest.raises(
+            review_cli.CreativeSpecificationSkepticReviewCliError,
+            match="identity changed",
+        ):
+            review_cli._create_pinned_reviewed_run(reviewed)
+        assert swapped
+        assert detached.is_dir()
+        assert reviewed.is_dir()
     finally:
         shutil.rmtree(bridge_dir, ignore_errors=True)
 
