@@ -77,6 +77,8 @@ deletion.
   lifecycle namespace analysis, with unrelated-state negative controls.
 - `e44d9859e` - preserve the owner of aliased and nested reflected attribute
   accessors so dynamic imports and FastAPI constructors remain guarded.
+- `1c5b368df` - make the touched scheduler-facade tests independent of the
+  optional pytest-asyncio plugin used outside the pre-commit hook environment.
 
 ## Lane Start Provenance
 
@@ -286,6 +288,16 @@ Disposition: FIXED
 Commit: `7f9d2cead90da9aa33633d58825ddb4dda9a5376`
 Evidence: `tests/test_app_error_paths_97.py` and the canonical utility coverage in `tests/test_app_coverage_branches_extra.py`; both files, the lifecycle/guard bundle, `make validate-changed`, and `pre-commit run --all-files` pass.
 Reason: Python 3.12 CI selected a stale duplicate test that required the removed private `app._resolve_app_callable` facade export. The canonical utility remains directly tested; restoring the legacy private export would contradict the lifecycle dependency-cutover contract.
+
+Disposition: FIXED
+Commit: `1c5b368df22753272e53605bb5d5e3178cdcbe12`
+Evidence: `tests/test_app_error_paths_97.py`; the file passes with
+`PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`, followed by `make validate-changed` and
+`pre-commit run --all-files`.
+Reason: Current-head lint selected the touched facade test through the backend
+pre-commit hook, whose CI environment intentionally does not load
+pytest-asyncio. Both coroutine checks now use synchronous `asyncio.run(...)`
+as required by the repository hook contract.
 
 ## Codex Security Diff Scan Evidence
 
