@@ -1349,6 +1349,8 @@ def _finalize_from_attachment(attachment_path: Path) -> dict[str, Any]:
     reviewed_fd = -1
     reviewed_identity: DirectoryIdentity | None = None
     finalize_lock_acquired = False
+    finalize_attempt_started = False
+    receipt: dict[str, Any]
     try:
         reviewed_parent_fd, reviewed_name, _candidate = (
             creative_code_spec_pipeline._open_pinned_parent(
@@ -1372,34 +1374,71 @@ def _finalize_from_attachment(attachment_path: Path) -> dict[str, Any]:
             raise CreativeSpecificationSkepticReviewCliError(
                 "reviewed finalize is already in progress."
             ) from exc
+        existing_outputs: set[str] = set()
         for output_name in (BUNDLE_FILENAME, FINALIZE_RECEIPT_FILENAME):
             try:
                 os.stat(output_name, dir_fd=reviewed_fd, follow_symlinks=False)
             except FileNotFoundError:
                 continue
-            raise CreativeSpecificationSkepticReviewCliError(
-                "reviewed finalize outputs already exist; remove local artifacts to rerun."
+            existing_outputs.add(output_name)
+        if existing_outputs == {BUNDLE_FILENAME, FINALIZE_RECEIPT_FILENAME}:
+            validated_bundle = validate_creative_code_specification_bundle(
+                cast(Mapping[str, Any], _read_json_at(reviewed_fd, BUNDLE_FILENAME))
             )
-        _write_json_at(reviewed_fd, BUNDLE_FILENAME, bundle)
-        validated_bundle = validate_creative_code_specification_bundle(
-            cast(Mapping[str, Any], _read_json_at(reviewed_fd, BUNDLE_FILENAME))
-        )
-        receipt = _require_typed_json_object(
-            build_finalize_receipt(
-                attachment=attachment,
-                attachment_ref=_artifact_ref(reviewed_dir / ATTACHMENT_FILENAME),
-                bundle=validated_bundle,
-                bundle_ref=_artifact_ref(bundle_path),
-            ),
-            label="finalize receipt",
-        )
-        _write_json_at(reviewed_fd, FINALIZE_RECEIPT_FILENAME, receipt)
-        validate_finalize_receipt(receipt)
+            if fingerprint_payload(validated_bundle) != fingerprint_payload(bundle):
+                raise CreativeSpecificationSkepticReviewCliError(
+                    "fingerprint_mismatch: existing finalize bundle diverges from reviewed inputs."
+                )
+            existing_receipt = _require_typed_json_object(
+                validate_finalize_receipt(
+                    cast(Mapping[str, Any], _read_json_at(reviewed_fd, FINALIZE_RECEIPT_FILENAME))
+                ),
+                label="finalize receipt",
+            )
+            expected_receipt = _require_typed_json_object(
+                build_finalize_receipt(
+                    attachment=attachment,
+                    attachment_ref=_artifact_ref(reviewed_dir / ATTACHMENT_FILENAME),
+                    bundle=validated_bundle,
+                    bundle_ref=_artifact_ref(bundle_path),
+                ),
+                label="finalize receipt",
+            )
+            if fingerprint_payload(existing_receipt) != fingerprint_payload(expected_receipt):
+                raise CreativeSpecificationSkepticReviewCliError(
+                    "fingerprint_mismatch: existing finalize receipt diverges from reviewed inputs."
+                )
+            receipt = existing_receipt
+        elif existing_outputs:
+            raise CreativeSpecificationSkepticReviewCliError(
+                "reviewed finalize outputs are partial; retained for inspection."
+            )
+        else:
+            finalize_attempt_started = True
+            _write_json_at(reviewed_fd, BUNDLE_FILENAME, bundle)
+            validated_bundle = validate_creative_code_specification_bundle(
+                cast(Mapping[str, Any], _read_json_at(reviewed_fd, BUNDLE_FILENAME))
+            )
+            receipt = _require_typed_json_object(
+                build_finalize_receipt(
+                    attachment=attachment,
+                    attachment_ref=_artifact_ref(reviewed_dir / ATTACHMENT_FILENAME),
+                    bundle=validated_bundle,
+                    bundle_ref=_artifact_ref(bundle_path),
+                ),
+                label="finalize receipt",
+            )
+            _write_json_at(reviewed_fd, FINALIZE_RECEIPT_FILENAME, receipt)
+            receipt = _require_typed_json_object(
+                validate_finalize_receipt(receipt),
+                label="finalize receipt",
+            )
     except Exception as primary_error:
         cleanup_error: Exception | None = None
         retained_name: str | None = reviewed_dir.name
         if (
             finalize_lock_acquired
+            and finalize_attempt_started
             and reviewed_parent_fd >= 0
             and reviewed_fd >= 0
             and reviewed_identity is not None

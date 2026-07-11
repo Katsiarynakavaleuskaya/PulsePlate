@@ -421,6 +421,19 @@ def test_attach_validate_finalize_preserves_original_spec_prepare(
         assert receipt["synthesis_status"] == "selected"
         assert receipt["next_allowed_action"] == "human_review_for_patch_builder"
         assert receipt["counts"]["selected_variant_count"] == 1
+        finalized_fingerprints = {
+            filename: fingerprint_payload(_read_json(reviewed_dir / filename))
+            for filename in (review_cli.BUNDLE_FILENAME, review_cli.FINALIZE_RECEIPT_FILENAME)
+        }
+        exit_code = review_cli.main(["finalize", "--attachment", str(attachment_path)])
+        captured = capsys.readouterr()
+        assert exit_code == 0, captured.err
+        assert captured.out.strip() == review_cli.FINALIZE_SUCCESS_OUTPUT
+        assert reviewed_dir.is_dir()
+        assert {
+            filename: fingerprint_payload(_read_json(reviewed_dir / filename))
+            for filename in (review_cli.BUNDLE_FILENAME, review_cli.FINALIZE_RECEIPT_FILENAME)
+        } == finalized_fingerprints
         _assert_schema_artifact_refs_accept_generated_attachment_and_receipt(
             attachment=attachment,
             receipt=receipt,
@@ -1917,6 +1930,49 @@ def test_finalize_lock_contention_preserves_canonical_reviewed_run(
         assert "reviewed finalize is already in progress" in captured.err
         assert reviewed_dir.is_dir()
         assert not (reviewed_dir / review_cli.BUNDLE_FILENAME).exists()
+        assert not (reviewed_dir / review_cli.FINALIZE_RECEIPT_FILENAME).exists()
+        assert list(output_dir.glob(".spec_finalize_reviewed.*.failed")) == []
+
+        exit_code = review_cli.main(["finalize", "--attachment", str(attachment_path)])
+        captured = capsys.readouterr()
+        assert exit_code == 0, captured.err
+        assert (reviewed_dir / review_cli.BUNDLE_FILENAME).is_file()
+        assert (reviewed_dir / review_cli.FINALIZE_RECEIPT_FILENAME).is_file()
+    finally:
+        shutil.rmtree(output_dir, ignore_errors=True)
+        shutil.rmtree(input_dir, ignore_errors=True)
+
+
+def test_finalize_preserves_preexisting_partial_outputs_without_quarantine(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    output_dir, input_dir = _prepared_bridge(capsys, suffix="finalize-partial-existing")
+    try:
+        reviews_path = _write_review_input(output_dir, _review_input(output_dir))
+        assert (
+            review_cli.main(
+                [
+                    "attach",
+                    "--bridge",
+                    str(output_dir / bridge_cli.BRIDGE_FILENAME),
+                    "--reviews",
+                    str(reviews_path),
+                ]
+            )
+            == 0
+        )
+        capsys.readouterr()
+        reviewed_dir = output_dir / "spec_finalize_reviewed"
+        attachment_path = reviewed_dir / review_cli.ATTACHMENT_FILENAME
+        partial_bundle = reviewed_dir / review_cli.BUNDLE_FILENAME
+        partial_bundle.write_text("{}\n", encoding="utf-8")
+
+        exit_code = review_cli.main(["finalize", "--attachment", str(attachment_path)])
+        captured = capsys.readouterr()
+        assert exit_code == 1
+        assert "reviewed finalize outputs are partial" in captured.err
+        assert reviewed_dir.is_dir()
+        assert partial_bundle.read_text(encoding="utf-8") == "{}\n"
         assert not (reviewed_dir / review_cli.FINALIZE_RECEIPT_FILENAME).exists()
         assert list(output_dir.glob(".spec_finalize_reviewed.*.failed")) == []
     finally:
