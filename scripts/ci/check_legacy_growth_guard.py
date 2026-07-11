@@ -1891,6 +1891,7 @@ def _scan_api_key_alias_expressions(
     filename: str,
     inherited_module_aliases: Mapping[str, str],
     inherited_import_module_aliases: AbstractSet[str],
+    inherited_static_string_bindings: Mapping[str, str] | None = None,
     local_bindings: AbstractSet[str],
 ) -> list[str]:
     return _scan_api_key_alias_scope(
@@ -1898,7 +1899,222 @@ def _scan_api_key_alias_expressions(
         filename=filename,
         inherited_module_aliases=inherited_module_aliases,
         inherited_import_module_aliases=inherited_import_module_aliases,
+        inherited_static_string_bindings=inherited_static_string_bindings,
         local_bindings=local_bindings,
+    )
+
+
+def _join_api_key_alias_states(
+    *states: tuple[Mapping[str, str], AbstractSet[str]],
+) -> tuple[dict[str, str], set[str]]:
+    joined_modules: dict[str, str] = {}
+    all_names = {name for modules, _imports in states for name in modules}
+    for name in all_names:
+        possible = {modules.get(name) for modules, _imports in states}
+        if "legacy_app" in possible:
+            joined_modules[name] = "legacy_app"
+        elif "importlib" in possible:
+            joined_modules[name] = "importlib"
+    joined_imports = set().union(*(imports for _modules, imports in states))
+    return joined_modules, joined_imports
+
+
+def _preferred_api_key_module_reference(references: AbstractSet[str | None]) -> str | None:
+    if "legacy_app" in references:
+        return "legacy_app"
+    if "importlib" in references:
+        return "importlib"
+    return None
+
+
+def _evaluate_api_key_alias_expression(
+    expression: ast.expr,
+    *,
+    module_aliases: Mapping[str, str],
+    import_module_aliases: AbstractSet[str],
+    static_string_bindings: Mapping[str, str],
+) -> tuple[dict[str, str], set[str], set[str | None]]:
+    """Evaluate alias side effects and possible module references conservatively."""
+
+    if isinstance(expression, ast.IfExp):
+        test_modules, test_imports, _test_refs = _evaluate_api_key_alias_expression(
+            expression.test,
+            module_aliases=module_aliases,
+            import_module_aliases=import_module_aliases,
+            static_string_bindings=static_string_bindings,
+        )
+        body_modules, body_imports, body_refs = _evaluate_api_key_alias_expression(
+            expression.body,
+            module_aliases=test_modules,
+            import_module_aliases=test_imports,
+            static_string_bindings=static_string_bindings,
+        )
+        else_modules, else_imports, else_refs = _evaluate_api_key_alias_expression(
+            expression.orelse,
+            module_aliases=test_modules,
+            import_module_aliases=test_imports,
+            static_string_bindings=static_string_bindings,
+        )
+        joined_modules, joined_imports = _join_api_key_alias_states(
+            (body_modules, body_imports),
+            (else_modules, else_imports),
+        )
+        return joined_modules, joined_imports, body_refs | else_refs
+
+    if isinstance(expression, ast.BoolOp):
+        current_modules = dict(module_aliases)
+        current_imports = set(import_module_aliases)
+        exit_states: list[tuple[dict[str, str], set[str]]] = []
+        possible_refs: set[str | None] = set()
+        for operand in expression.values:
+            (
+                current_modules,
+                current_imports,
+                operand_refs,
+            ) = _evaluate_api_key_alias_expression(
+                operand,
+                module_aliases=current_modules,
+                import_module_aliases=current_imports,
+                static_string_bindings=static_string_bindings,
+            )
+            exit_states.append((dict(current_modules), set(current_imports)))
+            possible_refs.update(operand_refs)
+        joined_modules, joined_imports = _join_api_key_alias_states(*exit_states)
+        return joined_modules, joined_imports, possible_refs
+
+    if isinstance(expression, ast.NamedExpr):
+        next_modules, next_imports, value_refs = _evaluate_api_key_alias_expression(
+            expression.value,
+            module_aliases=module_aliases,
+            import_module_aliases=import_module_aliases,
+            static_string_bindings=static_string_bindings,
+        )
+        resolved_module = _preferred_api_key_module_reference(value_refs)
+        for target_name in _assignment_target_names(expression.target):
+            if resolved_module is not None:
+                next_modules[target_name] = resolved_module
+            else:
+                next_modules.pop(target_name, None)
+        return next_modules, next_imports, value_refs
+
+    if isinstance(expression, ast.Lambda):
+        next_modules = dict(module_aliases)
+        next_imports = set(import_module_aliases)
+        for default in [*expression.args.defaults, *expression.args.kw_defaults]:
+            if default is not None:
+                next_modules, next_imports, _refs = _evaluate_api_key_alias_expression(
+                    default,
+                    module_aliases=next_modules,
+                    import_module_aliases=next_imports,
+                    static_string_bindings=static_string_bindings,
+                )
+        return next_modules, next_imports, {None}
+
+    if isinstance(expression, (ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp)):
+        base_modules = dict(module_aliases)
+        base_imports = set(import_module_aliases)
+        if expression.generators:
+            base_modules, base_imports, _refs = _evaluate_api_key_alias_expression(
+                expression.generators[0].iter,
+                module_aliases=base_modules,
+                import_module_aliases=base_imports,
+                static_string_bindings=static_string_bindings,
+            )
+        iter_modules = dict(base_modules)
+        iter_imports = set(base_imports)
+        for index, generator in enumerate(expression.generators):
+            if index > 0:
+                iter_modules, iter_imports, _refs = _evaluate_api_key_alias_expression(
+                    generator.iter,
+                    module_aliases=iter_modules,
+                    import_module_aliases=iter_imports,
+                    static_string_bindings=static_string_bindings,
+                )
+            for target_name in _assignment_target_names(generator.target):
+                iter_modules.pop(target_name, None)
+                iter_imports.discard(target_name)
+            for condition in generator.ifs:
+                iter_modules, iter_imports, _refs = _evaluate_api_key_alias_expression(
+                    condition,
+                    module_aliases=iter_modules,
+                    import_module_aliases=iter_imports,
+                    static_string_bindings=static_string_bindings,
+                )
+        result_expressions = (
+            [expression.key, expression.value]
+            if isinstance(expression, ast.DictComp)
+            else [expression.elt]
+        )
+        for result_expression in result_expressions:
+            iter_modules, iter_imports, _refs = _evaluate_api_key_alias_expression(
+                result_expression,
+                module_aliases=iter_modules,
+                import_module_aliases=iter_imports,
+                static_string_bindings=static_string_bindings,
+            )
+        joined_modules, joined_imports = _join_api_key_alias_states(
+            (base_modules, base_imports),
+            (iter_modules, iter_imports),
+        )
+        return joined_modules, joined_imports, {None}
+
+    next_modules = dict(module_aliases)
+    next_imports = set(import_module_aliases)
+    for child in ast.iter_child_nodes(expression):
+        if not isinstance(child, ast.expr):
+            continue
+        next_modules, next_imports, _child_refs = _evaluate_api_key_alias_expression(
+            child,
+            module_aliases=next_modules,
+            import_module_aliases=next_imports,
+            static_string_bindings=static_string_bindings,
+        )
+    resolved = _static_module_reference(
+        expression,
+        module_aliases=next_modules,
+        import_module_aliases=next_imports,
+        static_string_bindings=static_string_bindings,
+    )
+    return next_modules, next_imports, {resolved}
+
+
+def _apply_api_key_alias_expression(
+    expression: ast.expr,
+    *,
+    module_aliases: Mapping[str, str],
+    import_module_aliases: AbstractSet[str],
+    static_string_bindings: Mapping[str, str],
+) -> tuple[dict[str, str], set[str]]:
+    next_modules, next_imports, _references = _evaluate_api_key_alias_expression(
+        expression,
+        module_aliases=module_aliases,
+        import_module_aliases=import_module_aliases,
+        static_string_bindings=static_string_bindings,
+    )
+    return next_modules, next_imports
+
+
+def _function_header_expressions(
+    node: ast.FunctionDef | ast.AsyncFunctionDef,
+) -> list[ast.expr]:
+    expressions: list[ast.expr] = list(node.decorator_list)
+    for argument in (*node.args.posonlyargs, *node.args.args, *node.args.kwonlyargs):
+        if argument.annotation is not None:
+            expressions.append(argument.annotation)
+    if node.args.vararg is not None and node.args.vararg.annotation is not None:
+        expressions.append(node.args.vararg.annotation)
+    if node.args.kwarg is not None and node.args.kwarg.annotation is not None:
+        expressions.append(node.args.kwarg.annotation)
+    expressions.extend(node.args.defaults)
+    expressions.extend(default for default in node.args.kw_defaults if default is not None)
+    if node.returns is not None:
+        expressions.append(node.returns)
+    return sorted(
+        expressions,
+        key=lambda expression: (
+            getattr(expression, "lineno", -1),
+            getattr(expression, "col_offset", -1),
+        ),
     )
 
 
@@ -1950,6 +2166,141 @@ def _scan_api_key_comprehension_scope(
     return errors
 
 
+def _apply_api_key_alias_statements(
+    statements: Sequence[ast.stmt],
+    *,
+    module_aliases: Mapping[str, str],
+    import_module_aliases: AbstractSet[str],
+    static_string_bindings: Mapping[str, str],
+) -> tuple[dict[str, str], set[str]]:
+    """Return the alias state after one deterministic statement block."""
+
+    next_modules = dict(module_aliases)
+    next_imports = set(import_module_aliases)
+
+    for statement in statements:
+        if isinstance(statement, ast.If):
+            condition_modules, condition_imports = _apply_api_key_alias_expression(
+                statement.test,
+                module_aliases=next_modules,
+                import_module_aliases=next_imports,
+                static_string_bindings=static_string_bindings,
+            )
+            body_state = _apply_api_key_alias_statements(
+                statement.body,
+                module_aliases=condition_modules,
+                import_module_aliases=condition_imports,
+                static_string_bindings=static_string_bindings,
+            )
+            else_state = _apply_api_key_alias_statements(
+                statement.orelse,
+                module_aliases=condition_modules,
+                import_module_aliases=condition_imports,
+                static_string_bindings=static_string_bindings,
+            )
+            joined_modules: dict[str, str] = {}
+            for name in set(body_state[0]) | set(else_state[0]):
+                possible = {body_state[0].get(name), else_state[0].get(name)}
+                if "legacy_app" in possible:
+                    joined_modules[name] = "legacy_app"
+                elif "importlib" in possible:
+                    joined_modules[name] = "importlib"
+            next_modules = joined_modules
+            next_imports = body_state[1] | else_state[1]
+            continue
+
+        if isinstance(statement, ast.Import):
+            for alias in statement.names:
+                local_name = alias.asname or alias.name.split(".", maxsplit=1)[0]
+                if alias.name in {"importlib", "legacy_app"}:
+                    next_modules[local_name] = alias.name
+                else:
+                    next_modules.pop(local_name, None)
+            continue
+
+        if isinstance(statement, ast.ImportFrom):
+            for alias in statement.names:
+                local_name = alias.asname or alias.name
+                if statement.module == "importlib" and alias.name == "import_module":
+                    next_imports.add(local_name)
+                else:
+                    next_imports.discard(local_name)
+            continue
+
+        if isinstance(statement, (ast.Assign, ast.AnnAssign)):
+            targets = statement.targets if isinstance(statement, ast.Assign) else [statement.target]
+            value = statement.value
+            value_references: set[str | None] = {None}
+            if value is not None:
+                (
+                    next_modules,
+                    next_imports,
+                    value_references,
+                ) = _evaluate_api_key_alias_expression(
+                    value,
+                    module_aliases=next_modules,
+                    import_module_aliases=next_imports,
+                    static_string_bindings=static_string_bindings,
+                )
+            resolved_module = _preferred_api_key_module_reference(value_references)
+            for target in targets:
+                for target_name in _assignment_target_names(target):
+                    if resolved_module in {"importlib", "legacy_app"}:
+                        next_modules[target_name] = resolved_module
+                    else:
+                        next_modules.pop(target_name, None)
+            continue
+
+        if isinstance(statement, ast.Expr):
+            next_modules, next_imports = _apply_api_key_alias_expression(
+                statement.value,
+                module_aliases=next_modules,
+                import_module_aliases=next_imports,
+                static_string_bindings=static_string_bindings,
+            )
+            continue
+
+        if isinstance(statement, (ast.AugAssign, ast.Delete)):
+            targets = (
+                [statement.target] if isinstance(statement, ast.AugAssign) else statement.targets
+            )
+            for target in targets:
+                for target_name in _assignment_target_names(target):
+                    next_modules.pop(target_name, None)
+            continue
+
+        if isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            if isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                for expression in _function_header_expressions(statement):
+                    next_modules, next_imports = _apply_api_key_alias_expression(
+                        expression,
+                        module_aliases=next_modules,
+                        import_module_aliases=next_imports,
+                        static_string_bindings=static_string_bindings,
+                    )
+            next_modules.pop(statement.name, None)
+            next_imports.discard(statement.name)
+
+    return next_modules, next_imports
+
+
+def _if_branch_node_ids(node: ast.If) -> set[int]:
+    """Return nodes handled by independent structured condition/branch scans."""
+
+    return {id(child) for child in ast.walk(node.test)} | {
+        id(child) for statement in [*node.body, *node.orelse] for child in ast.walk(statement)
+    }
+
+
+def _nested_if_node_ids(node: ast.If) -> set[int]:
+    ids: set[int] = set()
+    for statement in [*node.body, *node.orelse]:
+        if isinstance(statement, ast.If):
+            ids.add(id(statement))
+            ids.update(_nested_if_node_ids(statement))
+    return ids
+
+
 def _scan_api_key_alias_scope(
     statements: Sequence[ast.stmt],
     *,
@@ -1958,6 +2309,7 @@ def _scan_api_key_alias_scope(
     inherited_import_module_aliases: AbstractSet[str],
     inherited_closure_module_aliases: Mapping[str, str] | None = None,
     inherited_closure_import_module_aliases: AbstractSet[str] | None = None,
+    inherited_static_string_bindings: Mapping[str, str] | None = None,
     local_bindings: AbstractSet[str] = frozenset(),
 ) -> list[str]:
     errors: list[str] = []
@@ -1976,8 +2328,22 @@ def _scan_api_key_alias_scope(
     else:
         closure_import_module_aliases = set(inherited_closure_import_module_aliases)
     scope_tree = ast.Module(body=list(statements), type_ignores=[])
-    static_string_bindings = _collect_static_string_bindings(scope_tree)
+    static_string_bindings = dict(inherited_static_string_bindings or {})
+    static_string_bindings.update(_collect_static_string_bindings(scope_tree))
     scope_nodes, nested_scopes = _ordered_lexical_scope_nodes(statements)
+    all_if_nodes = [node for node in scope_nodes if isinstance(node, ast.If)]
+    nested_if_ids = {nested_id for node in all_if_nodes for nested_id in _nested_if_node_ids(node)}
+    root_if_nodes = {id(node): node for node in all_if_nodes if id(node) not in nested_if_ids}
+    structured_branch_node_ids = {
+        node_id for node in root_if_nodes.values() for node_id in _if_branch_node_ids(node)
+    }
+    structured_expression_binding_ids = {
+        id(child)
+        for node in scope_nodes
+        if isinstance(node, (ast.IfExp, ast.BoolOp))
+        for child in ast.walk(node)
+        if isinstance(child, ast.NamedExpr)
+    }
     lexical_scope_alias_snapshots: dict[
         int,
         tuple[dict[str, str], set[str]],
@@ -1992,7 +2358,53 @@ def _scan_api_key_alias_scope(
         )
 
     for node in scope_nodes:
-        if isinstance(node, ast.Import):
+        if id(node) in root_if_nodes:
+            root_if = root_if_nodes[id(node)]
+            errors.extend(
+                _scan_api_key_alias_expressions(
+                    [root_if.test],
+                    filename=filename,
+                    inherited_module_aliases=module_aliases,
+                    inherited_import_module_aliases=import_module_aliases,
+                    inherited_static_string_bindings=static_string_bindings,
+                    local_bindings=frozenset(),
+                )
+            )
+            condition_modules, condition_imports = _apply_api_key_alias_expression(
+                root_if.test,
+                module_aliases=module_aliases,
+                import_module_aliases=import_module_aliases,
+                static_string_bindings=static_string_bindings,
+            )
+            errors.extend(
+                _scan_api_key_alias_scope(
+                    root_if.body,
+                    filename=filename,
+                    inherited_module_aliases=condition_modules,
+                    inherited_import_module_aliases=condition_imports,
+                    inherited_static_string_bindings=static_string_bindings,
+                )
+            )
+            errors.extend(
+                _scan_api_key_alias_scope(
+                    root_if.orelse,
+                    filename=filename,
+                    inherited_module_aliases=condition_modules,
+                    inherited_import_module_aliases=condition_imports,
+                    inherited_static_string_bindings=static_string_bindings,
+                )
+            )
+            module_aliases, import_module_aliases = _apply_api_key_alias_statements(
+                [root_if],
+                module_aliases=module_aliases,
+                import_module_aliases=import_module_aliases,
+                static_string_bindings=static_string_bindings,
+            )
+        elif id(node) in structured_branch_node_ids:
+            continue
+        elif id(node) in structured_expression_binding_ids:
+            pass
+        elif isinstance(node, ast.Import):
             for alias in node.names:
                 local_name = alias.asname or alias.name.split(".", maxsplit=1)[0]
                 if alias.name in {"importlib", "legacy_app"}:
@@ -2020,13 +2432,32 @@ def _scan_api_key_alias_scope(
             else:
                 targets = [node.target]
                 value = node.value
-            resolved_module = module_reference(value) if value is not None else None
+            value_references: set[str | None] = {None}
+            if value is not None:
+                (
+                    module_aliases,
+                    import_module_aliases,
+                    value_references,
+                ) = _evaluate_api_key_alias_expression(
+                    value,
+                    module_aliases=module_aliases,
+                    import_module_aliases=import_module_aliases,
+                    static_string_bindings=static_string_bindings,
+                )
+            resolved_module = _preferred_api_key_module_reference(value_references)
             for target in targets:
                 for target_name in _assignment_target_names(target):
                     if resolved_module in {"importlib", "legacy_app"}:
                         module_aliases[target_name] = resolved_module
                     else:
                         module_aliases.pop(target_name, None)
+        elif isinstance(node, ast.Expr):
+            module_aliases, import_module_aliases = _apply_api_key_alias_expression(
+                node.value,
+                module_aliases=module_aliases,
+                import_module_aliases=import_module_aliases,
+                static_string_bindings=static_string_bindings,
+            )
         elif isinstance(node, (ast.AugAssign, ast.Delete)):
             targets = [node.target] if isinstance(node, ast.AugAssign) else node.targets
             for target in targets:
@@ -2055,7 +2486,29 @@ def _scan_api_key_alias_scope(
                     f"{symbol_name}"
                 )
 
-        if isinstance(node, ast.ClassDef):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            for expression in _function_header_expressions(node):
+                module_aliases, import_module_aliases = _apply_api_key_alias_expression(
+                    expression,
+                    module_aliases=module_aliases,
+                    import_module_aliases=import_module_aliases,
+                    static_string_bindings=static_string_bindings,
+                )
+            snapshot_modules = (
+                closure_module_aliases
+                if inherited_closure_module_aliases is not None
+                else module_aliases
+            )
+            snapshot_imports = (
+                closure_import_module_aliases
+                if inherited_closure_import_module_aliases is not None
+                else import_module_aliases
+            )
+            lexical_scope_alias_snapshots[id(node)] = (
+                dict(snapshot_modules),
+                set(snapshot_imports),
+            )
+        elif isinstance(node, ast.ClassDef):
             lexical_scope_alias_snapshots[id(node)] = (
                 dict(module_aliases),
                 set(import_module_aliases),
@@ -2082,17 +2535,36 @@ def _scan_api_key_alias_scope(
             module_aliases.pop(node.name, None)
             import_module_aliases.discard(node.name)
 
+    final_closure_module_aliases = (
+        closure_module_aliases if inherited_closure_module_aliases is not None else module_aliases
+    )
+    final_closure_import_module_aliases = (
+        closure_import_module_aliases
+        if inherited_closure_import_module_aliases is not None
+        else import_module_aliases
+    )
+
     for nested_scope in nested_scopes:
+        if id(nested_scope) in structured_branch_node_ids:
+            continue
         if isinstance(nested_scope, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            errors.extend(
-                _scan_api_key_alias_scope(
-                    nested_scope.body,
-                    filename=filename,
-                    inherited_module_aliases=closure_module_aliases,
-                    inherited_import_module_aliases=closure_import_module_aliases,
-                    local_bindings=_function_local_bindings(nested_scope),
+            function_states = [
+                (
+                    dict(final_closure_module_aliases),
+                    set(final_closure_import_module_aliases),
+                ),
+                lexical_scope_alias_snapshots[id(nested_scope)],
+            ]
+            for function_modules, function_imports in function_states:
+                errors.extend(
+                    _scan_api_key_alias_scope(
+                        nested_scope.body,
+                        filename=filename,
+                        inherited_module_aliases=function_modules,
+                        inherited_import_module_aliases=function_imports,
+                        local_bindings=_function_local_bindings(nested_scope),
+                    )
                 )
-            )
             continue
 
         if isinstance(nested_scope, ast.Lambda):
@@ -2100,8 +2572,8 @@ def _scan_api_key_alias_scope(
                 _scan_api_key_alias_scope(
                     [ast.Expr(value=nested_scope.body)],
                     filename=filename,
-                    inherited_module_aliases=closure_module_aliases,
-                    inherited_import_module_aliases=closure_import_module_aliases,
+                    inherited_module_aliases=final_closure_module_aliases,
+                    inherited_import_module_aliases=final_closure_import_module_aliases,
                     local_bindings=_lambda_local_bindings(nested_scope),
                 )
             )
@@ -2130,12 +2602,12 @@ def _scan_api_key_alias_scope(
                 filename=filename,
                 inherited_module_aliases=nested_module_aliases,
                 inherited_import_module_aliases=nested_import_module_aliases,
-                inherited_closure_module_aliases=closure_module_aliases,
-                inherited_closure_import_module_aliases=closure_import_module_aliases,
+                inherited_closure_module_aliases=final_closure_module_aliases,
+                inherited_closure_import_module_aliases=final_closure_import_module_aliases,
                 local_bindings=nested_local_bindings,
             )
         )
-    return errors
+    return list(dict.fromkeys(errors))
 
 
 def _app_api_key_reverse_dependency_errors(
