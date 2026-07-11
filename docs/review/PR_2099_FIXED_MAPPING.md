@@ -73,6 +73,8 @@ deletion.
   imported aliases while preserving safe unrelated mappings.
 - `bc8391d4b` - resolve reflected static attributes against known parents,
   covering dynamic imports and FastAPI construction through `__getattribute__`.
+- `8cd66638b` - resolve aliased built-in `dict` mutators before protected
+  lifecycle namespace analysis, with unrelated-state negative controls.
 
 ## Lane Start Provenance
 
@@ -149,9 +151,10 @@ deletion.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#pullrequestreview-4677331316
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3563818055
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3563829956
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3563860555
 Disposition: FIXED
 Commit: see mapping entries below
-Evidence: `1e2d4918c`, `e28fb34c3`, `31bd2d457`, `ef4a03da0`, `f16b7663b`, `056a8aaf6`, `c800c13ee`, `bf4ee059e`, `1609d8ce9`, `3663352d6`, `e2e040fa0`, `fbb5d3060`, and `bc8391d4b` contain the post-comment production, guard, regression-test, architecture, and governance fixes; the focused suite, legacy guard, MyPy, OpenAPI zero-diff, validate-changed, pre-commit, and pre-push gates pass.
+Evidence: `1e2d4918c`, `e28fb34c3`, `31bd2d457`, `ef4a03da0`, `f16b7663b`, `056a8aaf6`, `c800c13ee`, `bf4ee059e`, `1609d8ce9`, `3663352d6`, `e2e040fa0`, `fbb5d3060`, `bc8391d4b`, and `8cd66638b` contain the post-comment production, guard, regression-test, architecture, and governance fixes; the focused suite, legacy guard, MyPy, OpenAPI zero-diff, validate-changed, pre-commit, and pre-push gates pass.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3562131781 -> 1e2d4918c5b6f6cf67d11865d218bf0253728f16
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3562249863 -> e28fb34c3a0d6c044194e9cc90e81504cbb2adbf
@@ -195,6 +198,7 @@ Evidence: `1e2d4918c`, `e28fb34c3`, `31bd2d457`, `ef4a03da0`, `f16b7663b`, `056a
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#pullrequestreview-4677331316 -> fbb5d3060232e9f587d3be1a3ee6a2341ee2dae9
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3563818055 -> fbb5d3060232e9f587d3be1a3ee6a2341ee2dae9
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3563829956 -> bc8391d4b5be817f7c3d8d1560b7c05a2d05fcb3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3563860555 -> 8cd66638bf7cf60232e9662df0ac2525428936cf
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2099#discussion_r3563609195
 Disposition: NOT-A-BUG
