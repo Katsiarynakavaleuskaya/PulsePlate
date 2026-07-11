@@ -2160,7 +2160,7 @@ def _legacy_api_key_dynamic_lookup_name(
         return _resolve_static_string(node.args[0], static_string_bindings)
     if (
         isinstance(node.func, ast.Attribute)
-        and node.func.attr in {"get", "__getitem__"}
+        and node.func.attr in {"get", "__getitem__", "pop", "setdefault"}
         and is_legacy_namespace(node.func.value)
         and node.args
     ):

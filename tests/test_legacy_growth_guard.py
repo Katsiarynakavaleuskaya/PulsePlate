@@ -292,6 +292,8 @@ def test_api_key_ownership_guard_rejects_dynamic_legacy_lookup() -> None:
         ('legacy.__getattribute__("get_api_key")', "get_api_key"),
         ('legacy.__dict__.get("get_api_key")', "get_api_key"),
         ('vars(legacy).__getitem__("_get_api_key_dynamic")', "_get_api_key_dynamic"),
+        ('legacy.__dict__.pop("get_api_key", None)', "get_api_key"),
+        ('vars(legacy).setdefault("_get_api_key_dynamic", None)', "_get_api_key_dynamic"),
     ],
 )
 def test_api_key_ownership_guard_rejects_namespace_legacy_lookup(
