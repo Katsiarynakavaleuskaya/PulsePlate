@@ -289,6 +289,34 @@ def test_timeout_cancels_and_drains_start_task(
     assert events[-2:] == ["scheduler-stop", "food-dispose"]
 
 
+def test_drain_cancelled_task_cancels_a_pending_task() -> None:
+    async def _scenario() -> None:
+        task = asyncio.create_task(asyncio.Event().wait())
+        await asyncio.sleep(0)
+        await lifespan_module._drain_cancelled_task(task)
+        assert task.cancelled()
+
+    asyncio.run(_scenario())
+
+
+def test_scheduler_start_cancellation_propagates_after_drain(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _start(update_interval_hours: int = 24) -> None:
+        assert update_interval_hours == 24
+        await asyncio.Event().wait()
+
+    async def _scenario() -> None:
+        monkeypatch.setenv("FORCE_BACKGROUND_UPDATES", "true")
+        task = asyncio.create_task(lifespan_module._start_background_updates_best_effort(_start))
+        await asyncio.sleep(0)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    asyncio.run(_scenario())
+
+
 def test_body_exception_is_not_masked_by_cleanup_failures(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -333,6 +361,23 @@ def test_stop_cancellation_does_not_mask_body_exception(
     hooks = replace(_base_hooks(events), stop_background_updates=_stop)
     with pytest.raises(ValueError, match="body failed"):
         _run_lifespan(hooks, body=_body)
+
+    assert events[-2:] == ["scheduler-stop", "food-dispose"]
+
+
+def test_stop_cancellation_propagates_without_primary_exception(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("FORCE_BACKGROUND_UPDATES", "true")
+    events: list[str] = []
+
+    async def _stop() -> None:
+        events.append("scheduler-stop")
+        raise asyncio.CancelledError
+
+    hooks = replace(_base_hooks(events), stop_background_updates=_stop)
+    with pytest.raises(asyncio.CancelledError):
+        _run_lifespan(hooks)
 
     assert events[-2:] == ["scheduler-stop", "food-dispose"]
 

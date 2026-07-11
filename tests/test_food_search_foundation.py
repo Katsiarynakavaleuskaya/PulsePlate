@@ -821,6 +821,16 @@ def test_overlapping_food_search_acquisition_is_rejected_without_replacing_clien
         dispose_food_search_backend(first_app, lease)
 
 
+def test_stale_app_state_rejects_food_search_acquisition() -> None:
+    app = FastAPI()
+    app.state._food_search_lifecycle_lease = object()
+
+    with pytest.raises(RuntimeError, match="already owns"):
+        configure_food_search_backend(app)
+
+    assert food_search_module._ACTIVE_FOOD_SEARCH_LIFECYCLE is None
+
+
 def test_sequential_food_search_acquisition_uses_fresh_client(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -960,6 +970,94 @@ def test_failed_adapter_commit_closes_candidate_and_releases_reservation(
 
     client.close.assert_called_once_with()
     assert food_search_module._ACTIVE_FOOD_SEARCH_LIFECYCLE is None
+
+
+def test_failed_finalization_attempts_every_rollback_step(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    app = FastAPI()
+    client = MagicMock()
+    client.close.side_effect = RuntimeError("close failed")
+    cas_calls = 0
+
+    def _cas_then_lose_reservation(
+        _expected: food_store.FoodSearchBackend | None,
+        _replacement: food_store.FoodSearchBackend | None,
+    ) -> bool:
+        nonlocal cas_calls
+        cas_calls += 1
+        if cas_calls == 1:
+            food_search_module._ACTIVE_FOOD_SEARCH_LIFECYCLE = None
+            return True
+        raise RuntimeError("adapter rollback failed")
+
+    monkeypatch.setenv("FOOD_SEARCH_BACKEND_STRATEGY", "meili")
+    monkeypatch.setenv("MEILI_URL", "http://127.0.0.1:7700")
+    monkeypatch.setattr(food_search_module, "_build_meili_http_client", lambda: client)
+    monkeypatch.setattr(
+        food_store,
+        "compare_and_swap_strategy_search_backend_adapter",
+        _cas_then_lose_reservation,
+    )
+    monkeypatch.setattr(
+        food_search_module,
+        "_clear_owned_app_state",
+        lambda _app, _lease: (_ for _ in ()).throw(RuntimeError("state cleanup failed")),
+    )
+
+    with caplog.at_level(logging.WARNING, logger="app.bootstrap.food_search"):
+        with pytest.raises(RuntimeError, match="reservation was lost"):
+            configure_food_search_backend(app)
+
+    assert cas_calls == 2
+    assert "rollback adapter reset failed" in caplog.text
+    assert "rollback app-state cleanup failed" in caplog.text
+    assert "rollback close failed" in caplog.text
+    assert food_search_module._ACTIVE_FOOD_SEARCH_LIFECYCLE is None
+
+
+def test_dispose_warns_when_adapter_ownership_changed(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    app = FastAPI()
+    monkeypatch.setenv("FOOD_SEARCH_BACKEND_STRATEGY", "baseline_fts")
+    lease = configure_food_search_backend(app)
+    monkeypatch.setattr(
+        food_store,
+        "compare_and_swap_strategy_search_backend_adapter",
+        lambda _expected, _replacement: False,
+    )
+
+    with caplog.at_level(logging.WARNING, logger="app.bootstrap.food_search"):
+        dispose_food_search_backend(app, lease)
+
+    assert "adapter ownership changed before shutdown" in caplog.text
+
+
+def test_releasing_food_search_lifecycle_is_idempotent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = FastAPI()
+    monkeypatch.setenv("FOOD_SEARCH_BACKEND_STRATEGY", "baseline_fts")
+    lease = configure_food_search_backend(app)
+    active = food_search_module._ACTIVE_FOOD_SEARCH_LIFECYCLE
+    assert active is not None
+    active.phase = food_search_module._FoodSearchLifecyclePhase.RELEASING
+
+    dispose_food_search_backend(app, lease)
+    assert food_search_module._ACTIVE_FOOD_SEARCH_LIFECYCLE is active
+
+    active.phase = food_search_module._FoodSearchLifecyclePhase.ACTIVE
+    dispose_food_search_backend(app, lease)
+
+
+def test_strategy_adapter_compare_and_swap_rejects_stale_owner() -> None:
+    food_store.reset_strategy_search_backend_adapter()
+    stale_owner = MagicMock()
+
+    assert food_store.compare_and_swap_strategy_search_backend_adapter(stale_owner, None) is False
 
 
 def test_stale_disposal_cannot_change_newer_owner(
