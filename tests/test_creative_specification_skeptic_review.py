@@ -8,6 +8,7 @@ from pathlib import Path
 import re
 import shutil
 from typing import Any
+import uuid
 
 import pytest
 
@@ -682,6 +683,92 @@ def test_entry_scan_fails_closed_when_child_disappears_after_listing(
     finally:
         shutil.rmtree(output_dir, ignore_errors=True)
         shutil.rmtree(input_dir, ignore_errors=True)
+
+
+def test_reviewed_run_creation_pins_parent_across_path_swap(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    bridge_dir = review_cli.SPEC_BRIDGE_ROOT / f"pytest-{uuid.uuid4().hex}"
+    detached = bridge_dir.with_name(f"{bridge_dir.name}-detached")
+    outside = tmp_path / "outside"
+    reviewed = bridge_dir / review_contract.REVIEWED_RUN_DIRNAME
+    real_open_parent = review_cli.creative_code_spec_pipeline._open_pinned_parent
+    swapped = False
+    parent_fd = -1
+    reviewed_fd = -1
+    try:
+        bridge_dir.mkdir(parents=True)
+        outside.mkdir()
+
+        def swap_after_parent_open(*args: Any, **kwargs: Any) -> tuple[int, str, Path]:
+            nonlocal swapped
+            result = real_open_parent(*args, **kwargs)
+            if not swapped:
+                swapped = True
+                bridge_dir.rename(detached)
+                bridge_dir.symlink_to(outside, target_is_directory=True)
+            return result
+
+        monkeypatch.setattr(
+            review_cli.creative_code_spec_pipeline,
+            "_open_pinned_parent",
+            swap_after_parent_open,
+        )
+        parent_fd, reviewed_fd, identity = review_cli._create_pinned_reviewed_run(reviewed)
+        assert swapped
+        assert (detached / review_contract.REVIEWED_RUN_DIRNAME).is_dir()
+        assert not (outside / review_contract.REVIEWED_RUN_DIRNAME).exists()
+        review_cli._remove_pinned_reviewed_run(
+            parent_fd,
+            reviewed_fd,
+            name=review_contract.REVIEWED_RUN_DIRNAME,
+            expected_identity=identity,
+        )
+        assert not (detached / review_contract.REVIEWED_RUN_DIRNAME).exists()
+    finally:
+        review_cli.creative_code_spec_pipeline._close_descriptors(reviewed_fd, parent_fd)
+        if bridge_dir.is_symlink():
+            bridge_dir.unlink()
+        shutil.rmtree(detached, ignore_errors=True)
+        shutil.rmtree(bridge_dir, ignore_errors=True)
+
+
+def test_reviewed_run_cleanup_pins_original_parent_across_path_swap(
+    tmp_path: Path,
+) -> None:
+    bridge_dir = review_cli.SPEC_BRIDGE_ROOT / f"pytest-{uuid.uuid4().hex}"
+    detached = bridge_dir.with_name(f"{bridge_dir.name}-detached")
+    outside = tmp_path / "outside"
+    reviewed = bridge_dir / review_contract.REVIEWED_RUN_DIRNAME
+    parent_fd = -1
+    reviewed_fd = -1
+    try:
+        bridge_dir.mkdir(parents=True)
+        outside.mkdir()
+        parent_fd, reviewed_fd, identity = review_cli._create_pinned_reviewed_run(reviewed)
+        bridge_dir.rename(detached)
+        bridge_dir.symlink_to(outside, target_is_directory=True)
+        outside_reviewed = outside / review_contract.REVIEWED_RUN_DIRNAME
+        outside_reviewed.mkdir()
+        sentinel = outside_reviewed / "sentinel.json"
+        sentinel.write_text("{}", encoding="utf-8")
+
+        review_cli._remove_pinned_reviewed_run(
+            parent_fd,
+            reviewed_fd,
+            name=review_contract.REVIEWED_RUN_DIRNAME,
+            expected_identity=identity,
+        )
+
+        assert not (detached / review_contract.REVIEWED_RUN_DIRNAME).exists()
+        assert sentinel.read_text(encoding="utf-8") == "{}"
+    finally:
+        review_cli.creative_code_spec_pipeline._close_descriptors(reviewed_fd, parent_fd)
+        if bridge_dir.is_symlink():
+            bridge_dir.unlink()
+        shutil.rmtree(detached, ignore_errors=True)
+        shutil.rmtree(bridge_dir, ignore_errors=True)
 
 
 def test_validate_rejects_reviewed_child_symlink_before_read(

@@ -6,7 +6,6 @@ from __future__ import annotations
 import argparse
 import os
 from pathlib import Path
-import shutil
 import stat
 import sys
 from typing import Any, Mapping, Sequence, cast
@@ -535,6 +534,75 @@ def _reviewed_run_dir(bridge_dir: Path) -> Path:
     return Path(candidate)
 
 
+DirectoryIdentity = tuple[int, int]
+
+
+def _create_pinned_reviewed_run(path: Path) -> tuple[int, int, DirectoryIdentity]:
+    parent_fd = -1
+    reviewed_fd = -1
+    try:
+        parent_fd, name, _candidate = creative_code_spec_pipeline._open_pinned_parent(
+            path,
+            allowed_root=creative_code_spec_pipeline.ARTIFACT_ROOT,
+            create=False,
+            label="reviewed finalize run",
+        )
+        try:
+            os.mkdir(name, mode=0o700, dir_fd=parent_fd)
+        except FileExistsError as exc:
+            raise CreativeSpecificationSkepticReviewCliError(
+                "reviewed finalize run already exists; remove the local sibling artifact to rerun."
+            ) from exc
+        reviewed_fd = os.open(
+            name,
+            creative_code_spec_pipeline._directory_flags(),
+            dir_fd=parent_fd,
+        )
+        info = os.fstat(reviewed_fd)
+        result = (parent_fd, reviewed_fd, (info.st_dev, info.st_ino))
+        parent_fd = -1
+        reviewed_fd = -1
+        return result
+    except CreativeSpecificationSkepticReviewCliError:
+        raise
+    except creative_code_spec_pipeline.CreativeCodeSpecPipelineError as exc:
+        raise CreativeSpecificationSkepticReviewCliError(
+            "reviewed finalize run parent could not be opened safely."
+        ) from exc
+    except (OSError, NotImplementedError) as exc:
+        raise CreativeSpecificationSkepticReviewCliError(
+            "reviewed finalize run could not be created safely."
+        ) from exc
+    finally:
+        close_error = creative_code_spec_pipeline._close_descriptors(reviewed_fd, parent_fd)
+        if sys.exc_info()[1] is None and close_error is not None:
+            raise CreativeSpecificationSkepticReviewCliError(
+                "reviewed finalize run descriptors could not be closed safely."
+            ) from close_error
+
+
+def _remove_pinned_reviewed_run(
+    parent_fd: int,
+    reviewed_fd: int,
+    *,
+    name: str,
+    expected_identity: DirectoryIdentity,
+) -> None:
+    current = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+    if not stat.S_ISDIR(current.st_mode) or (current.st_dev, current.st_ino) != expected_identity:
+        raise CreativeSpecificationSkepticReviewCliError(
+            "reviewed finalize run cleanup identity changed."
+        )
+    for child_name in os.listdir(reviewed_fd):
+        child = os.stat(child_name, dir_fd=reviewed_fd, follow_symlinks=False)
+        if not stat.S_ISREG(child.st_mode):
+            raise CreativeSpecificationSkepticReviewCliError(
+                "reviewed finalize run cleanup found a non-file child."
+            )
+        os.unlink(child_name, dir_fd=reviewed_fd)
+    os.rmdir(name, dir_fd=parent_fd)
+
+
 def _attach_from_bridge(bridge_path: Path, reviews_path: Path) -> dict[str, Any]:
     prepared = _read_prepared_bridge(bridge_path)
     review_input_path = _resolve_repo_json_file(reviews_path, label="skeptic review input")
@@ -564,11 +632,7 @@ def _attach_from_bridge(bridge_path: Path, reviews_path: Path) -> dict[str, Any]
         variants=variants,
     )
     reviewed_dir = _reviewed_run_dir(cast(Path, prepared["bridge_dir"]))
-    if reviewed_dir.exists() or reviewed_dir.is_symlink():
-        raise CreativeSpecificationSkepticReviewCliError(
-            "reviewed finalize run already exists; remove the local sibling artifact to rerun."
-        )
-    reviewed_dir.mkdir(parents=True, exist_ok=False)
+    reviewed_parent_fd, reviewed_fd, reviewed_identity = _create_pinned_reviewed_run(reviewed_dir)
     try:
         reviewed_source_packet = reviewed_dir / "source_packet.json"
         reviewed_variants = reviewed_dir / "variants.json"
@@ -625,9 +689,36 @@ def _attach_from_bridge(bridge_path: Path, reviews_path: Path) -> dict[str, Any]
         _write_json_atomic(reviewed_reviews, normalized_reviews)
         _write_json_atomic(reviewed_context_pack, cast(dict[str, Any], prepared["context_pack"]))
         _write_json_atomic(attachment_path, attachment)
-    except Exception:
-        shutil.rmtree(reviewed_dir, ignore_errors=True)
+    except Exception as primary_error:
+        cleanup_error: Exception | None = None
+        try:
+            _remove_pinned_reviewed_run(
+                reviewed_parent_fd,
+                reviewed_fd,
+                name=reviewed_dir.name,
+                expected_identity=reviewed_identity,
+            )
+        except Exception as exc:
+            cleanup_error = exc
+        finally:
+            close_error = creative_code_spec_pipeline._close_descriptors(
+                reviewed_fd,
+                reviewed_parent_fd,
+            )
+            cleanup_error = cleanup_error or close_error
+        if cleanup_error is not None:
+            raise CreativeSpecificationSkepticReviewCliError(
+                f"{primary_error}; cleanup_diagnostic={cleanup_error}"
+            ) from primary_error
         raise
+    close_error = creative_code_spec_pipeline._close_descriptors(
+        reviewed_fd,
+        reviewed_parent_fd,
+    )
+    if close_error is not None:
+        raise CreativeSpecificationSkepticReviewCliError(
+            "reviewed finalize run descriptors could not be closed safely."
+        ) from close_error
     return attachment
 
 
