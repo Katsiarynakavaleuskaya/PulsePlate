@@ -77,6 +77,7 @@ def _dependency_calls_by_identity(route: object) -> tuple[object, ...]:
 
 
 def test_api_key_dependencies_have_one_canonical_owner_and_exact_aliases() -> None:
+    assert app_package.api_key_header is canonical_api_key.api_key_header
     assert canonical_api_key.get_api_key.__module__ == "app.routers.api_key"
     assert canonical_api_key._get_api_key_dynamic.__module__ == "app.routers.api_key"
     assert app_package.get_api_key is canonical_api_key.get_api_key

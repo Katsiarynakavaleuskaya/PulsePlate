@@ -243,6 +243,22 @@ def test_api_key_ownership_guard_rejects_reverse_import(symbol: str) -> None:
     ]
 
 
+def test_api_key_ownership_guard_rejects_legacy_star_import() -> None:
+    legacy_source = (
+        "from app.routers.api_key import (\n"
+        "    _get_api_key_dynamic as _get_api_key_dynamic,\n"
+        "    get_api_key as get_api_key,\n"
+        ")\n"
+    )
+
+    errors = legacy_guard.validate_api_key_dependency_ownership(
+        legacy_source,
+        _app_sources({"app/main.py": "from legacy_app import *\n"}),
+    )
+
+    assert errors == ["app/main.py: canonical code must not star import legacy_app"]
+
+
 def test_api_key_ownership_guard_rejects_dynamic_legacy_lookup() -> None:
     legacy_source = (
         "from app.routers.api_key import (\n"
@@ -404,6 +420,30 @@ def test_api_key_ownership_guard_rejects_dynamic_import_legacy_lookup(source: st
     expected_symbol = "_get_api_key_dynamic" if "_get_api_key_dynamic" in source else "get_api_key"
     assert errors == [
         f"app/main.py: dynamic legacy API-key dependency lookup is forbidden: {expected_symbol}"
+    ]
+
+
+def test_api_key_ownership_guard_tracks_assigned_import_module_alias() -> None:
+    legacy_source = (
+        "from app.routers.api_key import (\n"
+        "    _get_api_key_dynamic as _get_api_key_dynamic,\n"
+        "    get_api_key as get_api_key,\n"
+        ")\n"
+    )
+    app_source = (
+        "import importlib\n"
+        "load = importlib.import_module\n"
+        'legacy = load("legacy_app")\n'
+        "dependency = legacy.get_api_key\n"
+    )
+
+    errors = legacy_guard.validate_api_key_dependency_ownership(
+        legacy_source,
+        _app_sources({"app/main.py": app_source}),
+    )
+
+    assert errors == [
+        "app/main.py: legacy API-key dependency attribute access is forbidden: get_api_key"
     ]
 
 

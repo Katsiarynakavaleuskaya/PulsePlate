@@ -2299,6 +2299,10 @@ def _apply_api_key_alias_statements(
             resolved_module = _preferred_api_key_module_reference(value_references)
             for target in targets:
                 for target_name in _assignment_target_names(target):
+                    if "importlib.import_module" in value_references:
+                        next_imports.add(target_name)
+                    else:
+                        next_imports.discard(target_name)
                     if resolved_module in {"importlib", "legacy_app"}:
                         next_modules[target_name] = resolved_module
                     else:
@@ -2473,6 +2477,8 @@ def _scan_api_key_alias_scope(
         elif isinstance(node, ast.ImportFrom):
             for alias in node.names:
                 local_name = alias.asname or alias.name
+                if node.module == "legacy_app" and alias.name == "*":
+                    errors.append(f"{filename}: canonical code must not star import legacy_app")
                 if node.module == "importlib" and alias.name == "import_module":
                     import_module_aliases.add(local_name)
                 else:
@@ -2506,6 +2512,10 @@ def _scan_api_key_alias_scope(
             resolved_module = _preferred_api_key_module_reference(value_references)
             for target in targets:
                 for target_name in _assignment_target_names(target):
+                    if "importlib.import_module" in value_references:
+                        import_module_aliases.add(target_name)
+                    else:
+                        import_module_aliases.discard(target_name)
                     if resolved_module in {"importlib", "legacy_app"}:
                         module_aliases[target_name] = resolved_module
                     else:
