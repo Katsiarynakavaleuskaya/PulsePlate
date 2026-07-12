@@ -171,12 +171,7 @@ Reason: Sourcery's three high-level comments are maintainability suggestions, no
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#pullrequestreview-4679599924 -> f9f92ae91bd5c499a60b26840fe89486adabddf9
 Disposition: FIXED
 Commit: f9f92ae91bd5c499a60b26840fe89486adabddf9
-Evidence: The post-review commit closes nested irrefutable-match, implicit
-`__builtins__`, and literal loop-target gaps, plus every bounded starred,
-builtins-namespace, and static-dict variant surfaced by the ordered QA,
-bug-hunter, and security-auditor reroutes. The complete 527-test legacy-growth
-suite, focused MyPy/Ruff, guard CLI, OpenAPI parity, `make validate-changed`,
-and full pre-commit pass on the repaired diff.
+Evidence: The post-review commit closes nested irrefutable-match, implicit `__builtins__`, and literal loop-target gaps, plus every bounded starred, builtins-namespace, and static-dict variant surfaced by the ordered QA, bug-hunter, and security-auditor reroutes; the complete 527-test legacy-growth suite, focused MyPy/Ruff, guard CLI, OpenAPI parity, `make validate-changed`, and full pre-commit pass on the repaired diff.
 
 ## Codex Security Diff Scan
 
