@@ -12,7 +12,7 @@ or dependency lockfiles.
 
 ## Protected Contract
 
-Evidence anchor: `scripts/ci/check_private_python_proxy_health.py:759` defines
+Evidence anchor: `scripts/ci/check_private_python_proxy_health.py:792` defines
 the default representative project set, and
 `tests/test_private_python_proxy_workflow_contract.py:62` validates the CI
 health job command contract.
@@ -34,11 +34,12 @@ health job command contract.
 - HTTP 200 is not enough. Representative pages must include exact versions from
   the pinned requirements files, including the CI-lite, test-only, and dev-tool
   pins used by `ci-test`, lint, and pre-commit jobs.
-- When the checker receives an explicit project list, exact-pin conflict
-  detection is scoped to those probed projects. This lets the CI gate include
-  `requirements-dev.txt` without failing on unrelated cross-profile transitive
-  drift, while still failing closed when a probed package has conflicting exact
-  pins.
+- The representative health gate scopes exact-pin conflict detection to probed
+  projects via `parse_exact_pins_for_projects(...)`. This lets the CI gate
+  include `requirements-dev.txt` without failing on unrelated cross-profile
+  transitive drift, while still failing closed when a probed package has
+  conflicting exact pins. The general `parse_exact_pins(...)` helper remains a
+  strict all-package conflict detector.
 
 ## Failure Classes
 
