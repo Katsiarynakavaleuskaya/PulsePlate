@@ -23,19 +23,19 @@ guards, exact advisory evidence, fail-closed rollback, and no upload authority.
 ## Fixed in Commit Mapping
 
 Disposition: FIXED
-Commit: 324670760
+Commit: 32467076086e530ab7bdcc25daadc3eeb4aedf65
 Evidence: `docs/security/CVE-2026-54171-excon-fastlane.md` now carries exact `file:line` anchors; `docs/security/CVE-2026-54297-faraday-fastlane.md` points to current Faraday/Fastlane lock lines; Phase1 docs gates pass.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/commit/324670760 -> 324670760
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/commit/32467076086e530ab7bdcc25daadc3eeb4aedf65 -> 32467076086e530ab7bdcc25daadc3eeb4aedf65
 
 Disposition: FIXED
-Commit: 734146124
+Commit: 73414612434a641bf6fab7f926862af588bb90a4
 Evidence: `docs/security/CVE-2026-54171-excon-fastlane.md` explains the Excon `RedirectFollower` cross-target sensitive-header disclosure and the `1.5.0` fix; Phase1 docs gates pass.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/commit/734146124 -> 734146124
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/commit/73414612434a641bf6fab7f926862af588bb90a4 -> 73414612434a641bf6fab7f926862af588bb90a4
 
 Disposition: FIXED
-Commit: a4886cd6d
+Commit: a4886cd6dca73e97cee0019677195e80d9a3fd67
 Evidence: The Excon floor now reuses the repository's prerelease-aware version comparator and covers shortened and prerelease versions; the Faraday evidence separates the resolver command from resulting lock entries; focused tests and docs gates pass.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2108#pullrequestreview-4680869413 -> a4886cd6d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2108#pullrequestreview-4680869413 -> a4886cd6dca73e97cee0019677195e80d9a3fd67
 
 Disposition: NOT-A-BUG
 Evidence: PR #2108 adds no production functions: its executable changes are deterministic test guards, while the remaining surfaces are dependency manifests and documentation. The CodeRabbit docstring warning is therefore not a missing production-docstring defect. Sourcery emitted no code finding because its external weekly quota was exhausted; the mandatory repo role chain, Codex Security, and PulsePlate PR review remain the reviewed evidence sources.
@@ -48,13 +48,13 @@ Reason: A zero-percent docstring metric over a manifest/docs/test-only diff is n
 ### QA Engineer Agent
 
 Disposition: FIXED
-Commit: 324670760
+Commit: 32467076086e530ab7bdcc25daadc3eeb4aedf65
 Evidence: QA reproduced the docs Phase1 failure for missing anchors and a stale Faraday line; the focused docs gate and 25 dependency/toolchain tests pass after the fix.
 
 ### Bug Hunter
 
 Disposition: FIXED
-Commit: 734146124
+Commit: 73414612434a641bf6fab7f926862af588bb90a4
 Evidence: Bug-hunter identified the missing advisory-specific impact; the CVE evidence now names `RedirectFollower`, cross-target header leakage, confidentiality impact, and patched version.
 
 ### Security Auditor
@@ -72,7 +72,7 @@ Reason: No candidate survived the dependency-focused discovery and threat-model 
 ### PulsePlate PR Review
 
 Disposition: FIXED
-Commit: this mapping commit
+Commit: a2ed93df85e3db3ec3ed3809bac0bc5a03916b24
 Evidence: Dry-run review emitted only the expected missing fixed-mapping artifact warnings. This canonical artifact closes that governance gap; no correctness, security, or release finding was emitted.
 
 ## Experiment Runner Evidence
