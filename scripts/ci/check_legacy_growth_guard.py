@@ -1607,33 +1607,49 @@ def validate_api_key_dependency_ownership(
             )
 
         rebound_names: set[str] = set()
+
+        class _TopLevelBindingVisitor(ast.NodeVisitor):
+            def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+                return
+
+            def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+                return
+
+            def visit_ClassDef(self, node: ast.ClassDef) -> None:
+                rebound_names.add(node.name)
+
+            def visit_Lambda(self, node: ast.Lambda) -> None:
+                return
+
+            def visit_Name(self, node: ast.Name) -> None:
+                if isinstance(node.ctx, ast.Store):
+                    rebound_names.add(node.id)
+
+            def visit_Import(self, node: ast.Import) -> None:
+                for alias in node.names:
+                    rebound_names.add(alias.asname or alias.name.split(".", maxsplit=1)[0])
+
+            def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
+                for alias in node.names:
+                    bound_name = alias.asname or alias.name
+                    if (
+                        node.module == "app.routers.api_key"
+                        and alias.name in CANONICAL_API_KEY_SYMBOLS
+                        and bound_name == alias.name
+                    ):
+                        continue
+                    if alias.name != "*":
+                        rebound_names.add(bound_name)
+
+            def visit_ExceptHandler(self, node: ast.ExceptHandler) -> None:
+                if node.name is not None:
+                    rebound_names.add(node.name)
+                for statement in node.body:
+                    self.visit(statement)
+
+        binding_visitor = _TopLevelBindingVisitor()
         for statement in legacy_tree.body:
-            if isinstance(statement, ast.Assign):
-                for target in statement.targets:
-                    rebound_names.update(_assignment_target_names(target))
-            elif isinstance(statement, ast.AnnAssign):
-                rebound_names.update(_assignment_target_names(statement.target))
-            elif isinstance(statement, ast.AugAssign):
-                rebound_names.update(_assignment_target_names(statement.target))
-            else:
-
-                class _TopLevelNamedExprVisitor(ast.NodeVisitor):
-                    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
-                        return
-
-                    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
-                        return
-
-                    def visit_ClassDef(self, node: ast.ClassDef) -> None:
-                        return
-
-                    def visit_Lambda(self, node: ast.Lambda) -> None:
-                        return
-
-                    def visit_NamedExpr(self, node: ast.NamedExpr) -> None:
-                        rebound_names.update(_assignment_target_names(node.target))
-
-                _TopLevelNamedExprVisitor().visit(statement)
+            binding_visitor.visit(statement)
         for name in sorted(rebound_names & CANONICAL_API_KEY_SYMBOLS):
             errors.append(
                 f"{LEGACY_APP}: canonical API-key compatibility re-export must not be "
@@ -1754,7 +1770,11 @@ def validate_api_key_dependency_ownership(
         for node in ast.walk(tree):
             if isinstance(node, ast.ImportFrom) and node.module == "legacy_app":
                 for alias in node.names:
-                    if alias.name in CANONICAL_API_KEY_SYMBOLS:
+                    if alias.name == "*":
+                        errors.append(
+                            f"{filename}: canonical code must not use a legacy_app star import"
+                        )
+                    elif alias.name in CANONICAL_API_KEY_SYMBOLS:
                         errors.append(
                             f"{filename}: canonical code must import API-key dependency "
                             f"from {CANONICAL_API_KEY}, not legacy_app: {alias.name}"
