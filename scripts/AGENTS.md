@@ -11,6 +11,18 @@
 - Prefer small, focused edits; update any dependent docs or Make targets if needed.
 - Avoid adding network calls to scripts used in CI unless explicitly required.
 
+### Bounded architecture guards
+
+- Architecture AST guards must remain syntactic and bounded. Do not add general
+  control-flow, data-flow, container-state, closure, pattern-matching,
+  descriptor, or interpreter-like evaluation for hypothetical equivalent
+  syntax.
+- A new syntax detector requires an actual production or realistic accidental
+  regression, an explicit threat-model fit, bounded false-positive behavior,
+  and focused positive and negative tests.
+- Adversarial source analysis belongs in a dedicated CodeQL, Semgrep, or other
+  security-tool PR with its own threat model and performance budget.
+
 ## Governed Experimentation Runner
 
 - Canonical entrypoints for the experimentation lane are `scripts/orchestration/experiment_bootstrap.py` and `scripts/orchestration/experiment_runner.py`.

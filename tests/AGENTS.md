@@ -541,6 +541,9 @@ If tempted to:
   stale `from ... import ...` callables across a coordinated module purge.
 - Warning and error-hygiene tests must prove concurrency safety and absence of
   credential-like exception text in logs.
+- Do not grow architecture-guard tests by enumerating intentionally obfuscated
+  language constructions outside the documented threat model. Prefer runtime
+  callable-identity and behavior tests for production security contracts.
 
 - Do NOT use `importlib.util.spec_from_file_location`,
   `module_from_spec`, or `exec_module` in tests

@@ -91,6 +91,20 @@ closed with repo-relative diagnostics.
 The guard does not authorize runtime behavior. It only prevents unreviewed seam
 growth while later extraction PRs move routes behind canonical routers.
 
+## Static Guard Threat Model
+
+The legacy growth guard is an architectural regression detector for trusted,
+reviewed repository source. It detects explicit ownership violations, direct
+reverse imports and lookups, and bounded ordinary alias forms.
+
+It is not a Python sandbox, abstract interpreter, or proof against intentionally
+obfuscated source. Descriptor, metaclass, closure, arbitrary container or data-flow,
+`eval` / `exec`, and equivalent reflective constructions remain subject to human
+review and repository security tooling.
+
+Runtime contract tests, callable-identity tests, code review, targeted security
+review, and current-head CI remain authoritative.
+
 ## Exit Criteria
 
 Retire this seam only when all are true:
