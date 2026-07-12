@@ -37,6 +37,12 @@ Commit: a4886cd6dca73e97cee0019677195e80d9a3fd67
 Evidence: The Excon floor now reuses the repository's prerelease-aware version comparator and covers shortened and prerelease versions; the Faraday evidence separates the resolver command from resulting lock entries; focused tests and docs gates pass.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2108#pullrequestreview-4680869413 -> a4886cd6dca73e97cee0019677195e80d9a3fd67
 
+Disposition: FIXED
+Commit: e62d43f081961bc7a5fd339de09935054c4e2d21
+Evidence: Every FIXED proof now uses the complete 40-character fixing commit SHA, including post-open role evidence and the mapping-artifact proof; the Phase2 parser passes.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2108#discussion_r3567248327 -> e62d43f081961bc7a5fd339de09935054c4e2d21
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2108#pullrequestreview-4680894098 -> e62d43f081961bc7a5fd339de09935054c4e2d21
+
 Disposition: NOT-A-BUG
 Evidence: PR #2108 adds no production functions: its executable changes are deterministic test guards, while the remaining surfaces are dependency manifests and documentation. The CodeRabbit docstring warning is therefore not a missing production-docstring defect. Sourcery emitted no code finding because its external weekly quota was exhausted; the mandatory repo role chain, Codex Security, and PulsePlate PR review remain the reviewed evidence sources.
 Reason: A zero-percent docstring metric over a manifest/docs/test-only diff is not an actionable product defect, and an external review-quota message contains no code finding to fix.
