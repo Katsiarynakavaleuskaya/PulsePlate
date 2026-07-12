@@ -563,6 +563,42 @@ def _reject_unexpected_entries(
             ) from close_error
 
 
+def _adaptive_retained_lineage_snapshot(
+    *,
+    parent_fd: int,
+    bridge_name: str,
+    bridge_fd: int,
+    canonical_fd: int,
+    retained_fd: int,
+    retained_name: str,
+) -> tuple[
+    DirectoryIdentity,
+    DirectoryIdentity,
+    DirectoryIdentity,
+    tuple[str, ...],
+    tuple[str, ...],
+    tuple[str, ...],
+]:
+    bridge_path = os.stat(bridge_name, dir_fd=parent_fd, follow_symlinks=False)
+    canonical_path = os.stat(REVIEWED_RUN_DIRNAME, dir_fd=bridge_fd, follow_symlinks=False)
+    retained_path = os.stat(retained_name, dir_fd=bridge_fd, follow_symlinks=False)
+    for info, label in (
+        (bridge_path, "adaptive resume bridge directory"),
+        (canonical_path, "adaptive canonical reviewed run"),
+        (retained_path, "adaptive retained pre-finalize run"),
+    ):
+        if not stat.S_ISDIR(info.st_mode):
+            raise CreativeSpecificationSkepticReviewCliError(f"{label} must remain a directory.")
+    return (
+        (bridge_path.st_dev, bridge_path.st_ino),
+        (canonical_path.st_dev, canonical_path.st_ino),
+        (retained_path.st_dev, retained_path.st_ino),
+        tuple(sorted(os.listdir(bridge_fd))),
+        tuple(sorted(os.listdir(canonical_fd))),
+        tuple(sorted(os.listdir(retained_fd))),
+    )
+
+
 def _validate_adaptive_retained_pre_finalize_run(bridge_dir: Path) -> None:
     parent_fd = -1
     bridge_fd = -1
@@ -612,6 +648,22 @@ def _validate_adaptive_retained_pre_finalize_run(bridge_dir: Path) -> None:
         canonical_identity = (canonical_info.st_dev, canonical_info.st_ino)
         retained_info = os.fstat(retained_fd)
         retained_identity = (retained_info.st_dev, retained_info.st_ino)
+        expected_lineage_snapshot = _adaptive_retained_lineage_snapshot(
+            parent_fd=parent_fd,
+            bridge_name=name,
+            bridge_fd=bridge_fd,
+            canonical_fd=canonical_fd,
+            retained_fd=retained_fd,
+            retained_name=retained_names[0],
+        )
+        if expected_lineage_snapshot[:3] != (
+            bridge_identity,
+            canonical_identity,
+            retained_identity,
+        ):
+            raise CreativeSpecificationSkepticReviewCliError(
+                "adaptive retained pre-finalize lineage changed during pinning."
+            )
         if set(os.listdir(retained_fd)) != expected_names:
             raise CreativeSpecificationSkepticReviewCliError(
                 "adaptive retained pre-finalize run must contain the exact five input artifacts."
@@ -637,24 +689,20 @@ def _validate_adaptive_retained_pre_finalize_run(bridge_dir: Path) -> None:
             raise CreativeSpecificationSkepticReviewCliError(
                 "adaptive retained pre-finalize evidence changed during validation."
             )
-        _assert_parent_entry_identity(
-            bridge_fd,
-            name=REVIEWED_RUN_DIRNAME,
-            expected_identity=canonical_identity,
-            label="adaptive canonical reviewed run",
-        )
-        _assert_parent_entry_identity(
-            bridge_fd,
-            name=retained_names[0],
-            expected_identity=retained_identity,
-            label="adaptive retained pre-finalize run",
-        )
-        _assert_parent_entry_identity(
-            parent_fd,
-            name=name,
-            expected_identity=bridge_identity,
-            label="adaptive resume bridge directory",
-        )
+        if (
+            _adaptive_retained_lineage_snapshot(
+                parent_fd=parent_fd,
+                bridge_name=name,
+                bridge_fd=bridge_fd,
+                canonical_fd=canonical_fd,
+                retained_fd=retained_fd,
+                retained_name=retained_names[0],
+            )
+            != expected_lineage_snapshot
+        ):
+            raise CreativeSpecificationSkepticReviewCliError(
+                "adaptive retained pre-finalize lineage changed during validation."
+            )
     except FileNotFoundError as exc:
         raise CreativeSpecificationSkepticReviewCliError(
             "adaptive retained pre-finalize evidence is incomplete."

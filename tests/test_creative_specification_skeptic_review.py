@@ -461,7 +461,7 @@ def test_attach_validate_finalize_preserves_original_spec_prepare(
             context.setattr(review_cli, "_read_json_at", swap_retained_after_pinned_reads)
             with pytest.raises(
                 review_cli.CreativeSpecificationSkepticReviewCliError,
-                match="adaptive retained pre-finalize run identity changed",
+                match="adaptive retained pre-finalize lineage changed during validation",
             ):
                 review_cli._validate_adaptive_retained_pre_finalize_run(output_dir)
         assert pinned_reads == 10
