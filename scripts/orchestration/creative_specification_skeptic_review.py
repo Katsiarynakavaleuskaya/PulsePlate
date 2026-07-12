@@ -183,7 +183,7 @@ def _read_json_file(path: Path) -> Any:
         )
     except CreativeSpecificationSkepticReviewCliError:
         raise
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, RecursionError) as exc:
         raise CreativeSpecificationSkepticReviewCliError("Unable to read JSON artifact.") from exc
 
 
@@ -770,7 +770,7 @@ def _attach_from_bridge(bridge_path: Path, reviews_path: Path) -> dict[str, Any]
             label="reviewed attach",
         )
         if reviewed_dir.exists() or reviewed_dir.is_symlink():
-            existing, _existing_dir = _validate_attachment_artifacts(
+            existing, _existing_dir, _existing_bundle = _validate_attachment_artifacts(
                 reviewed_dir / ATTACHMENT_FILENAME
             )
             if fingerprint_payload(existing) != fingerprint_payload(attachment):
@@ -825,7 +825,7 @@ def _attach_from_bridge(bridge_path: Path, reviews_path: Path) -> dict[str, Any]
             except CreativeSpecificationSkepticReviewCliError as exc:
                 if str(exc) != "reviewed attach collision.":
                     raise
-                existing, _existing_dir = _validate_attachment_artifacts(
+                existing, _existing_dir, _existing_bundle = _validate_attachment_artifacts(
                     reviewed_dir / ATTACHMENT_FILENAME
                 )
                 if fingerprint_payload(existing) != fingerprint_payload(attachment):
@@ -835,7 +835,7 @@ def _attach_from_bridge(bridge_path: Path, reviews_path: Path) -> dict[str, Any]
                 _discard_owned_staging(staging, expected_identity=staging_identity)
                 return existing
             os.fsync(lock_fd)
-            published, _published_dir = _validate_attachment_artifacts(
+            published, _published_dir, _published_bundle = _validate_attachment_artifacts(
                 reviewed_dir / ATTACHMENT_FILENAME
             )
             if fingerprint_payload(published) != fingerprint_payload(attachment):
@@ -870,7 +870,9 @@ def _attach_from_bridge(bridge_path: Path, reviews_path: Path) -> dict[str, Any]
     return attachment
 
 
-def _validate_attachment_artifacts(attachment_path: Path) -> tuple[dict[str, Any], Path]:
+def _validate_attachment_artifacts(
+    attachment_path: Path,
+) -> tuple[dict[str, Any], Path, dict[str, Any]]:
     attachment_file = _resolve_repo_json_file(attachment_path, label="attachment input")
     attachment = validate_skeptic_review_attachment(
         _read_json_object(attachment_file, label="attachment input")
@@ -1060,7 +1062,7 @@ def _validate_attachment_artifacts(attachment_path: Path) -> tuple[dict[str, Any
             "fingerprint_mismatch: reviewed skeptic_reviews fingerprint does not match attachment."
         )
     try:
-        build_creative_code_specification_bundle(
+        expected_bundle = build_creative_code_specification_bundle(
             source_packet=source_packet,
             variants=cast(Sequence[Mapping[str, Any]], variants),
             skeptic_reviews=cast(Sequence[Mapping[str, Any]], reviews),
@@ -1085,7 +1087,7 @@ def _validate_attachment_artifacts(attachment_path: Path) -> tuple[dict[str, Any
         raise CreativeSpecificationSkepticReviewCliError(
             "fingerprint_mismatch: reviewed variants do not match attachment."
         )
-    return attachment, reviewed_dir
+    return attachment, reviewed_dir, expected_bundle
 
 
 def _assert_reviewed_ref(ref: str, expected_path: Path, label: str) -> None:
@@ -1129,7 +1131,7 @@ def _finalize_from_attachment(attachment_path: Path) -> dict[str, Any]:
             reviewed_dir.parent,
             label="reviewed finalize",
         )
-        attachment, validated_dir = _validate_attachment_artifacts(attachment_file)
+        attachment, validated_dir, expected_bundle = _validate_attachment_artifacts(attachment_file)
         if validated_dir != reviewed_dir:
             raise CreativeSpecificationSkepticReviewCliError(
                 "reviewed finalize directory changed during validation."
@@ -1146,6 +1148,10 @@ def _finalize_from_attachment(attachment_path: Path) -> dict[str, Any]:
             bundle = validate_creative_code_specification_bundle(
                 read_creative_code_specification_bundle(bundle_path)
             )
+            if fingerprint_payload(bundle) != fingerprint_payload(expected_bundle):
+                raise CreativeSpecificationSkepticReviewCliError(
+                    "finalized bundle does not match the current reviewed inputs."
+                )
             receipt = cast(
                 dict[str, Any],
                 validate_finalize_receipt(
@@ -1173,6 +1179,10 @@ def _finalize_from_attachment(attachment_path: Path) -> dict[str, Any]:
         bundle = validate_creative_code_specification_bundle(
             read_creative_code_specification_bundle(bundle_path)
         )
+        if fingerprint_payload(bundle) != fingerprint_payload(expected_bundle):
+            raise CreativeSpecificationSkepticReviewCliError(
+                "finalized bundle does not match the current reviewed inputs."
+            )
         receipt = cast(
             dict[str, Any],
             validate_finalize_receipt(

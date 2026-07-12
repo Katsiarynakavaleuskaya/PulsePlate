@@ -467,9 +467,29 @@ def test_evidence_events_reject_cross_workspace_synthesis() -> None:
         )
 
 
-def test_duplicate_json_keys_are_rejected() -> None:
+def test_duplicate_json_keys_are_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
     with pytest.raises(CreativePilotContractError, match="duplicate JSON key"):
         load_json_strict('{"phase":"one","phase":"two"}')
+
+    def raise_recursion(*_args: object, **_kwargs: object) -> object:
+        raise RecursionError("synthetic nested JSON")
+
+    monkeypatch.setattr(json, "loads", raise_recursion)
+    with pytest.raises(CreativePilotContractError, match="invalid JSON"):
+        load_json_strict("{}")
+
+    artifact_root = creative_code_spec_pipeline.ARTIFACT_ROOT
+    artifact_root.mkdir(parents=True, exist_ok=True)
+    root = Path(tempfile.mkdtemp(prefix="pytest-recursive-json-", dir=artifact_root))
+    try:
+        recursive_path = root / "recursive.json"
+        recursive_path.write_text("{}", encoding="utf-8")
+        with pytest.raises(CreativePilotContractError, match="safe exact variant declarations"):
+            pilot_cli._read_array(recursive_path)
+        with pytest.raises(CreativePilotContractError, match="safe pilot JSON value"):
+            pilot_cli._read_json_value(recursive_path)
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
 
 
 @pytest.mark.parametrize(

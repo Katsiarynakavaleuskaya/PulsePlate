@@ -477,6 +477,7 @@ def test_finalize_receipt_binds_exact_bundle_and_attachment() -> None:
 
 def test_finalize_exact_replay_is_byte_mtime_and_entry_count_stable(
     capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     output_dir, input_dir = _prepared_bridge(capsys, suffix="finalize-replay")
     try:
@@ -512,6 +513,22 @@ def test_finalize_exact_replay_is_byte_mtime_and_entry_count_stable(
         }
         assert after == before
         assert len(after) == len(review_cli.INITIAL_REVIEWED_FILENAMES) + 2
+
+        original_builder = review_cli.build_creative_code_specification_bundle
+
+        def divergent_builder(**kwargs: Any) -> dict[str, Any]:
+            expected = deepcopy(original_builder(**kwargs))
+            expected["cost_metadata_available"] = not expected["cost_metadata_available"]
+            return expected
+
+        monkeypatch.setattr(
+            review_cli,
+            "build_creative_code_specification_bundle",
+            divergent_builder,
+        )
+        assert review_cli.main(["finalize", "--attachment", str(attachment)]) == 1
+        captured = capsys.readouterr()
+        assert "finalized bundle does not match the current reviewed inputs" in captured.err
     finally:
         shutil.rmtree(output_dir, ignore_errors=True)
         shutil.rmtree(input_dir, ignore_errors=True)

@@ -8,10 +8,10 @@
   "properties": {
     "schema_version": {"const": "1.0"},
     "artifact_type": {"const": "creative_adaptive_pr1_resume_binding"},
-    "resume_id": {"type": "string"}, "bridge_id": {"type": "string"},
-    "idempotency_key": {"type": "string"},
+    "resume_id": {"type": "string", "pattern": "^evidence:creative_adaptive_pr1_resume_binding:orchestration:1\\.0:[a-f0-9]{24}$"}, "bridge_id": {"type": "string", "pattern": "^evidence:creative_adaptive_pr1_resume_binding:orchestration:1\\.0:[a-f0-9]{24}$"},
+    "idempotency_key": {"type": "string", "pattern": "^idem:[a-f0-9]{64}$"},
     "policy_version": {"const": "creative-adaptive-pr1-resume-v1"},
-    "pilot_id": {"type": "string"},
+    "pilot_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,159}$"},
     "intake": {"$ref": "#/$defs/artifactRef"},
     "candidate_packet": {
       "type": "object", "additionalProperties": false,

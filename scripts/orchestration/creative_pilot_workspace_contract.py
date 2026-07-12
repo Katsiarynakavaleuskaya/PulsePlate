@@ -802,7 +802,7 @@ def _revalidate_bound_json(
         payload = json.loads(
             resolved.read_text(encoding="utf-8"), object_pairs_hook=reject_duplicates
         )
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, RecursionError) as exc:
         raise CreativePilotContractError(f"adaptive_source_invalid_json: {filename}") from exc
     observed_type = (
         payload.get("artifact_type") or payload.get("packet_type")
@@ -832,7 +832,7 @@ def load_json_strict(text: str) -> dict[str, Any]:
 
     try:
         payload = json.loads(text, object_pairs_hook=reject_duplicates)
-    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+    except (json.JSONDecodeError, UnicodeDecodeError, RecursionError) as exc:
         raise CreativePilotContractError(f"invalid JSON: {exc}") from exc
     if not isinstance(payload, dict):
         raise CreativePilotContractError("artifact must be a JSON object")

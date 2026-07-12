@@ -770,8 +770,10 @@ worktree. Trying to compensate with edits in the wrong tree widens the incident.
 
 ### Rule
 Before patching, verify both `pwd` and `git rev-parse --show-toplevel` against
-the assigned worktree. Every patch path must be absolute and prefixed by that
-verified worktree. After patching, inspect `git status --short` in the assigned
+the assigned worktree. Resolve the worktree and target path canonically, reject
+symlink components, and require the target to be the worktree itself or a
+descendant at a path-component boundary; a raw string-prefix comparison is not
+containment. After patching, inspect `git status --short` in the assigned
 worktree, the primary checkout, and any relevant sibling worktree.
 
 If any patch lands in the wrong tree, stop immediately, report the containment

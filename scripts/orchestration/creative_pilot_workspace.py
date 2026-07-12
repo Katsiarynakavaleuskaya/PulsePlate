@@ -114,7 +114,13 @@ def _read(path: Path) -> dict[str, Any]:
         return payload
     except CreativePilotContractError:
         raise
-    except (OSError, UnicodeDecodeError, ValueError, NotImplementedError) as exc:
+    except (
+        OSError,
+        UnicodeDecodeError,
+        ValueError,
+        RecursionError,
+        NotImplementedError,
+    ) as exc:
         if isinstance(exc, OSError) and exc.errno == errno.ELOOP:
             raise CreativePilotContractError(
                 "pilot artifact path must not traverse symlinks"
@@ -146,7 +152,13 @@ def _read_array(path: Path) -> list[dict[str, Any]]:
         return payload
     except CreativePilotContractError:
         raise
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError, NotImplementedError) as exc:
+    except (
+        OSError,
+        UnicodeDecodeError,
+        json.JSONDecodeError,
+        RecursionError,
+        NotImplementedError,
+    ) as exc:
         raise CreativePilotContractError("unable to read safe exact variant declarations") from exc
     finally:
         active_error = sys.exc_info()[1]
@@ -171,7 +183,13 @@ def _read_json_value(path: Path) -> Any:
             return json.loads(handle.read(), object_pairs_hook=_reject_duplicate_keys)
     except CreativePilotContractError:
         raise
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError, NotImplementedError) as exc:
+    except (
+        OSError,
+        UnicodeDecodeError,
+        json.JSONDecodeError,
+        RecursionError,
+        NotImplementedError,
+    ) as exc:
         raise CreativePilotContractError("unable to read safe pilot JSON value") from exc
     finally:
         active_error = sys.exc_info()[1]

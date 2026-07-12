@@ -827,7 +827,9 @@ def test_pipeline_pinned_traversal_closes_child_on_transfer_failure(
         os.fstat(opened[-1])
 
 
-def test_pipeline_duplicate_keys_in_artifacts_fail_closed() -> None:
+def test_pipeline_duplicate_keys_in_artifacts_fail_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     run_dir = creative_code_spec_pipeline.ARTIFACT_ROOT / f"pytest-{uuid.uuid4().hex}"
     try:
         creative_code_spec_pipeline.prepare(REFERENCE_PACKET, run_dir)
@@ -837,6 +839,13 @@ def test_pipeline_duplicate_keys_in_artifacts_fail_closed() -> None:
         )
 
         with pytest.raises(CreativeCodeSpecPipelineError, match="duplicate JSON key"):
+            creative_code_spec_pipeline.finalize(run_dir, run_dir / "bundle.json")
+
+        def raise_recursion(*_args: object, **_kwargs: object) -> object:
+            raise RecursionError("synthetic nested JSON")
+
+        monkeypatch.setattr(creative_code_spec_pipeline.json, "loads", raise_recursion)
+        with pytest.raises(CreativeCodeSpecPipelineError, match="safe artifact file JSON"):
             creative_code_spec_pipeline.finalize(run_dir, run_dir / "bundle.json")
     finally:
         shutil.rmtree(run_dir, ignore_errors=True)
