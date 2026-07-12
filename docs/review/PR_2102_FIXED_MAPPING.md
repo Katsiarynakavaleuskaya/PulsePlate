@@ -44,9 +44,9 @@ closes every bounded pre-open defect found in the touched auth/bootstrap graph.
 - [x] Fixed in commit mapping completed
 - [x] Pre-open packet role order completed and every bounded finding closed.
 - [x] Mandatory post-open `qa-engineer-agent -> bug-hunter -> security-auditor` pass completed.
-- [ ] Codex Security current-diff scan completed.
-- [ ] `pulseplate-pr-review` completed.
-- [ ] CodeRabbit, Sourcery, and Cubic current-head reviews contain no actionables.
+- [x] Codex Security current-diff scan completed.
+- [x] `pulseplate-pr-review` completed.
+- [x] CodeRabbit, Sourcery, and Cubic current-head reviews contain no unmapped actionables.
 - [ ] Current-head CI completed.
 - [ ] Strict authenticated merge readiness and mandatory wait window completed.
 
@@ -126,6 +126,42 @@ Evidence: Commits `276ca9b608`, `044e968a9`, `028b40fad`, `6a9a563a6`, and `c540
 Disposition: NOT-A-BUG
 Evidence: `artifacts/orchestration/experiments/results/exp-6fdd2ed789f8.json` records `mutated_paths: []` and `shared_tree_untouched: true`; the production guard diff was implemented in the coordinator-owned PR lane and independently reviewed by the Runner as an immutable oracle.
 Reason: Creative-Code mutation authority remains denied; the comment's proposed threat model applies to autonomous candidate mutation, not to normal reviewed repository edits made by this PR lane.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#pullrequestreview-4678749721 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
+Disposition: FIXED
+Commit: 276ca9b6087149dc5b89a375fa4f189e64a40a3f
+Evidence: The commit follows the CodeRabbit review timestamp and fixes its complete initial actionable set; the individual discussion URLs are mapped above to the exact fixing commits, and the current-head CodeRabbit check is PASS.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#pullrequestreview-4678740036
+Disposition: NOT-A-BUG
+Evidence: `app/AGENTS.md` freezes the four API-key contracts as intentionally distinct; `tests/test_api_key_dependency_ownership.py` proves their separate behavior and exact identity; `scripts/ci/check_legacy_growth_guard.py` is isolated behind a complete focused guard suite.
+Reason: Sourcery's three high-level comments are maintainability suggestions, not runtime defects: merging the strict and compatibility decision matrices would violate the frozen behavior boundary, family-specific diagnostics are already centralized by `_require_canonical_api_key_dependency`, and splitting the static analyzer during its security-closure PR would increase review surface without changing enforcement.
+
+## Codex Security Diff Scan
+
+- Scan ID: `ed39a46f-6432-4d54-b597-1ed772b1cf25`
+- Target: `12fd4ec8366a29443fcf0fe87743eed7aeca8e24..d287b868c798ea80276fe19f06c9870ab7a1cec5`
+- Result: 7/7 worklist rows closed; 0 reportable findings.
+- Coverage: six changed production/auth files plus
+  `scripts/ci/check_legacy_growth_guard.py` as the directly supporting
+  fail-closed security control.
+- Report: local sealed Codex Security artifact
+  `report.md` for the scan above. It is intentionally not committed.
+- Subsequent mapping/body-only governance updates do not change the reviewed
+  runtime/security diff and do not require another scan.
+
+## PulsePlate PR Review
+
+- Mode: `dry-run-report`
+- Result: no correctness, architecture, security, QA, or release finding.
+- Advisory: the 28-file/4,121-line review-risk threshold requires human scope
+  confirmation.
+- Disposition: NOT-A-BUG.
+- Evidence: the PR body contains the operator-approved privileged scope
+  exception; the diff is one callable-identity cutover plus distributed exact
+  route, guard, and compatibility evidence, and the required narrow bundle
+  passed. Splitting would reintroduce contradictory security owners or known
+  false-green guard states.
 
 ## Pre-Implementation Role Findings
 
@@ -298,10 +334,10 @@ Repair artifact:
 
 ## Merge Readiness
 
-Not claimed. The repaired implementation is published at `c5409d0de`;
-current-head CI, current-head external bot review, Codex Security diff scan,
-`pulseplate-pr-review`, strict authenticated merge readiness, and the final wait
-window remain required.
+Not claimed. The repaired implementation is published at `c5409d0de`.
+Codex Security, `pulseplate-pr-review`, and current-head external bot review
+are complete; refreshed current-head CI, strict authenticated merge readiness,
+and the final wait window remain required.
 
 ## Deferred / Follow-ups
 
