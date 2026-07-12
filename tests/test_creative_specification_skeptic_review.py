@@ -442,14 +442,14 @@ def test_attach_validate_finalize_preserves_original_spec_prepare(
         assert exit_code == 0, captured.err
         assert captured.out.strip() == review_cli.FINALIZE_SUCCESS_OUTPUT
         assert reviewed_dir.is_dir()
-        assert (reviewed_dir.stat().st_dev, reviewed_dir.stat().st_ino) != first_finalized_identity
+        assert (reviewed_dir.stat().st_dev, reviewed_dir.stat().st_ino) == first_finalized_identity
         assert {
             filename: fingerprint_payload(_read_json(reviewed_dir / filename))
             for filename in (review_cli.BUNDLE_FILENAME, review_cli.FINALIZE_RECEIPT_FILENAME)
         } == finalized_fingerprints
         retained_after_replay = list(output_dir.glob(".spec_finalize_reviewed.*.pre-finalize"))
-        assert len(retained_after_replay) == 2
-        assert sorted(len(list(path.iterdir())) for path in retained_after_replay) == [5, 7]
+        assert retained_after_replay == retained_before_replay
+        assert len(list(retained_after_replay[0].iterdir())) == 5
         _assert_schema_artifact_refs_accept_generated_attachment_and_receipt(
             attachment=attachment,
             receipt=receipt,
@@ -646,6 +646,39 @@ def test_adaptive_finalize_stale_base_returns_stable_cli_failure_without_publica
     assert captured.err == "FAIL: adaptive_base_drift: current origin/main advanced\n"
     assert not (reviewed_dir / review_cli.BUNDLE_FILENAME).exists()
     assert not (reviewed_dir / review_cli.FINALIZE_RECEIPT_FILENAME).exists()
+
+
+def test_adaptive_layout_accepts_only_retained_pre_finalize_directories(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    output_dir, input_dir = _prepared_bridge(capsys, suffix="adaptive-retained-layout")
+    retained_name = ".spec_finalize_reviewed.0123456789abcdef.pre-finalize"
+    retained_path = output_dir / retained_name
+    try:
+        retained_path.mkdir()
+        allowed = {path.name for path in output_dir.iterdir() if path.name != retained_name}
+        review_cli._reject_unexpected_entries(
+            output_dir,
+            allowed=allowed,
+            label="adaptive resume",
+            allow_retained_pre_finalize=True,
+        )
+
+        retained_path.rmdir()
+        retained_path.write_text("not a directory\n", encoding="utf-8")
+        with pytest.raises(
+            review_cli.CreativeSpecificationSkepticReviewCliError,
+            match="retained pre-finalize artifact.*must be directories",
+        ):
+            review_cli._reject_unexpected_entries(
+                output_dir,
+                allowed=allowed,
+                label="adaptive resume",
+                allow_retained_pre_finalize=True,
+            )
+    finally:
+        shutil.rmtree(output_dir, ignore_errors=True)
+        shutil.rmtree(input_dir, ignore_errors=True)
 
 
 def test_attach_rejects_prepared_child_symlink_before_read(

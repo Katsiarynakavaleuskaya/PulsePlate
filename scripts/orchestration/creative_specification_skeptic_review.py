@@ -285,6 +285,7 @@ def _read_prepared_adaptive_resume(
             REVIEWED_RUN_DIRNAME,
         },
         label="adaptive resume",
+        allow_retained_pre_finalize=True,
     )
     candidate_path = bridge_dir / CANDIDATE_FILENAME
     intake_path = bridge_dir / ADAPTIVE_INTAKE_FILENAME
@@ -474,7 +475,22 @@ def _pending_skeptic_review_count(reviews: Sequence[Any]) -> int:
     )
 
 
-def _reject_unexpected_entries(path: Path, *, allowed: set[str], label: str) -> None:
+def _is_retained_pre_finalize_run(name: str) -> bool:
+    prefix = f".{REVIEWED_RUN_DIRNAME}."
+    suffix = ".pre-finalize"
+    if not name.startswith(prefix) or not name.endswith(suffix):
+        return False
+    token = name[len(prefix) : -len(suffix)]
+    return len(token) == 16 and all(character in "0123456789abcdef" for character in token)
+
+
+def _reject_unexpected_entries(
+    path: Path,
+    *,
+    allowed: set[str],
+    label: str,
+    allow_retained_pre_finalize: bool = False,
+) -> None:
     parent_fd = -1
     directory_fd = -1
     try:
@@ -502,7 +518,24 @@ def _reject_unexpected_entries(path: Path, *, allowed: set[str], label: str) -> 
             raise CreativeSpecificationSkepticReviewCliError(
                 f"{label} contains symlink artifact(s): {', '.join(symlink_children)}."
             )
-        unexpected = sorted(name for name in entries if name not in allowed)
+        retained = {
+            name
+            for name in entries
+            if allow_retained_pre_finalize and _is_retained_pre_finalize_run(name)
+        }
+        non_directory_retained = sorted(
+            name
+            for name in retained
+            if not stat.S_ISDIR(os.stat(name, dir_fd=directory_fd, follow_symlinks=False).st_mode)
+        )
+        if non_directory_retained:
+            raise CreativeSpecificationSkepticReviewCliError(
+                f"{label} retained pre-finalize artifact(s) must be directories: "
+                f"{', '.join(non_directory_retained)}."
+            )
+        unexpected = sorted(
+            name for name in entries if name not in allowed and name not in retained
+        )
         if unexpected:
             raise CreativeSpecificationSkepticReviewCliError(
                 f"{label} contains unexpected artifact(s): {', '.join(unexpected)}."
@@ -1744,6 +1777,36 @@ def _finalize_from_attachment(attachment_path: Path) -> dict[str, Any]:
                     "fingerprint_mismatch: existing finalize receipt diverges from reviewed inputs."
                 )
             receipt = existing_receipt
+            _assert_pinned_finalize_outputs(
+                reviewed_fd,
+                expected_bundle=validated_bundle,
+                expected_receipt=receipt,
+            )
+            _read_pinned_reviewed_inputs(
+                reviewed_fd,
+                expected_payloads=expected_payloads,
+            )
+            _assert_parent_entry_identity(
+                reviewed_parent_fd,
+                name=reviewed_dir.name,
+                expected_identity=reviewed_identity,
+                label="reviewed finalize replay run",
+            )
+            _assert_canonical_reviewed_run_identity(
+                reviewed_dir,
+                expected_identity=reviewed_identity,
+            )
+            close_error = creative_code_spec_pipeline._close_descriptors(
+                reviewed_fd,
+                reviewed_parent_fd,
+            )
+            reviewed_fd = -1
+            reviewed_parent_fd = -1
+            if close_error is not None:
+                raise CreativeSpecificationSkepticReviewCliError(
+                    "reviewed finalize replay descriptors could not be closed safely."
+                ) from close_error
+            return receipt
         elif canonical_names == input_names:
             validated_bundle = validate_creative_code_specification_bundle(bundle)
             receipt = _require_typed_json_object(
