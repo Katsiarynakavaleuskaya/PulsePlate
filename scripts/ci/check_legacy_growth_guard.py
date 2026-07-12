@@ -554,11 +554,51 @@ def _static_module_reference(
         static_string_bindings=static_string_bindings,
     )
     if (
+        function_reference == "builtins.getattr"
+        and len(node.args) >= 2
+        and _static_module_reference(
+            node.args[0],
+            module_aliases=module_aliases,
+            import_module_aliases=import_module_aliases,
+            static_string_bindings=static_string_bindings,
+        )
+        == "legacy_app"
+        and _resolve_static_string(node.args[1], static_string_bindings) == "__dict__"
+    ):
+        return "legacy_app.__dict__"
+    if (
+        isinstance(node.func, ast.Attribute)
+        and node.func.attr == "__getattribute__"
+        and _static_module_reference(
+            node.func.value,
+            module_aliases=module_aliases,
+            import_module_aliases=import_module_aliases,
+            static_string_bindings=static_string_bindings,
+        )
+        == "legacy_app"
+        and node.args
+        and _resolve_static_string(node.args[0], static_string_bindings) == "__dict__"
+    ):
+        return "legacy_app.__dict__"
+    if (
         function_reference == "sys.modules.get"
         and node.args
         and not any(keyword.arg == "name" for keyword in node.keywords)
     ):
         return _resolve_static_string(node.args[0], static_string_bindings)
+    if (
+        function_reference == "builtins.vars"
+        and len(node.args) == 1
+        and not node.keywords
+        and _static_module_reference(
+            node.args[0],
+            module_aliases=module_aliases,
+            import_module_aliases=import_module_aliases,
+            static_string_bindings=static_string_bindings,
+        )
+        == "legacy_app"
+    ):
+        return "legacy_app.__dict__"
     is_module_loader = (
         function_reference in {"builtins.__import__", "importlib.import_module"}
         or isinstance(node.func, ast.Name)
@@ -2260,7 +2300,14 @@ def _join_api_key_alias_states(
 def _preferred_api_key_module_reference(references: AbstractSet[str | None]) -> str | None:
     for reference in (
         "legacy_app",
+        "legacy_app.__dict__",
+        "legacy_app.__dict__.__getitem__",
+        "legacy_app.__dict__.get",
+        "legacy_app.__dict__.pop",
+        "legacy_app.__dict__.setdefault",
         "sys.modules",
+        "builtins.getattr",
+        "builtins.vars",
         "builtins.__import__",
         "importlib.import_module",
         "sys",
@@ -3007,6 +3054,45 @@ def _function_header_expressions(
     )
 
 
+def _callable_default_module_aliases(
+    node: ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda,
+    *,
+    module_aliases: Mapping[str, str],
+    import_module_aliases: AbstractSet[str],
+    static_string_bindings: Mapping[str, str],
+) -> tuple[dict[str, str], set[str]]:
+    positional = [*node.args.posonlyargs, *node.args.args]
+    pairs: list[tuple[ast.arg, ast.expr]] = list(
+        zip(positional[-len(node.args.defaults) :], node.args.defaults, strict=True)
+        if node.args.defaults
+        else ()
+    )
+    pairs.extend(
+        (argument, default)
+        for argument, default in zip(
+            node.args.kwonlyargs,
+            node.args.kw_defaults,
+            strict=True,
+        )
+        if default is not None
+    )
+    default_modules: dict[str, str] = {}
+    default_imports: set[str] = set()
+    for argument, default in pairs:
+        _next_modules, _next_imports, references = _evaluate_api_key_alias_expression(
+            default,
+            module_aliases=module_aliases,
+            import_module_aliases=import_module_aliases,
+            static_string_bindings=static_string_bindings,
+        )
+        reference = _preferred_api_key_module_reference(references)
+        if reference is not None:
+            default_modules[argument.arg] = reference
+        if references & {"builtins.__import__", "importlib.import_module"}:
+            default_imports.add(argument.arg)
+    return default_modules, default_imports
+
+
 def _legacy_api_key_dynamic_lookup_name(
     node: ast.AST,
     *,
@@ -3014,28 +3100,16 @@ def _legacy_api_key_dynamic_lookup_name(
     static_string_bindings: Mapping[str, str],
 ) -> str | None:
     def is_legacy_namespace(candidate: ast.AST) -> bool:
-        if (
-            isinstance(candidate, ast.Attribute)
-            and candidate.attr == "__dict__"
-            and module_reference(candidate.value) == "legacy_app"
-        ):
+        if module_reference(candidate) == "legacy_app.__dict__":
             return True
-        return bool(
-            isinstance(candidate, ast.Call)
-            and isinstance(candidate.func, ast.Name)
-            and candidate.func.id == "vars"
-            and len(candidate.args) == 1
-            and not candidate.keywords
-            and module_reference(candidate.args[0]) == "legacy_app"
-        )
+        return False
 
     if isinstance(node, ast.Subscript) and is_legacy_namespace(node.value):
         return _resolve_static_string(node.slice, static_string_bindings)
     if not isinstance(node, ast.Call):
         return None
     if (
-        isinstance(node.func, ast.Name)
-        and node.func.id == "getattr"
+        module_reference(node.func) == "builtins.getattr"
         and len(node.args) >= 2
         and module_reference(node.args[0]) == "legacy_app"
     ):
@@ -3051,6 +3125,17 @@ def _legacy_api_key_dynamic_lookup_name(
         isinstance(node.func, ast.Attribute)
         and node.func.attr in {"get", "__getitem__", "pop", "setdefault"}
         and is_legacy_namespace(node.func.value)
+        and node.args
+    ):
+        return _resolve_static_string(node.args[0], static_string_bindings)
+    if (
+        module_reference(node.func)
+        in {
+            "legacy_app.__dict__.__getitem__",
+            "legacy_app.__dict__.get",
+            "legacy_app.__dict__.pop",
+            "legacy_app.__dict__.setdefault",
+        }
         and node.args
     ):
         return _resolve_static_string(node.args[0], static_string_bindings)
@@ -3306,6 +3391,8 @@ def _apply_api_key_alias_statements(
                 qualified = f"{statement.module}.{alias.name}"
                 if qualified in {
                     "builtins.__import__",
+                    "builtins.getattr",
+                    "builtins.vars",
                     "importlib.import_module",
                     "sys.modules",
                 }:
@@ -3804,6 +3891,8 @@ def _scan_api_key_alias_scope(
                 qualified = f"{node.module}.{alias.name}"
                 if qualified in {
                     "builtins.__import__",
+                    "builtins.getattr",
+                    "builtins.vars",
                     "importlib.import_module",
                     "sys.modules",
                 }:
@@ -3921,6 +4010,11 @@ def _scan_api_key_alias_scope(
                 dict(module_aliases),
                 set(import_module_aliases),
             )
+        elif isinstance(node, ast.Lambda):
+            lexical_scope_alias_snapshots[id(node)] = (
+                dict(module_aliases),
+                set(import_module_aliases),
+            )
         elif isinstance(
             node,
             (ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp),
@@ -3956,6 +4050,13 @@ def _scan_api_key_alias_scope(
         if id(nested_scope) in structured_descendant_node_ids:
             continue
         if isinstance(nested_scope, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            definition_modules, definition_imports = lexical_scope_alias_snapshots[id(nested_scope)]
+            default_modules, default_imports = _callable_default_module_aliases(
+                nested_scope,
+                module_aliases=definition_modules,
+                import_module_aliases=definition_imports,
+                static_string_bindings=static_string_bindings,
+            )
             function_states = [
                 (
                     dict(final_closure_module_aliases),
@@ -3964,27 +4065,41 @@ def _scan_api_key_alias_scope(
                 lexical_scope_alias_snapshots[id(nested_scope)],
             ]
             for function_modules, function_imports in function_states:
+                seeded_modules = dict(function_modules)
+                seeded_modules.update(default_modules)
+                seeded_imports = set(function_imports) | default_imports
                 errors.extend(
                     _scan_api_key_alias_scope(
                         nested_scope.body,
                         filename=filename,
-                        inherited_module_aliases=function_modules,
-                        inherited_import_module_aliases=function_imports,
+                        inherited_module_aliases=seeded_modules,
+                        inherited_import_module_aliases=seeded_imports,
                         inherited_static_string_bindings=static_string_bindings,
-                        local_bindings=_function_local_bindings(nested_scope),
+                        local_bindings=_function_local_bindings(nested_scope)
+                        - set(default_modules),
                     )
                 )
             continue
 
         if isinstance(nested_scope, ast.Lambda):
+            definition_modules, definition_imports = lexical_scope_alias_snapshots[id(nested_scope)]
+            default_modules, default_imports = _callable_default_module_aliases(
+                nested_scope,
+                module_aliases=definition_modules,
+                import_module_aliases=definition_imports,
+                static_string_bindings=static_string_bindings,
+            )
+            seeded_modules = dict(final_closure_module_aliases)
+            seeded_modules.update(default_modules)
+            seeded_imports = set(final_closure_import_module_aliases) | default_imports
             errors.extend(
                 _scan_api_key_alias_scope(
                     [ast.Expr(value=nested_scope.body)],
                     filename=filename,
-                    inherited_module_aliases=final_closure_module_aliases,
-                    inherited_import_module_aliases=final_closure_import_module_aliases,
+                    inherited_module_aliases=seeded_modules,
+                    inherited_import_module_aliases=seeded_imports,
                     inherited_static_string_bindings=static_string_bindings,
-                    local_bindings=_lambda_local_bindings(nested_scope),
+                    local_bindings=_lambda_local_bindings(nested_scope) - set(default_modules),
                 )
             )
             continue
@@ -4030,7 +4145,11 @@ def _app_api_key_reverse_dependency_errors(
     return _scan_api_key_alias_scope(
         tree.body,
         filename=filename,
-        inherited_module_aliases={"__import__": "builtins.__import__"},
+        inherited_module_aliases={
+            "__import__": "builtins.__import__",
+            "getattr": "builtins.getattr",
+            "vars": "builtins.vars",
+        },
         inherited_import_module_aliases=frozenset({"__import__"}),
     )
 
