@@ -287,6 +287,7 @@ def _read_prepared_adaptive_resume(
         label="adaptive resume",
         allow_retained_pre_finalize=True,
     )
+    _validate_adaptive_retained_pre_finalize_run(bridge_dir)
     candidate_path = bridge_dir / CANDIDATE_FILENAME
     intake_path = bridge_dir / ADAPTIVE_INTAKE_FILENAME
     candidate = validate_source_candidate_packet(
@@ -559,6 +560,91 @@ def _reject_unexpected_entries(
         if sys.exc_info()[1] is None and close_error is not None:
             raise CreativeSpecificationSkepticReviewCliError(
                 f"{label} could not be closed safely."
+            ) from close_error
+
+
+def _validate_adaptive_retained_pre_finalize_run(bridge_dir: Path) -> None:
+    parent_fd = -1
+    bridge_fd = -1
+    canonical_fd = -1
+    retained_fd = -1
+    expected_names = {
+        "source_packet.json",
+        "variants.json",
+        "skeptic_reviews.json",
+        "context_pack.json",
+        ATTACHMENT_FILENAME,
+    }
+    try:
+        parent_fd, name, _candidate = creative_code_spec_pipeline._open_pinned_parent(
+            bridge_dir,
+            allowed_root=creative_code_spec_pipeline.ARTIFACT_ROOT,
+            create=False,
+            label="adaptive retained pre-finalize evidence",
+        )
+        bridge_fd = os.open(
+            name,
+            creative_code_spec_pipeline._directory_flags(),
+            dir_fd=parent_fd,
+        )
+        retained_names = sorted(
+            entry for entry in os.listdir(bridge_fd) if _is_retained_pre_finalize_run(entry)
+        )
+        if len(retained_names) > 1:
+            raise CreativeSpecificationSkepticReviewCliError(
+                "adaptive resume must contain at most one retained pre-finalize run."
+            )
+        if not retained_names:
+            return
+        canonical_fd = os.open(
+            REVIEWED_RUN_DIRNAME,
+            creative_code_spec_pipeline._directory_flags(),
+            dir_fd=bridge_fd,
+        )
+        retained_fd = os.open(
+            retained_names[0],
+            creative_code_spec_pipeline._directory_flags(),
+            dir_fd=bridge_fd,
+        )
+        if set(os.listdir(retained_fd)) != expected_names:
+            raise CreativeSpecificationSkepticReviewCliError(
+                "adaptive retained pre-finalize run must contain the exact five input artifacts."
+            )
+        if not expected_names.issubset(set(os.listdir(canonical_fd))):
+            raise CreativeSpecificationSkepticReviewCliError(
+                "adaptive canonical reviewed run is missing retained input artifacts."
+            )
+        for filename in sorted(expected_names):
+            retained_payload = _read_json_at(retained_fd, filename)
+            canonical_payload = _read_json_at(canonical_fd, filename)
+            if fingerprint_payload(retained_payload) != fingerprint_payload(canonical_payload):
+                raise CreativeSpecificationSkepticReviewCliError(
+                    f"fingerprint_mismatch: adaptive retained {filename} diverges from canonical."
+                )
+        if set(os.listdir(retained_fd)) != expected_names:
+            raise CreativeSpecificationSkepticReviewCliError(
+                "adaptive retained pre-finalize run changed during validation."
+            )
+        if retained_names != sorted(
+            entry for entry in os.listdir(bridge_fd) if _is_retained_pre_finalize_run(entry)
+        ):
+            raise CreativeSpecificationSkepticReviewCliError(
+                "adaptive retained pre-finalize evidence changed during validation."
+            )
+    except FileNotFoundError as exc:
+        raise CreativeSpecificationSkepticReviewCliError(
+            "adaptive retained pre-finalize evidence is incomplete."
+        ) from exc
+    finally:
+        close_error = creative_code_spec_pipeline._close_descriptors(
+            retained_fd,
+            canonical_fd,
+            bridge_fd,
+            parent_fd,
+        )
+        if sys.exc_info()[1] is None and close_error is not None:
+            raise CreativeSpecificationSkepticReviewCliError(
+                "adaptive retained pre-finalize evidence could not be closed safely."
             ) from close_error
 
 

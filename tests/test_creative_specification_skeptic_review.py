@@ -422,6 +422,25 @@ def test_attach_validate_finalize_preserves_original_spec_prepare(
             "context_pack.json",
             review_cli.ATTACHMENT_FILENAME,
         }
+        review_cli._validate_adaptive_retained_pre_finalize_run(output_dir)
+        forged_retained = output_dir / ".spec_finalize_reviewed.aaaaaaaaaaaaaaaa.pre-finalize"
+        forged_retained.mkdir()
+        with pytest.raises(
+            review_cli.CreativeSpecificationSkepticReviewCliError,
+            match="at most one retained pre-finalize run",
+        ):
+            review_cli._validate_adaptive_retained_pre_finalize_run(output_dir)
+        forged_retained.rmdir()
+        retained_source = retained_before_replay[0] / "source_packet.json"
+        retained_source_bytes = retained_source.read_bytes()
+        retained_source.write_text("{}\n", encoding="utf-8")
+        with pytest.raises(
+            review_cli.CreativeSpecificationSkepticReviewCliError,
+            match="adaptive retained source_packet.json diverges from canonical",
+        ):
+            review_cli._validate_adaptive_retained_pre_finalize_run(output_dir)
+        retained_source.write_bytes(retained_source_bytes)
+        review_cli._validate_adaptive_retained_pre_finalize_run(output_dir)
 
         bundle = validate_creative_code_specification_bundle(
             read_creative_code_specification_bundle(reviewed_dir / review_cli.BUNDLE_FILENAME)
