@@ -224,15 +224,9 @@ def project_page_url(index_url: str, project: str) -> str:
     return index_url.rstrip("/") + "/" + quote(normalized_project, safe="") + "/"
 
 
-def parse_exact_pins(
-    requirements_files: Iterable[Path],
-    projects: Iterable[str] | None = None,
-) -> dict[str, str]:
+def parse_exact_pins(requirements_files: Iterable[Path]) -> dict[str, str]:
     """Return canonical package name to exact pinned version from requirements files."""
     pins: dict[str, str] = {}
-    selected_projects = (
-        None if projects is None else {normalize_project_name(project) for project in projects}
-    )
     for path in requirements_files:
         if not path.exists():
             raise FileNotFoundError(f"requirements file not found: {path}")
@@ -247,7 +241,38 @@ def parse_exact_pins(
                 continue
             package, version = match.groups()
             normalized_package = normalize_project_name(package)
-            if selected_projects is not None and normalized_package not in selected_projects:
+            previous_version = pins.get(normalized_package)
+            if previous_version is not None and previous_version != version:
+                raise ValueError(
+                    "conflicting_exact_pins: "
+                    f"{normalized_package} has both {previous_version} and {version}"
+                )
+            pins[normalized_package] = version
+    return pins
+
+
+def parse_exact_pins_for_projects(
+    requirements_files: Iterable[Path],
+    projects: Iterable[str],
+) -> dict[str, str]:
+    """Return exact pins for selected probe projects across requirements files."""
+    selected_projects = {normalize_project_name(project) for project in projects}
+    pins: dict[str, str] = {}
+    for path in requirements_files:
+        if not path.exists():
+            raise FileNotFoundError(f"requirements file not found: {path}")
+        for raw_line in path.read_text(encoding="utf-8").splitlines():
+            line = raw_line.split("#", 1)[0].split(";", 1)[0].strip()
+            if not line or line.startswith(("-", "--")):
+                continue
+            match = PIN_RE.match(line)
+            if not match:
+                if PACKAGE_REQUIREMENT_RE.match(line):
+                    raise ValueError(f"non_exact_pin: {path}:{raw_line}")
+                continue
+            package, version = match.groups()
+            normalized_package = normalize_project_name(package)
+            if normalized_package not in selected_projects:
                 continue
             previous_version = pins.get(normalized_package)
             if previous_version is not None and previous_version != version:
@@ -783,7 +808,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         Path("requirements-dev.txt"),
     ]
     try:
-        pins = parse_exact_pins(requirements_files, projects=projects)
+        pins = parse_exact_pins_for_projects(requirements_files, projects=projects)
         summary = check_health(
             index_url=args.index_url,
             projects=projects,

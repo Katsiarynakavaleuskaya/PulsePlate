@@ -144,7 +144,7 @@ def test_parse_exact_pins_scoped_projects_rejects_selected_conflicts(tmp_path: P
     second.write_text("mypy==2.1.0\n", encoding="utf-8")
 
     with pytest.raises(ValueError, match="conflicting_exact_pins: mypy"):
-        checker.parse_exact_pins([first, second], projects=["mypy"])
+        checker.parse_exact_pins_for_projects([first, second], projects=["mypy"])
 
 
 def test_parse_exact_pins_scoped_projects_ignores_unselected_conflicts(tmp_path: Path) -> None:
@@ -153,7 +153,9 @@ def test_parse_exact_pins_scoped_projects_ignores_unselected_conflicts(tmp_path:
     first.write_text("chardet==5.2.0\nmypy==2.2.0\n", encoding="utf-8")
     second.write_text("chardet==7.4.0.post1\nmypy==2.2.0\n", encoding="utf-8")
 
-    assert checker.parse_exact_pins([first, second], projects=["mypy"]) == {"mypy": "2.2.0"}
+    assert checker.parse_exact_pins_for_projects([first, second], projects=["mypy"]) == {
+        "mypy": "2.2.0"
+    }
 
 
 def test_main_default_projects_exclude_large_pydantic_core_probe(
@@ -184,11 +186,16 @@ def test_main_default_projects_exclude_large_pydantic_core_probe(
             results=(),
         )
 
-    def fake_parse_exact_pins(
+    def fake_parse_exact_pins_for_projects(
         requirements_files: list[Path],
-        projects: list[str] | None = None,
+        projects: list[str],
     ) -> dict[str, str]:
-        assert requirements_files
+        assert requirements_files == [
+            Path("requirements.txt"),
+            Path("requirements-ci-lite.txt"),
+            Path("requirements-test.txt"),
+            Path("requirements-dev.txt"),
+        ]
         assert projects == [
             "aiosqlite",
             "cryptography",
@@ -215,7 +222,9 @@ def test_main_default_projects_exclude_large_pydantic_core_probe(
             "pydantic-core": "2.41.5",
         }
 
-    monkeypatch.setattr(checker, "parse_exact_pins", fake_parse_exact_pins)
+    monkeypatch.setattr(
+        checker, "parse_exact_pins_for_projects", fake_parse_exact_pins_for_projects
+    )
     monkeypatch.setattr(checker, "check_health", fake_check_health)
 
     assert checker.main(["--index-url", APPROVED_INDEX]) == 0
