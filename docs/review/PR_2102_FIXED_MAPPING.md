@@ -80,7 +80,7 @@ does not claim to prove equivalence across intentionally obfuscated Python.
 - [x] One previously completed Codex Security diff scan retained as production
   cutover evidence; no new scan is authorized or required for guard/docs-only
   rollback commits.
-- [ ] `pulseplate-pr-review` completed on the final published head.
+- [x] `pulseplate-pr-review` completed on the final published head.
 - [ ] All current review threads dispositioned and resolved.
 - [ ] Current-head CI completed.
 - [ ] Strict authenticated merge readiness and mandatory wait window completed.
@@ -256,6 +256,10 @@ documented threat-model disposition above.
   behavior, `compare_digest`, warning concurrency, log redaction, malformed
   result rejection, bounded threat-model dispositions, and mapped commit
   ancestry all passed. No new security scan was launched.
+- `pulseplate-pr-review` dry-run completed on published head `31a67552d` with
+  no deterministic correctness, security, or architecture findings. Its sole
+  advisory large-diff note is dispositioned by the operator-approved coherent
+  identity-cutover scope and the material analyzer rollback.
 - Role passes are read-only and do not replace deterministic gates or strict
   merge readiness.
 
