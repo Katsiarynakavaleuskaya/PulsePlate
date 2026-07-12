@@ -2215,6 +2215,62 @@ def test_finalize_rejects_output_mutation_during_terminal_directory_check(
         shutil.rmtree(input_dir, ignore_errors=True)
 
 
+def test_finalize_rejects_canonical_swap_after_composite_output_checks(
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output_dir, input_dir = _prepared_bridge(capsys, suffix="finalize-terminal-canonical-swap")
+    try:
+        reviews_path = _write_review_input(output_dir, _review_input(output_dir))
+        assert (
+            review_cli.main(
+                [
+                    "attach",
+                    "--bridge",
+                    str(output_dir / bridge_cli.BRIDGE_FILENAME),
+                    "--reviews",
+                    str(reviews_path),
+                ]
+            )
+            == 0
+        )
+        capsys.readouterr()
+        reviewed_dir = output_dir / "spec_finalize_reviewed"
+        detached = output_dir / ".detached-terminal-reviewed"
+        attachment_path = reviewed_dir / review_cli.ATTACHMENT_FILENAME
+        real_assert_identity = review_cli._assert_canonical_reviewed_run_identity
+        identity_checks = 0
+
+        def swap_canonical_after_composite_identity(*args: Any, **kwargs: Any) -> None:
+            nonlocal identity_checks
+            identity_checks += 1
+            real_assert_identity(*args, **kwargs)
+            if identity_checks == 2:
+                reviewed_dir.rename(detached)
+                reviewed_dir.mkdir()
+                (reviewed_dir / "unknown.marker").write_text("unknown\n", encoding="utf-8")
+
+        with monkeypatch.context() as context:
+            context.setattr(
+                review_cli,
+                "_assert_canonical_reviewed_run_identity",
+                swap_canonical_after_composite_identity,
+            )
+            exit_code = review_cli.main(["finalize", "--attachment", str(attachment_path)])
+        captured = capsys.readouterr()
+        assert exit_code == 1
+        assert review_cli.FINALIZE_SUCCESS_OUTPUT not in captured.out
+        assert "reviewed finalize run canonical identity changed" in captured.err
+        assert identity_checks == 3
+        assert (reviewed_dir / "unknown.marker").read_text(encoding="utf-8") == "unknown\n"
+        assert (detached / review_cli.BUNDLE_FILENAME).is_file()
+        assert (detached / review_cli.FINALIZE_RECEIPT_FILENAME).is_file()
+        assert list(output_dir.glob(".spec_finalize_reviewed.*.failed")) == []
+    finally:
+        shutil.rmtree(output_dir, ignore_errors=True)
+        shutil.rmtree(input_dir, ignore_errors=True)
+
+
 def test_finalize_preserves_preexisting_partial_outputs_without_quarantine(
     capsys: pytest.CaptureFixture[str],
 ) -> None:

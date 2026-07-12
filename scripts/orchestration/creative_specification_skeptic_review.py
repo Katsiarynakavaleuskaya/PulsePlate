@@ -1508,6 +1508,10 @@ def _assert_pinned_finalize_outputs(
             raise CreativeSpecificationSkepticReviewCliError(
                 "reviewed finalize run changed during output inspection."
             )
+        _assert_canonical_reviewed_run_identity(
+            reviewed_dir,
+            expected_identity=reviewed_identity,
+        )
     finally:
         close_error = creative_code_spec_pipeline._close_descriptors(bundle_fd, receipt_fd)
         if sys.exc_info()[1] is None and close_error is not None:
