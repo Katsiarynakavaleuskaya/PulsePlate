@@ -511,6 +511,12 @@ def _static_module_reference(
             static_string_bindings=static_string_bindings,
         )
         if parent is not None:
+            if parent == "builtins.__dict__" and node.attr in {
+                "__import__",
+                "getattr",
+                "vars",
+            }:
+                return f"builtins.{node.attr}"
             return f"{parent}.{node.attr}"
         return None
     if isinstance(node, ast.Subscript):
@@ -543,6 +549,10 @@ def _static_module_reference(
         )
         if container == "sys.modules":
             return _resolve_static_string(node.slice, static_string_bindings)
+        if container in {"builtins", "builtins.__dict__"}:
+            builtin_name = _resolve_static_string(node.slice, static_string_bindings)
+            if builtin_name in {"__import__", "getattr", "vars"}:
+                return f"builtins.{builtin_name}"
         return None
     if not isinstance(node, ast.Call):
         return None
@@ -553,52 +563,80 @@ def _static_module_reference(
         import_module_aliases=import_module_aliases,
         static_string_bindings=static_string_bindings,
     )
-    if (
-        function_reference == "builtins.getattr"
-        and len(node.args) >= 2
-        and _static_module_reference(
+    if function_reference == "builtins.getattr" and len(node.args) >= 2:
+        target_reference = _static_module_reference(
             node.args[0],
             module_aliases=module_aliases,
             import_module_aliases=import_module_aliases,
             static_string_bindings=static_string_bindings,
         )
-        == "legacy_app"
-        and _resolve_static_string(node.args[1], static_string_bindings) == "__dict__"
-    ):
-        return "legacy_app.__dict__"
-    if (
-        isinstance(node.func, ast.Attribute)
-        and node.func.attr == "__getattribute__"
-        and _static_module_reference(
+        attribute_name = _resolve_static_string(node.args[1], static_string_bindings)
+        if target_reference == "legacy_app" and attribute_name == "__dict__":
+            return "legacy_app.__dict__"
+        if target_reference == "builtins" and attribute_name in {
+            "__import__",
+            "getattr",
+            "vars",
+        }:
+            return f"builtins.{attribute_name}"
+        if target_reference == "builtins.__dict__" and attribute_name in {
+            "__getitem__",
+            "get",
+            "pop",
+            "setdefault",
+        }:
+            return f"builtins.__dict__.{attribute_name}"
+    if isinstance(node.func, ast.Attribute) and node.func.attr == "__getattribute__" and node.args:
+        target_reference = _static_module_reference(
             node.func.value,
             module_aliases=module_aliases,
             import_module_aliases=import_module_aliases,
             static_string_bindings=static_string_bindings,
         )
-        == "legacy_app"
-        and node.args
-        and _resolve_static_string(node.args[0], static_string_bindings) == "__dict__"
-    ):
-        return "legacy_app.__dict__"
+        attribute_name = _resolve_static_string(node.args[0], static_string_bindings)
+        if target_reference == "legacy_app" and attribute_name == "__dict__":
+            return "legacy_app.__dict__"
+        if target_reference == "builtins" and attribute_name in {
+            "__import__",
+            "getattr",
+            "vars",
+        }:
+            return f"builtins.{attribute_name}"
+        if target_reference == "builtins.__dict__" and attribute_name in {
+            "__getitem__",
+            "get",
+            "pop",
+            "setdefault",
+        }:
+            return f"builtins.__dict__.{attribute_name}"
     if (
         function_reference == "sys.modules.get"
         and node.args
         and not any(keyword.arg == "name" for keyword in node.keywords)
     ):
         return _resolve_static_string(node.args[0], static_string_bindings)
-    if (
-        function_reference == "builtins.vars"
-        and len(node.args) == 1
-        and not node.keywords
-        and _static_module_reference(
+    if function_reference == "builtins.vars" and len(node.args) == 1 and not node.keywords:
+        target_reference = _static_module_reference(
             node.args[0],
             module_aliases=module_aliases,
             import_module_aliases=import_module_aliases,
             static_string_bindings=static_string_bindings,
         )
-        == "legacy_app"
+        if target_reference in {"legacy_app", "builtins"}:
+            return f"{target_reference}.__dict__"
+    if (
+        function_reference
+        in {
+            "builtins.__dict__.__getitem__",
+            "builtins.__dict__.get",
+            "builtins.__dict__.pop",
+            "builtins.__dict__.setdefault",
+        }
+        and node.args
     ):
-        return "legacy_app.__dict__"
+        builtin_name = _resolve_static_string(node.args[0], static_string_bindings)
+        if builtin_name in {"__import__", "getattr", "vars"}:
+            return f"builtins.{builtin_name}"
     is_module_loader = (
         function_reference in {"builtins.__import__", "importlib.import_module"}
         or isinstance(node.func, ast.Name)
@@ -2257,11 +2295,15 @@ def _match_pattern_bindings(pattern: ast.pattern) -> set[str]:
 def _is_unguarded_irrefutable_case(case: ast.match_case) -> bool:
     """Return whether a match case guarantees that some case body executes."""
 
-    return (
-        case.guard is None
-        and isinstance(case.pattern, ast.MatchAs)
-        and (case.pattern.pattern is None)
-    )
+    return case.guard is None and _is_irrefutable_match_pattern(case.pattern)
+
+
+def _is_irrefutable_match_pattern(pattern: ast.pattern) -> bool:
+    if isinstance(pattern, ast.MatchAs):
+        return pattern.pattern is None or _is_irrefutable_match_pattern(pattern.pattern)
+    if isinstance(pattern, ast.MatchOr):
+        return any(_is_irrefutable_match_pattern(child) for child in pattern.patterns)
+    return False
 
 
 def _scan_api_key_alias_expressions(
@@ -2306,6 +2348,11 @@ def _preferred_api_key_module_reference(references: AbstractSet[str | None]) -> 
         "legacy_app.__dict__.pop",
         "legacy_app.__dict__.setdefault",
         "sys.modules",
+        "builtins.__dict__",
+        "builtins.__dict__.__getitem__",
+        "builtins.__dict__.get",
+        "builtins.__dict__.pop",
+        "builtins.__dict__.setdefault",
         "builtins.getattr",
         "builtins.vars",
         "builtins.__import__",
@@ -2594,7 +2641,23 @@ def _loop_api_key_alias_fixed_point(
 ]:
     """Return iteration, body, no-break, and break states for repeated iterations."""
 
-    initial_state = (dict(initial_modules), set(initial_imports))
+    literal_iterator_references: dict[int, set[str | None]] | None = None
+    literal_iterator_elements: tuple[ast.expr, ...] | None = None
+    if isinstance(statement, (ast.For, ast.AsyncFor)):
+        (
+            iterator_modules,
+            iterator_imports,
+            literal_iterator_references,
+            literal_iterator_elements,
+        ) = _evaluate_api_key_loop_iterator(
+            statement.iter,
+            module_aliases=initial_modules,
+            import_module_aliases=initial_imports,
+            static_string_bindings=static_string_bindings,
+        )
+        initial_state = (iterator_modules, iterator_imports)
+    else:
+        initial_state = (dict(initial_modules), set(initial_imports))
     iteration_entry = initial_state
     while True:
         tested_state = (
@@ -2607,12 +2670,27 @@ def _loop_api_key_alias_fixed_point(
             if isinstance(statement, ast.While)
             else iteration_entry
         )
-        body_modules = dict(tested_state[0])
-        body_imports = set(tested_state[1])
         if isinstance(statement, (ast.For, ast.AsyncFor)):
-            for target_name in _assignment_target_names(statement.target):
-                body_modules.pop(target_name, None)
-                body_imports.discard(target_name)
+            if literal_iterator_references is None or literal_iterator_elements is None:
+                body_modules = dict(tested_state[0])
+                body_imports = set(tested_state[1])
+                for target_name in _assignment_target_names(statement.target):
+                    body_modules.pop(target_name, None)
+                    body_imports.discard(target_name)
+            else:
+                literal_target_states = [
+                    _apply_api_key_recorded_target_updates(
+                        _assignment_target_value_pairs(statement.target, element),
+                        literal_iterator_references,
+                        module_aliases=tested_state[0],
+                        import_module_aliases=tested_state[1],
+                    )
+                    for element in literal_iterator_elements
+                ]
+                body_modules, body_imports = _join_api_key_alias_states(*literal_target_states)
+        else:
+            body_modules = dict(tested_state[0])
+            body_imports = set(tested_state[1])
         body_flow = _apply_api_key_loop_block_flow(
             statement.body,
             entry_state=(body_modules, body_imports),
@@ -2667,20 +2745,11 @@ def _api_key_exception_prefix_state(
                 ]
             )
         elif isinstance(statement, (ast.For, ast.AsyncFor, ast.While)):
-            if isinstance(statement, ast.While):
-                loop_modules, loop_imports = current_state
-            else:
-                loop_modules, loop_imports = _apply_api_key_alias_expression(
-                    statement.iter,
-                    module_aliases=current_state[0],
-                    import_module_aliases=current_state[1],
-                    static_string_bindings=static_string_bindings,
-                )
             _iteration_entry, body_entry, normal_exit, _break_exit = (
                 _loop_api_key_alias_fixed_point(
                     statement,
-                    initial_modules=loop_modules,
-                    initial_imports=loop_imports,
+                    initial_modules=current_state[0],
+                    initial_imports=current_state[1],
                     static_string_bindings=static_string_bindings,
                 )
             )
@@ -2970,14 +3039,34 @@ def _evaluate_api_key_assignment_value(
 ) -> tuple[dict[str, str], set[str], dict[int, set[str | None]]]:
     """Evaluate literal sequence RHS once and snapshot each element reference."""
 
-    if not isinstance(value, (ast.Tuple, ast.List)):
-        next_modules, next_imports, references = _evaluate_api_key_alias_expression(
+    if isinstance(value, ast.Starred) and isinstance(value.value, ast.Dict):
+        next_modules, next_imports, dict_references, _keys = _evaluate_api_key_static_dict_iterator(
+            value.value,
+            module_aliases=module_aliases,
+            import_module_aliases=import_module_aliases,
+            static_string_bindings=static_string_bindings,
+        )
+        return next_modules, next_imports, dict_references
+
+    if isinstance(value, ast.Starred) and isinstance(
+        value.value,
+        (ast.Tuple, ast.List, ast.Set),
+    ):
+        return _evaluate_api_key_assignment_value(
+            value.value,
+            module_aliases=module_aliases,
+            import_module_aliases=import_module_aliases,
+            static_string_bindings=static_string_bindings,
+        )
+
+    if not isinstance(value, (ast.Tuple, ast.List, ast.Set)):
+        next_modules, next_imports, expression_references = _evaluate_api_key_alias_expression(
             value,
             module_aliases=module_aliases,
             import_module_aliases=import_module_aliases,
             static_string_bindings=static_string_bindings,
         )
-        return next_modules, next_imports, {id(value): references}
+        return next_modules, next_imports, {id(value): expression_references}
 
     next_modules = dict(module_aliases)
     next_imports = set(import_module_aliases)
@@ -2991,6 +3080,134 @@ def _evaluate_api_key_assignment_value(
         )
         references_by_node.update(element_references)
     return next_modules, next_imports, references_by_node
+
+
+def _evaluate_api_key_loop_iterator(
+    value: ast.expr,
+    *,
+    module_aliases: Mapping[str, str],
+    import_module_aliases: AbstractSet[str],
+    static_string_bindings: Mapping[str, str],
+) -> tuple[
+    dict[str, str],
+    set[str],
+    dict[int, set[str | None]] | None,
+    tuple[ast.expr, ...] | None,
+]:
+    """Evaluate an iterator once and retain statically enumerable values."""
+
+    if isinstance(value, (ast.Tuple, ast.List, ast.Set)):
+        next_modules, next_imports, sequence_references = _evaluate_api_key_assignment_value(
+            value,
+            module_aliases=module_aliases,
+            import_module_aliases=import_module_aliases,
+            static_string_bindings=static_string_bindings,
+        )
+        return (
+            next_modules,
+            next_imports,
+            sequence_references,
+            _literal_iteration_elements(value),
+        )
+
+    if isinstance(value, ast.Dict):
+        return _evaluate_api_key_static_dict_iterator(
+            value,
+            module_aliases=module_aliases,
+            import_module_aliases=import_module_aliases,
+            static_string_bindings=static_string_bindings,
+        )
+
+    next_modules, next_imports = _apply_api_key_alias_expression(
+        value,
+        module_aliases=module_aliases,
+        import_module_aliases=import_module_aliases,
+        static_string_bindings=static_string_bindings,
+    )
+    return next_modules, next_imports, None, None
+
+
+def _literal_iteration_elements(
+    value: ast.Tuple | ast.List | ast.Set,
+) -> tuple[ast.expr, ...]:
+    """Flatten statically known starred sequence elements in iteration order."""
+
+    elements: list[ast.expr] = []
+    for element in value.elts:
+        if isinstance(element, ast.Starred) and isinstance(
+            element.value,
+            (ast.Tuple, ast.List, ast.Set),
+        ):
+            elements.extend(_literal_iteration_elements(element.value))
+        elif isinstance(element, ast.Starred) and isinstance(element.value, ast.Dict):
+            elements.extend(_literal_dict_iteration_keys(element.value))
+        else:
+            elements.append(element)
+    return tuple(elements)
+
+
+def _literal_dict_iteration_keys(value: ast.Dict) -> tuple[ast.expr, ...]:
+    """Return statically enumerable keys, including nested literal unpacking."""
+
+    keys: list[ast.expr] = []
+    for key, item_value in zip(value.keys, value.values, strict=True):
+        if key is not None:
+            keys.append(key)
+        elif isinstance(item_value, ast.Dict):
+            keys.extend(_literal_dict_iteration_keys(item_value))
+    return tuple(keys)
+
+
+def _evaluate_api_key_static_dict_iterator(
+    value: ast.Dict,
+    *,
+    module_aliases: Mapping[str, str],
+    import_module_aliases: AbstractSet[str],
+    static_string_bindings: Mapping[str, str],
+) -> tuple[
+    dict[str, str],
+    set[str],
+    dict[int, set[str | None]],
+    tuple[ast.expr, ...],
+]:
+    """Evaluate dict entries left-to-right and retain provable iteration keys."""
+
+    next_modules = dict(module_aliases)
+    next_imports = set(import_module_aliases)
+    references: dict[int, set[str | None]] = {}
+    keys: list[ast.expr] = []
+    for key, item_value in zip(value.keys, value.values, strict=True):
+        if key is None and isinstance(item_value, ast.Dict):
+            (
+                next_modules,
+                next_imports,
+                unpack_references,
+                unpack_keys,
+            ) = _evaluate_api_key_static_dict_iterator(
+                item_value,
+                module_aliases=next_modules,
+                import_module_aliases=next_imports,
+                static_string_bindings=static_string_bindings,
+            )
+            references.update(unpack_references)
+            keys.extend(unpack_keys)
+            continue
+        if key is not None:
+            next_modules, next_imports, key_references = _evaluate_api_key_assignment_value(
+                key,
+                module_aliases=next_modules,
+                import_module_aliases=next_imports,
+                static_string_bindings=static_string_bindings,
+            )
+            references.update(key_references)
+            keys.append(key)
+        next_modules, next_imports, _value_references = _evaluate_api_key_assignment_value(
+            item_value,
+            module_aliases=next_modules,
+            import_module_aliases=next_imports,
+            static_string_bindings=static_string_bindings,
+        )
+    return next_modules, next_imports, references, tuple(keys)
 
 
 def _apply_api_key_alias_assignment(
@@ -3012,10 +3229,32 @@ def _apply_api_key_alias_assignment(
     pairs = tuple(
         pair for target in targets for pair in _assignment_target_value_pairs(target, value)
     )
-    target_updates: list[tuple[tuple[str, ...], set[str | None]]] = []
-    for target, target_value in pairs:
-        value_references = references_by_node.get(id(target_value), {None})
-        target_updates.append((_assignment_target_names(target), value_references))
+    return _apply_api_key_recorded_target_updates(
+        pairs,
+        references_by_node,
+        module_aliases=next_modules,
+        import_module_aliases=next_imports,
+    )
+
+
+def _apply_api_key_recorded_target_updates(
+    pairs: Sequence[tuple[ast.expr, ast.expr]],
+    references_by_node: Mapping[int, set[str | None]],
+    *,
+    module_aliases: Mapping[str, str],
+    import_module_aliases: AbstractSet[str],
+) -> tuple[dict[str, str], set[str]]:
+    """Apply already-evaluated target references without re-reading their names."""
+
+    next_modules = dict(module_aliases)
+    next_imports = set(import_module_aliases)
+    target_updates = [
+        (
+            _assignment_target_names(target),
+            references_by_node.get(id(target_value), {None}),
+        )
+        for target, target_value in pairs
+    ]
     for target_names, value_references in target_updates:
         resolved_module = _preferred_api_key_module_reference(value_references)
         for target_name in target_names:
@@ -3230,18 +3469,6 @@ def _apply_api_key_alias_statements(
             continue
 
         if isinstance(statement, (ast.For, ast.AsyncFor, ast.While)):
-            expression = (
-                statement.iter if isinstance(statement, (ast.For, ast.AsyncFor)) else statement.test
-            )
-            if isinstance(statement, ast.While):
-                loop_modules, loop_imports = dict(next_modules), set(next_imports)
-            else:
-                loop_modules, loop_imports = _apply_api_key_alias_expression(
-                    expression,
-                    module_aliases=next_modules,
-                    import_module_aliases=next_imports,
-                    static_string_bindings=static_string_bindings,
-                )
             (
                 _iteration_entry,
                 _body_entry,
@@ -3249,8 +3476,8 @@ def _apply_api_key_alias_statements(
                 break_exit,
             ) = _loop_api_key_alias_fixed_point(
                 statement,
-                initial_modules=loop_modules,
-                initial_imports=loop_imports,
+                initial_modules=next_modules,
+                initial_imports=next_imports,
                 static_string_bindings=static_string_bindings,
             )
             else_state = _apply_api_key_alias_statements(
@@ -3533,15 +3760,6 @@ def _scan_api_key_structured_statement(
                 local_bindings=frozenset(),
             )
         )
-        if isinstance(statement, ast.While):
-            loop_modules, loop_imports = dict(module_aliases), set(import_module_aliases)
-        else:
-            loop_modules, loop_imports = _apply_api_key_alias_expression(
-                expression,
-                module_aliases=module_aliases,
-                import_module_aliases=import_module_aliases,
-                static_string_bindings=static_string_bindings,
-            )
         (
             iteration_entry,
             body_entry,
@@ -3549,8 +3767,8 @@ def _scan_api_key_structured_statement(
             _break_exit,
         ) = _loop_api_key_alias_fixed_point(
             statement,
-            initial_modules=loop_modules,
-            initial_imports=loop_imports,
+            initial_modules=module_aliases,
+            initial_imports=import_module_aliases,
             static_string_bindings=static_string_bindings,
         )
         if isinstance(statement, ast.While):
@@ -3571,11 +3789,7 @@ def _scan_api_key_structured_statement(
                 inherited_module_aliases=body_entry[0],
                 inherited_import_module_aliases=body_entry[1],
                 inherited_static_string_bindings=static_string_bindings,
-                local_bindings=(
-                    set(_assignment_target_names(statement.target))
-                    if isinstance(statement, (ast.For, ast.AsyncFor))
-                    else frozenset()
-                ),
+                local_bindings=frozenset(),
             )
         )
         errors.extend(
@@ -4146,6 +4360,7 @@ def _app_api_key_reverse_dependency_errors(
         tree.body,
         filename=filename,
         inherited_module_aliases={
+            "__builtins__": "builtins.__dict__",
             "__import__": "builtins.__import__",
             "getattr": "builtins.getattr",
             "vars": "builtins.vars",

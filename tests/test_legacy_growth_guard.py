@@ -1054,6 +1054,67 @@ def test_api_key_ownership_guard_allows_unconditional_clear_after_conditional() 
     "loader_source",
     [
         'compat = __import__("legacy_app")\n',
+        'compat = __builtins__["__import__"]("legacy_app")\n',
+        ('loader = __builtins__.get("__import__")\ncompat = loader("legacy_app")\n'),
+        (
+            'lookup = getattr(__builtins__, "get")\n'
+            'loader = lookup("__import__")\n'
+            'compat = loader("legacy_app")\n'
+        ),
+        (
+            'lookup = getattr(__builtins__, "__getitem__")\n'
+            'loader = lookup("__import__")\n'
+            'compat = loader("legacy_app")\n'
+        ),
+        (
+            "import builtins\n"
+            'loader = builtins.__getattribute__("__import__")\n'
+            'compat = loader("legacy_app")\n'
+        ),
+        (
+            "import builtins\n"
+            'lookup = builtins.__dict__.__getattribute__("get")\n'
+            'loader = lookup("__import__")\n'
+            'compat = loader("legacy_app")\n'
+        ),
+        'compat = __builtins__.__import__("legacy_app")\n',
+        (
+            "import builtins\n"
+            "__builtins__ = builtins\n"
+            'compat = __builtins__.__dict__["__import__"]("legacy_app")\n'
+        ),
+        (
+            "import builtins\n"
+            "__builtins__ = builtins\n"
+            'compat = __builtins__.__dict__.get("__import__")("legacy_app")\n'
+        ),
+        (
+            "import builtins\n"
+            "__builtins__ = builtins\n"
+            'compat = getattr(__builtins__, "__import__")("legacy_app")\n'
+        ),
+        (
+            "import builtins\n"
+            "__builtins__ = builtins\n"
+            "lookup = __builtins__.__dict__.get\n"
+            'loader = lookup("__import__")\n'
+            'compat = loader("legacy_app")\n'
+        ),
+        (
+            "import builtins\n"
+            "__builtins__ = builtins\n"
+            "lookup = __builtins__.__dict__.__getitem__\n"
+            'loader = lookup("__import__")\n'
+            'compat = loader("legacy_app")\n'
+        ),
+        (
+            "import builtins\n"
+            "__builtins__ = builtins\n"
+            "namespace = __builtins__.__dict__\n"
+            "lookup = namespace.get\n"
+            'loader = lookup("__import__")\n'
+            'compat = loader("legacy_app")\n'
+        ),
         (
             "import builtins\n"
             "load_module = builtins.__import__\n"
@@ -1065,6 +1126,19 @@ def test_api_key_ownership_guard_allows_unconditional_clear_after_conditional() 
     ],
     ids=[
         "builtin-import",
+        "implicit-builtins-import",
+        "implicit-builtins-dict-get",
+        "implicit-builtins-getattr-get",
+        "implicit-builtins-getattr-getitem",
+        "builtins-getattribute-loader",
+        "builtins-dict-getattribute-helper",
+        "implicit-builtins-module-attribute",
+        "module-builtins-namespace-subscript",
+        "module-builtins-namespace-get",
+        "module-builtins-getattr",
+        "aliased-module-builtins-get",
+        "aliased-module-builtins-getitem",
+        "aliased-module-builtins-namespace",
         "builtins-alias",
         "from-builtins-alias",
         "sys-modules-subscript",
@@ -1096,6 +1170,20 @@ def test_api_key_ownership_guard_rejects_indirect_legacy_module_loaders(
     "app_source",
     [
         'compat = __import__("app")\ndependency = compat.get_api_key\n',
+        ('compat = __builtins__["__import__"]("app")\ndependency = compat.get_api_key\n'),
+        (
+            "__builtins__ = {}\n"
+            'loader = __builtins__.get("__import__", lambda name: object())\n'
+            'compat = loader("legacy_app")\n'
+            "dependency = compat.get_api_key\n"
+        ),
+        (
+            "import builtins\n"
+            "__builtins__ = object()\n"
+            'compat = getattr(__builtins__, "__import__", lambda name: object())('
+            '"legacy_app")\n'
+            "dependency = compat.get_api_key\n"
+        ),
         'import sys\ncompat = sys.modules["app"]\ndependency = compat.get_api_key\n',
         (
             "import builtins\n"
@@ -1104,8 +1192,50 @@ def test_api_key_ownership_guard_rejects_indirect_legacy_module_loaders(
             'compat = load_module("legacy_app")\n'
             "dependency = compat.get_api_key\n"
         ),
+        (
+            "import builtins\n"
+            "lookup = builtins.__dict__.get\n"
+            "lookup = lambda name: (lambda module_name: object())\n"
+            'loader = lookup("__import__")\n'
+            'compat = loader("legacy_app")\n'
+            "dependency = compat.get_api_key\n"
+        ),
+        (
+            "import builtins\n"
+            "namespace = builtins.__dict__\n"
+            "namespace = {}\n"
+            'loader = namespace.get("__import__", lambda name: object())\n'
+            'compat = loader("legacy_app")\n'
+            "dependency = compat.get_api_key\n"
+        ),
+        (
+            'lookup = getattr(__builtins__, "get")\n'
+            "lookup = lambda name: (lambda module_name: object())\n"
+            'loader = lookup("__import__")\n'
+            'compat = loader("legacy_app")\n'
+            "dependency = compat.get_api_key\n"
+        ),
+        (
+            "import builtins\n"
+            'lookup = builtins.__dict__.__getattribute__("get")\n'
+            "lookup = lambda name: (lambda module_name: object())\n"
+            'loader = lookup("__import__")\n'
+            'compat = loader("legacy_app")\n'
+            "dependency = compat.get_api_key\n"
+        ),
     ],
-    ids=["canonical-builtin-import", "canonical-sys-modules", "loader-reassigned"],
+    ids=[
+        "canonical-builtin-import",
+        "canonical-implicit-builtins-import",
+        "shadowed-builtins-dict",
+        "shadowed-builtins-module",
+        "canonical-sys-modules",
+        "loader-reassigned",
+        "namespace-helper-reassigned",
+        "namespace-reassigned",
+        "getattr-namespace-helper-reassigned",
+        "getattribute-namespace-helper-reassigned",
+    ],
 )
 def test_api_key_ownership_guard_allows_nonlegacy_or_reassigned_loaders(
     app_source: str,
@@ -1252,6 +1382,223 @@ def test_api_key_ownership_guard_computes_loop_alias_fixed_point() -> None:
     assert errors == [
         "app/main.py: legacy API-key dependency attribute access is forbidden: get_api_key"
     ]
+
+
+@pytest.mark.parametrize(
+    "app_source",
+    [
+        (
+            "import legacy_app as legacy\n"
+            "for compat in (legacy, object()):\n"
+            "    pass\n"
+            "dependency = compat.get_api_key\n"
+        ),
+        (
+            "import legacy_app as legacy\n"
+            "for compat in (object(), legacy):\n"
+            "    dependency = compat.get_api_key\n"
+        ),
+        (
+            "import legacy_app as legacy\n"
+            "for compat, ignored in ((legacy, object()), (object(), object())):\n"
+            "    pass\n"
+            "dependency = compat.get_api_key\n"
+        ),
+        (
+            "import legacy_app as legacy\n"
+            "for compat in (legacy, object()):\n"
+            "    legacy = object()\n"
+            "dependency = compat.get_api_key\n"
+        ),
+        (
+            "import legacy_app as legacy\n"
+            "for compat in (*[legacy],):\n"
+            "    dependency = compat.get_api_key\n"
+        ),
+        (
+            "import legacy_app as legacy\n"
+            "for compat in [*(legacy,)]:\n"
+            "    pass\n"
+            "dependency = compat.get_api_key\n"
+        ),
+        (
+            "import legacy_app as legacy\n"
+            "for compat in {legacy}:\n"
+            "    pass\n"
+            "dependency = compat.get_api_key\n"
+        ),
+        (
+            "import legacy_app as legacy\n"
+            "for compat in {legacy: object()}:\n"
+            "    pass\n"
+            "dependency = compat.get_api_key\n"
+        ),
+        (
+            "import legacy_app as legacy\n"
+            "a = legacy\n"
+            "for compat in {a: (a := object())}:\n"
+            "    pass\n"
+            "dependency = compat.get_api_key\n"
+        ),
+        (
+            "import legacy_app as legacy\n"
+            "for compat in {**{legacy: object()}}:\n"
+            "    dependency = compat.get_api_key\n"
+        ),
+        (
+            "import legacy_app as legacy\n"
+            "for compat in (*{legacy: object()},):\n"
+            "    dependency = compat.get_api_key\n"
+        ),
+        (
+            "import legacy_app as legacy\n"
+            "for compat in [*{legacy: object()}]:\n"
+            "    dependency = compat.get_api_key\n"
+        ),
+    ],
+    ids=[
+        "post-loop",
+        "loop-body",
+        "destructured-target",
+        "iterator-snapshot",
+        "starred-list-expansion",
+        "starred-tuple-expansion",
+        "set-literal",
+        "dict-key-literal",
+        "dict-key-snapshot",
+        "dict-literal-unpack",
+        "starred-dict-tuple",
+        "starred-dict-list",
+    ],
+)
+def test_api_key_ownership_guard_tracks_literal_loop_target_aliases(
+    app_source: str,
+) -> None:
+    legacy_source = (
+        "from app.routers.api_key import (\n"
+        "    _get_api_key_dynamic as _get_api_key_dynamic,\n"
+        "    get_api_key as get_api_key,\n"
+        ")\n"
+    )
+
+    errors = legacy_guard.validate_api_key_dependency_ownership(
+        legacy_source,
+        _app_sources({"app/main.py": app_source}),
+    )
+
+    assert errors == [
+        "app/main.py: legacy API-key dependency attribute access is forbidden: get_api_key"
+    ]
+
+
+def test_api_key_ownership_guard_allows_safe_literal_loop_target_position() -> None:
+    legacy_source = (
+        "from app.routers.api_key import (\n"
+        "    _get_api_key_dynamic as _get_api_key_dynamic,\n"
+        "    get_api_key as get_api_key,\n"
+        ")\n"
+    )
+    app_source = (
+        "import legacy_app as legacy\n"
+        "for ignored, compat in ((legacy, object()),):\n"
+        "    pass\n"
+        "dependency = compat.get_api_key\n"
+    )
+
+    errors = legacy_guard.validate_api_key_dependency_ownership(
+        legacy_source,
+        _app_sources({"app/main.py": app_source}),
+    )
+
+    assert errors == []
+
+
+def test_api_key_ownership_guard_allows_safe_starred_literal_loop_target() -> None:
+    legacy_source = (
+        "from app.routers.api_key import (\n"
+        "    _get_api_key_dynamic as _get_api_key_dynamic,\n"
+        "    get_api_key as get_api_key,\n"
+        ")\n"
+    )
+    app_source = (
+        "import legacy_app as legacy\n"
+        "for compat in (*[object()],):\n"
+        "    pass\n"
+        "dependency = compat.get_api_key\n"
+    )
+
+    errors = legacy_guard.validate_api_key_dependency_ownership(
+        legacy_source,
+        _app_sources({"app/main.py": app_source}),
+    )
+
+    assert errors == []
+
+
+def test_api_key_ownership_guard_allows_safe_set_literal_loop_target() -> None:
+    legacy_source = (
+        "from app.routers.api_key import (\n"
+        "    _get_api_key_dynamic as _get_api_key_dynamic,\n"
+        "    get_api_key as get_api_key,\n"
+        ")\n"
+    )
+    app_source = (
+        "import legacy_app as legacy\n"
+        "for compat in {object()}:\n"
+        "    pass\n"
+        "dependency = compat.get_api_key\n"
+    )
+
+    errors = legacy_guard.validate_api_key_dependency_ownership(
+        legacy_source,
+        _app_sources({"app/main.py": app_source}),
+    )
+
+    assert errors == []
+
+
+def test_api_key_ownership_guard_allows_safe_dict_key_loop_target() -> None:
+    legacy_source = (
+        "from app.routers.api_key import (\n"
+        "    _get_api_key_dynamic as _get_api_key_dynamic,\n"
+        "    get_api_key as get_api_key,\n"
+        ")\n"
+    )
+    app_source = (
+        "import legacy_app as legacy\n"
+        "for compat in {object(): legacy}:\n"
+        "    pass\n"
+        "dependency = compat.get_api_key\n"
+    )
+
+    errors = legacy_guard.validate_api_key_dependency_ownership(
+        legacy_source,
+        _app_sources({"app/main.py": app_source}),
+    )
+
+    assert errors == []
+
+
+def test_api_key_ownership_guard_allows_safe_dict_unpack_value_only() -> None:
+    legacy_source = (
+        "from app.routers.api_key import (\n"
+        "    _get_api_key_dynamic as _get_api_key_dynamic,\n"
+        "    get_api_key as get_api_key,\n"
+        ")\n"
+    )
+    app_source = (
+        "import legacy_app as legacy\n"
+        "for compat in [*{object(): legacy}]:\n"
+        "    pass\n"
+        "dependency = compat.get_api_key\n"
+    )
+
+    errors = legacy_guard.validate_api_key_dependency_ownership(
+        legacy_source,
+        _app_sources({"app/main.py": app_source}),
+    )
+
+    assert errors == []
 
 
 def test_api_key_ownership_guard_recomputes_while_test_at_fixed_point() -> None:
@@ -1418,8 +1765,13 @@ def test_api_key_ownership_guard_applies_finally_to_loop_transfer(
     [
         ("try:\n    might_raise()\nexcept Exception:\n    pass\nfinally:\n    compat = object()\n"),
         "match value:\n    case _:\n        compat = object()\n",
+        "match value:\n    case _ as bound:\n        compat = object()\n",
     ],
-    ids=["finally-clears-alias", "irrefutable-match-clears-alias"],
+    ids=[
+        "finally-clears-alias",
+        "irrefutable-match-clears-alias",
+        "nested-irrefutable-match-clears-alias",
+    ],
 )
 def test_api_key_ownership_guard_allows_guaranteed_compound_alias_clear(
     compound_statement: str,
