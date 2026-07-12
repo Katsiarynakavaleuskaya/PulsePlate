@@ -292,9 +292,23 @@ def test_api_key_ownership_guard_rejects_dynamic_legacy_lookup() -> None:
         ('legacy.__getattribute__("get_api_key")', "get_api_key"),
         ('object.__getattribute__(legacy, "get_api_key")', "get_api_key"),
         ('legacy.__dict__.get("get_api_key")', "get_api_key"),
+        ('legacy.__dict__.get("get_api_key", None)', "get_api_key"),
         ('vars(legacy).__getitem__("_get_api_key_dynamic")', "_get_api_key_dynamic"),
         ('legacy.__dict__.pop("get_api_key", None)', "get_api_key"),
         ('vars(legacy).setdefault("_get_api_key_dynamic", None)', "_get_api_key_dynamic"),
+        ('getattr(*(legacy, "get_api_key"))', "get_api_key"),
+        ('getattr(*(legacy, "get_api_key", None))', "get_api_key"),
+        ('object.__getattribute__(*(legacy, "get_api_key"))', "get_api_key"),
+        ('type(legacy).__getattribute__(*(legacy, "get_api_key"))', "get_api_key"),
+        ('legacy.__getattribute__(* ("get_api_key",))', "get_api_key"),
+        ('legacy.__dict__.get(*("get_api_key", None))', "get_api_key"),
+        ('vars(legacy).__getitem__(* ("_get_api_key_dynamic",))', "_get_api_key_dynamic"),
+        ('getattr(legacy, "get_api_key", **{})', "get_api_key"),
+        ('object.__getattribute__(legacy, "get_api_key", **{})', "get_api_key"),
+        ('type(legacy).__getattribute__(legacy, "get_api_key", **{})', "get_api_key"),
+        ('legacy.__getattribute__("get_api_key", **{})', "get_api_key"),
+        ('legacy.__dict__.get("get_api_key", **{})', "get_api_key"),
+        ('getattr(legacy, "get_api_key", **dict())', "get_api_key"),
     ],
 )
 def test_api_key_ownership_guard_rejects_namespace_legacy_lookup(
@@ -317,6 +331,1054 @@ def test_api_key_ownership_guard_rejects_namespace_legacy_lookup(
     assert errors == [
         f"app/main.py: dynamic legacy API-key dependency lookup is forbidden: {symbol}"
     ]
+
+
+@pytest.mark.parametrize(
+    "lookup",
+    [
+        'getattr(legacy, "get_api_key", None, object())',
+        'getattr(*(legacy, "get_api_key", None, object()))',
+        'getattr(object=legacy, name="get_api_key")',
+        'getattr(legacy, "get_api_key", **{"default": None})',
+        'type(legacy).__getattribute__(legacy, "get_api_key", object())',
+        'type(legacy).__getattribute__(*(legacy, "get_api_key", object()))',
+        'type(legacy).__getattribute__(legacy, "get_api_key", extra=object())',
+        'object.__getattribute__(legacy, "get_api_key", object())',
+        'object.__getattribute__(*(legacy, "get_api_key", object()))',
+        'object.__getattribute__(legacy, "get_api_key", extra=object())',
+        'legacy.__getattribute__("get_api_key", object())',
+        'legacy.__getattribute__(* ("get_api_key", object()))',
+        'legacy.__getattribute__("get_api_key", extra=object())',
+        'vars(legacy).__getitem__("get_api_key", object())',
+        'vars(legacy).__getitem__(* ("get_api_key", object()))',
+        'vars(legacy).get("get_api_key", None, object())',
+        'vars(legacy).get(*("get_api_key", None, object()))',
+        'vars(legacy).get("get_api_key", default=None)',
+    ],
+    ids=[
+        "getattr-extra-positional",
+        "getattr-starred-extra-positional",
+        "getattr-keyword",
+        "getattr-nonempty-keyword-unpack",
+        "runtime-type-extra-positional",
+        "runtime-type-starred-extra-positional",
+        "runtime-type-keyword",
+        "object-extra-positional",
+        "object-starred-extra-positional",
+        "object-keyword",
+        "bound-extra-positional",
+        "bound-starred-extra-positional",
+        "bound-keyword",
+        "namespace-getitem-extra-positional",
+        "namespace-getitem-starred-extra-positional",
+        "namespace-get-extra-positional",
+        "namespace-get-starred-extra-positional",
+        "namespace-get-keyword",
+    ],
+)
+def test_api_key_ownership_guard_allows_invalid_lookup_invocation(lookup: str) -> None:
+    legacy_source = (
+        "from app.routers.api_key import (\n"
+        "    _get_api_key_dynamic as _get_api_key_dynamic,\n"
+        "    get_api_key as get_api_key,\n"
+        ")\n"
+    )
+    app_source = f"import legacy_app as legacy\nvalue = {lookup}\n"
+
+    errors = legacy_guard.validate_api_key_dependency_ownership(
+        legacy_source,
+        _app_sources({"app/main.py": app_source}),
+    )
+
+    assert errors == []
+
+
+@pytest.mark.parametrize(
+    "setup",
+    [
+        "kwargs = {}\n",
+        "kwargs = {}\nalias = kwargs\nkwargs = alias\n",
+        "kwargs = dict()\n",
+        "kwargs = {**{}}\n",
+    ],
+    ids=["empty-variable", "empty-alias", "dict-call", "empty-unpack"],
+)
+def test_api_key_ownership_guard_rejects_maybe_empty_keyword_mapping(
+    setup: str,
+) -> None:
+    legacy_source = (
+        "from app.routers.api_key import (\n"
+        "    _get_api_key_dynamic as _get_api_key_dynamic,\n"
+        "    get_api_key as get_api_key,\n"
+        ")\n"
+    )
+    app_source = (
+        "import legacy_app as legacy\n"
+        f"{setup}"
+        'dependency = getattr(legacy, "get_api_key", **kwargs)\n'
+    )
+
+    errors = legacy_guard.validate_api_key_dependency_ownership(
+        legacy_source,
+        _app_sources({"app/main.py": app_source}),
+    )
+
+    assert errors == [
+        "app/main.py: dynamic legacy API-key dependency lookup is forbidden: get_api_key"
+    ]
+
+
+@pytest.mark.parametrize(
+    "lookup",
+    [
+        'type(legacy).__getattribute__(legacy, "get_api_key", **kwargs)',
+        'vars(legacy).get("get_api_key", **kwargs)',
+        'attrgetter("get_api_key")(legacy, **kwargs)',
+        'methodcaller("__getattribute__", "get_api_key")(legacy, **kwargs)',
+    ],
+    ids=["runtime-type", "namespace", "attrgetter", "methodcaller"],
+)
+def test_api_key_ownership_guard_rejects_empty_keyword_mapping_across_lookup_family(
+    lookup: str,
+) -> None:
+    legacy_source = (
+        "from app.routers.api_key import (\n"
+        "    _get_api_key_dynamic as _get_api_key_dynamic,\n"
+        "    get_api_key as get_api_key,\n"
+        ")\n"
+    )
+    app_source = (
+        "import legacy_app as legacy\n"
+        "from operator import attrgetter, methodcaller\n"
+        "kwargs = {}\n"
+        f"dependency = {lookup}\n"
+    )
+
+    errors = legacy_guard.validate_api_key_dependency_ownership(
+        legacy_source,
+        _app_sources({"app/main.py": app_source}),
+    )
+
+    assert errors == [
+        "app/main.py: dynamic legacy API-key dependency lookup is forbidden: get_api_key"
+    ]
+
+
+@pytest.mark.parametrize(
+    "setup",
+    [
+        'kwargs = {"default": None}\n',
+        'kwargs = {"default": None}\nalias = kwargs\nkwargs = alias\n',
+        "kwargs = dict(default=None)\n",
+    ],
+    ids=["nonempty-variable", "nonempty-alias", "nonempty-dict-call"],
+)
+def test_api_key_ownership_guard_allows_known_nonempty_keyword_mapping(
+    setup: str,
+) -> None:
+    legacy_source = (
+        "from app.routers.api_key import (\n"
+        "    _get_api_key_dynamic as _get_api_key_dynamic,\n"
+        "    get_api_key as get_api_key,\n"
+        ")\n"
+    )
+    app_source = (
+        f'import legacy_app as legacy\n{setup}value = getattr(legacy, "get_api_key", **kwargs)\n'
+    )
+
+    errors = legacy_guard.validate_api_key_dependency_ownership(
+        legacy_source,
+        _app_sources({"app/main.py": app_source}),
+    )
+
+    assert errors == []
+
+
+@pytest.mark.parametrize(
+    "namespace_rebind",
+    [
+        'globals()["kwargs"] = {}\n',
+        'vars()["kwargs"] = {}\n',
+        'globals()["kwargs"], other = {}, 1\n',
+        '[vars()["kwargs"]] = [{}]\n',
+    ],
+    ids=[
+        "globals-empty-rebind",
+        "vars-empty-rebind",
+        "globals-tuple-empty-rebind",
+        "vars-list-empty-rebind",
+    ],
+)
+def test_api_key_ownership_guard_tracks_scope_namespace_mapping_rebind(
+    namespace_rebind: str,
+) -> None:
+    legacy_source = (
+        "from app.routers.api_key import (\n"
+        "    _get_api_key_dynamic as _get_api_key_dynamic,\n"
+        "    get_api_key as get_api_key,\n"
+        ")\n"
+    )
+    app_source = (
+        "import legacy_app as legacy\n"
+        'kwargs = {"x": 1}\n'
+        f"{namespace_rebind}"
+        'value = getattr(legacy, "get_api_key", **kwargs)\n'
+    )
+
+    errors = legacy_guard.validate_api_key_dependency_ownership(
+        legacy_source,
+        _app_sources({"app/main.py": app_source}),
+    )
+
+    assert errors == [
+        "app/main.py: dynamic legacy API-key dependency lookup is forbidden: get_api_key"
+    ]
+
+
+def test_api_key_ownership_guard_ignores_unrelated_scope_namespace_rebind() -> None:
+    legacy_source = (
+        "from app.routers.api_key import (\n"
+        "    _get_api_key_dynamic as _get_api_key_dynamic,\n"
+        "    get_api_key as get_api_key,\n"
+        ")\n"
+    )
+    app_source = (
+        "import legacy_app as legacy\n"
+        'kwargs = {"x": 1}\n'
+        'globals()["other"] = {}\n'
+        'value = getattr(legacy, "get_api_key", **kwargs)\n'
+    )
+
+    errors = legacy_guard.validate_api_key_dependency_ownership(
+        legacy_source,
+        _app_sources({"app/main.py": app_source}),
+    )
+
+    assert errors == []
+
+
+def test_api_key_ownership_guard_preserves_fast_local_on_global_namespace_write() -> None:
+    legacy_source = (
+        "from app.routers.api_key import (\n"
+        "    _get_api_key_dynamic as _get_api_key_dynamic,\n"
+        "    get_api_key as get_api_key,\n"
+        ")\n"
+    )
+    app_source = (
+        "import legacy_app as legacy\n"
+        'kwargs = {"module": 1}\n'
+        "def outer():\n"
+        '    kwargs = {"local": 1}\n'
+        '    globals()["kwargs"] = {}\n'
+        '    return getattr(legacy, "get_api_key", **kwargs)\n'
+        "outer()\n"
+    )
+
+    errors = legacy_guard.validate_api_key_dependency_ownership(
+        legacy_source,
+        _app_sources({"app/main.py": app_source}),
+    )
+
+    assert errors == []
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        'globals().__setitem__("other", {})\n',
+        "globals().update(other={})\n",
+        'globals().update({"other": {}})\n',
+        'globals().setdefault("kwargs", {})\n',
+    ],
+    ids=[
+        "setitem-unrelated",
+        "update-keyword-unrelated",
+        "update-positional-unrelated",
+        "setdefault-existing",
+    ],
+)
+def test_api_key_ownership_guard_allows_nonmutating_namespace_methods(
+    mutation: str,
+) -> None:
+    legacy_source = (
+        "from app.routers.api_key import (\n"
+        "    _get_api_key_dynamic as _get_api_key_dynamic,\n"
+        "    get_api_key as get_api_key,\n"
+        ")\n"
+    )
+    app_source = (
+        "import legacy_app as legacy\n"
+        'kwargs = {"x": 1}\n'
+        f"{mutation}"
+        'value = getattr(legacy, "get_api_key", **kwargs)\n'
+    )
+
+    errors = legacy_guard.validate_api_key_dependency_ownership(
+        legacy_source,
+        _app_sources({"app/main.py": app_source}),
+    )
+
+    assert errors == []
+
+
+def test_api_key_ownership_guard_rejects_tracked_namespace_setitem() -> None:
+    legacy_source = (
+        "from app.routers.api_key import (\n"
+        "    _get_api_key_dynamic as _get_api_key_dynamic,\n"
+        "    get_api_key as get_api_key,\n"
+        ")\n"
+    )
+    app_source = (
+        "import legacy_app as legacy\n"
+        'kwargs = {"x": 1}\n'
+        'globals().__setitem__("kwargs", {})\n'
+        'value = getattr(legacy, "get_api_key", **kwargs)\n'
+    )
+
+    errors = legacy_guard.validate_api_key_dependency_ownership(
+        legacy_source,
+        _app_sources({"app/main.py": app_source}),
+    )
+
+    assert errors == [
+        "app/main.py: dynamic legacy API-key dependency lookup is forbidden: get_api_key"
+    ]
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        'globals().__setitem__("kwargs", {})\n',
+        "globals().update(kwargs={})\n",
+    ],
+    ids=["setitem", "update"],
+)
+def test_api_key_ownership_guard_preserves_fast_local_on_global_namespace_method(
+    mutation: str,
+) -> None:
+    legacy_source = (
+        "from app.routers.api_key import (\n"
+        "    _get_api_key_dynamic as _get_api_key_dynamic,\n"
+        "    get_api_key as get_api_key,\n"
+        ")\n"
+    )
+    app_source = (
+        "import legacy_app as legacy\n"
+        'kwargs = {"module": 1}\n'
+        "def outer():\n"
+        '    kwargs = {"local": 1}\n'
+        f"    {mutation}"
+        '    return getattr(legacy, "get_api_key", **kwargs)\n'
+        "outer()\n"
+    )
+
+    errors = legacy_guard.validate_api_key_dependency_ownership(
+        legacy_source,
+        _app_sources({"app/main.py": app_source}),
+    )
+
+    assert errors == []
+
+
+def test_api_key_ownership_guard_rejects_tracked_namespace_positional_update() -> None:
+    legacy_source = (
+        "from app.routers.api_key import (\n"
+        "    _get_api_key_dynamic as _get_api_key_dynamic,\n"
+        "    get_api_key as get_api_key,\n"
+        ")\n"
+    )
+    app_source = (
+        "import legacy_app as legacy\n"
+        'kwargs = {"x": 1}\n'
+        'globals().update({"kwargs": {}})\n'
+        'value = getattr(legacy, "get_api_key", **kwargs)\n'
+    )
+
+    errors = legacy_guard.validate_api_key_dependency_ownership(
+        legacy_source,
+        _app_sources({"app/main.py": app_source}),
+    )
+
+    assert errors == [
+        "app/main.py: dynamic legacy API-key dependency lookup is forbidden: get_api_key"
+    ]
+
+
+@pytest.mark.parametrize("namespace", ["locals()", "vars()"])
+def test_api_key_ownership_guard_ignores_optimized_local_namespace_writes(
+    namespace: str,
+) -> None:
+    legacy_source = (
+        "from app.routers.api_key import (\n"
+        "    _get_api_key_dynamic as _get_api_key_dynamic,\n"
+        "    get_api_key as get_api_key,\n"
+        ")\n"
+    )
+    app_source = (
+        "import legacy_app as legacy\n"
+        "def outer():\n"
+        '    kwargs = {"x": 1}\n'
+        f'    {namespace}["kwargs"] = {{}}\n'
+        '    return getattr(legacy, "get_api_key", **kwargs)\n'
+        "outer()\n"
+    )
+
+    errors = legacy_guard.validate_api_key_dependency_ownership(
+        legacy_source,
+        _app_sources({"app/main.py": app_source}),
+    )
+
+    assert errors == []
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "kwargs.clear()\n",
+        'kwargs.pop("x")\n',
+        "kwargs.popitem()\n",
+        'del kwargs["x"]\n',
+        "alias = kwargs\nalias.clear()\n",
+        "dict.clear(kwargs)\n",
+        'dict.pop(kwargs, "x")\n',
+        "dict.popitem(kwargs)\n",
+        'dict.__delitem__(kwargs, "x")\n',
+        'operator.delitem(kwargs, "x")\n',
+        'clear = vars(dict).get("clear")\nclear(kwargs)\n',
+        'delete = vars(operator)["delitem"]\ndelete(kwargs, "x")\n',
+        "mutate = kwargs.clear\nmutate()\n",
+        'mutate = getattr(kwargs, "clear")\nmutate()\n',
+        "def empty(mapping):\n    mapping.clear()\nempty(kwargs)\n",
+        "empty = lambda mapping: mapping.clear()\nempty(kwargs)\n",
+        "def empty():\n    kwargs.clear()\nempty()\n",
+        "empty = lambda: kwargs.clear()\nempty()\n",
+        "def empty():\n    global kwargs\n    kwargs = {}\nempty()\n",
+        "def expose():\n    return kwargs\nexpose().clear()\n",
+        "def expose():\n    return kwargs\nalias = expose()\nalias.clear()\n",
+        "def expose():\n    yield kwargs\nnext(expose()).clear()\n",
+        "def expose():\n    yield kwargs\ngen = expose()\ngen.__next__().clear()\n",
+        "def expose():\n    yield kwargs\ncursor = iter(expose())\nnext(cursor).clear()\n",
+        (
+            "def expose():\n"
+            "    yield kwargs\n"
+            "cursor = expose().__iter__()\n"
+            "cursor.__next__().clear()\n"
+        ),
+        (
+            "def expose():\n"
+            "    yield kwargs\n"
+            "def consume():\n"
+            "    cursor = expose().__iter__()\n"
+            "    cursor.__next__().clear()\n"
+            "consume()\n"
+        ),
+        (
+            "async def expose():\n"
+            "    yield kwargs\n"
+            "async def consume():\n"
+            "    cursor = aiter(expose())\n"
+            "    value = await anext(cursor)\n"
+            "    value.clear()\n"
+            "asyncio.run(consume())\n"
+        ),
+        (
+            "async def expose():\n"
+            "    yield kwargs\n"
+            "async def consume():\n"
+            "    cursor = expose().__aiter__()\n"
+            "    value = await cursor.__anext__()\n"
+            "    value.clear()\n"
+            "asyncio.run(consume())\n"
+        ),
+        "mutate = partial(kwargs.clear)\nmutate()\n",
+        "mutate = partial(dict.clear, kwargs)\nmutate()\n",
+        ("def outer():\n    def inner():\n        kwargs.clear()\n    inner()\nouter()\n"),
+        ("def outer():\n    inner = lambda: kwargs.clear()\n    inner()\nouter()\n"),
+        (
+            "def outer():\n"
+            "    def inner():\n"
+            "        kwargs.clear()\n"
+            "    alias = inner\n"
+            "    alias()\n"
+            "outer()\n"
+        ),
+        (
+            "def outer():\n"
+            "    def inner():\n"
+            "        kwargs.clear()\n"
+            "    alias: object = inner\n"
+            "    alias()\n"
+            "outer()\n"
+        ),
+        (
+            "def outer():\n"
+            "    def inner():\n"
+            "        kwargs.clear()\n"
+            "    (alias := inner)()\n"
+            "outer()\n"
+        ),
+        (
+            "def outer():\n"
+            "    def inner():\n"
+            "        kwargs.clear()\n"
+            "    alias = partial(inner)\n"
+            "    alias()\n"
+            "outer()\n"
+        ),
+        ("def outer():\n    inner: object = lambda: kwargs.clear()\n    inner()\nouter()\n"),
+        (
+            "def outer():\n"
+            "    def inner():\n"
+            "        kwargs.clear()\n"
+            "    alias = inner\n"
+            "    if flag:\n"
+            "        alias = lambda: None\n"
+            "    alias()\n"
+            "outer()\n"
+        ),
+        (
+            "def outer():\n"
+            "    def inner():\n"
+            "        kwargs.clear()\n"
+            "    if flag:\n"
+            "        alias = inner\n"
+            "    else:\n"
+            "        alias = lambda: None\n"
+            "    alias()\n"
+            "outer()\n"
+        ),
+        (
+            "def outer():\n"
+            "    def inner():\n"
+            "        kwargs.clear()\n"
+            "    alias = inner if flag else (lambda: None)\n"
+            "    alias()\n"
+            "outer()\n"
+        ),
+        (
+            "def outer():\n"
+            "    def inner():\n"
+            "        kwargs.clear()\n"
+            "    alias = inner\n"
+            "    for _ in values:\n"
+            "        alias = lambda: None\n"
+            "    alias()\n"
+            "outer()\n"
+        ),
+        (
+            "def outer():\n"
+            "    def inner():\n"
+            "        kwargs.clear()\n"
+            "    alias = inner\n"
+            "    try:\n"
+            "        may_raise()\n"
+            "        alias = lambda: None\n"
+            "    except Exception:\n"
+            "        pass\n"
+            "    alias()\n"
+            "outer()\n"
+        ),
+        (
+            "def outer():\n"
+            "    def inner():\n"
+            "        kwargs.clear()\n"
+            "    alias = inner\n"
+            "    try:\n"
+            "        with context():\n"
+            "            alias = lambda: None\n"
+            "    except Exception:\n"
+            "        pass\n"
+            "    alias()\n"
+            "outer()\n"
+        ),
+        (
+            "def outer():\n"
+            "    def inner():\n"
+            "        kwargs.clear()\n"
+            "    alias = inner\n"
+            "    match flag:\n"
+            "        case True:\n"
+            "            alias = lambda: None\n"
+            "        case _:\n"
+            "            pass\n"
+            "    alias()\n"
+            "outer()\n"
+        ),
+        (
+            "def outer():\n"
+            "    def inner():\n"
+            "        kwargs.clear()\n"
+            "    alias = inner\n"
+            "    for _ in [0]:\n"
+            "        break\n"
+            "        alias = lambda: None\n"
+            "    alias()\n"
+            "outer()\n"
+        ),
+        (
+            "def outer():\n"
+            "    def inner():\n"
+            "        kwargs.clear()\n"
+            "    alias = inner\n"
+            "    for _ in [0]:\n"
+            "        continue\n"
+            "        alias = lambda: None\n"
+            "    alias()\n"
+            "outer()\n"
+        ),
+        (
+            "def outer():\n"
+            "    def inner():\n"
+            "        kwargs.clear()\n"
+            "    alias = inner\n"
+            "    for _ in [0]:\n"
+            "        if flag:\n"
+            "            break\n"
+            "        alias = lambda: None\n"
+            "    alias()\n"
+            "outer()\n"
+        ),
+    ],
+    ids=[
+        "clear",
+        "pop",
+        "popitem",
+        "delete-item",
+        "alias-clear",
+        "unbound-clear",
+        "unbound-pop",
+        "unbound-popitem",
+        "unbound-delete-item",
+        "operator-delete-item",
+        "reflected-unbound-clear",
+        "reflected-operator-delete-item",
+        "bound-mutator-alias",
+        "reflected-bound-mutator-alias",
+        "local-helper-escape",
+        "lambda-helper-escape",
+        "local-captured-helper",
+        "lambda-captured-helper",
+        "global-captured-rebind",
+        "returned-mapping-direct-mutation",
+        "returned-mapping-alias-mutation",
+        "yielded-mapping-mutation",
+        "yielded-mapping-dunder-next-mutation",
+        "yielded-mapping-iter-next-mutation",
+        "yielded-mapping-dunder-iter-mutation",
+        "yielded-mapping-closure-dunder-iter-mutation",
+        "async-yielded-mapping-mutation",
+        "async-yielded-mapping-closure-dunder-aiter-mutation",
+        "partial-bound-mutator",
+        "partial-unbound-mutator",
+        "nested-function-call",
+        "nested-lambda-call",
+        "nested-function-alias-call",
+        "nested-function-annotated-alias-call",
+        "nested-function-walrus-alias-call",
+        "nested-function-partial-alias-call",
+        "nested-annotated-lambda-call",
+        "nested-conditional-safe-rebind",
+        "nested-conditional-mutating-branch",
+        "nested-conditional-expression",
+        "nested-loop-zero-iteration",
+        "nested-try-exception-prefix",
+        "nested-with-enter-exception-prefix",
+        "nested-match-reachable-mutator",
+        "nested-loop-break-transfer",
+        "nested-loop-continue-transfer",
+        "nested-loop-conditional-break-transfer",
+    ],
+)
+def test_api_key_ownership_guard_invalidates_mutated_keyword_mapping(
+    mutation: str,
+) -> None:
+    legacy_source = (
+        "from app.routers.api_key import (\n"
+        "    _get_api_key_dynamic as _get_api_key_dynamic,\n"
+        "    get_api_key as get_api_key,\n"
+        ")\n"
+    )
+    app_source = (
+        "import legacy_app as legacy\n"
+        "import asyncio\n"
+        "import operator\n"
+        "from functools import partial\n"
+        'kwargs = {"x": 1}\n'
+        f"{mutation}"
+        'dependency = getattr(legacy, "get_api_key", **kwargs)\n'
+    )
+
+    errors = legacy_guard.validate_api_key_dependency_ownership(
+        legacy_source,
+        _app_sources({"app/main.py": app_source}),
+    )
+
+    assert errors == [
+        "app/main.py: dynamic legacy API-key dependency lookup is forbidden: get_api_key"
+    ]
+
+
+@pytest.mark.parametrize("helper_kind", ["function", "lambda"])
+def test_api_key_ownership_guard_allows_unused_nested_mapping_mutator(
+    helper_kind: str,
+) -> None:
+    legacy_source = (
+        "from app.routers.api_key import (\n"
+        "    _get_api_key_dynamic as _get_api_key_dynamic,\n"
+        "    get_api_key as get_api_key,\n"
+        ")\n"
+    )
+    helper = (
+        "    def inner():\n        kwargs.clear()\n"
+        if helper_kind == "function"
+        else "    inner = lambda: kwargs.clear()\n"
+    )
+    app_source = (
+        "import legacy_app as legacy\n"
+        'kwargs = {"x": 1}\n'
+        "def outer():\n"
+        f"{helper}"
+        "outer()\n"
+        'value = getattr(legacy, "get_api_key", **kwargs)\n'
+    )
+
+    errors = legacy_guard.validate_api_key_dependency_ownership(
+        legacy_source,
+        _app_sources({"app/main.py": app_source}),
+    )
+
+    assert errors == []
+
+
+def test_api_key_ownership_guard_invalidates_executed_nonlocal_mapping_rebind() -> None:
+    legacy_source = (
+        "from app.routers.api_key import (\n"
+        "    _get_api_key_dynamic as _get_api_key_dynamic,\n"
+        "    get_api_key as get_api_key,\n"
+        ")\n"
+    )
+    app_source = (
+        "import legacy_app as legacy\n"
+        "def outer():\n"
+        '    kwargs = {"x": 1}\n'
+        "    def empty():\n"
+        "        nonlocal kwargs\n"
+        "        kwargs = {}\n"
+        "    empty()\n"
+        '    return getattr(legacy, "get_api_key", **kwargs)\n'
+        "outer()\n"
+    )
+
+    errors = legacy_guard.validate_api_key_dependency_ownership(
+        legacy_source,
+        _app_sources({"app/main.py": app_source}),
+    )
+
+    assert errors == [
+        "app/main.py: dynamic legacy API-key dependency lookup is forbidden: get_api_key"
+    ]
+
+
+def test_api_key_ownership_guard_allows_unused_captured_mapping_rebind() -> None:
+    legacy_source = (
+        "from app.routers.api_key import (\n"
+        "    _get_api_key_dynamic as _get_api_key_dynamic,\n"
+        "    get_api_key as get_api_key,\n"
+        ")\n"
+    )
+    app_source = (
+        "import legacy_app as legacy\n"
+        'kwargs = {"x": 1}\n'
+        "def empty():\n"
+        "    global kwargs\n"
+        "    kwargs = {}\n"
+        'value = getattr(legacy, "get_api_key", **kwargs)\n'
+    )
+
+    errors = legacy_guard.validate_api_key_dependency_ownership(
+        legacy_source,
+        _app_sources({"app/main.py": app_source}),
+    )
+
+    assert errors == []
+
+
+@pytest.mark.parametrize(
+    "exposure",
+    [
+        "def expose():\n    return kwargs\n",
+        "def expose():\n    yield kwargs\n",
+        "expose = lambda: kwargs\n",
+    ],
+    ids=["return", "yield", "lambda-return"],
+)
+def test_api_key_ownership_guard_allows_unused_mapping_exposure(
+    exposure: str,
+) -> None:
+    legacy_source = (
+        "from app.routers.api_key import (\n"
+        "    _get_api_key_dynamic as _get_api_key_dynamic,\n"
+        "    get_api_key as get_api_key,\n"
+        ")\n"
+    )
+    app_source = (
+        "import legacy_app as legacy\n"
+        'kwargs = {"x": 1}\n'
+        f"{exposure}"
+        'value = getattr(legacy, "get_api_key", **kwargs)\n'
+    )
+
+    errors = legacy_guard.validate_api_key_dependency_ownership(
+        legacy_source,
+        _app_sources({"app/main.py": app_source}),
+    )
+
+    assert errors == []
+
+
+@pytest.mark.parametrize(
+    "factory",
+    [
+        "def expose():\n    yield kwargs\n",
+        "async def expose():\n    yield kwargs\n",
+    ],
+    ids=["generator", "async-generator"],
+)
+def test_api_key_ownership_guard_allows_unconsumed_mapping_generator(
+    factory: str,
+) -> None:
+    legacy_source = (
+        "from app.routers.api_key import (\n"
+        "    _get_api_key_dynamic as _get_api_key_dynamic,\n"
+        "    get_api_key as get_api_key,\n"
+        ")\n"
+    )
+    app_source = (
+        "import legacy_app as legacy\n"
+        'kwargs = {"x": 1}\n'
+        f"{factory}"
+        "generator = expose()\n"
+        'value = getattr(legacy, "get_api_key", **kwargs)\n'
+    )
+
+    errors = legacy_guard.validate_api_key_dependency_ownership(
+        legacy_source,
+        _app_sources({"app/main.py": app_source}),
+    )
+
+    assert errors == []
+
+
+@pytest.mark.parametrize(
+    "wrapper",
+    [
+        "cursor = iter(expose())\n",
+        "cursor = expose().__iter__()\n",
+    ],
+    ids=["iter", "dunder-iter"],
+)
+def test_api_key_ownership_guard_allows_unconsumed_generator_wrapper(
+    wrapper: str,
+) -> None:
+    legacy_source = (
+        "from app.routers.api_key import (\n"
+        "    _get_api_key_dynamic as _get_api_key_dynamic,\n"
+        "    get_api_key as get_api_key,\n"
+        ")\n"
+    )
+    app_source = (
+        "import legacy_app as legacy\n"
+        'kwargs = {"x": 1}\n'
+        "def expose():\n"
+        "    yield kwargs\n"
+        f"{wrapper}"
+        'value = getattr(legacy, "get_api_key", **kwargs)\n'
+    )
+
+    errors = legacy_guard.validate_api_key_dependency_ownership(
+        legacy_source,
+        _app_sources({"app/main.py": app_source}),
+    )
+
+    assert errors == []
+
+
+def test_api_key_ownership_guard_allows_unconsumed_async_generator_wrapper() -> None:
+    legacy_source = (
+        "from app.routers.api_key import (\n"
+        "    _get_api_key_dynamic as _get_api_key_dynamic,\n"
+        "    get_api_key as get_api_key,\n"
+        ")\n"
+    )
+    app_source = (
+        "import legacy_app as legacy\n"
+        'kwargs = {"x": 1}\n'
+        "async def expose():\n"
+        "    yield kwargs\n"
+        "cursor = aiter(expose())\n"
+        'value = getattr(legacy, "get_api_key", **kwargs)\n'
+    )
+
+    errors = legacy_guard.validate_api_key_dependency_ownership(
+        legacy_source,
+        _app_sources({"app/main.py": app_source}),
+    )
+
+    assert errors == []
+
+
+@pytest.mark.parametrize(
+    "consumer",
+    [
+        ("def consume():\n    cursor = expose().__iter__()\nconsume()\n"),
+        ("async def consume():\n    cursor = expose().__aiter__()\nconsumer = consume()\n"),
+    ],
+    ids=["sync", "async"],
+)
+def test_api_key_ownership_guard_allows_unconsumed_closure_local_wrapper(
+    consumer: str,
+) -> None:
+    legacy_source = (
+        "from app.routers.api_key import (\n"
+        "    _get_api_key_dynamic as _get_api_key_dynamic,\n"
+        "    get_api_key as get_api_key,\n"
+        ")\n"
+    )
+    factory = (
+        "async def expose():\n    yield kwargs\n"
+        if consumer.startswith("async")
+        else "def expose():\n    yield kwargs\n"
+    )
+    app_source = (
+        "import legacy_app as legacy\n"
+        'kwargs = {"x": 1}\n'
+        f"{factory}"
+        f"{consumer}"
+        'value = getattr(legacy, "get_api_key", **kwargs)\n'
+    )
+
+    errors = legacy_guard.validate_api_key_dependency_ownership(
+        legacy_source,
+        _app_sources({"app/main.py": app_source}),
+    )
+
+    assert errors == []
+
+
+def test_api_key_ownership_guard_allows_same_state_captured_mapping_rebind() -> None:
+    legacy_source = (
+        "from app.routers.api_key import (\n"
+        "    _get_api_key_dynamic as _get_api_key_dynamic,\n"
+        "    get_api_key as get_api_key,\n"
+        ")\n"
+    )
+    app_source = (
+        "import legacy_app as legacy\n"
+        'kwargs = {"x": 1}\n'
+        "def replace():\n"
+        "    global kwargs\n"
+        '    kwargs = {"y": 2}\n'
+        "replace()\n"
+        'value = getattr(legacy, "get_api_key", **kwargs)\n'
+    )
+
+    errors = legacy_guard.validate_api_key_dependency_ownership(
+        legacy_source,
+        _app_sources({"app/main.py": app_source}),
+    )
+
+    assert errors == []
+
+
+@pytest.mark.parametrize(
+    "rebind",
+    [
+        "    inner = lambda: None\n    inner()\n",
+        "    alias = inner\n    alias = lambda: None\n    alias()\n",
+        (
+            "    alias = inner\n"
+            "    if flag:\n"
+            "        alias = lambda: None\n"
+            "    else:\n"
+            "        alias = lambda: None\n"
+            "    alias()\n"
+        ),
+        (
+            "    alias = inner\n"
+            "    try:\n"
+            "        may_raise()\n"
+            "    except Exception:\n"
+            "        pass\n"
+            "    finally:\n"
+            "        alias = lambda: None\n"
+            "    alias()\n"
+        ),
+        (
+            "    alias = inner\n"
+            "    match flag:\n"
+            "        case True:\n"
+            "            alias = lambda: None\n"
+            "        case _:\n"
+            "            alias = lambda: None\n"
+            "    alias()\n"
+        ),
+        ("    alias = inner\n    for _ in [0]:\n        alias = lambda: None\n    alias()\n"),
+        (
+            "    alias = inner\n"
+            "    for _ in [0]:\n"
+            "        try:\n"
+            "            break\n"
+            "        finally:\n"
+            "            alias = lambda: None\n"
+            "    alias()\n"
+        ),
+        (
+            "    alias = inner\n"
+            "    for _ in [0]:\n"
+            "        try:\n"
+            "            continue\n"
+            "        finally:\n"
+            "            alias = lambda: None\n"
+            "    alias()\n"
+        ),
+    ],
+    ids=[
+        "function-rebound",
+        "alias-rebound",
+        "all-branches-rebound",
+        "finally-rebound",
+        "all-match-cases-rebound",
+        "nonempty-literal-loop-rebound",
+        "break-finally-rebound",
+        "continue-finally-rebound",
+    ],
+)
+def test_api_key_ownership_guard_allows_safe_nested_callable_rebinding(
+    rebind: str,
+) -> None:
+    legacy_source = (
+        "from app.routers.api_key import (\n"
+        "    _get_api_key_dynamic as _get_api_key_dynamic,\n"
+        "    get_api_key as get_api_key,\n"
+        ")\n"
+    )
+    app_source = (
+        "import legacy_app as legacy\n"
+        'kwargs = {"x": 1}\n'
+        "def outer():\n"
+        "    def inner():\n"
+        "        kwargs.clear()\n"
+        f"{rebind}"
+        "outer()\n"
+        'value = getattr(legacy, "get_api_key", **kwargs)\n'
+    )
+
+    errors = legacy_guard.validate_api_key_dependency_ownership(
+        legacy_source,
+        _app_sources({"app/main.py": app_source}),
+    )
+
+    assert errors == []
 
 
 @pytest.mark.parametrize(
@@ -403,6 +1465,72 @@ def test_api_key_ownership_guard_rejects_aliased_legacy_getattribute_lookup(
     assert errors == [
         "app/main.py: dynamic legacy API-key dependency lookup is forbidden: get_api_key"
     ]
+
+
+@pytest.mark.parametrize(
+    "lookup_setup",
+    [
+        'dependency = type(legacy).__getattribute__(legacy, "get_api_key")\n',
+        'dependency = legacy.__class__.__getattribute__(legacy, "get_api_key")\n',
+        (
+            "module_type = type(legacy)\n"
+            "lookup = module_type.__getattribute__\n"
+            'dependency = lookup(legacy, "get_api_key")\n'
+        ),
+        (
+            "module_type = type(legacy)\n"
+            'lookup = getattr(module_type, "__getattribute__")\n'
+            'dependency = lookup(legacy, "get_api_key")\n'
+        ),
+        (
+            "module_type = type(legacy)\n"
+            'lookup = vars(module_type)["__getattribute__"]\n'
+            'dependency = lookup(legacy, "get_api_key")\n'
+        ),
+    ],
+    ids=["type-direct", "dunder-class", "assigned", "getattr", "vars-namespace"],
+)
+def test_api_key_ownership_guard_rejects_runtime_type_getattribute_lookup(
+    lookup_setup: str,
+) -> None:
+    legacy_source = (
+        "from app.routers.api_key import (\n"
+        "    _get_api_key_dynamic as _get_api_key_dynamic,\n"
+        "    get_api_key as get_api_key,\n"
+        ")\n"
+    )
+    app_source = f"import legacy_app as legacy\n{lookup_setup}"
+
+    errors = legacy_guard.validate_api_key_dependency_ownership(
+        legacy_source,
+        _app_sources({"app/main.py": app_source}),
+    )
+
+    assert errors == [
+        "app/main.py: dynamic legacy API-key dependency lookup is forbidden: get_api_key"
+    ]
+
+
+def test_api_key_ownership_guard_allows_runtime_type_lookup_on_safe_target() -> None:
+    legacy_source = (
+        "from app.routers.api_key import (\n"
+        "    _get_api_key_dynamic as _get_api_key_dynamic,\n"
+        "    get_api_key as get_api_key,\n"
+        ")\n"
+    )
+    app_source = (
+        "class Safe:\n"
+        "    get_api_key = object()\n"
+        "safe = Safe()\n"
+        'dependency = type(safe).__getattribute__(safe, "get_api_key")\n'
+    )
+
+    errors = legacy_guard.validate_api_key_dependency_ownership(
+        legacy_source,
+        _app_sources({"app/main.py": app_source}),
+    )
+
+    assert errors == []
 
 
 def test_api_key_ownership_guard_allows_reassigned_legacy_getattribute_helper() -> None:
@@ -1632,6 +2760,71 @@ def test_api_key_ownership_guard_allows_nonlegacy_or_reassigned_loaders(
             ),
             "_get_api_key_dynamic",
         ),
+        (
+            (
+                "import legacy_app as legacy\n"
+                "from operator import attrgetter\n"
+                'getter = attrgetter("get_api_key")\n'
+                "dependency = getter(*(legacy,))\n"
+            ),
+            "get_api_key",
+        ),
+        (
+            (
+                "import legacy_app as legacy\n"
+                "from operator import attrgetter\n"
+                "alias = legacy\n"
+                'getter = attrgetter("get_api_key")\n'
+                "dependency = getter(*{legacy, alias})\n"
+            ),
+            "get_api_key",
+        ),
+        (
+            (
+                "import legacy_app as legacy\n"
+                "from operator import attrgetter\n"
+                "alias = legacy\n"
+                'getter = attrgetter("get_api_key")\n'
+                "dependency = getter(*{legacy: 1, alias: 2})\n"
+            ),
+            "get_api_key",
+        ),
+        (
+            (
+                "import legacy_app as legacy\n"
+                "from operator import attrgetter\n"
+                'getter = attrgetter("get_api_key")\n'
+                'dependency = getter(*{legacy, globals()["legacy"]})\n'
+            ),
+            "get_api_key",
+        ),
+        (
+            (
+                "import legacy_app as legacy\n"
+                "from operator import attrgetter\n"
+                'getter = attrgetter("get_api_key")\n'
+                "dependency = getter(*{legacy, legacy})\n"
+            ),
+            "get_api_key",
+        ),
+        (
+            (
+                "import legacy_app as legacy\n"
+                "from operator import attrgetter\n"
+                'getter = attrgetter("get_api_key")\n'
+                "dependency = getter(*{legacy: 1, legacy: 2})\n"
+            ),
+            "get_api_key",
+        ),
+        (
+            (
+                "import legacy_app as legacy\n"
+                "from operator import attrgetter\n"
+                'getter = attrgetter("get_api_key")\n'
+                "dependency = getter(legacy, **{})\n"
+            ),
+            "get_api_key",
+        ),
     ],
     ids=[
         "direct",
@@ -1646,6 +2839,13 @@ def test_api_key_ownership_guard_allows_nonlegacy_or_reassigned_loaders(
         "starred-sensitive-dict",
         "starred-sensitive-dict-unpack",
         "starred-sensitive-nested-dict-unpack",
+        "starred-single-target-invocation",
+        "starred-duplicate-set-target",
+        "starred-duplicate-dict-target",
+        "starred-alias-equivalent-set-target",
+        "starred-alias-equivalent-dict-target",
+        "starred-reflected-equivalent-set-target",
+        "empty-keyword-expansion-invocation",
     ],
 )
 def test_api_key_ownership_guard_rejects_attrgetter_lookup(
@@ -1756,6 +2956,249 @@ def test_api_key_ownership_guard_allows_safe_starred_attrgetter(
         "from operator import attrgetter\n"
         f"{accessor_source}"
         "values = getter(legacy)\n"
+    )
+
+    errors = legacy_guard.validate_api_key_dependency_ownership(
+        legacy_source,
+        _app_sources({"app/main.py": app_source}),
+    )
+
+    assert errors == []
+
+
+@pytest.mark.parametrize(
+    "invocation",
+    [
+        "getter(legacy, object())",
+        "getter(*(legacy, object()))",
+        "getter(*{legacy, object()})",
+        "getter(*{legacy: 1, object(): 2})",
+        "getter(target=legacy)",
+        'getter(legacy, **{"extra": None})',
+    ],
+    ids=[
+        "extra-target",
+        "starred-extra-tuple-target",
+        "starred-extra-set-target",
+        "starred-extra-dict-target",
+        "keyword-target",
+        "nonempty-keyword-unpack-target",
+    ],
+)
+def test_api_key_ownership_guard_allows_invalid_attrgetter_invocation(
+    invocation: str,
+) -> None:
+    legacy_source = (
+        "from app.routers.api_key import (\n"
+        "    _get_api_key_dynamic as _get_api_key_dynamic,\n"
+        "    get_api_key as get_api_key,\n"
+        ")\n"
+    )
+    app_source = (
+        "import legacy_app as legacy\n"
+        "from operator import attrgetter\n"
+        'getter = attrgetter("get_api_key")\n'
+        f"value = {invocation}\n"
+    )
+
+    errors = legacy_guard.validate_api_key_dependency_ownership(
+        legacy_source,
+        _app_sources({"app/main.py": app_source}),
+    )
+
+    assert errors == []
+
+
+@pytest.mark.parametrize(
+    ("app_source", "expected_symbol"),
+    [
+        (
+            (
+                "import legacy_app as legacy\n"
+                "from operator import methodcaller\n"
+                'dependency = methodcaller("__getattribute__", "get_api_key")(legacy)\n'
+            ),
+            "get_api_key",
+        ),
+        (
+            (
+                "import legacy_app as legacy\n"
+                "import operator\n"
+                'symbol = "_get_api_key_dynamic"\n'
+                'caller = operator.methodcaller("__getattribute__", symbol)\n'
+                "dependency = caller(legacy)\n"
+            ),
+            "_get_api_key_dynamic",
+        ),
+        (
+            (
+                "import legacy_app as legacy\n"
+                "import operator\n"
+                'factory = vars(operator)["methodcaller"]\n'
+                'caller = factory(*("__getattribute__", "get_api_key"))\n'
+                "dependency = caller(legacy)\n"
+            ),
+            "get_api_key",
+        ),
+        (
+            (
+                "import legacy_app as legacy\n"
+                "from operator import methodcaller\n"
+                'caller = methodcaller("__getattribute__", "get_api_key")\n'
+                "dependency = caller(*[legacy])\n"
+            ),
+            "get_api_key",
+        ),
+        (
+            (
+                "import legacy_app as legacy\n"
+                "from operator import methodcaller\n"
+                "alias = legacy\n"
+                'caller = methodcaller("__getattribute__", "get_api_key")\n'
+                "dependency = caller(*{legacy, alias})\n"
+            ),
+            "get_api_key",
+        ),
+        (
+            (
+                "import legacy_app as legacy\n"
+                "from operator import methodcaller\n"
+                'caller = methodcaller(*{"get_api_key", "__getattribute__"})\n'
+                "dependency = caller(legacy)\n"
+            ),
+            "get_api_key",
+        ),
+        (
+            (
+                "import legacy_app as legacy\n"
+                "from operator import methodcaller\n"
+                'caller = methodcaller("__getattribute__", "get_api_key")\n'
+                "dependency = caller(*{legacy, legacy})\n"
+            ),
+            "get_api_key",
+        ),
+        (
+            (
+                "import legacy_app as legacy\n"
+                "from operator import methodcaller\n"
+                'caller = methodcaller("__getattribute__", "get_api_key")\n'
+                "dependency = caller(legacy, **{})\n"
+            ),
+            "get_api_key",
+        ),
+    ],
+    ids=[
+        "direct",
+        "static-symbol",
+        "reflected-starred",
+        "starred-single-target",
+        "starred-duplicate-set-target",
+        "starred-alias-equivalent-set-target",
+        "unordered-starred-set-construction",
+        "empty-keyword-expansion-invocation",
+    ],
+)
+def test_api_key_ownership_guard_rejects_methodcaller_lookup(
+    app_source: str,
+    expected_symbol: str,
+) -> None:
+    legacy_source = (
+        "from app.routers.api_key import (\n"
+        "    _get_api_key_dynamic as _get_api_key_dynamic,\n"
+        "    get_api_key as get_api_key,\n"
+        ")\n"
+    )
+
+    errors = legacy_guard.validate_api_key_dependency_ownership(
+        legacy_source,
+        _app_sources({"app/main.py": app_source}),
+    )
+
+    assert errors == [
+        f"app/main.py: dynamic legacy API-key dependency lookup is forbidden: {expected_symbol}"
+    ]
+
+
+@pytest.mark.parametrize(
+    "app_source",
+    [
+        (
+            "import legacy_app as legacy\n"
+            "from operator import methodcaller\n"
+            'value = methodcaller("__getattribute__", "__name__")(legacy)\n'
+        ),
+        (
+            "from operator import methodcaller\n"
+            "class Safe:\n"
+            "    get_api_key = object()\n"
+            'value = methodcaller("__getattribute__", "get_api_key")(Safe())\n'
+        ),
+        (
+            "import legacy_app as legacy\n"
+            "from operator import methodcaller\n"
+            'value = methodcaller("__getattribute__", "get_api_key", "extra")(legacy)\n'
+        ),
+        (
+            "import legacy_app as legacy\n"
+            "from operator import methodcaller\n"
+            'caller = methodcaller("__getattribute__", "get_api_key")\n'
+            "value = caller(legacy, object())\n"
+        ),
+        (
+            "import legacy_app as legacy\n"
+            "from operator import methodcaller\n"
+            'caller = methodcaller("__getattribute__", "get_api_key")\n'
+            "value = caller(*[legacy, object()])\n"
+        ),
+        (
+            "import legacy_app as legacy\n"
+            "from operator import methodcaller\n"
+            'caller = methodcaller("__getattribute__", "get_api_key")\n'
+            "value = caller(*{legacy, object()})\n"
+        ),
+        (
+            "import legacy_app as legacy\n"
+            "from operator import methodcaller\n"
+            'caller = methodcaller("__getattribute__", "get_api_key")\n'
+            "value = caller(*{legacy: 1, object(): 2})\n"
+        ),
+        (
+            "import legacy_app as legacy\n"
+            "from operator import methodcaller\n"
+            'caller = methodcaller("__getattribute__", "get_api_key")\n'
+            "value = caller(target=legacy)\n"
+        ),
+        (
+            "import legacy_app as legacy\n"
+            "from operator import methodcaller\n"
+            'caller = methodcaller("__getattribute__", "get_api_key")\n'
+            'value = caller(legacy, **{"extra": None})\n'
+        ),
+        (
+            "import legacy_app as legacy\n"
+            "from operator import methodcaller\n"
+            'value = methodcaller(*{"__name__", "__getattribute__"})(legacy)\n'
+        ),
+    ],
+    ids=[
+        "safe-attribute",
+        "safe-target",
+        "runtime-invalid-method-argument",
+        "runtime-invalid-extra-target",
+        "runtime-invalid-starred-extra-target",
+        "runtime-invalid-starred-set-extra-target",
+        "runtime-invalid-starred-dict-extra-target",
+        "runtime-invalid-keyword-target",
+        "runtime-invalid-nonempty-keyword-unpack-target",
+        "safe-unordered-starred-set-construction",
+    ],
+)
+def test_api_key_ownership_guard_allows_safe_methodcaller(app_source: str) -> None:
+    legacy_source = (
+        "from app.routers.api_key import (\n"
+        "    _get_api_key_dynamic as _get_api_key_dynamic,\n"
+        "    get_api_key as get_api_key,\n"
+        ")\n"
     )
 
     errors = legacy_guard.validate_api_key_dependency_ownership(

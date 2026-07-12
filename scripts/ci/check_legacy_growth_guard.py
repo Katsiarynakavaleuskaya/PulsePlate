@@ -6,7 +6,7 @@ from __future__ import annotations
 import argparse
 import ast
 from collections import Counter
-from collections.abc import Callable, Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from importlib.util import resolve_name
 from pathlib import Path
@@ -495,15 +495,51 @@ def collect_legacy_route_facts(source_text: str, *, filename: str = LEGACY_APP) 
 
 
 _TRACKED_BUILTIN_REFERENCES = frozenset(
-    {"__import__", "getattr", "globals", "locals", "object", "vars"}
+    {
+        "__import__",
+        "aiter",
+        "anext",
+        "dict",
+        "getattr",
+        "globals",
+        "iter",
+        "locals",
+        "next",
+        "object",
+        "type",
+        "vars",
+    }
 )
 _TRACKED_BUILTIN_NAMESPACE_METHODS = frozenset({"__getitem__", "get", "pop", "setdefault"})
 _TRACKED_OBJECT_REFERENCES = frozenset({"__getattribute__"})
 _TRACKED_IMPORTLIB_REFERENCES = frozenset({"import_module"})
-_TRACKED_OPERATOR_REFERENCES = frozenset({"attrgetter"})
+_TRACKED_FUNCTOOLS_REFERENCES = frozenset({"partial"})
+_TRACKED_OPERATOR_REFERENCES = frozenset({"attrgetter", "delitem", "methodcaller"})
 _TRACKED_SCOPE_NAMESPACE_METHODS = _TRACKED_BUILTIN_NAMESPACE_METHODS
 _TRACKED_ATTRGETTER_RESULTS = frozenset(
     f"operator.attrgetter:{symbol}" for symbol in CANONICAL_API_KEY_SYMBOLS
+)
+_TRACKED_METHODCALLER_RESULTS = frozenset(
+    f"operator.methodcaller:{symbol}" for symbol in CANONICAL_API_KEY_SYMBOLS
+)
+_EMPTY_MAPPING_REFERENCE = "mapping.empty"
+_NONEMPTY_MAPPING_REFERENCE = "mapping.nonempty"
+_TRACKED_MAPPING_REFERENCES = frozenset({_EMPTY_MAPPING_REFERENCE, _NONEMPTY_MAPPING_REFERENCE})
+_BOUND_MAPPING_MUTATOR_REFERENCE = "mapping.bound_mutator"
+_MAPPING_MUTATING_CLOSURE_REFERENCE = "mapping.mutating_closure"
+_MAPPING_EXPOSING_CLOSURE_REFERENCE = "mapping.exposing_closure"
+_MAPPING_EXPOSING_GENERATOR_CLOSURE_REFERENCE = "mapping.exposing_generator_closure"
+_MAPPING_EXPOSING_GENERATOR_RESULT_REFERENCE = "mapping.exposing_generator_result"
+_MAPPING_GENERATOR_CONSUMER_REFERENCE = "mapping.generator_consumer"
+_MAPPING_GENERATOR_IDENTITY_REFERENCE = "mapping.generator_identity"
+_MAPPING_MUTATION_METHODS = frozenset(
+    {"__delitem__", "__setitem__", "clear", "pop", "popitem", "setdefault", "update"}
+)
+_TRACKED_MAPPING_MUTATOR_REFERENCES = frozenset(
+    {
+        *(f"builtins.dict.{method}" for method in _MAPPING_MUTATION_METHODS),
+        "operator.delitem",
+    }
 )
 _TRACKED_SCOPE_NAMESPACE_CALLABLES = frozenset(
     f"scope.namespace.{method}" for method in _TRACKED_SCOPE_NAMESPACE_METHODS
@@ -517,6 +553,12 @@ _TRACKED_IMPORTLIB_NAMESPACE_CALLABLES = frozenset(
 _TRACKED_OPERATOR_NAMESPACE_CALLABLES = frozenset(
     f"operator.__dict__.{method}" for method in _TRACKED_BUILTIN_NAMESPACE_METHODS
 )
+_TRACKED_RUNTIME_TYPE_NAMESPACE_CALLABLES = frozenset(
+    f"legacy_app.runtime_type.__dict__.{method}" for method in _TRACKED_BUILTIN_NAMESPACE_METHODS
+)
+_TRACKED_DICT_TYPE_NAMESPACE_CALLABLES = frozenset(
+    f"builtins.dict.__dict__.{method}" for method in _TRACKED_BUILTIN_NAMESPACE_METHODS
+)
 _TRACKED_CALLABLE_REFERENCES = frozenset(
     {
         "builtins.__dict__.__getitem__",
@@ -524,6 +566,7 @@ _TRACKED_CALLABLE_REFERENCES = frozenset(
         "builtins.__dict__.pop",
         "builtins.__dict__.setdefault",
         "builtins.__import__",
+        "builtins.dict",
         "builtins.getattr",
         "builtins.globals",
         "builtins.locals",
@@ -532,19 +575,37 @@ _TRACKED_CALLABLE_REFERENCES = frozenset(
         "builtins.object.__dict__.pop",
         "builtins.object.__dict__.setdefault",
         "builtins.object.__getattribute__",
+        "builtins.type",
         "builtins.vars",
         "importlib.import_module",
+        "functools.partial",
         "legacy_app.__dict__.__getitem__",
         "legacy_app.__dict__.get",
         "legacy_app.__dict__.pop",
         "legacy_app.__dict__.setdefault",
         "legacy_app.__getattribute__",
+        "legacy_app.runtime_type.__getattribute__",
         "operator.attrgetter",
+        "operator.methodcaller",
+        *_TRACKED_MAPPING_MUTATOR_REFERENCES,
         *_TRACKED_SCOPE_NAMESPACE_CALLABLES,
         *_TRACKED_GLOBAL_NAMESPACE_CALLABLES,
         *_TRACKED_IMPORTLIB_NAMESPACE_CALLABLES,
         *_TRACKED_OPERATOR_NAMESPACE_CALLABLES,
+        *_TRACKED_RUNTIME_TYPE_NAMESPACE_CALLABLES,
+        *_TRACKED_DICT_TYPE_NAMESPACE_CALLABLES,
         *_TRACKED_ATTRGETTER_RESULTS,
+        *_TRACKED_METHODCALLER_RESULTS,
+        _BOUND_MAPPING_MUTATOR_REFERENCE,
+        _MAPPING_MUTATING_CLOSURE_REFERENCE,
+        _MAPPING_EXPOSING_CLOSURE_REFERENCE,
+        _MAPPING_EXPOSING_GENERATOR_CLOSURE_REFERENCE,
+        _MAPPING_GENERATOR_CONSUMER_REFERENCE,
+        _MAPPING_GENERATOR_IDENTITY_REFERENCE,
+        "builtins.aiter",
+        "builtins.anext",
+        "builtins.iter",
+        "builtins.next",
     }
 )
 _GLOBAL_ALIAS_PREFIX = "__api_key_global_alias__:"
@@ -553,6 +614,8 @@ _GLOBAL_SCOPE_MARKER_REFERENCE = "scope.global.marker"
 _LOCAL_ALIAS_PREFIX = "__api_key_local_alias__:"
 _LOCAL_SCOPE_MARKER = "__api_key_local_scope_marker__"
 _LOCAL_SCOPE_MARKER_REFERENCE = "scope.local.marker"
+_OPTIMIZED_LOCAL_SCOPE_MARKER = "__api_key_optimized_local_scope_marker__"
+_OPTIMIZED_LOCAL_SCOPE_MARKER_REFERENCE = "scope.local.optimized"
 
 
 def _with_global_alias_snapshot(
@@ -602,11 +665,15 @@ def _sync_declared_global_aliases(
 def _with_local_alias_snapshot(
     module_aliases: Mapping[str, str],
     initial_local_aliases: Mapping[str, str] | None = None,
+    *,
+    optimized: bool = False,
 ) -> dict[str, str]:
     """Mark a nested lexical scope and retain only proven local aliases."""
 
     seeded = dict(module_aliases)
     seeded[_LOCAL_SCOPE_MARKER] = _LOCAL_SCOPE_MARKER_REFERENCE
+    if optimized:
+        seeded[_OPTIMIZED_LOCAL_SCOPE_MARKER] = _OPTIMIZED_LOCAL_SCOPE_MARKER_REFERENCE
     seeded.update(
         {
             f"{_LOCAL_ALIAS_PREFIX}{name}": reference
@@ -646,27 +713,818 @@ def _scope_namespace_reference(
     return module_aliases.get(binding_name)
 
 
-def _static_iterable_elements(node: ast.expr) -> Iterator[ast.expr]:
+def _static_iterable_elements(
+    node: ast.expr,
+    *,
+    identity_resolver: Callable[[ast.expr], str | None] | None = None,
+) -> Iterator[ast.expr]:
     """Yield statically known elements from one literal iterable."""
 
-    if isinstance(node, (ast.Tuple, ast.List, ast.Set)):
-        yield from _static_positional_arguments(node.elts)
+    if isinstance(node, (ast.Tuple, ast.List)):
+        yield from _static_positional_arguments(
+            node.elts,
+            identity_resolver=identity_resolver,
+        )
+    elif isinstance(node, ast.Set):
+        elements = list(
+            _deduplicate_static_expressions(
+                _static_positional_arguments(node.elts, identity_resolver=identity_resolver),
+                identity_resolver=identity_resolver,
+            )
+        )
+        yield from sorted(
+            elements,
+            key=lambda expression: _static_set_order_key(
+                expression,
+                identity_resolver=identity_resolver,
+            ),
+        )
     elif isinstance(node, ast.Dict):
+        keys: list[ast.expr] = []
         for key, value in zip(node.keys, node.values, strict=True):
             if key is None:
-                yield from _static_iterable_elements(value)
+                keys.extend(
+                    _static_iterable_elements(
+                        value,
+                        identity_resolver=identity_resolver,
+                    )
+                )
             else:
-                yield key
+                keys.append(key)
+        yield from _deduplicate_static_expressions(
+            keys,
+            identity_resolver=identity_resolver,
+        )
 
 
-def _static_positional_arguments(arguments: Sequence[ast.expr]) -> Iterator[ast.expr]:
+def _deduplicate_static_expressions(
+    expressions: Iterable[ast.expr],
+    *,
+    identity_resolver: Callable[[ast.expr], str | None] | None = None,
+) -> Iterator[ast.expr]:
+    """Apply literal set/dict duplicate semantics to syntactically equal expressions."""
+
+    seen: set[str] = set()
+    for expression in expressions:
+        fingerprint = _static_expression_fingerprint(
+            expression,
+            identity_resolver=identity_resolver,
+        )
+        if fingerprint in seen:
+            continue
+        seen.add(fingerprint)
+        yield expression
+
+
+def _static_expression_fingerprint(
+    expression: ast.expr,
+    *,
+    identity_resolver: Callable[[ast.expr], str | None] | None,
+) -> str:
+    resolved_identity = identity_resolver(expression) if identity_resolver is not None else None
+    if resolved_identity is not None:
+        return f"resolved:{resolved_identity}"
+    return f"ast:{ast.dump(expression, include_attributes=False)}"
+
+
+def _static_set_order_key(
+    expression: ast.expr,
+    *,
+    identity_resolver: Callable[[ast.expr], str | None] | None,
+) -> tuple[int, str]:
+    resolved_identity = identity_resolver(expression) if identity_resolver is not None else None
+    security_priority = 0 if resolved_identity in {"legacy_app", "__getattribute__"} else 1
+    return (
+        security_priority,
+        _static_expression_fingerprint(
+            expression,
+            identity_resolver=identity_resolver,
+        ),
+    )
+
+
+def _static_positional_arguments(
+    arguments: Sequence[ast.expr],
+    *,
+    identity_resolver: Callable[[ast.expr], str | None] | None = None,
+) -> Iterator[ast.expr]:
     """Yield positional arguments, flattening only statically known starred literals."""
 
     for argument in arguments:
         if isinstance(argument, ast.Starred):
-            yield from _static_iterable_elements(argument.value)
+            yield from _static_iterable_elements(
+                argument.value,
+                identity_resolver=identity_resolver,
+            )
         else:
             yield argument
+
+
+def _effective_keywords(
+    keywords: Sequence[ast.keyword],
+    *,
+    mapping_resolver: Callable[[ast.expr], str | None],
+) -> tuple[ast.keyword, ...]:
+    """Return keywords proven nonempty; unknown **mappings remain maybe-empty."""
+
+    return tuple(
+        keyword
+        for keyword in keywords
+        if keyword.arg is not None or mapping_resolver(keyword.value) == _NONEMPTY_MAPPING_REFERENCE
+    )
+
+
+def _mutates_tracked_mapping(
+    node: ast.AST,
+    *,
+    module_reference: Callable[[ast.AST], str | None],
+) -> bool:
+    if isinstance(node, (ast.For, ast.AsyncFor)):
+        return module_reference(node.iter) == _MAPPING_EXPOSING_GENERATOR_RESULT_REFERENCE
+    if isinstance(node, ast.Call):
+        function_reference = module_reference(node.func)
+        call_arguments = list(
+            _static_positional_arguments(
+                node.args,
+                identity_resolver=lambda candidate: module_reference(candidate),
+            )
+        )
+        namespace_method: str | None = None
+        namespace_kind: str | None = None
+        for candidate_namespace in ("globals.namespace", "scope.namespace"):
+            prefix = f"{candidate_namespace}."
+            if function_reference is not None and function_reference.startswith(prefix):
+                namespace_kind = candidate_namespace
+                namespace_method = function_reference.removeprefix(prefix)
+                break
+        if namespace_method in {"__setitem__", "setdefault", "update"}:
+            if (
+                namespace_kind == "scope.namespace"
+                and module_reference(ast.Name(id=_OPTIMIZED_LOCAL_SCOPE_MARKER, ctx=ast.Load()))
+                == _OPTIMIZED_LOCAL_SCOPE_MARKER_REFERENCE
+            ):
+                return False
+
+            def binding_reference(binding_name: str | None) -> str | None:
+                if binding_name is None:
+                    return None
+                if (
+                    namespace_kind == "globals.namespace"
+                    and module_reference(ast.Name(id=_GLOBAL_SCOPE_MARKER, ctx=ast.Load()))
+                    == _GLOBAL_SCOPE_MARKER_REFERENCE
+                ):
+                    return module_reference(
+                        ast.Name(
+                            id=f"{_GLOBAL_ALIAS_PREFIX}{binding_name}",
+                            ctx=ast.Load(),
+                        )
+                    )
+                return module_reference(ast.Name(id=binding_name, ctx=ast.Load()))
+
+            def has_fast_local_shadow(binding_name: str | None) -> bool:
+                if binding_name is None or namespace_kind != "globals.namespace":
+                    return False
+                return (
+                    module_reference(
+                        ast.Name(
+                            id=f"{_LOCAL_ALIAS_PREFIX}{binding_name}",
+                            ctx=ast.Load(),
+                        )
+                    )
+                    is not None
+                )
+
+            if namespace_method in {"__setitem__", "setdefault"}:
+                if len(call_arguments) != 2 or node.keywords:
+                    return True
+                binding_name = _resolve_static_string(call_arguments[0], {})
+                if has_fast_local_shadow(binding_name):
+                    return False
+                current_reference = binding_reference(binding_name)
+                if namespace_method == "setdefault" and current_reference is not None:
+                    return False
+                replacement_reference = module_reference(call_arguments[1])
+                return (
+                    current_reference in _TRACKED_MAPPING_REFERENCES
+                    and replacement_reference != current_reference
+                )
+
+            mutation_detected = False
+            if len(call_arguments) > 1:
+                return True
+            if call_arguments:
+                positional_mapping = call_arguments[0]
+                if not isinstance(positional_mapping, ast.Dict):
+                    return True
+                for key, value in zip(
+                    positional_mapping.keys,
+                    positional_mapping.values,
+                    strict=True,
+                ):
+                    if key is None:
+                        return True
+                    binding_name = _resolve_static_string(key, {})
+                    if has_fast_local_shadow(binding_name):
+                        continue
+                    current_reference = binding_reference(binding_name)
+                    replacement_reference = module_reference(value)
+                    if (
+                        current_reference in _TRACKED_MAPPING_REFERENCES
+                        and replacement_reference != current_reference
+                    ):
+                        mutation_detected = True
+            for keyword in node.keywords:
+                if keyword.arg is None:
+                    return True
+                if has_fast_local_shadow(keyword.arg):
+                    continue
+                current_reference = binding_reference(keyword.arg)
+                replacement_reference = module_reference(keyword.value)
+                if (
+                    current_reference in _TRACKED_MAPPING_REFERENCES
+                    and replacement_reference != current_reference
+                ):
+                    mutation_detected = True
+            return mutation_detected
+        if (
+            function_reference in _TRACKED_MAPPING_MUTATOR_REFERENCES
+            and call_arguments
+            and module_reference(call_arguments[0]) in _TRACKED_MAPPING_REFERENCES
+        ):
+            return True
+        if function_reference in {
+            _BOUND_MAPPING_MUTATOR_REFERENCE,
+            _MAPPING_MUTATING_CLOSURE_REFERENCE,
+            _MAPPING_EXPOSING_CLOSURE_REFERENCE,
+            _MAPPING_GENERATOR_CONSUMER_REFERENCE,
+        }:
+            return True
+        if (
+            function_reference in {"builtins.anext", "builtins.next"}
+            and call_arguments
+            and module_reference(call_arguments[0]) == _MAPPING_EXPOSING_GENERATOR_RESULT_REFERENCE
+        ):
+            return True
+        if any(
+            module_reference(argument) in _TRACKED_MAPPING_REFERENCES for argument in call_arguments
+        ):
+            return True
+        if any(
+            keyword.arg is not None
+            and module_reference(keyword.value) in _TRACKED_MAPPING_REFERENCES
+            for keyword in node.keywords
+        ):
+            return True
+    if (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr in _MAPPING_MUTATION_METHODS
+        and module_reference(node.func.value) in _TRACKED_MAPPING_REFERENCES
+    ):
+        return True
+    if isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign)):
+        if isinstance(node, ast.Assign):
+            targets: Sequence[ast.expr] = node.targets
+        else:
+            targets = (node.target,)
+        return any(
+            isinstance(target, ast.Subscript)
+            and module_reference(target.value) in _TRACKED_MAPPING_REFERENCES
+            for target in targets
+        )
+    if isinstance(node, ast.Delete):
+        return any(
+            isinstance(target, ast.Subscript)
+            and module_reference(target.value) in _TRACKED_MAPPING_REFERENCES
+            for target in node.targets
+        )
+    return False
+
+
+def _invalidate_tracked_mapping_aliases(module_aliases: dict[str, str]) -> None:
+    for name, reference in tuple(module_aliases.items()):
+        if reference in _TRACKED_MAPPING_REFERENCES:
+            module_aliases.pop(name, None)
+
+
+def _closure_mutates_tracked_mapping(
+    node: ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda,
+    *,
+    module_reference: Callable[[ast.AST], str | None],
+    local_bindings: AbstractSet[str],
+) -> bool:
+    """Detect executed mutation/escape of a captured tracked mapping."""
+
+    def closure_reference(candidate: ast.AST) -> str | None:
+        if isinstance(candidate, ast.Name) and candidate.id in local_bindings:
+            return None
+        return module_reference(candidate)
+
+    class MutationProbe(ast.NodeVisitor):
+        def __init__(self) -> None:
+            self.found = False
+            self.mutating_helpers: set[str] = set()
+            self.generator_results: set[str] = set()
+            self.flow_terminated = False
+            self.break_states: set[str] = set()
+            self.continue_states: set[str] = set()
+
+        def _reference(self, expression: ast.AST) -> str | None:
+            if isinstance(expression, ast.Name) and expression.id in self.generator_results:
+                return _MAPPING_EXPOSING_GENERATOR_RESULT_REFERENCE
+            if isinstance(expression, ast.Attribute):
+                tracked_reference = _tracked_reflected_attribute(
+                    self._reference(expression.value),
+                    expression.attr,
+                )
+                if tracked_reference is not None:
+                    return tracked_reference
+            if isinstance(expression, ast.Call):
+                function_reference = self._reference(expression.func)
+                if function_reference == _MAPPING_EXPOSING_GENERATOR_CLOSURE_REFERENCE:
+                    return _MAPPING_EXPOSING_GENERATOR_RESULT_REFERENCE
+                if function_reference == _MAPPING_GENERATOR_IDENTITY_REFERENCE and not (
+                    expression.args or expression.keywords
+                ):
+                    return _MAPPING_EXPOSING_GENERATOR_RESULT_REFERENCE
+                if (
+                    function_reference in {"builtins.aiter", "builtins.iter"}
+                    and len(expression.args) == 1
+                    and not expression.keywords
+                    and self._reference(expression.args[0])
+                    == _MAPPING_EXPOSING_GENERATOR_RESULT_REFERENCE
+                ):
+                    return _MAPPING_EXPOSING_GENERATOR_RESULT_REFERENCE
+            return closure_reference(expression)
+
+        def _is_mutating_callable(self, expression: ast.expr) -> bool:
+            if isinstance(expression, ast.IfExp):
+                return self._is_mutating_callable(
+                    expression.body,
+                ) or self._is_mutating_callable(expression.orelse)
+            if isinstance(expression, ast.Lambda):
+                return _closure_mutates_tracked_mapping(
+                    expression,
+                    module_reference=closure_reference,
+                    local_bindings=_lambda_local_bindings(expression),
+                )
+            if isinstance(expression, ast.Name) and expression.id in self.mutating_helpers:
+                return True
+            reference = self._reference(expression)
+            if reference in {
+                _BOUND_MAPPING_MUTATOR_REFERENCE,
+                _MAPPING_MUTATING_CLOSURE_REFERENCE,
+                _MAPPING_EXPOSING_CLOSURE_REFERENCE,
+            }:
+                return True
+            if not isinstance(expression, ast.Call):
+                return False
+            if self._reference(expression.func) != "functools.partial":
+                return False
+            partial_arguments = list(
+                _static_positional_arguments(
+                    expression.args,
+                    identity_resolver=lambda candidate: self._reference(candidate),
+                )
+            )
+            return bool(partial_arguments) and self._is_mutating_callable(partial_arguments[0])
+
+        def _bind(self, target: ast.expr, value: ast.expr | None) -> None:
+            captured_mapping_references = {
+                reference
+                for candidate in ast.walk(target)
+                if isinstance(candidate, ast.Name)
+                and (reference := closure_reference(candidate)) in _TRACKED_MAPPING_REFERENCES
+            }
+            if captured_mapping_references:
+                replacement_reference = self._reference(value) if value is not None else None
+                if captured_mapping_references == {replacement_reference}:
+                    return
+                self.found = True
+                return
+            names = _assignment_target_names(target)
+            if (
+                value is not None
+                and self._reference(value) == _MAPPING_EXPOSING_GENERATOR_RESULT_REFERENCE
+            ):
+                self.generator_results.update(names)
+            else:
+                self.generator_results.difference_update(names)
+            if value is not None and self._is_mutating_callable(value):
+                self.mutating_helpers.update(names)
+                return
+            self.mutating_helpers.difference_update(names)
+
+        def _block_state(
+            self,
+            statements: Sequence[ast.stmt],
+            initial_state: AbstractSet[str],
+        ) -> set[str]:
+            state, _ = self._block_outcome(statements, initial_state)
+            return state
+
+        def _block_outcome(
+            self,
+            statements: Sequence[ast.stmt],
+            initial_state: AbstractSet[str],
+        ) -> tuple[set[str], bool]:
+            parent_state = self.mutating_helpers
+            parent_terminated = self.flow_terminated
+            self.mutating_helpers = set(initial_state)
+            self.flow_terminated = False
+            for statement in statements:
+                self.visit(statement)
+                if self.found or self.flow_terminated:
+                    break
+            branch_state = self.mutating_helpers
+            branch_terminated = self.flow_terminated
+            self.mutating_helpers = parent_state
+            self.flow_terminated = parent_terminated
+            return branch_state, branch_terminated
+
+        def _block_state_with_prefixes(
+            self,
+            statements: Sequence[ast.stmt],
+            initial_state: AbstractSet[str],
+        ) -> tuple[set[str], set[str]]:
+            parent_state = self.mutating_helpers
+            parent_terminated = self.flow_terminated
+            self.mutating_helpers = set(initial_state)
+            self.flow_terminated = False
+            prefix_states = set(initial_state)
+            for statement in statements:
+                self.visit(statement)
+                prefix_states.update(self.mutating_helpers)
+                if self.found or self.flow_terminated:
+                    break
+            final_state = self.mutating_helpers
+            self.mutating_helpers = parent_state
+            self.flow_terminated = parent_terminated
+            return final_state, prefix_states
+
+        def visit_If(self, child: ast.If) -> None:
+            self.visit(child.test)
+            initial_state = set(self.mutating_helpers)
+            body_state, body_terminated = self._block_outcome(child.body, initial_state)
+            else_state, else_terminated = (
+                self._block_outcome(child.orelse, initial_state)
+                if child.orelse
+                else (initial_state, False)
+            )
+            self.mutating_helpers = {
+                *(set() if body_terminated else body_state),
+                *(set() if else_terminated else else_state),
+            }
+            self.flow_terminated = body_terminated and else_terminated
+
+        def _visit_loop(
+            self,
+            *,
+            target: ast.expr | None,
+            body: Sequence[ast.stmt],
+            orelse: Sequence[ast.stmt],
+            may_skip: bool = True,
+        ) -> None:
+            initial_state = set(self.mutating_helpers)
+            body_initial_state = set(initial_state)
+            if target is not None:
+                body_initial_state.difference_update(_assignment_target_names(target))
+            outer_break_states = self.break_states
+            outer_continue_states = self.continue_states
+            self.break_states = set()
+            self.continue_states = set()
+            body_state, body_terminated = self._block_outcome(body, body_initial_state)
+            loop_break_states = self.break_states
+            loop_continue_states = self.continue_states
+            self.break_states = outer_break_states
+            self.continue_states = outer_continue_states
+
+            normal_exit_states = {
+                *(initial_state if may_skip else set()),
+                *(set() if body_terminated else body_state),
+                *loop_continue_states,
+            }
+            if orelse:
+                normal_exit_states = self._block_state(orelse, normal_exit_states)
+            self.mutating_helpers = normal_exit_states | loop_break_states
+            self.flow_terminated = False
+
+        def visit_Break(self, child: ast.Break) -> None:
+            self.break_states.update(self.mutating_helpers)
+            self.flow_terminated = True
+
+        def visit_Continue(self, child: ast.Continue) -> None:
+            self.continue_states.update(self.mutating_helpers)
+            self.flow_terminated = True
+
+        def visit_Return(self, child: ast.Return) -> None:
+            if child.value is not None:
+                self.visit(child.value)
+            self.flow_terminated = True
+
+        def visit_Raise(self, child: ast.Raise) -> None:
+            if child.exc is not None:
+                self.visit(child.exc)
+            if child.cause is not None:
+                self.visit(child.cause)
+            self.flow_terminated = True
+
+        def visit_For(self, child: ast.For) -> None:
+            self.visit(child.iter)
+            self._visit_loop(
+                target=child.target,
+                body=child.body,
+                orelse=child.orelse,
+                may_skip=not _is_statically_nonempty_iterable(child.iter),
+            )
+
+        def visit_AsyncFor(self, child: ast.AsyncFor) -> None:
+            self.visit(child.iter)
+            self._visit_loop(
+                target=child.target,
+                body=child.body,
+                orelse=child.orelse,
+            )
+
+        def visit_While(self, child: ast.While) -> None:
+            self.visit(child.test)
+            self._visit_loop(
+                target=None,
+                body=child.body,
+                orelse=child.orelse,
+            )
+
+        def _visit_try(
+            self,
+            *,
+            body: Sequence[ast.stmt],
+            handlers: Sequence[ast.ExceptHandler],
+            orelse: Sequence[ast.stmt],
+            finalbody: Sequence[ast.stmt],
+        ) -> None:
+            enclosing_break_states = self.break_states
+            enclosing_continue_states = self.continue_states
+            self.break_states = set()
+            self.continue_states = set()
+            initial_state = set(self.mutating_helpers)
+            body_state, exception_states = self._block_state_with_prefixes(
+                body,
+                initial_state,
+            )
+            reachable_states = {
+                *body_state,
+                *(self._block_state(orelse, body_state) if orelse else body_state),
+            }
+            if handlers:
+                for handler in handlers:
+                    handler_initial = set(exception_states)
+                    if handler.name is not None:
+                        handler_initial.discard(handler.name)
+                    reachable_states.update(self._block_state(handler.body, handler_initial))
+            try_break_states = self.break_states
+            try_continue_states = self.continue_states
+            self.break_states = set()
+            self.continue_states = set()
+            if finalbody:
+                reachable_states, normal_terminated = self._block_outcome(
+                    finalbody,
+                    reachable_states,
+                )
+                if normal_terminated:
+                    reachable_states = set()
+                if try_break_states:
+                    break_state, break_terminated = self._block_outcome(
+                        finalbody,
+                        try_break_states,
+                    )
+                    if not break_terminated:
+                        self.break_states.update(break_state)
+                if try_continue_states:
+                    continue_state, continue_terminated = self._block_outcome(
+                        finalbody,
+                        try_continue_states,
+                    )
+                    if not continue_terminated:
+                        self.continue_states.update(continue_state)
+            else:
+                self.break_states.update(try_break_states)
+                self.continue_states.update(try_continue_states)
+            self.break_states.update(enclosing_break_states)
+            self.continue_states.update(enclosing_continue_states)
+            self.mutating_helpers = reachable_states
+
+        def visit_Try(self, child: ast.Try) -> None:
+            self._visit_try(
+                body=child.body,
+                handlers=child.handlers,
+                orelse=child.orelse,
+                finalbody=child.finalbody,
+            )
+
+        def visit_TryStar(self, child: ast.TryStar) -> None:
+            self._visit_try(
+                body=child.body,
+                handlers=child.handlers,
+                orelse=child.orelse,
+                finalbody=child.finalbody,
+            )
+
+        def visit_Match(self, child: ast.Match) -> None:
+            self.visit(child.subject)
+            initial_state = set(self.mutating_helpers)
+            reachable_states: set[str] = set()
+            has_irrefutable_case = False
+            for case in child.cases:
+                case_initial = set(initial_state)
+                case_initial.difference_update(_match_pattern_bindings(case.pattern))
+                parent_state = self.mutating_helpers
+                self.mutating_helpers = case_initial
+                if case.guard is not None:
+                    self.visit(case.guard)
+                guarded_state = set(self.mutating_helpers)
+                self.mutating_helpers = parent_state
+                reachable_states.update(self._block_state(case.body, guarded_state))
+                if _is_unguarded_irrefutable_case(case):
+                    has_irrefutable_case = True
+            if not has_irrefutable_case:
+                reachable_states.update(initial_state)
+            self.mutating_helpers = reachable_states
+
+        def visit_Call(self, child: ast.Call) -> None:
+            # Named expressions bind before their enclosing call executes.
+            self.visit(child.func)
+            called_name: str | None = None
+            if isinstance(child.func, ast.Name):
+                called_name = child.func.id
+            elif isinstance(child.func, ast.NamedExpr) and isinstance(
+                child.func.target,
+                ast.Name,
+            ):
+                called_name = child.func.target.id
+            if called_name in self.mutating_helpers or _mutates_tracked_mapping(
+                child,
+                module_reference=self._reference,
+            ):
+                self.found = True
+                return
+            for argument in child.args:
+                self.visit(argument)
+            for keyword in child.keywords:
+                self.visit(keyword.value)
+
+        def visit_FunctionDef(self, child: ast.FunctionDef) -> None:
+            mutates = _closure_mutates_tracked_mapping(
+                child,
+                module_reference=closure_reference,
+                local_bindings=_function_local_bindings(child),
+            )
+            if mutates:
+                self.mutating_helpers.add(child.name)
+            else:
+                self.mutating_helpers.discard(child.name)
+
+        def visit_AsyncFunctionDef(self, child: ast.AsyncFunctionDef) -> None:
+            mutates = _closure_mutates_tracked_mapping(
+                child,
+                module_reference=closure_reference,
+                local_bindings=_function_local_bindings(child),
+            )
+            if mutates:
+                self.mutating_helpers.add(child.name)
+            else:
+                self.mutating_helpers.discard(child.name)
+
+        def visit_ClassDef(self, child: ast.ClassDef) -> None:
+            return
+
+        def visit_Lambda(self, child: ast.Lambda) -> None:
+            return
+
+        def visit_Assign(self, child: ast.Assign) -> None:
+            for target in child.targets:
+                self._bind(target, child.value)
+            self.visit(child.value)
+
+        def visit_AnnAssign(self, child: ast.AnnAssign) -> None:
+            self._bind(child.target, child.value)
+            if child.value is not None:
+                self.visit(child.value)
+
+        def visit_NamedExpr(self, child: ast.NamedExpr) -> None:
+            self._bind(child.target, child.value)
+            self.visit(child.value)
+
+        def visit_AugAssign(self, child: ast.AugAssign) -> None:
+            self._bind(child.target, child.value)
+            self.visit(child.value)
+
+        def visit_Delete(self, child: ast.Delete) -> None:
+            for target in child.targets:
+                self._bind(target, None)
+
+    probe = MutationProbe()
+    if isinstance(node, ast.Lambda):
+        probe.visit(node.body)
+    else:
+        for statement in node.body:
+            probe.visit(statement)
+    return probe.found
+
+
+def _closure_exposes_tracked_mapping(
+    node: ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda,
+    *,
+    module_reference: Callable[[ast.AST], str | None],
+    local_bindings: AbstractSet[str],
+    yield_exposure: bool = False,
+) -> bool:
+    """Detect return/yield escape of a captured tracked mapping."""
+
+    def closure_reference(candidate: ast.AST) -> str | None:
+        if isinstance(candidate, ast.Name) and candidate.id in local_bindings:
+            return None
+        return module_reference(candidate)
+
+    class ExposureProbe(ast.NodeVisitor):
+        def __init__(self) -> None:
+            self.found = False
+
+        def _visit_exposed_value(self, value: ast.expr | None) -> None:
+            if value is None or self.found:
+                return
+            if closure_reference(value) in _TRACKED_MAPPING_REFERENCES:
+                self.found = True
+                return
+            self.visit(value)
+
+        def visit_Return(self, child: ast.Return) -> None:
+            if not yield_exposure:
+                self._visit_exposed_value(child.value)
+
+        def visit_Yield(self, child: ast.Yield) -> None:
+            if yield_exposure:
+                self._visit_exposed_value(child.value)
+
+        def visit_YieldFrom(self, child: ast.YieldFrom) -> None:
+            if yield_exposure:
+                self._visit_exposed_value(child.value)
+
+        def visit_FunctionDef(self, child: ast.FunctionDef) -> None:
+            return
+
+        def visit_AsyncFunctionDef(self, child: ast.AsyncFunctionDef) -> None:
+            return
+
+        def visit_ClassDef(self, child: ast.ClassDef) -> None:
+            return
+
+        def visit_Lambda(self, child: ast.Lambda) -> None:
+            return
+
+    probe = ExposureProbe()
+    if isinstance(node, ast.Lambda):
+        probe._visit_exposed_value(node.body)
+    else:
+        for statement in node.body:
+            probe.visit(statement)
+            if probe.found:
+                break
+    return probe.found
+
+
+def _closure_contains_yield(
+    node: ast.FunctionDef | ast.AsyncFunctionDef,
+) -> bool:
+    """Return whether a function body is lazy because it contains yield."""
+
+    class YieldProbe(ast.NodeVisitor):
+        def __init__(self) -> None:
+            self.found = False
+
+        def visit_Yield(self, child: ast.Yield) -> None:
+            self.found = True
+
+        def visit_YieldFrom(self, child: ast.YieldFrom) -> None:
+            self.found = True
+
+        def visit_FunctionDef(self, child: ast.FunctionDef) -> None:
+            return
+
+        def visit_AsyncFunctionDef(self, child: ast.AsyncFunctionDef) -> None:
+            return
+
+        def visit_ClassDef(self, child: ast.ClassDef) -> None:
+            return
+
+        def visit_Lambda(self, child: ast.Lambda) -> None:
+            return
+
+    probe = YieldProbe()
+    for statement in node.body:
+        probe.visit(statement)
+        if probe.found:
+            break
+    return probe.found
 
 
 def _tracked_reflected_attribute(
@@ -677,13 +1535,32 @@ def _tracked_reflected_attribute(
 
     if attribute_name == "__call__" and target_reference in _TRACKED_CALLABLE_REFERENCES:
         return target_reference
-    if target_reference == "legacy_app" and attribute_name in {
-        "__dict__",
-        "__getattribute__",
+    if target_reference == _MAPPING_EXPOSING_GENERATOR_RESULT_REFERENCE and attribute_name in {
+        "__anext__",
+        "__next__",
+        "asend",
+        "send",
     }:
-        return f"legacy_app.{attribute_name}"
+        return _MAPPING_GENERATOR_CONSUMER_REFERENCE
+    if target_reference == _MAPPING_EXPOSING_GENERATOR_RESULT_REFERENCE and attribute_name in {
+        "__aiter__",
+        "__iter__",
+    }:
+        return _MAPPING_GENERATOR_IDENTITY_REFERENCE
+    if target_reference == "legacy_app":
+        if attribute_name in {"__dict__", "__getattribute__"}:
+            return f"legacy_app.{attribute_name}"
+        if attribute_name == "__class__":
+            return "legacy_app.runtime_type"
+    if (
+        target_reference in _TRACKED_MAPPING_REFERENCES
+        and attribute_name in _MAPPING_MUTATION_METHODS
+    ):
+        return _BOUND_MAPPING_MUTATOR_REFERENCE
     if target_reference == "builtins" and attribute_name in _TRACKED_BUILTIN_REFERENCES:
         return f"builtins.{attribute_name}"
+    if target_reference == "functools" and attribute_name in _TRACKED_FUNCTOOLS_REFERENCES:
+        return f"functools.{attribute_name}"
     if target_reference == "builtins.__dict__" and attribute_name in _TRACKED_BUILTIN_REFERENCES:
         return f"builtins.{attribute_name}"
     if (
@@ -698,6 +1575,23 @@ def _tracked_reflected_attribute(
         and attribute_name in _TRACKED_BUILTIN_NAMESPACE_METHODS
     ):
         return f"builtins.object.__dict__.{attribute_name}"
+    if target_reference == "builtins.dict" and attribute_name in _MAPPING_MUTATION_METHODS:
+        return f"builtins.dict.{attribute_name}"
+    if (
+        target_reference == "builtins.dict.__dict__"
+        and attribute_name in _TRACKED_BUILTIN_NAMESPACE_METHODS
+    ):
+        return f"builtins.dict.__dict__.{attribute_name}"
+    if target_reference == "legacy_app.runtime_type" and attribute_name in {
+        "__dict__",
+        "__getattribute__",
+    }:
+        return f"legacy_app.runtime_type.{attribute_name}"
+    if (
+        target_reference == "legacy_app.runtime_type.__dict__"
+        and attribute_name in _TRACKED_BUILTIN_NAMESPACE_METHODS
+    ):
+        return f"legacy_app.runtime_type.__dict__.{attribute_name}"
     if target_reference == "importlib" and attribute_name in _TRACKED_IMPORTLIB_REFERENCES:
         return f"importlib.{attribute_name}"
     if (
@@ -731,6 +1625,46 @@ def _static_module_reference(
 ) -> str | None:
     if isinstance(node, ast.Name):
         return module_aliases.get(node.id)
+    if isinstance(node, ast.Dict):
+        unknown_unpack = False
+        for key, value in zip(node.keys, node.values, strict=True):
+            if key is not None:
+                return _NONEMPTY_MAPPING_REFERENCE
+            unpacked_reference = _static_module_reference(
+                value,
+                module_aliases=module_aliases,
+                import_module_aliases=import_module_aliases,
+                static_string_bindings=static_string_bindings,
+            )
+            if unpacked_reference == _NONEMPTY_MAPPING_REFERENCE:
+                return _NONEMPTY_MAPPING_REFERENCE
+            if unpacked_reference != _EMPTY_MAPPING_REFERENCE:
+                unknown_unpack = True
+        return None if unknown_unpack else _EMPTY_MAPPING_REFERENCE
+    if isinstance(node, ast.Lambda):
+        if _closure_mutates_tracked_mapping(
+            node,
+            module_reference=lambda candidate: _static_module_reference(
+                candidate,
+                module_aliases=module_aliases,
+                import_module_aliases=import_module_aliases,
+                static_string_bindings=static_string_bindings,
+            ),
+            local_bindings=_lambda_local_bindings(node),
+        ):
+            return _MAPPING_MUTATING_CLOSURE_REFERENCE
+        if _closure_exposes_tracked_mapping(
+            node,
+            module_reference=lambda candidate: _static_module_reference(
+                candidate,
+                module_aliases=module_aliases,
+                import_module_aliases=import_module_aliases,
+                static_string_bindings=static_string_bindings,
+            ),
+            local_bindings=_lambda_local_bindings(node),
+        ):
+            return _MAPPING_EXPOSING_CLOSURE_REFERENCE
+        return None
     if isinstance(node, ast.Attribute):
         parent = _static_module_reference(
             node.value,
@@ -782,6 +1716,14 @@ def _static_module_reference(
             object_name = _resolve_static_string(node.slice, static_string_bindings)
             if object_name in _TRACKED_OBJECT_REFERENCES:
                 return f"builtins.object.{object_name}"
+        if container == "builtins.dict.__dict__":
+            dict_name = _resolve_static_string(node.slice, static_string_bindings)
+            if dict_name in _MAPPING_MUTATION_METHODS:
+                return f"builtins.dict.{dict_name}"
+        if container == "legacy_app.runtime_type.__dict__":
+            type_name = _resolve_static_string(node.slice, static_string_bindings)
+            if type_name in _TRACKED_OBJECT_REFERENCES:
+                return f"legacy_app.runtime_type.{type_name}"
         if container == "scope.namespace":
             binding_name = _resolve_static_string(node.slice, static_string_bindings)
             return _scope_namespace_reference(module_aliases, binding_name)
@@ -810,6 +1752,45 @@ def _static_module_reference(
         import_module_aliases=import_module_aliases,
         static_string_bindings=static_string_bindings,
     )
+    if function_reference == _MAPPING_EXPOSING_GENERATOR_CLOSURE_REFERENCE:
+        return _MAPPING_EXPOSING_GENERATOR_RESULT_REFERENCE
+    if function_reference == _MAPPING_GENERATOR_IDENTITY_REFERENCE and not (
+        node.args or node.keywords
+    ):
+        return _MAPPING_EXPOSING_GENERATOR_RESULT_REFERENCE
+    if (
+        function_reference in {"builtins.aiter", "builtins.iter"}
+        and len(node.args) == 1
+        and not node.keywords
+    ):
+        iterator_reference = _static_module_reference(
+            node.args[0],
+            module_aliases=module_aliases,
+            import_module_aliases=import_module_aliases,
+            static_string_bindings=static_string_bindings,
+        )
+        if iterator_reference == _MAPPING_EXPOSING_GENERATOR_RESULT_REFERENCE:
+            return _MAPPING_EXPOSING_GENERATOR_RESULT_REFERENCE
+    if function_reference == "builtins.dict" and not node.args:
+        effective_keywords = _effective_keywords(
+            node.keywords,
+            mapping_resolver=lambda candidate: _static_module_reference(
+                candidate,
+                module_aliases=module_aliases,
+                import_module_aliases=import_module_aliases,
+                static_string_bindings=static_string_bindings,
+            ),
+        )
+        return _NONEMPTY_MAPPING_REFERENCE if effective_keywords else _EMPTY_MAPPING_REFERENCE
+    if function_reference == "builtins.type" and len(node.args) == 1 and not node.keywords:
+        target_reference = _static_module_reference(
+            node.args[0],
+            module_aliases=module_aliases,
+            import_module_aliases=import_module_aliases,
+            static_string_bindings=static_string_bindings,
+        )
+        if target_reference == "legacy_app":
+            return "legacy_app.runtime_type"
     if function_reference == "builtins.getattr" and len(node.args) >= 2:
         target_reference = _static_module_reference(
             node.args[0],
@@ -858,10 +1839,57 @@ def _static_module_reference(
             return module_aliases.get(f"{_GLOBAL_ALIAS_PREFIX}{binding_name}")
         return module_aliases.get(binding_name)
     if function_reference == "operator.attrgetter" and node.args:
-        for argument in _static_positional_arguments(node.args):
+        for argument in _static_positional_arguments(
+            node.args,
+            identity_resolver=lambda candidate: _resolve_static_string(
+                candidate,
+                static_string_bindings,
+            ),
+        ):
             attribute_name = _resolve_static_string(argument, static_string_bindings)
             if attribute_name in CANONICAL_API_KEY_SYMBOLS:
                 return f"operator.attrgetter:{attribute_name}"
+    if function_reference == "operator.methodcaller" and node.args and not node.keywords:
+        arguments = list(
+            _static_positional_arguments(
+                node.args,
+                identity_resolver=lambda candidate: _resolve_static_string(
+                    candidate,
+                    static_string_bindings,
+                ),
+            )
+        )
+        if len(arguments) == 2:
+            method_name = _resolve_static_string(arguments[0], static_string_bindings)
+            attribute_name = _resolve_static_string(arguments[1], static_string_bindings)
+            if method_name == "__getattribute__" and attribute_name in CANONICAL_API_KEY_SYMBOLS:
+                return f"operator.methodcaller:{attribute_name}"
+    if function_reference == "functools.partial" and node.args:
+        partial_arguments = list(
+            _static_positional_arguments(
+                node.args,
+                identity_resolver=lambda candidate: _static_module_reference(
+                    candidate,
+                    module_aliases=module_aliases,
+                    import_module_aliases=import_module_aliases,
+                    static_string_bindings=static_string_bindings,
+                ),
+            )
+        )
+        if partial_arguments:
+            wrapped_reference = _static_module_reference(
+                partial_arguments[0],
+                module_aliases=module_aliases,
+                import_module_aliases=import_module_aliases,
+                static_string_bindings=static_string_bindings,
+            )
+            if wrapped_reference in {
+                _BOUND_MAPPING_MUTATOR_REFERENCE,
+                _MAPPING_MUTATING_CLOSURE_REFERENCE,
+                _MAPPING_EXPOSING_CLOSURE_REFERENCE,
+                _MAPPING_EXPOSING_GENERATOR_CLOSURE_REFERENCE,
+            }:
+                return wrapped_reference
     if function_reference in _TRACKED_IMPORTLIB_NAMESPACE_CALLABLES and node.args:
         importlib_name = _resolve_static_string(node.args[0], static_string_bindings)
         if importlib_name in _TRACKED_IMPORTLIB_REFERENCES:
@@ -870,6 +1898,14 @@ def _static_module_reference(
         operator_name = _resolve_static_string(node.args[0], static_string_bindings)
         if operator_name in _TRACKED_OPERATOR_REFERENCES:
             return f"operator.{operator_name}"
+    if function_reference in _TRACKED_RUNTIME_TYPE_NAMESPACE_CALLABLES and node.args:
+        type_name = _resolve_static_string(node.args[0], static_string_bindings)
+        if type_name in _TRACKED_OBJECT_REFERENCES:
+            return f"legacy_app.runtime_type.{type_name}"
+    if function_reference in _TRACKED_DICT_TYPE_NAMESPACE_CALLABLES and node.args:
+        dict_name = _resolve_static_string(node.args[0], static_string_bindings)
+        if dict_name in _MAPPING_MUTATION_METHODS:
+            return f"builtins.dict.{dict_name}"
     if (
         function_reference == "sys.modules.get"
         and node.args
@@ -887,7 +1923,9 @@ def _static_module_reference(
         )
         if target_reference in {
             "legacy_app",
+            "legacy_app.runtime_type",
             "builtins",
+            "builtins.dict",
             "builtins.object",
             "importlib",
             "operator",
@@ -2573,6 +3611,18 @@ def _lambda_local_bindings(node: ast.Lambda) -> set[str]:
     return {argument.arg for argument in arguments}
 
 
+def _is_statically_nonempty_iterable(node: ast.expr) -> bool:
+    """Return true only when a literal guarantees at least one iteration."""
+
+    if isinstance(node, (ast.Tuple, ast.List, ast.Set)):
+        return any(not isinstance(element, ast.Starred) for element in node.elts)
+    if isinstance(node, ast.Dict):
+        return any(key is not None for key in node.keys)
+    if isinstance(node, ast.Constant) and isinstance(node.value, (str, bytes)):
+        return bool(node.value)
+    return False
+
+
 def _match_pattern_bindings(pattern: ast.pattern) -> set[str]:
     """Return names captured by one structural pattern."""
 
@@ -2647,6 +3697,8 @@ def _preferred_api_key_module_reference(references: AbstractSet[str | None]) -> 
         "builtins.__dict__.get",
         "builtins.__dict__.pop",
         "builtins.__dict__.setdefault",
+        "builtins.dict",
+        "builtins.dict.__dict__",
         "builtins.object",
         "builtins.object.__dict__",
         "builtins.object.__dict__.__getitem__",
@@ -2654,26 +3706,54 @@ def _preferred_api_key_module_reference(references: AbstractSet[str | None]) -> 
         "builtins.object.__dict__.pop",
         "builtins.object.__dict__.setdefault",
         "builtins.object.__getattribute__",
+        "legacy_app.runtime_type",
+        "legacy_app.runtime_type.__dict__",
+        "legacy_app.runtime_type.__dict__.__getitem__",
+        "legacy_app.runtime_type.__dict__.get",
+        "legacy_app.runtime_type.__dict__.pop",
+        "legacy_app.runtime_type.__dict__.setdefault",
+        "legacy_app.runtime_type.__getattribute__",
+        _EMPTY_MAPPING_REFERENCE,
+        _NONEMPTY_MAPPING_REFERENCE,
+        _BOUND_MAPPING_MUTATOR_REFERENCE,
+        _MAPPING_MUTATING_CLOSURE_REFERENCE,
+        _MAPPING_EXPOSING_CLOSURE_REFERENCE,
+        _MAPPING_EXPOSING_GENERATOR_CLOSURE_REFERENCE,
+        _MAPPING_EXPOSING_GENERATOR_RESULT_REFERENCE,
+        _MAPPING_GENERATOR_CONSUMER_REFERENCE,
+        _MAPPING_GENERATOR_IDENTITY_REFERENCE,
+        "builtins.aiter",
+        "builtins.anext",
         "builtins.getattr",
         "builtins.globals",
+        "builtins.iter",
         "builtins.locals",
+        "builtins.next",
         "builtins.vars",
+        "builtins.type",
         "builtins.__import__",
         "importlib.__dict__",
         *_TRACKED_IMPORTLIB_NAMESPACE_CALLABLES,
         "importlib.import_module",
+        "functools.partial",
         "operator.__dict__",
         *_TRACKED_OPERATOR_NAMESPACE_CALLABLES,
+        *_TRACKED_DICT_TYPE_NAMESPACE_CALLABLES,
+        *_TRACKED_MAPPING_MUTATOR_REFERENCES,
         "operator.attrgetter",
+        "operator.delitem",
+        "operator.methodcaller",
         "globals.namespace",
         *_TRACKED_GLOBAL_NAMESPACE_CALLABLES,
         "scope.namespace",
         *_TRACKED_SCOPE_NAMESPACE_CALLABLES,
         *_TRACKED_ATTRGETTER_RESULTS,
+        *_TRACKED_METHODCALLER_RESULTS,
         _GLOBAL_SCOPE_MARKER_REFERENCE,
         _LOCAL_SCOPE_MARKER_REFERENCE,
         "sys",
         "builtins",
+        "functools",
         "importlib",
         "operator",
     ):
@@ -3260,7 +4340,13 @@ def _evaluate_api_key_alias_expression(
                     import_module_aliases=next_imports,
                     static_string_bindings=static_string_bindings,
                 )
-        return next_modules, next_imports, {None}
+        resolved = _static_module_reference(
+            expression,
+            module_aliases=next_modules,
+            import_module_aliases=next_imports,
+            static_string_bindings=static_string_bindings,
+        )
+        return next_modules, next_imports, {resolved}
 
     if isinstance(expression, (ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp)):
         base_modules = dict(module_aliases)
@@ -3425,7 +4511,6 @@ def _evaluate_api_key_loop_iterator(
             sequence_references,
             _literal_iteration_elements(value),
         )
-
     if isinstance(value, ast.Dict):
         return _evaluate_api_key_static_dict_iterator(
             value,
@@ -3553,6 +4638,80 @@ def _apply_api_key_alias_assignment(
     )
 
 
+def _apply_scope_namespace_target_updates(
+    targets: Sequence[ast.expr],
+    value: ast.expr | None,
+    *,
+    module_aliases: Mapping[str, str],
+    import_module_aliases: AbstractSet[str],
+    static_string_bindings: Mapping[str, str],
+) -> tuple[dict[str, str], set[str]]:
+    """Apply exact globals()/locals()/vars() subscript binding updates."""
+
+    next_modules = dict(module_aliases)
+    next_imports = set(import_module_aliases)
+    target_value_pairs = tuple(
+        (target, None) if value is None else pair
+        for target in targets
+        for pair in (
+            ((target, None),) if value is None else _assignment_target_value_pairs(target, value)
+        )
+    )
+    for target, target_value in target_value_pairs:
+        if not isinstance(target, ast.Subscript):
+            continue
+        namespace_reference = _static_module_reference(
+            target.value,
+            module_aliases=next_modules,
+            import_module_aliases=next_imports,
+            static_string_bindings=static_string_bindings,
+        )
+        if namespace_reference not in {"globals.namespace", "scope.namespace"}:
+            continue
+        if (
+            namespace_reference == "scope.namespace"
+            and next_modules.get(_OPTIMIZED_LOCAL_SCOPE_MARKER)
+            == _OPTIMIZED_LOCAL_SCOPE_MARKER_REFERENCE
+        ):
+            continue
+        binding_name = _resolve_static_string(target.slice, static_string_bindings)
+        if binding_name is None:
+            continue
+        replacement_reference = (
+            _static_module_reference(
+                target_value,
+                module_aliases=next_modules,
+                import_module_aliases=next_imports,
+                static_string_bindings=static_string_bindings,
+            )
+            if target_value is not None
+            else None
+        )
+        local_snapshot_name = f"{_LOCAL_ALIAS_PREFIX}{binding_name}"
+        global_snapshot_name = f"{_GLOBAL_ALIAS_PREFIX}{binding_name}"
+        updates_shadowed_global = (
+            namespace_reference == "globals.namespace"
+            and next_modules.get(_GLOBAL_SCOPE_MARKER) == _GLOBAL_SCOPE_MARKER_REFERENCE
+            and local_snapshot_name in next_modules
+        )
+        if (
+            namespace_reference == "globals.namespace"
+            and next_modules.get(_GLOBAL_SCOPE_MARKER) == _GLOBAL_SCOPE_MARKER_REFERENCE
+        ):
+            if replacement_reference is None:
+                next_modules.pop(global_snapshot_name, None)
+            else:
+                next_modules[global_snapshot_name] = replacement_reference
+        if updates_shadowed_global:
+            continue
+        next_imports.discard(binding_name)
+        if replacement_reference is None:
+            next_modules.pop(binding_name, None)
+        else:
+            next_modules[binding_name] = replacement_reference
+    return next_modules, next_imports
+
+
 def _apply_api_key_recorded_target_updates(
     pairs: Sequence[tuple[ast.expr, ast.expr]],
     references_by_node: Mapping[int, set[str | None]],
@@ -3659,56 +4818,96 @@ def _legacy_api_key_dynamic_lookup_name(
             return True
         return False
 
+    def namespace_lookup_name(
+        callable_reference: str | None,
+        arguments: Sequence[ast.expr],
+        keywords: Sequence[ast.keyword],
+    ) -> str | None:
+        if callable_reference is None or keywords:
+            return None
+        method_name = callable_reference.rsplit(".", maxsplit=1)[-1]
+        allowed_arity = {1} if method_name in {"__getitem__"} else {1, 2}
+        if method_name not in {"__getitem__", "get", "pop", "setdefault"}:
+            return None
+        if len(arguments) not in allowed_arity:
+            return None
+        return _resolve_static_string(arguments[0], static_string_bindings)
+
     if isinstance(node, ast.Subscript) and is_legacy_namespace(node.value):
         return _resolve_static_string(node.slice, static_string_bindings)
     if not isinstance(node, ast.Call):
         return None
+    function_reference = module_reference(node.func)
+    call_arguments = list(
+        _static_positional_arguments(
+            node.args,
+            identity_resolver=lambda candidate: module_reference(candidate),
+        )
+    )
+    call_keywords = _effective_keywords(
+        node.keywords,
+        mapping_resolver=lambda candidate: module_reference(candidate),
+    )
     if (
-        module_reference(node.func) == "builtins.getattr"
-        and len(node.args) >= 2
-        and module_reference(node.args[0]) == "legacy_app"
+        function_reference == "builtins.getattr"
+        and len(call_arguments) in {2, 3}
+        and not call_keywords
+        and module_reference(call_arguments[0]) == "legacy_app"
     ):
-        return _resolve_static_string(node.args[1], static_string_bindings)
+        return _resolve_static_string(call_arguments[1], static_string_bindings)
     if (
-        module_reference(node.func) == "builtins.object.__getattribute__"
-        and len(node.args) >= 2
-        and module_reference(node.args[0]) == "legacy_app"
+        function_reference == "builtins.object.__getattribute__"
+        and len(call_arguments) == 2
+        and not call_keywords
+        and module_reference(call_arguments[0]) == "legacy_app"
     ):
-        return _resolve_static_string(node.args[1], static_string_bindings)
+        return _resolve_static_string(call_arguments[1], static_string_bindings)
+    if (
+        function_reference == "legacy_app.runtime_type.__getattribute__"
+        and len(call_arguments) == 2
+        and not call_keywords
+        and module_reference(call_arguments[0]) == "legacy_app"
+    ):
+        return _resolve_static_string(call_arguments[1], static_string_bindings)
     if (
         isinstance(node.func, ast.Attribute)
         and node.func.attr == "__getattribute__"
         and module_reference(node.func.value) == "legacy_app"
-        and node.args
+        and len(call_arguments) == 1
+        and not call_keywords
     ):
-        return _resolve_static_string(node.args[0], static_string_bindings)
-    if module_reference(node.func) == "legacy_app.__getattribute__" and node.args:
-        return _resolve_static_string(node.args[0], static_string_bindings)
-    function_reference = module_reference(node.func)
+        return _resolve_static_string(call_arguments[0], static_string_bindings)
     if (
-        function_reference in _TRACKED_ATTRGETTER_RESULTS
-        and node.args
-        and module_reference(node.args[0]) == "legacy_app"
+        function_reference == "legacy_app.__getattribute__"
+        and len(call_arguments) == 1
+        and not call_keywords
     ):
-        return function_reference.removeprefix("operator.attrgetter:")
+        return _resolve_static_string(call_arguments[0], static_string_bindings)
+    if (
+        function_reference in (_TRACKED_ATTRGETTER_RESULTS | _TRACKED_METHODCALLER_RESULTS)
+        and len(call_arguments) == 1
+        and not call_keywords
+        and module_reference(call_arguments[0]) == "legacy_app"
+    ):
+        return function_reference.split(":", maxsplit=1)[1]
     if (
         isinstance(node.func, ast.Attribute)
         and node.func.attr in {"get", "__getitem__", "pop", "setdefault"}
         and is_legacy_namespace(node.func.value)
-        and node.args
     ):
-        return _resolve_static_string(node.args[0], static_string_bindings)
-    if (
-        module_reference(node.func)
-        in {
-            "legacy_app.__dict__.__getitem__",
-            "legacy_app.__dict__.get",
-            "legacy_app.__dict__.pop",
-            "legacy_app.__dict__.setdefault",
-        }
-        and node.args
-    ):
-        return _resolve_static_string(node.args[0], static_string_bindings)
+        return namespace_lookup_name(
+            function_reference,
+            call_arguments,
+            call_keywords,
+        )
+    callable_reference = function_reference
+    if callable_reference in {
+        "legacy_app.__dict__.__getitem__",
+        "legacy_app.__dict__.get",
+        "legacy_app.__dict__.pop",
+        "legacy_app.__dict__.setdefault",
+    }:
+        return namespace_lookup_name(callable_reference, call_arguments, call_keywords)
     return None
 
 
@@ -3937,7 +5136,14 @@ def _apply_api_key_alias_statements(
         if isinstance(statement, ast.Import):
             for alias in statement.names:
                 local_name = alias.asname or alias.name.split(".", maxsplit=1)[0]
-                if alias.name in {"builtins", "importlib", "legacy_app", "operator", "sys"}:
+                if alias.name in {
+                    "builtins",
+                    "functools",
+                    "importlib",
+                    "legacy_app",
+                    "operator",
+                    "sys",
+                }:
                     next_modules[local_name] = alias.name
                 else:
                     next_modules.pop(local_name, None)
@@ -3949,13 +5155,18 @@ def _apply_api_key_alias_statements(
                 qualified = f"{statement.module}.{alias.name}"
                 if qualified in {
                     "builtins.__import__",
+                    "builtins.dict",
                     "builtins.getattr",
                     "builtins.globals",
                     "builtins.locals",
                     "builtins.object",
+                    "builtins.type",
                     "builtins.vars",
+                    "functools.partial",
                     "importlib.import_module",
                     "operator.attrgetter",
+                    "operator.delitem",
+                    "operator.methodcaller",
                     "sys.modules",
                 }:
                     next_modules[local_name] = qualified
@@ -3983,6 +5194,13 @@ def _apply_api_key_alias_statements(
                     import_module_aliases=next_imports,
                     static_string_bindings=static_string_bindings,
                 )
+            next_modules, next_imports = _apply_scope_namespace_target_updates(
+                targets,
+                value,
+                module_aliases=next_modules,
+                import_module_aliases=next_imports,
+                static_string_bindings=static_string_bindings,
+            )
             continue
 
         if isinstance(statement, ast.Expr):
@@ -4001,6 +5219,13 @@ def _apply_api_key_alias_statements(
             for target in targets:
                 for target_name in _assignment_target_names(target):
                     next_modules.pop(target_name, None)
+            next_modules, next_imports = _apply_scope_namespace_target_updates(
+                targets,
+                None,
+                module_aliases=next_modules,
+                import_module_aliases=next_imports,
+                static_string_bindings=static_string_bindings,
+            )
             continue
 
         if isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
@@ -4388,6 +5613,9 @@ def _scan_api_key_alias_scope(
         int,
         tuple[dict[str, str], set[str]],
     ] = {}
+    mapping_mutating_closure_ids: set[int] = set()
+    mapping_exposing_closure_ids: set[int] = set()
+    mapping_exposing_generator_closure_ids: set[int] = set()
 
     def module_reference(node: ast.AST) -> str | None:
         static_reference = _static_module_reference(
@@ -4435,7 +5663,14 @@ def _scan_api_key_alias_scope(
         elif isinstance(node, ast.Import):
             for alias in node.names:
                 local_name = alias.asname or alias.name.split(".", maxsplit=1)[0]
-                if alias.name in {"builtins", "importlib", "legacy_app", "operator", "sys"}:
+                if alias.name in {
+                    "builtins",
+                    "functools",
+                    "importlib",
+                    "legacy_app",
+                    "operator",
+                    "sys",
+                }:
                     module_aliases[local_name] = alias.name
                 else:
                     module_aliases.pop(local_name, None)
@@ -4447,13 +5682,18 @@ def _scan_api_key_alias_scope(
                 qualified = f"{node.module}.{alias.name}"
                 if qualified in {
                     "builtins.__import__",
+                    "builtins.dict",
                     "builtins.getattr",
                     "builtins.globals",
                     "builtins.locals",
                     "builtins.object",
+                    "builtins.type",
                     "builtins.vars",
+                    "functools.partial",
                     "importlib.import_module",
                     "operator.attrgetter",
+                    "operator.delitem",
+                    "operator.methodcaller",
                     "sys.modules",
                 }:
                     module_aliases[local_name] = qualified
@@ -4490,6 +5730,13 @@ def _scan_api_key_alias_scope(
                     import_module_aliases=import_module_aliases,
                     static_string_bindings=static_string_bindings,
                 )
+            module_aliases, import_module_aliases = _apply_scope_namespace_target_updates(
+                targets,
+                value,
+                module_aliases=module_aliases,
+                import_module_aliases=import_module_aliases,
+                static_string_bindings=static_string_bindings,
+            )
         elif isinstance(node, ast.Expr):
             module_aliases, import_module_aliases = _apply_api_key_alias_expression(
                 node.value,
@@ -4502,6 +5749,13 @@ def _scan_api_key_alias_scope(
             for target in targets:
                 for target_name in _assignment_target_names(target):
                     module_aliases.pop(target_name, None)
+            module_aliases, import_module_aliases = _apply_scope_namespace_target_updates(
+                targets,
+                None,
+                module_aliases=module_aliases,
+                import_module_aliases=import_module_aliases,
+                static_string_bindings=static_string_bindings,
+            )
 
         if isinstance(node, (ast.Assign, ast.AnnAssign, ast.NamedExpr)):
             string_targets = node.targets if isinstance(node, ast.Assign) else [node.target]
@@ -4543,6 +5797,9 @@ def _scan_api_key_alias_scope(
                     f"{symbol_name}"
                 )
 
+        if _mutates_tracked_mapping(node, module_reference=module_reference):
+            _invalidate_tracked_mapping_aliases(module_aliases)
+
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             for expression in _function_header_expressions(node):
                 module_aliases, import_module_aliases = _apply_api_key_alias_expression(
@@ -4565,6 +5822,30 @@ def _scan_api_key_alias_scope(
                 dict(snapshot_modules),
                 set(snapshot_imports),
             )
+            if _closure_mutates_tracked_mapping(
+                node,
+                module_reference=module_reference,
+                local_bindings=_function_local_bindings(node),
+            ):
+                mapping_mutating_closure_ids.add(id(node))
+            elif _closure_contains_yield(node):
+                if _closure_exposes_tracked_mapping(
+                    node,
+                    module_reference=module_reference,
+                    local_bindings=_function_local_bindings(node),
+                    yield_exposure=True,
+                ) or _closure_exposes_tracked_mapping(
+                    node,
+                    module_reference=module_reference,
+                    local_bindings=_function_local_bindings(node),
+                ):
+                    mapping_exposing_generator_closure_ids.add(id(node))
+            elif _closure_exposes_tracked_mapping(
+                node,
+                module_reference=module_reference,
+                local_bindings=_function_local_bindings(node),
+            ):
+                mapping_exposing_closure_ids.add(id(node))
         elif isinstance(node, ast.ClassDef):
             lexical_scope_alias_snapshots[id(node)] = (
                 dict(module_aliases),
@@ -4593,7 +5874,17 @@ def _scan_api_key_alias_scope(
                 dict(comprehension_module_aliases),
                 set(comprehension_import_module_aliases),
             )
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            if id(node) in mapping_mutating_closure_ids:
+                module_aliases[node.name] = _MAPPING_MUTATING_CLOSURE_REFERENCE
+            elif id(node) in mapping_exposing_generator_closure_ids:
+                module_aliases[node.name] = _MAPPING_EXPOSING_GENERATOR_CLOSURE_REFERENCE
+            elif id(node) in mapping_exposing_closure_ids:
+                module_aliases[node.name] = _MAPPING_EXPOSING_CLOSURE_REFERENCE
+            else:
+                module_aliases.pop(node.name, None)
+            import_module_aliases.discard(node.name)
+        elif isinstance(node, ast.ClassDef):
             module_aliases.pop(node.name, None)
             import_module_aliases.discard(node.name)
         _sync_declared_global_aliases(module_aliases, declared_globals)
@@ -4639,6 +5930,7 @@ def _scan_api_key_alias_scope(
                 seeded_modules = _with_local_alias_snapshot(
                     seeded_modules,
                     default_modules,
+                    optimized=True,
                 )
                 seeded_imports = set(function_imports) | default_imports
                 errors.extend(
@@ -4670,6 +5962,7 @@ def _scan_api_key_alias_scope(
             seeded_modules = _with_local_alias_snapshot(
                 seeded_modules,
                 default_modules,
+                optimized=True,
             )
             seeded_imports = set(final_closure_import_module_aliases) | default_imports
             lambda_local_bindings = _lambda_local_bindings(nested_scope)
@@ -4739,10 +6032,16 @@ def _app_api_key_reverse_dependency_errors(
         inherited_module_aliases={
             "__builtins__": "builtins.__dict__",
             "__import__": "builtins.__import__",
+            "aiter": "builtins.aiter",
+            "anext": "builtins.anext",
+            "dict": "builtins.dict",
             "getattr": "builtins.getattr",
             "globals": "builtins.globals",
+            "iter": "builtins.iter",
             "locals": "builtins.locals",
+            "next": "builtins.next",
             "object": "builtins.object",
+            "type": "builtins.type",
             "vars": "builtins.vars",
         },
         inherited_import_module_aliases=frozenset({"__import__"}),
