@@ -59,6 +59,8 @@ does not claim to prove equivalence across intentionally obfuscated Python.
 - `4d8fbbd90` - keep the `test-pr` and `test-feature` route-risk suites
   identical and pin the dedicated auth-suite selection in the workflow
   contract test.
+- `2c705c7f2` - consolidate bounded-guard guidance in the architecture and test
+  contracts, returning the privileged PR to the approved 30-file hard cap.
 
 ## Analyzer Rollback Decision
 
@@ -165,7 +167,7 @@ Evidence: Focused regressions reject ordinary top-level import, loop, conditiona
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3566451151
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3566451152
 Disposition: NOT-A-BUG
-Evidence: `docs/architecture/LEGACY_COMPATIBILITY_SEAM.md` defines the guard as a bounded detector for trusted, reviewed source; `scripts/AGENTS.md` forbids interpreter-like control/data-flow expansion; runtime identity tests prove protected registrations use the canonical callable; repository search shows production consumers use direct canonical imports rather than adversarial forms.
+Evidence: `docs/architecture/LEGACY_COMPATIBILITY_SEAM.md` defines the guard as a bounded detector for trusted, reviewed source; `tests/AGENTS.md` forbids enumerating intentionally obfuscated constructions outside that threat model; runtime identity tests prove protected registrations use the canonical callable; repository search shows production consumers use direct canonical imports rather than adversarial forms.
 Reason: These comments require intentionally obfuscated equivalences through control-flow joins, nested lexical scopes, namespace mappings, builtins loaders, containers, closures, descriptors, `attrgetter`/`methodcaller`/`itemgetter`, `partial`, comprehensions, pattern matching, or context managers. Those constructions are outside the approved trusted-source threat model; the open-ended pseudo-interpreter expansion was rolled back.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024583
@@ -273,6 +275,8 @@ Reason: Review-summary comments add no separate actionable beyond their inline t
   missing changed line in `app/routers/api_key.py`.
 - PASS: mirrored `test-pr`/`test-feature` workflow contract and 62 focused
   workflow/auth ownership tests after `4d8fbbd90`.
+- PASS: local `check_pr_size_governance.py` parity on `2c705c7f2`; 30 counted
+  files, approved privileged-scope category, policy result OK.
 - Not run: local full `make verify`, per repository machine-budget policy.
 
 ## Merge Readiness
