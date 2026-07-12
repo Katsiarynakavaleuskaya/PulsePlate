@@ -41,6 +41,9 @@ closes every bounded pre-open defect found in the touched auth/bootstrap graph.
   and compound control-flow gaps in the API-key ownership guard, including
   repeated loop tests, abrupt transfers, nested exception prefixes, and
   guaranteed `finally` cleanup.
+- `6d3234cd3` - close lexical static-string, simultaneous destructuring,
+  expression receiver, and literal container resolution gaps while preserving
+  Python evaluation order and safe negative controls.
 
 ## Discussion Thread Pass
 
@@ -92,9 +95,12 @@ dispositioned here before thread resolution or merge-readiness claims.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565224748
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565279783
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565279785
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565761896
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565761898
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565761900
 Disposition: FIXED
 Commit: see mapping entries below
-Evidence: Commits `276ca9b608`, `044e968a9`, `028b40fad`, `6a9a563a6`, `c5409d0de`, and `d893ba2e3`; focused API-key ownership, full legacy-growth, export, business, metrics, and warning suites; `make validate-changed`; full pre-commit; pre-push MyPy, pip-audit, backend tests, Bandit, and Docker build all pass.
+Evidence: Commits `276ca9b608`, `044e968a9`, `028b40fad`, `6a9a563a6`, `c5409d0de`, `d893ba2e3`, and `6d3234cd3`; focused API-key ownership, full legacy-growth, export, business, metrics, and warning suites; `make validate-changed`; full pre-commit; pre-push MyPy, pip-audit, backend tests, Bandit, and Docker build all pass.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024580 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024583 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
@@ -129,6 +135,9 @@ Evidence: Commits `276ca9b608`, `044e968a9`, `028b40fad`, `6a9a563a6`, `c5409d0d
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565224748 -> c5409d0de09bdae93dacce376a1a84d91f375253
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565279783 -> d893ba2e39288c09f9af269603e7c572ed00d407
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565279785 -> d893ba2e39288c09f9af269603e7c572ed00d407
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565761896 -> 6d3234cd3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565761898 -> 6d3234cd3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565761900 -> 6d3234cd3
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024584
 Disposition: NOT-A-BUG
@@ -261,6 +270,11 @@ reroutes through the same coordinator.
   `while` tests, `break`/`continue`, `try`/`try*`, `with`, `match`, nested
   exception prefixes, and guaranteed `finally` cleanup. The ordered QA,
   bug-hunter, and security-auditor reruns all reported PASS.
+- The subsequent current-head closure made lookup-name state lexical and
+  path-sensitive, preserved simultaneous/destructured RHS evaluation order,
+  and resolved bounded expression/literal receivers with Python-compatible
+  index, duplicate-key, and dict-unpack semantics. Its ordered QA, bug-hunter,
+  and security-auditor reruns all reported PASS.
 - Architecture confirmed the final guard remains a narrow canonical ownership
   boundary and does not claim arbitrary Python static-analysis completeness.
 
