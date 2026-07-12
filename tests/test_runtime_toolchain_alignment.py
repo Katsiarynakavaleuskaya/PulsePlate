@@ -7,6 +7,7 @@ from typing import Any
 
 import yaml
 
+from scripts.ci.check_jwt_fastlane_unblock import _version_at_least
 from tests.runtime_toolchain_versions import (
     CANONICAL_PYTHON,
     CANONICAL_RUBY,
@@ -145,7 +146,7 @@ def test_fastlane_and_ruby_tooling_are_pinned_consistently() -> None:
         line.strip() for line in lockfile.splitlines() if line.startswith("    excon (")
     )
     locked_excon = excon_line.removeprefix("excon (").removesuffix(")")
-    assert tuple(map(int, locked_excon.split("."))) >= tuple(
-        map(int, EXCON_MINIMUM_VERSION.split("."))
-    )
+    assert _version_at_least(locked_excon, EXCON_MINIMUM_VERSION)
+    assert _version_at_least("1.5", EXCON_MINIMUM_VERSION)
+    assert not _version_at_least("1.5.0.rc1", EXCON_MINIMUM_VERSION)
     assert "      excon (>= 0.71.0, < 2.0.0)" in lockfile
