@@ -2397,6 +2397,27 @@ def test_finalize_revalidates_payloads_after_atomic_exchange(
         shutil.rmtree(input_dir, ignore_errors=True)
 
 
+def test_open_pinned_finalize_output_preserves_primary_and_close_errors(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    directory_fd = os.open(tmp_path, os.O_RDONLY)
+    try:
+        with monkeypatch.context() as context:
+            context.setattr(
+                review_cli.creative_code_spec_pipeline,
+                "_close_descriptors",
+                lambda *_descriptors: OSError("injected close failure"),
+            )
+            with pytest.raises(
+                review_cli.CreativeSpecificationSkepticReviewCliError,
+                match=("No such file or directory.*cleanup_diagnostic=" ".*injected close failure"),
+            ):
+                review_cli._open_pinned_finalize_output(directory_fd, "missing.json")
+    finally:
+        os.close(directory_fd)
+
+
 def test_finalize_rejects_bundle_mutation_between_terminal_output_reads(
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
