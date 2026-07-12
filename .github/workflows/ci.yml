@@ -593,6 +593,7 @@ jobs:
             --requirements-file requirements.txt \
             --requirements-file requirements-ci-lite.txt \
             --requirements-file requirements-test.txt \
+            --requirements-file requirements-dev.txt \
             --python-version 3.11 \
             --python-version 3.12 \
             --python-version 3.13 \
@@ -601,6 +602,10 @@ jobs:
             --project requests \
             --project pytest-xdist \
             --project hypothesis \
+            --project mypy \
+            --project ruff \
+            --project librt \
+            --project ast-serialize \
             --project pgvector
 
       - name: Emergency wheel mirror parity

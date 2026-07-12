@@ -64,11 +64,16 @@ def test_private_proxy_health_job_is_stdlib_fail_fast_gate() -> None:
     assert "pip install" not in run_blocks
     assert "continue-on-error" not in run_blocks
     assert "--requirements-file requirements-test.txt" in run_blocks
+    assert "--requirements-file requirements-dev.txt" in run_blocks
     assert "--python-version 3.11" in run_blocks
     assert "--python-version 3.12" in run_blocks
     assert "--python-version 3.13" in run_blocks
     assert "--project pytest-xdist" in run_blocks
     assert "--project hypothesis" in run_blocks
+    assert "--project mypy" in run_blocks
+    assert "--project ruff" in run_blocks
+    assert "--project librt" in run_blocks
+    assert "--project ast-serialize" in run_blocks
     assert "--project pgvector" in run_blocks
     assert "--project pydantic-core" not in run_blocks
 
