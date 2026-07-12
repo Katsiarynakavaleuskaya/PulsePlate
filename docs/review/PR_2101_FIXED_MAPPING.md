@@ -104,6 +104,14 @@ large-diff review-risk note. This artifact closes the first; the second is
 addressed by the documented narrowing decision and bounded 23-case oracle.
 Reason: The dry-run did not emit a new correctness or security defect.
 
+## Experiment Runner Evidence
+
+Artifact: artifacts/orchestration/experiments/results/exp-22c3d2a93706.json
+
+- Accepted `oracle_only_governance_reviewer` result with 2/2 oracle commands.
+- `mutated_paths=[]`, `shared_tree_untouched=true`, and no promotion authority.
+- Material-contribution commits use the canonical Experiment Runner co-author trailer.
+
 ## Validation Evidence
 
 - PASS: `python3 scripts/orchestration/check_preflight.py`.
