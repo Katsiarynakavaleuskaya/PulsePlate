@@ -15,7 +15,7 @@ import re
 import socket
 import ssl
 import sys
-from typing import Any, Iterable, Sequence
+from typing import Any, Iterable, Iterator, Sequence
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, unquote, urlparse
 from urllib.request import HTTPRedirectHandler, Request, build_opener
@@ -224,9 +224,8 @@ def project_page_url(index_url: str, project: str) -> str:
     return index_url.rstrip("/") + "/" + quote(normalized_project, safe="") + "/"
 
 
-def parse_exact_pins(requirements_files: Iterable[Path]) -> dict[str, str]:
-    """Return canonical package name to exact pinned version from requirements files."""
-    pins: dict[str, str] = {}
+def _iter_exact_pins(requirements_files: Iterable[Path]) -> Iterator[tuple[str, str]]:
+    """Yield normalized exact package pins from requirements files."""
     for path in requirements_files:
         if not path.exists():
             raise FileNotFoundError(f"requirements file not found: {path}")
@@ -240,14 +239,20 @@ def parse_exact_pins(requirements_files: Iterable[Path]) -> dict[str, str]:
                     raise ValueError(f"non_exact_pin: {path}:{raw_line}")
                 continue
             package, version = match.groups()
-            normalized_package = normalize_project_name(package)
-            previous_version = pins.get(normalized_package)
-            if previous_version is not None and previous_version != version:
-                raise ValueError(
-                    "conflicting_exact_pins: "
-                    f"{normalized_package} has both {previous_version} and {version}"
-                )
-            pins[normalized_package] = version
+            yield normalize_project_name(package), version
+
+
+def parse_exact_pins(requirements_files: Iterable[Path]) -> dict[str, str]:
+    """Return canonical package name to exact pinned version from requirements files."""
+    pins: dict[str, str] = {}
+    for normalized_package, version in _iter_exact_pins(requirements_files):
+        previous_version = pins.get(normalized_package)
+        if previous_version is not None and previous_version != version:
+            raise ValueError(
+                "conflicting_exact_pins: "
+                f"{normalized_package} has both {previous_version} and {version}"
+            )
+        pins[normalized_package] = version
     return pins
 
 
@@ -258,29 +263,16 @@ def parse_exact_pins_for_projects(
     """Return exact pins for selected probe projects across requirements files."""
     selected_projects = {normalize_project_name(project) for project in projects}
     pins: dict[str, str] = {}
-    for path in requirements_files:
-        if not path.exists():
-            raise FileNotFoundError(f"requirements file not found: {path}")
-        for raw_line in path.read_text(encoding="utf-8").splitlines():
-            line = raw_line.split("#", 1)[0].split(";", 1)[0].strip()
-            if not line or line.startswith(("-", "--")):
-                continue
-            match = PIN_RE.match(line)
-            if not match:
-                if PACKAGE_REQUIREMENT_RE.match(line):
-                    raise ValueError(f"non_exact_pin: {path}:{raw_line}")
-                continue
-            package, version = match.groups()
-            normalized_package = normalize_project_name(package)
-            if normalized_package not in selected_projects:
-                continue
-            previous_version = pins.get(normalized_package)
-            if previous_version is not None and previous_version != version:
-                raise ValueError(
-                    "conflicting_exact_pins: "
-                    f"{normalized_package} has both {previous_version} and {version}"
-                )
-            pins[normalized_package] = version
+    for normalized_package, version in _iter_exact_pins(requirements_files):
+        if normalized_package not in selected_projects:
+            continue
+        previous_version = pins.get(normalized_package)
+        if previous_version is not None and previous_version != version:
+            raise ValueError(
+                "conflicting_exact_pins: "
+                f"{normalized_package} has both {previous_version} and {version}"
+            )
+        pins[normalized_package] = version
     return pins
 
 
