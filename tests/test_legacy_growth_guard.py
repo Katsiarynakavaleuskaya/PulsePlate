@@ -130,6 +130,26 @@ def test_api_key_ownership_guard_allows_nested_local_binding() -> None:
     assert legacy_guard.validate_api_key_dependency_ownership(legacy_source, {}) == []
 
 
+@pytest.mark.parametrize("keyword", ["def", "async def"])
+@pytest.mark.parametrize("symbol", ["get_api_key", "_get_api_key_dynamic"])
+def test_api_key_ownership_guard_allows_nested_local_function(
+    keyword: str,
+    symbol: str,
+) -> None:
+    legacy_source = (
+        "from app.routers.api_key import (\n"
+        "    _get_api_key_dynamic,\n"
+        "    get_api_key,\n"
+        ")\n"
+        "def local_scope():\n"
+        f"    {keyword} {symbol}():\n"
+        "        return 'local'\n"
+        f"    return {symbol}\n"
+    )
+
+    assert legacy_guard.validate_api_key_dependency_ownership(legacy_source, {}) == []
+
+
 def test_legacy_growth_guard_rejects_api_key_header_reintroduction() -> None:
     errors = legacy_guard.validate_legacy_growth("from app.routers.api_key import api_key_header\n")
 

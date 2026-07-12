@@ -1580,7 +1580,7 @@ def validate_api_key_dependency_ownership(
     if legacy_tree is not None:
         locally_defined = {
             node.name
-            for node in ast.walk(legacy_tree)
+            for node in legacy_tree.body
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
             and node.name in CANONICAL_API_KEY_SYMBOLS
         }
