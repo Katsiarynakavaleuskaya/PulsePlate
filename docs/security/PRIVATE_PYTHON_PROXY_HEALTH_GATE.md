@@ -12,7 +12,7 @@ or dependency lockfiles.
 
 ## Protected Contract
 
-Evidence anchor: `scripts/ci/check_private_python_proxy_health.py:792` defines
+Evidence anchor: `scripts/ci/check_private_python_proxy_health.py:784` defines
 the default representative project set, and
 `tests/test_private_python_proxy_workflow_contract.py:62` validates the CI
 health job command contract.
