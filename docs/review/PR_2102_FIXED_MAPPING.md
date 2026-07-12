@@ -37,6 +37,10 @@ closes every bounded pre-open defect found in the touched auth/bootstrap graph.
   header and close star-import and assigned-loader guard bypasses.
 - `c5409d0de09bdae93dacce376a1a84d91f375253` - block keyed `pop` and
   `setdefault` retrievals from the legacy module namespace.
+- `d893ba2e39288c09f9af269603e7c572ed00d407` - close indirect module-loader
+  and compound control-flow gaps in the API-key ownership guard, including
+  repeated loop tests, abrupt transfers, nested exception prefixes, and
+  guaranteed `finally` cleanup.
 
 ## Discussion Thread Pass
 
@@ -86,9 +90,11 @@ dispositioned here before thread resolution or merge-readiness claims.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565204818
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565204821
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565224748
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565279783
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565279785
 Disposition: FIXED
 Commit: see mapping entries below
-Evidence: Commits `276ca9b608`, `044e968a9`, `028b40fad`, `6a9a563a6`, and `c5409d0de`; focused API-key ownership, full legacy-growth, export, business, metrics, and warning suites; `make validate-changed`; full pre-commit; pre-push MyPy, pip-audit, backend tests, Bandit, and Docker build all pass.
+Evidence: Commits `276ca9b608`, `044e968a9`, `028b40fad`, `6a9a563a6`, `c5409d0de`, and `d893ba2e3`; focused API-key ownership, full legacy-growth, export, business, metrics, and warning suites; `make validate-changed`; full pre-commit; pre-push MyPy, pip-audit, backend tests, Bandit, and Docker build all pass.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024580 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024583 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
@@ -121,6 +127,8 @@ Evidence: Commits `276ca9b608`, `044e968a9`, `028b40fad`, `6a9a563a6`, and `c540
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565204818 -> 6a9a563a69cbc5ffeefff2d8787a5edde22bc488
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565204821 -> 6a9a563a69cbc5ffeefff2d8787a5edde22bc488
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565224748 -> c5409d0de09bdae93dacce376a1a84d91f375253
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565279783 -> d893ba2e39288c09f9af269603e7c572ed00d407
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565279785 -> d893ba2e39288c09f9af269603e7c572ed00d407
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024584
 Disposition: NOT-A-BUG
@@ -147,8 +155,10 @@ Reason: Sourcery's three high-level comments are maintainability suggestions, no
   fail-closed security control.
 - Report: local sealed Codex Security artifact
   `report.md` for the scan above. It is intentionally not committed.
-- Subsequent mapping/body-only governance updates do not change the reviewed
-  runtime/security diff and do not require another scan.
+- Subsequent guard-only fixes in `d893ba2e3` were not rescanned per the explicit
+  operator instruction. They were closed by the ordered QA, bug-hunter, and
+  security-auditor passes plus the complete focused guard suite, MyPy, Ruff,
+  Bandit, and pre-commit evidence.
 
 ## PulsePlate PR Review
 
@@ -246,6 +256,11 @@ reroutes through the same coordinator.
 - The final facade/loader closure preserved `app.api_key_header` exact identity,
   rejected legacy star imports, and tracked assigned `import_module` loaders;
   both ordered closure roles reported PASS.
+- The final current-head closure rejected `__import__`/`sys.modules` legacy
+  loaders and made compound alias flow path-sensitive across loops, repeated
+  `while` tests, `break`/`continue`, `try`/`try*`, `with`, `match`, nested
+  exception prefixes, and guaranteed `finally` cleanup. The ordered QA,
+  bug-hunter, and security-auditor reruns all reported PASS.
 - Architecture confirmed the final guard remains a narrow canonical ownership
   boundary and does not claim arbitrary Python static-analysis completeness.
 
