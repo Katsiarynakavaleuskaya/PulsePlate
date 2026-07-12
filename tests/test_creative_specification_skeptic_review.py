@@ -2159,6 +2159,62 @@ def test_finalize_rejects_bundle_mutation_between_terminal_output_reads(
         shutil.rmtree(input_dir, ignore_errors=True)
 
 
+def test_finalize_rejects_output_mutation_during_terminal_directory_check(
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output_dir, input_dir = _prepared_bridge(capsys, suffix="finalize-terminal-directory-seam")
+    try:
+        reviews_path = _write_review_input(output_dir, _review_input(output_dir))
+        assert (
+            review_cli.main(
+                [
+                    "attach",
+                    "--bridge",
+                    str(output_dir / bridge_cli.BRIDGE_FILENAME),
+                    "--reviews",
+                    str(reviews_path),
+                ]
+            )
+            == 0
+        )
+        capsys.readouterr()
+        reviewed_dir = output_dir / "spec_finalize_reviewed"
+        attachment_path = reviewed_dir / review_cli.ATTACHMENT_FILENAME
+        receipt_path = reviewed_dir / review_cli.FINALIZE_RECEIPT_FILENAME
+        real_assert_identity = review_cli._assert_canonical_reviewed_run_identity
+        identity_checks = 0
+
+        def corrupt_receipt_during_terminal_identity_check(*args: Any, **kwargs: Any) -> None:
+            nonlocal identity_checks
+            identity_checks += 1
+            if identity_checks == 2:
+                receipt_path.write_text("{}\n", encoding="utf-8")
+            real_assert_identity(*args, **kwargs)
+
+        with monkeypatch.context() as context:
+            context.setattr(
+                review_cli,
+                "_assert_canonical_reviewed_run_identity",
+                corrupt_receipt_during_terminal_identity_check,
+            )
+            exit_code = review_cli.main(["finalize", "--attachment", str(attachment_path)])
+        captured = capsys.readouterr()
+        assert exit_code == 1
+        assert review_cli.FINALIZE_SUCCESS_OUTPUT not in captured.out
+        assert identity_checks == 2
+        assert not reviewed_dir.exists()
+        retained_runs = list(output_dir.glob(".spec_finalize_reviewed.*.failed"))
+        assert len(retained_runs) == 1
+        assert (retained_runs[0] / review_cli.FINALIZE_RECEIPT_FILENAME).read_text(
+            encoding="utf-8"
+        ) == "{}\n"
+        assert (retained_runs[0] / review_cli.BUNDLE_FILENAME).is_file()
+    finally:
+        shutil.rmtree(output_dir, ignore_errors=True)
+        shutil.rmtree(input_dir, ignore_errors=True)
+
+
 def test_finalize_preserves_preexisting_partial_outputs_without_quarantine(
     capsys: pytest.CaptureFixture[str],
 ) -> None:

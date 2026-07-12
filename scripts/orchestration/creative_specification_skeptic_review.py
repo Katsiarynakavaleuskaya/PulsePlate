@@ -1429,6 +1429,8 @@ def _read_pinned_reviewed_inputs(
 def _assert_pinned_finalize_outputs(
     reviewed_fd: int,
     *,
+    reviewed_dir: Path,
+    reviewed_identity: DirectoryIdentity,
     expected_bundle: Mapping[str, Any],
     expected_receipt: Mapping[str, Any],
 ) -> None:
@@ -1476,6 +1478,21 @@ def _assert_pinned_finalize_outputs(
                     raise CreativeSpecificationSkepticReviewCliError(
                         f"fingerprint_mismatch: pinned finalize {filename} changed before success."
                     )
+        _assert_canonical_reviewed_run_identity(
+            reviewed_dir,
+            expected_identity=reviewed_identity,
+        )
+        for file_fd, filename, _snapshot, expected_payload, validator in expected_outputs:
+            observed = validator(
+                cast(
+                    Mapping[str, Any],
+                    _read_json_from_pinned_finalize_output(file_fd, filename),
+                )
+            )
+            if fingerprint_payload(observed) != fingerprint_payload(expected_payload):
+                raise CreativeSpecificationSkepticReviewCliError(
+                    f"fingerprint_mismatch: pinned finalize {filename} changed during terminal seal."
+                )
         for file_fd, filename, snapshot, _expected_payload, _validator in expected_outputs:
             opened = os.fstat(file_fd)
             published = os.stat(filename, dir_fd=reviewed_fd, follow_symlinks=False)
@@ -1651,12 +1668,10 @@ def _finalize_from_attachment(attachment_path: Path) -> dict[str, Any]:
         )
         _assert_pinned_finalize_outputs(
             reviewed_fd,
+            reviewed_dir=reviewed_dir,
+            reviewed_identity=reviewed_identity,
             expected_bundle=validated_bundle,
             expected_receipt=receipt,
-        )
-        _assert_canonical_reviewed_run_identity(
-            reviewed_dir,
-            expected_identity=reviewed_identity,
         )
     except Exception as primary_error:
         cleanup_error: Exception | None = None
