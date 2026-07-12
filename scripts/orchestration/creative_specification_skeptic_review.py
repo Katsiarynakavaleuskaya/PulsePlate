@@ -1287,7 +1287,7 @@ def _validate_attachment_artifacts(
             "fingerprint_mismatch: reviewed skeptic_reviews fingerprint does not match attachment."
         )
     try:
-        bundle = build_creative_code_specification_bundle(
+        build_creative_code_specification_bundle(
             source_packet=source_packet,
             variants=cast(Sequence[Mapping[str, Any]], variants),
             skeptic_reviews=cast(Sequence[Mapping[str, Any]], reviews),
@@ -1312,7 +1312,51 @@ def _validate_attachment_artifacts(
         raise CreativeSpecificationSkepticReviewCliError(
             "fingerprint_mismatch: reviewed variants do not match attachment."
         )
-    return attachment, reviewed_dir, bundle
+    return (
+        attachment,
+        reviewed_dir,
+        {
+            "source_packet.json": source_packet,
+            "variants.json": variants,
+            "skeptic_reviews.json": reviews,
+            "context_pack.json": context_pack,
+            ATTACHMENT_FILENAME: attachment,
+        },
+    )
+
+
+def _read_pinned_reviewed_inputs(
+    reviewed_fd: int,
+    *,
+    expected_payloads: Mapping[str, Any],
+) -> dict[str, Any]:
+    expected_names = set(expected_payloads)
+    observed_names = set(os.listdir(reviewed_fd))
+    if not expected_names.issubset(observed_names):
+        raise CreativeSpecificationSkepticReviewCliError(
+            "reviewed finalize pinned inputs are incomplete."
+        )
+    if observed_names - set(REVIEWED_RUN_FILENAMES):
+        raise CreativeSpecificationSkepticReviewCliError(
+            "reviewed finalize run contains unexpected artifacts."
+        )
+    observed: dict[str, Any] = {}
+    for filename, expected_payload in expected_payloads.items():
+        payload = _read_json_at(reviewed_fd, filename)
+        try:
+            matches = fingerprint_payload(payload) == fingerprint_payload(expected_payload)
+        except (TypeError, ValueError):
+            matches = False
+        if not matches:
+            raise CreativeSpecificationSkepticReviewCliError(
+                f"fingerprint_mismatch: pinned reviewed {filename} changed after validation."
+            )
+        observed[filename] = payload
+    if set(os.listdir(reviewed_fd)) != observed_names:
+        raise CreativeSpecificationSkepticReviewCliError(
+            "reviewed finalize run changed during pinned inspection."
+        )
+    return observed
 
 
 def _assert_reviewed_ref(ref: str, expected_path: Path, label: str) -> None:
@@ -1343,7 +1387,7 @@ def _assert_artifact_ref(
 
 
 def _finalize_from_attachment(attachment_path: Path) -> dict[str, Any]:
-    attachment, reviewed_dir, bundle = _validate_attachment_artifacts(attachment_path)
+    attachment, reviewed_dir, expected_payloads = _validate_attachment_artifacts(attachment_path)
     bundle_path = reviewed_dir / BUNDLE_FILENAME
     reviewed_parent_fd = -1
     reviewed_fd = -1
@@ -1373,6 +1417,30 @@ def _finalize_from_attachment(attachment_path: Path) -> dict[str, Any]:
         except BlockingIOError as exc:
             raise CreativeSpecificationSkepticReviewCliError(
                 "reviewed finalize is already in progress."
+            ) from exc
+        pinned_inputs = _read_pinned_reviewed_inputs(
+            reviewed_fd,
+            expected_payloads=expected_payloads,
+        )
+        source_packet = _require_typed_json_object(
+            pinned_inputs["source_packet.json"],
+            label="pinned reviewed source packet",
+        )
+        variants = pinned_inputs["variants.json"]
+        reviews = pinned_inputs["skeptic_reviews.json"]
+        if not isinstance(variants, list) or not isinstance(reviews, list):
+            raise CreativeSpecificationSkepticReviewCliError(
+                "pinned reviewed variants and skeptic reviews must be JSON arrays."
+            )
+        try:
+            bundle = build_creative_code_specification_bundle(
+                source_packet=source_packet,
+                variants=cast(Sequence[Mapping[str, Any]], variants),
+                skeptic_reviews=cast(Sequence[Mapping[str, Any]], reviews),
+            )
+        except CreativeCodeSpecificationError as exc:
+            raise CreativeSpecificationSkepticReviewCliError(
+                "pinned reviewed inputs cannot build a valid CreativeCodeSpecificationBundle."
             ) from exc
         existing_outputs: set[str] = set()
         for output_name in (BUNDLE_FILENAME, FINALIZE_RECEIPT_FILENAME):
@@ -1433,6 +1501,10 @@ def _finalize_from_attachment(attachment_path: Path) -> dict[str, Any]:
                 validate_finalize_receipt(receipt),
                 label="finalize receipt",
             )
+        _read_pinned_reviewed_inputs(
+            reviewed_fd,
+            expected_payloads=expected_payloads,
+        )
     except Exception as primary_error:
         cleanup_error: Exception | None = None
         retained_name: str | None = reviewed_dir.name

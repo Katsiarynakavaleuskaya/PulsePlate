@@ -1943,6 +1943,55 @@ def test_finalize_lock_contention_preserves_canonical_reviewed_run(
         shutil.rmtree(input_dir, ignore_errors=True)
 
 
+def test_finalize_revalidates_pinned_inputs_after_lock(
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output_dir, input_dir = _prepared_bridge(capsys, suffix="finalize-post-lock-mutation")
+    try:
+        reviews_path = _write_review_input(output_dir, _review_input(output_dir))
+        assert (
+            review_cli.main(
+                [
+                    "attach",
+                    "--bridge",
+                    str(output_dir / bridge_cli.BRIDGE_FILENAME),
+                    "--reviews",
+                    str(reviews_path),
+                ]
+            )
+            == 0
+        )
+        capsys.readouterr()
+        reviewed_dir = output_dir / "spec_finalize_reviewed"
+        attachment_path = reviewed_dir / review_cli.ATTACHMENT_FILENAME
+        reviewed_reviews = reviewed_dir / "skeptic_reviews.json"
+        real_flock = review_cli.fcntl.flock
+        mutated = False
+
+        def mutate_after_lock(descriptor: int, operation: int) -> None:
+            nonlocal mutated
+            real_flock(descriptor, operation)
+            if not mutated and operation & review_cli.fcntl.LOCK_EX:
+                mutated = True
+                reviewed_reviews.write_text("{}\n", encoding="utf-8")
+
+        with monkeypatch.context() as context:
+            context.setattr(review_cli.fcntl, "flock", mutate_after_lock)
+            exit_code = review_cli.main(["finalize", "--attachment", str(attachment_path)])
+        captured = capsys.readouterr()
+        assert exit_code == 1
+        assert "pinned reviewed skeptic_reviews.json changed after validation" in captured.err
+        assert mutated
+        assert reviewed_dir.is_dir()
+        assert not (reviewed_dir / review_cli.BUNDLE_FILENAME).exists()
+        assert not (reviewed_dir / review_cli.FINALIZE_RECEIPT_FILENAME).exists()
+        assert list(output_dir.glob(".spec_finalize_reviewed.*.failed")) == []
+    finally:
+        shutil.rmtree(output_dir, ignore_errors=True)
+        shutil.rmtree(input_dir, ignore_errors=True)
+
+
 def test_finalize_preserves_preexisting_partial_outputs_without_quarantine(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
