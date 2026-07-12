@@ -5,6 +5,7 @@ from collections.abc import Callable
 from copy import deepcopy
 import errno
 import json
+import os
 from pathlib import Path
 import re
 import shutil
@@ -476,6 +477,47 @@ def test_attach_validate_finalize_preserves_original_spec_prepare(
         retained_before_replay[0].rename(replacement)
         detached_retained.rename(retained_before_replay[0])
         replacement.rmdir()
+        review_cli._validate_adaptive_retained_pre_finalize_run(output_dir)
+
+        external_replacement = input_dir / ".external-empty-retained"
+        external_detached = input_dir / ".external-detached-valid"
+        external_replacement.mkdir()
+        real_stat = review_cli.os.stat
+        retained_stat_reads = 0
+
+        def swap_during_terminal_lineage_snapshot(
+            path: Any,
+            *args: Any,
+            **kwargs: Any,
+        ) -> os.stat_result:
+            nonlocal retained_stat_reads
+            observed = real_stat(path, *args, **kwargs)
+            if path == retained_before_replay[0].name and kwargs.get("dir_fd") is not None:
+                retained_stat_reads += 1
+                if retained_stat_reads == 2:
+                    retained_before_replay[0].rename(external_detached)
+                    external_replacement.rename(retained_before_replay[0])
+            return observed
+
+        with monkeypatch.context() as context:
+            context.setattr(review_cli.os, "stat", swap_during_terminal_lineage_snapshot)
+            with pytest.raises(
+                review_cli.CreativeSpecificationSkepticReviewCliError,
+                match="bridge changed during lineage snapshot",
+            ):
+                review_cli._validate_adaptive_retained_pre_finalize_run(output_dir)
+        assert retained_stat_reads == 2
+        assert list(retained_before_replay[0].iterdir()) == []
+        assert {path.name for path in external_detached.iterdir()} == {
+            "source_packet.json",
+            "variants.json",
+            "skeptic_reviews.json",
+            "context_pack.json",
+            review_cli.ATTACHMENT_FILENAME,
+        }
+        retained_before_replay[0].rename(external_replacement)
+        external_detached.rename(retained_before_replay[0])
+        external_replacement.rmdir()
         review_cli._validate_adaptive_retained_pre_finalize_run(output_dir)
 
         bundle = validate_creative_code_specification_bundle(

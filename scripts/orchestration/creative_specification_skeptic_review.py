@@ -578,7 +578,15 @@ def _adaptive_retained_lineage_snapshot(
     tuple[str, ...],
     tuple[str, ...],
     tuple[str, ...],
+    tuple[int, int, int, int],
 ]:
+    bridge_before = os.fstat(bridge_fd)
+    bridge_mutation_before = (
+        bridge_before.st_dev,
+        bridge_before.st_ino,
+        bridge_before.st_mtime_ns,
+        bridge_before.st_ctime_ns,
+    )
     bridge_path = os.stat(bridge_name, dir_fd=parent_fd, follow_symlinks=False)
     canonical_path = os.stat(REVIEWED_RUN_DIRNAME, dir_fd=bridge_fd, follow_symlinks=False)
     retained_path = os.stat(retained_name, dir_fd=bridge_fd, follow_symlinks=False)
@@ -589,13 +597,28 @@ def _adaptive_retained_lineage_snapshot(
     ):
         if not stat.S_ISDIR(info.st_mode):
             raise CreativeSpecificationSkepticReviewCliError(f"{label} must remain a directory.")
+    bridge_entries = tuple(sorted(os.listdir(bridge_fd)))
+    canonical_entries = tuple(sorted(os.listdir(canonical_fd)))
+    retained_entries = tuple(sorted(os.listdir(retained_fd)))
+    bridge_after = os.fstat(bridge_fd)
+    bridge_mutation_after = (
+        bridge_after.st_dev,
+        bridge_after.st_ino,
+        bridge_after.st_mtime_ns,
+        bridge_after.st_ctime_ns,
+    )
+    if bridge_mutation_after != bridge_mutation_before:
+        raise CreativeSpecificationSkepticReviewCliError(
+            "adaptive retained pre-finalize bridge changed during lineage snapshot."
+        )
     return (
         (bridge_path.st_dev, bridge_path.st_ino),
         (canonical_path.st_dev, canonical_path.st_ino),
         (retained_path.st_dev, retained_path.st_ino),
-        tuple(sorted(os.listdir(bridge_fd))),
-        tuple(sorted(os.listdir(canonical_fd))),
-        tuple(sorted(os.listdir(retained_fd))),
+        bridge_entries,
+        canonical_entries,
+        retained_entries,
+        bridge_mutation_after,
     )
 
 
