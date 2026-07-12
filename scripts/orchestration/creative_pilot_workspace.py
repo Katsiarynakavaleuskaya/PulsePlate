@@ -7,7 +7,7 @@ import argparse
 import ctypes
 from datetime import datetime, timezone
 import errno
-import fcntl
+import importlib
 import json
 import os
 from pathlib import Path
@@ -661,6 +661,15 @@ def _expected_resume_entries() -> set[str]:
 DirectoryIdentity = tuple[int, int]
 
 
+def _require_fcntl() -> Any:
+    try:
+        return importlib.import_module("fcntl")
+    except ModuleNotFoundError as exc:
+        raise CreativePilotContractError(
+            "adaptive resume cooperative locking is unavailable on this platform"
+        ) from exc
+
+
 def _directory_identity(path: Path) -> DirectoryIdentity:
     info = path.stat(follow_symlinks=False)
     if not stat.S_ISDIR(info.st_mode):
@@ -669,13 +678,17 @@ def _directory_identity(path: Path) -> DirectoryIdentity:
 
 
 def _open_resume_parent_lock(final_dir: Path) -> int:
+    fcntl_module = _require_fcntl()
     parent_fd = -1
     try:
         parent_fd, final_name = _open_pinned_parent(final_dir, create=True)
         if final_name != final_dir.name:
             raise CreativePilotContractError("adaptive resume canonical name changed")
         try:
-            fcntl.flock(parent_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            fcntl_module.flock(
+                parent_fd,
+                fcntl_module.LOCK_EX | fcntl_module.LOCK_NB,
+            )
         except BlockingIOError as exc:
             raise CreativePilotContractError("adaptive_resume_lock_contended") from exc
         result = parent_fd
@@ -959,6 +972,7 @@ def _cmd_resume_pr1(args: argparse.Namespace) -> None:
         candidate=candidate,
         source_artifacts=source_rows,
         original_prepare_bindings=prepare_rows,
+        old_target_manifest=old_manifest,
         current_target_manifest=current_manifest,
     )
     final_dir = SPEC_BRIDGE_ROOT / resume_id

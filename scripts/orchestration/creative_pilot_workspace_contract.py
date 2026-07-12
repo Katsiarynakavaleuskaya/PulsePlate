@@ -442,6 +442,7 @@ def build_adaptive_pr1_resume_binding(
         candidate=normalized_candidate,
         source_artifacts=source_rows,
         original_prepare_bindings=prepare_rows,
+        old_target_manifest=old_manifest,
         current_target_manifest=current_manifest,
     )
     body: dict[str, Any] = {
@@ -672,6 +673,7 @@ def validate_adaptive_pr1_resume_binding(
         candidate=normalized_candidate,
         source_artifacts=source_rows,
         original_prepare_bindings=prepare_rows,
+        old_target_manifest=old_manifest,
         current_target_manifest=current_manifest,
     )
     if (
@@ -689,6 +691,7 @@ def derive_adaptive_pr1_resume_identity(
     candidate: Mapping[str, Any],
     source_artifacts: Sequence[Mapping[str, Any]],
     original_prepare_bindings: Sequence[Mapping[str, Any]],
+    old_target_manifest: Mapping[str, Any],
     current_target_manifest: Mapping[str, Any],
 ) -> tuple[str, str]:
     """Derive resume identity without self-referential output paths."""
@@ -701,6 +704,7 @@ def derive_adaptive_pr1_resume_identity(
         "candidate_fingerprint": fingerprint_payload(dict(candidate)),
         "source_artifacts": list(source_artifacts),
         "original_prepare_bindings": list(original_prepare_bindings),
+        "old_target_manifest": dict(old_target_manifest),
         "current_target_manifest": dict(current_target_manifest),
     }
     return _adaptive_identity(

@@ -1135,6 +1135,21 @@ def test_finalize_preserves_primary_and_close_diagnostics(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    real_import = review_cli.importlib.import_module
+
+    def missing_fcntl(name: str) -> Any:
+        if name == "fcntl":
+            raise ModuleNotFoundError(name)
+        return real_import(name)
+
+    monkeypatch.setattr(review_cli.importlib, "import_module", missing_fcntl)
+    with pytest.raises(
+        review_cli.CreativeSpecificationSkepticReviewCliError,
+        match="cooperative locking is unavailable",
+    ):
+        review_cli._open_locked_directory(tmp_path, label="reviewed publication")
+    monkeypatch.undo()
+
     attachment = tmp_path / "spec_finalize_reviewed" / review_cli.ATTACHMENT_FILENAME
     attachment.parent.mkdir()
     attachment.write_text("{}\n", encoding="utf-8")

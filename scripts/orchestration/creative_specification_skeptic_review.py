@@ -6,7 +6,7 @@ from __future__ import annotations
 import argparse
 import ctypes
 import errno
-import fcntl
+import importlib
 import json
 import os
 from pathlib import Path
@@ -253,6 +253,12 @@ def _write_json_atomic(path: Path, payload: Any) -> None:
 
 
 def _open_locked_directory(path: Path, *, label: str) -> int:
+    try:
+        fcntl_module = importlib.import_module("fcntl")
+    except ModuleNotFoundError as exc:
+        raise CreativeSpecificationSkepticReviewCliError(
+            "reviewed publication cooperative locking is unavailable on this platform."
+        ) from exc
     descriptor = -1
     try:
         _candidate, parts = creative_code_spec_pipeline._candidate_and_repo_parts(
@@ -268,7 +274,10 @@ def _open_locked_directory(path: Path, *, label: str) -> int:
             )
         )
         try:
-            fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            fcntl_module.flock(
+                descriptor,
+                fcntl_module.LOCK_EX | fcntl_module.LOCK_NB,
+            )
         except BlockingIOError as exc:
             raise CreativeSpecificationSkepticReviewCliError(
                 f"{label} is already in progress."

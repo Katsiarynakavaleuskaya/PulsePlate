@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from copy import deepcopy
-import fcntl
+import importlib
 import json
 import os
 from pathlib import Path
@@ -886,6 +886,7 @@ def _rederive_resume_binding_identity(
         candidate=candidate,
         source_artifacts=updated["source_lineage"]["source_artifacts"],
         original_prepare_bindings=updated["source_lineage"]["original_prepare_bindings"],
+        old_target_manifest=updated["source_lineage"]["old_target_manifest"],
         current_target_manifest=updated["source_lineage"]["current_target_manifest"],
     )
     updated["resume_id"] = resume_id
@@ -1242,6 +1243,20 @@ def test_resume_rejects_retained_lineage_substitution(
                 candidate=candidate,
                 revalidate_git=False,
             )
+
+        historical = deepcopy(binding)
+        historical_manifest = historical["source_lineage"]["old_target_manifest"]
+        historical_manifest["base_sha"] = "1" * 40
+        historical_manifest["head_sha"] = "2" * 40
+        historical["source_lineage"]["source_base_sha"] = "1" * 40
+        historical["source_lineage"]["source_head_sha"] = "2" * 40
+        historical = _rederive_resume_binding_identity(
+            historical,
+            intake=intake,
+            candidate=candidate,
+        )
+        assert historical["resume_id"] != binding["resume_id"]
+        assert historical["idempotency_key"] != binding["idempotency_key"]
     finally:
         _cleanup_published_adaptive_resume(fixture)
 
@@ -1400,14 +1415,35 @@ def test_resume_rejects_source_fingerprint_drift(
     _assert_resume_lineage_failure(monkeypatch=monkeypatch, capsys=capsys, mutate=mutate)
 
 
-def test_resume_cooperative_lock_contention_then_replay() -> None:
+def test_resume_cooperative_lock_contention_then_replay(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    real_import = pilot_cli.importlib.import_module
+
+    def missing_fcntl(name: str) -> object:
+        if name == "fcntl":
+            raise ModuleNotFoundError(name)
+        return real_import(name)
+
+    monkeypatch.setattr(pilot_cli.importlib, "import_module", missing_fcntl)
+    with pytest.raises(
+        CreativePilotContractError,
+        match="cooperative locking is unavailable",
+    ):
+        pilot_cli._open_resume_parent_lock(Path("artifacts/unavailable-lock"))
+    monkeypatch.undo()
+
+    try:
+        fcntl_module = importlib.import_module("fcntl")
+    except ModuleNotFoundError:
+        return
     artifact_root = creative_code_spec_pipeline.ARTIFACT_ROOT
     artifact_root.mkdir(parents=True, exist_ok=True)
     root = Path(tempfile.mkdtemp(prefix="pytest-resume-lock-", dir=artifact_root))
     try:
         final_dir = root / "resume"
         owner_fd = os.open(final_dir.parent, os.O_RDONLY)
-        fcntl.flock(owner_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        fcntl_module.flock(owner_fd, fcntl_module.LOCK_EX | fcntl_module.LOCK_NB)
         try:
             with pytest.raises(
                 CreativePilotContractError,
@@ -1415,7 +1451,7 @@ def test_resume_cooperative_lock_contention_then_replay() -> None:
             ):
                 pilot_cli._open_resume_parent_lock(final_dir)
         finally:
-            fcntl.flock(owner_fd, fcntl.LOCK_UN)
+            fcntl_module.flock(owner_fd, fcntl_module.LOCK_UN)
             os.close(owner_fd)
         replay_fd = pilot_cli._open_resume_parent_lock(final_dir)
         os.close(replay_fd)
