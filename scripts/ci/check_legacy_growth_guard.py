@@ -494,6 +494,65 @@ def collect_legacy_route_facts(source_text: str, *, filename: str = LEGACY_APP) 
     return facts
 
 
+_TRACKED_BUILTIN_REFERENCES = frozenset({"__import__", "getattr", "object", "vars"})
+_TRACKED_BUILTIN_NAMESPACE_METHODS = frozenset({"__getitem__", "get", "pop", "setdefault"})
+_TRACKED_OBJECT_REFERENCES = frozenset({"__getattribute__"})
+_TRACKED_CALLABLE_REFERENCES = frozenset(
+    {
+        "builtins.__dict__.__getitem__",
+        "builtins.__dict__.get",
+        "builtins.__dict__.pop",
+        "builtins.__dict__.setdefault",
+        "builtins.__import__",
+        "builtins.getattr",
+        "builtins.object.__dict__.__getitem__",
+        "builtins.object.__dict__.get",
+        "builtins.object.__dict__.pop",
+        "builtins.object.__dict__.setdefault",
+        "builtins.object.__getattribute__",
+        "builtins.vars",
+        "importlib.import_module",
+        "legacy_app.__dict__.__getitem__",
+        "legacy_app.__dict__.get",
+        "legacy_app.__dict__.pop",
+        "legacy_app.__dict__.setdefault",
+        "legacy_app.__getattribute__",
+    }
+)
+
+
+def _tracked_reflected_attribute(
+    target_reference: str | None,
+    attribute_name: str | None,
+) -> str | None:
+    """Normalize only the reflection identities enforced by this guard."""
+
+    if attribute_name == "__call__" and target_reference in _TRACKED_CALLABLE_REFERENCES:
+        return target_reference
+    if target_reference == "legacy_app" and attribute_name in {
+        "__dict__",
+        "__getattribute__",
+    }:
+        return f"legacy_app.{attribute_name}"
+    if target_reference == "builtins" and attribute_name in _TRACKED_BUILTIN_REFERENCES:
+        return f"builtins.{attribute_name}"
+    if target_reference == "builtins.__dict__" and attribute_name in _TRACKED_BUILTIN_REFERENCES:
+        return f"builtins.{attribute_name}"
+    if (
+        target_reference == "builtins.__dict__"
+        and attribute_name in _TRACKED_BUILTIN_NAMESPACE_METHODS
+    ):
+        return f"builtins.__dict__.{attribute_name}"
+    if target_reference == "builtins.object" and attribute_name in _TRACKED_OBJECT_REFERENCES:
+        return f"builtins.object.{attribute_name}"
+    if (
+        target_reference == "builtins.object.__dict__"
+        and attribute_name in _TRACKED_BUILTIN_NAMESPACE_METHODS
+    ):
+        return f"builtins.object.__dict__.{attribute_name}"
+    return None
+
+
 def _static_module_reference(
     node: ast.AST,
     *,
@@ -511,12 +570,9 @@ def _static_module_reference(
             static_string_bindings=static_string_bindings,
         )
         if parent is not None:
-            if parent == "builtins.__dict__" and node.attr in {
-                "__import__",
-                "getattr",
-                "vars",
-            }:
-                return f"builtins.{node.attr}"
+            tracked_reference = _tracked_reflected_attribute(parent, node.attr)
+            if tracked_reference is not None:
+                return tracked_reference
             return f"{parent}.{node.attr}"
         return None
     if isinstance(node, ast.Subscript):
@@ -551,8 +607,12 @@ def _static_module_reference(
             return _resolve_static_string(node.slice, static_string_bindings)
         if container in {"builtins", "builtins.__dict__"}:
             builtin_name = _resolve_static_string(node.slice, static_string_bindings)
-            if builtin_name in {"__import__", "getattr", "vars"}:
+            if builtin_name in _TRACKED_BUILTIN_REFERENCES:
                 return f"builtins.{builtin_name}"
+        if container == "builtins.object.__dict__":
+            object_name = _resolve_static_string(node.slice, static_string_bindings)
+            if object_name in _TRACKED_OBJECT_REFERENCES:
+                return f"builtins.object.{object_name}"
         return None
     if not isinstance(node, ast.Call):
         return None
@@ -571,21 +631,20 @@ def _static_module_reference(
             static_string_bindings=static_string_bindings,
         )
         attribute_name = _resolve_static_string(node.args[1], static_string_bindings)
-        if target_reference == "legacy_app" and attribute_name == "__dict__":
-            return "legacy_app.__dict__"
-        if target_reference == "builtins" and attribute_name in {
-            "__import__",
-            "getattr",
-            "vars",
-        }:
-            return f"builtins.{attribute_name}"
-        if target_reference == "builtins.__dict__" and attribute_name in {
-            "__getitem__",
-            "get",
-            "pop",
-            "setdefault",
-        }:
-            return f"builtins.__dict__.{attribute_name}"
+        tracked_reference = _tracked_reflected_attribute(target_reference, attribute_name)
+        if tracked_reference is not None:
+            return tracked_reference
+    if function_reference == "builtins.object.__getattribute__" and len(node.args) >= 2:
+        target_reference = _static_module_reference(
+            node.args[0],
+            module_aliases=module_aliases,
+            import_module_aliases=import_module_aliases,
+            static_string_bindings=static_string_bindings,
+        )
+        attribute_name = _resolve_static_string(node.args[1], static_string_bindings)
+        tracked_reference = _tracked_reflected_attribute(target_reference, attribute_name)
+        if tracked_reference is not None:
+            return tracked_reference
     if isinstance(node.func, ast.Attribute) and node.func.attr == "__getattribute__" and node.args:
         target_reference = _static_module_reference(
             node.func.value,
@@ -594,21 +653,9 @@ def _static_module_reference(
             static_string_bindings=static_string_bindings,
         )
         attribute_name = _resolve_static_string(node.args[0], static_string_bindings)
-        if target_reference == "legacy_app" and attribute_name == "__dict__":
-            return "legacy_app.__dict__"
-        if target_reference == "builtins" and attribute_name in {
-            "__import__",
-            "getattr",
-            "vars",
-        }:
-            return f"builtins.{attribute_name}"
-        if target_reference == "builtins.__dict__" and attribute_name in {
-            "__getitem__",
-            "get",
-            "pop",
-            "setdefault",
-        }:
-            return f"builtins.__dict__.{attribute_name}"
+        tracked_reference = _tracked_reflected_attribute(target_reference, attribute_name)
+        if tracked_reference is not None:
+            return tracked_reference
     if (
         function_reference == "sys.modules.get"
         and node.args
@@ -622,7 +669,7 @@ def _static_module_reference(
             import_module_aliases=import_module_aliases,
             static_string_bindings=static_string_bindings,
         )
-        if target_reference in {"legacy_app", "builtins"}:
+        if target_reference in {"legacy_app", "builtins", "builtins.object"}:
             return f"{target_reference}.__dict__"
     if (
         function_reference
@@ -635,8 +682,21 @@ def _static_module_reference(
         and node.args
     ):
         builtin_name = _resolve_static_string(node.args[0], static_string_bindings)
-        if builtin_name in {"__import__", "getattr", "vars"}:
+        if builtin_name in _TRACKED_BUILTIN_REFERENCES:
             return f"builtins.{builtin_name}"
+    if (
+        function_reference
+        in {
+            "builtins.object.__dict__.__getitem__",
+            "builtins.object.__dict__.get",
+            "builtins.object.__dict__.pop",
+            "builtins.object.__dict__.setdefault",
+        }
+        and node.args
+    ):
+        object_name = _resolve_static_string(node.args[0], static_string_bindings)
+        if object_name in _TRACKED_OBJECT_REFERENCES:
+            return f"builtins.object.{object_name}"
     is_module_loader = (
         function_reference in {"builtins.__import__", "importlib.import_module"}
         or isinstance(node.func, ast.Name)
@@ -2347,12 +2407,20 @@ def _preferred_api_key_module_reference(references: AbstractSet[str | None]) -> 
         "legacy_app.__dict__.get",
         "legacy_app.__dict__.pop",
         "legacy_app.__dict__.setdefault",
+        "legacy_app.__getattribute__",
         "sys.modules",
         "builtins.__dict__",
         "builtins.__dict__.__getitem__",
         "builtins.__dict__.get",
         "builtins.__dict__.pop",
         "builtins.__dict__.setdefault",
+        "builtins.object",
+        "builtins.object.__dict__",
+        "builtins.object.__dict__.__getitem__",
+        "builtins.object.__dict__.get",
+        "builtins.object.__dict__.pop",
+        "builtins.object.__dict__.setdefault",
+        "builtins.object.__getattribute__",
         "builtins.getattr",
         "builtins.vars",
         "builtins.__import__",
@@ -3354,11 +3422,19 @@ def _legacy_api_key_dynamic_lookup_name(
     ):
         return _resolve_static_string(node.args[1], static_string_bindings)
     if (
+        module_reference(node.func) == "builtins.object.__getattribute__"
+        and len(node.args) >= 2
+        and module_reference(node.args[0]) == "legacy_app"
+    ):
+        return _resolve_static_string(node.args[1], static_string_bindings)
+    if (
         isinstance(node.func, ast.Attribute)
         and node.func.attr == "__getattribute__"
         and module_reference(node.func.value) == "legacy_app"
         and node.args
     ):
+        return _resolve_static_string(node.args[0], static_string_bindings)
+    if module_reference(node.func) == "legacy_app.__getattribute__" and node.args:
         return _resolve_static_string(node.args[0], static_string_bindings)
     if (
         isinstance(node.func, ast.Attribute)
@@ -3619,6 +3695,7 @@ def _apply_api_key_alias_statements(
                 if qualified in {
                     "builtins.__import__",
                     "builtins.getattr",
+                    "builtins.object",
                     "builtins.vars",
                     "importlib.import_module",
                     "sys.modules",
@@ -4106,6 +4183,7 @@ def _scan_api_key_alias_scope(
                 if qualified in {
                     "builtins.__import__",
                     "builtins.getattr",
+                    "builtins.object",
                     "builtins.vars",
                     "importlib.import_module",
                     "sys.modules",
@@ -4363,6 +4441,7 @@ def _app_api_key_reverse_dependency_errors(
             "__builtins__": "builtins.__dict__",
             "__import__": "builtins.__import__",
             "getattr": "builtins.getattr",
+            "object": "builtins.object",
             "vars": "builtins.vars",
         },
         inherited_import_module_aliases=frozenset({"__import__"}),
