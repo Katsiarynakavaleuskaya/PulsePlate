@@ -27,12 +27,7 @@ no-replace publication, deterministic replay, and receipt-last completion.
 
 Disposition: FIXED
 Commit: see mapping entries below
-Evidence: `02e8ce6e3` replaces the abandoned terminal-seal escalation with the
-bounded contract; `b97555998` binds retained target provenance and controlled
-locking capability failures; `86744f16d` restores strict schema identities,
-keeps recursive JSON failures in the CLI error domain, and verifies replayed
-bundles against freshly rebuilt reviewed inputs. The 23-case oracle bundle,
-targeted regressions, Black, Ruff, and MyPy pass.
+Evidence: `02e8ce6e3` installs the bounded contract; `b97555998` binds retained provenance and locking capability failures; `86744f16d` restores schema identities, recursive-JSON domain errors, and deterministic bundle replay; the 23-case oracle, targeted regressions, Black, Ruff, and MyPy pass.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2101#discussion_r3564318801 -> 02e8ce6e3
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2101#discussion_r3564318805 -> 02e8ce6e3
@@ -67,16 +62,8 @@ targeted regressions, Black, Ruff, and MyPy pass.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2101#discussion_r3567025775 -> 86744f16d
 
 Disposition: NOT-A-BUG
-Evidence: `docs/orchestration/GOVERNED_CREATIVE_CODE_EXECUTION_CONTRACT.md`
-defines cooperative locking and safe at-rest consumption as the transaction
-boundary and explicitly excludes permanent pathname stability against an
-uncooperative same-UID process. `docs/ENGINEERING_LESSONS.md` lesson 28 records
-the same stop rule. Published or partial evidence is retained for inspection;
-automatic canonical quarantine is intentionally forbidden.
-Reason: These comments require a materially stronger ownership model or delete
-failure evidence after publication. That is outside this local operator rail
-and cannot be proven by adding more inter-syscall path checks.
-
+Evidence: `docs/orchestration/GOVERNED_CREATIVE_CODE_EXECUTION_CONTRACT.md` and `docs/ENGINEERING_LESSONS.md` lesson 28 define cooperative locking and safe at-rest consumption as the transaction boundary, exclude permanent same-UID pathname stability, retain partial evidence, and forbid automatic canonical quarantine.
+Reason: These comments require a stronger ownership model or deletion of published failure evidence, which is outside this local operator rail and cannot be proven by adding more inter-syscall path checks.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2101#discussion_r3566603202
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2101#discussion_r3566603205
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2101#discussion_r3566662735
