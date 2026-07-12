@@ -81,7 +81,7 @@ does not claim to prove equivalence across intentionally obfuscated Python.
   cutover evidence; no new scan is authorized or required for guard/docs-only
   rollback commits.
 - [x] `pulseplate-pr-review` completed on the final published head.
-- [ ] All current review threads dispositioned and resolved.
+- [x] All current review threads dispositioned and resolved.
 - [ ] Current-head CI completed.
 - [ ] Strict authenticated merge readiness and mandatory wait window completed.
 
