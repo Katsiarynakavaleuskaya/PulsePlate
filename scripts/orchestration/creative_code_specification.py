@@ -14,7 +14,7 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path, PurePosixPath
 import re
 import sys
-from typing import Any, cast
+from typing import Any
 
 from core.evidence.fingerprints import (
     build_asset_id,

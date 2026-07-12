@@ -368,6 +368,7 @@ def _rebuild_attachment(
 
 def test_attach_validate_finalize_preserves_original_spec_prepare(
     capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     output_dir, input_dir = _prepared_bridge(capsys, suffix="happy")
     try:
@@ -440,6 +441,41 @@ def test_attach_validate_finalize_preserves_original_spec_prepare(
         ):
             review_cli._validate_adaptive_retained_pre_finalize_run(output_dir)
         retained_source.write_bytes(retained_source_bytes)
+        review_cli._validate_adaptive_retained_pre_finalize_run(output_dir)
+        replacement = output_dir / ".retained-replacement"
+        detached_retained = output_dir / ".detached-valid-retained"
+        replacement.mkdir()
+        real_read_json_at = review_cli._read_json_at
+        pinned_reads = 0
+
+        def swap_retained_after_pinned_reads(directory_fd: int, filename: str) -> Any:
+            nonlocal pinned_reads
+            payload = real_read_json_at(directory_fd, filename)
+            pinned_reads += 1
+            if pinned_reads == 10:
+                retained_before_replay[0].rename(detached_retained)
+                replacement.rename(retained_before_replay[0])
+            return payload
+
+        with monkeypatch.context() as context:
+            context.setattr(review_cli, "_read_json_at", swap_retained_after_pinned_reads)
+            with pytest.raises(
+                review_cli.CreativeSpecificationSkepticReviewCliError,
+                match="adaptive retained pre-finalize run identity changed",
+            ):
+                review_cli._validate_adaptive_retained_pre_finalize_run(output_dir)
+        assert pinned_reads == 10
+        assert list(retained_before_replay[0].iterdir()) == []
+        assert {path.name for path in detached_retained.iterdir()} == {
+            "source_packet.json",
+            "variants.json",
+            "skeptic_reviews.json",
+            "context_pack.json",
+            review_cli.ATTACHMENT_FILENAME,
+        }
+        retained_before_replay[0].rename(replacement)
+        detached_retained.rename(retained_before_replay[0])
+        replacement.rmdir()
         review_cli._validate_adaptive_retained_pre_finalize_run(output_dir)
 
         bundle = validate_creative_code_specification_bundle(

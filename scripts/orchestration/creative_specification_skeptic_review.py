@@ -587,6 +587,8 @@ def _validate_adaptive_retained_pre_finalize_run(bridge_dir: Path) -> None:
             creative_code_spec_pipeline._directory_flags(),
             dir_fd=parent_fd,
         )
+        bridge_info = os.fstat(bridge_fd)
+        bridge_identity = (bridge_info.st_dev, bridge_info.st_ino)
         retained_names = sorted(
             entry for entry in os.listdir(bridge_fd) if _is_retained_pre_finalize_run(entry)
         )
@@ -606,6 +608,10 @@ def _validate_adaptive_retained_pre_finalize_run(bridge_dir: Path) -> None:
             creative_code_spec_pipeline._directory_flags(),
             dir_fd=bridge_fd,
         )
+        canonical_info = os.fstat(canonical_fd)
+        canonical_identity = (canonical_info.st_dev, canonical_info.st_ino)
+        retained_info = os.fstat(retained_fd)
+        retained_identity = (retained_info.st_dev, retained_info.st_ino)
         if set(os.listdir(retained_fd)) != expected_names:
             raise CreativeSpecificationSkepticReviewCliError(
                 "adaptive retained pre-finalize run must contain the exact five input artifacts."
@@ -631,6 +637,24 @@ def _validate_adaptive_retained_pre_finalize_run(bridge_dir: Path) -> None:
             raise CreativeSpecificationSkepticReviewCliError(
                 "adaptive retained pre-finalize evidence changed during validation."
             )
+        _assert_parent_entry_identity(
+            bridge_fd,
+            name=REVIEWED_RUN_DIRNAME,
+            expected_identity=canonical_identity,
+            label="adaptive canonical reviewed run",
+        )
+        _assert_parent_entry_identity(
+            bridge_fd,
+            name=retained_names[0],
+            expected_identity=retained_identity,
+            label="adaptive retained pre-finalize run",
+        )
+        _assert_parent_entry_identity(
+            parent_fd,
+            name=name,
+            expected_identity=bridge_identity,
+            label="adaptive resume bridge directory",
+        )
     except FileNotFoundError as exc:
         raise CreativeSpecificationSkepticReviewCliError(
             "adaptive retained pre-finalize evidence is incomplete."
