@@ -351,6 +351,23 @@ def test_dynamic_guard_rejects_invalid_override_result_without_value_leak(
     assert repr(invalid_result) not in caplog.text
 
 
+def test_dynamic_guard_rejects_non_callable_override(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    invalid_guard = object()
+    monkeypatch.setattr(app_package, "get_api_key", invalid_guard)
+
+    with caplog.at_level("ERROR", logger="app.routers.api_key"):
+        with pytest.raises(HTTPException) as exc_info:
+            canonical_api_key._get_api_key_dynamic("submitted")
+
+    assert exc_info.value.status_code == 500
+    assert exc_info.value.detail == "Authentication service error"
+    assert "Authentication dependency is unavailable" in caplog.text
+    assert repr(invalid_guard) not in caplog.text
+
+
 def test_clean_import_process_preserves_dependency_identity_and_ownership() -> None:
     script = """
 import app

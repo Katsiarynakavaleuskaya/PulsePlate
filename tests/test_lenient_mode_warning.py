@@ -75,6 +75,25 @@ class TestLenientModeWarning:
             sum("Lenient API key mode enabled" in record.message for record in caplog.records) == 1
         )
 
+    def test_lenient_mode_warning_returns_when_peer_wins_lock(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        class PeerWinsLock:
+            def __enter__(self) -> None:
+                canonical_api_key._lenient_mode_warning_logged = True
+
+            def __exit__(self, *args: object) -> None:
+                return None
+
+        with monkeypatch.context() as patch:
+            patch.setattr(canonical_api_key, "_lenient_mode_warning_lock", PeerWinsLock())
+            with caplog.at_level(logging.WARNING, logger="app.routers.api_key"):
+                canonical_api_key._warn_lenient_mode_once()
+
+        assert "Lenient API key mode enabled" not in caplog.text
+
     def test_lenient_mode_warning_content(
         self,
         monkeypatch: pytest.MonkeyPatch,

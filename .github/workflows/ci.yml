@@ -931,6 +931,7 @@ jobs:
               route_contract_safety)
                 add_suite \
                   tests/test_api.py \
+                  tests/test_api_key_dependency_ownership.py \
                   tests/test_bmi_compat_router.py \
                   tests/core/ai/test_bounded_insight_semantic_cache.py \
                   tests/core/ai/test_cache_observability.py \
@@ -952,6 +953,7 @@ jobs:
                   tests/test_legacy_bmi_shims.py \
                   tests/test_legacy_app_diff_coverage.py \
                   tests/test_legacy_growth_guard.py \
+                  tests/test_lenient_mode_warning.py \
                   tests/test_metrics.py \
                   tests/test_paywall_exposure_ledger_api.py \
                   tests/test_paywall_exposure_ledger_service.py \
