@@ -168,8 +168,8 @@ remains the merge-readiness authority.
 
 ## Merge Readiness
 
-- [ ] Current-head required CI is green.
-- [ ] Post-open role chain is complete: `qa-engineer-agent -> bug-hunter -> security-auditor`.
-- [ ] Codex Security diff review / `pulseplate-pr-review` is complete or explicitly unavailable.
-- [ ] No unresolved/actionable review comments remain.
-- [ ] Strict merge-readiness check passes.
+- [x] Current-head required CI is green.
+- [x] Post-open role chain is complete: `qa-engineer-agent -> bug-hunter -> security-auditor`.
+- [x] Codex Security diff review / `pulseplate-pr-review` is complete or explicitly unavailable.
+- [x] No unresolved/actionable review comments remain.
+- [x] Strict merge-readiness check passes.
