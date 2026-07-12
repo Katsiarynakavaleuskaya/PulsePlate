@@ -5,484 +5,183 @@
 #    pip-compile --allow-unsafe --no-emit-index-url --output-file=requirements-lock.txt requirements-dev.in requirements.in
 #
 aiosqlite==0.22.1
-    # via
-    #   -c requirements.txt
-    #   -r requirements.in
+    # via -r requirements.in
 alembic==1.18.4
-    # via
-    #   -c requirements.txt
-    #   -r requirements.in
+    # via -r requirements.in
 annotated-doc==0.0.4
-    # via
-    #   -c requirements.txt
-    #   fastapi
+    # via fastapi
 annotated-types==0.7.0
-    # via
-    #   -c requirements.txt
-    #   pydantic
+    # via pydantic
 anyio==4.12.0
     # via
-    #   -c requirements.txt
     #   httpx
-    #   httpx2
     #   openai
     #   starlette
-ast-serialize==0.5.0
-    # via mypy
-bandit==1.9.4
-    # via -r requirements-dev.in
-black==26.5.1
-    # via -r requirements-dev.in
-boolean-py==5.0
-    # via license-expression
-build==1.5.0
-    # via pip-tools
-cachecontrol[filecache]==0.14.4
-    # via
-    #   cachecontrol
-    #   pip-audit
 certifi==2026.1.4
     # via
-    #   -c requirements.txt
     #   httpcore
     #   httpx
     #   requests
 cffi==2.0.0
-    # via
-    #   -c requirements.txt
-    #   cryptography
-cfgv==3.5.0
-    # via pre-commit
-chardet==7.4.3
-    # via diff-cover
+    # via cryptography
 charset-normalizer==3.4.4
     # via
-    #   -c requirements.txt
     #   reportlab
     #   requests
 click==8.3.1
-    # via
-    #   -c requirements.txt
-    #   black
-    #   pip-tools
-    #   uvicorn
+    # via uvicorn
 contourpy==1.3.3
-    # via
-    #   -c requirements.txt
-    #   matplotlib
-coverage[toml]==7.15.0
-    # via
-    #   -r requirements-dev.in
-    #   pytest-cov
+    # via matplotlib
 cryptography==48.0.1
-    # via
-    #   -c requirements.txt
-    #   -r requirements-dev.in
-    #   -r requirements.in
+    # via -r requirements.in
 cycler==0.12.1
-    # via
-    #   -c requirements.txt
-    #   matplotlib
-cyclonedx-python-lib==11.8.0
-    # via pip-audit
-defusedxml==0.7.1
-    # via py-serializable
+    # via matplotlib
 deprecated==1.3.1
-    # via
-    #   -c requirements.txt
-    #   limits
-detect-secrets==1.5.0
-    # via -r requirements-dev.in
-diff-cover==10.3.0
-    # via -r requirements-dev.in
-distlib==0.4.1
-    # via virtualenv
+    # via limits
 distro==1.9.0
-    # via
-    #   -c requirements.txt
-    #   openai
+    # via openai
 dnspython==2.8.0
-    # via
-    #   -c requirements.txt
-    #   email-validator
+    # via email-validator
 email-validator==2.3.0
-    # via
-    #   -c requirements.txt
-    #   -r requirements.in
-execnet==2.1.2
-    # via pytest-xdist
-faker==40.28.1
-    # via -r requirements-dev.in
+    # via -r requirements.in
 fastapi==0.138.1
-    # via
-    #   -c requirements.txt
-    #   -r requirements.in
-filelock==3.29.1
-    # via
-    #   cachecontrol
-    #   python-discovery
-    #   virtualenv
-flake8==7.3.0
-    # via -r requirements-dev.in
+    # via -r requirements.in
 fonttools==4.61.1
-    # via
-    #   -c requirements.txt
-    #   matplotlib
+    # via matplotlib
 googleapis-common-protos==1.73.0
-    # via
-    #   -c requirements.txt
-    #   opentelemetry-exporter-otlp-proto-http
+    # via opentelemetry-exporter-otlp-proto-http
 greenlet==3.3.2
     # via
-    #   -c requirements.txt
     #   -r requirements.in
+    #   sqlalchemy
 h11==0.16.0
     # via
-    #   -c requirements.txt
     #   httpcore
-    #   httpcore2
     #   uvicorn
 httpcore==1.0.9
-    # via
-    #   -c requirements.txt
-    #   httpx
-httpcore2==2.3.0
-    # via httpx2
+    # via httpx
 httpx==0.28.1
     # via
-    #   -c requirements.txt
     #   -r requirements.in
     #   openai
-httpx2==2.3.0
-    # via -r requirements-dev.in
-hypothesis==6.156.1
-    # via -r requirements-dev.in
-identify==2.6.19
-    # via pre-commit
 idna==3.15
     # via
-    #   -c requirements.txt
     #   anyio
     #   email-validator
     #   httpx
-    #   httpx2
     #   requests
 importlib-metadata==8.7.1
-    # via
-    #   -c requirements.txt
-    #   opentelemetry-api
-iniconfig==2.3.0
-    # via pytest
-jinja2==3.1.6
-    # via diff-cover
+    # via opentelemetry-api
 jiter==0.12.0
-    # via
-    #   -c requirements.txt
-    #   openai
+    # via openai
 kiwisolver==1.4.9
-    # via
-    #   -c requirements.txt
-    #   matplotlib
-librt==0.11.0
-    # via mypy
-license-expression==30.4.4
-    # via cyclonedx-python-lib
+    # via matplotlib
 limits==5.6.0
-    # via
-    #   -c requirements.txt
-    #   slowapi
+    # via slowapi
 mako==1.3.12
     # via
-    #   -c requirements.txt
-    #   -r requirements-dev.in
     #   -r requirements.in
     #   alembic
-markdown-it-py==4.2.0
-    # via rich
 markupsafe==3.0.3
-    # via
-    #   -c requirements.txt
-    #   jinja2
-    #   mako
-marshmallow==4.3.0
-    # via -r requirements-dev.in
+    # via mako
 matplotlib==3.10.8
-    # via
-    #   -c requirements.txt
-    #   -r requirements.in
-mccabe==0.7.0
-    # via flake8
-mdurl==0.1.2
-    # via markdown-it-py
-msgpack==1.2.1
-    # via
-    #   -r requirements-dev.in
-    #   cachecontrol
-mypy==2.1.0
-    # via -r requirements-dev.in
-mypy-extensions==1.1.0
-    # via
-    #   black
-    #   mypy
+    # via -r requirements.in
 nh3==0.3.2
-    # via
-    #   -c requirements.txt
-    #   -r requirements-dev.in
-    #   -r requirements.in
-nodeenv==1.10.0
-    # via pre-commit
+    # via -r requirements.in
 numpy==2.4.6
     # via
-    #   -c requirements.txt
     #   -r requirements.in
     #   contourpy
     #   matplotlib
 openai==2.29.0
-    # via
-    #   -c requirements.txt
-    #   -r requirements.in
+    # via -r requirements.in
 opentelemetry-api==1.40.0
     # via
-    #   -c requirements.txt
     #   -r requirements.in
     #   opentelemetry-exporter-otlp-proto-http
     #   opentelemetry-sdk
     #   opentelemetry-semantic-conventions
 opentelemetry-exporter-otlp-proto-common==1.40.0
-    # via
-    #   -c requirements.txt
-    #   opentelemetry-exporter-otlp-proto-http
+    # via opentelemetry-exporter-otlp-proto-http
 opentelemetry-exporter-otlp-proto-http==1.40.0
-    # via
-    #   -c requirements.txt
-    #   -r requirements.in
+    # via -r requirements.in
 opentelemetry-proto==1.40.0
     # via
-    #   -c requirements.txt
     #   opentelemetry-exporter-otlp-proto-common
     #   opentelemetry-exporter-otlp-proto-http
 opentelemetry-sdk==1.40.0
     # via
-    #   -c requirements.txt
     #   -r requirements.in
     #   opentelemetry-exporter-otlp-proto-http
 opentelemetry-semantic-conventions==0.61b0
-    # via
-    #   -c requirements.txt
-    #   opentelemetry-sdk
-packageurl-python==0.17.6
-    # via cyclonedx-python-lib
+    # via opentelemetry-sdk
 packaging==25.0
     # via
-    #   -c requirements.txt
-    #   black
-    #   build
     #   limits
     #   matplotlib
-    #   pip-audit
-    #   pip-requirements-parser
-    #   pytest
-    #   wheel
-pathspec==1.1.1
-    # via
-    #   black
-    #   mypy
-    #   yamllint
 pillow==12.2.0
     # via
-    #   -c requirements.txt
-    #   -r requirements-dev.in
     #   -r requirements.in
     #   matplotlib
     #   reportlab
-pip-api==0.0.34
-    # via pip-audit
-pip-audit==2.10.1
-    # via -r requirements-dev.in
-pip-requirements-parser==32.0.1
-    # via pip-audit
-pip-tools==7.5.3
-    # via -r requirements-dev.in
-platformdirs==4.10.0
-    # via
-    #   black
-    #   pip-audit
-    #   python-discovery
-    #   virtualenv
-pluggy==1.6.0
-    # via
-    #   diff-cover
-    #   pytest
-    #   pytest-cov
-pre-commit==4.6.0
-    # via -r requirements-dev.in
 prometheus-client==0.24.1
-    # via
-    #   -c requirements.txt
-    #   -r requirements.in
+    # via -r requirements.in
 protobuf==6.33.5
     # via
-    #   -c requirements.txt
     #   googleapis-common-protos
     #   opentelemetry-proto
 psycopg[binary]==3.3.3
-    # via
-    #   -c requirements.txt
-    #   -r requirements.in
+    # via -r requirements.in
 psycopg-binary==3.3.3
-    # via
-    #   -c requirements.txt
-    #   psycopg
-py-serializable==2.1.0
-    # via cyclonedx-python-lib
-pycodestyle==2.14.0
-    # via flake8
+    # via psycopg
 pycparser==2.23
-    # via
-    #   -c requirements.txt
-    #   cffi
+    # via cffi
 pydantic==2.13.4
     # via
-    #   -c requirements.txt
     #   -r requirements.in
     #   fastapi
     #   openai
 pydantic-core==2.46.4
-    # via
-    #   -c requirements.txt
-    #   pydantic
-pyflakes==3.4.0
-    # via flake8
+    # via pydantic
 pygments==2.20.0
-    # via
-    #   -c requirements.txt
-    #   -r requirements.in
-    #   diff-cover
-    #   pytest
-    #   rich
+    # via -r requirements.in
 pyparsing==3.2.5
-    # via
-    #   -c requirements.txt
-    #   matplotlib
-    #   pip-requirements-parser
-pyproject-hooks==1.2.0
-    # via
-    #   build
-    #   pip-tools
-pytest==9.1.1
-    # via
-    #   -r requirements-dev.in
-    #   pytest-asyncio
-    #   pytest-cov
-    #   pytest-picked
-    #   pytest-split
-    #   pytest-xdist
-pytest-asyncio==1.4.0
-    # via -r requirements-dev.in
-pytest-cov==7.1.0
-    # via -r requirements-dev.in
-pytest-picked==0.5.1
-    # via -r requirements-dev.in
-pytest-split==0.11.0
-    # via -r requirements-dev.in
-pytest-xdist==3.8.0
-    # via -r requirements-dev.in
+    # via matplotlib
 python-dateutil==2.9.0.post0
-    # via
-    #   -c requirements.txt
-    #   matplotlib
-python-discovery==1.4.0
-    # via virtualenv
+    # via matplotlib
 python-dotenv==1.2.2
-    # via
-    #   -c requirements.txt
-    #   -r requirements.in
+    # via -r requirements.in
 python-multipart==0.0.31
-    # via
-    #   -c requirements.txt
-    #   -r requirements-dev.in
-    #   -r requirements.in
-pytokens==0.4.1
-    # via black
-pyyaml==6.0.3
-    # via
-    #   bandit
-    #   detect-secrets
-    #   pre-commit
-    #   yamllint
+    # via -r requirements.in
 reportlab==4.4.10
-    # via
-    #   -c requirements.txt
-    #   -r requirements.in
+    # via -r requirements.in
 requests==2.33.0
     # via
-    #   -c requirements.txt
-    #   -r requirements-dev.in
     #   -r requirements.in
-    #   cachecontrol
-    #   detect-secrets
     #   opentelemetry-exporter-otlp-proto-http
-    #   pip-audit
-rich==15.0.0
-    # via
-    #   bandit
-    #   pip-audit
-ruff==0.15.20
-    # via -r requirements-dev.in
 six==1.17.0
-    # via
-    #   -c requirements.txt
-    #   python-dateutil
+    # via python-dateutil
 slowapi==0.1.9
-    # via
-    #   -c requirements.txt
-    #   -r requirements.in
+    # via -r requirements.in
 sniffio==1.3.1
-    # via
-    #   -c requirements.txt
-    #   openai
-sortedcontainers==2.4.0
-    # via
-    #   cyclonedx-python-lib
-    #   hypothesis
+    # via openai
 sqlalchemy==2.0.48
     # via
-    #   -c requirements.txt
     #   -r requirements.in
     #   alembic
 starlette==1.3.1
     # via
-    #   -c requirements.txt
-    #   -r requirements-dev.in
     #   -r requirements.in
     #   fastapi
-stevedore==5.8.0
-    # via bandit
 tenacity==9.1.4
-    # via
-    #   -c requirements.txt
-    #   -r requirements.in
-tomli==2.4.1
-    # via pip-audit
-tomli-w==1.2.0
-    # via pip-audit
+    # via -r requirements.in
 tqdm==4.67.1
-    # via
-    #   -c requirements.txt
-    #   openai
-truststore==0.10.4
-    # via
-    #   httpcore2
-    #   httpx2
-types-pyyaml==6.0.12.20260518
-    # via -r requirements-dev.in
+    # via openai
 typing-extensions==4.15.0
     # via
-    #   -c requirements.txt
     #   alembic
     #   fastapi
     #   limits
-    #   mypy
     #   openai
     #   opentelemetry-api
     #   opentelemetry-exporter-otlp-proto-http
@@ -494,35 +193,17 @@ typing-extensions==4.15.0
     #   typing-inspection
 typing-inspection==0.4.2
     # via
-    #   -c requirements.txt
     #   fastapi
     #   pydantic
 urllib3==2.7.0
-    # via
-    #   -c requirements.txt
-    #   requests
+    # via requests
 uvicorn==0.42.0
-    # via
-    #   -c requirements.txt
-    #   -r requirements.in
-virtualenv==21.4.2
-    # via pre-commit
-wheel==0.47.0
-    # via pip-tools
+    # via -r requirements.in
 wrapt==2.0.1
-    # via
-    #   -c requirements.txt
-    #   deprecated
-yamllint==1.38.0
-    # via -r requirements-dev.in
+    # via deprecated
 zipp==3.23.0
-    # via
-    #   -c requirements.txt
-    #   importlib-metadata
+    # via importlib-metadata
 
 # The following packages are considered to be unsafe in a requirements file:
 setuptools==78.1.1
-    # via
-    #   -c requirements.txt
-    #   -r requirements.in
-    #   pip-tools
+    # via -r requirements.in
