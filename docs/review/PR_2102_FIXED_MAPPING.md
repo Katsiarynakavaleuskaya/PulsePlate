@@ -51,6 +51,9 @@ closes every bounded pre-open defect found in the touched auth/bootstrap graph.
   review findings and the bounded role-review closure: nested irrefutable
   matches, implicit/explicit builtins loader namespaces, exact literal-loop
   targets, starred/static-dict expansion, and safe shadow controls.
+- `c3a5e5d60d043e04a0431789b8240ba28296ce3b` - close the later Codex reflected-lookup finding across direct,
+  bound, unbound, aliased, namespace, and tracked-callable `.__call__` forms,
+  while preserving safe target, shadow, and reassignment controls.
 
 ## Discussion Thread Pass
 
@@ -173,6 +176,16 @@ Disposition: FIXED
 Commit: f9f92ae91bd5c499a60b26840fe89486adabddf9
 Evidence: The post-review commit closes nested irrefutable-match, implicit `__builtins__`, and literal loop-target gaps, plus every bounded starred, builtins-namespace, and static-dict variant surfaced by the ordered QA, bug-hunter, and security-auditor reroutes; the complete 527-test legacy-growth suite, focused MyPy/Ruff, guard CLI, OpenAPI parity, `make validate-changed`, and full pre-commit pass on the repaired diff.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565899162 -> c3a5e5d60d043e04a0431789b8240ba28296ce3b
+Disposition: FIXED
+Commit: c3a5e5d60d043e04a0431789b8240ba28296ce3b
+Evidence: The post-comment commit detects direct, bound, unbound, owner-aliased, namespace-reflected, and recursively `.__call__`-wrapped object/legacy `__getattribute__` lookups; the 553-test legacy-growth suite, focused MyPy/Ruff, guard CLI, OpenAPI parity, `make validate-changed`, full pre-commit, and ordered QA/bug-hunter/security-auditor reroutes pass without another security scan.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565899163
+Disposition: NOT-A-BUG
+Evidence: On current branch head, `git merge-base --is-ancestor 2c4aaa00c5c4bd66839d5b45d415cc090bfb6ec0 HEAD` and `git merge-base --is-ancestor f9f92ae91bd5c499a60b26840fe89486adabddf9 HEAD` both exit 0; `git log --graph` shows the mapped implementation and repair commits in the published branch ancestry.
+Reason: The review evaluated an ephemeral/synthetic snapshot `1e50a01`; the actual PR branch preserves the full commit series, so existing FIXED proof SHAs are included and verifiable rather than out-of-head.
+
 ## Codex Security Diff Scan
 
 - Scan ID: `ed39a46f-6432-4d54-b597-1ed772b1cf25`
@@ -183,7 +196,7 @@ Evidence: The post-review commit closes nested irrefutable-match, implicit `__bu
   fail-closed security control.
 - Report: local sealed Codex Security artifact
   `report.md` for the scan above. It is intentionally not committed.
-- Subsequent guard-only fixes through `f9f92ae91` were not rescanned per the
+- Subsequent guard-only fixes through `c3a5e5d60` were not rescanned per the
   explicit operator instruction. They were closed by the ordered QA, bug-hunter, and
   security-auditor passes plus the complete focused guard suite, MyPy, Ruff,
   Bandit, and pre-commit evidence.
@@ -385,12 +398,16 @@ Repair artifact:
 - PASS: 527-test legacy-growth suite, focused MyPy/Ruff, guard CLI, exact
   OpenAPI parity, 15-suite `make validate-changed`, and full pre-commit after
   the final Cubic/role-review closure on commit `f9f92ae91`.
+- PASS: 553-test legacy-growth suite, reflected-lookup regression matrix,
+  focused MyPy/Ruff, guard CLI, exact OpenAPI parity, 15-suite
+  `make validate-changed`, full pre-commit, and ordered role closure on commit
+  `c3a5e5d60`.
 - PASS: `git diff --check`, conflict check, and local-artifact check.
 - Not run: local full `make verify`, per repository machine-budget policy.
 
 ## Merge Readiness
 
-Not claimed. The repaired implementation is published at `f9f92ae91`.
+Not claimed. The repaired implementation is published at `c3a5e5d60`.
 Codex Security, `pulseplate-pr-review`, and current-head external bot review
 are complete; refreshed current-head CI, strict authenticated merge readiness,
 and the final wait window remain required.
