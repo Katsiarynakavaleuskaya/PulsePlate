@@ -53,6 +53,9 @@ does not claim to prove equivalence across intentionally obfuscated Python.
   rebinding and direct `legacy_app` star reverse imports.
 - `c78ecac8d` - scope implementation-owner detection to module-level functions
   and preserve nested sync/async local-function safe controls.
+- `f764bd5fc` - select the dedicated API-key ownership and warning suites in
+  canonical `route_contract_safety` CI and cover the non-callable guard plus
+  lock-race return deterministically.
 
 ## Analyzer Rollback Decision
 
@@ -261,6 +264,10 @@ Reason: Review-summary comments add no separate actionable beyond their inline t
   detection for every material rollback commit.
 - PASS: final `make validate-changed` after all bounded code repairs.
 - PASS: final `pre-commit run --all-files`; no hook-modified files remained.
+- CI finding fixed: the first final-head run reported 83% diff coverage because
+  route-risk selection omitted the dedicated auth suites; `f764bd5fc` closes
+  the proven routing gap and targeted coverage now executes every previously
+  missing changed line in `app/routers/api_key.py`.
 - Not run: local full `make verify`, per repository machine-budget policy.
 
 ## Merge Readiness
