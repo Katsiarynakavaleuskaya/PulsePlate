@@ -541,6 +541,7 @@ def _reviewed_run_dir(bridge_dir: Path) -> Path:
 
 
 DirectoryIdentity = tuple[int, int]
+FinalizeFileSnapshot = tuple[int, int, int, int, int]
 
 
 def _create_pinned_reviewed_run(path: Path) -> tuple[int, int, DirectoryIdentity, str]:
@@ -851,6 +852,72 @@ def _read_json_at(directory_fd: int, filename: str) -> Any:
             raise CreativeSpecificationSkepticReviewCliError(
                 f"reviewed artifact {filename} could not be closed safely."
             ) from close_error
+
+
+def _finalize_file_snapshot(info: os.stat_result) -> FinalizeFileSnapshot:
+    return (
+        info.st_dev,
+        info.st_ino,
+        info.st_size,
+        info.st_mtime_ns,
+        info.st_ctime_ns,
+    )
+
+
+def _open_pinned_finalize_output(
+    directory_fd: int,
+    filename: str,
+) -> tuple[int, FinalizeFileSnapshot]:
+    file_fd = -1
+    try:
+        flags = os.O_RDONLY | creative_code_spec_pipeline._required_open_flag("O_NOFOLLOW")
+        flags |= getattr(os, "O_CLOEXEC", 0)
+        file_fd = os.open(filename, flags, dir_fd=directory_fd)
+        opened = os.fstat(file_fd)
+        published = os.stat(filename, dir_fd=directory_fd, follow_symlinks=False)
+        if (
+            not stat.S_ISREG(opened.st_mode)
+            or not stat.S_ISREG(published.st_mode)
+            or (published.st_dev, published.st_ino) != (opened.st_dev, opened.st_ino)
+        ):
+            raise CreativeSpecificationSkepticReviewCliError(
+                f"reviewed finalize output {filename} identity changed during pinning."
+            )
+        return file_fd, _finalize_file_snapshot(opened)
+    except Exception:
+        close_error = creative_code_spec_pipeline._close_descriptors(file_fd)
+        if close_error is not None:
+            raise CreativeSpecificationSkepticReviewCliError(
+                f"reviewed finalize output {filename} could not be closed safely."
+            ) from close_error
+        raise
+
+
+def _read_json_from_pinned_finalize_output(file_fd: int, filename: str) -> Any:
+    try:
+        chunks: list[bytes] = []
+        offset = 0
+        while True:
+            chunk = os.pread(file_fd, 64 * 1024, offset)
+            if not chunk:
+                break
+            chunks.append(chunk)
+            offset += len(chunk)
+        return json.loads(
+            b"".join(chunks).decode("utf-8"),
+            object_pairs_hook=creative_code_spec_pipeline._reject_duplicate_json_object_keys,
+        )
+    except (
+        creative_code_spec_pipeline.CreativeCodeSpecPipelineError,
+        OSError,
+        UnicodeDecodeError,
+        ValueError,
+        RecursionError,
+        NotImplementedError,
+    ) as exc:
+        raise CreativeSpecificationSkepticReviewCliError(
+            f"reviewed finalize output {filename} could not be read safely."
+        ) from exc
 
 
 def _assert_exact_reviewed_run_payloads(
@@ -1370,24 +1437,66 @@ def _assert_pinned_finalize_outputs(
         raise CreativeSpecificationSkepticReviewCliError(
             "reviewed finalize run must contain the exact finalized artifact set."
         )
-    observed_bundle = validate_creative_code_specification_bundle(
-        cast(Mapping[str, Any], _read_json_at(reviewed_fd, BUNDLE_FILENAME))
-    )
-    observed_receipt = validate_finalize_receipt(
-        cast(Mapping[str, Any], _read_json_at(reviewed_fd, FINALIZE_RECEIPT_FILENAME))
-    )
-    if fingerprint_payload(observed_bundle) != fingerprint_payload(expected_bundle):
-        raise CreativeSpecificationSkepticReviewCliError(
-            "fingerprint_mismatch: pinned finalize bundle changed before success."
+    bundle_fd = -1
+    receipt_fd = -1
+    try:
+        bundle_fd, bundle_snapshot = _open_pinned_finalize_output(
+            reviewed_fd,
+            BUNDLE_FILENAME,
         )
-    if fingerprint_payload(observed_receipt) != fingerprint_payload(expected_receipt):
-        raise CreativeSpecificationSkepticReviewCliError(
-            "fingerprint_mismatch: pinned finalize receipt changed before success."
+        receipt_fd, receipt_snapshot = _open_pinned_finalize_output(
+            reviewed_fd,
+            FINALIZE_RECEIPT_FILENAME,
         )
-    if set(os.listdir(reviewed_fd)) != expected_names:
-        raise CreativeSpecificationSkepticReviewCliError(
-            "reviewed finalize run changed during output inspection."
+        expected_outputs = (
+            (
+                bundle_fd,
+                BUNDLE_FILENAME,
+                bundle_snapshot,
+                expected_bundle,
+                validate_creative_code_specification_bundle,
+            ),
+            (
+                receipt_fd,
+                FINALIZE_RECEIPT_FILENAME,
+                receipt_snapshot,
+                expected_receipt,
+                validate_finalize_receipt,
+            ),
         )
+        for _pass in range(2):
+            for file_fd, filename, _snapshot, expected_payload, validator in expected_outputs:
+                observed = validator(
+                    cast(
+                        Mapping[str, Any],
+                        _read_json_from_pinned_finalize_output(file_fd, filename),
+                    )
+                )
+                if fingerprint_payload(observed) != fingerprint_payload(expected_payload):
+                    raise CreativeSpecificationSkepticReviewCliError(
+                        f"fingerprint_mismatch: pinned finalize {filename} changed before success."
+                    )
+        for file_fd, filename, snapshot, _expected_payload, _validator in expected_outputs:
+            opened = os.fstat(file_fd)
+            published = os.stat(filename, dir_fd=reviewed_fd, follow_symlinks=False)
+            if (
+                _finalize_file_snapshot(opened) != snapshot
+                or not stat.S_ISREG(published.st_mode)
+                or (published.st_dev, published.st_ino) != (opened.st_dev, opened.st_ino)
+            ):
+                raise CreativeSpecificationSkepticReviewCliError(
+                    f"reviewed finalize output {filename} changed during stable inspection."
+                )
+        if set(os.listdir(reviewed_fd)) != expected_names:
+            raise CreativeSpecificationSkepticReviewCliError(
+                "reviewed finalize run changed during output inspection."
+            )
+    finally:
+        close_error = creative_code_spec_pipeline._close_descriptors(bundle_fd, receipt_fd)
+        if sys.exc_info()[1] is None and close_error is not None:
+            raise CreativeSpecificationSkepticReviewCliError(
+                "reviewed finalize output descriptors could not be closed safely."
+            ) from close_error
 
 
 def _assert_reviewed_ref(ref: str, expected_path: Path, label: str) -> None:
