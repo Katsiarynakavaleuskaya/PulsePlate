@@ -137,6 +137,25 @@ def test_parse_exact_pins_rejects_conflicting_repeated_pins(tmp_path: Path) -> N
         checker.parse_exact_pins([first, second])
 
 
+def test_parse_exact_pins_scoped_projects_rejects_selected_conflicts(tmp_path: Path) -> None:
+    first = tmp_path / "requirements.txt"
+    second = tmp_path / "requirements-dev.txt"
+    first.write_text("mypy==2.2.0\n", encoding="utf-8")
+    second.write_text("mypy==2.1.0\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="conflicting_exact_pins: mypy"):
+        checker.parse_exact_pins([first, second], projects=["mypy"])
+
+
+def test_parse_exact_pins_scoped_projects_ignores_unselected_conflicts(tmp_path: Path) -> None:
+    first = tmp_path / "requirements.txt"
+    second = tmp_path / "requirements-dev.txt"
+    first.write_text("chardet==5.2.0\nmypy==2.2.0\n", encoding="utf-8")
+    second.write_text("chardet==7.4.0.post1\nmypy==2.2.0\n", encoding="utf-8")
+
+    assert checker.parse_exact_pins([first, second], projects=["mypy"]) == {"mypy": "2.2.0"}
+
+
 def test_main_default_projects_exclude_large_pydantic_core_probe(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],

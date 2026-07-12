@@ -55,7 +55,9 @@ A pins and run the locked dev install before PR open.
 
 Evidence: exact private-proxy probe passed for `hypothesis==6.156.6`,
 `mypy==2.2.0`, `ruff==0.15.21`, `librt==0.13.0`, and
-`ast-serialize==0.6.0`; the locked dev install smoke completed successfully.
+`ast-serialize==0.6.0`; the default CI health gate now includes
+`requirements-dev.txt` and the same five Lane A pins. The locked dev install
+smoke completed successfully.
 
 ## Hidden Assumption
 
