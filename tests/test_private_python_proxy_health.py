@@ -172,7 +172,7 @@ def test_main_default_projects_exclude_large_pydantic_core_probe(
             "cryptography": "48.0.1",
             "requests": "2.33.0",
             "pytest-xdist": "3.8.0",
-            "hypothesis": "6.155.7",
+            "hypothesis": "6.156.6",
             "pgvector": "0.4.2",
             "pydantic-core": "2.41.5",
         }
