@@ -17,7 +17,7 @@ does not claim to prove equivalence across intentionally obfuscated Python.
 
 ## Lane Start Provenance
 
-- Pre-open packet: `artifacts/orchestration/task_packets/b6706fba26f3.json`
+- Packet: `artifacts/orchestration/task_packets/b6706fba26f3.json`
 - Post-open packet: `artifacts/orchestration/task_packets/05dfe3b5523c.json`
 - Starter: `scripts/orchestration/start_pr_lane.sh`
 - Pre-open role order executed:
@@ -72,6 +72,8 @@ does not claim to prove equivalence across intentionally obfuscated Python.
 
 ## Discussion Thread Pass
 
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 - [x] Pre-open packet role order completed.
 - [x] Production/auth implementation findings fixed before mapping.
 - [x] Bounded rollback threat model reviewed by architecture specialist.
@@ -96,16 +98,12 @@ does not claim to prove equivalence across intentionally obfuscated Python.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565030475 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
 Disposition: FIXED
 Commit: 276ca9b6087149dc5b89a375fa4f189e64a40a3f
-Evidence: Runtime behavior, environment isolation, generic 500 logging,
-process-once warning, callable identity, and ledger target tests pass on the
-current branch; this commit is an ancestor of the current head.
+Evidence: Runtime behavior, environment isolation, generic 500 logging, process-once warning, callable identity, and ledger target tests pass on the current branch; this commit is an ancestor of the current head.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565204816 -> 6a9a563a69cbc5ffeefff2d8787a5edde22bc488
 Disposition: FIXED
 Commit: 6a9a563a69cbc5ffeefff2d8787a5edde22bc488
-Evidence: `app.api_key_header` resolves directly to the canonical
-`app.routers.api_key.api_key_header` object and the compatibility ownership
-suite proves exact identity.
+Evidence: `app.api_key_header` resolves directly to the canonical `app.routers.api_key.api_key_header` object and the compatibility ownership suite proves exact identity.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024587 -> 761f8faa6
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024592 -> 761f8faa6
@@ -116,18 +114,14 @@ suite proves exact identity.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565030472 -> 761f8faa6
 Disposition: FIXED
 Commit: 761f8faa6
-Evidence: Focused positive and safe-control tests prove direct identity-preserving
-imports, literal importlib assignment, one-hop ordinary aliases, and statically
-named `getattr` lookups. The final 341-test guard suite passes.
+Evidence: Focused positive and safe-control tests prove direct identity-preserving imports, literal importlib assignment, one-hop ordinary aliases, and statically named `getattr` lookups. The final 341-test guard suite passes.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024594 -> 9768faa66
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024600 -> 9768faa66
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565030453 -> 9768faa66
 Disposition: FIXED
 Commit: 9768faa66
-Evidence: `validate_repo()` now fails closed on a missing `app/` root and only
-module-level canonical imports satisfy the legacy re-export contract; focused
-negative tests pass.
+Evidence: `validate_repo()` now fails closed on a missing `app/` root and only module-level canonical imports satisfy the legacy re-export contract; focused negative tests pass.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024591 -> 20914e075
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024601 -> 20914e075
@@ -136,10 +130,7 @@ negative tests pass.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565204818 -> 20914e075
 Disposition: FIXED
 Commit: 20914e075
-Evidence: Focused regressions reject ordinary top-level import, loop,
-conditional, with-target, and exception-target rebinding plus direct
-`from legacy_app import *`; safe nested-local and unrelated-star controls pass.
-The guard remains a syntactic binding check and does not evaluate branch state.
+Evidence: Focused regressions reject ordinary top-level import, loop, conditional, with-target, and exception-target rebinding plus direct `from legacy_app import *`; safe nested-local and unrelated-star controls pass. The guard remains a syntactic binding check and does not evaluate branch state.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565131656
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565131657
@@ -167,46 +158,24 @@ The guard remains a syntactic binding check and does not evaluate branch state.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3566451151
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3566451152
 Disposition: NOT-A-BUG
-Evidence: `docs/architecture/LEGACY_COMPATIBILITY_SEAM.md` defines the guard as
-a bounded detector for trusted, reviewed source. `scripts/AGENTS.md` forbids
-interpreter-like control/data-flow expansion. Current runtime identity tests
-prove all protected route registrations use the canonical callable, and a
-repository search of `get_api_key|_get_api_key_dynamic` shows production
-consumers using direct canonical imports rather than these adversarial forms.
-Reason: These comments require modeling broader symbol families or intentionally
-obfuscated equivalences through control-flow joins, nested lexical scopes,
-namespace mappings, builtins loaders, containers, closures,
-descriptors, `attrgetter`/`methodcaller`/`itemgetter`, `partial`, comprehensions,
-pattern matching, or context managers. Those constructions are outside the
-approved trusted-source threat model. Expanding the architecture guard to
-simulate them created an open-ended pseudo-interpreter and was rolled back.
+Evidence: `docs/architecture/LEGACY_COMPATIBILITY_SEAM.md` defines the guard as a bounded detector for trusted, reviewed source; `scripts/AGENTS.md` forbids interpreter-like control/data-flow expansion; runtime identity tests prove protected registrations use the canonical callable; repository search shows production consumers use direct canonical imports rather than adversarial forms.
+Reason: These comments require intentionally obfuscated equivalences through control-flow joins, nested lexical scopes, namespace mappings, builtins loaders, containers, closures, descriptors, `attrgetter`/`methodcaller`/`itemgetter`, `partial`, comprehensions, pattern matching, or context managers. Those constructions are outside the approved trusted-source threat model; the open-ended pseudo-interpreter expansion was rolled back.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024583
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565030465
 Disposition: NOT-A-BUG
-Evidence: `legacy_app.py` re-exports exactly `get_api_key` and
-`_get_api_key_dynamic`; `api_key_header`, `validate_app_api_key`, and
-`require_app_api_key` are canonical-only objects and have no legacy ownership
-contract. Runtime identity and reverse-import tests pass.
-Reason: `CANONICAL_API_KEY_SYMBOLS` intentionally describes the two temporary
-legacy compatibility re-exports, not every object owned by the canonical auth
-module.
+Evidence: `legacy_app.py` re-exports exactly `get_api_key` and `_get_api_key_dynamic`; `api_key_header`, `validate_app_api_key`, and `require_app_api_key` are canonical-only objects with no legacy ownership contract; runtime identity and reverse-import tests pass.
+Reason: `CANONICAL_API_KEY_SYMBOLS` intentionally describes the two temporary legacy compatibility re-exports, not every object owned by the canonical auth module.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024584
 Disposition: NOT-A-BUG
-Evidence: The accepted Experiment Runner artifact records
-`mutated_paths: []` and `shared_tree_untouched: true`; the production diff was
-implemented and reviewed in the coordinator-owned PR lane.
-Reason: Creative-Code mutation authority remained denied, so autonomous
-candidate-mutation threats do not apply to these reviewed repository edits.
+Evidence: The accepted Experiment Runner artifact records `mutated_paths: []` and `shared_tree_untouched: true`; the production diff was implemented and reviewed in the coordinator-owned PR lane.
+Reason: Creative-Code mutation authority remained denied, so autonomous candidate-mutation threats do not apply to these reviewed repository edits.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565899163
 Disposition: NOT-A-BUG
-Evidence: `git merge-base --is-ancestor 2c4aaa00c HEAD` and
-`git merge-base --is-ancestor 276ca9b608 HEAD` both exit 0 on the current
-branch; all FIXED mappings above reference current-head ancestors.
-Reason: The comment evaluated an ephemeral review snapshot. The published PR
-branch contains the implementation and repair commits used as proof.
+Evidence: `git merge-base --is-ancestor 2c4aaa00c HEAD` and `git merge-base --is-ancestor 276ca9b608 HEAD` both exit 0 on the current branch; all FIXED mappings above reference current-head ancestors.
+Reason: The comment evaluated an ephemeral review snapshot; the published PR branch contains the implementation and repair commits used as proof.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#pullrequestreview-4678740036
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#pullrequestreview-4678749721
@@ -219,12 +188,8 @@ branch contains the implementation and repair commits used as proof.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#pullrequestreview-4680167226
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#pullrequestreview-4680178140
 Disposition: NOT-A-BUG
-Evidence: Each inline actionable from these review summaries has a
-thread-specific disposition above. The final bounded architecture and runtime
-contracts are tested independently.
-Reason: Review-summary comments add no separate actionable beyond their inline
-threads. Their repeated adversarial-syntax suggestions are governed by the
-documented threat-model disposition above.
+Evidence: Each inline actionable from these review summaries has a thread-specific disposition above; the final bounded architecture and runtime contracts are tested independently.
+Reason: Review-summary comments add no separate actionable beyond their inline threads; repeated adversarial-syntax suggestions are governed by the documented threat-model disposition above.
 
 ## Codex Security Diff Scan
 
