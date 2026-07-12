@@ -1992,6 +1992,58 @@ def test_finalize_revalidates_pinned_inputs_after_lock(
         shutil.rmtree(input_dir, ignore_errors=True)
 
 
+def test_finalize_rejects_canonical_reviewed_directory_swap_after_lock(
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output_dir, input_dir = _prepared_bridge(capsys, suffix="finalize-directory-swap")
+    try:
+        reviews_path = _write_review_input(output_dir, _review_input(output_dir))
+        assert (
+            review_cli.main(
+                [
+                    "attach",
+                    "--bridge",
+                    str(output_dir / bridge_cli.BRIDGE_FILENAME),
+                    "--reviews",
+                    str(reviews_path),
+                ]
+            )
+            == 0
+        )
+        capsys.readouterr()
+        reviewed_dir = output_dir / "spec_finalize_reviewed"
+        detached = output_dir / ".detached-reviewed-finalize"
+        attachment_path = reviewed_dir / review_cli.ATTACHMENT_FILENAME
+        real_flock = review_cli.fcntl.flock
+        swapped = False
+
+        def swap_canonical_after_lock(descriptor: int, operation: int) -> None:
+            nonlocal swapped
+            real_flock(descriptor, operation)
+            if not swapped and operation & review_cli.fcntl.LOCK_EX:
+                swapped = True
+                reviewed_dir.rename(detached)
+                reviewed_dir.mkdir()
+                (reviewed_dir / "unknown.marker").write_text("unknown\n", encoding="utf-8")
+
+        with monkeypatch.context() as context:
+            context.setattr(review_cli.fcntl, "flock", swap_canonical_after_lock)
+            exit_code = review_cli.main(["finalize", "--attachment", str(attachment_path)])
+        captured = capsys.readouterr()
+        assert exit_code == 1
+        assert "reviewed finalize run canonical identity changed" in captured.err
+        assert swapped
+        assert (reviewed_dir / "unknown.marker").read_text(encoding="utf-8") == "unknown\n"
+        assert detached.is_dir()
+        assert not (detached / review_cli.BUNDLE_FILENAME).exists()
+        assert not (detached / review_cli.FINALIZE_RECEIPT_FILENAME).exists()
+        assert list(output_dir.glob(".spec_finalize_reviewed.*.failed")) == []
+    finally:
+        shutil.rmtree(output_dir, ignore_errors=True)
+        shutil.rmtree(input_dir, ignore_errors=True)
+
+
 def test_finalize_preserves_preexisting_partial_outputs_without_quarantine(
     capsys: pytest.CaptureFixture[str],
 ) -> None:

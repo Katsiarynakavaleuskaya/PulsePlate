@@ -1418,6 +1418,10 @@ def _finalize_from_attachment(attachment_path: Path) -> dict[str, Any]:
             raise CreativeSpecificationSkepticReviewCliError(
                 "reviewed finalize is already in progress."
             ) from exc
+        _assert_canonical_reviewed_run_identity(
+            reviewed_dir,
+            expected_identity=reviewed_identity,
+        )
         pinned_inputs = _read_pinned_reviewed_inputs(
             reviewed_fd,
             expected_payloads=expected_payloads,
@@ -1504,6 +1508,10 @@ def _finalize_from_attachment(attachment_path: Path) -> dict[str, Any]:
         _read_pinned_reviewed_inputs(
             reviewed_fd,
             expected_payloads=expected_payloads,
+        )
+        _assert_canonical_reviewed_run_identity(
+            reviewed_dir,
+            expected_identity=reviewed_identity,
         )
     except Exception as primary_error:
         cleanup_error: Exception | None = None
