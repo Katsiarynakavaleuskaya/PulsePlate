@@ -16,7 +16,7 @@ from app.effective_routes import (
 )
 from app.middleware.api_tiers import require_pro_tier, require_vip_tier
 from app.bootstrap.metrics import _metrics_api_key_guard
-from app.routers.api_key import api_key_header
+from app.routers.api_key import _get_api_key_dynamic, api_key_header
 from app.routers.api_key import require_app_api_key
 from app.routers.billing import (
     _require_billing_transport_key,
@@ -26,7 +26,6 @@ from app.routers.feedback import get_feedback_user
 from app.routers.plan_export import _require_valid_token
 from app.routers.test import _ensure_non_production
 from app.routers.users import _require_users_api_key
-from legacy_app import _get_api_key_dynamic
 
 
 class AuthClass(str, Enum):

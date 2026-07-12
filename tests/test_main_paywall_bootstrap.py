@@ -784,11 +784,11 @@ def _app_with_plan_export_routes_and_extra_method(*, combined_route: bool) -> Fa
 
     app.include_router(
         app_main.export_router,
-        dependencies=[Depends(app_main._legacy_module._get_api_key_dynamic)],
+        dependencies=[Depends(app_main._get_api_key_dynamic)],
     )
     app.include_router(
         app_main.plan_router,
-        dependencies=[Depends(app_main._legacy_module._get_api_key_dynamic)],
+        dependencies=[Depends(app_main._get_api_key_dynamic)],
     )
 
     async def _extra_method_handler() -> dict[str, str]:
@@ -812,7 +812,7 @@ def _app_with_shoplist_export_routes_and_extra_method(*, combined_route: bool) -
 
     app.include_router(
         app_main.shoplist_export_router,
-        dependencies=[Depends(app_main._legacy_module._get_api_key_dynamic)],
+        dependencies=[Depends(app_main._get_api_key_dynamic)],
     )
 
     async def _extra_method_handler() -> dict[str, str]:
@@ -2577,7 +2577,7 @@ def test_plan_export_route_registration_is_idempotent(
         assert 429 in (getattr(matching_routes[0], "responses", None) or {})
         assert route_has_dependency_call(
             matching_routes[0],
-            app_main._legacy_module._get_api_key_dynamic,
+            app_main._get_api_key_dynamic,
         )
 
 
@@ -2606,7 +2606,7 @@ def test_plan_export_route_registration_rejects_missing_api_key_dependency_symbo
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _prepare_bootstrap_dependencies(monkeypatch)
-    monkeypatch.setattr(app_main._legacy_module, "_get_api_key_dynamic", None)
+    monkeypatch.setattr(app_main, "_get_api_key_dynamic", None)
 
     with pytest.raises(
         RuntimeError,
@@ -2780,11 +2780,11 @@ def test_plan_export_route_registration_rejects_existing_openapi_visibility_drif
     app = FastAPI()
     app.include_router(
         app_main.export_router,
-        dependencies=[Depends(app_main._legacy_module._get_api_key_dynamic)],
+        dependencies=[Depends(app_main._get_api_key_dynamic)],
     )
     app.include_router(
         app_main.plan_router,
-        dependencies=[Depends(app_main._legacy_module._get_api_key_dynamic)],
+        dependencies=[Depends(app_main._get_api_key_dynamic)],
     )
     path, method, include_in_schema = app_main._PLAN_EXPORT_ROUTE_SPECS[0]
     matching_route = _routes_for_path_method(app, path, method)[0]
@@ -2801,7 +2801,7 @@ def test_plan_export_dependency_detection_walks_nested_dependencies() -> None:
     app = FastAPI()
 
     async def _outer_dependency(
-        _guard: None = Depends(app_main._legacy_module._get_api_key_dynamic),
+        _guard: None = Depends(app_main._get_api_key_dynamic),
     ) -> None:
         return None
 
@@ -2819,7 +2819,7 @@ def test_plan_export_dependency_detection_walks_nested_dependencies() -> None:
 
     assert route_has_dependency_call(
         route,
-        app_main._legacy_module._get_api_key_dynamic,
+        app_main._get_api_key_dynamic,
     )
 
 
@@ -2827,11 +2827,11 @@ def test_plan_export_route_registration_rejects_existing_429_metadata_drift() ->
     app = FastAPI()
     app.include_router(
         app_main.export_router,
-        dependencies=[Depends(app_main._legacy_module._get_api_key_dynamic)],
+        dependencies=[Depends(app_main._get_api_key_dynamic)],
     )
     app.include_router(
         app_main.plan_router,
-        dependencies=[Depends(app_main._legacy_module._get_api_key_dynamic)],
+        dependencies=[Depends(app_main._get_api_key_dynamic)],
     )
     path, method, _include_in_schema = app_main._PLAN_EXPORT_ROUTE_SPECS[0]
     matching_route = _routes_for_path_method(app, path, method)[0]
@@ -2891,7 +2891,7 @@ def test_shoplist_export_route_registration_is_idempotent(
         assert 429 in (getattr(matching_routes[0], "responses", None) or {})
         assert route_has_dependency_call(
             matching_routes[0],
-            app_main._legacy_module._get_api_key_dynamic,
+            app_main._get_api_key_dynamic,
         )
 
 
@@ -2920,7 +2920,7 @@ def test_shoplist_export_route_registration_rejects_missing_api_key_dependency_s
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _prepare_bootstrap_dependencies(monkeypatch)
-    monkeypatch.setattr(app_main._legacy_module, "_get_api_key_dynamic", None)
+    monkeypatch.setattr(app_main, "_get_api_key_dynamic", None)
 
     with pytest.raises(
         RuntimeError,
@@ -2933,7 +2933,7 @@ def test_restaurant_moderation_route_registration_rejects_missing_api_key_depend
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _prepare_bootstrap_dependencies(monkeypatch)
-    monkeypatch.setattr(app_main._legacy_module, "_get_api_key_dynamic", None)
+    monkeypatch.setattr(app_main, "_get_api_key_dynamic", None)
 
     with pytest.raises(
         RuntimeError,
@@ -3113,7 +3113,7 @@ def test_shoplist_export_route_registration_rejects_existing_openapi_visibility_
     app = FastAPI()
     app.include_router(
         app_main.shoplist_export_router,
-        dependencies=[Depends(app_main._legacy_module._get_api_key_dynamic)],
+        dependencies=[Depends(app_main._get_api_key_dynamic)],
     )
     path, method, include_in_schema = app_main._SHOPLIST_ROUTE_SPECS[0]
     matching_route = _routes_for_path_method(app, path, method)[0]
@@ -3133,7 +3133,7 @@ def test_shoplist_export_route_registration_rejects_existing_429_metadata_drift(
     app = FastAPI()
     app.include_router(
         app_main.shoplist_export_router,
-        dependencies=[Depends(app_main._legacy_module._get_api_key_dynamic)],
+        dependencies=[Depends(app_main._get_api_key_dynamic)],
     )
     path, method, _include_in_schema = app_main._SHOPLIST_ROUTE_SPECS[0]
     matching_route = _routes_for_path_method(app, path, method)[0]

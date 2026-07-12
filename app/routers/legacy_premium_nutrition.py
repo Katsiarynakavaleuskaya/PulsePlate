@@ -11,13 +11,13 @@ from typing import Any
 
 from fastapi import APIRouter, Body, Depends
 
+from app.routers.api_key import _get_api_key_dynamic
 from app.schemas.bmr import BMRRequest, BMRRequestLegacy, BMRResponse
 from app.schemas.premium_contracts import PlateRequest, PlateResponse, WHOTargetsResponse
 from legacy_app import (
     NutrientGapsRequest,
     NutrientGapsResponse,
     WHOTargetsRequest,
-    _get_api_key_dynamic,
 )
 
 LEGACY_PREMIUM_NUTRITION_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = (

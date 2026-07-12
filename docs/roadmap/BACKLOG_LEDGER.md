@@ -6663,12 +6663,15 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 - [ ] P2: Complete legacy_app.py migration (delete legacy endpoints)
   - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: TBD (v2.0 timeline, after all migrations)
+  - Target PR: PR #2102 -> PR-TBD-APP-METADATA-OPENAPI -> PR-TBD-REMAINING-LEGACY-CUTOVERS -> PR-TBD-APP-FACTORY -> PR-TBD-LEGACY-DELETION
   - Priority: P2 (long-term cleanup)
-  - Reason: After all critical security fixes and endpoint migrations complete, eventually delete `legacy_app.py` entirely. Legacy business and route logic should move to its canonical owners: modular routers (`app/routers/*`), services (`app/services/*`), bootstrap modules (`app/bootstrap/*`), or core modules (`core/*`) according to responsibility. The current train extracts lifecycle ownership first, then cuts canonical `app/*` dependencies on legacy compatibility symbols, inverts app-factory/OpenAPI ownership, and finally inventories/removes the remaining facade exports.
+  - Status: In progress. Route, middleware, and lifespan ownership are canonical; the active slice moves app-client API-key dependency ownership to `app/routers/api_key.py` without changing auth behavior. Application metadata/OpenAPI policy is the next slice, followed by remaining reverse-dependency cutovers, app-factory inversion, and final compatibility inventory/deletion.
+  - Reason: After all critical security fixes and endpoint migrations complete, eventually delete `legacy_app.py` entirely. Legacy business and route logic should move to its canonical owners: modular routers (`app/routers/*`), services (`app/services/*`), bootstrap modules (`app/bootstrap/*`), or core modules (`core/*`) according to responsibility. The current train has extracted lifecycle ownership and now cuts canonical `app/*` dependencies on legacy compatibility symbols before app-factory/OpenAPI ownership inversion and final facade removal.
   - Links:
     - docs/audit/LEGACY_APP_MIGRATION_STATUS.md (overall progress, migration status)
     - docs/pr/PR_THIN_PROXY_CLEANUP_PLAN.md
+    - app/routers/api_key.py
+    - docs/architecture/LEGACY_COMPATIBILITY_SEAM.md
   - Prerequisites:
     - ✅ All P0 security fixes complete (rate-limiting, tier guards)
     - ✅ All P1 migrations complete (constants extracted, WebSocket secured)

@@ -141,7 +141,7 @@ def _assert_weekly_plan_route_registered_once(target_app: FastAPI) -> None:
         assert getattr(endpoint, "__name__", None) == _EXPECTED_ENDPOINTS[key]
         _assert_same_response_model(route.response_model, _RESPONSE_MODELS[key])
         assert bool(route.deprecated) is True
-        assert route_has_dependency_call(route, app_main._legacy_module._get_api_key_dynamic)
+        assert route_has_dependency_call(route, app_main._get_api_key_dynamic)
 
 
 def test_empty_app_registers_legacy_premium_weekly_plan_route_once() -> None:
@@ -169,13 +169,13 @@ def test_legacy_premium_weekly_plan_route_members_encode_api_key_dependency() ->
     members = {
         (member.path, member.method): member
         for member in app_main._legacy_premium_weekly_plan_route_members(
-            app_main._legacy_module._get_api_key_dynamic
+            app_main._get_api_key_dynamic
         )
     }
 
     assert set(members) == _EXPECTED_ROUTE_KEYS
     assert members[(_WEEKLY_PLAN_PATH, _WEEKLY_PLAN_METHOD)].required_dependencies == (
-        app_main._legacy_module._get_api_key_dynamic,
+        app_main._get_api_key_dynamic,
     )
 
 
@@ -185,7 +185,7 @@ def test_legacy_premium_weekly_plan_source_route_preserves_metadata() -> None:
     assert route_include_in_schema(route) is False
     _assert_same_response_model(route.response_model, WeeklyMenuResponse)
     assert bool(route.deprecated) is True
-    assert route_has_dependency_call(route, app_main._legacy_module._get_api_key_dynamic)
+    assert route_has_dependency_call(route, app_main._get_api_key_dynamic)
 
 
 def test_legacy_premium_weekly_plan_public_openapi_path_remains_hidden() -> None:
@@ -244,7 +244,7 @@ def test_legacy_premium_weekly_plan_registration_does_not_absorb_other_weekly_ro
 def test_legacy_premium_weekly_plan_registration_rejects_missing_api_key_symbol(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(app_main._legacy_module, "_get_api_key_dynamic", None)
+    monkeypatch.setattr(app_main, "_get_api_key_dynamic", None)
 
     with pytest.raises(
         RuntimeError,
@@ -319,14 +319,14 @@ def test_legacy_premium_weekly_plan_registration_rejects_openapi_visibility_drif
     source = _source_route(_WEEKLY_PLAN_PATH, _WEEKLY_PLAN_METHOD)
     endpoint = _clone_endpoint_with_matching_identity(
         route_endpoint(source),
-        app_main._legacy_module._get_api_key_dynamic,
+        app_main._get_api_key_dynamic,
     )
     target_app.add_api_route(
         _WEEKLY_PLAN_PATH,
         endpoint,
         methods=[_WEEKLY_PLAN_METHOD],
         include_in_schema=True,
-        dependencies=[Depends(app_main._legacy_module._get_api_key_dynamic)],
+        dependencies=[Depends(app_main._get_api_key_dynamic)],
     )
 
     with pytest.raises(
@@ -359,7 +359,7 @@ def test_legacy_premium_weekly_plan_registration_accepts_reloaded_canonical_hand
     source = _source_route(_WEEKLY_PLAN_PATH, _WEEKLY_PLAN_METHOD)
     endpoint = _clone_endpoint_with_matching_identity(
         route_endpoint(source),
-        app_main._legacy_module._get_api_key_dynamic,
+        app_main._get_api_key_dynamic,
     )
     target_app.add_api_route(
         _WEEKLY_PLAN_PATH,
@@ -368,7 +368,7 @@ def test_legacy_premium_weekly_plan_registration_accepts_reloaded_canonical_hand
         response_model=WeeklyMenuResponse,
         include_in_schema=False,
         deprecated=True,
-        dependencies=[Depends(app_main._legacy_module._get_api_key_dynamic)],
+        dependencies=[Depends(app_main._get_api_key_dynamic)],
     )
 
     app_main._include_legacy_premium_weekly_plan_router_if_needed(target_app)

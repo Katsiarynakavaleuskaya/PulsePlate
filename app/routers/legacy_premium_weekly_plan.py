@@ -9,13 +9,13 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
 
+from app.routers.api_key import _get_api_key_dynamic
 from app.schemas.legacy_premium_weekly_plan import LegacyWeekPlanRequest, WeeklyMenuResponse
 from app.services.legacy_premium_weekly_plan import (
     build_legacy_weekly_menu_response,
     resolve_legacy_weekly_menu_builder,
 )
 from app.utils.feature_flags import is_vip_module_enabled
-from legacy_app import _get_api_key_dynamic
 
 LEGACY_PREMIUM_WEEKLY_PLAN_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = (
     ("/api/v1/premium/plan/week", "POST", False),

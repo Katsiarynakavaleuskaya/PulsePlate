@@ -127,7 +127,7 @@ def _legacy_week_plan_request() -> legacy_app.LegacyWeekPlanRequest:
         deficit_pct=None,
         surplus_pct=None,
         bodyfat=None,
-        diet_flags=[],
+        diet_flags=set(),
         targets=None,
         life_stage=None,
         lang="en",
@@ -854,7 +854,7 @@ def test_week_plan_missing_required_fields_raises_422(
             deficit_pct=None,
             surplus_pct=None,
             bodyfat=None,
-            diet_flags=[],
+            diet_flags=set(),
             targets=None,
             life_stage=None,
             lang="en",
@@ -1026,7 +1026,7 @@ def test_week_plan_registration_requires_api_key_dependency(
 ) -> None:
     import app.main as app_main
 
-    monkeypatch.setattr(app_main._legacy_module, "_get_api_key_dynamic", None)
+    monkeypatch.setattr(app_main, "_get_api_key_dynamic", None)
 
     with pytest.raises(
         RuntimeError,

@@ -531,6 +531,20 @@ If tempted to:
 
 ## Import hygiene (hard rules)
 
+### API-key dependency cutover tests
+
+- Patch `app.get_api_key`, `app.routers.api_key`, or FastAPI
+  `dependency_overrides`; do not patch private API-key state in `legacy_app.py`.
+- Assert canonical callable identity and module ownership for protected route
+  dependencies after an ownership cutover.
+- Reload coverage must resolve current module objects at runtime. Do not retain
+  stale `from ... import ...` callables across a coordinated module purge.
+- Warning and error-hygiene tests must prove concurrency safety and absence of
+  credential-like exception text in logs.
+- Do not grow architecture-guard tests by enumerating intentionally obfuscated
+  language constructions outside the documented threat model. Prefer runtime
+  callable-identity and behavior tests for production security contracts.
+
 - Do NOT use `importlib.util.spec_from_file_location`,
   `module_from_spec`, or `exec_module` in tests
   (exceptions are explicitly whitelisted in guard tests).

@@ -1,26 +1,18 @@
-"""Test that lenient API key mode warning is logged only once.
-
-Note: These tests patch module __dict__ directly to isolate global module state
-instead of using importlib.reload() to avoid breaking parallel tests.
-"""
+"""Test that the canonical lenient API-key warning is process-once."""
 
 import logging
-import sys
-from typing import Any
+from concurrent.futures import ThreadPoolExecutor
+from collections.abc import Iterator
 
 import pytest
+from app.routers import api_key as canonical_api_key
 
 
-@pytest.fixture
-def resolved_app_module() -> Any:
-    """Resolve the actual app module, handling both direct and sys.modules references.
-
-    Returns the resolved app module object for tests to patch __dict__ directly.
-    """
-    import app as app_module
-
-    # The actual module with get_api_key is 'app_module', not the 'app' package
-    return sys.modules.get("app_module") or app_module
+@pytest.fixture(autouse=True)
+def reset_lenient_warning() -> Iterator[None]:
+    canonical_api_key._reset_lenient_mode_warning_for_tests()
+    yield
+    canonical_api_key._reset_lenient_mode_warning_for_tests()
 
 
 class TestLenientModeWarning:
@@ -30,78 +22,97 @@ class TestLenientModeWarning:
     We reset the flag to False before AND after each test to ensure proper isolation.
     """
 
+    @staticmethod
+    def _configure_lenient_env(monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("APP_ENV", "dev")
+        for name in (
+            "API_KEY",
+            "ENVIRONMENT",
+            "API_KEY_REQUIRED",
+            "ALLOW_DEV_API_KEY",
+            "ALLOW_DEV_API_KEY_NORMALIZE",
+        ):
+            monkeypatch.delenv(name, raising=False)
+
     def test_lenient_mode_warning_logged_only_once(
         self,
         monkeypatch: pytest.MonkeyPatch,
         caplog: pytest.LogCaptureFixture,
-        resolved_app_module: Any,
     ) -> None:
         """Verify that lenient mode warning is logged only once, not on every call."""
-        # Set up environment for lenient mode
-        monkeypatch.setenv("APP_ENV", "dev")
-        monkeypatch.delenv("API_KEY", raising=False)
+        self._configure_lenient_env(monkeypatch)
 
-        module_dict = resolved_app_module.__dict__
+        with caplog.at_level(logging.WARNING):
+            for _ in range(5):
+                canonical_api_key.get_api_key("test-valid-key")
 
-        try:
-            # Always reset to False before test
-            module_dict["_lenient_mode_warning_logged"] = False
+        warning_messages = [
+            record.message
+            for record in caplog.records
+            if "Lenient API key mode enabled" in record.message
+        ]
 
-            # Capture logs at WARNING level
-            with caplog.at_level(logging.WARNING):
-                # Call get_api_key multiple times
-                for i in range(5):
-                    # get_api_key should not raise in lenient mode
-                    resolved_app_module.get_api_key("test-valid-key")
+        assert len(warning_messages) == 1
 
-            # Check that warning appears exactly once
-            warning_messages = [
-                record.message
-                for record in caplog.records
-                if "Lenient API key mode enabled" in record.message
-            ]
+    def test_lenient_mode_warning_is_thread_safe(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        self._configure_lenient_env(monkeypatch)
 
-            assert len(warning_messages) == 1, (
-                f"Expected warning to be logged exactly once, "
-                f"but found {len(warning_messages)} occurrences"
-            )
-        finally:
-            # Reset to False after test for next test isolation
-            module_dict["_lenient_mode_warning_logged"] = False
+        with caplog.at_level(logging.WARNING):
+            with ThreadPoolExecutor(max_workers=8) as executor:
+                results = list(
+                    executor.map(
+                        canonical_api_key.get_api_key,
+                        ["test-valid-key"] * 32,
+                    )
+                )
+
+        assert results == ["test-valid-key"] * 32
+        assert (
+            sum("Lenient API key mode enabled" in record.message for record in caplog.records) == 1
+        )
+
+    def test_lenient_mode_warning_returns_when_peer_wins_lock(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        class PeerWinsLock:
+            def __enter__(self) -> None:
+                canonical_api_key._lenient_mode_warning_logged = True
+
+            def __exit__(self, *args: object) -> None:
+                return None
+
+        with monkeypatch.context() as patch:
+            patch.setattr(canonical_api_key, "_lenient_mode_warning_lock", PeerWinsLock())
+            with caplog.at_level(logging.WARNING, logger="app.routers.api_key"):
+                canonical_api_key._warn_lenient_mode_once()
+
+        assert "Lenient API key mode enabled" not in caplog.text
 
     def test_lenient_mode_warning_content(
         self,
         monkeypatch: pytest.MonkeyPatch,
         caplog: pytest.LogCaptureFixture,
-        resolved_app_module: Any,
     ) -> None:
         """Verify the warning message contains the expected security notice."""
-        monkeypatch.setenv("APP_ENV", "dev")
-        monkeypatch.delenv("API_KEY", raising=False)
+        self._configure_lenient_env(monkeypatch)
 
-        module_dict = resolved_app_module.__dict__
+        caplog.clear()
 
-        try:
-            # Always reset to False before test
-            module_dict["_lenient_mode_warning_logged"] = False
+        with caplog.at_level(logging.WARNING):
+            canonical_api_key.get_api_key("test-valid-key")
 
-            # Clear any cached logs from previous tests
-            caplog.clear()
+        warning_messages = [
+            record.message
+            for record in caplog.records
+            if "Lenient API key mode enabled" in record.message
+        ]
 
-            with caplog.at_level(logging.WARNING):
-                # get_api_key should not raise in lenient mode
-                resolved_app_module.get_api_key("test-valid-key")
-
-            # Verify warning message content
-            warning_messages = [
-                record.message
-                for record in caplog.records
-                if "Lenient API key mode enabled" in record.message
-            ]
-
-            assert len(warning_messages) > 0, "Expected warning to be logged"
-            assert "development only" in warning_messages[0]
-            assert "no real security" in warning_messages[0]
-        finally:
-            # Reset to False after test for next test isolation
-            module_dict["_lenient_mode_warning_logged"] = False
+        assert warning_messages
+        assert "development only" in warning_messages[0]
+        assert "no real security" in warning_messages[0]
