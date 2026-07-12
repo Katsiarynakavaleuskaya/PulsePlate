@@ -20,7 +20,7 @@ will be updated before merge if CodeRabbit, Sourcery, Cubic, Codex Security,
 
 Disposition: FIXED
 Commit: ea9fa55ba
-Evidence: `tests/test_python_supply_chain_controls.py:1146`, `tests/test_private_python_proxy_health.py:191`, `scripts/ci/check_private_python_proxy_health.py:227`, and `scripts/ci/check_private_python_proxy_health.py:253`
+Evidence: `tests/test_python_supply_chain_controls.py:1146`, `tests/test_private_python_proxy_health.py:193`, `scripts/ci/check_private_python_proxy_health.py:245`, and `scripts/ci/check_private_python_proxy_health.py:259`
 Reason: The latest CodeRabbit and Cubic findings on exact line assertions, default requirements-file coverage, and scoped exact-pin conflict behavior were fixed in the post-comment review-fix commit.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2107#discussion_r3566918620 -> ea9fa55ba
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2107#discussion_r3566921676 -> ea9fa55ba
@@ -36,7 +36,7 @@ Reason: The required discussion-thread pass checkboxes were added and checked.
 
 Disposition: FIXED
 Commit: fd1495ded
-Evidence: `docs/review/PR_2107_FIXED_MAPPING.md:95` and `docs/security/PRIVATE_PYTHON_PROXY_HEALTH_GATE.md:15`
+Evidence: `docs/review/PR_2107_FIXED_MAPPING.md:134` and `docs/security/PRIVATE_PYTHON_PROXY_HEALTH_GATE.md:15`
 Reason: Merge-readiness checkboxes were reset until final readiness, and stale evidence anchors now point to the current default project list.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2107#discussion_r3566988548 -> fd1495ded
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2107#discussion_r3566988553 -> fd1495ded
@@ -56,7 +56,7 @@ Reason: The supply-chain guard now checks a stripped exact requirement line, so
 
 Disposition: FIXED
 Commit: ea9fa55ba
-Evidence: `tests/test_private_python_proxy_health.py:191`
+Evidence: `tests/test_private_python_proxy_health.py:193`
 Reason: The mocked default path now asserts the complete requirements-file list,
 including `requirements-dev.txt`.
 
@@ -64,8 +64,8 @@ including `requirements-dev.txt`.
 
 Disposition: FIXED
 Commit: ea9fa55ba
-Evidence: `scripts/ci/check_private_python_proxy_health.py:227` and
-`scripts/ci/check_private_python_proxy_health.py:253`
+Evidence: `scripts/ci/check_private_python_proxy_health.py:245` and
+`scripts/ci/check_private_python_proxy_health.py:259`
 Reason: `parse_exact_pins(...)` remains a strict all-package conflict detector;
 the representative health gate uses the dedicated
 `parse_exact_pins_for_projects(...)` helper for scoped project probes.
