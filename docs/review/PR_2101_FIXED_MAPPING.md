@@ -60,6 +60,9 @@ Evidence: `02e8ce6e3` installs the bounded contract; `b97555998` binds retained 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2101#discussion_r3567025765 -> 86744f16d
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2101#discussion_r3567025774 -> 86744f16d
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2101#discussion_r3567025775 -> 86744f16d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2101#pullrequestreview-4678064705 -> 02e8ce6e3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2101#pullrequestreview-4678429600 -> 02e8ce6e3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2101#pullrequestreview-4680305372 -> 86744f16d
 
 Disposition: NOT-A-BUG
 Evidence: `docs/orchestration/GOVERNED_CREATIVE_CODE_EXECUTION_CONTRACT.md` and `docs/ENGINEERING_LESSONS.md` lesson 28 define cooperative locking and safe at-rest consumption as the transaction boundary, exclude permanent same-UID pathname stability, retain partial evidence, and forbid automatic canonical quarantine.
@@ -70,6 +73,8 @@ Reason: These comments require a stronger ownership model or deletion of publish
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2101#discussion_r3567025768
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2101#discussion_r3567025771
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2101#discussion_r3567025772
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2101#pullrequestreview-4680365168
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2101#pullrequestreview-4680724622
 
 ## Post-open Role Findings
 
@@ -91,7 +96,7 @@ deterministic tests.
 ### Codex Security
 
 Disposition: NOT-A-BUG
-Evidence: Exact-head scan `405893ae-3a92-41e8-866b-ecd05ed21455` reviewed 5/5
+Evidence: Final exact-head scan `45aaf65f-0a2c-4679-885a-649ca9ff708c` reviewed 5/5
 changed executable files with completion receipts and produced 0 reportable
 findings. The sealed report remains a local security artifact.
 Reason: No candidate survived the diff-scoped discovery gate.
