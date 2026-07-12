@@ -1588,10 +1588,13 @@ def validate_api_key_dependency_ownership(
             errors.append(f"{LEGACY_APP}: API-key dependency must not be defined locally: {name}")
 
         exact_aliases: set[str] = set()
-        for node in ast.walk(legacy_tree):
-            if not isinstance(node, ast.ImportFrom) or node.module != "app.routers.api_key":
+        for statement in legacy_tree.body:
+            if (
+                not isinstance(statement, ast.ImportFrom)
+                or statement.module != "app.routers.api_key"
+            ):
                 continue
-            for alias in node.names:
+            for alias in statement.names:
                 if alias.name in CANONICAL_API_KEY_SYMBOLS and alias.asname in {
                     None,
                     alias.name,
@@ -2509,10 +2512,14 @@ def validate_repo(repo_root: Path) -> list[str]:
     food_search_source = _read(food_search_path, repo_root, errors)
     lifespan_source = _read(lifespan_path, repo_root, errors)
     app_sources: dict[str, str] = {}
-    for app_path in sorted((repo_root / "app").rglob("*.py")):
-        source = _read(app_path, repo_root, errors)
-        if source is not None:
-            app_sources[_display(app_path, repo_root)] = source
+    app_root = repo_root / "app"
+    if not app_root.is_dir():
+        errors.append("app: canonical source scan root is missing")
+    else:
+        for app_path in sorted(app_root.rglob("*.py")):
+            source = _read(app_path, repo_root, errors)
+            if source is not None:
+                app_sources[_display(app_path, repo_root)] = source
     if legacy_source is not None:
         errors.extend(
             validate_legacy_growth(legacy_source, filename=_display(legacy_path, repo_root))

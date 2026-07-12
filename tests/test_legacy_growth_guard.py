@@ -200,6 +200,21 @@ def test_api_key_ownership_guard_accepts_direct_identity_preserving_reexports() 
     assert legacy_guard.validate_api_key_dependency_ownership(legacy_source, {}) == []
 
 
+def test_api_key_ownership_guard_requires_module_level_reexports() -> None:
+    legacy_source = textwrap.dedent("""
+        def compatibility_imports():
+            from app.routers.api_key import _get_api_key_dynamic, get_api_key
+            return _get_api_key_dynamic, get_api_key
+        """)
+
+    assert legacy_guard.validate_api_key_dependency_ownership(legacy_source, {}) == [
+        "legacy_app.py: canonical API-key compatibility re-export must preserve identity: "
+        "_get_api_key_dynamic",
+        "legacy_app.py: canonical API-key compatibility re-export must preserve identity: "
+        "get_api_key",
+    ]
+
+
 @pytest.mark.parametrize(
     ("source", "expected_symbol"),
     [
@@ -3281,6 +3296,7 @@ def test_legacy_repo_validation_rejects_empty_doc(tmp_path: Path) -> None:
         "docs/architecture/LEGACY_COMPATIBILITY_SEAM.md: missing marker LEGACY_SEAM_STATUS"
         in errors
     )
+    assert "app: canonical source scan root is missing" in errors
 
 
 def test_legacy_growth_guard_cli_passes(capsys: pytest.CaptureFixture[str]) -> None:
