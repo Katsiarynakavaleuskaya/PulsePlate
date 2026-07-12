@@ -7,107 +7,144 @@ Branch: `codex/canonicalize-app-api-key-dependency`
 ## Summary
 
 Move app-client API-key dependency ownership from `legacy_app.py` to
-`app/routers/api_key.py` while preserving exact auth behavior, FastAPI callable
-identity, route registration, app identity, and OpenAPI output. The same commit
-closes every bounded pre-open defect found in the touched auth/bootstrap graph.
+`app/routers/api_key.py` while preserving authentication behavior, FastAPI
+callable identity, route registration, app identity, and OpenAPI output.
+
+The production cutover remains intact. The later interpreter-like AST analyzer
+expansion was materially rolled back. The retained guard is a bounded
+architectural regression detector for trusted, reviewed repository source; it
+does not claim to prove equivalence across intentionally obfuscated Python.
 
 ## Lane Start Provenance
 
-- Packet: `artifacts/orchestration/task_packets/b6706fba26f3.json`
+- Pre-open packet: `artifacts/orchestration/task_packets/b6706fba26f3.json`
+- Post-open packet: `artifacts/orchestration/task_packets/05dfe3b5523c.json`
 - Starter: `scripts/orchestration/start_pr_lane.sh`
-- Required pre-open order executed:
-  `agent-coordinator -> architecture-specialist -> backend-engineer -> security-auditor -> qa-engineer-agent -> bug-hunter`.
-- Creative-Code remained oracle-only; no app-layer mutation authority or
-  candidate-patch promotion was granted.
+- Pre-open role order executed:
+  `agent-coordinator -> architecture-specialist -> backend-engineer ->
+  security-auditor -> qa-engineer-agent -> bug-hunter`.
+- Creative-Code remained oracle-only. It received no app-layer mutation or
+  promotion authority.
 
-## Implementation Commit
+## Implementation Commits
 
-- `2c4aaa00c5c4bd66839d5b45d415cc090bfb6ec0` - canonicalize API-key
-  dependency ownership, exact compatibility aliases, production consumers,
-  fail-closed guards, behavior/identity tests, and scoped architecture guidance.
-- `276ca9b6087149dc5b89a375fa4f189e64a40a3f` - close every bounded post-open
-  auth/guard finding, including lexical alias analysis, sanitized failure paths,
-  exact dependency identity, test isolation, and the Bandit-safe app-source scan.
-- `044e968a99368b2d6773a655b2e81d92ded8d18f` - close the two later Cubic
-  control-flow findings and every bounded closure bypass found by the ordered
-  bug-hunter/security reroutes.
-- `028b40fad73b3a07d391842cc944e0200da20852` - close current-head namespace
-  lookup and nested static-binding findings without changing runtime auth.
-- `6a9a563a69cbc5ffeefff2d8787a5edde22bc488` - preserve the canonical facade
-  header and close star-import and assigned-loader guard bypasses.
-- `c5409d0de09bdae93dacce376a1a84d91f375253` - block keyed `pop` and
-  `setdefault` retrievals from the legacy module namespace.
-- `d893ba2e39288c09f9af269603e7c572ed00d407` - close indirect module-loader
-  and compound control-flow gaps in the API-key ownership guard, including
-  repeated loop tests, abrupt transfers, nested exception prefixes, and
-  guaranteed `finally` cleanup.
-- `6d3234cd3` - close lexical static-string, simultaneous destructuring,
-  expression receiver, and literal container resolution gaps while preserving
-  Python evaluation order and safe negative controls.
-- `187a468e6` - retain dynamically obtained legacy namespace/helper provenance
-  and definition-time default aliases across function, async-function, and
-  lambda scopes without breaking safe rebinding or late-bound free variables.
-- `f9f92ae91bd5c499a60b26840fe89486adabddf9` - close the two later Cubic
-  review findings and the bounded role-review closure: nested irrefutable
-  matches, implicit/explicit builtins loader namespaces, exact literal-loop
-  targets, starred/static-dict expansion, and safe shadow controls.
-- `c3a5e5d60d043e04a0431789b8240ba28296ce3b` - close the later Codex reflected-lookup finding across direct,
-  bound, unbound, aliased, namespace, and tracked-callable `.__call__` forms,
-  while preserving safe target, shadow, and reassignment controls.
-- `fb730789d683fe199ade4e757c8ed816dc7d4d27` - close the final reflected
-  operator/importlib and lexical namespace findings, including exact
-  `globals()`/`locals()`/`vars()` scope semantics, nonlocal cells, and every
-  statically enumerable multi-argument `attrgetter` form.
-- `abf567f18fb775aef73b56d1321f8d726b407fc0` - close the final runtime
-  reflection, mapping-state, control-flow, namespace-mutation, closure-escape,
-  and lazy generator-consumption findings with exact safe controls.
+- `2c4aaa00c5c4bd66839d5b45d415cc090bfb6ec0` - canonical API-key dependency
+  ownership, exact compatibility aliases, production-consumer cutover, and
+  behavior/identity tests.
+- `276ca9b6087149dc5b89a375fa4f189e64a40a3f` - bounded runtime/auth review
+  repairs: sanitized failure logging, valid dynamic-guard results, warning
+  concurrency, exact route identity, environment isolation, and scan-root
+  controls.
+- `6a9a563a69cbc5ffeefff2d8787a5edde22bc488` - preserve the canonical
+  `api_key_header` facade export.
+- `59c44a679` - restore the legacy-growth analyzer to its bounded baseline,
+  removing the published pseudo-interpreter expansion.
+- `11c0c8c04` - document the trusted-source static-guard threat model.
+- `761f8faa6` - accept exact direct re-exports and reject bounded literal
+  importlib, one-hop alias, and static-name `getattr` lookups.
+- `9768faa66` - require module-level re-exports and fail closed when the
+  canonical app-source scan root is missing.
+- `a2cf1ab80` - preserve source order for ordinary top-level one-hop alias
+  lookups without introducing branch or data-flow interpretation.
+- `2e30227d8` - retain single-assignment ordinary aliases for top-level
+  expression and nested direct-use checks while preserving safe-reassignment
+  controls.
+- `20914e075` - reject bounded module-scope import/loop/conditional/with/except
+  rebinding and direct `legacy_app` star reverse imports.
+- `c78ecac8d` - scope implementation-owner detection to module-level functions
+  and preserve nested sync/async local-function safe controls.
+
+## Analyzer Rollback Decision
+
+- Analyzer escalation abandoned.
+- The final uncommitted `+1818`-line wave was not published.
+- The already published interpreter-like expansion was materially rolled back
+  by `59c44a679`.
+- Runtime API-key ownership and its bounded security repairs were retained.
+- The retained detector covers exact ownership, module-level re-export
+  identity, direct reverse imports, direct attribute/literal-`getattr`
+  lookups, literal `importlib.import_module("legacy_app")`, and one ordinary
+  top-level alias with source-order semantics.
+- Control-flow graphs, abstract value propagation, mapping-state evaluation,
+  closures, descriptors, pattern matching, context-manager result propagation,
+  and arbitrary reflective composition are outside the documented threat
+  model.
 
 ## Discussion Thread Pass
 
-- [x] Discussion-thread pass completed
-- [x] Fixed in commit mapping completed
-- [x] Pre-open packet role order completed and every bounded finding closed.
-- [x] Mandatory post-open `qa-engineer-agent -> bug-hunter -> security-auditor` pass completed.
-- [x] Codex Security current-diff scan completed.
-- [x] `pulseplate-pr-review` completed.
-- [x] CodeRabbit, Sourcery, and Cubic current-head reviews contain no unmapped actionables.
+- [x] Pre-open packet role order completed.
+- [x] Production/auth implementation findings fixed before mapping.
+- [x] Bounded rollback threat model reviewed by architecture specialist.
+- [x] Final post-open `qa-engineer-agent -> bug-hunter -> security-auditor`
+  rollback pass completed.
+- [x] One previously completed Codex Security diff scan retained as production
+  cutover evidence; no new scan is authorized or required for guard/docs-only
+  rollback commits.
+- [ ] `pulseplate-pr-review` completed on the final published head.
+- [ ] All current review threads dispositioned and resolved.
 - [ ] Current-head CI completed.
 - [ ] Strict authenticated merge readiness and mandatory wait window completed.
 
-Future actionable human, bot, role, or security findings must be fixed or
-dispositioned here before thread resolution or merge-readiness claims.
-
 ## Fixed in Commit Mapping
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024580
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024583
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024587
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024591
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024592
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024593
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024594
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024595
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024600
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024601
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024602
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024855
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024857
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565030449
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565030453
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565030460
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565030462
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565030464
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565030465
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565030468
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565030470
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565030472
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565030475
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024580 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024595 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024602 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024857 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565030460 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565030470 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565030475 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
+Disposition: FIXED
+Commit: 276ca9b6087149dc5b89a375fa4f189e64a40a3f
+Evidence: Runtime behavior, environment isolation, generic 500 logging,
+process-once warning, callable identity, and ledger target tests pass on the
+current branch; this commit is an ancestor of the current head.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565204816 -> 6a9a563a69cbc5ffeefff2d8787a5edde22bc488
+Disposition: FIXED
+Commit: 6a9a563a69cbc5ffeefff2d8787a5edde22bc488
+Evidence: `app.api_key_header` resolves directly to the canonical
+`app.routers.api_key.api_key_header` object and the compatibility ownership
+suite proves exact identity.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024587 -> 761f8faa6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024592 -> 761f8faa6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024593 -> 761f8faa6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024855 -> 761f8faa6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565030462 -> 761f8faa6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565030468 -> 761f8faa6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565030472 -> 761f8faa6
+Disposition: FIXED
+Commit: 761f8faa6
+Evidence: Focused positive and safe-control tests prove direct identity-preserving
+imports, literal importlib assignment, one-hop ordinary aliases, and statically
+named `getattr` lookups. The final 341-test guard suite passes.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024594 -> 9768faa66
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024600 -> 9768faa66
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565030453 -> 9768faa66
+Disposition: FIXED
+Commit: 9768faa66
+Evidence: `validate_repo()` now fails closed on a missing `app/` root and only
+module-level canonical imports satisfy the legacy re-export contract; focused
+negative tests pass.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024591 -> 20914e075
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024601 -> 20914e075
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565030449 -> 20914e075
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565030464 -> 20914e075
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565204818 -> 20914e075
+Disposition: FIXED
+Commit: 20914e075
+Evidence: Focused regressions reject ordinary top-level import, loop,
+conditional, with-target, and exception-target rebinding plus direct
+`from legacy_app import *`; safe nested-local and unrelated-star controls pass.
+The guard remains a syntactic binding check and does not evaluate branch state.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565131656
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565131657
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565152800
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565192808
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565204816
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565204818
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565204821
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565224748
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565279783
@@ -118,339 +155,150 @@ dispositioned here before thread resolution or merge-readiness claims.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565815767
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565815768
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565815769
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565899162
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565962508
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565962510
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565962512
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3566012932
-Disposition: FIXED
-Commit: see mapping entries below
-Evidence: Commits `276ca9b608`, `044e968a9`, `028b40fad`, `6a9a563a6`, `c5409d0de`, `d893ba2e3`, `6d3234cd3`, `187a468e6`, `f9f92ae91`, `fb730789d6`, and `abf567f18`; focused API-key ownership, 772-test legacy-growth, export, business, metrics, and warning suites; `make validate-changed`; full pre-commit; pre-push MyPy, pip-audit, backend tests, Bandit, and Docker build all pass.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3566105000
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3566105001
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3566105004
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3566451148
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3566451151
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3566451152
+Disposition: NOT-A-BUG
+Evidence: `docs/architecture/LEGACY_COMPATIBILITY_SEAM.md` defines the guard as
+a bounded detector for trusted, reviewed source. `scripts/AGENTS.md` forbids
+interpreter-like control/data-flow expansion. Current runtime identity tests
+prove all protected route registrations use the canonical callable, and a
+repository search of `get_api_key|_get_api_key_dynamic` shows production
+consumers using direct canonical imports rather than these adversarial forms.
+Reason: These comments require modeling broader symbol families or intentionally
+obfuscated equivalences through control-flow joins, nested lexical scopes,
+namespace mappings, builtins loaders, containers, closures,
+descriptors, `attrgetter`/`methodcaller`/`itemgetter`, `partial`, comprehensions,
+pattern matching, or context managers. Those constructions are outside the
+approved trusted-source threat model. Expanding the architecture guard to
+simulate them created an open-ended pseudo-interpreter and was rolled back.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024580 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024583 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024587 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024591 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024592 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024593 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024594 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024595 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024600 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024601 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024602 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024855 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024857 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565030449 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565030453 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565030460 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565030462 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565030464 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565030465 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565030468 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565030470 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565030472 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565030475 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565131656 -> 044e968a99368b2d6773a655b2e81d92ded8d18f
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565131657 -> 044e968a99368b2d6773a655b2e81d92ded8d18f
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565152800 -> 028b40fad73b3a07d391842cc944e0200da20852
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565192808 -> 028b40fad73b3a07d391842cc944e0200da20852
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565204816 -> 6a9a563a69cbc5ffeefff2d8787a5edde22bc488
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565204818 -> 6a9a563a69cbc5ffeefff2d8787a5edde22bc488
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565204821 -> 6a9a563a69cbc5ffeefff2d8787a5edde22bc488
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565224748 -> c5409d0de09bdae93dacce376a1a84d91f375253
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565279783 -> d893ba2e39288c09f9af269603e7c572ed00d407
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565279785 -> d893ba2e39288c09f9af269603e7c572ed00d407
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565761896 -> 6d3234cd3
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565761898 -> 6d3234cd3
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565761900 -> 6d3234cd3
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565815767 -> 187a468e6
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565815768 -> 187a468e6
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565815769 -> 187a468e6
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565962508 -> fb730789d683fe199ade4e757c8ed816dc7d4d27
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565962510 -> fb730789d683fe199ade4e757c8ed816dc7d4d27
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565962512 -> fb730789d683fe199ade4e757c8ed816dc7d4d27
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3566012932 -> abf567f18fb775aef73b56d1321f8d726b407fc0
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024583
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565030465
+Disposition: NOT-A-BUG
+Evidence: `legacy_app.py` re-exports exactly `get_api_key` and
+`_get_api_key_dynamic`; `api_key_header`, `validate_app_api_key`, and
+`require_app_api_key` are canonical-only objects and have no legacy ownership
+contract. Runtime identity and reverse-import tests pass.
+Reason: `CANONICAL_API_KEY_SYMBOLS` intentionally describes the two temporary
+legacy compatibility re-exports, not every object owned by the canonical auth
+module.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024584
 Disposition: NOT-A-BUG
-Evidence: `artifacts/orchestration/experiments/results/exp-6fdd2ed789f8.json` records `mutated_paths: []` and `shared_tree_untouched: true`; the production guard diff was implemented in the coordinator-owned PR lane and independently reviewed by the Runner as an immutable oracle.
-Reason: Creative-Code mutation authority remains denied; the comment's proposed threat model applies to autonomous candidate mutation, not to normal reviewed repository edits made by this PR lane.
-
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#pullrequestreview-4678749721 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
-Disposition: FIXED
-Commit: 276ca9b6087149dc5b89a375fa4f189e64a40a3f
-Evidence: The commit follows the CodeRabbit review timestamp and fixes its complete initial actionable set; the individual discussion URLs are mapped above to the exact fixing commits, and the current-head CodeRabbit check is PASS.
-
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#pullrequestreview-4678740036
-Disposition: NOT-A-BUG
-Evidence: `app/AGENTS.md` freezes the four API-key contracts as intentionally distinct; `tests/test_api_key_dependency_ownership.py` proves their separate behavior and exact identity; `scripts/ci/check_legacy_growth_guard.py` is isolated behind a complete focused guard suite.
-Reason: Sourcery's three high-level comments are maintainability suggestions, not runtime defects: merging the strict and compatibility decision matrices would violate the frozen behavior boundary, family-specific diagnostics are already centralized by `_require_canonical_api_key_dependency`, and splitting the static analyzer during its security-closure PR would increase review surface without changing enforcement.
-
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#pullrequestreview-4679560869 -> f9f92ae91bd5c499a60b26840fe89486adabddf9
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#pullrequestreview-4679599924 -> f9f92ae91bd5c499a60b26840fe89486adabddf9
-Disposition: FIXED
-Commit: f9f92ae91bd5c499a60b26840fe89486adabddf9
-Evidence: The post-review commit closes nested irrefutable-match, implicit `__builtins__`, and literal loop-target gaps, plus every bounded starred, builtins-namespace, and static-dict variant surfaced by the ordered QA, bug-hunter, and security-auditor reroutes; the complete 527-test legacy-growth suite, focused MyPy/Ruff, guard CLI, OpenAPI parity, `make validate-changed`, and full pre-commit pass on the repaired diff.
-
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565899162 -> c3a5e5d60d043e04a0431789b8240ba28296ce3b
-Disposition: FIXED
-Commit: c3a5e5d60d043e04a0431789b8240ba28296ce3b
-Evidence: The post-comment commit detects direct, bound, unbound, owner-aliased, namespace-reflected, and recursively `.__call__`-wrapped object/legacy `__getattribute__` lookups; the 553-test legacy-growth suite, focused MyPy/Ruff, guard CLI, OpenAPI parity, `make validate-changed`, full pre-commit, and ordered QA/bug-hunter/security-auditor reroutes pass without another security scan.
+Evidence: The accepted Experiment Runner artifact records
+`mutated_paths: []` and `shared_tree_untouched: true`; the production diff was
+implemented and reviewed in the coordinator-owned PR lane.
+Reason: Creative-Code mutation authority remained denied, so autonomous
+candidate-mutation threats do not apply to these reviewed repository edits.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565899163
 Disposition: NOT-A-BUG
-Evidence: On current branch head, `git merge-base --is-ancestor 2c4aaa00c5c4bd66839d5b45d415cc090bfb6ec0 HEAD` and `git merge-base --is-ancestor f9f92ae91bd5c499a60b26840fe89486adabddf9 HEAD` both exit 0; `git log --graph` shows the mapped implementation and repair commits in the published branch ancestry.
-Reason: The review evaluated an ephemeral/synthetic snapshot `1e50a01`; the actual PR branch preserves the full commit series, so existing FIXED proof SHAs are included and verifiable rather than out-of-head.
+Evidence: `git merge-base --is-ancestor 2c4aaa00c HEAD` and
+`git merge-base --is-ancestor 276ca9b608 HEAD` both exit 0 on the current
+branch; all FIXED mappings above reference current-head ancestors.
+Reason: The comment evaluated an ephemeral review snapshot. The published PR
+branch contains the implementation and repair commits used as proof.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#pullrequestreview-4679753222 -> abf567f18fb775aef73b56d1321f8d726b407fc0
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#pullrequestreview-4679767879 -> abf567f18fb775aef73b56d1321f8d726b407fc0
-Disposition: FIXED
-Commit: abf567f18fb775aef73b56d1321f8d726b407fc0
-Evidence: The post-review commit blocks runtime-type and `methodcaller` lookup bypasses and closes every bounded ordered-role finding across exact mapping provenance, branch/loop/try/finally state, global/nonlocal and namespace rebinding, returned/yielded mapping escapes, and lazy sync/async generator wrappers. The 772-test legacy-growth suite, focused MyPy/Ruff, guard CLI, exact OpenAPI parity, `make validate-changed`, full pre-commit, and ordered QA/bug-hunter/security-auditor closure all pass without another security scan.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#pullrequestreview-4678740036
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#pullrequestreview-4678749721
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#pullrequestreview-4679560869
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#pullrequestreview-4679599924
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#pullrequestreview-4679753222
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#pullrequestreview-4679767879
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#pullrequestreview-4679848127
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#pullrequestreview-4679857529
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#pullrequestreview-4680167226
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#pullrequestreview-4680178140
+Disposition: NOT-A-BUG
+Evidence: Each inline actionable from these review summaries has a
+thread-specific disposition above. The final bounded architecture and runtime
+contracts are tested independently.
+Reason: Review-summary comments add no separate actionable beyond their inline
+threads. Their repeated adversarial-syntax suggestions are governed by the
+documented threat-model disposition above.
 
 ## Codex Security Diff Scan
 
+- Session: `087abf69-cee7-45d6-aeb2-dc85824177bc`
 - Scan ID: `ed39a46f-6432-4d54-b597-1ed772b1cf25`
 - Target: `12fd4ec8366a29443fcf0fe87743eed7aeca8e24..d287b868c798ea80276fe19f06c9870ab7a1cec5`
 - Result: 7/7 worklist rows closed; 0 reportable findings.
-- Coverage: six changed production/auth files plus
-  `scripts/ci/check_legacy_growth_guard.py` as the directly supporting
-  fail-closed security control.
-- Report: local sealed Codex Security artifact
-  `report.md` for the scan above. It is intentionally not committed.
-- Subsequent guard-only fixes through `abf567f18` were not rescanned per the
-  explicit operator instruction. They were closed by the ordered QA, bug-hunter, and
-  security-auditor passes plus the complete focused guard suite, MyPy, Ruff,
-  Bandit, and pre-commit evidence.
-
-## PulsePlate PR Review
-
-- Mode: `dry-run-report`
-- Result: no correctness, architecture, security, QA, or release finding.
-- Advisory: the 28-file/4,121-line review-risk threshold requires human scope
-  confirmation.
-- Disposition: NOT-A-BUG.
-- Evidence: the PR body contains the operator-approved privileged scope
-  exception; the diff is one callable-identity cutover plus distributed exact
-  route, guard, and compatibility evidence, and the required narrow bundle
-  passed. Splitting would reintroduce contradictory security owners or known
-  false-green guard states.
-
-## Pre-Implementation Role Findings
-
-### Agent Coordinator
-
-Disposition: NOT-A-BUG
-Evidence: Packet `b6706fba26f3` bounded ownership to the canonical API-key
-module, exact compatibility aliases, direct production consumers, focused
-guards/tests, and scoped documentation.
-Reason: No task-routing or authority blocker remained after fresh-main
-preflight.
-
-### Architecture Specialist
-
-Disposition: FIXED
-Commit: `2c4aaa00c`
-Evidence: `app/routers/api_key.py` is the sole implementation owner;
-`legacy_app.py` contains exact aliases; `app/__init__.py` exposes the same
-objects; production consumers import the canonical dependency directly.
-Reason: The reverse import and wrapper risks are removed without claiming
-isolated-module reload compatibility.
-
-### Backend Engineer
-
-Disposition: FIXED
-Commit: `2c4aaa00c`
-Evidence: All 13 default and five conditional protected route registrations are
-covered by exact-object dependency tests, while `/premium_bmr` remains the
-intentional unprotected compatibility exception.
-Reason: The complete consumer cutover preserves route and response behavior.
-
-### Security Auditor
-
-Disposition: FIXED
-Commit: `2c4aaa00c`
-Evidence: Dynamic override results reject non-string and blank values;
-unexpected failures keep generic 500 envelopes and omit exception messages,
-tracebacks, and credential values from logs; warn-once state is lock-protected.
-Reason: Every bounded secret-handling and fail-closed defect found in the
-touched graph is closed.
-
-### QA Engineer Agent
-
-Disposition: FIXED
-Commit: `2c4aaa00c`
-Evidence: The 12-case compatibility matrix freezes exact 403 details,
-environment precedence, dev leniency/normalization, and warning behavior; guard
-bypass, route identity, and warning-as-error regressions pass.
-Reason: The initially missing acceptance cases and false-green guard paths are
-covered deterministically.
-
-### Bug Hunter
-
-Disposition: FIXED
-Commit: `2c4aaa00c`
-Evidence: Focused Flake8 passes; live route dependency traversal uses exact
-callable identity; the legacy guard rejects reverse imports, qualified/dynamic
-lookups, alias rebinding, and stale header reintroduction.
-Reason: No remaining lint, dependency-override, or ownership-guard actionable
-survived the closure pass.
+- Scope note: no production/auth file changed after this target. Later material
+  commits modify only the guard, guard tests, threat-model docs, and review
+  governance.
+- Operator decision: do not launch another security scan. Targeted final
+  security-auditor review and current-head CI cover the rollback diff.
 
 ## Post-Open Role Evidence
 
-The post-open packet `05dfe3b5523c` was executed in its declared serial order:
-`agent-coordinator -> qa-engineer-agent -> bug-hunter -> security-auditor ->
-architecture-specialist`. Material security repairs triggered targeted closure
-reroutes through the same coordinator.
-
-- QA reproduced the initial review findings and passed the expanded 19-file
-  regression suite after repair.
-- Bug hunter exercised 21 lexical-scope and alias-binding probes; the final
-  closure pass found no reproducible bypass.
-- Security auditor found comprehension, class-scope, lambda, annotation,
-  `global`, and `nonlocal` false-green paths; all were fixed and re-reviewed.
-- Later current-head closure reroutes fixed definition/final closure timing,
-  structured `if` joins, static-name and walrus expression state, ternary,
-  comprehension zero-iteration, and Boolean short-circuit semantics. The final
-  bug-hunter and security-auditor passes reported no remaining counterexample.
-- The next current-head closure fixed `__dict__`, `vars()`, and
-  `__getattribute__` namespace reads plus nested static lookup-name propagation;
-  bug-hunter and security-auditor closure passes both reported PASS.
-- The final facade/loader closure preserved `app.api_key_header` exact identity,
-  rejected legacy star imports, and tracked assigned `import_module` loaders;
-  both ordered closure roles reported PASS.
-- The final current-head closure rejected `__import__`/`sys.modules` legacy
-  loaders and made compound alias flow path-sensitive across loops, repeated
-  `while` tests, `break`/`continue`, `try`/`try*`, `with`, `match`, nested
-  exception prefixes, and guaranteed `finally` cleanup. The ordered QA,
-  bug-hunter, and security-auditor reruns all reported PASS.
-- The subsequent current-head closure made lookup-name state lexical and
-  path-sensitive, preserved simultaneous/destructured RHS evaluation order,
-  and resolved bounded expression/literal receivers with Python-compatible
-  index, duplicate-key, and dict-unpack semantics. Its ordered QA, bug-hunter,
-  and security-auditor reruns all reported PASS.
-- The final namespace/default closure retained `legacy_app.__dict__` and bound
-  helper aliases through direct, `vars`, `getattr`, and `__getattribute__`
-  construction, and separated definition-time defaults from late-bound free
-  variables for `def`, `async def`, and lambda scopes. Its ordered QA,
-  bug-hunter, and security-auditor reruns all reported PASS.
-- The final reflected-namespace closure distinguishes module globals from
-  function/class locals, retains nonlocal cells, rejects reflected
-  operator/importlib lookups, and inspects every statically enumerable
-  `attrgetter` argument including nested starred literal mappings. Its ordered
-  QA, bug-hunter, and security-auditor reruns all reported PASS.
-- The post-comment runtime-reflection closure rejects runtime-type and
-  `methodcaller` paths, keeps exact empty/nonempty mapping provenance through
-  assignments and namespace methods, joins control-flow and transfer states,
-  distinguishes fast locals from globals, and tracks eager closure escapes and
-  lazy sync/async generator consumption. The ordered QA, bug-hunter, and
-  security-auditor reruns all reported PASS without another scan.
-- Architecture confirmed the final guard remains a narrow canonical ownership
-  boundary and does not claim arbitrary Python static-analysis completeness.
+- Architecture specialist identified the AST feedback loop as an architectural
+  `NO-GO` and approved bounded rollback with a trusted-source threat model.
+- Final QA passed at `c78ecac8d` after finding and closing bounded
+  source-order/single-alias gaps. It verified module binding and star-import
+  checks, nested sync/async safe controls, runtime identity, the focused
+  runtime/security suite, and confirmed the implementation remains syntactic
+  rather than interpreter-like.
+- Final bug-hunter passed the code/runtime surface at `c78ecac8d`:
+  guard/ownership suites, guard CLI, production reverse-import search,
+  callable identity, override, malformed-result, and log-redaction contracts
+  passed. Its sole mapping wording inconsistency was corrected before commit.
+- Final security-auditor passed at `c78ecac8d`: production/auth diff after the
+  scanned `d287b868c` target is empty; exact aliases, fail-closed 403/500
+  behavior, `compare_digest`, warning concurrency, log redaction, malformed
+  result rejection, bounded threat-model dispositions, and mapped commit
+  ancestry all passed. No new security scan was launched.
+- Role passes are read-only and do not replace deterministic gates or strict
+  merge readiness.
 
 ## Premortem
 
-- Callable wrappers break FastAPI override identity: FIXED through exact aliases
-  and exact-object route assertions.
-- Partial consumer cutover leaves legacy ownership: FIXED for the complete
-  default and conditional route inventories.
-- Lenient-mode concurrency floods logs: FIXED with lock-protected process-once
+- Callable wrappers break FastAPI override identity: closed through exact
+  aliases and exact-object route assertions.
+- Partial consumer cutover leaves legacy ownership: closed by complete
+  protected-route inventory tests.
+- Lenient-mode concurrency floods logs: closed with lock-protected process-once
   state and deterministic concurrency coverage.
-- Credential-bearing exception text reaches logs: FIXED with stable
-  classification-only logging and explicit redaction assertions.
-- AST guard is false-green through qualified lookup or rebinding: FIXED with
-  direct, dynamic-import, assignment, annotation, augmented-assignment, and
-  named-expression negative controls.
-- Test infrastructure advertises a stale dependency override: FIXED by removing
-  the unused `get_api_key` override from `tests/conftest.py`.
-- Active validation emits Pydantic serializer warnings: FIXED by providing the
-  declared `set` type in the affected test fixtures and verifying under warning
-  escalation.
-
-Decision: `proceed`; no premortem finding remains open.
-
-## Experiment Runner Evidence
-
-Artifact: `artifacts/orchestration/experiments/results/exp-6fdd2ed789f8.json`
-
-- Mode: `oracle_only_governance_reviewer`
-- Status: `accepted`
-- Contribution: `commit_decision`
-- Immutable oracles: 3/3 passed
-- `mutated_paths: []`; `shared_tree_untouched: true`
-- Co-author required: true; the canonical trailer is present on material commit
-  `2c4aaa00c`.
-- SHA-256:
-  `bb3632c4e3dd19fee8b2b7520b1a773199b00ffd7769243ac5b464472363b32d`.
-- `promotion_ready: false`; no candidate patch or promotion authority was used.
-
-Preceding attempt `exp-4ee89b07e873` was rejected as an infrastructure flake
-because the macOS network-disabled sandbox lacked `unshare`; no oracle ran and
-that artifact is not used as review or attribution evidence.
-
-Repair artifact:
-`artifacts/orchestration/experiments/results/exp-677234b9d985.json`
-
-- Mode: `oracle_only_governance_reviewer`
-- Status: `accepted`
-- Contribution: `review_disposition`
-- Immutable oracles: 3/3 passed
-- `mutated_paths: []`; `shared_tree_untouched: true`
-- Co-author required: true; the canonical trailer is present on repair commit
-  `276ca9b608`.
-- SHA-256:
-  `11f46628bdcfa8e9a69daa7f532f5d747cf9b279ac5d343817b4b5fe4f4c6f89`.
+- Credential-bearing exception text reaches logs: closed with
+  classification-only logging and redaction assertions.
+- Guard silently skips ordinary reverse dependency forms: closed for direct
+  imports, direct attribute/literal-`getattr`, literal importlib, module-level
+  exact re-export, one-hop ordinary alias, source ordering, and missing scan
+  roots.
+- Guard grows into an incomplete Python interpreter: closed by rollback and
+  the explicit bounded threat model.
 
 ## Validation Evidence
 
-- PASS: execute-mode preflight and agent consistency.
-- PASS: focused 17-file auth/bootstrap/security regression suite.
-- PASS: warning-as-error regression for corrected Pydantic fixtures.
-- PASS: focused MyPy and legacy growth guard.
-- PASS: `make openapi-check` with zero generated diff.
-- PASS: `make validate-changed` after commit; 13 changed backend/security test
-  files selected and completed.
-- PASS: `pre-commit run --all-files`; no final hook modifications.
-- PASS: pre-push MyPy, pip-audit, backend tests, full Bandit, and Docker build.
-- PASS: post-open focused ownership/guard suite and expanded 19-file regression
-  suite after every review repair.
-- PASS: post-open `make validate-changed`; 15 backend/security suites selected
-  and completed on commit `276ca9b608`.
-- PASS: post-open full pre-commit and pre-push hooks, including Bandit after
-  replacing subprocess-based source discovery with direct fail-closed scanning.
-- PASS: final full legacy-growth suite plus 26- and 15-probe independent
-  control-flow closure passes on commit `044e968a9`.
-- PASS: full legacy-growth suite, 109-case targeted namespace/static-binding
-  bug-hunter pass, security closure, validate-changed, full pre-commit, and
-  pre-push gates on commit `028b40fad`.
-- PASS: 114-case facade/import ownership closure, focused coverage regression,
-  security closure, validate-changed, full pre-commit, and pre-push gates on
-  commit `6a9a563a6`.
-- PASS: keyed namespace retrieval regressions, full legacy-growth suite,
-  validate-changed, full pre-commit, and pre-push gates on commit `c5409d0de`.
-- PASS: 527-test legacy-growth suite, focused MyPy/Ruff, guard CLI, exact
-  OpenAPI parity, 15-suite `make validate-changed`, and full pre-commit after
-  the final Cubic/role-review closure on commit `f9f92ae91`.
-- PASS: 553-test legacy-growth suite, reflected-lookup regression matrix,
-  focused MyPy/Ruff, guard CLI, exact OpenAPI parity, 15-suite
-  `make validate-changed`, full pre-commit, and ordered role closure on commit
-  `c3a5e5d60`.
-- PASS: 606-test legacy-growth suite, reflected namespace/accessor regression
-  matrix, focused MyPy/Ruff, guard CLI, exact OpenAPI parity, 15-suite
-  `make validate-changed`, full pre-commit, and ordered role closure on commit
-  `fb730789d6`.
-- PASS: 772-test legacy-growth suite, runtime reflection/mapping/control-flow
-  regression matrix, focused MyPy/Ruff, guard CLI, exact OpenAPI parity,
-  15-suite `make validate-changed`, full pre-commit, and ordered
-  QA/bug-hunter/security-auditor closure on commit `abf567f18`.
-- PASS: `git diff --check`, conflict check, and local-artifact check.
+- PASS: `python3 scripts/orchestration/check_preflight.py`.
+- PASS: `python3 scripts/orchestration/check_agent_consistency.py`.
+- PASS: `python3 scripts/ci/check_legacy_growth_guard.py`.
+- PASS: 341-test `tests/test_legacy_growth_guard.py` suite.
+- PASS: focused ownership, warning, bootstrap, export/shoplist/moderation,
+  premium-router, auth-tier/authz, business, and paid-route regression pack.
+- PASS: focused MyPy for seven production/guard files.
+- PASS: `DEV_PYTHON=<repo-python> make openapi-check`; generated OpenAPI and
+  TypeScript artifacts have zero diff.
+- PASS: `make validate-changed` on the post-rollback material diff.
+- PASS: commit hooks including Black, Ruff, Bandit, backend tests, and secrets
+  detection for every material rollback commit.
+- PASS: final `make validate-changed` after all bounded code repairs.
+- PASS: final `pre-commit run --all-files`; no hook-modified files remained.
 - Not run: local full `make verify`, per repository machine-budget policy.
 
 ## Merge Readiness
 
-Not claimed. The repaired implementation is committed at `abf567f18`.
-Codex Security, `pulseplate-pr-review`, and current-head external bot review
-are complete; refreshed current-head CI, strict authenticated merge readiness,
-and the final wait window remain required.
+Not claimed. Final role passes, mapping/body publication, review-thread
+dispositions, current-head CI, `pulseplate-pr-review`, strict authenticated
+merge readiness, and the mandatory wait window remain required.
 
 ## Deferred / Follow-ups
 
