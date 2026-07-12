@@ -47,6 +47,10 @@ closes every bounded pre-open defect found in the touched auth/bootstrap graph.
 - `187a468e6` - retain dynamically obtained legacy namespace/helper provenance
   and definition-time default aliases across function, async-function, and
   lambda scopes without breaking safe rebinding or late-bound free variables.
+- `f9f92ae91bd5c499a60b26840fe89486adabddf9` - close the two later Cubic
+  review findings and the bounded role-review closure: nested irrefutable
+  matches, implicit/explicit builtins loader namespaces, exact literal-loop
+  targets, starred/static-dict expansion, and safe shadow controls.
 
 ## Discussion Thread Pass
 
@@ -106,7 +110,7 @@ dispositioned here before thread resolution or merge-readiness claims.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565815769
 Disposition: FIXED
 Commit: see mapping entries below
-Evidence: Commits `276ca9b608`, `044e968a9`, `028b40fad`, `6a9a563a6`, `c5409d0de`, `d893ba2e3`, `6d3234cd3`, and `187a468e6`; focused API-key ownership, full legacy-growth, export, business, metrics, and warning suites; `make validate-changed`; full pre-commit; pre-push MyPy, pip-audit, backend tests, Bandit, and Docker build all pass.
+Evidence: Commits `276ca9b608`, `044e968a9`, `028b40fad`, `6a9a563a6`, `c5409d0de`, `d893ba2e3`, `6d3234cd3`, `187a468e6`, and `f9f92ae91`; focused API-key ownership, full legacy-growth, export, business, metrics, and warning suites; `make validate-changed`; full pre-commit; pre-push MyPy, pip-audit, backend tests, Bandit, and Docker build all pass.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024580 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024583 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
@@ -163,6 +167,17 @@ Disposition: NOT-A-BUG
 Evidence: `app/AGENTS.md` freezes the four API-key contracts as intentionally distinct; `tests/test_api_key_dependency_ownership.py` proves their separate behavior and exact identity; `scripts/ci/check_legacy_growth_guard.py` is isolated behind a complete focused guard suite.
 Reason: Sourcery's three high-level comments are maintainability suggestions, not runtime defects: merging the strict and compatibility decision matrices would violate the frozen behavior boundary, family-specific diagnostics are already centralized by `_require_canonical_api_key_dependency`, and splitting the static analyzer during its security-closure PR would increase review surface without changing enforcement.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#pullrequestreview-4679560869 -> f9f92ae91bd5c499a60b26840fe89486adabddf9
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#pullrequestreview-4679599924 -> f9f92ae91bd5c499a60b26840fe89486adabddf9
+Disposition: FIXED
+Commit: f9f92ae91bd5c499a60b26840fe89486adabddf9
+Evidence: The post-review commit closes nested irrefutable-match, implicit
+`__builtins__`, and literal loop-target gaps, plus every bounded starred,
+builtins-namespace, and static-dict variant surfaced by the ordered QA,
+bug-hunter, and security-auditor reroutes. The complete 527-test legacy-growth
+suite, focused MyPy/Ruff, guard CLI, OpenAPI parity, `make validate-changed`,
+and full pre-commit pass on the repaired diff.
+
 ## Codex Security Diff Scan
 
 - Scan ID: `ed39a46f-6432-4d54-b597-1ed772b1cf25`
@@ -173,8 +188,8 @@ Reason: Sourcery's three high-level comments are maintainability suggestions, no
   fail-closed security control.
 - Report: local sealed Codex Security artifact
   `report.md` for the scan above. It is intentionally not committed.
-- Subsequent guard-only fixes in `d893ba2e3` were not rescanned per the explicit
-  operator instruction. They were closed by the ordered QA, bug-hunter, and
+- Subsequent guard-only fixes through `f9f92ae91` were not rescanned per the
+  explicit operator instruction. They were closed by the ordered QA, bug-hunter, and
   security-auditor passes plus the complete focused guard suite, MyPy, Ruff,
   Bandit, and pre-commit evidence.
 
@@ -372,12 +387,15 @@ Repair artifact:
   commit `6a9a563a6`.
 - PASS: keyed namespace retrieval regressions, full legacy-growth suite,
   validate-changed, full pre-commit, and pre-push gates on commit `c5409d0de`.
+- PASS: 527-test legacy-growth suite, focused MyPy/Ruff, guard CLI, exact
+  OpenAPI parity, 15-suite `make validate-changed`, and full pre-commit after
+  the final Cubic/role-review closure on commit `f9f92ae91`.
 - PASS: `git diff --check`, conflict check, and local-artifact check.
 - Not run: local full `make verify`, per repository machine-budget policy.
 
 ## Merge Readiness
 
-Not claimed. The repaired implementation is published at `c5409d0de`.
+Not claimed. The repaired implementation is published at `f9f92ae91`.
 Codex Security, `pulseplate-pr-review`, and current-head external bot review
 are complete; refreshed current-head CI, strict authenticated merge readiness,
 and the final wait window remain required.
