@@ -34,6 +34,14 @@ Evidence: `docs/review/PR_2107_FIXED_MAPPING.md:5`
 Reason: The required discussion-thread pass checkboxes were added and checked.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2107#discussion_r3566922141 -> 3b7621aa1
 
+Disposition: FIXED
+Commit: fd1495ded
+Evidence: `docs/review/PR_2107_FIXED_MAPPING.md:95` and `docs/security/PRIVATE_PYTHON_PROXY_HEALTH_GATE.md:15`
+Reason: Merge-readiness checkboxes were reset until final readiness, and stale evidence anchors now point to the current default project list.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2107#discussion_r3566988548 -> fd1495ded
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2107#discussion_r3566988553 -> fd1495ded
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2107#discussion_r3566991587 -> fd1495ded
+
 ## Bot Review Dispositions
 
 ### CodeRabbit / Cubic exact Hypothesis assertion
