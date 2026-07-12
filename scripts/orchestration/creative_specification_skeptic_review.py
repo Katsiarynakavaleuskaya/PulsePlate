@@ -579,6 +579,7 @@ def _adaptive_retained_lineage_snapshot(
     tuple[str, ...],
     tuple[str, ...],
     tuple[int, int, int, int],
+    tuple[tuple[str, FinalizeFileSnapshot, FinalizeFileSnapshot], ...],
 ]:
     bridge_before = os.fstat(bridge_fd)
     bridge_mutation_before = (
@@ -600,6 +601,16 @@ def _adaptive_retained_lineage_snapshot(
     bridge_entries = tuple(sorted(os.listdir(bridge_fd)))
     canonical_entries = tuple(sorted(os.listdir(canonical_fd)))
     retained_entries = tuple(sorted(os.listdir(retained_fd)))
+    shared_json_names = sorted(set(canonical_entries) & set(retained_entries))
+    paired_file_snapshots = tuple(
+        (
+            filename,
+            _finalize_file_snapshot(os.stat(filename, dir_fd=canonical_fd, follow_symlinks=False)),
+            _finalize_file_snapshot(os.stat(filename, dir_fd=retained_fd, follow_symlinks=False)),
+        )
+        for filename in shared_json_names
+        if filename.endswith(".json")
+    )
     bridge_after = os.fstat(bridge_fd)
     bridge_mutation_after = (
         bridge_after.st_dev,
@@ -619,6 +630,7 @@ def _adaptive_retained_lineage_snapshot(
         canonical_entries,
         retained_entries,
         bridge_mutation_after,
+        paired_file_snapshots,
     )
 
 
@@ -1140,12 +1152,13 @@ def _open_pinned_finalize_output(
                 f"reviewed finalize output {filename} identity changed during pinning."
             )
         return file_fd, _finalize_file_snapshot(opened)
-    except Exception:
+    except Exception as primary_error:
         close_error = creative_code_spec_pipeline._close_descriptors(file_fd)
         if close_error is not None:
             raise CreativeSpecificationSkepticReviewCliError(
-                f"reviewed finalize output {filename} could not be closed safely."
-            ) from close_error
+                f"{primary_error}; cleanup_diagnostic=reviewed finalize output "
+                f"{filename} could not be closed safely: {close_error}"
+            ) from primary_error
         raise
 
 
@@ -2078,6 +2091,31 @@ def _finalize_from_attachment(attachment_path: Path) -> dict[str, Any]:
         _assert_canonical_reviewed_run_identity(
             reviewed_dir,
             expected_identity=staging_identity,
+        )
+        _assert_exact_reviewed_run_payloads(
+            staging_fd,
+            expected_payloads=finalized_payloads,
+        )
+        _assert_pinned_finalize_outputs(
+            staging_fd,
+            expected_bundle=validated_bundle,
+            expected_receipt=receipt,
+        )
+        _read_pinned_reviewed_inputs(
+            reviewed_fd,
+            expected_payloads=expected_payloads,
+        )
+        _assert_parent_entry_identity(
+            reviewed_parent_fd,
+            name=reviewed_dir.name,
+            expected_identity=staging_identity,
+            label="reviewed finalize published run",
+        )
+        _assert_parent_entry_identity(
+            reviewed_parent_fd,
+            name=staging_name,
+            expected_identity=reviewed_identity,
+            label="reviewed finalize retained pre-finalize run",
         )
     except Exception as primary_error:
         retained_names = [reviewed_dir.name]

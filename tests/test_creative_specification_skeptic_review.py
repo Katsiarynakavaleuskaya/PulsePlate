@@ -443,10 +443,35 @@ def test_attach_validate_finalize_preserves_original_spec_prepare(
             review_cli._validate_adaptive_retained_pre_finalize_run(output_dir)
         retained_source.write_bytes(retained_source_bytes)
         review_cli._validate_adaptive_retained_pre_finalize_run(output_dir)
+        real_read_json_at = review_cli._read_json_at
+        content_reads = 0
+
+        def mutate_retained_content_after_comparison(directory_fd: int, filename: str) -> Any:
+            nonlocal content_reads
+            payload = real_read_json_at(directory_fd, filename)
+            content_reads += 1
+            if content_reads == 10:
+                retained_source.write_text("{}\n", encoding="utf-8")
+            return payload
+
+        with monkeypatch.context() as context:
+            context.setattr(
+                review_cli,
+                "_read_json_at",
+                mutate_retained_content_after_comparison,
+            )
+            with pytest.raises(
+                review_cli.CreativeSpecificationSkepticReviewCliError,
+                match="adaptive retained pre-finalize lineage changed during validation",
+            ):
+                review_cli._validate_adaptive_retained_pre_finalize_run(output_dir)
+        assert content_reads == 10
+        retained_source.write_bytes(retained_source_bytes)
+        review_cli._validate_adaptive_retained_pre_finalize_run(output_dir)
+
         replacement = output_dir / ".retained-replacement"
         detached_retained = output_dir / ".detached-valid-retained"
         replacement.mkdir()
-        real_read_json_at = review_cli._read_json_at
         pinned_reads = 0
 
         def swap_retained_after_pinned_reads(directory_fd: int, filename: str) -> Any:
@@ -2313,6 +2338,60 @@ def test_finalize_revalidates_outputs_at_terminal_input_seam(
         assert len(retained_runs) == 1
         assert (retained_runs[0] / review_cli.FINALIZE_RECEIPT_FILENAME).is_file()
         assert (retained_runs[0] / review_cli.BUNDLE_FILENAME).is_file()
+    finally:
+        shutil.rmtree(output_dir, ignore_errors=True)
+        shutil.rmtree(input_dir, ignore_errors=True)
+
+
+def test_finalize_revalidates_payloads_after_atomic_exchange(
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output_dir, input_dir = _prepared_bridge(capsys, suffix="post-exchange-payload-mutation")
+    try:
+        reviews_path = _write_review_input(output_dir, _review_input(output_dir))
+        assert (
+            review_cli.main(
+                [
+                    "attach",
+                    "--bridge",
+                    str(output_dir / bridge_cli.BRIDGE_FILENAME),
+                    "--reviews",
+                    str(reviews_path),
+                ]
+            )
+            == 0
+        )
+        capsys.readouterr()
+        reviewed_dir = output_dir / "spec_finalize_reviewed"
+        attachment_path = reviewed_dir / review_cli.ATTACHMENT_FILENAME
+        real_exchange = review_cli._kernel_rename_exchange
+
+        def mutate_bundle_after_exchange(
+            parent_fd: int,
+            source_name: str,
+            destination_name: str,
+        ) -> None:
+            real_exchange(parent_fd, source_name, destination_name)
+            (reviewed_dir / review_cli.BUNDLE_FILENAME).write_text("{}\n", encoding="utf-8")
+
+        with monkeypatch.context() as context:
+            context.setattr(review_cli, "_kernel_rename_exchange", mutate_bundle_after_exchange)
+            exit_code = review_cli.main(["finalize", "--attachment", str(attachment_path)])
+        captured = capsys.readouterr()
+        assert exit_code == 1
+        assert review_cli.FINALIZE_SUCCESS_OUTPUT not in captured.out
+        assert "exchange_state=published" in captured.err
+        assert (reviewed_dir / review_cli.BUNDLE_FILENAME).read_text(encoding="utf-8") == "{}\n"
+        retained_runs = list(output_dir.glob(".spec_finalize_reviewed.*.pre-finalize"))
+        assert len(retained_runs) == 1
+        assert {path.name for path in retained_runs[0].iterdir()} == {
+            "source_packet.json",
+            "variants.json",
+            "skeptic_reviews.json",
+            "context_pack.json",
+            review_cli.ATTACHMENT_FILENAME,
+        }
     finally:
         shutil.rmtree(output_dir, ignore_errors=True)
         shutil.rmtree(input_dir, ignore_errors=True)
