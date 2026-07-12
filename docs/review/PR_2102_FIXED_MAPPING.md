@@ -44,6 +44,9 @@ closes every bounded pre-open defect found in the touched auth/bootstrap graph.
 - `6d3234cd3` - close lexical static-string, simultaneous destructuring,
   expression receiver, and literal container resolution gaps while preserving
   Python evaluation order and safe negative controls.
+- `187a468e6` - retain dynamically obtained legacy namespace/helper provenance
+  and definition-time default aliases across function, async-function, and
+  lambda scopes without breaking safe rebinding or late-bound free variables.
 
 ## Discussion Thread Pass
 
@@ -98,9 +101,12 @@ dispositioned here before thread resolution or merge-readiness claims.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565761896
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565761898
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565761900
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565815767
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565815768
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565815769
 Disposition: FIXED
 Commit: see mapping entries below
-Evidence: Commits `276ca9b608`, `044e968a9`, `028b40fad`, `6a9a563a6`, `c5409d0de`, `d893ba2e3`, and `6d3234cd3`; focused API-key ownership, full legacy-growth, export, business, metrics, and warning suites; `make validate-changed`; full pre-commit; pre-push MyPy, pip-audit, backend tests, Bandit, and Docker build all pass.
+Evidence: Commits `276ca9b608`, `044e968a9`, `028b40fad`, `6a9a563a6`, `c5409d0de`, `d893ba2e3`, `6d3234cd3`, and `187a468e6`; focused API-key ownership, full legacy-growth, export, business, metrics, and warning suites; `make validate-changed`; full pre-commit; pre-push MyPy, pip-audit, backend tests, Bandit, and Docker build all pass.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024580 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024583 -> 276ca9b6087149dc5b89a375fa4f189e64a40a3f
@@ -138,6 +144,9 @@ Evidence: Commits `276ca9b608`, `044e968a9`, `028b40fad`, `6a9a563a6`, `c5409d0d
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565761896 -> 6d3234cd3
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565761898 -> 6d3234cd3
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565761900 -> 6d3234cd3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565815767 -> 187a468e6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565815768 -> 187a468e6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565815769 -> 187a468e6
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2102#discussion_r3565024584
 Disposition: NOT-A-BUG
@@ -275,6 +284,11 @@ reroutes through the same coordinator.
   and resolved bounded expression/literal receivers with Python-compatible
   index, duplicate-key, and dict-unpack semantics. Its ordered QA, bug-hunter,
   and security-auditor reruns all reported PASS.
+- The final namespace/default closure retained `legacy_app.__dict__` and bound
+  helper aliases through direct, `vars`, `getattr`, and `__getattribute__`
+  construction, and separated definition-time defaults from late-bound free
+  variables for `def`, `async def`, and lambda scopes. Its ordered QA,
+  bug-hunter, and security-auditor reruns all reported PASS.
 - Architecture confirmed the final guard remains a narrow canonical ownership
   boundary and does not claim arbitrary Python static-analysis completeness.
 
