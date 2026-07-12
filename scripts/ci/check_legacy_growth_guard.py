@@ -1647,18 +1647,62 @@ def validate_api_key_dependency_ownership(
             continue
         module_aliases: dict[str, str] = {}
         import_module_aliases: set[str] = set()
-        static_string_bindings = _collect_static_string_bindings(tree)
-        for import_node in ast.walk(tree):
-            if isinstance(import_node, ast.Import):
-                for alias in import_node.names:
-                    if alias.name in {"importlib", "legacy_app"}:
-                        module_aliases[alias.asname or alias.name] = alias.name
-            elif isinstance(import_node, ast.ImportFrom) and import_node.module == "importlib":
-                for alias in import_node.names:
-                    if alias.name == "import_module":
-                        import_module_aliases.add(alias.asname or alias.name)
+        static_string_bindings: dict[str, str] = {}
+        top_level_rebound_names: set[str] = set()
+
+        def record_bounded_lookups(expression: ast.AST) -> None:
+            def expression_is_legacy_module(node: ast.AST) -> bool:
+                return (
+                    _static_module_reference(
+                        node,
+                        module_aliases=module_aliases,
+                        import_module_aliases=import_module_aliases,
+                        static_string_bindings=static_string_bindings,
+                    )
+                    == "legacy_app"
+                )
+
+            for lookup_node in ast.walk(expression):
+                if (
+                    isinstance(lookup_node, ast.Attribute)
+                    and lookup_node.attr in CANONICAL_API_KEY_SYMBOLS
+                    and expression_is_legacy_module(lookup_node.value)
+                ):
+                    errors.append(
+                        f"{filename}: legacy API-key dependency attribute access is "
+                        f"forbidden: {lookup_node.attr}"
+                    )
+                elif (
+                    filename != CANONICAL_API_KEY
+                    and isinstance(lookup_node, ast.Call)
+                    and isinstance(lookup_node.func, ast.Name)
+                    and lookup_node.func.id == "getattr"
+                    and len(lookup_node.args) >= 2
+                    and expression_is_legacy_module(lookup_node.args[0])
+                    and (
+                        symbol_name := _resolve_static_string(
+                            lookup_node.args[1], static_string_bindings
+                        )
+                    )
+                    in CANONICAL_API_KEY_SYMBOLS
+                ):
+                    errors.append(
+                        f"{filename}: dynamic legacy API-key dependency lookup is forbidden: "
+                        f"{symbol_name}"
+                    )
 
         for statement in tree.body:
+            if isinstance(statement, ast.Import):
+                for alias in statement.names:
+                    if alias.name in {"importlib", "legacy_app"}:
+                        module_aliases[alias.asname or alias.name] = alias.name
+                continue
+            if isinstance(statement, ast.ImportFrom) and statement.module == "importlib":
+                for alias in statement.names:
+                    if alias.name == "import_module":
+                        import_module_aliases.add(alias.asname or alias.name)
+                continue
+
             value: ast.AST | None = None
             targets: tuple[ast.expr, ...] = ()
             if isinstance(statement, ast.Assign):
@@ -1669,18 +1713,29 @@ def validate_api_key_dependency_ownership(
                 targets = (statement.target,)
             if value is None:
                 continue
+            record_bounded_lookups(value)
             reference = _static_module_reference(
                 value,
                 module_aliases=module_aliases,
                 import_module_aliases=import_module_aliases,
                 static_string_bindings=static_string_bindings,
             )
+            static_string = _resolve_static_string(value, static_string_bindings)
             for target in targets:
                 for target_name in _assignment_target_names(target):
+                    top_level_rebound_names.add(target_name)
                     if reference == "legacy_app":
                         module_aliases[target_name] = reference
                     else:
                         module_aliases.pop(target_name, None)
+                    if static_string is None:
+                        static_string_bindings.pop(target_name, None)
+                    else:
+                        static_string_bindings[target_name] = static_string
+
+        for target_name in top_level_rebound_names:
+            module_aliases.pop(target_name, None)
+            static_string_bindings.pop(target_name, None)
 
         def legacy_module_reference(node: ast.AST) -> bool:
             return (
