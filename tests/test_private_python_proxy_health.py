@@ -137,6 +137,27 @@ def test_parse_exact_pins_rejects_conflicting_repeated_pins(tmp_path: Path) -> N
         checker.parse_exact_pins([first, second])
 
 
+def test_parse_exact_pins_scoped_projects_rejects_selected_conflicts(tmp_path: Path) -> None:
+    first = tmp_path / "requirements.txt"
+    second = tmp_path / "requirements-dev.txt"
+    first.write_text("mypy==2.2.0\n", encoding="utf-8")
+    second.write_text("mypy==2.1.0\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="conflicting_exact_pins: mypy"):
+        checker.parse_exact_pins_for_projects([first, second], projects=["mypy"])
+
+
+def test_parse_exact_pins_scoped_projects_ignores_unselected_conflicts(tmp_path: Path) -> None:
+    first = tmp_path / "requirements.txt"
+    second = tmp_path / "requirements-dev.txt"
+    first.write_text("chardet==5.2.0\nmypy==2.2.0\n", encoding="utf-8")
+    second.write_text("chardet==7.4.0.post1\nmypy==2.2.0\n", encoding="utf-8")
+
+    assert checker.parse_exact_pins_for_projects([first, second], projects=["mypy"]) == {
+        "mypy": "2.2.0"
+    }
+
+
 def test_main_default_projects_exclude_large_pydantic_core_probe(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -165,19 +186,45 @@ def test_main_default_projects_exclude_large_pydantic_core_probe(
             results=(),
         )
 
-    def fake_parse_exact_pins(requirements_files: list[Path]) -> dict[str, str]:
-        assert requirements_files
+    def fake_parse_exact_pins_for_projects(
+        requirements_files: list[Path],
+        projects: list[str],
+    ) -> dict[str, str]:
+        assert requirements_files == [
+            Path("requirements.txt"),
+            Path("requirements-ci-lite.txt"),
+            Path("requirements-test.txt"),
+            Path("requirements-dev.txt"),
+        ]
+        assert projects == [
+            "aiosqlite",
+            "cryptography",
+            "requests",
+            "pytest-xdist",
+            "hypothesis",
+            "mypy",
+            "ruff",
+            "librt",
+            "ast-serialize",
+            "pgvector",
+        ]
         return {
             "aiosqlite": "0.22.1",
             "cryptography": "48.0.1",
             "requests": "2.33.0",
             "pytest-xdist": "3.8.0",
-            "hypothesis": "6.155.7",
+            "hypothesis": "6.156.6",
+            "mypy": "2.2.0",
+            "ruff": "0.15.21",
+            "librt": "0.13.0",
+            "ast-serialize": "0.6.0",
             "pgvector": "0.4.2",
             "pydantic-core": "2.41.5",
         }
 
-    monkeypatch.setattr(checker, "parse_exact_pins", fake_parse_exact_pins)
+    monkeypatch.setattr(
+        checker, "parse_exact_pins_for_projects", fake_parse_exact_pins_for_projects
+    )
     monkeypatch.setattr(checker, "check_health", fake_check_health)
 
     assert checker.main(["--index-url", APPROVED_INDEX]) == 0
@@ -187,6 +234,10 @@ def test_main_default_projects_exclude_large_pydantic_core_probe(
         "requests",
         "pytest-xdist",
         "hypothesis",
+        "mypy",
+        "ruff",
+        "librt",
+        "ast-serialize",
         "pgvector",
     ]
     assert "pydantic-core" not in captured_projects

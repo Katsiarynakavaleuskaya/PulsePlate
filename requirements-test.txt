@@ -24,7 +24,7 @@ httpcore2==2.3.0
     # via httpx2
 httpx2==2.3.0
     # via -r requirements-test.in
-hypothesis==6.156.1
+hypothesis==6.156.6
     # via -r requirements-test.in
 idna==3.15
     # via

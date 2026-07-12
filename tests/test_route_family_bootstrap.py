@@ -445,7 +445,7 @@ def test_legacy_premium_gaps_wrapper_delegates_inside_route_family_ci_suite(
 def test_legacy_premium_router_rejects_missing_api_key_symbol_inside_ci_suite(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(app_main._legacy_module, "_get_api_key_dynamic", None)
+    monkeypatch.setattr(app_main, "_get_api_key_dynamic", None)
 
     with pytest.raises(
         RuntimeError,

@@ -12,7 +12,7 @@ or dependency lockfiles.
 
 ## Protected Contract
 
-Evidence anchor: `scripts/ci/check_private_python_proxy_health.py:591` defines
+Evidence anchor: `scripts/ci/check_private_python_proxy_health.py:784` defines
 the default representative project set, and
 `tests/test_private_python_proxy_workflow_contract.py:62` validates the CI
 health job command contract.
@@ -32,8 +32,14 @@ health job command contract.
   `https://packages.pulseplate.app/simple/` are rejected because they do not
   exercise the canonical devpi root `root/pulseplate/+simple/`.
 - HTTP 200 is not enough. Representative pages must include exact versions from
-  the pinned requirements files, including the CI-lite and test-only pins used
-  by `ci-test` jobs.
+  the pinned requirements files, including the CI-lite, test-only, and dev-tool
+  pins used by `ci-test`, lint, and pre-commit jobs.
+- The representative health gate scopes exact-pin conflict detection to probed
+  projects via `parse_exact_pins_for_projects(...)`. This lets the CI gate
+  include `requirements-dev.txt` without failing on unrelated cross-profile
+  transitive drift, while still failing closed when a probed package has
+  conflicting exact pins. The general `parse_exact_pins(...)` helper remains a
+  strict all-package conflict detector.
 
 ## Failure Classes
 
@@ -67,11 +73,16 @@ python3 scripts/ci/check_private_python_proxy_health.py \
   --requirements-file requirements.txt \
   --requirements-file requirements-ci-lite.txt \
   --requirements-file requirements-test.txt \
+  --requirements-file requirements-dev.txt \
   --project aiosqlite \
   --project cryptography \
   --project requests \
   --project pytest-xdist \
   --project hypothesis \
+  --project mypy \
+  --project ruff \
+  --project librt \
+  --project ast-serialize \
   --project pgvector
 python3 scripts/ci/install_locked_python_requirements.py --preflight-only
 python -m pytest -q tests/test_private_python_proxy_health.py

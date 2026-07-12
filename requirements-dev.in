@@ -10,7 +10,7 @@ pytest-asyncio~=1.4.0
 pytest-xdist~=3.8.0
 pytest-picked~=0.5.0
 pytest-split~=0.11.0
-hypothesis~=6.156.1
+hypothesis~=6.156.6
 faker~=40.28.1  # Test data generation (40.11.1 yanked / unavailable on PyPI)
 # coverage and diff-cover: use compatible release for stability
 coverage~=7.15.0
@@ -31,9 +31,9 @@ msgpack>=1.2.1,<2.0.0  # Security floor for GHSA-6v7p-g79w-8964 via CacheControl
 pre-commit~=4.6.0
 pip-tools~=7.5.3
 detect-secrets~=1.5.0
-mypy==2.1.0
+mypy==2.2.0
 types-pyyaml~=6.0.12
 yamllint~=1.38.0
 black~=26.5.1
-ruff~=0.15.20
+ruff~=0.15.21
 nh3>=0.3.2  # HTML sanitization (required for data_sanitizer security tests)

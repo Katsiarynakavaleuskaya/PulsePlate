@@ -46,7 +46,7 @@ from app.routers.admin_operations import (
     ADMIN_OPERATION_ROUTE_SPECS,
     router as admin_operations_router,
 )
-from app.routers.api_key import require_app_api_key
+from app.routers.api_key import _get_api_key_dynamic, require_app_api_key
 from app.routers.bayes_adherence import (
     BAYES_ADHERENCE_ROUTE_SPECS,
     router as bayes_adherence_router,
@@ -276,12 +276,18 @@ _RESTAURANT_ROUTE_REQUIRED_STATUS_CODES: dict[tuple[str, str], frozenset[int]] =
 _FOODS_BARCODE_REQUIRED_STATUS_CODES = frozenset({404, 422})
 
 
+def _require_canonical_api_key_dependency(family_name: str) -> Callable[..., object]:
+    dependency = _get_api_key_dynamic
+    if not callable(dependency):
+        raise RuntimeError(f"{family_name} API key dependency is unavailable.")
+    return cast(Callable[..., object], dependency)
+
+
 def _build_legacy_export_aliases_router() -> APIRouter:
     if not getattr(_legacy_module, "EXPORTS_ENABLED", False):
         return APIRouter()
 
     required_symbol_names = (
-        "_get_api_key_dynamic",
         "export_daily_plan_csv",
         "export_pdf_generic",
         "export_weekly_plan_csv",
@@ -304,7 +310,7 @@ def _build_legacy_export_aliases_router() -> APIRouter:
         return cast(Callable[..., Awaitable[Any]], handler)
 
     return build_legacy_export_aliases_router(
-        api_key_dependency=getattr(_legacy_module, "_get_api_key_dynamic"),
+        api_key_dependency=_require_canonical_api_key_dependency("Legacy export aliases"),
         export_daily_plan_csv=lambda: legacy_export_handler("export_daily_plan_csv"),
         export_pdf_generic=lambda: legacy_export_handler("export_pdf_generic"),
         export_weekly_plan_csv=lambda: legacy_export_handler("export_weekly_plan_csv"),
@@ -1045,10 +1051,7 @@ def _include_legacy_export_alias_router_if_needed(target_app: FastAPI) -> None:
 def _include_plan_export_routers_if_needed(target_app: FastAPI) -> None:
     """Register canonical plan/export routes as one protected atomic family."""
 
-    api_key_dependency = getattr(_legacy_module, "_get_api_key_dynamic", None)
-    if not callable(api_key_dependency):
-        raise RuntimeError("Plan export API key dependency is unavailable.")
-    api_key_dependency = cast(Callable[..., object], api_key_dependency)
+    api_key_dependency = _require_canonical_api_key_dependency("Plan export")
 
     ensure_route_family_registered(
         target_app,
@@ -1062,10 +1065,7 @@ def _include_plan_export_routers_if_needed(target_app: FastAPI) -> None:
 def _include_shoplist_export_router_if_needed(target_app: FastAPI) -> None:
     """Register public shoplist export routes as one protected atomic family."""
 
-    api_key_dependency = getattr(_legacy_module, "_get_api_key_dynamic", None)
-    if not callable(api_key_dependency):
-        raise RuntimeError("Shoplist export API key dependency is unavailable.")
-    api_key_dependency = cast(Callable[..., object], api_key_dependency)
+    api_key_dependency = _require_canonical_api_key_dependency("Shoplist export")
 
     ensure_route_family_registered(
         target_app,
@@ -1116,10 +1116,7 @@ def _include_bodyfat_router_if_needed(target_app: FastAPI) -> None:
 def _include_legacy_premium_nutrition_router_if_needed(target_app: FastAPI) -> None:
     """Register legacy premium nutrition aliases as one exact compatibility family."""
 
-    api_key_dependency = getattr(_legacy_module, "_get_api_key_dynamic", None)
-    if not callable(api_key_dependency):
-        raise RuntimeError("Legacy premium nutrition API key dependency is unavailable.")
-    api_key_dependency = cast(Callable[..., object], api_key_dependency)
+    api_key_dependency = _require_canonical_api_key_dependency("Legacy premium nutrition")
 
     ensure_route_family_registered(
         target_app,
@@ -1132,10 +1129,7 @@ def _include_legacy_premium_nutrition_router_if_needed(target_app: FastAPI) -> N
 def _include_legacy_premium_weekly_plan_router_if_needed(target_app: FastAPI) -> None:
     """Register legacy premium weekly-plan alias as one exact compatibility family."""
 
-    api_key_dependency = getattr(_legacy_module, "_get_api_key_dynamic", None)
-    if not callable(api_key_dependency):
-        raise RuntimeError("Legacy premium weekly-plan API key dependency is unavailable.")
-    api_key_dependency = cast(Callable[..., object], api_key_dependency)
+    api_key_dependency = _require_canonical_api_key_dependency("Legacy premium weekly-plan")
 
     ensure_route_family_registered(
         target_app,
@@ -1238,10 +1232,7 @@ def _include_restaurants_router_if_needed(target_app: FastAPI) -> None:
 def _include_restaurant_moderation_router_if_needed(target_app: FastAPI) -> None:
     """Register restaurant moderation route as one protected atomic family."""
 
-    api_key_dependency = getattr(_legacy_module, "_get_api_key_dynamic", None)
-    if not callable(api_key_dependency):
-        raise RuntimeError("Restaurant moderation API key dependency is unavailable.")
-    api_key_dependency = cast(Callable[..., object], api_key_dependency)
+    api_key_dependency = _require_canonical_api_key_dependency("Restaurant moderation")
 
     ensure_route_family_registered(
         target_app,

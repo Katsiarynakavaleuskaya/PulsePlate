@@ -39,6 +39,9 @@ _LOCAL_EXPORTS: dict[str, tuple[str, str]] = {
     # Expose metrics_endpoint for patch-based tests (patch("app.metrics"))
     "metrics": ("app.bootstrap.metrics", "metrics_endpoint"),
     "lifespan": ("app.bootstrap.lifespan", "application_lifespan"),
+    "api_key_header": ("app.routers.api_key", "api_key_header"),
+    "get_api_key": ("app.routers.api_key", "get_api_key"),
+    "_get_api_key_dynamic": ("app.routers.api_key", "_get_api_key_dynamic"),
     # BMI router ownership lives in app.main; these remain compatibility attrs.
     "FEATURE_BMI_PRO_ENABLED": ("app.main", "FEATURE_BMI_PRO_ENABLED"),
     "bmi_router": ("app.main", "bmi_router"),
@@ -133,6 +136,7 @@ __all__ = [
     "app",
     "get_update_scheduler",
     "lifespan",
+    "get_api_key",
     # Local explicit re-exports
     "resolve_attr",
     "make_weekly_menu",

@@ -8,7 +8,7 @@ from fastapi import HTTPException
 from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 
-from legacy_app import _get_api_key_dynamic
+from app.routers.api_key import _get_api_key_dynamic
 from app.effective_routes import (
     iter_effective_route_candidates,
     route_endpoint,

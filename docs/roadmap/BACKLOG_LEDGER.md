@@ -6663,12 +6663,15 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 - [ ] P2: Complete legacy_app.py migration (delete legacy endpoints)
   - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: TBD (v2.0 timeline, after all migrations)
+  - Target PR: PR #2102 -> PR-TBD-APP-METADATA-OPENAPI -> PR-TBD-REMAINING-LEGACY-CUTOVERS -> PR-TBD-APP-FACTORY -> PR-TBD-LEGACY-DELETION
   - Priority: P2 (long-term cleanup)
-  - Reason: After all critical security fixes and endpoint migrations complete, eventually delete `legacy_app.py` entirely. Legacy business and route logic should move to its canonical owners: modular routers (`app/routers/*`), services (`app/services/*`), bootstrap modules (`app/bootstrap/*`), or core modules (`core/*`) according to responsibility. The current train extracts lifecycle ownership first, then cuts canonical `app/*` dependencies on legacy compatibility symbols, inverts app-factory/OpenAPI ownership, and finally inventories/removes the remaining facade exports.
+  - Status: In progress. Route, middleware, and lifespan ownership are canonical; the active slice moves app-client API-key dependency ownership to `app/routers/api_key.py` without changing auth behavior. Application metadata/OpenAPI policy is the next slice, followed by remaining reverse-dependency cutovers, app-factory inversion, and final compatibility inventory/deletion.
+  - Reason: After all critical security fixes and endpoint migrations complete, eventually delete `legacy_app.py` entirely. Legacy business and route logic should move to its canonical owners: modular routers (`app/routers/*`), services (`app/services/*`), bootstrap modules (`app/bootstrap/*`), or core modules (`core/*`) according to responsibility. The current train has extracted lifecycle ownership and now cuts canonical `app/*` dependencies on legacy compatibility symbols before app-factory/OpenAPI ownership inversion and final facade removal.
   - Links:
     - docs/audit/LEGACY_APP_MIGRATION_STATUS.md (overall progress, migration status)
     - docs/pr/PR_THIN_PROXY_CLEANUP_PLAN.md
+    - app/routers/api_key.py
+    - docs/architecture/LEGACY_COMPATIBILITY_SEAM.md
   - Prerequisites:
     - ✅ All P0 security fixes complete (rate-limiting, tier guards)
     - ✅ All P1 migrations complete (constants extracted, WebSocket secured)
@@ -12217,6 +12220,31 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - No IRT or psychometric scoring is implemented
     - No runtime/API/frontend/iOS/billing/OpenAPI/App Store/Claude/Opus/MCP changes are included
 
-**Last updated:** 2026-05-04 (evaluation item statistics baseline ledger entry added)
+<a id="ledger-p1-ruby-3-3-fastlane-runtime"></a>
+- [ ] P1: Migrate the Fastlane execution runtime to Ruby 3.3 or newer
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (release-tooling compatibility)
+  - Target PR: PR-TBD-RUBY-3-3-FASTLANE-RUNTIME
+  - Status: Opened on 13 July 2026
+  - Reason: The no-auth validation lane passes with Fastlane `2.237.0` on the
+    canonical Ruby `3.1` runtime, but Fastlane emits an explicit warning that a
+    future release will require Ruby `3.3` or newer. The current dependency
+    remediation remains supported; this lane prevents the announced runtime
+    transition from becoming an emergency release blocker.
+  - Links:
+    - `tests/runtime_toolchain_versions.py`
+    - `tests/test_runtime_toolchain_alignment.py`
+    - `ios/Gemfile`
+    - `docs/security/CVE-2026-54171-excon-fastlane.md`
+  - DoD:
+    - canonical local and CI Ruby versions are upgraded together to a supported
+      Ruby `3.3` or newer release
+    - Fastlane and Bundler locks remain deterministic and compatible
+    - the no-auth `validate_metadata_package` lane passes without the Ruby
+      deprecation warning
+    - iOS release tooling and current-head CI pass without App Store mutation
+    - rollback and operator migration instructions are documented
+
+**Last updated:** 2026-07-13 (Ruby 3.3 Fastlane runtime migration tracked)
 **Maintainer:** @katsiaryna_kavaleuskaya
 <!-- markdownlint-enable MD013 -->

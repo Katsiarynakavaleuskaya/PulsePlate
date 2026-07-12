@@ -484,8 +484,8 @@ def _ensure_app_module(app_module: ModuleType) -> None:
 
 
 @pytest.fixture
-def app(app_module: ModuleType) -> FastAPI:
-    """Return the FastAPI app instance with observability bootstrap and API key mock.
+def app() -> FastAPI:
+    """Return the FastAPI app instance with observability bootstrap.
 
     Uses app.main:app (canonical entrypoint with metrics bootstrap),
     not legacy_app.app directly.
@@ -496,17 +496,6 @@ def app(app_module: ModuleType) -> FastAPI:
     app_instance = app.main.app
 
     disable_rate_limiting_for_test_app(app_instance)
-
-    # Apply lenient API key mode
-    def mock_get_api_key(api_key: str = "") -> str:
-        if not api_key or len(api_key.strip()) < 3:
-            from fastapi import HTTPException
-
-            raise HTTPException(status_code=403, detail="Invalid API Key")
-        return api_key
-
-    if hasattr(app_instance, "dependency_overrides") and hasattr(app_module, "get_api_key"):
-        app_instance.dependency_overrides[app_module.get_api_key] = mock_get_api_key
 
     return cast(FastAPI, app_instance)
 

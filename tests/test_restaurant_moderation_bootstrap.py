@@ -134,7 +134,7 @@ def test_restaurant_moderation_registration_is_canonical_and_idempotent() -> Non
     assert endpoint.__qualname__ == "review_restaurant_submission"
     assert route_include_in_schema(route) is False
     assert set(route_responses(route)) == {404, 422}
-    assert route_has_dependency_call(route, app_main._legacy_module._get_api_key_dynamic)
+    assert route_has_dependency_call(route, app_main._get_api_key_dynamic)
     assert _STATUS_PATH not in app.openapi().get("paths", {})
 
 
@@ -145,14 +145,14 @@ def test_live_app_keeps_restaurant_moderation_route_hidden_and_protected() -> No
     route = routes[0]
     assert route_include_in_schema(route) is False
     assert set(route_responses(route)) == {404, 422}
-    assert route_has_dependency_call(route, app_main._legacy_module._get_api_key_dynamic)
+    assert route_has_dependency_call(route, app_main._get_api_key_dynamic)
     assert _STATUS_PATH not in app_main.app.openapi().get("paths", {})
 
 
 def test_restaurant_moderation_registration_rejects_missing_api_key_dependency_symbol(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(app_main._legacy_module, "_get_api_key_dynamic", None)
+    monkeypatch.setattr(app_main, "_get_api_key_dynamic", None)
 
     with pytest.raises(
         RuntimeError,
@@ -253,7 +253,7 @@ def test_restaurant_moderation_registration_rejects_existing_foreign_handler() -
             404: {"description": "Submission not found"},
             422: {"description": "Invalid transition"},
         },
-        dependencies=[Depends(app_main._legacy_module._get_api_key_dynamic)],
+        dependencies=[Depends(app_main._get_api_key_dynamic)],
     )(_foreign_handler)
 
     with pytest.raises(

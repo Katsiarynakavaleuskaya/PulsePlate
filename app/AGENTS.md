@@ -362,6 +362,20 @@ Avoid `# type: ignore[no-any-return]` and prefer typed locals over `cast()`.
 
 ## Common pitfalls
 
+### Canonical app-client API-key dependency ownership
+
+- `api_key_header`, `get_api_key`, `_get_api_key_dynamic`,
+  `validate_app_api_key`, and `require_app_api_key` belong to
+  `app/routers/api_key.py` and remain separate compatibility/security contracts.
+- Canonical routers and bootstrap code import these callables directly from the
+  canonical module, never from `legacy_app.py` or through legacy-module
+  `getattr` lookup.
+- `legacy_app.py` may temporarily re-export the exact callable objects; wrappers
+  are forbidden because FastAPI dependency overrides key on callable identity.
+- API keys are app-client credentials, not authenticated user/principal truth.
+- Unexpected validation failures must keep stable generic client envelopes and
+  must not log key values, exception messages, or credential-bearing traceback.
+
 - Import Hygiene: do NOT reintroduce dynamic module loading in `app/__init__.py`
   (no `spec_from_file_location`, no `exec_module`, no sys.path hacks).
 - `import app` is a PEP 562 shim: `app.app` MUST point to `legacy_app.app`, and

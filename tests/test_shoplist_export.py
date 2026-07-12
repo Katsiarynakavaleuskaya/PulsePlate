@@ -70,7 +70,7 @@ def test_shoplist_export_route_registration_contract() -> None:
         assert 429 in route_responses(route)
         assert route_has_dependency_call(
             route,
-            app_main._legacy_module._get_api_key_dynamic,
+            app_main._get_api_key_dynamic,
         )
 
 

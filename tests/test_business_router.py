@@ -203,24 +203,24 @@ class TestBusinessRouterIsolated:
     def test_get_runtime_env_name_falls_back_to_app_env_and_local(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        from app.routers import api_key as api_key_mod
+        from settings import get_runtime_env_name
 
         monkeypatch.delenv("ENVIRONMENT", raising=False)
         monkeypatch.setenv("APP_ENV", "qa")
-        assert api_key_mod._get_runtime_env_name() == "qa"
+        assert get_runtime_env_name() == "qa"
 
         monkeypatch.delenv("APP_ENV", raising=False)
-        assert api_key_mod._get_runtime_env_name() == "local"
+        assert get_runtime_env_name() == "local"
 
     def test_get_runtime_env_name_prefers_environment_override(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        from app.routers import api_key as api_key_mod
+        from settings import get_runtime_env_name
 
         monkeypatch.setenv("APP_ENV", "qa")
         monkeypatch.setenv("ENVIRONMENT", "review")
 
-        assert api_key_mod._get_runtime_env_name() == "review"
+        assert get_runtime_env_name() == "review"
 
     def test_validate_app_api_key_accepts_exact_configured_key(
         self, monkeypatch: pytest.MonkeyPatch
