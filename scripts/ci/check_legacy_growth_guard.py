@@ -1592,7 +1592,10 @@ def validate_api_key_dependency_ownership(
             if not isinstance(node, ast.ImportFrom) or node.module != "app.routers.api_key":
                 continue
             for alias in node.names:
-                if alias.name in CANONICAL_API_KEY_SYMBOLS and alias.asname == alias.name:
+                if alias.name in CANONICAL_API_KEY_SYMBOLS and alias.asname in {
+                    None,
+                    alias.name,
+                }:
                     exact_aliases.add(alias.name)
         for name in sorted(CANONICAL_API_KEY_SYMBOLS - exact_aliases):
             errors.append(
@@ -1652,6 +1655,30 @@ def validate_api_key_dependency_ownership(
                     if alias.name == "import_module":
                         import_module_aliases.add(alias.asname or alias.name)
 
+        for statement in tree.body:
+            value: ast.AST | None = None
+            targets: tuple[ast.expr, ...] = ()
+            if isinstance(statement, ast.Assign):
+                value = statement.value
+                targets = tuple(statement.targets)
+            elif isinstance(statement, ast.AnnAssign) and statement.value is not None:
+                value = statement.value
+                targets = (statement.target,)
+            if value is None:
+                continue
+            reference = _static_module_reference(
+                value,
+                module_aliases=module_aliases,
+                import_module_aliases=import_module_aliases,
+                static_string_bindings=static_string_bindings,
+            )
+            for target in targets:
+                for target_name in _assignment_target_names(target):
+                    if reference == "legacy_app":
+                        module_aliases[target_name] = reference
+                    else:
+                        module_aliases.pop(target_name, None)
+
         def legacy_module_reference(node: ast.AST) -> bool:
             return (
                 _static_module_reference(
@@ -1687,12 +1714,12 @@ def validate_api_key_dependency_ownership(
                 and node.func.id == "getattr"
                 and len(node.args) >= 2
                 and legacy_module_reference(node.args[0])
-                and isinstance(node.args[1], ast.Constant)
-                and node.args[1].value in CANONICAL_API_KEY_SYMBOLS
+                and (symbol_name := _resolve_static_string(node.args[1], static_string_bindings))
+                in CANONICAL_API_KEY_SYMBOLS
             ):
                 errors.append(
                     f"{filename}: dynamic legacy API-key dependency lookup is forbidden: "
-                    f"{node.args[1].value}"
+                    f"{symbol_name}"
                 )
     return sorted(set(errors))
 
