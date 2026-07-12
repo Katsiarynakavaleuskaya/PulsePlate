@@ -56,6 +56,9 @@ does not claim to prove equivalence across intentionally obfuscated Python.
 - `f764bd5fc` - select the dedicated API-key ownership and warning suites in
   canonical `route_contract_safety` CI and cover the non-callable guard plus
   lock-race return deterministically.
+- `4d8fbbd90` - keep the `test-pr` and `test-feature` route-risk suites
+  identical and pin the dedicated auth-suite selection in the workflow
+  contract test.
 
 ## Analyzer Rollback Decision
 
@@ -85,7 +88,8 @@ does not claim to prove equivalence across intentionally obfuscated Python.
 - [x] One previously completed Codex Security diff scan retained as production
   cutover evidence; no new scan is authorized or required for guard/docs-only
   rollback commits.
-- [x] `pulseplate-pr-review` completed on the final published head.
+- [x] `pulseplate-pr-review` rerun completed on published material head
+  `4d8fbbd90`.
 - [x] All current review threads dispositioned and resolved.
 - [ ] Current-head CI completed.
 - [ ] Strict authenticated merge readiness and mandatory wait window completed.
@@ -215,19 +219,18 @@ Reason: Review-summary comments add no separate actionable beyond their inline t
   checks, nested sync/async safe controls, runtime identity, the focused
   runtime/security suite, and confirmed the implementation remains syntactic
   rather than interpreter-like.
-- Final bug-hunter passed the code/runtime surface at `c78ecac8d`:
-  guard/ownership suites, guard CLI, production reverse-import search,
-  callable identity, override, malformed-result, and log-redaction contracts
-  passed. Its sole mapping wording inconsistency was corrected before commit.
-- Final security-auditor passed at `c78ecac8d`: production/auth diff after the
-  scanned `d287b868c` target is empty; exact aliases, fail-closed 403/500
-  behavior, `compare_digest`, warning concurrency, log redaction, malformed
-  result rejection, bounded threat-model dispositions, and mapped commit
-  ancestry all passed. No new security scan was launched.
-- `pulseplate-pr-review` dry-run completed on published head `31a67552d` with
-  no deterministic correctness, security, or architecture findings. Its sole
-  advisory large-diff note is dispositioned by the operator-approved coherent
-  identity-cutover scope and the material analyzer rollback.
+- Final ordered QA and bug-hunter reruns passed at `4d8fbbd90`: 62 focused
+  workflow/auth tests passed, the two CI risk suites are identical, and the
+  contract test pins both dedicated auth targets.
+- Final security-auditor passed the runtime/security/workflow delta at
+  `4d8fbbd90`: production/auth diff after scanned target `d287b868c` remains
+  empty; the workflow change is symmetric and introduces no permission,
+  skip, secret, or fail-closed drift. No new security scan was launched.
+- `pulseplate-pr-review` reran on published material head `4d8fbbd90` with no
+  deterministic correctness, security, or architecture finding. Its sole
+  advisory large-diff note remains dispositioned by the operator-approved
+  coherent identity cutover, material analyzer rollback, focused gates, and
+  ordered role review.
 - Role passes are read-only and do not replace deterministic gates or strict
   merge readiness.
 
@@ -268,13 +271,15 @@ Reason: Review-summary comments add no separate actionable beyond their inline t
   route-risk selection omitted the dedicated auth suites; `f764bd5fc` closes
   the proven routing gap and targeted coverage now executes every previously
   missing changed line in `app/routers/api_key.py`.
+- PASS: mirrored `test-pr`/`test-feature` workflow contract and 62 focused
+  workflow/auth ownership tests after `4d8fbbd90`.
 - Not run: local full `make verify`, per repository machine-budget policy.
 
 ## Merge Readiness
 
-Not claimed. Final role passes, mapping/body publication, review-thread
-dispositions, current-head CI, `pulseplate-pr-review`, strict authenticated
-merge readiness, and the mandatory wait window remain required.
+Not claimed. The final governance evidence must be published, then current-head
+CI, final bot/actionable verification, strict authenticated merge readiness,
+and the mandatory wait window remain required.
 
 ## Deferred / Follow-ups
 
