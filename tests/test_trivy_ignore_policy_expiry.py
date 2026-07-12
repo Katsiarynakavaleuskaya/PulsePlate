@@ -379,7 +379,7 @@ def test_faraday_fastlane_doc_records_scanner_lag_removal() -> None:
     assert "temporary Trivy scanner-lag" in doc_text
     assert "suppression for `faraday@1.10.6` was removed" in doc_text
     assert "faraday@1.10.6" in doc_text
-    assert "fastlane (2.235.0)" in doc_text
+    assert "fastlane (2.237.0)" in doc_text
     assert "Fixed versions per advisory: `1.10.6` and `2.14.3`" in doc_text
     assert "2026-07-05 recheck" in doc_text
     assert "no longer reported any HIGH/CRITICAL finding" in doc_text
