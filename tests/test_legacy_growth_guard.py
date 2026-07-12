@@ -465,6 +465,389 @@ def test_api_key_ownership_guard_rejects_empty_keyword_mapping_across_lookup_fam
 
 
 @pytest.mark.parametrize(
+    "lookup",
+    [
+        'from operator import attrgetter\ndependency = attrgetter("get_api_key.__name__")(legacy)\n',
+        (
+            "from operator import itemgetter\n"
+            'dependency = itemgetter("get_api_key")(legacy.__dict__)\n'
+        ),
+        (
+            "from operator import methodcaller\n"
+            'dependency = methodcaller("get", "get_api_key")(legacy.__dict__)\n'
+        ),
+        'dependency = dict.__getitem__(legacy.__dict__, "get_api_key")\n',
+        'dependency = dict.get(legacy.__dict__, "_get_api_key_dynamic")\n',
+        (
+            "from functools import partial\n"
+            "lookup = partial(getattr, legacy)\n"
+            'dependency = lookup("get_api_key")\n'
+        ),
+        (
+            "from functools import partial\n"
+            'lookup = partial(getattr, legacy, "get_api_key")\n'
+            "dependency = lookup()\n"
+        ),
+        (
+            "from functools import partial\n"
+            'lookup = partial(legacy.__dict__.get, "get_api_key")\n'
+            "dependency = lookup()\n"
+        ),
+        (
+            "from functools import partial\n"
+            "lookup = partial(getattr, legacy)\n"
+            'bound = partial(lookup, "get_api_key")\n'
+            "dependency = bound()\n"
+        ),
+        (
+            "from functools import partial\n"
+            "factory = partial(partial, getattr, legacy)\n"
+            'bound = factory("get_api_key")\n'
+            "dependency = bound()\n"
+        ),
+        (
+            "from functools import partial\n"
+            "factory = partial(partial, getattr)\n"
+            "lookup = factory(legacy)\n"
+            'dependency = lookup("get_api_key")\n'
+        ),
+        (
+            "from functools import partial\n"
+            "factory = partial(partial, legacy.__dict__.get)\n"
+            'bound = factory("_get_api_key_dynamic")\n'
+            "dependency = bound()\n"
+        ),
+        (
+            "from functools import partial\n"
+            "factory = partial(partial, partial, getattr, legacy)\n"
+            'stage1 = factory("get_api_key")\n'
+            "stage2 = stage1()\n"
+            "dependency = stage2()\n"
+        ),
+        (
+            "from functools import partial\n"
+            "factory = partial(partial, getattr, legacy)\n"
+            'bound = partial.__call__(factory, "get_api_key")\n'
+            "dependency = bound()\n"
+        ),
+        (
+            "from functools import partial\n"
+            "factory = partial(partial, getattr, legacy)\n"
+            "caller = type(factory).__call__\n"
+            'bound = caller(factory, "get_api_key")\n'
+            "dependency = bound()\n"
+        ),
+        (
+            "from functools import partial\n"
+            "from operator import attrgetter\n"
+            "factory = partial(partial, getattr, legacy)\n"
+            'caller = attrgetter("__call__")(partial)\n'
+            'bound = caller(factory, "get_api_key")\n'
+            "dependency = bound()\n"
+        ),
+        (
+            "from functools import partial\n"
+            "factory = partial(partial, getattr, legacy)\n"
+            'caller = vars(type(factory))["__call__"]\n'
+            'bound = caller(factory, "get_api_key")\n'
+            "dependency = bound()\n"
+        ),
+        (
+            "from functools import partial\n"
+            "factory = partial(partial, getattr, legacy)\n"
+            "caller = factory.__class__.__call__\n"
+            'bound = caller(factory, "get_api_key")\n'
+            "dependency = bound()\n"
+        ),
+        (
+            "from functools import partial\n"
+            "factory = partial(partial, getattr, legacy)\n"
+            'caller = type.__getattribute__(partial, "__call__")\n'
+            'bound = caller(factory, "get_api_key")\n'
+            "dependency = bound()\n"
+        ),
+        (
+            "from functools import partial\n"
+            "from operator import methodcaller\n"
+            "factory = partial(partial, getattr, legacy)\n"
+            'caller = methodcaller("__getattribute__", "__call__")(partial)\n'
+            'bound = caller(factory, "get_api_key")\n'
+            "dependency = bound()\n"
+        ),
+        (
+            "from functools import partial\n"
+            "factory = partial(partial, getattr, legacy)\n"
+            'caller = partial.__dict__["__call__"]\n'
+            'bound = caller(factory, "get_api_key")\n'
+            "dependency = bound()\n"
+        ),
+        (
+            "from functools import partial\n"
+            "factory = partial(partial, getattr, legacy)\n"
+            'caller = vars(partial)["__call__"]\n'
+            'bound = caller(factory, "get_api_key")\n'
+            "dependency = bound()\n"
+        ),
+        (
+            "from functools import partial\n"
+            "factory = partial(partial, getattr, legacy)\n"
+            'caller = vars(partial).get("__call__")\n'
+            'bound = caller(factory, "get_api_key")\n'
+            "dependency = bound()\n"
+        ),
+        (
+            "from functools import partial\n"
+            "from operator import itemgetter\n"
+            "factory = partial(partial, getattr, legacy)\n"
+            'caller = itemgetter("__call__")(vars(partial))\n'
+            'bound = caller(factory, "get_api_key")\n'
+            "dependency = bound()\n"
+        ),
+        (
+            "from functools import partial\n"
+            "from operator import methodcaller\n"
+            "factory = partial(partial, getattr, legacy)\n"
+            'caller = methodcaller("get", "__call__")(vars(partial))\n'
+            'bound = caller(factory, "get_api_key")\n'
+            "dependency = bound()\n"
+        ),
+        ('dependency = [locals().get("owner").get_api_key for owner in [legacy]][0]\n'),
+        ('dependency = [locals()["owner"]._get_api_key_dynamic for owner in (legacy,)][0]\n'),
+        ("dependency = [owner.get_api_key for group in [(legacy,)] for owner in group][0]\n"),
+        ('dependency = [owner.get_api_key for owner in {"owner": legacy}.values()][0]\n'),
+        ('dependency = [owner.get_api_key for _, owner in {"owner": legacy}.items()][0]\n'),
+    ],
+    ids=[
+        "dotted-attrgetter",
+        "itemgetter",
+        "namespace-methodcaller",
+        "unbound-dict-getitem",
+        "unbound-dict-get",
+        "partial-getattr",
+        "partial-fully-bound-getattr",
+        "partial-bound-namespace-get",
+        "nested-partial-bound-getattr",
+        "nested-partial-factory-bound-target",
+        "nested-partial-factory-unbound-target",
+        "nested-partial-factory-bound-namespace",
+        "recursive-nested-partial-factory",
+        "unbound-partial-call-descriptor",
+        "reflected-partial-runtime-type-call",
+        "partial-call-via-attrgetter",
+        "partial-call-via-vars-runtime-type",
+        "partial-call-via-class-attribute",
+        "partial-call-via-type-getattribute",
+        "partial-call-via-methodcaller",
+        "partial-call-via-class-namespace",
+        "partial-call-via-vars-class-subscript",
+        "partial-call-via-vars-class-get",
+        "partial-call-via-vars-class-itemgetter",
+        "partial-call-via-vars-class-methodcaller",
+        "comprehension-locals-get",
+        "comprehension-locals-subscript",
+        "nested-comprehension-static-iterable",
+        "comprehension-literal-dict-values",
+        "comprehension-literal-dict-items",
+    ],
+)
+def test_api_key_ownership_guard_rejects_late_external_reflection_findings(
+    lookup: str,
+) -> None:
+    legacy_source = (
+        "from app.routers.api_key import (\n"
+        "    _get_api_key_dynamic as _get_api_key_dynamic,\n"
+        "    get_api_key as get_api_key,\n"
+        ")\n"
+    )
+    app_source = f"import legacy_app as legacy\n{lookup}"
+
+    errors = legacy_guard.validate_api_key_dependency_ownership(
+        legacy_source,
+        _app_sources({"app/main.py": app_source}),
+    )
+
+    assert len(errors) == 1
+    assert "legacy API-key dependency" in errors[0]
+
+
+@pytest.mark.parametrize(
+    "lookup",
+    [
+        'from operator import attrgetter\nvalue = attrgetter("safe.__name__")(holder)\n',
+        'from operator import itemgetter\nvalue = itemgetter("safe")(legacy.__dict__)\n',
+        (
+            "from operator import methodcaller\n"
+            'value = methodcaller("get", "safe")(legacy.__dict__)\n'
+        ),
+        'value = dict.get(legacy.__dict__, "safe")\n',
+        (
+            "from functools import partial\n"
+            "lookup = partial(getattr, holder)\n"
+            'value = lookup("get_api_key")\n'
+        ),
+        (
+            "from functools import partial\n"
+            'lookup = partial(getattr, legacy, "safe")\n'
+            "value = lookup()\n"
+        ),
+        (
+            "from functools import partial\n"
+            'lookup = partial(legacy.__dict__.get, "safe")\n'
+            "value = lookup()\n"
+        ),
+        (
+            "from functools import partial\n"
+            "lookup = partial(getattr, legacy)\n"
+            'bound = partial(lookup, "safe")\n'
+            "value = bound()\n"
+        ),
+        (
+            "from functools import partial\n"
+            "factory = partial(partial, getattr, legacy)\n"
+            'bound = factory("safe")\n'
+            "value = bound()\n"
+        ),
+        (
+            "from functools import partial\n"
+            "factory = partial(partial, getattr, holder)\n"
+            'bound = factory("get_api_key")\n'
+            "value = bound()\n"
+        ),
+        (
+            "from functools import partial\n"
+            "factory = partial(partial, legacy.__dict__.get)\n"
+            'bound = factory("safe")\n'
+            "value = bound()\n"
+        ),
+        (
+            "from functools import partial\n"
+            "factory = partial(partial, partial, getattr, legacy)\n"
+            'stage1 = factory("safe")\n'
+            "stage2 = stage1()\n"
+            "value = stage2()\n"
+        ),
+        (
+            "from functools import partial\n"
+            "factory = partial(partial, partial, getattr, holder)\n"
+            'stage1 = factory("get_api_key")\n'
+            "stage2 = stage1()\n"
+            "value = stage2()\n"
+        ),
+        (
+            "from functools import partial\n"
+            "factory = partial(partial, getattr, legacy)\n"
+            'bound = partial.__call__(factory, "safe")\n'
+            "value = bound()\n"
+        ),
+        (
+            "from functools import partial\n"
+            "factory = partial(partial, getattr, holder)\n"
+            'bound = partial.__call__(factory, "get_api_key")\n'
+            "value = bound()\n"
+        ),
+        (
+            "from functools import partial\n"
+            "factory = partial(partial, getattr, legacy)\n"
+            "caller = type(factory).__call__\n"
+            'bound = caller(factory, "safe")\n'
+            "value = bound()\n"
+        ),
+        (
+            "from functools import partial\n"
+            "factory = partial(partial, getattr, holder)\n"
+            "caller = type(factory).__call__\n"
+            'bound = caller(factory, "get_api_key")\n'
+            "value = bound()\n"
+        ),
+        (
+            "from functools import partial\n"
+            "from operator import attrgetter\n"
+            "factory = partial(partial, getattr, legacy)\n"
+            'caller = attrgetter("__call__")(partial)\n'
+            'bound = caller(factory, "safe")\n'
+            "value = bound()\n"
+        ),
+        (
+            "from functools import partial\n"
+            "from operator import methodcaller\n"
+            "factory = partial(partial, getattr, holder)\n"
+            'caller = methodcaller("__getattribute__", "__call__")(partial)\n'
+            'bound = caller(factory, "get_api_key")\n'
+            "value = bound()\n"
+        ),
+        (
+            "from functools import partial\n"
+            "factory = partial(partial, getattr, legacy)\n"
+            'caller = vars(partial).get("__call__")\n'
+            'bound = caller(factory, "safe")\n'
+            "value = bound()\n"
+        ),
+        (
+            "from functools import partial\n"
+            "from operator import itemgetter\n"
+            "factory = partial(partial, getattr, holder)\n"
+            'caller = itemgetter("__call__")(vars(partial))\n'
+            'bound = caller(factory, "get_api_key")\n'
+            "value = bound()\n"
+        ),
+        'value = [locals().get("owner") for owner in [holder]][0]\n',
+        "value = [owner.safe for group in [(holder,)] for owner in group][0]\n",
+        'value = [owner.safe for owner in {"owner": holder}.values()][0]\n',
+    ],
+    ids=[
+        "dotted-attrgetter-safe-root",
+        "itemgetter-safe-key",
+        "namespace-methodcaller-safe-key",
+        "unbound-dict-safe-key",
+        "partial-safe-target",
+        "partial-safe-bound-name",
+        "partial-safe-bound-namespace-name",
+        "nested-partial-safe-bound-name",
+        "nested-partial-factory-safe-name",
+        "nested-partial-factory-safe-target",
+        "nested-partial-factory-safe-namespace-name",
+        "recursive-nested-partial-factory-safe-name",
+        "recursive-nested-partial-factory-safe-target",
+        "unbound-partial-call-descriptor-safe-name",
+        "unbound-partial-call-descriptor-safe-target",
+        "reflected-partial-runtime-type-call-safe-name",
+        "reflected-partial-runtime-type-call-safe-target",
+        "alternate-partial-call-reflection-safe-name",
+        "alternate-partial-call-reflection-safe-target",
+        "partial-call-via-vars-class-safe-name",
+        "partial-call-via-vars-class-safe-target",
+        "comprehension-safe-owner",
+        "nested-comprehension-safe-owner",
+        "comprehension-literal-dict-values-safe-owner",
+    ],
+)
+def test_api_key_ownership_guard_allows_late_external_reflection_controls(
+    lookup: str,
+) -> None:
+    legacy_source = (
+        "from app.routers.api_key import (\n"
+        "    _get_api_key_dynamic as _get_api_key_dynamic,\n"
+        "    get_api_key as get_api_key,\n"
+        ")\n"
+    )
+    app_source = (
+        "import legacy_app as legacy\n"
+        "class Holder:\n"
+        "    safe = object()\n"
+        "    get_api_key = object()\n"
+        "holder = Holder()\n"
+        f"{lookup}"
+    )
+
+    errors = legacy_guard.validate_api_key_dependency_ownership(
+        legacy_source,
+        _app_sources({"app/main.py": app_source}),
+    )
+
+    assert errors == []
+
+
+@pytest.mark.parametrize(
     "setup",
     [
         'kwargs = {"default": None}\n',

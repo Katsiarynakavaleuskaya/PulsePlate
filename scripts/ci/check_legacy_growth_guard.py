@@ -514,13 +514,47 @@ _TRACKED_BUILTIN_NAMESPACE_METHODS = frozenset({"__getitem__", "get", "pop", "se
 _TRACKED_OBJECT_REFERENCES = frozenset({"__getattribute__"})
 _TRACKED_IMPORTLIB_REFERENCES = frozenset({"import_module"})
 _TRACKED_FUNCTOOLS_REFERENCES = frozenset({"partial"})
-_TRACKED_OPERATOR_REFERENCES = frozenset({"attrgetter", "delitem", "methodcaller"})
+_TRACKED_OPERATOR_REFERENCES = frozenset({"attrgetter", "delitem", "itemgetter", "methodcaller"})
 _TRACKED_SCOPE_NAMESPACE_METHODS = _TRACKED_BUILTIN_NAMESPACE_METHODS
 _TRACKED_ATTRGETTER_RESULTS = frozenset(
     f"operator.attrgetter:{symbol}" for symbol in CANONICAL_API_KEY_SYMBOLS
 )
 _TRACKED_METHODCALLER_RESULTS = frozenset(
     f"operator.methodcaller:{symbol}" for symbol in CANONICAL_API_KEY_SYMBOLS
+)
+_TRACKED_NAMESPACE_METHODCALLER_RESULTS = frozenset(
+    f"operator.namespace_methodcaller:{symbol}" for symbol in CANONICAL_API_KEY_SYMBOLS
+)
+_TRACKED_ITEMGETTER_RESULTS = frozenset(
+    f"operator.itemgetter:{symbol}" for symbol in CANONICAL_API_KEY_SYMBOLS
+)
+_TRACKED_UNBOUND_DICT_NAMESPACE_CALLABLES = frozenset(
+    f"builtins.dict.{method}" for method in {"__getitem__", "get", "pop", "setdefault"}
+)
+_PARTIAL_LEGACY_GETATTR_REFERENCE = "legacy.partial_getattr"
+_PARTIAL_LEGACY_NAMESPACE_LOOKUP_REFERENCE = "legacy.partial_namespace_lookup"
+_PARTIAL_GETATTR_REFERENCE = "functools.partial_getattr"
+_PARTIAL_NAMESPACE_LOOKUP_REFERENCE = "functools.partial_namespace_lookup"
+_PARTIAL_UNBOUND_CALL_REFERENCE = "functools.partial.__call__"
+_PARTIAL_RUNTIME_TYPE_REFERENCE = "functools.partial.runtime_type"
+_PARTIAL_RUNTIME_NAMESPACE_REFERENCE = "functools.partial.runtime_type.__dict__"
+_PARTIAL_CALL_ATTRGETTER_REFERENCE = "operator.attrgetter:partial_call"
+_PARTIAL_CALL_ITEMGETTER_REFERENCE = "operator.itemgetter:partial_call"
+_PARTIAL_CALL_METHODCALLER_REFERENCE = "operator.methodcaller:partial_call"
+_PARTIAL_CALL_NAMESPACE_METHODCALLER_REFERENCE = "operator.namespace_methodcaller:partial_call"
+_TYPE_GETATTRIBUTE_REFERENCE = "builtins.type.__getattribute__"
+_PARTIAL_FACTORY_REFERENCE_PREFIX = "functools.partial_factory:"
+_PARTIAL_FACTORY_GETATTR_REFERENCE = "functools.partial_factory:1:getattr"
+_PARTIAL_FACTORY_LEGACY_GETATTR_REFERENCE = "functools.partial_factory:1:legacy_getattr"
+_PARTIAL_FACTORY_NAMESPACE_LOOKUP_REFERENCE = "functools.partial_factory:1:namespace_lookup"
+_PARTIAL_FACTORY_LEGACY_NAMESPACE_LOOKUP_REFERENCE = (
+    "functools.partial_factory:1:legacy_namespace_lookup"
+)
+_TRACKED_BOUND_PARTIAL_FACTORY_RESULTS = frozenset(
+    f"functools.partial_factory:1:bound_lookup:{symbol}" for symbol in CANONICAL_API_KEY_SYMBOLS
+)
+_TRACKED_BOUND_LEGACY_LOOKUP_RESULTS = frozenset(
+    f"legacy.bound_lookup:{symbol}" for symbol in CANONICAL_API_KEY_SYMBOLS
 )
 _EMPTY_MAPPING_REFERENCE = "mapping.empty"
 _NONEMPTY_MAPPING_REFERENCE = "mapping.nonempty"
@@ -579,6 +613,9 @@ _TRACKED_CALLABLE_REFERENCES = frozenset(
         "builtins.vars",
         "importlib.import_module",
         "functools.partial",
+        _PARTIAL_UNBOUND_CALL_REFERENCE,
+        _PARTIAL_RUNTIME_TYPE_REFERENCE,
+        _TYPE_GETATTRIBUTE_REFERENCE,
         "legacy_app.__dict__.__getitem__",
         "legacy_app.__dict__.get",
         "legacy_app.__dict__.pop",
@@ -586,6 +623,7 @@ _TRACKED_CALLABLE_REFERENCES = frozenset(
         "legacy_app.__getattribute__",
         "legacy_app.runtime_type.__getattribute__",
         "operator.attrgetter",
+        "operator.itemgetter",
         "operator.methodcaller",
         *_TRACKED_MAPPING_MUTATOR_REFERENCES,
         *_TRACKED_SCOPE_NAMESPACE_CALLABLES,
@@ -595,7 +633,24 @@ _TRACKED_CALLABLE_REFERENCES = frozenset(
         *_TRACKED_RUNTIME_TYPE_NAMESPACE_CALLABLES,
         *_TRACKED_DICT_TYPE_NAMESPACE_CALLABLES,
         *_TRACKED_ATTRGETTER_RESULTS,
+        *_TRACKED_ITEMGETTER_RESULTS,
         *_TRACKED_METHODCALLER_RESULTS,
+        *_TRACKED_NAMESPACE_METHODCALLER_RESULTS,
+        _PARTIAL_CALL_ATTRGETTER_REFERENCE,
+        _PARTIAL_CALL_ITEMGETTER_REFERENCE,
+        _PARTIAL_CALL_METHODCALLER_REFERENCE,
+        _PARTIAL_CALL_NAMESPACE_METHODCALLER_REFERENCE,
+        *_TRACKED_UNBOUND_DICT_NAMESPACE_CALLABLES,
+        _PARTIAL_LEGACY_GETATTR_REFERENCE,
+        _PARTIAL_LEGACY_NAMESPACE_LOOKUP_REFERENCE,
+        _PARTIAL_GETATTR_REFERENCE,
+        _PARTIAL_NAMESPACE_LOOKUP_REFERENCE,
+        _PARTIAL_FACTORY_GETATTR_REFERENCE,
+        _PARTIAL_FACTORY_LEGACY_GETATTR_REFERENCE,
+        _PARTIAL_FACTORY_NAMESPACE_LOOKUP_REFERENCE,
+        _PARTIAL_FACTORY_LEGACY_NAMESPACE_LOOKUP_REFERENCE,
+        *_TRACKED_BOUND_PARTIAL_FACTORY_RESULTS,
+        *_TRACKED_BOUND_LEGACY_LOOKUP_RESULTS,
         _BOUND_MAPPING_MUTATOR_REFERENCE,
         _MAPPING_MUTATING_CLOSURE_REFERENCE,
         _MAPPING_EXPOSING_CLOSURE_REFERENCE,
@@ -1527,14 +1582,49 @@ def _closure_contains_yield(
     return probe.found
 
 
+def _is_tracked_partial_object_reference(reference: str | None) -> bool:
+    return reference is not None and (
+        reference.startswith(_PARTIAL_FACTORY_REFERENCE_PREFIX)
+        or reference
+        in {
+            _PARTIAL_GETATTR_REFERENCE,
+            _PARTIAL_NAMESPACE_LOOKUP_REFERENCE,
+            _PARTIAL_LEGACY_GETATTR_REFERENCE,
+            _PARTIAL_LEGACY_NAMESPACE_LOOKUP_REFERENCE,
+            *_TRACKED_BOUND_LEGACY_LOOKUP_RESULTS,
+        }
+    )
+
+
+def _is_partial_type_reference(reference: str | None) -> bool:
+    return reference in {"functools.partial", _PARTIAL_RUNTIME_TYPE_REFERENCE}
+
+
 def _tracked_reflected_attribute(
     target_reference: str | None,
     attribute_name: str | None,
 ) -> str | None:
     """Normalize only the reflection identities enforced by this guard."""
 
-    if attribute_name == "__call__" and target_reference in _TRACKED_CALLABLE_REFERENCES:
-        return target_reference
+    if attribute_name == "__call__" and target_reference in {
+        "functools.partial",
+        _PARTIAL_RUNTIME_TYPE_REFERENCE,
+    }:
+        return _PARTIAL_UNBOUND_CALL_REFERENCE
+    if attribute_name == "__class__" and _is_tracked_partial_object_reference(target_reference):
+        return _PARTIAL_RUNTIME_TYPE_REFERENCE
+    if attribute_name == "__dict__" and _is_partial_type_reference(target_reference):
+        return _PARTIAL_RUNTIME_NAMESPACE_REFERENCE
+    if (
+        target_reference == _PARTIAL_RUNTIME_NAMESPACE_REFERENCE
+        and attribute_name in _TRACKED_BUILTIN_NAMESPACE_METHODS
+    ):
+        return f"{_PARTIAL_RUNTIME_NAMESPACE_REFERENCE}.{attribute_name}"
+    if attribute_name == "__call__" and target_reference is not None:
+        if target_reference in _TRACKED_CALLABLE_REFERENCES or target_reference.startswith(
+            _PARTIAL_FACTORY_REFERENCE_PREFIX
+        ):
+            return target_reference
     if target_reference == _MAPPING_EXPOSING_GENERATOR_RESULT_REFERENCE and attribute_name in {
         "__anext__",
         "__next__",
@@ -1742,6 +1832,10 @@ def _static_module_reference(
             operator_name = _resolve_static_string(node.slice, static_string_bindings)
             if operator_name in _TRACKED_OPERATOR_REFERENCES:
                 return f"operator.{operator_name}"
+        if container == _PARTIAL_RUNTIME_NAMESPACE_REFERENCE:
+            member_name = _resolve_static_string(node.slice, static_string_bindings)
+            if member_name == "__call__":
+                return _PARTIAL_UNBOUND_CALL_REFERENCE
         return None
     if not isinstance(node, ast.Call):
         return None
@@ -1752,6 +1846,169 @@ def _static_module_reference(
         import_module_aliases=import_module_aliases,
         static_string_bindings=static_string_bindings,
     )
+    if (
+        function_reference
+        in {
+            _PARTIAL_CALL_ATTRGETTER_REFERENCE,
+            _PARTIAL_CALL_METHODCALLER_REFERENCE,
+        }
+        and len(node.args) == 1
+    ):
+        target_reference = _static_module_reference(
+            node.args[0],
+            module_aliases=module_aliases,
+            import_module_aliases=import_module_aliases,
+            static_string_bindings=static_string_bindings,
+        )
+        if _is_partial_type_reference(target_reference):
+            return _PARTIAL_UNBOUND_CALL_REFERENCE
+    if (
+        function_reference
+        in {
+            _PARTIAL_CALL_ITEMGETTER_REFERENCE,
+            _PARTIAL_CALL_NAMESPACE_METHODCALLER_REFERENCE,
+        }
+        and len(node.args) == 1
+    ):
+        target_reference = _static_module_reference(
+            node.args[0],
+            module_aliases=module_aliases,
+            import_module_aliases=import_module_aliases,
+            static_string_bindings=static_string_bindings,
+        )
+        if target_reference == _PARTIAL_RUNTIME_NAMESPACE_REFERENCE:
+            return _PARTIAL_UNBOUND_CALL_REFERENCE
+    if function_reference == _TYPE_GETATTRIBUTE_REFERENCE and len(node.args) == 2:
+        target_reference = _static_module_reference(
+            node.args[0],
+            module_aliases=module_aliases,
+            import_module_aliases=import_module_aliases,
+            static_string_bindings=static_string_bindings,
+        )
+        attribute_name = _resolve_static_string(node.args[1], static_string_bindings)
+        if _is_partial_type_reference(target_reference) and attribute_name == "__call__":
+            return _PARTIAL_UNBOUND_CALL_REFERENCE
+    partial_invocation_arguments = node.args
+    if function_reference == _PARTIAL_UNBOUND_CALL_REFERENCE:
+        if not node.args:
+            return None
+        invoked_reference = _static_module_reference(
+            node.args[0],
+            module_aliases=module_aliases,
+            import_module_aliases=import_module_aliases,
+            static_string_bindings=static_string_bindings,
+        )
+        if invoked_reference is None or not (
+            invoked_reference.startswith(_PARTIAL_FACTORY_REFERENCE_PREFIX)
+            or invoked_reference
+            in {
+                _PARTIAL_GETATTR_REFERENCE,
+                _PARTIAL_NAMESPACE_LOOKUP_REFERENCE,
+                _PARTIAL_LEGACY_GETATTR_REFERENCE,
+                _PARTIAL_LEGACY_NAMESPACE_LOOKUP_REFERENCE,
+                *_TRACKED_BOUND_LEGACY_LOOKUP_RESULTS,
+            }
+        ):
+            return None
+        function_reference = invoked_reference
+        partial_invocation_arguments = node.args[1:]
+    if function_reference is not None and function_reference.startswith(
+        _PARTIAL_FACTORY_REFERENCE_PREFIX
+    ):
+        factory_payload = function_reference.removeprefix(_PARTIAL_FACTORY_REFERENCE_PREFIX)
+        depth_text, separator, factory_state = factory_payload.partition(":")
+        if not separator or not depth_text.isdigit():
+            return None
+        factory_depth = int(depth_text)
+        factory_arguments = list(
+            _static_positional_arguments(
+                partial_invocation_arguments,
+                identity_resolver=lambda candidate: _static_module_reference(
+                    candidate,
+                    module_aliases=module_aliases,
+                    import_module_aliases=import_module_aliases,
+                    static_string_bindings=static_string_bindings,
+                ),
+            )
+        )
+        if factory_state in {"getattr", "namespace_lookup"} and factory_arguments:
+            expected_target = "legacy_app" if factory_state == "getattr" else "legacy_app.__dict__"
+            if (
+                _static_module_reference(
+                    factory_arguments[0],
+                    module_aliases=module_aliases,
+                    import_module_aliases=import_module_aliases,
+                    static_string_bindings=static_string_bindings,
+                )
+                != expected_target
+            ):
+                return None
+            factory_state = (
+                "legacy_getattr" if factory_state == "getattr" else "legacy_namespace_lookup"
+            )
+            factory_arguments = factory_arguments[1:]
+        if factory_state in {"legacy_getattr", "legacy_namespace_lookup"} and factory_arguments:
+            bound_name = _resolve_static_string(factory_arguments[0], static_string_bindings)
+            if bound_name not in CANONICAL_API_KEY_SYMBOLS:
+                return None
+            factory_state = f"bound_lookup:{bound_name}"
+        factory_depth -= 1
+        if factory_depth > 0:
+            return f"{_PARTIAL_FACTORY_REFERENCE_PREFIX}{factory_depth}:{factory_state}"
+        if factory_state == "getattr":
+            return _PARTIAL_GETATTR_REFERENCE
+        if factory_state == "namespace_lookup":
+            return _PARTIAL_NAMESPACE_LOOKUP_REFERENCE
+        if factory_state == "legacy_getattr":
+            return _PARTIAL_LEGACY_GETATTR_REFERENCE
+        if factory_state == "legacy_namespace_lookup":
+            return _PARTIAL_LEGACY_NAMESPACE_LOOKUP_REFERENCE
+        if factory_state.startswith("bound_lookup:"):
+            return f"legacy.bound_lookup:{factory_state.rsplit(':', maxsplit=1)[1]}"
+        return None
+    if function_reference in {
+        _PARTIAL_GETATTR_REFERENCE,
+        _PARTIAL_NAMESPACE_LOOKUP_REFERENCE,
+        _PARTIAL_LEGACY_GETATTR_REFERENCE,
+        _PARTIAL_LEGACY_NAMESPACE_LOOKUP_REFERENCE,
+    }:
+        lookup_arguments = list(
+            _static_positional_arguments(
+                partial_invocation_arguments,
+                identity_resolver=lambda candidate: _static_module_reference(
+                    candidate,
+                    module_aliases=module_aliases,
+                    import_module_aliases=import_module_aliases,
+                    static_string_bindings=static_string_bindings,
+                ),
+            )
+        )
+        if function_reference in {
+            _PARTIAL_GETATTR_REFERENCE,
+            _PARTIAL_NAMESPACE_LOOKUP_REFERENCE,
+        }:
+            expected_target = (
+                "legacy_app"
+                if function_reference == _PARTIAL_GETATTR_REFERENCE
+                else "legacy_app.__dict__"
+            )
+            if not lookup_arguments or (
+                _static_module_reference(
+                    lookup_arguments[0],
+                    module_aliases=module_aliases,
+                    import_module_aliases=import_module_aliases,
+                    static_string_bindings=static_string_bindings,
+                )
+                != expected_target
+            ):
+                return None
+            lookup_arguments = lookup_arguments[1:]
+        if not lookup_arguments:
+            return None
+        bound_name = _resolve_static_string(lookup_arguments[0], static_string_bindings)
+        if bound_name in CANONICAL_API_KEY_SYMBOLS:
+            return f"legacy.bound_lookup:{bound_name}"
+        return None
     if function_reference == _MAPPING_EXPOSING_GENERATOR_CLOSURE_REFERENCE:
         return _MAPPING_EXPOSING_GENERATOR_RESULT_REFERENCE
     if function_reference == _MAPPING_GENERATOR_IDENTITY_REFERENCE and not (
@@ -1791,6 +2048,8 @@ def _static_module_reference(
         )
         if target_reference == "legacy_app":
             return "legacy_app.runtime_type"
+        if _is_tracked_partial_object_reference(target_reference):
+            return _PARTIAL_RUNTIME_TYPE_REFERENCE
     if function_reference == "builtins.getattr" and len(node.args) >= 2:
         target_reference = _static_module_reference(
             node.args[0],
@@ -1847,8 +2106,26 @@ def _static_module_reference(
             ),
         ):
             attribute_name = _resolve_static_string(argument, static_string_bindings)
-            if attribute_name in CANONICAL_API_KEY_SYMBOLS:
-                return f"operator.attrgetter:{attribute_name}"
+            root_attribute = (
+                attribute_name.split(".", maxsplit=1)[0] if attribute_name is not None else None
+            )
+            if root_attribute == "__call__":
+                return _PARTIAL_CALL_ATTRGETTER_REFERENCE
+            if root_attribute in CANONICAL_API_KEY_SYMBOLS:
+                return f"operator.attrgetter:{root_attribute}"
+    if function_reference == "operator.itemgetter" and node.args:
+        for argument in _static_positional_arguments(
+            node.args,
+            identity_resolver=lambda candidate: _resolve_static_string(
+                candidate,
+                static_string_bindings,
+            ),
+        ):
+            item_name = _resolve_static_string(argument, static_string_bindings)
+            if item_name == "__call__":
+                return _PARTIAL_CALL_ITEMGETTER_REFERENCE
+            if item_name in CANONICAL_API_KEY_SYMBOLS:
+                return f"operator.itemgetter:{item_name}"
     if function_reference == "operator.methodcaller" and node.args and not node.keywords:
         arguments = list(
             _static_positional_arguments(
@@ -1862,8 +2139,23 @@ def _static_module_reference(
         if len(arguments) == 2:
             method_name = _resolve_static_string(arguments[0], static_string_bindings)
             attribute_name = _resolve_static_string(arguments[1], static_string_bindings)
+            if method_name == "__getattribute__" and attribute_name == "__call__":
+                return _PARTIAL_CALL_METHODCALLER_REFERENCE
             if method_name == "__getattribute__" and attribute_name in CANONICAL_API_KEY_SYMBOLS:
                 return f"operator.methodcaller:{attribute_name}"
+        if len(arguments) in {2, 3}:
+            method_name = _resolve_static_string(arguments[0], static_string_bindings)
+            item_name = _resolve_static_string(arguments[1], static_string_bindings)
+            if (
+                method_name in {"__getitem__", "get", "pop", "setdefault"}
+                and item_name == "__call__"
+            ):
+                return _PARTIAL_CALL_NAMESPACE_METHODCALLER_REFERENCE
+            if (
+                method_name in {"__getitem__", "get", "pop", "setdefault"}
+                and item_name in CANONICAL_API_KEY_SYMBOLS
+            ):
+                return f"operator.namespace_methodcaller:{item_name}"
     if function_reference == "functools.partial" and node.args:
         partial_arguments = list(
             _static_positional_arguments(
@@ -1883,6 +2175,179 @@ def _static_module_reference(
                 import_module_aliases=import_module_aliases,
                 static_string_bindings=static_string_bindings,
             )
+            if wrapped_reference == "functools.partial" and len(partial_arguments) >= 2:
+                factory_depth = 1
+                wrapped_index = 1
+                while (
+                    wrapped_index < len(partial_arguments)
+                    and _static_module_reference(
+                        partial_arguments[wrapped_index],
+                        module_aliases=module_aliases,
+                        import_module_aliases=import_module_aliases,
+                        static_string_bindings=static_string_bindings,
+                    )
+                    == "functools.partial"
+                ):
+                    factory_depth += 1
+                    wrapped_index += 1
+                if wrapped_index >= len(partial_arguments):
+                    return None
+                factory_wrapped_reference = _static_module_reference(
+                    partial_arguments[wrapped_index],
+                    module_aliases=module_aliases,
+                    import_module_aliases=import_module_aliases,
+                    static_string_bindings=static_string_bindings,
+                )
+                factory_bound_arguments = partial_arguments[wrapped_index + 1 :]
+                factory_state: str | None = None
+                if factory_wrapped_reference in {
+                    "builtins.getattr",
+                    "builtins.object.__getattribute__",
+                }:
+                    if not factory_bound_arguments:
+                        factory_state = "getattr"
+                    elif (
+                        _static_module_reference(
+                            factory_bound_arguments[0],
+                            module_aliases=module_aliases,
+                            import_module_aliases=import_module_aliases,
+                            static_string_bindings=static_string_bindings,
+                        )
+                        != "legacy_app"
+                    ):
+                        return None
+                    elif len(factory_bound_arguments) == 1:
+                        factory_state = "legacy_getattr"
+                    else:
+                        bound_name = _resolve_static_string(
+                            factory_bound_arguments[1],
+                            static_string_bindings,
+                        )
+                        if bound_name in CANONICAL_API_KEY_SYMBOLS:
+                            factory_state = f"bound_lookup:{bound_name}"
+                elif factory_wrapped_reference in _TRACKED_UNBOUND_DICT_NAMESPACE_CALLABLES:
+                    if not factory_bound_arguments:
+                        factory_state = "namespace_lookup"
+                    elif (
+                        _static_module_reference(
+                            factory_bound_arguments[0],
+                            module_aliases=module_aliases,
+                            import_module_aliases=import_module_aliases,
+                            static_string_bindings=static_string_bindings,
+                        )
+                        != "legacy_app.__dict__"
+                    ):
+                        return None
+                    elif len(factory_bound_arguments) == 1:
+                        factory_state = "legacy_namespace_lookup"
+                    else:
+                        bound_name = _resolve_static_string(
+                            factory_bound_arguments[1],
+                            static_string_bindings,
+                        )
+                        if bound_name in CANONICAL_API_KEY_SYMBOLS:
+                            factory_state = f"bound_lookup:{bound_name}"
+                elif factory_wrapped_reference in {
+                    "legacy_app.__dict__.__getitem__",
+                    "legacy_app.__dict__.get",
+                    "legacy_app.__dict__.pop",
+                    "legacy_app.__dict__.setdefault",
+                }:
+                    if not factory_bound_arguments:
+                        factory_state = "legacy_namespace_lookup"
+                    else:
+                        bound_name = _resolve_static_string(
+                            factory_bound_arguments[0],
+                            static_string_bindings,
+                        )
+                        if bound_name in CANONICAL_API_KEY_SYMBOLS:
+                            factory_state = f"bound_lookup:{bound_name}"
+                if factory_state is not None:
+                    return f"{_PARTIAL_FACTORY_REFERENCE_PREFIX}{factory_depth}:{factory_state}"
+            if (
+                wrapped_reference
+                in {
+                    "builtins.getattr",
+                    "builtins.object.__getattribute__",
+                }
+                and len(partial_arguments) == 1
+            ):
+                return _PARTIAL_GETATTR_REFERENCE
+            if (
+                wrapped_reference
+                in {
+                    "builtins.getattr",
+                    "builtins.object.__getattribute__",
+                }
+                and len(partial_arguments) >= 2
+                and _static_module_reference(
+                    partial_arguments[1],
+                    module_aliases=module_aliases,
+                    import_module_aliases=import_module_aliases,
+                    static_string_bindings=static_string_bindings,
+                )
+                == "legacy_app"
+            ):
+                if len(partial_arguments) >= 3:
+                    bound_name = _resolve_static_string(
+                        partial_arguments[2],
+                        static_string_bindings,
+                    )
+                    if bound_name in CANONICAL_API_KEY_SYMBOLS:
+                        return f"legacy.bound_lookup:{bound_name}"
+                return _PARTIAL_LEGACY_GETATTR_REFERENCE
+            if (
+                wrapped_reference in _TRACKED_UNBOUND_DICT_NAMESPACE_CALLABLES
+                and len(partial_arguments) == 1
+            ):
+                return _PARTIAL_NAMESPACE_LOOKUP_REFERENCE
+            if (
+                wrapped_reference in _TRACKED_UNBOUND_DICT_NAMESPACE_CALLABLES
+                and len(partial_arguments) >= 2
+                and _static_module_reference(
+                    partial_arguments[1],
+                    module_aliases=module_aliases,
+                    import_module_aliases=import_module_aliases,
+                    static_string_bindings=static_string_bindings,
+                )
+                == "legacy_app.__dict__"
+            ):
+                if len(partial_arguments) >= 3:
+                    bound_name = _resolve_static_string(
+                        partial_arguments[2],
+                        static_string_bindings,
+                    )
+                    if bound_name in CANONICAL_API_KEY_SYMBOLS:
+                        return f"legacy.bound_lookup:{bound_name}"
+                return _PARTIAL_LEGACY_NAMESPACE_LOOKUP_REFERENCE
+            if wrapped_reference in {
+                "legacy_app.__dict__.__getitem__",
+                "legacy_app.__dict__.get",
+                "legacy_app.__dict__.pop",
+                "legacy_app.__dict__.setdefault",
+            }:
+                if len(partial_arguments) >= 2:
+                    bound_name = _resolve_static_string(
+                        partial_arguments[1],
+                        static_string_bindings,
+                    )
+                    if bound_name in CANONICAL_API_KEY_SYMBOLS:
+                        return f"legacy.bound_lookup:{bound_name}"
+                return _PARTIAL_LEGACY_NAMESPACE_LOOKUP_REFERENCE
+            if wrapped_reference in {
+                _PARTIAL_LEGACY_GETATTR_REFERENCE,
+                _PARTIAL_LEGACY_NAMESPACE_LOOKUP_REFERENCE,
+            }:
+                if len(partial_arguments) >= 2:
+                    bound_name = _resolve_static_string(
+                        partial_arguments[1],
+                        static_string_bindings,
+                    )
+                    if bound_name in CANONICAL_API_KEY_SYMBOLS:
+                        return f"legacy.bound_lookup:{bound_name}"
+                return wrapped_reference
+            if wrapped_reference in _TRACKED_BOUND_LEGACY_LOOKUP_RESULTS:
+                return wrapped_reference
             if wrapped_reference in {
                 _BOUND_MAPPING_MUTATOR_REFERENCE,
                 _MAPPING_MUTATING_CLOSURE_REFERENCE,
@@ -1912,6 +2377,14 @@ def _static_module_reference(
         and not any(keyword.arg == "name" for keyword in node.keywords)
     ):
         return _resolve_static_string(node.args[0], static_string_bindings)
+    if (
+        function_reference is not None
+        and function_reference.startswith(f"{_PARTIAL_RUNTIME_NAMESPACE_REFERENCE}.")
+        and node.args
+    ):
+        member_name = _resolve_static_string(node.args[0], static_string_bindings)
+        if member_name == "__call__":
+            return _PARTIAL_UNBOUND_CALL_REFERENCE
     if function_reference == "builtins.vars" and not node.args and not node.keywords:
         return "scope.namespace"
     if function_reference == "builtins.vars" and len(node.args) == 1 and not node.keywords:
@@ -1921,6 +2394,8 @@ def _static_module_reference(
             import_module_aliases=import_module_aliases,
             static_string_bindings=static_string_bindings,
         )
+        if _is_partial_type_reference(target_reference):
+            return _PARTIAL_RUNTIME_NAMESPACE_REFERENCE
         if target_reference in {
             "legacy_app",
             "legacy_app.runtime_type",
@@ -1929,6 +2404,7 @@ def _static_module_reference(
             "builtins.object",
             "importlib",
             "operator",
+            _PARTIAL_RUNTIME_TYPE_REFERENCE,
         }:
             return f"{target_reference}.__dict__"
     if (
@@ -3683,6 +4159,24 @@ def _join_api_key_alias_states(
 
 
 def _preferred_api_key_module_reference(references: AbstractSet[str | None]) -> str | None:
+    partial_factory_references = sorted(
+        reference
+        for reference in references
+        if reference is not None and reference.startswith(_PARTIAL_FACTORY_REFERENCE_PREFIX)
+    )
+    if partial_factory_references:
+        return partial_factory_references[0]
+    partial_namespace_references = sorted(
+        reference
+        for reference in references
+        if reference is not None
+        and (
+            reference == _PARTIAL_RUNTIME_NAMESPACE_REFERENCE
+            or reference.startswith(f"{_PARTIAL_RUNTIME_NAMESPACE_REFERENCE}.")
+        )
+    )
+    if partial_namespace_references:
+        return partial_namespace_references[0]
     for reference in (
         "legacy_app",
         "legacy_app.__dict__",
@@ -3736,19 +4230,40 @@ def _preferred_api_key_module_reference(references: AbstractSet[str | None]) -> 
         *_TRACKED_IMPORTLIB_NAMESPACE_CALLABLES,
         "importlib.import_module",
         "functools.partial",
+        _PARTIAL_UNBOUND_CALL_REFERENCE,
+        _PARTIAL_RUNTIME_TYPE_REFERENCE,
+        _PARTIAL_RUNTIME_NAMESPACE_REFERENCE,
         "operator.__dict__",
         *_TRACKED_OPERATOR_NAMESPACE_CALLABLES,
         *_TRACKED_DICT_TYPE_NAMESPACE_CALLABLES,
         *_TRACKED_MAPPING_MUTATOR_REFERENCES,
         "operator.attrgetter",
         "operator.delitem",
+        "operator.itemgetter",
         "operator.methodcaller",
         "globals.namespace",
         *_TRACKED_GLOBAL_NAMESPACE_CALLABLES,
         "scope.namespace",
         *_TRACKED_SCOPE_NAMESPACE_CALLABLES,
         *_TRACKED_ATTRGETTER_RESULTS,
+        *_TRACKED_ITEMGETTER_RESULTS,
         *_TRACKED_METHODCALLER_RESULTS,
+        *_TRACKED_NAMESPACE_METHODCALLER_RESULTS,
+        _PARTIAL_CALL_ATTRGETTER_REFERENCE,
+        _PARTIAL_CALL_ITEMGETTER_REFERENCE,
+        _PARTIAL_CALL_METHODCALLER_REFERENCE,
+        _PARTIAL_CALL_NAMESPACE_METHODCALLER_REFERENCE,
+        *_TRACKED_UNBOUND_DICT_NAMESPACE_CALLABLES,
+        _PARTIAL_LEGACY_GETATTR_REFERENCE,
+        _PARTIAL_LEGACY_NAMESPACE_LOOKUP_REFERENCE,
+        _PARTIAL_GETATTR_REFERENCE,
+        _PARTIAL_NAMESPACE_LOOKUP_REFERENCE,
+        _PARTIAL_FACTORY_GETATTR_REFERENCE,
+        _PARTIAL_FACTORY_LEGACY_GETATTR_REFERENCE,
+        _PARTIAL_FACTORY_NAMESPACE_LOOKUP_REFERENCE,
+        _PARTIAL_FACTORY_LEGACY_NAMESPACE_LOOKUP_REFERENCE,
+        *_TRACKED_BOUND_PARTIAL_FACTORY_RESULTS,
+        *_TRACKED_BOUND_LEGACY_LOOKUP_RESULTS,
         _GLOBAL_SCOPE_MARKER_REFERENCE,
         _LOCAL_SCOPE_MARKER_REFERENCE,
         "sys",
@@ -4518,6 +5033,28 @@ def _evaluate_api_key_loop_iterator(
             import_module_aliases=import_module_aliases,
             static_string_bindings=static_string_bindings,
         )
+    if (
+        isinstance(value, ast.Call)
+        and isinstance(value.func, ast.Attribute)
+        and isinstance(value.func.value, ast.Dict)
+        and value.func.attr in {"items", "keys", "values"}
+        and not (value.args or value.keywords)
+    ):
+        literal_dict = value.func.value
+        if value.func.attr == "keys":
+            elements = _literal_dict_iteration_keys(literal_dict)
+        elif value.func.attr == "values":
+            elements = _literal_dict_iteration_values(literal_dict)
+        else:
+            elements = _literal_dict_iteration_items(literal_dict)
+        sequence = ast.List(elts=list(elements), ctx=ast.Load())
+        next_modules, next_imports, references = _evaluate_api_key_assignment_value(
+            sequence,
+            module_aliases=module_aliases,
+            import_module_aliases=import_module_aliases,
+            static_string_bindings=static_string_bindings,
+        )
+        return next_modules, next_imports, references, elements
 
     next_modules, next_imports = _apply_api_key_alias_expression(
         value,
@@ -4557,6 +5094,35 @@ def _literal_dict_iteration_keys(value: ast.Dict) -> tuple[ast.expr, ...]:
         elif isinstance(item_value, ast.Dict):
             keys.extend(_literal_dict_iteration_keys(item_value))
     return tuple(keys)
+
+
+def _literal_dict_iteration_values(value: ast.Dict) -> tuple[ast.expr, ...]:
+    """Return statically enumerable values, including literal unpacking."""
+
+    values: list[ast.expr] = []
+    for key, item_value in zip(value.keys, value.values, strict=True):
+        if key is not None:
+            values.append(item_value)
+        elif isinstance(item_value, ast.Dict):
+            values.extend(_literal_dict_iteration_values(item_value))
+    return tuple(values)
+
+
+def _literal_dict_iteration_items(value: ast.Dict) -> tuple[ast.expr, ...]:
+    """Return statically enumerable key/value pairs from a literal mapping."""
+
+    items: list[ast.expr] = []
+    for key, item_value in zip(value.keys, value.values, strict=True):
+        if key is not None:
+            items.append(
+                ast.Tuple(
+                    elts=[key, item_value],
+                    ctx=ast.Load(),
+                )
+            )
+        elif isinstance(item_value, ast.Dict):
+            items.extend(_literal_dict_iteration_items(item_value))
+    return tuple(items)
 
 
 def _evaluate_api_key_static_dict_iterator(
@@ -4891,6 +5457,46 @@ def _legacy_api_key_dynamic_lookup_name(
     ):
         return function_reference.split(":", maxsplit=1)[1]
     if (
+        function_reference in _TRACKED_ITEMGETTER_RESULTS
+        and len(call_arguments) == 1
+        and not call_keywords
+        and module_reference(call_arguments[0]) == "legacy_app.__dict__"
+    ):
+        return function_reference.split(":", maxsplit=1)[1]
+    if (
+        function_reference in _TRACKED_NAMESPACE_METHODCALLER_RESULTS
+        and len(call_arguments) == 1
+        and not call_keywords
+        and module_reference(call_arguments[0]) == "legacy_app.__dict__"
+    ):
+        return function_reference.split(":", maxsplit=1)[1]
+    if (
+        function_reference in _TRACKED_UNBOUND_DICT_NAMESPACE_CALLABLES
+        and call_arguments
+        and module_reference(call_arguments[0]) == "legacy_app.__dict__"
+    ):
+        remaining_arguments = call_arguments[1:]
+        return namespace_lookup_name(
+            function_reference,
+            remaining_arguments,
+            call_keywords,
+        )
+    if function_reference in {
+        _PARTIAL_LEGACY_GETATTR_REFERENCE,
+        _PARTIAL_LEGACY_NAMESPACE_LOOKUP_REFERENCE,
+    }:
+        return namespace_lookup_name(
+            "legacy_app.__dict__.get",
+            call_arguments,
+            call_keywords,
+        )
+    if (
+        function_reference in _TRACKED_BOUND_LEGACY_LOOKUP_RESULTS
+        and len(call_arguments) <= 1
+        and not call_keywords
+    ):
+        return function_reference.split(":", maxsplit=1)[1]
+    if (
         isinstance(node.func, ast.Attribute)
         and node.func.attr in {"get", "__getitem__", "pop", "setdefault"}
         and is_legacy_namespace(node.func.value)
@@ -4921,27 +5527,103 @@ def _scan_api_key_comprehension_scope(
 ) -> list[str]:
     errors: list[str] = []
     bound_names: set[str] = set()
+    comprehension_modules = dict(inherited_module_aliases)
+    comprehension_imports = set(inherited_import_module_aliases)
+    comprehension_iterables: dict[str, ast.expr] = {}
+    static_string_bindings = inherited_static_string_bindings or {}
     for index, generator in enumerate(node.generators):
         if index > 0:
             errors.extend(
                 _scan_api_key_alias_expressions(
                     [generator.iter],
                     filename=filename,
-                    inherited_module_aliases=inherited_module_aliases,
-                    inherited_import_module_aliases=inherited_import_module_aliases,
+                    inherited_module_aliases=comprehension_modules,
+                    inherited_import_module_aliases=comprehension_imports,
                     inherited_static_string_bindings=inherited_static_string_bindings,
-                    local_bindings=bound_names,
+                    local_bindings=frozenset(),
                 )
             )
-        bound_names.update(_assignment_target_names(generator.target))
+        iterator_expression = (
+            comprehension_iterables.get(generator.iter.id, generator.iter)
+            if isinstance(generator.iter, ast.Name)
+            else generator.iter
+        )
+        (
+            iteration_modules,
+            iteration_imports,
+            references_by_node,
+            iteration_elements,
+        ) = _evaluate_api_key_loop_iterator(
+            iterator_expression,
+            module_aliases=comprehension_modules,
+            import_module_aliases=comprehension_imports,
+            static_string_bindings=static_string_bindings,
+        )
+        target_names = set(_assignment_target_names(generator.target))
+        iterable_candidates: dict[str, list[ast.expr]] = {name: [] for name in target_names}
+        if iteration_elements is not None:
+            for element in iteration_elements:
+                for target, target_value in _assignment_target_value_pairs(
+                    generator.target,
+                    element,
+                ):
+                    if isinstance(target, ast.Name) and isinstance(
+                        target_value,
+                        (ast.Tuple, ast.List, ast.Set, ast.Dict),
+                    ):
+                        iterable_candidates[target.id].append(target_value)
+        if references_by_node is not None and iteration_elements is not None:
+            target_states = [
+                _apply_api_key_recorded_target_updates(
+                    _assignment_target_value_pairs(generator.target, element),
+                    references_by_node,
+                    module_aliases=iteration_modules,
+                    import_module_aliases=iteration_imports,
+                )
+                for element in iteration_elements
+            ]
+            if target_states:
+                comprehension_modules, comprehension_imports = _join_api_key_alias_states(
+                    *target_states
+                )
+            else:
+                comprehension_modules = dict(iteration_modules)
+                comprehension_imports = set(iteration_imports)
+        else:
+            comprehension_modules = dict(iteration_modules)
+            comprehension_imports = set(iteration_imports)
+        for target_name in target_names:
+            if references_by_node is None or iteration_elements is None:
+                comprehension_modules.pop(target_name, None)
+                comprehension_imports.discard(target_name)
+        bound_names.update(target_names)
+        for target_name in target_names:
+            candidates = iterable_candidates[target_name]
+            fingerprints = {
+                ast.dump(candidate, include_attributes=False) for candidate in candidates
+            }
+            if candidates and len(fingerprints) == 1:
+                comprehension_iterables[target_name] = candidates[0]
+            else:
+                comprehension_iterables.pop(target_name, None)
+        local_aliases = {
+            name: reference
+            for name in bound_names
+            if (reference := comprehension_modules.get(name)) is not None
+        }
+        scoped_modules = _with_local_alias_snapshot(
+            comprehension_modules,
+            local_aliases,
+            optimized=True,
+        )
         errors.extend(
             _scan_api_key_alias_expressions(
                 generator.ifs,
                 filename=filename,
-                inherited_module_aliases=inherited_module_aliases,
-                inherited_import_module_aliases=inherited_import_module_aliases,
+                inherited_module_aliases=scoped_modules,
+                inherited_import_module_aliases=comprehension_imports,
                 inherited_static_string_bindings=inherited_static_string_bindings,
-                local_bindings=bound_names,
+                local_bindings=frozenset(),
             )
         )
 
@@ -4954,10 +5636,18 @@ def _scan_api_key_comprehension_scope(
         _scan_api_key_alias_expressions(
             result_expressions,
             filename=filename,
-            inherited_module_aliases=inherited_module_aliases,
-            inherited_import_module_aliases=inherited_import_module_aliases,
+            inherited_module_aliases=_with_local_alias_snapshot(
+                comprehension_modules,
+                {
+                    name: reference
+                    for name in bound_names
+                    if (reference := comprehension_modules.get(name)) is not None
+                },
+                optimized=True,
+            ),
+            inherited_import_module_aliases=comprehension_imports,
             inherited_static_string_bindings=inherited_static_string_bindings,
-            local_bindings=bound_names,
+            local_bindings=frozenset(),
         )
     )
     return errors
@@ -5166,6 +5856,7 @@ def _apply_api_key_alias_statements(
                     "importlib.import_module",
                     "operator.attrgetter",
                     "operator.delitem",
+                    "operator.itemgetter",
                     "operator.methodcaller",
                     "sys.modules",
                 }:
@@ -5693,6 +6384,7 @@ def _scan_api_key_alias_scope(
                     "importlib.import_module",
                     "operator.attrgetter",
                     "operator.delitem",
+                    "operator.itemgetter",
                     "operator.methodcaller",
                     "sys.modules",
                 }:
