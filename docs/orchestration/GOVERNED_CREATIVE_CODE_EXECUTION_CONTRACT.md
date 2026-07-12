@@ -125,16 +125,17 @@ the pinned on-disk artifacts are checked against those snapshots before a
 replay decision and again immediately before atomic publication. Publication
 uses a pinned-parent kernel no-replace rename (`RENAME_NOREPLACE` on Linux,
 `RENAME_EXCL` on macOS), fails closed when that primitive is unavailable, and
-never replaces an empty or non-empty canonical resume directory. The validated
-staging directory and canonical parent remain bound by device/inode identity
-through the rename; the final directory is reopened with `O_NOFOLLOW` and its
-complete payload, exact prepare artifacts, and resume binding are revalidated
-descriptor-relative before PASS. Identity or validation failures quarantine
-only the matching inode and retain both primary and cleanup diagnostics.
-This validation bounds races observable during the publication transaction;
-it is not an exclusive lock against an uncooperative same-UID writer after the
-terminal observation. Every downstream stage must therefore revalidate the
-bound fingerprints before consuming the retained artifacts.
+never replaces an empty or non-empty canonical resume directory.
+
+Attach uses the same bounded new-only publication model. Finalize is narrower:
+it takes a cooperative lock, writes the validated bundle atomically, and writes
+the validated receipt last as the commit marker. Both outputs valid means
+read-only replay; exactly one output means a retained partial failure. No path
+deletion, directory exchange, or canonical quarantine is part of this contract.
+These checks bound the cooperative transaction and safe at-rest consumption;
+they do not promise permanent pathname stability against an uncooperative
+same-UID process after validation. Downstream consumers must revalidate the
+bound fingerprints before use.
 
 Premortem is part of this creative line, not a documentation closeout ritual.
 For Experiment Runner creative-context work, premortem should forecast plausible

@@ -9,16 +9,11 @@ from __future__ import annotations
 
 import ast
 from collections.abc import Mapping, Sequence
-import errno
 from hashlib import sha256
-import json
-import os
 from pathlib import Path, PurePosixPath
 import re
 import shutil
-import stat
 import subprocess  # nosec B404: bounded Git object reads require subprocess (remove-by: 2026-09-30, ref: ledger-p1-agent-experimentation-lane)
-import sys
 from typing import Any, cast
 
 from core.evidence.events import EvidenceEvalEvent, create_eval_event
@@ -61,6 +56,7 @@ ADAPTIVE_PR1_PREPARE_FILENAMES = (
     "skeptic_reviews.json",
     "context_pack.json",
 )
+INDEPENDENT_FIRST_PASS_ENABLED = True
 
 ALLOWED_TARGET_PREFIXES = ("core/rag/", "core/insight/")
 REQUIRED_ROLES = (
@@ -83,7 +79,6 @@ CONDITIONAL_ROLE_RULES: tuple[tuple[frozenset[str], str], ...] = (
     (frozenset({"confidence", "ranking", "statistics"}), "data-scientist-agent"),
     (frozenset({"prompt", "output", "language"}), "prompt-engineering-eval-agent"),
 )
-REQUIRE_INDEPENDENT_REVIEW = True
 PHASES = frozenset(
     {
         "created",
@@ -119,7 +114,6 @@ DECISIONS = frozenset({"approve", "revise", "reject", "hold"})
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 FINGERPRINT_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$")
-PILOT_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,159}$")
 FORBIDDEN_TEXT_RE = re.compile(
     r"(raw[_ -]?(prompt|response|reasoning|patch)|chain[_ -]?of[_ -]?thought|"
     r"pull request body|review body|github comment|bearer\s+|sk-[A-Za-z0-9])",
@@ -224,12 +218,6 @@ def _adaptive_authority(value: Any, label: str) -> dict[str, bool]:
     return dict(ADAPTIVE_PR1_AUTHORITY)
 
 
-def _pilot_id(value: Any) -> str:
-    if not isinstance(value, str) or not PILOT_ID_RE.fullmatch(value):
-        raise CreativePilotContractError("pilot_id must be a filesystem-safe bounded token")
-    return value
-
-
 def _artifact_ref(value: Any, label: str, *, filename: str | None = None) -> str:
     ref = _path(value, label)
     if not ref.startswith("artifacts/orchestration/creative_code/"):
@@ -262,7 +250,7 @@ def build_adaptive_pr1_variant_intake(
 ) -> dict[str, Any]:
     """Build the exact, deterministic adaptive PR-1 variant intake."""
 
-    pilot = _pilot_id(pilot_id)
+    pilot = _token(pilot_id, "pilot_id")
     try:
         normalized_candidate = validate_source_candidate_packet(candidate)
         variants = build_exact_specification_variants(normalized_candidate, declarations)
@@ -403,7 +391,7 @@ def validate_adaptive_pr1_variant_intake(
     if payload["equality_proof"] != expected_proof:
         raise CreativePilotContractError("adaptive intake equality proof mismatch")
     normalized = dict(payload)
-    normalized["pilot_id"] = _pilot_id(payload["pilot_id"])
+    normalized["pilot_id"] = _token(payload["pilot_id"], "pilot_id")
     normalized["source_candidate"] = normalized_source
     normalized["authority"] = _adaptive_authority(payload["authority"], "adaptive intake")
     _validate_identity_fields(
@@ -454,14 +442,13 @@ def build_adaptive_pr1_resume_binding(
         candidate=normalized_candidate,
         source_artifacts=source_rows,
         original_prepare_bindings=prepare_rows,
-        old_target_manifest=old_manifest,
         current_target_manifest=current_manifest,
     )
     body: dict[str, Any] = {
         "schema_version": ADAPTIVE_PR1_SCHEMA_VERSION,
         "artifact_type": ADAPTIVE_PR1_RESUME_TYPE,
         "policy_version": ADAPTIVE_PR1_POLICY_VERSION,
-        "pilot_id": _pilot_id(pilot_id),
+        "pilot_id": _token(pilot_id, "pilot_id"),
         "intake": {
             "intake_id": normalized_intake["intake_id"],
             "intake_ref": _artifact_ref(
@@ -549,7 +536,7 @@ def validate_adaptive_pr1_resume_binding(
         raise CreativePilotContractError("adaptive resume policy or sanitization mismatch")
     normalized_candidate = validate_source_candidate_packet(candidate)
     normalized_intake = validate_adaptive_pr1_variant_intake(intake, candidate=normalized_candidate)
-    pilot_id = _pilot_id(payload["pilot_id"])
+    pilot_id = _token(payload["pilot_id"], "pilot_id")
     if normalized_intake["pilot_id"] != pilot_id:
         raise CreativePilotContractError(
             "adaptive_pilot_lineage_mismatch: resume and intake pilot_id differ"
@@ -599,12 +586,10 @@ def validate_adaptive_pr1_resume_binding(
         "resume.source_lineage",
     )
     old_manifest = validate_target_manifest(
-        cast(Mapping[str, Any], lineage["old_target_manifest"]),
-        revalidate_git=revalidate_git,
+        cast(Mapping[str, Any], lineage["old_target_manifest"]), revalidate_git=True
     )
     current_manifest = validate_target_manifest(
-        cast(Mapping[str, Any], lineage["current_target_manifest"]),
-        revalidate_git=revalidate_git,
+        cast(Mapping[str, Any], lineage["current_target_manifest"]), revalidate_git=True
     )
     if (
         lineage["source_base_sha"] != old_manifest["base_sha"]
@@ -613,20 +598,19 @@ def validate_adaptive_pr1_resume_binding(
     ):
         raise CreativePilotContractError("adaptive resume SHA binding mismatch")
     _assert_target_continuity(old_manifest, current_manifest)
-    if revalidate_git:
-        _assert_current_manifest_at_origin_main(
-            current_manifest,
-            current_origin_main_sha(),
-        )
+    if revalidate_git and current_manifest["base_sha"] != current_origin_main_sha():
+        raise CreativePilotContractError("adaptive_base_drift: current origin/main advanced")
     source_rows = _normalize_binding_rows(
         cast(Sequence[Mapping[str, Any]], lineage["source_artifacts"]),
         expected=ADAPTIVE_PR1_SOURCE_TYPES,
         label="source_artifacts",
+        revalidate_files=revalidate_git,
     )
     prepare_rows = _normalize_binding_rows(
         cast(Sequence[Mapping[str, Any]], lineage["original_prepare_bindings"]),
         expected={name: "json" for name in ADAPTIVE_PR1_PREPARE_FILENAMES},
         label="original_prepare_bindings",
+        revalidate_files=revalidate_git,
     )
     pilot_root = f"artifacts/orchestration/creative_code/adaptive_pilots/{pilot_id}"
     intake_source = cast(Mapping[str, Any], normalized_intake["source_candidate"])
@@ -644,39 +628,6 @@ def validate_adaptive_pr1_resume_binding(
             raise CreativePilotContractError(
                 "adaptive_pilot_lineage_mismatch: retained prepare ref escaped pilot root"
             )
-    if revalidate_git:
-        retained = {
-            row["filename"]: _revalidate_bound_json(
-                row["ref"],
-                filename=row["filename"],
-                artifact_type=row["artifact_type"],
-                fingerprint=row["fingerprint"],
-            )
-            for row in source_rows
-        }
-        for row in prepare_rows:
-            _revalidate_bound_json(
-                row["ref"],
-                filename=row["filename"],
-                artifact_type=row["artifact_type"],
-                fingerprint=row["fingerprint"],
-            )
-        retained_lineage = validate_retained_terminal_handoff(
-            context_map=cast(Mapping[str, Any], retained["context_map.v2.json"]),
-            hypothesis_packet=cast(Mapping[str, Any], retained["hypothesis_packet.v2.json"]),
-            workspace=cast(Mapping[str, Any], retained["workspace.json"]),
-            synthesis=cast(Mapping[str, Any], retained["synthesis.json"]),
-            approval=cast(Mapping[str, Any], retained["approval.v2.json"]),
-            bridge=cast(Mapping[str, Any], retained["spec_bridge.v2.json"]),
-            candidate=cast(Mapping[str, Any], retained["creative_code_candidate.v1.json"]),
-            current_target_manifest=current_manifest,
-        )
-        _assert_retained_resume_lineage(
-            retained_lineage,
-            old_target_manifest=old_manifest,
-            candidate=normalized_candidate,
-            candidate_fingerprint=str(candidate_ref["candidate_fingerprint"]),
-        )
     prepare = payload["spec_prepare"]
     if not isinstance(prepare, Mapping):
         raise CreativePilotContractError("adaptive resume spec_prepare must be an object")
@@ -721,7 +672,6 @@ def validate_adaptive_pr1_resume_binding(
         candidate=normalized_candidate,
         source_artifacts=source_rows,
         original_prepare_bindings=prepare_rows,
-        old_target_manifest=old_manifest,
         current_target_manifest=current_manifest,
     )
     if (
@@ -739,20 +689,18 @@ def derive_adaptive_pr1_resume_identity(
     candidate: Mapping[str, Any],
     source_artifacts: Sequence[Mapping[str, Any]],
     original_prepare_bindings: Sequence[Mapping[str, Any]],
-    old_target_manifest: Mapping[str, Any],
     current_target_manifest: Mapping[str, Any],
 ) -> tuple[str, str]:
     """Derive resume identity without self-referential output paths."""
 
     seed = {
-        "pilot_id": _pilot_id(pilot_id),
+        "pilot_id": _token(pilot_id, "pilot_id"),
         "intake_id": intake["intake_id"],
         "intake_fingerprint": fingerprint_payload(dict(intake)),
         "candidate_id": candidate["candidate_id"],
         "candidate_fingerprint": fingerprint_payload(dict(candidate)),
         "source_artifacts": list(source_artifacts),
         "original_prepare_bindings": list(original_prepare_bindings),
-        "old_target_manifest": dict(old_target_manifest),
         "current_target_manifest": dict(current_target_manifest),
     }
     return _adaptive_identity(
@@ -782,50 +730,12 @@ def _assert_target_continuity(old: Mapping[str, Any], current: Mapping[str, Any]
             raise CreativePilotContractError(f"{code}: {key} changed")
 
 
-def _assert_current_manifest_at_origin_main(
-    current_manifest: Mapping[str, Any], origin_main_sha: str
-) -> None:
-    if (
-        current_manifest["base_sha"] != origin_main_sha
-        or current_manifest["head_sha"] != origin_main_sha
-    ):
-        raise CreativePilotContractError(
-            "adaptive_base_drift: current target manifest must equal origin/main"
-        )
-
-
-def _assert_retained_resume_lineage(
-    retained_lineage: Mapping[str, Any],
-    *,
-    old_target_manifest: Mapping[str, Any],
-    candidate: Mapping[str, Any],
-    candidate_fingerprint: str,
-) -> None:
-    retained_workspace = retained_lineage.get("workspace")
-    if (
-        not isinstance(retained_workspace, Mapping)
-        or retained_workspace.get("target_manifest") != old_target_manifest
-    ):
-        raise CreativePilotContractError(
-            "adaptive_source_lineage_mismatch: retained target manifest does not match "
-            "old_target_manifest"
-        )
-    retained_candidate = retained_lineage.get("candidate")
-    if (
-        not isinstance(retained_candidate, Mapping)
-        or retained_candidate != candidate
-        or fingerprint_payload(dict(retained_candidate)) != candidate_fingerprint
-    ):
-        raise CreativePilotContractError(
-            "adaptive_source_lineage_mismatch: retained candidate does not match resume candidate"
-        )
-
-
 def _normalize_binding_rows(
     rows: Sequence[Mapping[str, Any]],
     *,
     expected: Mapping[str, str],
     label: str,
+    revalidate_files: bool = False,
 ) -> list[dict[str, str]]:
     if not isinstance(rows, Sequence) or isinstance(rows, (str, bytes)):
         raise CreativePilotContractError(f"{label} must be an array")
@@ -840,6 +750,10 @@ def _normalize_binding_rows(
             raise CreativePilotContractError(f"adaptive_source_type_mismatch: {filename}")
         ref = _artifact_ref(raw["ref"], f"{label}.ref", filename=filename)
         fingerprint = _fingerprint(raw["fingerprint"], f"{label}.fingerprint")
+        if revalidate_files:
+            _revalidate_bound_json(
+                ref, filename=filename, artifact_type=artifact_type, fingerprint=fingerprint
+            )
         normalized.append(
             {
                 "filename": filename,
@@ -855,75 +769,37 @@ def _normalize_binding_rows(
     return normalized
 
 
-def _reject_duplicate_json_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
-    output: dict[str, Any] = {}
-    for key, value in pairs:
-        if key in output:
-            raise CreativePilotContractError(f"duplicate JSON key: {key}")
-        output[key] = value
-    return output
-
-
-def _revalidate_bound_json(ref: str, *, filename: str, artifact_type: str, fingerprint: str) -> Any:
-    parts = PurePosixPath(ref).parts
-    directory_fd = -1
-    file_fd = -1
+def _revalidate_bound_json(
+    ref: str, *, filename: str, artifact_type: str, fingerprint: str
+) -> None:
+    path = REPO_ROOT / ref
+    current = REPO_ROOT
     try:
-        directory_flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0)
-        for flag_name in ("O_DIRECTORY", "O_NOFOLLOW"):
-            flag = getattr(os, flag_name, None)
-            if not isinstance(flag, int):
-                raise CreativePilotContractError(f"adaptive_source_invalid_platform: {flag_name}")
-            directory_flags |= flag
-        directory_fd = os.open(REPO_ROOT, directory_flags)
-        for part in parts[:-1]:
-            child_fd = os.open(part, directory_flags, dir_fd=directory_fd)
-            previous_fd = directory_fd
-            directory_fd = child_fd
-            try:
-                os.close(previous_fd)
-            except OSError as transfer_error:
-                cleanup_error: OSError | None = None
-                for descriptor in (previous_fd, child_fd):
-                    try:
-                        os.close(descriptor)
-                    except OSError as exc:
-                        cleanup_error = cleanup_error or exc
-                directory_fd = -1
-                raise CreativePilotContractError(f"adaptive_source_close_failed: {filename}") from (
-                    cleanup_error or transfer_error
-                )
-        file_flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0)
-        nofollow = getattr(os, "O_NOFOLLOW", None)
-        if not isinstance(nofollow, int):
-            raise CreativePilotContractError("adaptive_source_invalid_platform: O_NOFOLLOW")
-        file_fd = os.open(parts[-1], file_flags | nofollow, dir_fd=directory_fd)
-        if not stat.S_ISREG(os.fstat(file_fd).st_mode):
-            raise CreativePilotContractError(f"adaptive_source_missing: {filename}")
-        with os.fdopen(file_fd, "r", encoding="utf-8") as handle:
-            file_fd = -1
-            payload = json.loads(handle.read(), object_pairs_hook=_reject_duplicate_json_keys)
-    except CreativePilotContractError:
-        raise
-    except (UnicodeDecodeError, ValueError, RecursionError) as exc:
-        raise CreativePilotContractError(f"adaptive_source_invalid_json: {filename}") from exc
+        for part in PurePosixPath(ref).parts:
+            current = current / part
+            if current.is_symlink():
+                raise CreativePilotContractError(f"adaptive_source_symlink: {filename}")
+        resolved = path.resolve(strict=True)
     except OSError as exc:
-        if exc.errno in {errno.ELOOP, errno.ENOTDIR}:
-            raise CreativePilotContractError(f"adaptive_source_symlink: {filename}") from exc
         raise CreativePilotContractError(f"adaptive_source_missing: {filename}") from exc
-    finally:
-        active_error = sys.exc_info()[1]
-        close_error: OSError | None = None
-        for descriptor in (file_fd, directory_fd):
-            if descriptor >= 0:
-                try:
-                    os.close(descriptor)
-                except OSError as exc:
-                    close_error = close_error or exc
-        if active_error is None and close_error is not None:
-            raise CreativePilotContractError(
-                f"adaptive_source_close_failed: {filename}"
-            ) from close_error
+    if not resolved.is_file() or not resolved.is_relative_to(REPO_ROOT.resolve()):
+        raise CreativePilotContractError(f"adaptive_source_missing: {filename}")
+    import json
+
+    def reject_duplicates(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        output: dict[str, Any] = {}
+        for key, value in pairs:
+            if key in output:
+                raise CreativePilotContractError(f"duplicate JSON key: {key}")
+            output[key] = value
+        return output
+
+    try:
+        payload = json.loads(
+            resolved.read_text(encoding="utf-8"), object_pairs_hook=reject_duplicates
+        )
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise CreativePilotContractError(f"adaptive_source_invalid_json: {filename}") from exc
     observed_type = (
         payload.get("artifact_type") or payload.get("packet_type")
         if isinstance(payload, Mapping)
@@ -933,15 +809,8 @@ def _revalidate_bound_json(ref: str, *, filename: str, artifact_type: str, finge
         observed_type = "json"
     if artifact_type != "json" and observed_type != artifact_type:
         raise CreativePilotContractError(f"adaptive_source_type_mismatch: {filename}")
-    try:
-        observed_fingerprint = fingerprint_payload(payload)
-    except (TypeError, ValueError) as exc:
-        raise CreativePilotContractError(
-            f"adaptive_source_fingerprint_mismatch: {filename}"
-        ) from exc
-    if observed_fingerprint != fingerprint:
+    if fingerprint_payload(payload) != fingerprint:
         raise CreativePilotContractError(f"adaptive_source_fingerprint_mismatch: {filename}")
-    return payload
 
 
 def load_json_strict(text: str) -> dict[str, Any]:
@@ -949,9 +818,17 @@ def load_json_strict(text: str) -> dict[str, Any]:
 
     import json
 
+    def reject_duplicates(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        output: dict[str, Any] = {}
+        for key, value in pairs:
+            if key in output:
+                raise CreativePilotContractError(f"duplicate JSON key: {key}")
+            output[key] = value
+        return output
+
     try:
-        payload = json.loads(text, object_pairs_hook=_reject_duplicate_json_keys)
-    except (ValueError, UnicodeDecodeError, RecursionError) as exc:
+        payload = json.loads(text, object_pairs_hook=reject_duplicates)
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
         raise CreativePilotContractError(f"invalid JSON: {exc}") from exc
     if not isinstance(payload, dict):
         raise CreativePilotContractError("artifact must be a JSON object")
@@ -1572,7 +1449,7 @@ def build_workspace(
         "role_plan": {
             "required_roles": roles,
             "conditional_roles": conditional,
-            "independent_first_pass": REQUIRE_INDEPENDENT_REVIEW,
+            "independent_first_pass": INDEPENDENT_FIRST_PASS_ENABLED,
             "max_rebuttal_rounds": 1,
             "majority_vote_allowed": False,
             "raw_reasoning_allowed": False,

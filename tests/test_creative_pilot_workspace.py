@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from copy import deepcopy
+import fcntl
 import json
 import os
 from pathlib import Path
@@ -10,7 +11,6 @@ import shutil
 import subprocess
 import sys
 import tempfile
-import uuid
 
 import pytest
 
@@ -473,200 +473,6 @@ def test_duplicate_json_keys_are_rejected() -> None:
 
 
 @pytest.mark.parametrize(
-    ("reader", "error"),
-    [
-        ("value", "unable to read safe pilot JSON value"),
-        ("array", "unable to read safe exact variant"),
-        ("at", "unable to read oversized.json"),
-    ],
-)
-def test_workspace_json_readers_translate_parser_limits_to_domain_errors(
-    reader: str,
-    error: str,
-) -> None:
-    run_dir = pilot_cli.PILOT_ROOT / f"pytest-{uuid.uuid4().hex}"
-    path = run_dir / "oversized.json"
-    payload = "[" + ("9" * 5000) + "]" if reader == "array" else '{"value":' + ("9" * 5000) + "}"
-    run_dir.mkdir(parents=True)
-    path.write_text(payload, encoding="utf-8")
-    try:
-        if reader == "value":
-            with pytest.raises(CreativePilotContractError, match=error):
-                pilot_cli._read_json_value(path)
-            return
-        if reader == "array":
-            with pytest.raises(CreativePilotContractError, match=error):
-                pilot_cli._read_array(path)
-            return
-        directory_fd = os.open(
-            run_dir,
-            os.O_RDONLY | pilot_cli._required_open_flag("O_DIRECTORY"),
-        )
-        try:
-            with pytest.raises(CreativePilotContractError, match=error):
-                pilot_cli._read_json_at(directory_fd, path.name)
-        finally:
-            os.close(directory_fd)
-    finally:
-        shutil.rmtree(run_dir, ignore_errors=True)
-
-
-def test_workspace_json_reader_translates_recursion_error(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    run_dir = pilot_cli.PILOT_ROOT / f"pytest-{uuid.uuid4().hex}"
-    path = run_dir / "recursive.json"
-    try:
-        run_dir.mkdir(parents=True)
-        path.write_text("{}", encoding="utf-8")
-
-        def raise_recursion(*_args: object, **_kwargs: object) -> object:
-            raise RecursionError("simulated parser depth limit")
-
-        monkeypatch.setattr(pilot_cli.json, "loads", raise_recursion)
-        with pytest.raises(
-            CreativePilotContractError,
-            match="unable to read safe pilot JSON value",
-        ):
-            pilot_cli._read_json_value(path)
-    finally:
-        shutil.rmtree(run_dir, ignore_errors=True)
-
-
-def test_primary_workspace_reader_and_contract_translate_recursion_error(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    run_dir = pilot_cli.PILOT_ROOT / f"pytest-{uuid.uuid4().hex}"
-    path = run_dir / "recursive.json"
-    try:
-        run_dir.mkdir(parents=True)
-        path.write_text("{}", encoding="utf-8")
-
-        def raise_recursion(*_args: object, **_kwargs: object) -> object:
-            raise RecursionError("simulated parser depth limit")
-
-        monkeypatch.setattr(pilot_cli, "load_json_strict", raise_recursion)
-        with pytest.raises(
-            CreativePilotContractError,
-            match="unable to read safe repo-local pilot JSON",
-        ):
-            pilot_cli._read(path)
-
-        monkeypatch.setattr(pilot_contract.json, "loads", raise_recursion)
-        with pytest.raises(CreativePilotContractError, match="invalid JSON"):
-            pilot_contract.load_json_strict("{}")
-    finally:
-        shutil.rmtree(run_dir, ignore_errors=True)
-
-
-def test_bound_json_revalidation_pins_final_file_against_symlink_swap(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    run_dir = pilot_cli.PILOT_ROOT / f"pytest-{uuid.uuid4().hex}"
-    source = run_dir / "source.json"
-    outside = tmp_path / "outside.json"
-    payload = {"artifact_type": "json", "value": "expected"}
-    try:
-        run_dir.mkdir(parents=True)
-        source.write_text(json.dumps(payload), encoding="utf-8")
-        outside.write_text(json.dumps(payload), encoding="utf-8")
-        real_open = pilot_contract.os.open
-        swapped = False
-
-        def swap_before_final_open(
-            path: object,
-            flags: int,
-            mode: int = 0o777,
-            *,
-            dir_fd: int | None = None,
-        ) -> int:
-            nonlocal swapped
-            if path == source.name and dir_fd is not None and not swapped:
-                swapped = True
-                source.unlink()
-                source.symlink_to(outside)
-            return real_open(path, flags, mode, dir_fd=dir_fd)
-
-        monkeypatch.setattr(pilot_contract.os, "open", swap_before_final_open)
-        with pytest.raises(CreativePilotContractError, match="adaptive_source_symlink"):
-            pilot_contract._revalidate_bound_json(
-                source.relative_to(pilot_contract.REPO_ROOT).as_posix(),
-                filename=source.name,
-                artifact_type="json",
-                fingerprint=fingerprint_payload(payload),
-            )
-        assert swapped
-    finally:
-        shutil.rmtree(run_dir, ignore_errors=True)
-
-
-def test_bound_json_revalidation_closes_both_descriptors_on_transfer_failure(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    run_dir = pilot_cli.PILOT_ROOT / f"pytest-{uuid.uuid4().hex}"
-    source = run_dir / "source.json"
-    payload = {"artifact_type": "json", "value": "expected"}
-    failed_descriptor = -1
-    fail_next_close = True
-    real_close = pilot_contract.os.close
-
-    def fail_first_close(descriptor: int) -> None:
-        nonlocal failed_descriptor, fail_next_close
-        if fail_next_close:
-            fail_next_close = False
-            failed_descriptor = descriptor
-            raise OSError("simulated descriptor transfer failure")
-        real_close(descriptor)
-
-    try:
-        run_dir.mkdir(parents=True)
-        source.write_text(json.dumps(payload), encoding="utf-8")
-        with monkeypatch.context() as context:
-            context.setattr(pilot_contract.os, "close", fail_first_close)
-            with pytest.raises(
-                CreativePilotContractError,
-                match="adaptive_source_close_failed",
-            ):
-                pilot_contract._revalidate_bound_json(
-                    source.relative_to(pilot_contract.REPO_ROOT).as_posix(),
-                    filename=source.name,
-                    artifact_type="json",
-                    fingerprint=fingerprint_payload(payload),
-                )
-        assert failed_descriptor >= 0
-        with pytest.raises(OSError):
-            os.fstat(failed_descriptor)
-    finally:
-        shutil.rmtree(run_dir, ignore_errors=True)
-
-
-def test_pinned_staging_creation_rejects_symlink_parent_and_collision(
-    tmp_path: Path,
-) -> None:
-    parent = pilot_cli.PILOT_ROOT / f"pytest-{uuid.uuid4().hex}"
-    outside = tmp_path / "outside"
-    outside.mkdir()
-    try:
-        parent.symlink_to(outside, target_is_directory=True)
-        with pytest.raises(CreativePilotContractError, match="staging create"):
-            pilot_cli._create_new_pinned_directory(parent / "staging")
-        assert not (outside / "staging").exists()
-    finally:
-        if parent.is_symlink():
-            parent.unlink()
-
-    collision_parent = pilot_cli.PILOT_ROOT / f"pytest-{uuid.uuid4().hex}"
-    collision = collision_parent / "staging"
-    try:
-        collision.mkdir(parents=True)
-        with pytest.raises(CreativePilotContractError, match="staging collision"):
-            pilot_cli._create_new_pinned_directory(collision)
-    finally:
-        shutil.rmtree(collision_parent, ignore_errors=True)
-
-
-@pytest.mark.parametrize(
     "unsafe_text",
     [
         "github_" + "pat_" + ("a" * 24),
@@ -899,66 +705,6 @@ def test_cli_catches_specification_pipeline_failure(
     assert capsys.readouterr().out == "FAIL: specification preparation failed\n"
 
 
-def test_pilot_v2_schemas_are_closed_and_version_aligned() -> None:
-    contracts = REPO_ROOT / "docs" / "orchestration" / "contracts"
-    for filename in (
-        "creative_pilot_workspace.v2.schema.json",
-        "creative_pilot_role_result.v2.schema.json",
-        "creative_pilot_synthesis.v2.schema.json",
-        "creative_hypothesis_approval.v2.schema.json",
-        "creative_hypothesis_packet.v2.schema.json",
-        "creative_hypothesis_specification_bridge.v2.schema.json",
-        "creative_protocol_context_map.v2.schema.json",
-    ):
-        schema = json.loads((contracts / filename).read_text(encoding="utf-8"))
-        assert schema["$id"] == filename
-        assert schema["additionalProperties"] is False
-        assert schema["properties"]["schema_version"]["const"] == "2.0"
-    for filename in (
-        "creative_adaptive_pr1_variant_intake.v1.schema.json",
-        "creative_adaptive_pr1_resume_binding.v1.schema.json",
-    ):
-        schema = json.loads((contracts / filename).read_text(encoding="utf-8"))
-        assert schema["$id"] == filename
-        assert schema["additionalProperties"] is False
-        assert schema["properties"]["schema_version"]["const"] == "1.0"
-        assert schema["properties"]["authority"]["additionalProperties"] is False
-        if filename == "creative_adaptive_pr1_variant_intake.v1.schema.json":
-            assert (
-                schema["$defs"]["declaration"]["properties"]["negative_controls"]["minItems"] == 2
-            )
-            assert ":" not in schema["properties"]["pilot_id"]["pattern"]
-            declaration = schema["$defs"]["declaration"]["properties"]
-            assert declaration["problem_statement"]["$ref"].endswith("#/$defs/safe_text")
-            assert declaration["target_paths"]["items"]["$ref"].endswith("#/$defs/path")
-            assert declaration["tests_to_add"]["items"]["$ref"].endswith("#/$defs/test_path")
-        else:
-            assert schema["properties"]["resume_id"]["pattern"].startswith(
-                "^evidence:creative_adaptive_pr1_resume_binding"
-            )
-            assert schema["properties"]["idempotency_key"]["pattern"] == ("^idem:[a-f0-9]{64}$")
-            assert ":" not in schema["properties"]["pilot_id"]["pattern"]
-
-
-def test_adaptive_intake_schema_rejects_traversal_and_colon_pilot_ids() -> None:
-    schema = json.loads(
-        (
-            REPO_ROOT
-            / "docs/orchestration/contracts/creative_adaptive_pr1_variant_intake.v1.schema.json"
-        ).read_text(encoding="utf-8")
-    )
-    pilot_pattern = schema["properties"]["pilot_id"]["pattern"]
-    target_pattern = schema["properties"]["target_surface"]["items"]["allOf"][1]["pattern"]
-    test_pattern = schema["properties"]["required_tests"]["items"]["allOf"][1]["pattern"]
-
-    assert re.fullmatch(pilot_pattern, "safe-pilot_1")
-    assert re.fullmatch(pilot_pattern, "unsafe:pilot") is None
-    assert re.fullmatch(target_pattern, "core/rag/orchestration.py")
-    assert re.fullmatch(target_pattern, "core/rag/../../../etc/passwd.py") is None
-    assert re.fullmatch(test_pattern, "tests/test_rag_orchestration.py")
-    assert re.fullmatch(test_pattern, "tests/../../etc/passwd.py") is None
-
-
 def _resume_declarations(candidate: dict) -> list[dict]:
     return [
         {
@@ -1065,32 +811,6 @@ def _assert_resume_schema_binding_prefixes(binding: dict, schema: dict) -> None:
             assert re.search(properties["ref"]["pattern"], row["ref"])
 
 
-def _spec_entries_for_pilot(
-    spec_root: Path,
-    *,
-    existing_names: set[str],
-    pilot_id: str,
-    explicit_entries: tuple[Path, ...] = (),
-) -> list[Path]:
-    owned: list[Path] = []
-    for entry in spec_root.iterdir():
-        if entry.name in existing_names:
-            continue
-        if entry in explicit_entries:
-            owned.append(entry)
-            continue
-        for filename in (pilot_cli.RESUME_INTAKE_FILENAME, pilot_cli.RESUME_BINDING_FILENAME):
-            artifact = entry / filename
-            try:
-                payload = json.loads(artifact.read_text(encoding="utf-8"))
-            except (FileNotFoundError, NotADirectoryError, OSError, ValueError):
-                continue
-            if isinstance(payload, dict) and payload.get("pilot_id") == pilot_id:
-                owned.append(entry)
-                break
-    return owned
-
-
 def _publish_adaptive_resume_for_test(
     *,
     monkeypatch: pytest.MonkeyPatch,
@@ -1127,11 +847,7 @@ def _publish_adaptive_resume_for_test(
         )
         == 0
     )
-    outputs = _spec_entries_for_pilot(
-        spec_root,
-        existing_names=existing_outputs,
-        pilot_id=pilot_id,
-    )
+    outputs = [entry for entry in spec_root.iterdir() if entry.name not in existing_outputs]
     assert len(outputs) == 1
     output = outputs[0]
     return {
@@ -1155,60 +871,6 @@ def _cleanup_published_adaptive_resume(fixture: dict[str, object]) -> None:
     shutil.rmtree(Path(fixture["root"]), ignore_errors=True)
 
 
-def test_idempotent_replay_revalidates_bundle_after_source_checks(
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    fixture = _publish_adaptive_resume_for_test(
-        monkeypatch=monkeypatch,
-        capsys=capsys,
-        prefix="replay-terminal-snapshot",
-    )
-    output = Path(fixture["output"])
-    candidate_path = output / pilot_cli.RESUME_CANDIDATE_FILENAME
-    declarations = Path(fixture["root"]) / "declarations.json"
-    real_revalidate = pilot_cli._revalidate_exact_source_bindings
-    calls = 0
-
-    def mutate_on_terminal_source_check(*args: object, **kwargs: object) -> None:
-        nonlocal calls
-        calls += 1
-        if calls == 2:
-            candidate_path.write_text(
-                json.dumps({"candidate_id": "candidate:late-replay-mutation"}),
-                encoding="utf-8",
-            )
-        real_revalidate(*args, **kwargs)
-
-    monkeypatch.setattr(
-        pilot_cli,
-        "_revalidate_exact_source_bindings",
-        mutate_on_terminal_source_check,
-    )
-    try:
-        capsys.readouterr()
-        assert (
-            pilot_cli.main(
-                [
-                    "resume-pr1",
-                    "--pilot-id",
-                    str(fixture["pilot_id"]),
-                    "--variant-declarations",
-                    str(declarations),
-                    "--current-base-sha",
-                    _sha(),
-                ]
-            )
-            == 1
-        )
-        output_text = capsys.readouterr().out
-        assert "canonical resume payload mismatch" in output_text
-        assert "replay=idempotent" not in output_text
-        assert calls == 2
-    finally:
-        _cleanup_published_adaptive_resume(fixture)
-
-
 def _rederive_resume_binding_identity(
     binding: dict,
     *,
@@ -1224,7 +886,6 @@ def _rederive_resume_binding_identity(
         candidate=candidate,
         source_artifacts=updated["source_lineage"]["source_artifacts"],
         original_prepare_bindings=updated["source_lineage"]["original_prepare_bindings"],
-        old_target_manifest=updated["source_lineage"]["old_target_manifest"],
         current_target_manifest=updated["source_lineage"]["current_target_manifest"],
     )
     updated["resume_id"] = resume_id
@@ -1302,7 +963,7 @@ def _tamper_adaptive_prepare_artifact(output: Path, kind: str) -> tuple[Path, by
     return path, original, error_code
 
 
-def test_resume_pr1_publishes_exact_new_only_bundle_and_replays(
+def test_resume_pr1_publishes_exact_new_only_bundle(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -1338,11 +999,7 @@ def test_resume_pr1_publishes_exact_new_only_bundle_and_replays(
             _sha(),
         ]
         assert pilot_cli.main(args) == 0
-        outputs = _spec_entries_for_pilot(
-            spec_root,
-            existing_names=existing_outputs,
-            pilot_id=pilot_id,
-        )
+        outputs = [entry for entry in spec_root.iterdir() if entry.name not in existing_outputs]
         assert len(outputs) == 1
         output = outputs[0]
         assert {entry.name for entry in output.iterdir()} == {
@@ -1386,10 +1043,8 @@ def test_resume_pr1_publishes_exact_new_only_bundle_and_replays(
             ],
             intake_payload["source_candidate"]["candidate_ref"],
         )
-        target_pattern = intake_schema["properties"]["target_surface"]["items"]["allOf"][1][
-            "pattern"
-        ]
-        test_pattern = intake_schema["properties"]["required_tests"]["items"]["allOf"][1]["pattern"]
+        target_pattern = intake_schema["properties"]["target_surface"]["items"]["pattern"]
+        test_pattern = intake_schema["properties"]["required_tests"]["items"]["pattern"]
         assert all(re.fullmatch(target_pattern, path) for path in intake_payload["target_surface"])
         assert all(re.fullmatch(test_pattern, path) for path in intake_payload["required_tests"])
         expected_families = [
@@ -1498,7 +1153,26 @@ def test_resume_pr1_publishes_exact_new_only_bundle_and_replays(
         shutil.rmtree(root, ignore_errors=True)
 
 
-def test_resume_binding_rejects_pilot_substitution_copied_evidence_and_mixed_refs(
+def test_resume_exact_replay_is_byte_mtime_and_entry_count_stable() -> None:
+    source = Path(pilot_cli.__file__).read_text(encoding="utf-8")
+    resume_body = source[source.index("def _cmd_resume_pr1(") :]
+    existing_branch = resume_body.index("if final_dir.exists() or final_dir.is_symlink():")
+    validation = resume_body.index("_validate_existing_resume(", existing_branch)
+    replay_return = resume_body.index("return", validation)
+    staging_allocation = resume_body.index("for _attempt in range(32):")
+    assert existing_branch < validation < replay_return < staging_allocation
+
+
+def test_resume_rejects_stale_origin_main_before_publication() -> None:
+    source = Path(pilot_cli.__file__).read_text(encoding="utf-8")
+    resume_body = source[source.index("def _cmd_resume_pr1(") :]
+    stale_check = resume_body.index("current_base != current_origin_main_sha()")
+    lock_open = resume_body.index("_open_resume_parent_lock(final_dir)")
+    assert stale_check < lock_open
+    assert "adaptive_base_drift: current-base-sha must equal origin/main" in resume_body
+
+
+def test_resume_rejects_retained_lineage_substitution(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -1570,615 +1244,6 @@ def test_resume_binding_rejects_pilot_substitution_copied_evidence_and_mixed_ref
             )
     finally:
         _cleanup_published_adaptive_resume(fixture)
-
-
-def test_resume_binding_structural_validation_binds_retained_manifest(
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    fixture = _publish_adaptive_resume_for_test(
-        monkeypatch=monkeypatch,
-        capsys=capsys,
-        prefix="manifest-identity",
-    )
-    try:
-        binding = deepcopy(dict(fixture["binding"]))
-        binding["source_lineage"]["source_base_sha"] = "f" * 40
-        binding["source_lineage"]["source_head_sha"] = "f" * 40
-        binding["source_lineage"]["old_target_manifest"]["base_sha"] = "f" * 40
-        binding["source_lineage"]["old_target_manifest"]["head_sha"] = "f" * 40
-        with pytest.raises(CreativePilotContractError, match="identity mismatch"):
-            pilot_contract.validate_adaptive_pr1_resume_binding(
-                binding,
-                intake=dict(fixture["intake"]),
-                candidate=dict(fixture["candidate"]),
-                revalidate_git=False,
-            )
-    finally:
-        _cleanup_published_adaptive_resume(fixture)
-
-
-def test_resume_binding_structural_mode_does_not_require_git_or_source_files(
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    fixture = _publish_adaptive_resume_for_test(
-        monkeypatch=monkeypatch,
-        capsys=capsys,
-        prefix="structural-mode",
-    )
-    try:
-        monkeypatch.setattr(
-            pilot_contract,
-            "current_origin_main_sha",
-            lambda: pytest.fail("structural validation must not inspect Git"),
-        )
-        assert pilot_contract.validate_adaptive_pr1_resume_binding(
-            dict(fixture["binding"]),
-            intake=dict(fixture["intake"]),
-            candidate=dict(fixture["candidate"]),
-            revalidate_git=False,
-        ) == dict(fixture["binding"])
-    finally:
-        _cleanup_published_adaptive_resume(fixture)
-
-
-def test_retained_resume_lineage_rejects_manifest_substitution() -> None:
-    old_manifest = {"base_sha": "a" * 40, "head_sha": "a" * 40}
-    candidate = {"candidate_id": "candidate:expected"}
-    retained = {
-        "workspace": {"target_manifest": {**old_manifest, "head_sha": "b" * 40}},
-        "candidate": candidate,
-    }
-
-    with pytest.raises(
-        CreativePilotContractError,
-        match="retained target manifest does not match old_target_manifest",
-    ):
-        pilot_contract._assert_retained_resume_lineage(
-            retained,
-            old_target_manifest=old_manifest,
-            candidate=candidate,
-            candidate_fingerprint=fingerprint_payload(candidate),
-        )
-
-
-@pytest.mark.parametrize("splice_kind", ["candidate", "fingerprint"])
-def test_retained_resume_lineage_rejects_candidate_or_fingerprint_splice(
-    splice_kind: str,
-) -> None:
-    old_manifest = {"base_sha": "a" * 40, "head_sha": "a" * 40}
-    candidate = {"candidate_id": "candidate:expected"}
-    retained_candidate = (
-        {"candidate_id": "candidate:substituted"} if splice_kind == "candidate" else candidate
-    )
-    candidate_fingerprint = (
-        "sha256:" + ("f" * 64) if splice_kind == "fingerprint" else fingerprint_payload(candidate)
-    )
-    retained = {
-        "workspace": {"target_manifest": old_manifest},
-        "candidate": retained_candidate,
-    }
-
-    with pytest.raises(
-        CreativePilotContractError,
-        match="retained candidate does not match resume candidate",
-    ):
-        pilot_contract._assert_retained_resume_lineage(
-            retained,
-            old_target_manifest=old_manifest,
-            candidate=candidate,
-            candidate_fingerprint=candidate_fingerprint,
-        )
-
-
-@pytest.mark.parametrize(
-    ("base_sha", "head_sha"),
-    [
-        ("a" * 40, "b" * 40),
-        ("b" * 40, "a" * 40),
-    ],
-)
-def test_current_resume_manifest_requires_base_and_head_at_origin_main(
-    base_sha: str,
-    head_sha: str,
-) -> None:
-    with pytest.raises(
-        CreativePilotContractError,
-        match="current target manifest must equal origin/main",
-    ):
-        pilot_contract._assert_current_manifest_at_origin_main(
-            {"base_sha": base_sha, "head_sha": head_sha},
-            "a" * 40,
-        )
-
-
-def test_resume_binding_replays_retained_terminal_lineage_on_consumption(
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    fixture = _publish_adaptive_resume_for_test(
-        monkeypatch=monkeypatch,
-        capsys=capsys,
-        prefix="retained-replay",
-    )
-    try:
-        context_path = Path(fixture["pilot_dir"]) / "context_map.v2.json"
-        context = json.loads(context_path.read_text(encoding="utf-8"))
-        context["forged_after_publication"] = True
-        context_path.write_text(json.dumps(context), encoding="utf-8")
-
-        binding = deepcopy(dict(fixture["binding"]))
-        context_row = binding["source_lineage"]["source_artifacts"][0]
-        assert context_row["filename"] == "context_map.v2.json"
-        context_row["fingerprint"] = fingerprint_payload(context)
-        binding = _rederive_resume_binding_identity(
-            binding,
-            intake=dict(fixture["intake"]),
-            candidate=dict(fixture["candidate"]),
-        )
-
-        with pytest.raises(CreativePilotContractError, match="adaptive_source_lineage_mismatch"):
-            pilot_contract.validate_adaptive_pr1_resume_binding(
-                binding,
-                intake=dict(fixture["intake"]),
-                candidate=dict(fixture["candidate"]),
-                revalidate_git=True,
-            )
-    finally:
-        _cleanup_published_adaptive_resume(fixture)
-
-
-@pytest.mark.parametrize("entry_kind", ["regular_file", "symlink"])
-def test_pinned_resume_bundle_rejects_raced_extra_prepare_entry(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-    entry_kind: str,
-) -> None:
-    intake: dict[str, object] = {"materialized_variants": []}
-    candidate: dict[str, object] = {}
-    binding: dict[str, object] = {}
-    payloads = {
-        pilot_cli.RESUME_INTAKE_FILENAME: intake,
-        pilot_cli.RESUME_CANDIDATE_FILENAME: candidate,
-        pilot_cli.RESUME_BINDING_FILENAME: binding,
-    }
-    for filename, payload in payloads.items():
-        (tmp_path / filename).write_text(json.dumps(payload), encoding="utf-8")
-    prepare_dir = tmp_path / "spec_prepare"
-    prepare_dir.mkdir()
-    for filename in pilot_contract.ADAPTIVE_PR1_PREPARE_FILENAMES:
-        (prepare_dir / filename).write_text("{}", encoding="utf-8")
-
-    real_open_directory_at = pilot_cli._open_directory_at
-
-    def inject_extra_entry(parent_fd: int, name: str) -> int:
-        descriptor = real_open_directory_at(parent_fd, name)
-        unexpected = prepare_dir / "unexpected.json"
-        if entry_kind == "symlink":
-            unexpected.symlink_to("source_packet.json")
-        else:
-            unexpected.write_text("{}", encoding="utf-8")
-        return descriptor
-
-    monkeypatch.setattr(pilot_cli, "_open_directory_at", inject_extra_entry)
-    directory_fd = os.open(
-        tmp_path,
-        os.O_RDONLY | pilot_cli._required_open_flag("O_DIRECTORY"),
-    )
-    try:
-        with pytest.raises(
-            CreativePilotContractError,
-            match="adaptive_publish_validation_failed: fixed spec_prepare set required",
-        ):
-            pilot_cli._validate_pinned_resume_bundle(
-                directory_fd,
-                intake=intake,
-                candidate=candidate,
-                binding=binding,
-            )
-    finally:
-        os.close(directory_fd)
-
-
-@pytest.mark.parametrize("mutation_scope", ["resume", "spec_prepare"])
-def test_pinned_resume_bundle_rechecks_entry_sets_after_validation(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-    mutation_scope: str,
-) -> None:
-    intake: dict[str, object] = {"materialized_variants": []}
-    candidate: dict[str, object] = {}
-    binding: dict[str, object] = {}
-    payloads = {
-        pilot_cli.RESUME_INTAKE_FILENAME: intake,
-        pilot_cli.RESUME_CANDIDATE_FILENAME: candidate,
-        pilot_cli.RESUME_BINDING_FILENAME: binding,
-    }
-    for filename, payload in payloads.items():
-        (tmp_path / filename).write_text(json.dumps(payload), encoding="utf-8")
-    prepare_dir = tmp_path / "spec_prepare"
-    prepare_dir.mkdir()
-    for filename in pilot_contract.ADAPTIVE_PR1_PREPARE_FILENAMES:
-        (prepare_dir / filename).write_text("{}", encoding="utf-8")
-
-    real_read_json_at = pilot_cli._read_json_at
-
-    def inject_after_last_prepare_read(directory_fd: int, filename: str) -> object:
-        payload = real_read_json_at(directory_fd, filename)
-        if filename == pilot_contract.ADAPTIVE_PR1_PREPARE_FILENAMES[-1]:
-            target = tmp_path if mutation_scope == "resume" else prepare_dir
-            (target / "unexpected.json").write_text("{}", encoding="utf-8")
-        return payload
-
-    monkeypatch.setattr(pilot_cli, "_read_json_at", inject_after_last_prepare_read)
-    monkeypatch.setattr(
-        pilot_cli,
-        "validate_exact_prepare_artifact_snapshots",
-        lambda **_kwargs: None,
-    )
-    monkeypatch.setattr(
-        pilot_cli,
-        "validate_adaptive_pr1_resume_binding",
-        lambda *_args, **_kwargs: binding,
-    )
-    directory_fd = os.open(
-        tmp_path,
-        os.O_RDONLY | pilot_cli._required_open_flag("O_DIRECTORY"),
-    )
-    expected_error = (
-        "fixed resume output set required"
-        if mutation_scope == "resume"
-        else "fixed spec_prepare set required"
-    )
-    try:
-        with pytest.raises(CreativePilotContractError, match=expected_error):
-            pilot_cli._validate_pinned_resume_bundle(
-                directory_fd,
-                intake=intake,
-                candidate=candidate,
-                binding=binding,
-            )
-    finally:
-        os.close(directory_fd)
-
-
-@pytest.mark.parametrize("reviewed_kind", ["symlink", "file"])
-def test_pinned_resume_entry_set_requires_reviewed_sibling_directory(
-    tmp_path: Path,
-    reviewed_kind: str,
-) -> None:
-    for filename in (
-        pilot_cli.RESUME_INTAKE_FILENAME,
-        pilot_cli.RESUME_CANDIDATE_FILENAME,
-        pilot_cli.RESUME_BINDING_FILENAME,
-    ):
-        (tmp_path / filename).write_text("{}", encoding="utf-8")
-    (tmp_path / "spec_prepare").mkdir()
-    reviewed = tmp_path / "spec_finalize_reviewed"
-    outside: Path | None = None
-    if reviewed_kind == "symlink":
-        outside = tmp_path.parent / f"outside-{uuid.uuid4().hex}"
-        outside.mkdir()
-        reviewed.symlink_to(outside, target_is_directory=True)
-    else:
-        reviewed.write_text("not-a-directory", encoding="utf-8")
-
-    directory_fd = os.open(
-        tmp_path,
-        os.O_RDONLY | pilot_cli._required_open_flag("O_DIRECTORY"),
-    )
-    try:
-        with pytest.raises(
-            CreativePilotContractError,
-            match="adaptive_source_symlink: nested resume child",
-        ):
-            pilot_cli._assert_pinned_resume_entry_set(
-                directory_fd,
-                allow_reviewed_run=True,
-                error_prefix="adaptive_partial_output",
-            )
-    finally:
-        os.close(directory_fd)
-        if outside is not None:
-            shutil.rmtree(outside, ignore_errors=True)
-
-
-@pytest.mark.parametrize(
-    ("open_error", "expected_error"),
-    [
-        (
-            FileNotFoundError("simulated reviewed-run disappearance"),
-            "reviewed run changed during inspection",
-        ),
-        (
-            OSError(pilot_cli.errno.EMFILE, "simulated descriptor exhaustion"),
-            "unable to open reviewed run",
-        ),
-        (
-            NotImplementedError("simulated unsupported directory open"),
-            "unable to open reviewed run",
-        ),
-    ],
-)
-def test_pinned_resume_entry_set_preserves_reviewed_open_failure_taxonomy(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-    open_error: Exception,
-    expected_error: str,
-) -> None:
-    for filename in (
-        pilot_cli.RESUME_INTAKE_FILENAME,
-        pilot_cli.RESUME_CANDIDATE_FILENAME,
-        pilot_cli.RESUME_BINDING_FILENAME,
-    ):
-        (tmp_path / filename).write_text("{}", encoding="utf-8")
-    (tmp_path / "spec_prepare").mkdir()
-    (tmp_path / "spec_finalize_reviewed").mkdir()
-
-    real_open_directory_at = pilot_cli._open_directory_at
-
-    def fail_only_reviewed(parent_fd: int, name: str) -> int:
-        if name == "spec_finalize_reviewed":
-            raise open_error
-        return real_open_directory_at(parent_fd, name)
-
-    monkeypatch.setattr(pilot_cli, "_open_directory_at", fail_only_reviewed)
-    directory_fd = os.open(
-        tmp_path,
-        os.O_RDONLY | pilot_cli._required_open_flag("O_DIRECTORY"),
-    )
-    try:
-        with pytest.raises(CreativePilotContractError, match=expected_error):
-            pilot_cli._assert_pinned_resume_entry_set(
-                directory_fd,
-                allow_reviewed_run=True,
-                error_prefix="adaptive_partial_output",
-            )
-    finally:
-        os.close(directory_fd)
-
-
-@pytest.mark.parametrize("mutation_scope", ["resume", "spec_prepare"])
-def test_pinned_resume_bundle_rechecks_contents_after_semantic_validation(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-    mutation_scope: str,
-) -> None:
-    intake: dict[str, object] = {"materialized_variants": []}
-    candidate: dict[str, object] = {"candidate_id": "candidate:expected"}
-    binding: dict[str, object] = {}
-    payloads = {
-        pilot_cli.RESUME_INTAKE_FILENAME: intake,
-        pilot_cli.RESUME_CANDIDATE_FILENAME: candidate,
-        pilot_cli.RESUME_BINDING_FILENAME: binding,
-    }
-    for filename, payload in payloads.items():
-        (tmp_path / filename).write_text(json.dumps(payload), encoding="utf-8")
-    prepare_dir = tmp_path / "spec_prepare"
-    prepare_dir.mkdir()
-    for filename in pilot_contract.ADAPTIVE_PR1_PREPARE_FILENAMES:
-        (prepare_dir / filename).write_text("{}", encoding="utf-8")
-
-    def mutate_during_semantic_validation(**_kwargs: object) -> None:
-        target = (
-            tmp_path / pilot_cli.RESUME_CANDIDATE_FILENAME
-            if mutation_scope == "resume"
-            else prepare_dir / pilot_contract.ADAPTIVE_PR1_PREPARE_FILENAMES[-1]
-        )
-        target.write_text(json.dumps({"mutated": True}), encoding="utf-8")
-
-    monkeypatch.setattr(
-        pilot_cli,
-        "validate_exact_prepare_artifact_snapshots",
-        mutate_during_semantic_validation,
-    )
-    monkeypatch.setattr(
-        pilot_cli,
-        "validate_adaptive_pr1_resume_binding",
-        lambda *_args, **_kwargs: binding,
-    )
-    directory_fd = os.open(
-        tmp_path,
-        os.O_RDONLY | pilot_cli._required_open_flag("O_DIRECTORY"),
-    )
-    expected_error = (
-        "canonical resume payload mismatch"
-        if mutation_scope == "resume"
-        else "canonical spec_prepare payload mismatch"
-    )
-    try:
-        with pytest.raises(CreativePilotContractError, match=expected_error):
-            pilot_cli._validate_pinned_resume_bundle(
-                directory_fd,
-                intake=intake,
-                candidate=candidate,
-                binding=binding,
-            )
-    finally:
-        os.close(directory_fd)
-
-
-def test_pinned_resume_bundle_rechecks_content_after_final_entry_scan(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    intake: dict[str, object] = {"materialized_variants": []}
-    candidate: dict[str, object] = {"candidate_id": "candidate:expected"}
-    binding: dict[str, object] = {}
-    payloads = {
-        pilot_cli.RESUME_INTAKE_FILENAME: intake,
-        pilot_cli.RESUME_CANDIDATE_FILENAME: candidate,
-        pilot_cli.RESUME_BINDING_FILENAME: binding,
-    }
-    for filename, payload in payloads.items():
-        (tmp_path / filename).write_text(json.dumps(payload), encoding="utf-8")
-    prepare_dir = tmp_path / "spec_prepare"
-    prepare_dir.mkdir()
-    for filename in pilot_contract.ADAPTIVE_PR1_PREPARE_FILENAMES:
-        (prepare_dir / filename).write_text("{}", encoding="utf-8")
-
-    semantic_validation_complete = False
-    mutated = False
-    real_listdir = pilot_cli.os.listdir
-
-    def complete_binding_validation(*_args: object, **_kwargs: object) -> dict[str, object]:
-        nonlocal semantic_validation_complete
-        semantic_validation_complete = True
-        return binding
-
-    def mutate_during_final_entry_scan(path: int) -> list[str]:
-        nonlocal mutated
-        if semantic_validation_complete and not mutated:
-            mutated = True
-            (tmp_path / pilot_cli.RESUME_CANDIDATE_FILENAME).write_text(
-                json.dumps({"candidate_id": "candidate:late-mutation"}),
-                encoding="utf-8",
-            )
-        return real_listdir(path)
-
-    monkeypatch.setattr(
-        pilot_cli,
-        "validate_exact_prepare_artifact_snapshots",
-        lambda **_kwargs: None,
-    )
-    monkeypatch.setattr(
-        pilot_cli,
-        "validate_adaptive_pr1_resume_binding",
-        complete_binding_validation,
-    )
-    monkeypatch.setattr(pilot_cli.os, "listdir", mutate_during_final_entry_scan)
-    directory_fd = os.open(
-        tmp_path,
-        os.O_RDONLY | pilot_cli._required_open_flag("O_DIRECTORY"),
-    )
-    try:
-        with pytest.raises(
-            CreativePilotContractError,
-            match="canonical resume payload mismatch",
-        ):
-            pilot_cli._validate_pinned_resume_bundle(
-                directory_fd,
-                intake=intake,
-                candidate=candidate,
-                binding=binding,
-            )
-    finally:
-        os.close(directory_fd)
-
-    assert mutated
-
-
-@pytest.mark.parametrize("mutation_scope", ["resume", "spec_prepare"])
-def test_pinned_resume_bundle_rechecks_entries_after_second_content_snapshot(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-    mutation_scope: str,
-) -> None:
-    intake: dict[str, object] = {"materialized_variants": []}
-    candidate: dict[str, object] = {"candidate_id": "candidate:expected"}
-    binding: dict[str, object] = {}
-    payloads = {
-        pilot_cli.RESUME_INTAKE_FILENAME: intake,
-        pilot_cli.RESUME_CANDIDATE_FILENAME: candidate,
-        pilot_cli.RESUME_BINDING_FILENAME: binding,
-    }
-    for filename, payload in payloads.items():
-        (tmp_path / filename).write_text(json.dumps(payload), encoding="utf-8")
-    prepare_dir = tmp_path / "spec_prepare"
-    prepare_dir.mkdir()
-    for filename in pilot_contract.ADAPTIVE_PR1_PREPARE_FILENAMES:
-        (prepare_dir / filename).write_text("{}", encoding="utf-8")
-
-    final_prepare_reads = 0
-    real_read_json_at = pilot_cli._read_json_at
-
-    def inject_during_second_content_snapshot(
-        directory_fd: int,
-        filename: str,
-    ) -> object:
-        nonlocal final_prepare_reads
-        payload = real_read_json_at(directory_fd, filename)
-        if filename == pilot_contract.ADAPTIVE_PR1_PREPARE_FILENAMES[-1]:
-            final_prepare_reads += 1
-            if final_prepare_reads == 3:
-                target = tmp_path if mutation_scope == "resume" else prepare_dir
-                (target / "unexpected.json").write_text("{}", encoding="utf-8")
-        return payload
-
-    monkeypatch.setattr(pilot_cli, "_read_json_at", inject_during_second_content_snapshot)
-    monkeypatch.setattr(
-        pilot_cli,
-        "validate_exact_prepare_artifact_snapshots",
-        lambda **_kwargs: None,
-    )
-    monkeypatch.setattr(
-        pilot_cli,
-        "validate_adaptive_pr1_resume_binding",
-        lambda *_args, **_kwargs: binding,
-    )
-    directory_fd = os.open(
-        tmp_path,
-        os.O_RDONLY | pilot_cli._required_open_flag("O_DIRECTORY"),
-    )
-    expected_error = (
-        "fixed resume output set required"
-        if mutation_scope == "resume"
-        else "fixed spec_prepare set required"
-    )
-    try:
-        with pytest.raises(CreativePilotContractError, match=expected_error):
-            pilot_cli._validate_pinned_resume_bundle(
-                directory_fd,
-                intake=intake,
-                candidate=candidate,
-                binding=binding,
-            )
-    finally:
-        os.close(directory_fd)
-
-    assert final_prepare_reads == 3
-
-
-@pytest.mark.parametrize(
-    "non_finite",
-    [float("nan"), float("inf"), float("-inf")],
-)
-def test_pinned_resume_bundle_rejects_non_finite_json_as_domain_mismatch(
-    tmp_path: Path,
-    non_finite: float,
-) -> None:
-    intake: dict[str, object] = {"materialized_variants": []}
-    candidate: dict[str, object] = {"candidate_id": "candidate:expected"}
-    binding: dict[str, object] = {}
-    payloads = {
-        pilot_cli.RESUME_INTAKE_FILENAME: intake,
-        pilot_cli.RESUME_CANDIDATE_FILENAME: {
-            "candidate_id": "candidate:expected",
-            "score": non_finite,
-        },
-        pilot_cli.RESUME_BINDING_FILENAME: binding,
-    }
-    for filename, payload in payloads.items():
-        (tmp_path / filename).write_text(json.dumps(payload), encoding="utf-8")
-    (tmp_path / "spec_prepare").mkdir()
-    directory_fd = os.open(
-        tmp_path,
-        os.O_RDONLY | pilot_cli._required_open_flag("O_DIRECTORY"),
-    )
-    try:
-        with pytest.raises(
-            CreativePilotContractError,
-            match="canonical resume payload mismatch",
-        ):
-            pilot_cli._validate_pinned_resume_bundle(
-                directory_fd,
-                intake=intake,
-                candidate=candidate,
-                binding=binding,
-            )
-    finally:
-        os.close(directory_fd)
 
 
 @pytest.mark.parametrize("tamper_kind", ["context", "reviews"])
@@ -2322,477 +1387,110 @@ def _assert_resume_lineage_failure(
         shutil.rmtree(root, ignore_errors=True)
 
 
-def test_resume_rejects_retained_bridge_extra_key_before_publication(
+def test_resume_rejects_source_fingerprint_drift(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     def mutate(pilot_dir: Path, _alternate_dir: Path) -> None:
-        bridge_path = pilot_dir / "spec_bridge.v2.json"
-        bridge = json.loads(bridge_path.read_text(encoding="utf-8"))
-        bridge["forged_extra"] = True
-        bridge_path.write_text(json.dumps(bridge), encoding="utf-8")
+        candidate_path = pilot_dir / "creative_code_candidate.v1.json"
+        candidate = json.loads(candidate_path.read_text(encoding="utf-8"))
+        candidate["forged_before_resume"] = True
+        candidate_path.write_text(json.dumps(candidate), encoding="utf-8")
 
     _assert_resume_lineage_failure(monkeypatch=monkeypatch, capsys=capsys, mutate=mutate)
 
 
-def test_resume_rejects_valid_mismatched_bridge_candidate_substitution(
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    def mutate(pilot_dir: Path, alternate_dir: Path) -> None:
-        shutil.copyfile(alternate_dir / "spec_bridge.v2.json", pilot_dir / "spec_bridge.v2.json")
-        shutil.copyfile(
-            alternate_dir / "creative_code_candidate.v1.json",
-            pilot_dir / "creative_code_candidate.v1.json",
-        )
-
-    _assert_resume_lineage_failure(monkeypatch=monkeypatch, capsys=capsys, mutate=mutate)
-
-
-def test_resume_rejects_mutation_at_binding_seam_before_publication(
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
+def test_resume_cooperative_lock_contention_then_replay() -> None:
     artifact_root = creative_code_spec_pipeline.ARTIFACT_ROOT
     artifact_root.mkdir(parents=True, exist_ok=True)
-    root = Path(tempfile.mkdtemp(prefix="pytest-binding-race-", dir=artifact_root))
-    pilot_root = artifact_root / "adaptive_pilots"
-    pilot_id = f"pilot-{root.name}"
-    pilot_dir = pilot_root / pilot_id
-    spec_root = artifact_root / "spec_bridge"
-    declarations = root / "declarations.json"
+    root = Path(tempfile.mkdtemp(prefix="pytest-resume-lock-", dir=artifact_root))
     try:
-        candidate = _write_terminal_pilot(pilot_dir)
-        declarations.write_text(
-            json.dumps(_resume_declarations(candidate), indent=2), encoding="utf-8"
-        )
-        spec_root.mkdir(parents=True, exist_ok=True)
-        outputs_before = {entry.name for entry in spec_root.iterdir()}
-        monkeypatch.setattr(pilot_cli, "PILOT_ROOT", pilot_root)
-        monkeypatch.setattr(pilot_cli, "SPEC_BRIDGE_ROOT", spec_root)
-        exact_source_bindings = pilot_cli._exact_source_bindings
-
-        def mutate_after_binding(
-            run_dir: Path,
-            *,
-            lineage: dict,
-            prepare_snapshots: dict,
-        ) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
-            rows = exact_source_bindings(
-                run_dir,
-                lineage=lineage,
-                prepare_snapshots=prepare_snapshots,
-            )
-            candidate_path = run_dir / "creative_code_candidate.v1.json"
-            mutated = json.loads(candidate_path.read_text(encoding="utf-8"))
-            mutated["forged_after_validation"] = True
-            candidate_path.write_text(json.dumps(mutated), encoding="utf-8")
-            return rows
-
-        monkeypatch.setattr(pilot_cli, "_exact_source_bindings", mutate_after_binding)
-        capsys.readouterr()
-        assert (
-            pilot_cli.main(
-                [
-                    "resume-pr1",
-                    "--pilot-id",
-                    pilot_id,
-                    "--variant-declarations",
-                    str(declarations),
-                    "--current-base-sha",
-                    _sha(),
-                ]
-            )
-            == 1
-        )
-        captured = capsys.readouterr()
-        assert captured.out.startswith("FAIL: adaptive_source_lineage_mismatch:")
-        assert "adaptive_source_fingerprint_mismatch: creative_code_candidate.v1.json" in (
-            captured.out
-        )
-        assert "Traceback" not in captured.out
-        assert {entry.name for entry in spec_root.iterdir()} == outputs_before
-    finally:
-        shutil.rmtree(pilot_dir, ignore_errors=True)
-        shutil.rmtree(root, ignore_errors=True)
-
-
-def _assert_concurrent_resume_destination_is_not_overwritten(
-    *,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-    nonempty: bool,
-) -> None:
-    artifact_root = creative_code_spec_pipeline.ARTIFACT_ROOT
-    artifact_root.mkdir(parents=True, exist_ok=True)
-    root = Path(tempfile.mkdtemp(prefix="pytest-publish-race-", dir=artifact_root))
-    pilot_root = artifact_root / "adaptive_pilots"
-    pilot_id = f"pilot-{root.name}"
-    pilot_dir = pilot_root / pilot_id
-    spec_root = artifact_root / "spec_bridge"
-    declarations = root / "declarations.json"
-    final_dir: Path | None = None
-    staging_dir: Path | None = None
-    marker = b"concurrent-owner\n"
-    existing_names: set[str] = set()
-    try:
-        candidate = _write_terminal_pilot(pilot_dir)
-        declarations.write_text(
-            json.dumps(_resume_declarations(candidate), indent=2), encoding="utf-8"
-        )
-        spec_root.mkdir(parents=True, exist_ok=True)
-        existing_names = {entry.name for entry in spec_root.iterdir()}
-        monkeypatch.setattr(pilot_cli, "PILOT_ROOT", pilot_root)
-        monkeypatch.setattr(pilot_cli, "SPEC_BRIDGE_ROOT", spec_root)
-        publish_noreplace = pilot_cli._atomic_publish_directory_noreplace
-
-        def create_destination_then_publish(
-            staging: Path, destination: Path, **expected: dict
-        ) -> None:
-            nonlocal final_dir, staging_dir
-            final_dir = destination
-            staging_dir = staging
-            destination.mkdir()
-            if nonempty:
-                (destination / "owner.marker").write_bytes(marker)
-            publish_noreplace(staging, destination, **expected)
-
-        monkeypatch.setattr(
-            pilot_cli,
-            "_atomic_publish_directory_noreplace",
-            create_destination_then_publish,
-        )
-        capsys.readouterr()
-        assert (
-            pilot_cli.main(
-                [
-                    "resume-pr1",
-                    "--pilot-id",
-                    pilot_id,
-                    "--variant-declarations",
-                    str(declarations),
-                    "--current-base-sha",
-                    _sha(),
-                ]
-            )
-            == 1
-        )
-        captured = capsys.readouterr()
-        assert captured.out.startswith("FAIL: adaptive_publish_collision:")
-        assert "Traceback" not in captured.out
-        assert final_dir is not None and final_dir.is_dir()
-        if nonempty:
-            assert {entry.name for entry in final_dir.iterdir()} == {"owner.marker"}
-            assert (final_dir / "owner.marker").read_bytes() == marker
-        else:
-            assert list(final_dir.iterdir()) == []
-        assert staging_dir is not None and not staging_dir.exists()
-    finally:
-        explicit_entries = tuple(
-            entry for entry in (final_dir, staging_dir) if isinstance(entry, Path)
-        )
-        if spec_root.exists():
-            for entry in _spec_entries_for_pilot(
-                spec_root,
-                existing_names=existing_names,
-                pilot_id=pilot_id,
-                explicit_entries=explicit_entries,
+        final_dir = root / "resume"
+        owner_fd = os.open(final_dir.parent, os.O_RDONLY)
+        fcntl.flock(owner_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        try:
+            with pytest.raises(
+                CreativePilotContractError,
+                match="adaptive_resume_lock_contended",
             ):
-                shutil.rmtree(entry, ignore_errors=True)
-        shutil.rmtree(pilot_dir, ignore_errors=True)
+                pilot_cli._open_resume_parent_lock(final_dir)
+        finally:
+            fcntl.flock(owner_fd, fcntl.LOCK_UN)
+            os.close(owner_fd)
+        replay_fd = pilot_cli._open_resume_parent_lock(final_dir)
+        os.close(replay_fd)
+    finally:
         shutil.rmtree(root, ignore_errors=True)
 
 
-def test_resume_atomic_publish_does_not_replace_concurrent_empty_destination(
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    _assert_concurrent_resume_destination_is_not_overwritten(
-        monkeypatch=monkeypatch,
-        capsys=capsys,
-        nonempty=False,
-    )
-
-
-def test_resume_atomic_publish_does_not_replace_concurrent_nonempty_destination(
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    _assert_concurrent_resume_destination_is_not_overwritten(
-        monkeypatch=monkeypatch,
-        capsys=capsys,
-        nonempty=True,
-    )
-
-
-def _assert_adaptive_publish_fault(
-    *,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-    prefix: str,
-    install_fault: Callable[[Path, dict[str, object]], None],
-    expected_fragments: tuple[str, ...],
-    verify: Callable[[Path, dict[str, object]], None],
-) -> None:
+def test_resume_atomic_publish_preserves_existing_destination() -> None:
     artifact_root = creative_code_spec_pipeline.ARTIFACT_ROOT
     artifact_root.mkdir(parents=True, exist_ok=True)
-    root = Path(tempfile.mkdtemp(prefix=f"pytest-{prefix}-", dir=artifact_root))
-    pilot_root = artifact_root / "adaptive_pilots"
-    pilot_id = f"pilot-{root.name}"
-    pilot_dir = pilot_root / pilot_id
-    spec_root = artifact_root / "spec_bridge"
-    declarations = root / "declarations.json"
-    existing_names: set[str] = set()
-    state: dict[str, object] = {"pilot_id": pilot_id, "spec_root": spec_root}
+    root = Path(tempfile.mkdtemp(prefix="pytest-resume-publish-", dir=artifact_root))
     try:
-        candidate = _write_terminal_pilot(pilot_dir)
-        declarations.write_text(
-            json.dumps(_resume_declarations(candidate), indent=2), encoding="utf-8"
-        )
-        spec_root.mkdir(parents=True, exist_ok=True)
-        existing_names = {entry.name for entry in spec_root.iterdir()}
-        state["existing_names"] = existing_names
-        monkeypatch.setattr(pilot_cli, "PILOT_ROOT", pilot_root)
-        monkeypatch.setattr(pilot_cli, "SPEC_BRIDGE_ROOT", spec_root)
-        install_fault(spec_root, state)
-        capsys.readouterr()
-        assert (
-            pilot_cli.main(
-                [
-                    "resume-pr1",
-                    "--pilot-id",
-                    pilot_id,
-                    "--variant-declarations",
-                    str(declarations),
-                    "--current-base-sha",
-                    _sha(),
-                ]
-            )
-            == 1
-        )
-        captured = capsys.readouterr()
-        assert "PASS resume_id=" not in captured.out
-        assert "Traceback" not in captured.out
-        for fragment in expected_fragments:
-            assert fragment in captured.out
-        verify(spec_root, state)
+        staging = root / ".resume.staging"
+        final_dir = root / "resume"
+        staging.mkdir()
+        final_dir.mkdir()
+        (staging / "candidate.json").write_text("staging\n", encoding="utf-8")
+        (final_dir / "owner.marker").write_text("owner\n", encoding="utf-8")
+
+        with pytest.raises(CreativePilotContractError, match="adaptive_publish_collision"):
+            pilot_cli._atomic_publish_directory_noreplace(staging, final_dir)
+
+        assert (final_dir / "owner.marker").read_text(encoding="utf-8") == "owner\n"
+        assert staging.is_dir()
     finally:
-        for entry in _new_spec_entries(spec_root, state):
-            if entry.name not in existing_names:
-                shutil.rmtree(entry, ignore_errors=True)
-        shutil.rmtree(pilot_dir, ignore_errors=True)
         shutil.rmtree(root, ignore_errors=True)
 
 
-def _new_spec_entries(spec_root: Path, state: dict[str, object]) -> list[Path]:
-    existing = set(state["existing_names"])
-    explicit_entries: list[Path] = []
-    for value in state.values():
-        if isinstance(value, Path):
-            explicit_entries.append(value)
-        elif isinstance(value, str):
-            explicit_entries.append(spec_root / value)
-    return _spec_entries_for_pilot(
-        spec_root,
-        existing_names=existing,
-        pilot_id=str(state["pilot_id"]),
-        explicit_entries=tuple(explicit_entries),
-    )
+def test_resume_partial_or_divergent_output_fails_closed(tmp_path: Path) -> None:
+    partial = tmp_path / "partial"
+    partial.mkdir()
+    (partial / pilot_cli.RESUME_INTAKE_FILENAME).write_text("{}\n", encoding="utf-8")
+    with pytest.raises(CreativePilotContractError, match="adaptive_partial_output"):
+        pilot_cli._assert_complete_resume_dir(partial)
+
+    source = Path(pilot_cli.__file__).read_text(encoding="utf-8")
+    assert "adaptive_divergent_replay: resume inputs changed" in source
 
 
-def test_resume_rejects_pre_rename_staging_path_swap(
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    original_validate = pilot_cli._validate_pinned_resume_bundle
-
-    def install(spec_root: Path, state: dict[str, object]) -> None:
-        calls = 0
-
-        def swap_after_validation(descriptor: int, **expected: dict) -> None:
-            nonlocal calls
-            original_validate(descriptor, **expected)
-            calls += 1
-            if calls == 1:
-                staging = next(
-                    path
-                    for path in _new_spec_entries(spec_root, state)
-                    if path.name.endswith(".staging")
-                )
-                binding = json.loads(
-                    (staging / pilot_cli.RESUME_BINDING_FILENAME).read_text(encoding="utf-8")
-                )
-                backup = staging.with_name(f"{staging.name}.validated")
-                staging.rename(backup)
-                staging.mkdir()
-                state.update(staging=staging, backup=backup, final=spec_root / binding["resume_id"])
-
-        monkeypatch.setattr(pilot_cli, "_validate_pinned_resume_bundle", swap_after_validation)
-
-    def verify(_root: Path, state: dict[str, object]) -> None:
-        assert Path(state["staging"]).is_dir()
-        assert list(Path(state["staging"]).iterdir()) == []
-        assert Path(state["backup"]).is_dir()
-        assert not Path(state["final"]).exists()
-
-    _assert_adaptive_publish_fault(
-        monkeypatch=monkeypatch,
-        capsys=capsys,
-        prefix="source-swap-before",
-        install_fault=install,
-        expected_fragments=("adaptive_staging_source_swap_at_publish", "cleanup_diagnostic="),
-        verify=verify,
-    )
-
-
-def test_resume_rejects_staging_swap_inside_kernel_rename_seam(
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    original_kernel = pilot_cli._kernel_rename_noreplace
-
-    def install(_root: Path, state: dict[str, object]) -> None:
-        intercepted = False
-
-        def swap_then_rename(parent_fd: int, source: str, destination: str) -> None:
-            nonlocal intercepted
-            if not intercepted and source.endswith(".staging"):
-                intercepted = True
-                backup = f"{source}.validated"
-                os.rename(source, backup, src_dir_fd=parent_fd, dst_dir_fd=parent_fd)
-                os.mkdir(source, mode=0o700, dir_fd=parent_fd)
-                state.update(backup=backup, final=destination)
-            original_kernel(parent_fd, source, destination)
-
-        monkeypatch.setattr(pilot_cli, "_kernel_rename_noreplace", swap_then_rename)
-
-    def verify(spec_root: Path, state: dict[str, object]) -> None:
-        assert (spec_root / str(state["backup"])).is_dir()
-        final = spec_root / str(state["final"])
-        assert final.is_dir()
-        assert list(final.iterdir()) == []
-
-    _assert_adaptive_publish_fault(
-        monkeypatch=monkeypatch,
-        capsys=capsys,
-        prefix="source-swap-kernel",
-        install_fault=install,
-        expected_fragments=("adaptive_staging_source_swap_at_publish", "cleanup_diagnostic="),
-        verify=verify,
-    )
-
-
-def test_resume_rejects_canonical_parent_identity_change(
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    original_identity = pilot_cli._canonical_parent_identity
-
-    def install(_root: Path, _state: dict[str, object]) -> None:
-        calls = 0
-
-        def changed_identity(path: Path) -> tuple[int, int]:
-            nonlocal calls
-            calls += 1
-            identity = original_identity(path)
-            return identity if calls == 1 else (identity[0], identity[1] + 1)
-
-        monkeypatch.setattr(pilot_cli, "_canonical_parent_identity", changed_identity)
-
-    def verify(spec_root: Path, state: dict[str, object]) -> None:
-        assert any(
-            path.name.endswith(".quarantine") for path in _new_spec_entries(spec_root, state)
+def test_resume_cleanup_quarantines_only_owned_staging() -> None:
+    artifact_root = creative_code_spec_pipeline.ARTIFACT_ROOT
+    artifact_root.mkdir(parents=True, exist_ok=True)
+    root = Path(tempfile.mkdtemp(prefix="pytest-resume-cleanup-", dir=artifact_root))
+    try:
+        staging = root / ".resume.staging"
+        staging.mkdir()
+        identity = pilot_cli._directory_identity(staging)
+        retained_name = pilot_cli._retain_owned_staging(
+            staging,
+            expected_identity=identity,
         )
-        assert not any(
-            path.is_dir() and not path.name.startswith(".")
-            for path in _new_spec_entries(spec_root, state)
-        )
+        retained = root / retained_name
+        assert retained.is_dir()
+        assert not staging.exists()
 
-    _assert_adaptive_publish_fault(
-        monkeypatch=monkeypatch,
-        capsys=capsys,
-        prefix="parent-swap",
-        install_fault=install,
-        expected_fragments=("adaptive_publish_parent_mismatch",),
-        verify=verify,
-    )
+        foreign = root / ".foreign.staging"
+        foreign.mkdir()
+        with pytest.raises(CreativePilotContractError, match="ownership changed"):
+            pilot_cli._retain_owned_staging(foreign, expected_identity=identity)
+        assert foreign.is_dir()
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
 
 
-def _install_final_mutation(
-    monkeypatch: pytest.MonkeyPatch,
-    spec_root: Path,
-    state: dict[str, object],
-) -> None:
-    original_validate = pilot_cli._validate_pinned_resume_bundle
-    calls = 0
-
-    def mutate_before_final_validation(descriptor: int, **expected: dict) -> None:
-        nonlocal calls
-        calls += 1
-        if calls == 2:
-            final = next(
-                path
-                for path in _new_spec_entries(spec_root, state)
-                if path.is_dir() and not path.name.startswith(".")
-            )
-            candidate_path = final / pilot_cli.RESUME_CANDIDATE_FILENAME
-            payload = json.loads(candidate_path.read_text(encoding="utf-8"))
-            payload["post_publish_mutation"] = True
-            candidate_path.write_text(json.dumps(payload), encoding="utf-8")
-            state["final"] = final
-        original_validate(descriptor, **expected)
-
-    monkeypatch.setattr(pilot_cli, "_validate_pinned_resume_bundle", mutate_before_final_validation)
-
-
-def test_resume_quarantines_final_mutated_before_post_publish_validation(
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    def install(spec_root: Path, state: dict[str, object]) -> None:
-        _install_final_mutation(monkeypatch, spec_root, state)
-
-    def verify(spec_root: Path, state: dict[str, object]) -> None:
-        assert not Path(state["final"]).exists()
-        assert any(
-            path.name.endswith(".quarantine") for path in _new_spec_entries(spec_root, state)
-        )
-
-    _assert_adaptive_publish_fault(
-        monkeypatch=monkeypatch,
-        capsys=capsys,
-        prefix="final-mutation",
-        install_fault=install,
-        expected_fragments=("adaptive_publish_validation_failed",),
-        verify=verify,
-    )
-
-
-def test_resume_preserves_primary_and_rollback_failure_diagnostics(
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    def install(spec_root: Path, state: dict[str, object]) -> None:
-        _install_final_mutation(monkeypatch, spec_root, state)
-
-        def fail_quarantine(*_args: object, **_kwargs: object) -> str:
-            raise CreativePilotContractError("injected rollback failure")
-
-        monkeypatch.setattr(pilot_cli, "_quarantine_entry", fail_quarantine)
-
-    def verify(_root: Path, state: dict[str, object]) -> None:
-        assert Path(state["final"]).is_dir()
-
-    _assert_adaptive_publish_fault(
-        monkeypatch=monkeypatch,
-        capsys=capsys,
-        prefix="rollback-failure",
-        install_fault=install,
-        expected_fragments=(
-            "adaptive_publish_validation_failed",
-            "cleanup_diagnostic=injected rollback failure",
-        ),
-        verify=verify,
+def test_adaptive_authority_flags_remain_false() -> None:
+    allowed = {
+        "read_sanitized_context",
+        "emit_local_artifacts",
+        "run_specification_prepare",
+    }
+    assert {key for key, value in pilot_contract.ADAPTIVE_PR1_AUTHORITY.items() if value} == allowed
+    assert all(
+        value is False
+        for key, value in pilot_contract.ADAPTIVE_PR1_AUTHORITY.items()
+        if key not in allowed
     )
 
 

@@ -46,24 +46,6 @@ HEAD_SHA = "b" * 40
 SHA256_D = "sha256:" + ("d" * 64)
 
 
-def test_typed_bundle_narrows_only_string_keyed_artifact_objects() -> None:
-    assert cli._require_typed_bundle({"bridge": {"bridge_id": "bridge-1"}}) == {
-        "bridge": {"bridge_id": "bridge-1"}
-    }
-    with pytest.raises(cli.CreativeHypothesisSpecBridgeCliError, match="must return an object"):
-        cli._require_typed_bundle([])
-    with pytest.raises(
-        cli.CreativeHypothesisSpecBridgeCliError,
-        match="string-keyed artifact objects",
-    ):
-        cli._require_typed_bundle({"bridge": []})
-    with pytest.raises(
-        cli.CreativeHypothesisSpecBridgeCliError,
-        match="bridge artifacts must use string keys",
-    ):
-        cli._require_typed_bundle({"bridge": {1: "invalid"}})
-
-
 def _context() -> dict[str, Any]:
     return build_creative_protocol_context_map(
         changed_paths=[

@@ -249,15 +249,18 @@
   immediately before atomic publication; a second unconstrained source read
   must never become binding truth. Publication must use an atomic kernel
   no-replace directory rename and fail as `adaptive_publish_collision` rather
-  than replacing any concurrent canonical resume directory. Publication must
-  bind staging and parent device/inode identities, reopen the final directory
-  with `O_NOFOLLOW`, and descriptor-revalidate the complete bundle, exact
-  prepare sidecars, and binding before PASS. Failures may quarantine only the
-  matching inode and must preserve cleanup diagnostics. The adaptive
+  than replacing any concurrent canonical resume directory. The adaptive
   intake identity is the documented compatibility alias for existing
   attachment `metrics_*` fields; no fake v1 metrics artifact or widened
   attachment/finalize schema is allowed. Patch/provider/network/runtime/cache,
   graph-truth, repository, GitHub, Slack, PR-2, and PR-3 authority remain false.
+- Adaptive resume/attach hardening stops at cooperative locking, safe at-rest
+  no-symlink reads, owned same-parent staging, kernel no-replace publication,
+  parent fsync, and deterministic replay validation. Finalize commits bundle
+  then receipt-last. Do not add directory exchange, canonical cleanup,
+  hostile same-UID syscall-seam tests, or repeated terminal/path/ctime seals;
+  those exceed the local artifact threat model and require a separate reviewed
+  threat-model lane if ever needed.
 - The role dispatch bridge treats `readonly: true` in `.cursor/agents/*.md` as
   the safe default. In `--mode runtime`, write-capable dispatch for a native
   bridge `execution_mode: read_write` primary/secondary role must be explicit

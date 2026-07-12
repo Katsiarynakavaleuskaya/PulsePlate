@@ -34,6 +34,7 @@ from pydantic import (
     ValidationError,
 )
 from starlette import status as fastapi_status
+from starlette.requests import Request
 from settings import get_runtime_env_name, is_explicit_developer_env
 
 from app.bootstrap.lifespan import application_lifespan as lifespan

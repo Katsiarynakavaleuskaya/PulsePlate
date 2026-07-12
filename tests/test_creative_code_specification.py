@@ -63,6 +63,36 @@ UNSAFE_LOCAL_PATH_TEXTS = (
 )
 
 
+def test_pilot_v2_schemas_are_closed_and_version_aligned() -> None:
+    contracts = REPO_ROOT / "docs" / "orchestration" / "contracts"
+    for filename in (
+        "creative_pilot_workspace.v2.schema.json",
+        "creative_pilot_role_result.v2.schema.json",
+        "creative_pilot_synthesis.v2.schema.json",
+        "creative_hypothesis_approval.v2.schema.json",
+        "creative_hypothesis_packet.v2.schema.json",
+        "creative_hypothesis_specification_bridge.v2.schema.json",
+        "creative_protocol_context_map.v2.schema.json",
+    ):
+        schema = json.loads((contracts / filename).read_text(encoding="utf-8"))
+        assert schema["$id"] == filename
+        assert schema["additionalProperties"] is False
+        assert schema["properties"]["schema_version"]["const"] == "2.0"
+    for filename in (
+        "creative_adaptive_pr1_variant_intake.v1.schema.json",
+        "creative_adaptive_pr1_resume_binding.v1.schema.json",
+    ):
+        schema = json.loads((contracts / filename).read_text(encoding="utf-8"))
+        assert schema["$id"] == filename
+        assert schema["additionalProperties"] is False
+        assert schema["properties"]["schema_version"]["const"] == "1.0"
+        assert schema["properties"]["authority"]["additionalProperties"] is False
+        if filename == "creative_adaptive_pr1_variant_intake.v1.schema.json":
+            assert (
+                schema["$defs"]["declaration"]["properties"]["negative_controls"]["minItems"] == 2
+            )
+
+
 def _packet() -> dict[str, object]:
     return read_creative_code_candidate_packet(REFERENCE_PACKET)
 
@@ -667,52 +697,6 @@ def test_prepare_exact_preserves_legacy_prepare_and_rejects_test_drift() -> None
         shutil.rmtree(root, ignore_errors=True)
 
 
-def test_prepare_snapshot_validation_rejects_json_number_type_drift() -> None:
-    packet = _packet()
-    default_snapshots = creative_code_spec_pipeline.build_default_prepare_artifacts(packet)
-    default_snapshots["source_packet.json"]["variant_count"] = 3.0
-    with pytest.raises(
-        CreativeCodeSpecPipelineError,
-        match="retained source_packet.json is not canonical",
-    ):
-        creative_code_spec_pipeline.validate_default_prepare_artifact_snapshots(
-            default_snapshots,
-            expected_packet=packet,
-        )
-
-    variants = build_exact_specification_variants(packet, _exact_declarations(packet))
-    exact_snapshots = {
-        "source_packet.json": {**packet, "variant_count": 3.0},
-        "variants.json": variants,
-        "skeptic_reviews.json": build_pending_skeptic_reviews(
-            source_packet=packet,
-            variants=variants,
-        ),
-        "context_pack.json": creative_code_spec_pipeline._context_pack_for_packet(packet),
-    }
-    with pytest.raises(
-        CreativeCodeSpecPipelineError,
-        match="adaptive_prepare_source_packet_mismatch",
-    ):
-        creative_code_spec_pipeline.validate_exact_prepare_artifact_snapshots(
-            snapshots=exact_snapshots,
-            expected_packet=packet,
-            expected_variants=variants,
-        )
-
-    for non_finite in (float("nan"), float("inf"), float("-inf")):
-        non_finite_snapshots = creative_code_spec_pipeline.build_default_prepare_artifacts(packet)
-        non_finite_snapshots["source_packet.json"]["variant_count"] = non_finite
-        with pytest.raises(
-            CreativeCodeSpecPipelineError,
-            match="retained source_packet.json is not canonical",
-        ):
-            creative_code_spec_pipeline.validate_default_prepare_artifact_snapshots(
-                non_finite_snapshots,
-                expected_packet=packet,
-            )
-
-
 def test_pipeline_rejects_symlinked_artifact_directory(tmp_path: Path) -> None:
     creative_code_spec_pipeline.ARTIFACT_ROOT.mkdir(parents=True, exist_ok=True)
     link = creative_code_spec_pipeline.ARTIFACT_ROOT / f"pytest-link-{uuid.uuid4().hex}"
@@ -854,45 +838,6 @@ def test_pipeline_duplicate_keys_in_artifacts_fail_closed() -> None:
 
         with pytest.raises(CreativeCodeSpecPipelineError, match="duplicate JSON key"):
             creative_code_spec_pipeline.finalize(run_dir, run_dir / "bundle.json")
-    finally:
-        shutil.rmtree(run_dir, ignore_errors=True)
-
-
-def test_pipeline_json_reader_translates_parser_limits_to_domain_error() -> None:
-    run_dir = creative_code_spec_pipeline.ARTIFACT_ROOT / f"pytest-{uuid.uuid4().hex}"
-    path = run_dir / "oversized.json"
-    try:
-        run_dir.mkdir(parents=True)
-        path.write_text('{"value":' + ("9" * 5000) + "}", encoding="utf-8")
-        with pytest.raises(CreativeCodeSpecPipelineError, match="Unable to read safe test JSON"):
-            creative_code_spec_pipeline._read_json_file(
-                path,
-                allowed_root=creative_code_spec_pipeline.ARTIFACT_ROOT,
-                label="test",
-            )
-    finally:
-        shutil.rmtree(run_dir, ignore_errors=True)
-
-
-def test_pipeline_json_reader_translates_recursion_error(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    run_dir = creative_code_spec_pipeline.ARTIFACT_ROOT / f"pytest-{uuid.uuid4().hex}"
-    path = run_dir / "recursive.json"
-    try:
-        run_dir.mkdir(parents=True)
-        path.write_text("{}", encoding="utf-8")
-
-        def raise_recursion(*_args: object, **_kwargs: object) -> object:
-            raise RecursionError("simulated parser depth limit")
-
-        monkeypatch.setattr(creative_code_spec_pipeline.json, "loads", raise_recursion)
-        with pytest.raises(CreativeCodeSpecPipelineError, match="Unable to read safe test JSON"):
-            creative_code_spec_pipeline._read_json_file(
-                path,
-                allowed_root=creative_code_spec_pipeline.ARTIFACT_ROOT,
-                label="test",
-            )
     finally:
         shutil.rmtree(run_dir, ignore_errors=True)
 

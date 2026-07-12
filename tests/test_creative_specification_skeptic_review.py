@@ -3,14 +3,12 @@ from __future__ import annotations
 import ast
 from collections.abc import Callable
 from copy import deepcopy
-import errno
 import json
-import os
 from pathlib import Path
 import re
 import shutil
+import tempfile
 from typing import Any
-import uuid
 
 import pytest
 
@@ -61,22 +59,6 @@ SCHEMA_FILES = (
     "creative_specification_skeptic_review_attachment.v1.schema.json",
     "creative_specification_finalize_receipt.v1.schema.json",
 )
-
-
-def test_typed_json_object_narrows_mapping_and_rejects_non_string_keys() -> None:
-    assert review_cli._require_typed_json_object({"receipt_id": "receipt-1"}, label="receipt") == {
-        "receipt_id": "receipt-1"
-    }
-    with pytest.raises(
-        review_cli.CreativeSpecificationSkepticReviewCliError,
-        match="must be a JSON object",
-    ):
-        review_cli._require_typed_json_object([], label="receipt")
-    with pytest.raises(
-        review_cli.CreativeSpecificationSkepticReviewCliError,
-        match="must use string keys",
-    ):
-        review_cli._require_typed_json_object({1: "invalid"}, label="receipt")
 
 
 def _context() -> dict[str, Any]:
@@ -367,9 +349,8 @@ def _rebuild_attachment(
     )
 
 
-def test_attach_validate_finalize_preserves_original_spec_prepare(
+def test_adaptive_attach_publishes_complete_reviewed_run_atomically(
     capsys: pytest.CaptureFixture[str],
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     output_dir, input_dir = _prepared_bridge(capsys, suffix="happy")
     try:
@@ -394,7 +375,6 @@ def test_attach_validate_finalize_preserves_original_spec_prepare(
         assert captured.out.strip() == review_cli.ATTACH_SUCCESS_OUTPUT
 
         reviewed_dir = output_dir / "spec_finalize_reviewed"
-        attached_identity = (reviewed_dir.stat().st_dev, reviewed_dir.stat().st_ino)
         attachment_path = reviewed_dir / review_cli.ATTACHMENT_FILENAME
         attachment = validate_skeptic_review_attachment(_read_json(attachment_path))
         assert attachment["reviewed_run"]["run_dir_ref"].endswith("/spec_finalize_reviewed")
@@ -413,137 +393,6 @@ def test_attach_validate_finalize_preserves_original_spec_prepare(
         captured = capsys.readouterr()
         assert exit_code == 0, captured.err
         assert captured.out.strip() == review_cli.FINALIZE_SUCCESS_OUTPUT
-        first_finalized_identity = (reviewed_dir.stat().st_dev, reviewed_dir.stat().st_ino)
-        assert first_finalized_identity != attached_identity
-        retained_before_replay = list(output_dir.glob(".spec_finalize_reviewed.*.pre-finalize"))
-        assert len(retained_before_replay) == 1
-        assert {path.name for path in retained_before_replay[0].iterdir()} == {
-            "source_packet.json",
-            "variants.json",
-            "skeptic_reviews.json",
-            "context_pack.json",
-            review_cli.ATTACHMENT_FILENAME,
-        }
-        review_cli._validate_adaptive_retained_pre_finalize_run(output_dir)
-        forged_retained = output_dir / ".spec_finalize_reviewed.aaaaaaaaaaaaaaaa.pre-finalize"
-        forged_retained.mkdir()
-        with pytest.raises(
-            review_cli.CreativeSpecificationSkepticReviewCliError,
-            match="at most one retained pre-finalize run",
-        ):
-            review_cli._validate_adaptive_retained_pre_finalize_run(output_dir)
-        forged_retained.rmdir()
-        retained_source = retained_before_replay[0] / "source_packet.json"
-        retained_source_bytes = retained_source.read_bytes()
-        retained_source.write_text("{}\n", encoding="utf-8")
-        with pytest.raises(
-            review_cli.CreativeSpecificationSkepticReviewCliError,
-            match="adaptive retained source_packet.json diverges from canonical",
-        ):
-            review_cli._validate_adaptive_retained_pre_finalize_run(output_dir)
-        retained_source.write_bytes(retained_source_bytes)
-        review_cli._validate_adaptive_retained_pre_finalize_run(output_dir)
-        real_read_json_at = review_cli._read_json_at
-        content_reads = 0
-
-        def mutate_retained_content_after_comparison(directory_fd: int, filename: str) -> Any:
-            nonlocal content_reads
-            payload = real_read_json_at(directory_fd, filename)
-            content_reads += 1
-            if content_reads == 10:
-                retained_source.write_text("{}\n", encoding="utf-8")
-            return payload
-
-        with monkeypatch.context() as context:
-            context.setattr(
-                review_cli,
-                "_read_json_at",
-                mutate_retained_content_after_comparison,
-            )
-            with pytest.raises(
-                review_cli.CreativeSpecificationSkepticReviewCliError,
-                match="adaptive retained pre-finalize lineage changed during validation",
-            ):
-                review_cli._validate_adaptive_retained_pre_finalize_run(output_dir)
-        assert content_reads == 10
-        retained_source.write_bytes(retained_source_bytes)
-        review_cli._validate_adaptive_retained_pre_finalize_run(output_dir)
-
-        replacement = output_dir / ".retained-replacement"
-        detached_retained = output_dir / ".detached-valid-retained"
-        replacement.mkdir()
-        pinned_reads = 0
-
-        def swap_retained_after_pinned_reads(directory_fd: int, filename: str) -> Any:
-            nonlocal pinned_reads
-            payload = real_read_json_at(directory_fd, filename)
-            pinned_reads += 1
-            if pinned_reads == 10:
-                retained_before_replay[0].rename(detached_retained)
-                replacement.rename(retained_before_replay[0])
-            return payload
-
-        with monkeypatch.context() as context:
-            context.setattr(review_cli, "_read_json_at", swap_retained_after_pinned_reads)
-            with pytest.raises(
-                review_cli.CreativeSpecificationSkepticReviewCliError,
-                match="adaptive retained pre-finalize lineage changed during validation",
-            ):
-                review_cli._validate_adaptive_retained_pre_finalize_run(output_dir)
-        assert pinned_reads == 10
-        assert list(retained_before_replay[0].iterdir()) == []
-        assert {path.name for path in detached_retained.iterdir()} == {
-            "source_packet.json",
-            "variants.json",
-            "skeptic_reviews.json",
-            "context_pack.json",
-            review_cli.ATTACHMENT_FILENAME,
-        }
-        retained_before_replay[0].rename(replacement)
-        detached_retained.rename(retained_before_replay[0])
-        replacement.rmdir()
-        review_cli._validate_adaptive_retained_pre_finalize_run(output_dir)
-
-        external_replacement = input_dir / ".external-empty-retained"
-        external_detached = input_dir / ".external-detached-valid"
-        external_replacement.mkdir()
-        real_stat = review_cli.os.stat
-        retained_stat_reads = 0
-
-        def swap_during_terminal_lineage_snapshot(
-            path: Any,
-            *args: Any,
-            **kwargs: Any,
-        ) -> os.stat_result:
-            nonlocal retained_stat_reads
-            observed = real_stat(path, *args, **kwargs)
-            if path == retained_before_replay[0].name and kwargs.get("dir_fd") is not None:
-                retained_stat_reads += 1
-                if retained_stat_reads == 2:
-                    retained_before_replay[0].rename(external_detached)
-                    external_replacement.rename(retained_before_replay[0])
-            return observed
-
-        with monkeypatch.context() as context:
-            context.setattr(review_cli.os, "stat", swap_during_terminal_lineage_snapshot)
-            with pytest.raises(
-                review_cli.CreativeSpecificationSkepticReviewCliError,
-                match="bridge changed during lineage snapshot",
-            ):
-                review_cli._validate_adaptive_retained_pre_finalize_run(output_dir)
-        assert retained_stat_reads == 2
-        assert list(retained_before_replay[0].iterdir()) == []
-        assert {path.name for path in external_detached.iterdir()} == {
-            "source_packet.json",
-            "variants.json",
-            "skeptic_reviews.json",
-            "context_pack.json",
-            review_cli.ATTACHMENT_FILENAME,
-        }
-        retained_before_replay[0].rename(external_replacement)
-        external_detached.rename(retained_before_replay[0])
-        external_replacement.rmdir()
-        review_cli._validate_adaptive_retained_pre_finalize_run(output_dir)
 
         bundle = validate_creative_code_specification_bundle(
             read_creative_code_specification_bundle(reviewed_dir / review_cli.BUNDLE_FILENAME)
@@ -555,23 +404,6 @@ def test_attach_validate_finalize_preserves_original_spec_prepare(
         assert receipt["synthesis_status"] == "selected"
         assert receipt["next_allowed_action"] == "human_review_for_patch_builder"
         assert receipt["counts"]["selected_variant_count"] == 1
-        finalized_fingerprints = {
-            filename: fingerprint_payload(_read_json(reviewed_dir / filename))
-            for filename in (review_cli.BUNDLE_FILENAME, review_cli.FINALIZE_RECEIPT_FILENAME)
-        }
-        exit_code = review_cli.main(["finalize", "--attachment", str(attachment_path)])
-        captured = capsys.readouterr()
-        assert exit_code == 0, captured.err
-        assert captured.out.strip() == review_cli.FINALIZE_SUCCESS_OUTPUT
-        assert reviewed_dir.is_dir()
-        assert (reviewed_dir.stat().st_dev, reviewed_dir.stat().st_ino) == first_finalized_identity
-        assert {
-            filename: fingerprint_payload(_read_json(reviewed_dir / filename))
-            for filename in (review_cli.BUNDLE_FILENAME, review_cli.FINALIZE_RECEIPT_FILENAME)
-        } == finalized_fingerprints
-        retained_after_replay = list(output_dir.glob(".spec_finalize_reviewed.*.pre-finalize"))
-        assert retained_after_replay == retained_before_replay
-        assert len(list(retained_after_replay[0].iterdir())) == 5
         _assert_schema_artifact_refs_accept_generated_attachment_and_receipt(
             attachment=attachment,
             receipt=receipt,
@@ -583,6 +415,103 @@ def test_attach_validate_finalize_preserves_original_spec_prepare(
         captured = capsys.readouterr()
         assert exit_code == 0, captured.err
         assert captured.out.strip() == bridge_cli.SUCCESS_VALIDATE_OUTPUT
+    finally:
+        shutil.rmtree(output_dir, ignore_errors=True)
+        shutil.rmtree(input_dir, ignore_errors=True)
+
+
+def test_attach_collision_preserves_existing_reviewed_run(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    output_dir, input_dir = _prepared_bridge(capsys, suffix="attach-replay")
+    try:
+        reviews_path = _write_review_input(output_dir, _review_input(output_dir))
+        args = [
+            "attach",
+            "--bridge",
+            str(output_dir / bridge_cli.BRIDGE_FILENAME),
+            "--reviews",
+            str(reviews_path),
+        ]
+        assert review_cli.main(args) == 0
+        capsys.readouterr()
+        reviewed_dir = output_dir / "spec_finalize_reviewed"
+        before = {
+            path.name: (path.read_bytes(), path.stat().st_mtime_ns)
+            for path in reviewed_dir.iterdir()
+        }
+
+        assert review_cli.main(args) == 0
+        captured = capsys.readouterr()
+        assert captured.err == ""
+        after = {
+            path.name: (path.read_bytes(), path.stat().st_mtime_ns)
+            for path in reviewed_dir.iterdir()
+        }
+        assert after == before
+        assert set(after) == set(review_cli.INITIAL_REVIEWED_FILENAMES)
+    finally:
+        shutil.rmtree(output_dir, ignore_errors=True)
+        shutil.rmtree(input_dir, ignore_errors=True)
+
+
+def test_finalize_success_writes_valid_bundle_then_receipt() -> None:
+    source = Path(review_cli.__file__).read_text(encoding="utf-8")
+    finalize_body = source[source.index("def _finalize_from_attachment(") :]
+    write_bundle = finalize_body.index("creative_code_spec_pipeline.finalize(")
+    validate_bundle = finalize_body.index(
+        "validate_creative_code_specification_bundle(", write_bundle
+    )
+    write_receipt = finalize_body.index("_write_json_atomic(receipt_path, receipt)")
+    reread_receipt = finalize_body.index("finalize receipt commit marker", write_receipt)
+    assert write_bundle < validate_bundle < write_receipt < reread_receipt
+
+
+def test_finalize_receipt_binds_exact_bundle_and_attachment() -> None:
+    source = Path(review_cli.__file__).read_text(encoding="utf-8")
+    finalize_body = source[source.index("def _finalize_from_attachment(") :]
+    assert "attachment_ref=_artifact_ref(reviewed_dir / ATTACHMENT_FILENAME)" in finalize_body
+    assert "bundle_ref=_artifact_ref(bundle_path)" in finalize_body
+    assert "finalize receipt does not bind the current attachment and bundle" in finalize_body
+
+
+def test_finalize_exact_replay_is_byte_mtime_and_entry_count_stable(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    output_dir, input_dir = _prepared_bridge(capsys, suffix="finalize-replay")
+    try:
+        reviews_path = _write_review_input(output_dir, _review_input(output_dir))
+        assert (
+            review_cli.main(
+                [
+                    "attach",
+                    "--bridge",
+                    str(output_dir / bridge_cli.BRIDGE_FILENAME),
+                    "--reviews",
+                    str(reviews_path),
+                ]
+            )
+            == 0
+        )
+        capsys.readouterr()
+        reviewed_dir = output_dir / "spec_finalize_reviewed"
+        attachment = reviewed_dir / review_cli.ATTACHMENT_FILENAME
+        assert review_cli.main(["finalize", "--attachment", str(attachment)]) == 0
+        capsys.readouterr()
+        before = {
+            path.name: (path.read_bytes(), path.stat().st_mtime_ns)
+            for path in reviewed_dir.iterdir()
+        }
+
+        assert review_cli.main(["finalize", "--attachment", str(attachment)]) == 0
+        captured = capsys.readouterr()
+        assert captured.err == ""
+        after = {
+            path.name: (path.read_bytes(), path.stat().st_mtime_ns)
+            for path in reviewed_dir.iterdir()
+        }
+        assert after == before
+        assert len(after) == len(review_cli.INITIAL_REVIEWED_FILENAMES) + 2
     finally:
         shutil.rmtree(output_dir, ignore_errors=True)
         shutil.rmtree(input_dir, ignore_errors=True)
@@ -722,36 +651,18 @@ def test_validate_rejects_noncanonical_attachment_path(
         shutil.rmtree(input_dir, ignore_errors=True)
 
 
-def test_adaptive_validate_stale_base_returns_stable_cli_failure(
-    tmp_path: Path,
+def test_adaptive_validate_and_finalize_recheck_current_main_and_lineage(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    attachment = tmp_path / review_cli.ATTACHMENT_FILENAME
-    attachment.write_text("{}\n", encoding="utf-8")
-    reviewed_dir = tmp_path / "spec_finalize_reviewed"
-    reviewed_dir.mkdir()
-
-    def stale_base(_path: Path) -> tuple[dict[str, object], Path]:
-        raise pilot_contract.CreativePilotContractError(
-            "adaptive_base_drift: current origin/main advanced"
+    review_cli.SPEC_BRIDGE_ROOT.mkdir(parents=True, exist_ok=True)
+    root = Path(
+        tempfile.mkdtemp(
+            prefix="pytest-adaptive-stale-",
+            dir=review_cli.SPEC_BRIDGE_ROOT,
         )
-
-    monkeypatch.setattr(review_cli, "_validate_attachment_artifacts", stale_base)
-    assert review_cli.main(["validate", "--attachment", str(attachment)]) == 1
-    captured = capsys.readouterr()
-    assert captured.out == ""
-    assert captured.err == "FAIL: adaptive_base_drift: current origin/main advanced\n"
-    assert not (reviewed_dir / review_cli.BUNDLE_FILENAME).exists()
-    assert not (reviewed_dir / review_cli.FINALIZE_RECEIPT_FILENAME).exists()
-
-
-def test_adaptive_finalize_stale_base_returns_stable_cli_failure_without_publication(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    reviewed_dir = tmp_path / "spec_finalize_reviewed"
+    )
+    reviewed_dir = root / "spec_finalize_reviewed"
     reviewed_dir.mkdir()
     attachment = reviewed_dir / review_cli.ATTACHMENT_FILENAME
     attachment.write_text("{}\n", encoding="utf-8")
@@ -762,45 +673,20 @@ def test_adaptive_finalize_stale_base_returns_stable_cli_failure_without_publica
         )
 
     monkeypatch.setattr(review_cli, "_validate_attachment_artifacts", stale_base)
-    assert review_cli.main(["finalize", "--attachment", str(attachment)]) == 1
-    captured = capsys.readouterr()
-    assert captured.out == ""
-    assert captured.err == "FAIL: adaptive_base_drift: current origin/main advanced\n"
-    assert not (reviewed_dir / review_cli.BUNDLE_FILENAME).exists()
-    assert not (reviewed_dir / review_cli.FINALIZE_RECEIPT_FILENAME).exists()
-
-
-def test_adaptive_layout_accepts_only_retained_pre_finalize_directories(
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    output_dir, input_dir = _prepared_bridge(capsys, suffix="adaptive-retained-layout")
-    retained_name = ".spec_finalize_reviewed.0123456789abcdef.pre-finalize"
-    retained_path = output_dir / retained_name
     try:
-        retained_path.mkdir()
-        allowed = {path.name for path in output_dir.iterdir() if path.name != retained_name}
-        review_cli._reject_unexpected_entries(
-            output_dir,
-            allowed=allowed,
-            label="adaptive resume",
-            allow_retained_pre_finalize=True,
-        )
+        assert review_cli.main(["validate", "--attachment", str(attachment)]) == 1
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert captured.err == "FAIL: adaptive_base_drift: current origin/main advanced\n"
+        assert not (reviewed_dir / review_cli.BUNDLE_FILENAME).exists()
+        assert not (reviewed_dir / review_cli.FINALIZE_RECEIPT_FILENAME).exists()
 
-        retained_path.rmdir()
-        retained_path.write_text("not a directory\n", encoding="utf-8")
-        with pytest.raises(
-            review_cli.CreativeSpecificationSkepticReviewCliError,
-            match="retained pre-finalize artifact.*must be directories",
-        ):
-            review_cli._reject_unexpected_entries(
-                output_dir,
-                allowed=allowed,
-                label="adaptive resume",
-                allow_retained_pre_finalize=True,
-            )
+        assert review_cli.main(["finalize", "--attachment", str(attachment)]) == 1
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert captured.err == "FAIL: adaptive_base_drift: current origin/main advanced\n"
     finally:
-        shutil.rmtree(output_dir, ignore_errors=True)
-        shutil.rmtree(input_dir, ignore_errors=True)
+        shutil.rmtree(root, ignore_errors=True)
 
 
 def test_attach_rejects_prepared_child_symlink_before_read(
@@ -831,839 +717,6 @@ def test_attach_rejects_prepared_child_symlink_before_read(
         assert "spec_prepare contains symlink artifact(s): source_packet.json" in captured.err
         assert not (output_dir / "spec_finalize_reviewed").exists()
     finally:
-        shutil.rmtree(output_dir, ignore_errors=True)
-        shutil.rmtree(input_dir, ignore_errors=True)
-
-
-def test_entry_scan_fails_closed_when_child_disappears_after_listing(
-    capsys: pytest.CaptureFixture[str],
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    output_dir, input_dir = _prepared_bridge(capsys, suffix="entry-disappearance")
-    try:
-        spec_prepare = output_dir / "spec_prepare"
-        (spec_prepare / "vanish").write_text("{}", encoding="utf-8")
-        (spec_prepare / "evil").write_text("{}", encoding="utf-8")
-        real_stat = review_cli.os.stat
-
-        def disappear_on_stat(
-            path: Any,
-            *args: Any,
-            **kwargs: Any,
-        ) -> Any:
-            if path == "vanish":
-                raise FileNotFoundError("simulated child disappearance")
-            return real_stat(path, *args, **kwargs)
-
-        monkeypatch.setattr(review_cli.os, "stat", disappear_on_stat)
-        with pytest.raises(
-            review_cli.CreativeSpecificationSkepticReviewCliError,
-            match="changed during inspection",
-        ):
-            review_cli._reject_unexpected_entries(
-                spec_prepare,
-                allowed=set(PREPARE_FILENAMES),
-                label="spec_prepare",
-            )
-    finally:
-        shutil.rmtree(output_dir, ignore_errors=True)
-        shutil.rmtree(input_dir, ignore_errors=True)
-
-
-def test_reviewed_run_creation_pins_parent_across_path_swap(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    bridge_dir = review_cli.SPEC_BRIDGE_ROOT / f"pytest-{uuid.uuid4().hex}"
-    detached = bridge_dir.with_name(f"{bridge_dir.name}-detached")
-    outside = tmp_path / "outside"
-    reviewed = bridge_dir / review_contract.REVIEWED_RUN_DIRNAME
-    real_open_parent = review_cli.creative_code_spec_pipeline._open_pinned_parent
-    swapped = False
-    parent_fd = -1
-    reviewed_fd = -1
-    try:
-        bridge_dir.mkdir(parents=True)
-        outside.mkdir()
-
-        def swap_after_parent_open(*args: Any, **kwargs: Any) -> tuple[int, str, Path]:
-            nonlocal swapped
-            result = real_open_parent(*args, **kwargs)
-            if not swapped:
-                swapped = True
-                bridge_dir.rename(detached)
-                bridge_dir.symlink_to(outside, target_is_directory=True)
-            return result
-
-        monkeypatch.setattr(
-            review_cli.creative_code_spec_pipeline,
-            "_open_pinned_parent",
-            swap_after_parent_open,
-        )
-        parent_fd, reviewed_fd, identity, staging_name = review_cli._create_pinned_reviewed_run(
-            reviewed
-        )
-        assert swapped
-        assert (detached / staging_name).is_dir()
-        assert not (detached / review_contract.REVIEWED_RUN_DIRNAME).exists()
-        assert not (outside / review_contract.REVIEWED_RUN_DIRNAME).exists()
-        quarantine_name = review_cli._quarantine_pinned_reviewed_run(
-            parent_fd,
-            name=staging_name,
-            expected_identity=identity,
-        )
-        assert not (detached / staging_name).exists()
-        assert (detached / quarantine_name).is_dir()
-    finally:
-        review_cli.creative_code_spec_pipeline._close_descriptors(reviewed_fd, parent_fd)
-        if bridge_dir.is_symlink():
-            bridge_dir.unlink()
-        shutil.rmtree(detached, ignore_errors=True)
-        shutil.rmtree(bridge_dir, ignore_errors=True)
-
-
-def test_reviewed_run_cleanup_pins_original_parent_across_path_swap(
-    tmp_path: Path,
-) -> None:
-    bridge_dir = review_cli.SPEC_BRIDGE_ROOT / f"pytest-{uuid.uuid4().hex}"
-    detached = bridge_dir.with_name(f"{bridge_dir.name}-detached")
-    outside = tmp_path / "outside"
-    reviewed = bridge_dir / review_contract.REVIEWED_RUN_DIRNAME
-    parent_fd = -1
-    reviewed_fd = -1
-    try:
-        bridge_dir.mkdir(parents=True)
-        outside.mkdir()
-        parent_fd, reviewed_fd, identity, staging_name = review_cli._create_pinned_reviewed_run(
-            reviewed
-        )
-        bridge_dir.rename(detached)
-        bridge_dir.symlink_to(outside, target_is_directory=True)
-        outside_reviewed = outside / review_contract.REVIEWED_RUN_DIRNAME
-        outside_reviewed.mkdir()
-        sentinel = outside_reviewed / "sentinel.json"
-        sentinel.write_text("{}", encoding="utf-8")
-
-        quarantine_name = review_cli._quarantine_pinned_reviewed_run(
-            parent_fd,
-            name=staging_name,
-            expected_identity=identity,
-        )
-
-        assert not (detached / staging_name).exists()
-        assert (detached / quarantine_name).is_dir()
-        assert sentinel.read_text(encoding="utf-8") == "{}"
-    finally:
-        review_cli.creative_code_spec_pipeline._close_descriptors(reviewed_fd, parent_fd)
-        if bridge_dir.is_symlink():
-            bridge_dir.unlink()
-        shutil.rmtree(detached, ignore_errors=True)
-        shutil.rmtree(bridge_dir, ignore_errors=True)
-
-
-@pytest.mark.parametrize("failure_point", ["stat", "open", "open_persistent", "fstat"])
-def test_reviewed_run_creation_cleans_exact_directory_after_post_mkdir_failure(
-    monkeypatch: pytest.MonkeyPatch,
-    failure_point: str,
-) -> None:
-    bridge_dir = review_cli.SPEC_BRIDGE_ROOT / f"pytest-{uuid.uuid4().hex}"
-    reviewed = bridge_dir / review_contract.REVIEWED_RUN_DIRNAME
-    try:
-        bridge_dir.mkdir(parents=True)
-        if failure_point == "stat":
-            real_stat = review_cli.os.stat
-            fail_next_stat = True
-
-            def fail_created_stat(*args: Any, **kwargs: Any) -> Any:
-                nonlocal fail_next_stat
-                path = args[0] if args else kwargs.get("path")
-                if (
-                    fail_next_stat
-                    and isinstance(path, str)
-                    and path.startswith(f".{review_contract.REVIEWED_RUN_DIRNAME}.")
-                    and path.endswith(".staging")
-                ):
-                    fail_next_stat = False
-                    raise OSError("simulated reviewed stat failure")
-                return real_stat(*args, **kwargs)
-
-            monkeypatch.setattr(review_cli.os, "stat", fail_created_stat)
-        elif failure_point in {"open", "open_persistent"}:
-            real_open = review_cli.os.open
-            fail_next_open = True
-
-            def fail_reviewed_open(
-                path: Any,
-                flags: int,
-                mode: int = 0o777,
-                *,
-                dir_fd: int | None = None,
-            ) -> int:
-                nonlocal fail_next_open
-                if (
-                    isinstance(path, str)
-                    and path.startswith(f".{review_contract.REVIEWED_RUN_DIRNAME}.")
-                    and path.endswith(".staging")
-                    and dir_fd is not None
-                    and (fail_next_open or failure_point == "open_persistent")
-                ):
-                    if failure_point == "open":
-                        fail_next_open = False
-                    raise OSError(errno.EMFILE, "simulated descriptor exhaustion")
-                return real_open(path, flags, mode, dir_fd=dir_fd)
-
-            monkeypatch.setattr(review_cli.os, "open", fail_reviewed_open)
-        else:
-            real_fstat = review_cli.os.fstat
-            fail_next = True
-
-            def fail_reviewed_fstat(descriptor: int) -> Any:
-                nonlocal fail_next
-                if fail_next:
-                    fail_next = False
-                    raise OSError("simulated reviewed fstat failure")
-                return real_fstat(descriptor)
-
-            monkeypatch.setattr(review_cli.os, "fstat", fail_reviewed_fstat)
-
-        with pytest.raises(
-            review_cli.CreativeSpecificationSkepticReviewCliError,
-            match="could not be created safely",
-        ):
-            review_cli._create_pinned_reviewed_run(reviewed)
-        staging_paths = list(bridge_dir.glob(f".{review_contract.REVIEWED_RUN_DIRNAME}.*.staging"))
-        retained_paths = list(bridge_dir.glob(f".{review_contract.REVIEWED_RUN_DIRNAME}.*.failed"))
-        if failure_point == "stat":
-            assert len(staging_paths) == 1
-            assert retained_paths == []
-        else:
-            assert staging_paths == []
-            assert len(retained_paths) == 1
-        assert not reviewed.exists()
-    finally:
-        shutil.rmtree(bridge_dir, ignore_errors=True)
-
-
-def test_reviewed_run_creation_rejects_entry_swap_after_identity_capture(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    bridge_dir = review_cli.SPEC_BRIDGE_ROOT / f"pytest-{uuid.uuid4().hex}"
-    reviewed = bridge_dir / review_contract.REVIEWED_RUN_DIRNAME
-    detached = bridge_dir / "detached-created"
-    real_open = review_cli.os.open
-    swapped = False
-    try:
-        bridge_dir.mkdir(parents=True)
-
-        def swap_before_reviewed_open(
-            path: Any,
-            flags: int,
-            mode: int = 0o777,
-            *,
-            dir_fd: int | None = None,
-        ) -> int:
-            nonlocal swapped
-            if (
-                isinstance(path, str)
-                and path.startswith(f".{review_contract.REVIEWED_RUN_DIRNAME}.")
-                and path.endswith(".staging")
-                and dir_fd is not None
-                and not swapped
-            ):
-                swapped = True
-                staging_path = bridge_dir / path
-                staging_path.rename(detached)
-                staging_path.mkdir()
-            return real_open(path, flags, mode, dir_fd=dir_fd)
-
-        monkeypatch.setattr(review_cli.os, "open", swap_before_reviewed_open)
-        with pytest.raises(
-            review_cli.CreativeSpecificationSkepticReviewCliError,
-            match="identity changed",
-        ):
-            review_cli._create_pinned_reviewed_run(reviewed)
-        assert swapped
-        assert detached.is_dir()
-        assert not reviewed.exists()
-        assert len(list(bridge_dir.glob(f".{reviewed.name}.*.staging"))) == 1
-    finally:
-        shutil.rmtree(bridge_dir, ignore_errors=True)
-
-
-def test_reviewed_run_stat_capture_failure_never_deletes_unowned_replacement(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    bridge_dir = review_cli.SPEC_BRIDGE_ROOT / f"pytest-{uuid.uuid4().hex}"
-    reviewed = bridge_dir / review_contract.REVIEWED_RUN_DIRNAME
-    detached = bridge_dir / "detached-created"
-    real_stat = review_cli.os.stat
-    swapped = False
-    try:
-        bridge_dir.mkdir(parents=True)
-
-        def swap_during_identity_capture(*args: Any, **kwargs: Any) -> Any:
-            nonlocal swapped
-            path = args[0] if args else kwargs.get("path")
-            if (
-                not swapped
-                and isinstance(path, str)
-                and path.startswith(f".{review_contract.REVIEWED_RUN_DIRNAME}.")
-                and path.endswith(".staging")
-            ):
-                swapped = True
-                staging_path = bridge_dir / path
-                staging_path.rename(detached)
-                staging_path.mkdir()
-                raise OSError("simulated identity capture failure")
-            return real_stat(*args, **kwargs)
-
-        with monkeypatch.context() as context:
-            context.setattr(review_cli.os, "stat", swap_during_identity_capture)
-            with pytest.raises(
-                review_cli.CreativeSpecificationSkepticReviewCliError,
-                match="cleanup identity unavailable",
-            ):
-                review_cli._create_pinned_reviewed_run(reviewed)
-        assert swapped
-        assert detached.is_dir()
-        assert not reviewed.exists()
-        assert len(list(bridge_dir.glob(f".{reviewed.name}.*.staging"))) == 1
-    finally:
-        shutil.rmtree(bridge_dir, ignore_errors=True)
-
-
-def test_reviewed_run_publication_rejects_canonical_collision_without_overwrite() -> None:
-    bridge_dir = review_cli.SPEC_BRIDGE_ROOT / f"pytest-{uuid.uuid4().hex}"
-    reviewed = bridge_dir / review_contract.REVIEWED_RUN_DIRNAME
-    parent_fd = -1
-    reviewed_fd = -1
-    try:
-        bridge_dir.mkdir(parents=True)
-        parent_fd, reviewed_fd, identity, staging_name = review_cli._create_pinned_reviewed_run(
-            reviewed
-        )
-        reviewed.mkdir()
-        sentinel = reviewed / "sentinel.json"
-        sentinel.write_text("{}", encoding="utf-8")
-
-        with pytest.raises(
-            review_cli.CreativeSpecificationSkepticReviewCliError,
-            match="already exists",
-        ):
-            review_cli._publish_pinned_reviewed_run(
-                parent_fd,
-                staging_name=staging_name,
-                destination_name=reviewed.name,
-                expected_identity=identity,
-            )
-
-        assert sentinel.read_text(encoding="utf-8") == "{}"
-        assert (bridge_dir / staging_name).is_dir()
-        quarantine_name = review_cli._quarantine_pinned_reviewed_run(
-            parent_fd,
-            name=staging_name,
-            expected_identity=identity,
-        )
-        assert (bridge_dir / quarantine_name).is_dir()
-    finally:
-        review_cli.creative_code_spec_pipeline._close_descriptors(reviewed_fd, parent_fd)
-        shutil.rmtree(bridge_dir, ignore_errors=True)
-
-
-def test_reviewed_run_publication_rejects_staging_identity_swap() -> None:
-    bridge_dir = review_cli.SPEC_BRIDGE_ROOT / f"pytest-{uuid.uuid4().hex}"
-    reviewed = bridge_dir / review_contract.REVIEWED_RUN_DIRNAME
-    detached = bridge_dir / "detached-staging"
-    parent_fd = -1
-    reviewed_fd = -1
-    try:
-        bridge_dir.mkdir(parents=True)
-        parent_fd, reviewed_fd, identity, staging_name = review_cli._create_pinned_reviewed_run(
-            reviewed
-        )
-        staging_path = bridge_dir / staging_name
-        staging_path.rename(detached)
-        staging_path.mkdir()
-
-        with pytest.raises(
-            review_cli.CreativeSpecificationSkepticReviewCliError,
-            match="staging identity changed",
-        ):
-            review_cli._publish_pinned_reviewed_run(
-                parent_fd,
-                staging_name=staging_name,
-                destination_name=reviewed.name,
-                expected_identity=identity,
-            )
-
-        assert detached.is_dir()
-        assert staging_path.is_dir()
-        assert not reviewed.exists()
-        quarantine_name = review_cli._quarantine_pinned_reviewed_run(
-            parent_fd,
-            name=detached.name,
-            expected_identity=identity,
-        )
-        assert (bridge_dir / quarantine_name).is_dir()
-    finally:
-        review_cli.creative_code_spec_pipeline._close_descriptors(reviewed_fd, parent_fd)
-        shutil.rmtree(bridge_dir, ignore_errors=True)
-
-
-def test_reviewed_run_quarantine_retains_children_without_path_deletion(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    bridge_dir = review_cli.SPEC_BRIDGE_ROOT / f"pytest-{uuid.uuid4().hex}"
-    reviewed = bridge_dir / review_contract.REVIEWED_RUN_DIRNAME
-    parent_fd = -1
-    reviewed_fd = -1
-    try:
-        bridge_dir.mkdir(parents=True)
-        parent_fd, reviewed_fd, identity, staging_name = review_cli._create_pinned_reviewed_run(
-            reviewed
-        )
-        review_cli._write_json_at(reviewed_fd, "owned.json", {"owned": True})
-
-        def forbid_path_deletion(*args: Any, **kwargs: Any) -> None:
-            raise AssertionError("failure quarantine must not delete pathname entries")
-
-        with monkeypatch.context() as context:
-            context.setattr(review_cli.os, "unlink", forbid_path_deletion)
-            context.setattr(review_cli.os, "rmdir", forbid_path_deletion)
-            quarantine_name = review_cli._quarantine_pinned_reviewed_run(
-                parent_fd,
-                name=staging_name,
-                expected_identity=identity,
-            )
-
-        retained_child = bridge_dir / quarantine_name / "owned.json"
-        assert json.loads(retained_child.read_text(encoding="utf-8")) == {"owned": True}
-        assert not (bridge_dir / staging_name).exists()
-    finally:
-        review_cli.creative_code_spec_pipeline._close_descriptors(reviewed_fd, parent_fd)
-        shutil.rmtree(bridge_dir, ignore_errors=True)
-
-
-def test_reviewed_run_quarantine_preserves_unknown_directory_replacement(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    bridge_dir = review_cli.SPEC_BRIDGE_ROOT / f"pytest-{uuid.uuid4().hex}"
-    reviewed = bridge_dir / review_contract.REVIEWED_RUN_DIRNAME
-    detached = bridge_dir / "detached-owned-staging"
-    parent_fd = -1
-    reviewed_fd = -1
-    real_rename_noreplace = review_cli._kernel_rename_noreplace
-    quarantine_name: str | None = None
-    try:
-        bridge_dir.mkdir(parents=True)
-        parent_fd, reviewed_fd, identity, staging_name = review_cli._create_pinned_reviewed_run(
-            reviewed
-        )
-
-        def swap_source_during_quarantine(
-            directory_fd: int,
-            source_name: str,
-            destination_name: str,
-            **kwargs: Any,
-        ) -> None:
-            nonlocal quarantine_name
-            quarantine_name = destination_name
-            review_cli.os.rename(
-                source_name,
-                detached.name,
-                src_dir_fd=directory_fd,
-                dst_dir_fd=directory_fd,
-            )
-            review_cli.os.mkdir(source_name, mode=0o700, dir_fd=directory_fd)
-            real_rename_noreplace(
-                directory_fd,
-                source_name,
-                destination_name,
-                **kwargs,
-            )
-
-        monkeypatch.setattr(
-            review_cli,
-            "_kernel_rename_noreplace",
-            swap_source_during_quarantine,
-        )
-        with pytest.raises(
-            review_cli.CreativeSpecificationSkepticReviewCliError,
-            match="identity changed during quarantine",
-        ):
-            review_cli._quarantine_pinned_reviewed_run(
-                parent_fd,
-                name=staging_name,
-                expected_identity=identity,
-            )
-
-        assert detached.is_dir()
-        assert quarantine_name is not None
-        assert (bridge_dir / quarantine_name).is_dir()
-        assert not (bridge_dir / staging_name).exists()
-    finally:
-        review_cli.creative_code_spec_pipeline._close_descriptors(reviewed_fd, parent_fd)
-        shutil.rmtree(bridge_dir, ignore_errors=True)
-
-
-def test_reviewed_artifact_write_failure_retains_temp_without_path_deletion(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    bridge_dir = review_cli.SPEC_BRIDGE_ROOT / f"pytest-{uuid.uuid4().hex}"
-    reviewed = bridge_dir / review_contract.REVIEWED_RUN_DIRNAME
-    parent_fd = -1
-    reviewed_fd = -1
-    try:
-        bridge_dir.mkdir(parents=True)
-        parent_fd, reviewed_fd, _identity, staging_name = review_cli._create_pinned_reviewed_run(
-            reviewed
-        )
-        real_fsync = review_cli.os.fsync
-        fail_next_fsync = True
-
-        def fail_file_fsync_once(descriptor: int) -> None:
-            nonlocal fail_next_fsync
-            if fail_next_fsync:
-                fail_next_fsync = False
-                raise OSError("simulated reviewed artifact fsync failure")
-            real_fsync(descriptor)
-
-        def forbid_unlink(*args: Any, **kwargs: Any) -> None:
-            raise AssertionError("failed reviewed artifacts must not be unlinked")
-
-        with monkeypatch.context() as context:
-            context.setattr(review_cli.os, "fsync", fail_file_fsync_once)
-            context.setattr(review_cli.os, "unlink", forbid_unlink)
-            with pytest.raises(
-                review_cli.CreativeSpecificationSkepticReviewCliError,
-                match="failure_artifact_retained=.*owned.json.*tmp",
-            ):
-                review_cli._write_json_at(reviewed_fd, "owned.json", {"owned": True})
-
-        staging_dir = bridge_dir / staging_name
-        retained_temps = list(staging_dir.glob(".owned.json.*.tmp"))
-        assert len(retained_temps) == 1
-        assert not (staging_dir / "owned.json").exists()
-    finally:
-        review_cli.creative_code_spec_pipeline._close_descriptors(reviewed_fd, parent_fd)
-        shutil.rmtree(bridge_dir, ignore_errors=True)
-
-
-def test_reviewed_artifact_publication_preserves_unknown_source_replacement(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    bridge_dir = review_cli.SPEC_BRIDGE_ROOT / f"pytest-{uuid.uuid4().hex}"
-    reviewed = bridge_dir / review_contract.REVIEWED_RUN_DIRNAME
-    parent_fd = -1
-    reviewed_fd = -1
-    detached_name = ".detached-owned-json"
-    real_rename_noreplace = review_cli._kernel_rename_noreplace
-    try:
-        bridge_dir.mkdir(parents=True)
-        parent_fd, reviewed_fd, _identity, staging_name = review_cli._create_pinned_reviewed_run(
-            reviewed
-        )
-
-        def swap_temp_during_publication(
-            directory_fd: int,
-            source_name: str,
-            destination_name: str,
-            **kwargs: Any,
-        ) -> None:
-            review_cli.os.rename(
-                source_name,
-                detached_name,
-                src_dir_fd=directory_fd,
-                dst_dir_fd=directory_fd,
-            )
-            replacement_fd = review_cli.os.open(
-                source_name,
-                review_cli.os.O_WRONLY | review_cli.os.O_CREAT | review_cli.os.O_EXCL,
-                0o600,
-                dir_fd=directory_fd,
-            )
-            review_cli.os.close(replacement_fd)
-            real_rename_noreplace(
-                directory_fd,
-                source_name,
-                destination_name,
-                **kwargs,
-            )
-
-        with monkeypatch.context() as context:
-            context.setattr(
-                review_cli,
-                "_kernel_rename_noreplace",
-                swap_temp_during_publication,
-            )
-            with pytest.raises(
-                review_cli.CreativeSpecificationSkepticReviewCliError,
-                match="identity changed during publication",
-            ):
-                review_cli._write_json_at(reviewed_fd, "owned.json", {"owned": True})
-
-        staging_dir = bridge_dir / staging_name
-        assert (staging_dir / detached_name).is_file()
-        assert (staging_dir / "owned.json").is_file()
-    finally:
-        review_cli.creative_code_spec_pipeline._close_descriptors(reviewed_fd, parent_fd)
-        shutil.rmtree(bridge_dir, ignore_errors=True)
-
-
-def test_finalize_directory_exchange_fails_closed_on_unsupported_platform(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    with monkeypatch.context() as context:
-        context.setattr(review_cli.sys, "platform", "unsupported")
-        with pytest.raises(
-            review_cli.CreativeSpecificationSkepticReviewCliError,
-            match="requires kernel directory exchange",
-        ):
-            review_cli._kernel_rename_exchange(0, "source", "destination")
-
-
-def test_attach_preserves_unknown_replacement_published_during_staging_swap(
-    capsys: pytest.CaptureFixture[str],
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    output_dir, input_dir = _prepared_bridge(capsys, suffix="attach-publish-swap")
-    reviews_path = _write_review_input(output_dir, _review_input(output_dir))
-    reviewed_dir = output_dir / review_contract.REVIEWED_RUN_DIRNAME
-    detached_name = ".detached-reviewed-staging"
-    real_rename_noreplace = review_cli._kernel_rename_noreplace
-    swapped = False
-
-    def swap_staging_before_kernel_rename(
-        parent_fd: int,
-        source_name: str,
-        destination_name: str,
-        **kwargs: Any,
-    ) -> None:
-        nonlocal swapped
-        if destination_name == review_contract.REVIEWED_RUN_DIRNAME and not swapped:
-            swapped = True
-            review_cli.os.rename(
-                source_name,
-                detached_name,
-                src_dir_fd=parent_fd,
-                dst_dir_fd=parent_fd,
-            )
-            review_cli.os.mkdir(source_name, mode=0o700, dir_fd=parent_fd)
-        real_rename_noreplace(parent_fd, source_name, destination_name, **kwargs)
-
-    monkeypatch.setattr(
-        review_cli,
-        "_kernel_rename_noreplace",
-        swap_staging_before_kernel_rename,
-    )
-    try:
-        assert (
-            review_cli.main(
-                [
-                    "attach",
-                    "--bridge",
-                    str(output_dir / bridge_cli.BRIDGE_FILENAME),
-                    "--reviews",
-                    str(reviews_path),
-                ]
-            )
-            == 1
-        )
-        captured = capsys.readouterr()
-        assert "identity changed during publication" in captured.err
-        assert swapped
-        assert reviewed_dir.is_dir()
-        assert (output_dir / detached_name).is_dir()
-    finally:
-        shutil.rmtree(output_dir, ignore_errors=True)
-        shutil.rmtree(input_dir, ignore_errors=True)
-
-
-def test_attach_fails_closed_when_bridge_parent_moves_before_reviewed_writes(
-    capsys: pytest.CaptureFixture[str],
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    output_dir, input_dir = _prepared_bridge(capsys, suffix="attach-parent-move")
-    detached = output_dir.with_name(f"{output_dir.name}-detached")
-    reviews_path = _write_review_input(output_dir, _review_input(output_dir))
-    real_write_json_at = review_cli._write_json_at
-    moved = False
-
-    def move_parent_before_first_write(
-        directory_fd: int,
-        filename: str,
-        payload: Any,
-    ) -> None:
-        nonlocal moved
-        if not moved:
-            moved = True
-            output_dir.rename(detached)
-        real_write_json_at(directory_fd, filename, payload)
-
-    monkeypatch.setattr(review_cli, "_write_json_at", move_parent_before_first_write)
-    try:
-        assert (
-            review_cli.main(
-                [
-                    "attach",
-                    "--bridge",
-                    str(output_dir / bridge_cli.BRIDGE_FILENAME),
-                    "--reviews",
-                    str(reviews_path),
-                ]
-            )
-            == 1
-        )
-        captured = capsys.readouterr()
-        assert "reviewed finalize run canonical identity changed" in captured.err
-        assert moved
-        assert not output_dir.exists()
-        assert not (detached / review_contract.REVIEWED_RUN_DIRNAME).exists()
-    finally:
-        if detached.exists() and not output_dir.exists():
-            detached.rename(output_dir)
-        shutil.rmtree(output_dir, ignore_errors=True)
-        shutil.rmtree(input_dir, ignore_errors=True)
-
-
-def test_attach_rejects_unexpected_sidecar_added_during_reviewed_writes(
-    capsys: pytest.CaptureFixture[str],
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    output_dir, input_dir = _prepared_bridge(capsys, suffix="attach-extra-sidecar")
-    reviews_path = _write_review_input(output_dir, _review_input(output_dir))
-    reviewed_dir = output_dir / review_contract.REVIEWED_RUN_DIRNAME
-    real_write_json_at = review_cli._write_json_at
-    writes = 0
-
-    def add_sidecar_after_writes(
-        directory_fd: int,
-        filename: str,
-        payload: Any,
-    ) -> None:
-        nonlocal writes
-        real_write_json_at(directory_fd, filename, payload)
-        writes += 1
-        if writes == 5:
-            real_write_json_at(directory_fd, "unexpected.json", {})
-
-    monkeypatch.setattr(review_cli, "_write_json_at", add_sidecar_after_writes)
-    try:
-        assert (
-            review_cli.main(
-                [
-                    "attach",
-                    "--bridge",
-                    str(output_dir / bridge_cli.BRIDGE_FILENAME),
-                    "--reviews",
-                    str(reviews_path),
-                ]
-            )
-            == 1
-        )
-        captured = capsys.readouterr()
-        assert "exact initial artifact set" in captured.err
-        assert not reviewed_dir.exists()
-    finally:
-        shutil.rmtree(output_dir, ignore_errors=True)
-        shutil.rmtree(input_dir, ignore_errors=True)
-
-
-def test_attach_parent_symlink_swap_during_reviewed_ref_is_stable_and_local(
-    capsys: pytest.CaptureFixture[str],
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    output_dir, input_dir = _prepared_bridge(capsys, suffix="attach-ref-symlink-swap")
-    detached = output_dir.with_name(f"{output_dir.name}-detached")
-    outside = tmp_path / "outside"
-    outside.mkdir()
-    reviews_path = _write_review_input(output_dir, _review_input(output_dir))
-    real_artifact_ref = review_cli._artifact_ref
-    swapped = False
-
-    def swap_parent_on_reviewed_ref(path: Path) -> str:
-        nonlocal swapped
-        if review_contract.REVIEWED_RUN_DIRNAME in path.parts and not swapped:
-            swapped = True
-            output_dir.rename(detached)
-            output_dir.symlink_to(outside, target_is_directory=True)
-        return real_artifact_ref(path)
-
-    monkeypatch.setattr(review_cli, "_artifact_ref", swap_parent_on_reviewed_ref)
-    try:
-        assert (
-            review_cli.main(
-                [
-                    "attach",
-                    "--bridge",
-                    str(output_dir / bridge_cli.BRIDGE_FILENAME),
-                    "--reviews",
-                    str(reviews_path),
-                ]
-            )
-            == 1
-        )
-        captured = capsys.readouterr()
-        assert "reviewed finalize run canonical identity changed" in captured.err
-        assert "Traceback" not in captured.err
-        assert swapped
-        assert not (outside / review_contract.REVIEWED_RUN_DIRNAME).exists()
-        assert not (detached / review_contract.REVIEWED_RUN_DIRNAME).exists()
-    finally:
-        if output_dir.is_symlink():
-            output_dir.unlink()
-        if detached.exists() and not output_dir.exists():
-            detached.rename(output_dir)
-        shutil.rmtree(output_dir, ignore_errors=True)
-        shutil.rmtree(input_dir, ignore_errors=True)
-
-
-def test_attach_rechecks_canonical_identity_after_exact_payload_snapshot(
-    capsys: pytest.CaptureFixture[str],
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    output_dir, input_dir = _prepared_bridge(capsys, suffix="attach-late-parent-move")
-    detached = output_dir.with_name(f"{output_dir.name}-detached")
-    reviews_path = _write_review_input(output_dir, _review_input(output_dir))
-    real_assert_exact = review_cli._assert_exact_reviewed_run_payloads
-    moved = False
-
-    def move_parent_after_exact_snapshot(*args: Any, **kwargs: Any) -> None:
-        nonlocal moved
-        real_assert_exact(*args, **kwargs)
-        if not moved:
-            moved = True
-            output_dir.rename(detached)
-            output_dir.mkdir()
-
-    monkeypatch.setattr(
-        review_cli,
-        "_assert_exact_reviewed_run_payloads",
-        move_parent_after_exact_snapshot,
-    )
-    try:
-        assert (
-            review_cli.main(
-                [
-                    "attach",
-                    "--bridge",
-                    str(output_dir / bridge_cli.BRIDGE_FILENAME),
-                    "--reviews",
-                    str(reviews_path),
-                ]
-            )
-            == 1
-        )
-        captured = capsys.readouterr()
-        assert "reviewed finalize run canonical identity changed" in captured.err
-        assert moved
-        assert not (detached / review_contract.REVIEWED_RUN_DIRNAME).exists()
-        assert not (output_dir / review_contract.REVIEWED_RUN_DIRNAME).exists()
-    finally:
-        shutil.rmtree(output_dir, ignore_errors=True)
-        if detached.exists():
-            detached.rename(output_dir)
         shutil.rmtree(output_dir, ignore_errors=True)
         shutil.rmtree(input_dir, ignore_errors=True)
 
@@ -2033,7 +1086,7 @@ def test_validate_rejects_attachment_coverage_mismatch(
         shutil.rmtree(input_dir, ignore_errors=True)
 
 
-def test_finalize_retains_partial_outputs_on_receipt_failure(
+def test_finalize_bundle_without_receipt_is_retained_and_fails(
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -2058,710 +1111,52 @@ def test_finalize_retains_partial_outputs_on_receipt_failure(
         def _fail_receipt(**_: Any) -> dict[str, Any]:
             raise CreativeSpecificationSkepticReviewError("synthetic receipt failure")
 
-        def forbid_unlink(*args: Any, **kwargs: Any) -> None:
-            raise AssertionError("failed finalize artifacts must not be unlinked")
-
-        with monkeypatch.context() as context:
-            context.setattr(review_cli, "build_finalize_receipt", _fail_receipt)
-            context.setattr(Path, "unlink", forbid_unlink)
-            exit_code = review_cli.main(["finalize", "--attachment", str(attachment_path)])
+        monkeypatch.setattr(review_cli, "build_finalize_receipt", _fail_receipt)
+        exit_code = review_cli.main(["finalize", "--attachment", str(attachment_path)])
         captured = capsys.readouterr()
         assert exit_code == 1
         assert "synthetic receipt failure" in captured.err
-        assert "failure_artifact_retained=" in captured.err
-        reviewed_dir = output_dir / "spec_finalize_reviewed"
-        assert reviewed_dir.is_dir()
-        assert {path.name for path in reviewed_dir.iterdir()} == {
-            "source_packet.json",
-            "variants.json",
-            "skeptic_reviews.json",
-            "context_pack.json",
-            review_cli.ATTACHMENT_FILENAME,
-        }
-        assert list(output_dir.glob(".spec_finalize_reviewed.*.pre-finalize")) == []
-    finally:
-        shutil.rmtree(output_dir, ignore_errors=True)
-        shutil.rmtree(input_dir, ignore_errors=True)
+        assert (output_dir / "spec_finalize_reviewed" / review_cli.BUNDLE_FILENAME).is_file()
+        assert not (
+            output_dir / "spec_finalize_reviewed" / review_cli.FINALIZE_RECEIPT_FILENAME
+        ).exists()
 
-
-def test_finalize_lock_contention_preserves_canonical_reviewed_run(
-    capsys: pytest.CaptureFixture[str],
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    output_dir, input_dir = _prepared_bridge(capsys, suffix="finalize-lock")
-    try:
-        reviews_path = _write_review_input(output_dir, _review_input(output_dir))
-        assert (
-            review_cli.main(
-                [
-                    "attach",
-                    "--bridge",
-                    str(output_dir / bridge_cli.BRIDGE_FILENAME),
-                    "--reviews",
-                    str(reviews_path),
-                ]
-            )
-            == 0
-        )
-        capsys.readouterr()
-        reviewed_dir = output_dir / "spec_finalize_reviewed"
-        attachment_path = reviewed_dir / review_cli.ATTACHMENT_FILENAME
-
-        def reject_lock(*args: Any, **kwargs: Any) -> None:
-            raise BlockingIOError("simulated concurrent finalize")
-
-        with monkeypatch.context() as context:
-            context.setattr(review_cli.fcntl, "flock", reject_lock)
-            exit_code = review_cli.main(["finalize", "--attachment", str(attachment_path)])
-        captured = capsys.readouterr()
-        assert exit_code == 1
-        assert "reviewed finalize is already in progress" in captured.err
-        assert reviewed_dir.is_dir()
-        assert not (reviewed_dir / review_cli.BUNDLE_FILENAME).exists()
-        assert not (reviewed_dir / review_cli.FINALIZE_RECEIPT_FILENAME).exists()
-        assert list(output_dir.glob(".spec_finalize_reviewed.*.failed")) == []
-
-        exit_code = review_cli.main(["finalize", "--attachment", str(attachment_path)])
-        captured = capsys.readouterr()
-        assert exit_code == 0, captured.err
-        assert (reviewed_dir / review_cli.BUNDLE_FILENAME).is_file()
-        assert (reviewed_dir / review_cli.FINALIZE_RECEIPT_FILENAME).is_file()
-    finally:
-        shutil.rmtree(output_dir, ignore_errors=True)
-        shutil.rmtree(input_dir, ignore_errors=True)
-
-
-def test_finalize_parent_lock_serializes_directory_exchange(
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    output_dir, input_dir = _prepared_bridge(capsys, suffix="finalize-parent-lock")
-    parent_fd = -1
-    try:
-        reviews_path = _write_review_input(output_dir, _review_input(output_dir))
-        assert (
-            review_cli.main(
-                [
-                    "attach",
-                    "--bridge",
-                    str(output_dir / bridge_cli.BRIDGE_FILENAME),
-                    "--reviews",
-                    str(reviews_path),
-                ]
-            )
-            == 0
-        )
-        capsys.readouterr()
-        reviewed_dir = output_dir / "spec_finalize_reviewed"
-        attachment_path = reviewed_dir / review_cli.ATTACHMENT_FILENAME
-        parent_fd = review_cli.os.open(
-            output_dir,
-            review_cli.creative_code_spec_pipeline._directory_flags(),
-        )
-        review_cli.fcntl.flock(parent_fd, review_cli.fcntl.LOCK_EX | review_cli.fcntl.LOCK_NB)
-
+        monkeypatch.undo()
         exit_code = review_cli.main(["finalize", "--attachment", str(attachment_path)])
         captured = capsys.readouterr()
         assert exit_code == 1
-        assert "reviewed finalize is already in progress" in captured.err
-        assert {path.name for path in reviewed_dir.iterdir()} == {
-            "source_packet.json",
-            "variants.json",
-            "skeptic_reviews.json",
-            "context_pack.json",
-            review_cli.ATTACHMENT_FILENAME,
-        }
-        assert list(output_dir.glob(".spec_finalize_reviewed.*.pre-finalize")) == []
-
-        review_cli.fcntl.flock(parent_fd, review_cli.fcntl.LOCK_UN)
-        review_cli.os.close(parent_fd)
-        parent_fd = -1
-        assert review_cli.main(["finalize", "--attachment", str(attachment_path)]) == 0
-        capsys.readouterr()
-        assert (reviewed_dir / review_cli.BUNDLE_FILENAME).is_file()
-        assert (reviewed_dir / review_cli.FINALIZE_RECEIPT_FILENAME).is_file()
-    finally:
-        if parent_fd >= 0:
-            review_cli.fcntl.flock(parent_fd, review_cli.fcntl.LOCK_UN)
-            review_cli.os.close(parent_fd)
-        shutil.rmtree(output_dir, ignore_errors=True)
-        shutil.rmtree(input_dir, ignore_errors=True)
-
-
-def test_finalize_revalidates_pinned_inputs_after_lock(
-    capsys: pytest.CaptureFixture[str],
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    output_dir, input_dir = _prepared_bridge(capsys, suffix="finalize-post-lock-mutation")
-    try:
-        reviews_path = _write_review_input(output_dir, _review_input(output_dir))
-        assert (
-            review_cli.main(
-                [
-                    "attach",
-                    "--bridge",
-                    str(output_dir / bridge_cli.BRIDGE_FILENAME),
-                    "--reviews",
-                    str(reviews_path),
-                ]
-            )
-            == 0
-        )
-        capsys.readouterr()
-        reviewed_dir = output_dir / "spec_finalize_reviewed"
-        attachment_path = reviewed_dir / review_cli.ATTACHMENT_FILENAME
-        reviewed_reviews = reviewed_dir / "skeptic_reviews.json"
-        real_flock = review_cli.fcntl.flock
-        mutated = False
-
-        def mutate_after_lock(descriptor: int, operation: int) -> None:
-            nonlocal mutated
-            real_flock(descriptor, operation)
-            if not mutated and operation & review_cli.fcntl.LOCK_EX:
-                mutated = True
-                reviewed_reviews.write_text("{}\n", encoding="utf-8")
-
-        with monkeypatch.context() as context:
-            context.setattr(review_cli.fcntl, "flock", mutate_after_lock)
-            exit_code = review_cli.main(["finalize", "--attachment", str(attachment_path)])
-        captured = capsys.readouterr()
-        assert exit_code == 1
-        assert "pinned reviewed skeptic_reviews.json changed after validation" in captured.err
-        assert mutated
-        assert reviewed_dir.is_dir()
-        assert not (reviewed_dir / review_cli.BUNDLE_FILENAME).exists()
-        assert not (reviewed_dir / review_cli.FINALIZE_RECEIPT_FILENAME).exists()
-        assert list(output_dir.glob(".spec_finalize_reviewed.*.failed")) == []
+        assert "partial; retained for inspection" in captured.err
     finally:
         shutil.rmtree(output_dir, ignore_errors=True)
         shutil.rmtree(input_dir, ignore_errors=True)
 
 
-def test_finalize_rejects_canonical_reviewed_directory_swap_after_lock(
-    capsys: pytest.CaptureFixture[str],
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    output_dir, input_dir = _prepared_bridge(capsys, suffix="finalize-directory-swap")
-    try:
-        reviews_path = _write_review_input(output_dir, _review_input(output_dir))
-        assert (
-            review_cli.main(
-                [
-                    "attach",
-                    "--bridge",
-                    str(output_dir / bridge_cli.BRIDGE_FILENAME),
-                    "--reviews",
-                    str(reviews_path),
-                ]
-            )
-            == 0
-        )
-        capsys.readouterr()
-        reviewed_dir = output_dir / "spec_finalize_reviewed"
-        detached = output_dir / ".detached-reviewed-finalize"
-        attachment_path = reviewed_dir / review_cli.ATTACHMENT_FILENAME
-        real_flock = review_cli.fcntl.flock
-        swapped = False
-
-        def swap_canonical_after_lock(descriptor: int, operation: int) -> None:
-            nonlocal swapped
-            real_flock(descriptor, operation)
-            if not swapped and operation & review_cli.fcntl.LOCK_EX:
-                swapped = True
-                reviewed_dir.rename(detached)
-                reviewed_dir.mkdir()
-                (reviewed_dir / "unknown.marker").write_text("unknown\n", encoding="utf-8")
-
-        with monkeypatch.context() as context:
-            context.setattr(review_cli.fcntl, "flock", swap_canonical_after_lock)
-            exit_code = review_cli.main(["finalize", "--attachment", str(attachment_path)])
-        captured = capsys.readouterr()
-        assert exit_code == 1
-        assert "reviewed finalize run canonical identity changed" in captured.err
-        assert swapped
-        assert (reviewed_dir / "unknown.marker").read_text(encoding="utf-8") == "unknown\n"
-        assert detached.is_dir()
-        assert not (detached / review_cli.BUNDLE_FILENAME).exists()
-        assert not (detached / review_cli.FINALIZE_RECEIPT_FILENAME).exists()
-        assert list(output_dir.glob(".spec_finalize_reviewed.*.failed")) == []
-    finally:
-        shutil.rmtree(output_dir, ignore_errors=True)
-        shutil.rmtree(input_dir, ignore_errors=True)
-
-
-def test_finalize_revalidates_outputs_at_terminal_input_seam(
-    capsys: pytest.CaptureFixture[str],
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    output_dir, input_dir = _prepared_bridge(capsys, suffix="finalize-output-mutation")
-    try:
-        reviews_path = _write_review_input(output_dir, _review_input(output_dir))
-        assert (
-            review_cli.main(
-                [
-                    "attach",
-                    "--bridge",
-                    str(output_dir / bridge_cli.BRIDGE_FILENAME),
-                    "--reviews",
-                    str(reviews_path),
-                ]
-            )
-            == 0
-        )
-        capsys.readouterr()
-        reviewed_dir = output_dir / "spec_finalize_reviewed"
-        attachment_path = reviewed_dir / review_cli.ATTACHMENT_FILENAME
-        receipt_path = reviewed_dir / review_cli.FINALIZE_RECEIPT_FILENAME
-        real_read_inputs = review_cli._read_pinned_reviewed_inputs
-        calls = 0
-
-        def corrupt_receipt_before_terminal_read(*args: Any, **kwargs: Any) -> dict[str, Any]:
-            nonlocal calls
-            calls += 1
-            if calls == 2:
-                receipt_path.write_text("{}\n", encoding="utf-8")
-            return real_read_inputs(*args, **kwargs)
-
-        with monkeypatch.context() as context:
-            context.setattr(
-                review_cli,
-                "_read_pinned_reviewed_inputs",
-                corrupt_receipt_before_terminal_read,
-            )
-            exit_code = review_cli.main(["finalize", "--attachment", str(attachment_path)])
-        captured = capsys.readouterr()
-        assert exit_code == 1
-        assert review_cli.FINALIZE_SUCCESS_OUTPUT not in captured.out
-        assert calls == 2
-        assert reviewed_dir.is_dir()
-        assert receipt_path.read_text(encoding="utf-8") == "{}\n"
-        retained_runs = list(output_dir.glob(".spec_finalize_reviewed.*.pre-finalize"))
-        assert len(retained_runs) == 1
-        assert (retained_runs[0] / review_cli.FINALIZE_RECEIPT_FILENAME).is_file()
-        assert (retained_runs[0] / review_cli.BUNDLE_FILENAME).is_file()
-    finally:
-        shutil.rmtree(output_dir, ignore_errors=True)
-        shutil.rmtree(input_dir, ignore_errors=True)
-
-
-def test_finalize_revalidates_payloads_after_atomic_exchange(
-    capsys: pytest.CaptureFixture[str],
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    output_dir, input_dir = _prepared_bridge(capsys, suffix="post-exchange-payload-mutation")
-    try:
-        reviews_path = _write_review_input(output_dir, _review_input(output_dir))
-        assert (
-            review_cli.main(
-                [
-                    "attach",
-                    "--bridge",
-                    str(output_dir / bridge_cli.BRIDGE_FILENAME),
-                    "--reviews",
-                    str(reviews_path),
-                ]
-            )
-            == 0
-        )
-        capsys.readouterr()
-        reviewed_dir = output_dir / "spec_finalize_reviewed"
-        attachment_path = reviewed_dir / review_cli.ATTACHMENT_FILENAME
-        real_exchange = review_cli._kernel_rename_exchange
-
-        def mutate_bundle_after_exchange(
-            parent_fd: int,
-            source_name: str,
-            destination_name: str,
-        ) -> None:
-            real_exchange(parent_fd, source_name, destination_name)
-            (reviewed_dir / review_cli.BUNDLE_FILENAME).write_text("{}\n", encoding="utf-8")
-
-        with monkeypatch.context() as context:
-            context.setattr(review_cli, "_kernel_rename_exchange", mutate_bundle_after_exchange)
-            exit_code = review_cli.main(["finalize", "--attachment", str(attachment_path)])
-        captured = capsys.readouterr()
-        assert exit_code == 1
-        assert review_cli.FINALIZE_SUCCESS_OUTPUT not in captured.out
-        assert "exchange_state=published" in captured.err
-        assert (reviewed_dir / review_cli.BUNDLE_FILENAME).read_text(encoding="utf-8") == "{}\n"
-        retained_runs = list(output_dir.glob(".spec_finalize_reviewed.*.pre-finalize"))
-        assert len(retained_runs) == 1
-        assert {path.name for path in retained_runs[0].iterdir()} == {
-            "source_packet.json",
-            "variants.json",
-            "skeptic_reviews.json",
-            "context_pack.json",
-            review_cli.ATTACHMENT_FILENAME,
-        }
-    finally:
-        shutil.rmtree(output_dir, ignore_errors=True)
-        shutil.rmtree(input_dir, ignore_errors=True)
-
-
-def test_finalize_rechecks_outputs_after_terminal_retained_read(
-    capsys: pytest.CaptureFixture[str],
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    output_dir, input_dir = _prepared_bridge(capsys, suffix="terminal-retained-output-seam")
-    try:
-        reviews_path = _write_review_input(output_dir, _review_input(output_dir))
-        assert (
-            review_cli.main(
-                [
-                    "attach",
-                    "--bridge",
-                    str(output_dir / bridge_cli.BRIDGE_FILENAME),
-                    "--reviews",
-                    str(reviews_path),
-                ]
-            )
-            == 0
-        )
-        capsys.readouterr()
-        reviewed_dir = output_dir / "spec_finalize_reviewed"
-        attachment_path = reviewed_dir / review_cli.ATTACHMENT_FILENAME
-        bundle_path = reviewed_dir / review_cli.BUNDLE_FILENAME
-        real_read_inputs = review_cli._read_pinned_reviewed_inputs
-        calls = 0
-
-        def mutate_bundle_after_retained_read(*args: Any, **kwargs: Any) -> dict[str, Any]:
-            nonlocal calls
-            payload = real_read_inputs(*args, **kwargs)
-            calls += 1
-            if calls == 3:
-                bundle_path.write_text("{}\n", encoding="utf-8")
-            return payload
-
-        with monkeypatch.context() as context:
-            context.setattr(
-                review_cli,
-                "_read_pinned_reviewed_inputs",
-                mutate_bundle_after_retained_read,
-            )
-            exit_code = review_cli.main(["finalize", "--attachment", str(attachment_path)])
-        captured = capsys.readouterr()
-        assert exit_code == 1
-        assert review_cli.FINALIZE_SUCCESS_OUTPUT not in captured.out
-        assert calls == 3
-        assert bundle_path.read_text(encoding="utf-8") == "{}\n"
-        assert "exchange_state=published" in captured.err
-    finally:
-        shutil.rmtree(output_dir, ignore_errors=True)
-        shutil.rmtree(input_dir, ignore_errors=True)
-
-
-def test_open_pinned_finalize_output_preserves_primary_and_close_errors(
+def test_finalize_preserves_primary_and_close_diagnostics(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    directory_fd = os.open(tmp_path, os.O_RDONLY)
-    try:
-        with monkeypatch.context() as context:
-            context.setattr(
-                review_cli.creative_code_spec_pipeline,
-                "_close_descriptors",
-                lambda *_descriptors: OSError("injected close failure"),
-            )
-            with pytest.raises(
-                review_cli.CreativeSpecificationSkepticReviewCliError,
-                match=("No such file or directory.*cleanup_diagnostic=" ".*injected close failure"),
-            ):
-                review_cli._open_pinned_finalize_output(directory_fd, "missing.json")
-    finally:
-        os.close(directory_fd)
+    attachment = tmp_path / "spec_finalize_reviewed" / review_cli.ATTACHMENT_FILENAME
+    attachment.parent.mkdir()
+    attachment.write_text("{}\n", encoding="utf-8")
 
+    monkeypatch.setattr(review_cli, "_resolve_repo_json_file", lambda *_args, **_kwargs: attachment)
+    monkeypatch.setattr(review_cli, "_open_locked_directory", lambda *_args, **_kwargs: 101)
 
-def test_finalize_rejects_bundle_mutation_between_terminal_output_reads(
-    capsys: pytest.CaptureFixture[str],
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    output_dir, input_dir = _prepared_bridge(capsys, suffix="finalize-inter-output-mutation")
-    try:
-        reviews_path = _write_review_input(output_dir, _review_input(output_dir))
-        assert (
-            review_cli.main(
-                [
-                    "attach",
-                    "--bridge",
-                    str(output_dir / bridge_cli.BRIDGE_FILENAME),
-                    "--reviews",
-                    str(reviews_path),
-                ]
-            )
-            == 0
-        )
-        capsys.readouterr()
-        reviewed_dir = output_dir / "spec_finalize_reviewed"
-        attachment_path = reviewed_dir / review_cli.ATTACHMENT_FILENAME
-        real_read_output = review_cli._read_json_from_pinned_finalize_output
-        reads: list[str] = []
+    def fail_validation(_path: Path) -> tuple[dict[str, Any], Path]:
+        raise CreativeSpecificationSkepticReviewError("primary finalize failure")
 
-        def corrupt_bundle_between_output_reads(file_fd: int, filename: str) -> Any:
-            if filename == review_cli.FINALIZE_RECEIPT_FILENAME and reads == [
-                review_cli.BUNDLE_FILENAME
-            ]:
-                staging_dirs = list(output_dir.glob(".spec_finalize_reviewed.*.pre-finalize"))
-                assert len(staging_dirs) == 1
-                (staging_dirs[0] / review_cli.BUNDLE_FILENAME).write_text("{}\n", encoding="utf-8")
-            payload = real_read_output(file_fd, filename)
-            reads.append(filename)
-            return payload
+    monkeypatch.setattr(review_cli, "_validate_attachment_artifacts", fail_validation)
+    monkeypatch.setattr(
+        review_cli.creative_code_spec_pipeline,
+        "_close_descriptors",
+        lambda *_descriptors: OSError("close finalize failure"),
+    )
 
-        with monkeypatch.context() as context:
-            context.setattr(
-                review_cli,
-                "_read_json_from_pinned_finalize_output",
-                corrupt_bundle_between_output_reads,
-            )
-            exit_code = review_cli.main(["finalize", "--attachment", str(attachment_path)])
-        captured = capsys.readouterr()
-        assert exit_code == 1
-        assert review_cli.FINALIZE_SUCCESS_OUTPUT not in captured.out
-        assert reads[:2] == [
-            review_cli.BUNDLE_FILENAME,
-            review_cli.FINALIZE_RECEIPT_FILENAME,
-        ]
-        assert reviewed_dir.is_dir()
-        assert not (reviewed_dir / review_cli.BUNDLE_FILENAME).exists()
-        retained_runs = list(output_dir.glob(".spec_finalize_reviewed.*.pre-finalize"))
-        assert len(retained_runs) == 1
-        assert (retained_runs[0] / review_cli.BUNDLE_FILENAME).read_text(encoding="utf-8") == "{}\n"
-        assert (retained_runs[0] / review_cli.FINALIZE_RECEIPT_FILENAME).is_file()
-    finally:
-        shutil.rmtree(output_dir, ignore_errors=True)
-        shutil.rmtree(input_dir, ignore_errors=True)
-
-
-def test_finalize_exchange_failure_preserves_canonical_and_staged_evidence(
-    capsys: pytest.CaptureFixture[str],
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    output_dir, input_dir = _prepared_bridge(capsys, suffix="finalize-exchange-failure")
-    try:
-        reviews_path = _write_review_input(output_dir, _review_input(output_dir))
-        assert (
-            review_cli.main(
-                [
-                    "attach",
-                    "--bridge",
-                    str(output_dir / bridge_cli.BRIDGE_FILENAME),
-                    "--reviews",
-                    str(reviews_path),
-                ]
-            )
-            == 0
-        )
-        capsys.readouterr()
-        reviewed_dir = output_dir / "spec_finalize_reviewed"
-        attachment_path = reviewed_dir / review_cli.ATTACHMENT_FILENAME
-
-        def fail_exchange(*args: Any, **kwargs: Any) -> None:
-            raise review_cli.CreativeSpecificationSkepticReviewCliError(
-                "simulated atomic exchange failure"
-            )
-
-        with monkeypatch.context() as context:
-            context.setattr(review_cli, "_kernel_rename_exchange", fail_exchange)
-            exit_code = review_cli.main(["finalize", "--attachment", str(attachment_path)])
-        captured = capsys.readouterr()
-        assert exit_code == 1
-        assert review_cli.FINALIZE_SUCCESS_OUTPUT not in captured.out
-        assert "simulated atomic exchange failure" in captured.err
-        assert "exchange_state=not_published" in captured.err
-        assert reviewed_dir.is_dir()
-        assert {path.name for path in reviewed_dir.iterdir()} == {
-            "source_packet.json",
-            "variants.json",
-            "skeptic_reviews.json",
-            "context_pack.json",
-            review_cli.ATTACHMENT_FILENAME,
-        }
-        retained_runs = list(output_dir.glob(".spec_finalize_reviewed.*.pre-finalize"))
-        assert len(retained_runs) == 1
-        assert {path.name for path in retained_runs[0].iterdir()} == set(
-            review_cli.REVIEWED_RUN_FILENAMES
-        )
-        assert (retained_runs[0] / review_cli.BUNDLE_FILENAME).is_file()
-    finally:
-        shutil.rmtree(output_dir, ignore_errors=True)
-        shutil.rmtree(input_dir, ignore_errors=True)
-
-
-def test_finalize_exchange_preserves_unknown_canonical_replacement(
-    capsys: pytest.CaptureFixture[str],
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    output_dir, input_dir = _prepared_bridge(capsys, suffix="finalize-terminal-canonical-swap")
-    try:
-        reviews_path = _write_review_input(output_dir, _review_input(output_dir))
-        assert (
-            review_cli.main(
-                [
-                    "attach",
-                    "--bridge",
-                    str(output_dir / bridge_cli.BRIDGE_FILENAME),
-                    "--reviews",
-                    str(reviews_path),
-                ]
-            )
-            == 0
-        )
-        capsys.readouterr()
-        reviewed_dir = output_dir / "spec_finalize_reviewed"
-        detached = output_dir / ".detached-terminal-reviewed"
-        attachment_path = reviewed_dir / review_cli.ATTACHMENT_FILENAME
-        real_assert_identity = review_cli._assert_canonical_reviewed_run_identity
-        identity_checks = 0
-
-        def swap_canonical_after_composite_identity(*args: Any, **kwargs: Any) -> None:
-            nonlocal identity_checks
-            identity_checks += 1
-            real_assert_identity(*args, **kwargs)
-            if identity_checks == 2:
-                reviewed_dir.rename(detached)
-                reviewed_dir.mkdir()
-                (reviewed_dir / "unknown.marker").write_text("unknown\n", encoding="utf-8")
-
-        with monkeypatch.context() as context:
-            context.setattr(
-                review_cli,
-                "_assert_canonical_reviewed_run_identity",
-                swap_canonical_after_composite_identity,
-            )
-            exit_code = review_cli.main(["finalize", "--attachment", str(attachment_path)])
-        captured = capsys.readouterr()
-        assert exit_code == 1
-        assert review_cli.FINALIZE_SUCCESS_OUTPUT not in captured.out
-        assert "reviewed finalize retained pre-finalize run identity changed" in captured.err
-        assert "exchange_state=published" in captured.err
-        assert identity_checks == 2
-        assert (reviewed_dir / review_cli.BUNDLE_FILENAME).is_file()
-        assert (reviewed_dir / review_cli.FINALIZE_RECEIPT_FILENAME).is_file()
-        assert not (detached / review_cli.BUNDLE_FILENAME).exists()
-        retained_runs = list(output_dir.glob(".spec_finalize_reviewed.*.pre-finalize"))
-        assert len(retained_runs) == 1
-        assert (retained_runs[0] / "unknown.marker").read_text(encoding="utf-8") == "unknown\n"
-        assert list(output_dir.glob(".spec_finalize_reviewed.*.failed")) == []
-    finally:
-        shutil.rmtree(output_dir, ignore_errors=True)
-        shutil.rmtree(input_dir, ignore_errors=True)
-
-
-def test_finalize_exchange_preserves_unknown_staging_replacement(
-    capsys: pytest.CaptureFixture[str],
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    output_dir, input_dir = _prepared_bridge(capsys, suffix="finalize-staging-source-swap")
-    detached_staging_name = ".detached-finalize-staging"
-    try:
-        reviews_path = _write_review_input(output_dir, _review_input(output_dir))
-        assert (
-            review_cli.main(
-                [
-                    "attach",
-                    "--bridge",
-                    str(output_dir / bridge_cli.BRIDGE_FILENAME),
-                    "--reviews",
-                    str(reviews_path),
-                ]
-            )
-            == 0
-        )
-        capsys.readouterr()
-        reviewed_dir = output_dir / "spec_finalize_reviewed"
-        attachment_path = reviewed_dir / review_cli.ATTACHMENT_FILENAME
-        real_exchange = review_cli._kernel_rename_exchange
-
-        def swap_staging_inside_exchange(
-            parent_fd: int,
-            source_name: str,
-            destination_name: str,
-        ) -> None:
-            review_cli.os.rename(
-                source_name,
-                detached_staging_name,
-                src_dir_fd=parent_fd,
-                dst_dir_fd=parent_fd,
-            )
-            review_cli.os.mkdir(source_name, mode=0o700, dir_fd=parent_fd)
-            replacement_fd = review_cli.os.open(
-                source_name,
-                review_cli.creative_code_spec_pipeline._directory_flags(),
-                dir_fd=parent_fd,
-            )
-            try:
-                marker_fd = review_cli.os.open(
-                    "unknown.marker",
-                    review_cli.os.O_WRONLY | review_cli.os.O_CREAT | review_cli.os.O_EXCL,
-                    0o600,
-                    dir_fd=replacement_fd,
-                )
-                review_cli.os.close(marker_fd)
-            finally:
-                review_cli.os.close(replacement_fd)
-            real_exchange(parent_fd, source_name, destination_name)
-
-        with monkeypatch.context() as context:
-            context.setattr(review_cli, "_kernel_rename_exchange", swap_staging_inside_exchange)
-            exit_code = review_cli.main(["finalize", "--attachment", str(attachment_path)])
-        captured = capsys.readouterr()
-        assert exit_code == 1
-        assert review_cli.FINALIZE_SUCCESS_OUTPUT not in captured.out
-        assert "reviewed finalize published run identity changed" in captured.err
-        assert "exchange_state=published" in captured.err
-        assert (reviewed_dir / "unknown.marker").is_file()
-        retained_runs = list(output_dir.glob(".spec_finalize_reviewed.*.pre-finalize"))
-        assert len(retained_runs) == 1
-        assert {path.name for path in retained_runs[0].iterdir()} == {
-            "source_packet.json",
-            "variants.json",
-            "skeptic_reviews.json",
-            "context_pack.json",
-            review_cli.ATTACHMENT_FILENAME,
-        }
-        detached_staging = output_dir / detached_staging_name
-        assert {path.name for path in detached_staging.iterdir()} == set(
-            review_cli.REVIEWED_RUN_FILENAMES
-        )
-    finally:
-        shutil.rmtree(output_dir, ignore_errors=True)
-        shutil.rmtree(input_dir, ignore_errors=True)
-
-
-def test_finalize_preserves_preexisting_partial_outputs_without_quarantine(
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    output_dir, input_dir = _prepared_bridge(capsys, suffix="finalize-partial-existing")
-    try:
-        reviews_path = _write_review_input(output_dir, _review_input(output_dir))
-        assert (
-            review_cli.main(
-                [
-                    "attach",
-                    "--bridge",
-                    str(output_dir / bridge_cli.BRIDGE_FILENAME),
-                    "--reviews",
-                    str(reviews_path),
-                ]
-            )
-            == 0
-        )
-        capsys.readouterr()
-        reviewed_dir = output_dir / "spec_finalize_reviewed"
-        attachment_path = reviewed_dir / review_cli.ATTACHMENT_FILENAME
-        partial_bundle = reviewed_dir / review_cli.BUNDLE_FILENAME
-        partial_bundle.write_text("{}\n", encoding="utf-8")
-
-        exit_code = review_cli.main(["finalize", "--attachment", str(attachment_path)])
-        captured = capsys.readouterr()
-        assert exit_code == 1
-        assert "reviewed finalize outputs are partial" in captured.err
-        assert reviewed_dir.is_dir()
-        assert partial_bundle.read_text(encoding="utf-8") == "{}\n"
-        assert not (reviewed_dir / review_cli.FINALIZE_RECEIPT_FILENAME).exists()
-        assert list(output_dir.glob(".spec_finalize_reviewed.*.failed")) == []
-    finally:
-        shutil.rmtree(output_dir, ignore_errors=True)
-        shutil.rmtree(input_dir, ignore_errors=True)
+    with pytest.raises(
+        review_cli.CreativeSpecificationSkepticReviewCliError,
+        match="primary finalize failure; cleanup_diagnostic=close finalize failure",
+    ):
+        review_cli._finalize_from_attachment(attachment)
 
 
 def test_finalize_receipt_rejects_inconsistent_selected_count(

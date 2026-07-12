@@ -741,6 +741,43 @@ credible current-PR risk was fixed or blocked by a guard.
 - PR evidence that separates pre-merge proof from post-merge proof when a lane
   such as publish cannot run automatically on pull requests.
 
+## 28) Stop filesystem hardening at the declared transaction boundary
+
+### Problem
+Local artifact code can enter an endless sequence of pathname and timestamp
+race checks while trying to prove permanent stability against another process
+running as the same user. That proof needs a different ownership model, and the
+extra code can become riskier than the bounded workflow it protects.
+
+### Rule
+For local creative artifacts, use cooperative locking, safe at-rest no-symlink
+reads, owned same-parent staging, kernel no-replace publication, parent fsync,
+deterministic replay validation, and receipt-last finalization. Preserve partial
+evidence and diagnostics. Stop there: do not add directory exchange, canonical
+cleanup, hostile syscall-seam tests, or claims of permanent same-UID exclusion.
+
+If stronger exclusivity is required, stop the PR and open a separate threat-
+model lane with an explicit ownership boundary instead of extending the race-
+checker loop.
+
+## 29) Treat multi-worktree patch containment as a hard safety boundary
+
+### Problem
+`apply_patch` does not inherit a shell command's working directory. In a repo
+with several worktrees, an unqualified patch path can therefore modify the
+primary checkout or a sibling even when inspection commands ran in the assigned
+worktree. Trying to compensate with edits in the wrong tree widens the incident.
+
+### Rule
+Before patching, verify both `pwd` and `git rev-parse --show-toplevel` against
+the assigned worktree. Every patch path must be absolute and prefixed by that
+verified worktree. After patching, inspect `git status --short` in the assigned
+worktree, the primary checkout, and any relevant sibling worktree.
+
+If any patch lands in the wrong tree, stop immediately, report the containment
+failure, and restore only with explicit ownership evidence. Never compensate by
+editing another checkout or sibling worktree.
+
 ---
 
 ## Repo Commands Reference

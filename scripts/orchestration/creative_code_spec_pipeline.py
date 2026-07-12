@@ -13,7 +13,6 @@ import stat
 import sys
 from typing import Any
 
-from core.evidence.fingerprints import fingerprint_payload
 from scripts.orchestration.context_pack_compression import (
     build_context_pack_compression,
     to_stable_mapping,
@@ -50,13 +49,6 @@ REQUIRED_CONTEXT = (
 
 class CreativeCodeSpecPipelineError(ValueError):
     """Raised when the local PR-1 pipeline cannot safely read or write artifacts."""
-
-
-def _json_payloads_equal(observed: Any, expected: Any) -> bool:
-    try:
-        return bool(fingerprint_payload(observed) == fingerprint_payload(expected))
-    except (TypeError, ValueError):
-        return False
 
 
 def _required_open_flag(name: str) -> int:
@@ -257,13 +249,7 @@ def _read_json_file(path: Path, *, allowed_root: Path, label: str) -> Any:
         )
     except CreativeCodeSpecPipelineError:
         raise
-    except (
-        OSError,
-        UnicodeDecodeError,
-        ValueError,
-        RecursionError,
-        NotImplementedError,
-    ) as exc:
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, NotImplementedError) as exc:
         raise CreativeCodeSpecPipelineError(f"Unable to read safe {label} JSON.") from exc
     finally:
         active_error = sys.exc_info()[1]
@@ -398,7 +384,7 @@ def validate_default_prepare_artifact_snapshots(
             "adaptive_source_lineage_mismatch: retained prepare artifact set changed"
         )
     for filename, expected_payload in expected.items():
-        if not _json_payloads_equal(snapshots[filename], expected_payload):
+        if snapshots[filename] != expected_payload:
             raise CreativeCodeSpecPipelineError(
                 f"adaptive_source_lineage_mismatch: retained {filename} is not canonical"
             )
@@ -458,48 +444,17 @@ def validate_exact_prepare_artifacts(
     """Revalidate all exact PR-1 sidecars for idempotent resume replay."""
 
     source_dir = _resolve_artifact_dir(run_dir, create=False)
-    snapshots = {
-        "source_packet.json": _read_json_artifact(source_dir / "source_packet.json"),
-        "variants.json": _read_json_artifact(source_dir / "variants.json"),
-        "skeptic_reviews.json": _read_json_artifact(source_dir / "skeptic_reviews.json"),
-        "context_pack.json": _read_json_artifact(source_dir / "context_pack.json"),
-    }
-    validate_exact_prepare_artifact_snapshots(
-        snapshots=snapshots,
-        expected_packet=expected_packet,
-        expected_variants=expected_variants,
-    )
-
-
-def validate_exact_prepare_artifact_snapshots(
-    *,
-    snapshots: Mapping[str, Any],
-    expected_packet: Mapping[str, Any],
-    expected_variants: Sequence[Mapping[str, Any]],
-) -> None:
-    """Recompute exact PR-1 sidecars from descriptor-bound JSON snapshots."""
-
-    expected_names = (
-        "source_packet.json",
-        "variants.json",
-        "skeptic_reviews.json",
-        "context_pack.json",
-    )
-    if set(snapshots) != set(expected_names):
-        raise CreativeCodeSpecPipelineError(
-            "adaptive_partial_output: fixed exact prepare artifact set required"
-        )
-    source_packet = snapshots["source_packet.json"]
-    variants = snapshots["variants.json"]
-    skeptic_reviews = snapshots["skeptic_reviews.json"]
-    context_pack = snapshots["context_pack.json"]
+    source_packet = _read_json_artifact(source_dir / "source_packet.json")
+    variants = _read_json_artifact(source_dir / "variants.json")
+    skeptic_reviews = _read_json_artifact(source_dir / "skeptic_reviews.json")
+    context_pack = _read_json_artifact(source_dir / "context_pack.json")
     normalized_packet = validate_source_candidate_packet(expected_packet)
     normalized_variants = [dict(row) for row in expected_variants]
-    if not _json_payloads_equal(source_packet, normalized_packet):
+    if source_packet != normalized_packet:
         raise CreativeCodeSpecPipelineError(
             "adaptive_prepare_source_packet_mismatch: source_packet.json drifted"
         )
-    if not _json_payloads_equal(variants, normalized_variants):
+    if variants != normalized_variants:
         raise CreativeCodeSpecPipelineError(
             "adaptive_prepare_variants_mismatch: variants.json drifted"
         )
@@ -507,12 +462,12 @@ def validate_exact_prepare_artifact_snapshots(
         source_packet=normalized_packet,
         variants=normalized_variants,
     )
-    if not _json_payloads_equal(skeptic_reviews, expected_reviews):
+    if skeptic_reviews != expected_reviews:
         raise CreativeCodeSpecPipelineError(
             "adaptive_prepare_reviews_mismatch: skeptic_reviews.json drifted"
         )
     expected_context_pack = _context_pack_for_packet(normalized_packet)
-    if not _json_payloads_equal(context_pack, expected_context_pack):
+    if context_pack != expected_context_pack:
         raise CreativeCodeSpecPipelineError(
             "adaptive_prepare_context_mismatch: context_pack.json drifted"
         )

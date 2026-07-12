@@ -58,24 +58,6 @@ class CreativeHypothesisSpecBridgeCliError(ValueError):
     """Raised when bridge CLI file I/O cannot safely complete."""
 
 
-def _require_typed_bundle(value: object) -> dict[str, dict[str, Any]]:
-    if not isinstance(value, Mapping):
-        raise CreativeHypothesisSpecBridgeCliError("bridge builder must return an object.")
-    normalized: dict[str, dict[str, Any]] = {}
-    for key, row in value.items():
-        if not isinstance(key, str) or not isinstance(row, Mapping):
-            raise CreativeHypothesisSpecBridgeCliError(
-                "bridge builder must return string-keyed artifact objects."
-            )
-        normalized_row: dict[str, Any] = {}
-        for row_key, row_value in row.items():
-            if not isinstance(row_key, str):
-                raise CreativeHypothesisSpecBridgeCliError("bridge artifacts must use string keys.")
-            normalized_row[row_key] = row_value
-        normalized[key] = normalized_row
-    return normalized
-
-
 def _is_relative_to(path: Path, parent: Path) -> bool:
     try:
         path.relative_to(parent)
@@ -566,14 +548,15 @@ def _build_bundle_from_args(args: argparse.Namespace) -> dict[str, dict[str, Any
         expected_filename="coordinator_dispatch.json",
     )
     approval = _resolve_creative_context_input(args.approval, expected_filename="approval.json")
-    return _require_typed_bundle(
+    return cast(
+        dict[str, dict[str, Any]],
         build_creative_hypothesis_spec_bridge_bundle(
             context_map=read_json_object(context_map),
             hypothesis_packet=read_json_object(hypothesis_packet),
             coordinator_dispatch=read_json_object(coordinator_dispatch),
             approval=read_json_object(approval),
             variant_count=args.variant_count,
-        )
+        ),
     )
 
 
