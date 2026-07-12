@@ -6,7 +6,7 @@ from __future__ import annotations
 import argparse
 import ast
 from collections import Counter
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from importlib.util import resolve_name
 from pathlib import Path
@@ -494,9 +494,29 @@ def collect_legacy_route_facts(source_text: str, *, filename: str = LEGACY_APP) 
     return facts
 
 
-_TRACKED_BUILTIN_REFERENCES = frozenset({"__import__", "getattr", "object", "vars"})
+_TRACKED_BUILTIN_REFERENCES = frozenset(
+    {"__import__", "getattr", "globals", "locals", "object", "vars"}
+)
 _TRACKED_BUILTIN_NAMESPACE_METHODS = frozenset({"__getitem__", "get", "pop", "setdefault"})
 _TRACKED_OBJECT_REFERENCES = frozenset({"__getattribute__"})
+_TRACKED_IMPORTLIB_REFERENCES = frozenset({"import_module"})
+_TRACKED_OPERATOR_REFERENCES = frozenset({"attrgetter"})
+_TRACKED_SCOPE_NAMESPACE_METHODS = _TRACKED_BUILTIN_NAMESPACE_METHODS
+_TRACKED_ATTRGETTER_RESULTS = frozenset(
+    f"operator.attrgetter:{symbol}" for symbol in CANONICAL_API_KEY_SYMBOLS
+)
+_TRACKED_SCOPE_NAMESPACE_CALLABLES = frozenset(
+    f"scope.namespace.{method}" for method in _TRACKED_SCOPE_NAMESPACE_METHODS
+)
+_TRACKED_GLOBAL_NAMESPACE_CALLABLES = frozenset(
+    f"globals.namespace.{method}" for method in _TRACKED_SCOPE_NAMESPACE_METHODS
+)
+_TRACKED_IMPORTLIB_NAMESPACE_CALLABLES = frozenset(
+    f"importlib.__dict__.{method}" for method in _TRACKED_BUILTIN_NAMESPACE_METHODS
+)
+_TRACKED_OPERATOR_NAMESPACE_CALLABLES = frozenset(
+    f"operator.__dict__.{method}" for method in _TRACKED_BUILTIN_NAMESPACE_METHODS
+)
 _TRACKED_CALLABLE_REFERENCES = frozenset(
     {
         "builtins.__dict__.__getitem__",
@@ -505,6 +525,8 @@ _TRACKED_CALLABLE_REFERENCES = frozenset(
         "builtins.__dict__.setdefault",
         "builtins.__import__",
         "builtins.getattr",
+        "builtins.globals",
+        "builtins.locals",
         "builtins.object.__dict__.__getitem__",
         "builtins.object.__dict__.get",
         "builtins.object.__dict__.pop",
@@ -517,8 +539,134 @@ _TRACKED_CALLABLE_REFERENCES = frozenset(
         "legacy_app.__dict__.pop",
         "legacy_app.__dict__.setdefault",
         "legacy_app.__getattribute__",
+        "operator.attrgetter",
+        *_TRACKED_SCOPE_NAMESPACE_CALLABLES,
+        *_TRACKED_GLOBAL_NAMESPACE_CALLABLES,
+        *_TRACKED_IMPORTLIB_NAMESPACE_CALLABLES,
+        *_TRACKED_OPERATOR_NAMESPACE_CALLABLES,
+        *_TRACKED_ATTRGETTER_RESULTS,
     }
 )
+_GLOBAL_ALIAS_PREFIX = "__api_key_global_alias__:"
+_GLOBAL_SCOPE_MARKER = "__api_key_global_scope_marker__"
+_GLOBAL_SCOPE_MARKER_REFERENCE = "scope.global.marker"
+_LOCAL_ALIAS_PREFIX = "__api_key_local_alias__:"
+_LOCAL_SCOPE_MARKER = "__api_key_local_scope_marker__"
+_LOCAL_SCOPE_MARKER_REFERENCE = "scope.local.marker"
+
+
+def _with_global_alias_snapshot(
+    module_aliases: Mapping[str, str],
+    global_source: Mapping[str, str],
+) -> dict[str, str]:
+    """Attach module-global aliases without conflating them with local shadows."""
+
+    seeded = dict(module_aliases)
+    seeded[_GLOBAL_SCOPE_MARKER] = _GLOBAL_SCOPE_MARKER_REFERENCE
+    if global_source.get(_GLOBAL_SCOPE_MARKER) == _GLOBAL_SCOPE_MARKER_REFERENCE:
+        seeded.update(
+            {
+                name: reference
+                for name, reference in global_source.items()
+                if name.startswith(_GLOBAL_ALIAS_PREFIX)
+            }
+        )
+        return seeded
+    seeded.update(
+        {
+            f"{_GLOBAL_ALIAS_PREFIX}{name}": reference
+            for name, reference in global_source.items()
+            if not name.startswith(_GLOBAL_ALIAS_PREFIX) and name != _GLOBAL_SCOPE_MARKER
+        }
+    )
+    return seeded
+
+
+def _sync_declared_global_aliases(
+    module_aliases: dict[str, str],
+    declared_globals: AbstractSet[str],
+) -> None:
+    """Apply explicit ``global`` writes to the retained module snapshot."""
+
+    if module_aliases.get(_GLOBAL_SCOPE_MARKER) != _GLOBAL_SCOPE_MARKER_REFERENCE:
+        return
+    for name in declared_globals:
+        snapshot_name = f"{_GLOBAL_ALIAS_PREFIX}{name}"
+        reference = module_aliases.get(name)
+        if reference is None:
+            module_aliases.pop(snapshot_name, None)
+        else:
+            module_aliases[snapshot_name] = reference
+
+
+def _with_local_alias_snapshot(
+    module_aliases: Mapping[str, str],
+    initial_local_aliases: Mapping[str, str] | None = None,
+) -> dict[str, str]:
+    """Mark a nested lexical scope and retain only proven local aliases."""
+
+    seeded = dict(module_aliases)
+    seeded[_LOCAL_SCOPE_MARKER] = _LOCAL_SCOPE_MARKER_REFERENCE
+    seeded.update(
+        {
+            f"{_LOCAL_ALIAS_PREFIX}{name}": reference
+            for name, reference in (initial_local_aliases or {}).items()
+        }
+    )
+    return seeded
+
+
+def _sync_declared_local_aliases(
+    module_aliases: dict[str, str],
+    declared_locals: AbstractSet[str],
+) -> None:
+    """Mirror aliases actually bound in a nested scope for locals()/vars()."""
+
+    if module_aliases.get(_LOCAL_SCOPE_MARKER) != _LOCAL_SCOPE_MARKER_REFERENCE:
+        return
+    for name in declared_locals:
+        snapshot_name = f"{_LOCAL_ALIAS_PREFIX}{name}"
+        reference = module_aliases.get(name)
+        if reference is None:
+            module_aliases.pop(snapshot_name, None)
+        else:
+            module_aliases[snapshot_name] = reference
+
+
+def _scope_namespace_reference(
+    module_aliases: Mapping[str, str],
+    binding_name: str | None,
+) -> str | None:
+    """Resolve locals()/vars() without exposing inherited globals as locals."""
+
+    if binding_name is None:
+        return None
+    if module_aliases.get(_LOCAL_SCOPE_MARKER) == _LOCAL_SCOPE_MARKER_REFERENCE:
+        return module_aliases.get(f"{_LOCAL_ALIAS_PREFIX}{binding_name}")
+    return module_aliases.get(binding_name)
+
+
+def _static_iterable_elements(node: ast.expr) -> Iterator[ast.expr]:
+    """Yield statically known elements from one literal iterable."""
+
+    if isinstance(node, (ast.Tuple, ast.List, ast.Set)):
+        yield from _static_positional_arguments(node.elts)
+    elif isinstance(node, ast.Dict):
+        for key, value in zip(node.keys, node.values, strict=True):
+            if key is None:
+                yield from _static_iterable_elements(value)
+            else:
+                yield key
+
+
+def _static_positional_arguments(arguments: Sequence[ast.expr]) -> Iterator[ast.expr]:
+    """Yield positional arguments, flattening only statically known starred literals."""
+
+    for argument in arguments:
+        if isinstance(argument, ast.Starred):
+            yield from _static_iterable_elements(argument.value)
+        else:
+            yield argument
 
 
 def _tracked_reflected_attribute(
@@ -550,6 +698,27 @@ def _tracked_reflected_attribute(
         and attribute_name in _TRACKED_BUILTIN_NAMESPACE_METHODS
     ):
         return f"builtins.object.__dict__.{attribute_name}"
+    if target_reference == "importlib" and attribute_name in _TRACKED_IMPORTLIB_REFERENCES:
+        return f"importlib.{attribute_name}"
+    if (
+        target_reference == "importlib.__dict__"
+        and attribute_name in _TRACKED_BUILTIN_NAMESPACE_METHODS
+    ):
+        return f"importlib.__dict__.{attribute_name}"
+    if target_reference == "operator" and attribute_name in _TRACKED_OPERATOR_REFERENCES:
+        return f"operator.{attribute_name}"
+    if (
+        target_reference == "operator.__dict__"
+        and attribute_name in _TRACKED_BUILTIN_NAMESPACE_METHODS
+    ):
+        return f"operator.__dict__.{attribute_name}"
+    if target_reference == "scope.namespace" and attribute_name in _TRACKED_SCOPE_NAMESPACE_METHODS:
+        return f"scope.namespace.{attribute_name}"
+    if (
+        target_reference == "globals.namespace"
+        and attribute_name in _TRACKED_SCOPE_NAMESPACE_METHODS
+    ):
+        return f"globals.namespace.{attribute_name}"
     return None
 
 
@@ -613,6 +782,24 @@ def _static_module_reference(
             object_name = _resolve_static_string(node.slice, static_string_bindings)
             if object_name in _TRACKED_OBJECT_REFERENCES:
                 return f"builtins.object.{object_name}"
+        if container == "scope.namespace":
+            binding_name = _resolve_static_string(node.slice, static_string_bindings)
+            return _scope_namespace_reference(module_aliases, binding_name)
+        if container == "globals.namespace":
+            binding_name = _resolve_static_string(node.slice, static_string_bindings)
+            if binding_name is None:
+                return None
+            if module_aliases.get(_GLOBAL_SCOPE_MARKER) == _GLOBAL_SCOPE_MARKER_REFERENCE:
+                return module_aliases.get(f"{_GLOBAL_ALIAS_PREFIX}{binding_name}")
+            return module_aliases.get(binding_name)
+        if container == "importlib.__dict__":
+            importlib_name = _resolve_static_string(node.slice, static_string_bindings)
+            if importlib_name in _TRACKED_IMPORTLIB_REFERENCES:
+                return f"importlib.{importlib_name}"
+        if container == "operator.__dict__":
+            operator_name = _resolve_static_string(node.slice, static_string_bindings)
+            if operator_name in _TRACKED_OPERATOR_REFERENCES:
+                return f"operator.{operator_name}"
         return None
     if not isinstance(node, ast.Call):
         return None
@@ -656,12 +843,41 @@ def _static_module_reference(
         tracked_reference = _tracked_reflected_attribute(target_reference, attribute_name)
         if tracked_reference is not None:
             return tracked_reference
+    if function_reference == "builtins.globals" and not (node.args or node.keywords):
+        return "globals.namespace"
+    if function_reference == "builtins.locals" and not (node.args or node.keywords):
+        return "scope.namespace"
+    if function_reference in _TRACKED_SCOPE_NAMESPACE_CALLABLES and node.args:
+        binding_name = _resolve_static_string(node.args[0], static_string_bindings)
+        return _scope_namespace_reference(module_aliases, binding_name)
+    if function_reference in _TRACKED_GLOBAL_NAMESPACE_CALLABLES and node.args:
+        binding_name = _resolve_static_string(node.args[0], static_string_bindings)
+        if binding_name is None:
+            return None
+        if module_aliases.get(_GLOBAL_SCOPE_MARKER) == _GLOBAL_SCOPE_MARKER_REFERENCE:
+            return module_aliases.get(f"{_GLOBAL_ALIAS_PREFIX}{binding_name}")
+        return module_aliases.get(binding_name)
+    if function_reference == "operator.attrgetter" and node.args:
+        for argument in _static_positional_arguments(node.args):
+            attribute_name = _resolve_static_string(argument, static_string_bindings)
+            if attribute_name in CANONICAL_API_KEY_SYMBOLS:
+                return f"operator.attrgetter:{attribute_name}"
+    if function_reference in _TRACKED_IMPORTLIB_NAMESPACE_CALLABLES and node.args:
+        importlib_name = _resolve_static_string(node.args[0], static_string_bindings)
+        if importlib_name in _TRACKED_IMPORTLIB_REFERENCES:
+            return f"importlib.{importlib_name}"
+    if function_reference in _TRACKED_OPERATOR_NAMESPACE_CALLABLES and node.args:
+        operator_name = _resolve_static_string(node.args[0], static_string_bindings)
+        if operator_name in _TRACKED_OPERATOR_REFERENCES:
+            return f"operator.{operator_name}"
     if (
         function_reference == "sys.modules.get"
         and node.args
         and not any(keyword.arg == "name" for keyword in node.keywords)
     ):
         return _resolve_static_string(node.args[0], static_string_bindings)
+    if function_reference == "builtins.vars" and not node.args and not node.keywords:
+        return "scope.namespace"
     if function_reference == "builtins.vars" and len(node.args) == 1 and not node.keywords:
         target_reference = _static_module_reference(
             node.args[0],
@@ -669,7 +885,13 @@ def _static_module_reference(
             import_module_aliases=import_module_aliases,
             static_string_bindings=static_string_bindings,
         )
-        if target_reference in {"legacy_app", "builtins", "builtins.object"}:
+        if target_reference in {
+            "legacy_app",
+            "builtins",
+            "builtins.object",
+            "importlib",
+            "operator",
+        }:
             return f"{target_reference}.__dict__"
     if (
         function_reference
@@ -2305,15 +2527,26 @@ def _ordered_lexical_scope_nodes(
     )
 
 
+def _statement_local_bindings(statements: Sequence[ast.stmt]) -> set[str]:
+    collector = _ModuleScopeBindingCollector()
+    for statement in statements:
+        collector.visit(statement)
+    return set(collector.bindings) - (
+        collector.global_declarations | collector.nonlocal_declarations
+    )
+
+
+def _statement_nonlocal_bindings(statements: Sequence[ast.stmt]) -> set[str]:
+    collector = _ModuleScopeBindingCollector()
+    for statement in statements:
+        collector.visit(statement)
+    return set(collector.nonlocal_declarations)
+
+
 def _function_local_bindings(
     node: ast.FunctionDef | ast.AsyncFunctionDef,
 ) -> set[str]:
-    collector = _ModuleScopeBindingCollector()
-    for statement in node.body:
-        collector.visit(statement)
-    bindings = set(collector.bindings) - (
-        collector.global_declarations | collector.nonlocal_declarations
-    )
+    bindings = _statement_local_bindings(node.body)
     arguments = [
         *node.args.posonlyargs,
         *node.args.args,
@@ -2422,12 +2655,27 @@ def _preferred_api_key_module_reference(references: AbstractSet[str | None]) -> 
         "builtins.object.__dict__.setdefault",
         "builtins.object.__getattribute__",
         "builtins.getattr",
+        "builtins.globals",
+        "builtins.locals",
         "builtins.vars",
         "builtins.__import__",
+        "importlib.__dict__",
+        *_TRACKED_IMPORTLIB_NAMESPACE_CALLABLES,
         "importlib.import_module",
+        "operator.__dict__",
+        *_TRACKED_OPERATOR_NAMESPACE_CALLABLES,
+        "operator.attrgetter",
+        "globals.namespace",
+        *_TRACKED_GLOBAL_NAMESPACE_CALLABLES,
+        "scope.namespace",
+        *_TRACKED_SCOPE_NAMESPACE_CALLABLES,
+        *_TRACKED_ATTRGETTER_RESULTS,
+        _GLOBAL_SCOPE_MARKER_REFERENCE,
+        _LOCAL_SCOPE_MARKER_REFERENCE,
         "sys",
         "builtins",
         "importlib",
+        "operator",
     ):
         if reference in references:
             return reference
@@ -3436,6 +3684,13 @@ def _legacy_api_key_dynamic_lookup_name(
         return _resolve_static_string(node.args[0], static_string_bindings)
     if module_reference(node.func) == "legacy_app.__getattribute__" and node.args:
         return _resolve_static_string(node.args[0], static_string_bindings)
+    function_reference = module_reference(node.func)
+    if (
+        function_reference in _TRACKED_ATTRGETTER_RESULTS
+        and node.args
+        and module_reference(node.args[0]) == "legacy_app"
+    ):
+        return function_reference.removeprefix("operator.attrgetter:")
     if (
         isinstance(node.func, ast.Attribute)
         and node.func.attr in {"get", "__getitem__", "pop", "setdefault"}
@@ -3682,7 +3937,7 @@ def _apply_api_key_alias_statements(
         if isinstance(statement, ast.Import):
             for alias in statement.names:
                 local_name = alias.asname or alias.name.split(".", maxsplit=1)[0]
-                if alias.name in {"builtins", "importlib", "legacy_app", "sys"}:
+                if alias.name in {"builtins", "importlib", "legacy_app", "operator", "sys"}:
                     next_modules[local_name] = alias.name
                 else:
                     next_modules.pop(local_name, None)
@@ -3695,9 +3950,12 @@ def _apply_api_key_alias_statements(
                 if qualified in {
                     "builtins.__import__",
                     "builtins.getattr",
+                    "builtins.globals",
+                    "builtins.locals",
                     "builtins.object",
                     "builtins.vars",
                     "importlib.import_module",
+                    "operator.attrgetter",
                     "sys.modules",
                 }:
                     next_modules[local_name] = qualified
@@ -4065,6 +4323,7 @@ def _scan_api_key_alias_scope(
     inherited_closure_import_module_aliases: AbstractSet[str] | None = None,
     inherited_static_string_bindings: Mapping[str, str] | None = None,
     local_bindings: AbstractSet[str] = frozenset(),
+    scope_local_bindings: AbstractSet[str] | None = None,
 ) -> list[str]:
     errors: list[str] = []
     module_aliases = {
@@ -4073,6 +4332,9 @@ def _scan_api_key_alias_scope(
         if name not in local_bindings
     }
     import_module_aliases = set(inherited_import_module_aliases) - set(local_bindings)
+    declared_locals = (
+        set(local_bindings) if scope_local_bindings is None else set(scope_local_bindings)
+    )
     if inherited_closure_module_aliases is None:
         closure_module_aliases = module_aliases
     else:
@@ -4082,6 +4344,9 @@ def _scan_api_key_alias_scope(
     else:
         closure_import_module_aliases = set(inherited_closure_import_module_aliases)
     scope_nodes, nested_scopes = _ordered_lexical_scope_nodes(statements)
+    declared_globals = {
+        name for node in scope_nodes if isinstance(node, ast.Global) for name in node.names
+    }
     external_string_bindings = _lexical_external_bindings(scope_nodes)
     local_static_string_bindings = {
         name: value
@@ -4170,7 +4435,7 @@ def _scan_api_key_alias_scope(
         elif isinstance(node, ast.Import):
             for alias in node.names:
                 local_name = alias.asname or alias.name.split(".", maxsplit=1)[0]
-                if alias.name in {"builtins", "importlib", "legacy_app", "sys"}:
+                if alias.name in {"builtins", "importlib", "legacy_app", "operator", "sys"}:
                     module_aliases[local_name] = alias.name
                 else:
                     module_aliases.pop(local_name, None)
@@ -4183,9 +4448,12 @@ def _scan_api_key_alias_scope(
                 if qualified in {
                     "builtins.__import__",
                     "builtins.getattr",
+                    "builtins.globals",
+                    "builtins.locals",
                     "builtins.object",
                     "builtins.vars",
                     "importlib.import_module",
+                    "operator.attrgetter",
                     "sys.modules",
                 }:
                     module_aliases[local_name] = qualified
@@ -4328,6 +4596,8 @@ def _scan_api_key_alias_scope(
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
             module_aliases.pop(node.name, None)
             import_module_aliases.discard(node.name)
+        _sync_declared_global_aliases(module_aliases, declared_globals)
+        _sync_declared_local_aliases(module_aliases, declared_locals)
 
     final_closure_module_aliases = (
         closure_module_aliases if inherited_closure_module_aliases is not None else module_aliases
@@ -4356,9 +4626,20 @@ def _scan_api_key_alias_scope(
                 ),
                 lexical_scope_alias_snapshots[id(nested_scope)],
             ]
+            function_local_bindings = _function_local_bindings(nested_scope)
+            function_namespace_bindings = function_local_bindings | _statement_nonlocal_bindings(
+                nested_scope.body
+            )
             for function_modules, function_imports in function_states:
-                seeded_modules = dict(function_modules)
+                seeded_modules = _with_global_alias_snapshot(
+                    function_modules,
+                    final_closure_module_aliases,
+                )
                 seeded_modules.update(default_modules)
+                seeded_modules = _with_local_alias_snapshot(
+                    seeded_modules,
+                    default_modules,
+                )
                 seeded_imports = set(function_imports) | default_imports
                 errors.extend(
                     _scan_api_key_alias_scope(
@@ -4367,8 +4648,8 @@ def _scan_api_key_alias_scope(
                         inherited_module_aliases=seeded_modules,
                         inherited_import_module_aliases=seeded_imports,
                         inherited_static_string_bindings=static_string_bindings,
-                        local_bindings=_function_local_bindings(nested_scope)
-                        - set(default_modules),
+                        local_bindings=function_local_bindings - set(default_modules),
+                        scope_local_bindings=function_namespace_bindings,
                     )
                 )
             continue
@@ -4381,9 +4662,17 @@ def _scan_api_key_alias_scope(
                 import_module_aliases=definition_imports,
                 static_string_bindings=static_string_bindings,
             )
-            seeded_modules = dict(final_closure_module_aliases)
+            seeded_modules = _with_global_alias_snapshot(
+                final_closure_module_aliases,
+                final_closure_module_aliases,
+            )
             seeded_modules.update(default_modules)
+            seeded_modules = _with_local_alias_snapshot(
+                seeded_modules,
+                default_modules,
+            )
             seeded_imports = set(final_closure_import_module_aliases) | default_imports
+            lambda_local_bindings = _lambda_local_bindings(nested_scope)
             errors.extend(
                 _scan_api_key_alias_scope(
                     [ast.Expr(value=nested_scope.body)],
@@ -4391,7 +4680,8 @@ def _scan_api_key_alias_scope(
                     inherited_module_aliases=seeded_modules,
                     inherited_import_module_aliases=seeded_imports,
                     inherited_static_string_bindings=static_string_bindings,
-                    local_bindings=_lambda_local_bindings(nested_scope) - set(default_modules),
+                    local_bindings=lambda_local_bindings - set(default_modules),
+                    scope_local_bindings=lambda_local_bindings,
                 )
             )
             continue
@@ -4402,13 +4692,16 @@ def _scan_api_key_alias_scope(
         ) = lexical_scope_alias_snapshots[id(nested_scope)]
         if isinstance(nested_scope, ast.ClassDef):
             nested_statements = nested_scope.body
-            nested_local_bindings: AbstractSet[str] = frozenset()
+            nested_local_bindings = _statement_local_bindings(nested_scope.body)
         else:
             errors.extend(
                 _scan_api_key_comprehension_scope(
                     nested_scope,
                     filename=filename,
-                    inherited_module_aliases=nested_module_aliases,
+                    inherited_module_aliases=_with_global_alias_snapshot(
+                        nested_module_aliases,
+                        final_closure_module_aliases,
+                    ),
                     inherited_import_module_aliases=nested_import_module_aliases,
                     inherited_static_string_bindings=static_string_bindings,
                 )
@@ -4418,12 +4711,18 @@ def _scan_api_key_alias_scope(
             _scan_api_key_alias_scope(
                 nested_statements,
                 filename=filename,
-                inherited_module_aliases=nested_module_aliases,
+                inherited_module_aliases=_with_local_alias_snapshot(
+                    _with_global_alias_snapshot(
+                        nested_module_aliases,
+                        final_closure_module_aliases,
+                    )
+                ),
                 inherited_import_module_aliases=nested_import_module_aliases,
                 inherited_closure_module_aliases=final_closure_module_aliases,
                 inherited_closure_import_module_aliases=final_closure_import_module_aliases,
                 inherited_static_string_bindings=static_string_bindings,
                 local_bindings=nested_local_bindings,
+                scope_local_bindings=nested_local_bindings,
             )
         )
     return list(dict.fromkeys(errors))
@@ -4441,6 +4740,8 @@ def _app_api_key_reverse_dependency_errors(
             "__builtins__": "builtins.__dict__",
             "__import__": "builtins.__import__",
             "getattr": "builtins.getattr",
+            "globals": "builtins.globals",
+            "locals": "builtins.locals",
             "object": "builtins.object",
             "vars": "builtins.vars",
         },
