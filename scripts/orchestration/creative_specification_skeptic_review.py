@@ -710,6 +710,48 @@ def _kernel_rename_noreplace(
         )
 
 
+def _kernel_rename_exchange(
+    parent_fd: int,
+    source_name: str,
+    destination_name: str,
+) -> None:
+    libc = ctypes.CDLL(None, use_errno=True)
+    if sys.platform == "darwin":
+        rename_exchange = getattr(libc, "renameatx_np", None)
+        flag = 0x00000002  # RENAME_SWAP
+    elif sys.platform.startswith("linux"):
+        rename_exchange = getattr(libc, "renameat2", None)
+        flag = 2  # RENAME_EXCHANGE
+    else:
+        rename_exchange = None
+        flag = 0
+    if rename_exchange is None:
+        raise CreativeSpecificationSkepticReviewCliError(
+            "reviewed finalize publication requires kernel directory exchange."
+        )
+    rename_exchange.argtypes = [
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_uint,
+    ]
+    rename_exchange.restype = ctypes.c_int
+    ctypes.set_errno(0)
+    result = rename_exchange(
+        parent_fd,
+        os.fsencode(source_name),
+        parent_fd,
+        os.fsencode(destination_name),
+        flag,
+    )
+    if result != 0:
+        error_number = ctypes.get_errno()
+        raise CreativeSpecificationSkepticReviewCliError(
+            f"reviewed finalize directory exchange failed: errno={error_number}."
+        )
+
+
 def _publish_pinned_reviewed_run(
     parent_fd: int,
     *,
@@ -1426,11 +1468,80 @@ def _read_pinned_reviewed_inputs(
     return observed
 
 
+def _create_pinned_finalize_staging(
+    parent_fd: int,
+) -> tuple[int, DirectoryIdentity, str]:
+    staging_fd = -1
+    staging_name: str | None = None
+    try:
+        for _attempt in range(32):
+            candidate = f".{REVIEWED_RUN_DIRNAME}.{secrets.token_hex(8)}.pre-finalize"
+            try:
+                os.mkdir(candidate, mode=0o700, dir_fd=parent_fd)
+                staging_name = candidate
+                break
+            except FileExistsError:
+                continue
+        if staging_name is None:
+            raise CreativeSpecificationSkepticReviewCliError(
+                "unable to allocate reviewed finalize exchange directory."
+            )
+        created = os.stat(staging_name, dir_fd=parent_fd, follow_symlinks=False)
+        created_identity = (created.st_dev, created.st_ino)
+        staging_fd = os.open(
+            staging_name,
+            creative_code_spec_pipeline._directory_flags(),
+            dir_fd=parent_fd,
+        )
+        opened = os.fstat(staging_fd)
+        if (
+            not stat.S_ISDIR(created.st_mode)
+            or not stat.S_ISDIR(opened.st_mode)
+            or (opened.st_dev, opened.st_ino) != created_identity
+        ):
+            raise CreativeSpecificationSkepticReviewCliError(
+                "reviewed finalize exchange directory identity changed during creation."
+            )
+        result = (staging_fd, created_identity, staging_name)
+        staging_fd = -1
+        return result
+    except CreativeSpecificationSkepticReviewCliError as exc:
+        if staging_name is None or "failure_artifact_retained=" in str(exc):
+            raise
+        raise CreativeSpecificationSkepticReviewCliError(
+            f"{exc}; failure_artifact_retained={staging_name}"
+        ) from exc
+    except (OSError, NotImplementedError) as exc:
+        suffix = f"; failure_artifact_retained={staging_name}" if staging_name else ""
+        raise CreativeSpecificationSkepticReviewCliError(
+            f"reviewed finalize exchange directory could not be created safely{suffix}."
+        ) from exc
+    finally:
+        close_error = creative_code_spec_pipeline._close_descriptors(staging_fd)
+        if sys.exc_info()[1] is None and close_error is not None:
+            raise CreativeSpecificationSkepticReviewCliError(
+                "reviewed finalize exchange directory could not be closed safely."
+            ) from close_error
+
+
+def _assert_parent_entry_identity(
+    parent_fd: int,
+    *,
+    name: str,
+    expected_identity: DirectoryIdentity,
+    label: str,
+) -> None:
+    observed = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+    if (
+        not stat.S_ISDIR(observed.st_mode)
+        or (observed.st_dev, observed.st_ino) != expected_identity
+    ):
+        raise CreativeSpecificationSkepticReviewCliError(f"{label} identity changed.")
+
+
 def _assert_pinned_finalize_outputs(
     reviewed_fd: int,
     *,
-    reviewed_dir: Path,
-    reviewed_identity: DirectoryIdentity,
     expected_bundle: Mapping[str, Any],
     expected_receipt: Mapping[str, Any],
 ) -> None:
@@ -1478,10 +1589,6 @@ def _assert_pinned_finalize_outputs(
                     raise CreativeSpecificationSkepticReviewCliError(
                         f"fingerprint_mismatch: pinned finalize {filename} changed before success."
                     )
-        _assert_canonical_reviewed_run_identity(
-            reviewed_dir,
-            expected_identity=reviewed_identity,
-        )
         for file_fd, filename, _snapshot, expected_payload, validator in expected_outputs:
             observed = validator(
                 cast(
@@ -1508,10 +1615,6 @@ def _assert_pinned_finalize_outputs(
             raise CreativeSpecificationSkepticReviewCliError(
                 "reviewed finalize run changed during output inspection."
             )
-        _assert_canonical_reviewed_run_identity(
-            reviewed_dir,
-            expected_identity=reviewed_identity,
-        )
     finally:
         close_error = creative_code_spec_pipeline._close_descriptors(bundle_fd, receipt_fd)
         if sys.exc_info()[1] is None and close_error is not None:
@@ -1552,9 +1655,11 @@ def _finalize_from_attachment(attachment_path: Path) -> dict[str, Any]:
     bundle_path = reviewed_dir / BUNDLE_FILENAME
     reviewed_parent_fd = -1
     reviewed_fd = -1
+    staging_fd = -1
     reviewed_identity: DirectoryIdentity | None = None
-    finalize_lock_acquired = False
-    finalize_attempt_started = False
+    staging_identity: DirectoryIdentity | None = None
+    staging_name: str | None = None
+    exchange_completed = False
     receipt: dict[str, Any]
     try:
         reviewed_parent_fd, reviewed_name, _candidate = (
@@ -1573,8 +1678,10 @@ def _finalize_from_attachment(attachment_path: Path) -> dict[str, Any]:
         reviewed_info = os.fstat(reviewed_fd)
         reviewed_identity = (reviewed_info.st_dev, reviewed_info.st_ino)
         try:
-            fcntl.flock(reviewed_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            finalize_lock_acquired = True
+            # The parent inode remains stable across the directory exchange. A
+            # lock on the reviewed inode would move to the retained old run and
+            # stop protecting the newly published canonical directory.
+            fcntl.flock(reviewed_parent_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError as exc:
             raise CreativeSpecificationSkepticReviewCliError(
                 "reviewed finalize is already in progress."
@@ -1607,14 +1714,9 @@ def _finalize_from_attachment(attachment_path: Path) -> dict[str, Any]:
             raise CreativeSpecificationSkepticReviewCliError(
                 "pinned reviewed inputs cannot build a valid CreativeCodeSpecificationBundle."
             ) from exc
-        existing_outputs: set[str] = set()
-        for output_name in (BUNDLE_FILENAME, FINALIZE_RECEIPT_FILENAME):
-            try:
-                os.stat(output_name, dir_fd=reviewed_fd, follow_symlinks=False)
-            except FileNotFoundError:
-                continue
-            existing_outputs.add(output_name)
-        if existing_outputs == {BUNDLE_FILENAME, FINALIZE_RECEIPT_FILENAME}:
+        canonical_names = set(os.listdir(reviewed_fd))
+        input_names = set(expected_payloads)
+        if canonical_names == set(REVIEWED_RUN_FILENAMES):
             validated_bundle = validate_creative_code_specification_bundle(
                 cast(Mapping[str, Any], _read_json_at(reviewed_fd, BUNDLE_FILENAME))
             )
@@ -1642,16 +1744,8 @@ def _finalize_from_attachment(attachment_path: Path) -> dict[str, Any]:
                     "fingerprint_mismatch: existing finalize receipt diverges from reviewed inputs."
                 )
             receipt = existing_receipt
-        elif existing_outputs:
-            raise CreativeSpecificationSkepticReviewCliError(
-                "reviewed finalize outputs are partial; retained for inspection."
-            )
-        else:
-            finalize_attempt_started = True
-            _write_json_at(reviewed_fd, BUNDLE_FILENAME, bundle)
-            validated_bundle = validate_creative_code_specification_bundle(
-                cast(Mapping[str, Any], _read_json_at(reviewed_fd, BUNDLE_FILENAME))
-            )
+        elif canonical_names == input_names:
+            validated_bundle = validate_creative_code_specification_bundle(bundle)
             receipt = _require_typed_json_object(
                 build_finalize_receipt(
                     attachment=attachment,
@@ -1661,53 +1755,106 @@ def _finalize_from_attachment(attachment_path: Path) -> dict[str, Any]:
                 ),
                 label="finalize receipt",
             )
-            _write_json_at(reviewed_fd, FINALIZE_RECEIPT_FILENAME, receipt)
             receipt = _require_typed_json_object(
                 validate_finalize_receipt(receipt),
                 label="finalize receipt",
             )
+        else:
+            raise CreativeSpecificationSkepticReviewCliError(
+                "reviewed finalize outputs are partial; retained for inspection."
+            )
+
+        finalized_payloads = {
+            **pinned_inputs,
+            BUNDLE_FILENAME: validated_bundle,
+            FINALIZE_RECEIPT_FILENAME: receipt,
+        }
+        staging_fd, staging_identity, staging_name = _create_pinned_finalize_staging(
+            reviewed_parent_fd
+        )
+        for filename, payload in finalized_payloads.items():
+            _write_json_at(staging_fd, filename, payload)
+        os.fsync(staging_fd)
+        _assert_exact_reviewed_run_payloads(
+            staging_fd,
+            expected_payloads=finalized_payloads,
+        )
+        _assert_pinned_finalize_outputs(
+            staging_fd,
+            expected_bundle=validated_bundle,
+            expected_receipt=receipt,
+        )
+
+        # Revalidate the locked source immediately before the single atomic
+        # publication point. All seven finalized files already exist and are
+        # durable in the sibling staging directory.
         _read_pinned_reviewed_inputs(
             reviewed_fd,
             expected_payloads=expected_payloads,
         )
-        _assert_pinned_finalize_outputs(
-            reviewed_fd,
-            reviewed_dir=reviewed_dir,
-            reviewed_identity=reviewed_identity,
-            expected_bundle=validated_bundle,
-            expected_receipt=receipt,
+        if set(os.listdir(reviewed_fd)) != canonical_names:
+            raise CreativeSpecificationSkepticReviewCliError(
+                "reviewed finalize canonical run changed before directory exchange."
+            )
+        _assert_parent_entry_identity(
+            reviewed_parent_fd,
+            name=reviewed_dir.name,
+            expected_identity=reviewed_identity,
+            label="reviewed finalize canonical run",
+        )
+        _assert_parent_entry_identity(
+            reviewed_parent_fd,
+            name=staging_name,
+            expected_identity=staging_identity,
+            label="reviewed finalize exchange directory",
+        )
+        _assert_canonical_reviewed_run_identity(
+            reviewed_dir,
+            expected_identity=reviewed_identity,
+        )
+        _kernel_rename_exchange(
+            reviewed_parent_fd,
+            staging_name,
+            reviewed_dir.name,
+        )
+        exchange_completed = True
+        os.fsync(reviewed_parent_fd)
+        _assert_parent_entry_identity(
+            reviewed_parent_fd,
+            name=reviewed_dir.name,
+            expected_identity=staging_identity,
+            label="reviewed finalize published run",
+        )
+        _assert_parent_entry_identity(
+            reviewed_parent_fd,
+            name=staging_name,
+            expected_identity=reviewed_identity,
+            label="reviewed finalize retained pre-finalize run",
+        )
+        _assert_canonical_reviewed_run_identity(
+            reviewed_dir,
+            expected_identity=staging_identity,
         )
     except Exception as primary_error:
-        cleanup_error: Exception | None = None
-        retained_name: str | None = reviewed_dir.name
-        if (
-            finalize_lock_acquired
-            and finalize_attempt_started
-            and reviewed_parent_fd >= 0
-            and reviewed_fd >= 0
-            and reviewed_identity is not None
-        ):
-            try:
-                retained_name = _quarantine_pinned_reviewed_run(
-                    reviewed_parent_fd,
-                    name=reviewed_dir.name,
-                    expected_identity=reviewed_identity,
-                )
-            except Exception as exc:
-                cleanup_error = exc
+        retained_names = [reviewed_dir.name]
+        if staging_name is not None:
+            retained_names.append(staging_name)
         close_error = creative_code_spec_pipeline._close_descriptors(
+            staging_fd,
             reviewed_fd,
             reviewed_parent_fd,
         )
-        cleanup_error = cleanup_error or close_error
-        if cleanup_error is not None:
+        if close_error is not None:
             raise CreativeSpecificationSkepticReviewCliError(
-                f"{primary_error}; cleanup_diagnostic={cleanup_error}"
+                f"{primary_error}; cleanup_diagnostic={close_error}"
             ) from primary_error
+        state = "published" if exchange_completed else "not_published"
         raise CreativeSpecificationSkepticReviewCliError(
-            f"{primary_error}; failure_artifact_retained={retained_name}"
+            f"{primary_error}; exchange_state={state}; "
+            f"failure_artifact_retained={','.join(retained_names)}"
         ) from primary_error
     close_error = creative_code_spec_pipeline._close_descriptors(
+        staging_fd,
         reviewed_fd,
         reviewed_parent_fd,
     )

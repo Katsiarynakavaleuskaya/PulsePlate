@@ -392,6 +392,7 @@ def test_attach_validate_finalize_preserves_original_spec_prepare(
         assert captured.out.strip() == review_cli.ATTACH_SUCCESS_OUTPUT
 
         reviewed_dir = output_dir / "spec_finalize_reviewed"
+        attached_identity = (reviewed_dir.stat().st_dev, reviewed_dir.stat().st_ino)
         attachment_path = reviewed_dir / review_cli.ATTACHMENT_FILENAME
         attachment = validate_skeptic_review_attachment(_read_json(attachment_path))
         assert attachment["reviewed_run"]["run_dir_ref"].endswith("/spec_finalize_reviewed")
@@ -410,6 +411,17 @@ def test_attach_validate_finalize_preserves_original_spec_prepare(
         captured = capsys.readouterr()
         assert exit_code == 0, captured.err
         assert captured.out.strip() == review_cli.FINALIZE_SUCCESS_OUTPUT
+        first_finalized_identity = (reviewed_dir.stat().st_dev, reviewed_dir.stat().st_ino)
+        assert first_finalized_identity != attached_identity
+        retained_before_replay = list(output_dir.glob(".spec_finalize_reviewed.*.pre-finalize"))
+        assert len(retained_before_replay) == 1
+        assert {path.name for path in retained_before_replay[0].iterdir()} == {
+            "source_packet.json",
+            "variants.json",
+            "skeptic_reviews.json",
+            "context_pack.json",
+            review_cli.ATTACHMENT_FILENAME,
+        }
 
         bundle = validate_creative_code_specification_bundle(
             read_creative_code_specification_bundle(reviewed_dir / review_cli.BUNDLE_FILENAME)
@@ -430,10 +442,14 @@ def test_attach_validate_finalize_preserves_original_spec_prepare(
         assert exit_code == 0, captured.err
         assert captured.out.strip() == review_cli.FINALIZE_SUCCESS_OUTPUT
         assert reviewed_dir.is_dir()
+        assert (reviewed_dir.stat().st_dev, reviewed_dir.stat().st_ino) != first_finalized_identity
         assert {
             filename: fingerprint_payload(_read_json(reviewed_dir / filename))
             for filename in (review_cli.BUNDLE_FILENAME, review_cli.FINALIZE_RECEIPT_FILENAME)
         } == finalized_fingerprints
+        retained_after_replay = list(output_dir.glob(".spec_finalize_reviewed.*.pre-finalize"))
+        assert len(retained_after_replay) == 2
+        assert sorted(len(list(path.iterdir())) for path in retained_after_replay) == [5, 7]
         _assert_schema_artifact_refs_accept_generated_attachment_and_receipt(
             attachment=attachment,
             receipt=receipt,
@@ -1239,6 +1255,18 @@ def test_reviewed_artifact_publication_preserves_unknown_source_replacement(
         shutil.rmtree(bridge_dir, ignore_errors=True)
 
 
+def test_finalize_directory_exchange_fails_closed_on_unsupported_platform(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with monkeypatch.context() as context:
+        context.setattr(review_cli.sys, "platform", "unsupported")
+        with pytest.raises(
+            review_cli.CreativeSpecificationSkepticReviewCliError,
+            match="requires kernel directory exchange",
+        ):
+            review_cli._kernel_rename_exchange(0, "source", "destination")
+
+
 def test_attach_preserves_unknown_replacement_published_during_staging_swap(
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
@@ -1886,11 +1914,16 @@ def test_finalize_retains_partial_outputs_on_receipt_failure(
         assert exit_code == 1
         assert "synthetic receipt failure" in captured.err
         assert "failure_artifact_retained=" in captured.err
-        assert not (output_dir / "spec_finalize_reviewed").exists()
-        retained_runs = list(output_dir.glob(".spec_finalize_reviewed.*.failed"))
-        assert len(retained_runs) == 1
-        assert (retained_runs[0] / review_cli.BUNDLE_FILENAME).is_file()
-        assert not (retained_runs[0] / review_cli.FINALIZE_RECEIPT_FILENAME).exists()
+        reviewed_dir = output_dir / "spec_finalize_reviewed"
+        assert reviewed_dir.is_dir()
+        assert {path.name for path in reviewed_dir.iterdir()} == {
+            "source_packet.json",
+            "variants.json",
+            "skeptic_reviews.json",
+            "context_pack.json",
+            review_cli.ATTACHMENT_FILENAME,
+        }
+        assert list(output_dir.glob(".spec_finalize_reviewed.*.pre-finalize")) == []
     finally:
         shutil.rmtree(output_dir, ignore_errors=True)
         shutil.rmtree(input_dir, ignore_errors=True)
@@ -1939,6 +1972,62 @@ def test_finalize_lock_contention_preserves_canonical_reviewed_run(
         assert (reviewed_dir / review_cli.BUNDLE_FILENAME).is_file()
         assert (reviewed_dir / review_cli.FINALIZE_RECEIPT_FILENAME).is_file()
     finally:
+        shutil.rmtree(output_dir, ignore_errors=True)
+        shutil.rmtree(input_dir, ignore_errors=True)
+
+
+def test_finalize_parent_lock_serializes_directory_exchange(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    output_dir, input_dir = _prepared_bridge(capsys, suffix="finalize-parent-lock")
+    parent_fd = -1
+    try:
+        reviews_path = _write_review_input(output_dir, _review_input(output_dir))
+        assert (
+            review_cli.main(
+                [
+                    "attach",
+                    "--bridge",
+                    str(output_dir / bridge_cli.BRIDGE_FILENAME),
+                    "--reviews",
+                    str(reviews_path),
+                ]
+            )
+            == 0
+        )
+        capsys.readouterr()
+        reviewed_dir = output_dir / "spec_finalize_reviewed"
+        attachment_path = reviewed_dir / review_cli.ATTACHMENT_FILENAME
+        parent_fd = review_cli.os.open(
+            output_dir,
+            review_cli.creative_code_spec_pipeline._directory_flags(),
+        )
+        review_cli.fcntl.flock(parent_fd, review_cli.fcntl.LOCK_EX | review_cli.fcntl.LOCK_NB)
+
+        exit_code = review_cli.main(["finalize", "--attachment", str(attachment_path)])
+        captured = capsys.readouterr()
+        assert exit_code == 1
+        assert "reviewed finalize is already in progress" in captured.err
+        assert {path.name for path in reviewed_dir.iterdir()} == {
+            "source_packet.json",
+            "variants.json",
+            "skeptic_reviews.json",
+            "context_pack.json",
+            review_cli.ATTACHMENT_FILENAME,
+        }
+        assert list(output_dir.glob(".spec_finalize_reviewed.*.pre-finalize")) == []
+
+        review_cli.fcntl.flock(parent_fd, review_cli.fcntl.LOCK_UN)
+        review_cli.os.close(parent_fd)
+        parent_fd = -1
+        assert review_cli.main(["finalize", "--attachment", str(attachment_path)]) == 0
+        capsys.readouterr()
+        assert (reviewed_dir / review_cli.BUNDLE_FILENAME).is_file()
+        assert (reviewed_dir / review_cli.FINALIZE_RECEIPT_FILENAME).is_file()
+    finally:
+        if parent_fd >= 0:
+            review_cli.fcntl.flock(parent_fd, review_cli.fcntl.LOCK_UN)
+            review_cli.os.close(parent_fd)
         shutil.rmtree(output_dir, ignore_errors=True)
         shutil.rmtree(input_dir, ignore_errors=True)
 
@@ -2088,12 +2177,11 @@ def test_finalize_revalidates_outputs_at_terminal_input_seam(
         assert exit_code == 1
         assert review_cli.FINALIZE_SUCCESS_OUTPUT not in captured.out
         assert calls == 2
-        assert not reviewed_dir.exists()
-        retained_runs = list(output_dir.glob(".spec_finalize_reviewed.*.failed"))
+        assert reviewed_dir.is_dir()
+        assert receipt_path.read_text(encoding="utf-8") == "{}\n"
+        retained_runs = list(output_dir.glob(".spec_finalize_reviewed.*.pre-finalize"))
         assert len(retained_runs) == 1
-        assert (retained_runs[0] / review_cli.FINALIZE_RECEIPT_FILENAME).read_text(
-            encoding="utf-8"
-        ) == "{}\n"
+        assert (retained_runs[0] / review_cli.FINALIZE_RECEIPT_FILENAME).is_file()
         assert (retained_runs[0] / review_cli.BUNDLE_FILENAME).is_file()
     finally:
         shutil.rmtree(output_dir, ignore_errors=True)
@@ -2122,7 +2210,6 @@ def test_finalize_rejects_bundle_mutation_between_terminal_output_reads(
         capsys.readouterr()
         reviewed_dir = output_dir / "spec_finalize_reviewed"
         attachment_path = reviewed_dir / review_cli.ATTACHMENT_FILENAME
-        bundle_path = reviewed_dir / review_cli.BUNDLE_FILENAME
         real_read_output = review_cli._read_json_from_pinned_finalize_output
         reads: list[str] = []
 
@@ -2130,7 +2217,9 @@ def test_finalize_rejects_bundle_mutation_between_terminal_output_reads(
             if filename == review_cli.FINALIZE_RECEIPT_FILENAME and reads == [
                 review_cli.BUNDLE_FILENAME
             ]:
-                bundle_path.write_text("{}\n", encoding="utf-8")
+                staging_dirs = list(output_dir.glob(".spec_finalize_reviewed.*.pre-finalize"))
+                assert len(staging_dirs) == 1
+                (staging_dirs[0] / review_cli.BUNDLE_FILENAME).write_text("{}\n", encoding="utf-8")
             payload = real_read_output(file_fd, filename)
             reads.append(filename)
             return payload
@@ -2149,8 +2238,9 @@ def test_finalize_rejects_bundle_mutation_between_terminal_output_reads(
             review_cli.BUNDLE_FILENAME,
             review_cli.FINALIZE_RECEIPT_FILENAME,
         ]
-        assert not reviewed_dir.exists()
-        retained_runs = list(output_dir.glob(".spec_finalize_reviewed.*.failed"))
+        assert reviewed_dir.is_dir()
+        assert not (reviewed_dir / review_cli.BUNDLE_FILENAME).exists()
+        retained_runs = list(output_dir.glob(".spec_finalize_reviewed.*.pre-finalize"))
         assert len(retained_runs) == 1
         assert (retained_runs[0] / review_cli.BUNDLE_FILENAME).read_text(encoding="utf-8") == "{}\n"
         assert (retained_runs[0] / review_cli.FINALIZE_RECEIPT_FILENAME).is_file()
@@ -2159,11 +2249,11 @@ def test_finalize_rejects_bundle_mutation_between_terminal_output_reads(
         shutil.rmtree(input_dir, ignore_errors=True)
 
 
-def test_finalize_rejects_output_mutation_during_terminal_directory_check(
+def test_finalize_exchange_failure_preserves_canonical_and_staged_evidence(
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    output_dir, input_dir = _prepared_bridge(capsys, suffix="finalize-terminal-directory-seam")
+    output_dir, input_dir = _prepared_bridge(capsys, suffix="finalize-exchange-failure")
     try:
         reviews_path = _write_review_input(output_dir, _review_input(output_dir))
         assert (
@@ -2181,41 +2271,40 @@ def test_finalize_rejects_output_mutation_during_terminal_directory_check(
         capsys.readouterr()
         reviewed_dir = output_dir / "spec_finalize_reviewed"
         attachment_path = reviewed_dir / review_cli.ATTACHMENT_FILENAME
-        receipt_path = reviewed_dir / review_cli.FINALIZE_RECEIPT_FILENAME
-        real_assert_identity = review_cli._assert_canonical_reviewed_run_identity
-        identity_checks = 0
 
-        def corrupt_receipt_during_terminal_identity_check(*args: Any, **kwargs: Any) -> None:
-            nonlocal identity_checks
-            identity_checks += 1
-            if identity_checks == 2:
-                receipt_path.write_text("{}\n", encoding="utf-8")
-            real_assert_identity(*args, **kwargs)
+        def fail_exchange(*args: Any, **kwargs: Any) -> None:
+            raise review_cli.CreativeSpecificationSkepticReviewCliError(
+                "simulated atomic exchange failure"
+            )
 
         with monkeypatch.context() as context:
-            context.setattr(
-                review_cli,
-                "_assert_canonical_reviewed_run_identity",
-                corrupt_receipt_during_terminal_identity_check,
-            )
+            context.setattr(review_cli, "_kernel_rename_exchange", fail_exchange)
             exit_code = review_cli.main(["finalize", "--attachment", str(attachment_path)])
         captured = capsys.readouterr()
         assert exit_code == 1
         assert review_cli.FINALIZE_SUCCESS_OUTPUT not in captured.out
-        assert identity_checks == 2
-        assert not reviewed_dir.exists()
-        retained_runs = list(output_dir.glob(".spec_finalize_reviewed.*.failed"))
+        assert "simulated atomic exchange failure" in captured.err
+        assert "exchange_state=not_published" in captured.err
+        assert reviewed_dir.is_dir()
+        assert {path.name for path in reviewed_dir.iterdir()} == {
+            "source_packet.json",
+            "variants.json",
+            "skeptic_reviews.json",
+            "context_pack.json",
+            review_cli.ATTACHMENT_FILENAME,
+        }
+        retained_runs = list(output_dir.glob(".spec_finalize_reviewed.*.pre-finalize"))
         assert len(retained_runs) == 1
-        assert (retained_runs[0] / review_cli.FINALIZE_RECEIPT_FILENAME).read_text(
-            encoding="utf-8"
-        ) == "{}\n"
+        assert {path.name for path in retained_runs[0].iterdir()} == set(
+            review_cli.REVIEWED_RUN_FILENAMES
+        )
         assert (retained_runs[0] / review_cli.BUNDLE_FILENAME).is_file()
     finally:
         shutil.rmtree(output_dir, ignore_errors=True)
         shutil.rmtree(input_dir, ignore_errors=True)
 
 
-def test_finalize_rejects_canonical_swap_after_composite_output_checks(
+def test_finalize_exchange_preserves_unknown_canonical_replacement(
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -2260,12 +2349,97 @@ def test_finalize_rejects_canonical_swap_after_composite_output_checks(
         captured = capsys.readouterr()
         assert exit_code == 1
         assert review_cli.FINALIZE_SUCCESS_OUTPUT not in captured.out
-        assert "reviewed finalize run canonical identity changed" in captured.err
-        assert identity_checks == 3
-        assert (reviewed_dir / "unknown.marker").read_text(encoding="utf-8") == "unknown\n"
-        assert (detached / review_cli.BUNDLE_FILENAME).is_file()
-        assert (detached / review_cli.FINALIZE_RECEIPT_FILENAME).is_file()
+        assert "reviewed finalize retained pre-finalize run identity changed" in captured.err
+        assert "exchange_state=published" in captured.err
+        assert identity_checks == 2
+        assert (reviewed_dir / review_cli.BUNDLE_FILENAME).is_file()
+        assert (reviewed_dir / review_cli.FINALIZE_RECEIPT_FILENAME).is_file()
+        assert not (detached / review_cli.BUNDLE_FILENAME).exists()
+        retained_runs = list(output_dir.glob(".spec_finalize_reviewed.*.pre-finalize"))
+        assert len(retained_runs) == 1
+        assert (retained_runs[0] / "unknown.marker").read_text(encoding="utf-8") == "unknown\n"
         assert list(output_dir.glob(".spec_finalize_reviewed.*.failed")) == []
+    finally:
+        shutil.rmtree(output_dir, ignore_errors=True)
+        shutil.rmtree(input_dir, ignore_errors=True)
+
+
+def test_finalize_exchange_preserves_unknown_staging_replacement(
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output_dir, input_dir = _prepared_bridge(capsys, suffix="finalize-staging-source-swap")
+    detached_staging_name = ".detached-finalize-staging"
+    try:
+        reviews_path = _write_review_input(output_dir, _review_input(output_dir))
+        assert (
+            review_cli.main(
+                [
+                    "attach",
+                    "--bridge",
+                    str(output_dir / bridge_cli.BRIDGE_FILENAME),
+                    "--reviews",
+                    str(reviews_path),
+                ]
+            )
+            == 0
+        )
+        capsys.readouterr()
+        reviewed_dir = output_dir / "spec_finalize_reviewed"
+        attachment_path = reviewed_dir / review_cli.ATTACHMENT_FILENAME
+        real_exchange = review_cli._kernel_rename_exchange
+
+        def swap_staging_inside_exchange(
+            parent_fd: int,
+            source_name: str,
+            destination_name: str,
+        ) -> None:
+            review_cli.os.rename(
+                source_name,
+                detached_staging_name,
+                src_dir_fd=parent_fd,
+                dst_dir_fd=parent_fd,
+            )
+            review_cli.os.mkdir(source_name, mode=0o700, dir_fd=parent_fd)
+            replacement_fd = review_cli.os.open(
+                source_name,
+                review_cli.creative_code_spec_pipeline._directory_flags(),
+                dir_fd=parent_fd,
+            )
+            try:
+                marker_fd = review_cli.os.open(
+                    "unknown.marker",
+                    review_cli.os.O_WRONLY | review_cli.os.O_CREAT | review_cli.os.O_EXCL,
+                    0o600,
+                    dir_fd=replacement_fd,
+                )
+                review_cli.os.close(marker_fd)
+            finally:
+                review_cli.os.close(replacement_fd)
+            real_exchange(parent_fd, source_name, destination_name)
+
+        with monkeypatch.context() as context:
+            context.setattr(review_cli, "_kernel_rename_exchange", swap_staging_inside_exchange)
+            exit_code = review_cli.main(["finalize", "--attachment", str(attachment_path)])
+        captured = capsys.readouterr()
+        assert exit_code == 1
+        assert review_cli.FINALIZE_SUCCESS_OUTPUT not in captured.out
+        assert "reviewed finalize published run identity changed" in captured.err
+        assert "exchange_state=published" in captured.err
+        assert (reviewed_dir / "unknown.marker").is_file()
+        retained_runs = list(output_dir.glob(".spec_finalize_reviewed.*.pre-finalize"))
+        assert len(retained_runs) == 1
+        assert {path.name for path in retained_runs[0].iterdir()} == {
+            "source_packet.json",
+            "variants.json",
+            "skeptic_reviews.json",
+            "context_pack.json",
+            review_cli.ATTACHMENT_FILENAME,
+        }
+        detached_staging = output_dir / detached_staging_name
+        assert {path.name for path in detached_staging.iterdir()} == set(
+            review_cli.REVIEWED_RUN_FILENAMES
+        )
     finally:
         shutil.rmtree(output_dir, ignore_errors=True)
         shutil.rmtree(input_dir, ignore_errors=True)
