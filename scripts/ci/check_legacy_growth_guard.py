@@ -514,6 +514,27 @@ def _static_module_reference(
             return f"{parent}.{node.attr}"
         return None
     if isinstance(node, ast.Subscript):
+        literal_index = _resolve_static_int(node.slice)
+        if isinstance(node.value, (ast.Tuple, ast.List)) and literal_index is not None:
+            try:
+                selected = node.value.elts[literal_index]
+            except IndexError:
+                return None
+            return _static_module_reference(
+                selected,
+                module_aliases=module_aliases,
+                import_module_aliases=import_module_aliases,
+                static_string_bindings=static_string_bindings,
+            )
+        if isinstance(node.value, ast.Dict) and isinstance(node.slice, ast.Constant):
+            found, reference = _static_dict_module_reference(
+                node.value,
+                node.slice.value,
+                module_aliases=module_aliases,
+                import_module_aliases=import_module_aliases,
+                static_string_bindings=static_string_bindings,
+            )
+            return reference if found else None
         container = _static_module_reference(
             node.value,
             module_aliases=module_aliases,
@@ -568,6 +589,53 @@ def _static_module_reference(
         return resolve_name(module_name, package_name)
     except ImportError:
         return None
+
+
+def _static_dict_module_reference(
+    node: ast.Dict,
+    lookup_key: object,
+    *,
+    module_aliases: Mapping[str, str],
+    import_module_aliases: AbstractSet[str],
+    static_string_bindings: Mapping[str, str],
+) -> tuple[bool, str | None]:
+    """Resolve one literal dict key using Python's final-write semantics."""
+
+    for key, value in reversed(tuple(zip(node.keys, node.values, strict=True))):
+        if key is None and isinstance(value, ast.Dict):
+            found, reference = _static_dict_module_reference(
+                value,
+                lookup_key,
+                module_aliases=module_aliases,
+                import_module_aliases=import_module_aliases,
+                static_string_bindings=static_string_bindings,
+            )
+            if found:
+                return True, reference
+            continue
+        if isinstance(key, ast.Constant) and key.value == lookup_key:
+            return True, _static_module_reference(
+                value,
+                module_aliases=module_aliases,
+                import_module_aliases=import_module_aliases,
+                static_string_bindings=static_string_bindings,
+            )
+    return False, None
+
+
+def _resolve_static_int(node: ast.AST) -> int | None:
+    if isinstance(node, ast.Constant) and isinstance(node.value, int):
+        return node.value
+    if (
+        isinstance(node, ast.UnaryOp)
+        and isinstance(node.operand, ast.Constant)
+        and isinstance(node.operand.value, int)
+    ):
+        if isinstance(node.op, ast.USub):
+            return -node.operand.value
+        if isinstance(node.op, ast.UAdd):
+            return node.operand.value
+    return None
 
 
 def _forbidden_registrar_label(
@@ -854,6 +922,184 @@ def _collect_static_string_bindings(tree: ast.Module) -> Mapping[str, str]:
                         bindings[target_name] = resolved
                         changed = True
     return bindings
+
+
+def _collect_lexical_static_string_bindings(nodes: Sequence[ast.AST]) -> Mapping[str, str]:
+    """Resolve strings without letting nested-scope bindings shadow this scope."""
+
+    counts: Counter[str] = Counter()
+    for node in nodes:
+        if isinstance(node, ast.Name) and isinstance(node.ctx, (ast.Store, ast.Del)):
+            counts[node.id] += 1
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            counts[node.name] += 1
+        elif isinstance(node, ast.Import):
+            for alias in node.names:
+                counts[alias.asname or alias.name.split(".", maxsplit=1)[0]] += 1
+        elif isinstance(node, ast.ImportFrom):
+            for alias in node.names:
+                counts[alias.asname or alias.name] += 1
+        elif isinstance(node, ast.ExceptHandler) and node.name is not None:
+            counts[node.name] += 1
+
+    bindings: dict[str, str] = {}
+    changed = True
+    while changed:
+        changed = False
+        for node in nodes:
+            value: ast.AST | None = None
+            targets: Sequence[ast.expr] = ()
+            if isinstance(node, ast.Assign):
+                value = node.value
+                targets = node.targets
+            elif isinstance(node, ast.AnnAssign) and node.value is not None:
+                value = node.value
+                targets = (node.target,)
+            elif isinstance(node, ast.NamedExpr):
+                value = node.value
+                targets = (node.target,)
+            if value is None:
+                continue
+            resolved = _resolve_static_string(value, bindings)
+            if resolved is None:
+                continue
+            for target in targets:
+                for target_name in _assignment_target_names(target):
+                    if counts[target_name] == 1 and target_name not in bindings:
+                        bindings[target_name] = resolved
+                        changed = True
+    return bindings
+
+
+def _lexical_external_bindings(nodes: Sequence[ast.AST]) -> frozenset[str]:
+    return frozenset(
+        name
+        for node in nodes
+        if isinstance(node, (ast.Global, ast.Nonlocal))
+        for name in node.names
+    )
+
+
+def _join_static_string_states(*states: Mapping[str, str]) -> dict[str, str]:
+    joined: dict[str, str] = {}
+    for name in {key for state in states for key in state}:
+        possible = {state.get(name) for state in states}
+        sensitive = sorted(value for value in possible if value in CANONICAL_API_KEY_SYMBOLS)
+        if sensitive:
+            joined[name] = sensitive[0]
+            continue
+        concrete = {value for value in possible if value is not None}
+        if len(concrete) == 1 and None not in possible:
+            joined[name] = concrete.pop()
+    return joined
+
+
+def _apply_static_string_expression(
+    expression: ast.expr,
+    bindings: Mapping[str, str],
+) -> dict[str, str]:
+    if isinstance(expression, ast.IfExp):
+        tested = _apply_static_string_expression(expression.test, bindings)
+        return _join_static_string_states(
+            _apply_static_string_expression(expression.body, tested),
+            _apply_static_string_expression(expression.orelse, tested),
+        )
+    if isinstance(expression, ast.BoolOp):
+        current = dict(bindings)
+        exits: list[dict[str, str]] = []
+        for value in expression.values:
+            current = _apply_static_string_expression(value, current)
+            exits.append(dict(current))
+        return _join_static_string_states(*exits)
+    if isinstance(expression, ast.NamedExpr):
+        next_bindings = _apply_static_string_expression(expression.value, bindings)
+        resolved = _resolve_static_string(expression.value, next_bindings)
+        for target_name in _assignment_target_names(expression.target):
+            if resolved is None:
+                next_bindings.pop(target_name, None)
+            else:
+                next_bindings[target_name] = resolved
+        return next_bindings
+    current = dict(bindings)
+    for child in ast.iter_child_nodes(expression):
+        if isinstance(child, ast.expr):
+            current = _apply_static_string_expression(child, current)
+    return current
+
+
+def _apply_static_string_statements(
+    statements: Sequence[ast.stmt],
+    bindings: Mapping[str, str],
+) -> dict[str, str]:
+    current = dict(bindings)
+    for statement in statements:
+        if isinstance(statement, ast.If):
+            tested = _apply_static_string_expression(statement.test, current)
+            current = _join_static_string_states(
+                _apply_static_string_statements(statement.body, tested),
+                _apply_static_string_statements(statement.orelse, tested),
+            )
+            continue
+        if isinstance(statement, (ast.For, ast.AsyncFor, ast.While)):
+            expression = (
+                statement.iter if isinstance(statement, (ast.For, ast.AsyncFor)) else statement.test
+            )
+            entered = _apply_static_string_expression(expression, current)
+            body_state = _apply_static_string_statements(statement.body, entered)
+            loop_state = _join_static_string_states(entered, body_state)
+            else_state = _apply_static_string_statements(statement.orelse, loop_state)
+            current = _join_static_string_states(loop_state, else_state)
+            continue
+        if isinstance(statement, (ast.Try, ast.TryStar)):
+            body_state = _apply_static_string_statements(statement.body, current)
+            normal_state = _apply_static_string_statements(statement.orelse, body_state)
+            exits = [normal_state]
+            for handler in statement.handlers:
+                exits.append(_apply_static_string_statements(handler.body, current))
+            current = _join_static_string_states(*exits)
+            current = _apply_static_string_statements(statement.finalbody, current)
+            continue
+        if isinstance(statement, (ast.With, ast.AsyncWith)):
+            entered = dict(current)
+            for item in statement.items:
+                entered = _apply_static_string_expression(item.context_expr, entered)
+            body_state = _apply_static_string_statements(statement.body, entered)
+            current = _join_static_string_states(entered, body_state)
+            continue
+        if isinstance(statement, ast.Match):
+            subject_state = _apply_static_string_expression(statement.subject, current)
+            case_states = [
+                _apply_static_string_statements(case.body, subject_state)
+                for case in statement.cases
+            ]
+            if not any(_is_unguarded_irrefutable_case(case) for case in statement.cases):
+                case_states.append(subject_state)
+            current = _join_static_string_states(*case_states)
+            continue
+        if isinstance(statement, (ast.Assign, ast.AnnAssign)):
+            targets = statement.targets if isinstance(statement, ast.Assign) else [statement.target]
+            value = statement.value
+            if value is not None:
+                current = _apply_static_string_expression(value, current)
+            resolved = _resolve_static_string(value, current) if value is not None else None
+            for target in targets:
+                for target_name in _assignment_target_names(target):
+                    if resolved is None:
+                        current.pop(target_name, None)
+                    else:
+                        current[target_name] = resolved
+            continue
+        if isinstance(statement, ast.Expr):
+            current = _apply_static_string_expression(statement.value, current)
+            continue
+        if isinstance(statement, (ast.AugAssign, ast.Delete)):
+            targets = (
+                [statement.target] if isinstance(statement, ast.AugAssign) else statement.targets
+            )
+            for target in targets:
+                for target_name in _assignment_target_names(target):
+                    current.pop(target_name, None)
+    return current
 
 
 def _collect_binding_counts(tree: ast.Module) -> Counter[str]:
@@ -1143,12 +1389,63 @@ def _getattr_method_name(
 def _assignment_target_names(node: ast.AST) -> tuple[str, ...]:
     if isinstance(node, ast.Name):
         return (node.id,)
+    if isinstance(node, ast.Starred):
+        return _assignment_target_names(node.value)
     if isinstance(node, (ast.Tuple, ast.List)):
         names: list[str] = []
         for element in node.elts:
             names.extend(_assignment_target_names(element))
         return tuple(names)
     return ()
+
+
+def _assignment_target_value_pairs(
+    target: ast.expr,
+    value: ast.expr,
+) -> tuple[tuple[ast.expr, ast.expr], ...]:
+    """Pair exact tuple/list destructuring elements for alias propagation."""
+
+    if isinstance(target, (ast.Tuple, ast.List)) and isinstance(value, (ast.Tuple, ast.List)):
+        starred_indexes = [
+            index for index, element in enumerate(target.elts) if isinstance(element, ast.Starred)
+        ]
+        if not starred_indexes and len(target.elts) == len(value.elts):
+            return tuple(
+                pair
+                for target_element, value_element in zip(target.elts, value.elts, strict=True)
+                for pair in _assignment_target_value_pairs(target_element, value_element)
+            )
+        if len(starred_indexes) == 1 and len(value.elts) >= len(target.elts) - 1:
+            star_index = starred_indexes[0]
+            suffix_count = len(target.elts) - star_index - 1
+            pairs: list[tuple[ast.expr, ast.expr]] = []
+            for target_element, value_element in zip(
+                target.elts[:star_index],
+                value.elts[:star_index],
+                strict=True,
+            ):
+                pairs.extend(_assignment_target_value_pairs(target_element, value_element))
+            starred_target = target.elts[star_index]
+            if isinstance(starred_target, ast.Starred):
+                middle_end = len(value.elts) - suffix_count if suffix_count else len(value.elts)
+                pairs.append(
+                    (
+                        starred_target.value,
+                        ast.List(
+                            elts=value.elts[star_index:middle_end],
+                            ctx=ast.Load(),
+                        ),
+                    )
+                )
+            if suffix_count:
+                for target_element, value_element in zip(
+                    target.elts[-suffix_count:],
+                    value.elts[-suffix_count:],
+                    strict=True,
+                ):
+                    pairs.extend(_assignment_target_value_pairs(target_element, value_element))
+            return tuple(pairs)
+    return ((target, value),)
 
 
 def _dynamic_app_router_import_assignments(
@@ -2617,6 +2914,75 @@ def _apply_api_key_alias_expression(
     return next_modules, next_imports
 
 
+def _evaluate_api_key_assignment_value(
+    value: ast.expr,
+    *,
+    module_aliases: Mapping[str, str],
+    import_module_aliases: AbstractSet[str],
+    static_string_bindings: Mapping[str, str],
+) -> tuple[dict[str, str], set[str], dict[int, set[str | None]]]:
+    """Evaluate literal sequence RHS once and snapshot each element reference."""
+
+    if not isinstance(value, (ast.Tuple, ast.List)):
+        next_modules, next_imports, references = _evaluate_api_key_alias_expression(
+            value,
+            module_aliases=module_aliases,
+            import_module_aliases=import_module_aliases,
+            static_string_bindings=static_string_bindings,
+        )
+        return next_modules, next_imports, {id(value): references}
+
+    next_modules = dict(module_aliases)
+    next_imports = set(import_module_aliases)
+    references_by_node: dict[int, set[str | None]] = {id(value): {None}}
+    for element in value.elts:
+        next_modules, next_imports, element_references = _evaluate_api_key_assignment_value(
+            element,
+            module_aliases=next_modules,
+            import_module_aliases=next_imports,
+            static_string_bindings=static_string_bindings,
+        )
+        references_by_node.update(element_references)
+    return next_modules, next_imports, references_by_node
+
+
+def _apply_api_key_alias_assignment(
+    targets: Sequence[ast.expr],
+    value: ast.expr,
+    *,
+    module_aliases: Mapping[str, str],
+    import_module_aliases: AbstractSet[str],
+    static_string_bindings: Mapping[str, str],
+) -> tuple[dict[str, str], set[str]]:
+    """Apply alias assignment, preserving exact tuple/list destructuring."""
+
+    next_modules, next_imports, references_by_node = _evaluate_api_key_assignment_value(
+        value,
+        module_aliases=module_aliases,
+        import_module_aliases=import_module_aliases,
+        static_string_bindings=static_string_bindings,
+    )
+    pairs = tuple(
+        pair for target in targets for pair in _assignment_target_value_pairs(target, value)
+    )
+    target_updates: list[tuple[tuple[str, ...], set[str | None]]] = []
+    for target, target_value in pairs:
+        value_references = references_by_node.get(id(target_value), {None})
+        target_updates.append((_assignment_target_names(target), value_references))
+    for target_names, value_references in target_updates:
+        resolved_module = _preferred_api_key_module_reference(value_references)
+        for target_name in target_names:
+            if value_references & {"builtins.__import__", "importlib.import_module"}:
+                next_imports.add(target_name)
+            else:
+                next_imports.discard(target_name)
+            if resolved_module is not None:
+                next_modules[target_name] = resolved_module
+            else:
+                next_modules.pop(target_name, None)
+    return next_modules, next_imports
+
+
 def _function_header_expressions(
     node: ast.FunctionDef | ast.AsyncFunctionDef,
 ) -> list[ast.expr]:
@@ -2955,32 +3321,19 @@ def _apply_api_key_alias_statements(
         if isinstance(statement, (ast.Assign, ast.AnnAssign)):
             targets = statement.targets if isinstance(statement, ast.Assign) else [statement.target]
             value = statement.value
-            value_references: set[str | None] = {None}
-            if value is not None:
-                (
-                    next_modules,
-                    next_imports,
-                    value_references,
-                ) = _evaluate_api_key_alias_expression(
+            if value is None:
+                for target in targets:
+                    for target_name in _assignment_target_names(target):
+                        next_modules.pop(target_name, None)
+                        next_imports.discard(target_name)
+            else:
+                next_modules, next_imports = _apply_api_key_alias_assignment(
+                    targets,
                     value,
                     module_aliases=next_modules,
                     import_module_aliases=next_imports,
                     static_string_bindings=static_string_bindings,
                 )
-            resolved_module = _preferred_api_key_module_reference(value_references)
-            for target in targets:
-                for target_name in _assignment_target_names(target):
-                    if value_references & {
-                        "builtins.__import__",
-                        "importlib.import_module",
-                    }:
-                        next_imports.add(target_name)
-                    else:
-                        next_imports.discard(target_name)
-                    if resolved_module is not None:
-                        next_modules[target_name] = resolved_module
-                    else:
-                        next_modules.pop(target_name, None)
             continue
 
         if isinstance(statement, ast.Expr):
@@ -3350,15 +3703,19 @@ def _scan_api_key_alias_scope(
         closure_import_module_aliases = import_module_aliases
     else:
         closure_import_module_aliases = set(inherited_closure_import_module_aliases)
-    scope_tree = ast.Module(body=list(statements), type_ignores=[])
-    local_static_string_bindings = _collect_static_string_bindings(scope_tree)
+    scope_nodes, nested_scopes = _ordered_lexical_scope_nodes(statements)
+    external_string_bindings = _lexical_external_bindings(scope_nodes)
+    local_static_string_bindings = {
+        name: value
+        for name, value in _collect_lexical_static_string_bindings(scope_nodes).items()
+        if name not in external_string_bindings
+    }
     static_string_bindings = {
         name: value
         for name, value in (inherited_static_string_bindings or {}).items()
         if name not in local_bindings
     }
     static_string_bindings.update(local_static_string_bindings)
-    scope_nodes, nested_scopes = _ordered_lexical_scope_nodes(statements)
     structured_nodes = [
         node for node in scope_nodes if isinstance(node, _API_KEY_STRUCTURED_STATEMENT_TYPES)
     ]
@@ -3390,12 +3747,21 @@ def _scan_api_key_alias_scope(
     ] = {}
 
     def module_reference(node: ast.AST) -> str | None:
-        return _static_module_reference(
+        static_reference = _static_module_reference(
             node,
             module_aliases=module_aliases,
             import_module_aliases=import_module_aliases,
             static_string_bindings=static_string_bindings,
         )
+        if static_reference is not None or not isinstance(node, ast.expr):
+            return static_reference
+        _next_modules, _next_imports, possible_references = _evaluate_api_key_alias_expression(
+            node,
+            module_aliases=module_aliases,
+            import_module_aliases=import_module_aliases,
+            static_string_bindings=static_string_bindings,
+        )
+        return _preferred_api_key_module_reference(possible_references)
 
     for node in scope_nodes:
         if id(node) in root_structured_nodes:
@@ -3414,6 +3780,10 @@ def _scan_api_key_alias_scope(
                 module_aliases=module_aliases,
                 import_module_aliases=import_module_aliases,
                 static_string_bindings=static_string_bindings,
+            )
+            static_string_bindings = _apply_static_string_statements(
+                [structured_statement],
+                static_string_bindings,
             )
         elif id(node) in structured_descendant_node_ids:
             continue
@@ -3458,32 +3828,19 @@ def _scan_api_key_alias_scope(
             else:
                 targets = [node.target]
                 value = node.value
-            value_references: set[str | None] = {None}
-            if value is not None:
-                (
-                    module_aliases,
-                    import_module_aliases,
-                    value_references,
-                ) = _evaluate_api_key_alias_expression(
+            if value is None:
+                for target in targets:
+                    for target_name in _assignment_target_names(target):
+                        module_aliases.pop(target_name, None)
+                        import_module_aliases.discard(target_name)
+            else:
+                module_aliases, import_module_aliases = _apply_api_key_alias_assignment(
+                    targets,
                     value,
                     module_aliases=module_aliases,
                     import_module_aliases=import_module_aliases,
                     static_string_bindings=static_string_bindings,
                 )
-            resolved_module = _preferred_api_key_module_reference(value_references)
-            for target in targets:
-                for target_name in _assignment_target_names(target):
-                    if value_references & {
-                        "builtins.__import__",
-                        "importlib.import_module",
-                    }:
-                        import_module_aliases.add(target_name)
-                    else:
-                        import_module_aliases.discard(target_name)
-                    if resolved_module is not None:
-                        module_aliases[target_name] = resolved_module
-                    else:
-                        module_aliases.pop(target_name, None)
         elif isinstance(node, ast.Expr):
             module_aliases, import_module_aliases = _apply_api_key_alias_expression(
                 node.value,
@@ -3496,6 +3853,26 @@ def _scan_api_key_alias_scope(
             for target in targets:
                 for target_name in _assignment_target_names(target):
                     module_aliases.pop(target_name, None)
+
+        if isinstance(node, (ast.Assign, ast.AnnAssign, ast.NamedExpr)):
+            string_targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            string_value = node.value
+            resolved_string = (
+                _resolve_static_string(string_value, static_string_bindings)
+                if string_value is not None
+                else None
+            )
+            for string_target in string_targets:
+                for target_name in _assignment_target_names(string_target):
+                    if resolved_string is None:
+                        static_string_bindings.pop(target_name, None)
+                    else:
+                        static_string_bindings[target_name] = resolved_string
+        elif isinstance(node, (ast.AugAssign, ast.Delete)):
+            string_targets = [node.target] if isinstance(node, ast.AugAssign) else node.targets
+            for string_target in string_targets:
+                for target_name in _assignment_target_names(string_target):
+                    static_string_bindings.pop(target_name, None)
 
         if (
             isinstance(node, ast.Attribute)
