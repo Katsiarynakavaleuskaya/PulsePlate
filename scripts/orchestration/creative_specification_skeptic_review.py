@@ -2117,6 +2117,11 @@ def _finalize_from_attachment(attachment_path: Path) -> dict[str, Any]:
             expected_identity=reviewed_identity,
             label="reviewed finalize retained pre-finalize run",
         )
+        _assert_pinned_finalize_outputs(
+            staging_fd,
+            expected_bundle=validated_bundle,
+            expected_receipt=receipt,
+        )
     except Exception as primary_error:
         retained_names = [reviewed_dir.name]
         if staging_name is not None:

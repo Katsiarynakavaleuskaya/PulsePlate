@@ -2397,6 +2397,58 @@ def test_finalize_revalidates_payloads_after_atomic_exchange(
         shutil.rmtree(input_dir, ignore_errors=True)
 
 
+def test_finalize_rechecks_outputs_after_terminal_retained_read(
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output_dir, input_dir = _prepared_bridge(capsys, suffix="terminal-retained-output-seam")
+    try:
+        reviews_path = _write_review_input(output_dir, _review_input(output_dir))
+        assert (
+            review_cli.main(
+                [
+                    "attach",
+                    "--bridge",
+                    str(output_dir / bridge_cli.BRIDGE_FILENAME),
+                    "--reviews",
+                    str(reviews_path),
+                ]
+            )
+            == 0
+        )
+        capsys.readouterr()
+        reviewed_dir = output_dir / "spec_finalize_reviewed"
+        attachment_path = reviewed_dir / review_cli.ATTACHMENT_FILENAME
+        bundle_path = reviewed_dir / review_cli.BUNDLE_FILENAME
+        real_read_inputs = review_cli._read_pinned_reviewed_inputs
+        calls = 0
+
+        def mutate_bundle_after_retained_read(*args: Any, **kwargs: Any) -> dict[str, Any]:
+            nonlocal calls
+            payload = real_read_inputs(*args, **kwargs)
+            calls += 1
+            if calls == 3:
+                bundle_path.write_text("{}\n", encoding="utf-8")
+            return payload
+
+        with monkeypatch.context() as context:
+            context.setattr(
+                review_cli,
+                "_read_pinned_reviewed_inputs",
+                mutate_bundle_after_retained_read,
+            )
+            exit_code = review_cli.main(["finalize", "--attachment", str(attachment_path)])
+        captured = capsys.readouterr()
+        assert exit_code == 1
+        assert review_cli.FINALIZE_SUCCESS_OUTPUT not in captured.out
+        assert calls == 3
+        assert bundle_path.read_text(encoding="utf-8") == "{}\n"
+        assert "exchange_state=published" in captured.err
+    finally:
+        shutil.rmtree(output_dir, ignore_errors=True)
+        shutil.rmtree(input_dir, ignore_errors=True)
+
+
 def test_open_pinned_finalize_output_preserves_primary_and_close_errors(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
