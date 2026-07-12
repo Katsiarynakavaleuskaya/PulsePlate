@@ -2044,6 +2044,62 @@ def test_finalize_rejects_canonical_reviewed_directory_swap_after_lock(
         shutil.rmtree(input_dir, ignore_errors=True)
 
 
+def test_finalize_revalidates_outputs_at_terminal_input_seam(
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output_dir, input_dir = _prepared_bridge(capsys, suffix="finalize-output-mutation")
+    try:
+        reviews_path = _write_review_input(output_dir, _review_input(output_dir))
+        assert (
+            review_cli.main(
+                [
+                    "attach",
+                    "--bridge",
+                    str(output_dir / bridge_cli.BRIDGE_FILENAME),
+                    "--reviews",
+                    str(reviews_path),
+                ]
+            )
+            == 0
+        )
+        capsys.readouterr()
+        reviewed_dir = output_dir / "spec_finalize_reviewed"
+        attachment_path = reviewed_dir / review_cli.ATTACHMENT_FILENAME
+        receipt_path = reviewed_dir / review_cli.FINALIZE_RECEIPT_FILENAME
+        real_read_inputs = review_cli._read_pinned_reviewed_inputs
+        calls = 0
+
+        def corrupt_receipt_before_terminal_read(*args: Any, **kwargs: Any) -> dict[str, Any]:
+            nonlocal calls
+            calls += 1
+            if calls == 2:
+                receipt_path.write_text("{}\n", encoding="utf-8")
+            return real_read_inputs(*args, **kwargs)
+
+        with monkeypatch.context() as context:
+            context.setattr(
+                review_cli,
+                "_read_pinned_reviewed_inputs",
+                corrupt_receipt_before_terminal_read,
+            )
+            exit_code = review_cli.main(["finalize", "--attachment", str(attachment_path)])
+        captured = capsys.readouterr()
+        assert exit_code == 1
+        assert review_cli.FINALIZE_SUCCESS_OUTPUT not in captured.out
+        assert calls == 2
+        assert not reviewed_dir.exists()
+        retained_runs = list(output_dir.glob(".spec_finalize_reviewed.*.failed"))
+        assert len(retained_runs) == 1
+        assert (retained_runs[0] / review_cli.FINALIZE_RECEIPT_FILENAME).read_text(
+            encoding="utf-8"
+        ) == "{}\n"
+        assert (retained_runs[0] / review_cli.BUNDLE_FILENAME).is_file()
+    finally:
+        shutil.rmtree(output_dir, ignore_errors=True)
+        shutil.rmtree(input_dir, ignore_errors=True)
+
+
 def test_finalize_preserves_preexisting_partial_outputs_without_quarantine(
     capsys: pytest.CaptureFixture[str],
 ) -> None:

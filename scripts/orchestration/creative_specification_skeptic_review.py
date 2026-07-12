@@ -1359,6 +1359,37 @@ def _read_pinned_reviewed_inputs(
     return observed
 
 
+def _assert_pinned_finalize_outputs(
+    reviewed_fd: int,
+    *,
+    expected_bundle: Mapping[str, Any],
+    expected_receipt: Mapping[str, Any],
+) -> None:
+    expected_names = set(REVIEWED_RUN_FILENAMES)
+    if set(os.listdir(reviewed_fd)) != expected_names:
+        raise CreativeSpecificationSkepticReviewCliError(
+            "reviewed finalize run must contain the exact finalized artifact set."
+        )
+    observed_bundle = validate_creative_code_specification_bundle(
+        cast(Mapping[str, Any], _read_json_at(reviewed_fd, BUNDLE_FILENAME))
+    )
+    observed_receipt = validate_finalize_receipt(
+        cast(Mapping[str, Any], _read_json_at(reviewed_fd, FINALIZE_RECEIPT_FILENAME))
+    )
+    if fingerprint_payload(observed_bundle) != fingerprint_payload(expected_bundle):
+        raise CreativeSpecificationSkepticReviewCliError(
+            "fingerprint_mismatch: pinned finalize bundle changed before success."
+        )
+    if fingerprint_payload(observed_receipt) != fingerprint_payload(expected_receipt):
+        raise CreativeSpecificationSkepticReviewCliError(
+            "fingerprint_mismatch: pinned finalize receipt changed before success."
+        )
+    if set(os.listdir(reviewed_fd)) != expected_names:
+        raise CreativeSpecificationSkepticReviewCliError(
+            "reviewed finalize run changed during output inspection."
+        )
+
+
 def _assert_reviewed_ref(ref: str, expected_path: Path, label: str) -> None:
     path = _resolve_repo_artifact_ref(ref, label=f"{label} ref")
     if path.resolve(strict=True) != expected_path.resolve(strict=True):
@@ -1508,6 +1539,11 @@ def _finalize_from_attachment(attachment_path: Path) -> dict[str, Any]:
         _read_pinned_reviewed_inputs(
             reviewed_fd,
             expected_payloads=expected_payloads,
+        )
+        _assert_pinned_finalize_outputs(
+            reviewed_fd,
+            expected_bundle=validated_bundle,
+            expected_receipt=receipt,
         )
         _assert_canonical_reviewed_run_identity(
             reviewed_dir,
