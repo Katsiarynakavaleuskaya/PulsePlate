@@ -330,6 +330,35 @@ def test_api_key_ownership_guard_allows_lookup_before_legacy_assignment() -> Non
     )
 
 
+def test_api_key_ownership_guard_rejects_single_alias_used_in_expression() -> None:
+    legacy_source = (
+        "from app.routers.api_key import (\n"
+        "    _get_api_key_dynamic,\n"
+        "    get_api_key,\n"
+        ")\n"
+    )
+    source = "import legacy_app as legacy\n" "compat = legacy\n" "register(compat.get_api_key)\n"
+
+    assert legacy_guard.validate_api_key_dependency_ownership(
+        legacy_source, {"app/main.py": source}
+    ) == ["app/main.py: legacy API-key dependency attribute access is forbidden: get_api_key"]
+
+
+def test_api_key_ownership_guard_allows_safe_alias_used_in_expression() -> None:
+    legacy_source = (
+        "from app.routers.api_key import (\n"
+        "    _get_api_key_dynamic,\n"
+        "    get_api_key,\n"
+        ")\n"
+    )
+    source = "import legacy_app as legacy\n" "compat = object()\n" "register(compat.get_api_key)\n"
+
+    assert (
+        legacy_guard.validate_api_key_dependency_ownership(legacy_source, {"app/main.py": source})
+        == []
+    )
+
+
 @pytest.mark.parametrize(
     ("legacy_source", "expected"),
     [

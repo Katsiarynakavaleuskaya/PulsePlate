@@ -1648,7 +1648,7 @@ def validate_api_key_dependency_ownership(
         module_aliases: dict[str, str] = {}
         import_module_aliases: set[str] = set()
         static_string_bindings: dict[str, str] = {}
-        top_level_rebound_names: set[str] = set()
+        top_level_assignment_counts: Counter[str] = Counter()
 
         def record_bounded_lookups(expression: ast.AST) -> None:
             def expression_is_legacy_module(node: ast.AST) -> bool:
@@ -1711,6 +1711,8 @@ def validate_api_key_dependency_ownership(
             elif isinstance(statement, ast.AnnAssign) and statement.value is not None:
                 value = statement.value
                 targets = (statement.target,)
+            elif isinstance(statement, ast.Expr):
+                value = statement.value
             if value is None:
                 continue
             record_bounded_lookups(value)
@@ -1723,7 +1725,7 @@ def validate_api_key_dependency_ownership(
             static_string = _resolve_static_string(value, static_string_bindings)
             for target in targets:
                 for target_name in _assignment_target_names(target):
-                    top_level_rebound_names.add(target_name)
+                    top_level_assignment_counts[target_name] += 1
                     if reference == "legacy_app":
                         module_aliases[target_name] = reference
                     else:
@@ -1733,9 +1735,10 @@ def validate_api_key_dependency_ownership(
                     else:
                         static_string_bindings[target_name] = static_string
 
-        for target_name in top_level_rebound_names:
-            module_aliases.pop(target_name, None)
-            static_string_bindings.pop(target_name, None)
+        for target_name, assignment_count in top_level_assignment_counts.items():
+            if assignment_count > 1:
+                module_aliases.pop(target_name, None)
+                static_string_bindings.pop(target_name, None)
 
         def legacy_module_reference(node: ast.AST) -> bool:
             return (
