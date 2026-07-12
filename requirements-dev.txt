@@ -80,7 +80,7 @@ httpcore2==2.3.0
     # via httpx2
 httpx2==2.3.0
     # via -r requirements-dev.in
-hypothesis==6.156.1
+hypothesis==6.156.6
     # via -r requirements-dev.in
 identify==2.6.15
     # via pre-commit
@@ -274,6 +274,10 @@ yamllint==1.38.0
     # via -r requirements-dev.in
 
 # The following packages are considered to be unsafe in a requirements file:
+pip==26.1.2
+    # via
+    #   pip-api
+    #   pip-tools
 setuptools==78.1.1
     # via
     #   -c requirements.txt
