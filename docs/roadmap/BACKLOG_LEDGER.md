@@ -12217,6 +12217,31 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - No IRT or psychometric scoring is implemented
     - No runtime/API/frontend/iOS/billing/OpenAPI/App Store/Claude/Opus/MCP changes are included
 
-**Last updated:** 2026-05-04 (evaluation item statistics baseline ledger entry added)
+<a id="ledger-p1-ruby-3-3-fastlane-runtime"></a>
+- [ ] P1: Migrate the Fastlane execution runtime to Ruby 3.3 or newer
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (release-tooling compatibility)
+  - Target PR: PR-TBD-RUBY-3-3-FASTLANE-RUNTIME
+  - Status: Opened on 13 July 2026
+  - Reason: The no-auth validation lane passes with Fastlane `2.237.0` on the
+    canonical Ruby `3.1` runtime, but Fastlane emits an explicit warning that a
+    future release will require Ruby `3.3` or newer. The current dependency
+    remediation remains supported; this lane prevents the announced runtime
+    transition from becoming an emergency release blocker.
+  - Links:
+    - `tests/runtime_toolchain_versions.py`
+    - `tests/test_runtime_toolchain_alignment.py`
+    - `ios/Gemfile`
+    - `docs/security/CVE-2026-54171-excon-fastlane.md`
+  - DoD:
+    - canonical local and CI Ruby versions are upgraded together to a supported
+      Ruby `3.3` or newer release
+    - Fastlane and Bundler locks remain deterministic and compatible
+    - the no-auth `validate_metadata_package` lane passes without the Ruby
+      deprecation warning
+    - iOS release tooling and current-head CI pass without App Store mutation
+    - rollback and operator migration instructions are documented
+
+**Last updated:** 2026-07-13 (Ruby 3.3 Fastlane runtime migration tracked)
 **Maintainer:** @katsiaryna_kavaleuskaya
 <!-- markdownlint-enable MD013 -->

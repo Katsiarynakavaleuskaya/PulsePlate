@@ -7,7 +7,12 @@ from typing import Any
 
 import yaml
 
-from tests.runtime_toolchain_versions import CANONICAL_PYTHON, CANONICAL_RUBY, FASTLANE_VERSION
+from tests.runtime_toolchain_versions import (
+    CANONICAL_PYTHON,
+    CANONICAL_RUBY,
+    EXCON_MINIMUM_VERSION,
+    FASTLANE_VERSION,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PYTHON_SETUP_USES = ("actions/setup-python@", "./.github/actions/python-setup")
@@ -135,3 +140,12 @@ def test_fastlane_and_ruby_tooling_are_pinned_consistently() -> None:
     assert f"  fastlane (= {FASTLANE_VERSION})" in lockfile
     assert "fastlane (~>" not in gemfile
     assert "fastlane (~>" not in lockfile
+
+    excon_line = next(
+        line.strip() for line in lockfile.splitlines() if line.startswith("    excon (")
+    )
+    locked_excon = excon_line.removeprefix("excon (").removesuffix(")")
+    assert tuple(map(int, locked_excon.split("."))) >= tuple(
+        map(int, EXCON_MINIMUM_VERSION.split("."))
+    )
+    assert "      excon (>= 0.71.0, < 2.0.0)" in lockfile
