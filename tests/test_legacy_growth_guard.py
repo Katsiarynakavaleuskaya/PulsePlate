@@ -337,7 +337,7 @@ def test_api_key_ownership_guard_propagates_static_lookup_name_into_nested_scope
         "    get_api_key as get_api_key,\n"
         ")\n"
     )
-    app_source = "import legacy_app as legacy\n" 'symbol = "get_api_key"\n' f"{body}"
+    app_source = f'import legacy_app as legacy\nsymbol = "get_api_key"\n{body}'
 
     errors = legacy_guard.validate_api_key_dependency_ownership(
         legacy_source,
@@ -635,7 +635,7 @@ def test_api_key_ownership_guard_joins_conditional_alias_states(branches: str) -
         "    get_api_key as get_api_key,\n"
         ")\n"
     )
-    app_source = "import legacy_app as legacy\n" f"{branches}" "dependency = compat.get_api_key\n"
+    app_source = f"import legacy_app as legacy\n{branches}dependency = compat.get_api_key\n"
 
     errors = legacy_guard.validate_api_key_dependency_ownership(
         legacy_source,
@@ -789,10 +789,7 @@ def test_api_key_ownership_guard_propagates_condition_walrus_alias_state(
         ")\n"
     )
     app_source = (
-        "import legacy_app as legacy\n"
-        f"if {condition}:\n"
-        "    pass\n"
-        "dependency = compat.get_api_key\n"
+        f"import legacy_app as legacy\nif {condition}:\n    pass\ndependency = compat.get_api_key\n"
     )
 
     errors = legacy_guard.validate_api_key_dependency_ownership(
@@ -873,7 +870,7 @@ def test_api_key_ownership_guard_joins_conditional_expression_aliases(
         ")\n"
     )
     assignment = f"compat = {expression}\n" if not expression.startswith("(") else f"{expression}\n"
-    app_source = "import legacy_app as legacy\n" f"{assignment}" "dependency = compat.get_api_key\n"
+    app_source = f"import legacy_app as legacy\n{assignment}dependency = compat.get_api_key\n"
 
     errors = legacy_guard.validate_api_key_dependency_ownership(
         legacy_source,
@@ -972,9 +969,7 @@ def test_api_key_ownership_guard_joins_boolop_short_circuit_states(
         ")\n"
     )
     app_source = (
-        "import legacy_app as legacy\n"
-        f"value = {expression}\n"
-        "dependency = compat.get_api_key\n"
+        f"import legacy_app as legacy\nvalue = {expression}\ndependency = compat.get_api_key\n"
     )
 
     errors = legacy_guard.validate_api_key_dependency_ownership(
@@ -1044,6 +1039,501 @@ def test_api_key_ownership_guard_allows_unconditional_clear_after_conditional() 
         "if enabled:\n"
         "    compat = legacy\n"
         "compat = object()\n"
+        "dependency = compat.get_api_key\n"
+    )
+
+    errors = legacy_guard.validate_api_key_dependency_ownership(
+        legacy_source,
+        _app_sources({"app/main.py": app_source}),
+    )
+
+    assert errors == []
+
+
+@pytest.mark.parametrize(
+    "loader_source",
+    [
+        'compat = __import__("legacy_app")\n',
+        (
+            "import builtins\n"
+            "load_module = builtins.__import__\n"
+            'compat = load_module("legacy_app")\n'
+        ),
+        ('from builtins import __import__ as load_module\ncompat = load_module("legacy_app")\n'),
+        'import sys\ncompat = sys.modules["legacy_app"]\n',
+        ('from sys import modules as loaded_modules\ncompat = loaded_modules.get("legacy_app")\n'),
+    ],
+    ids=[
+        "builtin-import",
+        "builtins-alias",
+        "from-builtins-alias",
+        "sys-modules-subscript",
+        "sys-modules-get",
+    ],
+)
+def test_api_key_ownership_guard_rejects_indirect_legacy_module_loaders(
+    loader_source: str,
+) -> None:
+    legacy_source = (
+        "from app.routers.api_key import (\n"
+        "    _get_api_key_dynamic as _get_api_key_dynamic,\n"
+        "    get_api_key as get_api_key,\n"
+        ")\n"
+    )
+    app_source = f"{loader_source}dependency = compat.get_api_key\n"
+
+    errors = legacy_guard.validate_api_key_dependency_ownership(
+        legacy_source,
+        _app_sources({"app/main.py": app_source}),
+    )
+
+    assert errors == [
+        "app/main.py: legacy API-key dependency attribute access is forbidden: get_api_key"
+    ]
+
+
+@pytest.mark.parametrize(
+    "app_source",
+    [
+        'compat = __import__("app")\ndependency = compat.get_api_key\n',
+        'import sys\ncompat = sys.modules["app"]\ndependency = compat.get_api_key\n',
+        (
+            "import builtins\n"
+            "load_module = builtins.__import__\n"
+            "load_module = lambda name: object()\n"
+            'compat = load_module("legacy_app")\n'
+            "dependency = compat.get_api_key\n"
+        ),
+    ],
+    ids=["canonical-builtin-import", "canonical-sys-modules", "loader-reassigned"],
+)
+def test_api_key_ownership_guard_allows_nonlegacy_or_reassigned_loaders(
+    app_source: str,
+) -> None:
+    legacy_source = (
+        "from app.routers.api_key import (\n"
+        "    _get_api_key_dynamic as _get_api_key_dynamic,\n"
+        "    get_api_key as get_api_key,\n"
+        ")\n"
+    )
+
+    errors = legacy_guard.validate_api_key_dependency_ownership(
+        legacy_source,
+        _app_sources({"app/main.py": app_source}),
+    )
+
+    assert errors == []
+
+
+@pytest.mark.parametrize(
+    "app_source",
+    [
+        (
+            "import legacy_app as legacy\n"
+            "compat = legacy\n"
+            "for item in items:\n"
+            "    compat = object()\n"
+            "dependency = compat.get_api_key\n"
+        ),
+        (
+            "import legacy_app as legacy\n"
+            "compat = legacy\n"
+            "while enabled:\n"
+            "    compat = object()\n"
+            "dependency = compat.get_api_key\n"
+        ),
+        (
+            "import legacy_app as legacy\n"
+            "async def resolve(items):\n"
+            "    compat = legacy\n"
+            "    async for item in items:\n"
+            "        compat = object()\n"
+            "    return compat.get_api_key\n"
+        ),
+        (
+            "import legacy_app as legacy\n"
+            "compat = legacy\n"
+            "try:\n"
+            "    compat = object()\n"
+            "except Exception:\n"
+            "    pass\n"
+            "dependency = compat.get_api_key\n"
+        ),
+        (
+            "import legacy_app as legacy\n"
+            "compat = legacy\n"
+            "try:\n"
+            "    compat = object()\n"
+            "except* Exception:\n"
+            "    pass\n"
+            "dependency = compat.get_api_key\n"
+        ),
+        (
+            "import legacy_app as legacy\n"
+            "compat = legacy\n"
+            "with manager:\n"
+            "    might_raise()\n"
+            "    compat = object()\n"
+            "dependency = compat.get_api_key\n"
+        ),
+        (
+            "import legacy_app as legacy\n"
+            "async def resolve(manager):\n"
+            "    compat = legacy\n"
+            "    async with manager:\n"
+            "        await might_raise()\n"
+            "        compat = object()\n"
+            "    return compat.get_api_key\n"
+        ),
+        (
+            "import legacy_app as legacy\n"
+            "compat = legacy\n"
+            "match value:\n"
+            "    case _ if enabled:\n"
+            "        compat = object()\n"
+            "dependency = compat.get_api_key\n"
+        ),
+    ],
+    ids=[
+        "for-zero-iterations",
+        "while-zero-iterations",
+        "async-for-zero-iterations",
+        "try-prefix-exception",
+        "try-star-prefix-exception",
+        "with-suppressed-prefix-exception",
+        "async-with-suppressed-prefix-exception",
+        "match-unmatched-guard",
+    ],
+)
+def test_api_key_ownership_guard_preserves_legacy_alias_across_compound_paths(
+    app_source: str,
+) -> None:
+    legacy_source = (
+        "from app.routers.api_key import (\n"
+        "    _get_api_key_dynamic as _get_api_key_dynamic,\n"
+        "    get_api_key as get_api_key,\n"
+        ")\n"
+    )
+
+    errors = legacy_guard.validate_api_key_dependency_ownership(
+        legacy_source,
+        _app_sources({"app/main.py": app_source}),
+    )
+
+    assert errors == [
+        "app/main.py: legacy API-key dependency attribute access is forbidden: get_api_key"
+    ]
+
+
+def test_api_key_ownership_guard_computes_loop_alias_fixed_point() -> None:
+    legacy_source = (
+        "from app.routers.api_key import (\n"
+        "    _get_api_key_dynamic as _get_api_key_dynamic,\n"
+        "    get_api_key as get_api_key,\n"
+        ")\n"
+    )
+    app_source = (
+        "import legacy_app as legacy\n"
+        "first = legacy\n"
+        "second = object()\n"
+        "third = object()\n"
+        "for item in items:\n"
+        "    third = second\n"
+        "    second = first\n"
+        "    first = object()\n"
+        "dependency = third.get_api_key\n"
+    )
+
+    errors = legacy_guard.validate_api_key_dependency_ownership(
+        legacy_source,
+        _app_sources({"app/main.py": app_source}),
+    )
+
+    assert errors == [
+        "app/main.py: legacy API-key dependency attribute access is forbidden: get_api_key"
+    ]
+
+
+def test_api_key_ownership_guard_recomputes_while_test_at_fixed_point() -> None:
+    legacy_source = (
+        "from app.routers.api_key import (\n"
+        "    _get_api_key_dynamic as _get_api_key_dynamic,\n"
+        "    get_api_key as get_api_key,\n"
+        ")\n"
+    )
+    app_source = (
+        "import legacy_app as legacy\n"
+        "source = object()\n"
+        "stops = iter([False, True])\n"
+        "while (compat := source):\n"
+        "    source = legacy\n"
+        "    if next(stops):\n"
+        "        break\n"
+        "dependency = compat.get_api_key\n"
+    )
+
+    errors = legacy_guard.validate_api_key_dependency_ownership(
+        legacy_source,
+        _app_sources({"app/main.py": app_source}),
+    )
+
+    assert errors == [
+        "app/main.py: legacy API-key dependency attribute access is forbidden: get_api_key"
+    ]
+
+
+def test_api_key_ownership_guard_rescans_while_test_with_backedge_aliases() -> None:
+    legacy_source = (
+        "from app.routers.api_key import (\n"
+        "    _get_api_key_dynamic as _get_api_key_dynamic,\n"
+        "    get_api_key as get_api_key,\n"
+        ")\n"
+    )
+    app_source = (
+        "import legacy_app as legacy\n"
+        "source = object()\n"
+        "first = True\n"
+        "while first or source.get_api_key:\n"
+        "    if first:\n"
+        "        first = False\n"
+        "        source = legacy\n"
+        "        continue\n"
+        "    break\n"
+    )
+
+    errors = legacy_guard.validate_api_key_dependency_ownership(
+        legacy_source,
+        _app_sources({"app/main.py": app_source}),
+    )
+
+    assert errors == [
+        "app/main.py: legacy API-key dependency attribute access is forbidden: get_api_key"
+    ]
+
+
+@pytest.mark.parametrize("transfer", ["break", "continue"])
+def test_api_key_ownership_guard_stops_loop_flow_at_abrupt_transfer(
+    transfer: str,
+) -> None:
+    legacy_source = (
+        "from app.routers.api_key import (\n"
+        "    _get_api_key_dynamic as _get_api_key_dynamic,\n"
+        "    get_api_key as get_api_key,\n"
+        ")\n"
+    )
+    app_source = (
+        "import legacy_app as legacy\n"
+        "compat = object()\n"
+        "for item in items:\n"
+        "    compat = legacy\n"
+        f"    {transfer}\n"
+        "    compat = object()\n"
+        "dependency = compat.get_api_key\n"
+    )
+
+    errors = legacy_guard.validate_api_key_dependency_ownership(
+        legacy_source,
+        _app_sources({"app/main.py": app_source}),
+    )
+
+    assert errors == [
+        "app/main.py: legacy API-key dependency attribute access is forbidden: get_api_key"
+    ]
+
+
+def test_api_key_ownership_guard_allows_normal_loop_fallthrough_to_clear_alias() -> None:
+    legacy_source = (
+        "from app.routers.api_key import (\n"
+        "    _get_api_key_dynamic as _get_api_key_dynamic,\n"
+        "    get_api_key as get_api_key,\n"
+        ")\n"
+    )
+    app_source = (
+        "import legacy_app as legacy\n"
+        "compat = object()\n"
+        "for item in items:\n"
+        "    compat = legacy\n"
+        "    compat = object()\n"
+        "dependency = compat.get_api_key\n"
+    )
+
+    errors = legacy_guard.validate_api_key_dependency_ownership(
+        legacy_source,
+        _app_sources({"app/main.py": app_source}),
+    )
+
+    assert errors == []
+
+
+@pytest.mark.parametrize(
+    ("transfer", "finally_body", "expected_error"),
+    [
+        ("break", "pass", True),
+        ("continue", "pass", True),
+        ("break", "compat = object()", False),
+        ("continue", "compat = object()", False),
+    ],
+    ids=[
+        "try-break-keeps-legacy",
+        "try-continue-keeps-legacy",
+        "finally-clears-try-break",
+        "finally-clears-try-continue",
+    ],
+)
+def test_api_key_ownership_guard_applies_finally_to_loop_transfer(
+    transfer: str,
+    finally_body: str,
+    expected_error: bool,
+) -> None:
+    legacy_source = (
+        "from app.routers.api_key import (\n"
+        "    _get_api_key_dynamic as _get_api_key_dynamic,\n"
+        "    get_api_key as get_api_key,\n"
+        ")\n"
+    )
+    app_source = (
+        "import legacy_app as legacy\n"
+        "compat = object()\n"
+        "for item in items:\n"
+        "    compat = legacy\n"
+        "    try:\n"
+        f"        {transfer}\n"
+        "    finally:\n"
+        f"        {finally_body}\n"
+        "    compat = object()\n"
+        "dependency = compat.get_api_key\n"
+    )
+
+    errors = legacy_guard.validate_api_key_dependency_ownership(
+        legacy_source,
+        _app_sources({"app/main.py": app_source}),
+    )
+
+    expected = ["app/main.py: legacy API-key dependency attribute access is forbidden: get_api_key"]
+    assert errors == (expected if expected_error else [])
+
+
+@pytest.mark.parametrize(
+    "compound_statement",
+    [
+        ("try:\n    might_raise()\nexcept Exception:\n    pass\nfinally:\n    compat = object()\n"),
+        "match value:\n    case _:\n        compat = object()\n",
+    ],
+    ids=["finally-clears-alias", "irrefutable-match-clears-alias"],
+)
+def test_api_key_ownership_guard_allows_guaranteed_compound_alias_clear(
+    compound_statement: str,
+) -> None:
+    legacy_source = (
+        "from app.routers.api_key import (\n"
+        "    _get_api_key_dynamic as _get_api_key_dynamic,\n"
+        "    get_api_key as get_api_key,\n"
+        ")\n"
+    )
+    app_source = (
+        "import legacy_app as legacy\n"
+        "compat = legacy\n"
+        f"{compound_statement}"
+        "dependency = compat.get_api_key\n"
+    )
+
+    errors = legacy_guard.validate_api_key_dependency_ownership(
+        legacy_source,
+        _app_sources({"app/main.py": app_source}),
+    )
+
+    assert errors == []
+
+
+@pytest.mark.parametrize(
+    "nested_body",
+    [
+        ("    for item in items:\n        compat = legacy\n        raise RuntimeError()\n"),
+        (
+            "    if enabled:\n"
+            "        compat = legacy\n"
+            "        might_raise()\n"
+            "        compat = object()\n"
+        ),
+    ],
+    ids=["nested-loop-exception", "nested-if-exception"],
+)
+def test_api_key_ownership_guard_propagates_nested_exception_alias_state(
+    nested_body: str,
+) -> None:
+    legacy_source = (
+        "from app.routers.api_key import (\n"
+        "    _get_api_key_dynamic as _get_api_key_dynamic,\n"
+        "    get_api_key as get_api_key,\n"
+        ")\n"
+    )
+    app_source = (
+        "import legacy_app as legacy\n"
+        "compat = object()\n"
+        "try:\n"
+        f"{nested_body}"
+        "except Exception:\n"
+        "    pass\n"
+        "dependency = compat.get_api_key\n"
+    )
+
+    errors = legacy_guard.validate_api_key_dependency_ownership(
+        legacy_source,
+        _app_sources({"app/main.py": app_source}),
+    )
+
+    assert errors == [
+        "app/main.py: legacy API-key dependency attribute access is forbidden: get_api_key"
+    ]
+
+
+def test_api_key_ownership_guard_allows_finally_to_clear_nested_exception_alias() -> None:
+    legacy_source = (
+        "from app.routers.api_key import (\n"
+        "    _get_api_key_dynamic as _get_api_key_dynamic,\n"
+        "    get_api_key as get_api_key,\n"
+        ")\n"
+    )
+    app_source = (
+        "import legacy_app as legacy\n"
+        "compat = object()\n"
+        "try:\n"
+        "    if enabled:\n"
+        "        compat = legacy\n"
+        "        might_raise()\n"
+        "except Exception:\n"
+        "    pass\n"
+        "finally:\n"
+        "    compat = object()\n"
+        "dependency = compat.get_api_key\n"
+    )
+
+    errors = legacy_guard.validate_api_key_dependency_ownership(
+        legacy_source,
+        _app_sources({"app/main.py": app_source}),
+    )
+
+    assert errors == []
+
+
+def test_api_key_ownership_guard_applies_inner_finally_before_outer_handler() -> None:
+    legacy_source = (
+        "from app.routers.api_key import (\n"
+        "    _get_api_key_dynamic as _get_api_key_dynamic,\n"
+        "    get_api_key as get_api_key,\n"
+        ")\n"
+    )
+    app_source = (
+        "import legacy_app as legacy\n"
+        "compat = object()\n"
+        "try:\n"
+        "    try:\n"
+        "        compat = legacy\n"
+        "        raise RuntimeError()\n"
+        "    finally:\n"
+        "        compat = object()\n"
+        "except RuntimeError:\n"
+        "    pass\n"
         "dependency = compat.get_api_key\n"
     )
 

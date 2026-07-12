@@ -513,25 +513,45 @@ def _static_module_reference(
         if parent is not None:
             return f"{parent}.{node.attr}"
         return None
+    if isinstance(node, ast.Subscript):
+        container = _static_module_reference(
+            node.value,
+            module_aliases=module_aliases,
+            import_module_aliases=import_module_aliases,
+            static_string_bindings=static_string_bindings,
+        )
+        if container == "sys.modules":
+            return _resolve_static_string(node.slice, static_string_bindings)
+        return None
     if not isinstance(node, ast.Call):
         return None
 
-    is_import_module = (
-        isinstance(node.func, ast.Name) and node.func.id in import_module_aliases
-    ) or (
-        isinstance(node.func, ast.Attribute)
-        and node.func.attr == "import_module"
-        and isinstance(node.func.value, ast.Name)
-        and module_aliases.get(node.func.value.id) == "importlib"
+    function_reference = _static_module_reference(
+        node.func,
+        module_aliases=module_aliases,
+        import_module_aliases=import_module_aliases,
+        static_string_bindings=static_string_bindings,
     )
-    if not is_import_module:
+    if (
+        function_reference == "sys.modules.get"
+        and node.args
+        and not any(keyword.arg == "name" for keyword in node.keywords)
+    ):
+        return _resolve_static_string(node.args[0], static_string_bindings)
+    is_module_loader = (
+        function_reference in {"builtins.__import__", "importlib.import_module"}
+        or isinstance(node.func, ast.Name)
+        and node.func.id in import_module_aliases
+    )
+    if not is_module_loader:
         return None
     module_node = node.args[0] if node.args else None
-    package_node = node.args[1] if len(node.args) >= 2 else None
+    supports_relative_package = function_reference != "builtins.__import__"
+    package_node = node.args[1] if supports_relative_package and len(node.args) >= 2 else None
     for keyword in node.keywords:
         if keyword.arg == "name":
             module_node = keyword.value
-        elif keyword.arg == "package":
+        elif keyword.arg == "package" and supports_relative_package:
             package_node = keyword.value
     if module_node is None:
         return None
@@ -1885,6 +1905,28 @@ def _lambda_local_bindings(node: ast.Lambda) -> set[str]:
     return {argument.arg for argument in arguments}
 
 
+def _match_pattern_bindings(pattern: ast.pattern) -> set[str]:
+    """Return names captured by one structural pattern."""
+
+    bindings: set[str] = set()
+    for node in ast.walk(pattern):
+        if isinstance(node, (ast.MatchAs, ast.MatchStar)) and node.name is not None:
+            bindings.add(node.name)
+        elif isinstance(node, ast.MatchMapping) and node.rest is not None:
+            bindings.add(node.rest)
+    return bindings
+
+
+def _is_unguarded_irrefutable_case(case: ast.match_case) -> bool:
+    """Return whether a match case guarantees that some case body executes."""
+
+    return (
+        case.guard is None
+        and isinstance(case.pattern, ast.MatchAs)
+        and (case.pattern.pattern is None)
+    )
+
+
 def _scan_api_key_alias_expressions(
     expressions: Sequence[ast.expr],
     *,
@@ -1911,20 +1953,497 @@ def _join_api_key_alias_states(
     all_names = {name for modules, _imports in states for name in modules}
     for name in all_names:
         possible = {modules.get(name) for modules, _imports in states}
-        if "legacy_app" in possible:
-            joined_modules[name] = "legacy_app"
-        elif "importlib" in possible:
-            joined_modules[name] = "importlib"
+        resolved = _preferred_api_key_module_reference(possible)
+        if resolved is not None:
+            joined_modules[name] = resolved
     joined_imports = set().union(*(imports for _modules, imports in states))
     return joined_modules, joined_imports
 
 
 def _preferred_api_key_module_reference(references: AbstractSet[str | None]) -> str | None:
-    if "legacy_app" in references:
-        return "legacy_app"
-    if "importlib" in references:
-        return "importlib"
+    for reference in (
+        "legacy_app",
+        "sys.modules",
+        "builtins.__import__",
+        "importlib.import_module",
+        "sys",
+        "builtins",
+        "importlib",
+    ):
+        if reference in references:
+            return reference
     return None
+
+
+ApiKeyAliasState = tuple[dict[str, str], set[str]]
+
+
+@dataclass(frozen=True)
+class _ApiKeyLoopFlow:
+    normal: ApiKeyAliasState | None
+    breaks: ApiKeyAliasState | None = None
+    continues: ApiKeyAliasState | None = None
+
+
+def _join_optional_api_key_alias_states(
+    *states: ApiKeyAliasState | None,
+) -> ApiKeyAliasState | None:
+    present = tuple(state for state in states if state is not None)
+    return _join_api_key_alias_states(*present) if present else None
+
+
+def _apply_api_key_loop_statement_flow(
+    statement: ast.stmt,
+    *,
+    entry_state: ApiKeyAliasState,
+    static_string_bindings: Mapping[str, str],
+) -> _ApiKeyLoopFlow:
+    """Apply one outer-loop statement without flattening abrupt transfers."""
+
+    if isinstance(statement, ast.Break):
+        return _ApiKeyLoopFlow(normal=None, breaks=entry_state)
+    if isinstance(statement, ast.Continue):
+        return _ApiKeyLoopFlow(normal=None, continues=entry_state)
+    if isinstance(statement, (ast.Return, ast.Raise)):
+        return _ApiKeyLoopFlow(normal=None)
+
+    if isinstance(statement, ast.If):
+        condition_state = _apply_api_key_alias_expression(
+            statement.test,
+            module_aliases=entry_state[0],
+            import_module_aliases=entry_state[1],
+            static_string_bindings=static_string_bindings,
+        )
+        body_flow = _apply_api_key_loop_block_flow(
+            statement.body,
+            entry_state=condition_state,
+            static_string_bindings=static_string_bindings,
+        )
+        else_flow = _apply_api_key_loop_block_flow(
+            statement.orelse,
+            entry_state=condition_state,
+            static_string_bindings=static_string_bindings,
+        )
+        return _ApiKeyLoopFlow(
+            normal=_join_optional_api_key_alias_states(body_flow.normal, else_flow.normal),
+            breaks=_join_optional_api_key_alias_states(body_flow.breaks, else_flow.breaks),
+            continues=_join_optional_api_key_alias_states(
+                body_flow.continues,
+                else_flow.continues,
+            ),
+        )
+
+    if isinstance(statement, (ast.With, ast.AsyncWith)):
+        body_modules = dict(entry_state[0])
+        body_imports = set(entry_state[1])
+        for item in statement.items:
+            body_modules, body_imports = _apply_api_key_alias_expression(
+                item.context_expr,
+                module_aliases=body_modules,
+                import_module_aliases=body_imports,
+                static_string_bindings=static_string_bindings,
+            )
+            if item.optional_vars is not None:
+                for target_name in _assignment_target_names(item.optional_vars):
+                    body_modules.pop(target_name, None)
+                    body_imports.discard(target_name)
+        body_entry = (body_modules, body_imports)
+        body_flow = _apply_api_key_loop_block_flow(
+            statement.body,
+            entry_state=body_entry,
+            static_string_bindings=static_string_bindings,
+        )
+        return _ApiKeyLoopFlow(
+            # A context manager may suppress an exception before the next body statement.
+            normal=_join_optional_api_key_alias_states(body_entry, body_flow.normal),
+            breaks=body_flow.breaks,
+            continues=body_flow.continues,
+        )
+
+    if isinstance(statement, ast.Match):
+        subject_state = _apply_api_key_alias_expression(
+            statement.subject,
+            module_aliases=entry_state[0],
+            import_module_aliases=entry_state[1],
+            static_string_bindings=static_string_bindings,
+        )
+        case_flows: list[_ApiKeyLoopFlow] = []
+        has_irrefutable_case = False
+        for case in statement.cases:
+            bindings = _match_pattern_bindings(case.pattern)
+            case_modules = {
+                name: module for name, module in subject_state[0].items() if name not in bindings
+            }
+            case_imports = set(subject_state[1]) - bindings
+            if case.guard is not None:
+                case_modules, case_imports = _apply_api_key_alias_expression(
+                    case.guard,
+                    module_aliases=case_modules,
+                    import_module_aliases=case_imports,
+                    static_string_bindings=static_string_bindings,
+                )
+            case_flows.append(
+                _apply_api_key_loop_block_flow(
+                    case.body,
+                    entry_state=(case_modules, case_imports),
+                    static_string_bindings=static_string_bindings,
+                )
+            )
+            has_irrefutable_case = has_irrefutable_case or _is_unguarded_irrefutable_case(case)
+        unmatched_state = None if has_irrefutable_case else subject_state
+        return _ApiKeyLoopFlow(
+            normal=_join_optional_api_key_alias_states(
+                unmatched_state,
+                *(flow.normal for flow in case_flows),
+            ),
+            breaks=_join_optional_api_key_alias_states(*(flow.breaks for flow in case_flows)),
+            continues=_join_optional_api_key_alias_states(*(flow.continues for flow in case_flows)),
+        )
+
+    if isinstance(statement, (ast.Try, ast.TryStar)):
+        body_flow = _apply_api_key_loop_block_flow(
+            statement.body,
+            entry_state=entry_state,
+            static_string_bindings=static_string_bindings,
+        )
+        else_flow = (
+            _apply_api_key_loop_block_flow(
+                statement.orelse,
+                entry_state=body_flow.normal,
+                static_string_bindings=static_string_bindings,
+            )
+            if body_flow.normal is not None
+            else _ApiKeyLoopFlow(normal=None)
+        )
+
+        handler_entry = _api_key_exception_prefix_state(
+            statement.body,
+            entry_state=entry_state,
+            static_string_bindings=static_string_bindings,
+        )
+        handler_flows: list[_ApiKeyLoopFlow] = []
+        for handler in statement.handlers:
+            handler_modules = dict(handler_entry[0])
+            handler_imports = set(handler_entry[1])
+            if handler.name is not None:
+                handler_modules.pop(handler.name, None)
+                handler_imports.discard(handler.name)
+            handler_flows.append(
+                _apply_api_key_loop_block_flow(
+                    handler.body,
+                    entry_state=(handler_modules, handler_imports),
+                    static_string_bindings=static_string_bindings,
+                )
+            )
+
+        combined = _ApiKeyLoopFlow(
+            normal=_join_optional_api_key_alias_states(
+                else_flow.normal,
+                *(flow.normal for flow in handler_flows),
+            ),
+            breaks=_join_optional_api_key_alias_states(
+                body_flow.breaks,
+                else_flow.breaks,
+                *(flow.breaks for flow in handler_flows),
+            ),
+            continues=_join_optional_api_key_alias_states(
+                body_flow.continues,
+                else_flow.continues,
+                *(flow.continues for flow in handler_flows),
+            ),
+        )
+        if not statement.finalbody:
+            return combined
+
+        final_normal: ApiKeyAliasState | None = None
+        final_breaks: ApiKeyAliasState | None = None
+        final_continues: ApiKeyAliasState | None = None
+        for exit_kind, exit_state in (
+            ("normal", combined.normal),
+            ("break", combined.breaks),
+            ("continue", combined.continues),
+            ("exception", handler_entry),
+        ):
+            if exit_state is None:
+                continue
+            final_flow = _apply_api_key_loop_block_flow(
+                statement.finalbody,
+                entry_state=exit_state,
+                static_string_bindings=static_string_bindings,
+            )
+            if final_flow.normal is not None:
+                if exit_kind == "normal":
+                    final_normal = _join_optional_api_key_alias_states(
+                        final_normal,
+                        final_flow.normal,
+                    )
+                elif exit_kind == "break":
+                    final_breaks = _join_optional_api_key_alias_states(
+                        final_breaks,
+                        final_flow.normal,
+                    )
+                elif exit_kind == "continue":
+                    final_continues = _join_optional_api_key_alias_states(
+                        final_continues,
+                        final_flow.normal,
+                    )
+            final_breaks = _join_optional_api_key_alias_states(
+                final_breaks,
+                final_flow.breaks,
+            )
+            final_continues = _join_optional_api_key_alias_states(
+                final_continues,
+                final_flow.continues,
+            )
+        return _ApiKeyLoopFlow(
+            normal=final_normal,
+            breaks=final_breaks,
+            continues=final_continues,
+        )
+
+    # A nested loop owns its own break/continue statements and is one normal outer statement.
+    normal_state = _apply_api_key_alias_statements(
+        [statement],
+        module_aliases=entry_state[0],
+        import_module_aliases=entry_state[1],
+        static_string_bindings=static_string_bindings,
+    )
+    return _ApiKeyLoopFlow(normal=normal_state)
+
+
+def _apply_api_key_loop_block_flow(
+    statements: Sequence[ast.stmt],
+    *,
+    entry_state: ApiKeyAliasState,
+    static_string_bindings: Mapping[str, str],
+) -> _ApiKeyLoopFlow:
+    """Apply one loop block and keep normal, break, and continue exits separate."""
+
+    normal: ApiKeyAliasState | None = entry_state
+    breaks: ApiKeyAliasState | None = None
+    continues: ApiKeyAliasState | None = None
+    for statement in statements:
+        if normal is None:
+            break
+        statement_flow = _apply_api_key_loop_statement_flow(
+            statement,
+            entry_state=normal,
+            static_string_bindings=static_string_bindings,
+        )
+        normal = statement_flow.normal
+        breaks = _join_optional_api_key_alias_states(breaks, statement_flow.breaks)
+        continues = _join_optional_api_key_alias_states(continues, statement_flow.continues)
+    return _ApiKeyLoopFlow(normal=normal, breaks=breaks, continues=continues)
+
+
+def _loop_api_key_alias_fixed_point(
+    statement: ast.For | ast.AsyncFor | ast.While,
+    *,
+    initial_modules: Mapping[str, str],
+    initial_imports: AbstractSet[str],
+    static_string_bindings: Mapping[str, str],
+) -> tuple[
+    tuple[dict[str, str], set[str]],
+    tuple[dict[str, str], set[str]],
+    tuple[dict[str, str], set[str]],
+    tuple[dict[str, str], set[str]] | None,
+]:
+    """Return iteration, body, no-break, and break states for repeated iterations."""
+
+    initial_state = (dict(initial_modules), set(initial_imports))
+    iteration_entry = initial_state
+    while True:
+        tested_state = (
+            _apply_api_key_alias_expression(
+                statement.test,
+                module_aliases=iteration_entry[0],
+                import_module_aliases=iteration_entry[1],
+                static_string_bindings=static_string_bindings,
+            )
+            if isinstance(statement, ast.While)
+            else iteration_entry
+        )
+        body_modules = dict(tested_state[0])
+        body_imports = set(tested_state[1])
+        if isinstance(statement, (ast.For, ast.AsyncFor)):
+            for target_name in _assignment_target_names(statement.target):
+                body_modules.pop(target_name, None)
+                body_imports.discard(target_name)
+        body_flow = _apply_api_key_loop_block_flow(
+            statement.body,
+            entry_state=(body_modules, body_imports),
+            static_string_bindings=static_string_bindings,
+        )
+        backedge_state = _join_optional_api_key_alias_states(
+            body_flow.normal,
+            body_flow.continues,
+        )
+        next_iteration_entry = _join_optional_api_key_alias_states(
+            initial_state,
+            backedge_state,
+        )
+        if next_iteration_entry is None:
+            raise RuntimeError("API-key alias loop analysis lost its initial state")
+        if next_iteration_entry == iteration_entry:
+            return (
+                iteration_entry,
+                (body_modules, body_imports),
+                tested_state,
+                body_flow.breaks,
+            )
+        iteration_entry = next_iteration_entry
+
+
+def _api_key_exception_prefix_state(
+    statements: Sequence[ast.stmt],
+    *,
+    entry_state: ApiKeyAliasState,
+    static_string_bindings: Mapping[str, str],
+) -> ApiKeyAliasState:
+    """Join every state from which a nested statement may raise."""
+
+    possible_states: list[ApiKeyAliasState] = [entry_state]
+    current_state = entry_state
+    for statement in statements:
+        if isinstance(statement, ast.If):
+            condition_state = _apply_api_key_alias_expression(
+                statement.test,
+                module_aliases=current_state[0],
+                import_module_aliases=current_state[1],
+                static_string_bindings=static_string_bindings,
+            )
+            possible_states.extend(
+                [
+                    _api_key_exception_prefix_state(
+                        branch,
+                        entry_state=condition_state,
+                        static_string_bindings=static_string_bindings,
+                    )
+                    for branch in (statement.body, statement.orelse)
+                ]
+            )
+        elif isinstance(statement, (ast.For, ast.AsyncFor, ast.While)):
+            if isinstance(statement, ast.While):
+                loop_modules, loop_imports = current_state
+            else:
+                loop_modules, loop_imports = _apply_api_key_alias_expression(
+                    statement.iter,
+                    module_aliases=current_state[0],
+                    import_module_aliases=current_state[1],
+                    static_string_bindings=static_string_bindings,
+                )
+            _iteration_entry, body_entry, normal_exit, _break_exit = (
+                _loop_api_key_alias_fixed_point(
+                    statement,
+                    initial_modules=loop_modules,
+                    initial_imports=loop_imports,
+                    static_string_bindings=static_string_bindings,
+                )
+            )
+            possible_states.append(
+                _api_key_exception_prefix_state(
+                    statement.body,
+                    entry_state=body_entry,
+                    static_string_bindings=static_string_bindings,
+                )
+            )
+            possible_states.append(
+                _api_key_exception_prefix_state(
+                    statement.orelse,
+                    entry_state=normal_exit,
+                    static_string_bindings=static_string_bindings,
+                )
+            )
+        elif isinstance(statement, (ast.With, ast.AsyncWith)):
+            body_modules = dict(current_state[0])
+            body_imports = set(current_state[1])
+            for item in statement.items:
+                body_modules, body_imports = _apply_api_key_alias_expression(
+                    item.context_expr,
+                    module_aliases=body_modules,
+                    import_module_aliases=body_imports,
+                    static_string_bindings=static_string_bindings,
+                )
+                if item.optional_vars is not None:
+                    for target_name in _assignment_target_names(item.optional_vars):
+                        body_modules.pop(target_name, None)
+                        body_imports.discard(target_name)
+            possible_states.append(
+                _api_key_exception_prefix_state(
+                    statement.body,
+                    entry_state=(body_modules, body_imports),
+                    static_string_bindings=static_string_bindings,
+                )
+            )
+        elif isinstance(statement, ast.Match):
+            subject_state = _apply_api_key_alias_expression(
+                statement.subject,
+                module_aliases=current_state[0],
+                import_module_aliases=current_state[1],
+                static_string_bindings=static_string_bindings,
+            )
+            for case in statement.cases:
+                bindings = _match_pattern_bindings(case.pattern)
+                case_modules = {
+                    name: module
+                    for name, module in subject_state[0].items()
+                    if name not in bindings
+                }
+                case_imports = set(subject_state[1]) - bindings
+                if case.guard is not None:
+                    case_modules, case_imports = _apply_api_key_alias_expression(
+                        case.guard,
+                        module_aliases=case_modules,
+                        import_module_aliases=case_imports,
+                        static_string_bindings=static_string_bindings,
+                    )
+                possible_states.append(
+                    _api_key_exception_prefix_state(
+                        case.body,
+                        entry_state=(case_modules, case_imports),
+                        static_string_bindings=static_string_bindings,
+                    )
+                )
+        elif isinstance(statement, (ast.Try, ast.TryStar)):
+            nested_handler_entry = _api_key_exception_prefix_state(
+                statement.body,
+                entry_state=current_state,
+                static_string_bindings=static_string_bindings,
+            )
+            escaping_exception_states = [nested_handler_entry]
+            for handler in statement.handlers:
+                escaping_exception_states.append(
+                    _api_key_exception_prefix_state(
+                        handler.body,
+                        entry_state=nested_handler_entry,
+                        static_string_bindings=static_string_bindings,
+                    )
+                )
+            escaping_exception_states.append(
+                _api_key_exception_prefix_state(
+                    statement.orelse,
+                    entry_state=current_state,
+                    static_string_bindings=static_string_bindings,
+                )
+            )
+            escaping_exception_state = _join_api_key_alias_states(*escaping_exception_states)
+            if statement.finalbody:
+                escaping_exception_state = _apply_api_key_alias_statements(
+                    statement.finalbody,
+                    module_aliases=escaping_exception_state[0],
+                    import_module_aliases=escaping_exception_state[1],
+                    static_string_bindings=static_string_bindings,
+                )
+            possible_states.append(escaping_exception_state)
+
+        current_state = _apply_api_key_alias_statements(
+            [statement],
+            module_aliases=current_state[0],
+            import_module_aliases=current_state[1],
+            static_string_bindings=static_string_bindings,
+        )
+        possible_states.append(current_state)
+    return _join_api_key_alias_states(*possible_states)
 
 
 def _evaluate_api_key_alias_expression(
@@ -1991,6 +2510,10 @@ def _evaluate_api_key_alias_expression(
         )
         resolved_module = _preferred_api_key_module_reference(value_refs)
         for target_name in _assignment_target_names(expression.target):
+            if value_refs & {"builtins.__import__", "importlib.import_module"}:
+                next_imports.add(target_name)
+            else:
+                next_imports.discard(target_name)
             if resolved_module is not None:
                 next_modules[target_name] = resolved_module
             else:
@@ -2252,21 +2775,160 @@ def _apply_api_key_alias_statements(
                 import_module_aliases=condition_imports,
                 static_string_bindings=static_string_bindings,
             )
-            joined_modules: dict[str, str] = {}
-            for name in set(body_state[0]) | set(else_state[0]):
-                possible = {body_state[0].get(name), else_state[0].get(name)}
-                if "legacy_app" in possible:
-                    joined_modules[name] = "legacy_app"
-                elif "importlib" in possible:
-                    joined_modules[name] = "importlib"
-            next_modules = joined_modules
-            next_imports = body_state[1] | else_state[1]
+            next_modules, next_imports = _join_api_key_alias_states(body_state, else_state)
+            continue
+
+        if isinstance(statement, (ast.For, ast.AsyncFor, ast.While)):
+            expression = (
+                statement.iter if isinstance(statement, (ast.For, ast.AsyncFor)) else statement.test
+            )
+            if isinstance(statement, ast.While):
+                loop_modules, loop_imports = dict(next_modules), set(next_imports)
+            else:
+                loop_modules, loop_imports = _apply_api_key_alias_expression(
+                    expression,
+                    module_aliases=next_modules,
+                    import_module_aliases=next_imports,
+                    static_string_bindings=static_string_bindings,
+                )
+            (
+                _iteration_entry,
+                _body_entry,
+                normal_loop_exit,
+                break_exit,
+            ) = _loop_api_key_alias_fixed_point(
+                statement,
+                initial_modules=loop_modules,
+                initial_imports=loop_imports,
+                static_string_bindings=static_string_bindings,
+            )
+            else_state = _apply_api_key_alias_statements(
+                statement.orelse,
+                module_aliases=normal_loop_exit[0],
+                import_module_aliases=normal_loop_exit[1],
+                static_string_bindings=static_string_bindings,
+            )
+            next_modules, next_imports = _join_api_key_alias_states(
+                else_state,
+                *((break_exit,) if break_exit is not None else ()),
+            )
+            continue
+
+        if isinstance(statement, (ast.Try, ast.TryStar)):
+            entry_state = (dict(next_modules), set(next_imports))
+            handler_entry = _api_key_exception_prefix_state(
+                statement.body,
+                entry_state=entry_state,
+                static_string_bindings=static_string_bindings,
+            )
+            body_state = _apply_api_key_alias_statements(
+                statement.body,
+                module_aliases=entry_state[0],
+                import_module_aliases=entry_state[1],
+                static_string_bindings=static_string_bindings,
+            )
+            normal_state = _apply_api_key_alias_statements(
+                statement.orelse,
+                module_aliases=body_state[0],
+                import_module_aliases=body_state[1],
+                static_string_bindings=static_string_bindings,
+            )
+            continuing_states = [normal_state]
+            if statement.handlers:
+                for handler in statement.handlers:
+                    handler_modules = dict(handler_entry[0])
+                    handler_imports = set(handler_entry[1])
+                    if handler.name is not None:
+                        handler_modules.pop(handler.name, None)
+                        handler_imports.discard(handler.name)
+                    continuing_states.append(
+                        _apply_api_key_alias_statements(
+                            handler.body,
+                            module_aliases=handler_modules,
+                            import_module_aliases=handler_imports,
+                            static_string_bindings=static_string_bindings,
+                        )
+                    )
+            joined_state = _join_api_key_alias_states(*continuing_states)
+            if statement.finalbody:
+                joined_state = _apply_api_key_alias_statements(
+                    statement.finalbody,
+                    module_aliases=joined_state[0],
+                    import_module_aliases=joined_state[1],
+                    static_string_bindings=static_string_bindings,
+                )
+            next_modules, next_imports = joined_state
+            continue
+
+        if isinstance(statement, (ast.With, ast.AsyncWith)):
+            body_modules = dict(next_modules)
+            body_imports = set(next_imports)
+            for item in statement.items:
+                body_modules, body_imports = _apply_api_key_alias_expression(
+                    item.context_expr,
+                    module_aliases=body_modules,
+                    import_module_aliases=body_imports,
+                    static_string_bindings=static_string_bindings,
+                )
+                if item.optional_vars is not None:
+                    for target_name in _assignment_target_names(item.optional_vars):
+                        body_modules.pop(target_name, None)
+                        body_imports.discard(target_name)
+            with_prefix_states: list[tuple[dict[str, str], set[str]]] = [
+                (dict(body_modules), set(body_imports))
+            ]
+            body_state = with_prefix_states[0]
+            for body_statement in statement.body:
+                body_state = _apply_api_key_alias_statements(
+                    [body_statement],
+                    module_aliases=body_state[0],
+                    import_module_aliases=body_state[1],
+                    static_string_bindings=static_string_bindings,
+                )
+                with_prefix_states.append(body_state)
+            next_modules, next_imports = _join_api_key_alias_states(*with_prefix_states)
+            continue
+
+        if isinstance(statement, ast.Match):
+            subject_modules, subject_imports = _apply_api_key_alias_expression(
+                statement.subject,
+                module_aliases=next_modules,
+                import_module_aliases=next_imports,
+                static_string_bindings=static_string_bindings,
+            )
+            case_states: list[tuple[dict[str, str], set[str]]] = []
+            has_irrefutable_case = False
+            for case in statement.cases:
+                bindings = _match_pattern_bindings(case.pattern)
+                case_modules = {
+                    name: module for name, module in subject_modules.items() if name not in bindings
+                }
+                case_imports = set(subject_imports) - bindings
+                if case.guard is not None:
+                    case_modules, case_imports = _apply_api_key_alias_expression(
+                        case.guard,
+                        module_aliases=case_modules,
+                        import_module_aliases=case_imports,
+                        static_string_bindings=static_string_bindings,
+                    )
+                case_states.append(
+                    _apply_api_key_alias_statements(
+                        case.body,
+                        module_aliases=case_modules,
+                        import_module_aliases=case_imports,
+                        static_string_bindings=static_string_bindings,
+                    )
+                )
+                has_irrefutable_case = has_irrefutable_case or _is_unguarded_irrefutable_case(case)
+            if not has_irrefutable_case:
+                case_states.append((subject_modules, subject_imports))
+            next_modules, next_imports = _join_api_key_alias_states(*case_states)
             continue
 
         if isinstance(statement, ast.Import):
             for alias in statement.names:
                 local_name = alias.asname or alias.name.split(".", maxsplit=1)[0]
-                if alias.name in {"importlib", "legacy_app"}:
+                if alias.name in {"builtins", "importlib", "legacy_app", "sys"}:
                     next_modules[local_name] = alias.name
                 else:
                     next_modules.pop(local_name, None)
@@ -2275,7 +2937,16 @@ def _apply_api_key_alias_statements(
         if isinstance(statement, ast.ImportFrom):
             for alias in statement.names:
                 local_name = alias.asname or alias.name
-                if statement.module == "importlib" and alias.name == "import_module":
+                qualified = f"{statement.module}.{alias.name}"
+                if qualified in {
+                    "builtins.__import__",
+                    "importlib.import_module",
+                    "sys.modules",
+                }:
+                    next_modules[local_name] = qualified
+                else:
+                    next_modules.pop(local_name, None)
+                if qualified in {"builtins.__import__", "importlib.import_module"}:
                     next_imports.add(local_name)
                 else:
                     next_imports.discard(local_name)
@@ -2299,11 +2970,14 @@ def _apply_api_key_alias_statements(
             resolved_module = _preferred_api_key_module_reference(value_references)
             for target in targets:
                 for target_name in _assignment_target_names(target):
-                    if "importlib.import_module" in value_references:
+                    if value_references & {
+                        "builtins.__import__",
+                        "importlib.import_module",
+                    }:
                         next_imports.add(target_name)
                     else:
                         next_imports.discard(target_name)
-                    if resolved_module in {"importlib", "legacy_app"}:
+                    if resolved_module is not None:
                         next_modules[target_name] = resolved_module
                     else:
                         next_modules.pop(target_name, None)
@@ -2342,21 +3016,312 @@ def _apply_api_key_alias_statements(
     return next_modules, next_imports
 
 
-def _if_branch_node_ids(node: ast.If) -> set[int]:
-    """Return nodes handled by independent structured condition/branch scans."""
+_API_KEY_STRUCTURED_STATEMENT_TYPES = (
+    ast.If,
+    ast.For,
+    ast.AsyncFor,
+    ast.While,
+    ast.Try,
+    ast.TryStar,
+    ast.With,
+    ast.AsyncWith,
+    ast.Match,
+)
 
-    return {id(child) for child in ast.walk(node.test)} | {
-        id(child) for statement in [*node.body, *node.orelse] for child in ast.walk(statement)
-    }
 
+def _scan_api_key_structured_statement(
+    statement: (
+        ast.If
+        | ast.For
+        | ast.AsyncFor
+        | ast.While
+        | ast.Try
+        | ast.TryStar
+        | ast.With
+        | ast.AsyncWith
+        | ast.Match
+    ),
+    *,
+    filename: str,
+    module_aliases: Mapping[str, str],
+    import_module_aliases: AbstractSet[str],
+    static_string_bindings: Mapping[str, str],
+) -> list[str]:
+    """Scan one compound statement with path-sensitive alias state."""
 
-def _nested_if_node_ids(node: ast.If) -> set[int]:
-    ids: set[int] = set()
-    for statement in [*node.body, *node.orelse]:
-        if isinstance(statement, ast.If):
-            ids.add(id(statement))
-            ids.update(_nested_if_node_ids(statement))
-    return ids
+    errors: list[str] = []
+    if isinstance(statement, ast.If):
+        errors.extend(
+            _scan_api_key_alias_expressions(
+                [statement.test],
+                filename=filename,
+                inherited_module_aliases=module_aliases,
+                inherited_import_module_aliases=import_module_aliases,
+                inherited_static_string_bindings=static_string_bindings,
+                local_bindings=frozenset(),
+            )
+        )
+        condition_modules, condition_imports = _apply_api_key_alias_expression(
+            statement.test,
+            module_aliases=module_aliases,
+            import_module_aliases=import_module_aliases,
+            static_string_bindings=static_string_bindings,
+        )
+        for branch in (statement.body, statement.orelse):
+            errors.extend(
+                _scan_api_key_alias_scope(
+                    branch,
+                    filename=filename,
+                    inherited_module_aliases=condition_modules,
+                    inherited_import_module_aliases=condition_imports,
+                    inherited_static_string_bindings=static_string_bindings,
+                )
+            )
+        return errors
+
+    if isinstance(statement, (ast.For, ast.AsyncFor, ast.While)):
+        expression = (
+            statement.iter if isinstance(statement, (ast.For, ast.AsyncFor)) else statement.test
+        )
+        errors.extend(
+            _scan_api_key_alias_expressions(
+                [expression],
+                filename=filename,
+                inherited_module_aliases=module_aliases,
+                inherited_import_module_aliases=import_module_aliases,
+                inherited_static_string_bindings=static_string_bindings,
+                local_bindings=frozenset(),
+            )
+        )
+        if isinstance(statement, ast.While):
+            loop_modules, loop_imports = dict(module_aliases), set(import_module_aliases)
+        else:
+            loop_modules, loop_imports = _apply_api_key_alias_expression(
+                expression,
+                module_aliases=module_aliases,
+                import_module_aliases=import_module_aliases,
+                static_string_bindings=static_string_bindings,
+            )
+        (
+            iteration_entry,
+            body_entry,
+            normal_loop_exit,
+            _break_exit,
+        ) = _loop_api_key_alias_fixed_point(
+            statement,
+            initial_modules=loop_modules,
+            initial_imports=loop_imports,
+            static_string_bindings=static_string_bindings,
+        )
+        if isinstance(statement, ast.While):
+            errors.extend(
+                _scan_api_key_alias_expressions(
+                    [statement.test],
+                    filename=filename,
+                    inherited_module_aliases=iteration_entry[0],
+                    inherited_import_module_aliases=iteration_entry[1],
+                    inherited_static_string_bindings=static_string_bindings,
+                    local_bindings=frozenset(),
+                )
+            )
+        errors.extend(
+            _scan_api_key_alias_scope(
+                statement.body,
+                filename=filename,
+                inherited_module_aliases=body_entry[0],
+                inherited_import_module_aliases=body_entry[1],
+                inherited_static_string_bindings=static_string_bindings,
+                local_bindings=(
+                    set(_assignment_target_names(statement.target))
+                    if isinstance(statement, (ast.For, ast.AsyncFor))
+                    else frozenset()
+                ),
+            )
+        )
+        errors.extend(
+            _scan_api_key_alias_scope(
+                statement.orelse,
+                filename=filename,
+                inherited_module_aliases=normal_loop_exit[0],
+                inherited_import_module_aliases=normal_loop_exit[1],
+                inherited_static_string_bindings=static_string_bindings,
+            )
+        )
+        return errors
+
+    if isinstance(statement, (ast.With, ast.AsyncWith)):
+        body_modules = dict(module_aliases)
+        body_imports = set(import_module_aliases)
+        with_bindings: set[str] = set()
+        for item in statement.items:
+            errors.extend(
+                _scan_api_key_alias_expressions(
+                    [item.context_expr],
+                    filename=filename,
+                    inherited_module_aliases=body_modules,
+                    inherited_import_module_aliases=body_imports,
+                    inherited_static_string_bindings=static_string_bindings,
+                    local_bindings=frozenset(),
+                )
+            )
+            body_modules, body_imports = _apply_api_key_alias_expression(
+                item.context_expr,
+                module_aliases=body_modules,
+                import_module_aliases=body_imports,
+                static_string_bindings=static_string_bindings,
+            )
+            if item.optional_vars is not None:
+                with_bindings.update(_assignment_target_names(item.optional_vars))
+        errors.extend(
+            _scan_api_key_alias_scope(
+                statement.body,
+                filename=filename,
+                inherited_module_aliases=body_modules,
+                inherited_import_module_aliases=body_imports,
+                inherited_static_string_bindings=static_string_bindings,
+                local_bindings=with_bindings,
+            )
+        )
+        return errors
+
+    if isinstance(statement, ast.Match):
+        errors.extend(
+            _scan_api_key_alias_expressions(
+                [statement.subject],
+                filename=filename,
+                inherited_module_aliases=module_aliases,
+                inherited_import_module_aliases=import_module_aliases,
+                inherited_static_string_bindings=static_string_bindings,
+                local_bindings=frozenset(),
+            )
+        )
+        subject_modules, subject_imports = _apply_api_key_alias_expression(
+            statement.subject,
+            module_aliases=module_aliases,
+            import_module_aliases=import_module_aliases,
+            static_string_bindings=static_string_bindings,
+        )
+        for case in statement.cases:
+            bindings = _match_pattern_bindings(case.pattern)
+            case_modules = {
+                name: module for name, module in subject_modules.items() if name not in bindings
+            }
+            case_imports = set(subject_imports) - bindings
+            if case.guard is not None:
+                errors.extend(
+                    _scan_api_key_alias_expressions(
+                        [case.guard],
+                        filename=filename,
+                        inherited_module_aliases=case_modules,
+                        inherited_import_module_aliases=case_imports,
+                        inherited_static_string_bindings=static_string_bindings,
+                        local_bindings=frozenset(),
+                    )
+                )
+                case_modules, case_imports = _apply_api_key_alias_expression(
+                    case.guard,
+                    module_aliases=case_modules,
+                    import_module_aliases=case_imports,
+                    static_string_bindings=static_string_bindings,
+                )
+            errors.extend(
+                _scan_api_key_alias_scope(
+                    case.body,
+                    filename=filename,
+                    inherited_module_aliases=case_modules,
+                    inherited_import_module_aliases=case_imports,
+                    inherited_static_string_bindings=static_string_bindings,
+                    local_bindings=bindings,
+                )
+            )
+        return errors
+
+    entry_state = (dict(module_aliases), set(import_module_aliases))
+    errors.extend(
+        _scan_api_key_alias_scope(
+            statement.body,
+            filename=filename,
+            inherited_module_aliases=entry_state[0],
+            inherited_import_module_aliases=entry_state[1],
+            inherited_static_string_bindings=static_string_bindings,
+        )
+    )
+    handler_entry = _api_key_exception_prefix_state(
+        statement.body,
+        entry_state=entry_state,
+        static_string_bindings=static_string_bindings,
+    )
+    body_state = _apply_api_key_alias_statements(
+        statement.body,
+        module_aliases=entry_state[0],
+        import_module_aliases=entry_state[1],
+        static_string_bindings=static_string_bindings,
+    )
+    errors.extend(
+        _scan_api_key_alias_scope(
+            statement.orelse,
+            filename=filename,
+            inherited_module_aliases=body_state[0],
+            inherited_import_module_aliases=body_state[1],
+            inherited_static_string_bindings=static_string_bindings,
+        )
+    )
+    normal_state = _apply_api_key_alias_statements(
+        statement.orelse,
+        module_aliases=body_state[0],
+        import_module_aliases=body_state[1],
+        static_string_bindings=static_string_bindings,
+    )
+    continuing_states = [normal_state]
+    if statement.handlers:
+        for handler in statement.handlers:
+            if handler.type is not None:
+                errors.extend(
+                    _scan_api_key_alias_expressions(
+                        [handler.type],
+                        filename=filename,
+                        inherited_module_aliases=handler_entry[0],
+                        inherited_import_module_aliases=handler_entry[1],
+                        inherited_static_string_bindings=static_string_bindings,
+                        local_bindings=frozenset(),
+                    )
+                )
+            handler_bindings = {handler.name} if handler.name is not None else set()
+            errors.extend(
+                _scan_api_key_alias_scope(
+                    handler.body,
+                    filename=filename,
+                    inherited_module_aliases=handler_entry[0],
+                    inherited_import_module_aliases=handler_entry[1],
+                    inherited_static_string_bindings=static_string_bindings,
+                    local_bindings=handler_bindings,
+                )
+            )
+            handler_modules = {
+                name: module
+                for name, module in handler_entry[0].items()
+                if name not in handler_bindings
+            }
+            handler_imports = set(handler_entry[1]) - handler_bindings
+            continuing_states.append(
+                _apply_api_key_alias_statements(
+                    handler.body,
+                    module_aliases=handler_modules,
+                    import_module_aliases=handler_imports,
+                    static_string_bindings=static_string_bindings,
+                )
+            )
+    joined_state = _join_api_key_alias_states(*continuing_states)
+    errors.extend(
+        _scan_api_key_alias_scope(
+            statement.finalbody,
+            filename=filename,
+            inherited_module_aliases=joined_state[0],
+            inherited_import_module_aliases=joined_state[1],
+            inherited_static_string_bindings=static_string_bindings,
+        )
+    )
+    return errors
 
 
 def _scan_api_key_alias_scope(
@@ -2394,11 +3359,23 @@ def _scan_api_key_alias_scope(
     }
     static_string_bindings.update(local_static_string_bindings)
     scope_nodes, nested_scopes = _ordered_lexical_scope_nodes(statements)
-    all_if_nodes = [node for node in scope_nodes if isinstance(node, ast.If)]
-    nested_if_ids = {nested_id for node in all_if_nodes for nested_id in _nested_if_node_ids(node)}
-    root_if_nodes = {id(node): node for node in all_if_nodes if id(node) not in nested_if_ids}
-    structured_branch_node_ids = {
-        node_id for node in root_if_nodes.values() for node_id in _if_branch_node_ids(node)
+    structured_nodes = [
+        node for node in scope_nodes if isinstance(node, _API_KEY_STRUCTURED_STATEMENT_TYPES)
+    ]
+    nested_structured_ids = {
+        id(child)
+        for node in structured_nodes
+        for child in ast.walk(node)
+        if child is not node and isinstance(child, _API_KEY_STRUCTURED_STATEMENT_TYPES)
+    }
+    root_structured_nodes = {
+        id(node): node for node in structured_nodes if id(node) not in nested_structured_ids
+    }
+    structured_descendant_node_ids = {
+        id(child)
+        for node in root_structured_nodes.values()
+        for child in ast.walk(node)
+        if child is not node
     }
     structured_expression_binding_ids = {
         id(child)
@@ -2421,56 +3398,31 @@ def _scan_api_key_alias_scope(
         )
 
     for node in scope_nodes:
-        if id(node) in root_if_nodes:
-            root_if = root_if_nodes[id(node)]
+        if id(node) in root_structured_nodes:
+            structured_statement = root_structured_nodes[id(node)]
             errors.extend(
-                _scan_api_key_alias_expressions(
-                    [root_if.test],
+                _scan_api_key_structured_statement(
+                    structured_statement,
                     filename=filename,
-                    inherited_module_aliases=module_aliases,
-                    inherited_import_module_aliases=import_module_aliases,
-                    inherited_static_string_bindings=static_string_bindings,
-                    local_bindings=frozenset(),
-                )
-            )
-            condition_modules, condition_imports = _apply_api_key_alias_expression(
-                root_if.test,
-                module_aliases=module_aliases,
-                import_module_aliases=import_module_aliases,
-                static_string_bindings=static_string_bindings,
-            )
-            errors.extend(
-                _scan_api_key_alias_scope(
-                    root_if.body,
-                    filename=filename,
-                    inherited_module_aliases=condition_modules,
-                    inherited_import_module_aliases=condition_imports,
-                    inherited_static_string_bindings=static_string_bindings,
-                )
-            )
-            errors.extend(
-                _scan_api_key_alias_scope(
-                    root_if.orelse,
-                    filename=filename,
-                    inherited_module_aliases=condition_modules,
-                    inherited_import_module_aliases=condition_imports,
-                    inherited_static_string_bindings=static_string_bindings,
+                    module_aliases=module_aliases,
+                    import_module_aliases=import_module_aliases,
+                    static_string_bindings=static_string_bindings,
                 )
             )
             module_aliases, import_module_aliases = _apply_api_key_alias_statements(
-                [root_if],
+                [structured_statement],
                 module_aliases=module_aliases,
                 import_module_aliases=import_module_aliases,
                 static_string_bindings=static_string_bindings,
             )
-        elif id(node) in structured_branch_node_ids:
+        elif id(node) in structured_descendant_node_ids:
             continue
         elif id(node) in structured_expression_binding_ids:
             pass
         elif isinstance(node, ast.Import):
             for alias in node.names:
                 local_name = alias.asname or alias.name.split(".", maxsplit=1)[0]
-                if alias.name in {"importlib", "legacy_app"}:
+                if alias.name in {"builtins", "importlib", "legacy_app", "sys"}:
                     module_aliases[local_name] = alias.name
                 else:
                     module_aliases.pop(local_name, None)
@@ -2479,7 +3431,16 @@ def _scan_api_key_alias_scope(
                 local_name = alias.asname or alias.name
                 if node.module == "legacy_app" and alias.name == "*":
                     errors.append(f"{filename}: canonical code must not star import legacy_app")
-                if node.module == "importlib" and alias.name == "import_module":
+                qualified = f"{node.module}.{alias.name}"
+                if qualified in {
+                    "builtins.__import__",
+                    "importlib.import_module",
+                    "sys.modules",
+                }:
+                    module_aliases[local_name] = qualified
+                else:
+                    module_aliases.pop(local_name, None)
+                if qualified in {"builtins.__import__", "importlib.import_module"}:
                     import_module_aliases.add(local_name)
                 else:
                     import_module_aliases.discard(local_name)
@@ -2512,11 +3473,14 @@ def _scan_api_key_alias_scope(
             resolved_module = _preferred_api_key_module_reference(value_references)
             for target in targets:
                 for target_name in _assignment_target_names(target):
-                    if "importlib.import_module" in value_references:
+                    if value_references & {
+                        "builtins.__import__",
+                        "importlib.import_module",
+                    }:
                         import_module_aliases.add(target_name)
                     else:
                         import_module_aliases.discard(target_name)
-                    if resolved_module in {"importlib", "legacy_app"}:
+                    if resolved_module is not None:
                         module_aliases[target_name] = resolved_module
                     else:
                         module_aliases.pop(target_name, None)
@@ -2612,7 +3576,7 @@ def _scan_api_key_alias_scope(
     )
 
     for nested_scope in nested_scopes:
-        if id(nested_scope) in structured_branch_node_ids:
+        if id(nested_scope) in structured_descendant_node_ids:
             continue
         if isinstance(nested_scope, (ast.FunctionDef, ast.AsyncFunctionDef)):
             function_states = [
@@ -2689,8 +3653,8 @@ def _app_api_key_reverse_dependency_errors(
     return _scan_api_key_alias_scope(
         tree.body,
         filename=filename,
-        inherited_module_aliases={},
-        inherited_import_module_aliases=frozenset(),
+        inherited_module_aliases={"__import__": "builtins.__import__"},
+        inherited_import_module_aliases=frozenset({"__import__"}),
     )
 
 
