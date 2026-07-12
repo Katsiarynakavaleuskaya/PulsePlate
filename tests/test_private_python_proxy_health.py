@@ -165,14 +165,33 @@ def test_main_default_projects_exclude_large_pydantic_core_probe(
             results=(),
         )
 
-    def fake_parse_exact_pins(requirements_files: list[Path]) -> dict[str, str]:
+    def fake_parse_exact_pins(
+        requirements_files: list[Path],
+        projects: list[str] | None = None,
+    ) -> dict[str, str]:
         assert requirements_files
+        assert projects == [
+            "aiosqlite",
+            "cryptography",
+            "requests",
+            "pytest-xdist",
+            "hypothesis",
+            "mypy",
+            "ruff",
+            "librt",
+            "ast-serialize",
+            "pgvector",
+        ]
         return {
             "aiosqlite": "0.22.1",
             "cryptography": "48.0.1",
             "requests": "2.33.0",
             "pytest-xdist": "3.8.0",
             "hypothesis": "6.156.6",
+            "mypy": "2.2.0",
+            "ruff": "0.15.21",
+            "librt": "0.13.0",
+            "ast-serialize": "0.6.0",
             "pgvector": "0.4.2",
             "pydantic-core": "2.41.5",
         }
@@ -187,6 +206,10 @@ def test_main_default_projects_exclude_large_pydantic_core_probe(
         "requests",
         "pytest-xdist",
         "hypothesis",
+        "mypy",
+        "ruff",
+        "librt",
+        "ast-serialize",
         "pgvector",
     ]
     assert "pydantic-core" not in captured_projects

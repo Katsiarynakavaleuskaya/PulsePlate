@@ -224,9 +224,15 @@ def project_page_url(index_url: str, project: str) -> str:
     return index_url.rstrip("/") + "/" + quote(normalized_project, safe="") + "/"
 
 
-def parse_exact_pins(requirements_files: Iterable[Path]) -> dict[str, str]:
+def parse_exact_pins(
+    requirements_files: Iterable[Path],
+    projects: Iterable[str] | None = None,
+) -> dict[str, str]:
     """Return canonical package name to exact pinned version from requirements files."""
     pins: dict[str, str] = {}
+    selected_projects = (
+        None if projects is None else {normalize_project_name(project) for project in projects}
+    )
     for path in requirements_files:
         if not path.exists():
             raise FileNotFoundError(f"requirements file not found: {path}")
@@ -241,6 +247,8 @@ def parse_exact_pins(requirements_files: Iterable[Path]) -> dict[str, str]:
                 continue
             package, version = match.groups()
             normalized_package = normalize_project_name(package)
+            if selected_projects is not None and normalized_package not in selected_projects:
+                continue
             previous_version = pins.get(normalized_package)
             if previous_version is not None and previous_version != version:
                 raise ValueError(
@@ -762,15 +770,20 @@ def main(argv: Sequence[str] | None = None) -> int:
         "requests",
         "pytest-xdist",
         "hypothesis",
+        "mypy",
+        "ruff",
+        "librt",
+        "ast-serialize",
         "pgvector",
     ]
     requirements_files = args.requirements_file or [
         Path("requirements.txt"),
         Path("requirements-ci-lite.txt"),
         Path("requirements-test.txt"),
+        Path("requirements-dev.txt"),
     ]
     try:
-        pins = parse_exact_pins(requirements_files)
+        pins = parse_exact_pins(requirements_files, projects=projects)
         summary = check_health(
             index_url=args.index_url,
             projects=projects,

@@ -4,13 +4,16 @@ PR: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2107
 
 ## Discussion Thread Pass
 
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
 No actionable review threads are currently present. This artifact will be
 updated before merge if CodeRabbit, Sourcery, Cubic, Codex Security,
 `pulseplate-pr-review`, or human reviewers add actionable findings.
 
 ## Fixed in Commit Mapping
 
-No resolved actionable review threads yet.
+- No actionable review comments
 
 ## Merge Readiness
 
