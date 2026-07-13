@@ -181,6 +181,17 @@ def test_current_metadata_openapi_ownership_passes_growth_guard() -> None:
         ),
         (
             0,
+            textwrap.dedent("""
+                import sys as system
+                current_module = system.modules[__name__]
+                assign = setattr
+                installer_name = "_install_" + "openapi_builder"
+                assign(current_module, installer_name, replacement)
+                """),
+            "canonical OpenAPI re-export must not be rebound",
+        ),
+        (
+            0,
             "\nimport sys\nsys.modules[__name__]._install_openapi_builder = replacement\n",
             "canonical OpenAPI re-export must not be rebound",
         ),
@@ -499,6 +510,53 @@ def test_metadata_openapi_ownership_guard_allows_unrelated_namespace_mutations()
     sources = list(_openapi_ownership_sources())
     sources[0] += '\nglobals().pop("unrelated", None)\n'
     sources[4] += '\nvars(app).setdefault("unrelated", value)\n'
+
+    errors = legacy_guard.validate_application_metadata_openapi_ownership(*sources)
+
+    assert errors == []
+
+
+def test_metadata_openapi_ownership_guard_allows_other_module_alias() -> None:
+    sources = list(_openapi_ownership_sources())
+    sources[0] += textwrap.dedent("""
+        import sys as system
+        other_module = system.modules["app"]
+        value = other_module.__name__
+        """)
+
+    errors = legacy_guard.validate_application_metadata_openapi_ownership(*sources)
+
+    assert errors == []
+
+
+def test_metadata_openapi_ownership_guard_respects_safe_alias_reassignment() -> None:
+    sources = list(_openapi_ownership_sources())
+    sources[0] += textwrap.dedent("""
+        import sys as system
+        current_module = system.modules[__name__]
+        current_module = object()
+        assign = setattr
+        installer_name = "_install_" + "openapi_builder"
+        assign(current_module, installer_name, replacement)
+        """)
+
+    errors = legacy_guard.validate_application_metadata_openapi_ownership(*sources)
+
+    assert errors == []
+
+
+def test_metadata_openapi_ownership_guard_respects_nested_alias_shadowing() -> None:
+    sources = list(_openapi_ownership_sources())
+    sources[0] += textwrap.dedent("""
+        import sys as system
+        current_module = system.modules[__name__]
+        assign = setattr
+
+        def configure_unrelated_object():
+            current_module = object()
+            installer_name = "_install_" + "openapi_builder"
+            assign(current_module, installer_name, replacement)
+        """)
 
     errors = legacy_guard.validate_application_metadata_openapi_ownership(*sources)
 

@@ -6,7 +6,7 @@ from __future__ import annotations
 import argparse
 import ast
 from collections import Counter
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from importlib.util import resolve_name
 from pathlib import Path
@@ -2828,6 +2828,17 @@ def _namespace_mapping_mutation_names(
 def _namespace_rebindings(tree: ast.Module, protected_names: set[str]) -> set[str]:
     bindings = _module_static_string_bindings(tree)
     rebound: set[str] = set()
+    current_module_aliases: set[str] = set()
+    attribute_mutator_aliases: set[str] = {"delattr", "setattr"}
+
+    def same_module_scope_nodes(node: ast.AST) -> Iterator[ast.AST]:
+        """Walk a module statement without borrowing names from nested scopes."""
+
+        yield node
+        if isinstance(node, (ast.AsyncFunctionDef, ast.ClassDef, ast.FunctionDef, ast.Lambda)):
+            return
+        for child in ast.iter_child_nodes(node):
+            yield from same_module_scope_nodes(child)
 
     def record_target(target: ast.AST) -> None:
         if (
@@ -2844,6 +2855,49 @@ def _namespace_rebindings(tree: ast.Module, protected_names: set[str]) -> set[st
             rebound.update(protected_names)
         elif name in protected_names:
             rebound.add(name)
+
+    for statement in tree.body:
+        for node in same_module_scope_nodes(statement):
+            if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Name):
+                continue
+            if node.func.id not in attribute_mutator_aliases or len(node.args) < 2:
+                continue
+            if not (
+                isinstance(node.args[0], ast.Name) and node.args[0].id in current_module_aliases
+            ):
+                continue
+            attribute_name = _static_string(node.args[1], bindings)
+            if attribute_name is None:
+                rebound.update(protected_names)
+            elif attribute_name in protected_names:
+                rebound.add(attribute_name)
+
+        value: ast.AST | None = None
+        targets: Sequence[ast.expr] = ()
+        if isinstance(statement, ast.Assign):
+            value = statement.value
+            targets = statement.targets
+        elif isinstance(statement, ast.AnnAssign):
+            value = statement.value
+            targets = (statement.target,)
+        if value is not None:
+            binds_current_module = _is_current_module_object_shape(value) or (
+                isinstance(value, ast.Name) and value.id in current_module_aliases
+            )
+            binds_attribute_mutator = (
+                isinstance(value, ast.Name) and value.id in attribute_mutator_aliases
+            )
+            for target in targets:
+                if not isinstance(target, ast.Name):
+                    continue
+                if binds_current_module:
+                    current_module_aliases.add(target.id)
+                else:
+                    current_module_aliases.discard(target.id)
+                if binds_attribute_mutator:
+                    attribute_mutator_aliases.add(target.id)
+                else:
+                    attribute_mutator_aliases.discard(target.id)
 
     for node in ast.walk(tree):
         if isinstance(node, ast.Assign):
