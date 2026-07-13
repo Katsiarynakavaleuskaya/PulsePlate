@@ -37,7 +37,8 @@ pydantic>=2.13.4
 openai>=2.8.1
 httpx>=0.28.1
 requests>=2.33.0  # GHSA-gc5v-m9x4-r6x2 security floor
-pillow==12.2.0  # GHSA-whj4-6x5x-4v2j security floor; keep exact parity with pinned requirements*.txt lock surfaces to avoid resolver drift
+click==8.3.3  # Security floor for unsafe editor invocation; exact lock parity
+pillow==12.3.0  # July 2026 Pillow advisory cluster; exact lock parity
 python-dotenv>=1.2.1
 prometheus-client>=0.23.1
 python-multipart>=0.0.31  # SFTY-20260615 multipart parser advisory floor

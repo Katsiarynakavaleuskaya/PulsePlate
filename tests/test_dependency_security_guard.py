@@ -31,8 +31,10 @@ REQUIREMENT_SURFACES = (
     REPO_ROOT / "constraints.txt",
 )
 
-CURRENT_SAFETY_RUNTIME_FLOORS = {
+CURRENT_ENFORCED_RUNTIME_FLOORS = {
+    "click": "8.3.3",
     "cryptography": "48.0.1",
+    "pillow": "12.3.0",
     "python-multipart": "0.0.31",
     "starlette": "1.3.1",
 }
@@ -383,11 +385,11 @@ def test_dependency_security_schema_is_stable_and_sorted() -> None:
                 )
 
 
-def test_dependency_security_schema_tracks_current_safety_runtime_floors() -> None:
-    """Guard current Safety floor rotations in one intentionally updated map."""
+def test_dependency_security_schema_tracks_current_enforced_runtime_floors() -> None:
+    """Guard current security-floor rotations in one intentionally updated map."""
     schema = _load_schema(SCHEMA_PATH)
 
-    for package, floor in CURRENT_SAFETY_RUNTIME_FLOORS.items():
+    for package, floor in CURRENT_ENFORCED_RUNTIME_FLOORS.items():
         assert schema["min_versions"][package] == floor
     for package, specifier in CURRENT_BLOCKED_VERSION_SPECIFIERS.items():
         assert specifier in schema["blocked_versions"][package]

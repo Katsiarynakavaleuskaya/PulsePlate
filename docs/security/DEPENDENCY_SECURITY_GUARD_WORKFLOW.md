@@ -8,7 +8,9 @@ The dependency security guard prevents vulnerable dependency versions from enter
 2. **Blocked packages** - Specific packages that must not appear anywhere
 3. **Blocked version ranges** - Specific vulnerable versions that must not be pinned
 
-The guard runs as part of `make verify` and validates the canonical 5 shared requirement surfaces.
+The guard runs as part of the focused dependency-security test bundle and validates
+the canonical shared requirement surfaces listed by
+`tests/test_dependency_security_guard.py::REQUIREMENT_SURFACES`.
 
 ## Schema Location
 
@@ -17,8 +19,9 @@ The guard runs as part of `make verify` and validates the canonical 5 shared req
 ```json
 {
   "min_versions": {
+    "click": "8.3.3",
     "cryptography": "48.0.1",
-    "pillow": "12.2.0"
+    "pillow": "12.3.0"
   },
   "blocked_packages": [],
   "blocked_versions": {}
@@ -86,15 +89,33 @@ the proxy is stale.
 ### 3. Update Requirement Surfaces
 
 1. Bump version in `requirements.in` or `requirements-dev.in`
-2. Regenerate locks:
+2. Regenerate every affected canonical shared lock through the approved private
+   proxy. Preserve the existing output file as the resolver seed and never emit
+   the index URL into a tracked lock:
    ```bash
-   pip-compile --allow-unsafe requirements.in -o requirements.txt
-   pip-compile --allow-unsafe requirements-docker-runtime.in -o requirements-docker-runtime.txt
-   pip-compile --allow-unsafe requirements-rag-vector.in -o requirements-rag-vector.txt
-   pip-compile --allow-unsafe requirements-dev.in -o requirements-dev.txt
-   pip-compile --allow-unsafe requirements.in requirements-dev.in -o requirements-lock.txt
+   pip-compile --allow-unsafe --no-emit-index-url \
+     --output-file=requirements.txt requirements.in
+   pip-compile --allow-unsafe --no-emit-index-url \
+     --output-file=requirements-docker-runtime.txt requirements-docker-runtime.in
+   pip-compile --allow-unsafe --no-emit-index-url \
+     --output-file=requirements-ci-lite.txt requirements-ci-lite.in
+   pip-compile --allow-unsafe --constraint=requirements.txt --no-emit-index-url \
+     --output-file=requirements-dev.txt requirements-dev.in
+   pip-compile --allow-unsafe --no-emit-index-url \
+     --output-file=requirements-lock.txt requirements-dev.in requirements.in
    ```
-3. Update `constraints.txt` if needed
+3. Regenerate an optional lock only when that profile already owns the affected
+   package. For example:
+   ```bash
+   pip-compile --allow-unsafe --no-emit-index-url \
+     --output-file=requirements-rag-vector.txt requirements-rag-vector.in
+   pip-compile --allow-unsafe --no-emit-index-url \
+     --output-file=requirements-rag-vector-cpu.txt requirements-rag-vector-cpu.in
+   ```
+   Do not pull optional data, eval, or vector dependencies into shared runtime
+   profiles merely to make the versions uniform.
+4. Update `constraints.txt` manually when the security floor is part of the
+   shared resolver contract; `constraints.txt` is not a compiled lock.
 
 ### 4. Verify Guard
 
@@ -102,8 +123,9 @@ the proxy is stale.
 # Run guard tests only
 pytest -q tests/test_dependency_security_guard.py
 
-# Full verification (includes guard)
-make verify
+# Required local narrow bundle; full-suite parity comes from current-head CI
+make validate-changed
+pre-commit run --all-files
 ```
 
 ### 5. Document in PR
@@ -111,28 +133,33 @@ make verify
 - Link to CVE doc in PR description
 - Update `docs/roadmap/BACKLOG_LEDGER.md` if applicable
 - Include evidence across all tracked surfaces:
-  `rg -n "^<package>" requirements.in requirements.txt requirements-docker-runtime.in requirements-docker-runtime.txt requirements-dev.txt requirements-lock.txt constraints.txt requirements-rag-vector.in requirements-rag-vector.txt`
+  `rg -n "^<package>" requirements.in requirements-docker-runtime.in requirements-ci-lite.in requirements-dev.in requirements.txt requirements-docker-runtime.txt requirements-dev.txt requirements-lock.txt requirements-ci-lite.txt constraints.txt`
 
 ## Examples
 
-### Example 1: Minimum Version Floor (cryptography CVE)
+### Example 1: Minimum Version Floors (Click, Pillow, and cryptography)
 
-**Scenario:** Safety June 2026 findings require cryptography 48.0.1 and GHSA-whj4-6x5x-4v2j fixed in pillow 12.2.0
+**Scenario:** current scanner findings require Click 8.3.3, cryptography 48.0.1,
+and Pillow 12.3.0.
 
 **Schema update:**
 ```json
 {
   "min_versions": {
+    "click": "8.3.3",
     "cryptography": "48.0.1",
-    "pillow": "12.2.0"
+    "pillow": "12.3.0"
   }
 }
 ```
 
 **Requirement updates:**
-- `requirements.in`: `cryptography>=48.0.1,<49.0.0` and `pillow>=12.2.0,<13.0.0`
-- `requirements-dev.in`: `cryptography>=48.0.1,<49.0.0`
-- `constraints.txt`: `cryptography>=48.0.1` and `pillow>=12.2.0`
+- `requirements.in`: `click>=8.3.3,<9.0.0`, `cryptography>=48.0.1,<49.0.0`,
+  and `pillow>=12.3.0,<13.0.0`
+- `requirements-dev.in`: `click>=8.3.3,<9.0.0`,
+  `cryptography>=48.0.1,<49.0.0`, and `pillow>=12.3.0,<13.0.0`
+- `constraints.txt`: `click==8.3.3`, `cryptography>=48.0.1`, and
+  `pillow==12.3.0`
 - Regenerate locks
 
 ### Example 2: Blocked Package
@@ -171,11 +198,13 @@ make verify
 1. **Sorting:** All keys and lists must be sorted alphabetically (case-insensitive) for clean diffs
 2. **No comments:** JSON doesn't support comments; use CVE docs for rationale
 3. **Case-insensitive:** Package names are matched case-insensitively
-4. **All surfaces:** `min_versions` packages must exist in all 5 surfaces
+4. **All surfaces:** `min_versions` packages must exist in all 10 surfaces
+   declared by `tests/test_dependency_security_guard.py:21-32`
 
 ## CI Integration
 
-- Guard runs in `make test-fast` -> `make verify`
+- Guard runs in `make test-fast`; current-head CI supplies the full-suite parity
+  signal required for merge readiness
 - PR cannot merge if guard fails
 - Deterministic for policy checks: no network calls and no external state in the guard itself; the optional CI preflight (`scripts/ci/install_locked_python_requirements.py --preflight-only`) performs network reads against `PULSEPLATE_PYTHON_INDEX_URL` and may use `scripts/ci/emergency_python_wheels.json` for verified emergency fallbacks
 
@@ -184,9 +213,14 @@ make verify
 | Surface | Type | Purpose |
 |---------|------|---------|
 | `requirements.in` | Constraint (>=) | Runtime deps source |
+| `requirements-docker-runtime.in` | Constraint (>=) | Docker runtime source |
+| `requirements-ci-lite.in` | Constraint (>=) | Lightweight CI source |
+| `requirements-dev.in` | Constraint (>=) | Development source |
 | `requirements.txt` | Pinned (==) | Runtime deps lock |
+| `requirements-docker-runtime.txt` | Pinned (==) | Docker runtime lock |
 | `requirements-dev.txt` | Pinned (==) | Dev deps lock |
 | `requirements-lock.txt` | Pinned (==) | Full lock |
+| `requirements-ci-lite.txt` | Pinned (==) | Lightweight CI lock |
 | `constraints.txt` | Constraint (>=) | Flexible ranges |
 
 ## How to Fix Failures
@@ -206,6 +240,7 @@ make verify
 - Blocked versions test: `tests/test_dependency_security_guard.py:297` (blocked_versions enforcement)
 - AGENTS policy: `AGENTS.md:1535` (Dependency floor / security guard section)
 - CVE docs: `docs/security/CVE-*.md`
+- Click/Pillow hotfix: `docs/security/PYSEC_2026_CLICK_PILLOW_HOTFIX.md`
 
 ## Future Enhancements
 

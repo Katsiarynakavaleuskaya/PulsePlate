@@ -11,6 +11,8 @@ fastapi>=0.138.1,<1.0.0
 # Security floor: SFTY-20260615-86827/22503/83407/32787 fixed in Starlette 1.3.1.
 starlette>=1.3.1,<2.0.0
 uvicorn>=0.38.0,<1.0.0
+# Security floor: unsafe editor invocation fixed in Click 8.3.3.
+click>=8.3.3,<9.0.0
 pydantic>=2.13.4,<3.0.0
 openai>=2.8.1,<3.0.0
 opentelemetry-api>=1.38.0,<2.0.0
@@ -18,7 +20,8 @@ opentelemetry-sdk>=1.38.0,<2.0.0
 opentelemetry-exporter-otlp-proto-http>=1.38.0,<2.0.0
 httpx>=0.28.1,<1.0.0
 requests>=2.33.0,<3.0.0
-pillow>=12.2.0,<13.0.0
+# Security floor: July 2026 Pillow advisory cluster fixed in 12.3.0.
+pillow>=12.3.0,<13.0.0
 python-dotenv>=1.2.1,<2.0.0
 prometheus-client>=0.23.1,<1.0.0
 # Security floor: GHSA-mj87-hwqh-73pj / CVE-2026-40347
