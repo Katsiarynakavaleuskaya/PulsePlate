@@ -151,6 +151,11 @@ def test_current_metadata_openapi_ownership_passes_growth_guard() -> None:
         ),
         (
             4,
+            "\ninstaller = legacy._install_openapi_builder\n",
+            "legacy OpenAPI installer lookup is forbidden",
+        ),
+        (
+            4,
             "\nsetattr(app, 'openapi', replacement)\n",
             "OpenAPI callable/cache mutation is forbidden",
         ),
@@ -176,6 +181,18 @@ def test_metadata_openapi_ownership_guard_ignores_nested_local_rebinding() -> No
             _collect_schema_refs = object()
             return _collect_schema_refs
         """)
+
+    errors = legacy_guard.validate_application_metadata_openapi_ownership(*sources)
+
+    assert errors == []
+
+
+def test_metadata_openapi_ownership_guard_ignores_facade_comment_and_docstring() -> None:
+    sources = list(_openapi_ownership_sources())
+    sources[4] += textwrap.dedent('''
+        """Do not restore the legacy _install_openapi_builder lookup."""
+        # _install_openapi_builder is intentionally absent.
+        ''')
 
     errors = legacy_guard.validate_application_metadata_openapi_ownership(*sources)
 

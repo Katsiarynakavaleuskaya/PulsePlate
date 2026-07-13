@@ -2660,6 +2660,27 @@ def _imports_forbidden_openapi_owner(tree: ast.Module) -> bool:
     return False
 
 
+def _references_legacy_openapi_installer(tree: ast.Module) -> bool:
+    installer_name = "_install_openapi_builder"
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name) and node.id == installer_name:
+            return True
+        if isinstance(node, ast.Attribute) and node.attr == installer_name:
+            return True
+        if isinstance(node, ast.ImportFrom) and any(
+            alias.name == installer_name for alias in node.names
+        ):
+            return True
+        if not isinstance(node, ast.Call):
+            continue
+        if not isinstance(node.func, ast.Name) or node.func.id != "getattr":
+            continue
+        if len(node.args) >= 2 and isinstance(node.args[1], ast.Constant):
+            if node.args[1].value == installer_name:
+                return True
+    return False
+
+
 def _parses_environment_directly(tree: ast.Module) -> bool:
     for node in ast.walk(tree):
         if isinstance(node, ast.Import) and any(alias.name == "os" for alias in node.names):
@@ -2792,8 +2813,7 @@ def validate_application_metadata_openapi_ownership(
     facade_tree = trees[APP_FACADE]
     if _mutates_openapi_callable_or_cache(facade_tree):
         errors.append(f"{APP_FACADE}: OpenAPI callable/cache mutation is forbidden")
-    facade_text = facade_source.casefold()
-    if "_install_openapi_builder" in facade_text:
+    if _references_legacy_openapi_installer(facade_tree):
         errors.append(f"{APP_FACADE}: legacy OpenAPI installer lookup is forbidden")
 
     return sorted(set(errors))
