@@ -1,6 +1,6 @@
 # Dependabot Alert Inventory - 2026-07-13
 
-This inventory extends the PR #2008 source of truth for seven Dependabot alerts
+This inventory extends the PR #2008 source of truth for eight Dependabot alerts
 observed on 2026-06-22 with Excon alert #231 fixed on 2026-07-12. It keeps
 raw Dependabot branches out of the merge path when they overlap lock/profile
 surfaces or cannot prove the current repo-owned dependency path.

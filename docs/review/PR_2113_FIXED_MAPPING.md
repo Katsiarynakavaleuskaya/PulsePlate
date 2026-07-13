@@ -14,8 +14,8 @@ authority.
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 - [x] Mandatory post-open `qa-engineer-agent -> bug-hunter -> security-auditor` pass completed
 - [x] Codex Security exact-head diff scan completed
 - [x] `pulseplate-pr-review` completed
