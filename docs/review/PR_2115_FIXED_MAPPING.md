@@ -37,7 +37,7 @@ Fastlane/xcodeproj gem graph and all App Store workflow behavior.
 - [x] Actual-diff premortem completed with no open blocker.
 - [x] Experiment Runner oracle-only evidence accepted.
 - [x] Post-open `qa-engineer-agent -> bug-hunter -> security-auditor` completed.
-- [ ] Codex Security diff scan completed for the material diff.
+- [x] Codex Security diff scan completed for the material diff.
 - [ ] `pulseplate-pr-review` completed.
 - [ ] All current review threads dispositioned and resolved.
 - [ ] Current-head CI completed.
@@ -66,8 +66,10 @@ tests passing, no shared-tree mutation, and contribution kind `oracle_review`.
 
 ## Security Review
 
-- PENDING: mandatory post-open security-auditor.
-- PENDING: one sealed Codex Security diff scan for the material diff.
+- PASS: mandatory post-open security-auditor found no security actionable.
+- PASS: sealed Codex Security scan `07492320-eaa5-45f8-b238-2532b7e6a35c`
+  reviewed all four diff rows through discovery, validation, and attack-path
+  closure; zero reportable findings survived final policy adjustment.
 - PENDING: `pulseplate-pr-review`.
 
 ## Risks / Rollback
