@@ -51,8 +51,27 @@ FAILURE_CLASSES: tuple[str, ...] = (
     "guard_failure",
     "policy_violation",
     "unchanged_result",
+    "capability_mismatch",
     "infra_flake",
 )
+
+EXECUTION_BACKEND_NAMES: tuple[str, ...] = (
+    "native-linux",
+    "apple-container",
+    "docker",
+)
+EXECUTION_BACKEND_PREFLIGHT_STATUSES: tuple[str, ...] = ("passed", "failed")
+EXECUTION_BACKEND_GUEST_PLATFORMS: tuple[str, ...] = (
+    "linux_arm64",
+    "linux_amd64",
+    "linux_unsupported",
+)
+EXECUTION_BACKEND_NETWORK_ISOLATION: tuple[str, ...] = (
+    "linux_unshare",
+    "apple_internal_no_dns_plus_linux_unshare",
+    "docker_network_none_plus_linux_unshare",
+)
+IMAGE_DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 
 DEFAULT_STOP_CONDITION = (
     "Stop on timeout, OOM, metric regression, guard failure, policy violation, or unchanged result."
@@ -822,6 +841,46 @@ def validate_experiment_result(result: dict[str, Any]) -> dict[str, Any]:
         status=status,
     )
 
+    execution_backend_raw = result.get("execution_backend")
+    execution_backend: dict[str, str] | None = None
+    if execution_backend_raw is not None:
+        if not isinstance(execution_backend_raw, dict):
+            raise ValueError("Experiment result execution_backend must be an object.")
+        expected_backend_keys = {
+            "name",
+            "guest_platform",
+            "runtime_version",
+            "image_digest",
+            "network_isolation",
+            "preflight_status",
+        }
+        if set(execution_backend_raw) != expected_backend_keys:
+            raise ValueError(
+                "Experiment result execution_backend must contain exactly: "
+                + ", ".join(sorted(expected_backend_keys))
+            )
+        execution_backend = {
+            key: str(execution_backend_raw[key]).strip() for key in expected_backend_keys
+        }
+        if execution_backend["name"] not in EXECUTION_BACKEND_NAMES:
+            raise ValueError("Experiment result execution_backend.name is unsupported.")
+        if execution_backend["guest_platform"] not in EXECUTION_BACKEND_GUEST_PLATFORMS:
+            raise ValueError("Experiment result execution_backend.guest_platform is unsupported.")
+        if not execution_backend["runtime_version"]:
+            raise ValueError(
+                "Experiment result execution_backend.runtime_version must be non-empty."
+            )
+        if not IMAGE_DIGEST_RE.fullmatch(execution_backend["image_digest"]):
+            raise ValueError(
+                "Experiment result execution_backend.image_digest must be a sha256 digest."
+            )
+        if execution_backend["network_isolation"] not in EXECUTION_BACKEND_NETWORK_ISOLATION:
+            raise ValueError(
+                "Experiment result execution_backend.network_isolation is unsupported."
+            )
+        if execution_backend["preflight_status"] not in EXECUTION_BACKEND_PREFLIGHT_STATUSES:
+            raise ValueError("Experiment result execution_backend.preflight_status is unsupported.")
+
     candidate_patch = str(result.get("candidate_patch", "")).strip()
     if not candidate_patch:
         raise ValueError("Experiment result must include a non-empty candidate_patch.")
@@ -853,4 +912,6 @@ def validate_experiment_result(result: dict[str, Any]) -> dict[str, Any]:
     normalized["coauthor_required"] = coauthor_required
     normalized["coauthor_reason"] = coauthor_reason
     normalized["candidate_patch"] = candidate_patch
+    if execution_backend is not None:
+        normalized["execution_backend"] = execution_backend
     return normalized

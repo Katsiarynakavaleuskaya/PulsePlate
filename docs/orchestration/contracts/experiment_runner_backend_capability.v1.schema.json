@@ -1,0 +1,132 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pulseplate.dev/schemas/experiment_runner_backend_capability.v1.schema.json",
+  "title": "Experiment Runner Backend Capability v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "authority",
+    "backend",
+    "host_platform",
+    "guest_platform",
+    "runtime_version",
+    "image_digest",
+    "isolation_method",
+    "probe_results",
+    "blocking_reasons",
+    "strict_isolation",
+    "sanitized"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "artifact_type": {"const": "experiment_runner_backend_capability.v1"},
+    "authority": {"const": "evidence_only"},
+    "backend": {
+      "enum": ["apple-container", "docker", "native-linux"]
+    },
+    "host_platform": {
+      "enum": [
+        "macos_arm64",
+        "macos_amd64",
+        "macos_unsupported",
+        "linux_arm64",
+        "linux_amd64",
+        "linux_unsupported",
+        "unsupported"
+      ]
+    },
+    "guest_platform": {
+      "enum": ["linux_arm64", "linux_amd64", "linux_unsupported"]
+    },
+    "runtime_version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "pattern": "^[A-Za-z0-9._+-]+$"
+    },
+    "image_digest": {
+      "oneOf": [
+        {"type": "null"},
+        {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+      ]
+    },
+    "isolation_method": {
+      "enum": [
+        "linux_unshare",
+        "apple_internal_no_dns_plus_linux_unshare",
+        "docker_network_none_plus_linux_unshare"
+      ]
+    },
+    "probe_results": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "runtime_available",
+        "image_digest_verified",
+        "guest_platform_supported",
+        "host_listener_ready",
+        "outer_host_control",
+        "outer_dns_blocked",
+        "outer_direct_ip_blocked",
+        "inner_host_blocked",
+        "inner_dns_blocked",
+        "inner_direct_ip_blocked",
+        "unshare_without_broad_capabilities",
+        "source_read_only",
+        "input_read_only",
+        "root_read_only",
+        "result_volume_writable",
+        "private_tmpfs",
+        "cleanup_completed"
+      ],
+      "properties": {
+        "runtime_available": {"type": ["boolean", "null"]},
+        "image_digest_verified": {"type": ["boolean", "null"]},
+        "guest_platform_supported": {"type": ["boolean", "null"]},
+        "host_listener_ready": {"type": ["boolean", "null"]},
+        "outer_host_control": {"type": ["boolean", "null"]},
+        "outer_dns_blocked": {"type": ["boolean", "null"]},
+        "outer_direct_ip_blocked": {"type": ["boolean", "null"]},
+        "inner_host_blocked": {"type": ["boolean", "null"]},
+        "inner_dns_blocked": {"type": ["boolean", "null"]},
+        "inner_direct_ip_blocked": {"type": ["boolean", "null"]},
+        "unshare_without_broad_capabilities": {"type": ["boolean", "null"]},
+        "source_read_only": {"type": ["boolean", "null"]},
+        "input_read_only": {"type": ["boolean", "null"]},
+        "root_read_only": {"type": ["boolean", "null"]},
+        "result_volume_writable": {"type": ["boolean", "null"]},
+        "private_tmpfs": {"type": ["boolean", "null"]},
+        "cleanup_completed": {"type": ["boolean", "null"]}
+      }
+    },
+    "blocking_reasons": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "unsupported_host",
+          "unsupported_arch",
+          "runtime_cli_missing",
+          "runtime_stopped",
+          "apple_kernel_not_configured",
+          "runtime_not_ready",
+          "image_required",
+          "image_missing",
+          "image_digest_drift",
+          "guest_platform_mismatch",
+          "guest_unshare_unavailable",
+          "network_isolation_failed",
+          "network_gateway_unavailable",
+          "mount_contract_failed",
+          "result_volume_failed",
+          "container_cleanup_failed",
+          "probe_execution_failed"
+        ]
+      }
+    },
+    "strict_isolation": {"type": "boolean"},
+    "sanitized": {"const": true}
+  }
+}
