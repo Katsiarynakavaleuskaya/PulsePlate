@@ -57,7 +57,7 @@ CONTAINER_REPO = "/repo"
 CONTAINER_INPUT = "/repo/.experiment-runner-input"
 CONTAINER_RESULT_DIR = "/repo/artifacts/orchestration/experiments/results"
 CONTAINER_PRIVATE_TMP = Path("/", "tmp").as_posix()
-RESULT_VOLUME_SIZE = "64M"
+RESULT_VOLUME_SIZE = "2M"
 MAX_RESULT_BYTES = 2 * 1024 * 1024
 IMAGE_REF_RE = re.compile(
     r"^(?P<name>[A-Za-z0-9][A-Za-z0-9._:/-]{0,254})@(?P<digest>sha256:[0-9a-f]{64})$"
@@ -568,7 +568,20 @@ def _create_result_volume(cli: str, backend: str) -> str:
     argv = (
         [cli, "volume", "create", "-s", RESULT_VOLUME_SIZE, name]
         if backend == "apple-container"
-        else [cli, "volume", "create", name]
+        else [
+            cli,
+            "volume",
+            "create",
+            "--driver",
+            "local",
+            "--opt",
+            "type=tmpfs",
+            "--opt",
+            "device=tmpfs",
+            "--opt",
+            f"o=size={RESULT_VOLUME_SIZE.lower()},mode=0700",
+            name,
+        ]
     )
     if _run(argv, cwd=REPO_ROOT).returncode != 0:
         raise DispatchError("result_volume_failed")
@@ -1383,7 +1396,11 @@ def _redact_result_value(value: Any) -> Any:
 
 
 def _sanitize_result(result: dict[str, Any], probe: BackendProbe) -> dict[str, Any]:
-    sanitized = _redact_result_value(dict(result))
+    try:
+        validated = _validated_experiment_result(result)
+    except (TypeError, ValueError) as exc:
+        raise DispatchError("result_validation_failed") from exc
+    sanitized = _redact_result_value(validated)
     if not isinstance(sanitized, dict):
         raise DispatchError("result_redaction_failed")
     sanitized["execution_backend"] = _execution_backend_payload(probe, passed=True)
@@ -1464,7 +1481,7 @@ def _invoke_container_runner(
     cli_name = "container" if probe.backend == "apple-container" else "docker"
     cli = _resolve_cli(cli_name)
     if cli is None:
-        raise DispatchError("runtime_cli_missing")
+        raise PreRunCapabilityError("runtime_cli_missing")
     with tempfile.TemporaryDirectory(prefix="pp-er-run-") as raw_temp:
         temp_root = Path(raw_temp)
         snapshot = temp_root / "repo"

@@ -567,6 +567,39 @@ def test_apple_volume_uses_supported_bounded_size_flag(
     ]
 
 
+def test_docker_volume_is_bounded_tmpfs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[list[str]] = []
+
+    def fake_run(argv: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        calls.append(argv)
+        return subprocess.CompletedProcess(argv, 0, "", "")
+
+    monkeypatch.setattr(dispatch.uuid, "uuid4", lambda: type("U", (), {"hex": "b" * 32})())
+    monkeypatch.setattr(dispatch, "_run", fake_run)
+
+    dispatch._create_result_volume("/usr/local/bin/docker", "docker")
+
+    assert dispatch.RESULT_VOLUME_SIZE.lower() == f"{dispatch.MAX_RESULT_BYTES // (1024 * 1024)}m"
+    assert calls == [
+        [
+            "/usr/local/bin/docker",
+            "volume",
+            "create",
+            "--driver",
+            "local",
+            "--opt",
+            "type=tmpfs",
+            "--opt",
+            "device=tmpfs",
+            "--opt",
+            f"o=size={dispatch.RESULT_VOLUME_SIZE.lower()},mode=0700",
+            "pp-er-result-bbbbbbbbbbbb",
+        ]
+    ]
+
+
 def test_capability_validator_matches_platform_and_isolation_schema() -> None:
     artifact = _probe("apple-container", strict=True).to_artifact()
 
@@ -669,6 +702,14 @@ def test_recursive_result_redaction_removes_paths_and_secret_values(
     assert str(dispatch.REPO_ROOT) not in serialized
     assert "aaaaaaaa" not in serialized
     assert "<redacted>" in serialized
+
+
+def test_sanitize_result_rejects_malformed_oracle_before_transform() -> None:
+    result = _legacy_result()
+    result["oracle_results"] = [None]
+
+    with pytest.raises(dispatch.DispatchError, match="result_validation_failed"):
+        dispatch._sanitize_result(result, _probe("apple-container", strict=True))
 
 
 def test_collector_is_nofollow_regular_file_and_size_bounded() -> None:
@@ -841,6 +882,22 @@ def test_pre_run_cleanup_failure_overrides_capability_drift(
 
     assert isinstance(caught.value.__cause__, dispatch.PreRunCapabilityError)
     assert caught.value.__cause__.code == "image_digest_drift"
+
+
+def test_missing_runtime_after_probe_is_pre_run_capability_drift(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(dispatch, "_resolve_cli", lambda _name: None)
+
+    with pytest.raises(dispatch.PreRunCapabilityError, match="runtime_cli_missing"):
+        dispatch._invoke_container_runner(
+            probe=_probe("apple-container", strict=True),
+            image=_image(),
+            packet_path=tmp_path / "packet.json",
+            candidate_patch=None,
+            output_name="result.json",
+        )
 
 
 def test_post_start_cleanup_failure_overrides_execution_exception(
