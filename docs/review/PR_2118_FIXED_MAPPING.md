@@ -37,15 +37,10 @@ Packet: `artifacts/orchestration/task_packets/e25f2c18d755.json`
 
 ## Fixed in Commit Mapping
 
+Disposition: FIXED
+Commit: b38fa7df8
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md:10865`; focused docs/mapping tests report 91 passed and full pre-commit passes.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2118#pullrequestreview-4689004418 -> b38fa7df8
-  - Disposition: FIXED
-  - Evidence: `docs/roadmap/BACKLOG_LEDGER.md` clarifies the parallel evidence
-    list; focused docs/mapping tests report 91 passed and full pre-commit passes.
-
-CodeRabbit, Cubic, and the ordinary `pulseplate-pr-review` reported no other
-actionable findings on the material diff. The separate interactive Codex
-Security plugin scan is not restarted under the standing operator disposition;
-no incomplete scan result is used as evidence.
 
 ## Experiment Runner Evidence
 
@@ -70,6 +65,11 @@ machine-heavy invocation without a one-time human override.
 No runtime, secret, dependency, workflow, permission, or execution surface
 changes. The recorded PR number, merge date, and merge SHA are public GitHub
 evidence.
+
+CodeRabbit, Cubic, and the ordinary `pulseplate-pr-review` reported no other
+actionable findings on the material diff. The separate interactive Codex
+Security plugin scan is not restarted under the standing operator disposition;
+no incomplete scan result is used as evidence.
 
 ## Risks / Rollback
 
