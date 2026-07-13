@@ -176,6 +176,41 @@ def test_current_metadata_openapi_ownership_passes_growth_guard() -> None:
         ),
         (
             0,
+            '\nglobals().__setitem__("_install_openapi_builder", replacement)\n',
+            "canonical OpenAPI re-export must not be rebound",
+        ),
+        (
+            0,
+            '\nglobals().__delitem__("_install_openapi_builder")\n',
+            "canonical OpenAPI re-export must not be rebound",
+        ),
+        (
+            0,
+            '\nglobals().pop("_install_openapi_builder")\n',
+            "canonical OpenAPI re-export must not be rebound",
+        ),
+        (
+            0,
+            "\nglobals().pop(dynamic_name)\n",
+            "canonical OpenAPI re-export must not be rebound",
+        ),
+        (
+            0,
+            "\nglobals().popitem()\n",
+            "canonical OpenAPI re-export must not be rebound",
+        ),
+        (
+            0,
+            "\nglobals().clear()\n",
+            "canonical OpenAPI re-export must not be rebound",
+        ),
+        (
+            0,
+            '\nglobals().setdefault("_install_openapi_builder", replacement)\n',
+            "canonical OpenAPI re-export must not be rebound",
+        ),
+        (
+            0,
             '\nmodule.__dict__["_install_openapi_builder"] = replacement\n',
             "canonical OpenAPI re-export must not be rebound",
         ),
@@ -216,6 +251,16 @@ def test_current_metadata_openapi_ownership_passes_growth_guard() -> None:
         ),
         (
             2,
+            '\nmodule = __import__("app", fromlist=["main"]).main\n',
+            "reverse legacy/main import is forbidden",
+        ),
+        (
+            2,
+            '\nmodule = __import__("app", fromlist=dynamic_fromlist)\n',
+            "reverse legacy/main import is forbidden",
+        ),
+        (
+            2,
             "\nfrom .. import main\n",
             "reverse legacy/main import is forbidden",
         ),
@@ -227,6 +272,16 @@ def test_current_metadata_openapi_ownership_passes_growth_guard() -> None:
         (
             3,
             "\nimport legacy_app as legacy\nlegacy._install_openapi_builder(app)\n",
+            "OpenAPI symbol must not be accessed through legacy",
+        ),
+        (
+            3,
+            "\nimport legacy_app as legacy\ncompat = legacy\ncompat._install_openapi_builder(app)\n",
+            "OpenAPI symbol must not be accessed through legacy",
+        ),
+        (
+            3,
+            '\nimport legacy_app as legacy\ncompat = legacy\ngetattr(compat, "_install_openapi_builder")(app)\n',
             "OpenAPI symbol must not be accessed through legacy",
         ),
         (
@@ -251,6 +306,21 @@ def test_current_metadata_openapi_ownership_passes_growth_guard() -> None:
         ),
         (
             4,
+            '\nlegacy = _legacy()\ninstaller = vars(legacy).get("_install_openapi_builder")\n',
+            "legacy OpenAPI installer lookup is forbidden",
+        ),
+        (
+            4,
+            "\nlegacy = _legacy()\ninstaller = vars(legacy).get(dynamic_name)\n",
+            "legacy OpenAPI installer lookup is forbidden",
+        ),
+        (
+            4,
+            '\nlegacy = _legacy()\ninstaller = legacy.__dict__.__getitem__("_install_openapi_builder")\n',
+            "legacy OpenAPI installer lookup is forbidden",
+        ),
+        (
+            4,
             "\nsetattr(app, 'openapi', replacement)\n",
             "OpenAPI callable/cache mutation is forbidden",
         ),
@@ -262,6 +332,16 @@ def test_current_metadata_openapi_ownership_passes_growth_guard() -> None:
         (
             4,
             '\nvars(app).update({"openapi": replacement})\n',
+            "OpenAPI callable/cache mutation is forbidden",
+        ),
+        (
+            4,
+            '\nvars(app).pop("openapi")\n',
+            "OpenAPI callable/cache mutation is forbidden",
+        ),
+        (
+            4,
+            "\nvars(app).clear()\n",
             "OpenAPI callable/cache mutation is forbidden",
         ),
         (
@@ -333,6 +413,59 @@ def test_metadata_openapi_ownership_guard_allows_dynamic_sibling_import() -> Non
     errors = legacy_guard.validate_application_metadata_openapi_ownership(*sources)
 
     assert errors == []
+
+
+def test_metadata_openapi_ownership_guard_allows_unrelated_namespace_mutations() -> None:
+    sources = list(_openapi_ownership_sources())
+    sources[0] += '\nglobals().pop("unrelated", None)\n'
+    sources[4] += '\nvars(app).setdefault("unrelated", value)\n'
+
+    errors = legacy_guard.validate_application_metadata_openapi_ownership(*sources)
+
+    assert errors == []
+
+
+@pytest.mark.parametrize(
+    "main_addition",
+    [
+        textwrap.dedent("""
+            import legacy_app as legacy
+            compat = legacy
+            compat = object()
+            value = compat._install_openapi_builder
+            """),
+        textwrap.dedent("""
+            import legacy_app as legacy
+            compat = object()
+            value = getattr(compat, "_install_openapi_builder")
+            compat = legacy
+            """),
+    ],
+    ids=["safe-reassignment", "lookup-before-legacy-assignment"],
+)
+def test_metadata_openapi_ownership_guard_allows_ordered_alias_controls(
+    main_addition: str,
+) -> None:
+    sources = list(_openapi_ownership_sources())
+    sources[3] += main_addition
+
+    errors = legacy_guard.validate_application_metadata_openapi_ownership(*sources)
+
+    assert errors == []
+
+
+def test_metadata_openapi_ownership_guard_rejects_lookup_before_safe_reassignment() -> None:
+    sources = list(_openapi_ownership_sources())
+    sources[3] += textwrap.dedent("""
+        import legacy_app as legacy
+        compat = legacy
+        value = getattr(compat, "_install_openapi_builder")
+        compat = object()
+        """)
+
+    errors = legacy_guard.validate_application_metadata_openapi_ownership(*sources)
+
+    assert errors == ["app/main.py: OpenAPI symbol must not be accessed through legacy"]
 
 
 @pytest.mark.parametrize(
