@@ -43,7 +43,7 @@ Fastlane/xcodeproj gem graph and all App Store workflow behavior.
 - [x] Post-open `qa-engineer-agent -> bug-hunter -> security-auditor` completed.
 - [x] Codex Security diff scan completed for the material diff.
 - [x] `pulseplate-pr-review` completed.
-- [ ] All current review threads dispositioned and resolved.
+- [x] All current review threads dispositioned and resolved.
 - [ ] Current-head CI completed.
 - [ ] Strict authenticated merge readiness and mandatory wait window completed.
 
