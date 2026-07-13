@@ -48,11 +48,13 @@ from scripts.orchestration.creative_pilot_workspace_contract import (
     validate_synthesis,
     validate_workspace,
     current_origin_main_sha,
+    tracked_blob_size_at_commit,
     ADAPTIVE_PR1_PREPARE_FILENAMES,
     ADAPTIVE_PR1_SOURCE_TYPES,
 )
 from scripts.orchestration.creative_code_spec_pipeline import (
     CreativeCodeSpecPipelineError,
+    REQUIRED_CONTEXT,
     prepare as prepare_specification,
     prepare_exact as prepare_exact_specification,
     validate_default_prepare_artifact_snapshots,
@@ -971,6 +973,10 @@ def _cmd_resume_pr1(args: argparse.Namespace) -> None:
     prepare_snapshots = validate_default_prepare_artifact_snapshots(
         retained_prepare_snapshots,
         expected_packet=candidate,
+        historical_context_char_counts={
+            path: tracked_blob_size_at_commit(old_manifest["head_sha"], path)
+            for path in (*REQUIRED_CONTEXT, *candidate["target_surface"])
+        },
     )
     source_rows, prepare_rows = _exact_source_bindings(
         run_dir,

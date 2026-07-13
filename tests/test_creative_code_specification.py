@@ -660,6 +660,14 @@ def _historical_default_prepare_artifacts(
         return creative_code_spec_pipeline.build_default_prepare_artifacts(packet)
 
 
+def _historical_context_char_counts(packet: dict[str, object]) -> dict[str, int]:
+    paths = {
+        *creative_code_spec_pipeline.REQUIRED_CONTEXT,
+        *packet["target_surface"],
+    }
+    return {path: 4096 + len(path) for path in paths}
+
+
 def _rebind_historical_context_pack_ids(
     context_pack: dict[str, Any], packet: dict[str, object]
 ) -> None:
@@ -691,6 +699,33 @@ def _rebind_historical_context_pack_ids(
     context_pack["context_pack_id"] = f"ctx-pack:{fingerprint_payload(pack_identity_payload)[7:31]}"
 
 
+def _rebind_historical_candidate_estimates(
+    context_pack: dict[str, Any], packet: dict[str, object]
+) -> None:
+    estimate = context_pack["estimate"]
+    candidate_payload = {
+        "authority_boundary": context_pack["authority_boundary"],
+        "graph_edges": context_pack["graph_edges"],
+        "graph_nodes": context_pack["graph_nodes"],
+        "omitted_duplicate_refs": context_pack["omitted_duplicate_refs"],
+        "policy_version": context_pack["policy_version"],
+        "required_context": context_pack["required_context"],
+        "selected_context_refs": context_pack["selected_context_refs"],
+    }
+    candidate_chars = len(
+        creative_code_spec_pipeline._canonical_context_pack_json(candidate_payload)
+    )
+    candidate_tokens = (candidate_chars + 3) // 4
+    estimate["candidate_context_chars_estimate"] = candidate_chars
+    estimate["candidate_context_tokens_estimate"] = candidate_tokens
+    tokens_saved = max(0, estimate["baseline_context_tokens_estimate"] - candidate_tokens)
+    estimate["tokens_saved_estimate"] = tokens_saved
+    estimate["fanout_tokens_saved_estimate"] = (
+        tokens_saved * estimate["orchestration_fanout_multiplier"]
+    )
+    _rebind_historical_context_pack_ids(context_pack, packet)
+
+
 def test_retained_prepare_accepts_only_self_consistent_estimate_drift(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -706,6 +741,7 @@ def test_retained_prepare_accepts_only_self_consistent_estimate_drift(
     validated = creative_code_spec_pipeline.validate_default_prepare_artifact_snapshots(
         historical,
         expected_packet=packet,
+        historical_context_char_counts=_historical_context_char_counts(packet),
     )
 
     assert validated == historical_before
@@ -722,6 +758,7 @@ def test_retained_prepare_accepts_only_self_consistent_estimate_drift(
         "routing_metadata",
         "metadata_boolean_type",
         "estimate_algorithm",
+        "estimate_nonfinite",
         "fanout",
         "reason_codes",
     ),
@@ -747,6 +784,8 @@ def test_retained_prepare_rejects_stable_context_pack_drift(
         context_pack["metadata"]["graph_limit_truncated"] = 0
     elif tamper_case == "estimate_algorithm":
         context_pack["estimate"]["token_estimate_version"] = "other-algorithm-v1"
+    elif tamper_case == "estimate_nonfinite":
+        context_pack["estimate"]["token_estimate_version"] = float("nan")
     elif tamper_case == "fanout":
         context_pack["estimate"]["orchestration_fanout_multiplier"] += 1
     elif tamper_case == "reason_codes":
@@ -756,34 +795,87 @@ def test_retained_prepare_rejects_stable_context_pack_drift(
         creative_code_spec_pipeline.validate_default_prepare_artifact_snapshots(
             snapshots,
             expected_packet=packet,
+            historical_context_char_counts=_historical_context_char_counts(packet),
         )
 
 
-def test_retained_prepare_rejects_coherently_rebound_baseline_inflation(
+def test_retained_prepare_rejects_coherently_rebound_estimate_inflation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     packet = _packet()
     snapshots = _historical_default_prepare_artifacts(monkeypatch, packet)
     context_pack = snapshots["context_pack.json"]
     estimate = context_pack["estimate"]
-    inflated_chars = estimate["baseline_context_chars_estimate"] + 4_000
+    inflated_ref_tokens = 1_000_000
+    for node in context_pack["graph_nodes"]:
+        node["token_estimate"] = inflated_ref_tokens
+    for ref in context_pack["selected_context_refs"]:
+        ref["token_estimate"] = inflated_ref_tokens
+    for ref in context_pack["omitted_duplicate_refs"]:
+        ref["token_estimate"] = inflated_ref_tokens
+    inflated_chars = inflated_ref_tokens * 4 * len(context_pack["selected_context_refs"])
     inflated_tokens = (inflated_chars + 3) // 4
     estimate["baseline_context_chars_estimate"] = inflated_chars
     estimate["baseline_context_tokens_estimate"] = inflated_tokens
-    tokens_saved = max(0, inflated_tokens - estimate["candidate_context_tokens_estimate"])
-    estimate["tokens_saved_estimate"] = tokens_saved
-    estimate["fanout_tokens_saved_estimate"] = (
-        tokens_saved * estimate["orchestration_fanout_multiplier"]
-    )
-    _rebind_historical_context_pack_ids(context_pack, packet)
+    _rebind_historical_candidate_estimates(context_pack, packet)
 
     with pytest.raises(
         CreativeCodeSpecPipelineError,
-        match="baseline estimate is not bound to selected context refs",
+        match="token estimate is not bound to source-commit size evidence",
     ):
         creative_code_spec_pipeline.validate_default_prepare_artifact_snapshots(
             snapshots,
             expected_packet=packet,
+            historical_context_char_counts=_historical_context_char_counts(packet),
+        )
+
+
+def test_retained_prepare_rejects_coherently_rebound_candidate_node_inflation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    packet = _packet()
+    snapshots = _historical_default_prepare_artifacts(monkeypatch, packet)
+    context_pack = snapshots["context_pack.json"]
+    selected_node_ids = {ref["node_id"] for ref in context_pack["selected_context_refs"]}
+    candidate_node = next(
+        node for node in context_pack["graph_nodes"] if node["node_id"] not in selected_node_ids
+    )
+    assert candidate_node["path"] == "core/rag/orchestration.py"
+    candidate_node["token_estimate"] = 1_000_000
+    _rebind_historical_candidate_estimates(context_pack, packet)
+
+    with pytest.raises(
+        CreativeCodeSpecPipelineError,
+        match="graph node token estimate is not bound to source-commit size evidence",
+    ):
+        creative_code_spec_pipeline.validate_default_prepare_artifact_snapshots(
+            snapshots,
+            expected_packet=packet,
+            historical_context_char_counts=_historical_context_char_counts(packet),
+        )
+
+
+def test_retained_prepare_rejects_coherent_ref_path_type_substitution(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    packet = _packet()
+    snapshots = _historical_default_prepare_artifacts(monkeypatch, packet)
+    context_pack = snapshots["context_pack.json"]
+    node = context_pack["graph_nodes"][0]
+    matching_ref = next(
+        ref for ref in context_pack["selected_context_refs"] if ref["node_id"] == node["node_id"]
+    )
+    node["path"] = 7
+    matching_ref["path"] = 7
+
+    with pytest.raises(
+        CreativeCodeSpecPipelineError,
+        match="adaptive_source_lineage_mismatch",
+    ):
+        creative_code_spec_pipeline.validate_default_prepare_artifact_snapshots(
+            snapshots,
+            expected_packet=packet,
+            historical_context_char_counts=_historical_context_char_counts(packet),
         )
 
 
@@ -826,6 +918,7 @@ def test_retained_prepare_rejects_malformed_historical_estimates(
         creative_code_spec_pipeline.validate_default_prepare_artifact_snapshots(
             snapshots,
             expected_packet=packet,
+            historical_context_char_counts=_historical_context_char_counts(packet),
         )
 
 

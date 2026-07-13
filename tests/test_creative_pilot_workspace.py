@@ -852,6 +852,11 @@ def _publish_adaptive_resume_for_test(
     existing_outputs = {entry.name for entry in spec_root.iterdir()}
     monkeypatch.setattr(pilot_cli, "PILOT_ROOT", pilot_root)
     monkeypatch.setattr(pilot_cli, "SPEC_BRIDGE_ROOT", spec_root)
+    monkeypatch.setattr(
+        pilot_cli,
+        "tracked_blob_size_at_commit",
+        lambda commit_sha, path: (REPO_ROOT / path).stat().st_size,
+    )
     monkeypatch.setattr(skeptic_review_cli, "SPEC_BRIDGE_ROOT", spec_root)
     capsys.readouterr()
     assert (
@@ -1024,6 +1029,11 @@ def test_resume_pr1_publishes_exact_new_only_bundle(
         )
         monkeypatch.setattr(pilot_cli, "PILOT_ROOT", pilot_root)
         monkeypatch.setattr(pilot_cli, "SPEC_BRIDGE_ROOT", spec_root)
+        monkeypatch.setattr(
+            pilot_cli,
+            "tracked_blob_size_at_commit",
+            lambda commit_sha, path: 4096 + len(path),
+        )
         monkeypatch.setattr(skeptic_review_cli, "SPEC_BRIDGE_ROOT", spec_root)
         args = [
             "resume-pr1",

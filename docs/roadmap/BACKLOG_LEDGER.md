@@ -11051,10 +11051,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
       self-consistent historical estimate telemetry while keeping stable
       lineage and retained bytes fingerprint-bound.
     - DoD: historical estimate-only drift passes `resume-pr1`; malformed
-      arithmetic, derived IDs, baseline-to-selected-ref bounds, scalar types,
-      and any path, fingerprint, graph, routing, policy, authority, reason-code,
-      or unknown-field drift remain fail-closed; current exact prepare
-      validation stays strict; the retained pilot remains byte-identical;
+      arithmetic, derived IDs, bounded source-commit file-size bindings,
+      scalar types, and any path, fingerprint, graph, routing, policy,
+      authority, reason-code, or unknown-field drift remain fail-closed;
+      current exact prepare validation stays strict; the retained pilot remains
+      byte-identical;
       focused orchestration tests and normal PR governance pass.
     - Evidence: `scripts/orchestration/creative_code_spec_pipeline.py`,
       `tests/test_creative_code_specification.py`,

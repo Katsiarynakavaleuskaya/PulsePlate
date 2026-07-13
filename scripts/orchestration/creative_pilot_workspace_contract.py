@@ -968,6 +968,16 @@ def _blob_at(commit_sha: str, path: str) -> tuple[str, bytes]:
     return fields[2], content
 
 
+def tracked_blob_size_at_commit(commit_sha: str, path: str) -> int:
+    """Return immutable Git-object size evidence for one tracked repository path."""
+
+    commit = _sha(commit_sha, "commit_sha")
+    _require_commit(commit, "commit_sha")
+    normalized_path = _path(path, "tracked_file.path")
+    _blob_oid, content = _blob_at(commit, normalized_path)
+    return len(content)
+
+
 def _symbols(content: bytes, path: str) -> set[str]:
     if not path.endswith(".py"):
         raise CreativePilotContractError("production-adjacent pilot targets must be Python files")
