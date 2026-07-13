@@ -133,6 +133,12 @@ and current packs. Newly emitted exact
 prepare artifacts remain current-version and fully exact; this compatibility
 rule does not widen runtime, provider, cache, serving, repository-write, or
 promotion authority.
+`build-handoff` fails closed if `origin/main` no longer equals the workspace's
+approved target head. This prevents a new retained `pr1_prepare` snapshot from
+being produced from a later repository tree while remaining bound to the
+earlier target manifest. Existing sealed retained pilots continue through the
+bounded historical compatibility validator; the guard runs before any new
+bridge, candidate, or prepare artifact is written.
 Before fingerprinting or publication, resume also reconstructs the retained
 context → packet → workspace → synthesis → approval → bridge → candidate
 lineage, recomputes the deterministic approval and terminal handoff, and

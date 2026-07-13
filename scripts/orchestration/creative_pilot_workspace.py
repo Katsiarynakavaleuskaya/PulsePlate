@@ -549,6 +549,12 @@ def _cmd_build_handoff(args: argparse.Namespace) -> None:
     context = _read(run_dir / FIXED_FILENAMES["context"])
     packet = _read(run_dir / FIXED_FILENAMES["packet"])
     workspace = validate_workspace(_read(run_dir / FIXED_FILENAMES["workspace"]))
+    approved_head = workspace["target_manifest"]["head_sha"]
+    if current_origin_main_sha() != approved_head:
+        raise CreativePilotContractError(
+            "adaptive_base_drift: build-handoff requires current origin/main "
+            "to equal workspace target head_sha"
+        )
     synthesis = validate_synthesis(_read(run_dir / FIXED_FILENAMES["synthesis"]))
     approval = validate_approval_v2(_read(run_dir / FIXED_FILENAMES["approval"]))
     bundle = build_creative_pilot_spec_bridge_bundle(

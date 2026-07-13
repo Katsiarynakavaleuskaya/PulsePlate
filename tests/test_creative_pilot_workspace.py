@@ -449,6 +449,84 @@ def test_pass_synthesis_binds_approval_and_existing_candidate_v1() -> None:
     assert terminal["state"] == {"phase": "approved_for_pr1_spec", "terminal": True}
 
 
+def test_build_handoff_rejects_origin_main_drift_before_any_output(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    context, packet, workspace = _chain()
+    completed = _complete(workspace)
+    synthesis = build_synthesis(completed)
+    synthesized = apply_synthesis_transition(completed, synthesis)
+    approval = build_approval_v2(
+        workspace=synthesized,
+        synthesis=synthesis,
+        approved_by="test-operator",
+    )
+    artifact_root = REPO_ROOT / "artifacts" / "orchestration"
+    artifact_root.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="pilot-handoff-drift-", dir=artifact_root) as raw_dir:
+        pilot_root = Path(raw_dir)
+        pilot_id = "handoff-base-drift"
+        pilot_dir = pilot_root / pilot_id
+        pilot_dir.mkdir()
+        payloads = {
+            "context_map.v2.json": context,
+            "hypothesis_packet.v2.json": packet,
+            "workspace.json": synthesized,
+            "synthesis.json": synthesis,
+            "approval.v2.json": approval,
+        }
+        for filename, payload in payloads.items():
+            (pilot_dir / filename).write_text(
+                json.dumps(payload, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+        workspace_before = (pilot_dir / "workspace.json").read_bytes()
+        bundle_called = False
+        prepare_called = False
+
+        def unexpected_bundle(**_kwargs: object) -> dict[str, object]:
+            nonlocal bundle_called
+            bundle_called = True
+            return {}
+
+        def unexpected_prepare(_candidate_path: Path, _prepare_dir: Path) -> None:
+            nonlocal prepare_called
+            prepare_called = True
+
+        monkeypatch.setattr(pilot_cli, "PILOT_ROOT", pilot_root)
+        monkeypatch.setattr(pilot_cli, "current_origin_main_sha", lambda: "f" * 40)
+        monkeypatch.setattr(
+            pilot_cli,
+            "build_creative_pilot_spec_bridge_bundle",
+            unexpected_bundle,
+        )
+        monkeypatch.setattr(pilot_cli, "prepare_specification", unexpected_prepare)
+
+        assert (
+            pilot_cli.main(
+                [
+                    "build-handoff",
+                    "--pilot-id",
+                    pilot_id,
+                    "--variant-count",
+                    "3",
+                ]
+            )
+            == 1
+        )
+        assert capsys.readouterr().out == (
+            "FAIL: adaptive_base_drift: build-handoff requires current origin/main "
+            "to equal workspace target head_sha\n"
+        )
+        assert bundle_called is False
+        assert prepare_called is False
+        assert (pilot_dir / "workspace.json").read_bytes() == workspace_before
+        assert not (pilot_dir / "spec_bridge.v2.json").exists()
+        assert not (pilot_dir / "creative_code_candidate.v1.json").exists()
+        assert not (pilot_dir / "pr1_prepare").exists()
+
+
 def test_approval_rejects_stale_workspace_revision() -> None:
     _context, _packet, workspace = _chain()
     completed = _complete(workspace)
