@@ -117,6 +117,8 @@
           "image_digest_drift",
           "guest_platform_mismatch",
           "guest_unshare_unavailable",
+          "filesystem_isolation_unavailable",
+          "strict_network_budget_required",
           "network_isolation_failed",
           "network_gateway_unavailable",
           "mount_contract_failed",
@@ -128,5 +130,27 @@
     },
     "strict_isolation": {"type": "boolean"},
     "sanitized": {"const": true}
-  }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"backend": {"const": "native-linux"}}},
+      "then": {"properties": {"isolation_method": {"const": "linux_unshare"}}}
+    },
+    {
+      "if": {"properties": {"backend": {"const": "apple-container"}}},
+      "then": {
+        "properties": {
+          "isolation_method": {"const": "apple_internal_no_dns_plus_linux_unshare"}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"backend": {"const": "docker"}}},
+      "then": {
+        "properties": {
+          "isolation_method": {"const": "docker_network_none_plus_linux_unshare"}
+        }
+      }
+    }
+  ]
 }

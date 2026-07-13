@@ -19,7 +19,6 @@ import platform
 import re
 import shutil
 import socket
-import stat
 import subprocess  # nosec B404: bounded absolute runtime/git argv only (remove-by: 2026-10-31, ref: ledger-p1-experiment-runner-macos-strict-backend)
 import sys
 import tempfile
@@ -78,6 +77,8 @@ BLOCKER_CODES = frozenset(
         "image_digest_drift",
         "guest_platform_mismatch",
         "guest_unshare_unavailable",
+        "filesystem_isolation_unavailable",
+        "strict_network_budget_required",
         "network_isolation_failed",
         "network_gateway_unavailable",
         "mount_contract_failed",
@@ -378,11 +379,8 @@ def _primary_image_digest(payload: Any) -> str:
 
 
 def _inspect_image(cli: str, backend: str, image: ImageReference) -> str:
-    argv = (
-        [cli, "image", "inspect", image.name]
-        if backend == "docker"
-        else [cli, "image", "inspect", image.name]
-    )
+    del backend
+    argv = [cli, "image", "inspect", image.name]
     result = _run(argv, cwd=REPO_ROOT)
     if result.returncode != 0:
         raise DispatchError("image_missing")
@@ -549,21 +547,11 @@ def _container_run_argv(
 
 
 def _cleanup_container(cli: str, backend: str, name: str) -> bool:
-    stop_args = (
-        [cli, "stop", "--time", "1", name]
-        if backend == "apple-container"
-        else [
-            cli,
-            "stop",
-            "--time",
-            "1",
-            name,
-        ]
-    )
+    stop_args = [cli, "stop", "--time", "1", name]
     try:
         _run(stop_args, cwd=REPO_ROOT)
     except DispatchError:
-        return False
+        pass
     delete_args = (
         [cli, "delete", "--force", name]
         if backend == "apple-container"
@@ -935,11 +923,9 @@ def probe_backend(backend: str, image: ImageReference | None = None) -> BackendP
         results["inner_direct_ip_blocked"] = inner["direct_ip_blocked"]
         results["unshare_without_broad_capabilities"] = True
         results["cleanup_completed"] = True
-        native_blockers = (
-            ()
-            if all(results[key] is True for key in REQUIRED_PROBE_KEYS[backend])
-            else ("network_isolation_failed",)
-        )
+        native_blockers = ["filesystem_isolation_unavailable"]
+        if not all(results[key] is True for key in REQUIRED_PROBE_KEYS[backend]):
+            native_blockers.append("network_isolation_failed")
         return BackendProbe(
             backend=backend,
             host_platform=_host_platform_class(),
@@ -948,7 +934,7 @@ def probe_backend(backend: str, image: ImageReference | None = None) -> BackendP
             image_digest=image.digest,
             isolation_method=_isolation_method(backend),
             probe_results=results,
-            blocking_reasons=native_blockers,
+            blocking_reasons=tuple(sorted(native_blockers)),
         )
 
     expected_cli = "container" if backend == "apple-container" else "docker"
@@ -1050,6 +1036,24 @@ def select_backend(
         if probe.strict:
             return probe, attempts
     return None, attempts
+
+
+def _strict_network_budget_probe(requested: str, image: ImageReference) -> BackendProbe:
+    """Build a deterministic fail-closed probe without contacting a runtime."""
+
+    if requested != "auto":
+        backend = requested
+    elif platform.system() == "Darwin":
+        backend = "apple-container"
+    elif platform.system() == "Linux":
+        backend = "native-linux"
+    else:
+        backend = "docker"
+    return _failed_probe(
+        backend,
+        "strict_network_budget_required",
+        image_digest=image.digest,
+    )
 
 
 def validate_capability_artifact(payload: dict[str, Any]) -> dict[str, Any]:
@@ -1517,23 +1521,6 @@ def _invoke_container_runner(
         return _sanitize_result(payload, probe)
 
 
-def _invoke_native_runner(
-    *,
-    probe: BackendProbe,
-    packet_path: Path,
-    candidate_patch: Path | None,
-    output_name: str,
-) -> dict[str, Any]:
-    from scripts.orchestration import experiment_runner
-
-    packet = validate_experiment_packet(json.loads(packet_path.read_text(encoding="utf-8")))
-    if candidate_patch is None:
-        result = experiment_runner.evaluate_oracle_only_governance_reviewer(packet)
-    else:
-        result = experiment_runner.evaluate_candidate(packet, candidate_patch)
-    return _sanitize_result(result, probe)
-
-
 def _build_image(backend: str, tag: str) -> dict[str, str]:
     if not TAG_RE.fullmatch(tag) or "@" in tag:
         raise ValueError("--tag must be a bounded mutable local image tag without a digest.")
@@ -1686,26 +1673,31 @@ def main(argv: list[str] | None = None) -> int:
                 raise ValueError("Oracle-only packets must not include --candidate-patch.")
         elif candidate_patch is None:
             raise ValueError("Candidate-patch packets require --candidate-patch.")
+        if int(packet["budgets"]["network_budget"]) != 0:
+            probe = _strict_network_budget_probe(args.backend, image)
+            result = _capability_mismatch_result(packet, image, probe)
+            _atomic_write_json(output_path, result)
+            print(
+                json.dumps(
+                    {"artifact": output_path.name, "status": result["status"]},
+                    sort_keys=True,
+                )
+            )
+            return 1
         selected, attempts = select_backend(args.backend, image)
         if selected is None:
             result = _capability_mismatch_result(packet, image, attempts[-1])
         else:
             try:
-                if selected.backend == "native-linux":
-                    result = _invoke_native_runner(
-                        probe=selected,
-                        packet_path=packet_path,
-                        candidate_patch=candidate_patch,
-                        output_name=output_path.name,
-                    )
-                else:
-                    result = _invoke_container_runner(
-                        probe=selected,
-                        image=image,
-                        packet_path=packet_path,
-                        candidate_patch=candidate_patch,
-                        output_name=output_path.name,
-                    )
+                if selected.backend not in CONTAINER_BACKENDS:
+                    raise PreRunCapabilityError("filesystem_isolation_unavailable")
+                result = _invoke_container_runner(
+                    probe=selected,
+                    image=image,
+                    packet_path=packet_path,
+                    candidate_patch=candidate_patch,
+                    output_name=output_path.name,
+                )
             except PreRunCapabilityError as exc:
                 result = _capability_mismatch_result(
                     packet,

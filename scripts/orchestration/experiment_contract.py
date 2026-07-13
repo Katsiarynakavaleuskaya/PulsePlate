@@ -71,6 +71,11 @@ EXECUTION_BACKEND_NETWORK_ISOLATION: tuple[str, ...] = (
     "apple_internal_no_dns_plus_linux_unshare",
     "docker_network_none_plus_linux_unshare",
 )
+EXECUTION_BACKEND_ISOLATION_BY_NAME: dict[str, str] = {
+    "native-linux": "linux_unshare",
+    "apple-container": "apple_internal_no_dns_plus_linux_unshare",
+    "docker": "docker_network_none_plus_linux_unshare",
+}
 IMAGE_DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 
 DEFAULT_STOP_CONDITION = (
@@ -878,8 +883,30 @@ def validate_experiment_result(result: dict[str, Any]) -> dict[str, Any]:
             raise ValueError(
                 "Experiment result execution_backend.network_isolation is unsupported."
             )
+        expected_isolation = EXECUTION_BACKEND_ISOLATION_BY_NAME[execution_backend["name"]]
+        if execution_backend["network_isolation"] != expected_isolation:
+            raise ValueError(
+                "Experiment result execution_backend.network_isolation is inconsistent "
+                "with execution_backend.name."
+            )
         if execution_backend["preflight_status"] not in EXECUTION_BACKEND_PREFLIGHT_STATUSES:
             raise ValueError("Experiment result execution_backend.preflight_status is unsupported.")
+        preflight_passed = execution_backend["preflight_status"] == "passed"
+        if status == "accepted" and (
+            not preflight_passed or execution_backend["guest_platform"] == "linux_unsupported"
+        ):
+            raise ValueError(
+                "Accepted experiment results require a passed backend preflight and a "
+                "supported guest platform."
+            )
+        if not preflight_passed and (
+            status != "rejected" or failure_class != "capability_mismatch"
+        ):
+            raise ValueError(
+                "Failed backend preflight requires a rejected capability_mismatch result."
+            )
+        if failure_class == "capability_mismatch" and preflight_passed:
+            raise ValueError("Capability mismatch results require a failed backend preflight.")
 
     candidate_patch = str(result.get("candidate_patch", "")).strip()
     if not candidate_patch:

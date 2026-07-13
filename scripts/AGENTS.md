@@ -120,6 +120,10 @@
   agent/runtime sockets, persist raw runtime output, or treat capability/result
   artifacts as readiness or promotion authority. Missing strict isolation is
   `capability_mismatch`, not `infra_flake`.
+- Strict dispatch requires `network_budget=0` and container-equivalent
+  filesystem containment. The existing native Linux Runner remains compatible,
+  but `native-linux` capability probing must report
+  `filesystem_isolation_unavailable` until that containment is implemented.
 - Container-backed dispatch must not expose a host-writable result bind to the
   untrusted runner. Use a private named volume, force-delete the uniquely named
   runner after PID 1 exits, and extract the bounded regular result through a

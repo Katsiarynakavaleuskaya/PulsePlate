@@ -183,6 +183,27 @@ def test_explicit_backend_never_falls_back(
     assert calls == ["apple-container"]
 
 
+def test_native_linux_is_not_strict_without_filesystem_containment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(dispatch.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(
+        dispatch,
+        "probe_backend",
+        lambda backend, _image: _probe(
+            backend,
+            strict=False,
+            reason="filesystem_isolation_unavailable",
+        ),
+    )
+
+    selected, attempts = dispatch.select_backend("auto", _image())
+
+    assert selected is None
+    assert [probe.backend for probe in attempts] == ["native-linux"]
+    assert attempts[0].blocking_reasons == ("filesystem_isolation_unavailable",)
+
+
 @pytest.mark.parametrize("backend", ["apple-container", "docker"])
 def test_container_argv_enforces_exact_mount_and_network_contract(
     tmp_path: Path,
@@ -391,6 +412,41 @@ def test_result_v1_accepts_strict_backend_provenance() -> None:
     )
 
 
+@pytest.mark.parametrize(
+    ("updates", "message"),
+    [
+        (
+            {"network_isolation": "linux_unshare"},
+            "network_isolation is inconsistent",
+        ),
+        ({"preflight_status": "failed"}, "Accepted experiment results require"),
+        ({"guest_platform": "linux_unsupported"}, "Accepted experiment results require"),
+    ],
+)
+def test_result_v1_rejects_impossible_backend_provenance(
+    updates: dict[str, str],
+    message: str,
+) -> None:
+    result = _legacy_result()
+    provenance = dispatch._execution_backend_payload(_probe("docker", strict=True), passed=True)
+    result["execution_backend"] = {**provenance, **updates}
+
+    with pytest.raises(ValueError, match=message):
+        experiment_contract.validate_experiment_result(result)
+
+
+def test_capability_mismatch_requires_failed_preflight() -> None:
+    result = _legacy_result()
+    result["status"] = "rejected"
+    result["failure_class"] = "capability_mismatch"
+    result["execution_backend"] = dispatch._execution_backend_payload(
+        _probe("docker", strict=True), passed=True
+    )
+
+    with pytest.raises(ValueError, match="failed backend preflight"):
+        experiment_contract.validate_experiment_result(result)
+
+
 def test_capability_mismatch_is_non_retryable_and_preserves_zero_network() -> None:
     packet = _packet(network_budget=0)
     probe = _probe("apple-container", strict=False)
@@ -466,12 +522,16 @@ def test_apple_build_registers_exact_local_digest_reference(
 
 def test_backend_probe_uses_explicit_not_applicable_values() -> None:
     docker = _probe("docker", strict=True)
-    native = _probe("native-linux", strict=True)
+    native = _probe(
+        "native-linux",
+        strict=False,
+        reason="filesystem_isolation_unavailable",
+    )
 
     assert docker.probe_results["outer_host_control"] is None
     assert native.probe_results["source_read_only"] is None
     assert docker.strict is True
-    assert native.strict is True
+    assert native.strict is False
     dispatch.validate_capability_artifact(native.to_artifact())
 
 
@@ -517,6 +577,23 @@ def test_capability_validator_matches_platform_and_isolation_schema() -> None:
     invalid_isolation = {**artifact, "isolation_method": "linux_unshare"}
     with pytest.raises(ValueError, match="isolation_method"):
         dispatch.validate_capability_artifact(invalid_isolation)
+
+    schema_path = (
+        dispatch.REPO_ROOT
+        / "docs/orchestration/contracts/experiment_runner_backend_capability.v1.schema.json"
+    )
+    schema = json.loads(schema_path.read_text(encoding="utf-8"))
+    mapped_backends = {
+        rule["if"]["properties"]["backend"]["const"]: rule["then"]["properties"][
+            "isolation_method"
+        ]["const"]
+        for rule in schema["allOf"]
+    }
+    assert mapped_backends == {
+        "native-linux": "linux_unshare",
+        "apple-container": "apple_internal_no_dns_plus_linux_unshare",
+        "docker": "docker_network_none_plus_linux_unshare",
+    }
 
 
 def test_host_listener_marks_successful_positive_control_ready(
@@ -626,18 +703,64 @@ def test_pre_run_image_drift_is_non_retryable_capability_mismatch(
     assert written["budget_observations"]["configured_budgets"]["network_budget"] == 0
 
 
-def test_container_cleanup_forces_stop_before_delete(monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize("backend", ["apple-container", "docker"])
+def test_container_cleanup_forces_delete_after_stop_error(
+    monkeypatch: pytest.MonkeyPatch,
+    backend: str,
+) -> None:
     calls: list[list[str]] = []
 
     def fake_run(argv: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
         calls.append(argv)
+        if argv[1] == "stop":
+            raise dispatch.DispatchError("probe_execution_failed")
         return subprocess.CompletedProcess(argv, 0, "", "")
 
     monkeypatch.setattr(dispatch, "_run", fake_run)
 
-    assert dispatch._cleanup_container("/usr/local/bin/container", "apple-container", "run-id")
+    assert dispatch._cleanup_container("/usr/local/bin/runtime", backend, "run-id")
     assert calls[0][1:4] == ["stop", "--time", "1"]
-    assert calls[1][1:3] == ["delete", "--force"]
+    expected_delete = "delete" if backend == "apple-container" else "rm"
+    assert calls[1][1:3] == [expected_delete, "--force"]
+
+
+def test_nonzero_network_budget_fails_before_backend_selection(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    packet_path = tmp_path / "packet.json"
+    packet_path.write_text(json.dumps(_packet(network_budget=1)), encoding="utf-8")
+    output_path = tmp_path / "result.json"
+    written: dict[str, Any] = {}
+    monkeypatch.setattr(dispatch.platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(
+        dispatch,
+        "_parse_args",
+        lambda _argv: SimpleNamespace(
+            command="run",
+            backend="auto",
+            packet="packet.json",
+            candidate_patch=None,
+            image=f"pulseplate/experiment-runner:local@{_DIGEST}",
+            output="result.json",
+        ),
+    )
+    monkeypatch.setattr(dispatch, "_require_repo_local_file", lambda *_args, **_kwargs: packet_path)
+    monkeypatch.setattr(dispatch, "_resolve_local_output", lambda *_args, **_kwargs: output_path)
+    monkeypatch.setattr(
+        dispatch,
+        "select_backend",
+        lambda *_args: (_ for _ in ()).throw(AssertionError("backend probe must not run")),
+    )
+    monkeypatch.setattr(
+        dispatch, "_atomic_write_json", lambda _path, payload: written.update(payload)
+    )
+
+    assert dispatch.main([]) == 1
+    assert written["failure_class"] == "capability_mismatch"
+    assert written["budget_observations"]["configured_budgets"]["network_budget"] == 1
+    assert written["budget_observations"]["runner_error"] == ("strict_network_budget_required")
+    assert written["execution_backend"]["preflight_status"] == "failed"
 
 
 def test_probe_cleanup_failure_overrides_original_exception(

@@ -329,6 +329,10 @@ PR-1/PR-2/PR-3 gates admit later artifacts.
   Container first, then Docker `--network none`, with selection completed
   before the run. A backend may not silently fall back, add broad capabilities,
   or change the packet network budget after execution starts.
+- The strict dispatcher rejects non-zero `network_budget` before backend
+  selection. Native Linux `unshare` remains available through the existing
+  Runner, but is not a strict dispatcher backend until filesystem containment
+  reaches parity with the container mount contract.
 - Strict backend capability artifacts and result `execution_backend` provenance
   are evidence only. They do not change promotion or merge-readiness authority.
 

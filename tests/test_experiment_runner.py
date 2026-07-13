@@ -1218,7 +1218,7 @@ def test_classify_oracle_failure_matches_only_standalone_oom_markers() -> None:
     assert experiment_runner._classify_oracle_failure(oom_result) == "oom"
 
 
-def test_classify_oracle_failure_maps_unshare_setup_to_infra_flake() -> None:
+def test_classify_oracle_failure_maps_unshare_setup_to_capability_mismatch() -> None:
     result = SandboxResult(
         argv=("unshare", "--net", "python3"),
         returncode=1,
@@ -1229,7 +1229,43 @@ def test_classify_oracle_failure_maps_unshare_setup_to_infra_flake() -> None:
         cwd="/tmp",
     )
 
-    assert experiment_runner._classify_oracle_failure(result) == "infra_flake"
+    assert experiment_runner._classify_oracle_failure(result) == "capability_mismatch"
+
+
+def test_evaluate_candidate_does_not_retry_lost_unshare_capability(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_runner_repo(monkeypatch, repo)
+    patch_path = _write_patch(
+        repo,
+        "core/rag/allowed.py",
+        "def candidate_value() -> int:\n    return 2\n",
+        tmp_path / "lost-unshare.patch",
+    )
+    packet = _validate_packet(
+        _base_packet(
+            mutable_path="core/rag/allowed.py",
+            oracle_command='python3 -c "print(1)"',
+            network_budget=0,
+        )
+    )
+    attempts = {"count": 0}
+
+    def _missing_unshare(*_args: object, **_kwargs: object) -> SandboxResult:
+        attempts["count"] += 1
+        raise RuntimeError("Network-disabled sandbox requires unshare on PATH.")
+
+    monkeypatch.setattr(experiment_runner.sandbox, "run_local_sandbox", _missing_unshare)
+
+    result = experiment_runner.evaluate_candidate(packet, patch_path)
+
+    assert result["status"] == "rejected"
+    assert result["failure_class"] == "capability_mismatch"
+    assert result["budget_observations"]["attempts"] == 1
+    assert result["budget_observations"]["retries_consumed"] == 0
+    assert attempts["count"] == 1
 
 
 def test_evaluate_candidate_allows_first_oracle_on_one_second_budget(

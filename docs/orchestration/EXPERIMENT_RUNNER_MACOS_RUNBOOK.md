@@ -13,7 +13,9 @@ selection happens once, before the experiment:
 2. Docker with `--network none` when the Apple probe is not strict;
 3. `capability_mismatch` when neither backend proves the required controls.
 
-There is no mid-run fallback and no retry with a weaker network mode.
+There is no mid-run fallback and no retry with a weaker network mode. The
+strict dispatcher accepts only packets whose `network_budget` is exactly zero;
+a non-zero value produces `capability_mismatch` before any runtime probe.
 
 ## Host prerequisites
 
@@ -140,6 +142,7 @@ or substitute an image after preflight.
 - `apple_kernel_not_configured`;
 - `image_missing`, `image_digest_drift`;
 - `guest_unshare_unavailable`, `guest_platform_mismatch`;
+- `strict_network_budget_required`, `filesystem_isolation_unavailable`;
 - `network_gateway_unavailable`, `network_isolation_failed`,
   `mount_contract_failed`;
 - `result_volume_failed`, `container_cleanup_failed`;
@@ -148,6 +151,8 @@ or substitute an image after preflight.
 After the experiment starts, any runtime failure remains on the selected
 backend and is reported without trying Docker, Apple Container, or a networked
 mode. `infra_flake` remains reserved for genuinely transient execution errors.
+Loss of `unshare` after a passed preflight is still a non-retryable
+`capability_mismatch`.
 
 ## Validation and rollback
 
@@ -158,4 +163,7 @@ provenance, and no host path or secret.
 
 Rollback is a revert of the dispatcher, result-contract extension, capability
 schema, and dedicated Containerfile, followed by deleting the local OCI image.
-The native Linux `unshare` path remains unchanged throughout.
+The existing direct native Linux Runner path remains unchanged. The strict
+dispatcher can report its network capability, but does not admit native Linux
+execution until an equivalent read-only filesystem/private-temp containment
+contract exists; it returns `filesystem_isolation_unavailable` instead.
