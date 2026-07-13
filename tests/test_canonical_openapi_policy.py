@@ -320,6 +320,43 @@ def test_builder_state_matrix_rejects_partial_foreign_and_wrong_app_states() -> 
         openapi_policy.validate_openapi_builder_state(target_app)
 
 
+@pytest.mark.parametrize(
+    ("tracker", "expected_error"),
+    [
+        (None, "route_version_unavailable"),
+        (lambda: "invalid", "route_version_invalid"),
+    ],
+)
+def test_installer_rejects_invalid_route_version_tracker(
+    monkeypatch: pytest.MonkeyPatch,
+    tracker: object,
+    expected_error: str,
+) -> None:
+    target_app = FastAPI()
+    monkeypatch.setattr(target_app.router, "_get_routes_version", tracker)
+
+    with pytest.raises(RuntimeError, match=expected_error):
+        openapi_policy.install_canonical_openapi_builder(target_app)
+
+    assert openapi_policy._is_default_openapi_builder(target_app, target_app.openapi)
+    assert not hasattr(target_app.state, "_canonical_openapi_builder")
+
+
+def test_installer_rejects_unserializable_openapi_inputs_atomically() -> None:
+    target_app = FastAPI()
+    target_app.openapi_tags = [{"name": object()}]
+
+    with pytest.raises(
+        RuntimeError,
+        match="input_fingerprint_unserializable",
+    ) as exc_info:
+        openapi_policy.install_canonical_openapi_builder(target_app)
+
+    assert isinstance(exc_info.value.__cause__, TypeError)
+    assert openapi_policy._is_default_openapi_builder(target_app, target_app.openapi)
+    assert not hasattr(target_app.state, "_canonical_openapi_builder")
+
+
 def test_same_name_foreign_builder_is_rejected() -> None:
     target_app = FastAPI()
 

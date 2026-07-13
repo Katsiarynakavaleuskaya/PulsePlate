@@ -335,8 +335,6 @@ def install_canonical_openapi_builder(target_app: FastAPI) -> None:
     if current_builder is not live_builder:
         setattr(target_app, "openapi", current_builder)
         setattr(target_app.state, _CANONICAL_BUILDER_STATE_ATTR, current_builder)
-    elif marker is not current_builder:
-        setattr(target_app.state, _CANONICAL_BUILDER_STATE_ATTR, current_builder)
 
     setattr(target_app, "_openapi_routes_version", routes_version)
     setattr(target_app, _INPUT_FINGERPRINT_ATTR, input_fingerprint)
