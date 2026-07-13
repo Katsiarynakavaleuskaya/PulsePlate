@@ -36,6 +36,12 @@ Evidence: `docs/security/DEPENDABOT_ALERT_INVENTORY.md:3-6` now states that the 
 Reason: The introduction and current inventory are numerically consistent.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2113#discussion_r3572280141 -> 296c64c4e9a5ead5042a049f7326bd9e9868988a
 
+Disposition: FIXED
+Commit: 296c64c4e9a5ead5042a049f7326bd9e9868988a
+Evidence: `docs/review/PR_2113_FIXED_MAPPING.md:15-18` and `docs/security/DEPENDABOT_ALERT_INVENTORY.md:3-6` close both actionables summarized by the parent CodeRabbit review.
+Reason: The review-level summary represents the same two fixed inline findings and requires its own canonical mapping entry.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2113#pullrequestreview-4686603467 -> 296c64c4e9a5ead5042a049f7326bd9e9868988a
+
 Disposition: NOT-A-BUG
 Evidence: `tests/test_runtime_toolchain_alignment.py` contains private pytest helpers and deterministic tests, the module-level support file already has a docstring, and the repository has no pydocstyle/Ruff-D docstring gate for test functions; `pre-commit run --all-files` and `make validate-changed` pass.
 Reason: Adding repetitive docstrings to private test helpers would not satisfy a repository contract or change production/release safety; the CodeRabbit docstring percentage is an advisory external heuristic, not a repo gate.
