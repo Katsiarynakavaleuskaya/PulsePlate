@@ -29,6 +29,8 @@ Starter: `scripts/orchestration/start_pr_lane.sh`
 - `114111b50a8aa039ef40cf6b894594e1725a80c4` - fail `build-handoff`
   before any bridge, candidate, or prepare output when `origin/main` no longer
   equals the approved workspace target head.
+- `7054b88b0` - return defensive copies from retained snapshot validation and
+  parse tracked Git pathnames through NUL-delimited `git ls-tree` output.
 
 ## Discussion Thread Pass
 
@@ -59,6 +61,18 @@ Evidence: `tests/test_creative_pilot_workspace.py::test_build_handoff_rejects_or
 Reason: `build-handoff` now rejects temporal base drift before any artifact materialization or write.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2112#discussion_r3571890953 -> 114111b50a8aa039ef40cf6b894594e1725a80c4
 
+Disposition: FIXED
+Commit: 7054b88b0
+Evidence: `tests/test_creative_code_specification.py::test_retained_prepare_returns_defensive_snapshot_copies` mutates nested returned snapshots and proves the caller-owned retained inputs remain unchanged.
+Reason: Validated nested containers no longer alias the caller's retained evidence.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2112#pullrequestreview-4685825585 -> 7054b88b0
+
+Disposition: FIXED
+Commit: 7054b88b0
+Evidence: `tests/test_creative_pilot_workspace.py::test_tracked_blob_size_preserves_raw_git_pathnames` covers leading-space, quoted, and non-ASCII paths with raw NUL-delimited Git output.
+Reason: Git tree parsing no longer strips or quote-interprets valid tracked pathnames.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2112#pullrequestreview-4686109897 -> 7054b88b0
+
 ## Experiment Runner Evidence
 
 Not applicable: accepted contribution evidence is retained in the adaptive-pilot
@@ -86,12 +100,13 @@ machine-heavy invocation without a one-time human override.
 
 ## Security Review
 
-- PASS: sealed Codex Security source-diff scan `scan_pr2112_114111b50` at
-  `114111b50a8aa039ef40cf6b894594e1725a80c4` reviewed all three source-like
-  rows. Two defensive candidates were explicitly validated and rejected; zero
-  reportable findings survived final reportability policy.
+- PASS: sealed Codex Security source-diff scan `scan_pr2112_7054b88b0` at
+  `7054b88b0e0c6925b150e3f40df17d0fb4b5c654` reviewed all eight changed files
+  and deep-reviewed all three material source files. Discovery produced zero
+  candidates and zero reportable findings. Material diff SHA-256:
+  `0d67faba92ab7b855b3afff4b3d962a54152a468f9fdf4883ee834ca33ea91c9`.
 - The scan is retained locally and gitignored at
-  `artifacts/security_lab/pr-2112-final/`.
+  `artifacts/security_lab/pr-2112-final-7054/`.
 
 ## Risks / Rollback
 
