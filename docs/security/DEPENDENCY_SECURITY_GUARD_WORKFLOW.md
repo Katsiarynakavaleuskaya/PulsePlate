@@ -133,11 +133,11 @@ pre-commit run --all-files
 - Link to CVE doc in PR description
 - Update `docs/roadmap/BACKLOG_LEDGER.md` if applicable
 - Include evidence across all tracked surfaces:
-  `rg -n "^<package>" requirements.in requirements.txt requirements-docker-runtime.in requirements-docker-runtime.txt requirements-dev.txt requirements-lock.txt constraints.txt requirements-rag-vector.in requirements-rag-vector.txt`
+  `rg -n "^<package>" requirements.in requirements-docker-runtime.in requirements-ci-lite.in requirements-dev.in requirements.txt requirements-docker-runtime.txt requirements-dev.txt requirements-lock.txt requirements-ci-lite.txt constraints.txt`
 
 ## Examples
 
-### Example 1: Minimum Version Floor (cryptography CVE)
+### Example 1: Minimum Version Floors (Click, Pillow, and cryptography)
 
 **Scenario:** current scanner findings require Click 8.3.3, cryptography 48.0.1,
 and Pillow 12.3.0.
@@ -198,7 +198,8 @@ and Pillow 12.3.0.
 1. **Sorting:** All keys and lists must be sorted alphabetically (case-insensitive) for clean diffs
 2. **No comments:** JSON doesn't support comments; use CVE docs for rationale
 3. **Case-insensitive:** Package names are matched case-insensitively
-4. **All surfaces:** `min_versions` packages must exist in all 5 surfaces
+4. **All surfaces:** `min_versions` packages must exist in all 10 surfaces
+   declared by `tests/test_dependency_security_guard.py:21-32`
 
 ## CI Integration
 
@@ -212,9 +213,14 @@ and Pillow 12.3.0.
 | Surface | Type | Purpose |
 |---------|------|---------|
 | `requirements.in` | Constraint (>=) | Runtime deps source |
+| `requirements-docker-runtime.in` | Constraint (>=) | Docker runtime source |
+| `requirements-ci-lite.in` | Constraint (>=) | Lightweight CI source |
+| `requirements-dev.in` | Constraint (>=) | Development source |
 | `requirements.txt` | Pinned (==) | Runtime deps lock |
+| `requirements-docker-runtime.txt` | Pinned (==) | Docker runtime lock |
 | `requirements-dev.txt` | Pinned (==) | Dev deps lock |
 | `requirements-lock.txt` | Pinned (==) | Full lock |
+| `requirements-ci-lite.txt` | Pinned (==) | Lightweight CI lock |
 | `constraints.txt` | Constraint (>=) | Flexible ranges |
 
 ## How to Fix Failures
