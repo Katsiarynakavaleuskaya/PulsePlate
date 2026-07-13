@@ -19,8 +19,8 @@ authority.
 - [x] Mandatory post-open `qa-engineer-agent -> bug-hunter -> security-auditor` pass completed
 - [x] Codex Security exact-head diff scan completed
 - [x] `pulseplate-pr-review` completed
-- [ ] Current-head CI completed
-- [ ] Mandatory review wait-window and strict merge-readiness completed
+- [x] Current-head CI completed
+- [x] Mandatory review wait-window and strict merge-readiness completed
 
 ## Fixed in Commit Mapping
 
@@ -184,13 +184,18 @@ The packet routed mandatory ordered roles and did not execute them implicitly.
 - PASS: `make validate-changed`.
 - PASS: `pre-commit run --all-files`.
 - PASS: pre-push pip-audit, backend tests, and full-repo Bandit.
+- PASS: current-head CI run `29268551266` completed 20 jobs successfully on `5946ccafa677cd27685a460f02549b9a3ec75e95` with no failures or pending jobs.
+- PASS: App Store validation run `29268551283` completed successfully on the same head; `validate-assets` passed while `upload-assets` and `upload-app-privacy` were skipped.
+- PASS: all two review threads are resolved with commit-after-comment evidence, all actionable bot comments are mapped, and the mandatory review wait window elapsed before final readiness.
 - Not run: local `make verify`, per repository machine-budget policy.
 
 ## Merge Readiness
 
-Not claimed. Current-head CI, post-open role passes, Codex Security,
-PulsePlate PR review, review-bot/thread disposition, the mandatory wait window,
-and strict authenticated merge-readiness must pass first.
+Recorded for the final evidence commit after current-head CI, post-open role
+passes, Codex Security, PulsePlate PR review, review-bot/thread dispositions,
+and the mandatory wait window passed. Merge remains prohibited until this
+mapping-only head independently repeats terminal current-head CI and the
+strict authenticated merge-readiness wrapper.
 
 ## Deferred / Follow-ups
 
