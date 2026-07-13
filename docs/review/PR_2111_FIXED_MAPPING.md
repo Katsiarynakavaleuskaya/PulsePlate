@@ -55,6 +55,8 @@ Reason: The dependency workflow now covers every affected canonical shared lock 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2111#discussion_r3570270944 -> 11d118fac85ef71e6bea3f63c7e1651dbbce4a52
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2111#discussion_r3570270948 -> 11d118fac85ef71e6bea3f63c7e1651dbbce4a52
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2111#discussion_r3570298218 -> 11d118fac85ef71e6bea3f63c7e1651dbbce4a52
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2111#pullrequestreview-4684291964 -> 11d118fac85ef71e6bea3f63c7e1651dbbce4a52
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2111#pullrequestreview-4684320798 -> 11d118fac85ef71e6bea3f63c7e1651dbbce4a52
 
 ## Experiment Runner Evidence
 
