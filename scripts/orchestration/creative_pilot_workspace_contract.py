@@ -955,17 +955,51 @@ def current_origin_main_sha() -> str:
     return _sha(value, "origin/main")
 
 
-def _blob_at(commit_sha: str, path: str) -> tuple[str, bytes]:
-    row = cast(str, _git("ls-tree", commit_sha, "--", path)).strip()
-    fields = row.split(None, 3)
-    if len(fields) != 4 or fields[1] != "blob" or fields[3] != path:
+def _blob_oid_at(commit_sha: str, path: str) -> str:
+    output = cast(bytes, _git("ls-tree", "-z", commit_sha, "--", path, binary=True))
+    records = output.split(b"\0")
+    if not records or records[-1] != b"" or len(records) != 2:
         raise CreativePilotContractError(
             f"target path is not a tracked blob at {commit_sha}: {path}"
         )
-    if fields[0] in {"120000", "160000"}:
+    metadata, separator, raw_path = records[0].partition(b"\t")
+    fields = metadata.split(b" ")
+    if separator != b"\t" or len(fields) != 3 or raw_path != path.encode("utf-8"):
+        raise CreativePilotContractError(
+            f"target path is not a tracked blob at {commit_sha}: {path}"
+        )
+    mode, object_type, raw_oid = fields
+    if mode in {b"120000", b"160000"}:
         raise CreativePilotContractError(f"target path must not be a symlink or submodule: {path}")
+    if object_type != b"blob":
+        raise CreativePilotContractError(
+            f"target path is not a tracked blob at {commit_sha}: {path}"
+        )
+    try:
+        return raw_oid.decode("ascii")
+    except UnicodeDecodeError as exc:
+        raise CreativePilotContractError(
+            f"target path has an invalid Git object ID at {commit_sha}: {path}"
+        ) from exc
+
+
+def _blob_at(commit_sha: str, path: str) -> tuple[str, bytes]:
+    blob_oid = _blob_oid_at(commit_sha, path)
     content = cast(bytes, _git("show", f"{commit_sha}:{path}", binary=True))
-    return fields[2], content
+    return blob_oid, content
+
+
+def tracked_blob_size_at_commit(commit_sha: str, path: str) -> int:
+    """Return immutable Git-object size evidence for one tracked repository path."""
+
+    commit = _sha(commit_sha, "commit_sha")
+    _require_commit(commit, "commit_sha")
+    normalized_path = _path(path, "tracked_file.path")
+    blob_oid = _blob_oid_at(commit, normalized_path)
+    raw_size = cast(str, _git("cat-file", "-s", blob_oid)).strip()
+    if re.fullmatch(r"[0-9]{1,20}", raw_size) is None:
+        raise CreativePilotContractError("tracked blob size must be a non-negative integer")
+    return int(raw_size)
 
 
 def _symbols(content: bytes, path: str) -> set[str]:

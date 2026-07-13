@@ -16,6 +16,7 @@ import pytest
 
 from core.evidence.fingerprints import build_asset_id, build_idempotency_key, fingerprint_payload
 from scripts.orchestration import creative_code_artifact_inventory as inventory
+from scripts.orchestration import context_pack_compression
 from scripts.orchestration import creative_code_spec_pipeline
 from scripts.orchestration import creative_specification_skeptic_review as skeptic_review_cli
 from scripts.orchestration import creative_pilot_workspace as pilot_cli
@@ -143,6 +144,88 @@ def test_production_adjacent_target_binds_git_blob_and_symbols() -> None:
     assert target["base_sha"] == target["head_sha"]
     assert {row["path"] for row in target["oracle_bindings"]} == set(target["immutable_oracles"])
     assert {row["path"] for row in context["context_bindings"]} == set(context["context_refs"])
+
+
+def test_tracked_blob_size_uses_object_metadata_without_reading_content(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    commit = "a" * 40
+    blob_oid = "b" * 40
+    path = "AGENTS.md"
+    calls: list[tuple[tuple[str, ...], bool]] = []
+
+    def fake_git(*args: str, binary: bool = False) -> str | bytes:
+        calls.append((args, binary))
+        responses: dict[tuple[str, ...], str | bytes] = {
+            ("cat-file", "-t", commit): "commit\n",
+            ("ls-tree", "-z", commit, "--", path): (f"100644 blob {blob_oid}\t{path}\0".encode()),
+            ("cat-file", "-s", blob_oid): "33554432\n",
+        }
+        return responses[args]
+
+    monkeypatch.setattr(pilot_contract, "_git", fake_git)
+
+    assert pilot_contract.tracked_blob_size_at_commit(commit, path) == 33_554_432
+    assert calls == [
+        (("cat-file", "-t", commit), False),
+        (("ls-tree", "-z", commit, "--", path), True),
+        (("cat-file", "-s", blob_oid), False),
+    ]
+
+
+@pytest.mark.parametrize(
+    "path",
+    (
+        " leading-space.py",
+        'docs/quoted-"name".py',
+        "docs/данные.py",
+    ),
+)
+def test_tracked_blob_size_preserves_raw_git_pathnames(
+    monkeypatch: pytest.MonkeyPatch,
+    path: str,
+) -> None:
+    commit = "a" * 40
+    blob_oid = "b" * 40
+
+    def fake_git(*args: str, binary: bool = False) -> str | bytes:
+        if args == ("cat-file", "-t", commit):
+            assert binary is False
+            return "commit\n"
+        if args == ("ls-tree", "-z", commit, "--", path):
+            assert binary is True
+            return f"100644 blob {blob_oid}\t{path}\0".encode()
+        if args == ("cat-file", "-s", blob_oid):
+            assert binary is False
+            return "17\n"
+        raise AssertionError(args)
+
+    monkeypatch.setattr(pilot_contract, "_git", fake_git)
+
+    assert pilot_contract.tracked_blob_size_at_commit(commit, path) == 17
+
+
+def test_tracked_blob_size_rejects_non_numeric_git_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    commit = "a" * 40
+    blob_oid = "b" * 40
+    path = "AGENTS.md"
+
+    def fake_git(*args: str, binary: bool = False) -> str | bytes:
+        responses: dict[tuple[str, ...], str | bytes] = {
+            ("cat-file", "-t", commit): "commit\n",
+            ("ls-tree", "-z", commit, "--", path): (f"100644 blob {blob_oid}\t{path}\0".encode()),
+            ("cat-file", "-s", blob_oid): "not-a-size\n",
+        }
+        if args[0] == "ls-tree":
+            assert binary is True
+        return responses[args]
+
+    monkeypatch.setattr(pilot_contract, "_git", fake_git)
+
+    with pytest.raises(CreativePilotContractError, match="non-negative integer"):
+        pilot_contract.tracked_blob_size_at_commit(commit, path)
 
 
 def test_target_rejects_stale_head_and_untracked_context() -> None:
@@ -397,6 +480,86 @@ def test_pass_synthesis_binds_approval_and_existing_candidate_v1() -> None:
         candidate=bundle["candidate"],
     )
     assert terminal["state"] == {"phase": "approved_for_pr1_spec", "terminal": True}
+
+
+def test_build_handoff_rejects_origin_main_drift_before_any_output(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    context, packet, workspace = _chain()
+    completed = _complete(workspace)
+    synthesis = build_synthesis(completed)
+    synthesized = apply_synthesis_transition(completed, synthesis)
+    approval = build_approval_v2(
+        workspace=synthesized,
+        synthesis=synthesis,
+        approved_by="test-operator",
+    )
+    artifact_root = REPO_ROOT / "artifacts" / "orchestration"
+    artifact_root.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="pilot-handoff-drift-", dir=artifact_root) as raw_dir:
+        pilot_root = Path(raw_dir)
+        pilot_id = "handoff-base-drift"
+        pilot_dir = pilot_root / pilot_id
+        pilot_dir.mkdir()
+        payloads = {
+            "context_map.v2.json": context,
+            "hypothesis_packet.v2.json": packet,
+            "workspace.json": synthesized,
+            "synthesis.json": synthesis,
+            "approval.v2.json": approval,
+        }
+        for filename, payload in payloads.items():
+            (pilot_dir / filename).write_text(
+                json.dumps(payload, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+        workspace_before = (pilot_dir / "workspace.json").read_bytes()
+        bundle_called = False
+        prepare_called = False
+
+        def unexpected_bundle(**_kwargs: object) -> dict[str, object]:
+            nonlocal bundle_called
+            bundle_called = True
+            return {}
+
+        def unexpected_prepare(_candidate_path: Path, _prepare_dir: Path) -> None:
+            nonlocal prepare_called
+            prepare_called = True
+
+        monkeypatch.setattr(pilot_cli, "PILOT_ROOT", pilot_root)
+        monkeypatch.setattr(pilot_cli, "current_origin_main_sha", lambda: "f" * 40)
+        monkeypatch.setattr(
+            pilot_cli,
+            "build_creative_pilot_spec_bridge_bundle",
+            unexpected_bundle,
+        )
+        monkeypatch.setattr(pilot_cli, "prepare_specification", unexpected_prepare)
+
+        assert (
+            pilot_cli.main(
+                [
+                    "build-handoff",
+                    "--pilot-id",
+                    pilot_id,
+                    "--variant-count",
+                    "3",
+                ]
+            )
+            == 1
+        )
+        assert capsys.readouterr().out == (
+            "FAIL: adaptive_base_drift: build-handoff requires current origin/main "
+            "to equal workspace target head_sha "
+            f"(origin/main={'f' * 40}, "
+            f"target={synthesized['target_manifest']['head_sha']})\n"
+        )
+        assert bundle_called is False
+        assert prepare_called is False
+        assert (pilot_dir / "workspace.json").read_bytes() == workspace_before
+        assert not (pilot_dir / "spec_bridge.v2.json").exists()
+        assert not (pilot_dir / "creative_code_candidate.v1.json").exists()
+        assert not (pilot_dir / "pr1_prepare").exists()
 
 
 def test_approval_rejects_stale_workspace_revision() -> None:
@@ -851,6 +1014,11 @@ def _publish_adaptive_resume_for_test(
     existing_outputs = {entry.name for entry in spec_root.iterdir()}
     monkeypatch.setattr(pilot_cli, "PILOT_ROOT", pilot_root)
     monkeypatch.setattr(pilot_cli, "SPEC_BRIDGE_ROOT", spec_root)
+    monkeypatch.setattr(
+        pilot_cli,
+        "tracked_blob_size_at_commit",
+        lambda commit_sha, path: (REPO_ROOT / path).stat().st_size,
+    )
     monkeypatch.setattr(skeptic_review_cli, "SPEC_BRIDGE_ROOT", spec_root)
     capsys.readouterr()
     assert (
@@ -1001,6 +1169,20 @@ def test_resume_pr1_publishes_exact_new_only_bundle(
         spec_root.mkdir(parents=True, exist_ok=True)
         existing_outputs = {entry.name for entry in spec_root.iterdir()}
         candidate = _write_terminal_pilot(pilot_dir)
+        with monkeypatch.context() as historical_sizes:
+            historical_sizes.setattr(
+                context_pack_compression,
+                "_safe_context_char_count",
+                lambda path, *, repo_root: 4096 + len(path),
+            )
+            historical_context = creative_code_spec_pipeline.build_default_prepare_artifacts(
+                candidate
+            )["context_pack.json"]
+        retained_context_path = pilot_dir / "pr1_prepare/context_pack.json"
+        retained_context_path.write_text(
+            json.dumps(historical_context, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
         retained_before = {
             path.relative_to(pilot_dir): path.read_bytes() for path in pilot_dir.rglob("*.json")
         }
@@ -1009,6 +1191,11 @@ def test_resume_pr1_publishes_exact_new_only_bundle(
         )
         monkeypatch.setattr(pilot_cli, "PILOT_ROOT", pilot_root)
         monkeypatch.setattr(pilot_cli, "SPEC_BRIDGE_ROOT", spec_root)
+        monkeypatch.setattr(
+            pilot_cli,
+            "tracked_blob_size_at_commit",
+            lambda commit_sha, path: 4096 + len(path),
+        )
         monkeypatch.setattr(skeptic_review_cli, "SPEC_BRIDGE_ROOT", spec_root)
         args = [
             "resume-pr1",
@@ -1076,6 +1263,12 @@ def test_resume_pr1_publishes_exact_new_only_bundle(
             expected_families
         )
         _assert_resume_schema_binding_prefixes(binding_payload, binding_schema)
+        context_binding = next(
+            row
+            for row in binding_payload["source_lineage"]["original_prepare_bindings"]
+            if row["filename"] == "context_pack.json"
+        )
+        assert context_binding["fingerprint"] == fingerprint_payload(historical_context)
         assert re.fullmatch(
             binding_schema["$defs"]["artifactRef"]["properties"]["intake_ref"]["pattern"],
             binding_payload["intake"]["intake_ref"],

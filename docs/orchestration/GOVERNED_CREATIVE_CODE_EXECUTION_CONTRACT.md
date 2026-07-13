@@ -113,6 +113,32 @@ prepare validator; a re-fingerprinted pending review or altered context pack
 cannot become downstream PR-1 truth. Resume/intake pilot IDs and every retained
 source/prepare ref must also share the exact
 `adaptive_pilots/<pilot-id>/` lineage root.
+Historical retained `pr1_prepare/context_pack.json` snapshots keep their exact
+bytes and source-binding fingerprint. Because context-pack size and token
+estimates are metadata-only and are derived from repository file sizes, resume
+may compare those historical estimate fields through a closed compatibility
+projection. The retained estimate arithmetic and derived IDs must still be
+self-consistent, and every historical per-path estimate plus the aggregate
+baseline must stay within the canonical `MAX_METADATA_BYTES` drift budget of
+the tracked file sizes at the retained workspace source commit. The retained
+pack is reconstructed through the canonical bounded
+context graph/estimate types before sorting or fingerprinting. Stable
+comparison is JSON-type-sensitive, so boolean-to-integer or other scalar-type
+substitution is not equality. Required
+paths, path fingerprints, graph topology, routing metadata, policy, authority,
+pack-level reason codes, non-size-derived estimate reason codes, and every
+non-estimate field remain exact. Only the size-derived
+`no_context_reduction` estimate reason is normalized when comparing historical
+and current packs. Newly emitted exact
+prepare artifacts remain current-version and fully exact; this compatibility
+rule does not widen runtime, provider, cache, serving, repository-write, or
+promotion authority.
+`build-handoff` fails closed if `origin/main` no longer equals the workspace's
+approved target head. This prevents a new retained `pr1_prepare` snapshot from
+being produced from a later repository tree while remaining bound to the
+earlier target manifest. Existing sealed retained pilots continue through the
+bounded historical compatibility validator; the guard runs before any new
+bridge, candidate, or prepare artifact is written.
 Before fingerprinting or publication, resume also reconstructs the retained
 context → packet → workspace → synthesis → approval → bridge → candidate
 lineage, recomputes the deterministic approval and terminal handoff, and

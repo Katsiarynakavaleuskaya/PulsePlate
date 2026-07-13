@@ -11039,6 +11039,28 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Priority: P1 (research-to-implementation leverage with closed authority)
   - Target PR: PR-0 `feat/experiment-runner-creative-code-authority-pr0` -> PR-1 `codex/creative-code-specification-pr1` -> PR-2 `#2022` -> PR-3 `#2030` -> PR-4 `#2044` -> PR-5 `#2048` -> PR-6 `codex/creative-code-first-applied-candidate-pr6` -> private-pilot loop operator `codex/creative-code-private-pilot-loop-operator` -> GitHub App capability gate `codex/experiment-runner-github-app-capability-gate` -> approved creative-hypothesis specification bridge `codex/experiment-runner-approved-hypothesis-spec-bridge` -> creative spec learning rollup `#2075` -> patch-builder admission `codex/er-creative-spec-patch-admission` -> adaptive production-adjacent pilot `codex/er-adaptive-production-pilot`
   - Status: PR-0 through PR-5 and the existing private-pilot, bridge, learning-rollup, patch-admission, receipt, and promotion-integrity slices remain canonical. The active adaptive production-adjacent pilot adds a strict v2 planning rail over exact tracked `core/rag` or `core/insight` targets, structured independent review, one targeted rebuttal, deterministic synthesis, TTY approval, control-plane evidence events, and candidate-v1 / PR-1 prepare handoff without changing product code or mutation authority.
+  - Carryover remediation:
+    - Owner: @katsiaryna_kavaleuskaya (Orchestration / Security)
+    - Priority: P1
+    - Target PR: `codex/adaptive-context-pack-lineage-fix` (follow-up to PR `#2101`)
+    - Status: Active prerequisite for the first retained RAG candidate execution.
+    - Reason (EN): PR `#2101` added exact adaptive PR-1 resume, but current
+      validation recomputes metadata-only context size/token estimates from the
+      live repository and therefore rejects an intact older retained pack after
+      unrelated repository growth. The remediation must tolerate only
+      self-consistent historical estimate telemetry while keeping stable
+      lineage and retained bytes fingerprint-bound.
+    - DoD: historical estimate-only drift passes `resume-pr1`; malformed
+      arithmetic, derived IDs, bounded source-commit file-size bindings,
+      scalar types, and any path, fingerprint, graph, routing, policy,
+      authority, reason-code, or unknown-field drift remain fail-closed;
+      current exact prepare validation stays strict; the retained pilot remains
+      byte-identical;
+      focused orchestration tests and normal PR governance pass.
+    - Evidence: `scripts/orchestration/creative_code_spec_pipeline.py`,
+      `tests/test_creative_code_specification.py`,
+      `tests/test_creative_pilot_workspace.py`,
+      `docs/orchestration/GOVERNED_CREATIVE_CODE_EXECUTION_CONTRACT.md`.
   - Dependencies:
     - [P1: Creative research eval lane under governed experimentation epic](#ledger-p1-creative-research-eval-lane)
     - [P1: Governed agent experimentation lane (PR1-PR6 orchestration epic)](#ledger-p1-agent-experimentation-lane)

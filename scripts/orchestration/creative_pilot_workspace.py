@@ -48,11 +48,13 @@ from scripts.orchestration.creative_pilot_workspace_contract import (
     validate_synthesis,
     validate_workspace,
     current_origin_main_sha,
+    tracked_blob_size_at_commit,
     ADAPTIVE_PR1_PREPARE_FILENAMES,
     ADAPTIVE_PR1_SOURCE_TYPES,
 )
 from scripts.orchestration.creative_code_spec_pipeline import (
     CreativeCodeSpecPipelineError,
+    REQUIRED_CONTEXT,
     prepare as prepare_specification,
     prepare_exact as prepare_exact_specification,
     validate_default_prepare_artifact_snapshots,
@@ -547,6 +549,14 @@ def _cmd_build_handoff(args: argparse.Namespace) -> None:
     context = _read(run_dir / FIXED_FILENAMES["context"])
     packet = _read(run_dir / FIXED_FILENAMES["packet"])
     workspace = validate_workspace(_read(run_dir / FIXED_FILENAMES["workspace"]))
+    approved_head = workspace["target_manifest"]["head_sha"]
+    current_head = current_origin_main_sha()
+    if current_head != approved_head:
+        raise CreativePilotContractError(
+            "adaptive_base_drift: build-handoff requires current origin/main "
+            "to equal workspace target head_sha "
+            f"(origin/main={current_head}, target={approved_head})"
+        )
     synthesis = validate_synthesis(_read(run_dir / FIXED_FILENAMES["synthesis"]))
     approval = validate_approval_v2(_read(run_dir / FIXED_FILENAMES["approval"]))
     bundle = build_creative_pilot_spec_bridge_bundle(
@@ -971,6 +981,10 @@ def _cmd_resume_pr1(args: argparse.Namespace) -> None:
     prepare_snapshots = validate_default_prepare_artifact_snapshots(
         retained_prepare_snapshots,
         expected_packet=candidate,
+        historical_context_char_counts={
+            path: tracked_blob_size_at_commit(old_manifest["head_sha"], path)
+            for path in (*REQUIRED_CONTEXT, *candidate["target_surface"])
+        },
     )
     source_rows, prepare_rows = _exact_source_bindings(
         run_dir,

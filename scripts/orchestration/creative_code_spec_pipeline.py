@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 from collections.abc import Mapping, Sequence
+from copy import deepcopy
 import errno
 import json
 import os
@@ -13,7 +14,14 @@ import stat
 import sys
 from typing import Any
 
+from core.evidence.fingerprints import fingerprint_payload
 from scripts.orchestration.context_pack_compression import (
+    CompressedContextPack,
+    ContextCompressionEstimate,
+    ContextGraphEdge,
+    ContextGraphNode,
+    MAX_METADATA_BYTES,
+    REASON_NO_CONTEXT_REDUCTION,
     build_context_pack_compression,
     to_stable_mapping,
 )
@@ -44,6 +52,82 @@ REQUIRED_CONTEXT = (
     "scripts/orchestration/creative_code_specification.py",
     "scripts/orchestration/creative_code_spec_pipeline.py",
     "scripts/orchestration/creative_code_rejection_index.py",
+)
+
+_CONTEXT_PACK_KEYS = frozenset(
+    {
+        "authority_boundary",
+        "context_pack_id",
+        "estimate",
+        "graph_edges",
+        "graph_nodes",
+        "metadata",
+        "omitted_duplicate_refs",
+        "policy_version",
+        "reason_codes",
+        "required_context",
+        "selected_context_refs",
+    }
+)
+_CONTEXT_PACK_ESTIMATE_KEYS = frozenset(
+    {
+        "baseline_context_chars_estimate",
+        "baseline_context_tokens_estimate",
+        "candidate_context_chars_estimate",
+        "candidate_context_tokens_estimate",
+        "estimate_id",
+        "fanout_tokens_saved_estimate",
+        "orchestration_fanout_multiplier",
+        "reason_codes",
+        "token_estimate_version",
+        "tokens_saved_estimate",
+    }
+)
+_CONTEXT_PACK_NODE_KEYS = frozenset(
+    {
+        "metadata",
+        "node_id",
+        "node_type",
+        "path",
+        "path_fingerprint",
+        "required",
+        "token_estimate",
+    }
+)
+_CONTEXT_PACK_EDGE_KEYS = frozenset({"edge_id", "edge_type", "metadata", "source", "target"})
+_CONTEXT_PACK_REF_KEYS = frozenset(
+    {"node_id", "path", "path_fingerprint", "reason_code", "status", "token_estimate"}
+)
+_CONTEXT_PACK_ESTIMATE_TELEMETRY_KEYS = frozenset(
+    {
+        "baseline_context_chars_estimate",
+        "baseline_context_tokens_estimate",
+        "candidate_context_chars_estimate",
+        "candidate_context_tokens_estimate",
+        "estimate_id",
+        "fanout_tokens_saved_estimate",
+        "tokens_saved_estimate",
+    }
+)
+_CONTEXT_PACK_SECONDARY_AGENTS = (
+    "ai-innovation-specialist",
+    "security-auditor",
+    "qa-engineer-agent",
+    "logic-agent",
+    "epistemology-discovery-agent",
+    "bug-hunter",
+    "cursor-specialist-agent",
+)
+_CONTEXT_PACK_REQUESTED_AGENTS = (
+    "agent-coordinator",
+    "ai-innovation-specialist",
+    "architecture-specialist",
+    "security-auditor",
+    "qa-engineer-agent",
+    "logic-agent",
+    "epistemology-discovery-agent",
+    "bug-hunter",
+    "cursor-specialist-agent",
 )
 
 
@@ -338,28 +422,351 @@ def _context_pack_for_packet(packet: dict[str, Any]) -> dict[str, Any]:
         cluster="ops",
         primary_agent="agent-coordinator",
         reviewer="architecture-specialist",
-        secondary_agents=(
-            "ai-innovation-specialist",
-            "security-auditor",
-            "qa-engineer-agent",
-            "logic-agent",
-            "epistemology-discovery-agent",
-            "bug-hunter",
-            "cursor-specialist-agent",
-        ),
-        requested_agents=(
-            "agent-coordinator",
-            "ai-innovation-specialist",
-            "architecture-specialist",
-            "security-auditor",
-            "qa-engineer-agent",
-            "logic-agent",
-            "epistemology-discovery-agent",
-            "bug-hunter",
-            "cursor-specialist-agent",
-        ),
+        secondary_agents=_CONTEXT_PACK_SECONDARY_AGENTS,
+        requested_agents=_CONTEXT_PACK_REQUESTED_AGENTS,
     )
     return dict(to_stable_mapping(context_pack))
+
+
+def _require_closed_context_pack_mapping(
+    value: Any, *, keys: frozenset[str], label: str
+) -> Mapping[str, Any]:
+    if not isinstance(value, Mapping) or set(value) != keys:
+        raise CreativeCodeSpecPipelineError(
+            f"adaptive_source_lineage_mismatch: retained context_pack.json {label} shape changed"
+        )
+    return value
+
+
+def _require_historical_non_negative_int(value: Any, *, label: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise CreativeCodeSpecPipelineError(
+            "adaptive_source_lineage_mismatch: retained context_pack.json "
+            f"{label} must be a non-negative integer"
+        )
+    return int(value)
+
+
+def _historical_token_estimate(char_count: int) -> int:
+    return 0 if char_count == 0 else max(1, (char_count + 3) // 4)
+
+
+def _canonical_context_pack_json(value: Mapping[str, Any]) -> str:
+    return json.dumps(value, ensure_ascii=True, separators=(",", ":"), sort_keys=True)
+
+
+def _validate_historical_context_pack(
+    value: Any,
+    *,
+    expected_packet: Mapping[str, Any],
+    historical_context_char_counts: Mapping[str, int],
+) -> dict[str, Any]:
+    """Validate one retained context pack against immutable source-commit sizes."""
+
+    pack = _require_closed_context_pack_mapping(value, keys=_CONTEXT_PACK_KEYS, label="top-level")
+    estimate = _require_closed_context_pack_mapping(
+        pack["estimate"], keys=_CONTEXT_PACK_ESTIMATE_KEYS, label="estimate"
+    )
+    graph_nodes = pack["graph_nodes"]
+    graph_edges = pack["graph_edges"]
+    selected_refs = pack["selected_context_refs"]
+    omitted_refs = pack["omitted_duplicate_refs"]
+    if not isinstance(graph_nodes, list) or not isinstance(graph_edges, list):
+        raise CreativeCodeSpecPipelineError(
+            "adaptive_source_lineage_mismatch: retained context_pack.json graph shape changed"
+        )
+    if not isinstance(selected_refs, list) or not isinstance(omitted_refs, list):
+        raise CreativeCodeSpecPipelineError(
+            "adaptive_source_lineage_mismatch: retained context_pack.json refs shape changed"
+        )
+
+    required_context = pack["required_context"]
+    if not isinstance(required_context, list) or any(
+        not isinstance(path, str) for path in required_context
+    ):
+        raise CreativeCodeSpecPipelineError(
+            "adaptive_source_lineage_mismatch: retained context_pack.json "
+            "required_context shape changed"
+        )
+    normalized_packet = validate_source_candidate_packet(expected_packet)
+    expected_size_evidence_paths = set(required_context) | set(normalized_packet["target_surface"])
+    if set(historical_context_char_counts) != expected_size_evidence_paths or any(
+        isinstance(size, bool) or not isinstance(size, int) or size < 0
+        for size in historical_context_char_counts.values()
+    ):
+        raise CreativeCodeSpecPipelineError(
+            "adaptive_source_lineage_mismatch: retained context_pack.json "
+            "source-commit size evidence changed"
+        )
+
+    nodes_by_id: dict[str, Mapping[str, Any]] = {}
+    typed_nodes: list[ContextGraphNode] = []
+    for index, raw_node in enumerate(graph_nodes):
+        node = _require_closed_context_pack_mapping(
+            raw_node, keys=_CONTEXT_PACK_NODE_KEYS, label=f"graph_nodes[{index}]"
+        )
+        token_estimate = _require_historical_non_negative_int(
+            node["token_estimate"], label=f"graph_nodes[{index}].token_estimate"
+        )
+        node_id = node["node_id"]
+        if not isinstance(node_id, str) or node_id in nodes_by_id:
+            raise CreativeCodeSpecPipelineError(
+                "adaptive_source_lineage_mismatch: retained context_pack.json node IDs changed"
+            )
+        nodes_by_id[node_id] = {**node, "token_estimate": token_estimate}
+        try:
+            typed_node = ContextGraphNode(**dict(node))
+        except (AttributeError, TypeError, ValueError) as exc:
+            raise CreativeCodeSpecPipelineError(
+                "adaptive_source_lineage_mismatch: retained context_pack.json "
+                "graph node structure changed"
+            ) from exc
+        expected_node_tokens = _historical_token_estimate(
+            historical_context_char_counts.get(typed_node.path, -1)
+        )
+        token_drift_limit = _historical_token_estimate(MAX_METADATA_BYTES)
+        if abs(token_estimate - expected_node_tokens) > token_drift_limit:
+            raise CreativeCodeSpecPipelineError(
+                "adaptive_source_lineage_mismatch: retained context_pack.json "
+                "graph node token estimate is not bound to source-commit size evidence"
+            )
+        typed_nodes.append(typed_node)
+    typed_edges: list[ContextGraphEdge] = []
+    for index, raw_edge in enumerate(graph_edges):
+        edge = _require_closed_context_pack_mapping(
+            raw_edge, keys=_CONTEXT_PACK_EDGE_KEYS, label=f"graph_edges[{index}]"
+        )
+        try:
+            typed_edges.append(ContextGraphEdge(**dict(edge)))
+        except (AttributeError, TypeError, ValueError) as exc:
+            raise CreativeCodeSpecPipelineError(
+                "adaptive_source_lineage_mismatch: retained context_pack.json "
+                "graph edge structure changed"
+            ) from exc
+
+    selected_context_paths: set[str] = set()
+    for collection_name, refs in (
+        ("selected_context_refs", selected_refs),
+        ("omitted_duplicate_refs", omitted_refs),
+    ):
+        for index, raw_ref in enumerate(refs):
+            ref = _require_closed_context_pack_mapping(
+                raw_ref,
+                keys=_CONTEXT_PACK_REF_KEYS,
+                label=f"{collection_name}[{index}]",
+            )
+            ref_token_estimate = _require_historical_non_negative_int(
+                ref["token_estimate"], label=f"{collection_name}[{index}].token_estimate"
+            )
+            if (
+                not isinstance(ref["path"], str)
+                or not isinstance(ref["path_fingerprint"], str)
+                or not isinstance(ref["reason_code"], str)
+                or not isinstance(ref["status"], str)
+                or (ref["node_id"] is not None and not isinstance(ref["node_id"], str))
+            ):
+                raise CreativeCodeSpecPipelineError(
+                    "adaptive_source_lineage_mismatch: retained context_pack.json "
+                    f"{collection_name} scalar types changed"
+                )
+            if collection_name == "selected_context_refs":
+                path = ref["path"]
+                if path in selected_context_paths:
+                    raise CreativeCodeSpecPipelineError(
+                        "adaptive_source_lineage_mismatch: retained context_pack.json "
+                        "selected context paths changed"
+                    )
+                selected_context_paths.add(path)
+                expected_token_estimate = _historical_token_estimate(
+                    historical_context_char_counts.get(path, -1)
+                )
+                token_drift_limit = _historical_token_estimate(MAX_METADATA_BYTES)
+                if abs(ref_token_estimate - expected_token_estimate) > token_drift_limit:
+                    raise CreativeCodeSpecPipelineError(
+                        "adaptive_source_lineage_mismatch: retained context_pack.json "
+                        "token estimate is not bound to source-commit size evidence"
+                    )
+            node_id = ref["node_id"]
+            if node_id is None:
+                continue
+            bound_node = nodes_by_id.get(node_id) if isinstance(node_id, str) else None
+            if bound_node is None or any(
+                ref[key] != bound_node[key]
+                for key in ("path", "path_fingerprint", "token_estimate")
+            ):
+                raise CreativeCodeSpecPipelineError(
+                    "adaptive_source_lineage_mismatch: retained context_pack.json "
+                    f"{collection_name} node binding changed"
+                )
+
+    numeric = {
+        key: _require_historical_non_negative_int(estimate[key], label=f"estimate.{key}")
+        for key in _CONTEXT_PACK_ESTIMATE_TELEMETRY_KEYS
+        if key != "estimate_id"
+    }
+    fanout = _require_historical_non_negative_int(
+        estimate["orchestration_fanout_multiplier"],
+        label="estimate.orchestration_fanout_multiplier",
+    )
+    if fanout < 1:
+        raise CreativeCodeSpecPipelineError(
+            "adaptive_source_lineage_mismatch: retained context_pack.json fanout must be positive"
+        )
+    if numeric["baseline_context_tokens_estimate"] != _historical_token_estimate(
+        numeric["baseline_context_chars_estimate"]
+    ):
+        raise CreativeCodeSpecPipelineError(
+            "adaptive_source_lineage_mismatch: retained context_pack.json baseline estimate drifted"
+        )
+    expected_baseline_chars = sum(historical_context_char_counts[path] for path in required_context)
+    if (
+        abs(numeric["baseline_context_chars_estimate"] - expected_baseline_chars)
+        > MAX_METADATA_BYTES
+    ):
+        raise CreativeCodeSpecPipelineError(
+            "adaptive_source_lineage_mismatch: retained context_pack.json "
+            "baseline estimate is not bound to source-commit size evidence"
+        )
+    candidate_metadata_payload = {
+        "authority_boundary": pack["authority_boundary"],
+        "graph_edges": graph_edges,
+        "graph_nodes": graph_nodes,
+        "omitted_duplicate_refs": omitted_refs,
+        "policy_version": pack["policy_version"],
+        "required_context": pack["required_context"],
+        "selected_context_refs": selected_refs,
+    }
+    candidate_chars = len(_canonical_context_pack_json(candidate_metadata_payload))
+    if numeric["candidate_context_chars_estimate"] != candidate_chars or numeric[
+        "candidate_context_tokens_estimate"
+    ] != _historical_token_estimate(candidate_chars):
+        raise CreativeCodeSpecPipelineError(
+            "adaptive_source_lineage_mismatch: retained context_pack.json candidate estimate drifted"
+        )
+    saved = max(
+        0,
+        numeric["baseline_context_tokens_estimate"] - numeric["candidate_context_tokens_estimate"],
+    )
+    if (
+        numeric["tokens_saved_estimate"] != saved
+        or numeric["fanout_tokens_saved_estimate"] != saved * fanout
+    ):
+        raise CreativeCodeSpecPipelineError(
+            "adaptive_source_lineage_mismatch: retained context_pack.json estimate arithmetic drifted"
+        )
+    estimate_reason_codes = estimate["reason_codes"]
+    if not isinstance(estimate_reason_codes, list) or any(
+        not isinstance(code, str) for code in estimate_reason_codes
+    ):
+        raise CreativeCodeSpecPipelineError(
+            "adaptive_source_lineage_mismatch: retained context_pack.json "
+            "estimate reason codes changed"
+        )
+    if estimate_reason_codes != sorted(set(estimate_reason_codes)):
+        raise CreativeCodeSpecPipelineError(
+            "adaptive_source_lineage_mismatch: retained context_pack.json "
+            "estimate reason codes must remain canonical"
+        )
+    if (REASON_NO_CONTEXT_REDUCTION in estimate_reason_codes) != (saved == 0):
+        raise CreativeCodeSpecPipelineError(
+            "adaptive_source_lineage_mismatch: retained context_pack.json "
+            "no-context-reduction reason drifted"
+        )
+
+    try:
+        typed_estimate = ContextCompressionEstimate(
+            **{
+                **dict(estimate),
+                "reason_codes": tuple(estimate["reason_codes"]),
+            }
+        )
+        CompressedContextPack(
+            context_pack_id=pack["context_pack_id"],
+            policy_version=pack["policy_version"],
+            authority_boundary=pack["authority_boundary"],
+            required_context=tuple(required_context),
+            selected_context_refs=tuple(selected_refs),
+            omitted_duplicate_refs=tuple(omitted_refs),
+            graph_nodes=tuple(typed_nodes),
+            graph_edges=tuple(typed_edges),
+            estimate=typed_estimate,
+            reason_codes=tuple(pack["reason_codes"]),
+            metadata=pack["metadata"],
+        )
+    except (AttributeError, TypeError, ValueError) as exc:
+        raise CreativeCodeSpecPipelineError(
+            "adaptive_source_lineage_mismatch: retained context_pack.json "
+            "typed structure changed"
+        ) from exc
+
+    estimate_identity_payload = {
+        key: estimate[key] for key in sorted(_CONTEXT_PACK_ESTIMATE_KEYS - {"estimate_id"})
+    }
+    expected_estimate_id = f"ctx-estimate:{fingerprint_payload(estimate_identity_payload)[7:31]}"
+    if estimate["estimate_id"] != expected_estimate_id:
+        raise CreativeCodeSpecPipelineError(
+            "adaptive_source_lineage_mismatch: retained context_pack.json estimate ID drifted"
+        )
+
+    pack_identity_payload = {
+        "authority_boundary": pack["authority_boundary"],
+        "candidate_paths": sorted(set(normalized_packet["target_surface"])),
+        "cluster": "ops",
+        "domain": "orchestration",
+        "estimate": dict(estimate),
+        "graph_edges": graph_edges,
+        # The builder fingerprints nodes in normalized path order before the
+        # dataclass serializes them in node-ID order.
+        "graph_nodes": sorted(graph_nodes, key=lambda row: row["path"]),
+        "policy_version": pack["policy_version"],
+        "pr_phase": "PR-1",
+        "primary_agent": "agent-coordinator",
+        "reason_codes": pack["reason_codes"],
+        "requested_agents": sorted(set(_CONTEXT_PACK_REQUESTED_AGENTS)),
+        "required_context": pack["required_context"],
+        "reviewer": "architecture-specialist",
+        "secondary_agents": sorted(set(_CONTEXT_PACK_SECONDARY_AGENTS)),
+    }
+    expected_pack_id = f"ctx-pack:{fingerprint_payload(pack_identity_payload)[7:31]}"
+    if pack["context_pack_id"] != expected_pack_id:
+        raise CreativeCodeSpecPipelineError(
+            "adaptive_source_lineage_mismatch: retained context_pack.json context-pack ID drifted"
+        )
+    return dict(pack)
+
+
+def _context_pack_stable_projection(value: Mapping[str, Any]) -> dict[str, Any]:
+    """Remove only repository-size-derived telemetry from a validated context pack."""
+
+    estimate_projection = {
+        key: (
+            [code for code in item if code != REASON_NO_CONTEXT_REDUCTION]
+            if key == "reason_codes"
+            else item
+        )
+        for key, item in value["estimate"].items()
+        if key not in _CONTEXT_PACK_ESTIMATE_TELEMETRY_KEYS
+    }
+    return {
+        key: (
+            estimate_projection
+            if key == "estimate"
+            else (
+                [
+                    {
+                        row_key: row_value
+                        for row_key, row_value in row.items()
+                        if row_key != "token_estimate"
+                    }
+                    for row in value[key]
+                ]
+                if key in {"graph_nodes", "selected_context_refs", "omitted_duplicate_refs"}
+                else item
+            )
+        )
+        for key, item in value.items()
+        if key != "context_pack_id"
+    }
 
 
 def build_default_prepare_artifacts(packet: Mapping[str, Any]) -> dict[str, Any]:
@@ -380,7 +787,10 @@ def build_default_prepare_artifacts(packet: Mapping[str, Any]) -> dict[str, Any]
 
 
 def validate_default_prepare_artifact_snapshots(
-    snapshots: Mapping[str, Any], *, expected_packet: Mapping[str, Any]
+    snapshots: Mapping[str, Any],
+    *,
+    expected_packet: Mapping[str, Any],
+    historical_context_char_counts: Mapping[str, int],
 ) -> dict[str, Any]:
     """Validate retained generic PR-1 sidecars against their canonical packet."""
 
@@ -390,11 +800,30 @@ def validate_default_prepare_artifact_snapshots(
             "adaptive_source_lineage_mismatch: retained prepare artifact set changed"
         )
     for filename, expected_payload in expected.items():
-        if snapshots[filename] != expected_payload:
+        retained_payload = snapshots[filename]
+        if filename == "context_pack.json":
+            retained_context_pack = _validate_historical_context_pack(
+                retained_payload,
+                expected_packet=expected_packet,
+                historical_context_char_counts=historical_context_char_counts,
+            )
+            retained_projection = _canonical_context_pack_json(
+                _context_pack_stable_projection(retained_context_pack)
+            )
+            expected_projection = _canonical_context_pack_json(
+                _context_pack_stable_projection(expected_payload)
+            )
+            if retained_projection != expected_projection:
+                raise CreativeCodeSpecPipelineError(
+                    "adaptive_source_lineage_mismatch: retained context_pack.json "
+                    "stable lineage is not canonical"
+                )
+            continue
+        if retained_payload != expected_payload:
             raise CreativeCodeSpecPipelineError(
                 f"adaptive_source_lineage_mismatch: retained {filename} is not canonical"
             )
-    return expected
+    return {filename: deepcopy(snapshots[filename]) for filename in expected}
 
 
 def prepare(packet_path: Path, run_dir: Path) -> None:
