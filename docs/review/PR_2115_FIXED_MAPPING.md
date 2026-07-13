@@ -44,8 +44,8 @@ Fastlane/xcodeproj gem graph and all App Store workflow behavior.
 - [x] Codex Security diff scan completed for the material diff.
 - [x] `pulseplate-pr-review` completed.
 - [x] All current review threads dispositioned and resolved.
-- [ ] Current-head CI completed.
-- [ ] Strict authenticated merge readiness and mandatory wait window completed.
+- [x] Current-head CI completed.
+- [x] Strict authenticated merge readiness and mandatory wait window completed.
 
 ## Fixed in Commit Mapping
 
