@@ -17,7 +17,7 @@ authority.
 - [ ] Discussion-thread pass completed
 - [ ] Fixed in commit mapping completed
 - [x] Mandatory post-open `qa-engineer-agent -> bug-hunter -> security-auditor` pass completed
-- [ ] Codex Security exact-head diff scan completed
+- [x] Codex Security exact-head diff scan completed
 - [ ] `pulseplate-pr-review` completed
 - [ ] Current-head CI completed
 - [ ] Mandatory review wait-window and strict merge-readiness completed
@@ -108,6 +108,21 @@ secret, trigger, upload-authority, Gemfile, or Gemfile.lock change exists, and
 upload jobs remain manual and fail closed.
 Reason: The ordered security pass found no actionable supply-chain or release
 control-plane defect after the governance correction.
+
+### Codex Security Diff Scan
+
+Disposition: FIXED
+Commit: caddc00c31bb51cd31039fe5530970562ecaf28f
+Evidence: Sealed scan `30f02274-fc4f-477c-ad99-93a1a161fe68` reviewed 11/11
+files at `6919ffb6ecc7361155090bad7bdadd35cd845ad1..edb3ab506edac8b71912a8f2b972f3044642c064`.
+It validated that case-sensitive action discovery could omit a mixed-case
+`Ruby/setup-ruby@...` reference, then attack-path policy classified the defect
+as non-reportable because exploitation requires a protected workflow edit and
+trusted merge. Commit `caddc00c31bb51cd31039fe5530970562ecaf28f`
+case-folds discovery while retaining exact canonical action equality and adds
+the mixed-case regression; 10 focused toolchain tests pass.
+Reason: Reportable finding count is zero, but the bounded current-PR guard
+defect was still fixed before readiness rather than dismissed.
 
 ## Experiment Runner Evidence
 
