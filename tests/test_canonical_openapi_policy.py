@@ -185,6 +185,34 @@ def test_request_time_builder_regenerates_after_visibility_and_metadata_changes(
     assert target_app.openapi() is third
 
 
+def test_request_time_builder_regenerates_after_public_policy_change(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target_app = _public_app()
+
+    @target_app.get("/future-public")
+    async def _future_public() -> dict[str, str]:
+        return {"status": "future"}
+
+    openapi_policy.install_canonical_openapi_builder(target_app)
+    first = target_app.openapi()
+    assert "/future-public" not in first["paths"]
+
+    monkeypatch.setattr(
+        openapi_policy,
+        "PUBLIC_OPENAPI_POLICY",
+        openapi_policy.PublicOpenAPIPolicy(
+            allowed_prefixes=openapi_policy.PUBLIC_OPENAPI_POLICY.allowed_prefixes,
+            allowed_exact=(openapi_policy.PUBLIC_OPENAPI_POLICY.allowed_exact | {"/future-public"}),
+        ),
+    )
+
+    second = target_app.openapi()
+
+    assert second is not first
+    assert "/future-public" in second["paths"]
+
+
 def test_request_time_builder_fingerprints_included_router_visibility() -> None:
     router = APIRouter()
 

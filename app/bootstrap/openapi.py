@@ -188,6 +188,10 @@ def _openapi_input_fingerprint(target_app: FastAPI) -> str:
         )
 
     inputs = {
+        "public_openapi_policy": {
+            "allowed_prefixes": PUBLIC_OPENAPI_POLICY.allowed_prefixes,
+            "allowed_exact": sorted(PUBLIC_OPENAPI_POLICY.allowed_exact),
+        },
         "title": target_app.title,
         "version": target_app.version,
         "openapi_version": target_app.openapi_version,
