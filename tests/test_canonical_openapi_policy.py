@@ -230,6 +230,12 @@ def test_builder_state_matrix_rejects_partial_foreign_and_wrong_app_states() -> 
 
     target_app = FastAPI()
     openapi_policy.install_canonical_openapi_builder(target_app)
+    delattr(target_app.state, "_canonical_openapi_builder")
+    with pytest.raises(RuntimeError, match="foreign_builder"):
+        openapi_policy.validate_openapi_builder_state(target_app)
+
+    target_app = FastAPI()
+    openapi_policy.install_canonical_openapi_builder(target_app)
     marker = target_app.state._canonical_openapi_builder
     setattr(target_app, "openapi", foreign)
     with pytest.raises(RuntimeError, match="live_marker_mismatch"):

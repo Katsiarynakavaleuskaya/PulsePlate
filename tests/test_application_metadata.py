@@ -7,18 +7,84 @@ import pytest
 import app.application_metadata as metadata_module
 from app.application_metadata import build_application_metadata
 
-EXPECTED_TAG_NAMES = [
-    "health",
-    "bmi",
-    "foods",
-    "recipes",
-    "users",
-    "pro",
-    "premium",
-    "vip",
-    "business",
-    "export",
+EXPECTED_BASE_DESCRIPTION = """
+## PulsePlate - Nutrition & Meal Planning API
+
+**Mobile-first API** for iOS and web applications with tiered subscription access.
+
+### Subscription Tiers
+
+- **FREE**: BMI calculations, food/recipe search, user management
+- **PRO**: Advanced meal planning, WHO-based nutrition targets, macro tracking
+- **VIP**: Micronutrient goals, AI recipe synthesis, auto-repair, shopping lists
+
+### Authentication
+
+Premium endpoints require API key in `X-API-Key` header:
+- PRO tier: Use API key with PRO access level
+- VIP tier: Use API key with VIP access level
+"""
+
+EXPECTED_DEVELOPMENT_DESCRIPTION = """
+### Test API Keys (Development Only)
+
+- PRO: `YOUR_PRO_TEST_KEY`
+- VIP: `YOUR_VIP_TEST_KEY`
+
+**Note**: Replace with actual test keys from your environment variables or Config.plist.
+**Production**: Test keys are disabled in production environments.
+"""
+
+EXPECTED_DOCUMENTATION_DESCRIPTION = """
+### Documentation
+
+- Mobile API Migration Guide: `docs/MOBILE_API_MIGRATION_GUIDE.md`
+- iOS Integration: `docs/IOS_API_INTEGRATION.md`
+"""
+
+EXPECTED_TAGS = [
+    {"name": "health", "description": "Health check and system status endpoints"},
+    {"name": "bmi", "description": "BMI calculation endpoints (FREE tier)"},
+    {
+        "name": "foods",
+        "description": "Food database search and retrieval (FREE tier)",
+    },
+    {
+        "name": "recipes",
+        "description": "Recipe database search and preview (FREE tier)",
+    },
+    {"name": "users", "description": "User management endpoints (FREE tier)"},
+    {
+        "name": "pro",
+        "description": (
+            "PRO tier features - weekly meal planning, nutrition targets. "
+            "**Requires PRO API key**."
+        ),
+    },
+    {
+        "name": "premium",
+        "description": (
+            "[DEPRECATED] PRO tier features - use /api/v1/pro/* instead. "
+            "**Requires PRO API key**."
+        ),
+    },
+    {
+        "name": "vip",
+        "description": (
+            "VIP tier features - micronutrients, auto-repair, recipe synthesis, "
+            "shopping lists. **Requires VIP API key**."
+        ),
+    },
+    {
+        "name": "business",
+        "description": "Business analytics and Bayesian analysis (Internal use)",
+    },
+    {
+        "name": "export",
+        "description": "Export endpoints for meal plans and shopping lists",
+    },
 ]
+EXPECTED_TAG_NAMES = [tag["name"] for tag in EXPECTED_TAGS]
 
 
 @pytest.mark.parametrize(
@@ -47,14 +113,32 @@ def test_application_metadata_preserves_exact_values_and_tag_order() -> None:
 
     assert metadata.title == "PulsePlate"
     assert metadata.version == "0.1.0"
+    assert metadata.description == (EXPECTED_BASE_DESCRIPTION + EXPECTED_DOCUMENTATION_DESCRIPTION)
     assert metadata.contact_dict() == {
         "name": "PulsePlate API Support",
         "url": "https://github.com/Katsiarynakavaleuskaya/PulsePlate",
     }
     assert metadata.license_info_dict() == {"name": "MIT"}
-    assert [tag.name for tag in metadata.tags] == EXPECTED_TAG_NAMES
-    assert "Nutrition & Meal Planning API" in metadata.description
-    assert "docs/MOBILE_API_MIGRATION_GUIDE.md" in metadata.description
+    assert metadata.openapi_tags_list() == EXPECTED_TAGS
+
+
+def test_application_metadata_preserves_exact_development_description() -> None:
+    metadata = build_application_metadata(runtime_env="development")
+
+    assert metadata.description == (
+        EXPECTED_BASE_DESCRIPTION
+        + EXPECTED_DEVELOPMENT_DESCRIPTION
+        + EXPECTED_DOCUMENTATION_DESCRIPTION
+    )
+
+
+def test_legacy_metadata_aliases_match_canonical_projection() -> None:
+    import legacy_app
+
+    metadata = build_application_metadata(runtime_env=legacy_app._app_env)
+
+    assert legacy_app._api_description == metadata.description
+    assert legacy_app.tags_metadata == metadata.openapi_tags_list()
 
 
 def test_application_metadata_projection_returns_fresh_nested_mutables() -> None:
