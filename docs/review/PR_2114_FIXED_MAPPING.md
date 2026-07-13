@@ -46,6 +46,7 @@ Reason: The first CodeRabbit pass identified four bounded ownership-guard and co
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2114#discussion_r3571013375 -> aa64cf79b68094c56695a8c6e2a24a0b9d3a5c98
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2114#discussion_r3571013377 -> aa64cf79b68094c56695a8c6e2a24a0b9d3a5c98
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2114#discussion_r3571013383 -> aa64cf79b68094c56695a8c6e2a24a0b9d3a5c98
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2114#pullrequestreview-4685130577 -> aa64cf79b68094c56695a8c6e2a24a0b9d3a5c98
 
 Disposition: FIXED
 Commit: 8e90fd4e7647f654263ad61219b572849f52200f
@@ -55,6 +56,7 @@ Reason: The second CodeRabbit pass identified four concrete AST bypasses. Commit
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2114#discussion_r3571995141 -> 8e90fd4e7647f654263ad61219b572849f52200f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2114#discussion_r3571995144 -> 8e90fd4e7647f654263ad61219b572849f52200f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2114#discussion_r3571995153 -> 8e90fd4e7647f654263ad61219b572849f52200f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2114#pullrequestreview-4686276182 -> 8e90fd4e7647f654263ad61219b572849f52200f
 
 ## Post-open Role Findings
 
