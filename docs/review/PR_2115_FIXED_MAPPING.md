@@ -55,6 +55,12 @@ Evidence: `docs/review/PR_2115_FIXED_MAPPING.md:38-39` and the post-comment evid
 Reason: Discussion/mapping closure is complete, while merge-readiness and current-head CI stay separate pending gates.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2115#discussion_r3571067367 -> 66c89fe9c0c02badc0a2a6060b7a3607c7b853e4
 
+Disposition: FIXED
+Commit: ba3b3295cb7f78a2d9eea52a62e966d3c6cd6144
+Evidence: `docs/review/PR_2115_FIXED_MAPPING.md:38-46` records the completed discussion/mapping/review-thread closure while retaining separate pending CI and merge-readiness gates.
+Reason: The review-level CodeRabbit summary requested the same artifact-level checkbox closure as its inline thread; the post-review governance commit preserves the final parser-safe state.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2115#pullrequestreview-4685195469 -> ba3b3295cb7f78a2d9eea52a62e966d3c6cd6144
+
 Disposition: NOT-A-BUG
 Evidence: `git merge-base --is-ancestor ecfa35461 HEAD` exits zero, and every `origin/main..HEAD` commit contains the canonical Experiment Runner co-author trailer.
 Reason: The reviewer inspected a GitHub synthetic merge commit; the public PR branch preserves attribution on the implementation and governance commits.
@@ -65,6 +71,16 @@ Commit: 4677103c9a2f825508b6531e26e2fd82984dba0f
 Evidence: `docs/review/PR_2115_FIXED_MAPPING.md:97-100`
 Reason: Security Review now records the completed security-auditor and sealed diff-scan closure consistently with the checked role-chain status.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2115#discussion_r3571109952 -> 4677103c9a2f825508b6531e26e2fd82984dba0f
+
+Disposition: NOT-A-BUG
+Evidence: On the public branch head `ba3b3295cb7f78a2d9eea52a62e966d3c6cd6144`, `git merge-base --is-ancestor ecfa35461db561ff3d5d898a845277d04a2f7455 HEAD` exits zero and every commit in `origin/main..HEAD` contains `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
+Reason: The reviewer evaluated GitHub's synthetic merge commit `e719f874...`, not the public PR branch history used by the repository attribution contract; the accepted oracle contribution and canonical trailer are preserved on every branch commit.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2115#discussion_r3571404141
+
+Disposition: NOT-A-BUG
+Evidence: On the public branch head `ba3b3295cb7f78a2d9eea52a62e966d3c6cd6144`, `git merge-base --is-ancestor 66c89fe9c0c02badc0a2a6060b7a3607c7b853e4 HEAD` exits zero.
+Reason: The mapped FIXED proof is reachable from the actual PR branch head; the non-reachability assertion is an artifact of reviewing GitHub's synthetic merge commit `e719f874...` as a standalone commit.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2115#discussion_r3571404148
 
 ## Experiment Runner Evidence
 
