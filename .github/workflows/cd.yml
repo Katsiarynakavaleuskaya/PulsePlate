@@ -348,9 +348,11 @@ jobs:
           && steps.staging-deploy-ready.outputs.skip != '1'
         run: |
           set -euo pipefail
-          echo "deploy_script_sha256=$(sha256sum scripts/deploy.sh | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
-          echo "staging_compose_sha256=$(sha256sum deploy/docker-compose.staging.yaml | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
-          echo "staging_caddyfile_sha256=$(sha256sum deploy/Caddyfile | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          {
+            echo "deploy_script_sha256=$(sha256sum scripts/deploy.sh | cut -d' ' -f1)"
+            echo "staging_compose_sha256=$(sha256sum deploy/docker-compose.staging.yaml | cut -d' ' -f1)"
+            echo "staging_caddyfile_sha256=$(sha256sum deploy/Caddyfile | cut -d' ' -f1)"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Verify remote staging deploy contract
         id: staging-contract-preflight

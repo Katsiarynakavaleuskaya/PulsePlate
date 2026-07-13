@@ -23,8 +23,7 @@ not deploy or change backend, OpenAPI, client, or Caddy route behavior.
 
 ## Fixed in Commit Mapping
 
-No actionable review comments have been dispositioned yet. This section must
-be updated with commit-after-comment proof before any thread is resolved.
+- No actionable review comments
 
 ## Pre-open Role and Premortem Evidence
 
