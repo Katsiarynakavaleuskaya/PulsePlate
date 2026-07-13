@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 from collections.abc import Mapping, Sequence
+from copy import deepcopy
 import errno
 import json
 import os
@@ -822,7 +823,7 @@ def validate_default_prepare_artifact_snapshots(
             raise CreativeCodeSpecPipelineError(
                 f"adaptive_source_lineage_mismatch: retained {filename} is not canonical"
             )
-    return {filename: snapshots[filename] for filename in expected}
+    return {filename: deepcopy(snapshots[filename]) for filename in expected}
 
 
 def prepare(packet_path: Path, run_dir: Path) -> None:

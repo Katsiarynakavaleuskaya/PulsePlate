@@ -956,15 +956,31 @@ def current_origin_main_sha() -> str:
 
 
 def _blob_oid_at(commit_sha: str, path: str) -> str:
-    row = cast(str, _git("ls-tree", commit_sha, "--", path)).strip()
-    fields = row.split(None, 3)
-    if len(fields) != 4 or fields[1] != "blob" or fields[3] != path:
+    output = cast(bytes, _git("ls-tree", "-z", commit_sha, "--", path, binary=True))
+    records = output.split(b"\0")
+    if not records or records[-1] != b"" or len(records) != 2:
         raise CreativePilotContractError(
             f"target path is not a tracked blob at {commit_sha}: {path}"
         )
-    if fields[0] in {"120000", "160000"}:
+    metadata, separator, raw_path = records[0].partition(b"\t")
+    fields = metadata.split(b" ")
+    if separator != b"\t" or len(fields) != 3 or raw_path != path.encode("utf-8"):
+        raise CreativePilotContractError(
+            f"target path is not a tracked blob at {commit_sha}: {path}"
+        )
+    mode, object_type, raw_oid = fields
+    if mode in {b"120000", b"160000"}:
         raise CreativePilotContractError(f"target path must not be a symlink or submodule: {path}")
-    return fields[2]
+    if object_type != b"blob":
+        raise CreativePilotContractError(
+            f"target path is not a tracked blob at {commit_sha}: {path}"
+        )
+    try:
+        return raw_oid.decode("ascii")
+    except UnicodeDecodeError as exc:
+        raise CreativePilotContractError(
+            f"target path has an invalid Git object ID at {commit_sha}: {path}"
+        ) from exc
 
 
 def _blob_at(commit_sha: str, path: str) -> tuple[str, bytes]:

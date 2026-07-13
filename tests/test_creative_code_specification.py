@@ -748,6 +748,24 @@ def test_retained_prepare_accepts_only_self_consistent_estimate_drift(
     assert historical == historical_before
 
 
+def test_retained_prepare_returns_defensive_snapshot_copies(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    packet = _packet()
+    historical = _historical_default_prepare_artifacts(monkeypatch, packet)
+    historical_before = deepcopy(historical)
+
+    validated = creative_code_spec_pipeline.validate_default_prepare_artifact_snapshots(
+        historical,
+        expected_packet=packet,
+        historical_context_char_counts=_historical_context_char_counts(packet),
+    )
+    validated["context_pack.json"]["estimate"]["reason_codes"].append("caller_mutation")
+    validated["variants.json"][0]["negative_controls"].append("caller_mutation")
+
+    assert historical == historical_before
+
+
 def test_retained_prepare_normalizes_size_derived_no_reduction_reason(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

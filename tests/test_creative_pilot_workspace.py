@@ -156,9 +156,9 @@ def test_tracked_blob_size_uses_object_metadata_without_reading_content(
 
     def fake_git(*args: str, binary: bool = False) -> str | bytes:
         calls.append((args, binary))
-        responses: dict[tuple[str, ...], str] = {
+        responses: dict[tuple[str, ...], str | bytes] = {
             ("cat-file", "-t", commit): "commit\n",
-            ("ls-tree", commit, "--", path): f"100644 blob {blob_oid}\t{path}\n",
+            ("ls-tree", "-z", commit, "--", path): (f"100644 blob {blob_oid}\t{path}\0".encode()),
             ("cat-file", "-s", blob_oid): "33554432\n",
         }
         return responses[args]
@@ -168,9 +168,41 @@ def test_tracked_blob_size_uses_object_metadata_without_reading_content(
     assert pilot_contract.tracked_blob_size_at_commit(commit, path) == 33_554_432
     assert calls == [
         (("cat-file", "-t", commit), False),
-        (("ls-tree", commit, "--", path), False),
+        (("ls-tree", "-z", commit, "--", path), True),
         (("cat-file", "-s", blob_oid), False),
     ]
+
+
+@pytest.mark.parametrize(
+    "path",
+    (
+        " leading-space.py",
+        'docs/quoted-"name".py',
+        "docs/данные.py",
+    ),
+)
+def test_tracked_blob_size_preserves_raw_git_pathnames(
+    monkeypatch: pytest.MonkeyPatch,
+    path: str,
+) -> None:
+    commit = "a" * 40
+    blob_oid = "b" * 40
+
+    def fake_git(*args: str, binary: bool = False) -> str | bytes:
+        if args == ("cat-file", "-t", commit):
+            assert binary is False
+            return "commit\n"
+        if args == ("ls-tree", "-z", commit, "--", path):
+            assert binary is True
+            return f"100644 blob {blob_oid}\t{path}\0".encode()
+        if args == ("cat-file", "-s", blob_oid):
+            assert binary is False
+            return "17\n"
+        raise AssertionError(args)
+
+    monkeypatch.setattr(pilot_contract, "_git", fake_git)
+
+    assert pilot_contract.tracked_blob_size_at_commit(commit, path) == 17
 
 
 def test_tracked_blob_size_rejects_non_numeric_git_metadata(
@@ -181,12 +213,13 @@ def test_tracked_blob_size_rejects_non_numeric_git_metadata(
     path = "AGENTS.md"
 
     def fake_git(*args: str, binary: bool = False) -> str | bytes:
-        del binary
-        responses: dict[tuple[str, ...], str] = {
+        responses: dict[tuple[str, ...], str | bytes] = {
             ("cat-file", "-t", commit): "commit\n",
-            ("ls-tree", commit, "--", path): f"100644 blob {blob_oid}\t{path}\n",
+            ("ls-tree", "-z", commit, "--", path): (f"100644 blob {blob_oid}\t{path}\0".encode()),
             ("cat-file", "-s", blob_oid): "not-a-size\n",
         }
+        if args[0] == "ls-tree":
+            assert binary is True
         return responses[args]
 
     monkeypatch.setattr(pilot_contract, "_git", fake_git)
