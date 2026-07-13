@@ -1,0 +1,76 @@
+# PR #2115 Fixed in Commit Mapping SoT
+
+PR: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2115
+
+Branch: `codex/cfpropertylist-ruby34-compat`
+
+## Summary
+
+Pin the bounded `CFPropertyList 3.0.8` compatibility bridge required for the
+Ruby 3.4.10 release-toolchain migration while preserving the rest of the
+Fastlane/xcodeproj gem graph and all App Store workflow behavior.
+
+## Lane Start Provenance
+
+- Packet: `artifacts/orchestration/task_packets/cfpropertylist_ruby34_compat.json`
+  (local-only, gitignored).
+- Pre-open role order executed:
+  `agent-coordinator -> app-store-release-agent -> security-auditor -> marketing-strategist -> qa-engineer-agent`.
+- The actual-diff premortem closed the missing `nkf` compatibility-anchor risk
+  before PR open.
+- Experiment Runner artifact:
+  `artifacts/orchestration/experiments/results/cfpropertylist-ruby34-compat-oracle-result.json`
+  (local-only, gitignored); accepted, 33 focused tests passed, shared tree
+  untouched, contribution kind `oracle_review`.
+
+## Implementation Commits
+
+- `ecfa35461db561ff3d5d898a845277d04a2f7455` - pin the exact compatibility
+  bridge, conservatively reconcile its lock entry, and add fail-closed graph
+  guards.
+
+## Discussion Thread Pass
+
+- [ ] Discussion-thread pass completed.
+- [ ] Fixed in commit mapping completed.
+- [x] Pre-open packet role order completed.
+- [x] Actual-diff premortem completed with no open blocker.
+- [x] Experiment Runner oracle-only evidence accepted.
+- [ ] Post-open `qa-engineer-agent -> bug-hunter -> security-auditor` completed.
+- [ ] Codex Security diff scan completed for the material diff.
+- [ ] `pulseplate-pr-review` completed.
+- [ ] All current review threads dispositioned and resolved.
+- [ ] Current-head CI completed.
+- [ ] Strict authenticated merge readiness and mandatory wait window completed.
+
+## Fixed in Commit Mapping
+
+No actionable review comments.
+
+## Validation Evidence
+
+- PASS: orchestration preflight and agent consistency.
+- PASS: 89 focused compatibility/toolchain/App Store tests.
+- PASS: `bundle _2.4.22_ check --gemfile ios/Gemfile`.
+- PASS: `make validate-changed`.
+- PASS: `pre-commit run --all-files`.
+- PASS: pre-push pip-audit, focused backend tests, and full-repo Bandit.
+- PENDING: canonical current-head GitHub CI and strict merge readiness.
+
+## Security Review
+
+- PENDING: mandatory post-open security-auditor.
+- PENDING: one sealed Codex Security diff scan for the material diff.
+- PENDING: `pulseplate-pr-review`.
+
+## Risks / Rollback
+
+If Ruby 3.4.10 CI still exposes a compatibility regression, revert this PR as
+one unit and keep PR #2113 plus App Store upload workflows blocked until a
+supported graph is restored. Do not bypass the compatibility guard or broaden
+the gem update as an emergency workaround.
+
+## Deferred / Follow-ups
+
+PR #2113 remains the owner of the Ruby 3.4.10 workflow migration and is blocked
+until this prerequisite is merged and rebased.
