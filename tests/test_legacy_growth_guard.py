@@ -165,6 +165,21 @@ def test_current_metadata_openapi_ownership_passes_growth_guard() -> None:
             "canonical OpenAPI re-export must not be rebound",
         ),
         (
+            0,
+            '\nglobals()["_install_openapi_builder"] = replacement\n',
+            "canonical OpenAPI re-export must not be rebound",
+        ),
+        (
+            0,
+            '\nglobals().update({"_install_openapi_builder": replacement})\n',
+            "canonical OpenAPI re-export must not be rebound",
+        ),
+        (
+            0,
+            '\nmodule.__dict__["_install_openapi_builder"] = replacement\n',
+            "canonical OpenAPI re-export must not be rebound",
+        ),
+        (
             1,
             "\nimport os\nvalue = os.getenv('APP_ENV')\n",
             "direct environment parsing is forbidden",
@@ -180,9 +195,39 @@ def test_current_metadata_openapi_ownership_passes_growth_guard() -> None:
             "reverse legacy/main import is forbidden",
         ),
         (
+            2,
+            '\nfrom importlib import import_module as load\nload("".join(["legacy", "_app"]))\n',
+            "reverse legacy/main import is forbidden",
+        ),
+        (
+            2,
+            '\nimport importlib\nload = importlib.import_module\nload("".join(["legacy", "_app"]))\n',
+            "reverse legacy/main import is forbidden",
+        ),
+        (
+            2,
+            '\nfrom importlib import import_module\nimport_module(".main", package="app")\n',
+            "reverse legacy/main import is forbidden",
+        ),
+        (
+            2,
+            '\nfrom importlib import import_module\nimport_module("..main", package="app.bootstrap")\n',
+            "reverse legacy/main import is forbidden",
+        ),
+        (
+            2,
+            "\nfrom .. import main\n",
+            "reverse legacy/main import is forbidden",
+        ),
+        (
             3,
             "\nfrom legacy_app import _install_openapi_builder\n",
             "OpenAPI symbol must not be imported through legacy",
+        ),
+        (
+            3,
+            "\nimport legacy_app as legacy\nlegacy._install_openapi_builder(app)\n",
+            "OpenAPI symbol must not be accessed through legacy",
         ),
         (
             4,
@@ -196,7 +241,37 @@ def test_current_metadata_openapi_ownership_passes_growth_guard() -> None:
         ),
         (
             4,
+            '\nlegacy = _legacy()\ninstaller_name = "_install_" + "openapi_builder"\ninstaller = getattr(legacy, installer_name)\n',
+            "legacy OpenAPI installer lookup is forbidden",
+        ),
+        (
+            4,
+            '\nlegacy = _legacy()\ninstaller_name = "_install_openapi_builder"\ninstaller = vars(legacy)[installer_name]\n',
+            "legacy OpenAPI installer lookup is forbidden",
+        ),
+        (
+            4,
             "\nsetattr(app, 'openapi', replacement)\n",
+            "OpenAPI callable/cache mutation is forbidden",
+        ),
+        (
+            4,
+            '\napp.__dict__["openapi"] = replacement\n',
+            "OpenAPI callable/cache mutation is forbidden",
+        ),
+        (
+            4,
+            '\nvars(app).update({"openapi": replacement})\n',
+            "OpenAPI callable/cache mutation is forbidden",
+        ),
+        (
+            4,
+            '\nobject.__setattr__(app, "openapi", replacement)\n',
+            "OpenAPI callable/cache mutation is forbidden",
+        ),
+        (
+            4,
+            "\napp.openapi_schema += replacement\n",
             "OpenAPI callable/cache mutation is forbidden",
         ),
     ],
@@ -233,6 +308,27 @@ def test_metadata_openapi_ownership_guard_ignores_facade_comment_and_docstring()
         """Do not restore the legacy _install_openapi_builder lookup."""
         # _install_openapi_builder is intentionally absent.
         ''')
+
+    errors = legacy_guard.validate_application_metadata_openapi_ownership(*sources)
+
+    assert errors == []
+
+
+def test_metadata_openapi_ownership_guard_allows_unrelated_relative_main_symbol() -> None:
+    sources = list(_openapi_ownership_sources())
+    sources[2] += "\nfrom .helpers import main\n"
+
+    errors = legacy_guard.validate_application_metadata_openapi_ownership(*sources)
+
+    assert errors == []
+
+
+def test_metadata_openapi_ownership_guard_allows_dynamic_sibling_import() -> None:
+    sources = list(_openapi_ownership_sources())
+    sources[2] += textwrap.dedent("""
+        from importlib import import_module
+        import_module(".helpers", package="app.bootstrap")
+        """)
 
     errors = legacy_guard.validate_application_metadata_openapi_ownership(*sources)
 
@@ -354,8 +450,7 @@ def test_api_key_ownership_guard_rejects_bounded_module_bindings(
     )
 
     assert legacy_guard.validate_api_key_dependency_ownership(legacy_source, {}) == [
-        "legacy_app.py: canonical API-key compatibility re-export must not be rebound: "
-        "get_api_key"
+        "legacy_app.py: canonical API-key compatibility re-export must not be rebound: get_api_key"
     ]
 
 
@@ -466,10 +561,7 @@ def test_api_key_ownership_guard_rejects_legacy_module_attribute_access(symbol: 
 
 def test_api_key_ownership_guard_rejects_legacy_star_import() -> None:
     legacy_source = (
-        "from app.routers.api_key import (\n"
-        "    _get_api_key_dynamic,\n"
-        "    get_api_key,\n"
-        ")\n"
+        "from app.routers.api_key import (\n    _get_api_key_dynamic,\n    get_api_key,\n)\n"
     )
 
     assert legacy_guard.validate_api_key_dependency_ownership(
@@ -480,10 +572,7 @@ def test_api_key_ownership_guard_rejects_legacy_star_import() -> None:
 
 def test_api_key_ownership_guard_allows_unrelated_star_import() -> None:
     legacy_source = (
-        "from app.routers.api_key import (\n"
-        "    _get_api_key_dynamic,\n"
-        "    get_api_key,\n"
-        ")\n"
+        "from app.routers.api_key import (\n    _get_api_key_dynamic,\n    get_api_key,\n)\n"
     )
 
     assert (
@@ -629,10 +718,7 @@ def test_api_key_ownership_guard_allows_bounded_ordinary_alias_controls(source: 
 
 def test_api_key_ownership_guard_rejects_lookup_before_safe_reassignment() -> None:
     legacy_source = (
-        "from app.routers.api_key import (\n"
-        "    _get_api_key_dynamic,\n"
-        "    get_api_key,\n"
-        ")\n"
+        "from app.routers.api_key import (\n    _get_api_key_dynamic,\n    get_api_key,\n)\n"
     )
     source = (
         "import legacy_app as legacy\n"
@@ -648,10 +734,7 @@ def test_api_key_ownership_guard_rejects_lookup_before_safe_reassignment() -> No
 
 def test_api_key_ownership_guard_allows_lookup_before_legacy_assignment() -> None:
     legacy_source = (
-        "from app.routers.api_key import (\n"
-        "    _get_api_key_dynamic,\n"
-        "    get_api_key,\n"
-        ")\n"
+        "from app.routers.api_key import (\n    _get_api_key_dynamic,\n    get_api_key,\n)\n"
     )
     source = (
         "import legacy_app as legacy\n"
@@ -668,12 +751,9 @@ def test_api_key_ownership_guard_allows_lookup_before_legacy_assignment() -> Non
 
 def test_api_key_ownership_guard_rejects_single_alias_used_in_expression() -> None:
     legacy_source = (
-        "from app.routers.api_key import (\n"
-        "    _get_api_key_dynamic,\n"
-        "    get_api_key,\n"
-        ")\n"
+        "from app.routers.api_key import (\n    _get_api_key_dynamic,\n    get_api_key,\n)\n"
     )
-    source = "import legacy_app as legacy\n" "compat = legacy\n" "register(compat.get_api_key)\n"
+    source = "import legacy_app as legacy\ncompat = legacy\nregister(compat.get_api_key)\n"
 
     assert legacy_guard.validate_api_key_dependency_ownership(
         legacy_source, {"app/main.py": source}
@@ -682,12 +762,9 @@ def test_api_key_ownership_guard_rejects_single_alias_used_in_expression() -> No
 
 def test_api_key_ownership_guard_allows_safe_alias_used_in_expression() -> None:
     legacy_source = (
-        "from app.routers.api_key import (\n"
-        "    _get_api_key_dynamic,\n"
-        "    get_api_key,\n"
-        ")\n"
+        "from app.routers.api_key import (\n    _get_api_key_dynamic,\n    get_api_key,\n)\n"
     )
-    source = "import legacy_app as legacy\n" "compat = object()\n" "register(compat.get_api_key)\n"
+    source = "import legacy_app as legacy\ncompat = object()\nregister(compat.get_api_key)\n"
 
     assert (
         legacy_guard.validate_api_key_dependency_ownership(legacy_source, {"app/main.py": source})

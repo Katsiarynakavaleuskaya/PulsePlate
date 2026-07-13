@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from typing import Any, cast
 
 from fastapi import FastAPI
+from fastapi.encoders import jsonable_encoder
 from fastapi.openapi.utils import get_openapi
 from fastapi.routing import APIRoute
 
@@ -25,7 +26,7 @@ from app.effective_routes import (
 _CANONICAL_BUILDER_STATE_ATTR = "_canonical_openapi_builder"
 _LEGACY_BOOLEAN_MARKER_ATTR = "_canonical_openapi_builder_installed"
 _INPUT_FINGERPRINT_ATTR = "_canonical_openapi_input_fingerprint"
-_CANONICAL_BUILDER_PROTOCOL_VERSION = 1
+_CANONICAL_BUILDER_PROTOCOL_VERSION = 2
 
 
 @dataclass(frozen=True, slots=True)
@@ -181,6 +182,10 @@ def _openapi_input_fingerprint(target_app: FastAPI) -> str:
                 "tags": list(getattr(route, "tags", owner.tags) or ()),
                 "summary": getattr(route, "summary", owner.summary),
                 "description": getattr(route, "description", owner.description),
+                "operation_id": getattr(route, "operation_id", owner.operation_id),
+                "openapi_extra": jsonable_encoder(
+                    getattr(route, "openapi_extra", owner.openapi_extra)
+                ),
                 "status_code": getattr(route, "status_code", owner.status_code),
                 "response_status_codes": sorted(str(code) for code in route_responses(route)),
                 "endpoint": _callable_identity(route_endpoint(route)),
@@ -223,6 +228,7 @@ def _openapi_input_fingerprint(target_app: FastAPI) -> str:
 def _build_canonical_openapi(target_app: FastAPI) -> dict[str, Any]:
     """Return the cached schema, regenerating after recursive route changes."""
 
+    _ensure_no_webhooks(target_app)
     routes_version = _routes_version(target_app)
     cached_version = getattr(target_app, "_openapi_routes_version", None)
     input_fingerprint = _openapi_input_fingerprint(target_app)

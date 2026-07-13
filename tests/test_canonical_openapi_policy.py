@@ -185,6 +185,37 @@ def test_request_time_builder_regenerates_after_visibility_and_metadata_changes(
     assert target_app.openapi() is third
 
 
+@pytest.mark.parametrize(
+    ("field", "value", "schema_key", "expected"),
+    [
+        ("operation_id", "updatedOperationId", "operationId", "updatedOperationId"),
+        ("openapi_extra", {"x-cache-contract": "updated"}, "x-cache-contract", "updated"),
+    ],
+)
+def test_request_time_builder_regenerates_after_schema_route_metadata_changes(
+    field: str,
+    value: object,
+    schema_key: str,
+    expected: str,
+) -> None:
+    target_app = _public_app()
+    openapi_policy.install_canonical_openapi_builder(target_app)
+    first = target_app.openapi()
+    public_route = next(
+        route
+        for route in target_app.routes
+        if getattr(route, "path", None) == "/api/v1/pro/example"
+    )
+    assert isinstance(public_route, APIRoute)
+
+    setattr(public_route, field, value)
+    second = target_app.openapi()
+
+    assert second is not first
+    assert second["paths"]["/api/v1/pro/example"]["get"][schema_key] == expected
+    assert target_app.openapi() is second
+
+
 def test_request_time_builder_regenerates_after_public_policy_change(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -284,7 +315,7 @@ def test_builder_state_matrix_rejects_partial_foreign_and_wrong_app_states() -> 
 
     target_app = FastAPI()
     openapi_policy.install_canonical_openapi_builder(target_app)
-    target_app.openapi._pulseplate_openapi_builder_protocol = -1
+    target_app.openapi._pulseplate_openapi_builder_protocol = 1
     with pytest.raises(RuntimeError, match="canonical_binding_invalid"):
         openapi_policy.validate_openapi_builder_state(target_app)
 
@@ -462,3 +493,18 @@ def test_openapi_webhooks_fail_closed() -> None:
         openapi_policy.validate_openapi_builder_state(target_app)
     with pytest.raises(RuntimeError, match="webhooks_not_supported"):
         openapi_policy.install_canonical_openapi_builder(target_app)
+
+
+def test_warm_openapi_cache_still_rejects_late_webhooks() -> None:
+    target_app = _public_app()
+    openapi_policy.install_canonical_openapi_builder(target_app)
+    cached_schema = target_app.openapi()
+
+    @target_app.webhooks.post("new-subscription")
+    async def _webhook() -> None:
+        return None
+
+    with pytest.raises(RuntimeError, match="webhooks_not_supported"):
+        target_app.openapi()
+
+    assert target_app.openapi_schema is cached_schema
