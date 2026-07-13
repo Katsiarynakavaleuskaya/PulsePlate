@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -582,6 +583,47 @@ def test_post_preflight_failure_is_validated_infra_flake() -> None:
     assert result["failure_class"] == "infra_flake"
     assert result["budget_observations"]["runner_error"] == "runner_execution_failed"
     assert result["budget_observations"]["configured_budgets"]["network_budget"] == 0
+
+
+def test_pre_run_image_drift_is_non_retryable_capability_mismatch(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    packet_path = tmp_path / "packet.json"
+    packet_path.write_text(json.dumps(_packet()), encoding="utf-8")
+    output_path = tmp_path / "result.json"
+    probe = _probe("apple-container", strict=True)
+    written: dict[str, Any] = {}
+
+    monkeypatch.setattr(
+        dispatch,
+        "_parse_args",
+        lambda _argv: SimpleNamespace(
+            command="run",
+            backend="apple-container",
+            packet="packet.json",
+            candidate_patch=None,
+            image=f"pulseplate/experiment-runner:local@{_DIGEST}",
+            output="result.json",
+        ),
+    )
+    monkeypatch.setattr(dispatch, "_require_repo_local_file", lambda *_args, **_kwargs: packet_path)
+    monkeypatch.setattr(dispatch, "_resolve_local_output", lambda *_args, **_kwargs: output_path)
+    monkeypatch.setattr(dispatch, "select_backend", lambda *_args: (probe, [probe]))
+
+    def fail_before_start(**_kwargs: object) -> dict[str, Any]:
+        raise dispatch.PreRunCapabilityError("image_digest_drift")
+
+    monkeypatch.setattr(dispatch, "_invoke_container_runner", fail_before_start)
+    monkeypatch.setattr(
+        dispatch, "_atomic_write_json", lambda _path, payload: written.update(payload)
+    )
+
+    assert dispatch.main([]) == 1
+    assert written["failure_class"] == "capability_mismatch"
+    assert written["budget_observations"]["runner_error"] == "image_digest_drift"
+    assert written["budget_observations"]["attempts"] == 0
+    assert written["budget_observations"]["configured_budgets"]["network_budget"] == 0
 
 
 def test_container_cleanup_forces_stop_before_delete(monkeypatch: pytest.MonkeyPatch) -> None:

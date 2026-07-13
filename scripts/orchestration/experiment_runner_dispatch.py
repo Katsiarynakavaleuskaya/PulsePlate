@@ -214,6 +214,10 @@ class DispatchError(RuntimeError):
         super().__init__(code)
 
 
+class PreRunCapabilityError(DispatchError):
+    """Deterministic backend drift detected after selection but before execution."""
+
+
 @dataclass(frozen=True)
 class ImageReference:
     name: str
@@ -416,6 +420,21 @@ def _failed_probe(
         image_digest=image_digest,
         isolation_method=_isolation_method(backend),
         probe_results=results or _base_probe_results(backend),
+        blocking_reasons=(reason,),
+    )
+
+
+def _probe_with_blocker(probe: BackendProbe, reason: str) -> BackendProbe:
+    if reason not in BLOCKER_CODES:
+        raise ValueError(f"Unsupported blocker code: {reason}")
+    return BackendProbe(
+        backend=probe.backend,
+        host_platform=probe.host_platform,
+        guest_platform=probe.guest_platform,
+        runtime_version=probe.runtime_version,
+        image_digest=probe.image_digest,
+        isolation_method=probe.isolation_method,
+        probe_results=probe.probe_results,
         blocking_reasons=(reason,),
     )
 
@@ -1381,19 +1400,22 @@ def _invoke_container_runner(
         runner_name = f"pp-er-runner-{uuid.uuid4().hex[:12]}"
         cleanup_completed = True
         try:
-            if probe.backend == "apple-container":
-                apple_network = _create_apple_network(cli)
-            _inspect_image(cli, probe.backend, image)
-            runtime_ref = image.runtime_ref(probe.backend)
-            volume = _create_result_volume(cli, probe.backend)
-            if not _initialize_result_volume(
-                cli=cli,
-                backend=probe.backend,
-                image_ref=runtime_ref,
-                volume=volume,
-                apple_network=apple_network,
-            ):
-                raise DispatchError("result_volume_failed")
+            try:
+                if probe.backend == "apple-container":
+                    apple_network = _create_apple_network(cli)
+                _inspect_image(cli, probe.backend, image)
+                runtime_ref = image.runtime_ref(probe.backend)
+                volume = _create_result_volume(cli, probe.backend)
+                if not _initialize_result_volume(
+                    cli=cli,
+                    backend=probe.backend,
+                    image_ref=runtime_ref,
+                    volume=volume,
+                    apple_network=apple_network,
+                ):
+                    raise DispatchError("result_volume_failed")
+            except DispatchError as exc:
+                raise PreRunCapabilityError(exc.code) from exc
             packet = validate_experiment_packet(json.loads(packet_path.read_text(encoding="utf-8")))
             timeout = int(packet["budgets"]["wall_clock_seconds"]) + 60
             try:
@@ -1629,6 +1651,12 @@ def main(argv: list[str] | None = None) -> int:
                         candidate_patch=candidate_patch,
                         output_name=output_path.name,
                     )
+            except PreRunCapabilityError as exc:
+                result = _capability_mismatch_result(
+                    packet,
+                    image,
+                    _probe_with_blocker(selected, exc.code),
+                )
             except DispatchError as exc:
                 result = _infra_flake_result(packet, image, selected, exc.code)
             except (OSError, ValueError):
