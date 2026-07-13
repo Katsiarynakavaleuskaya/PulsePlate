@@ -35,6 +35,8 @@ Starter: `scripts/orchestration/start_pr_lane.sh`
   cleanup, and post-probe capability false-green paths.
 - `0684d9b43` - bind the positive-control canary to an exact host address and
   remove the wildcard-listener security finding.
+- `c5cd8d870` - bound the Docker result handoff, validate untrusted results
+  before transformation, and classify lost runtime CLI as capability drift.
 
 ## Discussion Thread Pass
 
@@ -86,6 +88,35 @@ Evidence: CodeRabbit's current-head review at `cfd6d3e3a` has an empty review bo
 Reason: The current-head external review contains no actionable finding.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2116#pullrequestreview-4688294693
 
+Disposition: NOT-A-BUG
+Evidence: `scripts/orchestration/experiment_runner.py:27-29`, `scripts/orchestration/task_bootstrap.py:16-18`, and other repo-owned operator CLIs use the same bounded repo-root bootstrap so canonical direct-script invocation works from a clean checkout; preflight, agent consistency, Ruff, MyPy, and pre-commit accept the pattern.
+Reason: This dispatcher is a repo-local operator CLI, not an installed production package, and its approved interface intentionally supports `python3 scripts/orchestration/experiment_runner_dispatch.py`; changing only this command surface to module-only execution would create inconsistent operator semantics without a repo-wide migration contract.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2116#discussion_r3573784622
+
+Disposition: FIXED
+Commit: c5cd8d870a31cc704e1a01931fb6d13f952b2bee
+Evidence: `_create_result_volume` now creates Docker's named handoff as a local-driver tmpfs with `size=2m,mode=0700`; `test_docker_volume_is_bounded_tmpfs` binds the quota to `MAX_RESULT_BYTES` and asserts the exact bounded argv.
+Reason: Untrusted candidate output can no longer grow the Docker handoff beyond the collector's configured maximum before validation.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2116#discussion_r3573784626 -> c5cd8d870a31cc704e1a01931fb6d13f952b2bee
+
+Disposition: FIXED
+Commit: c5cd8d870a31cc704e1a01931fb6d13f952b2bee
+Evidence: `_sanitize_result` now runs the strict result-v1 validator before iterating `oracle_results`, converts invalid shapes to stable `result_validation_failed`, and `test_sanitize_result_rejects_malformed_oracle_before_transform` covers a null oracle entry.
+Reason: Malformed untrusted output now produces a structured failure path instead of an uncaught `TypeError`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2116#discussion_r3573784628 -> c5cd8d870a31cc704e1a01931fb6d13f952b2bee
+
+Disposition: FIXED
+Commit: c5cd8d870a31cc704e1a01931fb6d13f952b2bee
+Evidence: `_invoke_container_runner` raises `PreRunCapabilityError("runtime_cli_missing")` when the already-selected runtime disappears, and `test_missing_runtime_after_probe_is_pre_run_capability_drift` covers the classification.
+Reason: Runtime disappearance before candidate execution is deterministic capability drift and does not consume retry budget as `infra_flake`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2116#discussion_r3573784645 -> c5cd8d870a31cc704e1a01931fb6d13f952b2bee
+
+Disposition: FIXED
+Commit: c5cd8d870a31cc704e1a01931fb6d13f952b2bee
+Evidence: All three valid findings in the grouped review are fixed and tested above; the direct-script bootstrap finding is dispositioned separately with repo-native evidence.
+Reason: The grouped CodeRabbit review is fully accounted for by the four thread-level dispositions.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2116#pullrequestreview-4688335453 -> c5cd8d870a31cc704e1a01931fb6d13f952b2bee
+
 ## Experiment Runner Evidence
 
 Artifact: `artifacts/orchestration/experiments/results/mac-strict-oracle-current-head.json`
@@ -100,7 +131,7 @@ Artifact: `artifacts/orchestration/experiments/results/mac-strict-oracle-current
 ## Validation Evidence
 
 - PASS: orchestration preflight and agent consistency.
-- PASS: 188 focused Runner, dispatcher, sandbox, and review-pattern tests.
+- PASS: 191 focused Runner, dispatcher, sandbox, and review-pattern tests.
 - PASS: focused Ruff and MyPy.
 - PASS: `make validate-changed`.
 - PASS: `pre-commit run --all-files`.
