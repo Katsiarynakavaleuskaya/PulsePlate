@@ -110,6 +110,22 @@
   reviewed allowlist, forbidden-surface tests, identity checks, and rollback
   notes.
 - Result artifacts stay local under `artifacts/orchestration/experiments/results/` and are evidence only, not merge-ready or promotion-ready output.
+- `experiment_runner_dispatch.py` is the strict local backend boundary for
+  macOS Experiment Runner execution. It may probe, build the dedicated local
+  image, create a self-contained temporary repository snapshot, and execute the
+  existing runner only after one backend passes capability checks. `auto`
+  precedence is Apple Container then Docker; backend selection is final before
+  oracle execution. The dispatcher must never change `network_budget`, retry
+  with network access, add broad Linux capabilities, mount host home/keychain/
+  agent/runtime sockets, persist raw runtime output, or treat capability/result
+  artifacts as readiness or promotion authority. Missing strict isolation is
+  `capability_mismatch`, not `infra_flake`.
+- Container-backed dispatch must not expose a host-writable result bind to the
+  untrusted runner. Use a private named volume, force-delete the uniquely named
+  runner after PID 1 exits, and extract the bounded regular result through a
+  separate read-only trusted collector inside guest `unshare`; delete the
+  volume on every path. Apple gateway canaries must use runtime network inspect,
+  never a hard-coded host address.
 - PR-2 creative-code patch-builder artifacts stay local under
   `artifacts/orchestration/creative_code/patch_runs/`. The builder CLI
   `creative_code_patch_builder.py` is not role dispatch, PR lifecycle

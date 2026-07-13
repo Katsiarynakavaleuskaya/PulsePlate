@@ -10857,6 +10857,30 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Immutable oracle mutation is rejected fail-closed
     - Runner outputs candidate result artifacts, not autonomous merge-ready commits
 
+<a id="ledger-p1-experiment-runner-macos-strict-backend"></a>
+- [ ] P1: Strict macOS backend for Experiment Runner
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (restore canonical zero-network oracle evidence on the operator Mac)
+  - Target PR: `codex/experiment-runner-mac-strict-backend`
+  - Status: In progress; Apple Container remains opt-in until real Mac evidence and current-head CI complete.
+  - Dependencies:
+    - [P1: PR3 experiment runner MVP for bounded candidate loops](#ledger-p1-agent-experiment-runner)
+  - Reason (EN): The native runner correctly requires `network_budget=0`, but macOS cannot provide the Linux `unshare` primitive directly. Add one fail-closed dispatcher that proves Apple Container isolation first, proves Docker `--network none` only as a fallback, and returns non-retryable `capability_mismatch` instead of weakening network policy.
+  - Links:
+    - `docs/orchestration/EXPERIMENT_RUNNER_MACOS_RUNBOOK.md`
+    - `docs/orchestration/contracts/experiment_runner_backend_capability.v1.schema.json`
+    - `scripts/orchestration/experiment_runner_dispatch.py`
+    - `deploy/experiment-runner/Containerfile`
+    - `tests/test_experiment_runner_dispatch.py`
+  - DoD:
+    - Apple and Docker backend selection completes before an experiment and never falls back mid-run
+    - Apple proves internal/no-DNS networking plus guest unshare without broad capabilities; Docker proves network-none plus the same negative canaries
+    - Repository/input/root mounts are read-only, no host-writable result bind reaches the untrusted runner, the private result volume is collected read-only after PID 1 exits, and private tmpfs is bounded
+    - Every dispatched run requires immutable image identity and records sanitized backend provenance
+    - Existing Linux native behavior and legacy result v1 artifacts remain compatible
+    - Real candidate and oracle-only Mac runs pass with `network_budget=0`, `shared_tree_untouched: true`, image scan evidence, and no secret/host-path leakage
+    - Local narrow gates, post-open review chain, current-head CI, review dispositions, and strict merge-readiness complete before closure
+
 <a id="ledger-p2-experiment-runner-pr-evidence-hard-gate"></a>
 - [x] P2: Promote Experiment Runner PR evidence from advisory to hard gate
   - Owner: @katsiaryna_kavaleuskaya
