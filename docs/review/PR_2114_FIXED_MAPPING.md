@@ -115,6 +115,33 @@ cutover.
 Reason: No product correctness, security, architecture, or governance defect was
 emitted. The advisory records review cost and does not require a code change.
 
+### External Bot Advisories
+
+Disposition: NOT-A-BUG
+Evidence: The CodeRabbit top-level comment reports its generic 80% docstring
+coverage warning, but the PulsePlate repository has no such merge contract. The
+new public-facing canonical records and builder interfaces are documented, while
+adding low-value docstrings to private helpers and deterministic tests would not
+change runtime correctness or the repo-required coverage gates.
+Reason: This is a tool-profile advisory, not a PulsePlate defect or required
+check.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2114#issuecomment-4958333168
+
+Disposition: NOT-A-BUG
+Evidence: Codecov reports patch coverage `98.71795%`, which exceeds the repository
+requirement of 97%; canonical CI `diff-coverage` also passed on the final material
+head after the OpenAPI contract suite selection fix.
+Reason: The comment contains no uncovered-line remediation required by repository
+policy.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2114#issuecomment-4959165559
+
+Disposition: NOT-A-BUG
+Evidence: Sourcery's check is successful and its only review body reports weekly
+quota exhaustion; it posted no code finding. Cubic produced a current-head summary
+and no actionable review item. All eight CodeRabbit inline threads are resolved
+with commit-after-comment evidence above.
+Reason: No undispositioned external-bot code finding remains.
+
 ## Experiment Runner Evidence
 
 Artifact: artifacts/orchestration/experiments/results/canonical-openapi-policy-preopen-20260713-r4.json
