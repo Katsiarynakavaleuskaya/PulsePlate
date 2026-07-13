@@ -82,6 +82,16 @@ Evidence: On the public branch head `ba3b3295cb7f78a2d9eea52a62e966d3c6cd6144`, 
 Reason: The mapped FIXED proof is reachable from the actual PR branch head; the non-reachability assertion is an artifact of reviewing GitHub's synthetic merge commit `e719f874...` as a standalone commit.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2115#discussion_r3571404148
 
+Disposition: NOT-A-BUG
+Evidence: GitHub PR #2115 reports public `headRefOid=474cde8926581c829517f537ecb986bec31e400b`; in that branch history, `git merge-base --is-ancestor 66c89fe9c0c02badc0a2a6060b7a3607c7b853e4 474cde8926581c829517f537ecb986bec31e400b` exits zero, as do the checks for the other mapped FIXED commits.
+Reason: The reviewed `5a03d460...` object is GitHub's synthetic merge commit in a shallow reviewer checkout, not the PR branch head. Missing shallow ancestry is not evidence that the public branch lost its mapped commits.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2115#discussion_r3571484039
+
+Disposition: NOT-A-BUG
+Evidence: GitHub PR #2115 reports public `headRefOid=474cde8926581c829517f537ecb986bec31e400b`; every commit in `origin/main..474cde8926581c829517f537ecb986bec31e400b`, including that head, contains `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
+Reason: The reviewed `5a03d460...` object is GitHub's synthetic merge commit and is not the public branch head governed by the attribution contract; the required public attribution is present throughout the branch history.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2115#discussion_r3571484042
+
 ## Experiment Runner Evidence
 
 Artifact: artifacts/orchestration/experiments/results/cfpropertylist-ruby34-compat-oracle-result.json
