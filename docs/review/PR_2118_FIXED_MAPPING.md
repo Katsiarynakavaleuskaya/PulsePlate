@@ -24,19 +24,28 @@ Packet: `artifacts/orchestration/task_packets/e25f2c18d755.json`
 
 - `b25661599` - close the strict macOS backend backlog entry with PR #2116 and
   exact merge evidence.
+- `b38fa7df8` - clarify the closeout evidence wording after Sourcery review.
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed.
-- [ ] Fixed in commit mapping completed.
-- [ ] Post-open `qa-engineer-agent -> bug-hunter -> security-auditor` completed.
-- [ ] Ordinary `pulseplate-pr-review` completed on current head.
+- [x] Discussion-thread pass completed.
+- [x] Fixed in commit mapping completed.
+- [x] Post-open `qa-engineer-agent -> bug-hunter -> security-auditor` completed.
+- [x] Ordinary `pulseplate-pr-review` completed on current material diff.
 - [ ] Canonical current-head CI completed.
 - [ ] Strict authenticated merge readiness and mandatory wait window completed.
 
 ## Fixed in Commit Mapping
 
-No actionable review comments at mapping creation time.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2118#pullrequestreview-4689004418 -> b38fa7df8
+  - Disposition: FIXED
+  - Evidence: `docs/roadmap/BACKLOG_LEDGER.md` clarifies the parallel evidence
+    list; focused docs/mapping tests report 91 passed and full pre-commit passes.
+
+CodeRabbit, Cubic, and the ordinary `pulseplate-pr-review` reported no other
+actionable findings on the material diff. The separate interactive Codex
+Security plugin scan is not restarted under the standing operator disposition;
+no incomplete scan result is used as evidence.
 
 ## Experiment Runner Evidence
 
