@@ -32,23 +32,30 @@ optional RAG boundaries.
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed.
-- [ ] Fixed in commit mapping completed.
+- [x] Discussion-thread pass completed.
+- [x] Fixed in commit mapping completed.
 - [x] Pre-open packet role order completed.
 - [x] Actual-diff premortem completed with no open blocker.
 - [x] Experiment Runner oracle-only evidence accepted.
-- [ ] Post-open `qa-engineer-agent -> bug-hunter -> security-auditor` completed.
-- [ ] Codex Security diff scan completed for the material diff.
-- [ ] `pulseplate-pr-review` completed.
-- [ ] All current review threads dispositioned and resolved.
+- [x] Post-open `qa-engineer-agent -> bug-hunter -> security-auditor` completed.
+- [x] Codex Security diff scan completed for the material diff.
+- [x] `pulseplate-pr-review` completed.
+- [x] All current review threads dispositioned and resolved.
 - [ ] Current-head CI completed.
 - [ ] Strict authenticated merge readiness and mandatory wait window completed.
 
 ## Fixed in Commit Mapping
 
-No review threads exist at initial PR open. Add every later actionable thread
-here only after its evidence-backed `FIXED`, `NOT-A-BUG`, or `DEFERRED`
-disposition is complete.
+Mapping entries are added in the follow-up governance commit after the reviewed
+documentation fixes have their post-comment commit SHA.
+
+## Experiment Runner Evidence
+
+Artifact: artifacts/orchestration/experiments/results/exp-825ff721b359.json
+
+The artifact is local-only and gitignored. It was accepted with 2/2 immutable
+oracles passing, no shared-tree mutation, and contribution kind
+`commit_decision`.
 
 ## Premortem
 
@@ -79,9 +86,13 @@ disposition is complete.
 
 ## Security Review
 
-Pending the mandatory post-open security-auditor pass and one Codex Security
-diff scan. No application runtime, credential, workflow, or package-source
-authority changes are present in the initial material diff.
+- PASS: mandatory post-open security-auditor found no blocking issue.
+- PASS: sealed Codex Security diff scan covered the complete material diff at
+  `f55f3464e88c607c1e7b82e1cab5a0c2bd0ff515` and reported zero findings.
+- PASS: `pulseplate-pr-review` found no correctness or security defect. Its
+  large-diff advisory is `NOT-A-BUG`: the operator approved this coherent
+  prerequisite hotfix, and the 18 files are the bounded source, lock, guard,
+  evidence, and governance closure for the same Click/Pillow remediation.
 
 ## Deferred / Follow-ups
 

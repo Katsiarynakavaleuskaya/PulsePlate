@@ -89,15 +89,33 @@ the proxy is stale.
 ### 3. Update Requirement Surfaces
 
 1. Bump version in `requirements.in` or `requirements-dev.in`
-2. Regenerate locks:
+2. Regenerate every affected canonical shared lock through the approved private
+   proxy. Preserve the existing output file as the resolver seed and never emit
+   the index URL into a tracked lock:
    ```bash
-   pip-compile --allow-unsafe requirements.in -o requirements.txt
-   pip-compile --allow-unsafe requirements-docker-runtime.in -o requirements-docker-runtime.txt
-   pip-compile --allow-unsafe requirements-rag-vector.in -o requirements-rag-vector.txt
-   pip-compile --allow-unsafe requirements-dev.in -o requirements-dev.txt
-   pip-compile --allow-unsafe requirements.in requirements-dev.in -o requirements-lock.txt
+   pip-compile --allow-unsafe --no-emit-index-url \
+     --output-file=requirements.txt requirements.in
+   pip-compile --allow-unsafe --no-emit-index-url \
+     --output-file=requirements-docker-runtime.txt requirements-docker-runtime.in
+   pip-compile --allow-unsafe --no-emit-index-url \
+     --output-file=requirements-ci-lite.txt requirements-ci-lite.in
+   pip-compile --allow-unsafe --constraint=requirements.txt --no-emit-index-url \
+     --output-file=requirements-dev.txt requirements-dev.in
+   pip-compile --allow-unsafe --no-emit-index-url \
+     --output-file=requirements-lock.txt requirements-dev.in requirements.in
    ```
-3. Update `constraints.txt` if needed
+3. Regenerate an optional lock only when that profile already owns the affected
+   package. For example:
+   ```bash
+   pip-compile --allow-unsafe --no-emit-index-url \
+     --output-file=requirements-rag-vector.txt requirements-rag-vector.in
+   pip-compile --allow-unsafe --no-emit-index-url \
+     --output-file=requirements-rag-vector-cpu.txt requirements-rag-vector-cpu.in
+   ```
+   Do not pull optional data, eval, or vector dependencies into shared runtime
+   profiles merely to make the versions uniform.
+4. Update `constraints.txt` manually when the security floor is part of the
+   shared resolver contract; `constraints.txt` is not a compiled lock.
 
 ### 4. Verify Guard
 
@@ -105,8 +123,9 @@ the proxy is stale.
 # Run guard tests only
 pytest -q tests/test_dependency_security_guard.py
 
-# Full verification (includes guard)
-make verify
+# Required local narrow bundle; full-suite parity comes from current-head CI
+make validate-changed
+pre-commit run --all-files
 ```
 
 ### 5. Document in PR
@@ -183,7 +202,8 @@ and Pillow 12.3.0.
 
 ## CI Integration
 
-- Guard runs in `make test-fast` -> `make verify`
+- Guard runs in `make test-fast`; current-head CI supplies the full-suite parity
+  signal required for merge readiness
 - PR cannot merge if guard fails
 - Deterministic for policy checks: no network calls and no external state in the guard itself; the optional CI preflight (`scripts/ci/install_locked_python_requirements.py --preflight-only`) performs network reads against `PULSEPLATE_PYTHON_INDEX_URL` and may use `scripts/ci/emergency_python_wheels.json` for verified emergency fallbacks
 
