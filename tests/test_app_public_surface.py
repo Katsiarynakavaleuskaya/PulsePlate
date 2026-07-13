@@ -53,6 +53,33 @@ def test_canonical_lifespan_preserves_legacy_created_app_identity() -> None:
     assert legacy_app.app.router.lifespan_context is not None
 
 
+def test_legacy_openapi_symbols_are_exact_canonical_aliases() -> None:
+    import legacy_app
+    from app.bootstrap import openapi as canonical_openapi
+
+    symbol_names = (
+        "_OPENAPI_ALLOWED_PREFIXES",
+        "_OPENAPI_ALLOWED_EXACT",
+        "_is_openapi_public_path",
+        "_collect_schema_refs",
+        "_prune_unreferenced_schema_components",
+        "_build_canonical_openapi",
+        "_install_openapi_builder",
+    )
+
+    for symbol_name in symbol_names:
+        assert getattr(legacy_app, symbol_name) is getattr(canonical_openapi, symbol_name)
+
+
+def test_app_legacy_facade_has_no_openapi_installation_side_effect() -> None:
+    import pathlib
+
+    app_init = pathlib.Path("app/__init__.py").read_text(encoding="utf-8")
+
+    assert 'getattr(legacy, "_install_openapi_builder"' not in app_init
+    assert "install_openapi_builder(legacy_app_instance)" not in app_init
+
+
 def test_no_dynamic_exec_module_in_app_package() -> None:
     """Prevent regression to dynamic import patterns (spec.loader.exec_module).
 

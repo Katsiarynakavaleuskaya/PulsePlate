@@ -244,6 +244,25 @@ def test_openapi_only_change_still_runs_blocking_and_sync() -> None:
     assert profile.contract_risk_groups == ("openapi_contract",)
 
 
+@pytest.mark.parametrize(
+    "changed_file",
+    ["app/application_metadata.py", "app/bootstrap/openapi.py"],
+)
+def test_canonical_openapi_owner_change_selects_openapi_contract(
+    changed_file: str,
+) -> None:
+    profile = risk_profile.build_risk_profile([changed_file])
+
+    assert profile.backend_shared is True
+    assert profile.openapi_contract is True
+    assert profile.route_contract_safety is True
+    assert profile.run_openapi_sync is True
+    assert profile.contract_risk_groups == (
+        "openapi_contract",
+        "route_contract_safety",
+    )
+
+
 def test_insight_runtime_change_hits_insight_group_only() -> None:
     profile = risk_profile.build_risk_profile(
         ["core/insight/fitchef_companion.py"],

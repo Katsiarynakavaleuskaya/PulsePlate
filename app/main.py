@@ -15,10 +15,7 @@ from fastapi import APIRouter, Depends, FastAPI
 from fastapi.responses import HTMLResponse
 from settings import get_runtime_env_name
 
-from legacy_app import (
-    _install_openapi_builder,
-    app as _legacy_app,
-)  # re-export FastAPI instance from legacy root module
+from legacy_app import app as _legacy_app  # re-export existing FastAPI instance
 
 # Register observability infrastructure (middleware + /metrics endpoint)
 # This must be done here, not in legacy_app.py, to keep legacy as a thin proxy
@@ -28,6 +25,11 @@ from app.bootstrap.direct_api_root import (
     serve_legacy_bmi_calculator_web,
 )
 from app.bootstrap.http_stack import register_http_middleware_stack
+from app.bootstrap.openapi import (
+    apply_public_openapi_input_policy,
+    install_canonical_openapi_builder,
+    validate_openapi_builder_state,
+)
 from app.bootstrap.pro_contracts import register_pro_contract_routes
 from app.bootstrap.public_discovery import SITEMAP_ROUTE_PATH, serve_public_sitemap
 from app.effective_routes import (
@@ -1243,31 +1245,6 @@ def _include_restaurant_moderation_router_if_needed(target_app: FastAPI) -> None
     )
 
 
-def _internalize_users_openapi_surface(target_app: FastAPI) -> None:
-    """Keep users CRUD OpenAPI metadata internal when legacy state is present.
-
-    Source users routes are hidden at the router/decorator level. This remains
-    as defensive cleanup for older route state loaded before canonical bootstrap.
-    """
-
-    for route in _effective_app_routes(target_app):
-        if route_path(route).startswith("/api/v1/users"):
-            setattr(route, "include_in_schema", False)
-
-    if target_app.openapi_tags:
-        target_app.openapi_tags = [
-            tag for tag in target_app.openapi_tags if tag.get("name") != "users"
-        ]
-
-    if target_app.description:
-        target_app.description = target_app.description.replace(", user management", "")
-        target_app.description = target_app.description.replace(
-            "User management endpoints (FREE tier)", ""
-        )
-
-    target_app.openapi_schema = None
-
-
 def _import_vip_module_for_compat() -> Any:
     from app.routers import vip as vip_module
 
@@ -1341,10 +1318,9 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
     """
     global app
 
+    validate_openapi_builder_state(target_app)
     register_http_middleware_stack(target_app)
     app = target_app
-    _internalize_users_openapi_surface(app)
-    _install_openapi_builder(app)
 
     if not _route_has_endpoint(target_app, "/", "GET", serve_direct_api_root_probe):
         target_app.add_api_route(
@@ -1430,6 +1406,8 @@ def ensure_canonical_app_bootstrap(target_app: FastAPI) -> FastAPI:
             )
         app.include_router(paywall_analytics_router)
 
+    apply_public_openapi_input_policy(app)
+    install_canonical_openapi_builder(app)
     return app
 
 

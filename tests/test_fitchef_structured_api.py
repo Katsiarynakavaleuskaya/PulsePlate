@@ -799,8 +799,9 @@ def test_canonical_bootstrap_registers_structured_route_idempotently(
     async def _ws_pro() -> None:
         return None
 
-    monkeypatch.setattr(app_main, "_install_openapi_builder", lambda target_app: None)
-    monkeypatch.setattr(app_main, "_internalize_users_openapi_surface", lambda target_app: None)
+    monkeypatch.setattr(app_main, "validate_openapi_builder_state", lambda target_app: None)
+    monkeypatch.setattr(app_main, "apply_public_openapi_input_policy", lambda target_app: False)
+    monkeypatch.setattr(app_main, "install_canonical_openapi_builder", lambda target_app: None)
     monkeypatch.setattr(app_main, "app", original_app)
     monkeypatch.setattr(app_main, "register_http_middleware_stack", lambda target_app: None)
     monkeypatch.setattr(app_main, "register_pro_contract_routes", lambda target_app: None)

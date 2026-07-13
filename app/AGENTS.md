@@ -333,6 +333,27 @@ Avoid `# type: ignore[no-any-return]` and prefer typed locals over `cast()`.
 - A lifespan-only PR must not also change FastAPI instance identity, OpenAPI
   policy, deployment entrypoints, or worker topology.
 
+### Canonical application metadata and OpenAPI ownership
+
+- Application metadata belongs in `app/application_metadata.py`; keep its source
+  values immutable and create fresh nested dict/list constructor inputs for each
+  FastAPI instance. Reuse `settings.get_runtime_env_name()` instead of parsing
+  `APP_ENV` or `ENVIRONMENT` again.
+- Public-path filtering, schema-reference pruning, and the custom OpenAPI builder
+  belong in `app/bootstrap/openapi.py`. `legacy_app.py` may temporarily re-export
+  the exact canonical objects, but wrappers or rebinding are forbidden.
+- Canonical bootstrap order is fail-closed: validate the live builder before any
+  mutation, register all routes, apply public OpenAPI input policy, then install
+  the canonical builder. `app/__init__.py` must not install or mutate OpenAPI.
+- Builder ownership requires exact live-marker identity, same-app binding, and a
+  versioned structural protocol. Bump the protocol whenever builder semantics
+  change; stale, partial, foreign, or wrong-app states must raise.
+- OpenAPI requests remain cache-backed. Bootstrap may preserve an existing cache
+  object only when a freshly generated complete filtered schema is equal; an
+  unknown first-install cache or any public schema drift must be replaced.
+- Effective included-router visibility changes must update both the live FastAPI
+  route context and its `original_route`; OpenAPI hiding is never authorization.
+
 ## No duplicated business logic (app vs core)
 
 - Routers and services must not re-implement domain logic.

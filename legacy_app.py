@@ -34,6 +34,17 @@ from pydantic import (
 )
 from settings import get_runtime_env_name
 
+from app.application_metadata import build_application_metadata
+from app.bootstrap.openapi import (  # noqa: F401 - identity-preserving compatibility re-exports
+    _OPENAPI_ALLOWED_EXACT,
+    _OPENAPI_ALLOWED_PREFIXES,
+    _build_canonical_openapi,
+    _collect_schema_refs,
+    _install_openapi_builder,
+    _is_openapi_public_path,
+    _prune_unreferenced_schema_components,
+)
+
 from app.bootstrap.lifespan import application_lifespan as lifespan
 from app.http_error_details import (
     ENHANCED_PLATE_GENERATION_FAILED_DETAIL,
@@ -489,212 +500,20 @@ def reset_targets_cache() -> None:
             setattr(pkg, "_targets_disabled_cache_time", 0.0)
 
 
-# OpenAPI/Swagger metadata for API documentation
-tags_metadata: list[dict[str, str]] = [
-    {
-        "name": "health",
-        "description": "Health check and system status endpoints",
-    },
-    {
-        "name": "bmi",
-        "description": "BMI calculation endpoints (FREE tier)",
-    },
-    {
-        "name": "foods",
-        "description": "Food database search and retrieval (FREE tier)",
-    },
-    {
-        "name": "recipes",
-        "description": "Recipe database search and preview (FREE tier)",
-    },
-    {
-        "name": "users",
-        "description": "User management endpoints (FREE tier)",
-    },
-    {
-        "name": "pro",
-        "description": "PRO tier features - weekly meal planning, nutrition targets. **Requires PRO API key**.",
-    },
-    {
-        "name": "premium",
-        "description": "[DEPRECATED] PRO tier features - use /api/v1/pro/* instead. **Requires PRO API key**.",
-    },
-    {
-        "name": "vip",
-        "description": "VIP tier features - micronutrients, auto-repair, recipe synthesis, shopping lists. **Requires VIP API key**.",
-    },
-    {
-        "name": "business",
-        "description": "Business analytics and Bayesian analysis (Internal use)",
-    },
-    {
-        "name": "export",
-        "description": "Export endpoints for meal plans and shopping lists",
-    },
-]
-
-# Build API description with environment-specific content
-# Reuse _app_env defined earlier (line 302) to avoid duplication
-_is_dev_env = _app_env in {"", "local", "dev", "development", "test", "testing"}
-
-_api_description = """
-## PulsePlate - Nutrition & Meal Planning API
-
-**Mobile-first API** for iOS and web applications with tiered subscription access.
-
-### Subscription Tiers
-
-- **FREE**: BMI calculations, food/recipe search, user management
-- **PRO**: Advanced meal planning, WHO-based nutrition targets, macro tracking
-- **VIP**: Micronutrient goals, AI recipe synthesis, auto-repair, shopping lists
-
-### Authentication
-
-Premium endpoints require API key in `X-API-Key` header:
-- PRO tier: Use API key with PRO access level
-- VIP tier: Use API key with VIP access level
-"""
-
-if _is_dev_env:
-    _api_description += """
-### Test API Keys (Development Only)
-
-- PRO: `YOUR_PRO_TEST_KEY`
-- VIP: `YOUR_VIP_TEST_KEY`
-
-**Note**: Replace with actual test keys from your environment variables or Config.plist.
-**Production**: Test keys are disabled in production environments.
-"""
-
-_api_description += """
-### Documentation
-
-- Mobile API Migration Guide: `docs/MOBILE_API_MIGRATION_GUIDE.md`
-- iOS Integration: `docs/IOS_API_INTEGRATION.md`
-"""
+# OpenAPI/Swagger metadata remains available here as compatibility values.
+_application_metadata = build_application_metadata(runtime_env=_app_env)
+tags_metadata = _application_metadata.openapi_tags_list()
+_api_description = _application_metadata.description
 
 app = FastAPI(
-    title="PulsePlate",
-    version="0.1.0",
-    description=_api_description,
-    contact={
-        "name": "PulsePlate API Support",
-        "url": "https://github.com/Katsiarynakavaleuskaya/PulsePlate",
-    },
-    license_info={
-        "name": "MIT",
-    },
+    title=_application_metadata.title,
+    version=_application_metadata.version,
+    description=_application_metadata.description,
+    contact=_application_metadata.contact_dict(),
+    license_info=_application_metadata.license_info_dict(),
     openapi_tags=tags_metadata,
     lifespan=lifespan,
 )
-
-_OPENAPI_ALLOWED_PREFIXES: tuple[str, ...] = (
-    "/api/v1/bmi/",
-    "/api/v1/billing/",
-    "/api/v1/insight/",
-    "/api/v1/pro/",
-    "/api/v1/vip/",
-)
-_OPENAPI_ALLOWED_EXACT: frozenset[str] = frozenset({"/api/v1/bmi", "/api/v1/insight"})
-# Note: /ws is no longer in allowed exact - WebSocket is now at /api/v1/pro/ws
-# which is covered by _OPENAPI_ALLOWED_PREFIXES
-
-
-def _is_openapi_public_path(path: str) -> bool:
-    """Keep OpenAPI surface restricted to canonical public namespaces."""
-    if path in _OPENAPI_ALLOWED_EXACT:
-        return True
-    return any(path.startswith(prefix) for prefix in _OPENAPI_ALLOWED_PREFIXES)
-
-
-def _collect_schema_refs(node: Any, refs: set[str]) -> None:
-    """Collect schema component names referenced from an OpenAPI subtree."""
-    if isinstance(node, dict):
-        ref = node.get("$ref")
-        if isinstance(ref, str) and ref.startswith("#/components/schemas/"):
-            refs.add(ref.rsplit("/", 1)[-1])
-        for value in node.values():
-            _collect_schema_refs(value, refs)
-        return
-
-    if isinstance(node, list):
-        for item in node:
-            _collect_schema_refs(item, refs)
-
-
-def _prune_unreferenced_schema_components(schema: dict[str, Any]) -> None:
-    """Drop schema components not reachable from the filtered public OpenAPI surface."""
-    components = schema.get("components")
-    if not isinstance(components, dict):
-        return
-
-    schemas = components.get("schemas")
-    if not isinstance(schemas, dict):
-        return
-
-    referenced_names: set[str] = set()
-    schema_without_defs = dict(schema)
-    if isinstance(schema_without_defs.get("components"), dict):
-        component_copy = dict(cast(dict[str, Any], schema_without_defs["components"]))
-        component_copy.pop("schemas", None)
-        schema_without_defs["components"] = component_copy
-
-    _collect_schema_refs(schema_without_defs, referenced_names)
-
-    retained_schemas: dict[str, Any] = {}
-    queue = list(referenced_names)
-    while queue:
-        schema_name = queue.pop()
-        if schema_name in retained_schemas:
-            continue
-        schema_node = schemas.get(schema_name)
-        if not isinstance(schema_node, dict):
-            continue
-        retained_schemas[schema_name] = schema_node
-        nested_refs: set[str] = set()
-        _collect_schema_refs(schema_node, nested_refs)
-        for nested_ref in nested_refs:
-            if nested_ref not in retained_schemas:
-                queue.append(nested_ref)
-
-    components["schemas"] = dict(sorted(retained_schemas.items()))
-
-
-def _build_canonical_openapi(target_app: FastAPI) -> dict[str, Any]:
-    """Generate OpenAPI and filter legacy/non-canonical namespaces out of schema."""
-    from fastapi.openapi.utils import get_openapi
-
-    if target_app.openapi_schema:
-        return target_app.openapi_schema
-    schema = get_openapi(
-        title=target_app.title,
-        version=target_app.version,
-        description=target_app.description,
-        routes=target_app.routes,
-        contact=target_app.contact,
-        license_info=target_app.license_info,
-        tags=target_app.openapi_tags,
-    )
-    all_paths = schema.get("paths", {})
-    filtered_paths = {
-        path: value for path, value in all_paths.items() if _is_openapi_public_path(path)
-    }
-    schema["paths"] = dict(sorted(filtered_paths.items()))
-    _prune_unreferenced_schema_components(schema)
-    target_app.openapi_schema = schema
-    return schema
-
-
-def _install_openapi_builder(target_app: FastAPI) -> None:
-    """Install custom OpenAPI builder without method-assign typing violation."""
-    if getattr(target_app.state, "_canonical_openapi_builder_installed", False):
-        return
-
-    def _bound_openapi() -> dict[str, Any]:
-        return _build_canonical_openapi(target_app)
-
-    setattr(target_app, "openapi", _bound_openapi)
-    target_app.state._canonical_openapi_builder_installed = True
 
 
 # Startup/shutdown behavior is owned by app.bootstrap.lifespan. This module

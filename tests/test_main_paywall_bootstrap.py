@@ -10,6 +10,7 @@ import pytest
 from starlette.responses import JSONResponse
 from starlette.routing import BaseRoute, Route
 
+import app.bootstrap.openapi as openapi_policy
 import app.main as app_main
 from app.bootstrap.route_family import (
     RouteMemberContract,
@@ -905,8 +906,9 @@ def _duplicate_privacy_legal_stub_router() -> APIRouter:
 
 
 def _prepare_bootstrap_dependencies(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(app_main, "_install_openapi_builder", lambda target_app: None)
-    monkeypatch.setattr(app_main, "_internalize_users_openapi_surface", lambda target_app: None)
+    monkeypatch.setattr(app_main, "validate_openapi_builder_state", lambda target_app: None)
+    monkeypatch.setattr(app_main, "apply_public_openapi_input_policy", lambda target_app: False)
+    monkeypatch.setattr(app_main, "install_canonical_openapi_builder", lambda target_app: None)
     monkeypatch.setattr(app_main, "register_http_middleware_stack", lambda target_app: None)
     monkeypatch.setattr(app_main, "register_vip_routes", lambda target_app: None)
     monkeypatch.setattr(app_main, "register_pro_routes", lambda target_app: (None, None))
@@ -955,6 +957,97 @@ def _bootstrap_temp_app(app: FastAPI) -> FastAPI:
         return app_main.ensure_canonical_app_bootstrap(app)
     finally:
         app_main.app = original_app
+
+
+def test_bootstrap_validates_before_mutation_and_installs_openapi_last(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+    calls: list[str] = []
+    monkeypatch.setattr(
+        app_main,
+        "validate_openapi_builder_state",
+        lambda target_app: calls.append("validate"),
+    )
+    monkeypatch.setattr(
+        app_main,
+        "register_http_middleware_stack",
+        lambda target_app: calls.append("middleware"),
+    )
+    monkeypatch.setattr(
+        app_main,
+        "apply_public_openapi_input_policy",
+        lambda target_app: calls.append("policy") or False,
+    )
+    monkeypatch.setattr(
+        app_main,
+        "install_canonical_openapi_builder",
+        lambda target_app: calls.append("install"),
+    )
+
+    _bootstrap_temp_app(FastAPI())
+
+    assert calls[:2] == ["validate", "middleware"]
+    assert calls[-2:] == ["policy", "install"]
+
+
+def test_bootstrap_prevalidation_failure_performs_no_mutation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+    target_app = FastAPI()
+    original_global_app = app_main.app
+    original_routes = tuple(target_app.router.routes)
+    middleware_called = False
+
+    def _reject_builder_state(target: FastAPI) -> None:
+        raise RuntimeError("OpenAPI builder state invalid: test")
+
+    def _record_middleware(target: FastAPI) -> None:
+        nonlocal middleware_called
+        middleware_called = True
+
+    monkeypatch.setattr(app_main, "validate_openapi_builder_state", _reject_builder_state)
+    monkeypatch.setattr(app_main, "register_http_middleware_stack", _record_middleware)
+
+    with pytest.raises(RuntimeError, match="OpenAPI builder state invalid: test"):
+        app_main.ensure_canonical_app_bootstrap(target_app)
+
+    assert app_main.app is original_global_app
+    assert tuple(target_app.router.routes) == original_routes
+    assert middleware_called is False
+
+
+def test_bootstrap_rejects_webhooks_before_mutation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+    target_app = FastAPI()
+    original_global_app = app_main.app
+    original_routes = tuple(target_app.router.routes)
+    middleware_called = False
+
+    @target_app.webhooks.post("new-subscription")
+    async def _webhook() -> None:
+        return None
+
+    def _record_middleware(target: FastAPI) -> None:
+        nonlocal middleware_called
+        middleware_called = True
+
+    monkeypatch.setattr(
+        app_main,
+        "validate_openapi_builder_state",
+        openapi_policy.validate_openapi_builder_state,
+    )
+    monkeypatch.setattr(app_main, "register_http_middleware_stack", _record_middleware)
+
+    with pytest.raises(RuntimeError, match="webhooks_not_supported"):
+        app_main.ensure_canonical_app_bootstrap(target_app)
+
+    assert app_main.app is original_global_app
+    assert tuple(target_app.router.routes) == original_routes
+    assert middleware_called is False
 
 
 def test_paid_tier_registration_runs_vip_then_pro_and_mirrors_legacy_attrs(

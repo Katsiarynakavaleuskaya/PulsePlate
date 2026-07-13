@@ -910,6 +910,8 @@ jobs:
                 ;;
               openapi_contract)
                 add_suite \
+                  tests/test_application_metadata.py \
+                  tests/test_canonical_openapi_policy.py \
                   tests/test_main_paywall_bootstrap.py \
                   tests/test_openapi_determinism.py \
                   tests/test_openapi_import_safe_orm_guard.py \
@@ -1213,6 +1215,8 @@ jobs:
                 ;;
               openapi_contract)
                 add_suite \
+                  tests/test_application_metadata.py \
+                  tests/test_canonical_openapi_policy.py \
                   tests/test_main_paywall_bootstrap.py \
                   tests/test_openapi_determinism.py \
                   tests/test_openapi_import_safe_orm_guard.py \

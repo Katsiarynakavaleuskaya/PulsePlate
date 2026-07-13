@@ -6,13 +6,13 @@ from __future__ import annotations
 import argparse
 import ast
 from collections import Counter
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from importlib.util import resolve_name
 from pathlib import Path
 import re
 import sys
-from typing import AbstractSet
+from typing import AbstractSet, cast
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 LEGACY_APP = "legacy_app.py"
@@ -20,7 +20,22 @@ LEGACY_SEAM_DOC = "docs/architecture/LEGACY_COMPATIBILITY_SEAM.md"
 FOOD_SEARCH_BOOTSTRAP = "app/bootstrap/food_search.py"
 CANONICAL_LIFESPAN = "app/bootstrap/lifespan.py"
 CANONICAL_API_KEY = "app/routers/api_key.py"  # pragma: allowlist secret
+CANONICAL_APPLICATION_METADATA = "app/application_metadata.py"
+CANONICAL_OPENAPI = "app/bootstrap/openapi.py"
+CANONICAL_MAIN = "app/main.py"
+APP_FACADE = "app/__init__.py"
 CANONICAL_API_KEY_SYMBOLS = frozenset({"get_api_key", "_get_api_key_dynamic"})
+CANONICAL_OPENAPI_SYMBOLS = frozenset(
+    {
+        "_OPENAPI_ALLOWED_PREFIXES",
+        "_OPENAPI_ALLOWED_EXACT",
+        "_is_openapi_public_path",
+        "_collect_schema_refs",
+        "_prune_unreferenced_schema_components",
+        "_build_canonical_openapi",
+        "_install_openapi_builder",
+    }
+)
 ALLOWED_CANONICAL_LIFESPAN_APP_IMPORTS = frozenset(
     {
         "app.bootstrap.food_search",
@@ -2540,6 +2555,870 @@ def validate_lifecycle_ownership(
     return sorted(set(errors))
 
 
+def _assigned_names(tree: ast.Module) -> set[str]:
+    names: set[str] = set()
+
+    class _ModuleBindingVisitor(ast.NodeVisitor):
+        def _visit_function_header(
+            self,
+            node: ast.FunctionDef | ast.AsyncFunctionDef,
+        ) -> None:
+            names.add(node.name)
+            for decorator in node.decorator_list:
+                self.visit(decorator)
+            for default in (*node.args.defaults, *node.args.kw_defaults):
+                if default is not None:
+                    self.visit(default)
+            for argument in (
+                *node.args.posonlyargs,
+                *node.args.args,
+                *node.args.kwonlyargs,
+            ):
+                if argument.annotation is not None:
+                    self.visit(argument.annotation)
+            if node.args.vararg is not None and node.args.vararg.annotation is not None:
+                self.visit(node.args.vararg.annotation)
+            if node.args.kwarg is not None and node.args.kwarg.annotation is not None:
+                self.visit(node.args.kwarg.annotation)
+            if node.returns is not None:
+                self.visit(node.returns)
+            for type_param in getattr(node, "type_params", ()):
+                self.visit(type_param)
+
+        def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+            self._visit_function_header(node)
+
+        def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+            self._visit_function_header(node)
+
+        def visit_ClassDef(self, node: ast.ClassDef) -> None:
+            names.add(node.name)
+            for decorator in node.decorator_list:
+                self.visit(decorator)
+            for base in node.bases:
+                self.visit(base)
+            for keyword in node.keywords:
+                self.visit(keyword.value)
+            for type_param in getattr(node, "type_params", ()):
+                self.visit(type_param)
+
+        def visit_Lambda(self, node: ast.Lambda) -> None:
+            return
+
+        def visit_ListComp(self, node: ast.ListComp) -> None:
+            self._visit_comprehension(node.generators)
+            self.visit(node.elt)
+
+        def visit_SetComp(self, node: ast.SetComp) -> None:
+            self._visit_comprehension(node.generators)
+            self.visit(node.elt)
+
+        def visit_DictComp(self, node: ast.DictComp) -> None:
+            self._visit_comprehension(node.generators)
+            self.visit(node.key)
+            self.visit(node.value)
+
+        def visit_GeneratorExp(self, node: ast.GeneratorExp) -> None:
+            self._visit_comprehension(node.generators)
+            self.visit(node.elt)
+
+        def _visit_comprehension(self, generators: Sequence[ast.comprehension]) -> None:
+            for generator in generators:
+                self.visit(generator.iter)
+                for condition in generator.ifs:
+                    self.visit(condition)
+
+        def visit_Name(self, node: ast.Name) -> None:
+            if isinstance(node.ctx, (ast.Store, ast.Del)):
+                names.add(node.id)
+
+        def visit_Import(self, node: ast.Import) -> None:
+            for alias in node.names:
+                names.add(alias.asname or alias.name.split(".", maxsplit=1)[0])
+
+        def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
+            for alias in node.names:
+                if alias.name == "*":
+                    names.update(CANONICAL_OPENAPI_SYMBOLS)
+                    continue
+                bound_name = alias.asname or alias.name
+                if (
+                    node.module == "app.bootstrap.openapi"
+                    and alias.name in CANONICAL_OPENAPI_SYMBOLS
+                    and bound_name == alias.name
+                ):
+                    continue
+                names.add(bound_name)
+
+        def visit_ExceptHandler(self, node: ast.ExceptHandler) -> None:
+            if node.name is not None:
+                names.add(node.name)
+            for statement in node.body:
+                self.visit(statement)
+
+        def visit_MatchAs(self, node: ast.MatchAs) -> None:
+            if node.name is not None:
+                names.add(node.name)
+            if node.pattern is not None:
+                self.visit(node.pattern)
+
+        def visit_MatchStar(self, node: ast.MatchStar) -> None:
+            if node.name is not None:
+                names.add(node.name)
+
+        def visit_MatchMapping(self, node: ast.MatchMapping) -> None:
+            if node.rest is not None:
+                names.add(node.rest)
+            for pattern in node.patterns:
+                self.visit(pattern)
+
+    visitor = _ModuleBindingVisitor()
+    for statement in tree.body:
+        visitor.visit(statement)
+    return names
+
+
+def _static_string(node: ast.AST, bindings: dict[str, str] | None = None) -> str | None:
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value
+    if isinstance(node, ast.Name) and bindings is not None:
+        return bindings.get(node.id)
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+        left = _static_string(node.left, bindings)
+        right = _static_string(node.right, bindings)
+        if left is not None and right is not None:
+            return left + right
+    if isinstance(node, ast.JoinedStr):
+        joined_parts: list[str] = []
+        for value in node.values:
+            if not isinstance(value, ast.Constant) or not isinstance(value.value, str):
+                return None
+            joined_parts.append(value.value)
+        return "".join(joined_parts)
+    if (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "join"
+        and len(node.args) == 1
+    ):
+        separator = _static_string(node.func.value, bindings)
+        values = node.args[0]
+        if separator is not None and isinstance(values, (ast.List, ast.Tuple)):
+            parts = [_static_string(item, bindings) for item in values.elts]
+            if all(part is not None for part in parts):
+                return separator.join(cast(str, part) for part in parts)
+    return None
+
+
+def _module_static_string_bindings(tree: ast.Module) -> dict[str, str]:
+    bindings: dict[str, str] = {}
+    for statement in tree.body:
+        if not isinstance(statement, (ast.Assign, ast.AnnAssign)):
+            continue
+        value = statement.value
+        if value is None:
+            continue
+        resolved = _static_string(value, bindings)
+        if resolved is None:
+            continue
+        targets = statement.targets if isinstance(statement, ast.Assign) else (statement.target,)
+        for target in targets:
+            if isinstance(target, ast.Name):
+                bindings[target.id] = resolved
+    return bindings
+
+
+def _is_namespace_mapping(node: ast.AST) -> bool:
+    if isinstance(node, ast.Attribute) and node.attr == "__dict__":
+        return True
+    return (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id in {"globals", "vars"}
+    )
+
+
+def _is_current_module_object_shape(node: ast.AST) -> bool:
+    return (
+        isinstance(node, ast.Subscript)
+        and isinstance(node.value, ast.Attribute)
+        and node.value.attr == "modules"
+        and isinstance(node.slice, ast.Name)
+        and node.slice.id == "__name__"
+    )
+
+
+def _binds_namespace_alias(tree: ast.Module) -> bool:
+    """Reject namespace-object aliases instead of implementing general data flow."""
+
+    for node in ast.walk(tree):
+        value: ast.AST | None = None
+        if isinstance(node, (ast.Assign, ast.AnnAssign, ast.NamedExpr)):
+            value = node.value
+        if value is None:
+            continue
+        if (
+            isinstance(value, ast.Call)
+            and isinstance(value.func, ast.Name)
+            and value.func.id in {"globals", "vars"}
+        ):
+            return True
+    return False
+
+
+def _references_protected_openapi_compat_symbol(tree: ast.Module) -> bool:
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Attribute) and node.attr in CANONICAL_OPENAPI_SYMBOLS:
+            return True
+        if (
+            isinstance(node, ast.Constant)
+            and isinstance(node.value, str)
+            and node.value in CANONICAL_OPENAPI_SYMBOLS
+        ):
+            return True
+    return False
+
+
+_NAMESPACE_KEY_MUTATORS = {
+    "__delitem__",
+    "__setitem__",
+    "pop",
+    "setdefault",
+}
+_NAMESPACE_UNKNOWN_KEY_MUTATORS = {"clear", "popitem"}
+
+
+def _namespace_mapping_mutation_names(
+    node: ast.Call,
+    bindings: dict[str, str],
+) -> set[str] | None:
+    """Return mutated names, or ``None`` when a namespace mutation is unbounded."""
+
+    if not isinstance(node.func, ast.Attribute) or not _is_namespace_mapping(node.func.value):
+        return set()
+    method = node.func.attr
+    if method in _NAMESPACE_UNKNOWN_KEY_MUTATORS:
+        return None
+    if method in _NAMESPACE_KEY_MUTATORS:
+        if not node.args:
+            return None
+        name = _static_string(node.args[0], bindings)
+        return None if name is None else {name}
+    if method != "update":
+        return set()
+
+    names: set[str] = set()
+    for keyword in node.keywords:
+        if keyword.arg is None:
+            return None
+        names.add(keyword.arg)
+    for argument in node.args:
+        if not isinstance(argument, ast.Dict):
+            return None
+        for key in argument.keys:
+            if key is None:
+                return None
+            name = _static_string(key, bindings)
+            if name is None:
+                return None
+            names.add(name)
+    return names
+
+
+def _namespace_rebindings(tree: ast.Module, protected_names: set[str]) -> set[str]:
+    bindings = _module_static_string_bindings(tree)
+    rebound: set[str] = set()
+    current_module_aliases: set[str] = set()
+    attribute_mutator_aliases: set[str] = {"delattr", "setattr"}
+
+    def same_module_scope_nodes(node: ast.AST) -> Iterator[ast.AST]:
+        """Walk a module statement without borrowing names from nested scopes."""
+
+        yield node
+        if isinstance(node, (ast.AsyncFunctionDef, ast.ClassDef, ast.FunctionDef, ast.Lambda)):
+            return
+        for child in ast.iter_child_nodes(node):
+            yield from same_module_scope_nodes(child)
+
+    def record_target(target: ast.AST) -> None:
+        if (
+            isinstance(target, ast.Attribute)
+            and _is_current_module_object_shape(target.value)
+            and target.attr in protected_names
+        ):
+            rebound.add(target.attr)
+            return
+        if not isinstance(target, ast.Subscript) or not _is_namespace_mapping(target.value):
+            return
+        name = _static_string(target.slice, bindings)
+        if name is None:
+            rebound.update(protected_names)
+        elif name in protected_names:
+            rebound.add(name)
+
+    for statement in tree.body:
+        for node in same_module_scope_nodes(statement):
+            if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Name):
+                continue
+            if node.func.id not in attribute_mutator_aliases or len(node.args) < 2:
+                continue
+            if not (
+                isinstance(node.args[0], ast.Name) and node.args[0].id in current_module_aliases
+            ):
+                continue
+            attribute_name = _static_string(node.args[1], bindings)
+            if attribute_name is None:
+                rebound.update(protected_names)
+            elif attribute_name in protected_names:
+                rebound.add(attribute_name)
+
+        value: ast.AST | None = None
+        targets: Sequence[ast.expr] = ()
+        if isinstance(statement, ast.Assign):
+            value = statement.value
+            targets = statement.targets
+        elif isinstance(statement, ast.AnnAssign):
+            value = statement.value
+            targets = (statement.target,)
+        if value is not None:
+            binds_current_module = _is_current_module_object_shape(value) or (
+                isinstance(value, ast.Name) and value.id in current_module_aliases
+            )
+            binds_attribute_mutator = (
+                isinstance(value, ast.Name) and value.id in attribute_mutator_aliases
+            )
+            for target in targets:
+                if not isinstance(target, ast.Name):
+                    continue
+                if binds_current_module:
+                    current_module_aliases.add(target.id)
+                else:
+                    current_module_aliases.discard(target.id)
+                if binds_attribute_mutator:
+                    attribute_mutator_aliases.add(target.id)
+                else:
+                    attribute_mutator_aliases.discard(target.id)
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                record_target(target)
+        elif isinstance(node, (ast.AnnAssign, ast.AugAssign)):
+            record_target(node.target)
+        elif isinstance(node, ast.Delete):
+            for target in node.targets:
+                record_target(target)
+        elif isinstance(node, ast.Call):
+            if (
+                isinstance(node.func, ast.Name)
+                and node.func.id in {"delattr", "setattr"}
+                and len(node.args) >= 2
+                and _is_current_module_object_shape(node.args[0])
+            ):
+                attribute_name = _static_string(node.args[1], bindings)
+                if attribute_name is None:
+                    rebound.update(protected_names)
+                elif attribute_name in protected_names:
+                    rebound.add(attribute_name)
+            mutation_names = _namespace_mapping_mutation_names(node, bindings)
+            if mutation_names is None:
+                rebound.update(protected_names)
+            else:
+                rebound.update(mutation_names & protected_names)
+    return rebound
+
+
+def _subscript_attribute_name(
+    target: ast.AST,
+    bindings: dict[str, str],
+) -> str | None:
+    if not isinstance(target, ast.Subscript) or not _is_namespace_mapping(target.value):
+        return None
+    return _static_string(target.slice, bindings)
+
+
+def _mutates_openapi_callable_or_cache(tree: ast.Module) -> bool:
+    bindings = _module_static_string_bindings(tree)
+    for node in ast.walk(tree):
+        targets: Sequence[ast.expr] = ()
+        if isinstance(node, ast.Assign):
+            targets = node.targets
+        elif isinstance(node, (ast.AnnAssign, ast.AugAssign)):
+            targets = (node.target,)
+        elif isinstance(node, ast.Delete):
+            targets = node.targets
+        for target in targets:
+            if isinstance(target, ast.Attribute) and target.attr in {
+                "openapi",
+                "openapi_schema",
+            }:
+                return True
+            subscript_name = _subscript_attribute_name(target, bindings)
+            if subscript_name is None and isinstance(target, ast.Subscript):
+                if _is_namespace_mapping(target.value):
+                    return True
+            if subscript_name in {"openapi", "openapi_schema"}:
+                return True
+        if not isinstance(node, ast.Call):
+            continue
+        if (
+            (isinstance(node.func, ast.Name) and node.func.id == "setattr")
+            or (isinstance(node.func, ast.Attribute) and node.func.attr == "__setattr__")
+        ) and len(node.args) >= 2:
+            attribute_name = _static_string(node.args[1], bindings)
+            if attribute_name in {"openapi", "openapi_schema"}:
+                return True
+        mutation_names = _namespace_mapping_mutation_names(node, bindings)
+        if mutation_names is None or mutation_names & {"openapi", "openapi_schema"}:
+            return True
+    return False
+
+
+def _imports_forbidden_openapi_owner(
+    tree: ast.Module,
+    *,
+    current_module: str,
+) -> bool:
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import) and any(alias.name == "importlib" for alias in node.names):
+            return True
+        if isinstance(node, ast.ImportFrom) and node.module == "importlib":
+            return True
+        if (
+            isinstance(node, ast.ImportFrom)
+            and node.module == "builtins"
+            and any(alias.name == "__import__" for alias in node.names)
+        ):
+            return True
+        if (
+            isinstance(node, ast.Name)
+            and isinstance(node.ctx, ast.Load)
+            and node.id == "__import__"
+        ):
+            return True
+        if isinstance(node, ast.Attribute) and node.attr == "__import__":
+            return True
+        if _static_string(node) == "__import__":
+            return True
+
+    importlib_aliases = {"importlib"}
+    import_module_aliases: set[str] = set()
+    bindings = _module_static_string_bindings(tree)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name == "importlib":
+                    importlib_aliases.add(alias.asname or alias.name)
+        elif isinstance(node, ast.ImportFrom) and node.module == "importlib":
+            for alias in node.names:
+                if alias.name == "import_module":
+                    import_module_aliases.add(alias.asname or alias.name)
+    for statement in tree.body:
+        if not isinstance(statement, ast.Assign):
+            continue
+        is_import_module = (
+            isinstance(statement.value, ast.Name) and statement.value.id in import_module_aliases
+        ) or (
+            isinstance(statement.value, ast.Attribute)
+            and isinstance(statement.value.value, ast.Name)
+            and statement.value.value.id in importlib_aliases
+            and statement.value.attr == "import_module"
+        )
+        if not is_import_module:
+            continue
+        import_module_aliases.update(
+            target.id for target in statement.targets if isinstance(target, ast.Name)
+        )
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            if any(alias.name in {"legacy_app", "app.main"} for alias in node.names):
+                return True
+        elif isinstance(node, ast.ImportFrom):
+            if node.module in {"legacy_app", "app.main"} or (
+                node.module == "app" and any(alias.name == "main" for alias in node.names)
+            ):
+                return True
+            if node.level:
+                package = current_module.rpartition(".")[0]
+                relative_module = "." * node.level + (node.module or "")
+                try:
+                    resolved_module = resolve_name(relative_module, package)
+                except (ImportError, ValueError):
+                    return True
+                if resolved_module == "app.main":
+                    return True
+                if node.module is None and any(
+                    f"{resolved_module}.{alias.name}" == "app.main" for alias in node.names
+                ):
+                    return True
+        elif isinstance(node, ast.Call):
+            is_dunder_import = isinstance(node.func, ast.Name) and node.func.id == "__import__"
+            is_dynamic_import = (
+                is_dunder_import
+                or (isinstance(node.func, ast.Name) and node.func.id in import_module_aliases)
+                or (
+                    isinstance(node.func, ast.Attribute)
+                    and isinstance(node.func.value, ast.Name)
+                    and node.func.value.id in importlib_aliases
+                    and node.func.attr == "import_module"
+                )
+            )
+            if not is_dynamic_import:
+                continue
+            if not node.args:
+                return True
+            module_name = _static_string(node.args[0], bindings)
+            if module_name is None:
+                return True
+            package_name = _static_string(node.args[1], bindings) if len(node.args) > 1 else None
+            if package_name is None:
+                package_name = next(
+                    (
+                        _static_string(keyword.value, bindings)
+                        for keyword in node.keywords
+                        if keyword.arg == "package"
+                    ),
+                    None,
+                )
+            if module_name in {"legacy_app", "app.main"}:
+                return True
+            if is_dunder_import:
+                fromlist_node: ast.expr | None = None
+                if len(node.args) > 3:
+                    fromlist_node = node.args[3]
+                else:
+                    for keyword in node.keywords:
+                        if keyword.arg == "fromlist":
+                            fromlist_node = keyword.value
+                            break
+                if fromlist_node is not None:
+                    if not isinstance(fromlist_node, (ast.List, ast.Tuple, ast.Set)):
+                        if module_name == "app":
+                            return True
+                    else:
+                        fromlist_names = [
+                            _static_string(item, bindings) for item in fromlist_node.elts
+                        ]
+                        if any(name is None for name in fromlist_names):
+                            if module_name == "app":
+                                return True
+                        elif any(f"{module_name}.{name}" == "app.main" for name in fromlist_names):
+                            return True
+            if module_name.startswith("."):
+                if package_name is None:
+                    return True
+                try:
+                    resolved_module = resolve_name(module_name, package_name)
+                except (ImportError, ValueError):
+                    return True
+                if resolved_module == "app.main":
+                    return True
+    return False
+
+
+def _references_legacy_openapi_installer(tree: ast.Module) -> bool:
+    installer_name = "_install_openapi_builder"
+    bindings = _module_static_string_bindings(tree)
+    for node in ast.walk(tree):
+        if _static_string(node) == installer_name:
+            return True
+        if isinstance(node, ast.Name) and node.id == installer_name:
+            return True
+        if isinstance(node, ast.Attribute) and node.attr == installer_name:
+            return True
+        if isinstance(node, ast.ImportFrom) and any(
+            alias.name == installer_name for alias in node.names
+        ):
+            return True
+        if isinstance(node, ast.Subscript) and _is_namespace_mapping(node.value):
+            name = _static_string(node.slice, bindings)
+            if name is None or name == installer_name:
+                return True
+        if not isinstance(node, ast.Call):
+            continue
+        if (
+            isinstance(node.func, ast.Attribute)
+            and node.func.attr in {"get", "__getitem__"}
+            and _is_namespace_mapping(node.func.value)
+        ):
+            if not node.args:
+                return True
+            name = _static_string(node.args[0], bindings)
+            if name is None or name == installer_name:
+                return True
+            continue
+        if not isinstance(node.func, ast.Name) or node.func.id != "getattr":
+            continue
+        if len(node.args) >= 2:
+            name = _static_string(node.args[1], bindings)
+            if name == installer_name:
+                return True
+    return False
+
+
+def _function_references_legacy_openapi_symbol(tree: ast.Module) -> bool:
+    for function in ast.walk(tree):
+        if not isinstance(function, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        for node in ast.walk(function):
+            if _static_string(node) in CANONICAL_OPENAPI_SYMBOLS:
+                return True
+            if isinstance(node, ast.Name) and node.id in CANONICAL_OPENAPI_SYMBOLS:
+                return True
+            if isinstance(node, ast.Attribute) and node.attr in CANONICAL_OPENAPI_SYMBOLS:
+                return True
+            if (
+                isinstance(node, ast.Constant)
+                and isinstance(node.value, str)
+                and node.value in CANONICAL_OPENAPI_SYMBOLS
+            ):
+                return True
+    return False
+
+
+def _parses_environment_directly(tree: ast.Module) -> bool:
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import) and any(alias.name == "os" for alias in node.names):
+            return True
+        if isinstance(node, ast.ImportFrom) and node.module == "os":
+            return True
+        if isinstance(node, ast.Attribute) and node.attr in {"getenv", "environ"}:
+            return True
+    return False
+
+
+def validate_application_metadata_openapi_ownership(
+    legacy_source: str,
+    metadata_source: str,
+    openapi_source: str,
+    main_source: str,
+    facade_source: str,
+) -> list[str]:
+    """Keep metadata and OpenAPI implementation in their canonical modules."""
+
+    sources = {
+        LEGACY_APP: legacy_source,
+        CANONICAL_APPLICATION_METADATA: metadata_source,
+        CANONICAL_OPENAPI: openapi_source,
+        CANONICAL_MAIN: main_source,
+        APP_FACADE: facade_source,
+    }
+    trees: dict[str, ast.Module] = {}
+    errors: list[str] = []
+    for filename, source in sources.items():
+        tree, parse_errors = _parse_source(source, filename=filename)
+        errors.extend(parse_errors)
+        if tree is not None:
+            trees[filename] = tree
+    if errors:
+        return sorted(set(errors))
+
+    legacy_tree = trees[LEGACY_APP]
+    local_openapi_defs = {
+        node.name
+        for node in legacy_tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.name in CANONICAL_OPENAPI_SYMBOLS
+    }
+    for name in sorted(local_openapi_defs):
+        errors.append(f"{LEGACY_APP}: OpenAPI implementation must be canonical: {name}")
+
+    exact_aliases: set[str] = set()
+    foreign_import_rebindings: set[str] = set()
+    metadata_factory_imported = False
+    for statement in legacy_tree.body:
+        if isinstance(statement, ast.ImportFrom) and statement.module == CANONICAL_OPENAPI.replace(
+            "/", "."
+        ).removesuffix(".py"):
+            for alias in statement.names:
+                if alias.name in CANONICAL_OPENAPI_SYMBOLS and alias.asname in {
+                    None,
+                    alias.name,
+                }:
+                    exact_aliases.add(alias.name)
+        elif isinstance(statement, ast.ImportFrom):
+            for alias in statement.names:
+                bound_name = alias.asname or alias.name
+                if bound_name in CANONICAL_OPENAPI_SYMBOLS:
+                    foreign_import_rebindings.add(bound_name)
+        elif isinstance(statement, ast.Import):
+            for alias in statement.names:
+                bound_name = alias.asname or alias.name.split(".", 1)[0]
+                if bound_name in CANONICAL_OPENAPI_SYMBOLS:
+                    foreign_import_rebindings.add(bound_name)
+        if (
+            isinstance(statement, ast.ImportFrom)
+            and statement.module == "app.application_metadata"
+            and any(
+                alias.name == "build_application_metadata"
+                and alias.asname in {None, "build_application_metadata"}
+                for alias in statement.names
+            )
+        ):
+            metadata_factory_imported = True
+    for name in sorted(CANONICAL_OPENAPI_SYMBOLS - exact_aliases):
+        errors.append(
+            f"{LEGACY_APP}: canonical OpenAPI compatibility re-export must preserve identity: {name}"
+        )
+    explicit_globals = {
+        name
+        for node in ast.walk(legacy_tree)
+        if isinstance(node, ast.Global)
+        for name in node.names
+    }
+    rebound = (
+        ((_assigned_names(legacy_tree) | explicit_globals) & CANONICAL_OPENAPI_SYMBOLS)
+        | foreign_import_rebindings
+        | _namespace_rebindings(
+            legacy_tree,
+            set(CANONICAL_OPENAPI_SYMBOLS),
+        )
+    )
+    if _binds_namespace_alias(legacy_tree) or _references_protected_openapi_compat_symbol(
+        legacy_tree
+    ):
+        rebound.update(CANONICAL_OPENAPI_SYMBOLS)
+    for name in sorted(rebound):
+        errors.append(f"{LEGACY_APP}: canonical OpenAPI re-export must not be rebound: {name}")
+    if not metadata_factory_imported:
+        errors.append(f"{LEGACY_APP}: canonical application metadata factory import is required")
+    if _mutates_openapi_callable_or_cache(legacy_tree):
+        errors.append(f"{LEGACY_APP}: OpenAPI callable/cache mutation is forbidden")
+
+    metadata_tree = trees[CANONICAL_APPLICATION_METADATA]
+    openapi_tree = trees[CANONICAL_OPENAPI]
+    for filename, tree in (
+        (CANONICAL_APPLICATION_METADATA, metadata_tree),
+        (CANONICAL_OPENAPI, openapi_tree),
+    ):
+        current_module = filename.replace("/", ".").removesuffix(".py")
+        if _imports_forbidden_openapi_owner(tree, current_module=current_module):
+            errors.append(f"{filename}: reverse legacy/main import is forbidden")
+    if _parses_environment_directly(metadata_tree):
+        errors.append(f"{CANONICAL_APPLICATION_METADATA}: direct environment parsing is forbidden")
+
+    main_tree = trees[CANONICAL_MAIN]
+    main_imports = {
+        alias.name
+        for node in main_tree.body
+        if isinstance(node, ast.ImportFrom) and node.module == "app.bootstrap.openapi"
+        for alias in node.names
+    }
+    required_main_imports = {
+        "validate_openapi_builder_state",
+        "apply_public_openapi_input_policy",
+        "install_canonical_openapi_builder",
+    }
+    for name in sorted(required_main_imports - main_imports):
+        errors.append(f"{CANONICAL_MAIN}: canonical OpenAPI import is required: {name}")
+    for node in main_tree.body:
+        if not isinstance(node, ast.ImportFrom) or node.module != "legacy_app":
+            continue
+        for alias in node.names:
+            if "openapi" in alias.name.casefold():
+                errors.append(
+                    f"{CANONICAL_MAIN}: OpenAPI symbol must not be imported through legacy: "
+                    f"{alias.name}"
+                )
+    main_module_aliases: dict[str, str] = {}
+    main_import_module_aliases: set[str] = set()
+    main_string_bindings: dict[str, str] = {}
+
+    def record_main_legacy_openapi_lookups(expression: ast.AST) -> None:
+        def is_legacy_module(node: ast.AST) -> bool:
+            return (
+                _static_module_reference(
+                    node,
+                    module_aliases=main_module_aliases,
+                    import_module_aliases=main_import_module_aliases,
+                    static_string_bindings=main_string_bindings,
+                )
+                == "legacy_app"
+            )
+
+        for walk_node in ast.walk(expression):
+            if (
+                isinstance(walk_node, ast.Attribute)
+                and is_legacy_module(walk_node.value)
+                and "openapi" in walk_node.attr.casefold()
+            ):
+                errors.append(
+                    f"{CANONICAL_MAIN}: OpenAPI symbol must not be accessed through legacy: "
+                    f"{walk_node.attr}"
+                )
+            elif (
+                isinstance(walk_node, ast.Call)
+                and isinstance(walk_node.func, ast.Name)
+                and walk_node.func.id == "getattr"
+                and len(walk_node.args) >= 2
+                and is_legacy_module(walk_node.args[0])
+            ):
+                attribute_name = _static_string(walk_node.args[1], main_string_bindings)
+                if attribute_name is not None and "openapi" in attribute_name.casefold():
+                    errors.append(
+                        f"{CANONICAL_MAIN}: OpenAPI symbol must not be accessed through legacy"
+                    )
+
+    for statement in main_tree.body:
+        record_main_legacy_openapi_lookups(statement)
+        if isinstance(statement, ast.Import):
+            for alias in statement.names:
+                bound_name = alias.asname or alias.name.split(".", maxsplit=1)[0]
+                if alias.name in {"importlib", "legacy_app"}:
+                    main_module_aliases[bound_name] = alias.name
+                else:
+                    main_module_aliases.pop(bound_name, None)
+            continue
+        if isinstance(statement, ast.ImportFrom):
+            for alias in statement.names:
+                bound_name = alias.asname or alias.name
+                main_module_aliases.pop(bound_name, None)
+                if statement.module == "importlib" and alias.name == "import_module":
+                    main_import_module_aliases.add(bound_name)
+            continue
+
+        value: ast.AST | None = None
+        targets: Sequence[ast.expr] = ()
+        if isinstance(statement, ast.Assign):
+            value = statement.value
+            targets = statement.targets
+        elif isinstance(statement, ast.AnnAssign):
+            value = statement.value
+            targets = (statement.target,)
+        if value is None:
+            continue
+        reference = _static_module_reference(
+            value,
+            module_aliases=main_module_aliases,
+            import_module_aliases=main_import_module_aliases,
+            static_string_bindings=main_string_bindings,
+        )
+        static_string = _static_string(value, main_string_bindings)
+        for target in targets:
+            for target_name in _assignment_target_names(target):
+                if reference == "legacy_app":
+                    main_module_aliases[target_name] = reference
+                else:
+                    main_module_aliases.pop(target_name, None)
+                if static_string is None:
+                    main_string_bindings.pop(target_name, None)
+                else:
+                    main_string_bindings[target_name] = static_string
+
+    if _function_references_legacy_openapi_symbol(main_tree):
+        errors.append(f"{CANONICAL_MAIN}: OpenAPI symbol must not be accessed through legacy")
+
+    facade_tree = trees[APP_FACADE]
+    facade_binds_namespace_alias = _binds_namespace_alias(facade_tree)
+    if _mutates_openapi_callable_or_cache(facade_tree) or facade_binds_namespace_alias:
+        errors.append(f"{APP_FACADE}: OpenAPI callable/cache mutation is forbidden")
+    if _references_legacy_openapi_installer(facade_tree) or facade_binds_namespace_alias:
+        errors.append(f"{APP_FACADE}: legacy OpenAPI installer lookup is forbidden")
+
+    return sorted(set(errors))
+
+
 def _markers(text: str) -> dict[str, str]:
     return {match.group(1): match.group(2).strip() for match in MARKER_RE.finditer(text)}
 
@@ -2585,10 +3464,18 @@ def validate_repo(repo_root: Path) -> list[str]:
     doc_path = repo_root / LEGACY_SEAM_DOC
     food_search_path = repo_root / FOOD_SEARCH_BOOTSTRAP
     lifespan_path = repo_root / CANONICAL_LIFESPAN
+    metadata_path = repo_root / CANONICAL_APPLICATION_METADATA
+    openapi_path = repo_root / CANONICAL_OPENAPI
+    main_path = repo_root / CANONICAL_MAIN
+    facade_path = repo_root / APP_FACADE
     legacy_source = _read(legacy_path, repo_root, errors)
     doc_text = _read(doc_path, repo_root, errors)
     food_search_source = _read(food_search_path, repo_root, errors)
     lifespan_source = _read(lifespan_path, repo_root, errors)
+    metadata_source = _read(metadata_path, repo_root, errors)
+    openapi_source = _read(openapi_path, repo_root, errors)
+    main_source = _read(main_path, repo_root, errors)
+    facade_source = _read(facade_path, repo_root, errors)
     app_sources: dict[str, str] = {}
     app_root = repo_root / "app"
     if not app_root.is_dir():
@@ -2614,6 +3501,25 @@ def validate_repo(repo_root: Path) -> list[str]:
         )
     if legacy_source is not None:
         errors.extend(validate_api_key_dependency_ownership(legacy_source, app_sources))
+    if all(
+        source is not None
+        for source in (
+            legacy_source,
+            metadata_source,
+            openapi_source,
+            main_source,
+            facade_source,
+        )
+    ):
+        errors.extend(
+            validate_application_metadata_openapi_ownership(
+                cast(str, legacy_source),
+                cast(str, metadata_source),
+                cast(str, openapi_source),
+                cast(str, main_source),
+                cast(str, facade_source),
+            )
+        )
     return errors
 
 
