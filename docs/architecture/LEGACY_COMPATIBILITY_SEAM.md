@@ -29,6 +29,21 @@ callables directly. `legacy_app.py` may only re-export the exact same callable
 objects while compatibility imports remain; wrappers or mutable legacy-owned
 warning state would break FastAPI dependency identity.
 
+Application metadata is canonically owned by
+`app/application_metadata.py:56` and constructed through the environment-aware
+factory at `app/application_metadata.py:113`. `legacy_app.py:504` consumes that
+immutable source while it remains the sole FastAPI-instance constructor and
+temporarily exposes the same compatibility metadata values.
+
+Public OpenAPI visibility, component pruning, builder ownership, and cache
+reconciliation are canonically owned by `app/bootstrap/openapi.py:32` and its
+validation/install/policy seams at `app/bootstrap/openapi.py:274`,
+`app/bootstrap/openapi.py:297`, and `app/bootstrap/openapi.py:330`.
+`app/main.py:1311` validates builder ownership before mutation, completes
+additive route registration, then applies policy and installs the builder at
+`app/main.py:1409`. This order prevents an early partial schema while preserving
+an equal cached schema object on a no-op bootstrap.
+
 The current policy is compatibility first:
 
 - keep existing legacy routes callable when current clients still depend on
@@ -73,6 +88,8 @@ Forbidden in `legacy_app.py`:
 | Infra and observability bootstrap | `app/bootstrap/` | Register from canonical entrypoint, not from `legacy_app.py`. |
 | Application lifecycle and shared resources | `app/bootstrap/lifespan.py` | One explicit startup/shutdown owner; deterministic reverse-order cleanup. |
 | App-client API-key dependencies | `app/routers/api_key.py` | Canonical owner; legacy compatibility is identity-preserving re-export only. |
+| Application metadata | `app/application_metadata.py` | Immutable source; every FastAPI projection receives fresh nested mutable inputs. |
+| Public OpenAPI policy and builder | `app/bootstrap/openapi.py` | Validate before mutation; install after complete route bootstrap; stale/foreign state fails closed. |
 | Domain logic | `core/` and `app/services/` | Backend truth stays outside route shims. |
 | Public API contract | Backend OpenAPI gates | Legacy aliases must not become client contract truth. |
 
@@ -87,6 +104,12 @@ hidden `lifespan_context` mutation. It also rejects legacy API-key dependency
 implementations and canonical `app/**` reverse imports or dynamic lookups for
 those callables. Current facts may disappear as the seam shrinks; new facts fail
 closed with repo-relative diagnostics.
+
+The same guard now verifies application-metadata/OpenAPI ownership: extracted
+functions cannot be redefined or rebound in legacy, `app/main.py` must import
+the canonical OpenAPI lifecycle directly, the package facade cannot install OpenAPI,
+and canonical modules cannot reverse-import the compatibility app. The check is
+bounded AST analysis and intentionally does not interpret arbitrary Python.
 
 The guard does not authorize runtime behavior. It only prevents unreviewed seam
 growth while later extraction PRs move routes behind canonical routers.

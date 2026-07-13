@@ -246,7 +246,7 @@ def test_register_pro_routes_is_idempotent(monkeypatch: pytest.MonkeyPatch) -> N
 
 
 def test_prune_unreferenced_schema_components_ignores_missing_components() -> None:
-    from legacy_app import _prune_unreferenced_schema_components
+    from app.bootstrap.openapi import _prune_unreferenced_schema_components
 
     schema_without_components = {"openapi": "3.1.0", "paths": {}}
     schema_without_schemas = {"components": {"securitySchemes": {"ApiKeyAuth": {}}}}
@@ -259,7 +259,7 @@ def test_prune_unreferenced_schema_components_ignores_missing_components() -> No
 
 
 def test_prune_unreferenced_schema_components_skips_duplicates_and_missing_refs() -> None:
-    from legacy_app import _prune_unreferenced_schema_components
+    from app.bootstrap.openapi import _prune_unreferenced_schema_components
 
     schema = {
         "paths": {
@@ -311,7 +311,7 @@ def test_prune_unreferenced_schema_components_skips_duplicates_and_missing_refs(
 
 
 def test_prune_unreferenced_schema_components_skips_non_dict_schema_nodes() -> None:
-    from legacy_app import _prune_unreferenced_schema_components
+    from app.bootstrap.openapi import _prune_unreferenced_schema_components
 
     schema = {
         "paths": {

@@ -42,6 +42,122 @@ def test_current_api_key_dependency_ownership_passes_growth_guard() -> None:
     assert legacy_guard.validate_api_key_dependency_ownership(legacy_source, app_sources) == []
 
 
+def _openapi_ownership_sources() -> tuple[str, str, str, str, str]:
+    return (
+        textwrap.dedent("""
+            from app.application_metadata import build_application_metadata
+            from app.bootstrap.openapi import (
+                _OPENAPI_ALLOWED_EXACT,
+                _OPENAPI_ALLOWED_PREFIXES,
+                _build_canonical_openapi,
+                _collect_schema_refs,
+                _install_openapi_builder,
+                _is_openapi_public_path,
+                _prune_unreferenced_schema_components,
+            )
+            metadata = build_application_metadata(runtime_env="production")
+            """),
+        "from settings import get_runtime_env_name\n",
+        "from fastapi import FastAPI\n",
+        textwrap.dedent("""
+            from legacy_app import app as _legacy_app
+            from app.bootstrap.openapi import (
+                apply_public_openapi_input_policy,
+                install_canonical_openapi_builder,
+                validate_openapi_builder_state,
+            )
+            """),
+        "import importlib\n",
+    )
+
+
+def test_current_metadata_openapi_ownership_passes_growth_guard() -> None:
+    sources = tuple(
+        (REPO_ROOT / path).read_text(encoding="utf-8")
+        for path in (
+            "legacy_app.py",
+            "app/application_metadata.py",
+            "app/bootstrap/openapi.py",
+            "app/main.py",
+            "app/__init__.py",
+        )
+    )
+
+    assert legacy_guard.validate_application_metadata_openapi_ownership(*sources) == []
+
+
+@pytest.mark.parametrize(
+    ("source_index", "addition", "expected_fragment"),
+    [
+        (
+            0,
+            "\ndef _install_openapi_builder(app):\n    return app\n",
+            "OpenAPI implementation must be canonical",
+        ),
+        (
+            0,
+            "\n_install_openapi_builder = replacement\n",
+            "canonical OpenAPI re-export must not be rebound",
+        ),
+        (
+            0,
+            "\nfrom foreign_openapi import _install_openapi_builder\n",
+            "canonical OpenAPI re-export must not be rebound",
+        ),
+        (
+            0,
+            "\nfrom foreign_openapi import replacement as _install_openapi_builder\n",
+            "canonical OpenAPI re-export must not be rebound",
+        ),
+        (
+            1,
+            "\nimport os\nvalue = os.getenv('APP_ENV')\n",
+            "direct environment parsing is forbidden",
+        ),
+        (
+            2,
+            "\nimport legacy_app\n",
+            "reverse legacy/main import is forbidden",
+        ),
+        (
+            3,
+            "\nfrom legacy_app import _install_openapi_builder\n",
+            "OpenAPI symbol must not be imported through legacy",
+        ),
+        (
+            4,
+            "\ninstaller = getattr(legacy, '_install_openapi_builder')\n",
+            "legacy OpenAPI installer lookup is forbidden",
+        ),
+        (
+            4,
+            "\nsetattr(app, 'openapi', replacement)\n",
+            "OpenAPI callable/cache mutation is forbidden",
+        ),
+    ],
+)
+def test_metadata_openapi_ownership_guard_rejects_reintroduction(
+    source_index: int,
+    addition: str,
+    expected_fragment: str,
+) -> None:
+    sources = list(_openapi_ownership_sources())
+    sources[source_index] += addition
+
+    errors = legacy_guard.validate_application_metadata_openapi_ownership(*sources)
+
+    assert any(expected_fragment in error for error in errors)
+
+
+def test_metadata_openapi_ownership_guard_fails_closed_on_syntax_error() -> None:
+    sources = list(_openapi_ownership_sources())
+    sources[2] = "def broken(:\n"
+
+    errors = legacy_guard.validate_application_metadata_openapi_ownership(*sources)
+
+    assert errors == ["app/bootstrap/openapi.py:1: syntax error: invalid syntax"]
+
+
 @pytest.mark.parametrize("symbol", ["get_api_key", "_get_api_key_dynamic"])
 def test_api_key_ownership_guard_rejects_legacy_implementation(symbol: str) -> None:
     legacy_source = (

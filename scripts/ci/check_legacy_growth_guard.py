@@ -12,7 +12,7 @@ from importlib.util import resolve_name
 from pathlib import Path
 import re
 import sys
-from typing import AbstractSet
+from typing import AbstractSet, cast
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 LEGACY_APP = "legacy_app.py"
@@ -20,7 +20,22 @@ LEGACY_SEAM_DOC = "docs/architecture/LEGACY_COMPATIBILITY_SEAM.md"
 FOOD_SEARCH_BOOTSTRAP = "app/bootstrap/food_search.py"
 CANONICAL_LIFESPAN = "app/bootstrap/lifespan.py"
 CANONICAL_API_KEY = "app/routers/api_key.py"  # pragma: allowlist secret
+CANONICAL_APPLICATION_METADATA = "app/application_metadata.py"
+CANONICAL_OPENAPI = "app/bootstrap/openapi.py"
+CANONICAL_MAIN = "app/main.py"
+APP_FACADE = "app/__init__.py"
 CANONICAL_API_KEY_SYMBOLS = frozenset({"get_api_key", "_get_api_key_dynamic"})
+CANONICAL_OPENAPI_SYMBOLS = frozenset(
+    {
+        "_OPENAPI_ALLOWED_PREFIXES",
+        "_OPENAPI_ALLOWED_EXACT",
+        "_is_openapi_public_path",
+        "_collect_schema_refs",
+        "_prune_unreferenced_schema_components",
+        "_build_canonical_openapi",
+        "_install_openapi_builder",
+    }
+)
 ALLOWED_CANONICAL_LIFESPAN_APP_IMPORTS = frozenset(
     {
         "app.bootstrap.food_search",
@@ -2540,6 +2555,202 @@ def validate_lifecycle_ownership(
     return sorted(set(errors))
 
 
+def _assigned_names(tree: ast.Module) -> set[str]:
+    names: set[str] = set()
+    for node in ast.walk(tree):
+        targets: Sequence[ast.expr] = ()
+        if isinstance(node, ast.Assign):
+            targets = node.targets
+        elif isinstance(node, ast.AnnAssign):
+            targets = (node.target,)
+        for target in targets:
+            if isinstance(target, ast.Name):
+                names.add(target.id)
+    return names
+
+
+def _mutates_openapi_callable_or_cache(tree: ast.Module) -> bool:
+    for node in ast.walk(tree):
+        targets: Sequence[ast.expr] = ()
+        if isinstance(node, ast.Assign):
+            targets = node.targets
+        elif isinstance(node, ast.AnnAssign):
+            targets = (node.target,)
+        for target in targets:
+            if isinstance(target, ast.Attribute) and target.attr in {
+                "openapi",
+                "openapi_schema",
+            }:
+                return True
+        if not isinstance(node, ast.Call):
+            continue
+        if not isinstance(node.func, ast.Name) or node.func.id != "setattr":
+            continue
+        if len(node.args) >= 2 and isinstance(node.args[1], ast.Constant):
+            if node.args[1].value in {"openapi", "openapi_schema"}:
+                return True
+    return False
+
+
+def _imports_forbidden_openapi_owner(tree: ast.Module) -> bool:
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            if any(alias.name in {"legacy_app", "app.main"} for alias in node.names):
+                return True
+        elif isinstance(node, ast.ImportFrom):
+            if node.module in {"legacy_app", "app.main"}:
+                return True
+        elif isinstance(node, ast.Call):
+            if not node.args or not isinstance(node.args[0], ast.Constant):
+                continue
+            if node.args[0].value not in {"legacy_app", "app.main"}:
+                continue
+            if isinstance(node.func, ast.Name) and node.func.id == "__import__":
+                return True
+            if isinstance(node.func, ast.Attribute) and node.func.attr == "import_module":
+                return True
+    return False
+
+
+def _parses_environment_directly(tree: ast.Module) -> bool:
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import) and any(alias.name == "os" for alias in node.names):
+            return True
+        if isinstance(node, ast.ImportFrom) and node.module == "os":
+            return True
+        if isinstance(node, ast.Attribute) and node.attr in {"getenv", "environ"}:
+            return True
+    return False
+
+
+def validate_application_metadata_openapi_ownership(
+    legacy_source: str,
+    metadata_source: str,
+    openapi_source: str,
+    main_source: str,
+    facade_source: str,
+) -> list[str]:
+    """Keep metadata and OpenAPI implementation in their canonical modules."""
+
+    sources = {
+        LEGACY_APP: legacy_source,
+        CANONICAL_APPLICATION_METADATA: metadata_source,
+        CANONICAL_OPENAPI: openapi_source,
+        CANONICAL_MAIN: main_source,
+        APP_FACADE: facade_source,
+    }
+    trees: dict[str, ast.Module] = {}
+    errors: list[str] = []
+    for filename, source in sources.items():
+        tree, parse_errors = _parse_source(source, filename=filename)
+        errors.extend(parse_errors)
+        if tree is not None:
+            trees[filename] = tree
+    if errors:
+        return sorted(set(errors))
+
+    legacy_tree = trees[LEGACY_APP]
+    local_openapi_defs = {
+        node.name
+        for node in legacy_tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.name in CANONICAL_OPENAPI_SYMBOLS
+    }
+    for name in sorted(local_openapi_defs):
+        errors.append(f"{LEGACY_APP}: OpenAPI implementation must be canonical: {name}")
+
+    exact_aliases: set[str] = set()
+    foreign_import_rebindings: set[str] = set()
+    metadata_factory_imported = False
+    for statement in legacy_tree.body:
+        if isinstance(statement, ast.ImportFrom) and statement.module == CANONICAL_OPENAPI.replace(
+            "/", "."
+        ).removesuffix(".py"):
+            for alias in statement.names:
+                if alias.name in CANONICAL_OPENAPI_SYMBOLS and alias.asname in {
+                    None,
+                    alias.name,
+                }:
+                    exact_aliases.add(alias.name)
+        elif isinstance(statement, ast.ImportFrom):
+            for alias in statement.names:
+                bound_name = alias.asname or alias.name
+                if bound_name in CANONICAL_OPENAPI_SYMBOLS:
+                    foreign_import_rebindings.add(bound_name)
+        elif isinstance(statement, ast.Import):
+            for alias in statement.names:
+                bound_name = alias.asname or alias.name.split(".", 1)[0]
+                if bound_name in CANONICAL_OPENAPI_SYMBOLS:
+                    foreign_import_rebindings.add(bound_name)
+        if (
+            isinstance(statement, ast.ImportFrom)
+            and statement.module == "app.application_metadata"
+            and any(
+                alias.name == "build_application_metadata"
+                and alias.asname in {None, "build_application_metadata"}
+                for alias in statement.names
+            )
+        ):
+            metadata_factory_imported = True
+    for name in sorted(CANONICAL_OPENAPI_SYMBOLS - exact_aliases):
+        errors.append(
+            f"{LEGACY_APP}: canonical OpenAPI compatibility re-export must preserve identity: {name}"
+        )
+    rebound = (_assigned_names(legacy_tree) & CANONICAL_OPENAPI_SYMBOLS) | (
+        foreign_import_rebindings
+    )
+    for name in sorted(rebound):
+        errors.append(f"{LEGACY_APP}: canonical OpenAPI re-export must not be rebound: {name}")
+    if not metadata_factory_imported:
+        errors.append(f"{LEGACY_APP}: canonical application metadata factory import is required")
+    if _mutates_openapi_callable_or_cache(legacy_tree):
+        errors.append(f"{LEGACY_APP}: OpenAPI callable/cache mutation is forbidden")
+
+    metadata_tree = trees[CANONICAL_APPLICATION_METADATA]
+    openapi_tree = trees[CANONICAL_OPENAPI]
+    for filename, tree in (
+        (CANONICAL_APPLICATION_METADATA, metadata_tree),
+        (CANONICAL_OPENAPI, openapi_tree),
+    ):
+        if _imports_forbidden_openapi_owner(tree):
+            errors.append(f"{filename}: reverse legacy/main import is forbidden")
+    if _parses_environment_directly(metadata_tree):
+        errors.append(f"{CANONICAL_APPLICATION_METADATA}: direct environment parsing is forbidden")
+
+    main_tree = trees[CANONICAL_MAIN]
+    main_imports = {
+        alias.name
+        for node in main_tree.body
+        if isinstance(node, ast.ImportFrom) and node.module == "app.bootstrap.openapi"
+        for alias in node.names
+    }
+    required_main_imports = {
+        "validate_openapi_builder_state",
+        "apply_public_openapi_input_policy",
+        "install_canonical_openapi_builder",
+    }
+    for name in sorted(required_main_imports - main_imports):
+        errors.append(f"{CANONICAL_MAIN}: canonical OpenAPI import is required: {name}")
+    for node in main_tree.body:
+        if not isinstance(node, ast.ImportFrom) or node.module != "legacy_app":
+            continue
+        for alias in node.names:
+            if "openapi" in alias.name.casefold():
+                errors.append(
+                    f"{CANONICAL_MAIN}: OpenAPI symbol must not be imported through legacy: "
+                    f"{alias.name}"
+                )
+
+    facade_tree = trees[APP_FACADE]
+    if _mutates_openapi_callable_or_cache(facade_tree):
+        errors.append(f"{APP_FACADE}: OpenAPI callable/cache mutation is forbidden")
+    facade_text = facade_source.casefold()
+    if "_install_openapi_builder" in facade_text:
+        errors.append(f"{APP_FACADE}: legacy OpenAPI installer lookup is forbidden")
+
+    return sorted(set(errors))
+
+
 def _markers(text: str) -> dict[str, str]:
     return {match.group(1): match.group(2).strip() for match in MARKER_RE.finditer(text)}
 
@@ -2585,10 +2796,18 @@ def validate_repo(repo_root: Path) -> list[str]:
     doc_path = repo_root / LEGACY_SEAM_DOC
     food_search_path = repo_root / FOOD_SEARCH_BOOTSTRAP
     lifespan_path = repo_root / CANONICAL_LIFESPAN
+    metadata_path = repo_root / CANONICAL_APPLICATION_METADATA
+    openapi_path = repo_root / CANONICAL_OPENAPI
+    main_path = repo_root / CANONICAL_MAIN
+    facade_path = repo_root / APP_FACADE
     legacy_source = _read(legacy_path, repo_root, errors)
     doc_text = _read(doc_path, repo_root, errors)
     food_search_source = _read(food_search_path, repo_root, errors)
     lifespan_source = _read(lifespan_path, repo_root, errors)
+    metadata_source = _read(metadata_path, repo_root, errors)
+    openapi_source = _read(openapi_path, repo_root, errors)
+    main_source = _read(main_path, repo_root, errors)
+    facade_source = _read(facade_path, repo_root, errors)
     app_sources: dict[str, str] = {}
     app_root = repo_root / "app"
     if not app_root.is_dir():
@@ -2614,6 +2833,25 @@ def validate_repo(repo_root: Path) -> list[str]:
         )
     if legacy_source is not None:
         errors.extend(validate_api_key_dependency_ownership(legacy_source, app_sources))
+    if all(
+        source is not None
+        for source in (
+            legacy_source,
+            metadata_source,
+            openapi_source,
+            main_source,
+            facade_source,
+        )
+    ):
+        errors.extend(
+            validate_application_metadata_openapi_ownership(
+                cast(str, legacy_source),
+                cast(str, metadata_source),
+                cast(str, openapi_source),
+                cast(str, main_source),
+                cast(str, facade_source),
+            )
+        )
     return errors
 
 
