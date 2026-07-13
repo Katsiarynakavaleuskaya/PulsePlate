@@ -50,10 +50,10 @@ Fastlane/xcodeproj gem graph and all App Store workflow behavior.
 ## Fixed in Commit Mapping
 
 Disposition: FIXED
-Commit: 66c89fe9c13a3ce7bc33815044740db0bfcb1b89
+Commit: 66c89fe9c0c02badc0a2a6060b7a3607c7b853e4
 Evidence: `docs/review/PR_2115_FIXED_MAPPING.md:38-39` and the post-comment evidence commit preserve both completed artifact-level checkboxes.
 Reason: Discussion/mapping closure is complete, while merge-readiness and current-head CI stay separate pending gates.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2115#discussion_r3571067367 -> 66c89fe9c13a3ce7bc33815044740db0bfcb1b89
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2115#discussion_r3571067367 -> 66c89fe9c0c02badc0a2a6060b7a3607c7b853e4
 
 Disposition: NOT-A-BUG
 Evidence: `git merge-base --is-ancestor ecfa35461 HEAD` exits zero, and every `origin/main..HEAD` commit contains the canonical Experiment Runner co-author trailer.
