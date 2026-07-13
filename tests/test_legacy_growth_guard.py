@@ -120,6 +120,11 @@ def test_current_metadata_openapi_ownership_passes_growth_guard() -> None:
             "reverse legacy/main import is forbidden",
         ),
         (
+            2,
+            "\nfrom app import main\n",
+            "reverse legacy/main import is forbidden",
+        ),
+        (
             3,
             "\nfrom legacy_app import _install_openapi_builder\n",
             "OpenAPI symbol must not be imported through legacy",
@@ -143,6 +148,56 @@ def test_metadata_openapi_ownership_guard_rejects_reintroduction(
 ) -> None:
     sources = list(_openapi_ownership_sources())
     sources[source_index] += addition
+
+    errors = legacy_guard.validate_application_metadata_openapi_ownership(*sources)
+
+    assert any(expected_fragment in error for error in errors)
+
+
+def test_metadata_openapi_ownership_guard_ignores_nested_local_rebinding() -> None:
+    sources = list(_openapi_ownership_sources())
+    sources[0] += textwrap.dedent("""
+        def helper():
+            _collect_schema_refs = object()
+            return _collect_schema_refs
+        """)
+
+    errors = legacy_guard.validate_application_metadata_openapi_ownership(*sources)
+
+    assert errors == []
+
+
+@pytest.mark.parametrize(
+    ("mutation_kind", "expected_fragment"),
+    [
+        (
+            "missing_metadata_factory",
+            "canonical application metadata factory import is required",
+        ),
+        (
+            "missing_openapi_reexport",
+            "canonical OpenAPI compatibility re-export must preserve identity",
+        ),
+        (
+            "legacy_openapi_mutation",
+            "OpenAPI callable/cache mutation is forbidden",
+        ),
+    ],
+)
+def test_metadata_openapi_ownership_guard_rejects_missing_legacy_contracts(
+    mutation_kind: str,
+    expected_fragment: str,
+) -> None:
+    sources = list(_openapi_ownership_sources())
+    if mutation_kind == "missing_metadata_factory":
+        sources[0] = sources[0].replace(
+            "from app.application_metadata import build_application_metadata\n",
+            "",
+        )
+    elif mutation_kind == "missing_openapi_reexport":
+        sources[0] = sources[0].replace("    _install_openapi_builder,\n", "")
+    else:
+        sources[0] += "\nsetattr(app, 'openapi', replacement)\n"
 
     errors = legacy_guard.validate_application_metadata_openapi_ownership(*sources)
 

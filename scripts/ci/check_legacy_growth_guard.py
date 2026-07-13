@@ -2557,15 +2557,39 @@ def validate_lifecycle_ownership(
 
 def _assigned_names(tree: ast.Module) -> set[str]:
     names: set[str] = set()
-    for node in ast.walk(tree):
-        targets: Sequence[ast.expr] = ()
-        if isinstance(node, ast.Assign):
-            targets = node.targets
-        elif isinstance(node, ast.AnnAssign):
-            targets = (node.target,)
-        for target in targets:
-            if isinstance(target, ast.Name):
-                names.add(target.id)
+
+    class _ModuleBindingVisitor(ast.NodeVisitor):
+        def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+            return
+
+        def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+            return
+
+        def visit_ClassDef(self, node: ast.ClassDef) -> None:
+            names.add(node.name)
+
+        def visit_Lambda(self, node: ast.Lambda) -> None:
+            return
+
+        def visit_ListComp(self, node: ast.ListComp) -> None:
+            return
+
+        def visit_SetComp(self, node: ast.SetComp) -> None:
+            return
+
+        def visit_DictComp(self, node: ast.DictComp) -> None:
+            return
+
+        def visit_GeneratorExp(self, node: ast.GeneratorExp) -> None:
+            return
+
+        def visit_Name(self, node: ast.Name) -> None:
+            if isinstance(node.ctx, ast.Store):
+                names.add(node.id)
+
+    visitor = _ModuleBindingVisitor()
+    for statement in tree.body:
+        visitor.visit(statement)
     return names
 
 
@@ -2598,7 +2622,9 @@ def _imports_forbidden_openapi_owner(tree: ast.Module) -> bool:
             if any(alias.name in {"legacy_app", "app.main"} for alias in node.names):
                 return True
         elif isinstance(node, ast.ImportFrom):
-            if node.module in {"legacy_app", "app.main"}:
+            if node.module in {"legacy_app", "app.main"} or (
+                node.module == "app" and any(alias.name == "main" for alias in node.names)
+            ):
                 return True
         elif isinstance(node, ast.Call):
             if not node.args or not isinstance(node.args[0], ast.Constant):

@@ -35,7 +35,7 @@ from pydantic import (
 from settings import get_runtime_env_name
 
 from app.application_metadata import build_application_metadata
-from app.bootstrap.openapi import (
+from app.bootstrap.openapi import (  # noqa: F401 - identity-preserving compatibility re-exports
     _OPENAPI_ALLOWED_EXACT,
     _OPENAPI_ALLOWED_PREFIXES,
     _build_canonical_openapi,
