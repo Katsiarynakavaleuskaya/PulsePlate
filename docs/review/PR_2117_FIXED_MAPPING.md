@@ -31,6 +31,10 @@ not deploy or change backend, OpenAPI, client, or Caddy route behavior.
   - Disposition: FIXED
   - Evidence: the manual staging runbook silently prompts for the GHCR token,
     passes it only to `deploy.sh`, and unsets it afterward.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#discussion_r3574923702 -> d3a4d893a
+  - Disposition: FIXED
+  - Evidence: the discussion pass and canonical commit mapping are complete,
+    including every inline actionable and both review-level nitpicks.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#discussion_r3574923708 -> f1cde4cd9
   - Disposition: FIXED
   - Evidence: the premortem enumerates every synchronized server-local artifact,
