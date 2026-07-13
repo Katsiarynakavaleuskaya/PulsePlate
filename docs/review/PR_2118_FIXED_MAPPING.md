@@ -32,8 +32,8 @@ Packet: `artifacts/orchestration/task_packets/e25f2c18d755.json`
 - [x] Fixed in commit mapping completed.
 - [x] Post-open `qa-engineer-agent -> bug-hunter -> security-auditor` completed.
 - [x] Ordinary `pulseplate-pr-review` completed on current material diff.
-- [ ] Canonical current-head CI completed.
-- [ ] Strict authenticated merge readiness and mandatory wait window completed.
+- [x] Canonical current-head CI completed.
+- [x] Strict authenticated merge readiness and mandatory wait window completed.
 
 ## Fixed in Commit Mapping
 
@@ -41,6 +41,7 @@ Disposition: FIXED
 Commit: b38fa7df8
 Evidence: `docs/roadmap/BACKLOG_LEDGER.md:10865`; focused docs/mapping tests report 91 passed and full pre-commit passes.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2118#pullrequestreview-4689004418 -> b38fa7df8
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2118#discussion_r3574376616 -> b38fa7df8
 
 ## Experiment Runner Evidence
 
@@ -56,6 +57,10 @@ surface.
 - PASS: `make validate-changed` (no Python or cross-surface governance files).
 - PASS: `pre-commit run --all-files`.
 - PASS: pre-push pip-audit, backend tests, and full-repo Bandit.
+- PASS: current-head CI run `29288549376`, including lint, security,
+  `test-pr (3.13)`, and diff coverage.
+- PASS: strict authenticated merge-readiness bundle after the mandatory review
+  cycle; all resolved threads have disposition proof.
 
 Full local `make verify` was not run because repository policy prohibits that
 machine-heavy invocation without a one-time human override.
