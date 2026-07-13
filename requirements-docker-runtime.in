@@ -8,6 +8,8 @@ fastapi>=0.138.1,<1.0.0
 # Security floor: Safety SFTY-20260615-86827/22503/83407/32787 fixed in Starlette 1.3.1.
 starlette>=1.3.1,<2.0.0
 uvicorn>=0.38.0,<1.0.0
+# Security floor: unsafe editor invocation fixed in Click 8.3.3.
+click>=8.3.3,<9.0.0
 pydantic>=2.13.4,<3.0.0
 openai>=2.8.1,<3.0.0
 opentelemetry-api>=1.38.0,<2.0.0
@@ -16,8 +18,8 @@ opentelemetry-exporter-otlp-proto-http>=1.38.0,<2.0.0
 httpx>=0.28.1,<1.0.0
 # Security floor: GHSA-gc5v-m9x4-r6x2 (transitive via opentelemetry exporter)
 requests>=2.33.0,<3.0.0
-# Security floor: GHSA-whj4-6x5x-4v2j (transitive via reportlab)
-pillow>=12.2.0,<13.0.0
+# Security floor: July 2026 Pillow advisory cluster fixed in 12.3.0.
+pillow>=12.3.0,<13.0.0
 # Security floor: GHSA-5239-wwwm-4pmq
 pygments==2.20.0
 python-dotenv>=1.2.1,<2.0.0

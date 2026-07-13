@@ -8,7 +8,9 @@ The dependency security guard prevents vulnerable dependency versions from enter
 2. **Blocked packages** - Specific packages that must not appear anywhere
 3. **Blocked version ranges** - Specific vulnerable versions that must not be pinned
 
-The guard runs as part of `make verify` and validates the canonical 5 shared requirement surfaces.
+The guard runs as part of the focused dependency-security test bundle and validates
+the canonical shared requirement surfaces listed by
+`tests/test_dependency_security_guard.py::REQUIREMENT_SURFACES`.
 
 ## Schema Location
 
@@ -17,8 +19,9 @@ The guard runs as part of `make verify` and validates the canonical 5 shared req
 ```json
 {
   "min_versions": {
+    "click": "8.3.3",
     "cryptography": "48.0.1",
-    "pillow": "12.2.0"
+    "pillow": "12.3.0"
   },
   "blocked_packages": [],
   "blocked_versions": {}
@@ -117,22 +120,27 @@ make verify
 
 ### Example 1: Minimum Version Floor (cryptography CVE)
 
-**Scenario:** Safety June 2026 findings require cryptography 48.0.1 and GHSA-whj4-6x5x-4v2j fixed in pillow 12.2.0
+**Scenario:** current scanner findings require Click 8.3.3, cryptography 48.0.1,
+and Pillow 12.3.0.
 
 **Schema update:**
 ```json
 {
   "min_versions": {
+    "click": "8.3.3",
     "cryptography": "48.0.1",
-    "pillow": "12.2.0"
+    "pillow": "12.3.0"
   }
 }
 ```
 
 **Requirement updates:**
-- `requirements.in`: `cryptography>=48.0.1,<49.0.0` and `pillow>=12.2.0,<13.0.0`
-- `requirements-dev.in`: `cryptography>=48.0.1,<49.0.0`
-- `constraints.txt`: `cryptography>=48.0.1` and `pillow>=12.2.0`
+- `requirements.in`: `click>=8.3.3,<9.0.0`, `cryptography>=48.0.1,<49.0.0`,
+  and `pillow>=12.3.0,<13.0.0`
+- `requirements-dev.in`: `click>=8.3.3,<9.0.0`,
+  `cryptography>=48.0.1,<49.0.0`, and `pillow>=12.3.0,<13.0.0`
+- `constraints.txt`: `click==8.3.3`, `cryptography>=48.0.1`, and
+  `pillow==12.3.0`
 - Regenerate locks
 
 ### Example 2: Blocked Package
@@ -206,6 +214,7 @@ make verify
 - Blocked versions test: `tests/test_dependency_security_guard.py:297` (blocked_versions enforcement)
 - AGENTS policy: `AGENTS.md:1535` (Dependency floor / security guard section)
 - CVE docs: `docs/security/CVE-*.md`
+- Click/Pillow hotfix: `docs/security/PYSEC_2026_CLICK_PILLOW_HOTFIX.md`
 
 ## Future Enhancements
 

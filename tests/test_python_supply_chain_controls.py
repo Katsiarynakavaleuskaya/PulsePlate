@@ -1208,24 +1208,57 @@ def test_runtime_dependency_profiles_pin_fastapi_pydantic_refresh() -> None:
             }
 
 
-def test_runtime_source_profiles_keep_single_pillow_floor() -> None:
+@pytest.mark.parametrize(
+    ("package_name", "expected_specifiers"),
+    [
+        ("click", {(">=", "8.3.3"), ("<", "9.0.0")}),
+        ("pillow", {(">=", "12.3.0"), ("<", "13.0.0")}),
+    ],
+)
+def test_runtime_source_profiles_keep_single_security_floor(
+    package_name: str, expected_specifiers: set[tuple[str, str]]
+) -> None:
     for source_file in (
         "requirements.in",
         "requirements-ci-lite.in",
         "requirements-docker-runtime.in",
     ):
         source_path = REPO_ROOT / source_file
-        pillow_requirements = [
+        package_requirements = [
             requirement
             for requirement in _requirement_entries(source_path)
-            if canonicalize_name(requirement.name) == "pillow"
+            if canonicalize_name(requirement.name) == package_name
         ]
 
-        assert len(pillow_requirements) == 1
+        assert len(package_requirements) == 1
         assert {
             (specifier.operator, specifier.version)
-            for specifier in pillow_requirements[0].specifier
-        } == {(">=", "12.2.0"), ("<", "13.0.0")}
+            for specifier in package_requirements[0].specifier
+        } == expected_specifiers
+
+
+def test_click_and_pillow_security_pins_cover_every_existing_lock_surface() -> None:
+    expected_pins = {"click": "8.3.3", "pillow": "12.3.0"}
+    lockfiles = (
+        "requirements.txt",
+        "requirements-ci-lite.txt",
+        "requirements-dev.txt",
+        "requirements-docker-runtime.txt",
+        "requirements-lock.txt",
+        "requirements-rag-vector.txt",
+        "requirements-rag-vector-cpu.txt",
+    )
+
+    for lockfile in lockfiles:
+        lock_path = REPO_ROOT / lockfile
+        package_names = _requirement_package_names(lock_path)
+        assert canonicalize_name("pillow") in package_names
+        for package_name, expected_version in expected_pins.items():
+            if canonicalize_name(package_name) not in package_names:
+                continue
+            assert _requirement_package_specifiers(lock_path, package_name) == {
+                ("==", expected_version)
+            }
 
 
 def test_base_runtime_dependency_profile_excludes_vector_ml_stack() -> None:
