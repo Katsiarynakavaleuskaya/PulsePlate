@@ -31,6 +31,8 @@ Starter: `scripts/orchestration/start_pr_lane.sh`
   equals the approved workspace target head.
 - `7054b88b0` - return defensive copies from retained snapshot validation and
   parse tracked Git pathnames through NUL-delimited `git ls-tree` output.
+- `48cdcdc97` - include the observed and approved commit identities in
+  fail-closed `build-handoff` base-drift diagnostics.
 
 ## Discussion Thread Pass
 
@@ -73,6 +75,12 @@ Evidence: `tests/test_creative_pilot_workspace.py::test_tracked_blob_size_preser
 Reason: Git tree parsing no longer strips or quote-interprets valid tracked pathnames.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2112#pullrequestreview-4686109897 -> 7054b88b0
 
+Disposition: FIXED
+Commit: 48cdcdc97
+Evidence: `tests/test_creative_pilot_workspace.py::test_build_handoff_rejects_origin_main_drift_before_any_output` asserts both the observed `origin/main` SHA and approved target SHA while preserving the no-output fail-closed boundary.
+Reason: Operators can now diagnose retained-workspace base drift directly from the stable failure message.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2112#pullrequestreview-4687429166 -> 48cdcdc97
+
 ## Experiment Runner Evidence
 
 Not applicable: accepted contribution evidence is retained in the adaptive-pilot
@@ -100,13 +108,14 @@ machine-heavy invocation without a one-time human override.
 
 ## Security Review
 
-- PASS: sealed Codex Security source-diff scan `scan_pr2112_7054b88b0` at
-  `7054b88b0e0c6925b150e3f40df17d0fb4b5c654` reviewed all eight changed files
+- PASS: sealed Codex Security source-diff scan `scan_pr2112_48cdcdc97` at
+  `48cdcdc977f811e15372335d4cba51475bd0f624` reviewed all eight changed files
   and deep-reviewed all three material source files. Discovery produced zero
   candidates and zero reportable findings. Material diff SHA-256:
-  `0d67faba92ab7b855b3afff4b3d962a54152a468f9fdf4883ee834ca33ea91c9`.
+  `b44715c2dba7fe3fbb02b99cef2305a933ce4541e89f506f50d4b15a585df9f9`.
+  The scan completed in 203 seconds; token metadata was unavailable.
 - The scan is retained locally and gitignored at
-  `artifacts/security_lab/pr-2112-final-7054/`.
+  `artifacts/security_lab/pr-2112-final-48cdcdc97/`.
 
 ## Risks / Rollback
 
