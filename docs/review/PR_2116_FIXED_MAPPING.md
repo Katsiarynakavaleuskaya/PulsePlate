@@ -33,6 +33,8 @@ Starter: `scripts/orchestration/start_pr_lane.sh`
 - `affdb0e17` - guarantee resource cleanup on Runner failures.
 - `b2915e00a` - close provenance, network-budget, filesystem-containment,
   cleanup, and post-probe capability false-green paths.
+- `0684d9b43` - bind the positive-control canary to an exact host address and
+  remove the wildcard-listener security finding.
 
 ## Discussion Thread Pass
 
@@ -45,10 +47,11 @@ Starter: `scripts/orchestration/start_pr_lane.sh`
 
 ## Fixed in Commit Mapping
 
-Disposition: NOT-A-BUG
-Evidence: `scripts/orchestration/experiment_runner_dispatch.py:619-637` binds an ephemeral OS-assigned port, accepts no input, and emits only a fixed canary response; Apple VM gateway reachability is the required positive control and the listener is context-managed.
-Reason: Wildcard binding is necessary for the local Apple VM gateway probe and does not expose a product or persistent service.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2116#discussion_r3572512959
+Disposition: FIXED
+Commit: 0684d9b43
+Evidence: `scripts/orchestration/experiment_runner_dispatch.py` now resolves and binds one exact non-loopback host IPv4 address, never persists that address, and uses it only for the context-managed fixed-response positive control; `tests/test_experiment_runner_dispatch.py::test_host_bind_address_is_exact_non_loopback_ipv4` covers the selection contract and a real Apple probe returned `strict_isolation: true`.
+Reason: The wildcard listener was eliminated while preserving the Apple VM host-reachability control required to prove that guest `unshare` actually removes connectivity.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2116#discussion_r3572512959 -> 0684d9b43
 
 Disposition: FIXED
 Commit: b2915e00a0c01060586decc71a89ed7dbbe82e00
@@ -97,7 +100,7 @@ Artifact: `artifacts/orchestration/experiments/results/mac-strict-oracle-current
 ## Validation Evidence
 
 - PASS: orchestration preflight and agent consistency.
-- PASS: 187 focused Runner, dispatcher, sandbox, and review-pattern tests.
+- PASS: 188 focused Runner, dispatcher, sandbox, and review-pattern tests.
 - PASS: focused Ruff and MyPy.
 - PASS: `make validate-changed`.
 - PASS: `pre-commit run --all-files`.
@@ -112,9 +115,11 @@ machine-heavy invocation without a one-time human override.
 
 ## Security Review
 
-- PASS: repo-native `security-auditor`, Bandit, Trivy, GitHub CodeQL workflow,
+- PASS: repo-native `security-auditor`, Bandit, Trivy,
   immutable-image history/config inspection, negative-network canaries, and
   mount-write controls produced no unresolved actionable defect at this head.
+- PENDING: GitHub CodeQL confirmation of the exact-address canary fix on the
+  new current head.
 - The separate Codex Security plugin workflow was canceled by the operator
   after repeated platform safety-filter aborts. No incomplete or draft scan
   output is used as evidence, and the workflow must not be restarted for this
