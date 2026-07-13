@@ -2942,14 +2942,14 @@ def _imports_forbidden_openapi_owner(
             if module_name in {"legacy_app", "app.main"}:
                 return True
             if is_dunder_import:
-                fromlist_node = (
-                    node.args[3]
-                    if len(node.args) > 3
-                    else next(
-                        (keyword.value for keyword in node.keywords if keyword.arg == "fromlist"),
-                        None,
-                    )
-                )
+                fromlist_node: ast.expr | None = None
+                if len(node.args) > 3:
+                    fromlist_node = node.args[3]
+                else:
+                    for keyword in node.keywords:
+                        if keyword.arg == "fromlist":
+                            fromlist_node = keyword.value
+                            break
                 if fromlist_node is not None:
                     if not isinstance(fromlist_node, (ast.List, ast.Tuple, ast.Set)):
                         if module_name == "app":
