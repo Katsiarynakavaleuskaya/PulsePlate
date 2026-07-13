@@ -26,28 +26,19 @@ authority.
 
 Disposition: FIXED
 Commit: 296c64c4e9a5ead5042a049f7326bd9e9868988a
-Evidence: `docs/review/PR_2113_FIXED_MAPPING.md:15-18` preserves the completed
-artifact-level discussion and fixed-mapping checkboxes while current-head CI
-and strict merge-readiness remain separate pending gates.
-Reason: The canonical artifact now reflects the review work that had already
-completed without prematurely claiming final merge readiness.
+Evidence: `docs/review/PR_2113_FIXED_MAPPING.md:15-18` preserves the completed artifact-level discussion and fixed-mapping checkboxes while current-head CI and strict merge-readiness remain separate pending gates.
+Reason: The canonical artifact now reflects completed review work without prematurely claiming final merge readiness.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2113#discussion_r3572280124 -> 296c64c4e9a5ead5042a049f7326bd9e9868988a
 
 Disposition: FIXED
 Commit: 296c64c4e9a5ead5042a049f7326bd9e9868988a
-Evidence: `docs/security/DEPENDABOT_ALERT_INVENTORY.md:3-6` now states that the
-inventory contains eight alerts, matching the eight table rows.
+Evidence: `docs/security/DEPENDABOT_ALERT_INVENTORY.md:3-6` now states that the inventory contains eight alerts, matching the eight table rows.
 Reason: The introduction and current inventory are numerically consistent.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2113#discussion_r3572280141 -> 296c64c4e9a5ead5042a049f7326bd9e9868988a
 
 Disposition: NOT-A-BUG
-Evidence: `tests/test_runtime_toolchain_alignment.py` contains private pytest
-helpers and deterministic tests, the module-level support file already has a
-docstring, and the repository has no pydocstyle/Ruff-D docstring gate for test
-functions; `pre-commit run --all-files` and `make validate-changed` pass.
-Reason: Adding repetitive docstrings to private test helpers would not satisfy
-a repository contract or change production/release safety; the CodeRabbit
-docstring percentage is an advisory external heuristic, not a repo gate.
+Evidence: `tests/test_runtime_toolchain_alignment.py` contains private pytest helpers and deterministic tests, the module-level support file already has a docstring, and the repository has no pydocstyle/Ruff-D docstring gate for test functions; `pre-commit run --all-files` and `make validate-changed` pass.
+Reason: Adding repetitive docstrings to private test helpers would not satisfy a repository contract or change production/release safety; the CodeRabbit docstring percentage is an advisory external heuristic, not a repo gate.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2113#issuecomment-4960051675
 
 ## Pre-open Role and Premortem Evidence
@@ -162,8 +153,7 @@ would reduce auditability without reducing runtime blast radius.
 
 ## Experiment Runner Evidence
 
-Artifact:
-`artifacts/orchestration/experiments/results/ruby-3-4-release-toolchain-oracle-result.json`
+Artifact: `artifacts/orchestration/experiments/results/ruby-3-4-release-toolchain-oracle-result.json`
 (local-only, gitignored)
 
 - Accepted `oracle_only_governance_reviewer` result with 44 focused tests.
@@ -173,8 +163,7 @@ Artifact:
 
 ## Lane Start Provenance
 
-Packet:
-`artifacts/orchestration/task_packets/ruby_3_4_release_toolchain_current.json`
+Packet: `artifacts/orchestration/task_packets/ruby_3_4_release_toolchain_current.json`
 (local-only, gitignored)
 
 The packet routed mandatory ordered roles and did not execute them implicitly.
