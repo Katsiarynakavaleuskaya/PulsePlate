@@ -2560,10 +2560,10 @@ def _assigned_names(tree: ast.Module) -> set[str]:
 
     class _ModuleBindingVisitor(ast.NodeVisitor):
         def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
-            return
+            names.add(node.name)
 
         def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
-            return
+            names.add(node.name)
 
         def visit_ClassDef(self, node: ast.ClassDef) -> None:
             names.add(node.name)
@@ -2586,6 +2586,28 @@ def _assigned_names(tree: ast.Module) -> set[str]:
         def visit_Name(self, node: ast.Name) -> None:
             if isinstance(node.ctx, ast.Store):
                 names.add(node.id)
+
+        def visit_Import(self, node: ast.Import) -> None:
+            for alias in node.names:
+                names.add(alias.asname or alias.name.split(".", maxsplit=1)[0])
+
+        def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
+            for alias in node.names:
+                bound_name = alias.asname or alias.name
+                if (
+                    node.module == "app.bootstrap.openapi"
+                    and alias.name in CANONICAL_OPENAPI_SYMBOLS
+                    and bound_name == alias.name
+                ):
+                    continue
+                if alias.name != "*":
+                    names.add(bound_name)
+
+        def visit_ExceptHandler(self, node: ast.ExceptHandler) -> None:
+            if node.name is not None:
+                names.add(node.name)
+            for statement in node.body:
+                self.visit(statement)
 
     visitor = _ModuleBindingVisitor()
     for statement in tree.body:

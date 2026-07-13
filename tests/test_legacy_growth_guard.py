@@ -110,6 +110,21 @@ def test_current_metadata_openapi_ownership_passes_growth_guard() -> None:
             "canonical OpenAPI re-export must not be rebound",
         ),
         (
+            0,
+            "\nif True:\n    from foreign_openapi import _install_openapi_builder\n",
+            "canonical OpenAPI re-export must not be rebound",
+        ),
+        (
+            0,
+            "\nif True:\n    def _install_openapi_builder(app):\n        return app\n",
+            "canonical OpenAPI re-export must not be rebound",
+        ),
+        (
+            0,
+            "\ntry:\n    pass\nexcept Exception as _install_openapi_builder:\n    pass\n",
+            "canonical OpenAPI re-export must not be rebound",
+        ),
+        (
             1,
             "\nimport os\nvalue = os.getenv('APP_ENV')\n",
             "direct environment parsing is forbidden",
