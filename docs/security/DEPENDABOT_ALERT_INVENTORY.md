@@ -1,15 +1,15 @@
 # Dependabot Alert Inventory - 2026-07-13
 
 This inventory extends the PR #2008 source of truth for seven Dependabot alerts
-observed on 2026-06-22 with Excon alert #231 observed on 2026-07-12. It keeps
+observed on 2026-06-22 with Excon alert #231 fixed on 2026-07-12. It keeps
 raw Dependabot branches out of the merge path when they overlap lock/profile
 surfaces or cannot prove the current repo-owned dependency path.
 
-## Current Open Alerts
+## Alert Status Inventory
 
 | Alert | Advisory / CVE | Package | Manifest | Dependency type | Install profile | Production exposure | Fixed version | Proxy availability | Owner PR | Disposition | Evidence | Recheck date |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| #231 | GHSA-48rx-c7pg-q66r / CVE-2026-54171 | excon | ios/Gemfile.lock | runtime | iOS Fastlane release tooling | Privileged release-tooling graph, not backend runtime or the shipped iOS app binary | 1.5.0 | Available from RubyGems through Bundler; Fastlane 2.237.0 permits excon >=0.71.0,<2.0.0 | This PR | FIXED in repo by pinning Fastlane 2.237.0 and resolving excon 1.5.0; GitHub closure awaits dependency graph refresh | docs/security/CVE-2026-54171-excon-fastlane.md, ios/Gemfile, ios/Gemfile.lock, tests/test_runtime_toolchain_alignment.py | After this PR merge and GitHub dependency graph refresh |
+| #231 | GHSA-48rx-c7pg-q66r / CVE-2026-54171 | excon | ios/Gemfile.lock | runtime | iOS Fastlane release tooling | Privileged release-tooling graph, not backend runtime or the shipped iOS app binary | 1.5.0 | Available from RubyGems through Bundler; Fastlane 2.237.0 permits excon >=0.71.0,<2.0.0 | PR #2108 | FIXED in repo and marked `fixed` by GitHub on 2026-07-12 after resolving excon 1.5.0 | docs/security/CVE-2026-54171-excon-fastlane.md, ios/Gemfile, ios/Gemfile.lock, tests/test_runtime_toolchain_alignment.py | Closed 2026-07-12 |
 | #227 | GHSA-6v7p-g79w-8964 | msgpack | requirements-lock.txt | runtime | combined lock | Potential only if the combined lock is installed in runtime; no product msgpack import proven | 1.2.1 | Available through configured Python package resolution; broad resolver churn avoided | PR #2008 | FIXED in PR #2008 by pinning msgpack 1.2.1 and blocking <1.2.1 | requirements-lock.txt:210, tests/fixtures/dependency_security_schema.json:16, docs/security/GHSA-6v7p-g79w-8964-msgpack.md | After PR #2008 merge and GitHub dependency graph refresh |
 | #226 | GHSA-6v7p-g79w-8964 | msgpack | requirements-dev.txt | development | dev tooling | Dev tooling exposure through CacheControl / pip-audit graph | 1.2.1 | Available through configured Python package resolution; broad resolver churn avoided | PR #2008 | FIXED in PR #2008 by adding the dev floor and pinning msgpack 1.2.1 | requirements-dev.in:27, requirements-dev.txt:108, tests/fixtures/dependency_security_schema.json:16, docs/security/GHSA-6v7p-g79w-8964-msgpack.md | After PR #2008 merge and GitHub dependency graph refresh |
 | #225 | GHSA-6v7p-g79w-8964 | msgpack | requirements-ci-lite.txt | runtime | ci-lite | Not reproduced from current repo manifests; ci-lite has no direct cachecontrol or msgpack entry | 1.2.1 | Available, but do not add unused ci-lite packages without proving the dependency path | PR #2008 inventory, future recheck lane if it persists | DEFERRED recheck after PR #2008 refresh | docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-msgpack-ci-lite-alert-recheck, requirements-ci-lite.in, requirements-ci-lite.txt | 2026-06-29 |
@@ -43,4 +43,5 @@ Do not merge raw Dependabot PRs #2000 through #2004 from this lane:
 5. The broader Python dependency surface contract is tracked separately in
    `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-python-dependency-surface-contract`.
 6. Excon alert #231 is remediated through the exact Fastlane `2.237.0` pin and
-   resolver-selected Excon `1.5.0`; no vulnerability suppression is used.
+   resolver-selected Excon `1.5.0`; GitHub marked it `fixed` on 2026-07-12 and
+   no vulnerability suppression is used.

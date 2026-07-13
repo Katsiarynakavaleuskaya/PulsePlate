@@ -5,7 +5,7 @@ name: Codecov Upload
 # Inputs:
 #   - coverage-file: Path to coverage XML file (required)
 #   - flags: Codecov flags for categorization (default: 'unittests')
-#   - python-version: Python version for context (default: '3.12')
+#   - python-version: Python metadata label for Codecov context (default: '3.13.6')
 #   - name: Custom name for this upload (default: 'codecov-upload')
 #   - skip-upload: Skip the upload step (default: false)
 #   - fail_on_codecov_error: Whether to fail CI if Codecov upload fails (default: true)
@@ -35,10 +35,10 @@ on:
         type: string
         default: 'unittests'
       python-version:
-        description: 'Python version for context'
+        description: 'Python metadata label for Codecov context; this workflow does not install Python'
         required: false
         type: string
-        default: '3.12'
+        default: '3.13.6'
       name:
         description: 'Custom name for this upload'
         required: false

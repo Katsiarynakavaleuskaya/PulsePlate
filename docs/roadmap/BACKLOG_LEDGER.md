@@ -12221,16 +12221,19 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - No runtime/API/frontend/iOS/billing/OpenAPI/App Store/Claude/Opus/MCP changes are included
 
 <a id="ledger-p1-ruby-3-3-fastlane-runtime"></a>
-- [ ] P1: Migrate the Fastlane execution runtime to Ruby 3.3 or newer
+<a id="ledger-p1-ruby-3-4-10-fastlane-runtime"></a>
+- [ ] P1: Migrate the Fastlane execution runtime to Ruby 3.4.10
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (release-tooling compatibility)
-  - Target PR: PR-TBD-RUBY-3-3-FASTLANE-RUNTIME
-  - Status: Opened on 13 July 2026
+  - Target PR: PR-TBD-RUBY-3-4-10-FASTLANE-RUNTIME
+  - Status: Planned on 13 July 2026; no PR number assigned yet
   - Reason: The no-auth validation lane passes with Fastlane `2.237.0` on the
     canonical Ruby `3.1` runtime, but Fastlane emits an explicit warning that a
-    future release will require Ruby `3.3` or newer. The current dependency
-    remediation remains supported; this lane prevents the announced runtime
-    transition from becoming an emergency release blocker.
+    future release will require Ruby `3.3` or newer. Ruby `3.1` reached end of
+    life on 26 March 2025, while Ruby `3.4.10` is a supported exact patch on the
+    maintained Ruby `3.4` branch. This lane removes the unsupported release
+    interpreter without widening into a Ruby `4.0` or Fastlane dependency
+    migration.
   - Links:
     - `tests/runtime_toolchain_versions.py`
     - `tests/test_runtime_toolchain_alignment.py`
@@ -12238,13 +12241,13 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/security/CVE-2026-54171-excon-fastlane.md`
   - DoD:
     - canonical local and CI Ruby versions are upgraded together to a supported
-      Ruby `3.3` or newer release
+      exact Ruby `3.4.10` release
     - Fastlane and Bundler locks remain deterministic and compatible
     - the no-auth `validate_metadata_package` lane passes without the Ruby
       deprecation warning
     - iOS release tooling and current-head CI pass without App Store mutation
     - rollback and operator migration instructions are documented
 
-**Last updated:** 2026-07-13 (Ruby 3.3 Fastlane runtime migration tracked)
+**Last updated:** 2026-07-13 (Ruby 3.4.10 Fastlane runtime migration planned)
 **Maintainer:** @katsiaryna_kavaleuskaya
 <!-- markdownlint-enable MD013 -->

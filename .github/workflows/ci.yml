@@ -179,9 +179,9 @@ jobs:
           persist-credentials: false
 
       - name: Setup Ruby
-        uses: ruby/setup-ruby@4eb9f110bac952a8b68ecf92e3b5c7a987594ba6 # v1
+        uses: ruby/setup-ruby@d45b1a4e94b71acab930e56e79c6aa188764e7f9 # v1
         with:
-          ruby-version: "3.1"
+          ruby-version: "3.4.10"
           working-directory: ios
 
       - name: Check Ruby jwt/Fastlane unblock state

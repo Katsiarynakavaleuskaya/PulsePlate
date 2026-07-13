@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
+import pytest
 import yaml
 
 from scripts.ci.check_jwt_fastlane_unblock import _version_at_least
@@ -13,6 +15,7 @@ from tests.runtime_toolchain_versions import (
     CANONICAL_RUBY,
     EXCON_MINIMUM_VERSION,
     FASTLANE_VERSION,
+    RUBY_SETUP_ACTION,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -25,6 +28,12 @@ AUXILIARY_PY313_WORKFLOWS = (
     ".github/workflows/nightly.yml",
     ".github/workflows/release-control-plane-evidence.yml",
     ".github/workflows/release-manifest-evidence.yml",
+)
+EXPECTED_RUBY_SETUP_OWNERS = (
+    (".github/workflows/ci.yml", "jwt_fastlane_unblock_guard"),
+    (".github/workflows/ios-appstore-assets.yml", "upload-app-privacy"),
+    (".github/workflows/ios-appstore-assets.yml", "upload-assets"),
+    (".github/workflows/ios-appstore-assets.yml", "validate-assets"),
 )
 
 
@@ -52,12 +61,47 @@ def _iter_python_setup_steps(path: str) -> list[tuple[str, dict[str, Any]]]:
     return setup_steps
 
 
+def _iter_ruby_setup_steps(path: str) -> list[tuple[str, dict[str, Any]]]:
+    workflow = _load_workflow(path)
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+    setup_steps: list[tuple[str, dict[str, Any]]] = []
+    for job_name, job in jobs.items():
+        assert isinstance(job_name, str)
+        assert isinstance(job, dict)
+        steps = job.get("steps", [])
+        assert isinstance(steps, list)
+        for step in steps:
+            assert isinstance(step, dict)
+            if str(step.get("uses", "")).startswith("ruby/setup-ruby@"):
+                setup_steps.append((job_name, step))
+    return setup_steps
+
+
 def _python_version_input(step: dict[str, Any]) -> str:
     with_block = step.get("with", {})
     assert isinstance(with_block, dict)
     version = with_block.get("python-version")
     assert isinstance(version, str)
     return version
+
+
+def _ruby_version_input(step: dict[str, Any]) -> str:
+    with_block = step.get("with", {})
+    assert isinstance(with_block, dict)
+    version = with_block.get("ruby-version")
+    assert isinstance(version, str)
+    return version
+
+
+def _assert_expected_ruby_setup_steps(
+    discovered: list[tuple[tuple[str, str], dict[str, Any]]],
+) -> None:
+    owners = Counter(owner for owner, _step in discovered)
+    assert owners == Counter(EXPECTED_RUBY_SETUP_OWNERS)
+    for owner, step in discovered:
+        assert step.get("uses") == RUBY_SETUP_ACTION, owner
+        assert _ruby_version_input(step) == CANONICAL_RUBY, owner
 
 
 def _tool_versions() -> dict[str, str]:
@@ -130,6 +174,57 @@ def test_no_python_setup_step_uses_bare_py313_runtime_pin() -> None:
                 offenders.append(f"{rel_path}:{job_name}")
 
     assert offenders == []
+
+
+def test_repository_ruby_setup_steps_use_canonical_action_and_runtime() -> None:
+    discovered: list[tuple[tuple[str, str], dict[str, Any]]] = []
+    workflow_dir = REPO_ROOT / ".github" / "workflows"
+    workflow_paths = sorted(
+        path for pattern in ("*.yml", "*.yaml") for path in workflow_dir.glob(pattern)
+    )
+    for path in workflow_paths:
+        rel_path = path.relative_to(REPO_ROOT).as_posix()
+        for job_name, step in _iter_ruby_setup_steps(rel_path):
+            discovered.append(((rel_path, job_name), step))
+
+    _assert_expected_ruby_setup_steps(discovered)
+
+
+def test_ruby_setup_owner_contract_rejects_duplicate_step_in_one_job() -> None:
+    owner = (".github/workflows/ci.yml", "jwt_fastlane_unblock_guard")
+    step = {
+        "uses": RUBY_SETUP_ACTION,
+        "with": {"ruby-version": CANONICAL_RUBY},
+    }
+    discovered = [(owner, step), (owner, step)]
+
+    with pytest.raises(AssertionError):
+        _assert_expected_ruby_setup_steps(discovered)
+
+
+def test_codecov_python_input_is_metadata_only_and_canonical() -> None:
+    workflow = _load_workflow(".github/workflows/codecov-upload.yml")
+    workflow_call = workflow[True]["workflow_call"]
+    inputs = workflow_call["inputs"]
+
+    assert inputs["python-version"] == {
+        "description": (
+            "Python metadata label for Codecov context; this workflow does not install Python"
+        ),
+        "required": False,
+        "type": "string",
+        "default": CANONICAL_PYTHON,
+    }
+    assert set(inputs) == {
+        "coverage-file",
+        "flags",
+        "python-version",
+        "name",
+        "skip-upload",
+        "fail_on_codecov_error",
+        "coverage-artifact",
+    }
+    assert _iter_python_setup_steps(".github/workflows/codecov-upload.yml") == []
 
 
 def test_fastlane_and_ruby_tooling_are_pinned_consistently() -> None:
