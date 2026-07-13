@@ -748,6 +748,109 @@ def test_retained_prepare_accepts_only_self_consistent_estimate_drift(
     assert historical == historical_before
 
 
+def test_retained_prepare_normalizes_size_derived_no_reduction_reason(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    packet = _packet()
+    with monkeypatch.context() as historical_sizes:
+        historical_sizes.setattr(
+            context_pack_compression,
+            "_safe_context_char_count",
+            lambda path, *, repo_root: 1,
+        )
+        historical = creative_code_spec_pipeline.build_default_prepare_artifacts(packet)
+    current = creative_code_spec_pipeline.build_default_prepare_artifacts(packet)
+    historical_estimate = historical["context_pack.json"]["estimate"]
+    current_estimate = current["context_pack.json"]["estimate"]
+
+    assert "no_context_reduction" in historical_estimate["reason_codes"]
+    assert "no_context_reduction" not in current_estimate["reason_codes"]
+
+    paths = {
+        *creative_code_spec_pipeline.REQUIRED_CONTEXT,
+        *packet["target_surface"],
+    }
+    assert (
+        creative_code_spec_pipeline.validate_default_prepare_artifact_snapshots(
+            historical,
+            expected_packet=packet,
+            historical_context_char_counts={path: 1 for path in paths},
+        )
+        == historical
+    )
+
+
+@pytest.mark.parametrize("mismatch", ("added_with_savings", "removed_without_savings"))
+def test_retained_prepare_rejects_inconsistent_no_reduction_reason(
+    monkeypatch: pytest.MonkeyPatch,
+    mismatch: str,
+) -> None:
+    packet = _packet()
+    if mismatch == "added_with_savings":
+        snapshots = _historical_default_prepare_artifacts(monkeypatch, packet)
+        historical_context_char_counts = _historical_context_char_counts(packet)
+        estimate = snapshots["context_pack.json"]["estimate"]
+        assert estimate["tokens_saved_estimate"] > 0
+        estimate["reason_codes"].append("no_context_reduction")
+    else:
+        with monkeypatch.context() as historical_sizes:
+            historical_sizes.setattr(
+                context_pack_compression,
+                "_safe_context_char_count",
+                lambda path, *, repo_root: 1,
+            )
+            snapshots = creative_code_spec_pipeline.build_default_prepare_artifacts(packet)
+        paths = {
+            *creative_code_spec_pipeline.REQUIRED_CONTEXT,
+            *packet["target_surface"],
+        }
+        historical_context_char_counts = {path: 1 for path in paths}
+        estimate = snapshots["context_pack.json"]["estimate"]
+        assert estimate["tokens_saved_estimate"] == 0
+        estimate["reason_codes"].remove("no_context_reduction")
+    _rebind_historical_context_pack_ids(snapshots["context_pack.json"], packet)
+
+    with pytest.raises(
+        CreativeCodeSpecPipelineError,
+        match="no-context-reduction reason drifted",
+    ):
+        creative_code_spec_pipeline.validate_default_prepare_artifact_snapshots(
+            snapshots,
+            expected_packet=packet,
+            historical_context_char_counts=historical_context_char_counts,
+        )
+
+
+def test_retained_prepare_rejects_duplicate_no_reduction_reason(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    packet = _packet()
+    with monkeypatch.context() as historical_sizes:
+        historical_sizes.setattr(
+            context_pack_compression,
+            "_safe_context_char_count",
+            lambda path, *, repo_root: 1,
+        )
+        snapshots = creative_code_spec_pipeline.build_default_prepare_artifacts(packet)
+    estimate = snapshots["context_pack.json"]["estimate"]
+    estimate["reason_codes"].append("no_context_reduction")
+    _rebind_historical_context_pack_ids(snapshots["context_pack.json"], packet)
+    paths = {
+        *creative_code_spec_pipeline.REQUIRED_CONTEXT,
+        *packet["target_surface"],
+    }
+
+    with pytest.raises(
+        CreativeCodeSpecPipelineError,
+        match="estimate reason codes must remain canonical",
+    ):
+        creative_code_spec_pipeline.validate_default_prepare_artifact_snapshots(
+            snapshots,
+            expected_packet=packet,
+            historical_context_char_counts={path: 1 for path in paths},
+        )
+
+
 @pytest.mark.parametrize(
     "tamper_case",
     (

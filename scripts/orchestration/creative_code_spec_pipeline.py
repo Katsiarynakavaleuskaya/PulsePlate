@@ -20,6 +20,7 @@ from scripts.orchestration.context_pack_compression import (
     ContextGraphEdge,
     ContextGraphNode,
     MAX_METADATA_BYTES,
+    REASON_NO_CONTEXT_REDUCTION,
     build_context_pack_compression,
     to_stable_mapping,
 )
@@ -652,6 +653,24 @@ def _validate_historical_context_pack(
         raise CreativeCodeSpecPipelineError(
             "adaptive_source_lineage_mismatch: retained context_pack.json estimate arithmetic drifted"
         )
+    estimate_reason_codes = estimate["reason_codes"]
+    if not isinstance(estimate_reason_codes, list) or any(
+        not isinstance(code, str) for code in estimate_reason_codes
+    ):
+        raise CreativeCodeSpecPipelineError(
+            "adaptive_source_lineage_mismatch: retained context_pack.json "
+            "estimate reason codes changed"
+        )
+    if estimate_reason_codes != sorted(set(estimate_reason_codes)):
+        raise CreativeCodeSpecPipelineError(
+            "adaptive_source_lineage_mismatch: retained context_pack.json "
+            "estimate reason codes must remain canonical"
+        )
+    if (REASON_NO_CONTEXT_REDUCTION in estimate_reason_codes) != (saved == 0):
+        raise CreativeCodeSpecPipelineError(
+            "adaptive_source_lineage_mismatch: retained context_pack.json "
+            "no-context-reduction reason drifted"
+        )
 
     try:
         typed_estimate = ContextCompressionEstimate(
@@ -718,13 +737,18 @@ def _validate_historical_context_pack(
 def _context_pack_stable_projection(value: Mapping[str, Any]) -> dict[str, Any]:
     """Remove only repository-size-derived telemetry from a validated context pack."""
 
+    estimate_projection = {
+        key: (
+            [code for code in item if code != REASON_NO_CONTEXT_REDUCTION]
+            if key == "reason_codes"
+            else item
+        )
+        for key, item in value["estimate"].items()
+        if key not in _CONTEXT_PACK_ESTIMATE_TELEMETRY_KEYS
+    }
     return {
         key: (
-            {
-                estimate_key: estimate_value
-                for estimate_key, estimate_value in value["estimate"].items()
-                if estimate_key not in _CONTEXT_PACK_ESTIMATE_TELEMETRY_KEYS
-            }
+            estimate_projection
             if key == "estimate"
             else (
                 [

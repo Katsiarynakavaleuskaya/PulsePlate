@@ -123,10 +123,13 @@ baseline must stay within the canonical `MAX_METADATA_BYTES` drift budget of
 the tracked file sizes at the retained workspace source commit. The retained
 pack is reconstructed through the canonical bounded
 context graph/estimate types before sorting or fingerprinting. Stable
-comparison is JSON-type-sensitive, so boolean/integer or other scalar type
+comparison is JSON-type-sensitive, so boolean-to-integer or other scalar-type
 substitution is not equality. Required
 paths, path fingerprints, graph topology, routing metadata, policy, authority,
-reason codes, and every non-estimate field remain exact. Newly emitted exact
+pack-level reason codes, non-size-derived estimate reason codes, and every
+non-estimate field remain exact. Only the size-derived
+`no_context_reduction` estimate reason is normalized when comparing historical
+and current packs. Newly emitted exact
 prepare artifacts remain current-version and fully exact; this compatibility
 rule does not widen runtime, provider, cache, serving, repository-write, or
 promotion authority.
