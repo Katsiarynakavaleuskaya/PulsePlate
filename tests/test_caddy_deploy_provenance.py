@@ -161,7 +161,9 @@ def test_cd_builds_attests_scans_and_deploys_both_same_job_digests() -> None:
     assert "GHCR_TOKEN" not in deploy_with["script"]
     assert "github.sha" not in deploy_with["script"]
     assert deploy_with["envs"] == (
-        "GHCR_USER,GHCR_TOKEN,STAGING_DOMAIN,STAGING_IMAGE_REF," "STAGING_CADDY_IMAGE_REF"
+        "GHCR_USER,GHCR_TOKEN,STAGING_DOMAIN,STAGING_IMAGE_REF,"
+        "STAGING_CADDY_IMAGE_REF,DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,"
+        "STAGING_CADDYFILE_SHA256"
     )
 
     assert build_job["concurrency"]["cancel-in-progress"] is False
@@ -214,6 +216,41 @@ def test_all_staging_ssh_and_health_steps_require_default_false_rollout_gate() -
         assert "vars.STAGING_DEPLOY_ENABLED == 'true'" in step_if
         assert "vars.WEB_IOS_RELEASE_READY == 'true'" in step_if
         assert "vars.STAGING_ATTESTED_DIGEST_READY == 'true'" in step_if
+
+
+def test_credentialed_deploy_revalidates_the_preflighted_remote_contract() -> None:
+    workflow = _workflow(CD_WORKFLOW)
+    steps = _steps(_job(workflow, "build"))
+    deploy = _named_step(steps, "Deploy to staging over SSH")
+    env = deploy.get("env")
+    with_block = deploy.get("with")
+    assert isinstance(env, dict)
+    assert isinstance(with_block, dict)
+    assert env["DEPLOY_SCRIPT_SHA256"] == (
+        "${{ steps.staging-contract.outputs.deploy_script_sha256 }}"
+    )
+    assert env["STAGING_COMPOSE_SHA256"] == (
+        "${{ steps.staging-contract.outputs.staging_compose_sha256 }}"
+    )
+    assert env["STAGING_CADDYFILE_SHA256"] == (
+        "${{ steps.staging-contract.outputs.staging_caddyfile_sha256 }}"
+    )
+    assert with_block["envs"].endswith(
+        "DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,STAGING_CADDYFILE_SHA256"
+    )
+    script = with_block["script"]
+    deploy_call = './deploy.sh "$STAGING_IMAGE_REF" "$STAGING_CADDY_IMAGE_REF"'
+    assert script.index(".attested-digest-deploy-v1") < script.index(deploy_call)
+    assert script.index('STAGING_DEPLOY_CONTRACT_VERSION="2"') < script.index(deploy_call)
+    for filename, expected_hash in (
+        ("deploy.sh", "DEPLOY_SCRIPT_SHA256"),
+        ("docker-compose.staging.yaml", "STAGING_COMPOSE_SHA256"),
+        ("Caddyfile", "STAGING_CADDYFILE_SHA256"),
+    ):
+        hash_check = f"sha256sum ./{filename}"
+        assert hash_check in script
+        assert expected_hash in script
+        assert script.index(hash_check) < script.index(deploy_call)
 
 
 def test_staging_deploy_script_embeds_marker_and_two_digest_contract() -> None:

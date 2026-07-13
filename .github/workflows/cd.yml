@@ -405,15 +405,27 @@ jobs:
           STAGING_DOMAIN: ${{ secrets.STAGING_DOMAIN }}
           STAGING_IMAGE_REF: ${{ steps.staging-image-refs.outputs.backend_ref }}
           STAGING_CADDY_IMAGE_REF: ${{ steps.staging-image-refs.outputs.caddy_ref }}
+          DEPLOY_SCRIPT_SHA256: ${{ steps.staging-contract.outputs.deploy_script_sha256 }}
+          STAGING_COMPOSE_SHA256: ${{ steps.staging-contract.outputs.staging_compose_sha256 }}
+          STAGING_CADDYFILE_SHA256: ${{ steps.staging-contract.outputs.staging_caddyfile_sha256 }}
         with:
           host: ${{ secrets.SSH_HOST_STAGING }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           fingerprint: ${{ secrets.SSH_HOST_STAGING_FINGERPRINT }}
-          envs: GHCR_USER,GHCR_TOKEN,STAGING_DOMAIN,STAGING_IMAGE_REF,STAGING_CADDY_IMAGE_REF
+          envs: GHCR_USER,GHCR_TOKEN,STAGING_DOMAIN,STAGING_IMAGE_REF,STAGING_CADDY_IMAGE_REF,DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,STAGING_CADDYFILE_SHA256
           script: |
             set -euo pipefail
             cd /srv/pulseplate-staging
+            marker=.attested-digest-deploy-v1
+            [ ! -L "$marker" ] && [ -f "$marker" ]
+            [ "$(stat -c '%u:%g:%a' "$marker")" = "0:0:644" ]
+            [ "$(stat -c '%s' "$marker")" -eq 37 ]
+            [ "$(cat "$marker")" = "pulseplate-staging-attested-digest-v1" ]
+            grep -Fqx 'STAGING_DEPLOY_CONTRACT_VERSION="2"' ./deploy.sh
+            [ "$(sha256sum ./deploy.sh | cut -d' ' -f1)" = "$DEPLOY_SCRIPT_SHA256" ]
+            [ "$(sha256sum ./docker-compose.staging.yaml | cut -d' ' -f1)" = "$STAGING_COMPOSE_SHA256" ]
+            [ "$(sha256sum ./Caddyfile | cut -d' ' -f1)" = "$STAGING_CADDYFILE_SHA256" ]
             ./deploy.sh "$STAGING_IMAGE_REF" "$STAGING_CADDY_IMAGE_REF"
 
       - name: Handle staging deployment failure (non-blocking by default)
