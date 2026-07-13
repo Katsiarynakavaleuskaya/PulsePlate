@@ -12,6 +12,7 @@ import argparse
 import base64
 from contextlib import contextmanager
 from dataclasses import dataclass
+import ipaddress
 import json
 import os
 from pathlib import Path
@@ -50,7 +51,6 @@ CPU_LIMIT = "2"
 MEMORY_LIMIT = "4g"
 TMPFS_SIZE = "1g"
 APPLE_TMPFS_SIZE = "1G"
-CANARY_BIND_ADDRESS = "0.0.0.0"  # nosec B104: ephemeral fixed-response Apple VM canary requires the host gateway redirect (remove-by: 2026-10-31, ref: ledger-p1-experiment-runner-macos-strict-backend)
 CONTAINER_PYTHON = "/opt/venv/bin/python"
 CONTAINER_UNSHARE = "/usr/bin/unshare"
 CONTAINER_REPO = "/repo"
@@ -616,11 +616,55 @@ def _initialize_result_volume(
     return completed_ok and cleanup_ok
 
 
+def _address_is_bindable(address: str) -> bool:
+    probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        probe.bind((address, 0))
+    except OSError:
+        return False
+    finally:
+        probe.close()
+    return True
+
+
+def _discover_host_bind_address() -> str:
+    """Return one exact non-loopback IPv4 address without persisting host identity."""
+
+    try:
+        records = socket.getaddrinfo(
+            socket.gethostname(),
+            None,
+            family=socket.AF_INET,
+            type=socket.SOCK_STREAM,
+        )
+    except OSError as exc:
+        raise DispatchError("host_listener_unavailable") from exc
+
+    candidates: list[str] = []
+    for _family, _kind, _proto, _canonical, sockaddr in records:
+        candidate = str(sockaddr[0])
+        address = ipaddress.ip_address(candidate)
+        if (
+            address.is_loopback
+            or address.is_unspecified
+            or address.is_multicast
+            or address.is_link_local
+            or candidate in candidates
+        ):
+            continue
+        candidates.append(candidate)
+    for candidate in candidates:
+        if _address_is_bindable(candidate):
+            return candidate
+    raise DispatchError("host_listener_unavailable")
+
+
 @contextmanager
-def _host_listener() -> Iterator[tuple[int, bool]]:
+def _host_listener() -> Iterator[tuple[str, int, bool]]:
+    bind_address = _discover_host_bind_address()
     listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    listener.bind((CANARY_BIND_ADDRESS, 0))
+    listener.bind((bind_address, 0))
     listener.listen(8)
     listener.settimeout(0.2)
     stop = threading.Event()
@@ -641,9 +685,9 @@ def _host_listener() -> Iterator[tuple[int, bool]]:
     port = int(listener.getsockname()[1])
     ready = False
     try:
-        with socket.create_connection(("127.0.0.1", port), timeout=1):
+        with socket.create_connection((bind_address, port), timeout=1):
             ready = True
-        yield port, ready
+        yield bind_address, port, ready
     finally:
         stop.set()
         listener.close()
@@ -788,11 +832,12 @@ def _run_container_canary(
             results = _base_probe_results(backend)
             results["runtime_available"] = True
             results["image_digest_verified"] = True
-            with _host_listener() as (port, listener_ready):
+            with _host_listener() as (host_address, port, listener_ready):
                 results["host_listener_ready"] = listener_ready
                 outer_name = f"pp-er-outer-{uuid.uuid4().hex[:12]}"
                 inner_name = f"pp-er-inner-{uuid.uuid4().hex[:12]}"
-                code = _canary_code(gateway, port)
+                canary_address = host_address if backend == "apple-container" else gateway
+                code = _canary_code(canary_address, port)
                 try:
                     outer = _run(
                         _container_run_argv(
@@ -895,7 +940,7 @@ def probe_backend(backend: str, image: ImageReference | None = None) -> BackendP
             return _failed_probe(backend, "runtime_cli_missing", image_digest=image.digest)
         results = _base_probe_results(backend)
         results["runtime_available"] = True
-        with _host_listener() as (port, ready):
+        with _host_listener() as (_host_address, port, ready):
             results["host_listener_ready"] = ready
             completed = _run(
                 [

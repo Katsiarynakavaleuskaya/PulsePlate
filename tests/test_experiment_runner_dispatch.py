@@ -599,13 +599,42 @@ def test_capability_validator_matches_platform_and_isolation_schema() -> None:
 def test_host_listener_marks_successful_positive_control_ready(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setattr(dispatch, "_discover_host_bind_address", lambda: "127.0.0.1")
     monkeypatch.setattr(
         dispatch.socket, "create_connection", lambda *_args, **_kwargs: nullcontext()
     )
 
-    with dispatch._host_listener() as (port, ready):
+    with dispatch._host_listener() as (address, port, ready):
+        assert address == "127.0.0.1"
         assert port > 0
         assert ready is True
+
+
+def test_host_bind_address_is_exact_non_loopback_ipv4(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(dispatch.socket, "gethostname", lambda: "local-host")
+    monkeypatch.setattr(
+        dispatch.socket,
+        "getaddrinfo",
+        lambda *_args, **_kwargs: [
+            (dispatch.socket.AF_INET, dispatch.socket.SOCK_STREAM, 6, "", ("127.0.0.1", 0)),
+            (
+                dispatch.socket.AF_INET,
+                dispatch.socket.SOCK_STREAM,
+                6,
+                "",
+                ("192.168.100.100", 0),
+            ),
+        ],
+    )
+    monkeypatch.setattr(
+        dispatch,
+        "_address_is_bindable",
+        lambda address: address == "192.168.100.100",
+    )
+
+    assert dispatch._discover_host_bind_address() == "192.168.100.100"
 
 
 def test_probe_cli_requires_immutable_image() -> None:
