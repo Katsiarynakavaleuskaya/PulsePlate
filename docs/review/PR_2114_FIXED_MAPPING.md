@@ -18,6 +18,9 @@ registration, and invalidates only stale input/cache state.
   (local-only, gitignored).
 - Post-open packet: `artifacts/orchestration/task_packets/567173457719.json`
   (local-only, gitignored).
+- Material-head remediation packet:
+  `artifacts/orchestration/task_packets/75743fe96172.json`
+  (local-only, gitignored).
 - Pre-open role order executed: `agent-coordinator -> architecture-specialist ->
   backend-engineer -> security-auditor -> qa-engineer-agent -> bug-hunter`.
 - Final material-head post-open order executed:
@@ -64,7 +67,8 @@ Reason: The second CodeRabbit pass identified four concrete AST bypasses. Commit
 
 Disposition: NOT-A-BUG
 Evidence: Exact-head read-only review at
-`35d94ed441eda9877f2e2f9fb82efd2f61140e1e` confirmed statement-order alias
+`9038d839b44000d14ff9d09c5754f3fb8171f8b6` confirmed exact metadata and
+OpenAPI behavior, complete contract-test selection, statement-order alias
 tracking, safe-reassignment handling, nested-scope isolation, and passing focused
 guard tests.
 Reason: No actionable correctness defect remained on the final material head.
@@ -72,37 +76,44 @@ Reason: No actionable correctness defect remained on the final material head.
 ### Bug Hunter
 
 Disposition: NOT-A-BUG
-Evidence: Exact-head bounded review found no reproducible bypass inside the
-approved metadata/OpenAPI/bootstrap/guard graph after the alias-mutation fix.
+Evidence: Exact-head bounded review at
+`9038d839b44000d14ff9d09c5754f3fb8171f8b6` found no reproducible defect inside
+the approved metadata/OpenAPI/bootstrap/guard graph after the coverage and risk
+routing fixes.
 Reason: No actionable defect remained in the reviewed material diff.
 
 ### Security Auditor
 
 Disposition: NOT-A-BUG
-Evidence: Exact-head defensive review confirmed that the guard rejects aliased
-current-module mutation while preserving safe reassignment and nested shadowing;
-the canonical builder continues to fail closed on stale, foreign, wrong-app, and
-protocol-drift states.
+Evidence: Exact-head defensive review at
+`9038d839b44000d14ff9d09c5754f3fb8171f8b6` confirmed that the guard rejects
+aliased current-module mutation while preserving safe reassignment and nested
+shadowing; the canonical builder continues to fail closed on stale, foreign,
+wrong-app, protocol-drift, invalid route-version, and unserializable-fingerprint
+states.
 Reason: No reportable security defect remained on the final material head.
 
 ### Codex Security
 
 Disposition: NOT-A-BUG
-Evidence: Sealed scan `05929524-682a-4887-9fbd-080a819cc21e` covered the exact
-material range `5b4afe7ac928cf8cb78d7d8536e7429591d3e743...35d94ed441eda9877f2e2f9fb82efd2f61140e1e`,
-completed all 6 worklist rows, and reported 0 findings.
-Reason: No candidate survived the defensive discovery, validation, and attack-path
-reportability gates.
+Evidence: Sealed scan `9ca91e18-e5f5-4b2a-8568-5567c0e76c35` covered the exact
+material range `5b4afe7ac928cf8cb78d7d8536e7429591d3e743...9038d839b44000d14ff9d09c5754f3fb8171f8b6`
+with material-diff SHA-256
+`6cee42110e66010dee62dd4f256b4c5a9db5c5956237b18a14fc58dbcc77906f`,
+completed all 5 deterministic worklist rows, and reported 0 findings.
+Reason: No candidate survived bounded defensive discovery. Validation and
+attack-path phases were correctly skipped because there were no candidates.
 
 ### PulsePlate PR Review
 
-Disposition: FIXED
-Evidence: The review reported only the missing canonical mapping/body mirror and
-the already-approved large-diff scope advisory. This artifact supplies the
-mapping; the PR body mirror is updated in the same governance pass. Focused
-runtime, OpenAPI, guard, MyPy, and repository narrow gates are recorded below.
-Reason: No product correctness or security finding was emitted; the remaining
-gap was required governance evidence.
+Disposition: NOT-A-BUG
+Evidence: The final exact-head dry-run reviewed all 20 changed files and reported
+only the deterministic large-diff advisory. The PR body contains the explicit
+operator-approved scope exception, while the focused OpenAPI, guard, risk-profile,
+coverage, and repository narrow gates below constrain the coherent ownership
+cutover.
+Reason: No product correctness, security, architecture, or governance defect was
+emitted. The advisory records review cost and does not require a code change.
 
 ## Experiment Runner Evidence
 
@@ -117,6 +128,12 @@ Experiment Runner co-author trailer is present in the implementation commit.
 - PASS: `python3 scripts/orchestration/check_preflight.py`.
 - PASS: `python3 scripts/orchestration/check_agent_consistency.py`.
 - PASS: focused metadata/OpenAPI/bootstrap/guard test bundle.
+- PASS: 230-test focused OpenAPI/bootstrap contract bundle on final material
+  head.
+- PASS: CI-parity diff coverage for the four runtime owners: 233/233 lines,
+  100%.
+- PASS: focused CI-risk routing, application metadata, and canonical OpenAPI
+  policy bundle: 107 tests.
 - PASS: full `tests/test_legacy_growth_guard.py` after the final guard fix.
 - PASS: focused MyPy with explicit package bases.
 - PASS: `python3 scripts/ci/check_legacy_growth_guard.py`.
@@ -128,8 +145,11 @@ Experiment Runner co-author trailer is present in the implementation commit.
 - PASS: pre-push MyPy, pip-audit, backend tests, full-repository Bandit, and Docker
   build test.
 - Not run: local full `make verify`, per repository machine-budget policy.
-- PENDING: canonical current-head GitHub CI and strict authenticated merge
-  readiness.
+- PASS on material head: `lint`, `security`, OpenAPI sync, `test-pr (3.13)`,
+  `test-main (3.11)`, `coverage-pr`, and `diff-coverage` in canonical CI run
+  `29285048430`.
+- PENDING at evidence-write time: the remaining current-head `test-main` matrix,
+  final governance-only-head CI, and strict authenticated merge readiness.
 
 ## Security Review
 
@@ -138,8 +158,9 @@ Experiment Runner co-author trailer is present in the implementation commit.
   target-app identity, and protocol version.
 - Early/default and changed-input caches are invalidated; no-op bootstrap preserves
   valid cache identity.
-- Final material diff has one sealed Codex Security scan with 0 findings; no
-  duplicate scan is required for governance-only mapping/body changes.
+- Final material diff has one sealed Codex Security scan with 0 findings and exact
+  base/head/diff binding; no duplicate scan is required for governance-only
+  mapping/body changes.
 
 ## Risks / Rollback
 
