@@ -42,7 +42,7 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
 ```
 
 - Staging deploys accept only two distinct `ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:<digest>` references (backend and Caddy). Floating tags and `latest` are forbidden.
-- `STAGING_ATTESTED_DIGEST_READY=true` may be enabled only after the server-local Compose, Caddyfile, deploy script, root-owned contract marker, and current-commit hashes are synchronized. Merge alone does not update `/srv/pulseplate-staging`.
+- `STAGING_ATTESTED_DIGEST_READY=true` may be enabled only after the server-local Compose, Caddyfile, deploy script, Postgres backup helper, root-owned contract marker, and current-commit hashes are synchronized. The staging `.env` must be a regular non-symlink file with mode `0600`; it is Compose data and must never be shell-sourced by the deploy path. Merge alone does not update `/srv/pulseplate-staging`.
 
 ## Commands (run from repo root)
 - Build images: `make docker-build`, `make docker-build-dev`

@@ -94,8 +94,9 @@ sudo chmod 0644 /srv/pulseplate-staging/.attested-digest-deploy-v1
 ```
 
 The marker is an activation contract, not a substitute for file synchronization.
-CD compares SHA-256 for `deploy.sh`, `docker-compose.staging.yaml`, and `Caddyfile`
-against the current workflow commit before sending the GHCR read token. Set the
+CD compares SHA-256 for `deploy.sh`, `docker-compose.staging.yaml`, `Caddyfile`,
+and `scripts/ops/postgres_backup.sh` against the current workflow commit before
+sending the GHCR read token. Set the
 staging Environment variable `STAGING_ATTESTED_DIGEST_READY=true` only after that
 server-local contract has been installed and reviewed. Once enabled, a marker or
 hash mismatch fails the CD job before registry credentials are transmitted, even
@@ -122,6 +123,7 @@ DEBUG=false
 EOF
 
 sudo chown $USER:$USER /srv/pulseplate-staging/.env
+sudo chmod 0600 /srv/pulseplate-staging/.env
 ```
 
 Staging uses the same Postgres-first deploy contract as production: the compose stack includes an internal-only `postgres` service, deploy backups go through `scripts/ops/postgres_backup.sh`, and readiness must be verified via `/ready` or `/health/db`.
@@ -312,6 +314,9 @@ Evidence: `deploy/Caddyfile.production:25`, `deploy/docker-compose.production.ya
 ```bash
 # On your server
 cd /srv/pulseplate-staging
+STAGING_DOMAIN=staging.yourdomain.com \
+GHCR_USER=<read-only-ghcr-user> \
+GHCR_TOKEN=<read-only-ghcr-token> \
 ./deploy.sh \
   ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:<verified-backend-digest> \
   ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:<verified-caddy-digest>

@@ -263,6 +263,50 @@ EOF
     assert backup_files[0].read_text(encoding="utf-8").strip() == "FAKE_BACKUP"
 
 
+def test_postgres_backup_helper_uses_container_database_identity_when_host_env_is_absent(
+    tmp_path: Path,
+) -> None:
+    project_dir = tmp_path / "project"
+    bin_dir = tmp_path / "bin"
+    backup_dir = tmp_path / "backups"
+    log_file = tmp_path / "docker.log"
+    project_dir.mkdir()
+    bin_dir.mkdir()
+    backup_dir.mkdir()
+
+    docker_stub = f"""#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$*" >> "{log_file}"
+printf 'FAKE_BACKUP\n'
+"""
+    _write_executable(bin_dir / "docker", docker_stub)
+
+    env = os.environ.copy()
+    env.pop("POSTGRES_USER", None)
+    env.pop("POSTGRES_DB", None)
+    env["PATH"] = f"{bin_dir}:{env['PATH']}"
+    env["PROJECT_DIR"] = str(project_dir)
+    env["BACKUP_DIR"] = str(backup_dir)
+    env["COMPOSE_FILE"] = "docker-compose.staging.yaml"
+
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts/ops/postgres_backup.sh")],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+
+    assert "Backup created:" in completed.stdout
+    docker_call = log_file.read_text(encoding="utf-8")
+    assert "exec -T postgres sh -euc" in docker_call
+    assert 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc' in docker_call
+    backup_files = list(backup_dir.glob("pulseplate_*.dump"))
+    assert len(backup_files) == 1
+    assert backup_files[0].read_text(encoding="utf-8").strip() == "FAKE_BACKUP"
+
+
 def test_postgres_restore_helper_passes_project_dir_and_compose_file(tmp_path: Path) -> None:
     project_dir = tmp_path / "project"
     bin_dir = tmp_path / "bin"
@@ -2192,9 +2236,12 @@ def _staging_deploy_fixture(tmp_path: Path) -> tuple[dict[str, str], Path]:
         + "\n",
         encoding="utf-8",
     )
+    (project_dir / ".env").chmod(0o600)
     _write_executable(
         project_dir / "scripts" / "ops" / "postgres_backup.sh",
-        f'#!/usr/bin/env bash\nprintf \'backup %s\\n\' "$*" >> "{log_file}"\n',
+        f"""#!/usr/bin/env bash
+printf 'backup docker=%s args=%s\\n' "${{DOCKER_BIN:-}}" "$*" >> "{log_file}"
+""",
     )
     _write_executable(
         bin_dir / "docker",
@@ -2212,7 +2259,14 @@ esac
     )
     _write_executable(
         bin_dir / "stat",
-        "#!/usr/bin/env bash\nprintf '0:0:644\\n'\n",
+        """#!/usr/bin/env bash
+set -euo pipefail
+case "${*: -1}" in
+  *.attested-digest-deploy-v1) printf '0:0:644\\n' ;;
+  *.env) printf '%s\\n' "${STUB_ENV_MODE:-600}" ;;
+  *) exit 1 ;;
+esac
+""",
     )
     _write_executable(
         bin_dir / "curl",
@@ -2233,6 +2287,9 @@ esac
             "DOCKER_BIN": str(bin_dir / "docker"),
             "CURL_BIN": str(bin_dir / "curl"),
             "STAT_BIN": str(bin_dir / "stat"),
+            "STAGING_DOMAIN": "staging.example.com",
+            "GHCR_USER": "pulseplate-ci",
+            "GHCR_TOKEN": "test-only-token",  # pragma: allowlist secret
             "HEALTH_MAX_ATTEMPTS": "1",
             "HEALTH_SLEEP_S": "0",
         }
@@ -2340,9 +2397,14 @@ def test_staging_deploy_preserves_backup_migration_caddy_order_and_cli_identity(
     backup_index = _assert_log_index(
         log_lines, predicate=lambda line: line.startswith("backup "), message="missing backup"
     )
+    postgres_index = _assert_log_index(
+        log_lines,
+        predicate=lambda line: "compose " in line and " up -d postgres" in line,
+        message="missing Postgres bootstrap",
+    )
     app_index = _assert_log_index(
         log_lines,
-        predicate=lambda line: "compose " in line and " up -d app" in line,
+        predicate=lambda line: "compose " in line and " up -d --pull never app" in line,
         message="missing app start",
     )
     migration_index = _assert_log_index(
@@ -2352,10 +2414,20 @@ def test_staging_deploy_preserves_backup_migration_caddy_order_and_cli_identity(
     )
     caddy_index = _assert_log_index(
         log_lines,
-        predicate=lambda line: "compose " in line and " up -d caddy" in line,
+        predicate=lambda line: "compose " in line and " up -d --pull never caddy" in line,
         message="missing Caddy start",
     )
-    assert login_index < pull_index < backup_index < app_index < migration_index < caddy_index
+    assert (
+        login_index
+        < pull_index
+        < postgres_index
+        < backup_index
+        < app_index
+        < migration_index
+        < caddy_index
+    )
+    assert all("up -d --pull never postgres" not in line for line in log_lines)
+    assert f"backup docker={env['DOCKER_BIN']}" in log_lines[backup_index]
 
     env_lines = [line for line in log_lines if line.startswith("env backend=")]
     assert env_lines
@@ -2364,3 +2436,79 @@ def test_staging_deploy_preserves_backup_migration_caddy_order_and_cli_identity(
     docker_config = env_lines[-1].split(" config=", 1)[1]
     assert docker_config
     assert not Path(docker_config).exists()
+
+
+def test_staging_deploy_treats_env_file_as_data_and_drops_registry_credentials(
+    tmp_path: Path,
+) -> None:
+    env, log_file = _staging_deploy_fixture(tmp_path)
+    project_dir = Path(env["PROJECT_DIR"])
+    command_marker = tmp_path / "env-was-executed"
+    with (project_dir / ".env").open("a", encoding="utf-8") as handle:
+        handle.write("COMPOSE_FILE=/tmp/attacker-compose.yaml\n")
+        handle.write(f'ENV_EXECUTION_PROBE=$(touch "{command_marker}")\n')
+
+    backend_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64
+    caddy_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts" / "deploy.sh"), backend_ref, caddy_ref],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert not command_marker.exists()
+    log_lines = log_file.read_text(encoding="utf-8").splitlines()
+    assert all("/tmp/attacker-compose.yaml" not in line for line in log_lines)
+    logout_index = _assert_log_index(
+        log_lines,
+        predicate=lambda line: line == "docker logout ghcr.io",
+        message="missing registry logout",
+    )
+    backup_index = _assert_log_index(
+        log_lines, predicate=lambda line: line.startswith("backup "), message="missing backup"
+    )
+    assert logout_index < backup_index
+
+
+@pytest.mark.parametrize(
+    "invalid_boundary", ("env-symlink", "env-mode", "helper-symlink", "helper-mode")
+)
+def test_staging_deploy_rejects_invalid_local_control_files_before_docker_side_effects(
+    tmp_path: Path,
+    invalid_boundary: str,
+) -> None:
+    env, log_file = _staging_deploy_fixture(tmp_path)
+    project_dir = Path(env["PROJECT_DIR"])
+    env_file = project_dir / ".env"
+    backup_helper = Path(env["BACKUP_HELPER"])
+
+    if invalid_boundary == "env-symlink":
+        real_env = project_dir / ".env.real"
+        env_file.rename(real_env)
+        env_file.symlink_to(real_env)
+    elif invalid_boundary == "env-mode":
+        env["STUB_ENV_MODE"] = "644"
+    elif invalid_boundary == "helper-symlink":
+        real_helper = backup_helper.with_suffix(".real")
+        backup_helper.rename(real_helper)
+        backup_helper.symlink_to(real_helper)
+    else:
+        backup_helper.chmod(0o600)
+
+    backend_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64
+    caddy_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts" / "deploy.sh"), backend_ref, caddy_ref],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode != 0
+    assert not log_file.exists()

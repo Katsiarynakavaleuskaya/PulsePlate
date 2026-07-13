@@ -151,6 +151,18 @@ def test_cd_builds_attests_scans_and_deploys_both_same_job_digests() -> None:
     assert image_refs_env["BACKEND_DIGEST"] == "${{ steps.build.outputs.digest }}"
     assert image_refs_env["CADDY_DIGEST"] == "${{ steps.build-caddy.outputs.digest }}"
 
+    preflight = _named_step(steps, "Verify remote staging deploy contract")
+    preflight_env = preflight.get("env")
+    preflight_with = preflight.get("with")
+    assert isinstance(preflight_env, dict)
+    assert isinstance(preflight_with, dict)
+    assert preflight_env["STAGING_DOMAIN"] == "${{ secrets.STAGING_DOMAIN }}"
+    assert preflight_with["envs"] == (
+        "STAGING_DOMAIN,STAGING_IMAGE_REF,STAGING_CADDY_IMAGE_REF,"
+        "DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,"
+        "STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256"
+    )
+
     deploy = _named_step(steps, "Deploy to staging over SSH")
     deploy_if = deploy.get("if")
     assert isinstance(deploy_if, str)
@@ -163,7 +175,7 @@ def test_cd_builds_attests_scans_and_deploys_both_same_job_digests() -> None:
     assert deploy_with["envs"] == (
         "GHCR_USER,GHCR_TOKEN,STAGING_DOMAIN,STAGING_IMAGE_REF,"
         "STAGING_CADDY_IMAGE_REF,DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,"
-        "STAGING_CADDYFILE_SHA256"
+        "STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256"
     )
 
     assert build_job["concurrency"]["cancel-in-progress"] is False
@@ -215,14 +227,19 @@ def test_remote_contract_preflight_has_no_registry_secret_and_checks_current_fil
     assert "GHCR_TOKEN" not in str(env)
     assert "GHCR_TOKEN" not in str(with_block)
     assert with_block["envs"] == (
-        "STAGING_IMAGE_REF,STAGING_CADDY_IMAGE_REF,DEPLOY_SCRIPT_SHA256,"
-        "STAGING_COMPOSE_SHA256,STAGING_CADDYFILE_SHA256"
+        "STAGING_DOMAIN,STAGING_IMAGE_REF,STAGING_CADDY_IMAGE_REF,DEPLOY_SCRIPT_SHA256,"
+        "STAGING_COMPOSE_SHA256,STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256"
     )
     script = with_block["script"]
     assert ".attested-digest-deploy-v1" in script
     assert "pulseplate-staging-attested-digest-v1" in script
     assert 'STAGING_DEPLOY_CONTRACT_VERSION="2"' in script
-    for filename in ("deploy.sh", "docker-compose.staging.yaml", "Caddyfile"):
+    for filename in (
+        "deploy.sh",
+        "docker-compose.staging.yaml",
+        "Caddyfile",
+        "scripts/ops/postgres_backup.sh",
+    ):
         assert filename in script
     assert "./deploy.sh --preflight-only" in script
 
@@ -261,8 +278,12 @@ def test_credentialed_deploy_revalidates_the_preflighted_remote_contract() -> No
     assert env["STAGING_CADDYFILE_SHA256"] == (
         "${{ steps.staging-contract.outputs.staging_caddyfile_sha256 }}"
     )
+    assert env["BACKUP_HELPER_SHA256"] == (
+        "${{ steps.staging-contract.outputs.backup_helper_sha256 }}"
+    )
     assert with_block["envs"].endswith(
-        "DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,STAGING_CADDYFILE_SHA256"
+        "DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,STAGING_CADDYFILE_SHA256,"
+        "BACKUP_HELPER_SHA256"
     )
     script = with_block["script"]
     deploy_call = './deploy.sh "$STAGING_IMAGE_REF" "$STAGING_CADDY_IMAGE_REF"'
@@ -272,6 +293,7 @@ def test_credentialed_deploy_revalidates_the_preflighted_remote_contract() -> No
         ("deploy.sh", "DEPLOY_SCRIPT_SHA256"),
         ("docker-compose.staging.yaml", "STAGING_COMPOSE_SHA256"),
         ("Caddyfile", "STAGING_CADDYFILE_SHA256"),
+        ("scripts/ops/postgres_backup.sh", "BACKUP_HELPER_SHA256"),
     ):
         hash_check = f"sha256sum ./{filename}"
         assert hash_check in script

@@ -85,28 +85,25 @@ for required_path in "$ENV_FILE" "$COMPOSE_FILE" "$CADDYFILE"; do
     exit 1
   fi
 done
-if [ ! -x "$BACKUP_HELPER" ]; then
-  echo "❌ Missing Postgres backup helper: $BACKUP_HELPER" >&2
+if [ -L "$ENV_FILE" ] || [ ! -f "$ENV_FILE" ]; then
+  echo "❌ Staging env file must be a regular non-symlink file: $ENV_FILE" >&2
   exit 1
 fi
-
-# Load server-local runtime configuration only after immutable refs and the
-# server contract have passed. CLI refs are re-exported afterward so .env
-# cannot replace the attested deployment identity.
-set -a
-# shellcheck disable=SC1090
-. "$ENV_FILE"
-set +a
+env_file_mode="$($STAT_BIN -c '%a' "$ENV_FILE")"
+if [ "$env_file_mode" != "600" ]; then
+  echo "❌ Staging env file must use mode 0600; got $env_file_mode" >&2
+  exit 1
+fi
+if [ -L "$BACKUP_HELPER" ] || [ ! -f "$BACKUP_HELPER" ] || [ ! -x "$BACKUP_HELPER" ]; then
+  echo "❌ Postgres backup helper must be a regular executable non-symlink file: $BACKUP_HELPER" >&2
+  exit 1
+fi
 
 export STAGING_IMAGE_REF="$BACKEND_IMAGE_REF"
 export STAGING_CADDY_IMAGE_REF="$CADDY_IMAGE_REF"
 export STAGING_ENV_FILE="$ENV_FILE"
 
 STAGING_DOMAIN=${STAGING_DOMAIN:?"STAGING_DOMAIN not set"}
-POSTGRES_USER=${POSTGRES_USER:?"POSTGRES_USER not set"}
-POSTGRES_DB=${POSTGRES_DB:?"POSTGRES_DB not set"}
-POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?"POSTGRES_PASSWORD not set"}
-DATABASE_URL=${DATABASE_URL:?"DATABASE_URL not set"}
 
 DOCKER_BIN="${DOCKER_BIN:-}"
 if [ -z "$DOCKER_BIN" ]; then
@@ -164,6 +161,10 @@ printf '%s' "$GHCR_TOKEN" | "$DOCKER_BIN" login ghcr.io -u "$GHCR_USER" --passwo
 
 echo "[2/5] Pull exact backend and Caddy digests"
 "${COMPOSE[@]}" pull app caddy
+"$DOCKER_BIN" logout ghcr.io >/dev/null
+rm -rf -- "$DOCKER_CONFIG"
+mkdir -m 700 -- "$DOCKER_CONFIG"
+unset GHCR_TOKEN GHCR_USER
 
 echo "[3/5] Start Postgres and create a pre-migration backup"
 "${COMPOSE[@]}" up -d postgres
@@ -193,11 +194,12 @@ if [ "$wait_count" -eq "$max_wait" ]; then
 fi
 
 echo "Creating Postgres backup before migrations..."
-PROJECT_DIR="$PROJECT_DIR" BACKUP_DIR="$BACKUP_DIR" COMPOSE_FILE="$COMPOSE_FILE" \
-  POSTGRES_USER="$POSTGRES_USER" POSTGRES_DB="$POSTGRES_DB" "$BACKUP_HELPER"
+DOCKER_BIN="$DOCKER_BIN" PROJECT_DIR="$PROJECT_DIR" BACKUP_DIR="$BACKUP_DIR" \
+  COMPOSE_FILE="$COMPOSE_FILE" \
+  "$BACKUP_HELPER"
 
 echo "[4/5] Start app and run migrations before exposing Caddy"
-"${COMPOSE[@]}" up -d app
+"${COMPOSE[@]}" up -d --pull never app
 
 max_wait=30
 wait_count=0
@@ -232,7 +234,7 @@ else
 fi
 
 echo "[5/5] Start Caddy after successful migrations"
-"${COMPOSE[@]}" up -d caddy
+"${COMPOSE[@]}" up -d --pull never caddy
 
 DOMAIN="$STAGING_DOMAIN"
 HEALTH_URL="https://${DOMAIN}/ready"
