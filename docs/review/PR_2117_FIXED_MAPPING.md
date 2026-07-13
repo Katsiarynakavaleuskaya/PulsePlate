@@ -92,7 +92,20 @@ before PR open.
 
 ## Post-open Role Pass Evidence
 
-Pending the mandatory ordered post-open chain.
+### QA Engineer Agent
+
+Disposition: FIXED
+Commit: 1902cc5c7
+Evidence: `.github/workflows/cd.yml` groups all contract-hash outputs under one
+redirect, satisfying Actionlint/ShellCheck SC2129; the canonical mapping uses
+the parser-safe no-actionables marker; the PR body now carries trusted-label
+backed operator and privileged-scope approvals and accurately describes the
+inherited optional-deploy `continue-on-error` policy.
+Reason: The post-open QA pass found no further runtime/deploy-contract defect;
+all three P1 gate findings and the P2 wording inconsistency were corrected
+before the next role pass.
+
+The remaining mandatory post-open roles are pending.
 
 ## Experiment Runner Evidence
 
