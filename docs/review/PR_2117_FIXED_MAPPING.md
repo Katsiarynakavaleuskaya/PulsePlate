@@ -116,7 +116,20 @@ test enforces this ordering and identity binding.
 Reason: The second SSH session can no longer consume changed server-local files
 after only relying on the earlier credential-free preflight result.
 
-The remaining mandatory post-open roles are pending.
+### Security Auditor
+
+Disposition: FIXED
+Commit: bed97b521
+Evidence: An unconditional policy step makes `STAGING_DEPLOY_REQUIRED=true`
+fail unless all three rollout gates are explicitly true, and the staging
+healthcheck receives `STAGING_DOMAIN` through a step environment variable
+rather than embedding a secret expression in shell source. Focused tests and
+Actionlint pass.
+Reason: Required deployment can no longer silently skip behind a disabled gate,
+and the healthcheck no longer creates a secret-to-shell-source injection seam.
+
+The remaining mandatory Codex Security and PulsePlate PR review passes are
+pending.
 
 ## Experiment Runner Evidence
 
