@@ -3677,7 +3677,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Status: In progress
-  - Target PR: PR-D1 (`codex/caddy-2-11-attested-digests`)
+  - Target PR: PR #2117 (`codex/caddy-2-11-attested-digests`)
   - Area: deploy / CD / container supply chain
   - Finding Type: release integrity and vulnerability remediation
   - Reason: Active staging accepts floating Caddy/application tags while CD verifies one
