@@ -1,4 +1,6 @@
 source "https://rubygems.org"
 
+# Ruby 3.4 compatibility: keep xcodeproj's CFPropertyList < 4 graph on 3.0.8.
+gem "CFPropertyList", "= 3.0.8"
 gem "fastlane", "= 2.237.0"
 gem "public_suffix", "< 7"
