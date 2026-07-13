@@ -68,7 +68,7 @@ Reason: The reviewer inspected a GitHub synthetic merge commit; the public PR br
 
 Disposition: FIXED
 Commit: 4677103c9a2f825508b6531e26e2fd82984dba0f
-Evidence: `docs/review/PR_2115_FIXED_MAPPING.md:114-119`
+Evidence: `docs/review/PR_2115_FIXED_MAPPING.md:124-131`
 Reason: Security Review now records the completed security-auditor and sealed diff-scan closure consistently with the checked role-chain status.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2115#discussion_r3571109952 -> 4677103c9a2f825508b6531e26e2fd82984dba0f
 
@@ -91,6 +91,18 @@ Disposition: NOT-A-BUG
 Evidence: GitHub PR #2115 reports public `headRefOid=474cde8926581c829517f537ecb986bec31e400b`; every commit in `origin/main..474cde8926581c829517f537ecb986bec31e400b`, including that head, contains `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
 Reason: The reviewed `5a03d460...` object is GitHub's synthetic merge commit and is not the public branch head governed by the attribution contract; the required public attribution is present throughout the branch history.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2115#discussion_r3571484042
+
+Disposition: FIXED
+Commit: b16879c45e584d91b4f0799cc210784bf9c237a6
+Evidence: `docs/review/PR_2115_FIXED_MAPPING.md:114-122`
+Reason: Validation Evidence now records terminal current-head CI and strict authenticated merge readiness consistently with the completed Discussion Thread Pass.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2115#discussion_r3571762472 -> b16879c45e584d91b4f0799cc210784bf9c237a6
+
+Disposition: FIXED
+Commit: b16879c45e584d91b4f0799cc210784bf9c237a6
+Evidence: `docs/review/PR_2115_FIXED_MAPPING.md:124-131`
+Reason: The security-auditor disposition now points to the actual Security Review closure instead of the Experiment Runner section.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2115#discussion_r3571762480 -> b16879c45e584d91b4f0799cc210784bf9c237a6
 
 ## Experiment Runner Evidence
 
