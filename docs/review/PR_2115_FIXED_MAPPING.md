@@ -68,7 +68,7 @@ Reason: The reviewer inspected a GitHub synthetic merge commit; the public PR br
 
 Disposition: FIXED
 Commit: 4677103c9a2f825508b6531e26e2fd82984dba0f
-Evidence: `docs/review/PR_2115_FIXED_MAPPING.md:97-100`
+Evidence: `docs/review/PR_2115_FIXED_MAPPING.md:114-119`
 Reason: Security Review now records the completed security-auditor and sealed diff-scan closure consistently with the checked role-chain status.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2115#discussion_r3571109952 -> 4677103c9a2f825508b6531e26e2fd82984dba0f
 
@@ -107,7 +107,7 @@ tests passing, no shared-tree mutation, and contribution kind `oracle_review`.
 - PASS: `make validate-changed`.
 - PASS: `pre-commit run --all-files`.
 - PASS: pre-push pip-audit, focused backend tests, and full-repo Bandit.
-- PENDING: canonical current-head GitHub CI and strict merge readiness.
+- PASS: canonical current-head GitHub CI and strict authenticated merge readiness.
 
 ## Security Review
 
