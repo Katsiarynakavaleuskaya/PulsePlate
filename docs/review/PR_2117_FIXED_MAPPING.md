@@ -105,6 +105,17 @@ Reason: The post-open QA pass found no further runtime/deploy-contract defect;
 all three P1 gate findings and the P2 wording inconsistency were corrected
 before the next role pass.
 
+### Bug Hunter
+
+Disposition: FIXED
+Commit: 312877b8e
+Evidence: The credentialed deploy SSH step receives the three expected hashes,
+revalidates the root-owned marker, contract version, deploy script, Compose,
+and Caddyfile immediately before invoking `deploy.sh`, and a focused regression
+test enforces this ordering and identity binding.
+Reason: The second SSH session can no longer consume changed server-local files
+after only relying on the earlier credential-free preflight result.
+
 The remaining mandatory post-open roles are pending.
 
 ## Experiment Runner Evidence
