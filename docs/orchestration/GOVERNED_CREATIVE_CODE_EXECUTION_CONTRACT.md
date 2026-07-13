@@ -118,11 +118,14 @@ bytes and source-binding fingerprint. Because context-pack size and token
 estimates are metadata-only and are derived from repository file sizes, resume
 may compare those historical estimate fields through a closed compatibility
 projection. The retained estimate arithmetic and derived IDs must still be
-self-consistent, while required paths, path fingerprints, graph topology,
-routing metadata, policy, authority, reason codes, and every non-estimate field
-remain exact. Newly emitted exact prepare artifacts remain current-version and
-fully exact; this compatibility rule does not widen runtime, provider, cache,
-serving, repository-write, or promotion authority.
+self-consistent and the historical baseline must remain bounded by the selected
+context-reference estimates. Stable comparison is JSON-type-sensitive, so
+boolean/integer or other scalar type substitution is not equality. Required
+paths, path fingerprints, graph topology, routing metadata, policy, authority,
+reason codes, and every non-estimate field remain exact. Newly emitted exact
+prepare artifacts remain current-version and fully exact; this compatibility
+rule does not widen runtime, provider, cache, serving, repository-write, or
+promotion authority.
 Before fingerprinting or publication, resume also reconstructs the retained
 context → packet → workspace → synthesis → approval → bridge → candidate
 lineage, recomputes the deterministic approval and terminal handoff, and

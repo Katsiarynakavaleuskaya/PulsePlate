@@ -6,6 +6,7 @@ import json
 import os
 import re
 import shutil
+from typing import Any
 import uuid
 from pathlib import Path
 
@@ -659,6 +660,37 @@ def _historical_default_prepare_artifacts(
         return creative_code_spec_pipeline.build_default_prepare_artifacts(packet)
 
 
+def _rebind_historical_context_pack_ids(
+    context_pack: dict[str, Any], packet: dict[str, object]
+) -> None:
+    """Recompute both historical IDs after one coherent tamper operation."""
+
+    estimate = context_pack["estimate"]
+    estimate_identity_payload = {
+        key: estimate[key] for key in sorted(set(estimate) - {"estimate_id"})
+    }
+    estimate["estimate_id"] = f"ctx-estimate:{fingerprint_payload(estimate_identity_payload)[7:31]}"
+    normalized_packet = creative_code_spec_pipeline.validate_source_candidate_packet(packet)
+    pack_identity_payload = {
+        "authority_boundary": context_pack["authority_boundary"],
+        "candidate_paths": sorted(set(normalized_packet["target_surface"])),
+        "cluster": "ops",
+        "domain": "orchestration",
+        "estimate": dict(estimate),
+        "graph_edges": context_pack["graph_edges"],
+        "graph_nodes": sorted(context_pack["graph_nodes"], key=lambda row: row["path"]),
+        "policy_version": context_pack["policy_version"],
+        "pr_phase": "PR-1",
+        "primary_agent": "agent-coordinator",
+        "reason_codes": context_pack["reason_codes"],
+        "requested_agents": sorted(set(creative_code_spec_pipeline._CONTEXT_PACK_REQUESTED_AGENTS)),
+        "required_context": context_pack["required_context"],
+        "reviewer": "architecture-specialist",
+        "secondary_agents": sorted(set(creative_code_spec_pipeline._CONTEXT_PACK_SECONDARY_AGENTS)),
+    }
+    context_pack["context_pack_id"] = f"ctx-pack:{fingerprint_payload(pack_identity_payload)[7:31]}"
+
+
 def test_retained_prepare_accepts_only_self_consistent_estimate_drift(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -688,6 +720,7 @@ def test_retained_prepare_accepts_only_self_consistent_estimate_drift(
         "path_fingerprint",
         "graph_edge",
         "routing_metadata",
+        "metadata_boolean_type",
         "estimate_algorithm",
         "fanout",
         "reason_codes",
@@ -710,6 +743,8 @@ def test_retained_prepare_rejects_stable_context_pack_drift(
         context_pack["graph_edges"][0]["target"] = context_pack["graph_edges"][0]["source"]
     elif tamper_case == "routing_metadata":
         context_pack["metadata"]["requested_agent_count"] += 1
+    elif tamper_case == "metadata_boolean_type":
+        context_pack["metadata"]["graph_limit_truncated"] = 0
     elif tamper_case == "estimate_algorithm":
         context_pack["estimate"]["token_estimate_version"] = "other-algorithm-v1"
     elif tamper_case == "fanout":
@@ -718,6 +753,34 @@ def test_retained_prepare_rejects_stable_context_pack_drift(
         context_pack["reason_codes"].append("unreviewed_reason")
 
     with pytest.raises(CreativeCodeSpecPipelineError, match="adaptive_source_lineage_mismatch"):
+        creative_code_spec_pipeline.validate_default_prepare_artifact_snapshots(
+            snapshots,
+            expected_packet=packet,
+        )
+
+
+def test_retained_prepare_rejects_coherently_rebound_baseline_inflation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    packet = _packet()
+    snapshots = _historical_default_prepare_artifacts(monkeypatch, packet)
+    context_pack = snapshots["context_pack.json"]
+    estimate = context_pack["estimate"]
+    inflated_chars = estimate["baseline_context_chars_estimate"] + 4_000
+    inflated_tokens = (inflated_chars + 3) // 4
+    estimate["baseline_context_chars_estimate"] = inflated_chars
+    estimate["baseline_context_tokens_estimate"] = inflated_tokens
+    tokens_saved = max(0, inflated_tokens - estimate["candidate_context_tokens_estimate"])
+    estimate["tokens_saved_estimate"] = tokens_saved
+    estimate["fanout_tokens_saved_estimate"] = (
+        tokens_saved * estimate["orchestration_fanout_multiplier"]
+    )
+    _rebind_historical_context_pack_ids(context_pack, packet)
+
+    with pytest.raises(
+        CreativeCodeSpecPipelineError,
+        match="baseline estimate is not bound to selected context refs",
+    ):
         creative_code_spec_pipeline.validate_default_prepare_artifact_snapshots(
             snapshots,
             expected_packet=packet,

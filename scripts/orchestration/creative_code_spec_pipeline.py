@@ -444,6 +444,14 @@ def _historical_token_estimate(char_count: int) -> int:
     return 0 if char_count == 0 else max(1, (char_count + 3) // 4)
 
 
+def _historical_char_bounds(token_estimate: int) -> tuple[int, int]:
+    """Return the exact char-count range that can produce one token estimate."""
+
+    if token_estimate == 0:
+        return (0, 0)
+    return (4 * token_estimate - 3, 4 * token_estimate)
+
+
 def _canonical_context_pack_json(value: Mapping[str, Any]) -> str:
     return json.dumps(value, ensure_ascii=True, separators=(",", ":"), sort_keys=True)
 
@@ -488,6 +496,8 @@ def _validate_historical_context_pack(
         _require_closed_context_pack_mapping(
             raw_edge, keys=_CONTEXT_PACK_EDGE_KEYS, label=f"graph_edges[{index}]"
         )
+    selected_chars_minimum = 0
+    selected_chars_maximum = 0
     for collection_name, refs in (
         ("selected_context_refs", selected_refs),
         ("omitted_duplicate_refs", omitted_refs),
@@ -498,9 +508,13 @@ def _validate_historical_context_pack(
                 keys=_CONTEXT_PACK_REF_KEYS,
                 label=f"{collection_name}[{index}]",
             )
-            _require_historical_non_negative_int(
+            ref_token_estimate = _require_historical_non_negative_int(
                 ref["token_estimate"], label=f"{collection_name}[{index}].token_estimate"
             )
+            if collection_name == "selected_context_refs":
+                lower_bound, upper_bound = _historical_char_bounds(ref_token_estimate)
+                selected_chars_minimum += lower_bound
+                selected_chars_maximum += upper_bound
             node_id = ref["node_id"]
             if node_id is None:
                 continue
@@ -532,6 +546,15 @@ def _validate_historical_context_pack(
     ):
         raise CreativeCodeSpecPipelineError(
             "adaptive_source_lineage_mismatch: retained context_pack.json baseline estimate drifted"
+        )
+    if not (
+        selected_chars_minimum
+        <= numeric["baseline_context_chars_estimate"]
+        <= selected_chars_maximum
+    ):
+        raise CreativeCodeSpecPipelineError(
+            "adaptive_source_lineage_mismatch: retained context_pack.json "
+            "baseline estimate is not bound to selected context refs"
         )
     candidate_metadata_payload = {
         "authority_boundary": pack["authority_boundary"],
@@ -659,9 +682,13 @@ def validate_default_prepare_artifact_snapshots(
             retained_context_pack = _validate_historical_context_pack(
                 retained_payload, expected_packet=expected_packet
             )
-            if _context_pack_stable_projection(
-                retained_context_pack
-            ) != _context_pack_stable_projection(expected_payload):
+            retained_projection = _canonical_context_pack_json(
+                _context_pack_stable_projection(retained_context_pack)
+            )
+            expected_projection = _canonical_context_pack_json(
+                _context_pack_stable_projection(expected_payload)
+            )
+            if retained_projection != expected_projection:
                 raise CreativeCodeSpecPipelineError(
                     "adaptive_source_lineage_mismatch: retained context_pack.json "
                     "stable lineage is not canonical"
