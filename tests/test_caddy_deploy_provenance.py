@@ -315,35 +315,57 @@ def test_staging_deploy_script_embeds_marker_and_two_digest_contract() -> None:
 
 def test_frontend_caddy_contract_is_non_publishing_and_unprivileged() -> None:
     workflow = _workflow(FRONTEND_WORKFLOW)
+    changes_steps = _steps(_job(workflow, "changes"))
     job = _job(workflow, "caddy-contract")
     assert job["permissions"] == {"contents": "read"}
     assert "environment" not in job
     steps = _steps(job)
     text = str(steps)
+    changes_checkout = _named_step(changes_steps, "Checkout code")
+    contract_checkout = _named_step(steps, "Checkout code")
+    assert changes_checkout["with"]["persist-credentials"] is False
+    assert contract_checkout["with"]["persist-credentials"] is False
     assert "docker/login-action" not in text
     assert "appleboy/ssh-action" not in text
     assert "push: true" not in text
     assert "caddy version" in text
     assert "caddy build-info" in text
     assert "caddy validate" in text
+    assert "official_caddy_ref=" in text
+    assert "^FROM caddy:" in text
     assert "--cap-drop ALL --cap-add NET_BIND_SERVICE" in text
     assert "aquasecurity/trivy-action@" in text
 
+    dockerfile = DOCKERFILE.read_text(encoding="utf-8")
+    assert "set -o pipefail" in dockerfile
+
 
 def test_active_caddyfiles_keep_proxy_order_and_security_headers() -> None:
-    production = (REPO_ROOT / "deploy" / "Caddyfile.production").read_text(encoding="utf-8")
-    staging = (REPO_ROOT / "deploy" / "Caddyfile").read_text(encoding="utf-8")
+    def active_lines(path: Path) -> list[str]:
+        return [
+            line.strip()
+            for line in path.read_text(encoding="utf-8").splitlines()
+            if line.strip() and not line.lstrip().startswith("#")
+        ]
 
-    assert production.index("handle @legacy_post") < production.index("handle @api")
-    assert production.index("handle @api") < production.index("    handle {")
-    for header in (
-        "Strict-Transport-Security",
-        "X-Content-Type-Options",
-        "X-Frame-Options",
-        "Referrer-Policy",
-        "Permissions-Policy",
+    production = active_lines(REPO_ROOT / "deploy" / "Caddyfile.production")
+    staging = active_lines(REPO_ROOT / "deploy" / "Caddyfile")
+
+    assert production.index("handle @legacy_post {") < production.index("handle @api {")
+    assert production.index("handle @api {") < production.index("handle {")
+    for directive in (
+        'Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"',
+        'X-Content-Type-Options "nosniff"',
+        'X-Frame-Options "DENY"',
+        'Referrer-Policy "strict-origin-when-cross-origin"',
+        'Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=(), ambient-light-sensor=(), autoplay=(), encrypted-media=(), fullscreen=(self), picture-in-picture=()"',
     ):
-        assert header in production
-    for header in ("X-Content-Type-Options", "X-Frame-Options", "Referrer-Policy"):
-        assert header in staging
+        assert directive in production
+    for directive in (
+        'X-Content-Type-Options "nosniff"',
+        'X-Frame-Options "DENY"',
+        'Referrer-Policy "no-referrer"',
+        "Content-Security-Policy \"default-src 'self'; frame-ancestors 'none'; object-src 'none'\"",
+    ):
+        assert directive in staging
     assert "reverse_proxy app:8000" in staging

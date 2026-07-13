@@ -314,12 +314,15 @@ Evidence: `deploy/Caddyfile.production:25`, `deploy/docker-compose.production.ya
 ```bash
 # On your server
 cd /srv/pulseplate-staging
+read -rsp "GHCR read token: " GHCR_TOKEN
+printf '\n'
 STAGING_DOMAIN=staging.yourdomain.com \
 GHCR_USER=<read-only-ghcr-user> \
-GHCR_TOKEN=<read-only-ghcr-token> \
+GHCR_TOKEN="$GHCR_TOKEN" \
 ./deploy.sh \
   ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:<verified-backend-digest> \
   ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:<verified-caddy-digest>
+unset GHCR_TOKEN
 ```
 
 Use digests from the same successful CD attestation run. Tags, commit SHAs,

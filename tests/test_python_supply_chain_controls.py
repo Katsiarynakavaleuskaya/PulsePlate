@@ -2252,13 +2252,20 @@ def test_push_to_registry_workflows_restore_signed_attestations_on_publish_lanes
         assert "pp_py_index=PULSEPLATE_PYTHON_INDEX_URL" in step["with"]["secret-envs"]
         assert "pp_py_host=PULSEPLATE_PYTHON_TRUSTED_HOST" in step["with"]["secret-envs"]
 
-    for provenance_step in (staging_provenance_step, production_provenance_step):
+    for provenance_step in (
+        staging_provenance_step,
+        staging_caddy_provenance_step,
+        production_provenance_step,
+    ):
         assert provenance_step["uses"].startswith(
             "actions/attest-build-provenance@b3e506e8c389afc651c5bacf2b8f2a1ea0557215"
         )
         assert provenance_step["with"]["push-to-registry"] is True
-        assert provenance_step["with"]["subject-digest"] == "${{ steps.build.outputs.digest }}"
 
+    assert staging_provenance_step["with"]["subject-digest"] == "${{ steps.build.outputs.digest }}"
+    assert (
+        production_provenance_step["with"]["subject-digest"] == "${{ steps.build.outputs.digest }}"
+    )
     assert staging_caddy_provenance_step["with"]["subject-digest"] == (
         "${{ steps.build-caddy.outputs.digest }}"
     )
@@ -2310,6 +2317,14 @@ def test_push_to_registry_workflows_restore_signed_attestations_on_publish_lanes
     assert "docker-provenance-attestation-check.json" in production_verify_step["run"]
     assert "docker-provenance-attestation-check.md" in production_verify_step["run"]
     assert "steps.build-caddy.outcome == 'success'" in staging_caddy_verify_step["if"]
+    assert (
+        "steps.attest-staged-caddy-provenance.outcome == 'success'"
+        in staging_caddy_verify_step["if"]
+    )
+    assert (
+        "steps.generate-staged-caddy-sbom.outcome == 'success'" in staging_caddy_verify_step["if"]
+    )
+    assert "steps.attest-staged-caddy-sbom.outcome == 'success'" in staging_caddy_verify_step["if"]
     assert "caddy-provenance-attestation-check.json" in staging_caddy_verify_step["run"]
     assert "caddy-provenance-attestation-check.md" in staging_caddy_verify_step["run"]
 

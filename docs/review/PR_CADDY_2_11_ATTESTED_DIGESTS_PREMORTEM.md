@@ -22,8 +22,11 @@ The server still contains an older Compose file or deploy script after merge.
 The new workflow sends two digest references, but the old server-local script
 accepts a tag or ignores the Caddy reference. The early warning is a contract
 hash mismatch. Containment is to keep `STAGING_ATTESTED_DIGEST_READY=false`,
-synchronize the three server files, create the reviewed root-owned marker, and
-rerun only after the no-secret remote preflight passes.
+synchronize the server-local Compose file, Caddyfile, deploy script, and
+Postgres backup helper; create the reviewed root-owned contract marker; and
+verify every file against the current commit's SHA-256 hashes. All listed
+artifacts must be synchronized before readiness and the no-secret remote
+preflight can pass.
 
 Disposition: **FIXED** by the default-false rollout gate, root-owned marker,
 current-commit SHA-256 checks, `STAGING_DEPLOY_CONTRACT_VERSION="2"`, and

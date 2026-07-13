@@ -43,6 +43,7 @@ LABEL org.opencontainers.image.title="PulsePlate Caddy SPA shell" \
 # Package versions and build metadata are intentionally excluded from parity.
 COPY --from=caddy-build --chmod=0755 /go/bin/caddy /usr/bin/caddy.pulseplate
 RUN set -eux; \
+    set -o pipefail; \
     caddy list-modules --packages | awk 'NF && $1 != "Standard" { print $1 }' | LC_ALL=C sort > /tmp/caddy-official-modules; \
     /usr/bin/caddy.pulseplate list-modules --packages | awk 'NF && $1 != "Standard" { print $1 }' | LC_ALL=C sort > /tmp/caddy-rebuilt-modules; \
     diff -u /tmp/caddy-official-modules /tmp/caddy-rebuilt-modules; \
