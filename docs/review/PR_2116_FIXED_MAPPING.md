@@ -94,28 +94,28 @@ Reason: This dispatcher is a repo-local operator CLI, not an installed productio
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2116#discussion_r3573784622
 
 Disposition: FIXED
-Commit: c5cd8d870a31cc704e1a01931fb6d13f952b2bee
+Commit: c5cd8d870a31e3ab8834a14e7c192540b9956188
 Evidence: `_create_result_volume` now creates Docker's named handoff as a local-driver tmpfs with `size=2m,mode=0700`; `test_docker_volume_is_bounded_tmpfs` binds the quota to `MAX_RESULT_BYTES` and asserts the exact bounded argv.
 Reason: Untrusted candidate output can no longer grow the Docker handoff beyond the collector's configured maximum before validation.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2116#discussion_r3573784626 -> c5cd8d870a31cc704e1a01931fb6d13f952b2bee
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2116#discussion_r3573784626 -> c5cd8d870a31e3ab8834a14e7c192540b9956188
 
 Disposition: FIXED
-Commit: c5cd8d870a31cc704e1a01931fb6d13f952b2bee
+Commit: c5cd8d870a31e3ab8834a14e7c192540b9956188
 Evidence: `_sanitize_result` now runs the strict result-v1 validator before iterating `oracle_results`, converts invalid shapes to stable `result_validation_failed`, and `test_sanitize_result_rejects_malformed_oracle_before_transform` covers a null oracle entry.
 Reason: Malformed untrusted output now produces a structured failure path instead of an uncaught `TypeError`.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2116#discussion_r3573784628 -> c5cd8d870a31cc704e1a01931fb6d13f952b2bee
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2116#discussion_r3573784628 -> c5cd8d870a31e3ab8834a14e7c192540b9956188
 
 Disposition: FIXED
-Commit: c5cd8d870a31cc704e1a01931fb6d13f952b2bee
+Commit: c5cd8d870a31e3ab8834a14e7c192540b9956188
 Evidence: `_invoke_container_runner` raises `PreRunCapabilityError("runtime_cli_missing")` when the already-selected runtime disappears, and `test_missing_runtime_after_probe_is_pre_run_capability_drift` covers the classification.
 Reason: Runtime disappearance before candidate execution is deterministic capability drift and does not consume retry budget as `infra_flake`.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2116#discussion_r3573784645 -> c5cd8d870a31cc704e1a01931fb6d13f952b2bee
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2116#discussion_r3573784645 -> c5cd8d870a31e3ab8834a14e7c192540b9956188
 
 Disposition: FIXED
-Commit: c5cd8d870a31cc704e1a01931fb6d13f952b2bee
+Commit: c5cd8d870a31e3ab8834a14e7c192540b9956188
 Evidence: All three valid findings in the grouped review are fixed and tested above; the direct-script bootstrap finding is dispositioned separately with repo-native evidence.
 Reason: The grouped CodeRabbit review is fully accounted for by the four thread-level dispositions.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2116#pullrequestreview-4688335453 -> c5cd8d870a31cc704e1a01931fb6d13f952b2bee
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2116#pullrequestreview-4688335453 -> c5cd8d870a31e3ab8834a14e7c192540b9956188
 
 ## Experiment Runner Evidence
 
