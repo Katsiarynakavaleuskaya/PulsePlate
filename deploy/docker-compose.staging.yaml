@@ -5,8 +5,6 @@
 # deploy-enablement work tracked in
 # `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-remove-staging-tls-fallback-seam-after-full-staging-readiness`
 # is still open.
-version: "3.9"
-
 networks:
   web:
     external: false
@@ -15,7 +13,7 @@ services:
   postgres:
     image: postgres:15-alpine
     env_file:
-      - /srv/pulseplate-staging/.env
+      - ${STAGING_ENV_FILE:-/srv/pulseplate-staging/.env}
     restart: always
     networks: [web]
     environment:
@@ -31,9 +29,9 @@ services:
       retries: 10
 
   app:
-    image: ghcr.io/katsiarynakavaleuskaya/pulseplate:${TAG:-latest}
+    image: ${STAGING_IMAGE_REF:?STAGING_IMAGE_REF is required}
     env_file:
-      - /srv/pulseplate-staging/.env   # секреты бекенда (не в гите)
+      - ${STAGING_ENV_FILE:-/srv/pulseplate-staging/.env}   # server-local secrets
     restart: always
     networks: [web]
     expose:
@@ -63,7 +61,7 @@ services:
       start_period: 40s
 
   caddy:
-    image: caddy:2
+    image: ${STAGING_CADDY_IMAGE_REF:?STAGING_CADDY_IMAGE_REF is required}
     restart: always
     networks: [web]
     ports:

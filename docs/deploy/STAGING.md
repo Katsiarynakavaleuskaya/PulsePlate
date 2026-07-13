@@ -2,7 +2,10 @@
 
 ## 💰 Budget-Friendly VPS Options
 
-**Last updated: 2025-01-27** - *Maintainers: Update this date when pricing or provider information changes*
+**Last updated: 2026-07-13** - *Maintainers: Update this date when deployment requirements change*
+
+> Current CD artifacts are `linux/amd64` only. Do not select an ARM staging host
+> until the CD workflow explicitly restores and validates multi-platform builds.
 
 ### Recommended Providers (Cheapest First)
 
@@ -29,8 +32,8 @@
 ### Free Options (Limited)
 
 1. **Oracle Cloud Always Free** - 0€/month
-   - 1/8 OCPU, 1GB RAM (ARM)
    - 1/8 OCPU, 1GB RAM (x86)
+   - ARM shapes are not compatible with the current staging artifact
    - Requires credit card verification
    - [oracle.com/cloud/free](https://www.oracle.com/cloud/free/)
 
@@ -82,7 +85,21 @@ sudo cp scripts/ops/postgres_restore.sh /srv/pulseplate-staging/scripts/ops/
 sudo chmod +x /srv/pulseplate-staging/deploy.sh
 sudo chmod +x /srv/pulseplate-staging/scripts/ops/postgres_backup.sh
 sudo chmod +x /srv/pulseplate-staging/scripts/ops/postgres_restore.sh
+
+# Create this marker only after copying all files from the same merged commit.
+printf '%s' 'pulseplate-staging-attested-digest-v1' | \
+  sudo tee /srv/pulseplate-staging/.attested-digest-deploy-v1 >/dev/null
+sudo chown root:root /srv/pulseplate-staging/.attested-digest-deploy-v1
+sudo chmod 0644 /srv/pulseplate-staging/.attested-digest-deploy-v1
 ```
+
+The marker is an activation contract, not a substitute for file synchronization.
+CD compares SHA-256 for `deploy.sh`, `docker-compose.staging.yaml`, and `Caddyfile`
+against the current workflow commit before sending the GHCR read token. Set the
+staging Environment variable `STAGING_ATTESTED_DIGEST_READY=true` only after that
+server-local contract has been installed and reviewed. Once enabled, a marker or
+hash mismatch fails the CD job before registry credentials are transmitted, even
+when the later SSH deployment remains optional.
 
 ### 4. Configure Environment
 
@@ -274,7 +291,8 @@ running app container.
 Evidence: `deploy/Caddyfile.production:25`, `deploy/docker-compose.production.yaml:46`
 
 - This fallback is transport-level only (TLS + reverse proxy) and does not replace a real staging deploy.
-- Once full staging deploy is enabled (`WEB_IOS_RELEASE_READY=true` + staging secrets), verify
+- Once full staging deploy is enabled (`WEB_IOS_RELEASE_READY=true`,
+  `STAGING_DEPLOY_ENABLED=true`, `STAGING_ATTESTED_DIGEST_READY=true` + staging secrets), verify
   `/srv/pulseplate-staging` compose stack is active and remove fallback dependency from ops checks.
 - Temporary seam tracking:
   - ADR: `docs/architecture/ADR_STAGING_TLS_FALLBACK_SEAM_2026-03-04.md`
@@ -294,8 +312,15 @@ Evidence: `deploy/Caddyfile.production:25`, `deploy/docker-compose.production.ya
 ```bash
 # On your server
 cd /srv/pulseplate-staging
-./deploy.sh latest
+./deploy.sh \
+  ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:<verified-backend-digest> \
+  ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:<verified-caddy-digest>
 ```
+
+Use digests from the same successful CD attestation run. Tags, commit SHAs,
+`staging-latest`, and `latest` are rejected. Image rollback reuses previously
+verified exact digests; it does not reverse Alembic migrations. Restoring a
+pre-migration database backup is a separate human-approved operation.
 
 ### Automatic Test
 
@@ -346,7 +371,7 @@ free -h
 
 ## 💡 Cost Optimization Tips
 
-1. **Use ARM instances** - Often 20-30% cheaper
+1. **Use right-sized x86_64 instances** - Current staging artifacts are amd64-only
 2. **Enable auto-shutdown** - Stop server when not in use
 3. **Monitor usage** - Set up billing alerts
 4. **Use spot instances** - Up to 90% cheaper (with risk of termination)

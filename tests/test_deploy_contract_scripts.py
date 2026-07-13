@@ -2158,3 +2158,209 @@ exit 0
 
     assert completed.returncode == 1
     assert "❌ diagnose_web.sh reported a routing mismatch" in completed.stdout
+
+
+def _staging_deploy_fixture(tmp_path: Path) -> tuple[dict[str, str], Path]:
+    project_dir = tmp_path / "staging"
+    bin_dir = tmp_path / "bin"
+    log_file = tmp_path / "deploy.log"
+    project_dir.mkdir()
+    bin_dir.mkdir()
+    (project_dir / "scripts" / "ops").mkdir(parents=True)
+    (project_dir / "backups").mkdir()
+    (project_dir / "docker-compose.staging.yaml").write_text(
+        "services: {app: {}, caddy: {}}\n", encoding="utf-8"
+    )
+    (project_dir / "Caddyfile").write_text(":80 { respond ok }\n", encoding="utf-8")
+    (project_dir / ".attested-digest-deploy-v1").write_text(
+        "pulseplate-staging-attested-digest-v1", encoding="utf-8"
+    )
+    (project_dir / ".env").write_text(
+        "\n".join(
+            (
+                "STAGING_DOMAIN=staging.example.com",
+                "POSTGRES_USER=pulseplate",
+                "POSTGRES_DB=pulseplate",
+                "POSTGRES_PASSWORD=test-only",  # pragma: allowlist secret
+                "DATABASE_URL=postgresql+psycopg://pulseplate:test-only@postgres/pulseplate",  # pragma: allowlist secret
+                "GHCR_USER=pulseplate-ci",
+                "GHCR_TOKEN=test-only-token",  # pragma: allowlist secret
+                "STAGING_IMAGE_REF=ghcr.io/attacker/override:latest",
+                "STAGING_CADDY_IMAGE_REF=ghcr.io/attacker/override:latest",
+            )
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    _write_executable(
+        project_dir / "scripts" / "ops" / "postgres_backup.sh",
+        f'#!/usr/bin/env bash\nprintf \'backup %s\\n\' "$*" >> "{log_file}"\n',
+    )
+    _write_executable(
+        bin_dir / "docker",
+        f"""#!/usr/bin/env bash
+set -euo pipefail
+printf 'docker %s\n' "$*" >> "{log_file}"
+printf 'env backend=%s caddy=%s config=%s\n' "${{STAGING_IMAGE_REF:-}}" "${{STAGING_CADDY_IMAGE_REF:-}}" "${{DOCKER_CONFIG:-}}" >> "{log_file}"
+case "$*" in
+  *"info --format"*"Architecture"*) printf 'amd64\n' ;;
+  *"ps -q postgres"*) printf 'postgres-id\n' ;;
+  *"inspect --format"*) printf 'healthy\n' ;;
+  *"ps -q app"*) printf 'app-id\n' ;;
+esac
+""",
+    )
+    _write_executable(
+        bin_dir / "stat",
+        "#!/usr/bin/env bash\nprintf '0:0:644\\n'\n",
+    )
+    _write_executable(
+        bin_dir / "curl",
+        f'#!/usr/bin/env bash\nprintf \'curl %s\\n\' "$*" >> "{log_file}"\n',
+    )
+    _write_executable(bin_dir / "sleep", "#!/usr/bin/env bash\nexit 0\n")
+
+    env = os.environ.copy()
+    env.update(
+        {
+            "PATH": f"{bin_dir}:{env['PATH']}",
+            "PROJECT_DIR": str(project_dir),
+            "ENV_FILE": str(project_dir / ".env"),
+            "COMPOSE_FILE": str(project_dir / "docker-compose.staging.yaml"),
+            "BACKUP_DIR": str(project_dir / "backups"),
+            "BACKUP_HELPER": str(project_dir / "scripts" / "ops" / "postgres_backup.sh"),
+            "STAGING_DEPLOY_MARKER": str(project_dir / ".attested-digest-deploy-v1"),
+            "DOCKER_BIN": str(bin_dir / "docker"),
+            "CURL_BIN": str(bin_dir / "curl"),
+            "STAT_BIN": str(bin_dir / "stat"),
+            "HEALTH_MAX_ATTEMPTS": "1",
+            "HEALTH_SLEEP_S": "0",
+        }
+    )
+    return env, log_file
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    (
+        (),
+        ("latest",),
+        ("ghcr.io/katsiarynakavaleuskaya/pulseplate:abc", "caddy:2.11.4"),
+        (
+            "docker.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64,
+            "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64,
+        ),
+        (
+            "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "A" * 64,
+            "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64,
+        ),
+        (
+            "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64,
+            "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64,
+        ),
+        (
+            "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64,
+            "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64,
+            "unexpected",
+        ),
+    ),
+)
+def test_staging_deploy_rejects_unsafe_image_references_before_side_effects(
+    tmp_path: Path,
+    arguments: tuple[str, ...],
+) -> None:
+    env, log_file = _staging_deploy_fixture(tmp_path)
+
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts" / "deploy.sh"), *arguments],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode != 0
+    assert not log_file.exists()
+
+
+def test_staging_deploy_preflight_validates_contract_without_mutation(tmp_path: Path) -> None:
+    env, log_file = _staging_deploy_fixture(tmp_path)
+    backend_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64
+    caddy_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
+
+    completed = subprocess.run(
+        [
+            str(REPO_ROOT / "scripts" / "deploy.sh"),
+            "--preflight-only",
+            backend_ref,
+            caddy_ref,
+        ],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    log_lines = log_file.read_text(encoding="utf-8").splitlines()
+    assert any(line == "docker info --format {{.Architecture}}" for line in log_lines)
+    assert any("compose --env-file" in line and "config --quiet" in line for line in log_lines)
+    assert not any("login" in line or "pull" in line or "up -d" in line for line in log_lines)
+    assert "Staging deploy preflight passed" in completed.stdout
+
+
+def test_staging_deploy_preserves_backup_migration_caddy_order_and_cli_identity(
+    tmp_path: Path,
+) -> None:
+    env, log_file = _staging_deploy_fixture(tmp_path)
+    backend_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64
+    caddy_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
+
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts" / "deploy.sh"), backend_ref, caddy_ref],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    log_lines = log_file.read_text(encoding="utf-8").splitlines()
+    login_index = _assert_log_index(
+        log_lines, predicate=lambda line: "docker login ghcr.io" in line, message="missing login"
+    )
+    pull_index = _assert_log_index(
+        log_lines,
+        predicate=lambda line: "compose " in line and " pull app caddy" in line,
+        message="missing two-image pull",
+    )
+    backup_index = _assert_log_index(
+        log_lines, predicate=lambda line: line.startswith("backup "), message="missing backup"
+    )
+    app_index = _assert_log_index(
+        log_lines,
+        predicate=lambda line: "compose " in line and " up -d app" in line,
+        message="missing app start",
+    )
+    migration_index = _assert_log_index(
+        log_lines,
+        predicate=lambda line: "docker exec app-id alembic upgrade head" in line,
+        message="missing migration",
+    )
+    caddy_index = _assert_log_index(
+        log_lines,
+        predicate=lambda line: "compose " in line and " up -d caddy" in line,
+        message="missing Caddy start",
+    )
+    assert login_index < pull_index < backup_index < app_index < migration_index < caddy_index
+
+    env_lines = [line for line in log_lines if line.startswith("env backend=")]
+    assert env_lines
+    assert all(f"backend={backend_ref}" in line for line in env_lines)
+    assert all(f"caddy={caddy_ref}" in line for line in env_lines)
+    docker_config = env_lines[-1].split(" config=", 1)[1]
+    assert docker_config
+    assert not Path(docker_config).exists()

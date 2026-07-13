@@ -36,6 +36,7 @@ Environment:
   CF_ACCESS_CLIENT_ID        Optional Cloudflare Access service-token client id for private probes.
   CF_ACCESS_CLIENT_SECRET    Optional Cloudflare Access service-token secret for private probes.
   ADMIN_CANARY_PATH          Admin/backend canary path, default /api/v1/admin/status.
+  CADDY_VALIDATION_IMAGE     Optional digest-pinned Caddy image override for config validation.
 EOF
 }
 
@@ -137,13 +138,21 @@ validate_caddy_config() {
     fi
 
     echo "== Caddy config validation =="
+    local caddy_validation_image="${CADDY_VALIDATION_IMAGE:-}"
+    if [[ -z "${caddy_validation_image}" ]]; then
+        caddy_validation_image="$(awk '/^FROM caddy:/{print $2; exit}' "${REPO_ROOT}/frontend/Dockerfile.caddy-spa")"
+    fi
+    if [[ -z "${caddy_validation_image}" || "${caddy_validation_image}" != *@sha256:* ]]; then
+        fail "Unable to resolve the digest-pinned Caddy validation image from frontend/Dockerfile.caddy-spa."
+        return 1
+    fi
     if PRODUCTION_DOMAIN="${PRODUCTION_DOMAIN:-example.com}" \
         STAGING_FALLBACK_DOMAIN="${STAGING_FALLBACK_DOMAIN:-pulseplate-staging.duckdns.org}" \
         docker run --rm \
         -e PRODUCTION_DOMAIN \
         -e STAGING_FALLBACK_DOMAIN \
         -v "${DEPLOY_DIR}/Caddyfile.production:/etc/caddy/Caddyfile:ro" \
-        caddy:2.10.2 \
+        "${caddy_validation_image}" \
         caddy validate --config /etc/caddy/Caddyfile >/dev/null; then
         pass "deploy/Caddyfile.production validates with Caddy."
     else

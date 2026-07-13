@@ -1,0 +1,264 @@
+"""Fail-closed contracts for the hardened Caddy and staging digest lane."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import yaml
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+DOCKERFILE = REPO_ROOT / "frontend" / "Dockerfile.caddy-spa"
+STAGING_COMPOSE = REPO_ROOT / "deploy" / "docker-compose.staging.yaml"
+CD_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "cd.yml"
+FRONTEND_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "frontend-ci.yml"
+
+GO_BUILDER = (
+    "golang:1.26.5-alpine3.23@"
+    "sha256:622e56dbc11a8cfe87cafa2331e9a201877271cbff918af53d3be315f3da88cc"
+)
+CADDY_BASE = (
+    "caddy:2.11.4-alpine@" "sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648"
+)
+
+
+def _workflow(path: Path) -> dict[str, object]:
+    payload = yaml.safe_load(path.read_text(encoding="utf-8"))
+    assert isinstance(payload, dict)
+    return payload
+
+
+def _job(workflow: dict[str, object], name: str) -> dict[str, object]:
+    jobs = workflow.get("jobs")
+    assert isinstance(jobs, dict)
+    job = jobs.get(name)
+    assert isinstance(job, dict)
+    return job
+
+
+def _steps(job: dict[str, object]) -> list[dict[str, object]]:
+    raw_steps = job.get("steps")
+    assert isinstance(raw_steps, list)
+    result: list[dict[str, object]] = []
+    for step in raw_steps:
+        assert isinstance(step, dict)
+        result.append(step)
+    return result
+
+
+def _named_step(steps: list[dict[str, object]], name: str) -> dict[str, object]:
+    for step in steps:
+        if step.get("name") == name:
+            return step
+    raise AssertionError(f"Missing workflow step: {name}")
+
+
+def _step_index(steps: list[dict[str, object]], name: str) -> int:
+    return steps.index(_named_step(steps, name))
+
+
+def test_caddy_dockerfile_owns_exact_hardened_build_recipe() -> None:
+    text = DOCKERFILE.read_text(encoding="utf-8")
+
+    assert f"FROM {GO_BUILDER} AS caddy-build" in text
+    assert f"FROM {CADDY_BASE}" in text
+    assert "GOTOOLCHAIN=local" in text
+    assert "CGO_ENABLED=0" in text
+    assert "github.com/caddyserver/caddy/v2/cmd/caddy@v2.11.4" in text
+    assert "github.com/caddyserver/caddy/v2.CustomVersion=v2.11.4" in text
+    assert 'apk add --no-cache "c-ares>=1.34.8-r0"' in text
+    assert "COPY --from=caddy-build --chmod=0755 /go/bin/caddy" in text
+    assert "caddy list-modules --packages" in text
+    assert "setcap cap_net_bind_service=+ep /usr/bin/caddy" in text
+    assert "getcap /usr/bin/caddy" in text
+    assert "--allow-untrusted" not in text
+    assert "GOINSECURE" not in text
+    assert "GONOSUMDB" not in text
+    assert "xcaddy" not in text
+
+
+def test_staging_compose_requires_two_digest_references_and_preserves_caddy_state() -> None:
+    compose = yaml.safe_load(STAGING_COMPOSE.read_text(encoding="utf-8"))
+    assert isinstance(compose, dict)
+    assert "version" not in compose
+    services = compose.get("services")
+    assert isinstance(services, dict)
+
+    app = services.get("app")
+    caddy = services.get("caddy")
+    assert isinstance(app, dict)
+    assert isinstance(caddy, dict)
+    assert app["image"] == "${STAGING_IMAGE_REF:?STAGING_IMAGE_REF is required}"
+    assert caddy["image"] == ("${STAGING_CADDY_IMAGE_REF:?STAGING_CADDY_IMAGE_REF is required}")
+    assert "caddy_data:/data" in caddy["volumes"]
+    assert "caddy_config:/config" in caddy["volumes"]
+    assert caddy["depends_on"]["app"]["condition"] == "service_healthy"
+
+    text = STAGING_COMPOSE.read_text(encoding="utf-8")
+    assert "${TAG:-latest}" not in text
+    assert "caddy:2" not in text
+    assert "staging-latest" not in text
+
+
+def test_cd_builds_attests_scans_and_deploys_both_same_job_digests() -> None:
+    workflow = _workflow(CD_WORKFLOW)
+    build_job = _job(workflow, "build")
+    steps = _steps(build_job)
+
+    required_order = (
+        "Build & Push backend image (staging)",
+        "Build & Push Caddy image (staging)",
+        "Validate immutable staging image references",
+        "Verify staged backend image attestations",
+        "Verify staged Caddy image attestations",
+        "Scan staged backend image",
+        "Scan staged Caddy image",
+        "Verify remote staging deploy contract",
+        "Deploy to staging over SSH",
+        "Healthcheck (staging)",
+    )
+    indexes = [_step_index(steps, name) for name in required_order]
+    assert indexes == sorted(indexes)
+
+    backend_build = _named_step(steps, "Build & Push backend image (staging)")
+    caddy_build = _named_step(steps, "Build & Push Caddy image (staging)")
+    assert backend_build["id"] == "build"
+    assert caddy_build["id"] == "build-caddy"
+    backend_with = backend_build.get("with")
+    caddy_with = caddy_build.get("with")
+    assert isinstance(backend_with, dict)
+    assert isinstance(caddy_with, dict)
+    assert "staging-backend-${{ github.sha }}" in backend_with["tags"]
+    assert "staging-caddy-${{ github.sha }}" in caddy_with["tags"]
+
+    for name, digest_ref in (
+        ("Scan staged backend image", "steps.staging-image-refs.outputs.backend_ref"),
+        ("Scan staged Caddy image", "steps.staging-image-refs.outputs.caddy_ref"),
+    ):
+        step = _named_step(steps, name)
+        assert step.get("continue-on-error") is not True
+        with_block = step.get("with")
+        assert isinstance(with_block, dict)
+        assert digest_ref in with_block["image-ref"]
+        assert with_block["severity"] == "CRITICAL,HIGH"
+        assert with_block["exit-code"] == "1"
+        assert "trivyignores" not in with_block
+        assert "ignore-policy" not in with_block
+        assert with_block.get("ignore-unfixed") is not True
+
+    image_refs = _named_step(steps, "Validate immutable staging image references")
+    image_refs_env = image_refs.get("env")
+    assert isinstance(image_refs_env, dict)
+    assert image_refs_env["BACKEND_DIGEST"] == "${{ steps.build.outputs.digest }}"
+    assert image_refs_env["CADDY_DIGEST"] == "${{ steps.build-caddy.outputs.digest }}"
+
+    deploy = _named_step(steps, "Deploy to staging over SSH")
+    deploy_if = deploy.get("if")
+    assert isinstance(deploy_if, str)
+    assert "vars.STAGING_ATTESTED_DIGEST_READY == 'true'" in deploy_if
+    assert "steps.staging-contract-preflight.outcome == 'success'" in deploy_if
+    deploy_with = deploy.get("with")
+    assert isinstance(deploy_with, dict)
+    assert "GHCR_TOKEN" not in deploy_with["script"]
+    assert "github.sha" not in deploy_with["script"]
+    assert deploy_with["envs"] == (
+        "GHCR_USER,GHCR_TOKEN,STAGING_DOMAIN,STAGING_IMAGE_REF," "STAGING_CADDY_IMAGE_REF"
+    )
+
+    assert build_job["concurrency"]["cancel-in-progress"] is False
+
+    readiness = _named_step(steps, "Check staging deploy readiness")
+    readiness_env = readiness.get("env")
+    assert isinstance(readiness_env, dict)
+    assert readiness_env["STAGING_DEPLOY_REQUIRED"] == ("${{ vars.STAGING_DEPLOY_REQUIRED }}")
+    assert "staging credentials are incomplete" in readiness["run"]
+    assert "STAGING_DEPLOY_REQUIRED=true" in readiness["run"]
+
+
+def test_remote_contract_preflight_has_no_registry_secret_and_checks_current_files() -> None:
+    workflow = _workflow(CD_WORKFLOW)
+    steps = _steps(_job(workflow, "build"))
+    preflight = _named_step(steps, "Verify remote staging deploy contract")
+    assert preflight.get("continue-on-error") is not True
+    env = preflight.get("env")
+    with_block = preflight.get("with")
+    assert isinstance(env, dict)
+    assert isinstance(with_block, dict)
+    assert "GHCR_READ_TOKEN" not in str(env)
+    assert "GHCR_TOKEN" not in str(env)
+    assert "GHCR_TOKEN" not in str(with_block)
+    assert with_block["envs"] == (
+        "STAGING_IMAGE_REF,STAGING_CADDY_IMAGE_REF,DEPLOY_SCRIPT_SHA256,"
+        "STAGING_COMPOSE_SHA256,STAGING_CADDYFILE_SHA256"
+    )
+    script = with_block["script"]
+    assert ".attested-digest-deploy-v1" in script
+    assert "pulseplate-staging-attested-digest-v1" in script
+    assert 'STAGING_DEPLOY_CONTRACT_VERSION="2"' in script
+    for filename in ("deploy.sh", "docker-compose.staging.yaml", "Caddyfile"):
+        assert filename in script
+    assert "./deploy.sh --preflight-only" in script
+
+
+def test_all_staging_ssh_and_health_steps_require_default_false_rollout_gate() -> None:
+    workflow = _workflow(CD_WORKFLOW)
+    steps = _steps(_job(workflow, "build"))
+    for name in (
+        "Check staging deploy readiness",
+        "Verify remote staging deploy contract",
+        "Deploy to staging over SSH",
+        "Handle staging deployment failure (non-blocking by default)",
+        "Healthcheck (staging)",
+    ):
+        step_if = _named_step(steps, name).get("if")
+        assert isinstance(step_if, str)
+        assert "vars.STAGING_DEPLOY_ENABLED == 'true'" in step_if
+        assert "vars.WEB_IOS_RELEASE_READY == 'true'" in step_if
+        assert "vars.STAGING_ATTESTED_DIGEST_READY == 'true'" in step_if
+
+
+def test_staging_deploy_script_embeds_marker_and_two_digest_contract() -> None:
+    text = (REPO_ROOT / "scripts" / "deploy.sh").read_text(encoding="utf-8")
+    assert 'STAGING_DEPLOY_CONTRACT_VERSION="2"' in text
+    assert 'STAGING_DEPLOY_MARKER_CONTENT="pulseplate-staging-attested-digest-v1"' in text
+    assert "0:0:644" in text
+    assert "STAGING_IMAGE_REF" in text
+    assert "STAGING_CADDY_IMAGE_REF" in text
+    assert "${TAG:-latest}" not in text
+    assert 'IMG_REF="${1:-latest}"' not in text
+    assert "|| true" not in text
+
+
+def test_frontend_caddy_contract_is_non_publishing_and_unprivileged() -> None:
+    workflow = _workflow(FRONTEND_WORKFLOW)
+    job = _job(workflow, "caddy-contract")
+    assert job["permissions"] == {"contents": "read"}
+    assert "environment" not in job
+    steps = _steps(job)
+    text = str(steps)
+    assert "docker/login-action" not in text
+    assert "appleboy/ssh-action" not in text
+    assert "push: true" not in text
+    assert "caddy version" in text
+    assert "caddy build-info" in text
+    assert "caddy validate" in text
+    assert "--cap-drop ALL --cap-add NET_BIND_SERVICE" in text
+    assert "aquasecurity/trivy-action@" in text
+
+
+def test_active_caddyfiles_keep_proxy_order_and_security_headers() -> None:
+    production = (REPO_ROOT / "deploy" / "Caddyfile.production").read_text(encoding="utf-8")
+    staging = (REPO_ROOT / "deploy" / "Caddyfile").read_text(encoding="utf-8")
+
+    assert production.index("handle @legacy_post") < production.index("handle @api")
+    assert production.index("handle @api") < production.index("    handle {")
+    for header in (
+        "Strict-Transport-Security",
+        "X-Content-Type-Options",
+        "X-Frame-Options",
+        "Referrer-Policy",
+        "Permissions-Policy",
+    ):
+        assert header in production
+    for header in ("X-Content-Type-Options", "X-Frame-Options", "Referrer-Policy"):
+        assert header in staging
+    assert "reverse_proxy app:8000" in staging

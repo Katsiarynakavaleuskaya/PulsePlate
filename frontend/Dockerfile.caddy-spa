@@ -1,9 +1,23 @@
 # syntax=docker/dockerfile:1
-# Multi-stage image: Vite build → Caddy with static SPA at /srv/frontend.
+# Multi-stage image: pinned Caddy build + Vite build → hardened Caddy SPA shell.
 # Build from repo root (recommended):
 #   docker compose -f deploy/docker-compose.production.yaml build caddy
 # Or with explicit absolute API base (split-origin / Workers):
 #   docker build -f Dockerfile.caddy-spa --build-arg VITE_API_BASE=https://example.com/api/v1 -t pulseplate-caddy:local .
+
+FROM golang:1.26.5-alpine3.23@sha256:622e56dbc11a8cfe87cafa2331e9a201877271cbff918af53d3be315f3da88cc AS caddy-build
+
+ENV CGO_ENABLED=0 \
+    GOTOOLCHAIN=local \
+    GOPROXY=https://proxy.golang.org,direct \
+    GOSUMDB=sum.golang.org
+
+RUN set -eux; \
+    go install \
+      -ldflags '-X github.com/caddyserver/caddy/v2.CustomVersion=v2.11.4' \
+      github.com/caddyserver/caddy/v2/cmd/caddy@v2.11.4; \
+    /go/bin/caddy version; \
+    go version -m /go/bin/caddy
 
 FROM node:24.16.0-bookworm-slim AS frontend-build
 
@@ -20,6 +34,24 @@ ENV VITE_API_BASE=${VITE_API_BASE}
 
 RUN npm run build
 
-FROM caddy:2.10.2
+FROM caddy:2.11.4-alpine@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648
+
+LABEL org.opencontainers.image.title="PulsePlate Caddy SPA shell" \
+      org.opencontainers.image.description="Caddy 2.11.4 rebuilt with Go 1.26.5 and PulsePlate frontend assets"
+
+# Compare the standard module surface before replacing the upstream binary.
+# Package versions and build metadata are intentionally excluded from parity.
+COPY --from=caddy-build --chmod=0755 /go/bin/caddy /usr/bin/caddy.pulseplate
+RUN set -eux; \
+    caddy list-modules --packages | awk 'NF && $1 != "Standard" { print $1 }' | LC_ALL=C sort > /tmp/caddy-official-modules; \
+    /usr/bin/caddy.pulseplate list-modules --packages | awk 'NF && $1 != "Standard" { print $1 }' | LC_ALL=C sort > /tmp/caddy-rebuilt-modules; \
+    diff -u /tmp/caddy-official-modules /tmp/caddy-rebuilt-modules; \
+    apk add --no-cache "c-ares>=1.34.8-r0"; \
+    mv /usr/bin/caddy.pulseplate /usr/bin/caddy; \
+    setcap cap_net_bind_service=+ep /usr/bin/caddy; \
+    getcap /usr/bin/caddy | grep -F 'cap_net_bind_service=ep'; \
+    caddy version | grep -F 'v2.11.4'; \
+    caddy build-info | grep -F 'go1.26.5'; \
+    rm -f /tmp/caddy-official-modules /tmp/caddy-rebuilt-modules
 
 COPY --from=frontend-build /app/dist /srv/frontend
