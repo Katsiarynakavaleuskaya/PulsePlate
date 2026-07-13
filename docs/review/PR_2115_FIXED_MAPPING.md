@@ -31,12 +31,12 @@ Fastlane/xcodeproj gem graph and all App Store workflow behavior.
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed.
-- [ ] Fixed in commit mapping completed.
+- [x] Discussion-thread pass completed.
+- [x] Fixed in commit mapping completed.
 - [x] Pre-open packet role order completed.
 - [x] Actual-diff premortem completed with no open blocker.
 - [x] Experiment Runner oracle-only evidence accepted.
-- [ ] Post-open `qa-engineer-agent -> bug-hunter -> security-auditor` completed.
+- [x] Post-open `qa-engineer-agent -> bug-hunter -> security-auditor` completed.
 - [ ] Codex Security diff scan completed for the material diff.
 - [ ] `pulseplate-pr-review` completed.
 - [ ] All current review threads dispositioned and resolved.
@@ -45,7 +45,14 @@ Fastlane/xcodeproj gem graph and all App Store workflow behavior.
 
 ## Fixed in Commit Mapping
 
-No actionable review comments.
+- No actionable review comments
+
+## Experiment Runner Evidence
+
+Artifact: artifacts/orchestration/experiments/results/cfpropertylist-ruby34-compat-oracle-result.json
+
+The artifact is local-only and gitignored. It was accepted with 33 focused
+tests passing, no shared-tree mutation, and contribution kind `oracle_review`.
 
 ## Validation Evidence
 
