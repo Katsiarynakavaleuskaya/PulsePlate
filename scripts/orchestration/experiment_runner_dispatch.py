@@ -24,7 +24,7 @@ import subprocess  # nosec B404: bounded absolute runtime/git argv only (remove-
 import sys
 import tempfile
 import threading
-from typing import Any, Iterator
+from typing import Any, cast, Iterator
 import uuid
 
 DISPATCH_REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -1097,9 +1097,10 @@ def _require_repo_local_file(raw: str, *, suffix: str) -> Path:
     candidate = Path(raw)
     if candidate.is_absolute():
         raise ValueError("Input paths must be repository-relative.")
-    resolved = (REPO_ROOT / candidate).resolve(strict=True)
+    repo_root = Path(REPO_ROOT).resolve()
+    resolved = (repo_root / candidate).resolve(strict=True)
     try:
-        resolved.relative_to(REPO_ROOT.resolve())
+        resolved.relative_to(repo_root)
     except ValueError as exc:
         raise ValueError("Input paths must stay inside the repository.") from exc
     if not resolved.is_file() or resolved.suffix != suffix:
@@ -1197,7 +1198,7 @@ def _capability_mismatch_result(
             passed=False,
         ),
     }
-    return validate_experiment_result(result)
+    return cast(dict[str, Any], validate_experiment_result(result))
 
 
 def _infra_flake_result(
@@ -1235,7 +1236,7 @@ def _infra_flake_result(
         "coauthor_reason": "",
         "execution_backend": _execution_backend_payload(probe, passed=True),
     }
-    return validate_experiment_result(_redact_result_value(result))
+    return cast(dict[str, Any], validate_experiment_result(_redact_result_value(result)))
 
 
 _SECRET_TEXT_PATTERNS = (
@@ -1280,7 +1281,7 @@ def _sanitize_result(result: dict[str, Any], probe: BackendProbe) -> dict[str, A
         oracle["cwd"] = "/workspace"
         oracle_results.append(oracle)
     sanitized["oracle_results"] = oracle_results
-    return validate_experiment_result(sanitized)
+    return cast(dict[str, Any], validate_experiment_result(sanitized))
 
 
 def _collect_result_volume(
