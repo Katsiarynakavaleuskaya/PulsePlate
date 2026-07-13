@@ -550,7 +550,9 @@ def test_build_handoff_rejects_origin_main_drift_before_any_output(
         )
         assert capsys.readouterr().out == (
             "FAIL: adaptive_base_drift: build-handoff requires current origin/main "
-            "to equal workspace target head_sha\n"
+            "to equal workspace target head_sha "
+            f"(origin/main={'f' * 40}, "
+            f"target={synthesized['target_manifest']['head_sha']})\n"
         )
         assert bundle_called is False
         assert prepare_called is False
