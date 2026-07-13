@@ -31,6 +31,8 @@ optional RAG boundaries.
   resolver evidence.
 - `11d118fac85ef71e6bea3f63c7e1651dbbce4a52` - close the post-open dependency
   documentation and governance findings with tracked evidence.
+- `9ff093e958d64c54aea8dc80e360892f93694be5` - align the dependency workflow
+  example and complete the 10-surface guard inventory.
 
 ## Discussion Thread Pass
 
@@ -57,6 +59,12 @@ Reason: The dependency workflow now covers every affected canonical shared lock 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2111#discussion_r3570298218 -> 11d118fac85ef71e6bea3f63c7e1651dbbce4a52
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2111#pullrequestreview-4684291964 -> 11d118fac85ef71e6bea3f63c7e1651dbbce4a52
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2111#pullrequestreview-4684320798 -> 11d118fac85ef71e6bea3f63c7e1651dbbce4a52
+
+Disposition: FIXED
+Commit: 9ff093e958d64c54aea8dc80e360892f93694be5
+Evidence: `docs/security/DEPENDENCY_SECURITY_GUARD_WORKFLOW.md:140` and `docs/security/DEPENDENCY_SECURITY_GUARD_WORKFLOW.md:201-224`
+Reason: The example title now matches its Click/Pillow/cryptography scope, and the validated-surface contract lists all 10 paths enforced by `tests/test_dependency_security_guard.py:21-32`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2111#pullrequestreview-4684492710 -> 9ff093e958d64c54aea8dc80e360892f93694be5
 
 ## Experiment Runner Evidence
 
