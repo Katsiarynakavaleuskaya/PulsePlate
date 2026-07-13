@@ -13,9 +13,9 @@ not deploy or change backend, OpenAPI, client, or Caddy route behavior.
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
-- [ ] Mandatory post-open `qa-engineer-agent -> bug-hunter -> security-auditor` pass completed
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+- [x] Mandatory post-open `qa-engineer-agent -> bug-hunter -> security-auditor` pass completed
 - [ ] Codex Security exact-head diff scan completed
 - [ ] `pulseplate-pr-review` completed
 - [ ] Current-head CI completed
@@ -23,7 +23,35 @@ not deploy or change backend, OpenAPI, client, or Caddy route behavior.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#discussion_r3574923686 -> bb58dab7f
+  - Disposition: FIXED
+  - Evidence: both Caddy-control checkout steps set `persist-credentials: false`;
+    focused workflow contract tests pass.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#discussion_r3574923694 -> bb58dab7f
+  - Disposition: FIXED
+  - Evidence: the manual staging runbook silently prompts for the GHCR token,
+    passes it only to `deploy.sh`, and unsets it afterward.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#discussion_r3574923708 -> f1cde4cd9
+  - Disposition: FIXED
+  - Evidence: the premortem enumerates every synchronized server-local artifact,
+    the root-owned marker, and all four reviewed-file hashes.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#discussion_r3574923714 -> bb58dab7f
+  - Disposition: FIXED
+  - Evidence: the module-parity pipeline uses Alpine-compatible `pipefail`; the
+    Docker build contract test enforces it.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#discussion_r3574923719 -> f1cde4cd9
+  - Disposition: FIXED
+  - Evidence: production and staging tests require the exact security-header
+    directives inside every active global `header { ... }` block.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#discussion_r3574923722 -> bb58dab7f
+  - Disposition: FIXED
+  - Evidence: supply-chain tests include the Caddy provenance action and require
+    successful provenance, SBOM generation, and SBOM attestation before verify.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#pullrequestreview-4689618115 -> f1cde4cd9
+  - Disposition: FIXED
+  - Evidence: the two review-level nitpicks are closed by deriving the official
+    Caddy reference from the Dockerfile and using line-aware, block-scoped route
+    and exact-header assertions.
 
 ## Pre-open Role and Premortem Evidence
 
@@ -128,6 +156,34 @@ Actionlint pass.
 Reason: Required deployment can no longer silently skip behind a disabled gate,
 and the healthcheck no longer creates a secret-to-shell-source injection seam.
 
+### Final QA Engineer Agent
+
+Disposition: FIXED
+Commit: f1cde4cd9
+Evidence: the premortem now records four reviewed-file hashes, the Docker build
+fails unless Go metadata reports Caddy main module v2.11.4, and header assertions
+are bound to every active global header block. The focused suite passes.
+Reason: All three bounded P2 findings from the review-fix diff were corrected
+before the subsequent role passes.
+
+### Final Bug Hunter
+
+Disposition: NOT-A-BUG
+Evidence: Exact review range `ca8b4f025..f1cde4cd9`; 95 focused
+deploy/provenance/supply-chain tests and `git diff --check` passed, with no
+bounded P0-P2 correctness defect found.
+Reason: Current-head workflow CI remains authoritative for Actionlint, which was
+not available in the local worktree.
+
+### Final Security Auditor
+
+Disposition: NOT-A-BUG
+Evidence: Exact review range `ca8b4f025..f1cde4cd9`; no P0-P2 finding across
+checkout credential persistence, pinned build inputs, module/version proof,
+header scope, attestation/SBOM dependencies, scan ordering, or token guidance.
+Reason: The final material diff preserves fail-closed artifact and deployment
+identity without adding secret, permission, publish, or deploy authority.
+
 The remaining mandatory Codex Security and PulsePlate PR review passes are
 pending.
 
@@ -152,7 +208,8 @@ The packet routed mandatory ordered roles and did not execute them implicitly.
 
 - PASS: `python3 scripts/orchestration/check_preflight.py`.
 - PASS: `python3 scripts/orchestration/check_agent_consistency.py`.
-- PASS: 187 focused deploy/provenance/workflow/supply-chain tests.
+- PASS: focused deploy/provenance/workflow/supply-chain suites after every
+  material review fix; the final bug-hunter subset contains 95 tests.
 - PASS: branch-scoped `make validate-changed` after implementation commits.
 - PASS: `pre-commit run --all-files` and pre-push hooks.
 - PASS: hardened image reports Caddy v2.11.4 and Go 1.26.5, matches 132
