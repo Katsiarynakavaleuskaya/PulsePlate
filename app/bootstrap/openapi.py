@@ -117,7 +117,7 @@ def _generate_canonical_openapi(target_app: FastAPI) -> dict[str, Any]:
 
     _ensure_no_webhooks(target_app)
 
-    schema = get_openapi(
+    schema: dict[str, Any] = get_openapi(
         title=target_app.title,
         version=target_app.version,
         openapi_version=target_app.openapi_version,
@@ -232,7 +232,8 @@ def _build_canonical_openapi(target_app: FastAPI) -> dict[str, Any]:
         target_app.openapi_schema = schema
         setattr(target_app, "_openapi_routes_version", routes_version)
         setattr(target_app, _INPUT_FINGERPRINT_ATTR, input_fingerprint)
-    return target_app.openapi_schema
+    cached_schema: dict[str, Any] = target_app.openapi_schema
+    return cached_schema
 
 
 class _CanonicalOpenAPIBuilder:
