@@ -437,7 +437,7 @@ def _require_historical_non_negative_int(value: Any, *, label: str) -> int:
             "adaptive_source_lineage_mismatch: retained context_pack.json "
             f"{label} must be a non-negative integer"
         )
-    return value
+    return int(value)
 
 
 def _historical_token_estimate(char_count: int) -> int:
@@ -504,9 +504,10 @@ def _validate_historical_context_pack(
             node_id = ref["node_id"]
             if node_id is None:
                 continue
-            node = nodes_by_id.get(node_id) if isinstance(node_id, str) else None
-            if node is None or any(
-                ref[key] != node[key] for key in ("path", "path_fingerprint", "token_estimate")
+            bound_node = nodes_by_id.get(node_id) if isinstance(node_id, str) else None
+            if bound_node is None or any(
+                ref[key] != bound_node[key]
+                for key in ("path", "path_fingerprint", "token_estimate")
             ):
                 raise CreativeCodeSpecPipelineError(
                     "adaptive_source_lineage_mismatch: retained context_pack.json "
