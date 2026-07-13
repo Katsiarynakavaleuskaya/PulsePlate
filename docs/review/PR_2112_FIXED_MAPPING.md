@@ -12,6 +12,9 @@ base checks, and all downstream authorities fail-closed.
 
 ## Lane Start Provenance
 
+Packet: `artifacts/orchestration/task_packets/f85f5e926a89.json`
+Starter: `scripts/orchestration/start_pr_lane.sh`
+
 - Coordinator packet and role outputs are retained locally under the
   gitignored `artifacts/orchestration/` control plane.
 - Pre-open and post-open role ordering was executed under the active
@@ -57,6 +60,10 @@ Reason: `build-handoff` now rejects temporal base drift before any artifact mate
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2112#discussion_r3571890953 -> 114111b50a8aa039ef40cf6b894594e1725a80c4
 
 ## Experiment Runner Evidence
+
+Not applicable: accepted contribution evidence is retained in the adaptive-pilot
+creative-code rail, not as a standalone `experiments/results` artifact for this
+prerequisite.
 
 The retained `rag-confidence-provenance-pilot-2f` replay reached
 `agent-skeptic-review` with `replay=new` and then `replay=idempotent`; no PR-2
