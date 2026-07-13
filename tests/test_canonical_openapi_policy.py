@@ -431,4 +431,6 @@ def test_openapi_webhooks_fail_closed() -> None:
         return None
 
     with pytest.raises(RuntimeError, match="webhooks_not_supported"):
+        openapi_policy.validate_openapi_builder_state(target_app)
+    with pytest.raises(RuntimeError, match="webhooks_not_supported"):
         openapi_policy.install_canonical_openapi_builder(target_app)

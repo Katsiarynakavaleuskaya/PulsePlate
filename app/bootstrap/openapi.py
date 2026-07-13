@@ -275,6 +275,7 @@ def _is_structurally_canonical_builder(target_app: FastAPI, builder: object) -> 
 def validate_openapi_builder_state(target_app: FastAPI) -> None:
     """Fail closed unless the live OpenAPI callable has one valid ownership state."""
 
+    _ensure_no_webhooks(target_app)
     live_builder = target_app.openapi
     marker_present = hasattr(target_app.state, _CANONICAL_BUILDER_STATE_ATTR)
     marker = getattr(target_app.state, _CANONICAL_BUILDER_STATE_ATTR, None)
@@ -300,7 +301,6 @@ def install_canonical_openapi_builder(target_app: FastAPI) -> None:
     """Atomically install the current builder and reconcile any existing cache."""
 
     validate_openapi_builder_state(target_app)
-    _ensure_no_webhooks(target_app)
     live_builder = target_app.openapi
     marker = getattr(target_app.state, _CANONICAL_BUILDER_STATE_ATTR, None)
     default_state = marker is None

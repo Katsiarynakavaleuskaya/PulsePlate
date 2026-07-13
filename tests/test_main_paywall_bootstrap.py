@@ -10,6 +10,7 @@ import pytest
 from starlette.responses import JSONResponse
 from starlette.routing import BaseRoute, Route
 
+import app.bootstrap.openapi as openapi_policy
 import app.main as app_main
 from app.bootstrap.route_family import (
     RouteMemberContract,
@@ -1010,6 +1011,38 @@ def test_bootstrap_prevalidation_failure_performs_no_mutation(
     monkeypatch.setattr(app_main, "register_http_middleware_stack", _record_middleware)
 
     with pytest.raises(RuntimeError, match="OpenAPI builder state invalid: test"):
+        app_main.ensure_canonical_app_bootstrap(target_app)
+
+    assert app_main.app is original_global_app
+    assert tuple(target_app.router.routes) == original_routes
+    assert middleware_called is False
+
+
+def test_bootstrap_rejects_webhooks_before_mutation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _prepare_bootstrap_dependencies(monkeypatch)
+    target_app = FastAPI()
+    original_global_app = app_main.app
+    original_routes = tuple(target_app.router.routes)
+    middleware_called = False
+
+    @target_app.webhooks.post("new-subscription")
+    async def _webhook() -> None:
+        return None
+
+    def _record_middleware(target: FastAPI) -> None:
+        nonlocal middleware_called
+        middleware_called = True
+
+    monkeypatch.setattr(
+        app_main,
+        "validate_openapi_builder_state",
+        openapi_policy.validate_openapi_builder_state,
+    )
+    monkeypatch.setattr(app_main, "register_http_middleware_stack", _record_middleware)
+
+    with pytest.raises(RuntimeError, match="webhooks_not_supported"):
         app_main.ensure_canonical_app_bootstrap(target_app)
 
     assert app_main.app is original_global_app
