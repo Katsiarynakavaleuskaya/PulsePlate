@@ -12,7 +12,11 @@ from pathlib import Path
 import pytest
 
 from core.evidence.fingerprints import fingerprint_payload
-from scripts.orchestration import creative_code_spec_pipeline, creative_code_specification
+from scripts.orchestration import (
+    context_pack_compression,
+    creative_code_spec_pipeline,
+    creative_code_specification,
+)
 from scripts.orchestration.creative_code_contract import read_creative_code_candidate_packet
 from scripts.orchestration.creative_code_rejection_index import (
     CreativeCodeRejectionIndexError,
@@ -643,7 +647,128 @@ def test_exact_variant_declaration_requires_two_negative_controls() -> None:
         build_exact_specification_variants(packet, declarations)
 
 
-def test_prepare_exact_preserves_legacy_prepare_and_rejects_test_drift() -> None:
+def _historical_default_prepare_artifacts(
+    monkeypatch: pytest.MonkeyPatch, packet: dict[str, object]
+) -> dict[str, object]:
+    with monkeypatch.context() as historical_sizes:
+        historical_sizes.setattr(
+            context_pack_compression,
+            "_safe_context_char_count",
+            lambda path, *, repo_root: 4096 + len(path),
+        )
+        return creative_code_spec_pipeline.build_default_prepare_artifacts(packet)
+
+
+def test_retained_prepare_accepts_only_self_consistent_estimate_drift(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    packet = _packet()
+    current = creative_code_spec_pipeline.build_default_prepare_artifacts(packet)
+    historical = _historical_default_prepare_artifacts(monkeypatch, packet)
+    historical_before = deepcopy(historical)
+
+    assert (
+        historical["context_pack.json"]["context_pack_id"]
+        != current["context_pack.json"]["context_pack_id"]
+    )
+    validated = creative_code_spec_pipeline.validate_default_prepare_artifact_snapshots(
+        historical,
+        expected_packet=packet,
+    )
+
+    assert validated == historical_before
+    assert historical == historical_before
+
+
+@pytest.mark.parametrize(
+    "tamper_case",
+    (
+        "unknown_top_level",
+        "authority",
+        "path_fingerprint",
+        "graph_edge",
+        "routing_metadata",
+        "estimate_algorithm",
+        "fanout",
+        "reason_codes",
+    ),
+)
+def test_retained_prepare_rejects_stable_context_pack_drift(
+    monkeypatch: pytest.MonkeyPatch,
+    tamper_case: str,
+) -> None:
+    packet = _packet()
+    snapshots = _historical_default_prepare_artifacts(monkeypatch, packet)
+    context_pack = snapshots["context_pack.json"]
+    if tamper_case == "unknown_top_level":
+        context_pack["unexpected"] = True
+    elif tamper_case == "authority":
+        context_pack["authority_boundary"] = "serving"
+    elif tamper_case == "path_fingerprint":
+        context_pack["graph_nodes"][0]["path_fingerprint"] = "sha256:" + "0" * 64
+    elif tamper_case == "graph_edge":
+        context_pack["graph_edges"][0]["target"] = context_pack["graph_edges"][0]["source"]
+    elif tamper_case == "routing_metadata":
+        context_pack["metadata"]["requested_agent_count"] += 1
+    elif tamper_case == "estimate_algorithm":
+        context_pack["estimate"]["token_estimate_version"] = "other-algorithm-v1"
+    elif tamper_case == "fanout":
+        context_pack["estimate"]["orchestration_fanout_multiplier"] += 1
+    elif tamper_case == "reason_codes":
+        context_pack["reason_codes"].append("unreviewed_reason")
+
+    with pytest.raises(CreativeCodeSpecPipelineError, match="adaptive_source_lineage_mismatch"):
+        creative_code_spec_pipeline.validate_default_prepare_artifact_snapshots(
+            snapshots,
+            expected_packet=packet,
+        )
+
+
+@pytest.mark.parametrize(
+    "tamper_case",
+    (
+        "boolean_integer",
+        "token_arithmetic",
+        "saved_arithmetic",
+        "fanout_arithmetic",
+        "estimate_id",
+        "context_pack_id",
+        "ref_node_estimate",
+    ),
+)
+def test_retained_prepare_rejects_malformed_historical_estimates(
+    monkeypatch: pytest.MonkeyPatch,
+    tamper_case: str,
+) -> None:
+    packet = _packet()
+    snapshots = _historical_default_prepare_artifacts(monkeypatch, packet)
+    context_pack = snapshots["context_pack.json"]
+    estimate = context_pack["estimate"]
+    if tamper_case == "boolean_integer":
+        estimate["baseline_context_chars_estimate"] = True
+    elif tamper_case == "token_arithmetic":
+        estimate["baseline_context_tokens_estimate"] += 1
+    elif tamper_case == "saved_arithmetic":
+        estimate["tokens_saved_estimate"] += 1
+    elif tamper_case == "fanout_arithmetic":
+        estimate["fanout_tokens_saved_estimate"] += 1
+    elif tamper_case == "estimate_id":
+        estimate["estimate_id"] = "ctx-estimate:" + "0" * 24
+    elif tamper_case == "context_pack_id":
+        context_pack["context_pack_id"] = "ctx-pack:" + "0" * 24
+    elif tamper_case == "ref_node_estimate":
+        context_pack["selected_context_refs"][0]["token_estimate"] += 1
+
+    with pytest.raises(CreativeCodeSpecPipelineError, match="adaptive_source_lineage_mismatch"):
+        creative_code_spec_pipeline.validate_default_prepare_artifact_snapshots(
+            snapshots,
+            expected_packet=packet,
+        )
+
+
+def test_prepare_exact_preserves_legacy_prepare_and_rejects_test_drift(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     packet = _packet()
     root = creative_code_spec_pipeline.ARTIFACT_ROOT / f"pytest-{uuid.uuid4().hex}"
     declarations_path = root / "declarations.json"
@@ -663,6 +788,22 @@ def test_prepare_exact_preserves_legacy_prepare_and_rejects_test_drift() -> None
             expected_packet=packet,
             expected_variants=exact,
         )
+        exact_context_path = exact_dir / "context_pack.json"
+        exact_context_bytes = exact_context_path.read_bytes()
+        historical_context = _historical_default_prepare_artifacts(monkeypatch, packet)[
+            "context_pack.json"
+        ]
+        exact_context_path.write_text(json.dumps(historical_context), encoding="utf-8")
+        with pytest.raises(
+            CreativeCodeSpecPipelineError,
+            match="adaptive_prepare_context_mismatch",
+        ):
+            creative_code_spec_pipeline.validate_exact_prepare_artifacts(
+                run_dir=exact_dir,
+                expected_packet=packet,
+                expected_variants=exact,
+            )
+        exact_context_path.write_bytes(exact_context_bytes)
         tamper_cases = {
             "source_packet.json": "adaptive_prepare_source_packet_mismatch",
             "variants.json": "adaptive_prepare_variants_mismatch",

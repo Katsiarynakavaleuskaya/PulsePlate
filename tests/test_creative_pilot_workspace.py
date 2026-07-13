@@ -16,6 +16,7 @@ import pytest
 
 from core.evidence.fingerprints import build_asset_id, build_idempotency_key, fingerprint_payload
 from scripts.orchestration import creative_code_artifact_inventory as inventory
+from scripts.orchestration import context_pack_compression
 from scripts.orchestration import creative_code_spec_pipeline
 from scripts.orchestration import creative_specification_skeptic_review as skeptic_review_cli
 from scripts.orchestration import creative_pilot_workspace as pilot_cli
@@ -1001,6 +1002,20 @@ def test_resume_pr1_publishes_exact_new_only_bundle(
         spec_root.mkdir(parents=True, exist_ok=True)
         existing_outputs = {entry.name for entry in spec_root.iterdir()}
         candidate = _write_terminal_pilot(pilot_dir)
+        with monkeypatch.context() as historical_sizes:
+            historical_sizes.setattr(
+                context_pack_compression,
+                "_safe_context_char_count",
+                lambda path, *, repo_root: 4096 + len(path),
+            )
+            historical_context = creative_code_spec_pipeline.build_default_prepare_artifacts(
+                candidate
+            )["context_pack.json"]
+        retained_context_path = pilot_dir / "pr1_prepare/context_pack.json"
+        retained_context_path.write_text(
+            json.dumps(historical_context, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
         retained_before = {
             path.relative_to(pilot_dir): path.read_bytes() for path in pilot_dir.rglob("*.json")
         }
@@ -1076,6 +1091,12 @@ def test_resume_pr1_publishes_exact_new_only_bundle(
             expected_families
         )
         _assert_resume_schema_binding_prefixes(binding_payload, binding_schema)
+        context_binding = next(
+            row
+            for row in binding_payload["source_lineage"]["original_prepare_bindings"]
+            if row["filename"] == "context_pack.json"
+        )
+        assert context_binding["fingerprint"] == fingerprint_payload(historical_context)
         assert re.fullmatch(
             binding_schema["$defs"]["artifactRef"]["properties"]["intake_ref"]["pattern"],
             binding_payload["intake"]["intake_ref"],
