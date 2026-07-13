@@ -45,6 +45,23 @@ PRODUCTION_DOMAIN=example.com STAGING_FALLBACK_DOMAIN=staging.example.com \
 - Run containers: `make docker-run`, `make docker-run-dev`
 - Stop containers: `make docker-stop`
 
+## Experiment Runner image
+
+- `deploy/experiment-runner/Containerfile` is a local evidence image, not a
+  production or devcontainer image.
+- Keep its Python base tag pinned by OCI digest, install only locked
+  `runtime-dev` requirements through BuildKit secrets, and keep the final user
+  non-root.
+- Image builds may use the approved private proxy. Experiment runs must use a
+  prebuilt immutable `name@sha256:<digest>` reference and must not install
+  dependencies or pull images after the strict backend probe.
+- Post-build admission must inspect image history/config for private-proxy
+  secret names and values. Apple runs use the exact inspected
+  `name@sha256:<digest>`; Docker runs use the verified local digest with
+  `--pull never` and re-check the name-to-digest binding before execution.
+- Do not add Compose services, runtime sockets, host home/keychain mounts,
+  `SYS_ADMIN`, or other broad capabilities for this image.
+
 ## Conventions
 - Keep staging and production configs in sync with documented env vars.
 - Avoid changes that alter runtime ports without updating clients and docs.

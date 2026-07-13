@@ -1,0 +1,85 @@
+# syntax=docker/dockerfile:1.7
+
+ARG PYTHON_BASE="python:3.13.13-slim-bookworm@sha256:355bfa66770995d7e9a0da4b3473b44d0cb451f6b56f5615ad9c39e3c4eca03f"
+
+FROM ${PYTHON_BASE} AS builder
+
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_PYTHON_VERSION_WARNING=1 \
+    PULSEPLATE_DOCKER_SINGLE_PASS_LOCKED_INSTALL=1 \
+    PULSEPLATE_DOCKER_PIP_LAYER_CACHE=1
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends build-essential ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && python -m venv /opt/venv
+
+COPY requirements-lock.txt constraints.txt /build/
+COPY scripts/ci/check_python_startup_hooks.py \
+     scripts/ci/emergency_python_wheels.json \
+     scripts/ci/install_locked_python_requirements.py \
+     /build/scripts/ci/
+
+RUN --mount=type=cache,target=/root/.cache/pip \
+    --mount=type=secret,id=pp_py_index,required=true \
+    --mount=type=secret,id=pp_py_host,required=false \
+    --mount=type=secret,id=pp_netrc,required=false \
+    set -eu; \
+    index_url="$(cat /run/secrets/pp_py_index)"; \
+    trusted_host=""; \
+    if [ -f /run/secrets/pp_py_host ]; then \
+      trusted_host="$(cat /run/secrets/pp_py_host)"; \
+    fi; \
+    if [ -f /run/secrets/pp_netrc ]; then \
+      install -m 0600 /run/secrets/pp_netrc /root/.netrc; \
+    fi; \
+    trap 'rm -f /root/.netrc' EXIT; \
+    if [ -n "${trusted_host}" ]; then \
+      /opt/venv/bin/python /build/scripts/ci/install_locked_python_requirements.py \
+        --python-executable /opt/venv/bin/python \
+        --requirements-file /build/requirements-lock.txt \
+        --constraints-file /build/constraints.txt \
+        --guard-script /build/scripts/ci/check_python_startup_hooks.py \
+        --emergency-wheel-manifest /build/scripts/ci/emergency_python_wheels.json \
+        --install-mode direct-proxy \
+        --require-virtualenv \
+        --index-url "${index_url}" \
+        --trusted-host "${trusted_host}"; \
+    else \
+      /opt/venv/bin/python /build/scripts/ci/install_locked_python_requirements.py \
+        --python-executable /opt/venv/bin/python \
+        --requirements-file /build/requirements-lock.txt \
+        --constraints-file /build/constraints.txt \
+        --guard-script /build/scripts/ci/check_python_startup_hooks.py \
+        --emergency-wheel-manifest /build/scripts/ci/emergency_python_wheels.json \
+        --install-mode direct-proxy \
+        --require-virtualenv \
+        --index-url "${index_url}"; \
+    fi; \
+    /opt/venv/bin/pip uninstall -y setuptools wheel
+
+FROM ${PYTHON_BASE} AS runner
+
+LABEL org.opencontainers.image.title="PulsePlate Experiment Runner" \
+      org.opencontainers.image.description="Strict local oracle execution image" \
+      org.opencontainers.image.source="https://github.com/Katsiarynakavaleuskaya/PulsePlate"
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+       ca-certificates git libgnutls30 libssl3 make openssl util-linux \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd --uid 65532 --user-group --no-create-home runner \
+    && mkdir -p /repo/artifacts/orchestration/experiments/results \
+    && chown -R 65532:65532 /repo
+
+COPY --from=builder /opt/venv /opt/venv
+
+ENV HOME=/tmp \
+    PATH="/opt/venv/bin:/usr/bin:/bin" \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+USER 65532:65532
+WORKDIR /repo
+
+CMD ["/opt/venv/bin/python", "--version"]

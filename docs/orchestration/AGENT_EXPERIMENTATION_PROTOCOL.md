@@ -324,6 +324,17 @@ PR-1/PR-2/PR-3 gates admit later artifacts.
 - No plaintext secret persistence.
 - External or retrieved content remains untrusted.
 - Any non-zero provider or network budget is `review-required`, not `auto-safe`.
+- On macOS, strict `network_budget=0` execution must use the capability-probed
+  dispatcher documented in `EXPERIMENT_RUNNER_MACOS_RUNBOOK.md`: Apple
+  Container first, then Docker `--network none`, with selection completed
+  before the run. A backend may not silently fall back, add broad capabilities,
+  or change the packet network budget after execution starts.
+- The strict dispatcher rejects non-zero `network_budget` before backend
+  selection. Native Linux `unshare` remains available through the existing
+  Runner, but is not a strict dispatcher backend until filesystem containment
+  reaches parity with the container mount contract.
+- Strict backend capability artifacts and result `execution_backend` provenance
+  are evidence only. They do not change promotion or merge-readiness authority.
 
 ### Human review gate
 
@@ -471,11 +482,15 @@ Every rejected run must map to one primary failure class.
 | `guard_failure` | Tests, policy guards, or safety checks failed | discard candidate |
 | `policy_violation` | Forbidden surface changed or disallowed action attempted | stop cycle and escalate |
 | `unchanged_result` | Candidate produced no meaningful improvement | discard candidate |
+| `capability_mismatch` | Host/runtime cannot prove the packet's required isolation | stop without retry or downgrade |
 | `infra_flake` | Transient execution issue without code signal | retry within retry budget only |
 
 Rule:
 
 - A policy violation is not retryable as an automatic success path.
+- A capability mismatch is deterministic and non-retryable. Select another
+  already-probed strict backend in a new explicit invocation; never retry with
+  network access or weaker isolation.
 
 ---
 

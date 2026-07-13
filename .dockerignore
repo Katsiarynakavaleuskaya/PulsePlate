@@ -16,6 +16,7 @@
 !requirements-docker-runtime.in
 !requirements-docker-runtime.txt
 !requirements-dev.txt
+!requirements-lock.txt
 !constraints.txt
 
 # CI installer surfaces copied by Dockerfile

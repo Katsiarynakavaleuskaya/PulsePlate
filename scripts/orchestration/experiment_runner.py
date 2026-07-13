@@ -71,6 +71,10 @@ class InfraFlakeError(ExperimentRunnerError):
     """Patch/apply/oracle execution failed for runner reasons, not code signal."""
 
 
+class CapabilityMismatchError(ExperimentRunnerError):
+    """Required execution isolation disappeared or is unsupported."""
+
+
 def _result_payload(
     *,
     experiment_id: str,
@@ -514,7 +518,7 @@ def _classify_oracle_failure(result: sandbox.SandboxResult) -> str:
             "not found",
         )
     ):
-        return "infra_flake"
+        return "capability_mismatch"
     if any(pattern.search(combined_output) for pattern in OOM_PATTERNS):
         return "oom"
     return "guard_failure"
@@ -567,6 +571,14 @@ def _run_oracles(
                     allowlist={("sandbox.exec", "local://sandbox")},
                 )
             except Exception as exc:
+                message = str(exc).lower()
+                if disable_network and (
+                    "unshare" in message or "network-disabled sandbox" in message
+                ):
+                    raise CapabilityMismatchError(
+                        f"Unable to enforce zero-network oracle isolation for "
+                        f"{oracle['command']!r}: {exc}"
+                    ) from exc
                 raise InfraFlakeError(
                     f"Unable to execute oracle {oracle['command']!r}: {exc}"
                 ) from exc
@@ -743,6 +755,19 @@ def evaluate_candidate(packet: dict[str, Any], candidate_patch_path: Path) -> di
             budget_observations=budget_observations,
             shared_tree_untouched=shared_status_before is not None,
         )
+    except CapabilityMismatchError as exc:
+        budget_observations["runner_error"] = str(exc)
+        result = _result_payload(
+            experiment_id=packet["experiment_id"],
+            runner_mode=packet.get("runner_mode", DEFAULT_RUNNER_MODE),
+            candidate_patch=candidate_patch_ref,
+            status="rejected",
+            failure_class="capability_mismatch",
+            mutated_paths=[],
+            oracle_results=[],
+            budget_observations=budget_observations,
+            shared_tree_untouched=shared_status_before is not None,
+        )
     except InfraFlakeError as exc:
         budget_observations["runner_error"] = str(exc)
         result = _result_payload(
@@ -879,6 +904,19 @@ def evaluate_oracle_only_governance_reviewer(
             candidate_patch=ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE,
             status="rejected",
             failure_class="policy_violation",
+            mutated_paths=[],
+            oracle_results=[],
+            budget_observations=budget_observations,
+            shared_tree_untouched=shared_status_before is not None,
+        )
+    except CapabilityMismatchError as exc:
+        budget_observations["runner_error"] = str(exc)
+        result = _result_payload(
+            experiment_id=packet["experiment_id"],
+            runner_mode=ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE,
+            candidate_patch=ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE,
+            status="rejected",
+            failure_class="capability_mismatch",
             mutated_paths=[],
             oracle_results=[],
             budget_observations=budget_observations,
