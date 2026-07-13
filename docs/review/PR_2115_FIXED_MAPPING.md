@@ -28,6 +28,10 @@ Fastlane/xcodeproj gem graph and all App Store workflow behavior.
 - `ecfa35461db561ff3d5d898a845277d04a2f7455` - pin the exact compatibility
   bridge, conservatively reconcile its lock entry, and add fail-closed graph
   guards.
+- `c9c2159c3631d7a8481a9c14b39982a50f7f995d` - make the Phase-2 body and
+  mapping evidence parser-safe and complete the post-open role checkboxes.
+- `4677103c9a2f825508b6531e26e2fd82984dba0f` - reconcile the mandatory
+  security-auditor status and record the sealed security-scan closure.
 
 ## Discussion Thread Pass
 
@@ -38,7 +42,7 @@ Fastlane/xcodeproj gem graph and all App Store workflow behavior.
 - [x] Experiment Runner oracle-only evidence accepted.
 - [x] Post-open `qa-engineer-agent -> bug-hunter -> security-auditor` completed.
 - [x] Codex Security diff scan completed for the material diff.
-- [ ] `pulseplate-pr-review` completed.
+- [x] `pulseplate-pr-review` completed.
 - [ ] All current review threads dispositioned and resolved.
 - [ ] Current-head CI completed.
 - [ ] Strict authenticated merge readiness and mandatory wait window completed.
@@ -46,6 +50,9 @@ Fastlane/xcodeproj gem graph and all App Store workflow behavior.
 ## Fixed in Commit Mapping
 
 - No actionable review comments
+
+The artifact-level discussion-thread and fixed-mapping checkboxes are complete;
+merge-readiness and current-head CI remain separate pending gates.
 
 ## Experiment Runner Evidence
 
@@ -70,7 +77,8 @@ tests passing, no shared-tree mutation, and contribution kind `oracle_review`.
 - PASS: sealed Codex Security scan `07492320-eaa5-45f8-b238-2532b7e6a35c`
   reviewed all four diff rows through discovery, validation, and attack-path
   closure; zero reportable findings survived final policy adjustment.
-- PENDING: `pulseplate-pr-review`.
+- PASS: `pulseplate-pr-review` found no deterministic correctness, security,
+  release, or governance finding on the final four-file diff.
 
 ## Risks / Rollback
 
