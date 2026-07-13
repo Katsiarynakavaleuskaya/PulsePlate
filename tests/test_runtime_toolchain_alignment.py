@@ -73,7 +73,7 @@ def _iter_ruby_setup_steps(path: str) -> list[tuple[str, dict[str, Any]]]:
         assert isinstance(steps, list)
         for step in steps:
             assert isinstance(step, dict)
-            if str(step.get("uses", "")).startswith("ruby/setup-ruby@"):
+            if str(step.get("uses", "")).casefold().startswith("ruby/setup-ruby@"):
                 setup_steps.append((job_name, step))
     return setup_steps
 
@@ -200,6 +200,39 @@ def test_ruby_setup_owner_contract_rejects_duplicate_step_in_one_job() -> None:
 
     with pytest.raises(AssertionError):
         _assert_expected_ruby_setup_steps(discovered)
+
+
+def test_ruby_setup_discovery_catches_mixed_case_action_reference(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    workflow_path = tmp_path / "mixed-case-ruby-action.yml"
+    workflow_path.write_text(
+        """
+name: Mixed-case Ruby action
+on: workflow_dispatch
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: Ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.4"
+""".lstrip(),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("tests.test_runtime_toolchain_alignment.REPO_ROOT", tmp_path)
+
+    discovered = _iter_ruby_setup_steps(workflow_path.name)
+
+    assert discovered == [
+        (
+            "release",
+            {
+                "uses": "Ruby/setup-ruby@v1",
+                "with": {"ruby-version": "3.4"},
+            },
+        )
+    ]
 
 
 def test_codecov_python_input_is_metadata_only_and_canonical() -> None:
