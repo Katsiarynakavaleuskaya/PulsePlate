@@ -29,6 +29,8 @@ optional RAG boundaries.
 - `a24511538a74cef7d468dbe65470fb1418135283` - raise Click and Pillow security
   floors and exact pins, extend deterministic guards, and record private-proxy
   resolver evidence.
+- `11d118fac85ef71e6bea3f63c7e1651dbbce4a52` - close the post-open dependency
+  documentation and governance findings with tracked evidence.
 
 ## Discussion Thread Pass
 
@@ -46,8 +48,13 @@ optional RAG boundaries.
 
 ## Fixed in Commit Mapping
 
-Mapping entries are added in the follow-up governance commit after the reviewed
-documentation fixes have their post-comment commit SHA.
+Disposition: FIXED
+Commit: 11d118fac85ef71e6bea3f63c7e1651dbbce4a52
+Evidence: `docs/security/DEPENDENCY_SECURITY_GUARD_WORKFLOW.md:89`, `docs/security/PYSEC_2026_CLICK_PILLOW_HOTFIX.md:29`, and `docs/review/PR_2111_FIXED_MAPPING.md:37`
+Reason: The dependency workflow now covers every affected canonical shared lock with proxy-safe commands and current local validation policy; the hotfix evidence distinguishes tracked proof from gitignored operator output; and the required discussion/mapping checkboxes are complete.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2111#discussion_r3570270944 -> 11d118fac85ef71e6bea3f63c7e1651dbbce4a52
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2111#discussion_r3570270948 -> 11d118fac85ef71e6bea3f63c7e1651dbbce4a52
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2111#discussion_r3570298218 -> 11d118fac85ef71e6bea3f63c7e1651dbbce4a52
 
 ## Experiment Runner Evidence
 
