@@ -10858,11 +10858,14 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Runner outputs candidate result artifacts, not autonomous merge-ready commits
 
 <a id="ledger-p1-experiment-runner-macos-strict-backend"></a>
-- [ ] P1: Strict macOS backend for Experiment Runner
+- [x] P1: Strict macOS backend for Experiment Runner
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (restore canonical zero-network oracle evidence on the operator Mac)
-  - Target PR: `codex/experiment-runner-mac-strict-backend`
-  - Status: In progress; Apple Container remains opt-in until real Mac evidence and current-head CI complete.
+  - Target PR: PR #2116 (`codex/experiment-runner-mac-strict-backend`)
+  - Status: Completed in PR #2116, merged on 2026-07-14 as
+    `2f253c91cc93943b1406dfa2ced19dcee9ec83b4`; Apple Container remains an
+    opt-in macOS backend, with real candidate/oracle evidence, current-head
+    CI, review disposition, and strict merge-readiness evidence all complete.
   - Dependencies:
     - [P1: PR3 experiment runner MVP for bounded candidate loops](#ledger-p1-agent-experiment-runner)
   - Reason (EN): The native runner correctly requires `network_budget=0`, but macOS cannot provide the Linux `unshare` primitive directly. Add one fail-closed dispatcher that proves Apple Container isolation first, proves Docker `--network none` only as a fallback, and returns non-retryable `capability_mismatch` instead of weakening network policy.
