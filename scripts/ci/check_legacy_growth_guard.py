@@ -2559,32 +2559,77 @@ def _assigned_names(tree: ast.Module) -> set[str]:
     names: set[str] = set()
 
     class _ModuleBindingVisitor(ast.NodeVisitor):
-        def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+        def _visit_function_header(
+            self,
+            node: ast.FunctionDef | ast.AsyncFunctionDef,
+        ) -> None:
             names.add(node.name)
+            for decorator in node.decorator_list:
+                self.visit(decorator)
+            for default in (*node.args.defaults, *node.args.kw_defaults):
+                if default is not None:
+                    self.visit(default)
+            for argument in (
+                *node.args.posonlyargs,
+                *node.args.args,
+                *node.args.kwonlyargs,
+            ):
+                if argument.annotation is not None:
+                    self.visit(argument.annotation)
+            if node.args.vararg is not None and node.args.vararg.annotation is not None:
+                self.visit(node.args.vararg.annotation)
+            if node.args.kwarg is not None and node.args.kwarg.annotation is not None:
+                self.visit(node.args.kwarg.annotation)
+            if node.returns is not None:
+                self.visit(node.returns)
+            for type_param in getattr(node, "type_params", ()):
+                self.visit(type_param)
+
+        def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+            self._visit_function_header(node)
 
         def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
-            names.add(node.name)
+            self._visit_function_header(node)
 
         def visit_ClassDef(self, node: ast.ClassDef) -> None:
             names.add(node.name)
+            for decorator in node.decorator_list:
+                self.visit(decorator)
+            for base in node.bases:
+                self.visit(base)
+            for keyword in node.keywords:
+                self.visit(keyword.value)
+            for type_param in getattr(node, "type_params", ()):
+                self.visit(type_param)
 
         def visit_Lambda(self, node: ast.Lambda) -> None:
             return
 
         def visit_ListComp(self, node: ast.ListComp) -> None:
-            return
+            self._visit_comprehension(node.generators)
+            self.visit(node.elt)
 
         def visit_SetComp(self, node: ast.SetComp) -> None:
-            return
+            self._visit_comprehension(node.generators)
+            self.visit(node.elt)
 
         def visit_DictComp(self, node: ast.DictComp) -> None:
-            return
+            self._visit_comprehension(node.generators)
+            self.visit(node.key)
+            self.visit(node.value)
 
         def visit_GeneratorExp(self, node: ast.GeneratorExp) -> None:
-            return
+            self._visit_comprehension(node.generators)
+            self.visit(node.elt)
+
+        def _visit_comprehension(self, generators: Sequence[ast.comprehension]) -> None:
+            for generator in generators:
+                self.visit(generator.iter)
+                for condition in generator.ifs:
+                    self.visit(condition)
 
         def visit_Name(self, node: ast.Name) -> None:
-            if isinstance(node.ctx, ast.Store):
+            if isinstance(node.ctx, (ast.Store, ast.Del)):
                 names.add(node.id)
 
         def visit_Import(self, node: ast.Import) -> None:
@@ -2593,6 +2638,9 @@ def _assigned_names(tree: ast.Module) -> set[str]:
 
         def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
             for alias in node.names:
+                if alias.name == "*":
+                    names.update(CANONICAL_OPENAPI_SYMBOLS)
+                    continue
                 bound_name = alias.asname or alias.name
                 if (
                     node.module == "app.bootstrap.openapi"
@@ -2600,14 +2648,29 @@ def _assigned_names(tree: ast.Module) -> set[str]:
                     and bound_name == alias.name
                 ):
                     continue
-                if alias.name != "*":
-                    names.add(bound_name)
+                names.add(bound_name)
 
         def visit_ExceptHandler(self, node: ast.ExceptHandler) -> None:
             if node.name is not None:
                 names.add(node.name)
             for statement in node.body:
                 self.visit(statement)
+
+        def visit_MatchAs(self, node: ast.MatchAs) -> None:
+            if node.name is not None:
+                names.add(node.name)
+            if node.pattern is not None:
+                self.visit(node.pattern)
+
+        def visit_MatchStar(self, node: ast.MatchStar) -> None:
+            if node.name is not None:
+                names.add(node.name)
+
+        def visit_MatchMapping(self, node: ast.MatchMapping) -> None:
+            if node.rest is not None:
+                names.add(node.rest)
+            for pattern in node.patterns:
+                self.visit(pattern)
 
     visitor = _ModuleBindingVisitor()
     for statement in tree.body:
@@ -2765,9 +2828,15 @@ def validate_application_metadata_openapi_ownership(
         errors.append(
             f"{LEGACY_APP}: canonical OpenAPI compatibility re-export must preserve identity: {name}"
         )
-    rebound = (_assigned_names(legacy_tree) & CANONICAL_OPENAPI_SYMBOLS) | (
-        foreign_import_rebindings
-    )
+    explicit_globals = {
+        name
+        for node in ast.walk(legacy_tree)
+        if isinstance(node, ast.Global)
+        for name in node.names
+    }
+    rebound = (
+        (_assigned_names(legacy_tree) | explicit_globals) & CANONICAL_OPENAPI_SYMBOLS
+    ) | foreign_import_rebindings
     for name in sorted(rebound):
         errors.append(f"{LEGACY_APP}: canonical OpenAPI re-export must not be rebound: {name}")
     if not metadata_factory_imported:
