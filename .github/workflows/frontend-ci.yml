@@ -322,10 +322,31 @@ jobs:
                   if line.strip() and not line.lstrip().startswith("#")
               ]
 
+          def directive_blocks(lines: list[str], opener: str) -> list[list[str]]:
+              blocks: list[list[str]] = []
+              for index, line in enumerate(lines):
+                  if line != opener:
+                      continue
+                  depth = 1
+                  block: list[str] = []
+                  for nested in lines[index + 1:]:
+                      depth += nested.count("{") - nested.count("}")
+                      if depth == 0:
+                          blocks.append(block)
+                          break
+                      block.append(nested)
+                  else:
+                      raise AssertionError(f"unterminated Caddy directive block: {opener}")
+              return blocks
+
           production = active_lines("deploy/Caddyfile.production")
           staging = active_lines("deploy/Caddyfile")
           assert production.index("handle @legacy_post {") < production.index("handle @api {")
           assert production.index("handle @api {") < production.index("handle {")
+          production_headers = directive_blocks(production, "header {")
+          staging_headers = directive_blocks(staging, "header {")
+          assert production_headers
+          assert staging_headers
           for directive in (
               'Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"',
               'X-Content-Type-Options "nosniff"',
@@ -333,14 +354,14 @@ jobs:
               'Referrer-Policy "strict-origin-when-cross-origin"',
               'Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=(), ambient-light-sensor=(), autoplay=(), encrypted-media=(), fullscreen=(self), picture-in-picture=()"',
           ):
-              assert directive in production
+              assert all(directive in block for block in production_headers)
           for directive in (
               'X-Content-Type-Options "nosniff"',
               'X-Frame-Options "DENY"',
               'Referrer-Policy "no-referrer"',
               'Content-Security-Policy "default-src \'self\'; frame-ancestors \'none\'; object-src \'none\'"',
           ):
-              assert directive in staging
+              assert all(directive in block for block in staging_headers)
           assert "reverse_proxy app:8000" in staging
           PY
 

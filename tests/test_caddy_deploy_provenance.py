@@ -65,6 +65,8 @@ def test_caddy_dockerfile_owns_exact_hardened_build_recipe() -> None:
     assert "CGO_ENABLED=0" in text
     assert "github.com/caddyserver/caddy/v2/cmd/caddy@v2.11.4" in text
     assert "github.com/caddyserver/caddy/v2.CustomVersion=v2.11.4" in text
+    assert "go version -m /go/bin/caddy" in text
+    assert '$2 == "github.com/caddyserver/caddy/v2" && $3 == "v2.11.4"' in text
     assert 'apk add --no-cache "c-ares>=1.34.8-r0"' in text
     assert "COPY --from=caddy-build --chmod=0755 /go/bin/caddy" in text
     assert "caddy list-modules --packages" in text
@@ -348,11 +350,32 @@ def test_active_caddyfiles_keep_proxy_order_and_security_headers() -> None:
             if line.strip() and not line.lstrip().startswith("#")
         ]
 
+    def directive_blocks(lines: list[str], opener: str) -> list[list[str]]:
+        blocks: list[list[str]] = []
+        for index, line in enumerate(lines):
+            if line != opener:
+                continue
+            depth = 1
+            block: list[str] = []
+            for nested in lines[index + 1 :]:
+                depth += nested.count("{") - nested.count("}")
+                if depth == 0:
+                    blocks.append(block)
+                    break
+                block.append(nested)
+            else:
+                raise AssertionError(f"unterminated Caddy directive block: {opener}")
+        return blocks
+
     production = active_lines(REPO_ROOT / "deploy" / "Caddyfile.production")
     staging = active_lines(REPO_ROOT / "deploy" / "Caddyfile")
 
     assert production.index("handle @legacy_post {") < production.index("handle @api {")
     assert production.index("handle @api {") < production.index("handle {")
+    production_headers = directive_blocks(production, "header {")
+    staging_headers = directive_blocks(staging, "header {")
+    assert production_headers
+    assert staging_headers
     for directive in (
         'Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"',
         'X-Content-Type-Options "nosniff"',
@@ -360,12 +383,12 @@ def test_active_caddyfiles_keep_proxy_order_and_security_headers() -> None:
         'Referrer-Policy "strict-origin-when-cross-origin"',
         'Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=(), ambient-light-sensor=(), autoplay=(), encrypted-media=(), fullscreen=(self), picture-in-picture=()"',
     ):
-        assert directive in production
+        assert all(directive in block for block in production_headers)
     for directive in (
         'X-Content-Type-Options "nosniff"',
         'X-Frame-Options "DENY"',
         'Referrer-Policy "no-referrer"',
         "Content-Security-Policy \"default-src 'self'; frame-ancestors 'none'; object-src 'none'\"",
     ):
-        assert directive in staging
+        assert all(directive in block for block in staging_headers)
     assert "reverse_proxy app:8000" in staging

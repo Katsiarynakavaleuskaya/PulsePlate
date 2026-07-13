@@ -60,7 +60,7 @@ version, standard module parity, and file capability.
 | PM-01 | Rebuilt binary reports `unknown` or wrong Caddy release | `caddy version` differs from v2.11.4 | Docker build fails unless linker version, Go metadata, and module version match |
 | PM-02 | Module comparison false-reds or misses a plugin drift | Official binary prints package columns differently | Compare normalized module-name column; require exact sorted set parity |
 | PM-03 | Capability validation cannot execute the binary | `operation not permitted` under `--cap-drop ALL` | Validation adds only `NET_BIND_SERVICE`; runtime file capability remains asserted |
-| PM-04 | Server-local deploy contract is stale | Marker, contract version, or one of three hashes differs | Preflight fails before registry token/deploy; gate remains default-false |
+| PM-04 | Server-local deploy contract is stale | Marker, contract version, or one of four reviewed-file hashes differs | Preflight fails before registry token/deploy; gate remains default-false |
 | PM-05 | Required staging deploy silently skips incomplete credentials | readiness step emits `skip=1` while required mode is true | Readiness exits non-zero when `STAGING_DEPLOY_REQUIRED=true` |
 | PM-06 | Caddy or backend scan is advisory or scans a tag | scan input lacks same-job digest | Both Trivy steps consume validated digest outputs and use exit code 1 |
 | PM-07 | A suppression hides the original Caddy findings | ignore input or policy appears | Tests reject ignore inputs; no `.trivyignore` or Rego change is in scope |

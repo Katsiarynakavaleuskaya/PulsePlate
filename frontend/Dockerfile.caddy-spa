@@ -17,7 +17,9 @@ RUN set -eux; \
       -ldflags '-X github.com/caddyserver/caddy/v2.CustomVersion=v2.11.4' \
       github.com/caddyserver/caddy/v2/cmd/caddy@v2.11.4; \
     /go/bin/caddy version; \
-    go version -m /go/bin/caddy
+    go version -m /go/bin/caddy; \
+    go version -m /go/bin/caddy \
+      | awk '$1 == "mod" && $2 == "github.com/caddyserver/caddy/v2" && $3 == "v2.11.4" { found = 1 } END { exit !found }'
 
 FROM node:24.16.0-bookworm-slim AS frontend-build
 
