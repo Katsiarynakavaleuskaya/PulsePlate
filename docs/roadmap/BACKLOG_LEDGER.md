@@ -12225,8 +12225,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Migrate the Fastlane execution runtime to Ruby 3.4.10
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (release-tooling compatibility)
-  - Target PR: PR-TBD-RUBY-3-4-10-FASTLANE-RUNTIME
-  - Status: Planned on 13 July 2026; no PR number assigned yet
+  - Target PR: #2113
+  - Status: Open on 13 July 2026; implementation and review in progress
   - Reason: The no-auth validation lane passes with Fastlane `2.237.0` on the
     canonical Ruby `3.1` runtime, but Fastlane emits an explicit warning that a
     future release will require Ruby `3.3` or newer. Ruby `3.1` reached end of
@@ -12248,6 +12248,6 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - iOS release tooling and current-head CI pass without App Store mutation
     - rollback and operator migration instructions are documented
 
-**Last updated:** 2026-07-13 (Ruby 3.4.10 Fastlane runtime migration planned)
+**Last updated:** 2026-07-13 (Ruby 3.4.10 Fastlane runtime migration open; implementation and review in progress)
 **Maintainer:** @katsiaryna_kavaleuskaya
 <!-- markdownlint-enable MD013 -->

@@ -33,9 +33,10 @@ backlog link before its thread is resolved.
 ### Agent Coordinator
 
 Disposition: NOT-A-BUG
-Evidence: The 10-file diff is one bounded Release/control-plane migration; it
-contains no backend, OpenAPI, Python requirement, private-proxy, Fastfile,
-Gemfile, or Gemfile.lock change.
+Evidence: The 10 implementation files plus this canonical fixed-mapping
+artifact form one bounded Release/control-plane migration; they contain no
+backend, OpenAPI, Python requirement, private-proxy, Fastfile, Gemfile, or
+Gemfile.lock change.
 Reason: The selected task class, scope, ordered role path, rollback, and current
 CI stop conditions match repository governance.
 
@@ -72,7 +73,7 @@ Reason: No deterministic acceptance regression was found.
 ### Actual-diff Premortem
 
 Disposition: FIXED
-Commit: 779aab777fbff583fa9115827ab05e02c14da087
+Commit: fb957acce9ec5d70c91fce18b848d97271c8f6b2
 Evidence: `docs/security/CVE-2026-54171-excon-fastlane.md` now points to the
 actual Fastlane/Excon guard, and
 `docs/security/DEPENDABOT_ALERT_INVENTORY.md` labels its mixed-state table as
