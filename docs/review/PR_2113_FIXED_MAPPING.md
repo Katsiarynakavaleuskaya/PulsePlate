@@ -16,7 +16,7 @@ authority.
 
 - [ ] Discussion-thread pass completed
 - [ ] Fixed in commit mapping completed
-- [ ] Mandatory post-open `qa-engineer-agent -> bug-hunter -> security-auditor` pass completed
+- [x] Mandatory post-open `qa-engineer-agent -> bug-hunter -> security-auditor` pass completed
 - [ ] Codex Security exact-head diff scan completed
 - [ ] `pulseplate-pr-review` completed
 - [ ] Current-head CI completed
@@ -80,6 +80,34 @@ actual Fastlane/Excon guard, and
 an alert status inventory.
 Reason: Both bounded documentation inconsistencies were fixed before PR open;
 the PR body records the required whole-PR rollback and App Store upload pause.
+
+## Post-open Role Pass Evidence
+
+### QA Engineer Agent
+
+Disposition: FIXED
+Commit: e38b445d94be95fa496619fa00c3df689ceff4ef1
+Evidence: The backlog now points to open PR #2113 and accurately records the
+in-progress implementation/review state; focused runtime-toolchain alignment
+tests and the Gemfile/lock immutability check passed.
+
+### Bug Hunter
+
+Disposition: FIXED
+Commit: e38b445d94be95fa496619fa00c3df689ceff4ef1
+Evidence: Rebased proof now identifies `fb957acce9ec5d70c91fce18b848d97271c8f6b2`,
+the backlog footer no longer says the migration is merely planned, and no stale
+pre-rebase or TBD governance reference remains.
+
+### Security Auditor
+
+Disposition: NOT-A-BUG
+Evidence: All four workflow owners use exact Ruby 3.4.10 and immutable
+`ruby/setup-ruby@d45b1a4e94b71acab930e56e79c6aa188764e7f9`; no permission,
+secret, trigger, upload-authority, Gemfile, or Gemfile.lock change exists, and
+upload jobs remain manual and fail closed.
+Reason: The ordered security pass found no actionable supply-chain or release
+control-plane defect after the governance correction.
 
 ## Experiment Runner Evidence
 
