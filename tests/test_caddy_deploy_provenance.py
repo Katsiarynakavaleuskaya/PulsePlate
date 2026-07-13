@@ -175,6 +175,32 @@ def test_cd_builds_attests_scans_and_deploys_both_same_job_digests() -> None:
     assert "staging credentials are incomplete" in readiness["run"]
     assert "STAGING_DEPLOY_REQUIRED=true" in readiness["run"]
 
+    required_policy = _named_step(steps, "Enforce required staging deployment policy")
+    assert "if" not in required_policy
+    required_policy_env = required_policy.get("env")
+    assert isinstance(required_policy_env, dict)
+    assert required_policy_env == {
+        "STAGING_DEPLOY_REQUIRED": "${{ vars.STAGING_DEPLOY_REQUIRED }}",
+        "STAGING_DEPLOY_ENABLED": "${{ vars.STAGING_DEPLOY_ENABLED }}",
+        "WEB_IOS_RELEASE_READY": "${{ vars.WEB_IOS_RELEASE_READY }}",
+        "STAGING_ATTESTED_DIGEST_READY": "${{ vars.STAGING_ATTESTED_DIGEST_READY }}",
+    }
+    required_policy_run = required_policy["run"]
+    for gate in (
+        "STAGING_DEPLOY_ENABLED",
+        "WEB_IOS_RELEASE_READY",
+        "STAGING_ATTESTED_DIGEST_READY",
+    ):
+        assert gate in required_policy_run
+    assert "STAGING_DEPLOY_REQUIRED=true requires ${required_gate}=true" in required_policy_run
+
+    healthcheck = _named_step(steps, "Healthcheck (staging)")
+    healthcheck_env = healthcheck.get("env")
+    assert isinstance(healthcheck_env, dict)
+    assert healthcheck_env["STAGING_DOMAIN_REF"] == "${{ secrets.STAGING_DOMAIN }}"
+    assert "${{ secrets.STAGING_DOMAIN }}" not in healthcheck["run"]
+    assert '"https://${STAGING_DOMAIN_REF}/ready"' in healthcheck["run"]
+
 
 def test_remote_contract_preflight_has_no_registry_secret_and_checks_current_files() -> None:
     workflow = _workflow(CD_WORKFLOW)

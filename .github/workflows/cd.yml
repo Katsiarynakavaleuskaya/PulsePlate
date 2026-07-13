@@ -308,6 +308,27 @@ jobs:
           exit-code: '1'
           cache-dir: /tmp/trivy-cache-staging-caddy
 
+      - name: Enforce required staging deployment policy
+        env:
+          STAGING_DEPLOY_REQUIRED: ${{ vars.STAGING_DEPLOY_REQUIRED }}
+          STAGING_DEPLOY_ENABLED: ${{ vars.STAGING_DEPLOY_ENABLED }}
+          WEB_IOS_RELEASE_READY: ${{ vars.WEB_IOS_RELEASE_READY }}
+          STAGING_ATTESTED_DIGEST_READY: ${{ vars.STAGING_ATTESTED_DIGEST_READY }}
+        run: |
+          set -euo pipefail
+          if [ "${STAGING_DEPLOY_REQUIRED:-false}" != "true" ]; then
+            exit 0
+          fi
+          for required_gate in \
+            STAGING_DEPLOY_ENABLED \
+            WEB_IOS_RELEASE_READY \
+            STAGING_ATTESTED_DIGEST_READY; do
+            if [ "${!required_gate:-false}" != "true" ]; then
+              echo "::error::STAGING_DEPLOY_REQUIRED=true requires ${required_gate}=true."
+              exit 1
+            fi
+          done
+
       # When STAGING_DEPLOY_ENABLED=true but SSH_KEY (or host) is not set, skip deploy to avoid "ssh: no key found" / fingerprint mismatch.
       # Use env so multi-line SSH_KEY is not inlined in run (avoids breaking when key was set and working).
       - name: Check staging deploy readiness
@@ -456,10 +477,12 @@ jobs:
           && steps.staging-deploy-ready.outputs.skip != '1'
           && steps.staging-contract-preflight.outcome == 'success'
           && steps.deploy-staging.outcome == 'success'
+        env:
+          STAGING_DOMAIN_REF: ${{ secrets.STAGING_DOMAIN }}
         run: |
           set -euo pipefail
           for i in 1 2 3; do
-            if curl -fsS --max-time 10 "https://${{ secrets.STAGING_DOMAIN }}/ready" > /dev/null; then
+            if curl -fsS --max-time 10 "https://${STAGING_DOMAIN_REF}/ready" > /dev/null; then
               echo "Healthcheck passed"
               exit 0
             fi
