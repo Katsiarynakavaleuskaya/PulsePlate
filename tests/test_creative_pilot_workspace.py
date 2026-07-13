@@ -146,6 +146,55 @@ def test_production_adjacent_target_binds_git_blob_and_symbols() -> None:
     assert {row["path"] for row in context["context_bindings"]} == set(context["context_refs"])
 
 
+def test_tracked_blob_size_uses_object_metadata_without_reading_content(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    commit = "a" * 40
+    blob_oid = "b" * 40
+    path = "AGENTS.md"
+    calls: list[tuple[tuple[str, ...], bool]] = []
+
+    def fake_git(*args: str, binary: bool = False) -> str | bytes:
+        calls.append((args, binary))
+        responses: dict[tuple[str, ...], str] = {
+            ("cat-file", "-t", commit): "commit\n",
+            ("ls-tree", commit, "--", path): f"100644 blob {blob_oid}\t{path}\n",
+            ("cat-file", "-s", blob_oid): "33554432\n",
+        }
+        return responses[args]
+
+    monkeypatch.setattr(pilot_contract, "_git", fake_git)
+
+    assert pilot_contract.tracked_blob_size_at_commit(commit, path) == 33_554_432
+    assert calls == [
+        (("cat-file", "-t", commit), False),
+        (("ls-tree", commit, "--", path), False),
+        (("cat-file", "-s", blob_oid), False),
+    ]
+
+
+def test_tracked_blob_size_rejects_non_numeric_git_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    commit = "a" * 40
+    blob_oid = "b" * 40
+    path = "AGENTS.md"
+
+    def fake_git(*args: str, binary: bool = False) -> str | bytes:
+        del binary
+        responses: dict[tuple[str, ...], str] = {
+            ("cat-file", "-t", commit): "commit\n",
+            ("ls-tree", commit, "--", path): f"100644 blob {blob_oid}\t{path}\n",
+            ("cat-file", "-s", blob_oid): "not-a-size\n",
+        }
+        return responses[args]
+
+    monkeypatch.setattr(pilot_contract, "_git", fake_git)
+
+    with pytest.raises(CreativePilotContractError, match="non-negative integer"):
+        pilot_contract.tracked_blob_size_at_commit(commit, path)
+
+
 def test_target_rejects_stale_head_and_untracked_context() -> None:
     stale = subprocess.check_output(
         [GIT, "rev-parse", "origin/main^"], cwd=REPO_ROOT, text=True

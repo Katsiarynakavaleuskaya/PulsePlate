@@ -955,7 +955,7 @@ def current_origin_main_sha() -> str:
     return _sha(value, "origin/main")
 
 
-def _blob_at(commit_sha: str, path: str) -> tuple[str, bytes]:
+def _blob_oid_at(commit_sha: str, path: str) -> str:
     row = cast(str, _git("ls-tree", commit_sha, "--", path)).strip()
     fields = row.split(None, 3)
     if len(fields) != 4 or fields[1] != "blob" or fields[3] != path:
@@ -964,8 +964,13 @@ def _blob_at(commit_sha: str, path: str) -> tuple[str, bytes]:
         )
     if fields[0] in {"120000", "160000"}:
         raise CreativePilotContractError(f"target path must not be a symlink or submodule: {path}")
+    return fields[2]
+
+
+def _blob_at(commit_sha: str, path: str) -> tuple[str, bytes]:
+    blob_oid = _blob_oid_at(commit_sha, path)
     content = cast(bytes, _git("show", f"{commit_sha}:{path}", binary=True))
-    return fields[2], content
+    return blob_oid, content
 
 
 def tracked_blob_size_at_commit(commit_sha: str, path: str) -> int:
@@ -974,8 +979,11 @@ def tracked_blob_size_at_commit(commit_sha: str, path: str) -> int:
     commit = _sha(commit_sha, "commit_sha")
     _require_commit(commit, "commit_sha")
     normalized_path = _path(path, "tracked_file.path")
-    _blob_oid, content = _blob_at(commit, normalized_path)
-    return len(content)
+    blob_oid = _blob_oid_at(commit, normalized_path)
+    raw_size = cast(str, _git("cat-file", "-s", blob_oid)).strip()
+    if re.fullmatch(r"[0-9]{1,20}", raw_size) is None:
+        raise CreativePilotContractError("tracked blob size must be a non-negative integer")
+    return int(raw_size)
 
 
 def _symbols(content: bytes, path: str) -> set[str]:
