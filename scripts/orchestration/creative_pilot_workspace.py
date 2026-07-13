@@ -4,12 +4,15 @@
 from __future__ import annotations
 
 import argparse
+import ctypes
 from datetime import datetime, timezone
 import errno
+import importlib
 import json
 import os
 from pathlib import Path
 import secrets
+import shutil
 import stat
 import sys
 from typing import Any
@@ -29,6 +32,9 @@ from scripts.orchestration.creative_pilot_workspace_contract import (
     build_role_result,
     build_synthesis,
     build_target_manifest,
+    build_adaptive_pr1_resume_binding,
+    build_adaptive_pr1_variant_intake,
+    derive_adaptive_pr1_resume_identity,
     build_workspace,
     complete_handoff,
     detect_conflicts,
@@ -36,20 +42,48 @@ from scripts.orchestration.creative_pilot_workspace_contract import (
     load_json_strict,
     terminate_workspace,
     validate_dispatch_phase,
+    validate_retained_terminal_handoff,
+    validate_adaptive_pr1_resume_binding,
+    validate_approval_v2,
     validate_synthesis,
     validate_workspace,
+    current_origin_main_sha,
+    ADAPTIVE_PR1_PREPARE_FILENAMES,
+    ADAPTIVE_PR1_SOURCE_TYPES,
 )
 from scripts.orchestration.creative_code_spec_pipeline import (
     CreativeCodeSpecPipelineError,
     prepare as prepare_specification,
+    prepare_exact as prepare_exact_specification,
+    validate_default_prepare_artifact_snapshots,
+    validate_exact_prepare_artifacts,
 )
 from scripts.orchestration.creative_hypothesis_spec_bridge_contract import (
     CreativeHypothesisSpecBridgeError,
     build_creative_pilot_spec_bridge_bundle,
 )
 from scripts.orchestration.creative_code_contract import CreativeCodeContractError
+from scripts.orchestration.creative_code_specification import (
+    CreativeCodeSpecificationError,
+)
+from core.evidence.fingerprints import fingerprint_payload
 
 PILOT_ROOT = REPO_ROOT / "artifacts" / "orchestration" / "creative_code" / "adaptive_pilots"
+SPEC_BRIDGE_ROOT = REPO_ROOT / "artifacts" / "orchestration" / "creative_code" / "spec_bridge"
+RESUME_INTAKE_FILENAME = "creative_adaptive_pr1_variant_intake.json"
+RESUME_BINDING_FILENAME = "creative_adaptive_pr1_resume_binding.json"
+RESUME_CANDIDATE_FILENAME = "creative_code_candidate_packet.json"
+
+
+def _reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    payload: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in payload:
+            raise CreativePilotContractError(f"duplicate JSON key: {key}")
+        payload[key] = value
+    return payload
+
+
 FIXED_FILENAMES = {
     "context": "context_map.v2.json",
     "packet": "hypothesis_packet.v2.json",
@@ -80,7 +114,13 @@ def _read(path: Path) -> dict[str, Any]:
         return payload
     except CreativePilotContractError:
         raise
-    except (OSError, UnicodeDecodeError, ValueError, NotImplementedError) as exc:
+    except (
+        OSError,
+        UnicodeDecodeError,
+        ValueError,
+        RecursionError,
+        NotImplementedError,
+    ) as exc:
         if isinstance(exc, OSError) and exc.errno == errno.ELOOP:
             raise CreativePilotContractError(
                 "pilot artifact path must not traverse symlinks"
@@ -93,6 +133,69 @@ def _read(path: Path) -> dict[str, Any]:
             raise CreativePilotContractError(
                 "unable to close pilot input safely"
             ) from cleanup_error
+
+
+def _read_array(path: Path) -> list[dict[str, Any]]:
+    parent_fd = -1
+    file_fd = -1
+    try:
+        parent_fd, filename = _open_pinned_parent(path, create=False)
+        flags = os.O_RDONLY | _required_open_flag("O_NOFOLLOW") | getattr(os, "O_CLOEXEC", 0)
+        file_fd = os.open(filename, flags, dir_fd=parent_fd)
+        if not stat.S_ISREG(os.fstat(file_fd).st_mode):
+            raise CreativePilotContractError("variant declarations must be a regular file")
+        with os.fdopen(file_fd, "r", encoding="utf-8") as handle:
+            file_fd = -1
+            payload = json.loads(handle.read(), object_pairs_hook=_reject_duplicate_keys)
+        if not isinstance(payload, list) or not all(isinstance(row, dict) for row in payload):
+            raise CreativePilotContractError("variant declarations must be a JSON array of objects")
+        return payload
+    except CreativePilotContractError:
+        raise
+    except (
+        OSError,
+        UnicodeDecodeError,
+        json.JSONDecodeError,
+        RecursionError,
+        NotImplementedError,
+    ) as exc:
+        raise CreativePilotContractError("unable to read safe exact variant declarations") from exc
+    finally:
+        active_error = sys.exc_info()[1]
+        cleanup_error = _close_descriptors(file_fd, parent_fd)
+        if active_error is None and cleanup_error is not None:
+            raise CreativePilotContractError(
+                "unable to close variant declarations safely"
+            ) from cleanup_error
+
+
+def _read_json_value(path: Path) -> Any:
+    parent_fd = -1
+    file_fd = -1
+    try:
+        parent_fd, filename = _open_pinned_parent(path, create=False)
+        flags = os.O_RDONLY | _required_open_flag("O_NOFOLLOW") | getattr(os, "O_CLOEXEC", 0)
+        file_fd = os.open(filename, flags, dir_fd=parent_fd)
+        if not stat.S_ISREG(os.fstat(file_fd).st_mode):
+            raise CreativePilotContractError("pilot input must be a regular file")
+        with os.fdopen(file_fd, "r", encoding="utf-8") as handle:
+            file_fd = -1
+            return json.loads(handle.read(), object_pairs_hook=_reject_duplicate_keys)
+    except CreativePilotContractError:
+        raise
+    except (
+        OSError,
+        UnicodeDecodeError,
+        json.JSONDecodeError,
+        RecursionError,
+        NotImplementedError,
+    ) as exc:
+        raise CreativePilotContractError("unable to read safe pilot JSON value") from exc
+    finally:
+        active_error = sys.exc_info()[1]
+        cleanup_error = _close_descriptors(file_fd, parent_fd)
+        if active_error is None and cleanup_error is not None:
+            raise CreativePilotContractError("unable to close pilot JSON safely") from cleanup_error
 
 
 def _atomic_write(path: Path, payload: Any) -> None:
@@ -445,7 +548,7 @@ def _cmd_build_handoff(args: argparse.Namespace) -> None:
     packet = _read(run_dir / FIXED_FILENAMES["packet"])
     workspace = validate_workspace(_read(run_dir / FIXED_FILENAMES["workspace"]))
     synthesis = validate_synthesis(_read(run_dir / FIXED_FILENAMES["synthesis"]))
-    approval = _read(run_dir / FIXED_FILENAMES["approval"])
+    approval = validate_approval_v2(_read(run_dir / FIXED_FILENAMES["approval"]))
     bundle = build_creative_pilot_spec_bridge_bundle(
         context_map=context,
         hypothesis_packet=packet,
@@ -472,6 +575,539 @@ def _cmd_build_handoff(args: argparse.Namespace) -> None:
         f"phase={completed['state']['phase']} next=agent-skeptic-review "
         f"prepare={prepare_dir.relative_to(REPO_ROOT)}"
     )
+
+
+def _artifact_ref(path: Path) -> str:
+    try:
+        return path.relative_to(REPO_ROOT).as_posix()
+    except ValueError as exc:
+        raise CreativePilotContractError(
+            "adaptive resume artifacts must stay inside repository"
+        ) from exc
+
+
+def _binding_row_from_snapshot(
+    path: Path, *, payload: Any, filename: str, artifact_type: str
+) -> dict[str, str]:
+    observed_type = (
+        payload.get("artifact_type") or payload.get("packet_type")
+        if isinstance(payload, dict)
+        else None
+    )
+    if artifact_type != "json" and observed_type != artifact_type:
+        raise CreativePilotContractError(f"adaptive_source_type_mismatch: {filename}")
+    return {
+        "filename": filename,
+        "artifact_type": artifact_type,
+        "ref": _artifact_ref(path),
+        "fingerprint": fingerprint_payload(payload),
+    }
+
+
+def _exact_source_bindings(
+    run_dir: Path,
+    *,
+    lineage: dict[str, Any],
+    prepare_snapshots: dict[str, Any],
+) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
+    source_snapshots = {
+        FIXED_FILENAMES["context"]: lineage["context_map"],
+        FIXED_FILENAMES["packet"]: lineage["hypothesis_packet"],
+        FIXED_FILENAMES["workspace"]: lineage["workspace"],
+        FIXED_FILENAMES["synthesis"]: lineage["synthesis"],
+        FIXED_FILENAMES["approval"]: lineage["approval"],
+        FIXED_FILENAMES["bridge"]: lineage["bridge"],
+        FIXED_FILENAMES["candidate"]: lineage["candidate"],
+    }
+    source_rows = [
+        _binding_row_from_snapshot(
+            run_dir / filename,
+            payload=source_snapshots[filename],
+            filename=filename,
+            artifact_type=artifact_type,
+        )
+        for filename, artifact_type in ADAPTIVE_PR1_SOURCE_TYPES.items()
+    ]
+    prepare_rows = [
+        _binding_row_from_snapshot(
+            run_dir / "pr1_prepare" / filename,
+            payload=prepare_snapshots[filename],
+            filename=filename,
+            artifact_type="json",
+        )
+        for filename in ADAPTIVE_PR1_PREPARE_FILENAMES
+    ]
+    return source_rows, prepare_rows
+
+
+def _revalidate_exact_source_bindings(
+    source_rows: list[dict[str, str]], prepare_rows: list[dict[str, str]]
+) -> None:
+    try:
+        for row in (*source_rows, *prepare_rows):
+            payload = _read_json_value(REPO_ROOT / row["ref"])
+            observed_type = (
+                payload.get("artifact_type") or payload.get("packet_type")
+                if isinstance(payload, dict)
+                else None
+            )
+            if row["artifact_type"] == "json":
+                observed_type = "json"
+            if observed_type != row["artifact_type"]:
+                raise CreativePilotContractError(
+                    f"adaptive_source_type_mismatch: {row['filename']}"
+                )
+            if fingerprint_payload(payload) != row["fingerprint"]:
+                raise CreativePilotContractError(
+                    f"adaptive_source_fingerprint_mismatch: {row['filename']}"
+                )
+    except CreativePilotContractError as exc:
+        if str(exc).startswith("adaptive_source_lineage_mismatch:"):
+            raise
+        raise CreativePilotContractError(f"adaptive_source_lineage_mismatch: {exc}") from exc
+
+
+def _expected_resume_entries() -> set[str]:
+    return {
+        RESUME_INTAKE_FILENAME,
+        RESUME_BINDING_FILENAME,
+        RESUME_CANDIDATE_FILENAME,
+        "spec_prepare",
+    }
+
+
+DirectoryIdentity = tuple[int, int]
+
+
+def _require_fcntl() -> Any:
+    try:
+        return importlib.import_module("fcntl")
+    except ModuleNotFoundError as exc:
+        raise CreativePilotContractError(
+            "adaptive resume cooperative locking is unavailable on this platform"
+        ) from exc
+
+
+def _directory_identity(path: Path) -> DirectoryIdentity:
+    info = path.stat(follow_symlinks=False)
+    if not stat.S_ISDIR(info.st_mode):
+        raise CreativePilotContractError("adaptive artifact must be a directory")
+    return (info.st_dev, info.st_ino)
+
+
+def _open_resume_parent_lock(final_dir: Path) -> int:
+    fcntl_module = _require_fcntl()
+    parent_fd = -1
+    try:
+        parent_fd, final_name = _open_pinned_parent(final_dir, create=True)
+        if final_name != final_dir.name:
+            raise CreativePilotContractError("adaptive resume canonical name changed")
+        try:
+            fcntl_module.flock(
+                parent_fd,
+                fcntl_module.LOCK_EX | fcntl_module.LOCK_NB,
+            )
+        except BlockingIOError as exc:
+            raise CreativePilotContractError("adaptive_resume_lock_contended") from exc
+        result = parent_fd
+        parent_fd = -1
+        return result
+    finally:
+        cleanup_error = _close_descriptors(parent_fd)
+        if sys.exc_info()[1] is None and cleanup_error is not None:
+            raise CreativePilotContractError(
+                "adaptive resume parent lock could not be closed"
+            ) from cleanup_error
+
+
+def _retain_owned_staging(
+    staging: Path,
+    *,
+    expected_identity: DirectoryIdentity,
+) -> str:
+    parent_fd = -1
+    try:
+        parent_fd, name = _open_pinned_parent(staging, create=False)
+        current = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+        if (
+            not stat.S_ISDIR(current.st_mode)
+            or (current.st_dev, current.st_ino) != expected_identity
+        ):
+            raise CreativePilotContractError(
+                "adaptive_publish_cleanup_failed: staging ownership changed; left untouched"
+            )
+        retained_name = f".{name}.{secrets.token_hex(8)}.failed"
+        _kernel_rename_noreplace(
+            parent_fd,
+            name,
+            retained_name,
+            collision_message="adaptive_publish_cleanup_failed: retained staging collision",
+        )
+        os.fsync(parent_fd)
+        return retained_name
+    finally:
+        cleanup_error = _close_descriptors(parent_fd)
+        if sys.exc_info()[1] is None and cleanup_error is not None:
+            raise CreativePilotContractError(
+                "adaptive_publish_cleanup_failed: unable to close staging parent"
+            ) from cleanup_error
+
+
+def _discard_owned_staging(
+    staging: Path,
+    *,
+    expected_identity: DirectoryIdentity,
+) -> None:
+    if not staging.exists():
+        return
+    if _directory_identity(staging) != expected_identity:
+        raise CreativePilotContractError(
+            "adaptive_publish_cleanup_failed: staging ownership changed; left untouched"
+        )
+    shutil.rmtree(staging)
+
+
+def _assert_complete_resume_dir(path: Path, *, allow_reviewed_run: bool = False) -> None:
+    _reject_symlink_components(path)
+    if path.is_symlink() or not path.is_dir():
+        raise CreativePilotContractError("adaptive_source_symlink: resume output")
+    for current_root, directory_names, filenames in os.walk(path, followlinks=False):
+        current = Path(current_root)
+        for name in (*directory_names, *filenames):
+            if (current / name).is_symlink():
+                raise CreativePilotContractError("adaptive_source_symlink: nested resume child")
+    observed = {entry.name for entry in path.iterdir()}
+    allowed = _expected_resume_entries()
+    if allow_reviewed_run:
+        allowed.add("spec_finalize_reviewed")
+    if not _expected_resume_entries().issubset(observed) or not observed.issubset(allowed):
+        raise CreativePilotContractError(
+            "adaptive_partial_output: fixed resume output set required"
+        )
+    if any(entry.is_symlink() for entry in path.iterdir()):
+        raise CreativePilotContractError("adaptive_source_symlink: resume child")
+    prepare = path / "spec_prepare"
+    if prepare.is_symlink() or not prepare.is_dir():
+        raise CreativePilotContractError("adaptive_source_symlink: spec_prepare")
+    prepare_entries = list(prepare.iterdir())
+    if {entry.name for entry in prepare_entries} != set(ADAPTIVE_PR1_PREPARE_FILENAMES):
+        raise CreativePilotContractError("adaptive_partial_output: fixed spec_prepare set required")
+    if any(entry.is_symlink() for entry in prepare_entries):
+        raise CreativePilotContractError("adaptive_source_symlink: spec_prepare child")
+    if any(not entry.is_file() for entry in prepare_entries):
+        raise CreativePilotContractError(
+            "adaptive_partial_output: spec_prepare children must be regular files"
+        )
+
+
+def _kernel_rename_noreplace(
+    parent_fd: int,
+    source_name: str,
+    destination_name: str,
+    *,
+    collision_message: str,
+) -> None:
+    libc = ctypes.CDLL(None, use_errno=True)
+    if sys.platform == "darwin":
+        rename_noreplace = getattr(libc, "renameatx_np", None)
+        flag = 0x00000004  # RENAME_EXCL
+    elif sys.platform.startswith("linux"):
+        rename_noreplace = getattr(libc, "renameat2", None)
+        flag = 1  # RENAME_NOREPLACE
+    else:
+        rename_noreplace = None
+        flag = 0
+    if rename_noreplace is None:
+        raise CreativePilotContractError(
+            "adaptive_atomic_publish_unsupported: no kernel no-replace rename"
+        )
+    rename_noreplace.argtypes = [
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_uint,
+    ]
+    rename_noreplace.restype = ctypes.c_int
+    ctypes.set_errno(0)
+    result = rename_noreplace(
+        parent_fd,
+        os.fsencode(source_name),
+        parent_fd,
+        os.fsencode(destination_name),
+        flag,
+    )
+    if result != 0:
+        error_number = ctypes.get_errno()
+        if error_number in {errno.EEXIST, errno.ENOTEMPTY}:
+            raise CreativePilotContractError(collision_message)
+        raise CreativePilotContractError(
+            f"adaptive_publish_failed: no-replace rename errno={error_number}"
+        )
+
+
+def _atomic_publish_directory_noreplace(staging: Path, final_dir: Path) -> None:
+    """Atomically publish one complete directory without replacing a destination."""
+
+    parent_fd = -1
+    try:
+        if staging.parent != final_dir.parent:
+            raise CreativePilotContractError(
+                "adaptive_publish_failed: staging and destination must share a parent"
+            )
+        parent_fd, final_name = _open_pinned_parent(final_dir, create=False)
+        _kernel_rename_noreplace(
+            parent_fd,
+            staging.name,
+            final_name,
+            collision_message=(
+                "adaptive_publish_collision: canonical resume directory already exists"
+            ),
+        )
+        os.fsync(parent_fd)
+    except CreativePilotContractError:
+        raise
+    except (OSError, NotImplementedError) as exc:
+        raise CreativePilotContractError(
+            "adaptive_publish_failed: unable to publish canonical resume directory"
+        ) from exc
+    finally:
+        active_error = sys.exc_info()[1]
+        cleanup_error = _close_descriptors(parent_fd)
+        if active_error is None and cleanup_error is not None:
+            raise CreativePilotContractError(
+                "adaptive_publish_failed: unable to close publish directory"
+            ) from cleanup_error
+
+
+def _fsync_directory(path: Path) -> None:
+    descriptor = -1
+    try:
+        descriptor, _sentinel = _open_pinned_parent(path / ".fsync-sentinel", create=False)
+        os.fsync(descriptor)
+    finally:
+        cleanup_error = _close_descriptors(descriptor)
+        if sys.exc_info()[1] is None and cleanup_error is not None:
+            raise CreativePilotContractError(
+                "adaptive_publish_failed: unable to close staged directory"
+            ) from cleanup_error
+
+
+def _validate_existing_resume(
+    final_dir: Path,
+    *,
+    intake: dict[str, Any],
+    candidate: dict[str, Any],
+    source_rows: list[dict[str, str]],
+    prepare_rows: list[dict[str, str]],
+) -> None:
+    _assert_complete_resume_dir(final_dir, allow_reviewed_run=True)
+    existing_intake = _read(final_dir / RESUME_INTAKE_FILENAME)
+    existing_candidate = _read(final_dir / RESUME_CANDIDATE_FILENAME)
+    existing_binding = _read(final_dir / RESUME_BINDING_FILENAME)
+    if existing_intake != intake or existing_candidate != candidate:
+        raise CreativePilotContractError("adaptive_divergent_replay: resume inputs changed")
+    validate_exact_prepare_artifacts(
+        run_dir=final_dir / "spec_prepare",
+        expected_packet=existing_candidate,
+        expected_variants=existing_intake["materialized_variants"],
+    )
+    validate_adaptive_pr1_resume_binding(
+        existing_binding,
+        intake=existing_intake,
+        candidate=existing_candidate,
+        revalidate_git=True,
+    )
+    _revalidate_exact_source_bindings(source_rows, prepare_rows)
+
+
+def _cmd_resume_pr1(args: argparse.Namespace) -> None:
+    run_dir = _run_dir(args.pilot_id)
+    try:
+        context = _read(run_dir / FIXED_FILENAMES["context"])
+        packet = _read(run_dir / FIXED_FILENAMES["packet"])
+        workspace = validate_workspace(_read(run_dir / FIXED_FILENAMES["workspace"]))
+        synthesis = _read(run_dir / FIXED_FILENAMES["synthesis"])
+        approval = _read(run_dir / FIXED_FILENAMES["approval"])
+        bridge = _read(run_dir / FIXED_FILENAMES["bridge"])
+        candidate = _read(run_dir / FIXED_FILENAMES["candidate"])
+        retained_prepare_snapshots = {
+            filename: _read_json_value(run_dir / "pr1_prepare" / filename)
+            for filename in ADAPTIVE_PR1_PREPARE_FILENAMES
+        }
+    except CreativePilotContractError as exc:
+        raise CreativePilotContractError(f"adaptive_source_lineage_mismatch: {exc}") from exc
+    candidate_path = run_dir / FIXED_FILENAMES["candidate"]
+    declarations = _read_array(Path(args.variant_declarations))
+    current_base = args.current_base_sha
+    if current_base != current_origin_main_sha():
+        raise CreativePilotContractError(
+            "adaptive_base_drift: current-base-sha must equal origin/main"
+        )
+    old_manifest = workspace["target_manifest"]
+    current_manifest = build_target_manifest(
+        base_sha=current_base,
+        head_sha=current_base,
+        paths=[row["path"] for row in old_manifest["files"]],
+        symbols=old_manifest["symbols"],
+        immutable_oracles=old_manifest["immutable_oracles"],
+    )
+    lineage = validate_retained_terminal_handoff(
+        context_map=context,
+        hypothesis_packet=packet,
+        workspace=workspace,
+        synthesis=synthesis,
+        approval=approval,
+        bridge=bridge,
+        candidate=candidate,
+        current_target_manifest=current_manifest,
+    )
+    context = lineage["context_map"]
+    packet = lineage["hypothesis_packet"]
+    workspace = lineage["workspace"]
+    synthesis = lineage["synthesis"]
+    approval = lineage["approval"]
+    candidate = lineage["candidate"]
+    prepare_snapshots = validate_default_prepare_artifact_snapshots(
+        retained_prepare_snapshots,
+        expected_packet=candidate,
+    )
+    source_rows, prepare_rows = _exact_source_bindings(
+        run_dir,
+        lineage=lineage,
+        prepare_snapshots=prepare_snapshots,
+    )
+    original_candidate_ref = _artifact_ref(candidate_path)
+    intake = build_adaptive_pr1_variant_intake(
+        pilot_id=args.pilot_id,
+        candidate=candidate,
+        candidate_ref=original_candidate_ref,
+        declarations=declarations,
+    )
+    resume_id, _idempotency = derive_adaptive_pr1_resume_identity(
+        pilot_id=args.pilot_id,
+        intake=intake,
+        candidate=candidate,
+        source_artifacts=source_rows,
+        original_prepare_bindings=prepare_rows,
+        old_target_manifest=old_manifest,
+        current_target_manifest=current_manifest,
+    )
+    final_dir = SPEC_BRIDGE_ROOT / resume_id
+    _revalidate_exact_source_bindings(source_rows, prepare_rows)
+    lock_fd = -1
+    primary_error: Exception | None = None
+    try:
+        lock_fd = _open_resume_parent_lock(final_dir)
+        if final_dir.exists() or final_dir.is_symlink():
+            _validate_existing_resume(
+                final_dir,
+                intake=intake,
+                candidate=candidate,
+                source_rows=source_rows,
+                prepare_rows=prepare_rows,
+            )
+            print(f"PASS resume_id={resume_id} replay=idempotent next=agent-skeptic-review")
+            return
+
+        staging: Path | None = None
+        staging_identity: DirectoryIdentity | None = None
+        for _attempt in range(32):
+            candidate_staging = SPEC_BRIDGE_ROOT / (f".{resume_id}.{secrets.token_hex(8)}.staging")
+            try:
+                candidate_staging.mkdir(mode=0o700)
+            except FileExistsError:
+                continue
+            staging = candidate_staging
+            staging_identity = _directory_identity(staging)
+            break
+        if staging is None or staging_identity is None:
+            raise CreativePilotContractError("adaptive_partial_output: staging collision")
+
+        try:
+            _atomic_write(staging / RESUME_INTAKE_FILENAME, intake)
+            _atomic_write(staging / RESUME_CANDIDATE_FILENAME, candidate)
+            staged_declarations = staging / ".variant_declarations.json"
+            _atomic_write(staged_declarations, intake["declarations"])
+            prepare_exact_specification(
+                staging / RESUME_CANDIDATE_FILENAME,
+                staged_declarations,
+                staging / "spec_prepare",
+            )
+            staged_declarations.unlink()
+            validate_exact_prepare_artifacts(
+                run_dir=staging / "spec_prepare",
+                expected_packet=candidate,
+                expected_variants=intake["materialized_variants"],
+            )
+            final_intake_ref = _artifact_ref(final_dir / RESUME_INTAKE_FILENAME)
+            final_candidate_ref = _artifact_ref(final_dir / RESUME_CANDIDATE_FILENAME)
+            binding = build_adaptive_pr1_resume_binding(
+                pilot_id=args.pilot_id,
+                intake=intake,
+                intake_ref=final_intake_ref,
+                candidate=candidate,
+                candidate_ref=final_candidate_ref,
+                source_artifacts=source_rows,
+                original_prepare_bindings=prepare_rows,
+                old_target_manifest=old_manifest,
+                current_target_manifest=current_manifest,
+                spec_prepare_ref=_artifact_ref(final_dir / "spec_prepare"),
+            )
+            if binding["resume_id"] != resume_id:
+                raise CreativePilotContractError("adaptive resume identity changed during staging")
+            _atomic_write(staging / RESUME_BINDING_FILENAME, binding)
+            _assert_complete_resume_dir(staging)
+            _revalidate_exact_source_bindings(source_rows, prepare_rows)
+            _fsync_directory(staging)
+            try:
+                _atomic_publish_directory_noreplace(staging, final_dir)
+            except CreativePilotContractError as exc:
+                if not str(exc).startswith("adaptive_publish_collision:"):
+                    raise
+                _validate_existing_resume(
+                    final_dir,
+                    intake=intake,
+                    candidate=candidate,
+                    source_rows=source_rows,
+                    prepare_rows=prepare_rows,
+                )
+                _discard_owned_staging(staging, expected_identity=staging_identity)
+                print(f"PASS resume_id={resume_id} replay=idempotent " "next=agent-skeptic-review")
+                return
+            _validate_existing_resume(
+                final_dir,
+                intake=intake,
+                candidate=candidate,
+                source_rows=source_rows,
+                prepare_rows=prepare_rows,
+            )
+        except Exception as exc:
+            cleanup_error: Exception | None = None
+            if staging.exists():
+                try:
+                    _retain_owned_staging(staging, expected_identity=staging_identity)
+                except Exception as cleanup_exc:
+                    cleanup_error = cleanup_exc
+            if cleanup_error is not None:
+                raise CreativePilotContractError(
+                    f"{exc}; cleanup_diagnostic={cleanup_error}"
+                ) from exc
+            raise
+    except Exception as exc:
+        primary_error = exc
+        raise
+    finally:
+        close_error = _close_descriptors(lock_fd)
+        if close_error is not None and primary_error is not None:
+            raise CreativePilotContractError(
+                f"{primary_error}; cleanup_diagnostic={close_error}"
+            ) from primary_error
+        if close_error is not None:
+            raise CreativePilotContractError(
+                "adaptive resume parent lock could not be closed"
+            ) from close_error
+    print(f"PASS resume_id={resume_id} replay=new next=agent-skeptic-review")
 
 
 def _cmd_status(args: argparse.Namespace) -> None:
@@ -554,6 +1190,11 @@ def _parser() -> argparse.ArgumentParser:
     handoff.add_argument("--pilot-id", required=True)
     handoff.add_argument("--variant-count", type=int, default=3, choices=(3, 4, 5))
     handoff.set_defaults(func=_cmd_build_handoff)
+    resume = sub.add_parser("resume-pr1")
+    resume.add_argument("--pilot-id", required=True)
+    resume.add_argument("--variant-declarations", required=True)
+    resume.add_argument("--current-base-sha", required=True)
+    resume.set_defaults(func=_cmd_resume_pr1)
     status = sub.add_parser("status")
     status.add_argument("--pilot-id", required=True)
     status.set_defaults(func=_cmd_status)
@@ -573,6 +1214,7 @@ def main(argv: list[str] | None = None) -> int:
         CreativePilotContractError,
         CreativeHypothesisSpecBridgeError,
         CreativeCodeContractError,
+        CreativeCodeSpecificationError,
         CreativeCodeSpecPipelineError,
     ) as exc:
         print(f"FAIL: {exc}")

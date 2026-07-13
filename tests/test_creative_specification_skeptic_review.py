@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 import re
 import shutil
+import tempfile
 from typing import Any
 
 import pytest
@@ -14,6 +15,7 @@ import pytest
 from core.evidence.fingerprints import fingerprint_payload
 from scripts.orchestration import (
     creative_hypothesis_spec_bridge as bridge_cli,
+    creative_pilot_workspace_contract as pilot_contract,
     creative_specification_skeptic_review as review_cli,
     creative_specification_skeptic_review_contract as review_contract,
 )
@@ -347,7 +349,7 @@ def _rebuild_attachment(
     )
 
 
-def test_attach_validate_finalize_preserves_original_spec_prepare(
+def test_adaptive_attach_publishes_complete_reviewed_run_atomically(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     output_dir, input_dir = _prepared_bridge(capsys, suffix="happy")
@@ -413,6 +415,120 @@ def test_attach_validate_finalize_preserves_original_spec_prepare(
         captured = capsys.readouterr()
         assert exit_code == 0, captured.err
         assert captured.out.strip() == bridge_cli.SUCCESS_VALIDATE_OUTPUT
+    finally:
+        shutil.rmtree(output_dir, ignore_errors=True)
+        shutil.rmtree(input_dir, ignore_errors=True)
+
+
+def test_attach_collision_preserves_existing_reviewed_run(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    output_dir, input_dir = _prepared_bridge(capsys, suffix="attach-replay")
+    try:
+        reviews_path = _write_review_input(output_dir, _review_input(output_dir))
+        args = [
+            "attach",
+            "--bridge",
+            str(output_dir / bridge_cli.BRIDGE_FILENAME),
+            "--reviews",
+            str(reviews_path),
+        ]
+        assert review_cli.main(args) == 0
+        capsys.readouterr()
+        reviewed_dir = output_dir / "spec_finalize_reviewed"
+        before = {
+            path.name: (path.read_bytes(), path.stat().st_mtime_ns)
+            for path in reviewed_dir.iterdir()
+        }
+
+        assert review_cli.main(args) == 0
+        captured = capsys.readouterr()
+        assert captured.err == ""
+        after = {
+            path.name: (path.read_bytes(), path.stat().st_mtime_ns)
+            for path in reviewed_dir.iterdir()
+        }
+        assert after == before
+        assert set(after) == set(review_cli.INITIAL_REVIEWED_FILENAMES)
+    finally:
+        shutil.rmtree(output_dir, ignore_errors=True)
+        shutil.rmtree(input_dir, ignore_errors=True)
+
+
+def test_finalize_success_writes_valid_bundle_then_receipt() -> None:
+    source = Path(review_cli.__file__).read_text(encoding="utf-8")
+    finalize_body = source[source.index("def _finalize_from_attachment(") :]
+    write_bundle = finalize_body.index("creative_code_spec_pipeline.finalize(")
+    validate_bundle = finalize_body.index(
+        "validate_creative_code_specification_bundle(", write_bundle
+    )
+    write_receipt = finalize_body.index("_write_json_atomic(receipt_path, receipt)")
+    reread_receipt = finalize_body.index("finalize receipt commit marker", write_receipt)
+    assert write_bundle < validate_bundle < write_receipt < reread_receipt
+
+
+def test_finalize_receipt_binds_exact_bundle_and_attachment() -> None:
+    source = Path(review_cli.__file__).read_text(encoding="utf-8")
+    finalize_body = source[source.index("def _finalize_from_attachment(") :]
+    assert "attachment_ref=_artifact_ref(reviewed_dir / ATTACHMENT_FILENAME)" in finalize_body
+    assert "bundle_ref=_artifact_ref(bundle_path)" in finalize_body
+    assert "finalize receipt does not bind the current attachment and bundle" in finalize_body
+
+
+def test_finalize_exact_replay_is_byte_mtime_and_entry_count_stable(
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output_dir, input_dir = _prepared_bridge(capsys, suffix="finalize-replay")
+    try:
+        reviews_path = _write_review_input(output_dir, _review_input(output_dir))
+        assert (
+            review_cli.main(
+                [
+                    "attach",
+                    "--bridge",
+                    str(output_dir / bridge_cli.BRIDGE_FILENAME),
+                    "--reviews",
+                    str(reviews_path),
+                ]
+            )
+            == 0
+        )
+        capsys.readouterr()
+        reviewed_dir = output_dir / "spec_finalize_reviewed"
+        attachment = reviewed_dir / review_cli.ATTACHMENT_FILENAME
+        assert review_cli.main(["finalize", "--attachment", str(attachment)]) == 0
+        capsys.readouterr()
+        before = {
+            path.name: (path.read_bytes(), path.stat().st_mtime_ns)
+            for path in reviewed_dir.iterdir()
+        }
+
+        assert review_cli.main(["finalize", "--attachment", str(attachment)]) == 0
+        captured = capsys.readouterr()
+        assert captured.err == ""
+        after = {
+            path.name: (path.read_bytes(), path.stat().st_mtime_ns)
+            for path in reviewed_dir.iterdir()
+        }
+        assert after == before
+        assert len(after) == len(review_cli.INITIAL_REVIEWED_FILENAMES) + 2
+
+        original_builder = review_cli.build_creative_code_specification_bundle
+
+        def divergent_builder(**kwargs: Any) -> dict[str, Any]:
+            expected = deepcopy(original_builder(**kwargs))
+            expected["cost_metadata_available"] = not expected["cost_metadata_available"]
+            return expected
+
+        monkeypatch.setattr(
+            review_cli,
+            "build_creative_code_specification_bundle",
+            divergent_builder,
+        )
+        assert review_cli.main(["finalize", "--attachment", str(attachment)]) == 1
+        captured = capsys.readouterr()
+        assert "finalized bundle does not match the current reviewed inputs" in captured.err
     finally:
         shutil.rmtree(output_dir, ignore_errors=True)
         shutil.rmtree(input_dir, ignore_errors=True)
@@ -550,6 +666,44 @@ def test_validate_rejects_noncanonical_attachment_path(
     finally:
         shutil.rmtree(output_dir, ignore_errors=True)
         shutil.rmtree(input_dir, ignore_errors=True)
+
+
+def test_adaptive_validate_and_finalize_recheck_current_main_and_lineage(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    review_cli.SPEC_BRIDGE_ROOT.mkdir(parents=True, exist_ok=True)
+    root = Path(
+        tempfile.mkdtemp(
+            prefix="pytest-adaptive-stale-",
+            dir=review_cli.SPEC_BRIDGE_ROOT,
+        )
+    )
+    reviewed_dir = root / "spec_finalize_reviewed"
+    reviewed_dir.mkdir()
+    attachment = reviewed_dir / review_cli.ATTACHMENT_FILENAME
+    attachment.write_text("{}\n", encoding="utf-8")
+
+    def stale_base(_path: Path) -> tuple[dict[str, object], Path]:
+        raise pilot_contract.CreativePilotContractError(
+            "adaptive_base_drift: current origin/main advanced"
+        )
+
+    monkeypatch.setattr(review_cli, "_validate_attachment_artifacts", stale_base)
+    try:
+        assert review_cli.main(["validate", "--attachment", str(attachment)]) == 1
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert captured.err == "FAIL: adaptive_base_drift: current origin/main advanced\n"
+        assert not (reviewed_dir / review_cli.BUNDLE_FILENAME).exists()
+        assert not (reviewed_dir / review_cli.FINALIZE_RECEIPT_FILENAME).exists()
+
+        assert review_cli.main(["finalize", "--attachment", str(attachment)]) == 1
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert captured.err == "FAIL: adaptive_base_drift: current origin/main advanced\n"
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
 
 
 def test_attach_rejects_prepared_child_symlink_before_read(
@@ -949,7 +1103,7 @@ def test_validate_rejects_attachment_coverage_mismatch(
         shutil.rmtree(input_dir, ignore_errors=True)
 
 
-def test_finalize_cleans_partial_outputs_on_receipt_failure(
+def test_finalize_bundle_without_receipt_is_retained_and_fails(
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -979,7 +1133,7 @@ def test_finalize_cleans_partial_outputs_on_receipt_failure(
         captured = capsys.readouterr()
         assert exit_code == 1
         assert "synthetic receipt failure" in captured.err
-        assert not (output_dir / "spec_finalize_reviewed" / review_cli.BUNDLE_FILENAME).exists()
+        assert (output_dir / "spec_finalize_reviewed" / review_cli.BUNDLE_FILENAME).is_file()
         assert not (
             output_dir / "spec_finalize_reviewed" / review_cli.FINALIZE_RECEIPT_FILENAME
         ).exists()
@@ -987,10 +1141,54 @@ def test_finalize_cleans_partial_outputs_on_receipt_failure(
         monkeypatch.undo()
         exit_code = review_cli.main(["finalize", "--attachment", str(attachment_path)])
         captured = capsys.readouterr()
-        assert exit_code == 0, captured.err
+        assert exit_code == 1
+        assert "partial; retained for inspection" in captured.err
     finally:
         shutil.rmtree(output_dir, ignore_errors=True)
         shutil.rmtree(input_dir, ignore_errors=True)
+
+
+def test_finalize_preserves_primary_and_close_diagnostics(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    real_import = review_cli.importlib.import_module
+
+    def missing_fcntl(name: str) -> Any:
+        if name == "fcntl":
+            raise ModuleNotFoundError(name)
+        return real_import(name)
+
+    monkeypatch.setattr(review_cli.importlib, "import_module", missing_fcntl)
+    with pytest.raises(
+        review_cli.CreativeSpecificationSkepticReviewCliError,
+        match="cooperative locking is unavailable",
+    ):
+        review_cli._open_locked_directory(tmp_path, label="reviewed publication")
+    monkeypatch.undo()
+
+    attachment = tmp_path / "spec_finalize_reviewed" / review_cli.ATTACHMENT_FILENAME
+    attachment.parent.mkdir()
+    attachment.write_text("{}\n", encoding="utf-8")
+
+    monkeypatch.setattr(review_cli, "_resolve_repo_json_file", lambda *_args, **_kwargs: attachment)
+    monkeypatch.setattr(review_cli, "_open_locked_directory", lambda *_args, **_kwargs: 101)
+
+    def fail_validation(_path: Path) -> tuple[dict[str, Any], Path]:
+        raise CreativeSpecificationSkepticReviewError("primary finalize failure")
+
+    monkeypatch.setattr(review_cli, "_validate_attachment_artifacts", fail_validation)
+    monkeypatch.setattr(
+        review_cli.creative_code_spec_pipeline,
+        "_close_descriptors",
+        lambda *_descriptors: OSError("close finalize failure"),
+    )
+
+    with pytest.raises(
+        review_cli.CreativeSpecificationSkepticReviewCliError,
+        match="primary finalize failure; cleanup_diagnostic=close finalize failure",
+    ):
+        review_cli._finalize_from_attachment(attachment)
 
 
 def test_finalize_receipt_rejects_inconsistent_selected_count(

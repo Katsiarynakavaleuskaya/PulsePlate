@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "creative_adaptive_pr1_resume_binding.v1.schema.json",
+  "title": "CreativeAdaptivePr1ResumeBindingV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "artifact_type", "resume_id", "bridge_id", "idempotency_key", "policy_version", "pilot_id", "intake", "candidate_packet", "source_lineage", "spec_prepare", "authority", "sanitized"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "artifact_type": {"const": "creative_adaptive_pr1_resume_binding"},
+    "resume_id": {"type": "string", "pattern": "^evidence:creative_adaptive_pr1_resume_binding:orchestration:1\\.0:[a-f0-9]{24}$"}, "bridge_id": {"type": "string", "pattern": "^evidence:creative_adaptive_pr1_resume_binding:orchestration:1\\.0:[a-f0-9]{24}$"},
+    "idempotency_key": {"type": "string", "pattern": "^idem:[a-f0-9]{64}$"},
+    "policy_version": {"const": "creative-adaptive-pr1-resume-v1"},
+    "pilot_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,159}$"},
+    "intake": {"$ref": "#/$defs/artifactRef"},
+    "candidate_packet": {
+      "type": "object", "additionalProperties": false,
+      "required": ["candidate_id", "candidate_packet_ref", "candidate_fingerprint"],
+      "properties": {"candidate_id": {"type": "string"}, "candidate_packet_ref": {"type": "string", "pattern": "^artifacts/orchestration/creative_code/spec_bridge/evidence:creative_adaptive_pr1_resume_binding:orchestration:1\\.0:[a-f0-9]{24}/creative_code_candidate_packet\\.json$"}, "candidate_fingerprint": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}}
+    },
+    "source_lineage": {
+      "type": "object", "additionalProperties": false,
+      "required": ["source_base_sha", "source_head_sha", "current_base_sha", "source_artifacts", "original_prepare_bindings", "old_target_manifest", "current_target_manifest"],
+      "properties": {
+        "source_base_sha": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+        "source_head_sha": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+        "current_base_sha": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+        "source_artifacts": {
+          "type": "array", "minItems": 7, "maxItems": 7,
+          "prefixItems": [
+            {"$ref": "#/$defs/contextBinding"}, {"$ref": "#/$defs/packetBinding"},
+            {"$ref": "#/$defs/workspaceBinding"}, {"$ref": "#/$defs/synthesisBinding"},
+            {"$ref": "#/$defs/approvalBinding"}, {"$ref": "#/$defs/bridgeBinding"},
+            {"$ref": "#/$defs/candidateBinding"}
+          ], "items": false
+        },
+        "original_prepare_bindings": {
+          "type": "array", "minItems": 4, "maxItems": 4,
+          "prefixItems": [
+            {"$ref": "#/$defs/sourcePacketBinding"}, {"$ref": "#/$defs/variantsBinding"},
+            {"$ref": "#/$defs/reviewsBinding"}, {"$ref": "#/$defs/contextPackBinding"}
+          ], "items": false
+        },
+        "old_target_manifest": {"$ref": "creative_protocol_context_map.v2.schema.json#/$defs/targetManifest"},
+        "current_target_manifest": {"$ref": "creative_protocol_context_map.v2.schema.json#/$defs/targetManifest"}
+      }
+    },
+    "spec_prepare": {
+      "type": "object", "additionalProperties": false,
+      "required": ["run_dir_ref", "expected_files", "prepared", "finalized", "next_allowed_action"],
+      "properties": {"run_dir_ref": {"type": "string", "pattern": "^artifacts/orchestration/creative_code/spec_bridge/evidence:creative_adaptive_pr1_resume_binding:orchestration:1\\.0:[a-f0-9]{24}/spec_prepare$"}, "expected_files": {"type": "array", "minItems": 4, "maxItems": 4, "prefixItems": [{"const": "source_packet.json"}, {"const": "variants.json"}, {"const": "skeptic_reviews.json"}, {"const": "context_pack.json"}], "items": false}, "prepared": {"const": true}, "finalized": {"const": false}, "next_allowed_action": {"const": "agent_skeptic_review"}}
+    },
+    "authority": {
+      "type": "object", "additionalProperties": false,
+      "required": ["read_sanitized_context", "emit_local_artifacts", "run_specification_prepare", "call_product_runtime", "call_provider", "change_openapi", "claim_merge_readiness", "create_branch", "dispatch_to_agents", "execute_pr2_patch_builder", "execute_pr3_promotion", "finalize_specification_bundle", "generate_candidate_patch", "generate_patch", "merge", "modify_workflows", "open_pr", "push", "read_secrets", "resolve_threads", "use_semantic_cache", "write_branch", "write_graph_truth", "write_repository", "write_shared_worktree"],
+      "properties": {
+        "read_sanitized_context": {"const": true}, "emit_local_artifacts": {"const": true}, "run_specification_prepare": {"const": true},
+        "call_product_runtime": {"const": false}, "call_provider": {"const": false}, "change_openapi": {"const": false}, "claim_merge_readiness": {"const": false}, "create_branch": {"const": false}, "dispatch_to_agents": {"const": false}, "execute_pr2_patch_builder": {"const": false}, "execute_pr3_promotion": {"const": false}, "finalize_specification_bundle": {"const": false}, "generate_candidate_patch": {"const": false}, "generate_patch": {"const": false}, "merge": {"const": false}, "modify_workflows": {"const": false}, "open_pr": {"const": false}, "push": {"const": false}, "read_secrets": {"const": false}, "resolve_threads": {"const": false}, "use_semantic_cache": {"const": false}, "write_branch": {"const": false}, "write_graph_truth": {"const": false}, "write_repository": {"const": false}, "write_shared_worktree": {"const": false}
+      }
+    },
+    "sanitized": {"const": true}
+  },
+  "$defs": {
+    "artifactRef": {"type": "object", "additionalProperties": false, "required": ["intake_id", "intake_ref", "intake_fingerprint"], "properties": {"intake_id": {"type": "string"}, "intake_ref": {"type": "string", "pattern": "^artifacts/orchestration/creative_code/spec_bridge/evidence:creative_adaptive_pr1_resume_binding:orchestration:1\\.0:[a-f0-9]{24}/creative_adaptive_pr1_variant_intake\\.json$"}, "intake_fingerprint": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}}},
+    "binding": {"type": "object", "additionalProperties": false, "required": ["filename", "artifact_type", "ref", "fingerprint"], "properties": {"filename": {"type": "string"}, "artifact_type": {"type": "string"}, "ref": {"type": "string"}, "fingerprint": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}}},
+    "contextBinding": {"allOf": [{"$ref": "#/$defs/binding"}, {"properties": {"filename": {"const": "context_map.v2.json"}, "artifact_type": {"const": "creative_protocol_context_map"}, "ref": {"pattern": "^artifacts/orchestration/creative_code/adaptive_pilots/[A-Za-z0-9][A-Za-z0-9._-]*/context_map\\.v2\\.json$"}}}]},
+    "packetBinding": {"allOf": [{"$ref": "#/$defs/binding"}, {"properties": {"filename": {"const": "hypothesis_packet.v2.json"}, "artifact_type": {"const": "creative_hypothesis_packet"}, "ref": {"pattern": "^artifacts/orchestration/creative_code/adaptive_pilots/[A-Za-z0-9][A-Za-z0-9._-]*/hypothesis_packet\\.v2\\.json$"}}}]},
+    "workspaceBinding": {"allOf": [{"$ref": "#/$defs/binding"}, {"properties": {"filename": {"const": "workspace.json"}, "artifact_type": {"const": "creative_pilot_workspace"}, "ref": {"pattern": "^artifacts/orchestration/creative_code/adaptive_pilots/[A-Za-z0-9][A-Za-z0-9._-]*/workspace\\.json$"}}}]},
+    "synthesisBinding": {"allOf": [{"$ref": "#/$defs/binding"}, {"properties": {"filename": {"const": "synthesis.json"}, "artifact_type": {"const": "creative_pilot_synthesis"}, "ref": {"pattern": "^artifacts/orchestration/creative_code/adaptive_pilots/[A-Za-z0-9][A-Za-z0-9._-]*/synthesis\\.json$"}}}]},
+    "approvalBinding": {"allOf": [{"$ref": "#/$defs/binding"}, {"properties": {"filename": {"const": "approval.v2.json"}, "artifact_type": {"const": "creative_hypothesis_approval"}, "ref": {"pattern": "^artifacts/orchestration/creative_code/adaptive_pilots/[A-Za-z0-9][A-Za-z0-9._-]*/approval\\.v2\\.json$"}}}]},
+    "bridgeBinding": {"allOf": [{"$ref": "#/$defs/binding"}, {"properties": {"filename": {"const": "spec_bridge.v2.json"}, "artifact_type": {"const": "creative_hypothesis_specification_bridge"}, "ref": {"pattern": "^artifacts/orchestration/creative_code/adaptive_pilots/[A-Za-z0-9][A-Za-z0-9._-]*/spec_bridge\\.v2\\.json$"}}}]},
+    "candidateBinding": {"allOf": [{"$ref": "#/$defs/binding"}, {"properties": {"filename": {"const": "creative_code_candidate.v1.json"}, "artifact_type": {"const": "creative_code_candidate"}, "ref": {"pattern": "^artifacts/orchestration/creative_code/adaptive_pilots/[A-Za-z0-9][A-Za-z0-9._-]*/creative_code_candidate\\.v1\\.json$"}}}]},
+    "sourcePacketBinding": {"allOf": [{"$ref": "#/$defs/binding"}, {"properties": {"filename": {"const": "source_packet.json"}, "artifact_type": {"const": "json"}, "ref": {"pattern": "^artifacts/orchestration/creative_code/adaptive_pilots/[A-Za-z0-9][A-Za-z0-9._-]*/pr1_prepare/source_packet\\.json$"}}}]},
+    "variantsBinding": {"allOf": [{"$ref": "#/$defs/binding"}, {"properties": {"filename": {"const": "variants.json"}, "artifact_type": {"const": "json"}, "ref": {"pattern": "^artifacts/orchestration/creative_code/adaptive_pilots/[A-Za-z0-9][A-Za-z0-9._-]*/pr1_prepare/variants\\.json$"}}}]},
+    "reviewsBinding": {"allOf": [{"$ref": "#/$defs/binding"}, {"properties": {"filename": {"const": "skeptic_reviews.json"}, "artifact_type": {"const": "json"}, "ref": {"pattern": "^artifacts/orchestration/creative_code/adaptive_pilots/[A-Za-z0-9][A-Za-z0-9._-]*/pr1_prepare/skeptic_reviews\\.json$"}}}]},
+    "contextPackBinding": {"allOf": [{"$ref": "#/$defs/binding"}, {"properties": {"filename": {"const": "context_pack.json"}, "artifact_type": {"const": "json"}, "ref": {"pattern": "^artifacts/orchestration/creative_code/adaptive_pilots/[A-Za-z0-9][A-Za-z0-9._-]*/pr1_prepare/context_pack\\.json$"}}}]}
+  }
+}

@@ -4,10 +4,15 @@
 from __future__ import annotations
 
 import argparse
+import ctypes
+import errno
+import importlib
 import json
 import os
 from pathlib import Path
+import secrets
 import shutil
+import stat
 import sys
 import tempfile
 from typing import Any, Mapping, Sequence, cast
@@ -37,6 +42,12 @@ from scripts.orchestration.creative_hypothesis_spec_bridge_contract import (
     validate_bridge_metrics,
     validate_creative_hypothesis_specification_bridge,
 )
+from scripts.orchestration.creative_pilot_workspace_contract import (
+    ADAPTIVE_PR1_RESUME_TYPE,
+    CreativePilotContractError,
+    validate_adaptive_pr1_resume_binding,
+    validate_adaptive_pr1_variant_intake,
+)
 from scripts.orchestration.creative_specification_skeptic_review_contract import (
     ATTACHMENT_ARTIFACT_TYPE,
     FINALIZE_RECEIPT_ARTIFACT_TYPE,
@@ -52,6 +63,8 @@ from scripts.orchestration.creative_specification_skeptic_review_contract import
 )
 
 SPEC_BRIDGE_ROOT: Path = creative_code_spec_pipeline.ARTIFACT_ROOT / "spec_bridge"
+ADAPTIVE_RESUME_FILENAME = "creative_adaptive_pr1_resume_binding.json"
+ADAPTIVE_INTAKE_FILENAME = "creative_adaptive_pr1_variant_intake.json"
 ATTACHMENT_FILENAME = "skeptic_review_attachment.json"
 BUNDLE_FILENAME = "creative_code_specification_bundle.json"
 FINALIZE_RECEIPT_FILENAME = "finalize_receipt.json"
@@ -69,6 +82,16 @@ REVIEWED_RUN_FILENAMES = frozenset(
         FINALIZE_RECEIPT_FILENAME,
     }
 )
+INITIAL_REVIEWED_FILENAMES = frozenset(
+    {
+        "source_packet.json",
+        "variants.json",
+        "skeptic_reviews.json",
+        "context_pack.json",
+        ATTACHMENT_FILENAME,
+    }
+)
+DirectoryIdentity = tuple[int, int]
 
 
 class CreativeSpecificationSkepticReviewCliError(ValueError):
@@ -160,7 +183,7 @@ def _read_json_file(path: Path) -> Any:
         )
     except CreativeSpecificationSkepticReviewCliError:
         raise
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, RecursionError) as exc:
         raise CreativeSpecificationSkepticReviewCliError("Unable to read JSON artifact.") from exc
 
 
@@ -216,6 +239,11 @@ def _write_json_atomic(path: Path, payload: Any) -> None:
             os.fsync(temp_file.fileno())
         os.replace(temp_name, path)
         temp_name = None
+        parent_fd = os.open(path.parent, creative_code_spec_pipeline._directory_flags())
+        try:
+            os.fsync(parent_fd)
+        finally:
+            os.close(parent_fd)
     finally:
         if temp_name is not None:
             try:
@@ -224,15 +252,165 @@ def _write_json_atomic(path: Path, payload: Any) -> None:
                 pass
 
 
+def _open_locked_directory(path: Path, *, label: str) -> int:
+    try:
+        fcntl_module = importlib.import_module("fcntl")
+    except ModuleNotFoundError as exc:
+        raise CreativeSpecificationSkepticReviewCliError(
+            "reviewed publication cooperative locking is unavailable on this platform."
+        ) from exc
+    descriptor = -1
+    try:
+        _candidate, parts = creative_code_spec_pipeline._candidate_and_repo_parts(
+            path,
+            allowed_root=creative_code_spec_pipeline.ARTIFACT_ROOT,
+            label=label,
+        )
+        descriptor = int(
+            creative_code_spec_pipeline._walk_pinned_directory(
+                parts,
+                create=False,
+                label=label,
+            )
+        )
+        try:
+            fcntl_module.flock(
+                descriptor,
+                fcntl_module.LOCK_EX | fcntl_module.LOCK_NB,
+            )
+        except BlockingIOError as exc:
+            raise CreativeSpecificationSkepticReviewCliError(
+                f"{label} is already in progress."
+            ) from exc
+        result = descriptor
+        descriptor = -1
+        return result
+    finally:
+        close_error = creative_code_spec_pipeline._close_descriptors(descriptor)
+        if sys.exc_info()[1] is None and close_error is not None:
+            raise CreativeSpecificationSkepticReviewCliError(
+                f"{label} descriptor could not be closed safely."
+            ) from close_error
+
+
+def _kernel_rename_noreplace(
+    parent_fd: int,
+    source_name: str,
+    destination_name: str,
+    *,
+    collision_message: str,
+) -> None:
+    libc = ctypes.CDLL(None, use_errno=True)
+    if sys.platform == "darwin":
+        rename_noreplace = getattr(libc, "renameatx_np", None)
+        flag = 0x00000004  # RENAME_EXCL
+    elif sys.platform.startswith("linux"):
+        rename_noreplace = getattr(libc, "renameat2", None)
+        flag = 1  # RENAME_NOREPLACE
+    else:
+        rename_noreplace = None
+        flag = 0
+    if rename_noreplace is None:
+        raise CreativeSpecificationSkepticReviewCliError(
+            "reviewed publication requires kernel no-replace rename."
+        )
+    rename_noreplace.argtypes = [
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_uint,
+    ]
+    rename_noreplace.restype = ctypes.c_int
+    ctypes.set_errno(0)
+    result = rename_noreplace(
+        parent_fd,
+        os.fsencode(source_name),
+        parent_fd,
+        os.fsencode(destination_name),
+        flag,
+    )
+    if result != 0:
+        error_number = ctypes.get_errno()
+        if error_number in {errno.EEXIST, errno.ENOTEMPTY}:
+            raise CreativeSpecificationSkepticReviewCliError(collision_message)
+        raise CreativeSpecificationSkepticReviewCliError(
+            f"reviewed publication failed: errno={error_number}."
+        )
+
+
+def _directory_identity(path: Path) -> DirectoryIdentity:
+    info = path.stat(follow_symlinks=False)
+    if not stat.S_ISDIR(info.st_mode):
+        raise CreativeSpecificationSkepticReviewCliError(
+            "reviewed staging artifact must remain a directory."
+        )
+    return (info.st_dev, info.st_ino)
+
+
+def _discard_owned_staging(path: Path, *, expected_identity: DirectoryIdentity) -> None:
+    if not path.exists():
+        return
+    if _directory_identity(path) != expected_identity:
+        raise CreativeSpecificationSkepticReviewCliError(
+            "reviewed staging ownership changed; left untouched."
+        )
+    shutil.rmtree(path)
+
+
+def _retain_owned_staging(path: Path, *, expected_identity: DirectoryIdentity) -> str:
+    parent_fd = -1
+    try:
+        parent_fd, name, _candidate = creative_code_spec_pipeline._open_pinned_parent(
+            path,
+            allowed_root=creative_code_spec_pipeline.ARTIFACT_ROOT,
+            create=False,
+            label="reviewed staging",
+        )
+        observed = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+        if (
+            not stat.S_ISDIR(observed.st_mode)
+            or (
+                observed.st_dev,
+                observed.st_ino,
+            )
+            != expected_identity
+        ):
+            raise CreativeSpecificationSkepticReviewCliError(
+                "reviewed staging ownership changed; left untouched."
+            )
+        retained_name = f".{REVIEWED_RUN_DIRNAME}.{secrets.token_hex(8)}.failed"
+        _kernel_rename_noreplace(
+            parent_fd,
+            name,
+            retained_name,
+            collision_message="reviewed retained staging collision.",
+        )
+        os.fsync(parent_fd)
+        return retained_name
+    finally:
+        close_error = creative_code_spec_pipeline._close_descriptors(parent_fd)
+        if sys.exc_info()[1] is None and close_error is not None:
+            raise CreativeSpecificationSkepticReviewCliError(
+                "reviewed staging parent could not be closed safely."
+            ) from close_error
+
+
 def _read_prepared_bridge(bridge_path: Path) -> dict[str, Any]:
     bridge_file = _resolve_repo_json_file(bridge_path, label="bridge input")
-    if bridge_file.name != BRIDGE_FILENAME:
+    raw_bridge = _read_json_object(bridge_file, label="bridge input")
+    artifact_type = raw_bridge.get("artifact_type")
+    if bridge_file.name == ADAPTIVE_RESUME_FILENAME and artifact_type == ADAPTIVE_PR1_RESUME_TYPE:
+        return _read_prepared_adaptive_resume(bridge_file, raw_bridge)
+    if (
+        bridge_file.name != BRIDGE_FILENAME
+        or artifact_type != "creative_hypothesis_specification_bridge"
+    ):
         raise CreativeSpecificationSkepticReviewCliError(
-            f"bridge input must point to canonical {BRIDGE_FILENAME}."
+            f"bridge input must point to canonical {BRIDGE_FILENAME} or "
+            f"{ADAPTIVE_RESUME_FILENAME} with matching artifact_type."
         )
-    bridge = validate_creative_hypothesis_specification_bridge(
-        _read_json_object(bridge_file, label="bridge input")
-    )
+    bridge = validate_creative_hypothesis_specification_bridge(raw_bridge)
     bridge_dir = _prepared_bridge_dir(bridge, bridge_file)
     candidate = _read_json_object(bridge_dir / CANDIDATE_FILENAME, label="candidate packet")
     metrics = validate_bridge_metrics(
@@ -268,6 +446,92 @@ def _read_prepared_bridge(bridge_path: Path) -> dict[str, Any]:
         "candidate_path": bridge_dir / CANDIDATE_FILENAME,
         "metrics": metrics,
         "metrics_path": bridge_dir / METRICS_FILENAME,
+        "source_run_dir": source_run_dir,
+        "source_packet": source_packet,
+        "variants": variants,
+        "pending_reviews": pending_reviews,
+        "context_pack": context_pack,
+    }
+
+
+def _read_prepared_adaptive_resume(
+    bridge_file: Path, raw_bridge: Mapping[str, Any]
+) -> dict[str, Any]:
+    bridge_dir = bridge_file.parent
+    _reject_unexpected_entries(
+        bridge_dir,
+        allowed={
+            ADAPTIVE_RESUME_FILENAME,
+            ADAPTIVE_INTAKE_FILENAME,
+            CANDIDATE_FILENAME,
+            "spec_prepare",
+            REVIEWED_RUN_DIRNAME,
+        },
+        label="adaptive resume",
+    )
+    candidate_path = bridge_dir / CANDIDATE_FILENAME
+    intake_path = bridge_dir / ADAPTIVE_INTAKE_FILENAME
+    candidate = validate_source_candidate_packet(
+        _read_json_object(candidate_path, label="candidate packet")
+    )
+    intake = validate_adaptive_pr1_variant_intake(
+        _read_json_object(intake_path, label="adaptive intake"), candidate=candidate
+    )
+    bridge = validate_adaptive_pr1_resume_binding(
+        raw_bridge, intake=intake, candidate=candidate, revalidate_git=True
+    )
+    bridge_dir = _prepared_bridge_dir(bridge, bridge_file)
+    source_run_dir = _resolve_repo_artifact_ref(
+        str(cast(Mapping[str, Any], bridge["spec_prepare"])["run_dir_ref"]),
+        label="spec_prepare ref",
+        expect_dir=True,
+    )
+    if source_run_dir.resolve(strict=True) != (bridge_dir / "spec_prepare").resolve(strict=True):
+        raise CreativeSpecificationSkepticReviewCliError(
+            "spec_prepare_ref must point to adaptive resume spec_prepare."
+        )
+    _reject_unexpected_entries(source_run_dir, allowed=set(PREPARE_FILENAMES), label="spec_prepare")
+    try:
+        creative_code_spec_pipeline.validate_exact_prepare_artifacts(
+            run_dir=source_run_dir,
+            expected_packet=candidate,
+            expected_variants=cast(Sequence[Mapping[str, Any]], intake["materialized_variants"]),
+        )
+    except creative_code_spec_pipeline.CreativeCodeSpecPipelineError as exc:
+        raise CreativeSpecificationSkepticReviewCliError(str(exc)) from exc
+    source_packet = _read_json_object(source_run_dir / "source_packet.json", label="source packet")
+    variants = _read_json_array(source_run_dir / "variants.json", label="variants")
+    pending_reviews = _read_json_array(
+        source_run_dir / "skeptic_reviews.json", label="pending skeptic reviews"
+    )
+    context_pack = _read_json_object(source_run_dir / "context_pack.json", label="context pack")
+    normalized_packet = validate_source_candidate_packet(source_packet)
+    if normalized_packet != candidate:
+        raise CreativeSpecificationSkepticReviewCliError(
+            "fingerprint_mismatch: adaptive source packet must equal candidate."
+        )
+    if variants != intake["materialized_variants"]:
+        raise CreativeSpecificationSkepticReviewCliError(
+            "fingerprint_mismatch: adaptive variants must equal intake materialization."
+        )
+    try:
+        build_creative_code_specification_bundle(
+            source_packet=source_packet,
+            variants=cast(Sequence[Mapping[str, Any]], variants),
+            skeptic_reviews=cast(Sequence[Mapping[str, Any]], pending_reviews),
+        )
+    except CreativeCodeSpecificationError as exc:
+        raise CreativeSpecificationSkepticReviewCliError(
+            f"prepared spec_prepare artifacts are not valid PR-1 inputs: {exc}"
+        ) from exc
+    return {
+        "bridge": bridge,
+        "bridge_dir": bridge_dir,
+        "bridge_path": bridge_file,
+        "candidate": candidate,
+        "candidate_path": candidate_path,
+        "metrics": intake,
+        "metrics_path": intake_path,
         "source_run_dir": source_run_dir,
         "source_packet": source_packet,
         "variants": variants,
@@ -450,71 +714,165 @@ def _attach_from_bridge(bridge_path: Path, reviews_path: Path) -> dict[str, Any]
         variants=variants,
     )
     reviewed_dir = _reviewed_run_dir(cast(Path, prepared["bridge_dir"]))
-    if reviewed_dir.exists() or reviewed_dir.is_symlink():
-        raise CreativeSpecificationSkepticReviewCliError(
-            "reviewed finalize run already exists; remove the local sibling artifact to rerun."
-        )
-    reviewed_dir.mkdir(parents=True, exist_ok=False)
-    try:
-        reviewed_source_packet = reviewed_dir / "source_packet.json"
-        reviewed_variants = reviewed_dir / "variants.json"
-        reviewed_reviews = reviewed_dir / "skeptic_reviews.json"
-        reviewed_context_pack = reviewed_dir / "context_pack.json"
-        attachment_path = reviewed_dir / ATTACHMENT_FILENAME
-        attachment = cast(
-            dict[str, Any],
-            build_skeptic_review_attachment(
-                bridge_id=str(bridge["bridge_id"]),
-                bridge_fingerprint=fingerprint_payload(bridge),
-                bridge_ref=_artifact_ref(cast(Path, prepared["bridge_path"])),
-                candidate_id=str(candidate["candidate_id"]),
-                candidate_fingerprint=fingerprint_payload(candidate),
-                candidate_ref=_artifact_ref(cast(Path, prepared["candidate_path"])),
-                metrics_id=str(cast(Mapping[str, Any], prepared["metrics"])["metrics_id"]),
-                metrics_fingerprint=fingerprint_payload(cast(dict[str, Any], prepared["metrics"])),
-                metrics_ref=_artifact_ref(cast(Path, prepared["metrics_path"])),
-                spec_prepare_ref=_artifact_ref(cast(Path, prepared["source_run_dir"])),
-                source_packet_ref=_artifact_ref(
-                    cast(Path, prepared["source_run_dir"]) / "source_packet.json"
-                ),
-                source_packet_fingerprint=fingerprint_payload(source_packet),
-                variants_ref=_artifact_ref(
-                    cast(Path, prepared["source_run_dir"]) / "variants.json"
-                ),
-                variants_fingerprint=fingerprint_payload(variants),
-                pending_reviews_ref=_artifact_ref(
-                    cast(Path, prepared["source_run_dir"]) / "skeptic_reviews.json"
-                ),
-                pending_reviews_fingerprint=fingerprint_payload(
-                    cast(Sequence[Any], prepared["pending_reviews"])
-                ),
-                context_pack_ref=_artifact_ref(
-                    cast(Path, prepared["source_run_dir"]) / "context_pack.json"
-                ),
-                context_pack_fingerprint=fingerprint_payload(
-                    cast(dict[str, Any], prepared["context_pack"])
-                ),
-                reviewed_run_dir_ref=_artifact_ref(reviewed_dir),
-                reviewed_source_packet_ref=_artifact_ref(reviewed_source_packet),
-                reviewed_variants_ref=_artifact_ref(reviewed_variants),
-                reviewed_reviews_ref=_artifact_ref(reviewed_reviews),
-                reviewed_context_pack_ref=_artifact_ref(reviewed_context_pack),
-                normalized_reviews=normalized_reviews,
-                variant_count=len(variants),
+    reviewed_source_packet = reviewed_dir / "source_packet.json"
+    reviewed_variants = reviewed_dir / "variants.json"
+    reviewed_reviews = reviewed_dir / "skeptic_reviews.json"
+    reviewed_context_pack = reviewed_dir / "context_pack.json"
+    attachment_path = reviewed_dir / ATTACHMENT_FILENAME
+    attachment = cast(
+        dict[str, Any],
+        build_skeptic_review_attachment(
+            bridge_id=str(bridge["bridge_id"]),
+            bridge_fingerprint=fingerprint_payload(bridge),
+            bridge_ref=_artifact_ref(cast(Path, prepared["bridge_path"])),
+            candidate_id=str(candidate["candidate_id"]),
+            candidate_fingerprint=fingerprint_payload(candidate),
+            candidate_ref=_artifact_ref(cast(Path, prepared["candidate_path"])),
+            metrics_id=str(
+                cast(Mapping[str, Any], prepared["metrics"]).get("metrics_id")
+                or cast(Mapping[str, Any], prepared["metrics"])["intake_id"]
             ),
+            metrics_fingerprint=fingerprint_payload(cast(dict[str, Any], prepared["metrics"])),
+            metrics_ref=_artifact_ref(cast(Path, prepared["metrics_path"])),
+            spec_prepare_ref=_artifact_ref(cast(Path, prepared["source_run_dir"])),
+            source_packet_ref=_artifact_ref(
+                cast(Path, prepared["source_run_dir"]) / "source_packet.json"
+            ),
+            source_packet_fingerprint=fingerprint_payload(source_packet),
+            variants_ref=_artifact_ref(cast(Path, prepared["source_run_dir"]) / "variants.json"),
+            variants_fingerprint=fingerprint_payload(variants),
+            pending_reviews_ref=_artifact_ref(
+                cast(Path, prepared["source_run_dir"]) / "skeptic_reviews.json"
+            ),
+            pending_reviews_fingerprint=fingerprint_payload(
+                cast(Sequence[Any], prepared["pending_reviews"])
+            ),
+            context_pack_ref=_artifact_ref(
+                cast(Path, prepared["source_run_dir"]) / "context_pack.json"
+            ),
+            context_pack_fingerprint=fingerprint_payload(
+                cast(dict[str, Any], prepared["context_pack"])
+            ),
+            reviewed_run_dir_ref=_artifact_ref(reviewed_dir),
+            reviewed_source_packet_ref=_artifact_ref(reviewed_source_packet),
+            reviewed_variants_ref=_artifact_ref(reviewed_variants),
+            reviewed_reviews_ref=_artifact_ref(reviewed_reviews),
+            reviewed_context_pack_ref=_artifact_ref(reviewed_context_pack),
+            normalized_reviews=normalized_reviews,
+            variant_count=len(variants),
+        ),
+    )
+    lock_fd = -1
+    primary_error: Exception | None = None
+    try:
+        lock_fd = _open_locked_directory(
+            reviewed_dir.parent,
+            label="reviewed attach",
         )
-        _write_json_atomic(reviewed_source_packet, source_packet)
-        _write_json_atomic(reviewed_variants, variants)
-        _write_json_atomic(reviewed_reviews, normalized_reviews)
-        _write_json_atomic(reviewed_context_pack, cast(dict[str, Any], prepared["context_pack"]))
-        _write_json_atomic(attachment_path, attachment)
-    except Exception:
-        shutil.rmtree(reviewed_dir, ignore_errors=True)
+        if reviewed_dir.exists() or reviewed_dir.is_symlink():
+            existing, _existing_dir, _existing_bundle = _validate_attachment_artifacts(
+                reviewed_dir / ATTACHMENT_FILENAME
+            )
+            if fingerprint_payload(existing) != fingerprint_payload(attachment):
+                raise CreativeSpecificationSkepticReviewCliError(
+                    "reviewed attach collision is divergent."
+                )
+            return existing
+
+        staging: Path | None = None
+        staging_identity: DirectoryIdentity | None = None
+        for _attempt in range(32):
+            candidate_staging = reviewed_dir.parent / (
+                f".{REVIEWED_RUN_DIRNAME}.{secrets.token_hex(8)}.staging"
+            )
+            try:
+                candidate_staging.mkdir(mode=0o700)
+            except FileExistsError:
+                continue
+            staging = candidate_staging
+            staging_identity = _directory_identity(staging)
+            break
+        if staging is None or staging_identity is None:
+            raise CreativeSpecificationSkepticReviewCliError(
+                "unable to allocate reviewed staging directory."
+            )
+        try:
+            _write_json_atomic(staging / reviewed_source_packet.name, source_packet)
+            _write_json_atomic(staging / reviewed_variants.name, variants)
+            _write_json_atomic(staging / reviewed_reviews.name, normalized_reviews)
+            _write_json_atomic(
+                staging / reviewed_context_pack.name,
+                cast(dict[str, Any], prepared["context_pack"]),
+            )
+            _write_json_atomic(staging / attachment_path.name, attachment)
+            entries = list(staging.iterdir())
+            if {entry.name for entry in entries} != set(INITIAL_REVIEWED_FILENAMES):
+                raise CreativeSpecificationSkepticReviewCliError(
+                    "reviewed staging must contain the exact attachment artifact set."
+                )
+            if any(entry.is_symlink() or not entry.is_file() for entry in entries):
+                raise CreativeSpecificationSkepticReviewCliError(
+                    "reviewed staging artifacts must be regular files."
+                )
+            os.fsync(lock_fd)
+            try:
+                _kernel_rename_noreplace(
+                    lock_fd,
+                    staging.name,
+                    reviewed_dir.name,
+                    collision_message="reviewed attach collision.",
+                )
+            except CreativeSpecificationSkepticReviewCliError as exc:
+                if str(exc) != "reviewed attach collision.":
+                    raise
+                existing, _existing_dir, _existing_bundle = _validate_attachment_artifacts(
+                    reviewed_dir / ATTACHMENT_FILENAME
+                )
+                if fingerprint_payload(existing) != fingerprint_payload(attachment):
+                    raise CreativeSpecificationSkepticReviewCliError(
+                        "reviewed attach collision is divergent."
+                    ) from exc
+                _discard_owned_staging(staging, expected_identity=staging_identity)
+                return existing
+            os.fsync(lock_fd)
+            published, _published_dir, _published_bundle = _validate_attachment_artifacts(
+                reviewed_dir / ATTACHMENT_FILENAME
+            )
+            if fingerprint_payload(published) != fingerprint_payload(attachment):
+                raise CreativeSpecificationSkepticReviewCliError(
+                    "published reviewed attachment is divergent."
+                )
+        except Exception as exc:
+            cleanup_error: Exception | None = None
+            if staging.exists():
+                try:
+                    _retain_owned_staging(staging, expected_identity=staging_identity)
+                except Exception as cleanup_exc:
+                    cleanup_error = cleanup_exc
+            if cleanup_error is not None:
+                raise CreativeSpecificationSkepticReviewCliError(
+                    f"{exc}; cleanup_diagnostic={cleanup_error}"
+                ) from exc
+            raise
+    except Exception as exc:
+        primary_error = exc
         raise
+    finally:
+        close_error = creative_code_spec_pipeline._close_descriptors(lock_fd)
+        if close_error is not None and primary_error is not None:
+            raise CreativeSpecificationSkepticReviewCliError(
+                f"{primary_error}; cleanup_diagnostic={close_error}"
+            ) from primary_error
+        if close_error is not None:
+            raise CreativeSpecificationSkepticReviewCliError(
+                "reviewed attach lock could not be closed safely."
+            ) from close_error
     return attachment
 
 
-def _validate_attachment_artifacts(attachment_path: Path) -> tuple[dict[str, Any], Path]:
+def _validate_attachment_artifacts(
+    attachment_path: Path,
+) -> tuple[dict[str, Any], Path, dict[str, Any]]:
     attachment_file = _resolve_repo_json_file(attachment_path, label="attachment input")
     attachment = validate_skeptic_review_attachment(
         _read_json_object(attachment_file, label="attachment input")
@@ -549,9 +907,18 @@ def _validate_attachment_artifacts(attachment_path: Path) -> tuple[dict[str, Any
         str(source["bridge_ref"]),
         label="source bridge ref",
     )
-    if source_bridge_path.name != BRIDGE_FILENAME:
+    source_bridge_payload = _read_json_object(source_bridge_path, label="source bridge")
+    supported_source = (
+        source_bridge_path.name == BRIDGE_FILENAME
+        and source_bridge_payload.get("artifact_type") == "creative_hypothesis_specification_bridge"
+    ) or (
+        source_bridge_path.name == ADAPTIVE_RESUME_FILENAME
+        and source_bridge_payload.get("artifact_type") == ADAPTIVE_PR1_RESUME_TYPE
+    )
+    if not supported_source:
         raise CreativeSpecificationSkepticReviewCliError(
-            f"source bridge ref must point to canonical {BRIDGE_FILENAME}."
+            f"source bridge ref must point to canonical {BRIDGE_FILENAME} or "
+            f"{ADAPTIVE_RESUME_FILENAME} with matching artifact_type."
         )
     prepared_source = _read_prepared_bridge(source_bridge_path)
     source_bridge = cast(Mapping[str, Any], prepared_source["bridge"])
@@ -581,7 +948,12 @@ def _validate_attachment_artifacts(attachment_path: Path) -> tuple[dict[str, Any
         raise CreativeSpecificationSkepticReviewCliError(
             "reviewed_run_dir_ref must be the sibling of the source bridge artifact."
         )
-    expected_metrics_ref = _artifact_ref(source_bridge_path.parent / METRICS_FILENAME)
+    expected_metrics_name = (
+        ADAPTIVE_INTAKE_FILENAME
+        if source_bridge_path.name == ADAPTIVE_RESUME_FILENAME
+        else METRICS_FILENAME
+    )
+    expected_metrics_ref = _artifact_ref(source_bridge_path.parent / expected_metrics_name)
     if source["metrics_ref"] != expected_metrics_ref:
         raise CreativeSpecificationSkepticReviewCliError(
             "fingerprint_mismatch: source metrics ref does not match bridge layout."
@@ -690,7 +1062,7 @@ def _validate_attachment_artifacts(attachment_path: Path) -> tuple[dict[str, Any
             "fingerprint_mismatch: reviewed skeptic_reviews fingerprint does not match attachment."
         )
     try:
-        build_creative_code_specification_bundle(
+        expected_bundle = build_creative_code_specification_bundle(
             source_packet=source_packet,
             variants=cast(Sequence[Mapping[str, Any]], variants),
             skeptic_reviews=cast(Sequence[Mapping[str, Any]], reviews),
@@ -715,7 +1087,7 @@ def _validate_attachment_artifacts(attachment_path: Path) -> tuple[dict[str, Any
         raise CreativeSpecificationSkepticReviewCliError(
             "fingerprint_mismatch: reviewed variants do not match attachment."
         )
-    return attachment, reviewed_dir
+    return attachment, reviewed_dir, expected_bundle
 
 
 def _assert_reviewed_ref(ref: str, expected_path: Path, label: str) -> None:
@@ -746,37 +1118,109 @@ def _assert_artifact_ref(
 
 
 def _finalize_from_attachment(attachment_path: Path) -> dict[str, Any]:
-    attachment, reviewed_dir = _validate_attachment_artifacts(attachment_path)
-    bundle_path = reviewed_dir / BUNDLE_FILENAME
-    receipt_path = reviewed_dir / FINALIZE_RECEIPT_FILENAME
-    if bundle_path.exists() or receipt_path.exists():
+    attachment_file = _resolve_repo_json_file(attachment_path, label="attachment input")
+    reviewed_dir = attachment_file.parent
+    if reviewed_dir.name != REVIEWED_RUN_DIRNAME:
         raise CreativeSpecificationSkepticReviewCliError(
-            "reviewed finalize outputs already exist; remove local artifacts to rerun."
+            "attachment input must stay under the canonical reviewed run."
         )
+    lock_fd = -1
+    primary_error: Exception | None = None
     try:
-        creative_code_spec_pipeline.finalize(reviewed_dir, bundle_path)
-    except creative_code_spec_pipeline.CreativeCodeSpecPipelineError as exc:
-        raise CreativeSpecificationSkepticReviewCliError(str(exc)) from exc
-    try:
+        lock_fd = _open_locked_directory(
+            reviewed_dir.parent,
+            label="reviewed finalize",
+        )
+        attachment, validated_dir, expected_bundle = _validate_attachment_artifacts(attachment_file)
+        if validated_dir != reviewed_dir:
+            raise CreativeSpecificationSkepticReviewCliError(
+                "reviewed finalize directory changed during validation."
+            )
+        bundle_path = reviewed_dir / BUNDLE_FILENAME
+        receipt_path = reviewed_dir / FINALIZE_RECEIPT_FILENAME
+        bundle_exists = bundle_path.exists() or bundle_path.is_symlink()
+        receipt_exists = receipt_path.exists() or receipt_path.is_symlink()
+        if bundle_exists != receipt_exists:
+            raise CreativeSpecificationSkepticReviewCliError(
+                "reviewed finalize output is partial; retained for inspection."
+            )
+        if bundle_exists and receipt_exists:
+            bundle = validate_creative_code_specification_bundle(
+                read_creative_code_specification_bundle(bundle_path)
+            )
+            if fingerprint_payload(bundle) != fingerprint_payload(expected_bundle):
+                raise CreativeSpecificationSkepticReviewCliError(
+                    "finalized bundle does not match the current reviewed inputs."
+                )
+            receipt = cast(
+                dict[str, Any],
+                validate_finalize_receipt(
+                    _read_json_object(receipt_path, label="finalize receipt")
+                ),
+            )
+            expected_receipt = cast(
+                dict[str, Any],
+                build_finalize_receipt(
+                    attachment=attachment,
+                    attachment_ref=_artifact_ref(reviewed_dir / ATTACHMENT_FILENAME),
+                    bundle=bundle,
+                    bundle_ref=_artifact_ref(bundle_path),
+                ),
+            )
+            if fingerprint_payload(receipt) != fingerprint_payload(expected_receipt):
+                raise CreativeSpecificationSkepticReviewCliError(
+                    "finalize receipt does not bind the current attachment and bundle."
+                )
+            return receipt
+        try:
+            creative_code_spec_pipeline.finalize(reviewed_dir, bundle_path)
+        except creative_code_spec_pipeline.CreativeCodeSpecPipelineError as exc:
+            raise CreativeSpecificationSkepticReviewCliError(str(exc)) from exc
         bundle = validate_creative_code_specification_bundle(
             read_creative_code_specification_bundle(bundle_path)
         )
+        if fingerprint_payload(bundle) != fingerprint_payload(expected_bundle):
+            raise CreativeSpecificationSkepticReviewCliError(
+                "finalized bundle does not match the current reviewed inputs."
+            )
         receipt = cast(
             dict[str, Any],
-            build_finalize_receipt(
-                attachment=attachment,
-                attachment_ref=_artifact_ref(reviewed_dir / ATTACHMENT_FILENAME),
-                bundle=bundle,
-                bundle_ref=_artifact_ref(bundle_path),
+            validate_finalize_receipt(
+                cast(
+                    Mapping[str, Any],
+                    build_finalize_receipt(
+                        attachment=attachment,
+                        attachment_ref=_artifact_ref(reviewed_dir / ATTACHMENT_FILENAME),
+                        bundle=bundle,
+                        bundle_ref=_artifact_ref(bundle_path),
+                    ),
+                )
             ),
         )
         _write_json_atomic(receipt_path, receipt)
-        validate_finalize_receipt(receipt)
-    except Exception:
-        bundle_path.unlink(missing_ok=True)
-        receipt_path.unlink(missing_ok=True)
+        os.fsync(lock_fd)
+        committed_receipt = cast(
+            dict[str, Any],
+            validate_finalize_receipt(_read_json_object(receipt_path, label="finalize receipt")),
+        )
+        if fingerprint_payload(committed_receipt) != fingerprint_payload(receipt):
+            raise CreativeSpecificationSkepticReviewCliError(
+                "finalize receipt commit marker is divergent."
+            )
+        return committed_receipt
+    except Exception as exc:
+        primary_error = exc
         raise
-    return receipt
+    finally:
+        close_error = creative_code_spec_pipeline._close_descriptors(lock_fd)
+        if close_error is not None and primary_error is not None:
+            raise CreativeSpecificationSkepticReviewCliError(
+                f"{primary_error}; cleanup_diagnostic={close_error}"
+            ) from primary_error
+        if close_error is not None:
+            raise CreativeSpecificationSkepticReviewCliError(
+                "reviewed finalize lock could not be closed safely."
+            ) from close_error
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
@@ -820,6 +1264,7 @@ def main(argv: list[str] | None = None) -> int:
         CreativeSpecificationSkepticReviewError,
         CreativeCodeSpecificationError,
         CreativeHypothesisSpecBridgeError,
+        CreativePilotContractError,
     ) as exc:
         print(f"FAIL: {exc}", file=sys.stderr)
         return 1
