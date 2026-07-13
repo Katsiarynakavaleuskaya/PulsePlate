@@ -49,10 +49,22 @@ Fastlane/xcodeproj gem graph and all App Store workflow behavior.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: 66c89fe9c13a3ce7bc33815044740db0bfcb1b89
+Evidence: `docs/review/PR_2115_FIXED_MAPPING.md:38-39` and the post-comment evidence commit preserve both completed artifact-level checkboxes.
+Reason: Discussion/mapping closure is complete, while merge-readiness and current-head CI stay separate pending gates.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2115#discussion_r3571067367 -> 66c89fe9c13a3ce7bc33815044740db0bfcb1b89
 
-The artifact-level discussion-thread and fixed-mapping checkboxes are complete;
-merge-readiness and current-head CI remain separate pending gates.
+Disposition: NOT-A-BUG
+Evidence: `git merge-base --is-ancestor ecfa35461 HEAD` exits zero, and every `origin/main..HEAD` commit contains the canonical Experiment Runner co-author trailer.
+Reason: The reviewer inspected a GitHub synthetic merge commit; the public PR branch preserves attribution on the implementation and governance commits.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2115#discussion_r3571109947
+
+Disposition: FIXED
+Commit: 4677103c9a2f825508b6531e26e2fd82984dba0f
+Evidence: `docs/review/PR_2115_FIXED_MAPPING.md:97-100`
+Reason: Security Review now records the completed security-auditor and sealed diff-scan closure consistently with the checked role-chain status.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2115#discussion_r3571109952 -> 4677103c9a2f825508b6531e26e2fd82984dba0f
 
 ## Experiment Runner Evidence
 
