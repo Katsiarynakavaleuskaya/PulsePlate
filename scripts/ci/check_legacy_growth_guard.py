@@ -2688,6 +2688,13 @@ def _static_string(node: ast.AST, bindings: dict[str, str] | None = None) -> str
         right = _static_string(node.right, bindings)
         if left is not None and right is not None:
             return left + right
+    if isinstance(node, ast.JoinedStr):
+        joined_parts: list[str] = []
+        for value in node.values:
+            if not isinstance(value, ast.Constant) or not isinstance(value.value, str):
+                return None
+            joined_parts.append(value.value)
+        return "".join(joined_parts)
     if (
         isinstance(node, ast.Call)
         and isinstance(node.func, ast.Attribute)
@@ -2729,6 +2736,47 @@ def _is_namespace_mapping(node: ast.AST) -> bool:
         and isinstance(node.func, ast.Name)
         and node.func.id in {"globals", "vars"}
     )
+
+
+def _is_current_module_object_shape(node: ast.AST) -> bool:
+    return (
+        isinstance(node, ast.Subscript)
+        and isinstance(node.value, ast.Attribute)
+        and node.value.attr == "modules"
+        and isinstance(node.slice, ast.Name)
+        and node.slice.id == "__name__"
+    )
+
+
+def _binds_namespace_alias(tree: ast.Module) -> bool:
+    """Reject namespace-object aliases instead of implementing general data flow."""
+
+    for node in ast.walk(tree):
+        value: ast.AST | None = None
+        if isinstance(node, (ast.Assign, ast.AnnAssign, ast.NamedExpr)):
+            value = node.value
+        if value is None:
+            continue
+        if (
+            isinstance(value, ast.Call)
+            and isinstance(value.func, ast.Name)
+            and value.func.id in {"globals", "vars"}
+        ):
+            return True
+    return False
+
+
+def _references_protected_openapi_compat_symbol(tree: ast.Module) -> bool:
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Attribute) and node.attr in CANONICAL_OPENAPI_SYMBOLS:
+            return True
+        if (
+            isinstance(node, ast.Constant)
+            and isinstance(node.value, str)
+            and node.value in CANONICAL_OPENAPI_SYMBOLS
+        ):
+            return True
+    return False
 
 
 _NAMESPACE_KEY_MUTATORS = {
@@ -2782,6 +2830,13 @@ def _namespace_rebindings(tree: ast.Module, protected_names: set[str]) -> set[st
     rebound: set[str] = set()
 
     def record_target(target: ast.AST) -> None:
+        if (
+            isinstance(target, ast.Attribute)
+            and _is_current_module_object_shape(target.value)
+            and target.attr in protected_names
+        ):
+            rebound.add(target.attr)
+            return
         if not isinstance(target, ast.Subscript) or not _is_namespace_mapping(target.value):
             return
         name = _static_string(target.slice, bindings)
@@ -2800,6 +2855,17 @@ def _namespace_rebindings(tree: ast.Module, protected_names: set[str]) -> set[st
             for target in node.targets:
                 record_target(target)
         elif isinstance(node, ast.Call):
+            if (
+                isinstance(node.func, ast.Name)
+                and node.func.id in {"delattr", "setattr"}
+                and len(node.args) >= 2
+                and _is_current_module_object_shape(node.args[0])
+            ):
+                attribute_name = _static_string(node.args[1], bindings)
+                if attribute_name is None:
+                    rebound.update(protected_names)
+                elif attribute_name in protected_names:
+                    rebound.add(attribute_name)
             mutation_names = _namespace_mapping_mutation_names(node, bindings)
             if mutation_names is None:
                 rebound.update(protected_names)
@@ -2859,6 +2925,28 @@ def _imports_forbidden_openapi_owner(
     *,
     current_module: str,
 ) -> bool:
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import) and any(alias.name == "importlib" for alias in node.names):
+            return True
+        if isinstance(node, ast.ImportFrom) and node.module == "importlib":
+            return True
+        if (
+            isinstance(node, ast.ImportFrom)
+            and node.module == "builtins"
+            and any(alias.name == "__import__" for alias in node.names)
+        ):
+            return True
+        if (
+            isinstance(node, ast.Name)
+            and isinstance(node.ctx, ast.Load)
+            and node.id == "__import__"
+        ):
+            return True
+        if isinstance(node, ast.Attribute) and node.attr == "__import__":
+            return True
+        if _static_string(node) == "__import__":
+            return True
+
     importlib_aliases = {"importlib"}
     import_module_aliases: set[str] = set()
     bindings = _module_static_string_bindings(tree)
@@ -2979,6 +3067,8 @@ def _references_legacy_openapi_installer(tree: ast.Module) -> bool:
     installer_name = "_install_openapi_builder"
     bindings = _module_static_string_bindings(tree)
     for node in ast.walk(tree):
+        if _static_string(node) == installer_name:
+            return True
         if isinstance(node, ast.Name) and node.id == installer_name:
             return True
         if isinstance(node, ast.Attribute) and node.attr == installer_name:
@@ -3009,6 +3099,26 @@ def _references_legacy_openapi_installer(tree: ast.Module) -> bool:
         if len(node.args) >= 2:
             name = _static_string(node.args[1], bindings)
             if name == installer_name:
+                return True
+    return False
+
+
+def _function_references_legacy_openapi_symbol(tree: ast.Module) -> bool:
+    for function in ast.walk(tree):
+        if not isinstance(function, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        for node in ast.walk(function):
+            if _static_string(node) in CANONICAL_OPENAPI_SYMBOLS:
+                return True
+            if isinstance(node, ast.Name) and node.id in CANONICAL_OPENAPI_SYMBOLS:
+                return True
+            if isinstance(node, ast.Attribute) and node.attr in CANONICAL_OPENAPI_SYMBOLS:
+                return True
+            if (
+                isinstance(node, ast.Constant)
+                and isinstance(node.value, str)
+                and node.value in CANONICAL_OPENAPI_SYMBOLS
+            ):
                 return True
     return False
 
@@ -3111,6 +3221,10 @@ def validate_application_metadata_openapi_ownership(
             set(CANONICAL_OPENAPI_SYMBOLS),
         )
     )
+    if _binds_namespace_alias(legacy_tree) or _references_protected_openapi_compat_symbol(
+        legacy_tree
+    ):
+        rebound.update(CANONICAL_OPENAPI_SYMBOLS)
     for name in sorted(rebound):
         errors.append(f"{LEGACY_APP}: canonical OpenAPI re-export must not be rebound: {name}")
     if not metadata_factory_imported:
@@ -3238,10 +3352,14 @@ def validate_application_metadata_openapi_ownership(
                 else:
                     main_string_bindings[target_name] = static_string
 
+    if _function_references_legacy_openapi_symbol(main_tree):
+        errors.append(f"{CANONICAL_MAIN}: OpenAPI symbol must not be accessed through legacy")
+
     facade_tree = trees[APP_FACADE]
-    if _mutates_openapi_callable_or_cache(facade_tree):
+    facade_binds_namespace_alias = _binds_namespace_alias(facade_tree)
+    if _mutates_openapi_callable_or_cache(facade_tree) or facade_binds_namespace_alias:
         errors.append(f"{APP_FACADE}: OpenAPI callable/cache mutation is forbidden")
-    if _references_legacy_openapi_installer(facade_tree):
+    if _references_legacy_openapi_installer(facade_tree) or facade_binds_namespace_alias:
         errors.append(f"{APP_FACADE}: legacy OpenAPI installer lookup is forbidden")
 
     return sorted(set(errors))

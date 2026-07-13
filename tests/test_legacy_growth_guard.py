@@ -171,6 +171,21 @@ def test_current_metadata_openapi_ownership_passes_growth_guard() -> None:
         ),
         (
             0,
+            '\nnamespace = globals()\nnamespace["_install_openapi_builder"] = replacement\n',
+            "canonical OpenAPI re-export must not be rebound",
+        ),
+        (
+            0,
+            '\ndef mutate():\n    import sys as system\n    setattr(system.modules[__name__], "_install_openapi_builder", replacement)\n',
+            "canonical OpenAPI re-export must not be rebound",
+        ),
+        (
+            0,
+            "\nimport sys\nsys.modules[__name__]._install_openapi_builder = replacement\n",
+            "canonical OpenAPI re-export must not be rebound",
+        ),
+        (
+            0,
             '\nglobals().update({"_install_openapi_builder": replacement})\n',
             "canonical OpenAPI re-export must not be rebound",
         ),
@@ -256,6 +271,41 @@ def test_current_metadata_openapi_ownership_passes_growth_guard() -> None:
         ),
         (
             2,
+            '\nimport importlib\nloader = getattr(importlib, "import_module")\nloader("legacy_app")\n',
+            "reverse legacy/main import is forbidden",
+        ),
+        (
+            2,
+            '\ndef load():\n    loader = __import__\n    return loader("legacy_app")\n',
+            "reverse legacy/main import is forbidden",
+        ),
+        (
+            2,
+            '\nfrom builtins import __import__ as loader\nloader("legacy_app")\n',
+            "reverse legacy/main import is forbidden",
+        ),
+        (
+            2,
+            '\nimport builtins\nloader = getattr(builtins, "__import__")\nloader("legacy_app")\n',
+            "reverse legacy/main import is forbidden",
+        ),
+        (
+            2,
+            '\nloader = __builtins__["__import__"]\nloader("legacy_app")\n',
+            "reverse legacy/main import is forbidden",
+        ),
+        (
+            2,
+            '\nimport builtins\nloader = getattr(builtins, "__" + "import__")\nloader("legacy_app")\n',
+            "reverse legacy/main import is forbidden",
+        ),
+        (
+            2,
+            '\nloader = __builtins__["".join(["__", "import__"])]\nloader("legacy_app")\n',
+            "reverse legacy/main import is forbidden",
+        ),
+        (
+            2,
             '\nmodule = __import__("app", fromlist=dynamic_fromlist)\n',
             "reverse legacy/main import is forbidden",
         ),
@@ -285,6 +335,16 @@ def test_current_metadata_openapi_ownership_passes_growth_guard() -> None:
             "OpenAPI symbol must not be accessed through legacy",
         ),
         (
+            3,
+            '\ndef fetch():\n    if enabled:\n        import importlib as il\n        compat = il.import_module("legacy_app")\n        return compat._install_openapi_builder\n',
+            "OpenAPI symbol must not be accessed through legacy",
+        ),
+        (
+            3,
+            '\ndef fetch():\n    import importlib as il\n    compat = il.import_module("legacy_app")\n    name = "_install_" + "openapi_builder"\n    return getattr(compat, name)\n',
+            "OpenAPI symbol must not be accessed through legacy",
+        ),
+        (
             4,
             "\ninstaller = getattr(legacy, '_install_openapi_builder')\n",
             "legacy OpenAPI installer lookup is forbidden",
@@ -297,6 +357,21 @@ def test_current_metadata_openapi_ownership_passes_growth_guard() -> None:
         (
             4,
             '\nlegacy = _legacy()\ninstaller_name = "_install_" + "openapi_builder"\ninstaller = getattr(legacy, installer_name)\n',
+            "legacy OpenAPI installer lookup is forbidden",
+        ),
+        (
+            4,
+            '\ninstaller_name = f"_install_openapi_builder"\ninstaller = getattr(_legacy(), installer_name)\n',
+            "legacy OpenAPI installer lookup is forbidden",
+        ),
+        (
+            4,
+            '\ndef fetch():\n    name = "_install_" + "openapi_builder"\n    return getattr(_legacy(), name)\n',
+            "legacy OpenAPI installer lookup is forbidden",
+        ),
+        (
+            4,
+            '\nnamespace = vars(_legacy())\ninstaller = namespace["_install_openapi_builder"]\n',
             "legacy OpenAPI installer lookup is forbidden",
         ),
         (
@@ -332,6 +407,11 @@ def test_current_metadata_openapi_ownership_passes_growth_guard() -> None:
         (
             4,
             '\nvars(app).update({"openapi": replacement})\n',
+            "OpenAPI callable/cache mutation is forbidden",
+        ),
+        (
+            4,
+            '\nnamespace = vars(app)\nnamespace["openapi"] = replacement\n',
             "OpenAPI callable/cache mutation is forbidden",
         ),
         (
@@ -403,7 +483,7 @@ def test_metadata_openapi_ownership_guard_allows_unrelated_relative_main_symbol(
     assert errors == []
 
 
-def test_metadata_openapi_ownership_guard_allows_dynamic_sibling_import() -> None:
+def test_metadata_openapi_ownership_guard_rejects_dynamic_import_in_canonical_owner() -> None:
     sources = list(_openapi_ownership_sources())
     sources[2] += textwrap.dedent("""
         from importlib import import_module
@@ -412,7 +492,7 @@ def test_metadata_openapi_ownership_guard_allows_dynamic_sibling_import() -> Non
 
     errors = legacy_guard.validate_application_metadata_openapi_ownership(*sources)
 
-    assert errors == []
+    assert errors == ["app/bootstrap/openapi.py: reverse legacy/main import is forbidden"]
 
 
 def test_metadata_openapi_ownership_guard_allows_unrelated_namespace_mutations() -> None:
