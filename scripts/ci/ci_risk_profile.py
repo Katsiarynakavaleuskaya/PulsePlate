@@ -155,6 +155,8 @@ RISK_GROUP_PATTERNS: dict[str, tuple[str, ...]] = {
         "tests/test_rate_limit_llm_and_exports_api.py",
     ),
     "openapi_contract": (
+        "app/application_metadata.py",
+        "app/bootstrap/openapi.py",
         "app/main.py",
         "app/routers/*.py",
         "app/schemas/*.py",

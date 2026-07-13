@@ -37,8 +37,8 @@ temporarily exposes the same compatibility metadata values.
 
 Public OpenAPI visibility, component pruning, builder ownership, and cache
 reconciliation are canonically owned by `app/bootstrap/openapi.py:32` and its
-validation/install/policy seams at `app/bootstrap/openapi.py:279`,
-`app/bootstrap/openapi.py:304`, and `app/bootstrap/openapi.py:339`.
+validation/install/policy seams at `app/bootstrap/openapi.py:285`,
+`app/bootstrap/openapi.py:310`, and `app/bootstrap/openapi.py:343`.
 `app/main.py:1311` validates builder ownership before mutation, completes
 additive route registration, then applies policy and installs the builder at
 `app/main.py:1409`. This order prevents an early partial schema while preserving
