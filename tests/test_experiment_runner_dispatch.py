@@ -638,3 +638,94 @@ def test_container_cleanup_forces_stop_before_delete(monkeypatch: pytest.MonkeyP
     assert dispatch._cleanup_container("/usr/local/bin/container", "apple-container", "run-id")
     assert calls[0][1:4] == ["stop", "--time", "1"]
     assert calls[1][1:3] == ["delete", "--force"]
+
+
+def test_probe_cleanup_failure_overrides_original_exception(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(dispatch, "_create_apple_network", lambda _cli: "probe-network")
+    monkeypatch.setattr(
+        dispatch,
+        "_discover_gateway",
+        lambda *_args: (_ for _ in ()).throw(dispatch.DispatchError("network_gateway_unavailable")),
+    )
+    monkeypatch.setattr(dispatch, "_delete_apple_network", lambda *_args: False)
+
+    with pytest.raises(dispatch.DispatchError, match="container_cleanup_failed") as caught:
+        dispatch._run_container_canary("/usr/local/bin/container", "apple-container", _image())
+
+    assert isinstance(caught.value.__cause__, dispatch.DispatchError)
+    assert caught.value.__cause__.code == "network_gateway_unavailable"
+
+
+def test_pre_run_cleanup_failure_overrides_capability_drift(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    packet_path = tmp_path / "packet.json"
+    packet_path.write_text(json.dumps(_packet()), encoding="utf-8")
+    monkeypatch.setattr(dispatch, "_resolve_cli", lambda _name: "/usr/local/bin/container")
+    monkeypatch.setattr(
+        dispatch,
+        "_create_snapshot",
+        lambda _root, destination: destination.mkdir() or "",
+    )
+    monkeypatch.setattr(dispatch, "_create_apple_network", lambda _cli: "run-network")
+    monkeypatch.setattr(
+        dispatch,
+        "_inspect_image",
+        lambda *_args: (_ for _ in ()).throw(dispatch.DispatchError("image_digest_drift")),
+    )
+    monkeypatch.setattr(dispatch, "_delete_apple_network", lambda *_args: False)
+
+    with pytest.raises(dispatch.DispatchError, match="container_cleanup_failed") as caught:
+        dispatch._invoke_container_runner(
+            probe=_probe("apple-container", strict=True),
+            image=_image(),
+            packet_path=packet_path,
+            candidate_patch=None,
+            output_name="result.json",
+        )
+
+    assert isinstance(caught.value.__cause__, dispatch.PreRunCapabilityError)
+    assert caught.value.__cause__.code == "image_digest_drift"
+
+
+def test_post_start_cleanup_failure_overrides_execution_exception(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    packet_path = tmp_path / "packet.json"
+    packet_path.write_text(json.dumps(_packet()), encoding="utf-8")
+    monkeypatch.setattr(dispatch, "_resolve_cli", lambda _name: "/usr/local/bin/container")
+    monkeypatch.setattr(
+        dispatch,
+        "_create_snapshot",
+        lambda _root, destination: destination.mkdir() or "",
+    )
+    monkeypatch.setattr(dispatch, "_create_apple_network", lambda _cli: "run-network")
+    monkeypatch.setattr(dispatch, "_inspect_image", lambda *_args: _DIGEST)
+    monkeypatch.setattr(dispatch, "_create_result_volume", lambda *_args: "result-volume")
+    monkeypatch.setattr(dispatch, "_initialize_result_volume", lambda **_kwargs: True)
+    monkeypatch.setattr(
+        dispatch,
+        "_run",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            dispatch.DispatchError("runner_execution_failed")
+        ),
+    )
+    monkeypatch.setattr(dispatch, "_cleanup_container", lambda *_args: True)
+    monkeypatch.setattr(dispatch, "_delete_result_volume", lambda *_args: False)
+    monkeypatch.setattr(dispatch, "_delete_apple_network", lambda *_args: True)
+
+    with pytest.raises(dispatch.DispatchError, match="container_cleanup_failed") as caught:
+        dispatch._invoke_container_runner(
+            probe=_probe("apple-container", strict=True),
+            image=_image(),
+            packet_path=packet_path,
+            candidate_patch=None,
+            output_name="result.json",
+        )
+
+    assert isinstance(caught.value.__cause__, dispatch.DispatchError)
+    assert caught.value.__cause__.code == "runner_execution_failed"

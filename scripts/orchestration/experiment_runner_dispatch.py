@@ -24,7 +24,7 @@ import subprocess  # nosec B404: bounded absolute runtime/git argv only (remove-
 import sys
 import tempfile
 import threading
-from typing import Any, cast, Iterator
+from typing import Any, Iterator
 import uuid
 
 DISPATCH_REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -560,13 +560,19 @@ def _cleanup_container(cli: str, backend: str, name: str) -> bool:
             name,
         ]
     )
-    _run(stop_args, cwd=REPO_ROOT)
+    try:
+        _run(stop_args, cwd=REPO_ROOT)
+    except DispatchError:
+        return False
     delete_args = (
         [cli, "delete", "--force", name]
         if backend == "apple-container"
         else [cli, "rm", "--force", name]
     )
-    return _run(delete_args, cwd=REPO_ROOT).returncode == 0
+    try:
+        return _run(delete_args, cwd=REPO_ROOT).returncode == 0
+    except DispatchError:
+        return False
 
 
 def _create_result_volume(cli: str, backend: str) -> str:
@@ -587,7 +593,10 @@ def _delete_result_volume(cli: str, backend: str, name: str) -> bool:
         if backend == "apple-container"
         else [cli, "volume", "rm", "--force", name]
     )
-    return _run(argv, cwd=REPO_ROOT).returncode == 0
+    try:
+        return _run(argv, cwd=REPO_ROOT).returncode == 0
+    except DispatchError:
+        return False
 
 
 def _initialize_result_volume(
@@ -734,7 +743,26 @@ def _create_apple_network(cli: str) -> str:
 
 
 def _delete_apple_network(cli: str, name: str) -> bool:
-    return _run([cli, "network", "delete", name], cwd=REPO_ROOT).returncode == 0
+    try:
+        return _run([cli, "network", "delete", name], cwd=REPO_ROOT).returncode == 0
+    except DispatchError:
+        return False
+
+
+def _cleanup_container_resources(
+    *,
+    cli: str,
+    backend: str,
+    volume: str | None,
+    apple_network: str | None,
+    prior_cleanup_ok: bool,
+) -> bool:
+    cleanup_ok = prior_cleanup_ok
+    if volume is not None:
+        cleanup_ok = _delete_result_volume(cli, backend, volume) and cleanup_ok
+    if apple_network is not None:
+        cleanup_ok = _delete_apple_network(cli, apple_network) and cleanup_ok
+    return cleanup_ok
 
 
 def _run_container_canary(
@@ -844,13 +872,24 @@ def _run_container_canary(
                 "private_tmpfs",
             ):
                 results[key] = inner_payload[key]
-        finally:
-            if volume is not None:
-                cleanup_completed = (
-                    _delete_result_volume(cli, backend, volume) and cleanup_completed
-                )
-            if apple_network is not None:
-                cleanup_completed = _delete_apple_network(cli, apple_network) and cleanup_completed
+        except BaseException as exc:
+            cleanup_completed = _cleanup_container_resources(
+                cli=cli,
+                backend=backend,
+                volume=volume,
+                apple_network=apple_network,
+                prior_cleanup_ok=cleanup_completed,
+            )
+            if not cleanup_completed:
+                raise DispatchError("container_cleanup_failed") from exc
+            raise
+        cleanup_completed = _cleanup_container_resources(
+            cli=cli,
+            backend=backend,
+            volume=volume,
+            apple_network=apple_network,
+            prior_cleanup_ok=cleanup_completed,
+        )
         results["cleanup_completed"] = cleanup_completed
         return results
 
@@ -1170,6 +1209,11 @@ def _execution_backend_payload(probe: BackendProbe, *, passed: bool) -> dict[str
     }
 
 
+def _validated_experiment_result(result: dict[str, Any]) -> dict[str, Any]:
+    validated: dict[str, Any] = validate_experiment_result(result)
+    return validated
+
+
 def _capability_mismatch_result(
     packet: dict[str, Any],
     image: ImageReference,
@@ -1217,7 +1261,7 @@ def _capability_mismatch_result(
             passed=False,
         ),
     }
-    return cast(dict[str, Any], validate_experiment_result(result))
+    return _validated_experiment_result(result)
 
 
 def _infra_flake_result(
@@ -1255,7 +1299,7 @@ def _infra_flake_result(
         "coauthor_reason": "",
         "execution_backend": _execution_backend_payload(probe, passed=True),
     }
-    return cast(dict[str, Any], validate_experiment_result(_redact_result_value(result)))
+    return _validated_experiment_result(_redact_result_value(result))
 
 
 _SECRET_TEXT_PATTERNS = (
@@ -1300,7 +1344,7 @@ def _sanitize_result(result: dict[str, Any], probe: BackendProbe) -> dict[str, A
         oracle["cwd"] = "/workspace"
         oracle_results.append(oracle)
     sanitized["oracle_results"] = oracle_results
-    return cast(dict[str, Any], validate_experiment_result(sanitized))
+    return _validated_experiment_result(sanitized)
 
 
 def _collect_result_volume(
@@ -1450,13 +1494,24 @@ def _invoke_container_runner(
                 output_name=output_name,
                 apple_network=apple_network,
             )
-        finally:
-            if volume is not None:
-                cleanup_completed = (
-                    _delete_result_volume(cli, probe.backend, volume) and cleanup_completed
-                )
-            if apple_network is not None:
-                cleanup_completed = _delete_apple_network(cli, apple_network) and cleanup_completed
+        except BaseException as exc:
+            cleanup_completed = _cleanup_container_resources(
+                cli=cli,
+                backend=probe.backend,
+                volume=volume,
+                apple_network=apple_network,
+                prior_cleanup_ok=cleanup_completed,
+            )
+            if not cleanup_completed:
+                raise DispatchError("container_cleanup_failed") from exc
+            raise
+        cleanup_completed = _cleanup_container_resources(
+            cli=cli,
+            backend=probe.backend,
+            volume=volume,
+            apple_network=apple_network,
+            prior_cleanup_ok=cleanup_completed,
+        )
         if not cleanup_completed:
             raise DispatchError("container_cleanup_failed")
         return _sanitize_result(payload, probe)
