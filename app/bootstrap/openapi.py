@@ -280,9 +280,10 @@ def validate_openapi_builder_state(target_app: FastAPI) -> None:
     marker = getattr(target_app.state, _CANONICAL_BUILDER_STATE_ATTR, None)
     legacy_marker_present = hasattr(target_app.state, _LEGACY_BOOLEAN_MARKER_ATTR)
 
+    if legacy_marker_present:
+        raise RuntimeError("OpenAPI builder state invalid: stale_legacy_marker")
+
     if not marker_present:
-        if legacy_marker_present:
-            raise RuntimeError("OpenAPI builder state invalid: stale_legacy_marker")
         if _is_default_openapi_builder(target_app, live_builder):
             return
         raise RuntimeError("OpenAPI builder state invalid: foreign_builder")
@@ -305,8 +306,11 @@ def install_canonical_openapi_builder(target_app: FastAPI) -> None:
     default_state = marker is None
     existing_schema = target_app.openapi_schema
     candidate = _generate_canonical_openapi(target_app) if existing_schema is not None else None
+    cached_version = getattr(target_app, "_openapi_routes_version", None)
+    cached_fingerprint = getattr(target_app, _INPUT_FINGERPRINT_ATTR, None)
     routes_version = _routes_version(target_app)
     input_fingerprint = _openapi_input_fingerprint(target_app)
+    inputs_changed = cached_version != routes_version or cached_fingerprint != input_fingerprint
 
     current_builder = (
         marker
@@ -315,7 +319,7 @@ def install_canonical_openapi_builder(target_app: FastAPI) -> None:
     )
 
     if existing_schema is not None and candidate is not None:
-        if default_state or candidate != existing_schema:
+        if default_state or inputs_changed or candidate != existing_schema:
             target_app.openapi_schema = candidate
 
     if current_builder is not live_builder:

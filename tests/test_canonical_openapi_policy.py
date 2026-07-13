@@ -111,7 +111,7 @@ def test_canonical_reinstall_preserves_equal_cache_and_replaces_public_drift() -
     assert "/api/v1/pro/late" in target_app.openapi_schema["paths"]
 
 
-def test_hidden_or_disallowed_route_preserves_equal_filtered_cache() -> None:
+def test_hidden_or_disallowed_route_invalidates_equal_filtered_cache() -> None:
     target_app = _public_app()
     openapi_policy.install_canonical_openapi_builder(target_app)
     first_schema = target_app.openapi()
@@ -126,7 +126,8 @@ def test_hidden_or_disallowed_route_preserves_equal_filtered_cache() -> None:
 
     openapi_policy.install_canonical_openapi_builder(target_app)
 
-    assert target_app.openapi_schema is first_schema
+    assert target_app.openapi_schema is not first_schema
+    assert target_app.openapi_schema == first_schema
 
 
 def test_request_time_builder_regenerates_only_after_recursive_route_version_change(
@@ -226,6 +227,12 @@ def test_builder_state_matrix_rejects_partial_foreign_and_wrong_app_states() -> 
     target_app = FastAPI()
     target_app.state._canonical_openapi_builder = None
     with pytest.raises(RuntimeError, match="canonical_marker_invalid"):
+        openapi_policy.validate_openapi_builder_state(target_app)
+
+    target_app = FastAPI()
+    openapi_policy.install_canonical_openapi_builder(target_app)
+    target_app.state._canonical_openapi_builder_installed = True
+    with pytest.raises(RuntimeError, match="stale_legacy_marker"):
         openapi_policy.validate_openapi_builder_state(target_app)
 
     target_app = FastAPI()
