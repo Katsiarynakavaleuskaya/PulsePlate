@@ -427,6 +427,38 @@ def test_production_quick_fix_redacts_duplicate_secret_values(tmp_path: Path) ->
     assert "Quick Fix Complete" not in completed.stdout
 
 
+@pytest.mark.parametrize(
+    "duplicate_line",
+    (
+        "  DATABASE_URL = postgresql+psycopg://hidden-whitespace@db/pulseplate",
+        " export DATABASE_URL=postgresql+psycopg://hidden-export@db/pulseplate",
+    ),
+)
+def test_production_quick_fix_rejects_compose_normalized_duplicate_keys(
+    tmp_path: Path,
+    duplicate_line: str,
+) -> None:
+    deploy_dir = tmp_path / "production"
+    completed = _run_production_quick_fix(
+        tmp_path,
+        caddy_version="v2.11.4 h1:test",
+        go_version="go1.26.5",
+        extra_env=f"{duplicate_line}\n",
+    )
+
+    env_path = deploy_dir / ".env"
+    assert completed.returncode == 1
+    assert "Duplicate required environment keys found in .env" in completed.stdout
+    assert "DATABASE_URL=<redacted>" in completed.stdout
+    assert "hidden-" not in completed.stdout
+    assert duplicate_line in env_path.read_text(encoding="utf-8")
+    assert list(deploy_dir.glob(".env.backup.*")) == []
+    assert (tmp_path / "docker-invocations.log").read_text(encoding="utf-8").splitlines() == [
+        "compose version"
+    ]
+    assert "Quick Fix Complete" not in completed.stdout
+
+
 def test_production_quick_fix_fails_closed_when_env_file_is_missing(tmp_path: Path) -> None:
     completed = _run_production_quick_fix(
         tmp_path,
@@ -496,6 +528,7 @@ def _run_production_quick_fix(
         (deploy_dir / ".env").chmod(0o640)
     docker_stub = """#!/usr/bin/env bash
 set -euo pipefail
+printf '%s\n' "$*" >> "$STUB_DOCKER_LOG"
 case "$*" in
   "compose version") exit 0 ;;
   *"exec -T caddy caddy version") printf '%s\n' "$STUB_CADDY_VERSION" ;;
@@ -518,6 +551,7 @@ esac
     env["STUB_CADDY_VERSION"] = caddy_version
     env["STUB_GO_VERSION"] = go_version
     env["STUB_CURL_EXIT"] = str(curl_exit)
+    env["STUB_DOCKER_LOG"] = str(tmp_path / "docker-invocations.log")
     env["HEALTH_MAX_ATTEMPTS"] = "1"
     env["HEALTH_SLEEP_S"] = "0"
     env["HEALTH_CURL_MAX_TIME_S"] = "1"

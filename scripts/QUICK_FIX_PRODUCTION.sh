@@ -60,10 +60,30 @@ dc() {
 
 # Check for duplicates
 echo "=== Step 1: Check for duplicate env vars ==="
-HAS_DUPLICATE_KEYS="$(awk -F= '/^(APP_ENV|ENVIRONMENT|POSTGRES_DB|POSTGRES_USER|POSTGRES_PASSWORD|DATABASE_URL)=/ { count[$1]++ } END { for (key in count) if (count[key] > 1) { print "yes"; exit } }' .env)"
-if [ -n "$HAS_DUPLICATE_KEYS" ]; then
+DUPLICATE_KEY_LINES="$(awk '
+    {
+        line = $0
+        sub(/\r$/, "", line)
+        sub(/^[[:space:]]+/, "", line)
+        sub(/^export[[:space:]]+/, "", line)
+        if (line ~ /^(APP_ENV|ENVIRONMENT|POSTGRES_DB|POSTGRES_USER|POSTGRES_PASSWORD|DATABASE_URL)[[:space:]]*=/) {
+            key = line
+            sub(/[[:space:]]*=.*/, "", key)
+            count[key]++
+            locations[key] = locations[key] sprintf("%d:%s=<redacted>\n", NR, key)
+        }
+    }
+    END {
+        for (key in count) {
+            if (count[key] > 1) {
+                printf "%s", locations[key]
+            }
+        }
+    }
+' .env)"
+if [ -n "$DUPLICATE_KEY_LINES" ]; then
     echo "❌ Duplicate required environment keys found in .env"
-    awk -F= '/^(APP_ENV|ENVIRONMENT|POSTGRES_DB|POSTGRES_USER|POSTGRES_PASSWORD|DATABASE_URL)=/ { printf "%d:%s=<redacted>\n", NR, $1 }' .env
+    printf '%s\n' "$DUPLICATE_KEY_LINES"
     exit 1
 fi
 echo ""
