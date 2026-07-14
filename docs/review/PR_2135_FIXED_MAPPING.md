@@ -45,8 +45,8 @@ policy, product runtime, and public contracts unchanged.
 - [x] Experiment Runner Apple Container capability and oracle evidence accepted.
 - [x] Post-open `qa-engineer-agent -> bug-hunter -> security-auditor` completed.
 - [x] Required cursor-specialist and architecture follow-up roles completed.
-- [ ] One sealed Codex Security diff scan completed for the final material diff.
-- [ ] `pulseplate-pr-review` completed.
+- [x] One sealed Codex Security diff scan completed for the final material diff.
+- [x] `pulseplate-pr-review` completed.
 - [ ] Current-head CI completed after this governance artifact is pushed.
 - [ ] Strict authenticated merge readiness and mandatory wait window completed.
 
@@ -81,6 +81,27 @@ Evidence:
 - `tests/test_experiment_runner_dispatch.py:1178` and
   `tests/test_experiment_runner_dispatch.py:1201` cover exception and nonzero
   initializer outcomes with failed cleanup.
+
+## PulsePlate PR Review
+
+Disposition: NOT-A-BUG
+
+Evidence:
+
+- Local gitignored report:
+  `artifacts/orchestration/pr_reviews/pr-2135-45c65ee3/report.md`
+  (`sha256:4ffe35775e0c1a63b26f714626c79640c3b86e75c17827c720228c1bc07796d0`).
+- The report found no correctness, security, architecture, QA, or governance
+  defect. Its only advisory note was the deterministic large-diff threshold.
+- The PR body records the atomic split justification: 218 dispatcher lines and
+  59 contract/runbook lines are coupled to 942 lines of deterministic negative,
+  parity, forwarding, and cleanup tests.
+- `177` focused dispatcher/runner tests, `make validate-changed`, and the full
+  pre-commit pass provide the targeted evidence requested by that advisory.
+
+Reason: the threshold note is review-planning evidence, not a code defect or a
+merge-readiness claim; the required split rationale and focused validation are
+already present.
 
 ## Experiment Runner Evidence
 
@@ -128,6 +149,11 @@ temporary `pp-er-*` container, network, or volume remained.
 - PASS: `git diff --check origin/main...HEAD`.
 - PASS: current-base strict Apple capability probe.
 - PASS: one current-base attributed Experiment Runner oracle run.
+- PASS: `22` focused `pr_review_context` / `pr_review_report` tests.
+- PASS at scanned head `45c65ee3e8d8e9d8ae86dd71c4dab3215f1fa209`:
+  canonical CI, lint, security, OpenAPI, test-pr 3.13, coverage, and diff
+  coverage were terminal. A mapping-only follow-up commit requires fresh
+  current-head CI before any readiness claim.
 - PENDING: canonical current-head GitHub CI after this mapping commit.
 - NOT RUN: local full `make verify`; prohibited by the repository local budget
   rule.
@@ -138,10 +164,38 @@ temporary `pp-er-*` container, network, or volume remained.
   actionable issue on the pre-review patch-id.
 - PASS: the mandatory post-open security-auditor confirmed the cleanup P1; it
   was fixed in `a42a36ca0` and covered by deterministic regressions.
-- PENDING: one sealed Codex Security diff scan on the final post-review
-  material diff. Per operator direction, do not repeat it unless a
-  security-relevant material change invalidates the seal.
-- PENDING: `pulseplate-pr-review`.
+- PASS: one Codex Security diff scan was sealed with zero findings and complete
+  coverage for exact range
+  `b432aeb78a6b18cdedf760bb7872daf9241dacd6...45c65ee3e8d8e9d8ae86dd71c4dab3215f1fa209`.
+- Scan ID: `48fae63a-a7db-4db2-a1d5-01c5cd6fc92b`; snapshot digest:
+  `codex-security-snapshot/v1:sha256:05487a0524fbc6c7de026619180ddeb646ab905fb49221b9e052925988bebe82`.
+- Sealed report SHA-256:
+  `cd5779e68c9ee6c73397534009df83821998625c60c3c8041c634e18eafc20c3`;
+  local gitignored copy:
+  `artifacts/security_lab/pr-2135-final-45c65ee3/report.md`.
+- Per operator cost/noise policy, do not repeat the scan unless a
+  security-relevant material change invalidates this seal. Governance-only
+  mapping/body updates do not change the reviewed runtime, contract, runbook,
+  or test material.
+
+## External Review Sources
+
+- Sourcery: PASS on the scanned head, with no blocking security issue.
+- CodeRabbit: SOURCE-DEGRADED. Its exact-head comment states that the review
+  limit was reached and no review occurred:
+  https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2135#issuecomment-4974422432
+- Cubic: SOURCE-DEGRADED / NEUTRAL because its monthly line quota was reached;
+  no no-actionables proof exists:
+  https://www.cubic.dev/pr/Katsiarynakavaleuskaya/PulsePlate/pull/2135
+- Cursor Bugbot: SOURCE-DEGRADED because it is disabled; this is not a code
+  finding:
+  https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2135#issuecomment-4974134261
+- GitHub review threads: zero total and zero unresolved at the scanned head.
+
+CodeRabbit and Cubic remain explicit merge-governance blockers under root
+`AGENTS.md` until each provides PASS / no-actionables evidence. The local role
+chain, sealed security scan, and `pulseplate-pr-review` cannot replace that
+hard gate.
 
 ## Risks / Rollback
 
