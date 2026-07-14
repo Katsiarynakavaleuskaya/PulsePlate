@@ -1897,7 +1897,7 @@ def _collect_lifecycle_references(
                 continue
             for target in targets:
                 for target_name in _assignment_target_names(target):
-                    if references.get(target_name) != reference:
+                    if target_name not in references:
                         references[target_name] = reference
                         changed = True
     binding_counts = _collect_binding_counts(tree)

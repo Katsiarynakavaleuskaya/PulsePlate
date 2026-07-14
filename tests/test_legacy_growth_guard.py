@@ -1454,6 +1454,25 @@ def test_lifecycle_guard_rejects_legacy_dependency_resolution(
     assert expected in errors
 
 
+def test_lifecycle_reference_collection_terminates_on_conflicting_aliases() -> None:
+    legacy_source = textwrap.dedent("""
+        from fastapi import FastAPI
+
+        async def runtime_context(app):
+            yield
+
+        alias = FastAPI
+        alias = getattr
+        app = alias(lifespan=runtime_context)
+        """)
+
+    assert legacy_guard.validate_lifecycle_ownership(
+        legacy_source,
+        "pass\n",
+        "pass\n",
+    ) == ["legacy_app.py: FastAPI lifespan must use the canonical re-export"]
+
+
 def test_lifecycle_guard_accepts_canonical_lifespan_in_static_keyword_mapping() -> None:
     legacy_source = textwrap.dedent("""
         from fastapi import FastAPI
