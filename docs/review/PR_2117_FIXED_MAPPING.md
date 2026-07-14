@@ -38,6 +38,8 @@ Evidence: All CodeRabbit actionables and review-level findings were fixed by the
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#pullrequestreview-4689852435 -> 7c7414266
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#discussion_r3576902700 -> 0a3a43255
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#pullrequestreview-4691892060 -> 0a3a43255
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#discussion_r3576961278 -> d73012d22
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#pullrequestreview-4691964978 -> d73012d22
 
 ## Intermediate Codex Security Review Evidence
 
