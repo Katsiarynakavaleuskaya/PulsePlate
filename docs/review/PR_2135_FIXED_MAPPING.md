@@ -19,9 +19,11 @@ policy, product runtime, and public contracts unchanged.
   `agent-coordinator -> architecture-specialist -> security-auditor -> qa-engineer-agent -> cursor-specialist-agent`.
 - The actual-diff premortem closed all forecast failure scenarios before PR
   open.
-- Rebase to current `origin/main` preserved stable patch-id
-  `51dbab38c84d9684fdbe244ab22c59f929732d53`; the exact material-diff SHA-256
-  is `26018c59265205b564780f2f5297fce4152d333d7a800c4ebd39c475c054cb11`.
+- Rebase to current `origin/main` preserved pre-review patch-id
+  `51dbab38c84d9684fdbe244ab22c59f929732d53`; its material-diff SHA-256 was
+  `26018c59265205b564780f2f5297fce4152d333d7a800c4ebd39c475c054cb11`.
+- The post-open cleanup remediation changed the final material-diff SHA-256 to
+  `ef206556097fbaf4c67d9859f3278fb0e8c78bf3e5bbf394fd79759e4de2ea7a`.
 - Fresh Apple Container capability and attributed oracle artifacts were
   accepted after the rebase with one attempt and no retry.
 
@@ -30,6 +32,9 @@ policy, product runtime, and public contracts unchanged.
 - `28888c0dba8c04f898092d8e15b706792fa4e5d6` - select one fail-closed Apple
   host-control address, preserve capability blocker parity, and bind accepted
   result attribution to the host-validated oracle request.
+- `a42a36ca0b7ab2be6180ee0daf0a742f2574b5ed` - make initializer cleanup
+  failure dominant and stop automatic backend fallback while cleanup integrity
+  is unknown.
 
 ## Discussion Thread Pass
 
@@ -38,7 +43,8 @@ policy, product runtime, and public contracts unchanged.
 - [x] Pre-open packet and declared role order completed.
 - [x] Actual-diff premortem completed with no open blocker.
 - [x] Experiment Runner Apple Container capability and oracle evidence accepted.
-- [ ] Post-open `qa-engineer-agent -> bug-hunter -> security-auditor` completed.
+- [x] Post-open `qa-engineer-agent -> bug-hunter -> security-auditor` completed.
+- [x] Required cursor-specialist and architecture follow-up roles completed.
 - [ ] One sealed Codex Security diff scan completed for the final material diff.
 - [ ] `pulseplate-pr-review` completed.
 - [ ] Current-head CI completed after this governance artifact is pushed.
@@ -54,6 +60,27 @@ This statement reflects the initial PR publication state. If a post-open role,
 bot, human, or security review creates an actionable finding, fix or explicitly
 disposition it first, then replace this no-actionable entry with the required
 thread URL and commit/evidence/backlog proof before resolving the thread.
+
+## Post-open Role Findings
+
+### Initializer cleanup failure was masked
+
+Disposition: FIXED
+
+Commit: `a42a36ca0b7ab2be6180ee0daf0a742f2574b5ed`
+
+Evidence:
+
+- `scripts/orchestration/experiment_runner_dispatch.py:606` now promotes failed
+  init-container cleanup over execution exceptions and nonzero exits.
+- `scripts/orchestration/experiment_runner_dispatch.py:1198` stops `auto`
+  selection before Docker when the Apple probe reports
+  `container_cleanup_failed`.
+- `tests/test_experiment_runner_dispatch.py:188` proves Docker is not probed
+  after cleanup failure while ordinary rejection fallback remains covered.
+- `tests/test_experiment_runner_dispatch.py:1178` and
+  `tests/test_experiment_runner_dispatch.py:1201` cover exception and nonzero
+  initializer outcomes with failed cleanup.
 
 ## Experiment Runner Evidence
 
@@ -93,7 +120,7 @@ temporary `pp-er-*` container, network, or volume remained.
 ## Validation Evidence
 
 - PASS: orchestration preflight and agent consistency.
-- PASS: 174 focused dispatcher/runner tests.
+- PASS: 177 focused dispatcher/runner tests after the P1 remediation.
 - PASS: `make validate-changed`.
 - PASS: `pre-commit run --all-files`.
 - PASS: full pre-push hooks, including MyPy, `pip-audit`, backend tests,
@@ -108,8 +135,9 @@ temporary `pp-er-*` container, network, or volume remained.
 ## Security Review
 
 - PASS: pre-open security-auditor and local Bandit/pre-commit checks found no
-  actionable issue on the exact stable patch-id.
-- PENDING: the mandatory post-open security-auditor pass.
+  actionable issue on the pre-review patch-id.
+- PASS: the mandatory post-open security-auditor confirmed the cleanup P1; it
+  was fixed in `a42a36ca0` and covered by deterministic regressions.
 - PENDING: one sealed Codex Security diff scan on the final post-review
   material diff. Per operator direction, do not repeat it unless a
   security-relevant material change invalidates the seal.
