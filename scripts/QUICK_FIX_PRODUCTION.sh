@@ -161,7 +161,7 @@ echo ""
 
 # Check env in container
 echo "=== Step 7: Environment variables in app container ==="
-APP_CONTAINER=$(docker ps --format '{{.Names}}' | grep -E 'app|pulseplate.*app' | head -1)
+APP_CONTAINER="$(docker ps --format '{{.Names}}' | awk '/app|pulseplate.*app/ { print; exit }')"
 if [ -n "$APP_CONTAINER" ]; then
     docker exec "$APP_CONTAINER" python -c "import os; print('APP_ENV:', os.getenv('APP_ENV')); print('ENVIRONMENT:', os.getenv('ENVIRONMENT')); print('ENV:', os.getenv('ENV'))" 2>/dev/null || echo "⚠️  Could not check env in container"
 else
@@ -171,13 +171,39 @@ echo ""
 
 # Check health
 echo "=== Step 8: Health check ==="
-PUBLIC_DOMAIN=$(grep '^PRODUCTION_DOMAIN=' .env 2>/dev/null | tail -1 | cut -d'=' -f2- | tr -d '\n\r' || echo "pulseplate.app")
-echo "Checking: https://${PUBLIC_DOMAIN}/ready"
-if command -v jq >/dev/null 2>&1; then
-    curl -fsS "https://${PUBLIC_DOMAIN}/ready" | jq . 2>/dev/null || echo "⚠️  Health check failed"
-else
-    curl -fsS "https://${PUBLIC_DOMAIN}/ready" || echo "⚠️  Health check failed"
+PUBLIC_DOMAIN="$(grep '^PRODUCTION_DOMAIN=' .env 2>/dev/null | tail -1 | cut -d'=' -f2- | tr -d '\n\r')"
+if [[ ! "$PUBLIC_DOMAIN" =~ ^[A-Za-z0-9.-]+$ ]]; then
+    echo "❌ PRODUCTION_DOMAIN must be a non-empty hostname"
+    exit 1
 fi
+
+HEALTH_MAX_ATTEMPTS="${HEALTH_MAX_ATTEMPTS:-6}"
+HEALTH_SLEEP_S="${HEALTH_SLEEP_S:-2}"
+HEALTH_CURL_MAX_TIME_S="${HEALTH_CURL_MAX_TIME_S:-10}"
+if [[ ! "$HEALTH_MAX_ATTEMPTS" =~ ^[1-9][0-9]*$ ]] || \
+   [[ ! "$HEALTH_SLEEP_S" =~ ^[0-9]+$ ]] || \
+   [[ ! "$HEALTH_CURL_MAX_TIME_S" =~ ^[1-9][0-9]*$ ]]; then
+    echo "❌ Healthcheck retry settings must be non-negative integers with positive attempts and timeout"
+    exit 1
+fi
+
+echo "Checking: https://${PUBLIC_DOMAIN}/ready"
+attempt=1
+while [ "$attempt" -le "$HEALTH_MAX_ATTEMPTS" ]; do
+    if health_response="$(curl -fsS --max-time "$HEALTH_CURL_MAX_TIME_S" "https://${PUBLIC_DOMAIN}/ready")"; then
+        if ! command -v jq >/dev/null 2>&1 || printf '%s\n' "$health_response" | jq .; then
+            echo "✅ Production readiness check passed"
+            break
+        fi
+    fi
+    if [ "$attempt" -ge "$HEALTH_MAX_ATTEMPTS" ]; then
+        echo "❌ Health check failed after ${HEALTH_MAX_ATTEMPTS} attempts"
+        exit 1
+    fi
+    echo "Health check not ready (attempt ${attempt}/${HEALTH_MAX_ATTEMPTS}); retrying in ${HEALTH_SLEEP_S}s"
+    attempt=$((attempt + 1))
+    sleep "$HEALTH_SLEEP_S"
+done
 echo ""
 
 echo "=========================================="

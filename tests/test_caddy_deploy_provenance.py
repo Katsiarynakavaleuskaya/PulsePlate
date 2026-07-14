@@ -380,6 +380,37 @@ def test_production_quick_fix_rejects_inexact_caddy_identity(
     build_info: str,
     expected_error: str,
 ) -> None:
+    completed = _run_production_quick_fix(
+        tmp_path,
+        caddy_version=caddy_version,
+        go_version=build_info.removeprefix("go\t").strip(),
+    )
+
+    assert completed.returncode == 1
+    assert expected_error in completed.stdout
+    assert "Quick Fix Complete" not in completed.stdout
+
+
+def test_production_quick_fix_fails_closed_when_readiness_fails(tmp_path: Path) -> None:
+    completed = _run_production_quick_fix(
+        tmp_path,
+        caddy_version="v2.11.4 h1:test",
+        go_version="go1.26.5",
+        curl_exit=22,
+    )
+
+    assert completed.returncode == 1
+    assert "Health check failed after 1 attempts" in completed.stdout
+    assert "Quick Fix Complete" not in completed.stdout
+
+
+def _run_production_quick_fix(
+    tmp_path: Path,
+    *,
+    caddy_version: str,
+    go_version: str,
+    curl_exit: int = 0,
+) -> subprocess.CompletedProcess[str]:
     deploy_dir = tmp_path / "production"
     bin_dir = tmp_path / "bin"
     deploy_dir.mkdir()
@@ -403,7 +434,7 @@ case "$*" in
   *) exit 0 ;;
 esac
 """
-    curl_stub = '#!/usr/bin/env bash\nprintf \'{"status":"ok"}\\n\'\n'
+    curl_stub = '#!/usr/bin/env bash\nprintf \'{"status":"ok"}\\n\'\nexit "$STUB_CURL_EXIT"\n'
     docker_path = bin_dir / "docker"
     curl_path = bin_dir / "curl"
     docker_path.write_text(docker_stub, encoding="utf-8")
@@ -415,8 +446,12 @@ esac
     env["PATH"] = f"{bin_dir}:{env['PATH']}"
     env["DEPLOY_DIR"] = str(deploy_dir)
     env["STUB_CADDY_VERSION"] = caddy_version
-    env["STUB_GO_VERSION"] = build_info.removeprefix("go\t").strip()
-    completed = subprocess.run(
+    env["STUB_GO_VERSION"] = go_version
+    env["STUB_CURL_EXIT"] = str(curl_exit)
+    env["HEALTH_MAX_ATTEMPTS"] = "1"
+    env["HEALTH_SLEEP_S"] = "0"
+    env["HEALTH_CURL_MAX_TIME_S"] = "1"
+    return subprocess.run(
         ["bash", str(REPO_ROOT / "scripts" / "QUICK_FIX_PRODUCTION.sh")],
         cwd=str(REPO_ROOT),
         env=env,
@@ -424,10 +459,6 @@ esac
         capture_output=True,
         check=False,
     )
-
-    assert completed.returncode == 1
-    assert expected_error in completed.stdout
-    assert "Quick Fix Complete" not in completed.stdout
 
 
 def test_active_caddyfiles_keep_proxy_order_and_security_headers() -> None:
