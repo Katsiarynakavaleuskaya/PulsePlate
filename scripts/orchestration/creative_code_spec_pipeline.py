@@ -455,6 +455,18 @@ def _canonical_context_pack_json(value: Mapping[str, Any]) -> str:
     return json.dumps(value, ensure_ascii=True, separators=(",", ":"), sort_keys=True)
 
 
+def _canonical_payload_matches(left: Any, right: Any) -> bool:
+    """Compare JSON artifacts by canonical bytes instead of Python equality."""
+
+    try:
+        return fingerprint_payload(left) == fingerprint_payload(right)
+    except ValueError as exc:
+        raise CreativeCodeSpecPipelineError(
+            "adaptive_source_lineage_mismatch: retained prepare artifact is not "
+            "deterministic JSON-compatible data"
+        ) from exc
+
+
 def _validate_historical_context_pack(
     value: Any,
     *,
@@ -819,7 +831,7 @@ def validate_default_prepare_artifact_snapshots(
                     "stable lineage is not canonical"
                 )
             continue
-        if retained_payload != expected_payload:
+        if not _canonical_payload_matches(retained_payload, expected_payload):
             raise CreativeCodeSpecPipelineError(
                 f"adaptive_source_lineage_mismatch: retained {filename} is not canonical"
             )
@@ -885,11 +897,11 @@ def validate_exact_prepare_artifacts(
     context_pack = _read_json_artifact(source_dir / "context_pack.json")
     normalized_packet = validate_source_candidate_packet(expected_packet)
     normalized_variants = [dict(row) for row in expected_variants]
-    if source_packet != normalized_packet:
+    if not _canonical_payload_matches(source_packet, normalized_packet):
         raise CreativeCodeSpecPipelineError(
             "adaptive_prepare_source_packet_mismatch: source_packet.json drifted"
         )
-    if variants != normalized_variants:
+    if not _canonical_payload_matches(variants, normalized_variants):
         raise CreativeCodeSpecPipelineError(
             "adaptive_prepare_variants_mismatch: variants.json drifted"
         )
@@ -897,12 +909,12 @@ def validate_exact_prepare_artifacts(
         source_packet=normalized_packet,
         variants=normalized_variants,
     )
-    if skeptic_reviews != expected_reviews:
+    if not _canonical_payload_matches(skeptic_reviews, expected_reviews):
         raise CreativeCodeSpecPipelineError(
             "adaptive_prepare_reviews_mismatch: skeptic_reviews.json drifted"
         )
     expected_context_pack = _context_pack_for_packet(normalized_packet)
-    if context_pack != expected_context_pack:
+    if not _canonical_payload_matches(context_pack, expected_context_pack):
         raise CreativeCodeSpecPipelineError(
             "adaptive_prepare_context_mismatch: context_pack.json drifted"
         )
