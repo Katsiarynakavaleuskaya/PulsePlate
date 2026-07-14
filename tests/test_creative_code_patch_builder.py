@@ -14,6 +14,7 @@ import pytest
 from core.evidence.fingerprints import fingerprint_payload
 from scripts.orchestration import (
     creative_code_patch_builder,
+    creative_code_patch_contract,
     creative_code_patch_executor,
     creative_code_patch_workspace,
     experiment_runner,
@@ -322,8 +323,12 @@ def test_reference_patch_contracts_validate_and_schema_is_closed() -> None:
         "guard_failure",
         "policy_violation",
         "unchanged_result",
+        "capability_mismatch",
         "infra_flake",
     ]
+    assert set(result_schema["$defs"]["failure_class"]["enum"][1:]) == (
+        creative_code_patch_contract.FAILURE_CLASSES
+    )
     assert result_schema["properties"]["failure_class"]["$ref"].endswith("failure_class")
     assert result_schema["$defs"]["runner_summary"]["properties"]["failure_class"]["$ref"].endswith(
         "failure_class"
@@ -404,6 +409,38 @@ def test_build_result_rejects_malformed_runner_summary_inputs() -> None:
             origin_removed=True,
             shared_tree_untouched=True,
             failure_class="guard_failure",
+        )
+
+
+def test_build_result_rejects_accepted_capability_mismatch() -> None:
+    runner_result = {
+        "experiment_id": "exp-pr2-capability-mismatch",
+        "status": "accepted",
+        "failure_class": "capability_mismatch",
+        "mutated_paths": ["core/rag/orchestration.py"],
+        "budget_observations": {
+            "oracle_commands_configured": 1,
+            "attempts": 1,
+            "retries_consumed": 0,
+        },
+        "oracle_results": [],
+        "shared_tree_untouched": True,
+    }
+
+    with pytest.raises(
+        CreativeCodePatchContractError,
+        match="accepted results must not have failure_class",
+    ):
+        build_creative_code_patch_result(
+            request=_reference_request(),
+            changed_paths=["core/rag/orchestration.py"],
+            patch_fingerprint="sha256:" + ("b" * 64),
+            patch_bytes=128,
+            diff_lines=8,
+            runner_result=runner_result,
+            checkout_destroyed=True,
+            origin_removed=True,
+            shared_tree_untouched=True,
         )
 
 

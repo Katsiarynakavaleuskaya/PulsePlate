@@ -124,6 +124,7 @@
               "guard_failure",
               "policy_violation",
               "unchanged_result",
+              "capability_mismatch",
               "infra_flake"
             ]
           }
@@ -174,6 +175,7 @@
         "guard_failure",
         "policy_violation",
         "unchanged_result",
+        "capability_mismatch",
         "infra_flake"
       ]
     },

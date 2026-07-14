@@ -65,6 +65,7 @@ FAILURE_CLASSES = frozenset(
         "guard_failure",
         "policy_violation",
         "unchanged_result",
+        "capability_mismatch",
         "infra_flake",
     }
 )

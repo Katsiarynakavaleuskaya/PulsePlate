@@ -15,6 +15,7 @@ from scripts.orchestration import creative_spec_learning_rollup_contract
 from scripts.orchestration import creative_spec_patch_admission as admission_cli
 from scripts.orchestration.creative_code_patch_contract import (
     build_creative_code_patch_result,
+    validate_creative_code_patch_result,
 )
 from scripts.orchestration.creative_code_patch_generation import (
     CreativeCodePatchGenerationError,
@@ -351,6 +352,86 @@ def test_generate_candidate_happy_path_writes_sanitized_receipt(
         )
         == 0
     )
+
+
+def test_generate_candidate_persists_capability_mismatch_without_retry_or_promotion(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo, base_sha = _init_patch_repo(tmp_path)
+    _patch_modules_to_repo(monkeypatch, repo)
+    run_id = "generation-capability-mismatch"
+    admission_path = _prepare_admission(repo=repo, base_sha=base_sha, run_id=run_id)
+    _mock_successful_builder_edges(monkeypatch)
+    evaluator_calls = 0
+
+    def reject_for_capability(packet: dict[str, Any], patch_file: Path) -> dict[str, Any]:
+        nonlocal evaluator_calls
+        evaluator_calls += 1
+        assert patch_file.name == creative_code_patch_builder.CANDIDATE_PATCH_FILE
+        return {
+            "experiment_id": packet["experiment_id"],
+            "status": "rejected",
+            "failure_class": "capability_mismatch",
+            "mutated_paths": ["core/rag/orchestration.py"],
+            "oracle_results": [],
+            "budget_observations": {
+                "oracle_commands_configured": len(packet["immutable_oracles"]),
+                "attempts": 1,
+                "retries_consumed": 0,
+                "runner_error": "/Users/example/ghp_secretsecretsecret",
+            },
+            "shared_tree_untouched": True,
+        }
+
+    monkeypatch.setattr(creative_code_patch_builder, "evaluate_candidate", reject_for_capability)
+    gate_path = _write_gate(repo=repo, admission_path=admission_path, run_id=run_id)
+
+    assert generation_cli.main(["generate-candidate", "--gate", str(gate_path)]) == 0
+    assert evaluator_calls == 1
+    assert generation_cli.GENERATE_CANDIDATE_SUCCESS_OUTPUT in capsys.readouterr().out
+
+    run_dir = creative_code_patch_workspace.resolve_run_dir(run_id, create=False)
+    result_path = run_dir / creative_code_patch_builder.RESULT_FILE
+    result = validate_creative_code_patch_result(
+        json.loads(result_path.read_text(encoding="utf-8"))
+    )
+    receipt_path = gate_path.parent / generation_cli.RECEIPT_FILENAME
+    receipt = validate_generation_receipt(json.loads(receipt_path.read_text(encoding="utf-8")))
+
+    assert result["status"] == "rejected"
+    assert result["failure_class"] == "capability_mismatch"
+    assert result["runner_summary"]["failure_class"] == "capability_mismatch"
+    assert result["runner_summary"]["attempts"] == 1
+    assert result["runner_summary"]["retries_consumed"] == 0
+    assert result["promotion_ready"] is False
+    assert result["authority"]["promotion"] is False
+    assert receipt["status"] == "rejected"
+    assert receipt["failure_class"] == "capability_mismatch"
+    assert receipt["result_fingerprint"] == fingerprint_payload(result)
+    assert receipt["runner_summary"]["failure_class"] == "capability_mismatch"
+    assert receipt["runner_summary"]["attempts"] == 1
+    assert receipt["runner_summary"]["retries_consumed"] == 0
+    assert receipt["promotion_ready"] is False
+    assert receipt["authority"]["promote_candidate"] is False
+
+    serialized = json.dumps({"result": result, "receipt": receipt}, sort_keys=True)
+    assert "/Users/example" not in serialized
+    assert "ghp_secret" not in serialized
+    assert "oracle_results" not in serialized
+    assert "stdout" not in serialized
+    assert "stderr" not in serialized
+    assert (
+        generation_cli.main(
+            ["validate-artifacts", "--gate", str(gate_path), "--receipt", str(receipt_path)]
+        )
+        == 0
+    )
+
+    assert generation_cli.main(["generate-candidate", "--gate", str(gate_path)]) == 1
+    assert evaluator_calls == 1
+    assert "prepared run already generated candidate patch" in capsys.readouterr().err
 
 
 def test_validate_artifacts_rejects_receipt_gate_fingerprint_mismatch(
@@ -1246,6 +1327,21 @@ def test_generation_schemas_are_closed_and_authority_is_const_false() -> None:
     )
     assert receipt_schema["properties"]["promotion_ready"]["const"] is False
     assert "candidate\\.patch" in receipt_schema["$defs"]["patch_artifact_ref"]["pattern"]
+    failure_classes = [
+        "timeout",
+        "oom",
+        "metric_regression",
+        "guard_failure",
+        "policy_violation",
+        "unchanged_result",
+        "capability_mismatch",
+        "infra_flake",
+    ]
+    assert receipt_schema["$defs"]["failure_class"]["enum"] == [None, *failure_classes]
+    assert receipt_schema["allOf"][0]["then"]["properties"]["failure_class"] == {"const": None}
+    assert (
+        receipt_schema["allOf"][1]["then"]["properties"]["failure_class"]["enum"] == failure_classes
+    )
 
 
 def test_generation_cli_exposes_no_promotion_or_github_commands() -> None:
