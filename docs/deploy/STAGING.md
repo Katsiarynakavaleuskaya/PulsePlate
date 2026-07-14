@@ -333,6 +333,11 @@ pre-migration database backup is a separate human-approved operation.
 
 ### Automatic Test
 
+Once all three rollout gates are enabled, successful pushes to `main` can
+deploy automatically. The repository does not enforce a per-run human approval
+for staging; configure required reviewers on the GitHub `staging` environment
+if that operational control is desired.
+
 1. Push a commit to `main` branch
 2. Check GitHub Actions → CD workflow
 3. Visit your staging domain

@@ -418,7 +418,10 @@ readiness remain required.
 
 ## Deferred / Follow-ups
 
-- Live staging canary and production rollout require separate human approval.
+- Live staging canary and production rollout remain separate operator
+  decisions. The current GitHub `staging` environment does not enforce a
+  per-run required reviewer; once all three rollout gates are enabled,
+  successful `main` pushes may deploy automatically.
 - The existing staging TLS fallback seam remains separately tracked.
 - Coverage 7.15.1, PyArrow 25, pgvector 0.5, and the BOLA matrix remain separate
   epic lanes.
