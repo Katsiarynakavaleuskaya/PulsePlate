@@ -16,6 +16,11 @@ Implementation commits:
 
 - `2356523bbbb51a41bee7296d4eb9e54a647454ec` - scope-aware, fail-closed AST resolver and deterministic regression coverage.
 - `da4d3207b4a21cded1bb1ba2467d9e4dd6cb5b0d` - exact nested-import matrix requested by the unresolved #2125 review.
+- `bcb9cf8616fcc8c0c1fbdf5b1447d2bf8a4f278d` - type-safe separation of lambda expressions from sync/async statement bodies after the exact pre-push MyPy finding.
+
+Main synchronization:
+
+- `30e3d6630f5ea523bef79d0305bc16a9d6fd1356` merges fresh `origin/main` at `b432aeb78a6b18cdedf760bb7872daf9241dacd6`, including colleague-owned setup remediation PR #2133, without rebasing or rewriting the published owner history.
 
 ## Discussion Thread Pass
 
@@ -64,7 +69,7 @@ Reason: The replacement removes first-writer semantics while retaining exact dia
 | Source PR | Source head | Replacement evidence | Disposition |
 | --- | --- | --- | --- |
 | #2123 | `5105374e41d1d5cb65fc9e4e87ac6bbbb61531fd` | One lexical resolver covers `legacy_app.__dict__`, mapping calls, dynamic member lookup, local shadowing, and sibling scopes. | FIXED in `2356523bbbb51a41bee7296d4eb9e54a647454ec` |
-| #2124 | `c22a6bd3064dd710749ed711c5f77c835157a60b` | Conditional module sync/async definitions use a shared union-typed visitor and retain nested-local exclusions. | FIXED in `2356523bbbb51a41bee7296d4eb9e54a647454ec` |
+| #2124 | `c22a6bd3064dd710749ed711c5f77c835157a60b` | Conditional module sync/async definitions use shared union-typed visitors, retain nested-local exclusions, and separate lambda expressions from statement bodies for exact pre-push MyPy parity. | FIXED in `2356523bbbb51a41bee7296d4eb9e54a647454ec` and `bcb9cf8616fcc8c0c1fbdf5b1447d2bf8a4f278d` |
 | #2125 | `ff6557744c2f338c1a215654a6179fcbfef14dcb` | Nested direct imports, aliased `importlib`, aliased `import_module`, plain imports, and intermediate imported-module bindings are covered by the focused matrix. | FIXED in `2356523bbbb51a41bee7296d4eb9e54a647454ec` and `da4d3207b4a21cded1bb1ba2467d9e4dd6cb5b0d` |
 | #2126 | `cfbc41b04e72e3f8d8d5a2bccb48b2ae13e18294` | Module binding counts exclude function parameters; the registrar-name shadow regression remains fail-closed. | FIXED in `2356523bbbb51a41bee7296d4eb9e54a647454ec` |
 | #2127 | `a635f9f5445f39487d15884bfdd504cba107fb22` | Reassigned or unresolved `getattr(app, method)` becomes a deterministic dynamic registration fact; parameter shadowing remains scoped. | FIXED in `2356523bbbb51a41bee7296d4eb9e54a647454ec` |
@@ -76,13 +81,14 @@ Reason: The replacement removes first-writer semantics while retaining exact dia
 - A conditional legacy binding could disappear at a branch join. FIXED by possible-reference lattice values and conditional/try/loop/with/match regressions.
 - Reassigned or unresolved `getattr` could fail open. FIXED by deterministic dynamic facts for API-key namespace and route-registration surfaces.
 - Lifecycle alias resolution could oscillate or depend on assignment order. FIXED by the finite monotonic conflict lattice and repeated-run/order-independence tests.
+- A shared sync/async/lambda local-binding visitor could pass an `ast.expr` through a statement-only list and fail pre-push MyPy. FIXED by commit `bcb9cf8616fcc8c0c1fbdf5b1447d2bf8a4f278d`, which visits lambda bodies directly and iterates only sync/async statement bodies.
 - Source-review evidence could be mapped before the exact nested-import matrix existed. FIXED by commit `da4d3207b4a21cded1bb1ba2467d9e4dd6cb5b0d`; mapping was created only afterward.
 
 Decision: publish the consolidated replacement on owner PR #2128, then close #2123 through #2127 unmerged as superseded only after the replacement commits, tests, and this mapping are visible on GitHub.
 
 ## Experiment Runner Evidence
 
-- Artifact: `artifacts/orchestration/experiments/results/pr2128-legacy-growth-guard-current-head-result.json`
+- Artifact: `artifacts/orchestration/experiments/results/pr2128-legacy-growth-guard-post-main-result.json`
 - Experiment: `exp-81724cfa1074`
 - Status: `accepted`
 - Runner mode: `oracle_only_governance_reviewer`
@@ -105,8 +111,9 @@ Decision: publish the consolidated replacement on owner PR #2128, then close #21
 
 ## Implementation Evidence
 
-- `git diff --name-only e0c6d68143e53d2cd95a93b35d7f6fc0a9b091e5..da4d3207b4a21cded1bb1ba2467d9e4dd6cb5b0d` contains only `scripts/ci/check_legacy_growth_guard.py` and `tests/test_legacy_growth_guard.py` before this mapping artifact.
+- `git diff --name-only origin/main...HEAD` contains only `scripts/ci/check_legacy_growth_guard.py`, `tests/test_legacy_growth_guard.py`, and this mapping artifact.
 - `scripts/ci/check_legacy_growth_guard.py:1677` owns lexical binding visibility, cloning, shadowing, and deterministic branch joins.
+- `scripts/ci/check_legacy_growth_guard.py:1825` keeps lambda expressions type-distinct from sync/async statement bodies.
 - `scripts/ci/check_legacy_growth_guard.py:1896` owns statement-ordered API-key reference analysis for sync and async scopes.
 - `scripts/ci/check_legacy_growth_guard.py:2529` owns lifecycle reference fixed-point resolution.
 - `tests/test_legacy_growth_guard.py:774`, `tests/test_legacy_growth_guard.py:975`, `tests/test_legacy_growth_guard.py:987`, `tests/test_legacy_growth_guard.py:1668`, and `tests/test_legacy_growth_guard.py:2312` cover the consolidated source findings and negative controls.
@@ -119,6 +126,8 @@ Decision: publish the consolidated replacement on owner PR #2128, then close #21
 - PASS: direct `scripts/ci/check_legacy_growth_guard.py` execution.
 - PASS: `tests/test_review_pattern_oracles.py`.
 - PASS: focused mypy for `scripts/ci/check_legacy_growth_guard.py` and `tests/test_legacy_growth_guard.py` with explicit package bases.
+- PASS: exact pre-push MyPy hook for `scripts/ci/check_legacy_growth_guard.py` after commit `bcb9cf8616fcc8c0c1fbdf5b1447d2bf8a4f278d`.
+- PASS: pre-push `pip-audit` after merging colleague-owned PR #2133 through fresh `origin/main`; no setup/dependency file was edited in the owner commits.
 - PASS: `git diff --check`.
 - PASS: `make validate-changed`.
 - PASS: exact pre-commit-selected backend-test path with `BRANCH_DIFF_MODE=1`.
@@ -153,6 +162,6 @@ Not ready at artifact creation. Required before merge:
 
 ## Deferred / Follow-ups
 
-- Security/pip-audit setup dependency remains owned by colleague PR #2133; after it merges, synchronize the active owner lane with a normal merge commit and rerun the narrow bundle.
+- Colleague PR #2133 is merged and synchronized through merge commit `30e3d6630f5ea523bef79d0305bc16a9d6fd1356`; its setup/dependency diff remains colleague-owned rather than duplicated in the owner commits.
 - Docker source-manifest `review_by` work remains in the separate #2117/#2120 line.
 - PR #2119 starts only after #2128 is merged and `main` is synchronized.
