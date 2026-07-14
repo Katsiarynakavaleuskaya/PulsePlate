@@ -435,7 +435,7 @@ def test_result_v1_rejects_impossible_backend_provenance(
         experiment_contract.validate_experiment_result(result)
 
 
-def test_capability_mismatch_requires_failed_preflight() -> None:
+def test_capability_mismatch_allows_post_preflight_isolation_loss() -> None:
     result = _legacy_result()
     result["status"] = "rejected"
     result["failure_class"] = "capability_mismatch"
@@ -443,8 +443,10 @@ def test_capability_mismatch_requires_failed_preflight() -> None:
         _probe("docker", strict=True), passed=True
     )
 
-    with pytest.raises(ValueError, match="failed backend preflight"):
-        experiment_contract.validate_experiment_result(result)
+    validated = experiment_contract.validate_experiment_result(result)
+
+    assert validated["failure_class"] == "capability_mismatch"
+    assert validated["execution_backend"]["preflight_status"] == "passed"
 
 
 def test_capability_mismatch_is_non_retryable_and_preserves_zero_network() -> None:
@@ -716,6 +718,19 @@ def test_collector_is_nofollow_regular_file_and_size_bounded() -> None:
     assert "O_NOFOLLOW" in dispatch._COLLECTOR_CODE
     assert "S_ISREG" in dispatch._COLLECTOR_CODE
     assert str(dispatch.MAX_RESULT_BYTES) in dispatch._COLLECTOR_CODE
+
+
+def test_sanitize_result_preserves_post_preflight_capability_mismatch() -> None:
+    result = _legacy_result()
+    result["status"] = "rejected"
+    result["failure_class"] = "capability_mismatch"
+    result["budget_observations"] = {"runner_error": "zero-network unshare lost"}
+
+    sanitized = dispatch._sanitize_result(result, _probe("apple-container", strict=True))
+
+    assert sanitized["failure_class"] == "capability_mismatch"
+    assert sanitized["budget_observations"]["runner_error"] == "zero-network unshare lost"
+    assert sanitized["execution_backend"]["preflight_status"] == "passed"
 
 
 def test_post_preflight_failure_is_validated_infra_flake() -> None:

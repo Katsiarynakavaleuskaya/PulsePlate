@@ -905,9 +905,8 @@ def validate_experiment_result(result: dict[str, Any]) -> dict[str, Any]:
             raise ValueError(
                 "Failed backend preflight requires a rejected capability_mismatch result."
             )
-        if failure_class == "capability_mismatch" and preflight_passed:
-            raise ValueError("Capability mismatch results require a failed backend preflight.")
-
+        # A backend can pass preflight and then lose a required primitive during
+        # runner execution; keep that non-retryable capability_mismatch intact.
     candidate_patch = str(result.get("candidate_patch", "")).strip()
     if not candidate_patch:
         raise ValueError("Experiment result must include a non-empty candidate_patch.")
