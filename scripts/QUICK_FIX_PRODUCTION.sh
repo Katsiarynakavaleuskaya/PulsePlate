@@ -107,7 +107,18 @@ if ! cp -p .env "$CLEAN_ENV_FILE"; then
     echo "❌ Failed to preserve production environment metadata"
     exit 1
 fi
-if ! awk -F= '$1 !~ /^(APP_ENV|ENVIRONMENT|SUBSCRIPTION_DB_ENABLED|ALLOW_DEV_API_KEY|API_KEY_REQUIRED)$/' .env > "$CLEAN_ENV_FILE"; then
+if ! awk '
+    {
+        normalized = $0
+        sub(/\r$/, "", normalized)
+        sub(/^[[:space:]]+/, "", normalized)
+        sub(/^export[[:space:]]+/, "", normalized)
+        if (normalized ~ /^(APP_ENV|ENVIRONMENT|SUBSCRIPTION_DB_ENABLED|ALLOW_DEV_API_KEY|API_KEY_REQUIRED)[[:space:]]*=/) {
+            next
+        }
+        print
+    }
+' .env > "$CLEAN_ENV_FILE"; then
     echo "❌ Failed to clean production environment flags"
     exit 1
 fi

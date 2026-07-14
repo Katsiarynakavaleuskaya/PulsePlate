@@ -500,6 +500,32 @@ def test_production_quick_fix_replaces_env_atomically_with_preserved_mode(tmp_pa
     assert ">> .env" not in script_text
 
 
+@pytest.mark.parametrize(
+    ("legacy_line", "canonical_line"),
+    (
+        (" export APP_ENV = staging", "APP_ENV=production"),
+        ("export ALLOW_DEV_API_KEY = true", "ALLOW_DEV_API_KEY=false"),
+    ),
+)
+def test_production_quick_fix_normalizes_managed_flag_cleanup(
+    tmp_path: Path,
+    legacy_line: str,
+    canonical_line: str,
+) -> None:
+    completed = _run_production_quick_fix(
+        tmp_path,
+        caddy_version="v2.11.4 h1:test",
+        go_version="go1.26.5",
+        extra_env=f"{legacy_line}\n",
+    )
+
+    env_text = (tmp_path / "production" / ".env").read_text(encoding="utf-8")
+    assert completed.returncode == 0
+    assert legacy_line not in env_text
+    assert env_text.count(canonical_line) == 1
+    assert "Quick Fix Complete" in completed.stdout
+
+
 def _run_production_quick_fix(
     tmp_path: Path,
     *,
