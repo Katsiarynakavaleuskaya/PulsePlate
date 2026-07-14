@@ -59,6 +59,11 @@ Reason: The advisory is not a diff-scoped callable defect or required gate.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2121#pullrequestreview-4698879001
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2121#issuecomment-4966633816
 
+Disposition: FIXED
+Commit: 7b6bd19a8050059465633a6a8d147bc267c03730
+Evidence: `tests/test_app_extra_coverage.py` now fixes the debug route to its explicit test environment and asserts the exact database-status and serialized USDA force-update payloads; the focused test file and commit hooks pass.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2121#pullrequestreview-4699132555 -> 7b6bd19a8050059465633a6a8d147bc267c03730
+
 Disposition: NOT-A-BUG
 Evidence: The Codex connector posted a usage-limit notice and no code finding; the required sealed Codex Security scan completed separately with zero findings.
 Reason: A source-capacity notice is not actionable code feedback.
