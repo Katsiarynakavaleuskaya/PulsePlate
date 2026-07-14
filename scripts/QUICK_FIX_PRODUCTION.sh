@@ -55,10 +55,10 @@ dc() {
 
 # Check for duplicates
 echo "=== Step 1: Check for duplicate env vars ==="
-DUPLICATES=$({ grep -nE '^(APP_ENV|ENVIRONMENT|POSTGRES_DB|POSTGRES_USER|POSTGRES_PASSWORD|DATABASE_URL)=' .env 2>/dev/null || true; } | wc -l | tr -d '[:space:]')
+DUPLICATES="$(awk -F= '/^(APP_ENV|ENVIRONMENT|POSTGRES_DB|POSTGRES_USER|POSTGRES_PASSWORD|DATABASE_URL)=/ { count++ } END { print count + 0 }' .env)"
 if [ "$DUPLICATES" -gt 6 ]; then
     echo "⚠️  Found potential duplicates in .env"
-    grep -nE '^(APP_ENV|ENVIRONMENT|POSTGRES_DB|POSTGRES_USER|POSTGRES_PASSWORD|DATABASE_URL)=' .env || true
+    awk -F= '/^(APP_ENV|ENVIRONMENT|POSTGRES_DB|POSTGRES_USER|POSTGRES_PASSWORD|DATABASE_URL)=/ { printf "%d:%s=<redacted>\n", NR, $1 }' .env
 fi
 echo ""
 
@@ -70,7 +70,23 @@ fi
 
 # Clean and set env vars
 echo "=== Step 2: Clean and set environment variables ==="
-sed -i '/^APP_ENV=/d;/^ENVIRONMENT=/d;/^SUBSCRIPTION_DB_ENABLED=/d;/^ALLOW_DEV_API_KEY=/d;/^API_KEY_REQUIRED=/d' .env 2>/dev/null || true
+CLEAN_ENV_FILE="$(mktemp "${TMPDIR:-/tmp}/pulseplate-env.XXXXXX")"
+cleanup_env_temp() {
+    if [ -n "${CLEAN_ENV_FILE:-}" ] && [ -f "$CLEAN_ENV_FILE" ]; then
+        rm -f "$CLEAN_ENV_FILE"
+    fi
+}
+trap cleanup_env_temp EXIT
+if ! awk -F= '$1 !~ /^(APP_ENV|ENVIRONMENT|SUBSCRIPTION_DB_ENABLED|ALLOW_DEV_API_KEY|API_KEY_REQUIRED)$/' .env > "$CLEAN_ENV_FILE"; then
+    echo "❌ Failed to clean production environment flags"
+    exit 1
+fi
+if ! mv "$CLEAN_ENV_FILE" .env; then
+    echo "❌ Failed to replace the production environment file"
+    exit 1
+fi
+CLEAN_ENV_FILE=""
+trap - EXIT
 {
     echo ""
     echo "APP_ENV=production"
