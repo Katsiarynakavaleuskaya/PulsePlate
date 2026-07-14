@@ -10,9 +10,6 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 from app import app
-import legacy_app
-
-get_update_scheduler = legacy_app.get_update_scheduler
 
 
 class TestAppSpecificCoverage96:
@@ -22,15 +19,6 @@ class TestAppSpecificCoverage96:
     def setup_client(self, client):
         """Set up test client from conftest fixture."""
         self.client = client
-
-    @pytest.mark.asyncio
-    @patch.object(legacy_app, "_scheduler_getter", None)
-    async def test_get_update_scheduler_late_import(self):
-        """Test get_update_scheduler when _scheduler_getter is None (lines 115-119)."""
-        # This should trigger the late import path
-        result = await get_update_scheduler()
-        # The function should return something (even if it's a mock)
-        assert result is not None
 
     def test_metrics_endpoint_no_prometheus(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test metrics endpoint when prometheus exporter fails (forced fallback)."""
@@ -636,19 +624,21 @@ class TestAppSpecificCoverage96:
         assert response.status_code in [200, 403, 422]
 
     def test_api_v1_admin_endpoints(self) -> None:
-        """Test API v1 admin endpoints."""
-        # Test various admin endpoints
+        """Admin routes reject missing credentials before scheduler access."""
         admin_endpoints = [
-            "/api/v1/admin/check-updates",
-            "/api/v1/admin/db-status",
-            "/api/v1/admin/force-update",
-            "/api/v1/admin/rollback",
+            ("GET", "/api/v1/admin/check-updates", None),
+            ("GET", "/api/v1/admin/db-status", None),
+            ("POST", "/api/v1/admin/force-update", None),
+            (
+                "POST",
+                "/api/v1/admin/rollback",
+                {"source": "usda", "target_version": "1.0.0"},
+            ),
         ]
 
-        for endpoint in admin_endpoints:
-            response = self.client.get(endpoint)
-            # Should return some response (might be 404, 405, 401, 403 if not implemented)
-            assert response.status_code in [200, 404, 405, 401, 403]
+        for method, endpoint, params in admin_endpoints:
+            response = self.client.request(method, endpoint, params=params)
+            assert response.status_code == 403
 
     def test_premium_export_endpoints(self) -> None:
         """Test premium export endpoints."""

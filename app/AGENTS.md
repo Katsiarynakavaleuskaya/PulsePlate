@@ -397,6 +397,25 @@ Avoid `# type: ignore[no-any-return]` and prefer typed locals over `cast()`.
 - Unexpected validation failures must keep stable generic client envelopes and
   must not log key values, exception messages, or credential-bearing traceback.
 
+### Canonical admin scheduler access
+
+- `core/food_apis/scheduler.py` is the only owner of the scheduler singleton and
+  its lifecycle. `app/services/scheduler_access.py` is a lazy, typed delegator;
+  it must not add cache, override registry, fallback state, or lifecycle logic.
+- Admin services import and await the scheduler-access callable at their use
+  site. Do not reintroduce `sys.modules` lookup, compatibility getter selection,
+  or synchronous getter support.
+- `app.get_update_scheduler`, `legacy_app.get_update_scheduler`, and
+  `app.services.scheduler_access.get_update_scheduler` must be the exact same
+  callable. Identity with the core getter is intentionally not required across
+  the lazy boundary.
+- `admin_status` preserves intentional `HTTPException` pass-through and maps an
+  unavailable scheduler to stable `503 Scheduler unavailable`. Database status,
+  force update, and update check must log technical failures with
+  `logger.exception` and expose only their stable generic `500` details.
+- Scheduler lifecycle, worker topology, and update/rollback algorithms are
+  outside an access-seam refactor and require separately approved scope.
+
 - Import Hygiene: do NOT reintroduce dynamic module loading in `app/__init__.py`
   (no `spec_from_file_location`, no `exec_module`, no sys.path hacks).
 - `import app` is a PEP 562 shim: `app.app` MUST point to `legacy_app.app`, and

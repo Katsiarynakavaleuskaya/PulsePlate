@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 
 # Import the FastAPI app from the app package
 from app import app
+from app.services import admin_operations
 import legacy_app
 
 
@@ -125,21 +126,20 @@ class TestTargetedCoverageBoost:
 
     def test_app_py_line_1215(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test line 1215 in main.py (get_database_status with missing scheduler)."""
-        # Clear the scheduler singleton to force fresh initialization
-        from core.food_apis import scheduler
 
-        monkeypatch.setattr(scheduler, "_scheduler_instance", None)
-
-        # Patch get_update_scheduler to raise an exception
         async def fake_get_scheduler_error() -> None:
             raise Exception("Test error")
 
-        # Patch scheduler module's get_update_scheduler
-        monkeypatch.setattr(scheduler, "get_update_scheduler", fake_get_scheduler_error)
+        monkeypatch.setattr(
+            admin_operations,
+            "get_update_scheduler",
+            fake_get_scheduler_error,
+        )
 
         response = self.client.get("/api/v1/admin/db-status", headers={"X-API-Key": "test_key"})
         # get_database_status raises HTTPException(500) when scheduler raises Exception
         assert response.status_code == 500
+        assert response.json() == {"detail": "Failed to get database status"}
 
     def test_scheduler_py_lines_66_67(self) -> None:
         """Test lines 66-67 in scheduler.py (signal handler setup)."""
@@ -152,7 +152,10 @@ class TestTargetedCoverageBoost:
 
     def test_scheduler_py_lines_135_137(self) -> None:
         """Test lines 135-137 in scheduler.py (stop method when not running)."""
-        with patch("core.food_apis.scheduler.get_update_scheduler") as mock_get_scheduler:
+        with patch(
+            "app.services.admin_operations.get_update_scheduler",
+            new_callable=AsyncMock,
+        ) as mock_get_scheduler:
             mock_scheduler = MagicMock()
             mock_scheduler.is_running = False  # Not running
             mock_get_scheduler.return_value = mock_scheduler

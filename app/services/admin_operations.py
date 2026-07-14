@@ -5,77 +5,25 @@ from __future__ import annotations
 import inspect
 import logging
 import os
-import sys
-from collections.abc import Callable
-from typing import Any, cast
+from typing import Any
 
 from fastapi import HTTPException
 from fastapi.responses import JSONResponse
 from starlette.concurrency import run_in_threadpool
 
+from app.services.scheduler_access import get_update_scheduler
 from app.utils.feature_flags import _is_truthy
 from core.log_retention import DataClass, get_retention_manager
 from settings import is_explicit_developer_env
 
 logger = logging.getLogger(__name__)
 
-SchedulerGetter = Callable[[], Any]
-
-
-def _select_scheduler_getter_from_modules(
-    legacy_mod: Any,
-    app_mod: Any,
-    app_module_mod: Any,
-) -> SchedulerGetter | None:
-    """Select a patched scheduler getter from legacy/app module aliases."""
-
-    legacy_getter = getattr(legacy_mod, "get_update_scheduler", None)
-    default_getter = getattr(legacy_mod, "_DEFAULT_GET_UPDATE_SCHEDULER", None)
-    if callable(legacy_getter) and legacy_getter is not default_getter:
-        return cast(SchedulerGetter, legacy_getter)
-
-    for candidate_mod in (app_mod, app_module_mod):
-        app_getter = getattr(candidate_mod, "get_update_scheduler", None)
-        if callable(app_getter) and app_getter is not default_getter:
-            return cast(SchedulerGetter, app_getter)
-
-    if callable(default_getter):
-        return cast(SchedulerGetter, default_getter)
-
-    return None
-
-
-def _resolve_scheduler_getter() -> SchedulerGetter:
-    """Resolve the update scheduler seam while preserving legacy test patches."""
-
-    legacy_mod = sys.modules.get("legacy_app")
-    app_mod = sys.modules.get("app")
-    app_module_mod = sys.modules.get("app_module")
-
-    selected_getter = _select_scheduler_getter_from_modules(
-        legacy_mod,
-        app_mod,
-        app_module_mod,
-    )
-    if selected_getter is not None:
-        return selected_getter
-
-    from core.food_apis.scheduler import get_update_scheduler as scheduler_getter
-
-    return cast(SchedulerGetter, scheduler_getter)
-
-
-async def _get_scheduler() -> Any:
-    getter = _resolve_scheduler_getter()
-    result = getter()
-    return await result if inspect.isawaitable(result) else result
-
 
 async def admin_status() -> dict[str, str]:
     """Return scheduler availability for the hidden admin status endpoint."""
 
     try:
-        scheduler = await _get_scheduler()
+        scheduler = await get_update_scheduler()
         if scheduler is None:
             raise RuntimeError("Scheduler unavailable")
         return {"status": "ok", "scheduler": "available"}
@@ -135,15 +83,14 @@ async def get_database_status() -> JSONResponse:
     """Get status of all databases and update scheduler."""
 
     try:
-        getter = _resolve_scheduler_getter()
-        logger.debug("get_database_status using getter: %r", getter)
-        scheduler = await _get_scheduler()
+        scheduler = await get_update_scheduler()
         status = scheduler.get_status()
         return JSONResponse(content=status)
     except Exception as exc:
+        logger.exception("Failed to get database status")
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to get database status: {str(exc)}",
+            detail="Failed to get database status",
         ) from exc
 
 
@@ -151,9 +98,7 @@ async def force_database_update(source: str | None = None) -> JSONResponse:
     """Force immediate database update."""
 
     try:
-        getter = _resolve_scheduler_getter()
-        logger.debug("force_database_update using getter: %r", getter)
-        scheduler = await _get_scheduler()
+        scheduler = await get_update_scheduler()
         results = await scheduler.force_update(source)
 
         response: dict[str, Any] = {
@@ -175,14 +120,15 @@ async def force_database_update(source: str | None = None) -> JSONResponse:
 
         return JSONResponse(content=response)
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Force update failed: {str(exc)}") from exc
+        logger.exception("Force update failed")
+        raise HTTPException(status_code=500, detail="Force update failed") from exc
 
 
 async def check_for_updates() -> JSONResponse:
     """Check for available updates without installing them."""
 
     try:
-        scheduler = await _get_scheduler()
+        scheduler = await get_update_scheduler()
         if scheduler is None:
             raise RuntimeError("Scheduler resolved to None")
 
@@ -202,18 +148,16 @@ async def check_for_updates() -> JSONResponse:
         }
 
         return JSONResponse(content=response)
-    except HTTPException:
-        raise
     except Exception as exc:
         logger.exception("Update check failed")
-        raise HTTPException(status_code=500, detail=f"Update check failed: {str(exc)}") from exc
+        raise HTTPException(status_code=500, detail="Update check failed") from exc
 
 
 async def rollback_database(source: str, target_version: str) -> dict[str, Any]:
     """Rollback database to a specific version."""
 
     try:
-        scheduler = await _get_scheduler()
+        scheduler = await get_update_scheduler()
         if scheduler is None:
             raise ValueError("Scheduler returned None")
     except Exception as exc:

@@ -4,24 +4,26 @@ Targets: /api/v1/admin/check-updates and /api/v1/admin/rollback
 Missing lines in update_manager.py: 14 lines (49, 52, 55, 63, 67, 412->433, 654, 656-658, 673-674, 677, 680->679, 683-686, 722->750, 784->786)
 """
 
+from collections.abc import Iterator
+from contextlib import ExitStack
+from pathlib import Path
 import sys
 import tempfile
-from contextlib import ExitStack
+from typing import Any, cast
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
-from typing import cast
 
 
 class TestUpdateManagerEndpoints:
     """Test admin endpoints that use update_manager to hit missing lines."""
 
     @pytest.fixture
-    def client(self, monkeypatch):
+    def client(self, monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
         """Get test client with API key."""
         import app
-        from fastapi.testclient import TestClient
 
         monkeypatch.setenv("API_KEY", "test-key")
         monkeypatch.setenv("API_KEY_MODE", "required")
@@ -33,7 +35,7 @@ class TestUpdateManagerEndpoints:
         finally:
             client.close()
 
-    def test_check_updates_success(self, client):
+    def test_check_updates_success(self, client: TestClient) -> None:
         """Test successful updates check - hits update_manager.check_for_updates()."""
         mock_scheduler = MagicMock()
         mock_update_manager = MagicMock()
@@ -43,31 +45,35 @@ class TestUpdateManagerEndpoints:
         mock_scheduler.update_manager = mock_update_manager
         mock_get_scheduler = AsyncMock(return_value=mock_scheduler)
 
-        # Patch at the module level where the function is called
-        with patch("app.get_update_scheduler", new=mock_get_scheduler):
-            response = client.get("/api/v1/admin/check-updates", headers={"X-API-Key": "test_key"})
+        with patch(
+            "app.services.admin_operations.get_update_scheduler",
+            new=mock_get_scheduler,
+        ):
+            response = client.get("/api/v1/admin/check-updates", headers={"X-API-Key": "test-key"})
 
-        # Accept both success and auth failure status codes
-        assert response.status_code in [200, 403, 500]
-        if response.status_code == 200:
-            data = response.json()
-            assert data["message"] == "Update check completed"
-            assert data["updates_available"] == {"usda": True, "openfoodfacts": False}
-            assert data["total_sources_with_updates"] == 1  # Only usda has updates
-            # Check if mock was called (may not be if auth failed)
-            if mock_get_scheduler.await_count > 0:
-                mock_update_manager.check_for_updates.assert_awaited_once()
+        assert response.status_code == 200
+        data = response.json()
+        assert data["message"] == "Update check completed"
+        assert data["updates_available"] == {"usda": True, "openfoodfacts": False}
+        assert data["total_sources_with_updates"] == 1
+        mock_get_scheduler.assert_awaited_once()
+        mock_update_manager.check_for_updates.assert_awaited_once()
 
-    def test_check_updates_failure(self, client):
+    def test_check_updates_failure(self, client: TestClient) -> None:
         """Test updates check failure - hits exception handling."""
-        # Since mocking is complex in async context, test different scenario
-        # Test with malformed API key
-        response = client.get("/api/v1/admin/check-updates", headers={"X-API-Key": "invalid-key"})
+        mock_get_scheduler = AsyncMock(side_effect=RuntimeError("secret-token"))
 
-        # Check if we get error response - either forbidden or internal error
-        assert response.status_code in [403, 500]
+        with patch(
+            "app.services.admin_operations.get_update_scheduler",
+            new=mock_get_scheduler,
+        ):
+            response = client.get("/api/v1/admin/check-updates", headers={"X-API-Key": "test-key"})
 
-    def test_rollback_success(self, client):
+        assert response.status_code == 500
+        assert response.json() == {"detail": "Update check failed"}
+        assert "secret-token" not in response.text
+
+    def test_rollback_success(self, client: TestClient) -> None:
         """Test successful database rollback."""
         mock_scheduler = MagicMock()
         mock_update_manager = MagicMock()
@@ -75,22 +81,23 @@ class TestUpdateManagerEndpoints:
         mock_scheduler.update_manager = mock_update_manager
         mock_get_scheduler = AsyncMock(return_value=mock_scheduler)
 
-        with patch("app.get_update_scheduler", new=mock_get_scheduler):
+        with patch(
+            "app.services.admin_operations.get_update_scheduler",
+            new=mock_get_scheduler,
+        ):
             response = client.post(
                 "/api/v1/admin/rollback?source=usda&target_version=1.0.0",
-                headers={"X-API-Key": "test_key"},
+                headers={"X-API-Key": "test-key"},
             )
 
-        # Accept success or auth failure
-        assert response.status_code in [200, 403, 500]
-        if response.status_code == 200:
-            data = response.json()
-            assert data["success"] is True
-            assert "Successfully rolled back usda to version 1.0.0" in data["message"]
-            if mock_get_scheduler.await_count > 0:
-                mock_update_manager.rollback_database.assert_awaited_once()
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert data["message"] == "Successfully rolled back usda to version 1.0.0"
+        mock_get_scheduler.assert_awaited_once()
+        mock_update_manager.rollback_database.assert_awaited_once()
 
-    def test_rollback_failure(self, client):
+    def test_rollback_failure(self, client: TestClient) -> None:
         """Test failed database rollback."""
         mock_scheduler = MagicMock()
         mock_update_manager = MagicMock()
@@ -98,21 +105,21 @@ class TestUpdateManagerEndpoints:
         mock_scheduler.update_manager = mock_update_manager
         mock_get_scheduler = AsyncMock(return_value=mock_scheduler)
 
-        with patch("app.get_update_scheduler", new=mock_get_scheduler):
+        with patch(
+            "app.services.admin_operations.get_update_scheduler",
+            new=mock_get_scheduler,
+        ):
             response = client.post(
                 "/api/v1/admin/rollback?source=usda&target_version=1.0.0",
-                headers={"X-API-Key": "test_key"},
+                headers={"X-API-Key": "test-key"},
             )
 
-        # Should return 500 for rollback failure
-        assert response.status_code in [403, 500]
-        if response.status_code == 500:
-            data = response.json()
-            assert "Rollback failed" in data["detail"] or "rollback" in data["detail"].lower()
-            if mock_get_scheduler.await_count > 0:
-                mock_update_manager.rollback_database.assert_awaited_once()
+        assert response.status_code == 500
+        assert response.json() == {"detail": "Rollback operation failed for usda to version 1.0.0"}
+        mock_get_scheduler.assert_awaited_once()
+        mock_update_manager.rollback_database.assert_awaited_once()
 
-    def test_rollback_exception(self, client):
+    def test_rollback_exception(self, client: TestClient) -> None:
         """Test rollback with exception."""
         mock_scheduler = MagicMock()
         mock_update_manager = MagicMock()
@@ -120,20 +127,21 @@ class TestUpdateManagerEndpoints:
         mock_scheduler.update_manager = mock_update_manager
         mock_get_scheduler = AsyncMock(return_value=mock_scheduler)
 
-        with patch("app.get_update_scheduler", new=mock_get_scheduler):
+        with patch(
+            "app.services.admin_operations.get_update_scheduler",
+            new=mock_get_scheduler,
+        ):
             response = client.post(
                 "/api/v1/admin/rollback?source=usda&target_version=invalid",
-                headers={"X-API-Key": "test_key"},
+                headers={"X-API-Key": "test-key"},
             )
 
-        # Should return 500 for exception
-        assert response.status_code in [403, 500]
-        if response.status_code == 500:
-            data = response.json()
-            # Accept any rollback-related error message
-            assert "rollback" in data["detail"].lower() or "failed" in data["detail"].lower()
-            if mock_get_scheduler.await_count > 0:
-                mock_update_manager.rollback_database.assert_awaited_once()
+        assert response.status_code == 500
+        assert response.json() == {
+            "detail": "Rollback operation failed; Rollback failed; see server logs for details"
+        }
+        mock_get_scheduler.assert_awaited_once()
+        mock_update_manager.rollback_database.assert_awaited_once()
 
     def test_check_updates_no_api_key(self, client):
         """Test check updates without API key."""
@@ -150,7 +158,7 @@ class TestUpdateManagerDirectCoverage:
     """Direct tests on update_manager.py to hit missing lines."""
 
     @pytest.fixture
-    def temp_db_path(self, tmp_path):
+    def temp_db_path(self, tmp_path: Path) -> Path:
         """Create temporary database path."""
         return tmp_path / "test_db.db"
 
@@ -174,8 +182,7 @@ class TestUpdateManagerDirectCoverage:
         # which has complex constructor requirements
         pass
 
-    @pytest.mark.asyncio
-    async def test_update_manager_file_operations(self, temp_db_path):
+    def test_update_manager_file_operations(self, temp_db_path: Path) -> None:
         """Test file operation error paths in update_manager."""
         from core.food_apis.update_manager import DatabaseUpdateManager
 
@@ -189,8 +196,7 @@ class TestUpdateManagerDirectCoverage:
             # This should hit backup restoration error paths
             DatabaseUpdateManager(update_interval_hours=1)
 
-    @pytest.mark.asyncio
-    async def test_update_manager_checksum_validation(self):
+    def test_update_manager_checksum_validation(self) -> None:
         """Test checksum validation paths."""
         from core.food_apis.update_manager import DatabaseUpdateManager
 
@@ -200,8 +206,7 @@ class TestUpdateManagerDirectCoverage:
             # This should hit checksum validation failure paths
             DatabaseUpdateManager(update_interval_hours=1)
 
-    @pytest.mark.asyncio
-    async def test_update_manager_concurrent_operations(self):
+    def test_update_manager_concurrent_operations(self) -> None:
         """Test concurrent operation handling."""
         from core.food_apis.update_manager import DatabaseUpdateManager
 
@@ -210,8 +215,7 @@ class TestUpdateManagerDirectCoverage:
             # This should hit concurrent operation detection
             DatabaseUpdateManager(update_interval_hours=1)
 
-    @pytest.mark.asyncio
-    async def test_update_manager_status_reporting(self):
+    def test_update_manager_status_reporting(self) -> None:
         """Test status reporting edge cases."""
         from core.food_apis.update_manager import DatabaseUpdateManager
 
@@ -236,8 +240,7 @@ class TestUpdateManagerDirectCoverage:
         assert hasattr(update_manager, "DatabaseVersion")
         assert hasattr(update_manager, "UpdateResult")
 
-    @pytest.mark.asyncio
-    async def test_callback_system(self):
+    def test_callback_system(self) -> None:
         """Test update callback system."""
         from core.food_apis.update_manager import DatabaseUpdateManager
 
@@ -246,7 +249,7 @@ class TestUpdateManagerDirectCoverage:
         # Test callback registration and execution
         callback_called = False
 
-        def test_callback(result):
+        def test_callback(result: Any) -> None:
             nonlocal callback_called
             callback_called = True
 
