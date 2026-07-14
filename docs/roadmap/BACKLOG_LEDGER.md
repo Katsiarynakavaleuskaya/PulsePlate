@@ -3684,6 +3684,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     backend build digest but invokes a server-local deploy script with a different SHA-tag
     identity. The official Caddy 2.11.4 Alpine artifact also requires bounded remediation
     for fixed `c-ares` and Go standard-library findings before PulsePlate can serve it.
+    Current-head Docker validation also exposed the expired review window for the existing
+    pinned SQLite source artifact; PR #2117 revalidates its unchanged URL and SHA3-256 and
+    renews that fail-closed window without changing the SQLite version.
   - Links:
     - `frontend/Dockerfile.caddy-spa`
     - `deploy/docker-compose.staging.yaml`
@@ -3696,6 +3699,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Backend and Caddy each have distinct provenance, SBOM, verification, and exact-digest scan evidence
     - Staging Compose and deploy script reject floating/tag-only image references
     - Default-false rollout gate verifies root-owned marker and current-commit server file hashes before secrets/deploy
+    - Existing SQLite 3.53.2 source URL and SHA3-256 are revalidated and the bounded source-artifact review window is current
     - No live deploy occurs in the PR; rollout and database-aware rollback remain human-approved
 
 - [ ] P1: Remove staging TLS fallback seam after full staging readiness
