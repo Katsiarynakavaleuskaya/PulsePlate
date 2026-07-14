@@ -103,6 +103,16 @@ Reason: the parser-required discussion-thread checkbox now reflects the
 completed review audit instead of remaining stale.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2119#discussion_r3575382511 -> 44276b9af4d6fc153922bd5e9317358bcd78909d
 
+Disposition: NOT-A-BUG
+Evidence: the current-head `pulseplate-pr-review` dry run reported only the
+mechanical `large-diff-risk` note; expanded focused suites, `make
+validate-changed`, and `pre-commit run --all-files` pass on the same head.
+Reason: the 14-file surface is the smallest atomic closed-taxonomy update:
+result/receipt contracts, PR-4 telemetry code, four schema/reference mirrors,
+deterministic tests, and mandatory review evidence. Splitting it would admit a
+known intermediate state where `capability_mismatch` degrades to `unknown`.
+- Local `pulseplate-pr-review` finding: `large-diff-risk`.
+
 No GitHub review thread has been resolved. Any later actionable thread must be
 added here with its disposition-specific proof before resolution.
 
