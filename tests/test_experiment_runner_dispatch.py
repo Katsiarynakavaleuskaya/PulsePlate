@@ -118,6 +118,25 @@ def _legacy_result() -> dict[str, Any]:
     }
 
 
+def _accepted_oracle_result() -> dict[str, Any]:
+    return {
+        "schema_version": "1.0",
+        "experiment_id": "strict-mac-test",
+        "runner_mode": "oracle_only_governance_reviewer",
+        "candidate_patch": "oracle_only_governance_reviewer",
+        "status": "accepted",
+        "failure_class": None,
+        "mutated_paths": [],
+        "oracle_results": [],
+        "budget_observations": {},
+        "shared_tree_untouched": True,
+        "promotion_ready": False,
+        "contribution_kind": "oracle_review",
+        "coauthor_required": True,
+        "coauthor_reason": "Material oracle review shaped the commit decision.",
+    }
+
+
 def test_image_reference_requires_immutable_digest() -> None:
     assert dispatch.parse_image_reference(f"runner:local@{_DIGEST}").digest == _DIGEST
 
@@ -324,6 +343,28 @@ def test_capability_artifact_rejects_extra_fields() -> None:
         dispatch.validate_capability_artifact(artifact)
 
 
+def test_capability_artifact_rejects_unknown_blocker() -> None:
+    artifact = _probe(
+        "apple-container",
+        strict=False,
+        reason="host_listener_unavailable",
+    ).to_artifact()
+    artifact["blocking_reasons"] = ["unknown_listener_failure"]
+
+    with pytest.raises(ValueError, match="blocker code"):
+        dispatch.validate_capability_artifact(artifact)
+
+
+def test_existing_v1_capability_artifact_remains_valid() -> None:
+    artifact = _probe(
+        "apple-container",
+        strict=False,
+        reason="network_gateway_unavailable",
+    ).to_artifact()
+
+    assert dispatch.validate_capability_artifact(artifact) == artifact
+
+
 def test_snapshot_applies_tracked_diff_and_leaves_source_unchanged(tmp_path: Path) -> None:
     source = tmp_path / "source"
     source.mkdir()
@@ -458,6 +499,9 @@ def test_capability_mismatch_is_non_retryable_and_preserves_zero_network() -> No
     assert result["budget_observations"]["retries_consumed"] == 0
     assert result["budget_observations"]["configured_budgets"]["network_budget"] == 0
     assert result["execution_backend"]["preflight_status"] == "failed"
+    assert result["contribution_kind"] == "none"
+    assert result["coauthor_required"] is False
+    assert result["coauthor_reason"] == ""
 
 
 def test_result_backend_rejects_mutable_or_invalid_digest() -> None:
@@ -539,6 +583,515 @@ def test_gateway_is_discovered_from_runtime_metadata() -> None:
     payload = [{"status": {"ipv4Gateway": "192.168.64.1"}}]
 
     assert dispatch._find_gateway(payload) == "192.168.64.1"
+
+
+def test_apple_runtime_subnets_use_persistent_default_network_as_exclusion_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[list[str]] = []
+
+    def fake_run(argv: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        calls.append(argv)
+        return subprocess.CompletedProcess(
+            argv,
+            0,
+            json.dumps([{"status": {"ipv4Subnet": "192.168.64.0/24"}}]),
+            "",
+        )
+
+    monkeypatch.setattr(dispatch, "_run", fake_run)
+
+    subnets = dispatch._discover_apple_runtime_subnets("/usr/local/bin/container")
+
+    assert [str(subnet) for subnet in subnets] == ["192.168.64.0/24"]
+    assert calls == [["/usr/local/bin/container", "network", "inspect", "default"]]
+
+
+def test_apple_runtime_subnet_deduplicates_identical_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = [
+        {"status": {"ipv4Subnet": "192.168.64.0/24"}},
+        {"configuration": {"ipv4Subnet": "192.168.64.0/24"}},
+    ]
+    monkeypatch.setattr(
+        dispatch,
+        "_run",
+        lambda argv, **_kwargs: subprocess.CompletedProcess(
+            argv,
+            0,
+            json.dumps(payload),
+            "",
+        ),
+    )
+
+    subnets = dispatch._discover_apple_runtime_subnets("/usr/local/bin/container")
+
+    assert [str(subnet) for subnet in subnets] == ["192.168.64.0/24"]
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        "not-json",
+        json.dumps([{"status": {"ipv4Subnet": "not-a-subnet"}}]),
+        json.dumps([{"status": {"ipv4Subnet": "2001:db8::/64"}}]),
+        json.dumps([{"status": {"ipv4Subnet": "192.168.64.1/24"}}]),
+        json.dumps([{"status": {"ipv4Subnet": 123}}]),
+        json.dumps(
+            [
+                {"status": {"ipv4Subnet": "192.168.64.0/24"}},
+                {"status": {"ipv4Subnet": "192.168.65.0/24"}},
+            ]
+        ),
+        json.dumps(
+            [
+                {"status": {"ipv4Subnet": "192.168.64.0/24"}},
+                {"status": {"ipv4Subnet": "192.168.65.1/24"}},
+            ]
+        ),
+        json.dumps([{"status": {}}]),
+    ],
+)
+def test_apple_runtime_subnet_inspection_fails_closed(
+    monkeypatch: pytest.MonkeyPatch,
+    payload: str,
+) -> None:
+    monkeypatch.setattr(
+        dispatch,
+        "_run",
+        lambda argv, **_kwargs: subprocess.CompletedProcess(
+            argv,
+            0,
+            payload,
+            "",
+        ),
+    )
+
+    with pytest.raises(dispatch.DispatchError, match="network_gateway_unavailable"):
+        dispatch._discover_apple_runtime_subnets("/usr/local/bin/container")
+
+
+def test_apple_runtime_subnet_inspection_rejects_runtime_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        dispatch,
+        "_run",
+        lambda argv, **_kwargs: subprocess.CompletedProcess(argv, 1, "", "not retained"),
+    )
+
+    with pytest.raises(dispatch.DispatchError, match="network_gateway_unavailable"):
+        dispatch._discover_apple_runtime_subnets("/usr/local/bin/container")
+
+
+def test_apple_host_bind_address_filters_unsafe_runtime_and_unbindable_candidates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        dispatch.socket,
+        "gethostname",
+        lambda: "local-host",
+    )
+    monkeypatch.setattr(
+        dispatch.socket,
+        "getaddrinfo",
+        lambda *_args, **_kwargs: [
+            (dispatch.socket.AF_INET, dispatch.socket.SOCK_STREAM, 6, "", ("0.0.0.0", 0)),
+            (dispatch.socket.AF_INET, dispatch.socket.SOCK_STREAM, 6, "", ("127.0.0.1", 0)),
+            (
+                dispatch.socket.AF_INET,
+                dispatch.socket.SOCK_STREAM,
+                6,
+                "",
+                ("169.254.10.20", 0),
+            ),
+            (
+                dispatch.socket.AF_INET,
+                dispatch.socket.SOCK_STREAM,
+                6,
+                "",
+                ("192.168.64.22", 0),
+            ),
+            (
+                dispatch.socket.AF_INET,
+                dispatch.socket.SOCK_STREAM,
+                6,
+                "",
+                ("10.0.0.10", 0),
+            ),
+            (
+                dispatch.socket.AF_INET,
+                dispatch.socket.SOCK_STREAM,
+                6,
+                "",
+                ("10.0.0.20", 0),
+            ),
+            (
+                dispatch.socket.AF_INET,
+                dispatch.socket.SOCK_STREAM,
+                6,
+                "",
+                ("10.0.0.20", 0),
+            ),
+            (
+                dispatch.socket.AF_INET6,
+                dispatch.socket.SOCK_STREAM,
+                6,
+                "",
+                ("2001:db8::1", 0),
+            ),
+            (
+                dispatch.socket.AF_INET,
+                dispatch.socket.SOCK_DGRAM,
+                17,
+                "",
+                ("10.0.0.30", 0),
+            ),
+            (
+                dispatch.socket.AF_INET,
+                dispatch.socket.SOCK_STREAM,
+                6,
+                "",
+                ("not-an-address", 0),
+            ),
+        ],
+    )
+    bind_checks: list[str] = []
+
+    def bindable(address: str) -> bool:
+        bind_checks.append(address)
+        return address == "10.0.0.20"
+
+    monkeypatch.setattr(dispatch, "_address_is_bindable", bindable)
+
+    selected = dispatch._discover_apple_host_bind_address(
+        (dispatch.ipaddress.ip_network("192.168.64.0/24"),)
+    )
+
+    assert selected == "10.0.0.20"
+    assert set(bind_checks) == {"10.0.0.10", "10.0.0.20"}
+    assert bind_checks.count("10.0.0.20") == 1
+
+
+def test_apple_host_bind_address_requires_one_candidate_without_order_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(dispatch.socket, "gethostname", lambda: "local-host")
+    monkeypatch.setattr(
+        dispatch.socket,
+        "getaddrinfo",
+        lambda *_args, **_kwargs: [
+            (
+                dispatch.socket.AF_INET,
+                dispatch.socket.SOCK_STREAM,
+                6,
+                "",
+                ("10.0.0.20", 0),
+            ),
+            (
+                dispatch.socket.AF_INET,
+                dispatch.socket.SOCK_STREAM,
+                6,
+                "",
+                ("10.0.0.10", 0),
+            ),
+        ],
+    )
+    monkeypatch.setattr(dispatch, "_address_is_bindable", lambda _address: True)
+
+    with pytest.raises(dispatch.DispatchError, match="host_listener_unavailable"):
+        dispatch._discover_apple_host_bind_address(())
+
+
+def test_apple_host_bind_address_rejects_unbindable_only_candidate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(dispatch.socket, "gethostname", lambda: "local-host")
+    monkeypatch.setattr(
+        dispatch.socket,
+        "getaddrinfo",
+        lambda *_args, **_kwargs: [
+            (
+                dispatch.socket.AF_INET,
+                dispatch.socket.SOCK_STREAM,
+                6,
+                "",
+                ("10.0.0.20", 0),
+            )
+        ],
+    )
+    monkeypatch.setattr(dispatch, "_address_is_bindable", lambda _address: False)
+
+    with pytest.raises(dispatch.DispatchError, match="host_listener_unavailable"):
+        dispatch._discover_apple_host_bind_address(())
+
+
+def test_apple_host_bind_address_normalizes_hostname_resolution_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(dispatch.socket, "gethostname", lambda: "local-host")
+    monkeypatch.setattr(
+        dispatch.socket,
+        "getaddrinfo",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("resolution failed")),
+    )
+
+    with pytest.raises(dispatch.DispatchError, match="host_listener_unavailable"):
+        dispatch._discover_apple_host_bind_address(())
+
+
+def test_docker_gateway_preserves_bridge_inspection_without_host_bind_requirement(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[list[str]] = []
+
+    def fake_run(argv: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        calls.append(argv)
+        return subprocess.CompletedProcess(
+            argv,
+            0,
+            json.dumps([{"IPAM": {"Config": [{"Gateway": "172.17.0.1"}]}}]),
+            "",
+        )
+
+    monkeypatch.setattr(dispatch, "_run", fake_run)
+    monkeypatch.setattr(
+        dispatch,
+        "_address_is_bindable",
+        lambda _address: (_ for _ in ()).throw(AssertionError("Docker must not host-bind gateway")),
+    )
+
+    assert dispatch._discover_gateway("/usr/local/bin/docker", "docker", None) == "172.17.0.1"
+    assert calls == [["/usr/local/bin/docker", "network", "inspect", "bridge"]]
+
+
+def test_apple_canaries_share_exact_listener_address_on_unique_internal_network(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runtime_subnets = (dispatch.ipaddress.ip_network("192.168.64.0/24"),)
+    host_address = "10.0.0.20"
+    call_order: list[str] = []
+    listener_addresses: list[str | None] = []
+    container_calls: list[dict[str, Any]] = []
+    container_argvs: list[list[str]] = []
+    build_container_argv = dispatch._container_run_argv
+    outer_payload = {
+        "guest_platform_supported": True,
+        "host_reachable": True,
+        "dns_blocked": True,
+        "direct_ip_blocked": True,
+        "source_read_only": True,
+        "input_read_only": True,
+        "root_read_only": True,
+        "result_volume_writable": True,
+        "private_tmpfs": True,
+    }
+    inner_payload = {**outer_payload, "host_reachable": False}
+    payloads = iter((outer_payload, inner_payload))
+
+    def discover_subnets(_cli: str) -> tuple[dispatch.ipaddress.IPv4Network, ...]:
+        call_order.append("inspect-default-subnet")
+        return runtime_subnets
+
+    def discover_host(
+        subnets: tuple[dispatch.ipaddress.IPv4Network, ...],
+    ) -> str:
+        assert subnets == runtime_subnets
+        call_order.append("select-host-listener")
+        return host_address
+
+    def create_network(_cli: str) -> str:
+        call_order.append("create-temporary-network")
+        return "unique-internal"
+
+    monkeypatch.setattr(dispatch, "_discover_apple_runtime_subnets", discover_subnets)
+    monkeypatch.setattr(dispatch, "_discover_apple_host_bind_address", discover_host)
+    monkeypatch.setattr(dispatch, "_create_apple_network", create_network)
+    monkeypatch.setattr(dispatch, "_create_result_volume", lambda *_args: "result-volume")
+    monkeypatch.setattr(dispatch, "_initialize_result_volume", lambda **_kwargs: True)
+
+    def fake_listener(address: str | None = None) -> nullcontext[tuple[str, int, bool]]:
+        listener_addresses.append(address)
+        return nullcontext((str(address), 43123, True))
+
+    def capture_container_argv(**kwargs: Any) -> list[str]:
+        container_calls.append(dict(kwargs))
+        argv = build_container_argv(**kwargs)
+        container_argvs.append(argv)
+        return argv
+
+    monkeypatch.setattr(dispatch, "_host_listener", fake_listener)
+    monkeypatch.setattr(dispatch, "_container_run_argv", capture_container_argv)
+    monkeypatch.setattr(
+        dispatch,
+        "_run",
+        lambda argv, **_kwargs: subprocess.CompletedProcess(argv, 0, "", ""),
+    )
+    monkeypatch.setattr(dispatch, "_parse_canary", lambda _completed: next(payloads))
+    monkeypatch.setattr(dispatch, "_cleanup_container", lambda *_args: True)
+    monkeypatch.setattr(dispatch, "_cleanup_container_resources", lambda **_kwargs: True)
+
+    results = dispatch._run_container_canary(
+        "/usr/local/bin/container",
+        "apple-container",
+        _image(),
+    )
+
+    assert call_order == [
+        "inspect-default-subnet",
+        "select-host-listener",
+        "create-temporary-network",
+    ]
+    assert listener_addresses == [host_address]
+    assert len(container_calls) == 2
+    assert all(call["apple_network"] == "unique-internal" for call in container_calls)
+    assert all(argv[argv.index("--network") + 1] == "unique-internal" for argv in container_argvs)
+    assert all("--no-dns" in argv for argv in container_argvs)
+    assert all(f"host = {host_address!r}" in call["command"][-1] for call in container_calls)
+    assert results["outer_host_control"] is True
+    assert results["inner_host_blocked"] is True
+
+
+def test_host_listener_normalizes_bind_race(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class BindRaceSocket:
+        def setsockopt(self, *_args: object) -> None:
+            return None
+
+        def bind(self, _address: tuple[str, int]) -> None:
+            raise OSError("address changed after discovery")
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr(dispatch.socket, "socket", lambda *_args: BindRaceSocket())
+
+    with pytest.raises(dispatch.DispatchError, match="host_listener_unavailable"):
+        with dispatch._host_listener("10.0.0.20"):
+            raise AssertionError("listener must not yield after bind race")
+
+
+def test_explicit_host_listener_normalizes_self_connect_failure_and_cleans_up(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state = {"closed": False, "started": False, "joined": False}
+
+    class ListenerSocket:
+        def setsockopt(self, *_args: object) -> None:
+            return None
+
+        def bind(self, _address: tuple[str, int]) -> None:
+            return None
+
+        def listen(self, _backlog: int) -> None:
+            return None
+
+        def settimeout(self, _timeout: float) -> None:
+            return None
+
+        def getsockname(self) -> tuple[str, int]:
+            return ("10.0.0.20", 43123)
+
+        def accept(self) -> tuple[object, tuple[str, int]]:
+            raise AssertionError("test thread must not execute listener loop")
+
+        def close(self) -> None:
+            state["closed"] = True
+
+    class ListenerThread:
+        def start(self) -> None:
+            state["started"] = True
+
+        def join(self, *, timeout: int) -> None:
+            assert timeout == 1
+            state["joined"] = True
+
+    monkeypatch.setattr(dispatch.socket, "socket", lambda *_args: ListenerSocket())
+    monkeypatch.setattr(
+        dispatch.socket,
+        "create_connection",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("self-connect failed")),
+    )
+    monkeypatch.setattr(
+        dispatch.threading,
+        "Thread",
+        lambda **_kwargs: ListenerThread(),
+    )
+
+    with pytest.raises(dispatch.DispatchError, match="host_listener_unavailable"):
+        with dispatch._host_listener("10.0.0.20"):
+            raise AssertionError("listener must not yield after self-connect failure")
+
+    assert state == {"closed": True, "started": True, "joined": True}
+
+
+def test_default_listener_preserves_native_and_docker_bind_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class BindFailureSocket:
+        def setsockopt(self, *_args: object) -> None:
+            return None
+
+        def bind(self, _address: tuple[str, int]) -> None:
+            raise OSError("legacy bind failure")
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr(dispatch, "_discover_host_bind_address", lambda: "10.0.0.20")
+    monkeypatch.setattr(dispatch.socket, "socket", lambda *_args: BindFailureSocket())
+
+    with pytest.raises(OSError, match="legacy bind failure"):
+        with dispatch._host_listener():
+            raise AssertionError("listener must not yield after bind failure")
+
+
+def test_default_listener_preserves_native_and_docker_self_connect_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(dispatch, "_discover_host_bind_address", lambda: "127.0.0.1")
+    monkeypatch.setattr(
+        dispatch.socket,
+        "create_connection",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("legacy self-connect failure")),
+    )
+
+    with pytest.raises(OSError, match="legacy self-connect failure"):
+        with dispatch._host_listener():
+            raise AssertionError("listener must not yield after self-connect failure")
+
+
+def test_host_listener_blocker_is_closed_and_address_is_not_persisted() -> None:
+    probe = dispatch._failed_probe("apple-container", "host_listener_unavailable")
+    artifact = probe.to_artifact()
+
+    assert artifact["blocking_reasons"] == ["host_listener_unavailable"]
+    assert "10.0.0.20" not in json.dumps(artifact, sort_keys=True)
+
+
+def test_probe_preserves_host_listener_blocker_without_host_identity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(dispatch.platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(dispatch.platform, "machine", lambda: "arm64")
+    monkeypatch.setattr(dispatch, "_resolve_cli", lambda _name: "/usr/local/bin/container")
+    monkeypatch.setattr(dispatch, "_runtime_version", lambda _cli: "1.1.0")
+    monkeypatch.setattr(dispatch, "_runtime_readiness_reason", lambda *_args: None)
+    monkeypatch.setattr(dispatch, "_inspect_image", lambda *_args: _DIGEST)
+    monkeypatch.setattr(
+        dispatch,
+        "_run_container_canary",
+        lambda *_args: (_ for _ in ()).throw(dispatch.DispatchError("host_listener_unavailable")),
+    )
+
+    artifact = dispatch.probe_backend("apple-container", _image()).to_artifact()
+    serialized = json.dumps(artifact, sort_keys=True)
+
+    assert artifact["blocking_reasons"] == ["host_listener_unavailable"]
+    assert artifact["strict_isolation"] is False
+    assert "10.0.0.20" not in serialized
 
 
 def test_apple_volume_uses_supported_bounded_size_flag(
@@ -627,6 +1180,8 @@ def test_capability_validator_matches_platform_and_isolation_schema() -> None:
         "apple-container": "apple_internal_no_dns_plus_linux_unshare",
         "docker": "docker_network_none_plus_linux_unshare",
     }
+    schema_blockers = set(schema["properties"]["blocking_reasons"]["items"]["enum"])
+    assert schema_blockers == set(dispatch.BLOCKER_CODES)
 
 
 def test_host_listener_marks_successful_positive_control_ready(
@@ -675,6 +1230,42 @@ def test_probe_cli_requires_immutable_image() -> None:
         dispatch._parse_args(["probe", "--backend", "auto", "--output", "probe.json"])
 
 
+def test_run_parser_attribution_defaults_remain_non_material() -> None:
+    args = dispatch._parse_args(
+        [
+            "run",
+            "--packet",
+            "packet.json",
+            "--image",
+            f"pulseplate/experiment-runner:local@{_DIGEST}",
+            "--output",
+            "result.json",
+        ]
+    )
+
+    assert args.contribution_kind == "none"
+    assert args.coauthor_required is False
+    assert args.coauthor_reason == ""
+
+
+def test_run_help_describes_material_oracle_only_attribution_boundary(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with pytest.raises(SystemExit) as caught:
+        dispatch._parse_args(["run", "--help"])
+
+    assert caught.value.code == 0
+    help_text = capsys.readouterr().out
+    normalized_help = " ".join(help_text.split())
+    assert "--contribution-kind" in help_text
+    assert "--coauthor-required" in help_text
+    assert "--coauthor-reason" in help_text
+    assert "oracle-only governance evidence" in normalized_help
+    assert "candidate-patch mode rejects material/non-default attribution" in normalized_help
+    assert "accepted oracle-only result" in normalized_help
+    assert "if it materially shapes the engineering decision" in normalized_help
+
+
 def test_artifact_root_rejects_symlinked_components(tmp_path: Path) -> None:
     real = tmp_path / "real"
     real.mkdir()
@@ -712,6 +1303,69 @@ def test_sanitize_result_rejects_malformed_oracle_before_transform() -> None:
         dispatch._sanitize_result(result, _probe("apple-container", strict=True))
 
 
+def test_sanitize_accepted_result_preserves_material_attribution() -> None:
+    sanitized = dispatch._sanitize_result(
+        _accepted_oracle_result(),
+        _probe("apple-container", strict=True),
+        requested_contribution_kind="oracle_review",
+        requested_coauthor_required=True,
+        requested_coauthor_reason=("Material oracle review shaped the commit decision."),
+    )
+
+    assert sanitized["contribution_kind"] == "oracle_review"
+    assert sanitized["coauthor_required"] is True
+    assert sanitized["coauthor_reason"] == ("Material oracle review shaped the commit decision.")
+
+
+def test_sanitize_rejects_attributed_acceptance_for_default_request() -> None:
+    with pytest.raises(dispatch.DispatchError, match="result_validation_failed"):
+        dispatch._sanitize_result(
+            _accepted_oracle_result(),
+            _probe("apple-container", strict=True),
+        )
+
+
+def test_sanitize_rejects_altered_attribution_for_material_request() -> None:
+    result = _accepted_oracle_result()
+    result["contribution_kind"] = "commit_decision"
+    result["coauthor_reason"] = "Altered contribution provenance."
+
+    with pytest.raises(dispatch.DispatchError, match="result_validation_failed"):
+        dispatch._sanitize_result(
+            result,
+            _probe("apple-container", strict=True),
+            requested_contribution_kind="oracle_review",
+            requested_coauthor_required=True,
+            requested_coauthor_reason=("Material oracle review shaped the commit decision."),
+        )
+
+
+def test_sanitize_accepts_rejected_result_with_canonical_attribution_reset() -> None:
+    result = _accepted_oracle_result()
+    result.update(
+        {
+            "status": "rejected",
+            "failure_class": "policy_violation",
+            "contribution_kind": "none",
+            "coauthor_required": False,
+            "coauthor_reason": "",
+        }
+    )
+
+    sanitized = dispatch._sanitize_result(
+        result,
+        _probe("apple-container", strict=True),
+        requested_contribution_kind="oracle_review",
+        requested_coauthor_required=True,
+        requested_coauthor_reason=("Material oracle review shaped the commit decision."),
+    )
+
+    assert sanitized["status"] == "rejected"
+    assert sanitized["contribution_kind"] == "none"
+    assert sanitized["coauthor_required"] is False
+    assert sanitized["coauthor_reason"] == ""
+
+
 def test_collector_is_nofollow_regular_file_and_size_bounded() -> None:
     assert "O_NOFOLLOW" in dispatch._COLLECTOR_CODE
     assert "S_ISREG" in dispatch._COLLECTOR_CODE
@@ -730,6 +1384,9 @@ def test_post_preflight_failure_is_validated_infra_flake() -> None:
     assert result["failure_class"] == "infra_flake"
     assert result["budget_observations"]["runner_error"] == "runner_execution_failed"
     assert result["budget_observations"]["configured_budgets"]["network_budget"] == 0
+    assert result["contribution_kind"] == "none"
+    assert result["coauthor_required"] is False
+    assert result["coauthor_reason"] == ""
 
 
 def test_pre_run_image_drift_is_non_retryable_capability_mismatch(
@@ -771,6 +1428,195 @@ def test_pre_run_image_drift_is_non_retryable_capability_mismatch(
     assert written["budget_observations"]["runner_error"] == "image_digest_drift"
     assert written["budget_observations"]["attempts"] == 0
     assert written["budget_observations"]["configured_budgets"]["network_budget"] == 0
+
+
+def test_run_preserves_host_listener_blocker_and_resets_rejected_attribution(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    packet_path = tmp_path / "packet.json"
+    packet_path.write_text(json.dumps(_packet()), encoding="utf-8")
+    output_path = tmp_path / "result.json"
+    probe = dispatch._failed_probe("apple-container", "host_listener_unavailable")
+    written: dict[str, Any] = {}
+
+    monkeypatch.setattr(
+        dispatch,
+        "_parse_args",
+        lambda _argv: SimpleNamespace(
+            command="run",
+            backend="apple-container",
+            packet="packet.json",
+            candidate_patch=None,
+            image=f"pulseplate/experiment-runner:local@{_DIGEST}",
+            output="result.json",
+            contribution_kind="oracle_review",
+            coauthor_required=True,
+            coauthor_reason="Material oracle review would shape the commit decision.",
+        ),
+    )
+    monkeypatch.setattr(dispatch, "_require_repo_local_file", lambda *_args, **_kwargs: packet_path)
+    monkeypatch.setattr(dispatch, "_resolve_local_output", lambda *_args, **_kwargs: output_path)
+    monkeypatch.setattr(dispatch, "select_backend", lambda *_args: (None, [probe]))
+    monkeypatch.setattr(
+        dispatch,
+        "_atomic_write_json",
+        lambda _path, payload: written.update(payload),
+    )
+
+    assert dispatch.main([]) == 1
+    assert written["failure_class"] == "capability_mismatch"
+    assert written["budget_observations"]["runner_error"] == "host_listener_unavailable"
+    assert written["execution_backend"]["preflight_status"] == "failed"
+    assert written["contribution_kind"] == "none"
+    assert written["coauthor_required"] is False
+    assert written["coauthor_reason"] == ""
+    assert "10.0.0.20" not in json.dumps(written, sort_keys=True)
+
+
+def test_main_normalizes_material_attribution_before_strict_dispatch(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    packet_path = tmp_path / "packet.json"
+    packet_path.write_text(json.dumps(_packet()), encoding="utf-8")
+    output_path = tmp_path / "result.json"
+    probe = _probe("apple-container", strict=True)
+    invocation: dict[str, Any] = {}
+    reason = "Material oracle review shaped the commit decision."
+
+    monkeypatch.setattr(
+        dispatch,
+        "_parse_args",
+        lambda _argv: SimpleNamespace(
+            command="run",
+            backend="apple-container",
+            packet="packet.json",
+            candidate_patch=None,
+            image=f"pulseplate/experiment-runner:local@{_DIGEST}",
+            output="result.json",
+            contribution_kind="oracle_review",
+            coauthor_required=True,
+            coauthor_reason=f"  {reason}  ",
+        ),
+    )
+    monkeypatch.setattr(dispatch, "_require_repo_local_file", lambda *_args, **_kwargs: packet_path)
+    monkeypatch.setattr(dispatch, "_resolve_local_output", lambda *_args, **_kwargs: output_path)
+    monkeypatch.setattr(dispatch, "select_backend", lambda *_args: (probe, [probe]))
+
+    def capture_invocation(**kwargs: Any) -> dict[str, Any]:
+        invocation.update(kwargs)
+        return _accepted_oracle_result()
+
+    monkeypatch.setattr(dispatch, "_invoke_container_runner", capture_invocation)
+    monkeypatch.setattr(dispatch, "_atomic_write_json", lambda *_args, **_kwargs: None)
+
+    assert dispatch.main([]) == 0
+    assert invocation["contribution_kind"] == "oracle_review"
+    assert invocation["coauthor_required"] is True
+    assert invocation["coauthor_reason"] == reason
+
+
+@pytest.mark.parametrize("backend", ["apple-container", "docker"])
+def test_container_runner_attribution_argv_has_backend_parity_and_default_omission(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    backend: str,
+) -> None:
+    packet_path = tmp_path / "packet.json"
+    packet_path.write_text(json.dumps(_packet()), encoding="utf-8")
+    captured_commands: list[list[str]] = []
+
+    monkeypatch.setattr(dispatch, "_resolve_cli", lambda _name: "/usr/local/bin/runtime")
+    monkeypatch.setattr(
+        dispatch,
+        "_create_snapshot",
+        lambda _root, destination: destination.mkdir() or "",
+    )
+    monkeypatch.setattr(dispatch, "_create_apple_network", lambda _cli: "run-network")
+    monkeypatch.setattr(dispatch, "_inspect_image", lambda *_args: _DIGEST)
+    monkeypatch.setattr(dispatch, "_create_result_volume", lambda *_args: "result-volume")
+    monkeypatch.setattr(dispatch, "_initialize_result_volume", lambda **_kwargs: True)
+
+    def capture_container_argv(**kwargs: Any) -> list[str]:
+        captured_commands.append(list(kwargs["command"]))
+        return ["/usr/local/bin/runtime", "run"]
+
+    monkeypatch.setattr(dispatch, "_container_run_argv", capture_container_argv)
+    monkeypatch.setattr(
+        dispatch,
+        "_run",
+        lambda argv, **_kwargs: subprocess.CompletedProcess(argv, 0, "", ""),
+    )
+    monkeypatch.setattr(dispatch, "_cleanup_container", lambda *_args: True)
+    monkeypatch.setattr(dispatch, "_collect_result_volume", lambda **_kwargs: {})
+    monkeypatch.setattr(dispatch, "_cleanup_container_resources", lambda **_kwargs: True)
+    monkeypatch.setattr(
+        dispatch,
+        "_sanitize_result",
+        lambda payload, _probe, **_kwargs: payload,
+    )
+
+    reason = "Material oracle review shaped the commit decision."
+    dispatch._invoke_container_runner(
+        probe=_probe(backend, strict=True),
+        image=_image(),
+        packet_path=packet_path,
+        candidate_patch=None,
+        output_name="result.json",
+        contribution_kind="oracle_review",
+        coauthor_required=True,
+        coauthor_reason=reason,
+    )
+
+    assert captured_commands == [
+        [
+            dispatch.CONTAINER_PYTHON,
+            f"{dispatch.CONTAINER_REPO}/scripts/orchestration/experiment_runner.py",
+            "--packet",
+            f"{dispatch.CONTAINER_INPUT}/packet.json",
+            "--output",
+            "result.json",
+            "--contribution-kind",
+            "oracle_review",
+            "--coauthor-required",
+            "--coauthor-reason",
+            reason,
+        ]
+    ]
+
+    captured_commands.clear()
+    dispatch._invoke_container_runner(
+        probe=_probe(backend, strict=True),
+        image=_image(),
+        packet_path=packet_path,
+        candidate_patch=None,
+        output_name="default-oracle-result.json",
+    )
+    default_oracle_command = captured_commands.pop()
+    assert "--candidate-patch" not in default_oracle_command
+    assert "--contribution-kind" not in default_oracle_command
+    assert "--coauthor-required" not in default_oracle_command
+    assert "--coauthor-reason" not in default_oracle_command
+
+    candidate_packet = _packet()
+    candidate_packet["runner_mode"] = "candidate_patch"
+    candidate_packet["mutable_candidate_surface"] = ["core/rag/orchestration.py"]
+    packet_path.write_text(json.dumps(candidate_packet), encoding="utf-8")
+    candidate_patch = tmp_path / "candidate.patch"
+    candidate_patch.write_text("", encoding="utf-8")
+    dispatch._invoke_container_runner(
+        probe=_probe(backend, strict=True),
+        image=_image(),
+        packet_path=packet_path,
+        candidate_patch=candidate_patch,
+        output_name="default-candidate-result.json",
+    )
+    default_candidate_command = captured_commands.pop()
+    assert "--candidate-patch" in default_candidate_command
+    assert "--contribution-kind" not in default_candidate_command
+    assert "--coauthor-required" not in default_candidate_command
+    assert "--coauthor-reason" not in default_candidate_command
 
 
 @pytest.mark.parametrize("backend", ["apple-container", "docker"])
@@ -833,14 +1679,104 @@ def test_nonzero_network_budget_fails_before_backend_selection(
     assert written["execution_backend"]["preflight_status"] == "failed"
 
 
+@pytest.mark.parametrize(
+    ("packet_mode", "contribution_kind", "coauthor_required", "coauthor_reason", "message"),
+    [
+        (
+            "oracle_only_governance_reviewer",
+            "oracle_review",
+            False,
+            "",
+            "material contribution_kind requires coauthor_required",
+        ),
+        (
+            "candidate_patch",
+            "oracle_review",
+            True,
+            "Material oracle review shaped the commit decision.",
+            "supported only in oracle-only mode",
+        ),
+        (
+            "oracle_only_governance_reviewer",
+            "none",
+            "true",
+            "",
+            "coauthor_required must be a boolean",
+        ),
+    ],
+)
+def test_invalid_or_candidate_attribution_rejects_before_backend_selection(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    packet_mode: str,
+    contribution_kind: str,
+    coauthor_required: Any,
+    coauthor_reason: str,
+    message: str,
+) -> None:
+    packet = _packet()
+    packet["runner_mode"] = packet_mode
+    if packet_mode == "candidate_patch":
+        packet["mutable_candidate_surface"] = ["core/rag/orchestration.py"]
+    packet_path = tmp_path / "packet.json"
+    packet_path.write_text(json.dumps(packet), encoding="utf-8")
+    candidate_patch = tmp_path / "candidate.patch"
+    candidate_patch.write_text("", encoding="utf-8")
+
+    monkeypatch.setattr(
+        dispatch,
+        "_parse_args",
+        lambda _argv: SimpleNamespace(
+            command="run",
+            backend="auto",
+            packet="packet.json",
+            candidate_patch="candidate.patch" if packet_mode == "candidate_patch" else None,
+            image=f"pulseplate/experiment-runner:local@{_DIGEST}",
+            output="result.json",
+            contribution_kind=contribution_kind,
+            coauthor_required=coauthor_required,
+            coauthor_reason=coauthor_reason,
+        ),
+    )
+
+    def resolve_input(raw: str, **_kwargs: object) -> Path:
+        return candidate_patch if raw == "candidate.patch" else packet_path
+
+    monkeypatch.setattr(dispatch, "_require_repo_local_file", resolve_input)
+    monkeypatch.setattr(
+        dispatch,
+        "_resolve_local_output",
+        lambda *_args, **_kwargs: tmp_path / "result.json",
+    )
+    monkeypatch.setattr(
+        dispatch,
+        "select_backend",
+        lambda *_args: (_ for _ in ()).throw(AssertionError("backend probe must not run")),
+    )
+
+    assert dispatch.main([]) == 2
+    assert message in capsys.readouterr().err
+
+
 def test_probe_cleanup_failure_overrides_original_exception(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setattr(
+        dispatch,
+        "_discover_apple_runtime_subnets",
+        lambda _cli: (dispatch.ipaddress.ip_network("192.168.64.0/24"),),
+    )
+    monkeypatch.setattr(
+        dispatch,
+        "_discover_apple_host_bind_address",
+        lambda _subnets: "10.0.0.20",
+    )
     monkeypatch.setattr(dispatch, "_create_apple_network", lambda _cli: "probe-network")
     monkeypatch.setattr(
         dispatch,
-        "_discover_gateway",
-        lambda *_args: (_ for _ in ()).throw(dispatch.DispatchError("network_gateway_unavailable")),
+        "_create_result_volume",
+        lambda *_args: (_ for _ in ()).throw(dispatch.DispatchError("result_volume_failed")),
     )
     monkeypatch.setattr(dispatch, "_delete_apple_network", lambda *_args: False)
 
@@ -848,7 +1784,7 @@ def test_probe_cleanup_failure_overrides_original_exception(
         dispatch._run_container_canary("/usr/local/bin/container", "apple-container", _image())
 
     assert isinstance(caught.value.__cause__, dispatch.DispatchError)
-    assert caught.value.__cause__.code == "network_gateway_unavailable"
+    assert caught.value.__cause__.code == "result_volume_failed"
 
 
 def test_pre_run_cleanup_failure_overrides_capability_drift(

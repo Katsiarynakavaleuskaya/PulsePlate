@@ -72,9 +72,12 @@ Strict Apple execution requires all of the following:
 
 - an internal Apple network and `--no-dns`;
 - guest `unshare --net --map-root-user` without added capabilities;
-- a runtime-inspected gateway, never a hard-coded host address;
+- the IPv4 subnet inspected from Apple Container's persistent built-in
+  `default` network, used only to exclude runtime-owned host candidates;
 - a real host TCP listener that is reachable in the outer Apple guest as a
-  positive control, while DNS and direct-IP outbound are blocked;
+  positive control, bound to the one safe, locally bindable AF_INET/SOCK_STREAM
+  address returned for the local hostname while DNS and direct-IP outbound are
+  blocked;
 - a separate inner-namespace canary proving that the same host listener, DNS,
   and direct-IP outbound are all blocked by guest `unshare`;
 - repository, packet, patch, and root filesystem read-only;
@@ -86,6 +89,23 @@ Strict Apple execution requires all of the following:
   the Runner's required no-hardlinks temporary clone;
 - forced deletion of uniquely named runner/canary containers before volume and
   network cleanup.
+
+The positive-control identity comes only from hostname AF_INET/SOCK_STREAM
+resolution. Before creating the temporary canary network, the dispatcher
+deduplicates those addresses and removes loopback, unspecified, multicast,
+link-local, reserved, Apple-runtime-subnet, and locally unbindable candidates.
+Exactly one candidate must remain. It is bound by the listener and targeted by
+both canaries, but is never written to capability or result artifacts. Multiple
+eligible candidates, no eligible candidate, hostname resolution failure, or a
+bind race fails closed as `host_listener_unavailable`; there is no ordering,
+interface heuristic, wildcard bind, hard-coded address, fallback, or retry.
+Canary containers still run on one unique internal `--no-dns` network. Missing
+or malformed persistent `default` IPv4 subnet metadata retains the existing
+`network_gateway_unavailable` compatibility blocker. Every encountered
+`ipv4Subnet` value is parsed as a strict IPv4 network: identical values
+deduplicate, exactly one distinct network must remain, and IPv6, host-bit-set,
+malformed, or multiple distinct values fail closed under the same compatibility
+blocker.
 
 Docker requires the same guest and mount controls, with whole-container
 `--network none` and a bounded `/tmp` tmpfs. Its outer and inner canaries both
@@ -110,6 +130,37 @@ python3 scripts/orchestration/experiment_runner_dispatch.py run \
   --image pulseplate/experiment-runner:mac-local@sha256:<digest> \
   --output <result>.json
 ```
+
+When an oracle-only review is intended to materially shape the engineering
+decision if accepted, pass the complete attribution triple. The reason remains
+one literal argv value, including when it contains spaces:
+
+```bash
+python3 scripts/orchestration/experiment_runner_dispatch.py run \
+  --backend auto \
+  --packet artifacts/orchestration/experiments/packets/<packet>.json \
+  --image pulseplate/experiment-runner:mac-local@sha256:<digest> \
+  --output <result>.json \
+  --contribution-kind oracle_review \
+  --coauthor-required \
+  --coauthor-reason "Material oracle review shaped the engineering decision."
+```
+
+Omit all three attribution flags when the Runner contribution is not material.
+The dispatcher validates the tuple before backend selection and accepts a
+material tuple only for oracle-only governance review. Candidate-patch mode
+rejects material/non-default attribution. The same validated tuple is forwarded
+as exact inner-runner argv on Apple Container and Docker; default tuples add no
+inner argv. After collection and redaction, the host dispatcher requires an
+accepted result's attribution tuple to equal the requested normalized tuple
+exactly; a rejected result must use canonical `contribution_kind: none`,
+`coauthor_required: false`, and `coauthor_reason: ""`. Any mismatch fails as
+`result_validation_failed` without exposing raw metadata. If an accepted
+attributed artifact is later unused,
+governed identity policy determines that no Experiment Runner trailer is
+required. Attribution metadata records material evidence use only. It does not
+start a container, approve promotion, open or merge a PR, or grant runtime
+authority.
 
 Candidate mode additionally passes a repository-local patch:
 
@@ -143,7 +194,8 @@ or substitute an image after preflight.
 - `image_missing`, `image_digest_drift`;
 - `guest_unshare_unavailable`, `guest_platform_mismatch`;
 - `strict_network_budget_required`, `filesystem_isolation_unavailable`;
-- `network_gateway_unavailable`, `network_isolation_failed`,
+- `host_listener_unavailable`, `network_gateway_unavailable`,
+  `network_isolation_failed`,
   `mount_contract_failed`;
 - `result_volume_failed`, `container_cleanup_failed`;
 - `probe_execution_failed`.
