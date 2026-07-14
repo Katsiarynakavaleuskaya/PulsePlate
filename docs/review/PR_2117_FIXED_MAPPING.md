@@ -62,6 +62,21 @@ already root/Docker-equivalent operator authority or described operational
 availability behavior without a new lower-privileged attack path. The sealed
 report is local-only at the scan workspace path and no live deployment occurred.
 
+### Supplemental Docker Source Review Scan
+
+Disposition: NOT-A-BUG
+Evidence: Codex Security scan `5d1ee294-2b0e-4294-850d-005a60691b68`
+sealed the exact follow-up range
+`3b264f6ac644e9b104eb944b4f29290f0a9fcd7a..dfd91f432d348d9c2b7aaf7780ef129ed6263cc8`
+with three of three explicitly seeded JSON, test, and governance rows closed
+and zero reportable findings. The immutable SQLite version, authoritative HTTPS
+URL, safe filename, and SHA3-256 remained unchanged; the review window moved
+from the expired `2026-07-13` date to the bounded `2026-07-28` date after an
+independent upstream archive verification.
+Reason: The earlier sealed full material scan and this sealed exact-delta scan
+together cover all material PR changes through `dfd91f432`. No suppressions,
+new permissions, deployment authority, or live rollout were introduced.
+
 ## PulsePlate PR Review Evidence
 
 Disposition: NOT-A-BUG
@@ -240,9 +255,40 @@ readiness paths passed the final security audit.
 Reason: The P2 secret-output and non-atomic environment replacement findings
 were fixed before the definitive security pass.
 
-The mandatory final Codex Security and PulsePlate PR review passes are complete.
-Current-head CI, the review wait window, discussion disposition checks, and the
-strict authenticated merge-readiness gate remain pending.
+### Docker Source Review Remediation QA Engineer Agent
+
+Disposition: FIXED
+Commit: dfd91f432
+Evidence: Exact range `3b264f6ac..dfd91f432`; the unchanged SQLite 3.53.2
+archive URL and SHA3-256 were independently revalidated, the review window is
+fourteen days, the complete Docker workflow contract suite passed 18 tests,
+and preflight, consistency, and `git diff --check` passed.
+Reason: The required Docker build gate exposed a genuinely stale review window;
+the bounded remediation renews review ownership without changing source identity
+or weakening the loader.
+
+### Docker Source Review Remediation Bug Hunter
+
+Disposition: NOT-A-BUG
+Evidence: Exact range `3b264f6ac..dfd91f432`; the loader accepts the review
+window through `2026-07-28` and rejects `2026-07-29`, while unsafe hosts,
+filenames, and tampered payloads still fail closed.
+Reason: No P0-P2 correctness defect remained in the three-file remediation.
+
+### Docker Source Review Remediation Security Auditor
+
+Disposition: NOT-A-BUG
+Evidence: Exact range `3b264f6ac..dfd91f432`; SQLite stays at `3530200`, the
+HTTPS `sqlite.org` URL and SHA3-256 are unchanged, the review window is bounded,
+focused tests passed, and Caddy/Go inputs, Trivy policy, and deployment authority
+were untouched.
+Reason: The supply-chain control remains fail closed and no suppression or
+privileged-boundary expansion was introduced.
+
+The mandatory role chain and Codex Security material scans are complete.
+The final remote-head PulsePlate PR review, current-head CI, review wait window,
+discussion disposition checks, and strict authenticated merge-readiness gate
+remain pending.
 
 ## Experiment Runner Evidence
 
@@ -277,6 +323,8 @@ The packet routed mandatory ordered roles and did not execute them implicitly.
   and the rebuilt Caddy binary.
 - Not run: local `make verify`, per repository machine-budget policy.
 - PASS: exact-material-head Codex Security scan and PulsePlate PR review.
+- PASS: supplemental exact-delta Codex Security scan for the Docker source
+  review-window remediation.
 - Pending: current-head GitHub CI and review governance.
 
 ## Merge Readiness
