@@ -952,8 +952,25 @@ def test_api_key_ownership_guard_rejects_dynamic_import_legacy_lookup(source: st
             "app/main.py: dynamic legacy API-key dependency lookup is forbidden: "
             "_get_api_key_dynamic",
         ),
+        (
+            "def dependency():\n" "    import legacy_app\n" "    return legacy_app.get_api_key\n",
+            "app/main.py: legacy API-key dependency attribute access is forbidden: get_api_key",
+        ),
+        (
+            "def dependency():\n"
+            "    import importlib as il\n"
+            '    legacy = il.import_module("legacy_app")\n'
+            "    return legacy.get_api_key\n",
+            "app/main.py: legacy API-key dependency attribute access is forbidden: get_api_key",
+        ),
     ],
-    ids=["nested-module", "nested-importlib", "nested-import-from"],
+    ids=[
+        "nested-module-alias",
+        "nested-importlib-direct",
+        "nested-import-from",
+        "nested-module-plain",
+        "nested-importlib-intermediate",
+    ],
 )
 def test_api_key_ownership_guard_rejects_nested_legacy_aliases(
     source: str,
