@@ -85,20 +85,23 @@ if ! awk -F= '$1 !~ /^(APP_ENV|ENVIRONMENT|SUBSCRIPTION_DB_ENABLED|ALLOW_DEV_API
     echo "❌ Failed to clean production environment flags"
     exit 1
 fi
-if ! mv "$CLEAN_ENV_FILE" .env; then
-    echo "❌ Failed to replace the production environment file"
-    exit 1
-fi
-CLEAN_ENV_FILE=""
-trap - EXIT
-{
+if ! {
     echo ""
     echo "APP_ENV=production"
     echo "ENVIRONMENT=production"
     echo "SUBSCRIPTION_DB_ENABLED=true"
     echo "ALLOW_DEV_API_KEY=false"
     echo "API_KEY_REQUIRED=true"
-} >> .env
+} >> "$CLEAN_ENV_FILE"; then
+    echo "❌ Failed to write production environment flags"
+    exit 1
+fi
+if ! mv "$CLEAN_ENV_FILE" .env; then
+    echo "❌ Failed to replace the production environment file"
+    exit 1
+fi
+CLEAN_ENV_FILE=""
+trap - EXIT
 echo "✅ Set: APP_ENV=production, ENVIRONMENT=production, SUBSCRIPTION_DB_ENABLED=true, ALLOW_DEV_API_KEY=false, API_KEY_REQUIRED=true"
 echo ""
 

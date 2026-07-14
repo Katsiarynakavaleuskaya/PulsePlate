@@ -434,9 +434,23 @@ def test_production_quick_fix_replaces_env_atomically_with_preserved_mode(tmp_pa
     )
 
     env_path = tmp_path / "production" / ".env"
+    env_text = env_path.read_text(encoding="utf-8")
+    script_text = (REPO_ROOT / "scripts" / "QUICK_FIX_PRODUCTION.sh").read_text(encoding="utf-8")
     assert completed.returncode == 0
     assert stat.S_IMODE(env_path.stat().st_mode) == 0o640
     assert list(env_path.parent.glob(".env.clean.*")) == []
+    for required_flag in (
+        "APP_ENV=production",
+        "ENVIRONMENT=production",
+        "SUBSCRIPTION_DB_ENABLED=true",
+        "ALLOW_DEV_API_KEY=false",
+        "API_KEY_REQUIRED=true",
+    ):
+        assert env_text.count(required_flag) == 1
+    assert script_text.index('} >> "$CLEAN_ENV_FILE"') < script_text.index(
+        'mv "$CLEAN_ENV_FILE" .env'
+    )
+    assert ">> .env" not in script_text
 
 
 def _run_production_quick_fix(
