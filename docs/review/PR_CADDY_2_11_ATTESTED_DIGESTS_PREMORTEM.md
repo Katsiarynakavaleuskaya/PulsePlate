@@ -77,6 +77,7 @@ scan.
 | PM-09 | Image rollback is mistaken for database rollback | migration succeeded before a later edge failure | Pre-migration backup remains mandatory; runbook separates digest rollback from DB restore |
 | PM-10 | A newer main run cancels an in-flight stateful deploy | workflow cancellation during backup/migration | Staging concurrency uses `cancel-in-progress: false` |
 | PM-11 | A refreshed vulnerability database finds a fixed inherited package after the initial scan | final-image Trivy reports HIGH/CRITICAL | Final stage upgrades `c-ares`, `curl`, and `libcurl`; merge remains blocked until the refreshed no-suppression scan is clean |
+| PM-12 | The new app serves traffic on the old schema before migration completes | `/ready` succeeds before `alembic upgrade head` | After backup, stop Caddy and app, run migration in a one-shot new-image container, then start app and finally Caddy; failure leaves both stopped |
 
 ## Pre-open checklist
 

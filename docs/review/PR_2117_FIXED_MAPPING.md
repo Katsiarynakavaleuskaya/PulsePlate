@@ -157,8 +157,8 @@ Evidence: `scripts/deploy.sh` provides a credential-free preflight, validates
 the root-owned migration marker and server-local file hashes before secrets,
 then performs the existing backup/migration/readiness sequence with two pulled
 digest references.
-Reason: Server-local migration is explicit and reversible; no live deployment
-is performed by this PR.
+Reason: Server-local migration is explicit and backup-protected; no live
+deployment is performed by this PR.
 
 ### QA Engineer Agent
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Atomic staging deploy. Requires Docker Compose and two attested GHCR digests.
+# Fail-closed staging deploy. Requires Docker Compose and two attested GHCR digests.
 set -euo pipefail
 
 STAGING_DEPLOY_CONTRACT_VERSION="2"
@@ -198,7 +198,20 @@ DOCKER_BIN="$DOCKER_BIN" PROJECT_DIR="$PROJECT_DIR" BACKUP_DIR="$BACKUP_DIR" \
   COMPOSE_FILE="$COMPOSE_FILE" \
   "$BACKUP_HELPER"
 
-echo "[4/5] Start app and run migrations before exposing Caddy"
+echo "[4/5] Quiesce public traffic and run migrations before starting the new app"
+"${COMPOSE[@]}" stop caddy app
+
+echo "Running database migrations in a one-shot container"
+if "${COMPOSE[@]}" run --rm --no-deps app alembic upgrade head; then
+  echo "✅ Database migrations completed successfully"
+else
+  migration_exit_code=$?
+  echo "❌ Database migrations failed (exit code: $migration_exit_code)" >&2
+  echo "Caddy and app remain stopped; restore the pre-migration backup before retrying if needed" >&2
+  exit "$migration_exit_code"
+fi
+
+echo "Starting app after successful migrations"
 "${COMPOSE[@]}" up -d --pull never app
 
 max_wait=30
@@ -221,16 +234,6 @@ done
 if [ "$wait_count" -eq "$max_wait" ]; then
   echo "❌ App failed to become ready within $max_wait seconds" >&2
   exit 1
-fi
-
-echo "Running database migrations in container: $app_container"
-if "$DOCKER_BIN" exec "$app_container" alembic upgrade head; then
-  echo "✅ Database migrations completed successfully in container: $app_container"
-else
-  migration_exit_code=$?
-  echo "❌ Database migrations failed in container: $app_container (exit code: $migration_exit_code)" >&2
-  echo "Check container logs with: docker logs $app_container" >&2
-  exit "$migration_exit_code"
 fi
 
 echo "[5/5] Start Caddy after successful migrations"

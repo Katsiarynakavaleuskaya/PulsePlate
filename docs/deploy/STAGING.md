@@ -249,21 +249,22 @@ ssh -i ~/.ssh/pulseplate_staging user@your-server-ip
 
 Set the **Environment variable** (Settings → Environments → staging → Environment variables):
 
-- `WEB_IOS_RELEASE_READY` = `false` (default). Keep this `false` until both web and iOS are release-ready. (`.github/workflows/cd.yml:83,98`)
-- `STAGING_DEPLOY_ENABLED` = `true` — enables SSH deploy logic, but deploy still runs only when `WEB_IOS_RELEASE_READY=true`. (`.github/workflows/cd.yml:83,98`)
+- `WEB_IOS_RELEASE_READY` = `false` (default). Keep this `false` until both web and iOS are release-ready.
+- `STAGING_DEPLOY_ENABLED` = `true` — enables SSH deploy logic, but deploy still runs only when all three rollout gates are true.
+- `STAGING_ATTESTED_DIGEST_READY` = `false` (default). Set this to `true` only after the server-local two-digest deploy contract, marker, Compose file, Caddyfile, and deploy script have been synchronized and verified.
 - `STAGING_DEPLOY_REQUIRED` = `true|false` (optional, default `false`) — controls whether a failed staging SSH deploy should fail the whole CD workflow. Keep `false` for non-blocking staging; set `true` when staging deploy must be strict/blocking.
 
 **Build-only policy (canonical):**
-- If `WEB_IOS_RELEASE_READY` is not `true`, CD remains in build/validation mode (image build+push only, no staging SSH deploy). (`.github/workflows/cd.yml:67-77,83,98`)
-- If `WEB_IOS_RELEASE_READY=true` and `STAGING_DEPLOY_ENABLED=true`, deploy runs when required secrets are present. (`.github/workflows/cd.yml:83-99`)
-- If deploy is enabled but `SSH_KEY` or `SSH_HOST_STAGING` is missing, deploy/healthcheck steps are skipped and workflow stays green. (`.github/workflows/cd.yml:81-93,98,127`)
+- Unless `WEB_IOS_RELEASE_READY=true`, `STAGING_DEPLOY_ENABLED=true`, and `STAGING_ATTESTED_DIGEST_READY=true`, CD remains in build/validation mode (image build+push only, no staging SSH deploy).
+- When all three rollout gates are true, deploy runs only when every required staging secret is present.
+- If `STAGING_DEPLOY_REQUIRED=true`, a missing rollout gate or required secret fails the workflow instead of silently skipping deployment.
 
 Add these **secrets** to the `staging` environment:
 
 - `SSH_HOST_STAGING` - Your server IP or domain
 - `SSH_USER` - SSH username (usually `root` or `ubuntu`)
 - `SSH_KEY` - Full private SSH key (PEM format), including `-----BEGIN ... KEY-----` and `-----END ... KEY-----`; preserve newlines when pasting to avoid "ssh: no key found"
-- `SSH_HOST_STAGING_FINGERPRINT` - Staging **server** host key fingerprint, usually `SHA256:...` (optional but recommended). **Easiest from your laptop:** run `ssh -o VisualHostKey=yes user@your-staging-host` and copy the `SHA256:...` line shown when connecting. **Or on the server:** after SSH in, run `sudo ssh-keygen -l -f /etc/ssh/ssh_host_ed25519_key.pub` (or `ssh_host_rsa_key.pub` / `ssh_host_ecdsa_key.pub` if present; list with `ls /etc/ssh/ssh_host_*.pub`).
+- `SSH_HOST_STAGING_FINGERPRINT` - Required staging **server** host key fingerprint, usually `SHA256:...`. **Easiest from your laptop:** run `ssh -o VisualHostKey=yes user@your-staging-host` and copy the `SHA256:...` line shown when connecting. **Or on the server:** after SSH in, run `sudo ssh-keygen -l -f /etc/ssh/ssh_host_ed25519_key.pub` (or `ssh_host_rsa_key.pub` / `ssh_host_ecdsa_key.pub` if present; list with `ls /etc/ssh/ssh_host_*.pub`).
 - `GHCR_READ_TOKEN` - GitHub PAT with `read:packages` permission
 - `STAGING_DOMAIN` - Your staging domain
 

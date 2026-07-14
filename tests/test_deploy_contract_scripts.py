@@ -2254,6 +2254,11 @@ case "$*" in
   *"ps -q postgres"*) printf 'postgres-id\n' ;;
   *"inspect --format"*) printf 'healthy\n' ;;
   *"ps -q app"*) printf 'app-id\n' ;;
+  *"run --rm --no-deps app alembic upgrade head"*)
+    if [[ "${{STUB_MIGRATION_FAILURE:-0}}" == "1" ]]; then
+      exit 42
+    fi
+    ;;
 esac
 """,
     )
@@ -2402,15 +2407,21 @@ def test_staging_deploy_preserves_backup_migration_caddy_order_and_cli_identity(
         predicate=lambda line: "compose " in line and " up -d postgres" in line,
         message="missing Postgres bootstrap",
     )
+    quiesce_index = _assert_log_index(
+        log_lines,
+        predicate=lambda line: "compose " in line and " stop caddy app" in line,
+        message="missing app/Caddy quiesce",
+    )
+    migration_index = _assert_log_index(
+        log_lines,
+        predicate=lambda line: "compose " in line
+        and " run --rm --no-deps app alembic upgrade head" in line,
+        message="missing one-shot migration",
+    )
     app_index = _assert_log_index(
         log_lines,
         predicate=lambda line: "compose " in line and " up -d --pull never app" in line,
         message="missing app start",
-    )
-    migration_index = _assert_log_index(
-        log_lines,
-        predicate=lambda line: "docker exec app-id alembic upgrade head" in line,
-        message="missing migration",
     )
     caddy_index = _assert_log_index(
         log_lines,
@@ -2422,8 +2433,9 @@ def test_staging_deploy_preserves_backup_migration_caddy_order_and_cli_identity(
         < pull_index
         < postgres_index
         < backup_index
-        < app_index
+        < quiesce_index
         < migration_index
+        < app_index
         < caddy_index
     )
     assert all("up -d --pull never postgres" not in line for line in log_lines)
@@ -2436,6 +2448,30 @@ def test_staging_deploy_preserves_backup_migration_caddy_order_and_cli_identity(
     docker_config = env_lines[-1].split(" config=", 1)[1]
     assert docker_config
     assert not Path(docker_config).exists()
+
+
+def test_staging_deploy_migration_failure_keeps_app_and_caddy_stopped(tmp_path: Path) -> None:
+    env, log_file = _staging_deploy_fixture(tmp_path)
+    env["STUB_MIGRATION_FAILURE"] = "1"
+    backend_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64
+    caddy_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
+
+    completed = subprocess.run(
+        [str(REPO_ROOT / "scripts" / "deploy.sh"), backend_ref, caddy_ref],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode == 42
+    assert "Caddy and app remain stopped" in completed.stderr
+    log_lines = log_file.read_text(encoding="utf-8").splitlines()
+    assert any(" stop caddy app" in line for line in log_lines)
+    assert any(" run --rm --no-deps app alembic upgrade head" in line for line in log_lines)
+    assert not any(" up -d --pull never app" in line for line in log_lines)
+    assert not any(" up -d --pull never caddy" in line for line in log_lines)
 
 
 def test_staging_deploy_treats_env_file_as_data_and_drops_registry_credentials(
