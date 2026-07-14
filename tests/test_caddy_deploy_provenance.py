@@ -418,11 +418,27 @@ def test_production_quick_fix_redacts_duplicate_secret_values(tmp_path: Path) ->
         ),
     )
 
-    assert completed.returncode == 0
+    assert completed.returncode == 1
+    assert "Duplicate required environment keys found in .env" in completed.stdout
     assert "POSTGRES_PASSWORD=<redacted>" in completed.stdout
     assert "DATABASE_URL=<redacted>" in completed.stdout
     assert password_sentinel not in completed.stdout
     assert dsn_sentinel not in completed.stdout
+    assert "Quick Fix Complete" not in completed.stdout
+
+
+def test_production_quick_fix_fails_closed_when_env_file_is_missing(tmp_path: Path) -> None:
+    completed = _run_production_quick_fix(
+        tmp_path,
+        caddy_version="v2.11.4 h1:test",
+        go_version="go1.26.5",
+        create_env=False,
+    )
+
+    assert completed.returncode == 1
+    assert "Production environment file is missing or unreadable: .env" in completed.stdout
+    assert "awk:" not in completed.stderr
+    assert "Quick Fix Complete" not in completed.stdout
 
 
 def test_production_quick_fix_replaces_env_atomically_with_preserved_mode(tmp_path: Path) -> None:
@@ -459,23 +475,25 @@ def _run_production_quick_fix(
     go_version: str,
     curl_exit: int = 0,
     extra_env: str = "",
+    create_env: bool = True,
 ) -> subprocess.CompletedProcess[str]:
     deploy_dir = tmp_path / "production"
     bin_dir = tmp_path / "bin"
     deploy_dir.mkdir()
     bin_dir.mkdir()
     (deploy_dir / "docker-compose.production.yaml").write_text("services: {}\n", encoding="utf-8")
-    (deploy_dir / ".env").write_text(
-        (
-            "DATABASE_URL=postgresql+psycopg://pulseplate@db/pulseplate\n"
-            "POSTGRES_DB=pulseplate\n"
-            "POSTGRES_USER=pulseplate\n"
-            "POSTGRES_PASSWORD=test\n"
-            "PRODUCTION_DOMAIN=pulseplate.test\n" + extra_env
-        ),
-        encoding="utf-8",
-    )
-    (deploy_dir / ".env").chmod(0o640)
+    if create_env:
+        (deploy_dir / ".env").write_text(
+            (
+                "DATABASE_URL=postgresql+psycopg://pulseplate@db/pulseplate\n"
+                "POSTGRES_DB=pulseplate\n"
+                "POSTGRES_USER=pulseplate\n"
+                "POSTGRES_PASSWORD=test\n"
+                "PRODUCTION_DOMAIN=pulseplate.test\n" + extra_env
+            ),
+            encoding="utf-8",
+        )
+        (deploy_dir / ".env").chmod(0o640)
     docker_stub = """#!/usr/bin/env bash
 set -euo pipefail
 case "$*" in

@@ -49,6 +49,11 @@ fi
 echo "📍 Compose file: $COMPOSE_FILE"
 echo ""
 
+if [ ! -f ".env" ] || [ ! -r ".env" ]; then
+    echo "❌ Production environment file is missing or unreadable: .env"
+    exit 1
+fi
+
 dc() {
     docker compose --env-file .env -f "$COMPOSE_FILE" "$@"
 }
@@ -57,8 +62,9 @@ dc() {
 echo "=== Step 1: Check for duplicate env vars ==="
 HAS_DUPLICATE_KEYS="$(awk -F= '/^(APP_ENV|ENVIRONMENT|POSTGRES_DB|POSTGRES_USER|POSTGRES_PASSWORD|DATABASE_URL)=/ { count[$1]++ } END { for (key in count) if (count[key] > 1) { print "yes"; exit } }' .env)"
 if [ -n "$HAS_DUPLICATE_KEYS" ]; then
-    echo "⚠️  Found potential duplicates in .env"
+    echo "❌ Duplicate required environment keys found in .env"
     awk -F= '/^(APP_ENV|ENVIRONMENT|POSTGRES_DB|POSTGRES_USER|POSTGRES_PASSWORD|DATABASE_URL)=/ { printf "%d:%s=<redacted>\n", NR, $1 }' .env
+    exit 1
 fi
 echo ""
 
