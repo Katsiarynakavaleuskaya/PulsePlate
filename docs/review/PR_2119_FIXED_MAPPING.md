@@ -47,7 +47,7 @@ Packet: `artifacts/orchestration/task_packets/910a4151ec61.json`
 ## Fixed in Commit Mapping
 
 Disposition: FIXED
-Commit: `8241a9fd7`
+Commit: 8241a9fd7
 Evidence: `scripts/orchestration/creative_code_patch_generation.py` now rejects
 unsupported top-level and nested receipt failure classes; focused tamper tests
 cover both fields with recomputed deterministic identities.
@@ -56,7 +56,7 @@ taxonomy as the Python result contract and both JSON Schemas.
 - Post-open `bug-hunter` finding: unsupported receipt failure tokens.
 
 Disposition: FIXED
-Commit: `8241a9fd7`
+Commit: 8241a9fd7
 Evidence: result and receipt validators plus their JSON Schemas now require an
 accepted top-level outcome to contain an accepted runner summary, couple runner
 status to failure nullability, and retain the valid top-level rejected / runner
@@ -66,7 +66,7 @@ recomputed identity.
 - Post-open `bug-hunter` finding: top-level and runner status incoherence.
 
 Disposition: FIXED
-Commit: `8241a9fd77aa22123c7d9f7b891c991cf7949e68`
+Commit: 8241a9fd77aa22123c7d9f7b891c991cf7949e68
 Evidence: both result and generation-receipt JSON Schemas now use accepted and
 rejected `allOf` branches that require accepted outcomes to carry a null
 failure class, full workspace proof, and an accepted runner summary.
@@ -75,7 +75,7 @@ artifacts as the Python validators.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2119#discussion_r3575304858 -> 8241a9fd77aa22123c7d9f7b891c991cf7949e68
 
 Disposition: FIXED
-Commit: `e203a39f8774c512ee2db0f6081bfa1b50f684bb`
+Commit: e203a39f8774c512ee2db0f6081bfa1b50f684bb
 Evidence: `creative_code_telemetry.py`, the closed Python taxonomy, reference
 taxonomy, event/rollup schemas, and deterministic telemetry tests now preserve
 `capability_mismatch` as `patch_evaluation / medium / not_retryable /
@@ -85,7 +85,7 @@ signal by mapping it to `unknown`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2119#discussion_r3575304857 -> e203a39f8774c512ee2db0f6081bfa1b50f684bb
 
 Disposition: FIXED
-Commit: `d6a74f3e3ed8d1eedc27efcf05fdb20aa6d0a8b3`
+Commit: d6a74f3e3ed8d1eedc27efcf05fdb20aa6d0a8b3
 Evidence: `classify_failure_class_coherence()` and
 `classify_terminal_outcome_coherence()` are shared by result and receipt
 validators; compound-invalid regression cases prove runner-status precedence
@@ -95,7 +95,7 @@ by CodeRabbit are removed without changing accepted artifact semantics.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2119#pullrequestreview-4690143681 -> d6a74f3e3ed8d1eedc27efcf05fdb20aa6d0a8b3
 
 Disposition: FIXED
-Commit: `44276b9af4d6fc153922bd5e9317358bcd78909d`
+Commit: 44276b9af4d6fc153922bd5e9317358bcd78909d
 Evidence: the canonical mapping now marks `Discussion-thread pass completed`
 and contains disposition-specific proof for every current actionable Codex and
 CodeRabbit review item.
