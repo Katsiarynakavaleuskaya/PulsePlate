@@ -104,7 +104,11 @@ def _reference_request(base_sha: str) -> dict[str, Any]:
     )
 
 
-def _reference_patch_result(*, accepted: bool = True) -> dict[str, Any]:
+def _reference_patch_result(
+    *,
+    accepted: bool = True,
+    rejection_failure_class: str = "guard_failure",
+) -> dict[str, Any]:
     request = _reference_request("a" * 40)
     patch_text = """diff --git a/core/rag/orchestration.py b/core/rag/orchestration.py
 index 8f11111..8f22222 100644
@@ -118,7 +122,7 @@ index 8f11111..8f22222 100644
     runner_result = {
         "experiment_id": "exp-pr4-telemetry",
         "status": "accepted" if accepted else "rejected",
-        "failure_class": None if accepted else "guard_failure",
+        "failure_class": None if accepted else rejection_failure_class,
         "mutated_paths": ["core/rag/orchestration.py"],
         "budget_observations": {
             "oracle_commands_configured": 1,
@@ -138,7 +142,7 @@ index 8f11111..8f22222 100644
         checkout_destroyed=True,
         origin_removed=True,
         shared_tree_untouched=True,
-        failure_class=None if accepted else "guard_failure",
+        failure_class=None if accepted else rejection_failure_class,
     )
 
 
@@ -354,6 +358,44 @@ def test_collect_events_and_rollup_counts_are_deterministic(
         "promotion_validation": 1,
         "promotion_approval": 1,
         "pr_open": 1,
+    }
+
+
+def test_capability_mismatch_telemetry_preserves_non_retryable_class(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    _, spec_runs, patch_runs, promotions, _ = _configure_artifact_roots(
+        monkeypatch,
+        tmp_path,
+    )
+    patch_result = _reference_patch_result(
+        accepted=False,
+        rejection_failure_class="capability_mismatch",
+    )
+    _write_json(patch_runs / "run-capability-mismatch" / "result.json", patch_result)
+
+    events = creative_code_telemetry.collect_events(
+        spec_runs_dir=spec_runs,
+        patch_runs_dir=patch_runs,
+        promotions_dir=promotions,
+    )
+    event = events[0]
+    taxonomy = build_creative_code_rejection_taxonomy()
+    taxonomy_row = next(row for row in taxonomy["classes"] if row["code"] == "capability_mismatch")
+
+    assert len(events) == 1
+    assert event["lane_stage"] == "patch_evaluation"
+    assert event["status"] == "rejected"
+    assert event["rejection_class"] == "capability_mismatch"
+    assert event["failure_class"] == "capability_mismatch"
+    assert event["taxonomy_codes"] == ["capability_mismatch"]
+    assert taxonomy_row == {
+        "code": "capability_mismatch",
+        "stage": "patch_evaluation",
+        "severity": "medium",
+        "retryability": "not_retryable",
+        "likely_owner": "dev-operator",
     }
 
 

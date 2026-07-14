@@ -148,6 +148,12 @@ TAXONOMY_CLASSES: dict[str, dict[str, str]] = {
         "retryability": "retryable",
         "likely_owner": "dev-operator",
     },
+    "capability_mismatch": {
+        "stage": "patch_evaluation",
+        "severity": "medium",
+        "retryability": "not_retryable",
+        "likely_owner": "dev-operator",
+    },
     "infra_flake": {
         "stage": "patch_evaluation",
         "severity": "medium",
