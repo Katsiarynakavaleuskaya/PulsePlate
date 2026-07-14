@@ -23,39 +23,25 @@ not deploy or change backend, OpenAPI, client, or Caddy route behavior.
 
 ## Fixed in Commit Mapping
 
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: All CodeRabbit actionables and review-level findings were fixed by the mapped commits; focused Caddy, workflow, deploy, and supply-chain contract tests pass.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#discussion_r3574923686 -> bb58dab7f
-  - Disposition: FIXED
-  - Evidence: both Caddy-control checkout steps set `persist-credentials: false`;
-    focused workflow contract tests pass.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#discussion_r3574923694 -> bb58dab7f
-  - Disposition: FIXED
-  - Evidence: the manual staging runbook silently prompts for the GHCR token,
-    passes it only to `deploy.sh`, and unsets it afterward.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#discussion_r3574923702 -> d3a4d893a
-  - Disposition: FIXED
-  - Evidence: the discussion pass and canonical commit mapping are complete,
-    including every inline actionable and both review-level nitpicks.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#discussion_r3574923708 -> f1cde4cd9
-  - Disposition: FIXED
-  - Evidence: the premortem enumerates every synchronized server-local artifact,
-    the root-owned marker, and all four reviewed-file hashes.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#discussion_r3574923714 -> bb58dab7f
-  - Disposition: FIXED
-  - Evidence: the module-parity pipeline uses Alpine-compatible `pipefail`; the
-    Docker build contract test enforces it.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#discussion_r3574923719 -> f1cde4cd9
-  - Disposition: FIXED
-  - Evidence: production and staging tests require the exact security-header
-    directives inside every active global `header { ... }` block.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#discussion_r3574923722 -> bb58dab7f
-  - Disposition: FIXED
-  - Evidence: supply-chain tests include the Caddy provenance action and require
-    successful provenance, SBOM generation, and SBOM attestation before verify.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#pullrequestreview-4689618115 -> f1cde4cd9
-  - Disposition: FIXED
-  - Evidence: the two review-level nitpicks are closed by deriving the official
-    Caddy reference from the Dockerfile and using line-aware, block-scoped route
-    and exact-header assertions.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#pullrequestreview-4689852435 -> 7c7414266
+
+## Exact-head Security Review Evidence
+
+- The Codex Security scan for `95325b12f5a664a131ce79543f6a963c06f4de0a..2d4e03b48a2877f6da9e5994e3b3bfc0165cf151` completed with zero reportable findings.
+- It identified one operator-only stale-build correctness gap in `scripts/QUICK_FIX_PRODUCTION.sh`; attack-path analysis rejected it as a security finding because no attacker-controlled entrypoint or lower-privileged boundary exists.
+- Commit `7c7414266` still closes that bounded correctness gap by rebuilding Caddy fail closed and verifying the running Caddy/Go identity before the success claim.
 
 ## Pre-open Role and Premortem Evidence
 
