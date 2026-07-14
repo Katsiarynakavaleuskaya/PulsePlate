@@ -22,6 +22,8 @@ from scripts.orchestration import creative_spec_patch_admission as admission_cli
 from scripts.orchestration.creative_code_patch_contract import (
     CreativeCodePatchContractError,
     FAILURE_CLASSES,
+    classify_failure_class_coherence,
+    classify_terminal_outcome_coherence,
     read_creative_code_patch_build_request,
     read_creative_code_patch_result,
     validate_creative_code_patch_build_request,
@@ -1235,20 +1237,22 @@ def validate_generation_receipt(payload: Mapping[str, Any]) -> dict[str, Any]:
         not isinstance(failure_class, str) or failure_class not in FAILURE_CLASSES
     ):
         raise CreativeCodePatchGenerationError("receipt failure_class is unsupported.")
-    if normalized["status"] == "accepted" and failure_class is not None:
+    coherence_violation = classify_terminal_outcome_coherence(
+        status=cast(str, normalized["status"]),
+        failure_class=failure_class,
+        runner_status=runner_summary["status"],
+        workspace_summary=workspace_summary,
+    )
+    if coherence_violation == "accepted_with_failure_class":
         raise CreativeCodePatchGenerationError("accepted receipt must not have failure_class.")
-    if normalized["status"] == "accepted" and runner_summary["status"] != "accepted":
+    if coherence_violation == "rejected_without_failure_class":
+        raise CreativeCodePatchGenerationError("rejected receipt requires failure_class.")
+    if coherence_violation == "accepted_with_nonaccepted_runner":
         raise CreativeCodePatchGenerationError(
             "accepted receipt requires an accepted runner summary."
         )
-    if normalized["status"] == "accepted" and not (
-        workspace_summary["origin_removed"]
-        and workspace_summary["checkout_destroyed"]
-        and workspace_summary["shared_tree_untouched"]
-    ):
+    if coherence_violation == "accepted_without_workspace_proof":
         raise CreativeCodePatchGenerationError("accepted receipt requires full workspace proof.")
-    if normalized["status"] == "rejected" and failure_class is None:
-        raise CreativeCodePatchGenerationError("rejected receipt requires failure_class.")
     if workspace_summary["detached_base_sha"] != normalized["base_commit_sha"]:
         raise CreativeCodePatchGenerationError(
             "workspace_summary.detached_base_sha must match base_commit_sha."
@@ -1395,11 +1399,15 @@ def _normalize_runner_summary(raw_summary: Any) -> dict[str, Any]:
     if failure_class is not None and failure_class not in FAILURE_CLASSES:
         raise CreativeCodePatchGenerationError("runner_summary.failure_class is unsupported.")
     status = _normalize_status(raw_summary["status"])
-    if status == "accepted" and failure_class is not None:
+    coherence_violation = classify_failure_class_coherence(
+        status=status,
+        failure_class=failure_class,
+    )
+    if coherence_violation == "accepted_with_failure_class":
         raise CreativeCodePatchGenerationError(
             "accepted runner summaries must not have failure_class."
         )
-    if status == "rejected" and failure_class is None:
+    if coherence_violation == "rejected_without_failure_class":
         raise CreativeCodePatchGenerationError("rejected runner summaries require failure_class.")
     error_fingerprint = raw_summary["runner_error_fingerprint"]
     if error_fingerprint is not None:

@@ -16,7 +16,7 @@ from pathlib import Path
 from pathlib import PurePosixPath
 import re
 import sys
-from typing import Any
+from typing import Any, Literal
 
 from core.evidence.fingerprints import (
     build_asset_id,
@@ -69,6 +69,16 @@ FAILURE_CLASSES = frozenset(
         "infra_flake",
     }
 )
+FailureClassCoherenceViolation = Literal[
+    "accepted_with_failure_class",
+    "rejected_without_failure_class",
+]
+TerminalOutcomeCoherenceViolation = Literal[
+    "accepted_with_failure_class",
+    "rejected_without_failure_class",
+    "accepted_with_nonaccepted_runner",
+    "accepted_without_workspace_proof",
+]
 LEAK_TEXT_RE = re.compile(
     r"(diff --git|^\+\+\+ |^--- |@@ |raw[_ -]?(prompt|response|context)|"
     r"chain[_ -]?of[_ -]?thought|provider[_ -]?payload|oracle stdout|oracle stderr|"
@@ -76,6 +86,47 @@ LEAK_TEXT_RE = re.compile(
     r"xox[abprs]-|sk-[A-Za-z0-9_-]{12,})",
     re.IGNORECASE | re.MULTILINE,
 )
+
+
+def classify_failure_class_coherence(
+    *,
+    status: str,
+    failure_class: str | None,
+) -> FailureClassCoherenceViolation | None:
+    """Return the closed coherence violation for one terminal status pair."""
+
+    if status == "accepted" and failure_class is not None:
+        return "accepted_with_failure_class"
+    if status == "rejected" and failure_class is None:
+        return "rejected_without_failure_class"
+    return None
+
+
+def classify_terminal_outcome_coherence(
+    *,
+    status: str,
+    failure_class: str | None,
+    runner_status: str,
+    workspace_summary: Mapping[str, Any],
+) -> TerminalOutcomeCoherenceViolation | None:
+    """Apply shared result/receipt coherence rules in canonical precedence."""
+
+    failure_violation = classify_failure_class_coherence(
+        status=status,
+        failure_class=failure_class,
+    )
+    if failure_violation is not None:
+        return failure_violation
+    if status == "accepted" and runner_status != "accepted":
+        return "accepted_with_nonaccepted_runner"
+    if status == "accepted" and not (
+        workspace_summary["origin_removed"]
+        and workspace_summary["checkout_destroyed"]
+        and workspace_summary["shared_tree_untouched"]
+    ):
+        return "accepted_without_workspace_proof"
+    return None
+
 
 REQUEST_KEYS = frozenset(
     {
@@ -1103,19 +1154,20 @@ def validate_creative_code_patch_result(payload: dict[str, Any]) -> dict[str, An
         raise CreativeCodePatchContractError(
             "workspace_summary.detached_base_sha must match base_commit_sha."
         )
-    if normalized["status"] == "accepted":
-        if normalized["failure_class"] is not None:
-            raise CreativeCodePatchContractError("accepted results must not have failure_class.")
-        if not (
-            workspace_summary["origin_removed"]
-            and workspace_summary["checkout_destroyed"]
-            and workspace_summary["shared_tree_untouched"]
-        ):
-            raise CreativeCodePatchContractError("accepted results require full workspace proof.")
-    elif normalized["failure_class"] is None:
+    coherence_violation = classify_terminal_outcome_coherence(
+        status=normalized["status"],
+        failure_class=normalized["failure_class"],
+        runner_status=runner_summary["status"],
+        workspace_summary=workspace_summary,
+    )
+    if coherence_violation == "accepted_with_failure_class":
+        raise CreativeCodePatchContractError("accepted results must not have failure_class.")
+    if coherence_violation == "rejected_without_failure_class":
         raise CreativeCodePatchContractError("rejected results require failure_class.")
-    if normalized["status"] == "accepted" and runner_summary["status"] != "accepted":
+    if coherence_violation == "accepted_with_nonaccepted_runner":
         raise CreativeCodePatchContractError("accepted results require an accepted runner summary.")
+    if coherence_violation == "accepted_without_workspace_proof":
+        raise CreativeCodePatchContractError("accepted results require full workspace proof.")
     _reject_result_leaks(normalized, label=label)
     expected_id, expected_key = _build_result_identity(normalized)
     if normalized["result_id"] != expected_id:
@@ -1426,11 +1478,15 @@ def _validate_runner_summary(raw_summary: Any) -> dict[str, Any]:
         raise CreativeCodePatchContractError("runner_summary.failure_class must be null or string.")
     if failure_class is not None and failure_class not in FAILURE_CLASSES:
         raise CreativeCodePatchContractError("runner_summary.failure_class is unsupported.")
-    if status == "accepted" and failure_class is not None:
+    coherence_violation = classify_failure_class_coherence(
+        status=status,
+        failure_class=failure_class,
+    )
+    if coherence_violation == "accepted_with_failure_class":
         raise CreativeCodePatchContractError(
             "accepted runner summaries must not have failure_class."
         )
-    if status == "rejected" and failure_class is None:
+    if coherence_violation == "rejected_without_failure_class":
         raise CreativeCodePatchContractError("rejected runner summaries require failure_class.")
     runner_error_fingerprint = raw_summary["runner_error_fingerprint"]
     runner_error_present = _require_any_bool(

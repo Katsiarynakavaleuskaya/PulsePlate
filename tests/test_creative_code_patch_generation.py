@@ -501,6 +501,7 @@ def test_receipt_validator_rejects_unknown_failures_and_incoherent_runner_status
     accepted_with_rejected_runner = deepcopy(reference)
     accepted_with_rejected_runner["runner_summary"]["status"] = "rejected"
     accepted_with_rejected_runner["runner_summary"]["failure_class"] = "guard_failure"
+    accepted_with_rejected_runner["workspace_summary"]["origin_removed"] = False
     _reset_receipt_identity(accepted_with_rejected_runner)
     with pytest.raises(
         CreativeCodePatchGenerationError,

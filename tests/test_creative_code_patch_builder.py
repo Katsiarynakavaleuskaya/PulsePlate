@@ -460,6 +460,7 @@ def test_patch_result_rejects_incoherent_runner_status_and_preserves_wrapper_rej
     accepted_with_rejected_runner = _reference_result()
     accepted_with_rejected_runner["runner_summary"]["status"] = "rejected"
     accepted_with_rejected_runner["runner_summary"]["failure_class"] = "guard_failure"
+    accepted_with_rejected_runner["workspace_summary"]["origin_removed"] = False
 
     with pytest.raises(
         CreativeCodePatchContractError,
