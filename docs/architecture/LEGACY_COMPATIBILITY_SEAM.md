@@ -9,6 +9,11 @@ Status: Accepted guardrail
 <!-- LEGACY_SEAM_FOODDB_CUTOVER: false -->
 <!-- LEGACY_SEAM_BROAD_REFACTOR: false -->
 
+The runtime-behavior marker above records that this compatibility seam does not
+authorize a route/lifecycle/runtime expansion. It does not conceal the separately
+reviewed, bounded sanitization of three hidden admin error envelopes documented
+below.
+
 ## Context
 
 `legacy_app.py` is still the runtime compatibility base for the FastAPI app.
@@ -43,6 +48,16 @@ validation/install/policy seams at `app/bootstrap/openapi.py:285`,
 additive route registration, then applies policy and installs the builder at
 `app/main.py:1409`. This order prevents an early partial schema while preserving
 an equal cached schema object on a no-op bootstrap.
+
+Admin scheduler access is canonically exposed by
+`app/services/scheduler_access.py` as a lazy typed delegator. The core scheduler
+module remains the only singleton and lifecycle owner, while `app` and
+`legacy_app.py` expose the exact service callable for compatibility. Admin
+operations consume that binding directly; compatibility resolver state and
+module-table lookup are forbidden. This access cutover does not change routes,
+auth, methods, OpenAPI, scheduler lifecycle, or worker topology. Operational
+database-status, force-update, and update-check failures use stable generic 500
+details while technical exceptions remain server-log-only.
 
 The current policy is compatibility first:
 
@@ -90,6 +105,7 @@ Forbidden in `legacy_app.py`:
 | App-client API-key dependencies | `app/routers/api_key.py` | Canonical owner; legacy compatibility is identity-preserving re-export only. |
 | Application metadata | `app/application_metadata.py` | Immutable source; every FastAPI projection receives fresh nested mutable inputs. |
 | Public OpenAPI policy and builder | `app/bootstrap/openapi.py` | Validate before mutation; install after complete route bootstrap; stale/foreign state fails closed. |
+| Admin scheduler access | `app/services/scheduler_access.py` | Lazy typed delegation only; core owns singleton/lifecycle and compatibility exports preserve service-callable identity. |
 | Domain logic | `core/` and `app/services/` | Backend truth stays outside route shims. |
 | Public API contract | Backend OpenAPI gates | Legacy aliases must not become client contract truth. |
 

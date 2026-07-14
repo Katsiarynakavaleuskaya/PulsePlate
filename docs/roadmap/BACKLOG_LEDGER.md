@@ -6691,14 +6691,15 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 - [ ] P2: Complete legacy_app.py migration (delete legacy endpoints)
   - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: PR #2102 -> PR-TBD-APP-METADATA-OPENAPI -> PR-TBD-REMAINING-LEGACY-CUTOVERS -> PR-TBD-APP-FACTORY -> PR-TBD-LEGACY-DELETION
+  - Target PR: PR #2102 -> PR #2114 -> PR-TBD-CANONICAL-ADMIN-SCHEDULER-ACCESS -> PR-TBD-REMAINING-LEGACY-CUTOVERS -> PR-TBD-APP-FACTORY -> PR-TBD-LEGACY-DELETION
   - Priority: P2 (long-term cleanup)
-  - Status: In progress. Route, middleware, lifespan, and app-client API-key dependency ownership are canonical. The active `codex/canonicalize-application-metadata-openapi-policy` slice moves immutable application metadata and fail-closed OpenAPI builder/cache policy to canonical modules without changing FastAPI identity or the public schema. Remaining reverse-dependency cutovers, app-factory inversion, and final compatibility inventory/deletion stay open.
+  - Status: In progress. Route, middleware, lifespan, app-client API-key dependency, application metadata, and OpenAPI policy ownership are canonical; PR #2114 merged at `e3825306d`. The active canonical admin scheduler-access slice removes legacy resolver/override state behind a lazy typed service delegator without changing scheduler lifecycle, worker topology, FastAPI identity, or OpenAPI. Remaining reverse-dependency cutovers, app-factory inversion, and final compatibility inventory/deletion stay open.
   - Reason: After all critical security fixes and endpoint migrations complete, eventually delete `legacy_app.py` entirely. Legacy business and route logic should move to its canonical owners: modular routers (`app/routers/*`), services (`app/services/*`), bootstrap modules (`app/bootstrap/*`), or core modules (`core/*`) according to responsibility. The current train has extracted lifecycle ownership and now cuts canonical `app/*` dependencies on legacy compatibility symbols before app-factory/OpenAPI ownership inversion and final facade removal.
   - Links:
     - docs/audit/LEGACY_APP_MIGRATION_STATUS.md (overall progress, migration status)
     - docs/pr/PR_THIN_PROXY_CLEANUP_PLAN.md
     - app/routers/api_key.py
+    - app/services/scheduler_access.py
     - docs/architecture/LEGACY_COMPATIBILITY_SEAM.md
   - Prerequisites:
     - ✅ All P0 security fixes complete (rate-limiting, tier guards)
@@ -6718,13 +6719,14 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (runtime correctness / operations)
   - Target PR: PR-TBD-BACKGROUND-SCHEDULER-OWNERSHIP
-  - Status: Opened during canonical lifespan extraction planning
+  - Status: Open; explicitly out of scope for the canonical admin scheduler-access slice
   - Reason: ASGI lifespan runs once per worker process. The current in-process
     food update scheduler is process-global only, so enabling `WEB_CONCURRENCY`
     above one can start duplicate update jobs even though each process correctly
     owns its own lifespan resources.
   - Links:
     - `app/bootstrap/lifespan.py`
+    - `app/services/scheduler_access.py`
     - `core/food_apis/scheduler.py`
   - DoD:
     - deployment uses one dedicated scheduler worker, a distributed lease/leader

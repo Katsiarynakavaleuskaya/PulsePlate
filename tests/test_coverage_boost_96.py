@@ -4,11 +4,13 @@ Tests for uncovered lines in main.py and other modules.
 """
 
 import os
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
+import pytest
 
 import app as app_mod
+from app.services import admin_operations
 
 
 class TestCoverageBoost96:
@@ -18,19 +20,6 @@ class TestCoverageBoost96:
         """Setup test environment"""
         os.environ["API_KEY"] = "test_key"
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
-
-    def test_get_update_scheduler_late_import(self):
-        """Test get_update_scheduler with late import fallback."""
-        # Test the case where _scheduler_getter is None and we need late import
-        with patch.object(app_mod, "_scheduler_getter", None):
-            with patch("app.get_update_scheduler") as mock_getter:
-                mock_getter.return_value = AsyncMock()
-
-                # This should trigger the late import path
-                import asyncio
-
-                result = asyncio.run(app_mod.get_update_scheduler())
-                assert result is not None
 
     def test_legacy_category_label_exception_handling(self):
         """Test legacy_category_label with exception handling."""
@@ -187,13 +176,21 @@ class TestCoverageBoost96:
         response = client.get("/export/pdf/day")
         assert response.status_code in [200, 404]  # Accept both success and not found
 
-    def test_admin_endpoints_coverage(self):
+    def test_admin_endpoints_coverage(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test admin endpoints coverage."""
         client = TestClient(app_mod.app)
 
-        # Test database status
+        class _Scheduler:
+            def get_status(self):
+                return {"scheduler": {}, "databases": {}}
+
+        async def _get_scheduler():
+            return _Scheduler()
+
+        monkeypatch.setattr(admin_operations, "get_update_scheduler", _get_scheduler)
         response = client.get("/api/v1/admin/db-status", headers={"X-API-Key": "test_key"})
-        assert response.status_code in [200, 500, 503]
+        assert response.status_code == 200
+        assert response.json() == {"scheduler": {}, "databases": {}}
 
     def test_metrics_endpoint_coverage(self, client: TestClient):
         """Test metrics endpoint coverage."""

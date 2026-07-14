@@ -9,7 +9,7 @@ from tests._client import get_client
 import pytest
 import app as app_mod
 from fastapi.testclient import TestClient
-from tests.helpers.fast_update_stubs import make_scheduler_stub, patch_app_get_update_scheduler
+from tests.helpers.fast_update_stubs import make_scheduler_stub, patch_admin_get_update_scheduler
 
 # Setup environment before importing
 os.environ.setdefault("API_KEY", "test-key")
@@ -292,26 +292,34 @@ class TestAppAdminEndpoints:
     def test_admin_status_without_key(self, client):
         """Test admin status without API key."""
         response = client.get("/api/v1/admin/status")
-        assert response.status_code in [401, 403, 404]
+        assert response.status_code == 403
 
     def test_admin_status_with_invalid_key(self, client):
         """Test admin status with invalid API key."""
         response = client.get("/api/v1/admin/status", headers={"X-API-Key": "invalid"})
-        assert response.status_code in [401, 403, 404]
+        assert response.status_code == 403
 
-    def test_admin_status_with_valid_key(self, client):
+    def test_admin_status_with_valid_key(self, client, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test admin status with valid API key."""
+        patch_admin_get_update_scheduler(monkeypatch, object())
         response = client.get("/api/v1/admin/status", headers={"X-API-Key": "test_key"})
-        assert response.status_code in [200, 404]
+        assert response.status_code == 200
+        assert response.json() == {"status": "ok", "scheduler": "available"}
 
-    def test_admin_db_status(self, client):
+    def test_admin_db_status(self, client, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test admin database status."""
+
+        class _Scheduler:
+            def get_status(self):
+                return {"scheduler": {"is_running": False}, "databases": {}}
+
+        patch_admin_get_update_scheduler(monkeypatch, _Scheduler())
         response = client.get("/api/v1/admin/db-status", headers={"X-API-Key": "test_key"})
-        assert response.status_code in [200, 404, 500, 503]
+        assert response.status_code == 200
 
     def test_admin_force_update(self, client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test admin force update."""
         scheduler = make_scheduler_stub()
-        patch_app_get_update_scheduler(monkeypatch, app_mod, scheduler)
+        patch_admin_get_update_scheduler(monkeypatch, scheduler)
         response = client.post("/api/v1/admin/force-update", headers={"X-API-Key": "test_key"})
-        assert response.status_code in [200, 404, 500, 503]
+        assert response.status_code == 200

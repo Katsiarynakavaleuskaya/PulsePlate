@@ -5,6 +5,7 @@ but they help stabilize coverage across helper functions and simple endpoints.
 """
 
 import os
+from types import SimpleNamespace
 from unittest.mock import Mock
 from tests._client import get_client
 
@@ -12,7 +13,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import app as app_module
-from tests.helpers.fast_update_stubs import make_scheduler_stub, patch_app_get_update_scheduler
+from tests.helpers.fast_update_stubs import patch_admin_get_update_scheduler
 
 
 class TestAppHelperFunctions:
@@ -143,10 +144,26 @@ class TestEndpointsAndValidation:
         r = self.client.get("/debug_env")
         assert r.status_code in [200, 404, 405]
 
-        # Admin endpoints (provided by routers) may be up or return 500/503 when backends are unavailable
+        class _Scheduler:
+            def get_status(self):
+                return {"scheduler": {"is_running": False}, "databases": {}}
+
+            async def force_update(self, source=None):
+                return {
+                    "usda": SimpleNamespace(
+                        success=True,
+                        old_version="1.0",
+                        new_version="1.1",
+                        records_added=1,
+                        records_updated=0,
+                        records_removed=0,
+                        duration_seconds=0.01,
+                        errors=[],
+                    )
+                }
+
+        patch_admin_get_update_scheduler(monkeypatch, _Scheduler())
         r1 = self.client.get("/api/v1/admin/db-status", headers={"X-API-Key": "test-key"})
-        assert r1.status_code in [200, 500, 503]
-        scheduler = make_scheduler_stub()
-        patch_app_get_update_scheduler(monkeypatch, app_module, scheduler)
+        assert r1.status_code == 200
         r2 = self.client.post("/api/v1/admin/force-update", headers={"X-API-Key": "test-key"})
-        assert r2.status_code in [200, 500, 503]
+        assert r2.status_code == 200

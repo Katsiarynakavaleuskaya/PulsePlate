@@ -15,9 +15,10 @@ from typing import cast
 
 import app as app_mod
 from app import app
+from app.services import admin_operations
 from tests.helpers.fast_update_stubs import (
     make_scheduler_stub,
-    patch_app_get_update_scheduler,
+    patch_admin_get_update_scheduler,
 )
 
 
@@ -61,7 +62,10 @@ class TestComprehensiveCoverage:
     def test_database_status_endpoint_success(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test database status endpoint success case with deterministic assertions."""
         # Mock the update manager to return valid status
-        with patch("app.get_update_scheduler", new_callable=AsyncMock) as mock_get_scheduler:
+        with patch(
+            "app.services.admin_operations.get_update_scheduler",
+            new_callable=AsyncMock,
+        ) as mock_get_scheduler:
             mock_scheduler = AsyncMock()
             # get_status is SYNCHRONOUS, not async - use MagicMock not AsyncMock
             mock_scheduler.get_status = MagicMock(
@@ -86,31 +90,22 @@ class TestComprehensiveCoverage:
     def test_database_status_endpoint_exception(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test database status endpoint exception handling.
 
-        This test is now deterministic by clearing the scheduler singleton and
-        patching both the app module and scheduler module's get_update_scheduler.
+        The endpoint patches its direct scheduler consumer binding.
         """
-        # Clear the scheduler singleton to force fresh initialization
-        from core.food_apis import scheduler
 
-        monkeypatch.setattr(scheduler, "_scheduler_instance", None)
-
-        # Clear any test scheduler override
-        monkeypatch.setattr(app_mod, "_test_scheduler_override", None, raising=False)
-
-        # Patch get_update_scheduler to raise an exception
         async def fake_get_scheduler_error():
             raise Exception("Test scheduler error")
 
-        # Patch both the app module and scheduler module
-        monkeypatch.setattr(app_mod, "get_update_scheduler", fake_get_scheduler_error)
-        monkeypatch.setattr(scheduler, "get_update_scheduler", fake_get_scheduler_error)
+        monkeypatch.setattr(
+            admin_operations,
+            "get_update_scheduler",
+            fake_get_scheduler_error,
+        )
 
         response = self.client.get("/api/v1/admin/db-status", headers={"X-API-Key": "test_key"})
 
-        # With cleared singleton and mocked function, should deterministically return 500
         assert response.status_code == 500
-        data = response.json()
-        assert "detail" in data
+        assert response.json() == {"detail": "Failed to get database status"}
 
     def test_force_update_endpoint_success(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test force update endpoint success case with deterministic status."""
@@ -124,7 +119,7 @@ class TestComprehensiveCoverage:
         mock_result.duration_seconds = 1.0
         mock_result.errors = []
         scheduler = make_scheduler_stub(usda_result=mock_result)
-        patch_app_get_update_scheduler(monkeypatch, app_mod, scheduler)
+        patch_admin_get_update_scheduler(monkeypatch, scheduler)
 
         response = self.client.post("/api/v1/admin/force-update", headers={"X-API-Key": "test_key"})
         # With successful mock, expect deterministic 200
@@ -145,7 +140,7 @@ class TestComprehensiveCoverage:
         mock_result.duration_seconds = 0.5
         mock_result.errors = []
         scheduler = make_scheduler_stub(usda_result=mock_result)
-        patch_app_get_update_scheduler(monkeypatch, app_mod, scheduler)
+        patch_admin_get_update_scheduler(monkeypatch, scheduler)
 
         response = self.client.post(
             "/api/v1/admin/force-update?source=usda",
@@ -160,33 +155,28 @@ class TestComprehensiveCoverage:
     def test_force_update_endpoint_exception(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test force update endpoint exception handling - deterministic.
 
-        This test now clears the scheduler singleton to ensure the mock is invoked.
+        The endpoint patches its direct scheduler consumer binding.
         """
-        # Clear the scheduler singleton to force fresh initialization
-        from core.food_apis import scheduler
 
-        monkeypatch.setattr(scheduler, "_scheduler_instance", None)
-
-        # Clear any test scheduler override
-        monkeypatch.setattr(app_mod, "_test_scheduler_override", None, raising=False)
-
-        # Patch using monkeypatch to ensure the endpoint sees the mock
         async def fake_get_scheduler_error():
             raise Exception("Test error")
 
-        # Patch both the app module and scheduler module
-        monkeypatch.setattr(app_mod, "get_update_scheduler", fake_get_scheduler_error)
-        monkeypatch.setattr(scheduler, "get_update_scheduler", fake_get_scheduler_error)
+        monkeypatch.setattr(
+            admin_operations,
+            "get_update_scheduler",
+            fake_get_scheduler_error,
+        )
 
         response = self.client.post("/api/v1/admin/force-update", headers={"X-API-Key": "test_key"})
-        # With cleared singleton and mocked function, should deterministically return 500
         assert response.status_code == 500
-        data = response.json()
-        assert "detail" in data
+        assert response.json() == {"detail": "Force update failed"}
 
     def test_check_updates_endpoint_success(self) -> None:
         """Test check updates endpoint success case with deterministic status."""
-        with patch("app.get_update_scheduler", new_callable=AsyncMock) as mock_get_scheduler:
+        with patch(
+            "app.services.admin_operations.get_update_scheduler",
+            new_callable=AsyncMock,
+        ) as mock_get_scheduler:
             mock_scheduler = AsyncMock()
             mock_scheduler.update_manager.check_for_updates = AsyncMock(
                 return_value={"usda": True, "openfoodfacts": False}
@@ -204,7 +194,10 @@ class TestComprehensiveCoverage:
 
     def test_check_updates_endpoint_exception(self) -> None:
         """Test check updates endpoint exception handling - deterministic error."""
-        with patch("app.get_update_scheduler", new_callable=AsyncMock) as mock_get_scheduler:
+        with patch(
+            "app.services.admin_operations.get_update_scheduler",
+            new_callable=AsyncMock,
+        ) as mock_get_scheduler:
             mock_get_scheduler.side_effect = Exception("Test error")
 
             response = self.client.get(
@@ -212,8 +205,7 @@ class TestComprehensiveCoverage:
             )
             # Endpoint should return 500 for scheduler errors
             assert response.status_code == 500
-            data = response.json()
-            assert "detail" in data
+            assert response.json() == {"detail": "Update check failed"}
 
     @pytest.mark.serial
     def test_rollback_endpoint_success(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -225,7 +217,7 @@ class TestComprehensiveCoverage:
             mock_update_manager = SimpleNamespace(rollback_database=AsyncMock(return_value=True))
             return SimpleNamespace(update_manager=mock_update_manager)
 
-        monkeypatch.setattr(app_mod, "get_update_scheduler", fake_scheduler)
+        monkeypatch.setattr(admin_operations, "get_update_scheduler", fake_scheduler)
         response = self.client.post(
             "/api/v1/admin/rollback",
             params={"source": "usda", "target_version": "1.0"},
@@ -249,7 +241,7 @@ class TestComprehensiveCoverage:
             raise Exception("Test scheduler error")
 
         # Patch both the module attribute and globals to ensure the endpoint sees it
-        monkeypatch.setattr(app_mod, "get_update_scheduler", fake_scheduler_error)
+        monkeypatch.setattr(admin_operations, "get_update_scheduler", fake_scheduler_error)
 
         response = self.client.post(
             "/api/v1/admin/rollback",
@@ -275,7 +267,7 @@ class TestComprehensiveCoverage:
             return SimpleNamespace(update_manager=None)
 
         # Rely on module-level patch; __globals__ mutation is unnecessary
-        monkeypatch.setattr(app_mod, "get_update_scheduler", fake_scheduler)
+        monkeypatch.setattr(admin_operations, "get_update_scheduler", fake_scheduler)
 
         # Since we fixed rollback_database to raise HTTPException,
         # this test now needs to expect HTTPException rather than generic Exception
@@ -295,7 +287,7 @@ class TestComprehensiveCoverage:
             return SimpleNamespace(update_manager=SimpleNamespace())
 
         # Rely on module-level patch; __globals__ mutation is unnecessary
-        monkeypatch.setattr(app_mod, "get_update_scheduler", fake_scheduler)
+        monkeypatch.setattr(admin_operations, "get_update_scheduler", fake_scheduler)
 
         # Since we fixed rollback_database to raise HTTPException,
         # this test now needs to expect HTTPException rather than generic Exception
@@ -320,7 +312,7 @@ class TestComprehensiveCoverage:
             return SimpleNamespace(update_manager=mock_update_manager)
 
         # Patch both the module attribute and globals to ensure the endpoint sees it
-        monkeypatch.setattr(app_mod, "get_update_scheduler", fake_scheduler)
+        monkeypatch.setattr(admin_operations, "get_update_scheduler", fake_scheduler)
 
         response = self.client.post(
             "/api/v1/admin/rollback",
@@ -346,7 +338,7 @@ class TestComprehensiveCoverage:
             return SimpleNamespace(update_manager=mock_update_manager)
 
         # Patch both the module attribute and globals to ensure the endpoint sees it
-        monkeypatch.setattr(app_mod, "get_update_scheduler", fake_scheduler)
+        monkeypatch.setattr(admin_operations, "get_update_scheduler", fake_scheduler)
 
         response = self.client.post(
             "/api/v1/admin/rollback",

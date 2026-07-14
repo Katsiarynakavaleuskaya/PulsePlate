@@ -515,38 +515,57 @@ class TestDatabaseAdminEndpoints:
         """Test database status endpoint with error."""
         with (
             patch.dict(os.environ, {"API_KEY": "test_key"}),
-            patch("legacy_app.get_update_scheduler", new_callable=AsyncMock) as mock_scheduler,
+            patch(
+                "app.services.admin_operations.get_update_scheduler",
+                new_callable=AsyncMock,
+            ) as mock_scheduler,
         ):
             mock_scheduler.side_effect = Exception("Scheduler error")
 
             headers = {"X-API-Key": "test_key"}
             response = self.client.get("/api/v1/admin/db-status", headers=headers)
-            # May return 200, 500, or 503 depending on scheduler availability
-            assert response.status_code in [200, 500, 503]
+            assert response.status_code == 500
+            assert response.json() == {"detail": "Failed to get database status"}
 
     def test_force_update_error(self):
         """Test force update endpoint with error."""
         with (
             patch.dict(os.environ, {"API_KEY": "test_key"}),
-            patch("legacy_app.get_update_scheduler", new_callable=AsyncMock) as mock_scheduler,
+            patch(
+                "app.services.admin_operations.get_update_scheduler",
+                new_callable=AsyncMock,
+            ) as mock_scheduler,
         ):
             mock_scheduler.side_effect = Exception("Update error")
 
             headers = {"X-API-Key": "test_key"}
             response = self.client.post("/api/v1/admin/force-update", headers=headers)
-            # May return 200, 500, or 503 depending on scheduler availability
-            assert response.status_code in [200, 500, 503]
+            assert response.status_code == 500
+            assert response.json() == {"detail": "Force update failed"}
 
     def test_check_updates_error(self):
         """Test admin check updates error scenarios."""
         # Test with API key (should be 200)
-        response = self.client.get("/api/v1/admin/check-updates", headers={"X-API-Key": "test_key"})
+        with patch(
+            "app.services.admin_operations.get_update_scheduler",
+            new_callable=AsyncMock,
+            side_effect=RuntimeError("check failed"),
+        ):
+            response = self.client.get(
+                "/api/v1/admin/check-updates",
+                headers={"X-API-Key": "test_key"},
+            )
+        assert response.status_code == 500
+        assert response.json() == {"detail": "Update check failed"}
 
     def test_rollback_error(self):
         """Test rollback endpoint with error."""
         with (
             patch.dict(os.environ, {"API_KEY": "test_key"}),
-            patch("legacy_app.get_update_scheduler", new_callable=AsyncMock) as mock_scheduler,
+            patch(
+                "app.services.admin_operations.get_update_scheduler",
+                new_callable=AsyncMock,
+            ) as mock_scheduler,
         ):
             mock_scheduler.side_effect = Exception("Rollback error")
 

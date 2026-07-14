@@ -5,8 +5,10 @@
 from typing import cast
 
 from fastapi.testclient import TestClient
+import pytest
 from starlette.types import ASGIApp
 
+from app.services import admin_operations
 from tests._client import get_client
 
 
@@ -82,18 +84,26 @@ class TestCoverage97FinalPush:
         response = client.post("/nonexistent", json={})
         assert response.status_code == 404
 
-    def test_app_coverage_missing_lines_205_208_210(self, test_environment):
+    def test_app_coverage_missing_lines_205_208_210(
+        self,
+        test_environment,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
         """Тест покрытия app.py строк 205-208, 210"""
         import app
 
         client = TestClient(cast(ASGIApp, app.app))
 
-        # Тест admin endpoints с различными сценариями
+        async def _get_scheduler():
+            return object()
+
+        monkeypatch.setattr(admin_operations, "get_update_scheduler", _get_scheduler)
         response = client.get("/api/v1/admin/status", headers={"X-API-Key": "test_key"})
-        assert response.status_code in [200, 500, 503]
+        assert response.status_code == 200
+        assert response.json() == {"status": "ok", "scheduler": "available"}
 
         response = client.get("/api/v1/admin/status", headers={"X-API-Key": "invalid"})
-        assert response.status_code in [401, 403, 500, 503]
+        assert response.status_code == 403
 
     def test_app_coverage_missing_lines_242_246_247(self, premium_disabled_environment):
         """Тест покрытия app.py строк 242-246, 247"""

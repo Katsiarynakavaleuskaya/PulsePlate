@@ -6,7 +6,7 @@ import contextlib
 import sys
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 from starlette.types import ASGIApp
 from typing import cast
 
@@ -74,12 +74,14 @@ class TestAppCriticalLines97:
 
     def test_admin_endpoints_missing_scheduler(self, client):
         """Тест admin endpoints когда scheduler недоступен"""
-        with patch("legacy_app.get_update_scheduler", return_value=None):
+        with patch(
+            "app.services.admin_operations.get_update_scheduler",
+            new_callable=AsyncMock,
+            return_value=None,
+        ):
             response = client.get("/api/v1/admin/status", headers={"X-API-Key": "test_key"})
-            # Should return 503 when scheduler is unavailable (or 403 if API key check happens first)
-            assert response.status_code in [403, 503]
-            response_data = response.json()
-            assert "detail" in response_data
+            assert response.status_code == 503
+            assert response.json() == {"detail": "Scheduler unavailable"}
 
     def test_error_handling_edge_paths(self, client):
         """Тест различных error handling путей"""

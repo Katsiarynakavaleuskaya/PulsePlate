@@ -13,7 +13,6 @@ from types import ModuleType
 from typing import (
     TYPE_CHECKING,
     Any,
-    Awaitable,
     Callable,
     Dict,
     Iterator,
@@ -85,6 +84,7 @@ from app.services.legacy_premium_weekly_plan import (
 from app.services import recipe_store
 from app.services.food_store import get_food
 from app.services.intervention_trigger_engine import build_targets_next_action
+from app.services.scheduler_access import get_update_scheduler as get_update_scheduler
 
 from app.services.bmi_compat import (
     MATPLOTLIB_AVAILABLE,
@@ -221,10 +221,8 @@ except ImportError:  # pragma: no cover - scheduler not available outside backen
 
 if TYPE_CHECKING:
     from slowapi import Limiter as LimiterType
-    from core.food_apis.scheduler import DatabaseUpdateScheduler
 else:
     LimiterType = Any
-    DatabaseUpdateScheduler = Any
 
 Limiter: Optional[type[LimiterType]]
 try:
@@ -237,7 +235,6 @@ except ImportError:
 slowapi_available = Limiter is not None
 
 vip_router: Optional[APIRouter] = None
-_scheduler_getter: Optional[Callable[[], Awaitable[DatabaseUpdateScheduler]]] = None
 
 # VIP router registration is owned by app.main canonical bootstrap.
 try:
@@ -391,42 +388,6 @@ _app_env = get_runtime_env_name()
 _should_load_local_env = _app_env in {"local", "dev", "development"}
 if not _env_was_sanitized and _should_load_local_env and os.getenv("PYTEST_CURRENT_TEST") is None:
     dotenv.load_dotenv()
-
-
-# Test hook for overriding get_update_scheduler (used by rollback endpoint tests)
-_test_scheduler_override: Optional[Callable[[], Awaitable[DatabaseUpdateScheduler]]] = None
-
-
-async def get_update_scheduler() -> DatabaseUpdateScheduler:
-    """Return the global update scheduler (wrapper to aid patching in tests)."""
-    # Check test override first (for FastAPI endpoint testing via TestClient)
-    import sys as _sys
-
-    pkg_override_raw = getattr(_sys.modules.get("app"), "_test_scheduler_override", None)
-    pkg_override = cast(
-        Optional[Callable[[], Awaitable[DatabaseUpdateScheduler]]],
-        pkg_override_raw,
-    )
-    active_override: Optional[Callable[[], Awaitable[DatabaseUpdateScheduler]]] = (
-        pkg_override if pkg_override is not None else _test_scheduler_override
-    )
-
-    if active_override is not None:
-        logger.debug(f"Using test scheduler override: {active_override}")
-        override_scheduler = await active_override()
-        return override_scheduler
-
-    if _scheduler_getter is None:
-        from core.food_apis.scheduler import get_update_scheduler as _late_getter
-
-        scheduler = await _late_getter()
-        return scheduler
-    scheduler = await _scheduler_getter()
-    return scheduler
-
-
-# Stable reference to the original getter for comparisons when monkeypatched in tests
-_DEFAULT_GET_UPDATE_SCHEDULER = get_update_scheduler
 
 
 # Set up logging

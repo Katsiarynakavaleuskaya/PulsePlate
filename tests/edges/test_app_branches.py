@@ -65,6 +65,7 @@ def test_admin_status_scheduler_error_paths(monkeypatch, api_key):
     from fastapi.testclient import TestClient
 
     import app
+    from app.services import admin_operations
 
     client = TestClient(cast(ASGIApp, app.app))
 
@@ -73,7 +74,7 @@ def test_admin_status_scheduler_error_paths(monkeypatch, api_key):
     async def _none_sched():
         return None
 
-    monkeypatch.setattr(app, "get_update_scheduler", _none_sched, raising=True)
+    monkeypatch.setattr(admin_operations, "get_update_scheduler", _none_sched)
     r = client.get("/api/v1/admin/status", headers={"X-API-Key": api_key})
     assert r.status_code == 503
 
@@ -82,7 +83,7 @@ def test_admin_status_scheduler_error_paths(monkeypatch, api_key):
     async def _boom():
         raise RuntimeError("x")
 
-    monkeypatch.setattr(app, "get_update_scheduler", _boom, raising=True)
+    monkeypatch.setattr(admin_operations, "get_update_scheduler", _boom)
     r2 = client.get("/api/v1/admin/status", headers={"X-API-Key": api_key})
     assert r2.status_code == 503
 

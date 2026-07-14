@@ -3,12 +3,13 @@ Test coverage for missing lines in app.py to improve coverage to 97%.
 """
 
 import os
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import app as app_mod
+from app.services import admin_operations
 from fastapi.testclient import TestClient
-from tests.helpers.fast_update_stubs import make_scheduler_stub, patch_app_get_update_scheduler
+from tests.helpers.fast_update_stubs import make_scheduler_stub, patch_admin_get_update_scheduler
 
 
 class TestAppMissingLinesCoverage:
@@ -88,25 +89,34 @@ class TestAppMissingLinesCoverage:
         client = client
 
         # Mock the scheduler to return a valid scheduler
-        with patch("app.get_update_scheduler") as mock_scheduler_getter:
-            mock_scheduler = MagicMock()
-            mock_scheduler_getter.return_value = mock_scheduler
+        async def _scheduler_getter():
+            return MagicMock()
 
+        with patch.object(admin_operations, "get_update_scheduler", _scheduler_getter):
             response = client.get("/api/v1/admin/status", headers={"X-API-Key": "test_key"})
 
             # Should be 200 when scheduler is available
-            assert response.status_code in [200, 500, 503]
+            assert response.status_code == 200
+            assert response.json() == {"status": "ok", "scheduler": "available"}
 
     def test_admin_status_endpoint_error(self, client):
         """Test admin status endpoint error handling."""
         client = client
 
         # Mock the scheduler getter to raise an exception
-        with patch("app.get_update_scheduler", side_effect=Exception("Scheduler error")):
+        async def _failing_scheduler_getter():
+            raise RuntimeError("Scheduler error")
+
+        with patch.object(
+            admin_operations,
+            "get_update_scheduler",
+            _failing_scheduler_getter,
+        ):
             response = client.get("/api/v1/admin/status", headers={"X-API-Key": "test_key"})
 
             # Should be 503 when scheduler is unavailable
-            assert response.status_code in [200, 500, 503]
+            assert response.status_code == 503
+            assert response.json() == {"detail": "Scheduler unavailable"}
 
     def test_database_health_success(self, client):
         """Test database health endpoint success."""
@@ -234,56 +244,57 @@ class TestAppMissingLinesCoverage:
         assert response.status_code == 200
         assert isinstance(response.json(), dict)
 
-    def test_database_status_endpoint(self, client):
+    def test_database_status_endpoint(self, client, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test database status endpoint."""
         client = client
 
+        scheduler = MagicMock()
+        scheduler.get_status.return_value = {"scheduler": {}, "databases": {}}
+        patch_admin_get_update_scheduler(monkeypatch, scheduler)
         response = client.get(
             "/api/v1/admin/db-status",
             headers={"X-API-Key": "test_key"},
         )
-        # May be 200, 500, or 503 depending on database availability
-        assert response.status_code in [
-            200,
-            500,
-            503,
-        ], f"Unexpected status code: {response.status_code}\nResponse: {response.json()}"
+        assert response.status_code == 200
 
     def test_force_database_update_endpoint(
         self, client: TestClient, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Test force database update endpoint."""
         scheduler = make_scheduler_stub()
-        patch_app_get_update_scheduler(monkeypatch, app_mod, scheduler)
+        patch_admin_get_update_scheduler(monkeypatch, scheduler)
 
         response = client.post(
             "/api/v1/admin/force-update",
             headers={"X-API-Key": "test_key"},
         )
-        # May be 200, 500, or 503 depending on scheduler availability
-        assert response.status_code in [200, 500, 503]
+        assert response.status_code == 200
 
-    def test_check_for_updates_endpoint(self, client):
+    def test_check_for_updates_endpoint(self, client, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test check for updates endpoint."""
         client = client
 
+        scheduler = MagicMock()
+        scheduler.update_manager.check_for_updates = AsyncMock(return_value={"usda": True})
+        patch_admin_get_update_scheduler(monkeypatch, scheduler)
         response = client.get(
             "/api/v1/admin/check-updates",
             headers={"X-API-Key": "test_key"},
         )
-        # May be 200 or 503 depending on scheduler availability
-        assert response.status_code in [200, 500, 503]
+        assert response.status_code == 200
 
-    def test_rollback_database_endpoint(self, client):
+    def test_rollback_database_endpoint(self, client, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test rollback database endpoint."""
         client = client
 
+        scheduler = MagicMock()
+        scheduler.update_manager.rollback_database = AsyncMock(return_value=True)
+        patch_admin_get_update_scheduler(monkeypatch, scheduler)
         response = client.post(
             "/api/v1/admin/rollback?source=test&target_version=1.0",
             headers={"X-API-Key": "test_key"},
         )
-        # May be 200, 400, 500, or 503 depending on scheduler availability
-        assert response.status_code in [200, 400, 500, 503]
+        assert response.status_code == 200
 
     def test_export_pdf_generic_endpoint(self, client):
         """Test generic PDF export endpoint."""

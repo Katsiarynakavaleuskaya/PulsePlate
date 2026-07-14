@@ -43,29 +43,33 @@ class TestUpdateManagerEndpoints:
         mock_scheduler.update_manager = mock_update_manager
         mock_get_scheduler = AsyncMock(return_value=mock_scheduler)
 
-        # Patch at the module level where the function is called
-        with patch("app.get_update_scheduler", new=mock_get_scheduler):
-            response = client.get("/api/v1/admin/check-updates", headers={"X-API-Key": "test_key"})
+        with patch(
+            "app.services.admin_operations.get_update_scheduler",
+            new=mock_get_scheduler,
+        ):
+            response = client.get("/api/v1/admin/check-updates", headers={"X-API-Key": "test-key"})
 
-        # Accept both success and auth failure status codes
-        assert response.status_code in [200, 403, 500]
-        if response.status_code == 200:
-            data = response.json()
-            assert data["message"] == "Update check completed"
-            assert data["updates_available"] == {"usda": True, "openfoodfacts": False}
-            assert data["total_sources_with_updates"] == 1  # Only usda has updates
-            # Check if mock was called (may not be if auth failed)
-            if mock_get_scheduler.await_count > 0:
-                mock_update_manager.check_for_updates.assert_awaited_once()
+        assert response.status_code == 200
+        data = response.json()
+        assert data["message"] == "Update check completed"
+        assert data["updates_available"] == {"usda": True, "openfoodfacts": False}
+        assert data["total_sources_with_updates"] == 1
+        mock_get_scheduler.assert_awaited_once()
+        mock_update_manager.check_for_updates.assert_awaited_once()
 
     def test_check_updates_failure(self, client):
         """Test updates check failure - hits exception handling."""
-        # Since mocking is complex in async context, test different scenario
-        # Test with malformed API key
-        response = client.get("/api/v1/admin/check-updates", headers={"X-API-Key": "invalid-key"})
+        mock_get_scheduler = AsyncMock(side_effect=RuntimeError("secret-token"))
 
-        # Check if we get error response - either forbidden or internal error
-        assert response.status_code in [403, 500]
+        with patch(
+            "app.services.admin_operations.get_update_scheduler",
+            new=mock_get_scheduler,
+        ):
+            response = client.get("/api/v1/admin/check-updates", headers={"X-API-Key": "test-key"})
+
+        assert response.status_code == 500
+        assert response.json() == {"detail": "Update check failed"}
+        assert "secret-token" not in response.text
 
     def test_rollback_success(self, client):
         """Test successful database rollback."""
@@ -75,20 +79,21 @@ class TestUpdateManagerEndpoints:
         mock_scheduler.update_manager = mock_update_manager
         mock_get_scheduler = AsyncMock(return_value=mock_scheduler)
 
-        with patch("app.get_update_scheduler", new=mock_get_scheduler):
+        with patch(
+            "app.services.admin_operations.get_update_scheduler",
+            new=mock_get_scheduler,
+        ):
             response = client.post(
                 "/api/v1/admin/rollback?source=usda&target_version=1.0.0",
-                headers={"X-API-Key": "test_key"},
+                headers={"X-API-Key": "test-key"},
             )
 
-        # Accept success or auth failure
-        assert response.status_code in [200, 403, 500]
-        if response.status_code == 200:
-            data = response.json()
-            assert data["success"] is True
-            assert "Successfully rolled back usda to version 1.0.0" in data["message"]
-            if mock_get_scheduler.await_count > 0:
-                mock_update_manager.rollback_database.assert_awaited_once()
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert data["message"] == "Successfully rolled back usda to version 1.0.0"
+        mock_get_scheduler.assert_awaited_once()
+        mock_update_manager.rollback_database.assert_awaited_once()
 
     def test_rollback_failure(self, client):
         """Test failed database rollback."""
@@ -98,19 +103,19 @@ class TestUpdateManagerEndpoints:
         mock_scheduler.update_manager = mock_update_manager
         mock_get_scheduler = AsyncMock(return_value=mock_scheduler)
 
-        with patch("app.get_update_scheduler", new=mock_get_scheduler):
+        with patch(
+            "app.services.admin_operations.get_update_scheduler",
+            new=mock_get_scheduler,
+        ):
             response = client.post(
                 "/api/v1/admin/rollback?source=usda&target_version=1.0.0",
-                headers={"X-API-Key": "test_key"},
+                headers={"X-API-Key": "test-key"},
             )
 
-        # Should return 500 for rollback failure
-        assert response.status_code in [403, 500]
-        if response.status_code == 500:
-            data = response.json()
-            assert "Rollback failed" in data["detail"] or "rollback" in data["detail"].lower()
-            if mock_get_scheduler.await_count > 0:
-                mock_update_manager.rollback_database.assert_awaited_once()
+        assert response.status_code == 500
+        assert response.json() == {"detail": "Rollback operation failed for usda to version 1.0.0"}
+        mock_get_scheduler.assert_awaited_once()
+        mock_update_manager.rollback_database.assert_awaited_once()
 
     def test_rollback_exception(self, client):
         """Test rollback with exception."""
@@ -120,20 +125,21 @@ class TestUpdateManagerEndpoints:
         mock_scheduler.update_manager = mock_update_manager
         mock_get_scheduler = AsyncMock(return_value=mock_scheduler)
 
-        with patch("app.get_update_scheduler", new=mock_get_scheduler):
+        with patch(
+            "app.services.admin_operations.get_update_scheduler",
+            new=mock_get_scheduler,
+        ):
             response = client.post(
                 "/api/v1/admin/rollback?source=usda&target_version=invalid",
-                headers={"X-API-Key": "test_key"},
+                headers={"X-API-Key": "test-key"},
             )
 
-        # Should return 500 for exception
-        assert response.status_code in [403, 500]
-        if response.status_code == 500:
-            data = response.json()
-            # Accept any rollback-related error message
-            assert "rollback" in data["detail"].lower() or "failed" in data["detail"].lower()
-            if mock_get_scheduler.await_count > 0:
-                mock_update_manager.rollback_database.assert_awaited_once()
+        assert response.status_code == 500
+        assert response.json() == {
+            "detail": "Rollback operation failed; Rollback failed; see server logs for details"
+        }
+        mock_get_scheduler.assert_awaited_once()
+        mock_update_manager.rollback_database.assert_awaited_once()
 
     def test_check_updates_no_api_key(self, client):
         """Test check updates without API key."""

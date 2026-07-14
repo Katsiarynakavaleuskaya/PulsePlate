@@ -22,22 +22,12 @@ class TestAppMissingLinesExtra:
         if client is not None:
             client.close()
 
-    def test_get_update_scheduler_late_import_path(self):
-        # Test the get_update_scheduler function exists and can be called
-        import asyncio
+    def test_get_update_scheduler_public_identity(self):
+        import legacy_app
+        from app.services import scheduler_access
 
-        # Check if the function exists
-        if hasattr(app_mod, "get_update_scheduler"):
-            try:
-                # Try to call the function using modern asyncio API to avoid deprecated get_event_loop
-                obj = asyncio.run(app_mod.get_update_scheduler())
-                assert obj is not None
-            except Exception:
-                # If it fails, that's also acceptable for coverage
-                pass
-        else:
-            # If function doesn't exist, skip the test
-            pytest.skip("get_update_scheduler function not available")
+        assert app_mod.get_update_scheduler is legacy_app.get_update_scheduler
+        assert app_mod.get_update_scheduler is scheduler_access.get_update_scheduler
 
     def test_bmi_pregnancy_visualization_branch(self):
         # include_chart True + pregnant path should attach visualization (405-410)

@@ -29,11 +29,12 @@ def test_get_api_key_strict_and_dev_modes(monkeypatch: pytest.MonkeyPatch):
 @pytest.mark.asyncio
 async def test_admin_status_scheduler_branches(monkeypatch: pytest.MonkeyPatch):
     import app as appmod
+    from app.services import admin_operations
 
     async def _none_scheduler():  # noqa: D401
         return None
 
-    monkeypatch.setattr(appmod, "get_update_scheduler", _none_scheduler)
+    monkeypatch.setattr(admin_operations, "get_update_scheduler", _none_scheduler)
     with pytest.raises(appmod.HTTPException) as ei:
         await appmod.admin_status()
     assert ei.value.status_code == 503
@@ -44,7 +45,7 @@ async def test_admin_status_scheduler_branches(monkeypatch: pytest.MonkeyPatch):
     async def _ok_scheduler():
         return DummyScheduler()
 
-    monkeypatch.setattr(appmod, "get_update_scheduler", _ok_scheduler)
+    monkeypatch.setattr(admin_operations, "get_update_scheduler", _ok_scheduler)
     out = await appmod.admin_status()
     assert out["status"] == "ok" and out["scheduler"] == "available"
 

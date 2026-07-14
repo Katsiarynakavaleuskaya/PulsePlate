@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable
 import importlib
 import sys
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
 from typing import Any, Protocol
 
 
@@ -17,7 +17,7 @@ BackgroundUpdateCallable = Callable[..., Any]
 def make_scheduler_stub(usda_result: Any = None) -> SchedulerLike:
     """
     Return a scheduler-like object with async force_update.
-    Matches legacy_app.get_update_scheduler seam used in tests.
+    Matches the scheduler object consumed by admin_operations tests.
     """
 
     class _SchedulerStub:
@@ -25,27 +25,34 @@ def make_scheduler_stub(usda_result: Any = None) -> SchedulerLike:
             _ = source
             if usda_result is not None:
                 return {"usda": usda_result}
-            return {"usda": {"ok": True, "status": "stubbed"}}
+            return {
+                "usda": SimpleNamespace(
+                    success=True,
+                    old_version="1.0",
+                    new_version="1.1",
+                    records_added=1,
+                    records_updated=0,
+                    records_removed=0,
+                    duration_seconds=0.01,
+                    errors=[],
+                )
+            }
 
     return _SchedulerStub()
 
 
-def patch_app_get_update_scheduler(monkeypatch: Any, app_module: Any, scheduler: object) -> None:
-    """
-    Patch scheduler seam for force-update tests.
-    Applies override to both `app` facade and `legacy_app` where endpoint resolves runtime getter.
-    """
+def patch_admin_get_update_scheduler(monkeypatch: Any, scheduler: object) -> None:
+    """Patch the canonical admin-service consumer binding."""
+
+    from app.services import admin_operations
 
     async def _fake_get_update_scheduler() -> object:
         return scheduler
 
-    monkeypatch.setattr(app_module, "get_update_scheduler", _fake_get_update_scheduler)
-    try:
-        import legacy_app as legacy_app_mod
-    except ModuleNotFoundError:
-        return
     monkeypatch.setattr(
-        legacy_app_mod, "get_update_scheduler", _fake_get_update_scheduler, raising=False
+        admin_operations,
+        "get_update_scheduler",
+        _fake_get_update_scheduler,
     )
 
 

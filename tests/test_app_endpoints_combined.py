@@ -516,62 +516,6 @@ class TestAdminOperationsService:
             ("rollback", (), {"source": "usda", "target_version": "1.0.0"}),
         ]
 
-    def test_scheduler_getter_selection_default_and_import_fallback(
-        self,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        async def _default_getter() -> object:
-            return object()
-
-        async def _patched_legacy_getter() -> object:
-            return object()
-
-        patched_legacy_module = SimpleNamespace(
-            get_update_scheduler=_patched_legacy_getter,
-            _DEFAULT_GET_UPDATE_SCHEDULER=_default_getter,
-        )
-        legacy_module = SimpleNamespace(
-            get_update_scheduler=_default_getter,
-            _DEFAULT_GET_UPDATE_SCHEDULER=_default_getter,
-        )
-
-        assert (
-            admin_operations_service._select_scheduler_getter_from_modules(
-                patched_legacy_module,
-                SimpleNamespace(),
-                SimpleNamespace(),
-            )
-            is _patched_legacy_getter
-        )
-        assert (
-            admin_operations_service._select_scheduler_getter_from_modules(
-                legacy_module,
-                SimpleNamespace(),
-                SimpleNamespace(),
-            )
-            is _default_getter
-        )
-        assert (
-            admin_operations_service._select_scheduler_getter_from_modules(
-                SimpleNamespace(_DEFAULT_GET_UPDATE_SCHEDULER=None),
-                SimpleNamespace(),
-                SimpleNamespace(),
-            )
-            is None
-        )
-
-        import core.food_apis.scheduler as scheduler_mod
-
-        def _fallback_getter() -> object:
-            return object()
-
-        monkeypatch.setattr(scheduler_mod, "get_update_scheduler", _fallback_getter)
-        monkeypatch.setitem(sys.modules, "legacy_app", SimpleNamespace())
-        monkeypatch.setitem(sys.modules, "app", SimpleNamespace())
-        monkeypatch.setitem(sys.modules, "app_module", SimpleNamespace())
-
-        assert admin_operations_service._resolve_scheduler_getter() is _fallback_getter
-
     def test_admin_status_success_generic_failure_and_http_exception(
         self,
         monkeypatch: pytest.MonkeyPatch,
@@ -585,20 +529,24 @@ class TestAdminOperationsService:
         async def _raise_http_exception() -> object:
             raise HTTPException(status_code=418, detail="scheduler rejected")
 
-        monkeypatch.setattr(admin_operations_service, "_get_scheduler", _scheduler_available)
+        monkeypatch.setattr(admin_operations_service, "get_update_scheduler", _scheduler_available)
 
         assert asyncio.run(admin_operations_service.admin_status()) == {
             "status": "ok",
             "scheduler": "available",
         }
 
-        monkeypatch.setattr(admin_operations_service, "_get_scheduler", _scheduler_missing)
+        monkeypatch.setattr(admin_operations_service, "get_update_scheduler", _scheduler_missing)
         with pytest.raises(HTTPException) as exc_info:
             asyncio.run(admin_operations_service.admin_status())
         assert exc_info.value.status_code == 503
         assert exc_info.value.detail == "Scheduler unavailable"
 
-        monkeypatch.setattr(admin_operations_service, "_get_scheduler", _raise_http_exception)
+        monkeypatch.setattr(
+            admin_operations_service,
+            "get_update_scheduler",
+            _raise_http_exception,
+        )
 
         with pytest.raises(HTTPException) as exc_info:
             asyncio.run(admin_operations_service.admin_status())
@@ -620,19 +568,27 @@ class TestAdminOperationsService:
         async def _get_scheduler_failure() -> object:
             raise RuntimeError("db status unavailable")
 
-        monkeypatch.setattr(admin_operations_service, "_get_scheduler", _get_scheduler_success)
+        monkeypatch.setattr(
+            admin_operations_service,
+            "get_update_scheduler",
+            _get_scheduler_success,
+        )
 
         response = asyncio.run(admin_operations_service.get_database_status())
         assert response.status_code == 200
         assert response.body == b'{"status":"ok"}'
 
-        monkeypatch.setattr(admin_operations_service, "_get_scheduler", _get_scheduler_failure)
+        monkeypatch.setattr(
+            admin_operations_service,
+            "get_update_scheduler",
+            _get_scheduler_failure,
+        )
 
         with pytest.raises(HTTPException) as exc_info:
             asyncio.run(admin_operations_service.get_database_status())
 
         assert exc_info.value.status_code == 500
-        assert "db status unavailable" in str(exc_info.value.detail)
+        assert exc_info.value.detail == "Failed to get database status"
 
     def test_force_database_update_success_and_failure(
         self,
@@ -660,20 +616,28 @@ class TestAdminOperationsService:
         async def _get_scheduler_failure() -> object:
             raise RuntimeError("force failed")
 
-        monkeypatch.setattr(admin_operations_service, "_get_scheduler", _get_scheduler_success)
+        monkeypatch.setattr(
+            admin_operations_service,
+            "get_update_scheduler",
+            _get_scheduler_success,
+        )
 
         response = asyncio.run(admin_operations_service.force_database_update(source="usda"))
         assert response.status_code == 200
         assert b'"Force update completed for usda"' in response.body
         assert b'"records_added":1' in response.body
 
-        monkeypatch.setattr(admin_operations_service, "_get_scheduler", _get_scheduler_failure)
+        monkeypatch.setattr(
+            admin_operations_service,
+            "get_update_scheduler",
+            _get_scheduler_failure,
+        )
 
         with pytest.raises(HTTPException) as exc_info:
             asyncio.run(admin_operations_service.force_database_update(source="usda"))
 
         assert exc_info.value.status_code == 500
-        assert "force failed" in str(exc_info.value.detail)
+        assert exc_info.value.detail == "Force update failed"
 
     def test_check_for_updates_success_and_error_paths(
         self,
@@ -698,7 +662,11 @@ class TestAdminOperationsService:
         async def _raise_http_exception() -> object:
             raise HTTPException(status_code=409, detail="updates rejected")
 
-        monkeypatch.setattr(admin_operations_service, "_get_scheduler", _get_scheduler_success)
+        monkeypatch.setattr(
+            admin_operations_service,
+            "get_update_scheduler",
+            _get_scheduler_success,
+        )
 
         response = asyncio.run(admin_operations_service.check_for_updates())
         assert response.status_code == 200
@@ -706,7 +674,7 @@ class TestAdminOperationsService:
 
         monkeypatch.setattr(
             admin_operations_service,
-            "_get_scheduler",
+            "get_update_scheduler",
             _get_scheduler_without_manager,
         )
 
@@ -714,19 +682,27 @@ class TestAdminOperationsService:
             asyncio.run(admin_operations_service.check_for_updates())
 
         assert exc_info.value.status_code == 500
-        assert "check_for_updates not supported" in str(exc_info.value.detail)
+        assert exc_info.value.detail == "Update check failed"
 
-        monkeypatch.setattr(admin_operations_service, "_get_scheduler", _get_scheduler_none)
+        monkeypatch.setattr(
+            admin_operations_service,
+            "get_update_scheduler",
+            _get_scheduler_none,
+        )
         with pytest.raises(HTTPException) as exc_info:
             asyncio.run(admin_operations_service.check_for_updates())
         assert exc_info.value.status_code == 500
-        assert "Scheduler resolved to None" in str(exc_info.value.detail)
+        assert exc_info.value.detail == "Update check failed"
 
-        monkeypatch.setattr(admin_operations_service, "_get_scheduler", _raise_http_exception)
+        monkeypatch.setattr(
+            admin_operations_service,
+            "get_update_scheduler",
+            _raise_http_exception,
+        )
         with pytest.raises(HTTPException) as exc_info:
             asyncio.run(admin_operations_service.check_for_updates())
-        assert exc_info.value.status_code == 409
-        assert exc_info.value.detail == "updates rejected"
+        assert exc_info.value.status_code == 500
+        assert exc_info.value.detail == "Update check failed"
 
     def test_rollback_database_success_and_error_paths(
         self,
@@ -760,7 +736,7 @@ class TestAdminOperationsService:
 
         monkeypatch.setattr(
             admin_operations_service,
-            "_get_scheduler",
+            "get_update_scheduler",
             lambda: _scheduler_with_manager(_SyncRollbackManager()),
         )
         assert asyncio.run(admin_operations_service.rollback_database("usda", "1.0.0")) == {
@@ -770,7 +746,7 @@ class TestAdminOperationsService:
 
         monkeypatch.setattr(
             admin_operations_service,
-            "_get_scheduler",
+            "get_update_scheduler",
             lambda: _scheduler_with_manager(_AwaitableRollbackManager()),
         )
         assert asyncio.run(admin_operations_service.rollback_database("usda", "1.0.0")) == {
@@ -778,7 +754,11 @@ class TestAdminOperationsService:
             "success": True,
         }
 
-        monkeypatch.setattr(admin_operations_service, "_get_scheduler", _scheduler_none)
+        monkeypatch.setattr(
+            admin_operations_service,
+            "get_update_scheduler",
+            _scheduler_none,
+        )
         with pytest.raises(HTTPException) as exc_info:
             asyncio.run(admin_operations_service.rollback_database("usda", "1.0.0"))
         assert exc_info.value.status_code == 500
@@ -786,7 +766,7 @@ class TestAdminOperationsService:
 
         monkeypatch.setattr(
             admin_operations_service,
-            "_get_scheduler",
+            "get_update_scheduler",
             lambda: _scheduler_with_manager(None),
         )
         with pytest.raises(HTTPException) as exc_info:
@@ -796,7 +776,7 @@ class TestAdminOperationsService:
 
         monkeypatch.setattr(
             admin_operations_service,
-            "_get_scheduler",
+            "get_update_scheduler",
             lambda: _scheduler_with_manager(SimpleNamespace()),
         )
         with pytest.raises(HTTPException) as exc_info:
@@ -806,7 +786,7 @@ class TestAdminOperationsService:
 
         monkeypatch.setattr(
             admin_operations_service,
-            "_get_scheduler",
+            "get_update_scheduler",
             lambda: _scheduler_with_manager(_RaisingRollbackManager()),
         )
         with pytest.raises(HTTPException) as exc_info:
@@ -816,7 +796,7 @@ class TestAdminOperationsService:
 
         monkeypatch.setattr(
             admin_operations_service,
-            "_get_scheduler",
+            "get_update_scheduler",
             lambda: _scheduler_with_manager(_FalseRollbackManager()),
         )
         with pytest.raises(HTTPException) as exc_info:

@@ -117,8 +117,10 @@ class TestCoverageImprovement:
             # Should not crash, just log warning
 
         # Test scheduler start when already running
-        # Patch legacy_app.get_update_scheduler to match endpoint resolution
-        with patch.object(legacy_app, "get_update_scheduler") as mock_get_scheduler:
+        with patch(
+            "app.services.admin_operations.get_update_scheduler",
+            new_callable=AsyncMock,
+        ) as mock_get_scheduler:
             mock_scheduler = MagicMock()
             mock_scheduler.is_running = True
             mock_get_scheduler.return_value = mock_scheduler
@@ -166,7 +168,10 @@ class TestCoverageImprovement:
                 "core.food_apis.update_manager.DatabaseUpdateManager._load_backup",
                 side_effect=Exception("Test error"),
             ):
-                with patch.object(legacy_app, "get_update_scheduler") as mock_get_scheduler:
+                with patch(
+                    "app.services.admin_operations.get_update_scheduler",
+                    new_callable=AsyncMock,
+                ) as mock_get_scheduler:
                     mock_scheduler = AsyncMock()
                     mock_scheduler.update_manager.rollback_database = AsyncMock(return_value=False)
                     mock_get_scheduler.return_value = mock_scheduler
