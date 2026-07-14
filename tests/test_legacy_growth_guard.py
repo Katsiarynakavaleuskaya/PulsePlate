@@ -888,6 +888,50 @@ def test_api_key_ownership_guard_rejects_dynamic_import_legacy_lookup(source: st
     ]
 
 
+@pytest.mark.parametrize(
+    ("source", "expected_error"),
+    [
+        (
+            "def injected_dependency():\n"
+            "    import legacy_app as legacy\n"
+            "    dependency = legacy.get_api_key\n"
+            "    return dependency\n",
+            "app/main.py: legacy API-key dependency attribute access is forbidden: get_api_key",
+        ),
+        (
+            "def injected_dependency():\n"
+            "    import importlib as il\n"
+            "    dependency = getattr(il.import_module(\"legacy_app\"), \"get_api_key\", None)\n"
+            "    return dependency\n",
+            "app/main.py: dynamic legacy API-key dependency lookup is forbidden: get_api_key",
+        ),
+        (
+            "def injected_dependency():\n"
+            "    from importlib import import_module as load_module\n"
+            "    dependency = getattr(load_module(\"legacy_app\"), \"_get_api_key_dynamic\", None)\n"
+            "    return dependency\n",
+            "app/main.py: dynamic legacy API-key dependency lookup is forbidden: "
+            "_get_api_key_dynamic",
+        ),
+    ],
+    ids=["nested-legacy-alias", "nested-importlib-alias", "nested-import-module-alias"],
+)
+def test_api_key_ownership_guard_rejects_nested_legacy_import_aliases(
+    source: str,
+    expected_error: str,
+) -> None:
+    legacy_source = (
+        "from app.routers.api_key import (\n"
+        "    _get_api_key_dynamic as _get_api_key_dynamic,\n"
+        "    get_api_key as get_api_key,\n"
+        ")\n"
+    )
+
+    assert legacy_guard.validate_api_key_dependency_ownership(
+        legacy_source,
+        {"app/main.py": source},
+    ) == [expected_error]
+
 def test_api_key_ownership_guard_accepts_direct_identity_preserving_reexports() -> None:
     legacy_source = (
         "from app.routers.api_key import (\n    _get_api_key_dynamic,\n    get_api_key,\n)\n"

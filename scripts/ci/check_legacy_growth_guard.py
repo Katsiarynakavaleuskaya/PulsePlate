@@ -1681,6 +1681,16 @@ def validate_api_key_dependency_ownership(
         static_string_bindings: dict[str, str] = {}
         top_level_assignment_counts: Counter[str] = Counter()
 
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name in {"importlib", "legacy_app"}:
+                        module_aliases.setdefault(alias.asname or alias.name, alias.name)
+            elif isinstance(node, ast.ImportFrom) and node.module == "importlib":
+                for alias in node.names:
+                    if alias.name == "import_module":
+                        import_module_aliases.add(alias.asname or alias.name)
+
         def record_bounded_lookups(expression: ast.AST) -> None:
             def expression_is_legacy_module(node: ast.AST) -> bool:
                 return (
