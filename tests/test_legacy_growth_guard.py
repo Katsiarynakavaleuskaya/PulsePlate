@@ -1995,6 +1995,21 @@ def test_legacy_growth_guard_rejects_add_middleware() -> None:
     ]
 
 
+def test_legacy_growth_guard_rejects_reassigned_getattr_route_method() -> None:
+    source = textwrap.dedent("""
+        method = "get"
+        method = "post"
+        getattr(app, method)("/api/v1/reassigned")(handler)
+        """)
+
+    errors = legacy_guard.validate_legacy_growth(source)
+
+    assert errors == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:dynamic:/api/v1/reassigned"
+    ]
+
+
 def test_legacy_growth_guard_rejects_middleware_decorator() -> None:
     source = textwrap.dedent("""
         @app.middleware("http")

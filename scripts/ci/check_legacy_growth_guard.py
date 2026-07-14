@@ -380,25 +380,33 @@ def _getattr_app_call_action(
     router_aliases: frozenset[str],
     static_string_bindings: Mapping[str, str] | None = None,
 ) -> str | None:
-    method = _getattr_method_name(
-        func,
-        methods,
-        static_string_bindings=static_string_bindings,
-    )
-    if method is None or not isinstance(func, ast.Call) or not func.args:
+    if not isinstance(func, ast.Call) or not func.args:
         return None
     target = func.args[0]
+    target_prefix: str | None = None
     if isinstance(target, ast.Name) and target.id in app_aliases:
-        return method
-    if isinstance(target, ast.Name) and target.id in router_aliases:
-        return f"router.{method}"
-    if (
+        target_prefix = ""
+    elif isinstance(target, ast.Name) and target.id in router_aliases:
+        target_prefix = "router."
+    elif (
         isinstance(target, ast.Attribute)
         and target.attr == "router"
         and isinstance(target.value, ast.Name)
         and target.value.id in app_aliases
     ):
-        return f"router.{method}"
+        target_prefix = "router."
+    if target_prefix is None:
+        return None
+
+    method = _getattr_method_name(
+        func,
+        methods,
+        static_string_bindings=static_string_bindings,
+    )
+    if method is not None:
+        return f"{target_prefix}{method}"
+    if _is_unresolved_getattr_method(func, static_string_bindings=static_string_bindings):
+        return f"{target_prefix}dynamic"
     return None
 
 
@@ -1124,6 +1132,20 @@ def _getattr_method_name(
     if method in methods:
         return method
     return None
+
+
+def _is_unresolved_getattr_method(
+    func: ast.Call,
+    *,
+    static_string_bindings: Mapping[str, str] | None = None,
+) -> bool:
+    if not isinstance(func.func, ast.Name) or func.func.id != "getattr":
+        return False
+    if len(func.args) < 2:
+        return False
+    if _resolve_static_string(func.args[1], static_string_bindings or {}) is not None:
+        return False
+    return True
 
 
 def _assignment_target_names(node: ast.AST) -> tuple[str, ...]:
