@@ -7,9 +7,10 @@ Branch: `codex/caddy-2-11-attested-digests`
 ## Summary
 
 This PR builds a hardened Caddy v2.11.4 binary with Go 1.26.5, upgrades the
-runtime c-ares package, and makes staging consume the exact backend and Caddy
-digests produced, attested, verified, and scanned by the same CD job. It does
-not deploy or change backend, OpenAPI, client, or Caddy route behavior.
+runtime `c-ares`, `curl`, and `libcurl` packages, and makes staging consume the
+exact backend and Caddy digests produced, attested, verified, and scanned by
+the same CD job. It does not deploy or change backend, OpenAPI, client, or
+Caddy route behavior.
 
 ## Discussion Thread Pass
 
@@ -18,6 +19,9 @@ not deploy or change backend, OpenAPI, client, or Caddy route behavior.
 - [x] Mandatory post-open `qa-engineer-agent -> bug-hunter -> security-auditor` pass completed
 - [x] Codex Security exact-material-head diff scan completed
 - [x] `pulseplate-pr-review` completed
+- [ ] Post-rebase packet role refresh completed
+- [ ] Bounded supplemental Codex Security delta scan completed
+- [ ] Current-head `pulseplate-pr-review` completed
 - [ ] Current-head CI completed
 - [ ] Mandatory review wait-window and strict merge-readiness completed
 
@@ -27,25 +31,27 @@ Disposition: FIXED
 Commit: see mapping entries below
 Evidence: All CodeRabbit actionables and review-level findings were fixed by the mapped commits; focused Caddy, workflow, deploy, and supply-chain contract tests pass.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#discussion_r3574923686 -> bb58dab7f
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#discussion_r3574923694 -> bb58dab7f
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#discussion_r3574923702 -> d3a4d893a
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#discussion_r3574923708 -> f1cde4cd9
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#discussion_r3574923714 -> bb58dab7f
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#discussion_r3574923719 -> f1cde4cd9
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#discussion_r3574923722 -> bb58dab7f
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#pullrequestreview-4689618115 -> f1cde4cd9
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#pullrequestreview-4689852435 -> 7c7414266
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#discussion_r3576902700 -> 0a3a43255
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#pullrequestreview-4691892060 -> 0a3a43255
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#discussion_r3576961278 -> d73012d22
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#pullrequestreview-4691964978 -> d73012d22
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#discussion_r3574923686 -> f8246c554
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#discussion_r3574923694 -> f8246c554
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#discussion_r3574923702 -> dc0d7f07f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#discussion_r3574923708 -> 04202ab1a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#discussion_r3574923714 -> f8246c554
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#discussion_r3574923719 -> 04202ab1a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#discussion_r3574923722 -> f8246c554
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#pullrequestreview-4689618115 -> 04202ab1a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#pullrequestreview-4689852435 -> 6bb85cdb8
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#discussion_r3576902700 -> 07ec36b1e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#pullrequestreview-4691892060 -> 07ec36b1e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#discussion_r3576961278 -> 61e50343f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#pullrequestreview-4691964978 -> 61e50343f
 
 ## Intermediate Codex Security Review Evidence
 
 - The Codex Security scan for `95325b12f5a664a131ce79543f6a963c06f4de0a..2d4e03b48a2877f6da9e5994e3b3bfc0165cf151` completed with zero reportable findings.
 - It identified one operator-only stale-build correctness gap in `scripts/QUICK_FIX_PRODUCTION.sh`; attack-path analysis rejected it as a security finding because no attacker-controlled entrypoint or lower-privileged boundary exists.
-- Commit `7c7414266` still closes that bounded correctness gap by rebuilding Caddy fail closed and verifying the running Caddy/Go identity before the success claim.
+- Rebased commit `6bb85cdb8` still closes that bounded correctness gap by
+  rebuilding Caddy fail closed and verifying the running Caddy/Go identity
+  before the success claim.
 
 This receipt predates the final review-hardening commits and is not used as the
 exact-head Codex Security merge gate. A new sealed scan is still required after
@@ -125,7 +131,7 @@ rollback-safe provenance chain without runtime product expansion.
 ### Architecture Specialist
 
 Disposition: FIXED
-Commit: b7e574bfd
+Commit: 1972f22a0
 Evidence: CD now creates, attests, verifies, scans, and passes both image
 digests from their own build steps; staging Compose and deploy accept the same
 two immutable identities.
@@ -135,7 +141,7 @@ split while preserving Caddy topology and persistent volumes.
 ### Security Auditor
 
 Disposition: FIXED
-Commit: b7e574bfd
+Commit: 1972f22a0
 Evidence: Required deployments fail closed on contract readiness, credentials,
 server marker, input hashes, attestations, scans, and exact canonical digest
 shape; no new secret, permission, suppression, or PR deployment authority was
@@ -146,7 +152,7 @@ mutable/cross-workflow staging handoff risks.
 ### Dev Operator
 
 Disposition: FIXED
-Commit: b7e574bfd
+Commit: 1972f22a0
 Evidence: `scripts/deploy.sh` provides a credential-free preflight, validates
 the root-owned migration marker and server-local file hashes before secrets,
 then performs the existing backup/migration/readiness sequence with two pulled
@@ -157,7 +163,7 @@ is performed by this PR.
 ### QA Engineer Agent
 
 Disposition: FIXED
-Commit: b7e574bfd
+Commit: 1972f22a0
 Evidence: Focused tests cover exact versions/digests, two-image workflow order,
 negative and positive deploy CLI cases, persistent volumes, route topology,
 headers, attestations, and scans. Local container evidence validates version,
@@ -169,7 +175,7 @@ change while heavy current-head CI remains a separate pending gate.
 ### Actual-diff Premortem
 
 Disposition: FIXED
-Commit: b7e574bfd
+Commit: 1972f22a0
 Evidence: `docs/review/PR_CADDY_2_11_ATTESTED_DIGESTS_PREMORTEM.md` records the
 actual diff risks and the implementation contains their required mitigations,
 including default-false readiness, marker/hash preflight, same-job digests,
@@ -182,7 +188,7 @@ before PR open.
 ### QA Engineer Agent
 
 Disposition: FIXED
-Commit: 1902cc5c7
+Commit: 96ea5b16b
 Evidence: `.github/workflows/cd.yml` groups all contract-hash outputs under one
 redirect, satisfying Actionlint/ShellCheck SC2129; the canonical mapping uses
 the parser-safe no-actionables marker; the PR body now carries trusted-label
@@ -195,7 +201,7 @@ before the next role pass.
 ### Bug Hunter
 
 Disposition: FIXED
-Commit: 312877b8e
+Commit: b0c159f19
 Evidence: The credentialed deploy SSH step receives the three expected hashes,
 revalidates the root-owned marker, contract version, deploy script, Compose,
 and Caddyfile immediately before invoking `deploy.sh`, and a focused regression
@@ -206,7 +212,7 @@ after only relying on the earlier credential-free preflight result.
 ### Security Auditor
 
 Disposition: FIXED
-Commit: bed97b521
+Commit: 09901d225
 Evidence: An unconditional policy step makes `STAGING_DEPLOY_REQUIRED=true`
 fail unless all three rollout gates are explicitly true, and the staging
 healthcheck receives `STAGING_DOMAIN` through a step environment variable
@@ -218,7 +224,7 @@ and the healthcheck no longer creates a secret-to-shell-source injection seam.
 ### Final QA Engineer Agent
 
 Disposition: FIXED
-Commit: f1cde4cd9
+Commit: 04202ab1a
 Evidence: the premortem now records four reviewed-file hashes, the Docker build
 fails unless Go metadata reports Caddy main module v2.11.4, and header assertions
 are bound to every active global header block. The focused suite passes.
@@ -266,7 +272,7 @@ Reason: No remaining P0-P2 correctness defect was found in the full
 ### Current-head Closure Security Auditor
 
 Disposition: FIXED
-Commit: b7d08050f
+Commit: 0547227d9
 Evidence: Duplicate `.env` diagnostics expose keys only, all production flags
 are finalized before the atomic rename, and credential lifecycle, exact distinct
 digests, same-job attestations and scans, SSH fingerprint/contract checks,
@@ -278,7 +284,7 @@ were fixed before the definitive security pass.
 ### Docker Source Review Remediation QA Engineer Agent
 
 Disposition: FIXED
-Commit: dfd91f432
+Commit: c45f98eb0
 Evidence: Exact range `3b264f6ac..dfd91f432`; the unchanged SQLite 3.53.2
 archive URL and SHA3-256 were independently revalidated, the review window is
 fourteen days, the complete Docker workflow contract suite passed 18 tests,
@@ -308,7 +314,7 @@ privileged-boundary expansion was introduced.
 ### Production Environment Guard QA Engineer Agent
 
 Disposition: FIXED
-Commit: 0a3a43255
+Commit: 07ec36b1e
 Evidence: Exact range `0a05abeb..0a3a43255`; 11 quick-fix tests and 70 bounded
 deploy/provenance tests passed. Compose-normalized required-key duplicates fail
 before backup, mutation, or Docker operations beyond the read-only version
@@ -331,7 +337,7 @@ managed-flag cleanup fixes.
 ### Production Environment Guard Security Auditor
 
 Disposition: FIXED
-Commit: 0a3a43255
+Commit: 07ec36b1e
 Evidence: Exact range `0a05abeb..0a3a43255`; live Docker Compose probes confirmed
 that every accepted space/export/tab/CRLF variant is recognized by the guard.
 Diagnostics expose only line number, allowlisted key, and `<redacted>`; no value
@@ -340,8 +346,25 @@ Reason: The earlier validation/runtime parser split and surviving development
 flag path are closed without introducing shell injection, secret disclosure,
 or a relevant lower-privileged TOCTOU boundary.
 
+### Post-rebase Curl/Libcurl Remediation
+
+Disposition: FIXED
+Commit: 8f7ff7e0c
+Evidence: A refreshed Trivy 0.71.2 database identified four fixed HIGH findings
+in inherited Alpine `curl`/`libcurl` 8.19.0-r0. The final stage now requires
+`curl>=8.20.0-r0` and `libcurl>=8.20.0-r0`; the rebuilt image reports Caddy
+v2.11.4 on Go 1.26.5, preserves 132-module parity and bind capability, validates
+both Caddyfiles, and the repeated no-suppression image scan reports zero
+HIGH/CRITICAL findings for Alpine and the Go binary. The focused deploy,
+attestation, workflow, and Python supply-chain suite plus `make
+validate-changed` and `pre-commit run --all-files` pass.
+Reason: The refreshed vulnerability database exposed a bounded current-PR
+final-image defect. It was remediated without changing Node, Postgres, Python
+locks, application behavior, permissions, secrets, or deployment authority.
+
 The mandatory role chain and Codex Security material scans are complete.
-The final remote-head PulsePlate PR review, current-head CI, review wait window,
+The post-rebase role refresh, one bounded supplemental security scan, final
+remote-head PulsePlate PR review, current-head CI, review wait window,
 discussion disposition checks, and strict authenticated merge-readiness gate
 remain pending.
 
@@ -377,11 +400,14 @@ The packet routed mandatory ordered roles and did not execute them implicitly.
 - PASS: Trivy 0.71.2 reports zero HIGH/CRITICAL findings for Alpine packages
   and the rebuilt Caddy binary.
 - Not run: local `make verify`, per repository machine-budget policy.
-- PASS: exact-material-head Codex Security scan and PulsePlate PR review.
+- PASS (historical pre-rebase evidence): exact-material-head Codex Security scan
+  and PulsePlate PR review.
 - PASS: supplemental exact-delta Codex Security scan for the Docker source
   review-window remediation.
 - PASS: supplemental exact-delta Codex Security scan for the production
   environment parser and managed-flag remediation.
+- Pending: one bounded supplemental Codex Security scan for the post-rebase
+  `1764016a9..8f7ff7e0c` Caddy package-floor delta; no broad scan restart.
 - Pending: current-head GitHub CI and review governance.
 
 ## Merge Readiness
