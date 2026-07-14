@@ -32,6 +32,9 @@ provenance, application behavior, and forward-only rollback.
 - `def03ed50991937c8a84b391160a8ba06014b609` - raise the setuptools floor and
   exact pins, regenerate five governed locks through the approved private
   proxy, extend deterministic guards, and record forward-only rollback.
+- `dcef7c4a1` - anchor the remediation decision to exact deterministic test
+  evidence after the current-head Phase 1 docs gate identified the missing
+  `file:line` references.
 
 ## Discussion Thread Pass
 
@@ -115,6 +118,9 @@ implementation commit carries the required co-author trailer.
 - PASS: `pre-commit run --all-files`.
 - PASS: pre-push hooks, including Bandit and the Docker build test.
 - PASS: `git diff --check`.
+- PASS: Phase 1 docs gates after adding exact evidence anchors at
+  `tests/test_python_supply_chain_controls.py:1264` and
+  `tests/test_dependency_security_guard.py:390`.
 - PENDING: canonical current-head GitHub CI after this governance commit and
   strict authenticated merge readiness.
 - NOT RUN: local full `make verify`; prohibited by the repository local budget
