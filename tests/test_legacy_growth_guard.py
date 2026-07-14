@@ -2156,6 +2156,24 @@ def test_legacy_growth_guard_rejects_forbidden_runtime_registrar_star_imports(
     ]
 
 
+def test_legacy_growth_guard_rejects_dynamic_registrar_with_shadowed_parameter() -> None:
+    source = (
+        "from importlib import import_module\n"
+        'module_name = "app.bootstrap.http_stack"\n'
+        'registrar_name = "register_http_middleware_stack"\n'
+        "def harmless(registrar_name):\n"
+        "    return registrar_name\n"
+        "getattr(import_module(module_name), registrar_name)(app)\n"
+    )
+
+    errors = legacy_guard.validate_legacy_growth(source)
+
+    assert errors == [
+        "legacy_app.py: forbidden legacy runtime registration: "
+        "runtime_registration:register_http_middleware_stack:app"
+    ]
+
+
 def test_legacy_growth_guard_rejects_aliased_add_middleware() -> None:
     source = "add = app.add_middleware\nregister = add\nregister(NewMiddleware)\n"
 

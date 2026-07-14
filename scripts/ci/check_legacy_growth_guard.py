@@ -854,8 +854,6 @@ def _collect_binding_counts(tree: ast.Module) -> Counter[str]:
             counts[node.id] += 1
         elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
             counts[node.name] += 1
-        elif isinstance(node, ast.arg):
-            counts[node.arg] += 1
         elif isinstance(node, ast.Import):
             for alias in node.names:
                 counts[alias.asname or alias.name.split(".", maxsplit=1)[0]] += 1
