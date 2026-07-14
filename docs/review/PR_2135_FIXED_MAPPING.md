@@ -85,13 +85,13 @@ Evidence:
 ## Experiment Runner Evidence
 
 Capability artifact:
-`artifacts/orchestration/experiments/capabilities/combined-strict-dispatch-b432aeb7-capability.json`
+`artifacts/orchestration/experiments/capabilities/combined-strict-dispatch-a42a36ca-capability.json`
 
 Packet:
-`artifacts/orchestration/experiments/packets/combined-strict-dispatch-b432aeb7-oracle-packet.json`
+`artifacts/orchestration/experiments/packets/combined-strict-dispatch-a42a36ca-oracle-packet.json`
 
 Artifact:
-`artifacts/orchestration/experiments/results/combined-strict-dispatch-b432aeb7-oracle-result.json`
+`artifacts/orchestration/experiments/results/combined-strict-dispatch-a42a36ca-oracle-result.json`
 
 The capability artifact reports `strict_isolation=true`, no blockers, and all
 probe flags true. The result is `accepted` on Apple Container 1.1.0 with one
