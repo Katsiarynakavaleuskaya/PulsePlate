@@ -32,13 +32,36 @@ technical admin 500 details with stable generic envelopes.
 - [x] Post-open `qa-engineer-agent -> bug-hunter -> security-auditor` completed
 - [x] Codex Security exact production-material diff scan completed with 0 findings
 - [x] `pulseplate-pr-review` completed
-- [x] Current review-thread inventory contains no inline threads
+- [x] All seven current-head CodeRabbit threads have disposition evidence below
 - [ ] Canonical current-head CI completed
 - [ ] Strict authenticated merge readiness and mandatory wait-window completed
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: NOT-A-BUG
+Evidence: Root `AGENTS.md`, the canonical orchestration contract, and executable CI all define the diff-coverage gate as at least 97%.
+Reason: The requested 100% wording would contradict current canonical policy.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2121#discussion_r3582931070
+
+Disposition: FIXED
+Commit: 7639a5f1b9adae0806dca49e682f1640661fdc45
+Evidence: The post-comment fix updates the backlog chain, marks the exact compatibility re-export for Flake8, completes changed-test annotations, and corrects the stale error-path comment; focused tests and targeted hooks pass.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2121#discussion_r3582931091 -> 7639a5f1b9adae0806dca49e682f1640661fdc45
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2121#discussion_r3582931100 -> 7639a5f1b9adae0806dca49e682f1640661fdc45
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2121#discussion_r3582931105 -> 7639a5f1b9adae0806dca49e682f1640661fdc45
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2121#discussion_r3582931112 -> 7639a5f1b9adae0806dca49e682f1640661fdc45
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2121#discussion_r3582931123 -> 7639a5f1b9adae0806dca49e682f1640661fdc45
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2121#discussion_r3582931131 -> 7639a5f1b9adae0806dca49e682f1640661fdc45
+
+Disposition: NOT-A-BUG
+Evidence: CodeRabbit's final summary contains only the repository-wide docstring-coverage advisory; all inline findings have separate dispositions.
+Reason: The advisory is not a diff-scoped callable defect or required gate.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2121#issuecomment-4966633816
+
+Disposition: NOT-A-BUG
+Evidence: The Codex connector posted a usage-limit notice and no code finding; the required sealed Codex Security scan completed separately with zero findings.
+Reason: A source-capacity notice is not actionable code feedback.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2121#issuecomment-4966633472
 
 ## Premortem Findings
 
@@ -122,10 +145,14 @@ for the hook artifact and
 `c9619114c107e74c853a15fd7f01d05c27d31123` for the scheduler material diff.
 This governance-only mapping was then refreshed with the resolved prerequisite
 and rebase evidence.
-Reason: The exact scheduler material reviewed by the role chain, Experiment
-Runner, and sealed Codex Security scan is unchanged. The new base adds only the
-separately reviewed setuptools/manifest prerequisite, so a duplicate scan would
-not add security coverage.
+Reason: The behavior-bearing scheduler material reviewed by the role chain,
+Experiment Runner, and sealed Codex Security scan is unchanged. The new base
+adds only the separately reviewed setuptools/manifest prerequisite. Later
+review-fix commit `7639a5f1b` adds a targeted lint marker to the same exact
+compatibility re-export plus documentation and test annotations; it changes no
+executable scheduler expression or security boundary. Repository policy does
+not restart the full scan chain for a non-security-relevant review cleanup, so a
+duplicate scan would not add security coverage.
 
 ### Current-head CI Async Plugin Finding
 
@@ -143,6 +170,45 @@ runtime scheduler defect. The fix changes tests only; all four sealed production
 source-like scan rows remain byte-identical, so another security scan would add
 no production coverage.
 
+### CodeRabbit Current-head Findings
+
+#### Canonical diff-coverage threshold
+
+Disposition: NOT-A-BUG
+Evidence: `AGENTS.md:16`, `AGENTS.md:35`,
+`docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:225`, and
+`.github/workflows/ci.yml:1724` all define the executable diff-coverage gate as
+at least 97%. The PR mapping already states that canonical threshold.
+Reason: The suggested 100% wording comes from a stale scoped-test instruction
+and would contradict root policy, the orchestration contract, and the current CI
+workflow.
+
+#### Backlog, compatibility lint, test typing, and stale-comment fixes
+
+Disposition: FIXED
+Commit: 7639a5f1b9adae0806dca49e682f1640661fdc45
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md` now identifies PR #2121 in the
+legacy migration chain; `legacy_app.py` marks the intentional compatibility
+re-export with a targeted F401 suppression; every function intersecting the
+changed test hunks has complete parameter and return annotations; and
+`tests/test_app_extended_coverage.py` describes the exact sanitized 500 path.
+The complete 13-file affected test cohort passes with `pytest-asyncio` disabled,
+and targeted Black, Ruff, Flake8, Bandit, backend-test, and pre-commit hooks pass.
+Reason: Six current-head CodeRabbit threads identified bounded documentation,
+lint, typing, or comment defects; the fix is behavior-preserving and keeps the
+scheduler ownership/runtime contract unchanged.
+
+#### CodeRabbit docstring-coverage advisory
+
+Disposition: NOT-A-BUG
+Evidence: CodeRabbit's final walkthrough contains a repository-wide 51.81%
+docstring-coverage warning, while the changed production scheduler accessor and
+admin operations already have docstrings and the canonical current-head lint
+job passed. The six inline actionable findings are fixed above and the seventh
+is dispositioned against canonical coverage policy.
+Reason: The global advisory is not a diff-scoped callable defect and is not a
+required PulsePlate merge gate.
+
 ### PulsePlate PR Review
 
 Disposition: NOT-A-BUG
@@ -156,14 +222,6 @@ Reason: The advisory records review cost and mapping state; it does not identify
 a product correctness, architecture, test, or security defect.
 
 ### External Bot Advisories
-
-Disposition: NOT-A-BUG
-Evidence: CodeRabbit reported a temporary review-rate limit and listed the exact
-34-file range but emitted no inline or top-level code finding. The canonical
-role, security, and PulsePlate review chain supplies current material-head
-coverage while a later bot cycle remains part of merge governance.
-Reason: A quota notice is not a code defect or actionable review item.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2121#issuecomment-4966633816
 
 Disposition: NOT-A-BUG
 Evidence: The Codex connector reported code-review usage exhaustion and posted
@@ -211,8 +269,12 @@ commit `4b6a0e7d2f2cc83933639908896d505b5a1fbbd0`.
 - PASS: 74 affected tests with `pytest-asyncio` explicitly disabled.
 - PASS: complete branch-selected backend pre-commit test hook after converting
   all selected async tests to the repository-approved sync contract.
+- PASS: complete 13-file CodeRabbit-affected test cohort with `pytest-asyncio`
+  disabled after current-head review fixes.
+- PASS: changed-function annotation audit, targeted Black/Ruff/Flake8/Bandit,
+  backend-test, and pre-commit hooks for commit `7639a5f1b`.
 - Not run: local full `make verify`, per repository machine-budget policy.
-- PENDING: current-head canonical CI after this governance artifact commit.
+- PENDING: current-head canonical CI after the review-fix and mapping commits.
 
 ## Security Review
 
@@ -236,8 +298,9 @@ commit `4b6a0e7d2f2cc83933639908896d505b5a1fbbd0`.
   envelopes, rollback matrix, OpenAPI zero-diff, premortem, strict oracle, role
   review, and the sealed security scan.
 - Rollback is a revert of implementation commits `4b6a0e7d2f2cc83933639908896d505b5a1fbbd0`
-  and `86a6330be`, plus test-only CI fix `70e09a1fa`; there is no schema,
-  persisted-state, route, client, or deployment migration.
+  and `86a6330be`, test-only CI fix `70e09a1fa`, and review-fix commit
+  `7639a5f1b`; there is no schema, persisted-state, route, client, or deployment
+  migration.
 
 ## External Prerequisite Resolution
 
