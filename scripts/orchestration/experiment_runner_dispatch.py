@@ -568,20 +568,7 @@ def _create_result_volume(cli: str, backend: str) -> str:
     argv = (
         [cli, "volume", "create", "-s", RESULT_VOLUME_SIZE, name]
         if backend == "apple-container"
-        else [
-            cli,
-            "volume",
-            "create",
-            "--driver",
-            "local",
-            "--opt",
-            "type=tmpfs",
-            "--opt",
-            "device=tmpfs",
-            "--opt",
-            f"o=size={RESULT_VOLUME_SIZE.lower()},mode=0700",
-            name,
-        ]
+        else [cli, "volume", "create", name]
     )
     if _run(argv, cwd=REPO_ROOT).returncode != 0:
         raise DispatchError("result_volume_failed")

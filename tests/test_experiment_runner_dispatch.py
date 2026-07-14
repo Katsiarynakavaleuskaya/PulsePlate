@@ -567,7 +567,7 @@ def test_apple_volume_uses_supported_bounded_size_flag(
     ]
 
 
-def test_docker_volume_is_bounded_tmpfs(
+def test_docker_volume_uses_durable_named_volume_for_phase_handoff(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[list[str]] = []
@@ -581,20 +581,11 @@ def test_docker_volume_is_bounded_tmpfs(
 
     dispatch._create_result_volume("/usr/local/bin/docker", "docker")
 
-    assert dispatch.RESULT_VOLUME_SIZE.lower() == f"{dispatch.MAX_RESULT_BYTES // (1024 * 1024)}m"
     assert calls == [
         [
             "/usr/local/bin/docker",
             "volume",
             "create",
-            "--driver",
-            "local",
-            "--opt",
-            "type=tmpfs",
-            "--opt",
-            "device=tmpfs",
-            "--opt",
-            f"o=size={dispatch.RESULT_VOLUME_SIZE.lower()},mode=0700",
             "pp-er-result-bbbbbbbbbbbb",
         ]
     ]
