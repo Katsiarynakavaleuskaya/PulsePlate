@@ -53,6 +53,15 @@ Disposition: **FIXED** with the upstream `CustomVersion=v2.11.4` linker value,
 plus independent checks of command version, Go build information, main module
 version, standard module parity, and file capability.
 
+The first post-rebase scan used a refreshed Trivy database and disproved a
+second assumption: the original Alpine package upgrade was sufficient after
+the earlier Caddy findings were cleared. The refreshed database identified
+fixed HIGH findings in the inherited `curl` and `libcurl` packages.
+
+Disposition: **FIXED** by requiring Alpine `curl` and `libcurl` versions at or
+above `8.20.0-r0` in the final stage and rerunning the no-suppression final-image
+scan.
+
 ## Failure-mode closure
 
 | ID | Failure mode | Early warning | Enforceable closure |
@@ -67,6 +76,7 @@ version, standard module parity, and file capability.
 | PM-08 | Route/header behavior changes in Caddy 2.11 | Caddy validation or ordering assertion fails | Both Caddyfiles validate; route order and security-header contracts run in CI |
 | PM-09 | Image rollback is mistaken for database rollback | migration succeeded before a later edge failure | Pre-migration backup remains mandatory; runbook separates digest rollback from DB restore |
 | PM-10 | A newer main run cancels an in-flight stateful deploy | workflow cancellation during backup/migration | Staging concurrency uses `cancel-in-progress: false` |
+| PM-11 | A refreshed vulnerability database finds a fixed inherited package after the initial scan | final-image Trivy reports HIGH/CRITICAL | Final stage upgrades `c-ares`, `curl`, and `libcurl`; merge remains blocked until the refreshed no-suppression scan is clean |
 
 ## Pre-open checklist
 

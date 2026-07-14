@@ -3683,7 +3683,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Reason: Active staging accepts floating Caddy/application tags while CD verifies one
     backend build digest but invokes a server-local deploy script with a different SHA-tag
     identity. The official Caddy 2.11.4 Alpine artifact also requires bounded remediation
-    for fixed `c-ares` and Go standard-library findings before PulsePlate can serve it.
+    for fixed `c-ares`, `curl`/`libcurl`, and Go standard-library findings before
+    PulsePlate can serve it.
     Current-head Docker validation also exposed the expired review window for the existing
     pinned SQLite source artifact; PR #2117 revalidates its unchanged URL and SHA3-256 and
     renews that fail-closed window without changing the SQLite version.

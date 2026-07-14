@@ -49,7 +49,10 @@ RUN set -eux; \
     caddy list-modules --packages | awk 'NF && $1 != "Standard" { print $1 }' | LC_ALL=C sort > /tmp/caddy-official-modules; \
     /usr/bin/caddy.pulseplate list-modules --packages | awk 'NF && $1 != "Standard" { print $1 }' | LC_ALL=C sort > /tmp/caddy-rebuilt-modules; \
     diff -u /tmp/caddy-official-modules /tmp/caddy-rebuilt-modules; \
-    apk add --no-cache "c-ares>=1.34.8-r0"; \
+    apk add --no-cache \
+      "c-ares>=1.34.8-r0" \
+      "curl>=8.20.0-r0" \
+      "libcurl>=8.20.0-r0"; \
     mv /usr/bin/caddy.pulseplate /usr/bin/caddy; \
     setcap cap_net_bind_service=+ep /usr/bin/caddy; \
     getcap /usr/bin/caddy | grep -F 'cap_net_bind_service=ep'; \

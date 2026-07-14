@@ -71,7 +71,9 @@ def test_caddy_dockerfile_owns_exact_hardened_build_recipe() -> None:
     assert "github.com/caddyserver/caddy/v2.CustomVersion=v2.11.4" in text
     assert "go version -m /go/bin/caddy" in text
     assert '$2 == "github.com/caddyserver/caddy/v2" && $3 == "v2.11.4"' in text
-    assert 'apk add --no-cache "c-ares>=1.34.8-r0"' in text
+    assert '"c-ares>=1.34.8-r0"' in text
+    assert '"curl>=8.20.0-r0"' in text
+    assert '"libcurl>=8.20.0-r0"' in text
     assert "COPY --from=caddy-build --chmod=0755 /go/bin/caddy" in text
     assert "caddy list-modules --packages" in text
     assert "setcap cap_net_bind_service=+ep /usr/bin/caddy" in text
