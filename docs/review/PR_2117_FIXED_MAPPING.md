@@ -19,8 +19,8 @@ Caddy route behavior.
 - [x] Mandatory post-open `qa-engineer-agent -> bug-hunter -> security-auditor` pass completed
 - [x] Codex Security exact-material-head diff scan completed
 - [x] `pulseplate-pr-review` completed
-- [ ] Post-rebase packet role refresh completed
-- [ ] Bounded supplemental Codex Security delta scan completed
+- [x] Post-rebase packet role refresh completed
+- [x] Bounded supplemental Codex Security delta scan completed
 - [ ] Current-head `pulseplate-pr-review` completed
 - [ ] Current-head CI completed
 - [ ] Mandatory review wait-window and strict merge-readiness completed
@@ -362,9 +362,38 @@ Reason: The refreshed vulnerability database exposed a bounded current-PR
 final-image defect. It was remediated without changing Node, Postgres, Python
 locks, application behavior, permissions, secrets, or deployment authority.
 
+### Post-rebase Packet Role Refresh
+
+Disposition: FIXED
+Commits: `667804dc3`, `241199501`, `8455d4856`
+Evidence: The ordered packet roles ran sequentially. QA found no P0-P2 defects.
+Bug Hunter identified that the new app could become ready before migration and
+that the staging runbook omitted an activation gate; `667804dc3` now stops app
+and Caddy, runs Alembic in a one-shot container before app start, leaves both
+stopped on migration failure, and aligns the runbook. Security Auditor found no
+remaining P0-P2 issue. App Store Release Agent identified an unsupported
+per-run human-approval claim; `241199501` documents the actual automatic-main
+behavior once all gates are enabled. Marketing Strategist identified an
+overbroad automatic-maintenance claim; `8455d4856` restores operator ownership
+for host, backup, volume, DNS/TLS, and server-local contract maintenance. Every
+finding was re-reviewed by its originating role and received PASS.
+Reason: Current-PR defects and messaging overclaims were fixed before security
+finalization, without widening deploy authority or changing product behavior.
+
+### Bounded Supplemental Codex Security Delta Scan
+
+Disposition: NOT-A-BUG
+Evidence: Scan `896592f6-c277-4a23-91bb-71ee20649406` covered exact range
+`1764016a92a6ae1f68b175b5f5d7579452048a85..8455d4856d96407744d93e5995e4b508d01fc9c2`.
+Both canonical worklist rows (`scripts/deploy.sh` and supporting
+`frontend/Dockerfile.caddy-spa`) received full-file receipts. The sealed report
+contains zero reportable findings and complete coverage. This was the single
+bounded supplemental scan; no broad restart or repeated plugin iteration ran.
+Reason: The package-floor and migration-sequencing delta strengthens existing
+controls and introduces no plausible attacker-controlled source-to-sink path.
+
 The mandatory role chain and Codex Security material scans are complete.
-The post-rebase role refresh, one bounded supplemental security scan, final
-remote-head PulsePlate PR review, current-head CI, review wait window,
+The final remote-head PulsePlate PR review, current-head CI, review wait window,
 discussion disposition checks, and strict authenticated merge-readiness gate
 remain pending.
 
@@ -406,8 +435,9 @@ The packet routed mandatory ordered roles and did not execute them implicitly.
   review-window remediation.
 - PASS: supplemental exact-delta Codex Security scan for the production
   environment parser and managed-flag remediation.
-- Pending: one bounded supplemental Codex Security scan for the post-rebase
-  `1764016a9..8f7ff7e0c` Caddy package-floor delta; no broad scan restart.
+- PASS: one bounded supplemental Codex Security scan for post-rebase exact
+  range `1764016a9..8455d4856`; zero reportable findings, complete coverage,
+  and no broad scan restart.
 - Pending: current-head GitHub CI and review governance.
 
 ## Merge Readiness
