@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import stat
 import subprocess
 from pathlib import Path
 
@@ -425,6 +426,19 @@ def test_production_quick_fix_redacts_duplicate_secret_values(tmp_path: Path) ->
     assert dsn_sentinel not in completed.stdout
 
 
+def test_production_quick_fix_replaces_env_atomically_with_preserved_mode(tmp_path: Path) -> None:
+    completed = _run_production_quick_fix(
+        tmp_path,
+        caddy_version="v2.11.4 h1:test",
+        go_version="go1.26.5",
+    )
+
+    env_path = tmp_path / "production" / ".env"
+    assert completed.returncode == 0
+    assert stat.S_IMODE(env_path.stat().st_mode) == 0o640
+    assert list(env_path.parent.glob(".env.clean.*")) == []
+
+
 def _run_production_quick_fix(
     tmp_path: Path,
     *,
@@ -448,6 +462,7 @@ def _run_production_quick_fix(
         ),
         encoding="utf-8",
     )
+    (deploy_dir / ".env").chmod(0o640)
     docker_stub = """#!/usr/bin/env bash
 set -euo pipefail
 case "$*" in

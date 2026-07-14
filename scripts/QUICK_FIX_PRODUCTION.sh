@@ -70,13 +70,17 @@ fi
 
 # Clean and set env vars
 echo "=== Step 2: Clean and set environment variables ==="
-CLEAN_ENV_FILE="$(mktemp "${TMPDIR:-/tmp}/pulseplate-env.XXXXXX")"
+CLEAN_ENV_FILE="$(mktemp "${DEPLOY_DIR}/.env.clean.XXXXXX")"
 cleanup_env_temp() {
     if [ -n "${CLEAN_ENV_FILE:-}" ] && [ -f "$CLEAN_ENV_FILE" ]; then
         rm -f "$CLEAN_ENV_FILE"
     fi
 }
 trap cleanup_env_temp EXIT
+if ! cp -p .env "$CLEAN_ENV_FILE"; then
+    echo "❌ Failed to preserve production environment metadata"
+    exit 1
+fi
 if ! awk -F= '$1 !~ /^(APP_ENV|ENVIRONMENT|SUBSCRIPTION_DB_ENABLED|ALLOW_DEV_API_KEY|API_KEY_REQUIRED)$/' .env > "$CLEAN_ENV_FILE"; then
     echo "❌ Failed to clean production environment flags"
     exit 1
