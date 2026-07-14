@@ -24,6 +24,34 @@ If it is not recorded here — it does not exist.
 
 <!-- EXPERIMENT_BACKLOG_ENTRIES:INSERT BELOW -->
 
+<a id="ledger-p1-pr2133-docker-manifest-prerequisite-consolidation"></a>
+- [ ] P1: Consolidate the Docker source-manifest prerequisite into PR #2133
+  - Owner: @katsiaryna_kavaleuskaya (Security / CI)
+  - Priority: P1
+  - Target PR: #2133
+  - Status: In progress; carries over and supersedes PR #2120
+  - Area: supply-chain / dependency security / CI
+  - Reason (EN): PR #2133 remediates the setuptools exclusion-bypass
+    vulnerability, but its current-head Docker lane fails before the dependency
+    build because `main` still carries an expired SQLite source-artifact review
+    date. PR #2120 contains the already reviewed two-file freshness refresh, but
+    its governance-only follow-up cannot pass the mandatory pre-push audit while
+    that branch still consumes the vulnerable setuptools lock. To avoid bypassing
+    either fail-closed gate, PR #2133 carries the unchanged PR #2120 material
+    commit and becomes the single merge vehicle for both prerequisites.
+  - Links: `scripts/ci/docker_source_artifacts.json`,
+    `tests/test_docker_workflow_build_path_contract.py`,
+    `docs/review/PR_2133_FIXED_MAPPING.md`,
+    `docs/security/CVE-2026-59890-setuptools.md`,
+    `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2120`,
+    `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2133`
+  - DoD: PR #2133 preserves the exact reviewed manifest artifact identity and
+    digest, enforces setuptools 83.0.0 across every governed dependency surface,
+    records composition evidence for both sealed security scans, passes the
+    combined focused/local/current-head Docker and dependency gates, merges to
+    `main`, and PR #2120 is closed as superseded only after `main` is verified to
+    contain the two-file manifest content.
+
 <a id="ledger-p1-bodyfat-bmi-engine-delegation"></a>
 - [ ] P1: Delegate bodyfat missing-BMI derivation to canonical BMI engine
   - Owner: @katsiaryna_kavaleuskaya (Backend / Nutrition)

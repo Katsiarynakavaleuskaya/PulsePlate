@@ -7,9 +7,12 @@ Branch: `codex/setuptools-cve-2026-59890`
 ## Summary
 
 Remediate CVE-2026-59890 / PYSEC-2026-3447 by moving every governed
-setuptools source and lock surface to the fixed 83.0.0 boundary. Preserve the
-canonical private Python proxy, dependency-profile ownership, generated-lock
-provenance, application behavior, and forward-only rollback.
+setuptools source and lock surface to the fixed 83.0.0 boundary. Carry over the
+already reviewed two-file Docker source-manifest freshness prerequisite from PR
+#2120 so the dependency remediation can pass its fail-closed Docker lane without
+bypassing pre-push policy. Preserve the canonical private Python proxy,
+dependency-profile ownership, generated-lock provenance, artifact identity,
+application behavior, and forward-only rollback.
 
 ## Lane Start Provenance
 
@@ -21,6 +24,10 @@ provenance, application behavior, and forward-only rollback.
   (local-only, gitignored).
 - Post-open role order executed:
   `qa-engineer-agent -> bug-hunter -> security-auditor`.
+- Cycle-resolution packet: `artifacts/orchestration/task_packets/7857caa1a0f2.json`
+  (local-only, gitignored). The coordinator approved a bounded carryover of the
+  unchanged PR #2120 material commit, reuse of its completed role evidence, and
+  composition of the two path-disjoint sealed scans after exact content parity.
 - The actual-diff premortem closed all forecast failure scenarios before PR
   open.
 - Experiment Runner used the explicit Apple Container backend on macOS; its
@@ -35,6 +42,22 @@ provenance, application behavior, and forward-only rollback.
 - `dcef7c4a1` - anchor the remediation decision to exact deterministic test
   evidence after the current-head Phase 1 docs gate identified the missing
   `file:line` references.
+- `ad381545d` - cherry-pick the unchanged two-file PR #2120 source-manifest
+  freshness commit so the combined prerequisite can satisfy the Docker lane.
+
+## Carryover / Supersession
+
+- Carries over and supersedes PR #2120.
+- Canonical tracking:
+  `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-pr2133-docker-manifest-prerequisite-consolidation`.
+- Only `scripts/ci/docker_source_artifacts.json` and
+  `tests/test_docker_workflow_build_path_contract.py` are carried over. Artifact
+  version, filename, official HTTPS URL, full SHA3-256 digest, fetch reason,
+  loader behavior, Dockerfile, workflows, and runtime topology are unchanged.
+- The carried patch SHA-256 is
+  `0b9f07e5aa5cd37fd7c1b132766bfcfceeb1891295a8383bc302f7b7ca21c9d4`
+  both for original commit `ba66c949` and cherry-pick `ad381545d`; `git diff
+  --exit-code ba66c949 HEAD -- <two carried paths>` is empty.
 
 ## Discussion Thread Pass
 
@@ -99,10 +122,18 @@ implementation commit carries the required co-author trailer.
   locks.
 - Stale vulnerable pin: closed by the four bounded source profiles, flexible
   constraints floor, five exact 83.0.0 locks, and schema block for `<83.0.0`.
+- Cyclic prerequisite bypass: closed by carrying the unchanged, separately
+  reviewed manifest patch into this PR rather than skipping pre-push or merging
+  either red lane.
+- Source substitution during carryover: closed by the identical patch
+  fingerprint, unchanged artifact identity/digest, and deterministic identity
+  assertions in the carried test.
 - Resolver churn: closed by sequential no-upgrade lock regeneration and parsed
   exact-diff review showing no unrelated package-version movement.
-- Unsafe local install: closed by leaving `.venv` unchanged until post-merge
-  `make venv-sync` through the approved proxy.
+- Unsafe local install: closed by proving exact-pin availability through the
+  approved private proxy before the operator-authorized `make venv-sync` needed
+  to satisfy mandatory hooks; the gitignored environment now reports
+  setuptools 83.0.0 and no tracked dependency source changed during sync.
 - Advisory or rollback drift: closed by the tracked remediation decision and
   forward-only rollback contract.
 - Source/lock topology drift: closed by deterministic tests covering all ten
@@ -121,6 +152,18 @@ implementation commit carries the required co-author trailer.
 - PASS: `pre-commit run --all-files`.
 - PASS: pre-push hooks, including Bandit and the Docker build test.
 - PASS: `git diff --check`.
+- PASS: combined focused dependency-security, Python supply-chain, and Docker
+  workflow contract suite after carryover.
+- PASS: current combined-head `pip-audit` pre-push hook against
+  `requirements.txt`; no known vulnerabilities.
+- PASS: current combined-head `make validate-changed`.
+- PASS: current combined-head `pre-commit run --all-files` with no skipped
+  required hook and no hook-produced tracked change.
+- PASS: exact carryover patch fingerprint and zero content diff against original
+  commit `ba66c949`.
+- PASS: all 13 executable/lock/test dependency blobs are unchanged from scanned
+  implementation head `def03ed50`; their ordered path/blob fingerprint is
+  `1694f8bbd646f6505d55eeb53a235dc0c06d01e072ec209398961ad783634400`.
 - PASS: Phase 1 docs gates after adding exact evidence anchors at
   `tests/test_python_supply_chain_controls.py:1264` and
   `tests/test_dependency_security_guard.py:390`.
@@ -135,6 +178,13 @@ implementation commit carries the required co-author trailer.
 - PASS: sealed Codex Security scan
   `d3e49b4a-a801-4564-adcb-363ba4e5cb9d` covered all 14 exact-diff rows at
   `def03ed50991937c8a84b391160a8ba06014b609` and reported zero findings.
+- PASS: sealed Codex Security scan
+  `26e2d9fc-8859-43b3-a8dd-be6aebdeb1ec` covered both carried PR #2120 rows at
+  `ba66c94938b02da01a7a2be263e8e3f76a897f06` and reported zero findings.
+- PASS: coordinator packet `7857caa1a0f2` approved composing the two sealed
+  scans because the reviewed path sets are disjoint and exact content/patch
+  parity proves no changed security-relevant row. Governance-only body, ledger,
+  and mapping edits do not reopen scanning. No additional scan was launched.
 - PASS: `pulseplate-pr-review` found no correctness, architecture, test, or
   security defect. Its only notes were the then-missing fixed-mapping artifact,
   which this file supplies.
@@ -142,10 +192,15 @@ implementation commit carries the required co-author trailer.
 ## Risks / Rollback
 
 Rollback is forward-only. Do not restore setuptools 78.1.1 or any version
-below 83.0.0. If 83.0.0 is incompatible or unavailable, keep install and
-release lanes blocked and either repair the approved proxy or move to another
-tested patched 83.x release through a separately reviewed dependency update.
+below 83.0.0, and do not restore the stale source-manifest review date. If
+83.0.0 is incompatible or unavailable, keep install and release lanes blocked
+and either repair the approved proxy or move to another tested patched 83.x
+release through a separately reviewed dependency update. A future manifest
+rollback must use a newly reviewed freshness date while preserving the same
+artifact-integrity controls.
 
 ## Deferred / Follow-ups
 
-None for this prerequisite hotfix.
+- Close PR #2120 as superseded only after merged `main` is verified to contain
+  the two carried manifest paths. Tracking:
+  `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-pr2133-docker-manifest-prerequisite-consolidation`.
