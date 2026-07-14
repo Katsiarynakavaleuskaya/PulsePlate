@@ -6,7 +6,7 @@ from __future__ import annotations
 import argparse
 import ast
 from collections import Counter
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from importlib.util import resolve_name
 from pathlib import Path
@@ -245,7 +245,7 @@ def _collect_app_aliases(tree: ast.Module) -> tuple[frozenset[str], frozenset[st
 
 def _app_call_action(
     func: ast.AST,
-    methods: frozenset[str],
+    methods: AbstractSet[str],
     *,
     app_aliases: frozenset[str] = frozenset({"app"}),
     router_aliases: frozenset[str] = frozenset(),
@@ -425,6 +425,7 @@ def collect_legacy_route_facts(source_text: str, *, filename: str = LEGACY_APP) 
         initial_references={
             "app": "pulseplate.app",
             "FastAPI": "fastapi.FastAPI",
+            "getattr": "builtins.getattr",
         },
         preserve_route_method_conflicts=True,
     )
@@ -449,6 +450,75 @@ def collect_legacy_route_facts(source_text: str, *, filename: str = LEGACY_APP) 
             route_string_snapshots.get(id(node), static_string_bindings),
         )
 
+    def scoped_call_action(
+        node: ast.AST,
+        func: ast.AST,
+        methods: AbstractSet[str],
+    ) -> str | None:
+        node_id = id(node)
+        if node_id not in route_reference_snapshots:
+            return None
+        references = route_reference_snapshots[node_id]
+        strings = route_string_snapshots[node_id]
+        scoped_app_aliases, scoped_router_aliases, _scoped_strings = scoped_route_bindings(node)
+        if not isinstance(func, (ast.Name, ast.Call)):
+            return _app_call_action(
+                func,
+                methods,
+                app_aliases=scoped_app_aliases,
+                router_aliases=scoped_router_aliases,
+                static_string_bindings=strings,
+            )
+        if isinstance(func, ast.Name):
+            reference = references.get(func.id)
+            if reference == _POSSIBLE_APP_CALL_REFERENCE:
+                return "dynamic"
+            for prefix, action_prefix in (
+                ("pulseplate.app.router.", "router."),
+                ("pulseplate.app.", ""),
+            ):
+                if reference is not None and reference.startswith(prefix):
+                    method = reference.removeprefix(prefix)
+                    if method in methods:
+                        return f"{action_prefix}{method}"
+            return None
+        lookup_reference = _static_module_reference(
+            func.func,
+            module_aliases=references,
+            import_module_aliases=frozenset(),
+            static_string_bindings=strings,
+        )
+        if lookup_reference not in {"builtins.getattr", _POSSIBLE_GETATTR_REFERENCE}:
+            return None
+        if len(func.args) < 2:
+            return None
+        target_reference = _static_module_reference(
+            func.args[0],
+            module_aliases=references,
+            import_module_aliases=frozenset(),
+            static_string_bindings=strings,
+        )
+        if target_reference in {"pulseplate.app", _POSSIBLE_APP_REFERENCE}:
+            action_prefix = ""
+        elif target_reference in {
+            "pulseplate.app.router",
+            _POSSIBLE_ROUTER_REFERENCE,
+        }:
+            action_prefix = "router."
+        else:
+            return None
+        resolved_method = _resolve_static_string(func.args[1], strings)
+        if resolved_method in methods:
+            return f"{action_prefix}{resolved_method}"
+        if resolved_method in {
+            None,
+            _DYNAMIC_STRING_BINDING,
+            _POSSIBLE_ROUTE_METHOD,
+            _CONFLICTED_ROUTE_METHOD,
+        }:
+            return f"{action_prefix}dynamic"
+        return None
+
     bound_call_aliases = _collect_bound_app_call_aliases(
         tree,
         app_aliases=app_aliases,
@@ -464,6 +534,8 @@ def collect_legacy_route_facts(source_text: str, *, filename: str = LEGACY_APP) 
     for node in ast.walk(tree):
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             for decorator in node.decorator_list:
+                if id(decorator) not in route_reference_snapshots:
+                    continue
                 scoped_app_aliases, scoped_router_aliases, scoped_strings = scoped_route_bindings(
                     decorator
                 )
@@ -481,32 +553,26 @@ def collect_legacy_route_facts(source_text: str, *, filename: str = LEGACY_APP) 
                     continue
                 if not isinstance(decorator, ast.Call):
                     continue
-                action = _app_call_action(
+                action = scoped_call_action(
+                    decorator,
                     decorator.func,
                     APP_ROUTE_METHODS,
-                    app_aliases=scoped_app_aliases,
-                    router_aliases=scoped_router_aliases,
-                    static_string_bindings=scoped_strings,
                 )
-                if action is None and isinstance(decorator.func, ast.Name):
-                    action = bound_call_aliases.get(decorator.func.id)
                 if action is not None:
                     facts.add(
                         LegacyFact("decorator", action, _first_arg_label(decorator), node.name)
                     )
         elif isinstance(node, ast.Call):
             call = node
+            if id(call) not in route_reference_snapshots:
+                continue
             scoped_app_aliases, scoped_router_aliases, scoped_strings = scoped_route_bindings(call)
             if isinstance(call.func, ast.Call):
-                action = _app_call_action(
+                action = scoped_call_action(
+                    call,
                     call.func.func,
                     APP_ROUTE_METHODS,
-                    app_aliases=scoped_app_aliases,
-                    router_aliases=scoped_router_aliases,
-                    static_string_bindings=scoped_strings,
                 )
-                if action is None and isinstance(call.func.func, ast.Name):
-                    action = bound_call_aliases.get(call.func.func.id)
                 if action is not None:
                     facts.add(
                         LegacyFact(
@@ -516,15 +582,11 @@ def collect_legacy_route_facts(source_text: str, *, filename: str = LEGACY_APP) 
                             "",
                         )
                     )
-            action = _app_call_action(
+            action = scoped_call_action(
+                call,
                 call.func,
                 APP_REGISTRATION_METHODS,
-                app_aliases=scoped_app_aliases,
-                router_aliases=scoped_router_aliases,
-                static_string_bindings=scoped_strings,
             )
-            if action is None and isinstance(call.func, ast.Name):
-                action = bound_call_aliases.get(call.func.id)
             if isinstance(call.func, ast.Name):
                 middleware_target = middleware_decorator_aliases.get(call.func.id)
                 if middleware_target is not None:
@@ -548,6 +610,13 @@ def _static_module_reference(
     import_module_aliases: AbstractSet[str],
     static_string_bindings: Mapping[str, str],
 ) -> str | None:
+    if isinstance(node, ast.NamedExpr):
+        return _static_module_reference(
+            node.value,
+            module_aliases=module_aliases,
+            import_module_aliases=import_module_aliases,
+            static_string_bindings=static_string_bindings,
+        )
     if isinstance(node, ast.Name):
         return module_aliases.get(node.id)
     if isinstance(node, ast.Attribute):
@@ -944,6 +1013,8 @@ def _collect_binding_counts(tree: ast.Module) -> Counter[str]:
 
 
 def _resolve_static_string(node: ast.AST, bindings: Mapping[str, str]) -> str | None:
+    if isinstance(node, ast.NamedExpr):
+        return _resolve_static_string(node.value, bindings)
     if isinstance(node, ast.Constant) and isinstance(node.value, str):
         return node.value
     if isinstance(node, ast.Name):
@@ -1214,12 +1285,16 @@ def _is_unresolved_getattr_method(
     return _resolve_static_string(func.args[1], static_string_bindings or {}) in {
         None,
         _POSSIBLE_ROUTE_METHOD,
+        _CONFLICTED_ROUTE_METHOD,
+        _DYNAMIC_STRING_BINDING,
     }
 
 
 def _assignment_target_names(node: ast.AST) -> tuple[str, ...]:
     if isinstance(node, ast.Name):
         return (node.id,)
+    if isinstance(node, ast.Starred):
+        return _assignment_target_names(node.value)
     if isinstance(node, (ast.Tuple, ast.List)):
         names: list[str] = []
         for element in node.elts:
@@ -1743,6 +1818,22 @@ class _LexicalBindings:
             self.strings[name] = string
 
 
+@dataclass
+class _LoopControlBindings:
+    """Binding snapshots captured when the current loop changes control flow."""
+
+    break_scopes: list[_LexicalBindings]
+    continue_scopes: list[_LexicalBindings]
+
+
+@dataclass
+class _TerminalControlBindings:
+    """Binding snapshots captured when the current function exits abruptly."""
+
+    return_scopes: list[_LexicalBindings]
+    raise_scopes: list[_LexicalBindings]
+
+
 def _function_local_binding_names(
     node: ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda,
 ) -> frozenset[str]:
@@ -1787,17 +1878,29 @@ def _function_local_binding_names(
         def visit_Lambda(self, child: ast.Lambda) -> None:
             return
 
+        def _visit_comprehension_parts(
+            self,
+            generators: Sequence[ast.comprehension],
+            results: Sequence[ast.AST],
+        ) -> None:
+            for generator in generators:
+                self.visit(generator.iter)
+                for condition in generator.ifs:
+                    self.visit(condition)
+            for result in results:
+                self.visit(result)
+
         def visit_ListComp(self, child: ast.ListComp) -> None:
-            return
+            self._visit_comprehension_parts(child.generators, [child.elt])
 
         def visit_SetComp(self, child: ast.SetComp) -> None:
-            return
+            self._visit_comprehension_parts(child.generators, [child.elt])
 
         def visit_DictComp(self, child: ast.DictComp) -> None:
-            return
+            self._visit_comprehension_parts(child.generators, [child.key, child.value])
 
         def visit_GeneratorExp(self, child: ast.GeneratorExp) -> None:
-            return
+            self._visit_comprehension_parts(child.generators, [child.elt])
 
         def visit_MatchAs(self, child: ast.MatchAs) -> None:
             if child.name is not None:
@@ -1808,6 +1911,11 @@ def _function_local_binding_names(
         def visit_MatchStar(self, child: ast.MatchStar) -> None:
             if child.name is not None:
                 names.add(child.name)
+
+        def visit_MatchMapping(self, child: ast.MatchMapping) -> None:
+            if child.rest is not None:
+                names.add(child.rest)
+            self.generic_visit(child)
 
         def visit_Global(self, child: ast.Global) -> None:
             global_names.update(child.names)
@@ -1890,9 +1998,22 @@ def _without_shadowed_bindings(
 _POSSIBLE_LEGACY_REFERENCE = "<possible:legacy_app>"
 _POSSIBLE_APP_REFERENCE = "<possible:pulseplate.app>"
 _POSSIBLE_ROUTER_REFERENCE = "<possible:pulseplate.app.router>"
+_POSSIBLE_APP_CALL_REFERENCE = "<possible:pulseplate.app.call>"
+_POSSIBLE_GETATTR_REFERENCE = "<possible:builtins.getattr>"
 _POSSIBLE_API_KEY_SYMBOL = "<possible:api_key_symbol>"
 _POSSIBLE_ROUTE_METHOD = "<possible:route_method>"
+_CONFLICTED_ROUTE_METHOD = "<conflicted:route_method>"
 _DYNAMIC_STRING_BINDING = "<dynamic:string>"
+_DYNAMIC_LIFECYCLE_REFERENCE = "<dynamic>"
+_POSSIBLE_FASTAPI_REFERENCE = "<possible:fastapi>"
+_CONFLICTED_FASTAPI_REFERENCE = "<conflicted:fastapi>"
+_POSSIBLE_IMPORT_CALLABLE_REFERENCE = "<possible:import_callable>"
+_MAX_LOOP_BINDING_ITERATIONS = 32
+_MAX_TOTAL_LOOP_BINDING_ITERATIONS = 128
+
+
+class LegacyGrowthAnalysisError(RuntimeError):
+    """Fail-closed diagnostic for bounded lexical analysis exhaustion."""
 
 
 class _ApiKeyLookupVisitor(ast.NodeVisitor):
@@ -1907,18 +2028,46 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         reference_snapshots: dict[int, dict[str, str]] | None = None,
         string_snapshots: dict[int, dict[str, str]] | None = None,
         preserve_fastapi_conflicts: bool = False,
+        preserve_lifecycle_conflicts: bool = False,
         preserve_route_method_conflicts: bool = False,
+        module_late_references: Mapping[str, str] | None = None,
+        module_late_strings: Mapping[str, str] | None = None,
+        analyze_function_bodies: bool = True,
     ) -> None:
         self.filename = filename
         self.errors = errors
         self.reference_snapshots = reference_snapshots
         self.string_snapshots = string_snapshots
         self.preserve_fastapi_conflicts = preserve_fastapi_conflicts
+        self.preserve_lifecycle_conflicts = preserve_lifecycle_conflicts
         self.preserve_route_method_conflicts = preserve_route_method_conflicts
+        self.module_late_references = dict(module_late_references or {})
+        self.module_late_strings = dict(module_late_strings or {})
+        self.analyze_function_bodies = analyze_function_bodies
+        self._loop_controls: list[_LoopControlBindings] = []
+        self._terminal_controls = _TerminalControlBindings(return_scopes=[], raise_scopes=[])
+        self._exception_scope_collectors: list[list[_LexicalBindings]] = []
+        self._function_late_bindings: list[tuple[dict[str, str], dict[str, str]]] = []
+        self._remaining_loop_iterations = _MAX_TOTAL_LOOP_BINDING_ITERATIONS
         self.scope = _LexicalBindings(parent=None)
         self.scope.bind("getattr", reference="builtins.getattr", string=None)
         for name, reference in (initial_references or {}).items():
             self.scope.bind(name, reference=reference, string=None)
+
+    def visit(self, node: ast.AST) -> object:
+        if self.reference_snapshots is not None or self.string_snapshots is not None:
+            self._record_snapshot(node)
+        records_exception_state = (
+            bool(self._exception_scope_collectors)
+            and isinstance(node, ast.expr)
+            and not isinstance(node, (ast.Constant, ast.NamedExpr))
+        )
+        if records_exception_state:
+            self._record_exception_scope()
+        result = super().visit(node)
+        if records_exception_state:
+            self._record_exception_scope()
+        return result
 
     @staticmethod
     def _may_reference_legacy(reference: str | None) -> bool:
@@ -1936,37 +2085,80 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         return reference in {"legacy_app.__dict__", _POSSIBLE_LEGACY_REFERENCE}
 
     def _record_snapshot(self, node: ast.AST) -> None:
+        node_id = id(node)
+        current_references = self.scope.visible_references()
+        current_strings = self.scope.visible_strings()
+        existing_references = (
+            self.reference_snapshots.get(node_id) if self.reference_snapshots is not None else None
+        )
+        existing_strings = (
+            self.string_snapshots.get(node_id) if self.string_snapshots is not None else None
+        )
+        if existing_references is not None or existing_strings is not None:
+            existing = _LexicalBindings(parent=None)
+            existing.references = dict(existing_references or {})
+            existing.strings = dict(existing_strings or {})
+            current = _LexicalBindings(parent=None)
+            current.references = current_references
+            current.strings = current_strings
+            merged = _LexicalBindings(parent=None)
+            active_scope = self.scope
+            self._merge_outcomes(merged, [existing, current])
+            self.scope = active_scope
+            current_references = merged.references
+            current_strings = merged.strings
         if self.reference_snapshots is not None:
-            self.reference_snapshots[id(node)] = self.scope.visible_references()
+            self.reference_snapshots[node_id] = current_references
         if self.string_snapshots is not None:
-            self.string_snapshots[id(node)] = self.scope.visible_strings()
+            self.string_snapshots[node_id] = current_strings
 
-    def _bind_name(self, name: str, *, reference: str | None, string: str | None) -> None:
-        if self.preserve_fastapi_conflicts:
+    def _bind_name(
+        self,
+        name: str,
+        *,
+        reference: str | None,
+        string: str | None,
+        overwrite_conflicts: bool = False,
+    ) -> None:
+        if self.preserve_fastapi_conflicts and not overwrite_conflicts:
             current = self.scope.references.get(name)
             fastapi_references = {
                 "fastapi.FastAPI",
                 "fastapi.applications.FastAPI",
-                _POSSIBLE_FASTAPI_REFERENCE,
             }
-            if current == _POSSIBLE_FASTAPI_REFERENCE or (
+            if current == _CONFLICTED_FASTAPI_REFERENCE:
+                reference = _CONFLICTED_FASTAPI_REFERENCE
+            elif current != _POSSIBLE_FASTAPI_REFERENCE and (
                 current is not None
                 and current != reference
                 and (current in fastapi_references or reference in fastapi_references)
             ):
-                reference = _POSSIBLE_FASTAPI_REFERENCE
-        if self.preserve_route_method_conflicts:
+                reference = _CONFLICTED_FASTAPI_REFERENCE
+        if self.preserve_route_method_conflicts and not overwrite_conflicts:
             current_string = self.scope.strings.get(name)
             route_methods = APP_ROUTE_METHODS | APP_REGISTRATION_METHODS
-            if current_string == _POSSIBLE_ROUTE_METHOD or (
+            if current_string == _CONFLICTED_ROUTE_METHOD:
+                string = _CONFLICTED_ROUTE_METHOD
+            elif current_string != _POSSIBLE_ROUTE_METHOD and (
                 current_string is not None
                 and current_string != string
                 and (current_string in route_methods or string in route_methods)
             ):
-                string = _POSSIBLE_ROUTE_METHOD
+                string = _CONFLICTED_ROUTE_METHOD
         self.scope.bind(name, reference=reference, string=string)
 
     def _resolve_reference(self, node: ast.AST) -> str | None:
+        if isinstance(node, ast.NamedExpr):
+            return self._resolve_reference(node.value)
+        if isinstance(node, ast.BoolOp):
+            return self._join_expression_bindings(node.values)[0]
+        if isinstance(node, ast.IfExp):
+            selected_nodes = (
+                [node.body if bool(node.test.value) else node.orelse]
+                if isinstance(node.test, ast.Constant)
+                else [node.body, node.orelse]
+            )
+            return self._join_expression_bindings(selected_nodes)[0]
         references = self.scope.visible_references()
         strings = self.scope.visible_strings()
         reference = _static_module_reference(
@@ -1982,6 +2174,45 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         if reference is not None:
             return reference
         if isinstance(node, ast.Call):
+            if self.preserve_route_method_conflicts and len(node.args) >= 2:
+                lookup_reference = _static_module_reference(
+                    node.func,
+                    module_aliases=references,
+                    import_module_aliases=frozenset(),
+                    static_string_bindings=strings,
+                )
+                if lookup_reference in {
+                    "builtins.getattr",
+                    _POSSIBLE_GETATTR_REFERENCE,
+                }:
+                    target_reference = _static_module_reference(
+                        node.args[0],
+                        module_aliases=references,
+                        import_module_aliases=frozenset(),
+                        static_string_bindings=strings,
+                    )
+                    target_prefix: str | None = None
+                    if target_reference in {
+                        "pulseplate.app",
+                        _POSSIBLE_APP_REFERENCE,
+                    }:
+                        target_prefix = "pulseplate.app."
+                    elif target_reference in {
+                        "pulseplate.app.router",
+                        _POSSIBLE_ROUTER_REFERENCE,
+                    }:
+                        target_prefix = "pulseplate.app.router."
+                    if target_prefix is not None:
+                        method = self._resolve_string(node.args[1])
+                        if method in APP_ROUTE_METHODS | APP_REGISTRATION_METHODS:
+                            return f"{target_prefix}{method}"
+                        if method in {
+                            None,
+                            _DYNAMIC_STRING_BINDING,
+                            _POSSIBLE_ROUTE_METHOD,
+                            _CONFLICTED_ROUTE_METHOD,
+                        }:
+                            return _POSSIBLE_APP_CALL_REFERENCE
             constructor = _static_module_reference(
                 node.func,
                 module_aliases=references,
@@ -1993,20 +2224,118 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         return None
 
     def _resolve_string(self, node: ast.AST) -> str | None:
+        if isinstance(node, ast.NamedExpr):
+            return self._resolve_string(node.value)
+        if isinstance(node, ast.BoolOp):
+            return self._join_expression_bindings(node.values)[1]
+        if isinstance(node, ast.IfExp):
+            selected_nodes = (
+                [node.body if bool(node.test.value) else node.orelse]
+                if isinstance(node.test, ast.Constant)
+                else [node.body, node.orelse]
+            )
+            return self._join_expression_bindings(selected_nodes)[1]
         return _resolve_static_string(node, self.scope.visible_strings())
 
-    def _visit_statements(self, statements: Sequence[ast.stmt]) -> None:
-        for statement in statements:
-            self.visit(statement)
+    def _join_expression_bindings(
+        self,
+        nodes: Sequence[ast.AST],
+    ) -> tuple[str | None, str | None]:
+        marker = "<expression-result>"
+        active_scope = self.scope
+        outcomes: list[_LexicalBindings] = []
+        for node in nodes:
+            outcome = active_scope.clone()
+            outcome.bind(
+                marker,
+                reference=self._resolve_reference(node),
+                string=self._resolve_string(node),
+            )
+            outcomes.append(outcome)
+        merged = active_scope.clone()
+        self._merge_outcomes(merged, outcomes)
+        self.scope = active_scope
+        return merged.references.get(marker), merged.strings.get(marker)
 
-    def _visit_branches(self, branches: Sequence[Sequence[ast.stmt]]) -> None:
+    def _visit_statements(self, statements: Sequence[ast.stmt]) -> bool:
+        for statement in statements:
+            falls_through = self.visit(statement) is not False
+            if not falls_through:
+                return False
+        return True
+
+    def _record_exception_scope(self) -> None:
+        for collector in self._exception_scope_collectors:
+            collector.append(self.scope.clone())
+
+    def _visit_branches(self, branches: Sequence[Sequence[ast.stmt]]) -> bool:
         incoming = self.scope
         outcomes: list[_LexicalBindings] = []
         for branch in branches:
             self.scope = incoming.clone()
-            self._visit_statements(branch)
-            outcomes.append(self.scope)
+            if self._visit_statements(branch):
+                outcomes.append(self.scope)
+        if not outcomes:
+            self.scope = incoming
+            return False
         self._merge_outcomes(incoming, outcomes)
+        return True
+
+    def _visit_with_exception_scopes(
+        self,
+        statements: Sequence[ast.stmt],
+    ) -> tuple[bool, list[_LexicalBindings]]:
+        exception_scopes: list[_LexicalBindings] = []
+        self._exception_scope_collectors.append(exception_scopes)
+        try:
+            falls_through = self._visit_statements(statements)
+        finally:
+            self._exception_scope_collectors.pop()
+        return falls_through, exception_scopes
+
+    def _visit_loop_body(
+        self,
+        statements: Sequence[ast.stmt],
+    ) -> tuple[_LexicalBindings | None, _LoopControlBindings]:
+        controls = _LoopControlBindings(break_scopes=[], continue_scopes=[])
+        self._loop_controls.append(controls)
+        try:
+            falls_through = self._visit_statements(statements)
+        finally:
+            self._loop_controls.pop()
+        return (self.scope if falls_through else None), controls
+
+    def _finish_loop(
+        self,
+        *,
+        incoming: _LexicalBindings,
+        normal_entries: Sequence[_LexicalBindings],
+        break_scopes: Sequence[_LexicalBindings],
+        orelse: Sequence[ast.stmt],
+    ) -> bool:
+        outcomes: list[_LexicalBindings] = list(break_scopes)
+        if normal_entries:
+            else_entry = incoming.clone()
+            self._merge_outcomes(else_entry, normal_entries)
+            if self._visit_statements(orelse):
+                outcomes.append(self.scope)
+        if not outcomes:
+            self.scope = incoming
+            return False
+        self._merge_outcomes(incoming, outcomes)
+        return True
+
+    @staticmethod
+    def _bindings_equal(left: _LexicalBindings, right: _LexicalBindings) -> bool:
+        return left.references == right.references and left.strings == right.strings
+
+    def _consume_loop_iteration(self) -> None:
+        if self._remaining_loop_iterations <= 0:
+            raise LegacyGrowthAnalysisError(
+                f"{self.filename}: loop binding analysis exceeded "
+                f"{_MAX_TOTAL_LOOP_BINDING_ITERATIONS} total iterations"
+            )
+        self._remaining_loop_iterations -= 1
 
     def _merge_outcomes(
         self,
@@ -2022,24 +2351,50 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             values = [outcome.references.get(name) for outcome in outcomes]
             if all(value == values[0] for value in values) and values[0] is not None:
                 joined_references[name] = values[0]
+            elif self.preserve_lifecycle_conflicts and any(
+                value
+                in {
+                    "builtins.__import__",
+                    "importlib.import_module",
+                    _POSSIBLE_IMPORT_CALLABLE_REFERENCE,
+                }
+                for value in values
+            ):
+                joined_references[name] = _POSSIBLE_IMPORT_CALLABLE_REFERENCE
+            elif self.preserve_fastapi_conflicts and any(
+                value
+                in {
+                    "fastapi.FastAPI",
+                    "fastapi.applications.FastAPI",
+                    _POSSIBLE_FASTAPI_REFERENCE,
+                    _CONFLICTED_FASTAPI_REFERENCE,
+                }
+                for value in values
+            ):
+                joined_references[name] = _POSSIBLE_FASTAPI_REFERENCE
+            elif any(
+                value in {"builtins.getattr", _POSSIBLE_GETATTR_REFERENCE} for value in values
+            ):
+                joined_references[name] = _POSSIBLE_GETATTR_REFERENCE
             elif any(self._may_reference_legacy(value) for value in values):
                 joined_references[name] = _POSSIBLE_LEGACY_REFERENCE
+            elif any(
+                value == _POSSIBLE_APP_CALL_REFERENCE
+                or (
+                    value is not None
+                    and value.startswith("pulseplate.app.")
+                    and value.rsplit(".", maxsplit=1)[-1]
+                    in APP_ROUTE_METHODS | APP_REGISTRATION_METHODS
+                )
+                for value in values
+            ):
+                joined_references[name] = _POSSIBLE_APP_CALL_REFERENCE
             elif any(value in {"pulseplate.app", _POSSIBLE_APP_REFERENCE} for value in values):
                 joined_references[name] = _POSSIBLE_APP_REFERENCE
             elif any(
                 value in {"pulseplate.app.router", _POSSIBLE_ROUTER_REFERENCE} for value in values
             ):
                 joined_references[name] = _POSSIBLE_ROUTER_REFERENCE
-            elif any(
-                value
-                in {
-                    "fastapi.FastAPI",
-                    "fastapi.applications.FastAPI",
-                    _POSSIBLE_FASTAPI_REFERENCE,
-                }
-                for value in values
-            ):
-                joined_references[name] = _POSSIBLE_FASTAPI_REFERENCE
         self.scope.references = joined_references
 
         string_names = set().union(*(set(outcome.strings) for outcome in outcomes))
@@ -2048,6 +2403,17 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             values = [outcome.strings.get(name) for outcome in outcomes]
             if all(value == values[0] for value in values) and values[0] is not None:
                 joined_strings[name] = values[0]
+            elif self.preserve_route_method_conflicts and any(
+                value
+                in {
+                    *APP_ROUTE_METHODS,
+                    *APP_REGISTRATION_METHODS,
+                    _POSSIBLE_ROUTE_METHOD,
+                    _CONFLICTED_ROUTE_METHOD,
+                }
+                for value in values
+            ):
+                joined_strings[name] = _POSSIBLE_ROUTE_METHOD
             elif any(value in CANONICAL_API_KEY_SYMBOLS for value in values):
                 joined_strings[name] = _POSSIBLE_API_KEY_SYMBOL
         self.scope.strings = joined_strings
@@ -2063,12 +2429,73 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             for name in _assignment_target_names(target):
                 self._bind_name(name, reference=reference, string=string)
 
+    def _bind_target_value(
+        self,
+        target: ast.expr,
+        value: ast.AST,
+        *,
+        dynamic_unknown_string: bool,
+    ) -> None:
+        if (
+            isinstance(target, (ast.Tuple, ast.List))
+            and isinstance(value, (ast.Tuple, ast.List))
+            and len(target.elts) == len(value.elts)
+            and not any(isinstance(element, ast.Starred) for element in target.elts)
+        ):
+            for child_target, child_value in zip(target.elts, value.elts, strict=True):
+                self._bind_target_value(
+                    child_target,
+                    child_value,
+                    dynamic_unknown_string=dynamic_unknown_string,
+                )
+            return
+        resolved_string = self._resolve_string(value)
+        self._bind_targets(
+            [target],
+            reference=self._resolve_reference(value),
+            string=(
+                resolved_string
+                if resolved_string is not None
+                else (_DYNAMIC_STRING_BINDING if dynamic_unknown_string else None)
+            ),
+        )
+
+    def _bind_iteration_target(self, target: ast.expr, iterable: ast.AST) -> None:
+        literal_values = (
+            iterable.elts if isinstance(iterable, (ast.List, ast.Tuple, ast.Set)) else None
+        )
+        if not literal_values:
+            self._bind_targets([target], reference=None, string=None)
+            return
+        incoming = self.scope
+        outcomes: list[_LexicalBindings] = []
+        for value in literal_values:
+            self.scope = incoming.clone()
+            item_value = value.value if isinstance(value, ast.Starred) else value
+            self._bind_target_value(
+                target,
+                item_value,
+                dynamic_unknown_string=False,
+            )
+            outcomes.append(self.scope)
+        merged = incoming.clone()
+        self._merge_outcomes(merged, outcomes)
+
     def _visit_function_header(
         self,
         node: ast.FunctionDef | ast.AsyncFunctionDef,
     ) -> None:
         for decorator in node.decorator_list:
             self.visit(decorator)
+        for argument in (
+            *node.args.posonlyargs,
+            *node.args.args,
+            *node.args.kwonlyargs,
+            *([node.args.vararg] if node.args.vararg is not None else []),
+            *([node.args.kwarg] if node.args.kwarg is not None else []),
+        ):
+            if argument.annotation is not None:
+                self.visit(argument.annotation)
         for default in (*node.args.defaults, *node.args.kw_defaults):
             if default is not None:
                 self.visit(default)
@@ -2077,16 +2504,83 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
 
     def _visit_function(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> None:
         self._visit_function_header(node)
-        self._bind_name(node.name, reference=None, string=None)
-        lexical_parent = self.scope.parent if self.scope.scope_kind == "class" else self.scope
+        self._bind_name(
+            node.name,
+            reference=None,
+            string=None,
+            overwrite_conflicts=True,
+        )
+        if not self.analyze_function_bodies:
+            return
+        lexical_parent = self.scope
+        if lexical_parent.scope_kind == "class" and lexical_parent.parent is not None:
+            lexical_parent = lexical_parent.parent
+        if lexical_parent.scope_kind == "module" and (
+            self.module_late_references or self.module_late_strings
+        ):
+            final_parent = lexical_parent.clone()
+            final_parent.references = dict(self.module_late_references)
+            final_parent.strings = dict(self.module_late_strings)
+            late_parent = lexical_parent.clone()
+            active_scope = self.scope
+            self._merge_outcomes(
+                late_parent,
+                [lexical_parent.clone(), final_parent],
+            )
+            self.scope = active_scope
+            lexical_parent = late_parent
+        elif lexical_parent.scope_kind == "function" and self._function_late_bindings:
+            late_references, late_strings = self._function_late_bindings[-1]
+            final_parent = lexical_parent.clone()
+            final_parent.references = dict(late_references)
+            final_parent.strings = dict(late_strings)
+            late_parent = lexical_parent.clone()
+            active_scope = self.scope
+            self._merge_outcomes(
+                late_parent,
+                [lexical_parent.clone(), final_parent],
+            )
+            self.scope = active_scope
+            lexical_parent = late_parent
+        summary_visitor = _ApiKeyLookupVisitor(
+            filename=self.filename,
+            errors=[],
+            preserve_fastapi_conflicts=self.preserve_fastapi_conflicts,
+            preserve_lifecycle_conflicts=self.preserve_lifecycle_conflicts,
+            preserve_route_method_conflicts=self.preserve_route_method_conflicts,
+            analyze_function_bodies=False,
+        )
+        summary_visitor.scope = _LexicalBindings(
+            parent=lexical_parent,
+            local_names=_function_local_binding_names(node),
+            scope_kind="function",
+        )
+        summary_visitor._visit_statements(node.body)
+        function_late_bindings = (
+            dict(summary_visitor.scope.references),
+            dict(summary_visitor.scope.strings),
+        )
         previous = self.scope
+        previous_loop_controls = self._loop_controls
+        previous_terminal_controls = self._terminal_controls
+        previous_exception_scope_collectors = self._exception_scope_collectors
         self.scope = _LexicalBindings(
             parent=lexical_parent,
             local_names=_function_local_binding_names(node),
             scope_kind="function",
         )
-        self._visit_statements(node.body)
-        self.scope = previous
+        self._loop_controls = []
+        self._terminal_controls = _TerminalControlBindings(return_scopes=[], raise_scopes=[])
+        self._exception_scope_collectors = []
+        self._function_late_bindings.append(function_late_bindings)
+        try:
+            self._visit_statements(node.body)
+        finally:
+            self._function_late_bindings.pop()
+            self.scope = previous
+            self._loop_controls = previous_loop_controls
+            self._terminal_controls = previous_terminal_controls
+            self._exception_scope_collectors = previous_exception_scope_collectors
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
         self._visit_function(node)
@@ -2095,14 +2589,27 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         self._visit_function(node)
 
     def visit_Lambda(self, node: ast.Lambda) -> None:
+        if not self.analyze_function_bodies:
+            return
         previous = self.scope
+        previous_loop_controls = self._loop_controls
+        previous_terminal_controls = self._terminal_controls
+        previous_exception_scope_collectors = self._exception_scope_collectors
         self.scope = _LexicalBindings(
             parent=previous,
             local_names=_function_local_binding_names(node),
             scope_kind="function",
         )
-        self.visit(node.body)
-        self.scope = previous
+        self._loop_controls = []
+        self._terminal_controls = _TerminalControlBindings(return_scopes=[], raise_scopes=[])
+        self._exception_scope_collectors = []
+        try:
+            self.visit(node.body)
+        finally:
+            self.scope = previous
+            self._loop_controls = previous_loop_controls
+            self._terminal_controls = previous_terminal_controls
+            self._exception_scope_collectors = previous_exception_scope_collectors
 
     def visit_ClassDef(self, node: ast.ClassDef) -> None:
         for decorator in node.decorator_list:
@@ -2111,76 +2618,341 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             self.visit(base)
         for keyword in node.keywords:
             self.visit(keyword.value)
-        self._bind_name(node.name, reference=None, string=None)
+        self._bind_name(
+            node.name,
+            reference=None,
+            string=None,
+            overwrite_conflicts=True,
+        )
         previous = self.scope
         self.scope = _LexicalBindings(parent=previous, scope_kind="class")
         self._visit_statements(node.body)
         self.scope = previous
 
-    def visit_If(self, node: ast.If) -> None:
+    def visit_If(self, node: ast.If) -> bool:
         self.visit(node.test)
+        if isinstance(node.test, ast.Constant):
+            selected = node.body if bool(node.test.value) else node.orelse
+            return self._visit_statements(selected)
         branches: list[Sequence[ast.stmt]] = [node.body]
         branches.append(node.orelse if node.orelse else ())
-        self._visit_branches(branches)
+        return self._visit_branches(branches)
 
-    def _visit_try(self, node: ast.Try | ast.TryStar) -> None:
+    def visit_IfExp(self, node: ast.IfExp) -> None:
+        self.visit(node.test)
+        if isinstance(node.test, ast.Constant):
+            self.visit(node.body if bool(node.test.value) else node.orelse)
+            return
+        incoming = self.scope
+        outcomes: list[_LexicalBindings] = []
+        for branch in (node.body, node.orelse):
+            self.scope = incoming.clone()
+            self.visit(branch)
+            outcomes.append(self.scope)
+        self._merge_outcomes(incoming, outcomes)
+
+    def visit_BoolOp(self, node: ast.BoolOp) -> None:
+        incoming = self.scope
+        outcomes: list[_LexicalBindings] = []
+        for index, value in enumerate(node.values):
+            self.visit(value)
+            current = self.scope.clone()
+            if index == len(node.values) - 1:
+                outcomes.append(current)
+                break
+            truth = bool(value.value) if isinstance(value, ast.Constant) else None
+            short_circuits = (isinstance(node.op, ast.And) and truth is not True) or (
+                isinstance(node.op, ast.Or) and truth is not False
+            )
+            if short_circuits:
+                outcomes.append(current)
+            always_short_circuits = (isinstance(node.op, ast.And) and truth is False) or (
+                isinstance(node.op, ast.Or) and truth is True
+            )
+            if always_short_circuits:
+                break
+        self._merge_outcomes(incoming, outcomes)
+
+    def _visit_try(self, node: ast.Try | ast.TryStar) -> bool:
+        loop_controls = self._loop_controls[-1] if self._loop_controls else None
+        break_offset = len(loop_controls.break_scopes) if loop_controls is not None else 0
+        continue_offset = len(loop_controls.continue_scopes) if loop_controls is not None else 0
+        terminal_controls = self._terminal_controls
+        return_offset = len(terminal_controls.return_scopes)
+        raise_offset = len(terminal_controls.raise_scopes)
         incoming = self.scope
         try_scope = incoming.clone()
         self.scope = try_scope
-        self._visit_statements(node.body)
+        try_falls_through, exception_entry_scopes = self._visit_with_exception_scopes(node.body)
+
+        body_raise_scopes = terminal_controls.raise_scopes[raise_offset:]
+        del terminal_controls.raise_scopes[raise_offset:]
 
         handler_entry = incoming.clone()
-        self._merge_outcomes(handler_entry, [incoming.clone(), try_scope])
+        self._merge_outcomes(
+            handler_entry,
+            [
+                incoming.clone(),
+                try_scope,
+                *exception_entry_scopes,
+                *body_raise_scopes,
+            ],
+        )
         handler_outcomes: list[_LexicalBindings] = []
+        handler_exception_scopes: list[_LexicalBindings] = []
+        next_handler_entry = handler_entry
+        trystar_handler_scopes: list[_LexicalBindings] = []
         for handler in node.handlers:
-            self.scope = handler_entry.clone()
-            if handler.name is not None:
-                self._bind_name(handler.name, reference=None, string=None)
-            self._visit_statements(handler.body)
-            handler_outcomes.append(self.scope)
+            self.scope = next_handler_entry.clone()
+            self._exception_scope_collectors.append(handler_exception_scopes)
+            try:
+                if handler.type is not None:
+                    self._record_exception_scope()
+                    self.visit(handler.type)
+                    self._record_exception_scope()
+                after_type_scope = self.scope.clone()
+                if isinstance(node, ast.TryStar) and trystar_handler_scopes:
+                    handler_body_entry = after_type_scope.clone()
+                    self._merge_outcomes(
+                        handler_body_entry,
+                        [after_type_scope, *trystar_handler_scopes],
+                    )
+                if handler.name is not None:
+                    self._bind_name(handler.name, reference=None, string=None)
+                handler_falls_through = self._visit_statements(handler.body)
+            finally:
+                self._exception_scope_collectors.pop()
+            if handler_falls_through:
+                handler_outcomes.append(self.scope)
+            if isinstance(node, ast.TryStar):
+                trystar_handler_scopes.append(self.scope)
+                next_handler_entry = after_type_scope.clone()
+                self._merge_outcomes(
+                    next_handler_entry,
+                    [after_type_scope, *trystar_handler_scopes],
+                )
+            else:
+                next_handler_entry = after_type_scope
 
-        self.scope = try_scope
-        self._visit_statements(node.orelse)
-        self._merge_outcomes(incoming, [try_scope, *handler_outcomes])
-        self._visit_statements(node.finalbody)
+        normal_outcomes = handler_outcomes
+        else_exception_scopes: list[_LexicalBindings] = []
+        if try_falls_through:
+            self.scope = try_scope
+            else_falls_through, else_exception_scopes = self._visit_with_exception_scopes(
+                node.orelse
+            )
+            if else_falls_through:
+                normal_outcomes.append(self.scope)
+        if normal_outcomes:
+            self._merge_outcomes(incoming, normal_outcomes)
+        else:
+            self.scope = incoming
+        abrupt_break_scopes: list[_LexicalBindings] = []
+        abrupt_continue_scopes: list[_LexicalBindings] = []
+        if loop_controls is not None:
+            abrupt_break_scopes = loop_controls.break_scopes[break_offset:]
+            abrupt_continue_scopes = loop_controls.continue_scopes[continue_offset:]
+            del loop_controls.break_scopes[break_offset:]
+            del loop_controls.continue_scopes[continue_offset:]
+        abrupt_return_scopes = terminal_controls.return_scopes[return_offset:]
+        catches_all_body_exceptions = any(handler.type is None for handler in node.handlers)
+        abrupt_raise_scopes = [] if catches_all_body_exceptions else list(body_raise_scopes)
+        if not catches_all_body_exceptions:
+            abrupt_raise_scopes.extend(exception_entry_scopes)
+        abrupt_raise_scopes.extend(handler_exception_scopes)
+        abrupt_raise_scopes.extend(else_exception_scopes)
+        abrupt_raise_scopes.extend(terminal_controls.raise_scopes[raise_offset:])
+        del terminal_controls.return_scopes[return_offset:]
+        del terminal_controls.raise_scopes[raise_offset:]
+        normal_falls_through = False
+        normal_final_scope = incoming
+        if normal_outcomes:
+            normal_falls_through = self._visit_statements(node.finalbody)
+            if normal_falls_through:
+                normal_final_scope = self.scope
+        if loop_controls is not None:
+            finalized_break_scopes: list[_LexicalBindings] = []
+            for abrupt_scope in abrupt_break_scopes:
+                self.scope = abrupt_scope.clone()
+                if self._visit_statements(node.finalbody):
+                    finalized_break_scopes.append(self.scope)
+            finalized_continue_scopes: list[_LexicalBindings] = []
+            for abrupt_scope in abrupt_continue_scopes:
+                self.scope = abrupt_scope.clone()
+                if self._visit_statements(node.finalbody):
+                    finalized_continue_scopes.append(self.scope)
+            loop_controls.break_scopes.extend(finalized_break_scopes)
+            loop_controls.continue_scopes.extend(finalized_continue_scopes)
+        finalized_return_scopes: list[_LexicalBindings] = []
+        for abrupt_scope in abrupt_return_scopes:
+            self.scope = abrupt_scope.clone()
+            if self._visit_statements(node.finalbody):
+                finalized_return_scopes.append(self.scope)
+        finalized_raise_scopes: list[_LexicalBindings] = []
+        for abrupt_scope in abrupt_raise_scopes:
+            self.scope = abrupt_scope.clone()
+            if self._visit_statements(node.finalbody):
+                finalized_raise_scopes.append(self.scope)
+        terminal_controls.return_scopes.extend(finalized_return_scopes)
+        terminal_controls.raise_scopes.extend(finalized_raise_scopes)
+        self.scope = normal_final_scope
+        return normal_falls_through
 
-    def visit_Try(self, node: ast.Try) -> None:
-        self._visit_try(node)
+    def visit_Try(self, node: ast.Try) -> bool:
+        return self._visit_try(node)
 
-    def visit_TryStar(self, node: ast.TryStar) -> None:
-        self._visit_try(node)
+    def visit_TryStar(self, node: ast.TryStar) -> bool:
+        return self._visit_try(node)
 
-    def _visit_for(self, node: ast.For | ast.AsyncFor) -> None:
+    def _visit_for(self, node: ast.For | ast.AsyncFor) -> bool:
         self.visit(node.iter)
         incoming = self.scope
-        body_scope = incoming.clone()
-        self.scope = body_scope
-        iter_value: ast.AST | None = None
-        if isinstance(node.iter, (ast.List, ast.Tuple)) and len(node.iter.elts) == 1:
-            iter_value = node.iter.elts[0]
-        self._bind_targets(
-            [node.target],
-            reference=self._resolve_reference(iter_value) if iter_value is not None else None,
-            string=self._resolve_string(iter_value) if iter_value is not None else None,
+        if (
+            isinstance(node, ast.For)
+            and isinstance(node.iter, (ast.List, ast.Tuple))
+            and not node.iter.elts
+        ):
+            return self._finish_loop(
+                incoming=incoming,
+                normal_entries=[incoming.clone()],
+                break_scopes=[],
+                orelse=node.orelse,
+            )
+        definitely_nonempty = (
+            isinstance(node, ast.For)
+            and isinstance(node.iter, (ast.List, ast.Tuple, ast.Set))
+            and bool(node.iter.elts)
+            and all(not isinstance(element, ast.Starred) for element in node.iter.elts)
         )
-        self._visit_statements(node.body)
-        self._visit_statements(node.orelse)
-        no_iteration_scope = incoming.clone()
-        self.scope = no_iteration_scope
-        self._visit_statements(node.orelse)
-        self._merge_outcomes(incoming, [body_scope, no_iteration_scope])
+        loop_head = incoming.clone()
+        break_scopes: list[_LexicalBindings] = []
+        body_scope: _LexicalBindings | None = None
+        controls = _LoopControlBindings(break_scopes=[], continue_scopes=[])
+        for _iteration in range(_MAX_LOOP_BINDING_ITERATIONS):
+            self._consume_loop_iteration()
+            self.scope = loop_head.clone()
+            self._bind_iteration_target(node.target, node.iter)
+            body_scope, controls = self._visit_loop_body(node.body)
+            break_scopes.extend(controls.break_scopes)
+            carried_scopes = [
+                *([body_scope] if body_scope is not None else []),
+                *controls.continue_scopes,
+            ]
+            if not carried_scopes:
+                break
+            next_head = loop_head.clone()
+            self._merge_outcomes(
+                next_head,
+                [loop_head, *carried_scopes],
+            )
+            if self._bindings_equal(loop_head, next_head):
+                break
+            loop_head = next_head
+        else:
+            raise LegacyGrowthAnalysisError(
+                f"{self.filename}: loop binding analysis did not converge within "
+                f"{_MAX_LOOP_BINDING_ITERATIONS} iterations"
+            )
+        normal_entries = [
+            *([] if definitely_nonempty else [incoming.clone()]),
+            *([body_scope] if body_scope is not None else []),
+            *controls.continue_scopes,
+        ]
+        return self._finish_loop(
+            incoming=incoming,
+            normal_entries=normal_entries,
+            break_scopes=break_scopes,
+            orelse=node.orelse,
+        )
 
-    def visit_For(self, node: ast.For) -> None:
-        self._visit_for(node)
+    def visit_For(self, node: ast.For) -> bool:
+        return self._visit_for(node)
 
-    def visit_AsyncFor(self, node: ast.AsyncFor) -> None:
-        self._visit_for(node)
+    def visit_AsyncFor(self, node: ast.AsyncFor) -> bool:
+        return self._visit_for(node)
 
-    def visit_While(self, node: ast.While) -> None:
+    def visit_Break(self, node: ast.Break) -> bool:
+        if self._loop_controls:
+            self._loop_controls[-1].break_scopes.append(self.scope.clone())
+        return False
+
+    def visit_Continue(self, node: ast.Continue) -> bool:
+        if self._loop_controls:
+            self._loop_controls[-1].continue_scopes.append(self.scope.clone())
+        return False
+
+    def visit_Return(self, node: ast.Return) -> bool:
+        if node.value is not None:
+            self.visit(node.value)
+        self._terminal_controls.return_scopes.append(self.scope.clone())
+        return False
+
+    def visit_Raise(self, node: ast.Raise) -> bool:
+        if node.exc is not None:
+            self.visit(node.exc)
+        if node.cause is not None:
+            self.visit(node.cause)
+        self._terminal_controls.raise_scopes.append(self.scope.clone())
+        return False
+
+    def visit_While(self, node: ast.While) -> bool:
         self.visit(node.test)
-        self._visit_branches([[*node.body, *node.orelse], node.orelse])
+        incoming = self.scope
+        constant_truth = bool(node.test.value) if isinstance(node.test, ast.Constant) else None
+        if constant_truth is False:
+            return self._finish_loop(
+                incoming=incoming,
+                normal_entries=[incoming.clone()],
+                break_scopes=[],
+                orelse=node.orelse,
+            )
+        definitely_true = constant_truth is True
+        loop_head = incoming.clone()
+        break_scopes: list[_LexicalBindings] = []
+        exhaustion_scope: _LexicalBindings | None = None
+        controls = _LoopControlBindings(break_scopes=[], continue_scopes=[])
+        for _iteration in range(_MAX_LOOP_BINDING_ITERATIONS):
+            self._consume_loop_iteration()
+            self.scope = loop_head.clone()
+            body_scope, controls = self._visit_loop_body(node.body)
+            break_scopes.extend(controls.break_scopes)
+            carried_scopes = [
+                *([body_scope] if body_scope is not None else []),
+                *controls.continue_scopes,
+            ]
+            if not carried_scopes:
+                break
+            carried = loop_head.clone()
+            self._merge_outcomes(
+                carried,
+                [loop_head, *carried_scopes],
+            )
+            self.visit(node.test)
+            conditioned_scope = self.scope
+            if not definitely_true:
+                exhaustion_scope = conditioned_scope
+            next_head = loop_head.clone()
+            self._merge_outcomes(next_head, [loop_head, conditioned_scope])
+            if self._bindings_equal(loop_head, next_head):
+                break
+            loop_head = next_head
+        else:
+            raise LegacyGrowthAnalysisError(
+                f"{self.filename}: loop binding analysis did not converge within "
+                f"{_MAX_LOOP_BINDING_ITERATIONS} iterations"
+            )
+        normal_entries = [
+            *([] if definitely_true else [incoming.clone()]),
+            *([exhaustion_scope] if exhaustion_scope is not None else []),
+        ]
+        return self._finish_loop(
+            incoming=incoming,
+            normal_entries=normal_entries,
+            break_scopes=break_scopes,
+            orelse=node.orelse,
+        )
 
-    def _visit_with(self, node: ast.With | ast.AsyncWith) -> None:
+    def _visit_with(self, node: ast.With | ast.AsyncWith) -> bool:
         for item in node.items:
             self.visit(item.context_expr)
             if item.optional_vars is not None:
@@ -2189,37 +2961,153 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     reference=self._resolve_reference(item.context_expr),
                     string=self._resolve_string(item.context_expr),
                 )
-        self._visit_statements(node.body)
+        return self._visit_statements(node.body)
 
-    def visit_With(self, node: ast.With) -> None:
-        self._visit_with(node)
+    def visit_With(self, node: ast.With) -> bool:
+        return self._visit_with(node)
 
-    def visit_AsyncWith(self, node: ast.AsyncWith) -> None:
-        self._visit_with(node)
+    def visit_AsyncWith(self, node: ast.AsyncWith) -> bool:
+        return self._visit_with(node)
 
-    def visit_Match(self, node: ast.Match) -> None:
+    @staticmethod
+    def _is_irrefutable_pattern(pattern: ast.pattern) -> bool:
+        if isinstance(pattern, ast.MatchAs):
+            return pattern.pattern is None or _ApiKeyLookupVisitor._is_irrefutable_pattern(
+                pattern.pattern
+            )
+        if isinstance(pattern, ast.MatchOr):
+            return any(
+                _ApiKeyLookupVisitor._is_irrefutable_pattern(candidate)
+                for candidate in pattern.patterns
+            )
+        return False
+
+    def _bind_match_capture(self, name: str, value: ast.AST | None) -> None:
+        self._bind_name(
+            name,
+            reference=self._resolve_reference(value) if value is not None else None,
+            string=self._resolve_string(value) if value is not None else None,
+            overwrite_conflicts=True,
+        )
+
+    def _bind_match_pattern(self, pattern: ast.pattern, subject: ast.AST) -> None:
+        if isinstance(pattern, ast.MatchAs):
+            if pattern.name is not None:
+                self._bind_match_capture(pattern.name, subject)
+            if pattern.pattern is not None:
+                self._bind_match_pattern(pattern.pattern, subject)
+            return
+        if isinstance(pattern, ast.MatchStar):
+            if pattern.name is not None:
+                self._bind_match_capture(pattern.name, None)
+            return
+        if isinstance(pattern, ast.MatchSequence) and isinstance(subject, (ast.List, ast.Tuple)):
+            star_indexes = [
+                index
+                for index, child_pattern in enumerate(pattern.patterns)
+                if isinstance(child_pattern, ast.MatchStar)
+            ]
+            if not star_indexes and len(pattern.patterns) == len(subject.elts):
+                for child_pattern, child_subject in zip(
+                    pattern.patterns,
+                    subject.elts,
+                    strict=True,
+                ):
+                    self._bind_match_pattern(child_pattern, child_subject)
+                return
+            if len(star_indexes) == 1:
+                star_index = star_indexes[0]
+                suffix_count = len(pattern.patterns) - star_index - 1
+                if len(subject.elts) >= star_index + suffix_count:
+                    for child_pattern, child_subject in zip(
+                        pattern.patterns[:star_index],
+                        subject.elts[:star_index],
+                        strict=True,
+                    ):
+                        self._bind_match_pattern(child_pattern, child_subject)
+                    self._bind_match_pattern(pattern.patterns[star_index], subject)
+                    if suffix_count:
+                        for child_pattern, child_subject in zip(
+                            pattern.patterns[-suffix_count:],
+                            subject.elts[-suffix_count:],
+                            strict=True,
+                        ):
+                            self._bind_match_pattern(child_pattern, child_subject)
+                    return
+        if isinstance(pattern, ast.MatchMapping):
+            subject_values = (
+                {
+                    self._resolve_string(key): value
+                    for key, value in zip(subject.keys, subject.values, strict=True)
+                    if key is not None and self._resolve_string(key) is not None
+                }
+                if isinstance(subject, ast.Dict)
+                else {}
+            )
+            for key, child_pattern in zip(pattern.keys, pattern.patterns, strict=True):
+                self._bind_match_pattern(
+                    child_pattern,
+                    subject_values.get(self._resolve_string(key), subject),
+                )
+            if pattern.rest is not None:
+                self._bind_match_capture(pattern.rest, None)
+            return
+        captured_names = {
+            child.name
+            for child in ast.walk(pattern)
+            if isinstance(child, (ast.MatchAs, ast.MatchStar)) and child.name is not None
+        }
+        if isinstance(pattern, ast.MatchMapping) and pattern.rest is not None:
+            captured_names.add(pattern.rest)
+        for name in captured_names:
+            self._bind_match_capture(name, subject)
+
+    def visit_Match(self, node: ast.Match) -> bool:
         self.visit(node.subject)
         incoming = self.scope
-        outcomes = [incoming.clone()]
+        outcomes: list[_LexicalBindings] = []
+        next_case_entry: _LexicalBindings | None = incoming.clone()
         for case in node.cases:
-            self.scope = incoming.clone()
-            captured_names = {
-                child.name
-                for child in ast.walk(case.pattern)
-                if isinstance(child, (ast.MatchAs, ast.MatchStar)) and child.name is not None
-            }
-            for name in captured_names:
-                self._bind_name(name, reference=None, string=None)
+            if next_case_entry is None:
+                break
+            pattern_failure_scope = next_case_entry.clone()
+            self.scope = next_case_entry.clone()
+            self.visit(case.pattern)
+            self._bind_match_pattern(case.pattern, node.subject)
+            guard_truth: bool | None = True
             if case.guard is not None:
                 self.visit(case.guard)
-            self._visit_statements(case.body)
-            outcomes.append(self.scope)
+                guard_truth = (
+                    bool(case.guard.value) if isinstance(case.guard, ast.Constant) else None
+                )
+            guard_false_scope = self.scope.clone()
+            if guard_truth is not False and self._visit_statements(case.body):
+                outcomes.append(self.scope)
+            irrefutable = self._is_irrefutable_pattern(case.pattern)
+            remaining_entries: list[_LexicalBindings] = []
+            if not irrefutable:
+                remaining_entries.append(pattern_failure_scope)
+            if guard_truth is not True:
+                remaining_entries.append(guard_false_scope)
+            if not remaining_entries:
+                next_case_entry = None
+                continue
+            next_case_entry = pattern_failure_scope.clone()
+            self._merge_outcomes(next_case_entry, remaining_entries)
+        if next_case_entry is not None:
+            outcomes.append(next_case_entry)
+        if not outcomes:
+            self.scope = incoming
+            return False
         self._merge_outcomes(incoming, outcomes)
+        return True
 
     def _visit_comprehension(
         self,
         generators: Sequence[ast.comprehension],
         result_nodes: Sequence[ast.AST],
+        *,
+        deferred: bool = False,
     ) -> None:
         if not generators:
             for result_node in result_nodes:
@@ -2230,20 +3118,26 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             name for generator in generators for name in _assignment_target_names(generator.target)
         )
         previous = self.scope
+        previous_exception_scope_collectors = self._exception_scope_collectors
         self.scope = _LexicalBindings(
             parent=previous,
             local_names=local_names,
             scope_kind="comprehension",
         )
-        for index, generator in enumerate(generators):
-            if index:
-                self.visit(generator.iter)
-            self._bind_targets([generator.target], reference=None, string=None)
-            for condition in generator.ifs:
-                self.visit(condition)
-        for result_node in result_nodes:
-            self.visit(result_node)
-        self.scope = previous
+        if deferred:
+            self._exception_scope_collectors = []
+        try:
+            for index, generator in enumerate(generators):
+                if index:
+                    self.visit(generator.iter)
+                self._bind_iteration_target(generator.target, generator.iter)
+                for condition in generator.ifs:
+                    self.visit(condition)
+            for result_node in result_nodes:
+                self.visit(result_node)
+        finally:
+            self.scope = previous
+            self._exception_scope_collectors = previous_exception_scope_collectors
 
     def visit_ListComp(self, node: ast.ListComp) -> None:
         self._visit_comprehension(node.generators, [node.elt])
@@ -2252,7 +3146,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         self._visit_comprehension(node.generators, [node.elt])
 
     def visit_GeneratorExp(self, node: ast.GeneratorExp) -> None:
-        self._visit_comprehension(node.generators, [node.elt])
+        self._visit_comprehension(node.generators, [node.elt], deferred=True)
 
     def visit_DictComp(self, node: ast.DictComp) -> None:
         self._visit_comprehension(node.generators, [node.key, node.value])
@@ -2284,36 +3178,43 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
 
     def visit_Assign(self, node: ast.Assign) -> None:
         self.visit(node.value)
-        resolved_string = self._resolve_string(node.value)
-        self._bind_targets(
-            node.targets,
-            reference=self._resolve_reference(node.value),
-            string=resolved_string if resolved_string is not None else _DYNAMIC_STRING_BINDING,
-        )
+        for target in node.targets:
+            self._bind_target_value(
+                target,
+                node.value,
+                dynamic_unknown_string=True,
+            )
 
     def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
         self.visit(node.annotation)
         if node.value is not None:
             self.visit(node.value)
-        resolved_string = self._resolve_string(node.value) if node.value is not None else None
-        self._bind_targets(
-            [node.target],
-            reference=self._resolve_reference(node.value) if node.value is not None else None,
-            string=(
-                resolved_string
-                if resolved_string is not None
-                else (_DYNAMIC_STRING_BINDING if node.value is not None else None)
-            ),
-        )
+        if node.value is None:
+            self._bind_targets([node.target], reference=None, string=None)
+        else:
+            self._bind_target_value(
+                node.target,
+                node.value,
+                dynamic_unknown_string=True,
+            )
 
     def visit_NamedExpr(self, node: ast.NamedExpr) -> None:
         self.visit(node.value)
-        resolved_string = self._resolve_string(node.value)
-        self._bind_targets(
-            [node.target],
-            reference=self._resolve_reference(node.value),
-            string=resolved_string if resolved_string is not None else _DYNAMIC_STRING_BINDING,
-        )
+        active_scope = self.scope
+        if active_scope.scope_kind == "comprehension":
+            containing_scope = active_scope.parent
+            while containing_scope is not None and containing_scope.scope_kind == "comprehension":
+                containing_scope = containing_scope.parent
+            if containing_scope is not None:
+                self.scope = containing_scope
+        try:
+            self._bind_target_value(
+                node.target,
+                node.value,
+                dynamic_unknown_string=True,
+            )
+        finally:
+            self.scope = active_scope
 
     def visit_Attribute(self, node: ast.Attribute) -> None:
         if node.attr in CANONICAL_API_KEY_SYMBOLS and self._is_legacy_module_reference(
@@ -2328,15 +3229,18 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
     def visit_Subscript(self, node: ast.Subscript) -> None:
         if self._is_legacy_namespace_reference(self._resolve_reference(node.value)):
             symbol_name = self._resolve_string(node.slice)
-            if symbol_name in CANONICAL_API_KEY_SYMBOLS:
+            if symbol_name in CANONICAL_API_KEY_SYMBOLS or symbol_name in {
+                None,
+                _DYNAMIC_STRING_BINDING,
+                _POSSIBLE_API_KEY_SYMBOL,
+            }:
                 self.errors.append(
                     f"{self.filename}: legacy API-key dependency namespace lookup is forbidden: "
-                    f"{symbol_name}"
+                    f"{symbol_name if symbol_name in CANONICAL_API_KEY_SYMBOLS else '<dynamic>'}"
                 )
         self.generic_visit(node)
 
     def visit_Call(self, node: ast.Call) -> None:
-        self._record_snapshot(node)
         if (
             isinstance(node.func, ast.Attribute)
             and node.func.attr in {"get", "__getitem__"}
@@ -2355,7 +3259,8 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 )
         if (
             self.filename != CANONICAL_API_KEY
-            and self._resolve_reference(node.func) == "builtins.getattr"
+            and self._resolve_reference(node.func)
+            in {"builtins.getattr", _POSSIBLE_GETATTR_REFERENCE}
             and len(node.args) >= 2
             and self._is_legacy_module_reference(self._resolve_reference(node.args[0]))
         ):
@@ -2372,17 +3277,48 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         self.generic_visit(node)
 
 
+def _collect_module_final_bindings(
+    tree: ast.Module,
+    *,
+    filename: str = LEGACY_APP,
+    initial_references: Mapping[str, str],
+    preserve_fastapi_conflicts: bool = False,
+    preserve_lifecycle_conflicts: bool = False,
+    preserve_route_method_conflicts: bool = False,
+) -> tuple[Mapping[str, str], Mapping[str, str]]:
+    visitor = _ApiKeyLookupVisitor(
+        filename=filename,
+        errors=[],
+        initial_references=initial_references,
+        preserve_fastapi_conflicts=preserve_fastapi_conflicts,
+        preserve_lifecycle_conflicts=preserve_lifecycle_conflicts,
+        preserve_route_method_conflicts=preserve_route_method_conflicts,
+        analyze_function_bodies=False,
+    )
+    visitor.visit(tree)
+    return visitor.scope.visible_references(), visitor.scope.visible_strings()
+
+
 def _collect_lexical_binding_snapshots(
     tree: ast.Module,
     *,
     initial_references: Mapping[str, str],
     preserve_fastapi_conflicts: bool = False,
+    preserve_lifecycle_conflicts: bool = False,
     preserve_route_method_conflicts: bool = False,
 ) -> tuple[Mapping[int, Mapping[str, str]], Mapping[int, Mapping[str, str]]]:
     """Collect statement-ordered reference/string environments at call sites."""
 
     reference_snapshots: dict[int, dict[str, str]] = {}
     string_snapshots: dict[int, dict[str, str]] = {}
+    module_late_references, module_late_strings = _collect_module_final_bindings(
+        tree,
+        filename=LEGACY_APP,
+        initial_references=initial_references,
+        preserve_fastapi_conflicts=preserve_fastapi_conflicts,
+        preserve_lifecycle_conflicts=preserve_lifecycle_conflicts,
+        preserve_route_method_conflicts=preserve_route_method_conflicts,
+    )
     _ApiKeyLookupVisitor(
         filename=LEGACY_APP,
         errors=[],
@@ -2390,7 +3326,10 @@ def _collect_lexical_binding_snapshots(
         reference_snapshots=reference_snapshots,
         string_snapshots=string_snapshots,
         preserve_fastapi_conflicts=preserve_fastapi_conflicts,
+        preserve_lifecycle_conflicts=preserve_lifecycle_conflicts,
         preserve_route_method_conflicts=preserve_route_method_conflicts,
+        module_late_references=module_late_references,
+        module_late_strings=module_late_strings,
     ).visit(tree)
     return reference_snapshots, string_snapshots
 
@@ -2520,12 +3459,18 @@ def validate_api_key_dependency_ownership(
         tree, source_errors = _parse_source(source_text, filename=filename)
         errors.extend(source_errors)
         if tree is not None:
-            _ApiKeyLookupVisitor(filename=filename, errors=errors).visit(tree)
+            module_late_references, module_late_strings = _collect_module_final_bindings(
+                tree,
+                filename=filename,
+                initial_references={},
+            )
+            _ApiKeyLookupVisitor(
+                filename=filename,
+                errors=errors,
+                module_late_references=module_late_references,
+                module_late_strings=module_late_strings,
+            ).visit(tree)
     return sorted(set(errors))
-
-
-_DYNAMIC_LIFECYCLE_REFERENCE = "<dynamic>"
-_POSSIBLE_FASTAPI_REFERENCE = "<possible:fastapi>"
 
 
 def _collect_lifecycle_references(
@@ -2546,7 +3491,11 @@ def _collect_lifecycle_references(
 
     def join_reference(name: str, reference: str) -> bool:
         current = references.get(name)
-        if current in {_DYNAMIC_LIFECYCLE_REFERENCE, _POSSIBLE_FASTAPI_REFERENCE}:
+        if current in {
+            _DYNAMIC_LIFECYCLE_REFERENCE,
+            _POSSIBLE_FASTAPI_REFERENCE,
+            _CONFLICTED_FASTAPI_REFERENCE,
+        }:
             return False
         if current == reference:
             return False
@@ -2665,6 +3614,12 @@ def _resolve_lifecycle_reference(
     references: Mapping[str, str],
     static_string_bindings: Mapping[str, str],
 ) -> str | None:
+    if isinstance(node, ast.NamedExpr):
+        return _resolve_lifecycle_reference(
+            node.value,
+            references=references,
+            static_string_bindings=static_string_bindings,
+        )
     if isinstance(node, ast.Name):
         return references.get(node.id)
     if isinstance(node, ast.Subscript):
@@ -2674,7 +3629,11 @@ def _resolve_lifecycle_reference(
             static_string_bindings=static_string_bindings,
         )
         member_name = _resolve_static_string(node.slice, static_string_bindings)
-        if parent in {_DYNAMIC_LIFECYCLE_REFERENCE, _POSSIBLE_FASTAPI_REFERENCE}:
+        if parent in {
+            _DYNAMIC_LIFECYCLE_REFERENCE,
+            _POSSIBLE_FASTAPI_REFERENCE,
+            _CONFLICTED_FASTAPI_REFERENCE,
+        }:
             return parent
         if parent is not None and parent.endswith(".__dict__"):
             parent = parent.removesuffix(".__dict__")
@@ -2687,7 +3646,11 @@ def _resolve_lifecycle_reference(
             references=references,
             static_string_bindings=static_string_bindings,
         )
-        if parent in {_DYNAMIC_LIFECYCLE_REFERENCE, _POSSIBLE_FASTAPI_REFERENCE}:
+        if parent in {
+            _DYNAMIC_LIFECYCLE_REFERENCE,
+            _POSSIBLE_FASTAPI_REFERENCE,
+            _CONFLICTED_FASTAPI_REFERENCE,
+        }:
             return parent
         if parent is not None:
             return f"{parent}.{node.attr}"
@@ -2726,7 +3689,11 @@ def _resolve_lifecycle_reference(
         references=references,
         static_string_bindings=static_string_bindings,
     )
-    if function_reference in {_DYNAMIC_LIFECYCLE_REFERENCE, _POSSIBLE_FASTAPI_REFERENCE}:
+    if function_reference in {
+        _DYNAMIC_LIFECYCLE_REFERENCE,
+        _POSSIBLE_FASTAPI_REFERENCE,
+        _CONFLICTED_FASTAPI_REFERENCE,
+    }:
         return function_reference
     if function_reference == "builtins.vars" and len(node.args) == 1 and not node.keywords:
         return _resolve_lifecycle_reference(
@@ -3068,7 +4035,7 @@ def _registers_lifecycle_event(tree: ast.Module) -> bool:
 
 
 def _uses_noncanonical_fastapi_lifespan(tree: ast.Module) -> bool:
-    references, canonical_lifespan_aliases = _collect_lifecycle_references(tree)
+    _references, canonical_lifespan_aliases = _collect_lifecycle_references(tree)
     static_string_bindings = _collect_static_string_bindings(tree)
     static_mapping_bindings = _collect_static_mapping_bindings(tree)
     reference_snapshots, string_snapshots = _collect_lexical_binding_snapshots(
@@ -3086,20 +4053,26 @@ def _uses_noncanonical_fastapi_lifespan(tree: ast.Module) -> bool:
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
-        scoped_references = reference_snapshots.get(id(node), references)
-        scoped_strings = string_snapshots.get(id(node), static_string_bindings)
+        node_id = id(node)
+        if node_id not in reference_snapshots:
+            continue
+        scoped_references = reference_snapshots[node_id]
+        scoped_strings = string_snapshots[node_id]
         resolved_constructor = _resolve_lifecycle_reference(
             node.func,
             references=scoped_references,
             static_string_bindings=scoped_strings,
         )
-        if resolved_constructor == _POSSIBLE_FASTAPI_REFERENCE:
-            return True
         if resolved_constructor == _DYNAMIC_LIFECYCLE_REFERENCE:
             if any(keyword.arg in {None, "lifespan"} for keyword in node.keywords):
                 return True
             continue
-        if resolved_constructor not in {"fastapi.FastAPI", "fastapi.applications.FastAPI"}:
+        if resolved_constructor not in {
+            "fastapi.FastAPI",
+            "fastapi.applications.FastAPI",
+            _POSSIBLE_FASTAPI_REFERENCE,
+            _CONFLICTED_FASTAPI_REFERENCE,
+        }:
             continue
         has_canonical_lifespan = False
         for keyword in node.keywords:
@@ -3235,7 +4208,7 @@ def _is_facade_module_name(module_name: str) -> bool:
 
 
 def _uses_dynamic_facade_lookup(tree: ast.Module) -> bool:
-    references, _canonical_lifespan_aliases = _collect_lifecycle_references(tree)
+    _references, _canonical_lifespan_aliases = _collect_lifecycle_references(tree)
     static_string_bindings = _collect_static_string_bindings(tree)
     reference_snapshots, string_snapshots = _collect_lexical_binding_snapshots(
         tree,
@@ -3246,10 +4219,14 @@ def _uses_dynamic_facade_lookup(tree: ast.Module) -> bool:
             "getattr": "builtins.getattr",
             "vars": "builtins.vars",
         },
+        preserve_lifecycle_conflicts=True,
     )
     for node in ast.walk(tree):
-        scoped_references = reference_snapshots.get(id(node), references)
-        scoped_strings = string_snapshots.get(id(node), static_string_bindings)
+        node_id = id(node)
+        if node_id not in reference_snapshots:
+            continue
+        scoped_references = reference_snapshots[node_id]
+        scoped_strings = string_snapshots[node_id]
         reference = _resolve_lifecycle_reference(
             node,
             references=scoped_references,
@@ -3264,7 +4241,12 @@ def _uses_dynamic_facade_lookup(tree: ast.Module) -> bool:
             references=scoped_references,
             static_string_bindings=scoped_strings,
         )
-        if function_reference not in {"builtins.__import__", "importlib.import_module"}:
+        if function_reference not in {
+            "builtins.__import__",
+            "importlib.import_module",
+            _POSSIBLE_IMPORT_CALLABLE_REFERENCE,
+            _DYNAMIC_LIFECYCLE_REFERENCE,
+        }:
             continue
         module_node = node.args[0] if node.args else None
         package_node = (
@@ -4266,6 +5248,13 @@ def validate_repo(repo_root: Path) -> list[str]:
     """Validate the repo's legacy compatibility seam."""
 
     errors: list[str] = []
+
+    def extend_analysis(operation: Callable[[], Sequence[str]]) -> None:
+        try:
+            errors.extend(operation())
+        except LegacyGrowthAnalysisError as exc:
+            errors.append(str(exc))
+
     legacy_path = repo_root / LEGACY_APP
     doc_path = repo_root / LEGACY_SEAM_DOC
     food_search_path = repo_root / FOOD_SEARCH_BOOTSTRAP
@@ -4292,21 +5281,24 @@ def validate_repo(repo_root: Path) -> list[str]:
             if source is not None:
                 app_sources[_display(app_path, repo_root)] = source
     if legacy_source is not None:
-        errors.extend(
-            validate_legacy_growth(legacy_source, filename=_display(legacy_path, repo_root))
+        extend_analysis(
+            lambda: validate_legacy_growth(
+                legacy_source,
+                filename=_display(legacy_path, repo_root),
+            )
         )
     if doc_text is not None:
         errors.extend(validate_legacy_seam_doc(doc_text, filename=_display(doc_path, repo_root)))
     if legacy_source is not None and food_search_source is not None and lifespan_source is not None:
-        errors.extend(
-            validate_lifecycle_ownership(
+        extend_analysis(
+            lambda: validate_lifecycle_ownership(
                 legacy_source,
                 food_search_source,
                 lifespan_source,
             )
         )
     if legacy_source is not None:
-        errors.extend(validate_api_key_dependency_ownership(legacy_source, app_sources))
+        extend_analysis(lambda: validate_api_key_dependency_ownership(legacy_source, app_sources))
     if all(
         source is not None
         for source in (
@@ -4317,8 +5309,8 @@ def validate_repo(repo_root: Path) -> list[str]:
             facade_source,
         )
     ):
-        errors.extend(
-            validate_application_metadata_openapi_ownership(
+        extend_analysis(
+            lambda: validate_application_metadata_openapi_ownership(
                 cast(str, legacy_source),
                 cast(str, metadata_source),
                 cast(str, openapi_source),
