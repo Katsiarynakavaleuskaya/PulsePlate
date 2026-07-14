@@ -10,6 +10,7 @@ import importlib
 import json
 import os
 from pathlib import Path
+import re
 import secrets
 import shutil
 import stat
@@ -65,6 +66,9 @@ from scripts.orchestration.creative_specification_skeptic_review_contract import
 SPEC_BRIDGE_ROOT: Path = creative_code_spec_pipeline.ARTIFACT_ROOT / "spec_bridge"
 ADAPTIVE_RESUME_FILENAME = "creative_adaptive_pr1_resume_binding.json"
 ADAPTIVE_INTAKE_FILENAME = "creative_adaptive_pr1_variant_intake.json"
+FAILED_REVIEWED_RUN_QUARANTINE_PATTERN = re.compile(
+    rf"^\.{re.escape(REVIEWED_RUN_DIRNAME)}\.[0-9a-f]{{16}}\.failed$"
+)
 ATTACHMENT_FILENAME = "skeptic_review_attachment.json"
 BUNDLE_FILENAME = "creative_code_specification_bundle.json"
 FINALIZE_RECEIPT_FILENAME = "finalize_receipt.json"
@@ -468,6 +472,7 @@ def _read_prepared_adaptive_resume(
             REVIEWED_RUN_DIRNAME,
         },
         label="adaptive resume",
+        allowed_quarantines=True,
     )
     candidate_path = bridge_dir / CANDIDATE_FILENAME
     intake_path = bridge_dir / ADAPTIVE_INTAKE_FILENAME
@@ -657,7 +662,19 @@ def _pending_skeptic_review_count(reviews: Sequence[Any]) -> int:
     )
 
 
-def _reject_unexpected_entries(path: Path, *, allowed: set[str], label: str) -> None:
+def _is_failed_reviewed_run_quarantine(child: Path) -> bool:
+    return (
+        child.is_dir() and FAILED_REVIEWED_RUN_QUARANTINE_PATTERN.fullmatch(child.name) is not None
+    )
+
+
+def _reject_unexpected_entries(
+    path: Path,
+    *,
+    allowed: set[str],
+    label: str,
+    allowed_quarantines: bool = False,
+) -> None:
     if path.exists() and not path.is_dir():
         raise CreativeSpecificationSkepticReviewCliError(f"{label} must be a directory.")
     if not path.exists():
@@ -667,7 +684,12 @@ def _reject_unexpected_entries(path: Path, *, allowed: set[str], label: str) -> 
         raise CreativeSpecificationSkepticReviewCliError(
             f"{label} contains symlink artifact(s): {', '.join(symlink_children)}."
         )
-    unexpected = sorted(child.name for child in path.iterdir() if child.name not in allowed)
+    unexpected = sorted(
+        child.name
+        for child in path.iterdir()
+        if child.name not in allowed
+        and not (allowed_quarantines and _is_failed_reviewed_run_quarantine(child))
+    )
     if unexpected:
         raise CreativeSpecificationSkepticReviewCliError(
             f"{label} contains unexpected artifact(s): {', '.join(unexpected)}."

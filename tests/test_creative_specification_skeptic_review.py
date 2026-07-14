@@ -1786,3 +1786,36 @@ def test_reviewed_finalize_modules_do_not_import_mutation_surfaces() -> None:
             for imported in imports
             if imported in banned_exact or imported.startswith(banned_prefixes)
         ]
+
+
+def test_adaptive_resume_allows_retained_failed_reviewed_run_quarantine(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / review_cli.ADAPTIVE_RESUME_FILENAME).write_text("{}", encoding="utf-8")
+    (tmp_path / f".{review_cli.REVIEWED_RUN_DIRNAME}.0123456789abcdef.failed").mkdir()
+
+    review_cli._reject_unexpected_entries(
+        tmp_path,
+        allowed={review_cli.ADAPTIVE_RESUME_FILENAME},
+        label="adaptive resume",
+        allowed_quarantines=True,
+    )
+
+
+def test_adaptive_resume_rejects_non_directory_quarantine_name(tmp_path: Path) -> None:
+    (tmp_path / review_cli.ADAPTIVE_RESUME_FILENAME).write_text("{}", encoding="utf-8")
+    (tmp_path / f".{review_cli.REVIEWED_RUN_DIRNAME}.0123456789abcdef.failed").write_text(
+        "not a retained run directory",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        review_cli.CreativeSpecificationSkepticReviewCliError,
+        match=r"adaptive resume contains unexpected artifact\(s\)",
+    ):
+        review_cli._reject_unexpected_entries(
+            tmp_path,
+            allowed={review_cli.ADAPTIVE_RESUME_FILENAME},
+            label="adaptive resume",
+            allowed_quarantines=True,
+        )
