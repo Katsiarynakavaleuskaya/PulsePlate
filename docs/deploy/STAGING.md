@@ -419,4 +419,6 @@ docker logs -f caddy
 
 **Total Monthly Cost**: €3-6 for a basic staging environment
 **Setup Time**: 30-60 minutes
-**Maintenance**: Minimal (automatic updates via GitHub Actions)
+**Maintenance**: Operator-managed; app/Caddy artifact deployment can be
+automated after all rollout gates are enabled. Host maintenance, backups,
+volumes, DNS/TLS, and server-local contract synchronization remain manual.
