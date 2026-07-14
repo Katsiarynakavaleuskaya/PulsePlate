@@ -1261,6 +1261,34 @@ def test_click_and_pillow_security_pins_cover_every_existing_lock_surface() -> N
             }
 
 
+def test_setuptools_security_floor_covers_governed_dependency_surfaces() -> None:
+    for source_file in (
+        "requirements.in",
+        "requirements-ci-lite.in",
+        "requirements-docker-runtime.in",
+        "requirements-dev.in",
+    ):
+        assert _requirement_package_specifiers(REPO_ROOT / source_file, "setuptools") == {
+            (">=", "83.0.0"),
+            ("<", "84.0.0"),
+        }
+
+    assert _requirement_package_specifiers(REPO_ROOT / "constraints.txt", "setuptools") == {
+        (">=", "83.0.0")
+    }
+
+    for lockfile in (
+        "requirements.txt",
+        "requirements-ci-lite.txt",
+        "requirements-docker-runtime.txt",
+        "requirements-dev.txt",
+        "requirements-lock.txt",
+    ):
+        assert _requirement_package_specifiers(REPO_ROOT / lockfile, "setuptools") == {
+            ("==", "83.0.0")
+        }
+
+
 def test_base_runtime_dependency_profile_excludes_vector_ml_stack() -> None:
     requirements_runtime = (REPO_ROOT / "requirements.txt").read_text(encoding="utf-8")
 

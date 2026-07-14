@@ -36,11 +36,13 @@ CURRENT_ENFORCED_RUNTIME_FLOORS = {
     "cryptography": "48.0.1",
     "pillow": "12.3.0",
     "python-multipart": "0.0.31",
+    "setuptools": "83.0.0",
     "starlette": "1.3.1",
 }
 
 CURRENT_BLOCKED_VERSION_SPECIFIERS = {
     "python-multipart": "<0.0.31",
+    "setuptools": "<83.0.0",
 }
 
 PIP_DIRECTIVE_PREFIXES = (

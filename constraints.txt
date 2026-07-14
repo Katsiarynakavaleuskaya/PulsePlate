@@ -21,6 +21,7 @@ ruff>=0.15.21  # Fast local/pre-commit lint companion.
 # Security - allow patch updates for vulnerability fixes
 bandit>=1.8.6
 pip-audit>=2.10.1
+setuptools>=83.0.0  # Security floor for CVE-2026-59890
 
 # Dev tools - allow minor updates
 pre-commit>=4.6.0
