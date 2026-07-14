@@ -140,9 +140,11 @@ class TestEndpointsAndValidation:
         assert self.client.post("/bmi", json=bad_enum).status_code == 422
 
     def test_admin_and_debug_endpoints(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        # Debug page is defined in main.py; tolerate environments where it might be restricted
+        # The test environment explicitly enables the developer-only debug surface.
+        monkeypatch.setenv("APP_ENV", "test")
+        monkeypatch.setenv("ENVIRONMENT", "test")
         r = self.client.get("/debug_env")
-        assert r.status_code in [200, 404, 405]
+        assert r.status_code == 200
 
         class _Scheduler:
             def get_status(self) -> dict[str, object]:
@@ -165,5 +167,24 @@ class TestEndpointsAndValidation:
         patch_admin_get_update_scheduler(monkeypatch, _Scheduler())
         r1 = self.client.get("/api/v1/admin/db-status", headers={"X-API-Key": "test-key"})
         assert r1.status_code == 200
+        assert r1.json() == {
+            "scheduler": {"is_running": False},
+            "databases": {},
+        }
         r2 = self.client.post("/api/v1/admin/force-update", headers={"X-API-Key": "test-key"})
         assert r2.status_code == 200
+        assert r2.json() == {
+            "message": "Force update completed for all sources",
+            "results": {
+                "usda": {
+                    "success": True,
+                    "old_version": "1.0",
+                    "new_version": "1.1",
+                    "records_added": 1,
+                    "records_updated": 0,
+                    "records_removed": 0,
+                    "duration_seconds": 0.01,
+                    "errors": [],
+                }
+            },
+        }
