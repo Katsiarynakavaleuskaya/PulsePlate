@@ -30,7 +30,7 @@ technical admin 500 details with stable generic envelopes.
 - [x] Pre-open packet role order completed
 - [x] Actual-diff premortem completed
 - [x] Post-open `qa-engineer-agent -> bug-hunter -> security-auditor` completed
-- [x] Codex Security exact-material-diff scan completed with 0 findings
+- [x] Codex Security exact production-material diff scan completed with 0 findings
 - [x] `pulseplate-pr-review` completed
 - [x] Current review-thread inventory contains no inline threads
 - [ ] Canonical current-head CI completed
@@ -127,6 +127,22 @@ Runner, and sealed Codex Security scan is unchanged. The new base adds only the
 separately reviewed setuptools/manifest prerequisite, so a duplicate scan would
 not add security coverage.
 
+### Current-head CI Async Plugin Finding
+
+Disposition: FIXED
+Commit: 70e09a1fa222e7ac940d9ec05538c48a4a6e8e1d
+Evidence: Current-head CI job `87210038569` failed at
+`tests/edges/test_app_edges.py::test_admin_status_scheduler_branches` because
+the pre-commit CI-lite environment intentionally does not load
+`pytest-asyncio`. Commit `70e09a1fa` converts every async test selected from the
+four affected touched files to synchronous tests, using `asyncio.run(...)` only
+where a coroutine must be exercised. A plugin-disabled 74-test reproduction and
+the complete branch-selected backend hook both pass.
+Reason: The failure was a deterministic test-harness contract defect, not a
+runtime scheduler defect. The fix changes tests only; all four sealed production
+source-like scan rows remain byte-identical, so another security scan would add
+no production coverage.
+
 ### PulsePlate PR Review
 
 Disposition: NOT-A-BUG
@@ -192,6 +208,9 @@ commit `4b6a0e7d2f2cc83933639908896d505b5a1fbbd0`.
   findings.
 - PASS: rebase onto merged prerequisite `b432aeb78` preserved both
   implementation patch IDs exactly; no scheduler material row changed.
+- PASS: 74 affected tests with `pytest-asyncio` explicitly disabled.
+- PASS: complete branch-selected backend pre-commit test hook after converting
+  all selected async tests to the repository-approved sync contract.
 - Not run: local full `make verify`, per repository machine-budget policy.
 - PENDING: current-head canonical CI after this governance artifact commit.
 
@@ -217,7 +236,7 @@ commit `4b6a0e7d2f2cc83933639908896d505b5a1fbbd0`.
   envelopes, rollback matrix, OpenAPI zero-diff, premortem, strict oracle, role
   review, and the sealed security scan.
 - Rollback is a revert of implementation commits `4b6a0e7d2f2cc83933639908896d505b5a1fbbd0`
-  and `86a6330be`; there is no schema,
+  and `86a6330be`, plus test-only CI fix `70e09a1fa`; there is no schema,
   persisted-state, route, client, or deployment migration.
 
 ## External Prerequisite Resolution
