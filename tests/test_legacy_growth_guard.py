@@ -841,6 +841,20 @@ def test_api_key_ownership_guard_rejects_legacy_star_import() -> None:
     ) == ["app/main.py: canonical code must not use a legacy_app star import"]
 
 
+def test_api_key_ownership_guard_rejects_legacy_namespace_lookup() -> None:
+    legacy_source = (
+        "from app.routers.api_key import (\n    _get_api_key_dynamic,\n    get_api_key,\n)\n"
+    )
+
+    source = 'import legacy_app as legacy\ndependency = legacy.__dict__["get_api_key"]\n'
+
+    assert legacy_guard.validate_api_key_dependency_ownership(
+        legacy_source,
+        {"app/main.py": source},
+    ) == [
+        "app/main.py: legacy API-key dependency namespace lookup is forbidden: get_api_key"
+    ]
+
 def test_api_key_ownership_guard_allows_unrelated_star_import() -> None:
     legacy_source = (
         "from app.routers.api_key import (\n    _get_api_key_dynamic,\n    get_api_key,\n)\n"

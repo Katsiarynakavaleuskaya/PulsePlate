@@ -1693,6 +1693,24 @@ def validate_api_key_dependency_ownership(
                     == "legacy_app"
                 )
 
+            def legacy_namespace_lookup_symbol(node: ast.AST) -> str | None:
+                if not isinstance(node, ast.Subscript):
+                    return None
+                if (
+                    _static_module_reference(
+                        node.value,
+                        module_aliases=module_aliases,
+                        import_module_aliases=import_module_aliases,
+                        static_string_bindings=static_string_bindings,
+                    )
+                    != "legacy_app.__dict__"
+                ):
+                    return None
+                symbol_name = _resolve_static_string(node.slice, static_string_bindings)
+                if symbol_name in CANONICAL_API_KEY_SYMBOLS:
+                    return symbol_name
+                return None
+
             for lookup_node in ast.walk(expression):
                 if (
                     isinstance(lookup_node, ast.Attribute)
@@ -1719,6 +1737,11 @@ def validate_api_key_dependency_ownership(
                 ):
                     errors.append(
                         f"{filename}: dynamic legacy API-key dependency lookup is forbidden: "
+                        f"{symbol_name}"
+                    )
+                elif (symbol_name := legacy_namespace_lookup_symbol(lookup_node)) is not None:
+                    errors.append(
+                        f"{filename}: legacy API-key dependency namespace lookup is forbidden: "
                         f"{symbol_name}"
                     )
 
@@ -1782,6 +1805,24 @@ def validate_api_key_dependency_ownership(
                 == "legacy_app"
             )
 
+        def legacy_namespace_lookup_symbol(node: ast.AST) -> str | None:
+            if not isinstance(node, ast.Subscript):
+                return None
+            if (
+                _static_module_reference(
+                    node.value,
+                    module_aliases=module_aliases,
+                    import_module_aliases=import_module_aliases,
+                    static_string_bindings=static_string_bindings,
+                )
+                != "legacy_app.__dict__"
+            ):
+                return None
+            symbol_name = _resolve_static_string(node.slice, static_string_bindings)
+            if symbol_name in CANONICAL_API_KEY_SYMBOLS:
+                return symbol_name
+            return None
+
         for node in ast.walk(tree):
             if isinstance(node, ast.ImportFrom) and node.module == "legacy_app":
                 for alias in node.names:
@@ -1815,6 +1856,11 @@ def validate_api_key_dependency_ownership(
             ):
                 errors.append(
                     f"{filename}: dynamic legacy API-key dependency lookup is forbidden: "
+                    f"{symbol_name}"
+                )
+            elif (symbol_name := legacy_namespace_lookup_symbol(node)) is not None:
+                errors.append(
+                    f"{filename}: legacy API-key dependency namespace lookup is forbidden: "
                     f"{symbol_name}"
                 )
     return sorted(set(errors))
