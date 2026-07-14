@@ -100,6 +100,13 @@ application behavior, and forward-only rollback.
   requests no repository change.
   Reason: The COMMENTED quota notice is external capacity state, not a PR
   finding or approval.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2133#issuecomment-4973729972
+  Disposition: NOT-A-BUG
+  Evidence: Cursor reports that Bugbot is not enabled for the account and
+  explicitly states that no review was performed; it requests no repository
+  change.
+  Reason: Reviewer availability is external capacity state, not a code defect,
+  review approval, or merge-readiness evidence.
 - Cubic completed with a neutral status and generated the PR summary without
   an actionable review finding. This is recorded as no-actionable evidence,
   not as a substantive approval.
@@ -167,6 +174,9 @@ implementation commit carries the required co-author trailer.
 - PASS: Phase 1 docs gates after adding exact evidence anchors at
   `tests/test_python_supply_chain_controls.py:1264` and
   `tests/test_dependency_security_guard.py:390`.
+- PASS: local Phase 2 validation of both the canonical artifact and published
+  body mirror after correcting the strict `Artifact:` evidence label; the first
+  current-head CI body-only failure is superseded by this parser-safe body.
 - PENDING: canonical current-head GitHub CI after this governance commit and
   strict authenticated merge readiness.
 - NOT RUN: local full `make verify`; prohibited by the repository local budget
