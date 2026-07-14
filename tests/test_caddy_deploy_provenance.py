@@ -415,7 +415,6 @@ def test_production_quick_fix_redacts_duplicate_secret_values(tmp_path: Path) ->
         extra_env=(
             f"POSTGRES_PASSWORD={password_sentinel}\n"
             f"DATABASE_URL=postgresql+psycopg://pulseplate:{dsn_sentinel}@db/pulseplate\n"
-            "APP_ENV=duplicate\n"
         ),
     )
 

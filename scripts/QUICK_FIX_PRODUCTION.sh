@@ -55,8 +55,8 @@ dc() {
 
 # Check for duplicates
 echo "=== Step 1: Check for duplicate env vars ==="
-DUPLICATES="$(awk -F= '/^(APP_ENV|ENVIRONMENT|POSTGRES_DB|POSTGRES_USER|POSTGRES_PASSWORD|DATABASE_URL)=/ { count++ } END { print count + 0 }' .env)"
-if [ "$DUPLICATES" -gt 6 ]; then
+HAS_DUPLICATE_KEYS="$(awk -F= '/^(APP_ENV|ENVIRONMENT|POSTGRES_DB|POSTGRES_USER|POSTGRES_PASSWORD|DATABASE_URL)=/ { count[$1]++ } END { for (key in count) if (count[key] > 1) { print "yes"; exit } }' .env)"
+if [ -n "$HAS_DUPLICATE_KEYS" ]; then
     echo "⚠️  Found potential duplicates in .env"
     awk -F= '/^(APP_ENV|ENVIRONMENT|POSTGRES_DB|POSTGRES_USER|POSTGRES_PASSWORD|DATABASE_URL)=/ { printf "%d:%s=<redacted>\n", NR, $1 }' .env
 fi
