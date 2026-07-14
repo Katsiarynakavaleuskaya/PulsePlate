@@ -13,9 +13,14 @@ echo "Quick Fix Production"
 echo "=========================================="
 echo ""
 
-# Auto-detect deploy directory
-DEPLOY_DIR=""
-if [ -d "/srv/pulseplate-production" ]; then
+# Auto-detect deploy directory unless an explicit operator/test path is provided.
+DEPLOY_DIR="${DEPLOY_DIR:-}"
+if [ -n "$DEPLOY_DIR" ] && [ ! -d "$DEPLOY_DIR" ]; then
+    echo "❌ Explicit deploy directory not found: $DEPLOY_DIR"
+    exit 1
+elif [ -n "$DEPLOY_DIR" ]; then
+    :
+elif [ -d "/srv/pulseplate-production" ]; then
     DEPLOY_DIR="/srv/pulseplate-production"
 elif [ -d "/opt/pulseplate" ]; then
     DEPLOY_DIR="/opt/pulseplate"
@@ -127,22 +132,26 @@ echo ""
 
 echo "=== Step 5.1: Verify hardened Caddy runtime ==="
 CADDY_VERSION="$(dc exec -T caddy caddy version)"
-case "$CADDY_VERSION" in
-    *v2.11.4*) echo "✅ Caddy runtime version: $CADDY_VERSION" ;;
-    *)
-        echo "❌ Expected Caddy v2.11.4, got: $CADDY_VERSION"
-        exit 1
-        ;;
-esac
+CADDY_VERSION_TOKEN="${CADDY_VERSION%%[[:space:]]*}"
+if [ "$CADDY_VERSION_TOKEN" != "v2.11.4" ]; then
+    echo "❌ Expected Caddy v2.11.4, got: $CADDY_VERSION"
+    exit 1
+fi
+echo "✅ Caddy runtime version: $CADDY_VERSION"
 
 CADDY_BUILD_INFO="$(dc exec -T caddy caddy build-info)"
-case "$CADDY_BUILD_INFO" in
-    *go1.26.5*) echo "✅ Caddy runtime Go toolchain: go1.26.5" ;;
-    *)
-        echo "❌ Expected Caddy built with Go 1.26.5"
-        exit 1
-        ;;
-esac
+CADDY_GO_VERSION=""
+while IFS=$'\t' read -r build_key build_value _; do
+    if [ "$build_key" = "go" ]; then
+        CADDY_GO_VERSION="$build_value"
+        break
+    fi
+done <<< "$CADDY_BUILD_INFO"
+if [ "$CADDY_GO_VERSION" != "go1.26.5" ]; then
+    echo "❌ Expected Caddy built with Go 1.26.5, got: ${CADDY_GO_VERSION:-missing}"
+    exit 1
+fi
+echo "✅ Caddy runtime Go toolchain: go1.26.5"
 echo ""
 
 # Check status

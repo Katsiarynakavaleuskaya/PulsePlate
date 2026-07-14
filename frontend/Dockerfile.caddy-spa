@@ -53,8 +53,8 @@ RUN set -eux; \
     mv /usr/bin/caddy.pulseplate /usr/bin/caddy; \
     setcap cap_net_bind_service=+ep /usr/bin/caddy; \
     getcap /usr/bin/caddy | grep -F 'cap_net_bind_service=ep'; \
-    caddy version | grep -F 'v2.11.4'; \
-    caddy build-info | grep -F 'go1.26.5'; \
+    caddy version | awk 'NR == 1 && $1 == "v2.11.4" { found=1 } END { exit found ? 0 : 1 }'; \
+    caddy build-info | awk -F '\t' '$1 == "go" && $2 == "go1.26.5" { found=1 } END { exit found ? 0 : 1 }'; \
     rm -f /tmp/caddy-official-modules /tmp/caddy-rebuilt-modules
 
 COPY --from=frontend-build /app/dist /srv/frontend

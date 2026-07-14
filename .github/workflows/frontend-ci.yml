@@ -272,10 +272,12 @@ jobs:
           mkdir -p "$evidence_dir"
           docker run --rm --network none --read-only --cap-drop ALL --cap-add NET_BIND_SERVICE \
             pulseplate-caddy:contract caddy version | tee "$evidence_dir/version.txt"
-          grep -F 'v2.11.4' "$evidence_dir/version.txt"
+          awk 'NR == 1 && $1 == "v2.11.4" { found=1 } END { exit found ? 0 : 1 }' \
+            "$evidence_dir/version.txt"
           docker run --rm --network none --read-only --cap-drop ALL --cap-add NET_BIND_SERVICE \
             pulseplate-caddy:contract caddy build-info | tee "$evidence_dir/build-info.txt"
-          grep -F 'go1.26.5' "$evidence_dir/build-info.txt"
+          awk -F '\t' '$1 == "go" && $2 == "go1.26.5" { found=1 } END { exit found ? 0 : 1 }' \
+            "$evidence_dir/build-info.txt"
           docker run --rm --network none --read-only --cap-drop ALL --cap-add NET_BIND_SERVICE \
             pulseplate-caddy:contract getcap /usr/bin/caddy | tee "$evidence_dir/capabilities.txt"
           grep -F 'cap_net_bind_service=ep' "$evidence_dir/capabilities.txt"

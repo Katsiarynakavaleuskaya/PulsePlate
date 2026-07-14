@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import os
+import subprocess
 from pathlib import Path
 
+import pytest
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -358,8 +361,73 @@ def test_production_quick_fix_rebuilds_and_verifies_hardened_caddy() -> None:
 
     assert pull_index < build_index < up_index < version_index < build_info_index < success_index
     assert "dc pull ||" not in text
-    assert "*v2.11.4*" in text
-    assert "*go1.26.5*" in text
+    assert 'CADDY_VERSION_TOKEN" != "v2.11.4"' in text
+    assert 'CADDY_GO_VERSION" != "go1.26.5"' in text
+    assert "*v2.11.4*" not in text
+    assert "*go1.26.5*" not in text
+
+
+@pytest.mark.parametrize(
+    ("caddy_version", "build_info", "expected_error"),
+    (
+        ("v2.11.40 h1:test", "go\tgo1.26.5\n", "Expected Caddy v2.11.4"),
+        ("v2.11.4 h1:test", "go\tgo1.26.50\n", "Expected Caddy built with Go 1.26.5"),
+    ),
+)
+def test_production_quick_fix_rejects_inexact_caddy_identity(
+    tmp_path: Path,
+    caddy_version: str,
+    build_info: str,
+    expected_error: str,
+) -> None:
+    deploy_dir = tmp_path / "production"
+    bin_dir = tmp_path / "bin"
+    deploy_dir.mkdir()
+    bin_dir.mkdir()
+    (deploy_dir / "docker-compose.production.yaml").write_text("services: {}\n", encoding="utf-8")
+    (deploy_dir / ".env").write_text(
+        "DATABASE_URL=postgresql+psycopg://pulseplate@db/pulseplate\n"
+        "POSTGRES_DB=pulseplate\n"
+        "POSTGRES_USER=pulseplate\n"
+        "POSTGRES_PASSWORD=test\n"
+        "PRODUCTION_DOMAIN=pulseplate.test\n",
+        encoding="utf-8",
+    )
+    docker_stub = """#!/usr/bin/env bash
+set -euo pipefail
+case "$*" in
+  "compose version") exit 0 ;;
+  *"exec -T caddy caddy version") printf '%s\n' "$STUB_CADDY_VERSION" ;;
+  *"exec -T caddy caddy build-info") printf 'go\t%s\n' "$STUB_GO_VERSION" ;;
+  "ps --format {{.Names}}") exit 0 ;;
+  *) exit 0 ;;
+esac
+"""
+    curl_stub = '#!/usr/bin/env bash\nprintf \'{"status":"ok"}\\n\'\n'
+    docker_path = bin_dir / "docker"
+    curl_path = bin_dir / "curl"
+    docker_path.write_text(docker_stub, encoding="utf-8")
+    curl_path.write_text(curl_stub, encoding="utf-8")
+    docker_path.chmod(0o755)
+    curl_path.chmod(0o755)
+
+    env = os.environ.copy()
+    env["PATH"] = f"{bin_dir}:{env['PATH']}"
+    env["DEPLOY_DIR"] = str(deploy_dir)
+    env["STUB_CADDY_VERSION"] = caddy_version
+    env["STUB_GO_VERSION"] = build_info.removeprefix("go\t").strip()
+    completed = subprocess.run(
+        ["bash", str(REPO_ROOT / "scripts" / "QUICK_FIX_PRODUCTION.sh")],
+        cwd=str(REPO_ROOT),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode == 1
+    assert expected_error in completed.stdout
+    assert "Quick Fix Complete" not in completed.stdout
 
 
 def test_active_caddyfiles_keep_proxy_order_and_security_headers() -> None:
