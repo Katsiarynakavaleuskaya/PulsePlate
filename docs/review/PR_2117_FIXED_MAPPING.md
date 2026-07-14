@@ -16,8 +16,8 @@ not deploy or change backend, OpenAPI, client, or Caddy route behavior.
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 - [x] Mandatory post-open `qa-engineer-agent -> bug-hunter -> security-auditor` pass completed
-- [ ] Codex Security exact-head diff scan completed
-- [ ] `pulseplate-pr-review` completed
+- [x] Codex Security exact-material-head diff scan completed
+- [x] `pulseplate-pr-review` completed
 - [ ] Current-head CI completed
 - [ ] Mandatory review wait-window and strict merge-readiness completed
 
@@ -46,6 +46,36 @@ Evidence: All CodeRabbit actionables and review-level findings were fixed by the
 This receipt predates the final review-hardening commits and is not used as the
 exact-head Codex Security merge gate. A new sealed scan is still required after
 the final governance commit.
+
+## Final Codex Security Evidence
+
+Disposition: NOT-A-BUG
+Evidence: Codex Security scan `fd6c509c-806d-4aa8-b407-44b68084b82e`
+sealed the exact material range
+`95325b12f5a664a131ce79543f6a963c06f4de0a..0ff3de9780e8dddeb90baf0c51e2899989182163`
+with eight of eight source-like rows closed and zero reportable findings. The
+review included the two workflows and hardened Dockerfile in addition to all
+five runtime/deploy scripts selected by the deterministic diff worklist.
+Reason: No attacker-controlled source crossed the digest, credential, SSH,
+environment, database, or edge-runtime controls. Rejected hypotheses required
+already root/Docker-equivalent operator authority or described operational
+availability behavior without a new lower-privileged attack path. The sealed
+report is local-only at the scan workspace path and no live deployment occurred.
+
+## PulsePlate PR Review Evidence
+
+Disposition: NOT-A-BUG
+Evidence: `pulseplate-pr-review` ran against remote head `0ff3de978` with all
+three review sources available and no blocking finding. GitHub reports the
+actual PR surface as 19 files, 2,293 additions, and 210 deletions; `gh pr diff
+2117 --name-only` matches the bounded Caddy/deploy/provenance file inventory.
+Reason: The review tool's only advisory was the generic large-diff threshold.
+The size is justified by one indivisible producer-to-consumer provenance chain,
+deterministic negative/positive deploy tests, and parser-safe governance
+evidence. The focused five-file suite, local narrow bundle, container identity,
+module parity, Caddyfile validation, Compose rendering, and Trivy checks all
+passed. The report's larger 31-file two-dot inventory includes main-only
+Experiment Runner changes and is not the GitHub PR changed-file truth.
 
 ## Pre-open Role and Premortem Evidence
 
@@ -210,8 +240,9 @@ readiness paths passed the final security audit.
 Reason: The P2 secret-output and non-atomic environment replacement findings
 were fixed before the definitive security pass.
 
-The remaining mandatory Codex Security and PulsePlate PR review passes are
-pending.
+The mandatory final Codex Security and PulsePlate PR review passes are complete.
+Current-head CI, the review wait window, discussion disposition checks, and the
+strict authenticated merge-readiness gate remain pending.
 
 ## Experiment Runner Evidence
 
@@ -245,6 +276,7 @@ The packet routed mandatory ordered roles and did not execute them implicitly.
 - PASS: Trivy 0.71.2 reports zero HIGH/CRITICAL findings for Alpine packages
   and the rebuilt Caddy binary.
 - Not run: local `make verify`, per repository machine-budget policy.
+- PASS: exact-material-head Codex Security scan and PulsePlate PR review.
 - Pending: current-head GitHub CI and review governance.
 
 ## Merge Readiness
