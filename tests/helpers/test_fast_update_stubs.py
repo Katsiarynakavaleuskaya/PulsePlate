@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from types import ModuleType
 
 import pytest
 
@@ -46,7 +47,7 @@ def test_iter_background_modules_skips_missing_legacy_alias(
 
     attempted_imports: list[str] = []
 
-    def _guarded_import_module(name: str):
+    def _guarded_import_module(name: str) -> ModuleType:
         attempted_imports.append(name)
         if name == "legacy_app":
             exc = ModuleNotFoundError("legacy_app unavailable in helper test")

@@ -72,7 +72,7 @@ class TestAppCriticalLines97:
                     or "not found" in response_data["detail"].lower()
                 )
 
-    def test_admin_endpoints_missing_scheduler(self, client):
+    def test_admin_endpoints_missing_scheduler(self, client: TestClient) -> None:
         """Тест admin endpoints когда scheduler недоступен"""
         with patch(
             "app.services.admin_operations.get_update_scheduler",

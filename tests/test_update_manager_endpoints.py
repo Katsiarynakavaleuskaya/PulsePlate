@@ -4,24 +4,26 @@ Targets: /api/v1/admin/check-updates and /api/v1/admin/rollback
 Missing lines in update_manager.py: 14 lines (49, 52, 55, 63, 67, 412->433, 654, 656-658, 673-674, 677, 680->679, 683-686, 722->750, 784->786)
 """
 
+from collections.abc import Iterator
+from contextlib import ExitStack
+from pathlib import Path
 import sys
 import tempfile
-from contextlib import ExitStack
+from typing import Any, cast
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
-from typing import cast
 
 
 class TestUpdateManagerEndpoints:
     """Test admin endpoints that use update_manager to hit missing lines."""
 
     @pytest.fixture
-    def client(self, monkeypatch):
+    def client(self, monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
         """Get test client with API key."""
         import app
-        from fastapi.testclient import TestClient
 
         monkeypatch.setenv("API_KEY", "test-key")
         monkeypatch.setenv("API_KEY_MODE", "required")
@@ -33,7 +35,7 @@ class TestUpdateManagerEndpoints:
         finally:
             client.close()
 
-    def test_check_updates_success(self, client):
+    def test_check_updates_success(self, client: TestClient) -> None:
         """Test successful updates check - hits update_manager.check_for_updates()."""
         mock_scheduler = MagicMock()
         mock_update_manager = MagicMock()
@@ -57,7 +59,7 @@ class TestUpdateManagerEndpoints:
         mock_get_scheduler.assert_awaited_once()
         mock_update_manager.check_for_updates.assert_awaited_once()
 
-    def test_check_updates_failure(self, client):
+    def test_check_updates_failure(self, client: TestClient) -> None:
         """Test updates check failure - hits exception handling."""
         mock_get_scheduler = AsyncMock(side_effect=RuntimeError("secret-token"))
 
@@ -71,7 +73,7 @@ class TestUpdateManagerEndpoints:
         assert response.json() == {"detail": "Update check failed"}
         assert "secret-token" not in response.text
 
-    def test_rollback_success(self, client):
+    def test_rollback_success(self, client: TestClient) -> None:
         """Test successful database rollback."""
         mock_scheduler = MagicMock()
         mock_update_manager = MagicMock()
@@ -95,7 +97,7 @@ class TestUpdateManagerEndpoints:
         mock_get_scheduler.assert_awaited_once()
         mock_update_manager.rollback_database.assert_awaited_once()
 
-    def test_rollback_failure(self, client):
+    def test_rollback_failure(self, client: TestClient) -> None:
         """Test failed database rollback."""
         mock_scheduler = MagicMock()
         mock_update_manager = MagicMock()
@@ -117,7 +119,7 @@ class TestUpdateManagerEndpoints:
         mock_get_scheduler.assert_awaited_once()
         mock_update_manager.rollback_database.assert_awaited_once()
 
-    def test_rollback_exception(self, client):
+    def test_rollback_exception(self, client: TestClient) -> None:
         """Test rollback with exception."""
         mock_scheduler = MagicMock()
         mock_update_manager = MagicMock()
@@ -156,7 +158,7 @@ class TestUpdateManagerDirectCoverage:
     """Direct tests on update_manager.py to hit missing lines."""
 
     @pytest.fixture
-    def temp_db_path(self, tmp_path):
+    def temp_db_path(self, tmp_path: Path) -> Path:
         """Create temporary database path."""
         return tmp_path / "test_db.db"
 
@@ -180,7 +182,7 @@ class TestUpdateManagerDirectCoverage:
         # which has complex constructor requirements
         pass
 
-    def test_update_manager_file_operations(self, temp_db_path):
+    def test_update_manager_file_operations(self, temp_db_path: Path) -> None:
         """Test file operation error paths in update_manager."""
         from core.food_apis.update_manager import DatabaseUpdateManager
 
@@ -194,7 +196,7 @@ class TestUpdateManagerDirectCoverage:
             # This should hit backup restoration error paths
             DatabaseUpdateManager(update_interval_hours=1)
 
-    def test_update_manager_checksum_validation(self):
+    def test_update_manager_checksum_validation(self) -> None:
         """Test checksum validation paths."""
         from core.food_apis.update_manager import DatabaseUpdateManager
 
@@ -204,7 +206,7 @@ class TestUpdateManagerDirectCoverage:
             # This should hit checksum validation failure paths
             DatabaseUpdateManager(update_interval_hours=1)
 
-    def test_update_manager_concurrent_operations(self):
+    def test_update_manager_concurrent_operations(self) -> None:
         """Test concurrent operation handling."""
         from core.food_apis.update_manager import DatabaseUpdateManager
 
@@ -213,7 +215,7 @@ class TestUpdateManagerDirectCoverage:
             # This should hit concurrent operation detection
             DatabaseUpdateManager(update_interval_hours=1)
 
-    def test_update_manager_status_reporting(self):
+    def test_update_manager_status_reporting(self) -> None:
         """Test status reporting edge cases."""
         from core.food_apis.update_manager import DatabaseUpdateManager
 
@@ -238,7 +240,7 @@ class TestUpdateManagerDirectCoverage:
         assert hasattr(update_manager, "DatabaseVersion")
         assert hasattr(update_manager, "UpdateResult")
 
-    def test_callback_system(self):
+    def test_callback_system(self) -> None:
         """Test update callback system."""
         from core.food_apis.update_manager import DatabaseUpdateManager
 
@@ -247,7 +249,7 @@ class TestUpdateManagerDirectCoverage:
         # Test callback registration and execution
         callback_called = False
 
-        def test_callback(result):
+        def test_callback(result: Any) -> None:
             nonlocal callback_called
             callback_called = True
 

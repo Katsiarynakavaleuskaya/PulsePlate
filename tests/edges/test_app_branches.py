@@ -1,6 +1,8 @@
 from typing import cast
 
+import pytest
 from starlette.types import ASGIApp
+
 from app.middleware.api_tiers import TEST_KEY_VIP
 
 
@@ -61,7 +63,7 @@ def test_insight_feature_disabled_and_import_error(monkeypatch):
     assert r2.status_code == 503
 
 
-def test_admin_status_scheduler_error_paths(monkeypatch, api_key):
+def test_admin_status_scheduler_error_paths(monkeypatch: pytest.MonkeyPatch, api_key: str) -> None:
     from fastapi.testclient import TestClient
 
     import app
@@ -71,7 +73,7 @@ def test_admin_status_scheduler_error_paths(monkeypatch, api_key):
 
     # RU: Планировщик отсутствует → 503
     # EN: Scheduler None → 503
-    async def _none_sched():
+    async def _none_sched() -> None:
         return None
 
     monkeypatch.setattr(admin_operations, "get_update_scheduler", _none_sched)
@@ -80,7 +82,7 @@ def test_admin_status_scheduler_error_paths(monkeypatch, api_key):
 
     # RU: Исключение от геттера → 503
     # EN: Getter raises → 503
-    async def _boom():
+    async def _boom() -> None:
         raise RuntimeError("x")
 
     monkeypatch.setattr(admin_operations, "get_update_scheduler", _boom)

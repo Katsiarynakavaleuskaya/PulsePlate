@@ -145,10 +145,10 @@ class TestEndpointsAndValidation:
         assert r.status_code in [200, 404, 405]
 
         class _Scheduler:
-            def get_status(self):
+            def get_status(self) -> dict[str, object]:
                 return {"scheduler": {"is_running": False}, "databases": {}}
 
-            async def force_update(self, source=None):
+            async def force_update(self, source: str | None = None) -> dict[str, SimpleNamespace]:
                 return {
                     "usda": SimpleNamespace(
                         success=True,

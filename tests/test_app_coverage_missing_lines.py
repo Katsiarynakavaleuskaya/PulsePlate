@@ -84,12 +84,12 @@ class TestAppMissingLinesCoverage:
                 with pytest.raises(Exception):
                     get_api_key(token)
 
-    def test_admin_status_endpoint_success(self, client):
+    def test_admin_status_endpoint_success(self, client: TestClient) -> None:
         """Test admin status endpoint success path."""
         client = client
 
         # Mock the scheduler to return a valid scheduler
-        async def _scheduler_getter():
+        async def _scheduler_getter() -> MagicMock:
             return MagicMock()
 
         with patch.object(admin_operations, "get_update_scheduler", _scheduler_getter):
@@ -99,12 +99,12 @@ class TestAppMissingLinesCoverage:
             assert response.status_code == 200
             assert response.json() == {"status": "ok", "scheduler": "available"}
 
-    def test_admin_status_endpoint_error(self, client):
+    def test_admin_status_endpoint_error(self, client: TestClient) -> None:
         """Test admin status endpoint error handling."""
         client = client
 
         # Mock the scheduler getter to raise an exception
-        async def _failing_scheduler_getter():
+        async def _failing_scheduler_getter() -> None:
             raise RuntimeError("Scheduler error")
 
         with patch.object(
@@ -244,7 +244,9 @@ class TestAppMissingLinesCoverage:
         assert response.status_code == 200
         assert isinstance(response.json(), dict)
 
-    def test_database_status_endpoint(self, client, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_database_status_endpoint(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Test database status endpoint."""
         client = client
 
@@ -270,7 +272,9 @@ class TestAppMissingLinesCoverage:
         )
         assert response.status_code == 200
 
-    def test_check_for_updates_endpoint(self, client, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_check_for_updates_endpoint(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Test check for updates endpoint."""
         client = client
 
@@ -283,7 +287,9 @@ class TestAppMissingLinesCoverage:
         )
         assert response.status_code == 200
 
-    def test_rollback_database_endpoint(self, client, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_rollback_database_endpoint(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Test rollback database endpoint."""
         client = client
 

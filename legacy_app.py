@@ -84,7 +84,9 @@ from app.services.legacy_premium_weekly_plan import (
 from app.services import recipe_store
 from app.services.food_store import get_food
 from app.services.intervention_trigger_engine import build_targets_next_action
-from app.services.scheduler_access import get_update_scheduler as get_update_scheduler
+from app.services.scheduler_access import (  # noqa: F401 - compatibility re-export
+    get_update_scheduler as get_update_scheduler,
+)
 
 from app.services.bmi_compat import (
     MATPLOTLIB_AVAILABLE,

@@ -86,7 +86,7 @@ class TestCoverage97FinalPush:
 
     def test_app_coverage_missing_lines_205_208_210(
         self,
-        test_environment,
+        test_environment: None,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Тест покрытия app.py строк 205-208, 210"""
@@ -94,7 +94,7 @@ class TestCoverage97FinalPush:
 
         client = TestClient(cast(ASGIApp, app.app))
 
-        async def _get_scheduler():
+        async def _get_scheduler() -> object:
             return object()
 
         monkeypatch.setattr(admin_operations, "get_update_scheduler", _get_scheduler)

@@ -287,28 +287,30 @@ class TestAppErrorHandling:
 class TestAppAdminEndpoints:
     """Tests for app.py admin endpoints uncovered lines."""
 
-    def test_admin_status_without_key(self, client):
+    def test_admin_status_without_key(self, client: TestClient) -> None:
         """Test admin status without API key."""
         response = client.get("/api/v1/admin/status")
         assert response.status_code == 403
 
-    def test_admin_status_with_invalid_key(self, client):
+    def test_admin_status_with_invalid_key(self, client: TestClient) -> None:
         """Test admin status with invalid API key."""
         response = client.get("/api/v1/admin/status", headers={"X-API-Key": "invalid"})
         assert response.status_code == 403
 
-    def test_admin_status_with_valid_key(self, client, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_admin_status_with_valid_key(
+        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Test admin status with valid API key."""
         patch_admin_get_update_scheduler(monkeypatch, object())
         response = client.get("/api/v1/admin/status", headers={"X-API-Key": "test_key"})
         assert response.status_code == 200
         assert response.json() == {"status": "ok", "scheduler": "available"}
 
-    def test_admin_db_status(self, client, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_admin_db_status(self, client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test admin database status."""
 
         class _Scheduler:
-            def get_status(self):
+            def get_status(self) -> dict[str, object]:
                 return {"scheduler": {"is_running": False}, "databases": {}}
 
         patch_admin_get_update_scheduler(monkeypatch, _Scheduler())

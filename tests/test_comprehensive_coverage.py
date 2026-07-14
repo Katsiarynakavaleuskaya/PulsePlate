@@ -93,7 +93,7 @@ class TestComprehensiveCoverage:
         The endpoint patches its direct scheduler consumer binding.
         """
 
-        async def fake_get_scheduler_error():
+        async def fake_get_scheduler_error() -> None:
             raise Exception("Test scheduler error")
 
         monkeypatch.setattr(
@@ -158,7 +158,7 @@ class TestComprehensiveCoverage:
         The endpoint patches its direct scheduler consumer binding.
         """
 
-        async def fake_get_scheduler_error():
+        async def fake_get_scheduler_error() -> None:
             raise Exception("Test error")
 
         monkeypatch.setattr(

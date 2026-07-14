@@ -27,7 +27,7 @@ def test_get_api_key_strict_and_dev_modes(monkeypatch: pytest.MonkeyPatch):
         appmod.get_api_key("bad")
 
 
-def test_admin_status_scheduler_branches(monkeypatch: pytest.MonkeyPatch):
+def test_admin_status_scheduler_branches(monkeypatch: pytest.MonkeyPatch) -> None:
     import app as appmod
     from app.services import admin_operations
 
@@ -73,7 +73,7 @@ def test_add_visualization_if_requested_fallback(monkeypatch: pytest.MonkeyPatch
     assert "visualization" in result
 
 
-def test_export_pdf_generic_missing_function(monkeypatch: pytest.MonkeyPatch):
+def test_export_pdf_generic_missing_function(monkeypatch: pytest.MonkeyPatch) -> None:
     import app as appmod
 
     # Ensure to_pdf_day is missing/non-callable

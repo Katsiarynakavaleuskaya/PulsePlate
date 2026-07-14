@@ -181,10 +181,10 @@ class TestCoverageBoost96:
         client = TestClient(app_mod.app)
 
         class _Scheduler:
-            def get_status(self):
+            def get_status(self) -> dict[str, object]:
                 return {"scheduler": {}, "databases": {}}
 
-        async def _get_scheduler():
+        async def _get_scheduler() -> _Scheduler:
             return _Scheduler()
 
         monkeypatch.setattr(admin_operations, "get_update_scheduler", _get_scheduler)

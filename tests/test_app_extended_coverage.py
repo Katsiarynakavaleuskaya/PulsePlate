@@ -511,7 +511,7 @@ class TestDatabaseAdminEndpoints:
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
         self.client = TestClient(cast(ASGIApp, app))
 
-    def test_database_status_error(self):
+    def test_database_status_error(self) -> None:
         """Test database status endpoint with error."""
         with (
             patch.dict(os.environ, {"API_KEY": "test_key"}),
@@ -527,7 +527,7 @@ class TestDatabaseAdminEndpoints:
             assert response.status_code == 500
             assert response.json() == {"detail": "Failed to get database status"}
 
-    def test_force_update_error(self):
+    def test_force_update_error(self) -> None:
         """Test force update endpoint with error."""
         with (
             patch.dict(os.environ, {"API_KEY": "test_key"}),
@@ -543,9 +543,9 @@ class TestDatabaseAdminEndpoints:
             assert response.status_code == 500
             assert response.json() == {"detail": "Force update failed"}
 
-    def test_check_updates_error(self):
+    def test_check_updates_error(self) -> None:
         """Test admin check updates error scenarios."""
-        # Test with API key (should be 200)
+        # Scheduler getter raises; expect a sanitized 500 response.
         with patch(
             "app.services.admin_operations.get_update_scheduler",
             new_callable=AsyncMock,
@@ -558,7 +558,7 @@ class TestDatabaseAdminEndpoints:
         assert response.status_code == 500
         assert response.json() == {"detail": "Update check failed"}
 
-    def test_rollback_error(self):
+    def test_rollback_error(self) -> None:
         """Test rollback endpoint with error."""
         with (
             patch.dict(os.environ, {"API_KEY": "test_key"}),

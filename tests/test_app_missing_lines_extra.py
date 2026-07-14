@@ -22,7 +22,7 @@ class TestAppMissingLinesExtra:
         if client is not None:
             client.close()
 
-    def test_get_update_scheduler_public_identity(self):
+    def test_get_update_scheduler_public_identity(self) -> None:
         import legacy_app
         from app.services import scheduler_access
 
