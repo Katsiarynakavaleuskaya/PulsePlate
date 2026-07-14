@@ -994,6 +994,72 @@ def _assert_resume_schema_binding_prefixes(binding: dict, schema: dict) -> None:
             assert re.search(properties["ref"]["pattern"], row["ref"])
 
 
+_NEW_RESUME_PASS_PATTERN = (
+    r"PASS resume_id=(?P<resume_id>"
+    r"evidence:creative_adaptive_pr1_resume_binding:orchestration:1\.0:[a-f0-9]{24}"
+    r") replay=new next=agent-skeptic-review\n"
+)
+
+
+def _published_resume_output_from_stdout(*, spec_root: Path, stdout: str) -> Path:
+    match = re.fullmatch(_NEW_RESUME_PASS_PATTERN, stdout)
+    assert match is not None, f"unexpected adaptive resume output: {stdout!r}"
+    output = spec_root / match.group("resume_id")
+    assert output.is_dir(), f"published adaptive resume directory is missing: {output}"
+    assert not output.is_symlink(), f"published adaptive resume path is a symlink: {output}"
+    return output
+
+
+def test_published_resume_output_from_stdout_returns_exact_directory(tmp_path: Path) -> None:
+    resume_id = "evidence:creative_adaptive_pr1_resume_binding:orchestration:1.0:" + "a" * 24
+    output = tmp_path / resume_id
+    output.mkdir()
+
+    assert (
+        _published_resume_output_from_stdout(
+            spec_root=tmp_path,
+            stdout=f"PASS resume_id={resume_id} replay=new next=agent-skeptic-review\n",
+        )
+        == output
+    )
+
+
+@pytest.mark.parametrize(
+    "stdout",
+    (
+        "PASS resume_id=malformed replay=new next=agent-skeptic-review\n",
+        (
+            "PASS resume_id=evidence:creative_adaptive_pr1_resume_binding:"
+            f"orchestration:1.0:{'b' * 24} replay=idempotent next=agent-skeptic-review\n"
+        ),
+        "PASS resume_id=../../escape replay=new next=agent-skeptic-review\n",
+        (
+            "PASS resume_id=evidence:creative_adaptive_pr1_resume_binding:"
+            f"orchestration:1.0:{'c' * 24} replay=new next=agent-skeptic-review\n"
+            "PASS resume_id=evidence:creative_adaptive_pr1_resume_binding:"
+            f"orchestration:1.0:{'d' * 24} replay=new next=agent-skeptic-review\n"
+        ),
+    ),
+)
+def test_published_resume_output_from_stdout_rejects_noncanonical_output(
+    tmp_path: Path,
+    stdout: str,
+) -> None:
+    with pytest.raises(AssertionError, match="unexpected adaptive resume output"):
+        _published_resume_output_from_stdout(spec_root=tmp_path, stdout=stdout)
+
+
+def test_published_resume_output_from_stdout_rejects_missing_directory(
+    tmp_path: Path,
+) -> None:
+    resume_id = "evidence:creative_adaptive_pr1_resume_binding:orchestration:1.0:" + "e" * 24
+    with pytest.raises(AssertionError, match="published adaptive resume directory is missing"):
+        _published_resume_output_from_stdout(
+            spec_root=tmp_path,
+            stdout=f"PASS resume_id={resume_id} replay=new next=agent-skeptic-review\n",
+        )
+
+
 def _publish_adaptive_resume_for_test(
     *,
     monkeypatch: pytest.MonkeyPatch,
@@ -1011,7 +1077,6 @@ def _publish_adaptive_resume_for_test(
     candidate = _write_terminal_pilot(pilot_dir)
     declarations.write_text(json.dumps(_resume_declarations(candidate), indent=2), encoding="utf-8")
     spec_root.mkdir(parents=True, exist_ok=True)
-    existing_outputs = {entry.name for entry in spec_root.iterdir()}
     monkeypatch.setattr(pilot_cli, "PILOT_ROOT", pilot_root)
     monkeypatch.setattr(pilot_cli, "SPEC_BRIDGE_ROOT", spec_root)
     monkeypatch.setattr(
@@ -1035,9 +1100,8 @@ def _publish_adaptive_resume_for_test(
         )
         == 0
     )
-    outputs = [entry for entry in spec_root.iterdir() if entry.name not in existing_outputs]
-    assert len(outputs) == 1
-    output = outputs[0]
+    captured = capsys.readouterr()
+    output = _published_resume_output_from_stdout(spec_root=spec_root, stdout=captured.out)
     return {
         "root": root,
         "pilot_id": pilot_id,
@@ -1057,6 +1121,54 @@ def _cleanup_published_adaptive_resume(fixture: dict[str, object]) -> None:
     shutil.rmtree(Path(fixture["output"]), ignore_errors=True)
     shutil.rmtree(Path(fixture["pilot_dir"]), ignore_errors=True)
     shutil.rmtree(Path(fixture["root"]), ignore_errors=True)
+
+
+def test_resume_pr1_selects_own_output_when_foreign_siblings_publish(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    real_publish = pilot_cli._atomic_publish_directory_noreplace
+    published_paths: list[Path] = []
+    fixture: dict[str, object] | None = None
+
+    def publish_with_foreign_siblings(staging: Path, final_dir: Path) -> None:
+        real_publish(staging, final_dir)
+        published_paths.append(final_dir)
+        for index in range(2):
+            digest = fingerprint_payload(
+                {
+                    "owner": final_dir.name,
+                    "foreign_sibling_index": index,
+                }
+            ).removeprefix("sha256:")[:24]
+            foreign = final_dir.parent / (
+                "evidence:creative_adaptive_pr1_resume_binding:orchestration:1.0:" + digest
+            )
+            assert foreign != final_dir
+            foreign.mkdir()
+            (foreign / "foreign-owner.marker").write_text("foreign\n", encoding="utf-8")
+            published_paths.append(foreign)
+
+    monkeypatch.setattr(
+        pilot_cli,
+        "_atomic_publish_directory_noreplace",
+        publish_with_foreign_siblings,
+    )
+    try:
+        fixture = _publish_adaptive_resume_for_test(
+            monkeypatch=monkeypatch,
+            capsys=capsys,
+            prefix="foreign-siblings",
+        )
+        output = Path(fixture["output"])
+        assert len(published_paths) == 3
+        assert output == published_paths[0]
+        assert all(path.is_dir() for path in published_paths[1:])
+    finally:
+        if fixture is not None:
+            _cleanup_published_adaptive_resume(fixture)
+        for path in reversed(published_paths):
+            shutil.rmtree(path, ignore_errors=True)
 
 
 def _rederive_resume_binding_identity(
@@ -1167,7 +1279,6 @@ def test_resume_pr1_publishes_exact_new_only_bundle(
     output: Path | None = None
     try:
         spec_root.mkdir(parents=True, exist_ok=True)
-        existing_outputs = {entry.name for entry in spec_root.iterdir()}
         candidate = _write_terminal_pilot(pilot_dir)
         with monkeypatch.context() as historical_sizes:
             historical_sizes.setattr(
@@ -1206,10 +1317,10 @@ def test_resume_pr1_publishes_exact_new_only_bundle(
             "--current-base-sha",
             _sha(),
         ]
+        capsys.readouterr()
         assert pilot_cli.main(args) == 0
-        outputs = [entry for entry in spec_root.iterdir() if entry.name not in existing_outputs]
-        assert len(outputs) == 1
-        output = outputs[0]
+        captured = capsys.readouterr()
+        output = _published_resume_output_from_stdout(spec_root=spec_root, stdout=captured.out)
         assert {entry.name for entry in output.iterdir()} == {
             pilot_cli.RESUME_INTAKE_FILENAME,
             pilot_cli.RESUME_BINDING_FILENAME,
@@ -1583,9 +1694,19 @@ def _assert_resume_lineage_failure(
             path.relative_to(pilot_dir): path.read_bytes() for path in pilot_dir.rglob("*.json")
         }
         spec_root.mkdir(parents=True, exist_ok=True)
-        outputs_before = {entry.name for entry in spec_root.iterdir()}
         monkeypatch.setattr(pilot_cli, "PILOT_ROOT", pilot_root)
         monkeypatch.setattr(pilot_cli, "SPEC_BRIDGE_ROOT", spec_root)
+
+        def fail_if_publish_attempted(staging: Path, final_dir: Path) -> None:
+            pytest.fail(
+                "adaptive resume lineage failure reached publisher: " f"{staging} -> {final_dir}"
+            )
+
+        monkeypatch.setattr(
+            pilot_cli,
+            "_atomic_publish_directory_noreplace",
+            fail_if_publish_attempted,
+        )
         capsys.readouterr()
         assert (
             pilot_cli.main(
@@ -1604,7 +1725,6 @@ def _assert_resume_lineage_failure(
         captured = capsys.readouterr()
         assert captured.out.startswith("FAIL: adaptive_source_lineage_mismatch:")
         assert "Traceback" not in captured.out
-        assert {entry.name for entry in spec_root.iterdir()} == outputs_before
         retained_after = {
             path.relative_to(pilot_dir): path.read_bytes() for path in pilot_dir.rglob("*.json")
         }
