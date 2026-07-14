@@ -75,6 +75,14 @@ Reason: The replacement removes first-writer semantics while retaining exact dia
 | #2127 | `a635f9f5445f39487d15884bfdd504cba107fb22` | Reassigned or unresolved `getattr(app, method)` becomes a deterministic dynamic registration fact; parameter shadowing remains scoped. | FIXED in `2356523bbbb51a41bee7296d4eb9e54a647454ec` |
 | #2128 | `e0c6d68143e53d2cd95a93b35d7f6fc0a9b091e5` | Lifecycle aliases use a finite conflict lattice that cannot oscillate or silently keep only the first binding. | FIXED in `2356523bbbb51a41bee7296d4eb9e54a647454ec` |
 
+## Supersession Closeout
+
+- PR #2123 closed unmerged as superseded; source branch preserved.
+- PR #2124 closed unmerged as superseded; source branch preserved.
+- PR #2125 closed unmerged as superseded; source branch preserved.
+- PR #2126 closed unmerged as superseded; source branch preserved.
+- PR #2127 closed unmerged as superseded; source branch preserved.
+
 ## Premortem Closure
 
 - Namespace aliases could leak across function, class, lambda, comprehension, or sibling scopes. FIXED by lexical local-name ownership, statement-order snapshots, and shadowing regressions.
@@ -84,7 +92,7 @@ Reason: The replacement removes first-writer semantics while retaining exact dia
 - A shared sync/async/lambda local-binding visitor could pass an `ast.expr` through a statement-only list and fail pre-push MyPy. FIXED by commit `bcb9cf8616fcc8c0c1fbdf5b1447d2bf8a4f278d`, which visits lambda bodies directly and iterates only sync/async statement bodies.
 - Source-review evidence could be mapped before the exact nested-import matrix existed. FIXED by commit `da4d3207b4a21cded1bb1ba2467d9e4dd6cb5b0d`; mapping was created only afterward.
 
-Decision: publish the consolidated replacement on owner PR #2128, then close #2123 through #2127 unmerged as superseded only after the replacement commits, tests, and this mapping are visible on GitHub.
+Decision: the consolidated replacement is published on owner PR #2128, and #2123 through #2127 were closed unmerged only after the replacement commits, tests, and this mapping were visible on GitHub.
 
 ## Experiment Runner Evidence
 
@@ -150,18 +158,18 @@ Decision: publish the consolidated replacement on owner PR #2128, then close #21
 
 ## Merge Readiness
 
-Not ready at artifact creation. Required before merge:
+Not ready at latest artifact update. Required before merge:
 
-- Publish the replacement commits and this canonical artifact to the existing #2128 branch with a normal fast-forward push.
-- Mirror `## Discussion Thread Pass`, `### Fixed in Commit Mapping`, and `## Merge Readiness` in the PR body.
-- Close #2123 through #2127 unmerged only after published replacement evidence exists.
+- COMPLETE: replacement commits and this canonical artifact were published to the existing #2128 branch with a normal fast-forward push.
+- COMPLETE: `## Discussion Thread Pass`, `### Fixed in Commit Mapping`, and `## Merge Readiness` are mirrored in the PR body.
+- COMPLETE: #2123 through #2127 were closed unmerged after published replacement evidence existed; their source branches were preserved.
+- Complete the post-open role chain and `pulseplate-pr-review` on the final published head.
 - Require terminal current-head CI, diff coverage at least 97%, and all required backend/security/governance jobs.
 - Require no actionable CodeRabbit, Sourcery, or Cubic comments and no unresolved review threads.
 - Pass the strict authenticated merge wrapper and the mandatory review wait-window.
-- Do not absorb setup/dependency PR #2133 or Docker source-manifest work from #2117/#2120 into this lane.
+- Do not edit the inherited #2133 setup/dependency diff or absorb Docker source-manifest work from #2117/#2120 into owner commits.
 
 ## Deferred / Follow-ups
 
-- Colleague PR #2133 is merged and synchronized through merge commit `30e3d6630f5ea523bef79d0305bc16a9d6fd1356`; its setup/dependency diff remains colleague-owned rather than duplicated in the owner commits.
 - Docker source-manifest `review_by` work remains in the separate #2117/#2120 line.
 - PR #2119 starts only after #2128 is merged and `main` is synchronized.
