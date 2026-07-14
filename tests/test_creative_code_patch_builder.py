@@ -703,6 +703,8 @@ def test_experiment_runner_uses_sanitized_git_env(
     assert "diff.external=" in argv
     assert "core.fsmonitor=false" in argv
     assert f"core.hooksPath={os.devnull}" in argv
+    assert "-c" in argv
+    assert f"safe.directory={repo}" in argv
     env = captured["kwargs"]["env"]
     assert env["GIT_CONFIG_GLOBAL"] == os.devnull
     assert env["GIT_CONFIG_NOSYSTEM"] == "1"
