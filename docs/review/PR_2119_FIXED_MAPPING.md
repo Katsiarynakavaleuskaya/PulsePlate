@@ -40,81 +40,47 @@ Packet: `artifacts/orchestration/task_packets/910a4151ec61.json`
 - [x] Discussion-thread pass completed.
 - [x] Fixed in commit mapping completed.
 - [x] Post-open `qa-engineer-agent -> bug-hunter -> security-auditor` completed.
-- [ ] Codex Security scan completed for the final material diff.
+- [x] Codex Security scan completed for the final material diff.
 - [ ] Canonical current-head CI completed.
 - [ ] Strict authenticated merge readiness and mandatory wait window completed.
+
+## Local Role Findings
+
+- FIXED in `8241a9fd77aa22123c7d9f7b891c991cf7949e68`: the post-open
+  `bug-hunter` found unsupported receipt failure tokens and contradictory
+  top-level versus runner states. The runtime validators, schemas, and
+  deterministic tamper tests now enforce the canonical closed taxonomy and
+  accepted/rejected coherence.
+- NOT-A-BUG: the local `pulseplate-pr-review` dry run emitted only the
+  mechanical `large-diff-risk` note. The 14-file surface is the smallest
+  atomic result/receipt/telemetry/schema/test/governance propagation that
+  prevents `capability_mismatch` from degrading to `unknown`.
 
 ## Fixed in Commit Mapping
 
 Disposition: FIXED
-Commit: 8241a9fd7
-Evidence: `scripts/orchestration/creative_code_patch_generation.py` now rejects
-unsupported top-level and nested receipt failure classes; focused tamper tests
-cover both fields with recomputed deterministic identities.
-Reason: The runtime receipt validator now enforces the same canonical closed
-taxonomy as the Python result contract and both JSON Schemas.
-- Post-open `bug-hunter` finding: unsupported receipt failure tokens.
-
-Disposition: FIXED
-Commit: 8241a9fd7
-Evidence: result and receipt validators plus their JSON Schemas now require an
-accepted top-level outcome to contain an accepted runner summary, couple runner
-status to failure nullability, and retain the valid top-level rejected / runner
-accepted wrapper case.
-Reason: Contradictory accepted/rejected states can no longer be sealed with a
-recomputed identity.
-- Post-open `bug-hunter` finding: top-level and runner status incoherence.
-
-Disposition: FIXED
 Commit: 8241a9fd77aa22123c7d9f7b891c991cf7949e68
-Evidence: both result and generation-receipt JSON Schemas now use accepted and
-rejected `allOf` branches that require accepted outcomes to carry a null
-failure class, full workspace proof, and an accepted runner summary.
-Reason: schema-only consumers now reject the same contradictory accepted
-artifacts as the Python validators.
+Evidence: Both result and generation-receipt JSON Schemas require accepted outcomes to carry a null failure class, full workspace proof, and an accepted runner summary.
+Reason: Schema-only consumers now reject the same contradictory accepted artifacts as the Python validators.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2119#discussion_r3575304858 -> 8241a9fd77aa22123c7d9f7b891c991cf7949e68
 
 Disposition: FIXED
 Commit: e203a39f8774c512ee2db0f6081bfa1b50f684bb
-Evidence: `creative_code_telemetry.py`, the closed Python taxonomy, reference
-taxonomy, event/rollup schemas, and deterministic telemetry tests now preserve
-`capability_mismatch` as `patch_evaluation / medium / not_retryable /
-dev-operator`.
-Reason: PR-4 telemetry no longer loses the terminal capability/environment
-signal by mapping it to `unknown`.
+Evidence: The telemetry mapper, closed Python taxonomy, reference taxonomy, event and rollup schemas, and deterministic tests preserve `capability_mismatch` as `patch_evaluation / medium / not_retryable / dev-operator`.
+Reason: PR-4 telemetry no longer loses the terminal capability or environment signal by mapping it to `unknown`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2119#discussion_r3575304857 -> e203a39f8774c512ee2db0f6081bfa1b50f684bb
 
 Disposition: FIXED
 Commit: d6a74f3e3ed8d1eedc27efcf05fdb20aa6d0a8b3
-Evidence: `classify_failure_class_coherence()` and
-`classify_terminal_outcome_coherence()` are shared by result and receipt
-validators; compound-invalid regression cases prove runner-status precedence
-before workspace proof in both domains.
-Reason: the duplicated coherence rules and divergent error precedence reported
-by CodeRabbit are removed without changing accepted artifact semantics.
+Evidence: Shared coherence classifiers are used by result and receipt validators, and compound-invalid regression cases prove identical runner-status precedence before workspace proof.
+Reason: The duplicated coherence rules and divergent error precedence reported by CodeRabbit are removed without changing accepted artifact semantics.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2119#pullrequestreview-4690143681 -> d6a74f3e3ed8d1eedc27efcf05fdb20aa6d0a8b3
 
 Disposition: FIXED
 Commit: 44276b9af4d6fc153922bd5e9317358bcd78909d
-Evidence: the canonical mapping now marks `Discussion-thread pass completed`
-and contains disposition-specific proof for every current actionable Codex and
-CodeRabbit review item.
-Reason: the parser-required discussion-thread checkbox now reflects the
-completed review audit instead of remaining stale.
+Evidence: The canonical mapping marks `Discussion-thread pass completed` and contains disposition-specific proof for every actionable Codex and CodeRabbit review item.
+Reason: The parser-required discussion-thread checkbox reflects the completed review audit.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2119#discussion_r3575382511 -> 44276b9af4d6fc153922bd5e9317358bcd78909d
-
-Disposition: NOT-A-BUG
-Evidence: the current-head `pulseplate-pr-review` dry run reported only the
-mechanical `large-diff-risk` note; expanded focused suites, `make
-validate-changed`, and `pre-commit run --all-files` pass on the same head.
-Reason: the 14-file surface is the smallest atomic closed-taxonomy update:
-result/receipt contracts, PR-4 telemetry code, four schema/reference mirrors,
-deterministic tests, and mandatory review evidence. Splitting it would admit a
-known intermediate state where `capability_mismatch` degrades to `unknown`.
-- Local `pulseplate-pr-review` finding: `large-diff-risk`.
-
-No GitHub review thread has been resolved. Any later actionable thread must be
-added here with its disposition-specific proof before resolution.
 
 ## Experiment Runner Evidence
 
@@ -142,19 +108,25 @@ authority. The artifact is local-only and gitignored.
 - SUPERSEDED: Codex Security scan
   `3062dc47-44f4-4cdd-b7c0-eedcf726103a` found zero issues on exact head
   `b156a4f690e190d6581e5d60553d524f015f8d27`; later security-relevant review
-  fixes changed the material diff, so a fresh sealed scan is required.
-- PENDING: fresh sealed Codex Security scan, canonical current-head CI, and
-  strict authenticated merge readiness.
+  fixes changed the material diff.
+- PASS: final Codex Security scan
+  `7ab0578d-f469-4149-a2e3-025a3e532dfa` covered all four changed
+  source-like files at exact material head
+  `5463ac2a5a6f310cc510e46c1cfcb6aa2c50d11d`, snapshot
+  `b6de86840ef62d42488cce7b1e8ee07e5dd07807711041daa575b943a11eaaee`,
+  with complete coverage and zero findings.
+- PENDING: parser-safe mapping/body publication, canonical current-head CI,
+  and strict authenticated merge readiness.
 
 Full local `make verify` was not run because repository policy prohibits that
 machine-heavy invocation without a one-time human override.
 
 ## Security Review
 
-The initial sealed scan found zero issues but is superseded by the subsequent
-coherence and telemetry fixes. A fresh exact-head scan remains required. The
-change adds no network, provider, retry, promotion, product-runtime, or cache
-authority; rejected receipts and telemetry remain sanitized and fail closed.
+The final sealed scan found zero issues across the exact result, receipt, and
+telemetry material diff. The change adds no network, provider, retry, promotion,
+product-runtime, or cache authority; rejected receipts and telemetry remain
+sanitized and fail closed.
 
 ## Risks / Rollback
 
