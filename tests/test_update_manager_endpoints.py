@@ -180,8 +180,7 @@ class TestUpdateManagerDirectCoverage:
         # which has complex constructor requirements
         pass
 
-    @pytest.mark.asyncio
-    async def test_update_manager_file_operations(self, temp_db_path):
+    def test_update_manager_file_operations(self, temp_db_path):
         """Test file operation error paths in update_manager."""
         from core.food_apis.update_manager import DatabaseUpdateManager
 
@@ -195,8 +194,7 @@ class TestUpdateManagerDirectCoverage:
             # This should hit backup restoration error paths
             DatabaseUpdateManager(update_interval_hours=1)
 
-    @pytest.mark.asyncio
-    async def test_update_manager_checksum_validation(self):
+    def test_update_manager_checksum_validation(self):
         """Test checksum validation paths."""
         from core.food_apis.update_manager import DatabaseUpdateManager
 
@@ -206,8 +204,7 @@ class TestUpdateManagerDirectCoverage:
             # This should hit checksum validation failure paths
             DatabaseUpdateManager(update_interval_hours=1)
 
-    @pytest.mark.asyncio
-    async def test_update_manager_concurrent_operations(self):
+    def test_update_manager_concurrent_operations(self):
         """Test concurrent operation handling."""
         from core.food_apis.update_manager import DatabaseUpdateManager
 
@@ -216,8 +213,7 @@ class TestUpdateManagerDirectCoverage:
             # This should hit concurrent operation detection
             DatabaseUpdateManager(update_interval_hours=1)
 
-    @pytest.mark.asyncio
-    async def test_update_manager_status_reporting(self):
+    def test_update_manager_status_reporting(self):
         """Test status reporting edge cases."""
         from core.food_apis.update_manager import DatabaseUpdateManager
 
@@ -242,8 +238,7 @@ class TestUpdateManagerDirectCoverage:
         assert hasattr(update_manager, "DatabaseVersion")
         assert hasattr(update_manager, "UpdateResult")
 
-    @pytest.mark.asyncio
-    async def test_callback_system(self):
+    def test_callback_system(self):
         """Test update callback system."""
         from core.food_apis.update_manager import DatabaseUpdateManager
 

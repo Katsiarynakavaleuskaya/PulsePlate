@@ -2,16 +2,16 @@
 Comprehensive tests to improve coverage to 97%+.
 """
 
+import asyncio
 import os
 from types import SimpleNamespace
-from typing import Any, Dict
+from typing import Any, Dict, cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from starlette.types import ASGIApp
-from typing import cast
 
 import app as app_mod
 from app import app
@@ -256,11 +256,8 @@ class TestComprehensiveCoverage:
         assert "Rollback operation failed" in data["detail"]
         assert "could not get scheduler" in data["detail"]
 
-    @pytest.mark.asyncio
     @pytest.mark.serial
-    async def test_rollback_function_no_update_manager(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_rollback_function_no_update_manager(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test rollback_database function when scheduler has no update_manager."""
 
         async def fake_scheduler():
@@ -272,15 +269,12 @@ class TestComprehensiveCoverage:
         # Since we fixed rollback_database to raise HTTPException,
         # this test now needs to expect HTTPException rather than generic Exception
         with pytest.raises(HTTPException) as exc_info:
-            await app_mod.rollback_database("usda", "1.0")
+            asyncio.run(app_mod.rollback_database("usda", "1.0"))
         # The function should raise because update_manager is None
         assert "update manager" in str(exc_info.value.detail).lower()
 
-    @pytest.mark.asyncio
     @pytest.mark.serial
-    async def test_rollback_function_no_rollback_method(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_rollback_function_no_rollback_method(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test rollback_database function when update_manager lacks rollback method."""
 
         async def fake_scheduler():
@@ -292,7 +286,7 @@ class TestComprehensiveCoverage:
         # Since we fixed rollback_database to raise HTTPException,
         # this test now needs to expect HTTPException rather than generic Exception
         with pytest.raises(HTTPException) as exc_info:
-            await app_mod.rollback_database("usda", "1.0")
+            asyncio.run(app_mod.rollback_database("usda", "1.0"))
         # The function should raise because rollback_database method is missing
         assert "not supported" in str(exc_info.value.detail).lower()
 

@@ -2,6 +2,7 @@
 Final boost to reach 97% coverage by targeting specific uncovered lines.
 """
 
+import asyncio
 import os
 from unittest.mock import MagicMock, patch
 from tests._client import get_client
@@ -139,21 +140,19 @@ class TestRecommendationsCoverage:
 class TestUnifiedDbCoverage:
     """Tests for core/food_apis/unified_db.py uncovered lines."""
 
-    @pytest.mark.asyncio
-    async def test_unified_db_search_edge_cases(self) -> None:
+    def test_unified_db_search_edge_cases(self) -> None:
         """Test unified_db search with edge cases."""
         from core.food_apis.unified_db import search_unified_food
 
         # Test with empty query
-        result = await search_unified_food("")
+        result = asyncio.run(search_unified_food(""))
         assert result is not None
 
         # Test with special characters
-        result = await search_unified_food("тест !@#")
+        result = asyncio.run(search_unified_food("тест !@#"))
         assert result is not None
 
-    @pytest.mark.asyncio
-    async def test_unified_db_language_support(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_unified_db_language_support(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test unified_db language normalization contract."""
         from core.food_apis import unified_db as unified_db_mod
 
@@ -167,11 +166,13 @@ class TestUnifiedDbCoverage:
 
         languages = ["en", "ru", "es", "es-ES", "ru_RU", "", "  "]
         for lang in languages:
-            result = await unified_db_mod.search_unified_food("apple", language=lang, max_results=1)
+            result = asyncio.run(
+                unified_db_mod.search_unified_food("apple", language=lang, max_results=1)
+            )
             assert result is not None
             assert isinstance(result, list)
 
-        default_result = await unified_db_mod.search_unified_food("apple", max_results=1)
+        default_result = asyncio.run(unified_db_mod.search_unified_food("apple", max_results=1))
         assert default_result is not None
         assert isinstance(default_result, list)
 
@@ -179,8 +180,7 @@ class TestUnifiedDbCoverage:
 class TestUpdateManagerCoverage:
     """Tests for core/food_apis/update_manager.py uncovered lines."""
 
-    @pytest.mark.asyncio
-    async def test_update_manager_init(self) -> None:
+    def test_update_manager_init(self) -> None:
         """Test update_manager initialization."""
         try:
             from core.food_apis.update_manager import DatabaseUpdateScheduler
@@ -190,8 +190,7 @@ class TestUpdateManagerCoverage:
         except ImportError as exc:
             pytest.fail(f"DatabaseUpdateScheduler import must be available: {exc}")
 
-    @pytest.mark.asyncio
-    async def test_update_manager_status_check(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_update_manager_status_check(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test update_manager status check."""
         try:
             from core.food_apis import scheduler as scheduler_mod
@@ -199,15 +198,14 @@ class TestUpdateManagerCoverage:
 
             # Force uninitialized singleton path to validate side-effect-free status payload.
             monkeypatch.setattr(scheduler_mod, "_scheduler_instance", None)
-            status = await get_update_status()
+            status = asyncio.run(get_update_status())
             assert status is not None
             assert isinstance(status, dict)
             assert status["scheduler"]["is_running"] is False
         except (ImportError, TypeError) as exc:
             pytest.fail(f"get_update_status must be available and callable: {exc}")
 
-    @pytest.mark.asyncio
-    async def test_update_manager_status_check_with_existing_scheduler(
+    def test_update_manager_status_check_with_existing_scheduler(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Test update status path when scheduler singleton already exists."""
@@ -220,7 +218,7 @@ class TestUpdateManagerCoverage:
                     return {"scheduler": {"is_running": True}, "databases": {"usda": {}}}
 
             monkeypatch.setattr(scheduler_mod, "_scheduler_instance", _FakeScheduler())
-            status = await get_update_status()
+            status = asyncio.run(get_update_status())
             assert status["scheduler"]["is_running"] is True
         except (ImportError, TypeError) as exc:
             pytest.fail(f"get_update_status must use existing scheduler status: {exc}")
