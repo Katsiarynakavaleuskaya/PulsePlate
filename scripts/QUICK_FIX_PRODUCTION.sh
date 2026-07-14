@@ -105,9 +105,16 @@ else
 fi
 echo ""
 
-# Pull images
-echo "=== Step 4: Pull latest images ==="
-dc pull || echo "⚠️  Some images failed to pull (may already be up to date)"
+# Pull the registry-backed application image and rebuild the local Caddy shell.
+echo "=== Step 4: Refresh application and Caddy images ==="
+if ! dc pull app; then
+    echo "❌ Failed to pull the application image"
+    exit 1
+fi
+if ! dc build caddy; then
+    echo "❌ Failed to build the hardened Caddy image"
+    exit 1
+fi
 echo ""
 
 # Restart services
@@ -116,6 +123,26 @@ dc up -d --force-recreate || {
     echo "❌ Failed to restart services"
     exit 1
 }
+echo ""
+
+echo "=== Step 5.1: Verify hardened Caddy runtime ==="
+CADDY_VERSION="$(dc exec -T caddy caddy version)"
+case "$CADDY_VERSION" in
+    *v2.11.4*) echo "✅ Caddy runtime version: $CADDY_VERSION" ;;
+    *)
+        echo "❌ Expected Caddy v2.11.4, got: $CADDY_VERSION"
+        exit 1
+        ;;
+esac
+
+CADDY_BUILD_INFO="$(dc exec -T caddy caddy build-info)"
+case "$CADDY_BUILD_INFO" in
+    *go1.26.5*) echo "✅ Caddy runtime Go toolchain: go1.26.5" ;;
+    *)
+        echo "❌ Expected Caddy built with Go 1.26.5"
+        exit 1
+        ;;
+esac
 echo ""
 
 # Check status

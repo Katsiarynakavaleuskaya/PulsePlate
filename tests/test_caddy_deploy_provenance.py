@@ -319,6 +319,10 @@ def test_frontend_caddy_contract_is_non_publishing_and_unprivileged() -> None:
     workflow = _workflow(FRONTEND_WORKFLOW)
     changes_steps = _steps(_job(workflow, "changes"))
     job = _job(workflow, "caddy-contract")
+    assert job["if"] == (
+        "${{ always() && (needs.changes.outputs.caddy == 'true' "
+        "|| github.event_name == 'workflow_dispatch') }}"
+    )
     assert job["permissions"] == {"contents": "read"}
     assert "environment" not in job
     steps = _steps(job)
@@ -340,6 +344,22 @@ def test_frontend_caddy_contract_is_non_publishing_and_unprivileged() -> None:
 
     dockerfile = DOCKERFILE.read_text(encoding="utf-8")
     assert "set -o pipefail" in dockerfile
+
+
+def test_production_quick_fix_rebuilds_and_verifies_hardened_caddy() -> None:
+    text = (REPO_ROOT / "scripts" / "QUICK_FIX_PRODUCTION.sh").read_text(encoding="utf-8")
+
+    pull_index = text.index("dc pull app")
+    build_index = text.index("dc build caddy")
+    up_index = text.index("dc up -d --force-recreate")
+    version_index = text.index("dc exec -T caddy caddy version")
+    build_info_index = text.index("dc exec -T caddy caddy build-info")
+    success_index = text.index("Quick Fix Complete")
+
+    assert pull_index < build_index < up_index < version_index < build_info_index < success_index
+    assert "dc pull ||" not in text
+    assert "*v2.11.4*" in text
+    assert "*go1.26.5*" in text
 
 
 def test_active_caddyfiles_keep_proxy_order_and_security_headers() -> None:
