@@ -1822,9 +1822,11 @@ def _function_local_binding_names(
                 self.visit(statement)
 
     visitor = _LocalBindingVisitor()
-    body = node.body if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) else [node.body]
-    for statement in body:
-        visitor.visit(statement)
+    if isinstance(node, ast.Lambda):
+        visitor.visit(node.body)
+    else:
+        for statement in node.body:
+            visitor.visit(statement)
     return frozenset(names - global_names - nonlocal_names)
 
 
