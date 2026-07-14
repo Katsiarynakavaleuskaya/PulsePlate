@@ -36,6 +36,8 @@ Evidence: All CodeRabbit actionables and review-level findings were fixed by the
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#discussion_r3574923722 -> bb58dab7f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#pullrequestreview-4689618115 -> f1cde4cd9
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#pullrequestreview-4689852435 -> 7c7414266
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#discussion_r3576902700 -> 0a3a43255
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#pullrequestreview-4691892060 -> 0a3a43255
 
 ## Intermediate Codex Security Review Evidence
 
@@ -76,6 +78,22 @@ independent upstream archive verification.
 Reason: The earlier sealed full material scan and this sealed exact-delta scan
 together cover all material PR changes through `dfd91f432`. No suppressions,
 new permissions, deployment authority, or live rollout were introduced.
+
+### Supplemental Production Environment Guard Scan
+
+Disposition: NOT-A-BUG
+Evidence: Codex Security scan `d36b998f-652b-40de-b008-06a421a67728`
+sealed the exact follow-up range
+`0a05abeb6164e6e92c85fa56247ccf9c808bd6e8..0a3a4325530c2969aa38f288566c497a621e2548`
+with two of two script/test worklist rows closed and zero reportable findings.
+The review covered Docker Compose normalization for leading whitespace,
+optional `export`, whitespace before `=`, tabs, and CRLF; secret redaction;
+managed production flag replacement; validation-before-mutation ordering; and
+atomic environment replacement.
+Reason: QA, bug-hunter, security-auditor, live Compose parser probes, and the
+sealed diff scan all confirm that the two review-discovered parser mismatches
+are fixed without introducing shell evaluation, secret output, deployment
+authority, or a lower-privileged TOCTOU path. No live deployment occurred.
 
 ## PulsePlate PR Review Evidence
 
@@ -285,6 +303,41 @@ were untouched.
 Reason: The supply-chain control remains fail closed and no suppression or
 privileged-boundary expansion was introduced.
 
+### Production Environment Guard QA Engineer Agent
+
+Disposition: FIXED
+Commit: 0a3a43255
+Evidence: Exact range `0a05abeb..0a3a43255`; 11 quick-fix tests and 70 bounded
+deploy/provenance tests passed. Compose-normalized required-key duplicates fail
+before backup, mutation, or Docker operations beyond the read-only version
+probe; managed `APP_ENV` and `ALLOW_DEV_API_KEY` variants are removed and
+replaced exactly once with canonical secure assignments.
+Reason: Both review-discovered P1 parser mismatches are covered by deterministic
+positive and negative regression tests.
+
+### Production Environment Guard Bug Hunter
+
+Disposition: NOT-A-BUG
+Evidence: Exact range `0a05abeb..0a3a43255`; leading spaces, tabs, optional
+`export`, whitespace around `=`, and CRLF were exercised adversarially. Duplicate
+values remained redacted, `.env` stayed unchanged on failures, no backup or
+deploy operation ran, the atomic replacement preserved mode, and no temporary
+file remained.
+Reason: No P0-P2 correctness defect remained after the normalized parser and
+managed-flag cleanup fixes.
+
+### Production Environment Guard Security Auditor
+
+Disposition: FIXED
+Commit: 0a3a43255
+Evidence: Exact range `0a05abeb..0a3a43255`; live Docker Compose probes confirmed
+that every accepted space/export/tab/CRLF variant is recognized by the guard.
+Diagnostics expose only line number, allowlisted key, and `<redacted>`; no value
+is sourced, evaluated, or interpolated into a command.
+Reason: The earlier validation/runtime parser split and surviving development
+flag path are closed without introducing shell injection, secret disclosure,
+or a relevant lower-privileged TOCTOU boundary.
+
 The mandatory role chain and Codex Security material scans are complete.
 The final remote-head PulsePlate PR review, current-head CI, review wait window,
 discussion disposition checks, and strict authenticated merge-readiness gate
@@ -325,6 +378,8 @@ The packet routed mandatory ordered roles and did not execute them implicitly.
 - PASS: exact-material-head Codex Security scan and PulsePlate PR review.
 - PASS: supplemental exact-delta Codex Security scan for the Docker source
   review-window remediation.
+- PASS: supplemental exact-delta Codex Security scan for the production
+  environment parser and managed-flag remediation.
 - Pending: current-head GitHub CI and review governance.
 
 ## Merge Readiness
