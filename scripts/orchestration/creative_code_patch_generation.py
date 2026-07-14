@@ -21,6 +21,7 @@ from scripts.orchestration import creative_code_patch_builder
 from scripts.orchestration import creative_spec_patch_admission as admission_cli
 from scripts.orchestration.creative_code_patch_contract import (
     CreativeCodePatchContractError,
+    FAILURE_CLASSES,
     read_creative_code_patch_build_request,
     read_creative_code_patch_result,
     validate_creative_code_patch_build_request,
@@ -1229,15 +1230,24 @@ def validate_generation_receipt(payload: Mapping[str, Any]) -> dict[str, Any]:
             payload.get("sanitized"), expected=True, label=f"{label}.sanitized"
         ),
     }
-    if normalized["status"] == "accepted" and normalized["failure_class"] is not None:
+    failure_class = normalized["failure_class"]
+    if failure_class is not None and (
+        not isinstance(failure_class, str) or failure_class not in FAILURE_CLASSES
+    ):
+        raise CreativeCodePatchGenerationError("receipt failure_class is unsupported.")
+    if normalized["status"] == "accepted" and failure_class is not None:
         raise CreativeCodePatchGenerationError("accepted receipt must not have failure_class.")
+    if normalized["status"] == "accepted" and runner_summary["status"] != "accepted":
+        raise CreativeCodePatchGenerationError(
+            "accepted receipt requires an accepted runner summary."
+        )
     if normalized["status"] == "accepted" and not (
         workspace_summary["origin_removed"]
         and workspace_summary["checkout_destroyed"]
         and workspace_summary["shared_tree_untouched"]
     ):
         raise CreativeCodePatchGenerationError("accepted receipt requires full workspace proof.")
-    if normalized["status"] == "rejected" and not isinstance(normalized["failure_class"], str):
+    if normalized["status"] == "rejected" and failure_class is None:
         raise CreativeCodePatchGenerationError("rejected receipt requires failure_class.")
     if workspace_summary["detached_base_sha"] != normalized["base_commit_sha"]:
         raise CreativeCodePatchGenerationError(
@@ -1382,6 +1392,15 @@ def _normalize_runner_summary(raw_summary: Any) -> dict[str, Any]:
         raise CreativeCodePatchGenerationError(
             "runner_summary.failure_class must be null or string."
         )
+    if failure_class is not None and failure_class not in FAILURE_CLASSES:
+        raise CreativeCodePatchGenerationError("runner_summary.failure_class is unsupported.")
+    status = _normalize_status(raw_summary["status"])
+    if status == "accepted" and failure_class is not None:
+        raise CreativeCodePatchGenerationError(
+            "accepted runner summaries must not have failure_class."
+        )
+    if status == "rejected" and failure_class is None:
+        raise CreativeCodePatchGenerationError("rejected runner summaries require failure_class.")
     error_fingerprint = raw_summary["runner_error_fingerprint"]
     if error_fingerprint is not None:
         error_fingerprint = _normalize_fingerprint(
@@ -1392,7 +1411,7 @@ def _normalize_runner_summary(raw_summary: Any) -> dict[str, Any]:
         "experiment_id": _normalize_id(
             raw_summary["experiment_id"], label="runner_summary.experiment_id"
         ),
-        "status": _normalize_status(raw_summary["status"]),
+        "status": status,
         "failure_class": failure_class,
         "mutated_path_count": _normalize_int(
             raw_summary["mutated_path_count"],

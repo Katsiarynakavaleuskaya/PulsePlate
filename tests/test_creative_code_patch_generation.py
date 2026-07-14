@@ -465,6 +465,56 @@ def test_validate_artifacts_rejects_receipt_gate_fingerprint_mismatch(
     assert "gate fingerprint does not match" in capsys.readouterr().err
 
 
+def test_receipt_validator_rejects_unknown_failures_and_incoherent_runner_status(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo, base_sha = _init_patch_repo(tmp_path)
+    _patch_modules_to_repo(monkeypatch, repo)
+    run_id = "receipt-failure-coherence"
+    admission_path = _prepare_admission(repo=repo, base_sha=base_sha, run_id=run_id)
+    _mock_successful_builder_edges(monkeypatch)
+    gate_path = _write_gate(repo=repo, admission_path=admission_path, run_id=run_id)
+    assert generation_cli.main(["generate-candidate", "--gate", str(gate_path)]) == 0
+    capsys.readouterr()
+    receipt_path = gate_path.parent / generation_cli.RECEIPT_FILENAME
+    reference = json.loads(receipt_path.read_text(encoding="utf-8"))
+
+    unsupported_top_level = deepcopy(reference)
+    unsupported_top_level["status"] = "rejected"
+    unsupported_top_level["failure_class"] = "unknown_failure"
+    _reset_receipt_identity(unsupported_top_level)
+    with pytest.raises(CreativeCodePatchGenerationError, match="failure_class is unsupported"):
+        validate_generation_receipt(unsupported_top_level)
+
+    unsupported_runner = deepcopy(reference)
+    unsupported_runner["runner_summary"]["status"] = "rejected"
+    unsupported_runner["runner_summary"]["failure_class"] = "unknown_failure"
+    _reset_receipt_identity(unsupported_runner)
+    with pytest.raises(
+        CreativeCodePatchGenerationError,
+        match="runner_summary.failure_class is unsupported",
+    ):
+        validate_generation_receipt(unsupported_runner)
+
+    accepted_with_rejected_runner = deepcopy(reference)
+    accepted_with_rejected_runner["runner_summary"]["status"] = "rejected"
+    accepted_with_rejected_runner["runner_summary"]["failure_class"] = "guard_failure"
+    _reset_receipt_identity(accepted_with_rejected_runner)
+    with pytest.raises(
+        CreativeCodePatchGenerationError,
+        match="accepted receipt requires an accepted runner summary",
+    ):
+        validate_generation_receipt(accepted_with_rejected_runner)
+
+    wrapper_rejection = deepcopy(reference)
+    wrapper_rejection["status"] = "rejected"
+    wrapper_rejection["failure_class"] = "guard_failure"
+    _reset_receipt_identity(wrapper_rejection)
+    assert validate_generation_receipt(wrapper_rejection) == wrapper_rejection
+
+
 def test_validate_artifacts_rejects_tampered_receipt_gate_ref_with_recomputed_identity(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -1339,9 +1389,15 @@ def test_generation_schemas_are_closed_and_authority_is_const_false() -> None:
     ]
     assert receipt_schema["$defs"]["failure_class"]["enum"] == [None, *failure_classes]
     assert receipt_schema["allOf"][0]["then"]["properties"]["failure_class"] == {"const": None}
+    assert receipt_schema["allOf"][0]["then"]["properties"]["runner_summary"] == {
+        "properties": {"status": {"const": "accepted"}}
+    }
     assert (
         receipt_schema["allOf"][1]["then"]["properties"]["failure_class"]["enum"] == failure_classes
     )
+    runner_rules = receipt_schema["$defs"]["runner_summary"]["allOf"]
+    assert runner_rules[0]["then"]["properties"]["failure_class"] == {"const": None}
+    assert runner_rules[1]["then"]["properties"]["failure_class"]["enum"] == failure_classes
 
 
 def test_generation_cli_exposes_no_promotion_or_github_commands() -> None:

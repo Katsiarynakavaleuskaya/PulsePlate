@@ -105,6 +105,9 @@
               "checkout_destroyed": { "const": true },
               "shared_tree_untouched": { "const": true }
             }
+          },
+          "runner_summary": {
+            "properties": { "status": { "const": "accepted" } }
           }
         }
       }
@@ -238,7 +241,38 @@
           "type": ["string", "null"],
           "pattern": "^sha256:[a-f0-9]{64}$"
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": ["status"],
+            "properties": { "status": { "const": "accepted" } }
+          },
+          "then": { "properties": { "failure_class": { "const": null } } }
+        },
+        {
+          "if": {
+            "required": ["status"],
+            "properties": { "status": { "const": "rejected" } }
+          },
+          "then": {
+            "properties": {
+              "failure_class": {
+                "enum": [
+                  "timeout",
+                  "oom",
+                  "metric_regression",
+                  "guard_failure",
+                  "policy_violation",
+                  "unchanged_result",
+                  "capability_mismatch",
+                  "infra_flake"
+                ]
+              }
+            }
+          }
+        }
+      ]
     },
     "checks": {
       "type": "object",

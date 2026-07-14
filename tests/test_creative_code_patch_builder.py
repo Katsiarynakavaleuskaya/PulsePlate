@@ -333,6 +333,18 @@ def test_reference_patch_contracts_validate_and_schema_is_closed() -> None:
     assert result_schema["$defs"]["runner_summary"]["properties"]["failure_class"]["$ref"].endswith(
         "failure_class"
     )
+    assert result_schema["allOf"][0]["then"]["properties"]["runner_summary"] == {
+        "properties": {"status": {"const": "accepted"}}
+    }
+    ordered_failure_classes = result_schema["$defs"]["failure_class"]["enum"][1:]
+    assert result_schema["allOf"][1]["then"]["properties"]["failure_class"]["enum"] == (
+        ordered_failure_classes
+    )
+    runner_rules = result_schema["$defs"]["runner_summary"]["allOf"]
+    assert runner_rules[0]["then"]["properties"]["failure_class"] == {"const": None}
+    assert runner_rules[1]["then"]["properties"]["failure_class"]["enum"] == (
+        ordered_failure_classes
+    )
     assert (
         result_schema["$defs"]["authority"]["properties"]["candidate_patch_generated"]["const"]
         is True
@@ -429,7 +441,7 @@ def test_build_result_rejects_accepted_capability_mismatch() -> None:
 
     with pytest.raises(
         CreativeCodePatchContractError,
-        match="accepted results must not have failure_class",
+        match="accepted runner summaries must not have failure_class",
     ):
         build_creative_code_patch_result(
             request=_reference_request(),
@@ -442,6 +454,38 @@ def test_build_result_rejects_accepted_capability_mismatch() -> None:
             origin_removed=True,
             shared_tree_untouched=True,
         )
+
+
+def test_patch_result_rejects_incoherent_runner_status_and_preserves_wrapper_rejection() -> None:
+    accepted_with_rejected_runner = _reference_result()
+    accepted_with_rejected_runner["runner_summary"]["status"] = "rejected"
+    accepted_with_rejected_runner["runner_summary"]["failure_class"] = "guard_failure"
+
+    with pytest.raises(
+        CreativeCodePatchContractError,
+        match="accepted results require an accepted runner summary",
+    ):
+        validate_creative_code_patch_result(accepted_with_rejected_runner)
+
+    rejected_runner_without_failure = _reference_result()
+    rejected_runner_without_failure["runner_summary"]["status"] = "rejected"
+
+    with pytest.raises(
+        CreativeCodePatchContractError,
+        match="rejected runner summaries require failure_class",
+    ):
+        validate_creative_code_patch_result(rejected_runner_without_failure)
+
+    wrapper_rejection = _reference_result()
+    wrapper_rejection["status"] = "rejected"
+    wrapper_rejection["failure_class"] = "guard_failure"
+    result_id, idempotency_key = creative_code_patch_contract._build_result_identity(
+        wrapper_rejection
+    )
+    wrapper_rejection["result_id"] = result_id
+    wrapper_rejection["idempotency_key"] = idempotency_key
+
+    assert validate_creative_code_patch_result(wrapper_rejection) == wrapper_rejection
 
 
 def test_patch_path_schemas_match_validator_for_forbidden_surfaces() -> None:

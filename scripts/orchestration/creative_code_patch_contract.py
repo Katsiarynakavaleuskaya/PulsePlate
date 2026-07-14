@@ -1114,10 +1114,8 @@ def validate_creative_code_patch_result(payload: dict[str, Any]) -> dict[str, An
             raise CreativeCodePatchContractError("accepted results require full workspace proof.")
     elif normalized["failure_class"] is None:
         raise CreativeCodePatchContractError("rejected results require failure_class.")
-    if runner_summary["status"] == "accepted" and runner_summary["failure_class"] is not None:
-        raise CreativeCodePatchContractError(
-            "accepted runner summaries must not have failure_class."
-        )
+    if normalized["status"] == "accepted" and runner_summary["status"] != "accepted":
+        raise CreativeCodePatchContractError("accepted results require an accepted runner summary.")
     _reject_result_leaks(normalized, label=label)
     expected_id, expected_key = _build_result_identity(normalized)
     if normalized["result_id"] != expected_id:
@@ -1428,6 +1426,12 @@ def _validate_runner_summary(raw_summary: Any) -> dict[str, Any]:
         raise CreativeCodePatchContractError("runner_summary.failure_class must be null or string.")
     if failure_class is not None and failure_class not in FAILURE_CLASSES:
         raise CreativeCodePatchContractError("runner_summary.failure_class is unsupported.")
+    if status == "accepted" and failure_class is not None:
+        raise CreativeCodePatchContractError(
+            "accepted runner summaries must not have failure_class."
+        )
+    if status == "rejected" and failure_class is None:
+        raise CreativeCodePatchContractError("rejected runner summaries require failure_class.")
     runner_error_fingerprint = raw_summary["runner_error_fingerprint"]
     runner_error_present = _require_any_bool(
         raw_summary,
