@@ -759,6 +759,44 @@ def test_api_key_ownership_guard_allows_nested_local_function(
     assert legacy_guard.validate_api_key_dependency_ownership(legacy_source, {}) == []
 
 
+@pytest.mark.parametrize("keyword", ["def", "async def"])
+@pytest.mark.parametrize("symbol", ["get_api_key", "_get_api_key_dynamic"])
+@pytest.mark.parametrize(
+    "compound_template",
+    [
+        "if enabled:\n    {definition}",
+        "try:\n    {definition}\nexcept Exception:\n    pass",
+        "with context():\n    {definition}",
+        "for item in values:\n    {definition}",
+    ],
+    ids=["if", "try", "with", "for"],
+)
+def test_api_key_ownership_guard_rejects_module_compound_local_function(
+    keyword: str,
+    symbol: str,
+    compound_template: str,
+) -> None:
+    definition = f"{keyword} {symbol}():\n        return 'legacy'"
+    legacy_source = (
+        "from app.routers.api_key import (\n"
+        "    _get_api_key_dynamic,\n"
+        "    get_api_key,\n"
+        ")\n"
+        "enabled = True\n"
+        "values = [object()]\n"
+        "class context:\n"
+        "    def __enter__(self):\n"
+        "        return self\n"
+        "    def __exit__(self, *args):\n"
+        "        return False\n"
+        f"{compound_template.format(definition=definition)}\n"
+    )
+
+    assert legacy_guard.validate_api_key_dependency_ownership(legacy_source, {}) == [
+        f"legacy_app.py: API-key dependency must not be defined locally: {symbol}"
+    ]
+
+
 def test_legacy_growth_guard_rejects_api_key_header_reintroduction() -> None:
     errors = legacy_guard.validate_legacy_growth("from app.routers.api_key import api_key_header\n")
 

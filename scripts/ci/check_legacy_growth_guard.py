@@ -1593,12 +1593,37 @@ def validate_api_key_dependency_ownership(
     legacy_tree, parse_errors = _parse_source(legacy_source, filename=LEGACY_APP)
     errors.extend(parse_errors)
     if legacy_tree is not None:
-        locally_defined = {
-            node.name
-            for node in legacy_tree.body
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-            and node.name in CANONICAL_API_KEY_SYMBOLS
-        }
+        locally_defined: set[str] = set()
+
+        class _ModuleApiKeyDefinitionVisitor(ast.NodeVisitor):
+            def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+                if node.name in CANONICAL_API_KEY_SYMBOLS:
+                    locally_defined.add(node.name)
+                for decorator in node.decorator_list:
+                    self.visit(decorator)
+                for default in [*node.args.defaults, *node.args.kw_defaults]:
+                    if default is not None:
+                        self.visit(default)
+                if node.returns is not None:
+                    self.visit(node.returns)
+
+            def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+                self.visit_FunctionDef(node)
+
+            def visit_ClassDef(self, node: ast.ClassDef) -> None:
+                for decorator in node.decorator_list:
+                    self.visit(decorator)
+                for base in node.bases:
+                    self.visit(base)
+                for keyword in node.keywords:
+                    self.visit(keyword)
+
+            def visit_Lambda(self, node: ast.Lambda) -> None:
+                return
+
+        definition_visitor = _ModuleApiKeyDefinitionVisitor()
+        for statement in legacy_tree.body:
+            definition_visitor.visit(statement)
         for name in sorted(locally_defined):
             errors.append(f"{LEGACY_APP}: API-key dependency must not be defined locally: {name}")
 
