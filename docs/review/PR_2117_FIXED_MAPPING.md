@@ -37,11 +37,15 @@ Evidence: All CodeRabbit actionables and review-level findings were fixed by the
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#pullrequestreview-4689618115 -> f1cde4cd9
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#pullrequestreview-4689852435 -> 7c7414266
 
-## Exact-head Security Review Evidence
+## Intermediate Codex Security Review Evidence
 
 - The Codex Security scan for `95325b12f5a664a131ce79543f6a963c06f4de0a..2d4e03b48a2877f6da9e5994e3b3bfc0165cf151` completed with zero reportable findings.
 - It identified one operator-only stale-build correctness gap in `scripts/QUICK_FIX_PRODUCTION.sh`; attack-path analysis rejected it as a security finding because no attacker-controlled entrypoint or lower-privileged boundary exists.
 - Commit `7c7414266` still closes that bounded correctness gap by rebuilding Caddy fail closed and verifying the running Caddy/Go identity before the success claim.
+
+This receipt predates the final review-hardening commits and is not used as the
+exact-head Codex Security merge gate. A new sealed scan is still required after
+the final governance commit.
 
 ## Pre-open Role and Premortem Evidence
 
@@ -174,6 +178,38 @@ header scope, attestation/SBOM dependencies, scan ordering, or token guidance.
 Reason: The final material diff preserves fail-closed artifact and deployment
 identity without adding secret, permission, publish, or deploy authority.
 
+### Current-head Closure QA Engineer Agent
+
+Disposition: NOT-A-BUG
+Evidence: Exact material head `b7d08050f`; the five focused Caddy, deploy,
+attestation, workflow, and supply-chain suites, shell syntax checks, and
+`git diff --check` passed. The final production helper tests prove secret
+redaction, readiness failure, exact Caddy/Go identity, same-directory temporary
+state, preserved mode, complete pre-rename flags, and no temporary residue.
+Reason: No P0-P2 defect remained after the final atomic environment fix.
+
+### Current-head Closure Bug Hunter
+
+Disposition: NOT-A-BUG
+Evidence: Exact material head `b7d08050f`; the complete `.env` content is built
+in the same-directory metadata-preserving temporary file before the sole atomic
+rename, and the focused five-file suite, `bash -n`, and `git diff --check`
+passed.
+Reason: No remaining P0-P2 correctness defect was found in the full
+`origin/main...HEAD` Caddy/deploy/provenance path.
+
+### Current-head Closure Security Auditor
+
+Disposition: FIXED
+Commit: b7d08050f
+Evidence: Duplicate `.env` diagnostics expose keys only, all production flags
+are finalized before the atomic rename, and credential lifecycle, exact distinct
+digests, same-job attestations and scans, SSH fingerprint/contract checks,
+Caddy runtime identity, modules, capabilities, volumes, routes, headers, and
+readiness paths passed the final security audit.
+Reason: The P2 secret-output and non-atomic environment replacement findings
+were fixed before the definitive security pass.
+
 The remaining mandatory Codex Security and PulsePlate PR review passes are
 pending.
 
@@ -198,8 +234,8 @@ The packet routed mandatory ordered roles and did not execute them implicitly.
 
 - PASS: `python3 scripts/orchestration/check_preflight.py`.
 - PASS: `python3 scripts/orchestration/check_agent_consistency.py`.
-- PASS: focused deploy/provenance/workflow/supply-chain suites after every
-  material review fix; the final bug-hunter subset contains 95 tests.
+- PASS: the five focused deploy/provenance/workflow/supply-chain suites after
+  every material review fix, including the final atomic-environment regressions.
 - PASS: branch-scoped `make validate-changed` after implementation commits.
 - PASS: `pre-commit run --all-files` and pre-push hooks.
 - PASS: hardened image reports Caddy v2.11.4 and Go 1.26.5, matches 132
@@ -213,7 +249,7 @@ The packet routed mandatory ordered roles and did not execute them implicitly.
 
 ## Merge Readiness
 
-Not claimed. Post-open roles, Codex Security, PulsePlate PR review, bot/thread
+Not claimed. Exact-head Codex Security, PulsePlate PR review, bot/thread
 dispositions, current-head CI, the wait window, and strict authenticated merge
 readiness remain required.
 
