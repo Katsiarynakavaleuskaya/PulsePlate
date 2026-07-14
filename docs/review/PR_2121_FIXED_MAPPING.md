@@ -56,6 +56,7 @@ Evidence: The post-comment fix updates the backlog chain, marks the exact compat
 Disposition: NOT-A-BUG
 Evidence: CodeRabbit's final summary contains only the repository-wide docstring-coverage advisory; all inline findings have separate dispositions.
 Reason: The advisory is not a diff-scoped callable defect or required gate.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2121#pullrequestreview-4698879001
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2121#issuecomment-4966633816
 
 Disposition: NOT-A-BUG
