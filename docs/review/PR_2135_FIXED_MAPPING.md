@@ -52,14 +52,17 @@ policy, product runtime, and public contracts unchanged.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2135#discussion_r3583221528
+  Disposition: NOT-A-BUG
+  Evidence: `docs/review/PR_2135_FIXED_MAPPING.md` records the local `qa-engineer-agent -> bug-hunter -> security-auditor` finding separately in `Post-open Role Findings`, including remediation commit `a42a36ca0` and deterministic test proof.
+  Reason: the cleanup finding was created before this GitHub discussion existed, so it has no truthful historical thread URL; mapping this new comment to the earlier commit would violate commit-after-comment governance, while this thread is now listed with an evidence-backed disposition.
 
 ## Mapping Maintenance
 
-This statement reflects the initial PR publication state. If a post-open role,
-bot, human, or security review creates an actionable finding, fix or explicitly
-disposition it first, then replace this no-actionable entry with the required
-thread URL and commit/evidence/backlog proof before resolving the thread.
+This section now reflects the current GitHub discussion-thread state. If a
+later bot, human, or security review creates another actionable finding, fix
+or explicitly disposition it first, then add the required thread URL and
+commit/evidence/backlog proof before resolving the thread.
 
 ## Post-open Role Findings
 
@@ -181,9 +184,10 @@ temporary `pp-er-*` container, network, or volume remained.
 ## External Review Sources
 
 - Sourcery: PASS on the scanned head, with no blocking security issue.
-- CodeRabbit: SOURCE-DEGRADED. Its exact-head comment states that the review
-  limit was reached and no review occurred:
-  https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2135#issuecomment-4974422432
+- CodeRabbit: PASS / review completed on head
+  `81a265e83247ed656fafdf186f9bded7b6077a3e`. Its sole governance thread is
+  dispositioned above; it reported no runtime, security, architecture, or test
+  defect.
 - Cubic: SOURCE-DEGRADED / NEUTRAL because its monthly line quota was reached;
   no no-actionables proof exists:
   https://www.cubic.dev/pr/Katsiarynakavaleuskaya/PulsePlate/pull/2135
@@ -192,10 +196,10 @@ temporary `pp-er-*` container, network, or volume remained.
   https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2135#issuecomment-4974134261
 - GitHub review threads: zero total and zero unresolved at the scanned head.
 
-CodeRabbit and Cubic remain explicit merge-governance blockers under root
-`AGENTS.md` until each provides PASS / no-actionables evidence. The local role
-chain, sealed security scan, and `pulseplate-pr-review` cannot replace that
-hard gate.
+Cubic remains an explicit merge-governance blocker under root `AGENTS.md`
+until it provides PASS / no-actionables evidence. The local role chain, sealed
+security scan, CodeRabbit review, and `pulseplate-pr-review` cannot replace
+that hard gate.
 
 ## Risks / Rollback
 
