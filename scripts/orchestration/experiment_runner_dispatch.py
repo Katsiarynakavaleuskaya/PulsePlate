@@ -612,24 +612,25 @@ def _initialize_result_volume(
     apple_network: str | None,
 ) -> bool:
     name = f"pp-er-init-{uuid.uuid4().hex[:12]}"
-    completed_ok = False
-    cleanup_ok = False
+    argv = _container_run_argv(
+        cli=cli,
+        backend=backend,
+        image_ref=image_ref,
+        container_name=name,
+        result_volume=volume,
+        apple_network=apple_network,
+        user="0:0",
+        command=["/usr/bin/chown", "65532:65532", CONTAINER_RESULT_DIR],
+    )
     try:
-        argv = _container_run_argv(
-            cli=cli,
-            backend=backend,
-            image_ref=image_ref,
-            container_name=name,
-            result_volume=volume,
-            apple_network=apple_network,
-            user="0:0",
-            command=["/usr/bin/chown", "65532:65532", CONTAINER_RESULT_DIR],
-        )
         completed = _run(argv, cwd=REPO_ROOT, timeout=30)
-        completed_ok = completed.returncode == 0
-    finally:
-        cleanup_ok = _cleanup_container(cli, backend, name)
-    return completed_ok and cleanup_ok
+    except BaseException as exc:
+        if not _cleanup_container(cli, backend, name):
+            raise DispatchError("container_cleanup_failed") from exc
+        raise
+    if not _cleanup_container(cli, backend, name):
+        raise DispatchError("container_cleanup_failed")
+    return completed.returncode == 0
 
 
 def _address_is_bindable(address: str) -> bool:
@@ -1194,6 +1195,8 @@ def select_backend(
     for backend in candidates:
         probe = probe_backend(backend, image)
         attempts.append(probe)
+        if "container_cleanup_failed" in probe.blocking_reasons:
+            return None, attempts
         if probe.strict:
             return probe, attempts
     return None, attempts

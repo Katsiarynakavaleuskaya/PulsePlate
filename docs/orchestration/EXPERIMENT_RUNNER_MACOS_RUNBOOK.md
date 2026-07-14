@@ -200,6 +200,10 @@ or substitute an image after preflight.
 - `result_volume_failed`, `container_cleanup_failed`;
 - `probe_execution_failed`.
 
+Automatic Apple-to-Docker fallback is allowed only after Apple preflight
+cleanup completes. `container_cleanup_failed` is terminal because residual
+resources may remain; `auto` must not probe or start another backend.
+
 After the experiment starts, any runtime failure remains on the selected
 backend and is reported without trying Docker, Apple Container, or a networked
 mode. `infra_flake` remains reserved for genuinely transient execution errors.

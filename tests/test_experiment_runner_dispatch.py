@@ -178,10 +178,32 @@ def test_auto_uses_docker_only_after_apple_preflight_rejects(
 
     monkeypatch.setattr(dispatch, "probe_backend", fake_probe)
 
-    selected, _attempts = dispatch.select_backend("auto", _image())
+    selected, attempts = dispatch.select_backend("auto", _image())
 
     assert selected is not None and selected.backend == "docker"
+    assert [attempt.backend for attempt in attempts] == ["apple-container", "docker"]
     assert calls == ["apple-container", "docker"]
+
+
+def test_auto_stops_after_apple_cleanup_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[str] = []
+    monkeypatch.setattr(dispatch.platform, "system", lambda: "Darwin")
+
+    def fake_probe(backend: str, _image: dispatch.ImageReference) -> dispatch.BackendProbe:
+        calls.append(backend)
+        if backend != "apple-container":
+            raise AssertionError("Docker must not be probed after cleanup failure")
+        return _probe(backend, strict=False, reason="container_cleanup_failed")
+
+    monkeypatch.setattr(dispatch, "probe_backend", fake_probe)
+
+    selected, attempts = dispatch.select_backend("auto", _image())
+
+    assert selected is None
+    assert [attempt.backend for attempt in attempts] == ["apple-container"]
+    assert calls == ["apple-container"]
 
 
 def test_explicit_backend_never_falls_back(
@@ -1151,6 +1173,49 @@ def test_docker_volume_is_bounded_tmpfs(
             "pp-er-result-bbbbbbbbbbbb",
         ]
     ]
+
+
+def test_result_volume_initializer_cleanup_failure_overrides_run_exception(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original = dispatch.DispatchError("probe_execution_failed")
+    monkeypatch.setattr(
+        dispatch,
+        "_run",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(original),
+    )
+    monkeypatch.setattr(dispatch, "_cleanup_container", lambda *_args: False)
+
+    with pytest.raises(dispatch.DispatchError, match="container_cleanup_failed") as caught:
+        dispatch._initialize_result_volume(
+            cli="/usr/local/bin/container",
+            backend="apple-container",
+            image_ref=f"runner:local@{_DIGEST}",
+            volume="result-volume",
+            apple_network="runner-network",
+        )
+
+    assert caught.value.__cause__ is original
+
+
+def test_result_volume_initializer_cleanup_failure_overrides_nonzero_exit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        dispatch,
+        "_run",
+        lambda argv, **_kwargs: subprocess.CompletedProcess(argv, 1, "", ""),
+    )
+    monkeypatch.setattr(dispatch, "_cleanup_container", lambda *_args: False)
+
+    with pytest.raises(dispatch.DispatchError, match="container_cleanup_failed"):
+        dispatch._initialize_result_volume(
+            cli="/usr/local/bin/container",
+            backend="apple-container",
+            image_ref=f"runner:local@{_DIGEST}",
+            volume="result-volume",
+            apple_network="runner-network",
+        )
 
 
 def test_capability_validator_matches_platform_and_isolation_schema() -> None:
