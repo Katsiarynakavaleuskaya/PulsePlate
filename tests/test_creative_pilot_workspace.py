@@ -12,6 +12,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from typing import IO, Any
 
 import pytest
 
@@ -1322,6 +1323,10 @@ def test_resume_pr1_publishes_exact_new_only_bundle(
         assert pilot_cli.main(args) == 0
         captured = capsys.readouterr()
         output = _published_resume_output_from_stdout(spec_root=spec_root, stdout=captured.out)
+        assert not any(
+            entry.name.startswith(f".{output.name}.") and entry.name.endswith(".staging")
+            for entry in spec_root.iterdir()
+        )
         assert {entry.name for entry in output.iterdir()} == {
             pilot_cli.RESUME_INTAKE_FILENAME,
             pilot_cli.RESUME_BINDING_FILENAME,
@@ -1699,9 +1704,9 @@ def _assert_resume_lineage_failure(
         monkeypatch.setattr(pilot_cli, "SPEC_BRIDGE_ROOT", spec_root)
 
         def fail_if_direct_spec_bridge_artifact_created(path: object, operation: str) -> None:
-            if not isinstance(path, (str, os.PathLike)):
+            if not isinstance(path, (str, bytes, os.PathLike)):
                 return
-            candidate = Path(path)
+            candidate = Path(os.fsdecode(path))
             if candidate.parent == spec_root:
                 pytest.fail(
                     "adaptive resume lineage failure created a spec_bridge artifact "
@@ -1735,9 +1740,9 @@ def _assert_resume_lineage_failure(
                 return
             if flags is not None and not flags_may_create_or_write(flags):
                 return
-            if not isinstance(path, (str, os.PathLike)):
+            if not isinstance(path, (str, bytes, os.PathLike)):
                 return
-            candidate = Path(path)
+            candidate = Path(os.fsdecode(path))
             if candidate.parent != Path(".") or not fd_targets_spec_root(dir_fd):
                 return
             pytest.fail(
@@ -1771,7 +1776,7 @@ def _assert_resume_lineage_failure(
             encoding: str | None = None,
             errors: str | None = None,
             newline: str | None = None,
-        ):
+        ) -> IO[Any]:
             if any(flag in mode for flag in ("w", "a", "x", "+")):
                 fail_if_direct_spec_bridge_artifact_created(path, "Path.open")
             return real_open(
@@ -1785,7 +1790,7 @@ def _assert_resume_lineage_failure(
 
         def fail_if_builtin_open_creates_resume_artifact(
             file: object, *args: object, **kwargs: object
-        ):
+        ) -> IO[Any]:
             mode = args[0] if args else kwargs.get("mode", "r")
             if isinstance(mode, str) and any(flag in mode for flag in ("w", "a", "x", "+")):
                 fail_if_direct_spec_bridge_artifact_created(file, "open")
