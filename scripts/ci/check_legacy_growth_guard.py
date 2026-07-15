@@ -1840,63 +1840,6 @@ def _function_local_binding_names(
     return frozenset(names - global_names - nonlocal_names)
 
 
-def _lexically_shadowed_names(tree: ast.Module) -> Mapping[int, frozenset[str]]:
-    """Map nodes to function-local names that shadow module static bindings."""
-
-    shadowed_by_node: dict[int, frozenset[str]] = {}
-
-    class _ShadowVisitor(ast.NodeVisitor):
-        def __init__(self) -> None:
-            self.shadowed: frozenset[str] = frozenset()
-
-        def generic_visit(self, node: ast.AST) -> None:
-            shadowed_by_node[id(node)] = self.shadowed
-            super().generic_visit(node)
-
-        def _visit_function(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> None:
-            shadowed_by_node[id(node)] = self.shadowed
-            for decorator in node.decorator_list:
-                self.visit(decorator)
-            for default in (*node.args.defaults, *node.args.kw_defaults):
-                if default is not None:
-                    self.visit(default)
-            if node.returns is not None:
-                self.visit(node.returns)
-            previous = self.shadowed
-            self.shadowed = previous | _function_local_binding_names(node)
-            for statement in node.body:
-                self.visit(statement)
-            self.shadowed = previous
-
-        def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
-            self._visit_function(node)
-
-        def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
-            self._visit_function(node)
-
-        def visit_Lambda(self, node: ast.Lambda) -> None:
-            shadowed_by_node[id(node)] = self.shadowed
-            previous = self.shadowed
-            self.shadowed = previous | _function_local_binding_names(node)
-            self.visit(node.body)
-            self.shadowed = previous
-
-    _ShadowVisitor().visit(tree)
-    return shadowed_by_node
-
-
-def _without_shadowed_bindings(
-    bindings: Mapping[str, str],
-    *,
-    node: ast.AST,
-    shadowed_by_node: Mapping[int, frozenset[str]],
-) -> Mapping[str, str]:
-    shadowed = shadowed_by_node.get(id(node), frozenset())
-    if not shadowed:
-        return bindings
-    return {name: value for name, value in bindings.items() if name not in shadowed}
-
-
 _POSSIBLE_LEGACY_REFERENCE = "<possible:legacy_app>"
 _POSSIBLE_APP_REFERENCE = "<possible:pulseplate.app>"
 _POSSIBLE_ROUTER_REFERENCE = "<possible:pulseplate.app.router>"

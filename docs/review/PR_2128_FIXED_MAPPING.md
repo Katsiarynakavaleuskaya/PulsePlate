@@ -186,10 +186,10 @@ Decision: the consolidated replacement and post-open middleware hardening are pu
 
 Not ready at latest artifact update. Required before merge:
 
-- COMPLETE: replacement and middleware hardening commits were published to the existing #2128 branch with normal fast-forward pushes.
-- COMPLETE: `## Discussion Thread Pass`, `### Fixed in Commit Mapping`, and `## Merge Readiness` are mirrored in the PR body.
-- COMPLETE: #2123 through #2127 were closed unmerged after published replacement evidence existed; their source branches were preserved.
-- COMPLETE: post-open role chain and `pulseplate-pr-review` on the final published material head.
+- PENDING final merge cycle: replacement and middleware hardening commits were published to the existing #2128 branch with normal fast-forward pushes.
+- PENDING final merge cycle: `## Discussion Thread Pass`, `### Fixed in Commit Mapping`, and `## Merge Readiness` are mirrored in the PR body.
+- PENDING final merge cycle: #2123 through #2127 were closed unmerged after published replacement evidence existed; their source branches were preserved.
+- PENDING final merge cycle: post-open role chain and `pulseplate-pr-review` on the final published material head.
 - Require terminal current-head CI, diff coverage at least 97%, and all required backend/security/governance jobs.
 - Require no actionable CodeRabbit, Sourcery, or Cubic comments and no unresolved review threads.
 - Pass the strict authenticated merge wrapper and the mandatory review wait-window.
