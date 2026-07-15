@@ -276,102 +276,6 @@ def _app_call_action(
     return None
 
 
-def _collect_bound_app_call_aliases(
-    tree: ast.Module,
-    *,
-    app_aliases: AbstractSet[str],
-    static_string_bindings: Mapping[str, str],
-) -> dict[str, str]:
-    aliases: dict[str, str] = {}
-    changed = True
-    while changed:
-        changed = False
-        for node in ast.walk(tree):
-            value: ast.AST | None = None
-            targets: list[ast.expr] = []
-            if isinstance(node, ast.Assign):
-                value = node.value
-                targets = list(node.targets)
-            elif isinstance(node, ast.AnnAssign) and node.value is not None:
-                value = node.value
-                targets = [node.target]
-            if value is None:
-                continue
-
-            action: str | None = None
-            if (
-                isinstance(value, ast.Attribute)
-                and isinstance(value.value, ast.Name)
-                and value.value.id in app_aliases
-                and value.attr in APP_ROUTE_METHODS | APP_REGISTRATION_METHODS
-            ):
-                action = value.attr
-            elif (
-                isinstance(value, ast.Call)
-                and isinstance(value.func, ast.Name)
-                and value.func.id == "getattr"
-                and len(value.args) >= 2
-                and isinstance(value.args[0], ast.Name)
-                and value.args[0].id in app_aliases
-            ):
-                method_node = value.args[1]
-                method_name: str | None
-                if isinstance(method_node, ast.Constant) and isinstance(method_node.value, str):
-                    method_name = method_node.value
-                elif isinstance(method_node, ast.Name):
-                    method_name = static_string_bindings.get(method_node.id)
-                else:
-                    method_name = None
-                if method_name in APP_ROUTE_METHODS | APP_REGISTRATION_METHODS:
-                    action = method_name
-            elif isinstance(value, ast.Name):
-                action = aliases.get(value.id)
-            if action is None:
-                continue
-            for target in targets:
-                if isinstance(target, ast.Name) and aliases.get(target.id) != action:
-                    aliases[target.id] = action
-                    changed = True
-    return aliases
-
-
-def _collect_middleware_decorator_aliases(
-    tree: ast.Module,
-    *,
-    app_aliases: frozenset[str],
-    router_aliases: frozenset[str],
-    bound_call_aliases: Mapping[str, str],
-    static_string_bindings: Mapping[str, str],
-) -> dict[str, str]:
-    aliases: dict[str, str] = {}
-    for node in ast.walk(tree):
-        value: ast.AST | None = None
-        targets: list[ast.expr] = []
-        if isinstance(node, ast.Assign):
-            value = node.value
-            targets = list(node.targets)
-        elif isinstance(node, ast.AnnAssign) and node.value is not None:
-            value = node.value
-            targets = [node.target]
-        if not isinstance(value, ast.Call):
-            continue
-        action = _app_call_action(
-            value.func,
-            APP_ROUTE_METHODS,
-            app_aliases=app_aliases,
-            router_aliases=router_aliases,
-            static_string_bindings=static_string_bindings,
-        )
-        if action is None and isinstance(value.func, ast.Name):
-            action = bound_call_aliases.get(value.func.id)
-        if action != "middleware":
-            continue
-        for target in targets:
-            if isinstance(target, ast.Name):
-                aliases[target.id] = _first_arg_label(value)
-    return aliases
-
-
 def _getattr_app_call_action(
     func: ast.AST,
     methods: AbstractSet[str],
@@ -418,7 +322,6 @@ def collect_legacy_route_facts(source_text: str, *, filename: str = LEGACY_APP) 
         return set()
 
     facts: set[LegacyFact] = set()
-    app_aliases, router_aliases = _collect_app_aliases(tree)
     static_string_bindings = _collect_static_string_bindings(tree)
     route_reference_snapshots, route_string_snapshots = _collect_lexical_binding_snapshots(
         tree,
@@ -519,18 +422,17 @@ def collect_legacy_route_facts(source_text: str, *, filename: str = LEGACY_APP) 
             return f"{action_prefix}dynamic"
         return None
 
-    bound_call_aliases = _collect_bound_app_call_aliases(
-        tree,
-        app_aliases=app_aliases,
-        static_string_bindings=static_string_bindings,
-    )
-    middleware_decorator_aliases = _collect_middleware_decorator_aliases(
-        tree,
-        app_aliases=app_aliases,
-        router_aliases=router_aliases,
-        bound_call_aliases=bound_call_aliases,
-        static_string_bindings=static_string_bindings,
-    )
+    def scoped_middleware_target(node: ast.AST, name: str) -> str | None:
+        references = route_reference_snapshots.get(id(node))
+        if references is None:
+            return None
+        reference = references.get(name)
+        if reference == _POSSIBLE_MIDDLEWARE_DECORATOR_REFERENCE:
+            return "<dynamic>"
+        if reference is not None and reference.startswith(_MIDDLEWARE_DECORATOR_REFERENCE_PREFIX):
+            return reference.removeprefix(_MIDDLEWARE_DECORATOR_REFERENCE_PREFIX)
+        return None
+
     for node in ast.walk(tree):
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             for decorator in node.decorator_list:
@@ -540,7 +442,7 @@ def collect_legacy_route_facts(source_text: str, *, filename: str = LEGACY_APP) 
                     decorator
                 )
                 if isinstance(decorator, ast.Name):
-                    target = middleware_decorator_aliases.get(decorator.id)
+                    target = scoped_middleware_target(decorator, decorator.id)
                     if target is not None:
                         facts.add(
                             LegacyFact(
@@ -588,7 +490,7 @@ def collect_legacy_route_facts(source_text: str, *, filename: str = LEGACY_APP) 
                 APP_REGISTRATION_METHODS,
             )
             if isinstance(call.func, ast.Name):
-                middleware_target = middleware_decorator_aliases.get(call.func.id)
+                middleware_target = scoped_middleware_target(call, call.func.id)
                 if middleware_target is not None:
                     facts.add(
                         LegacyFact(
@@ -1999,6 +1901,8 @@ _POSSIBLE_LEGACY_REFERENCE = "<possible:legacy_app>"
 _POSSIBLE_APP_REFERENCE = "<possible:pulseplate.app>"
 _POSSIBLE_ROUTER_REFERENCE = "<possible:pulseplate.app.router>"
 _POSSIBLE_APP_CALL_REFERENCE = "<possible:pulseplate.app.call>"
+_MIDDLEWARE_DECORATOR_REFERENCE_PREFIX = "pulseplate.app.middleware.decorator:"
+_POSSIBLE_MIDDLEWARE_DECORATOR_REFERENCE = "<possible:pulseplate.app.middleware.decorator>"
 _POSSIBLE_GETATTR_REFERENCE = "<possible:builtins.getattr>"
 _POSSIBLE_API_KEY_SYMBOL = "<possible:api_key_symbol>"
 _POSSIBLE_ROUTE_METHOD = "<possible:route_method>"
@@ -2219,6 +2123,8 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 import_module_aliases=frozenset(),
                 static_string_bindings=strings,
             )
+            if self.preserve_route_method_conflicts and constructor == "pulseplate.app.middleware":
+                return f"{_MIDDLEWARE_DECORATOR_REFERENCE_PREFIX}{_first_arg_label(node)}"
             if constructor in {"fastapi.FastAPI", "fastapi.applications.FastAPI"}:
                 return "pulseplate.app"
         return None
@@ -2389,6 +2295,12 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 for value in values
             ):
                 joined_references[name] = _POSSIBLE_APP_CALL_REFERENCE
+            elif self.preserve_route_method_conflicts and any(
+                value == _POSSIBLE_MIDDLEWARE_DECORATOR_REFERENCE
+                or (value is not None and value.startswith(_MIDDLEWARE_DECORATOR_REFERENCE_PREFIX))
+                for value in values
+            ):
+                joined_references[name] = _POSSIBLE_MIDDLEWARE_DECORATOR_REFERENCE
             elif any(value in {"pulseplate.app", _POSSIBLE_APP_REFERENCE} for value in values):
                 joined_references[name] = _POSSIBLE_APP_REFERENCE
             elif any(

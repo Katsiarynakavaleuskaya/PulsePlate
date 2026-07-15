@@ -3852,6 +3852,42 @@ def test_legacy_growth_guard_rejects_functional_middleware_registration(
 
 
 @pytest.mark.parametrize(
+    "use",
+    [
+        "register_http(handler)",
+        "@register_http\nasync def handler(request, call_next):\n    return await call_next(request)",
+    ],
+    ids=["functional", "decorator"],
+)
+def test_legacy_growth_guard_clears_middleware_factory_after_safe_rebinding(
+    use: str,
+) -> None:
+    source = 'register_http = app.middleware("http")\n' "register_http = safe_register\n" f"{use}\n"
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+@pytest.mark.parametrize(
+    "use",
+    [
+        "register_http(handler)",
+        "@register_http\nasync def handler(request, call_next):\n    return await call_next(request)",
+    ],
+    ids=["functional", "decorator"],
+)
+def test_legacy_growth_guard_respects_middleware_factory_parameter_shadowing(
+    use: str,
+) -> None:
+    source = (
+        'register_http = app.middleware("http")\n\n'
+        "def register(register_http):\n"
+        f"{textwrap.indent(use, '    ')}\n"
+    )
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+@pytest.mark.parametrize(
     ("source", "registrar"),
     [
         (
