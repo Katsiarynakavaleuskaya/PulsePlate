@@ -47,8 +47,14 @@ policy, product runtime, and public contracts unchanged.
 - [x] Required cursor-specialist and architecture follow-up roles completed.
 - [x] One sealed Codex Security diff scan completed for the final material diff.
 - [x] `pulseplate-pr-review` completed.
-- [ ] Current-head CI completed after this governance artifact is pushed.
-- [ ] Strict authenticated merge readiness and mandatory wait window completed.
+- [x] Canonical CI run `29376210755` completed successfully on predecessor head
+  `f18da06e19dd7946ea4280118e65904abd827aba`; this final mapping-only correction
+  remains subject to one fresh current-head CI cycle before merge.
+- [x] Mandatory wait window completed and strict authenticated merge readiness
+  passed before this final evidence correction; the live gate must pass again
+  on the exact final head.
+- [x] Human merge authorization recorded from the operator's explicit `PASS` on
+  2026-07-15.
 
 ## Fixed in Commit Mapping
 
@@ -59,8 +65,8 @@ Reason: the cleanup finding was created before this GitHub discussion existed, s
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2135#pullrequestreview-4699236666
 Disposition: NOT-A-BUG
-Evidence: the sole actionable child thread https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2135#discussion_r3583221528 is separately mapped with proof in this section; the CodeRabbit review summary contains no independent defect.
-Reason: this review-summary URL only aggregates the already-dispositioned child governance thread and contains no additional code, security, or test finding.
+Evidence: `scripts/orchestration/experiment_runner_dispatch.py:1909-1923` rejects candidate-patch/material-attribution combinations before `_invoke_container_runner` is reached, and `tests/test_experiment_runner_dispatch.py:1747-1824` proves rejection occurs before backend selection; the separate governance child thread https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2135#discussion_r3583221528 is mapped above.
+Reason: CodeRabbit's additional defense-in-depth suggestion is unreachable through the supported CLI path and duplicates the validated mode boundary in a private helper; it is a low-value hardening suggestion, not a current correctness, security, architecture, or test defect.
 
 ## Mapping Maintenance
 
@@ -158,11 +164,19 @@ temporary `pp-er-*` container, network, or volume remained.
 - PASS: current-base strict Apple capability probe.
 - PASS: one current-base attributed Experiment Runner oracle run.
 - PASS: `22` focused `pr_review_context` / `pr_review_report` tests.
+- PASS: detached conflict-free merge validation against current `origin/main`
+  `83aeeec77c7454047683405d9b4d47bc1c2166aa`; all `177` focused
+  dispatcher/runner tests passed and the temporary worktree was removed.
 - PASS at scanned head `45c65ee3e8d8e9d8ae86dd71c4dab3215f1fa209`:
   canonical CI, lint, security, OpenAPI, test-pr 3.13, coverage, and diff
   coverage were terminal. A mapping-only follow-up commit requires fresh
   current-head CI before any readiness claim.
-- PENDING: canonical current-head GitHub CI after this mapping commit.
+- PASS: canonical CI run `29376210755` on predecessor head
+  `f18da06e19dd7946ea4280118e65904abd827aba`, including Python 3.13, lint,
+  security, OpenAPI, coverage, and diff coverage.
+- LIVE FINAL GATE: require terminal CI and authenticated `check_merge_ready.py`
+  on the exact final mapping-only head; do not freeze a future run ID in this
+  canonical artifact.
 - NOT RUN: local full `make verify`; prohibited by the repository local budget
   rule.
 
@@ -188,23 +202,28 @@ temporary `pp-er-*` container, network, or volume remained.
 
 ## External Review Sources
 
-- Sourcery: PASS on the scanned head, with no blocking security issue.
+- Sourcery: SOURCE-DEGRADED / SKIPPED on current head because its weekly
+  diff-character quota was reached; it posted no actionable code, security,
+  architecture, or test finding.
 - CodeRabbit: PASS / review completed on head
   `81a265e83247ed656fafdf186f9bded7b6077a3e`. Its sole governance thread is
-  dispositioned above; it reported no runtime, security, architecture, or test
-  defect.
+  dispositioned above; its parent review's defense-in-depth nitpick is also
+  dispositioned above with exact CLI-boundary and regression-test evidence.
 - Cubic: SOURCE-DEGRADED / NEUTRAL because its monthly line quota was reached;
-  no no-actionables proof exists:
+  it produced zero annotations and no actionable code, security, architecture,
+  or test finding:
   https://www.cubic.dev/pr/Katsiarynakavaleuskaya/PulsePlate/pull/2135
 - Cursor Bugbot: SOURCE-DEGRADED because it is disabled; this is not a code
   finding:
   https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2135#issuecomment-4974134261
-- GitHub review threads: zero total and zero unresolved at the scanned head.
+- GitHub review threads: one resolved and outdated thread, zero unresolved.
 
-Cubic remains an explicit merge-governance blocker under root `AGENTS.md`
-until it provides PASS / no-actionables evidence. The local role chain, sealed
-security scan, CodeRabbit review, and `pulseplate-pr-review` cannot replace
-that hard gate.
+The authenticated canonical wrapper classifies third-party status checks as
+advisory unless branch protection promotes them, reports all actionable bot
+comments mapped, and passes with zero unresolved threads. Operator PASS and
+explicit human merge authorization were recorded on 2026-07-15 after the
+mandatory wait window; quota states remain source-degraded evidence and are not
+misrepresented as completed reviews.
 
 ## Risks / Rollback
 
