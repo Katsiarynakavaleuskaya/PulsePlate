@@ -340,11 +340,22 @@ def test_reference_patch_contracts_validate_and_schema_is_closed() -> None:
     assert result_schema["allOf"][1]["then"]["properties"]["failure_class"]["enum"] == (
         ordered_failure_classes
     )
+    assert result_schema["allOf"][2]["if"]["properties"]["failure_class"] == {
+        "const": "capability_mismatch"
+    }
+    root_retry_rule = result_schema["allOf"][2]["then"]["properties"]["runner_summary"][
+        "properties"
+    ]
+    assert root_retry_rule["attempts"] == {"enum": [0, 1]}
+    assert root_retry_rule["retries_consumed"] == {"const": 0}
     runner_rules = result_schema["$defs"]["runner_summary"]["allOf"]
     assert runner_rules[0]["then"]["properties"]["failure_class"] == {"const": None}
     assert runner_rules[1]["then"]["properties"]["failure_class"]["enum"] == (
         ordered_failure_classes
     )
+    assert runner_rules[2]["if"]["properties"]["failure_class"] == {"const": "capability_mismatch"}
+    assert runner_rules[2]["then"]["properties"]["attempts"] == {"enum": [0, 1]}
+    assert runner_rules[2]["then"]["properties"]["retries_consumed"] == {"const": 0}
     assert (
         result_schema["$defs"]["authority"]["properties"]["candidate_patch_generated"]["const"]
         is True
@@ -487,6 +498,68 @@ def test_patch_result_rejects_incoherent_runner_status_and_preserves_wrapper_rej
     wrapper_rejection["idempotency_key"] = idempotency_key
 
     assert validate_creative_code_patch_result(wrapper_rejection) == wrapper_rejection
+
+
+def test_patch_result_rejects_capability_mismatch_retry_tamper() -> None:
+    tampered = _reference_result()
+    tampered["status"] = "rejected"
+    tampered["failure_class"] = "capability_mismatch"
+    tampered["runner_summary"].update(
+        {
+            "status": "rejected",
+            "failure_class": "capability_mismatch",
+            "attempts": 2,
+            "retries_consumed": 1,
+        }
+    )
+    result_id, idempotency_key = creative_code_patch_contract._build_result_identity(tampered)
+    tampered["result_id"] = result_id
+    tampered["idempotency_key"] = idempotency_key
+
+    with pytest.raises(
+        CreativeCodePatchContractError,
+        match="capability_mismatch must use attempts 0 or 1 and retries_consumed 0",
+    ):
+        validate_creative_code_patch_result(tampered)
+
+    top_level_tamper = _reference_result()
+    top_level_tamper["status"] = "rejected"
+    top_level_tamper["failure_class"] = "capability_mismatch"
+    top_level_tamper["runner_summary"]["attempts"] = 2
+    top_level_tamper["runner_summary"]["retries_consumed"] = 1
+    result_id, idempotency_key = creative_code_patch_contract._build_result_identity(
+        top_level_tamper
+    )
+    top_level_tamper["result_id"] = result_id
+    top_level_tamper["idempotency_key"] = idempotency_key
+
+    with pytest.raises(
+        CreativeCodePatchContractError,
+        match="capability_mismatch must use attempts 0 or 1 and retries_consumed 0",
+    ):
+        validate_creative_code_patch_result(top_level_tamper)
+
+    compound_tamper = _reference_result()
+    compound_tamper["failure_class"] = "capability_mismatch"
+    compound_tamper["runner_summary"].update(
+        {
+            "status": "rejected",
+            "failure_class": "capability_mismatch",
+            "attempts": 2,
+            "retries_consumed": 1,
+        }
+    )
+    result_id, idempotency_key = creative_code_patch_contract._build_result_identity(
+        compound_tamper
+    )
+    compound_tamper["result_id"] = result_id
+    compound_tamper["idempotency_key"] = idempotency_key
+
+    with pytest.raises(
+        CreativeCodePatchContractError,
+        match="accepted results must not have failure_class",
+    ):
+        validate_creative_code_patch_result(compound_tamper)
 
 
 def test_patch_path_schemas_match_validator_for_forbidden_surfaces() -> None:

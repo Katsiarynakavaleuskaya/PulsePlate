@@ -29,6 +29,7 @@ from scripts.orchestration.creative_code_specification import (
     validate_creative_code_specification_bundle,
 )
 from scripts.orchestration.experiment_contract import (
+    validate_failure_retry_observations,
     validate_immutable_oracles,
     validate_metrics,
     validate_mutable_candidate_surface,
@@ -422,9 +423,9 @@ def _require_fingerprint(payload: Mapping[str, Any], key: str, *, label: str) ->
 
 def _require_bool(payload: Mapping[str, Any], key: str, *, expected: bool, label: str) -> bool:
     value = payload.get(key)
-    if value is not expected:
+    if not isinstance(value, bool) or value != expected:
         raise CreativeCodePatchContractError(f"{label}.{key} must be {expected}.")
-    return expected
+    return value
 
 
 def _require_any_bool(payload: Mapping[str, Any], key: str, *, label: str) -> bool:
@@ -1168,6 +1169,19 @@ def validate_creative_code_patch_result(payload: dict[str, Any]) -> dict[str, An
         raise CreativeCodePatchContractError("accepted results require an accepted runner summary.")
     if coherence_violation == "accepted_without_workspace_proof":
         raise CreativeCodePatchContractError("accepted results require full workspace proof.")
+    for observed_failure, failure_label in (
+        (normalized["failure_class"], "CreativeCodePatchResult.runner_summary"),
+        (runner_summary["failure_class"], "runner_summary"),
+    ):
+        try:
+            validate_failure_retry_observations(
+                failure_class=observed_failure,
+                attempts=runner_summary["attempts"],
+                retries_consumed=runner_summary["retries_consumed"],
+                label=failure_label,
+            )
+        except ValueError as exc:
+            raise CreativeCodePatchContractError(str(exc)) from exc
     _reject_result_leaks(normalized, label=label)
     expected_id, expected_key = _build_result_identity(normalized)
     if normalized["result_id"] != expected_id:
@@ -1505,6 +1519,20 @@ def _validate_runner_summary(raw_summary: Any) -> dict[str, Any]:
         raise CreativeCodePatchContractError(
             "runner_summary.runner_error_fingerprint must be null when no runner error is present."
         )
+    attempts = _require_int(
+        raw_summary,
+        "attempts",
+        min_value=0,
+        max_value=3,
+        label="runner_summary",
+    )
+    retries_consumed = _require_int(
+        raw_summary,
+        "retries_consumed",
+        min_value=0,
+        max_value=2,
+        label="runner_summary",
+    )
     return {
         "experiment_id": _require_id(raw_summary, "experiment_id", label="runner_summary"),
         "status": status,
@@ -1530,20 +1558,8 @@ def _validate_runner_summary(raw_summary: Any) -> dict[str, Any]:
             max_value=20,
             label="runner_summary",
         ),
-        "attempts": _require_int(
-            raw_summary,
-            "attempts",
-            min_value=0,
-            max_value=3,
-            label="runner_summary",
-        ),
-        "retries_consumed": _require_int(
-            raw_summary,
-            "retries_consumed",
-            min_value=0,
-            max_value=2,
-            label="runner_summary",
-        ),
+        "attempts": attempts,
+        "retries_consumed": retries_consumed,
         "shared_tree_untouched": _require_any_bool(
             raw_summary,
             "shared_tree_untouched",

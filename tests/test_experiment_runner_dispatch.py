@@ -527,6 +527,96 @@ def test_capability_mismatch_allows_post_preflight_isolation_loss() -> None:
     assert validated["promotion_ready"] is False
 
 
+@pytest.mark.parametrize(
+    ("attempts", "retries_consumed"),
+    [(2, 0), (1, 1), (2, 1)],
+)
+def test_capability_mismatch_rejects_retry_evidence(
+    attempts: int,
+    retries_consumed: int,
+) -> None:
+    result = _legacy_result()
+    result.update(
+        {
+            "status": "rejected",
+            "failure_class": "capability_mismatch",
+            "mutated_paths": [],
+            "budget_observations": {
+                "attempts": attempts,
+                "retries_consumed": retries_consumed,
+            },
+            "promotion_ready": False,
+            "execution_backend": dispatch._execution_backend_payload(
+                _probe("apple-container", strict=True), passed=True
+            ),
+        }
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="capability_mismatch must use attempts 0 or 1 and retries_consumed 0",
+    ):
+        experiment_contract.validate_experiment_result(result)
+
+
+@pytest.mark.parametrize(
+    ("preflight_passed", "attempts"),
+    [(False, 1), (True, 0)],
+)
+def test_capability_mismatch_attempts_match_backend_preflight(
+    preflight_passed: bool,
+    attempts: int,
+) -> None:
+    result = _legacy_result()
+    result.update(
+        {
+            "status": "rejected",
+            "failure_class": "capability_mismatch",
+            "mutated_paths": [],
+            "budget_observations": {
+                "attempts": attempts,
+                "retries_consumed": 0,
+            },
+            "promotion_ready": False,
+            "execution_backend": dispatch._execution_backend_payload(
+                _probe("apple-container", strict=preflight_passed),
+                passed=preflight_passed,
+            ),
+        }
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="capability_mismatch attempts must equal 1 after passed backend preflight",
+    ):
+        experiment_contract.validate_experiment_result(result)
+
+
+def test_retryable_failure_preserves_retry_evidence() -> None:
+    result = _legacy_result()
+    result.update(
+        {
+            "status": "rejected",
+            "failure_class": "infra_flake",
+            "mutated_paths": [],
+            "budget_observations": {
+                "attempts": 2,
+                "retries_consumed": 1,
+            },
+            "promotion_ready": False,
+            "execution_backend": dispatch._execution_backend_payload(
+                _probe("apple-container", strict=True), passed=True
+            ),
+        }
+    )
+
+    validated = experiment_contract.validate_experiment_result(result)
+
+    assert validated["failure_class"] == "infra_flake"
+    assert validated["budget_observations"]["attempts"] == 2
+    assert validated["budget_observations"]["retries_consumed"] == 1
+
+
 @pytest.mark.parametrize("failure_class", experiment_contract.FAILURE_CLASSES)
 def test_accepted_results_reject_every_failure_class(failure_class: str) -> None:
     result = _legacy_result()
@@ -585,15 +675,16 @@ def test_capability_mismatch_is_non_retryable_and_preserves_zero_network() -> No
     probe = _probe("apple-container", strict=False)
 
     result = dispatch._capability_mismatch_result(packet, _image(), probe)
+    validated = experiment_contract.validate_experiment_result(result)
 
-    assert result["failure_class"] == "capability_mismatch"
-    assert result["budget_observations"]["attempts"] == 0
-    assert result["budget_observations"]["retries_consumed"] == 0
-    assert result["budget_observations"]["configured_budgets"]["network_budget"] == 0
-    assert result["execution_backend"]["preflight_status"] == "failed"
-    assert result["contribution_kind"] == "none"
-    assert result["coauthor_required"] is False
-    assert result["coauthor_reason"] == ""
+    assert validated["failure_class"] == "capability_mismatch"
+    assert validated["budget_observations"]["attempts"] == 0
+    assert validated["budget_observations"]["retries_consumed"] == 0
+    assert validated["budget_observations"]["configured_budgets"]["network_budget"] == 0
+    assert validated["execution_backend"]["preflight_status"] == "failed"
+    assert validated["contribution_kind"] == "none"
+    assert validated["coauthor_required"] is False
+    assert validated["coauthor_reason"] == ""
 
 
 def test_result_backend_rejects_mutable_or_invalid_digest() -> None:

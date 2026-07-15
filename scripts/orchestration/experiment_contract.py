@@ -55,6 +55,32 @@ FAILURE_CLASSES: tuple[str, ...] = (
     "infra_flake",
 )
 
+
+def validate_failure_retry_observations(
+    *,
+    failure_class: str | None,
+    attempts: Any,
+    retries_consumed: Any,
+    label: str,
+) -> None:
+    """Reject retry evidence for terminal non-retryable capability loss."""
+
+    if failure_class != "capability_mismatch":
+        return
+    attempts_valid = (
+        isinstance(attempts, int) and not isinstance(attempts, bool) and attempts in {0, 1}
+    )
+    retries_valid = (
+        isinstance(retries_consumed, int)
+        and not isinstance(retries_consumed, bool)
+        and retries_consumed == 0
+    )
+    if not attempts_valid or not retries_valid:
+        raise ValueError(
+            f"{label} capability_mismatch must use attempts 0 or 1 and " "retries_consumed 0."
+        )
+
+
 EXECUTION_BACKEND_NAMES: tuple[str, ...] = (
     "native-linux",
     "apple-container",
@@ -842,6 +868,12 @@ def validate_experiment_result(result: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("Experiment result promotion_ready must be a boolean.")
     if status == "rejected" and promotion_ready:
         raise ValueError("Rejected experiment results must not be promotion_ready.")
+    validate_failure_retry_observations(
+        failure_class=failure_class,
+        attempts=budget_observations.get("attempts"),
+        retries_consumed=budget_observations.get("retries_consumed"),
+        label="Experiment result budget_observations",
+    )
 
     contribution_kind, coauthor_required, coauthor_reason = validate_contribution_attribution(
         contribution_kind=result.get("contribution_kind", "none"),
@@ -909,6 +941,13 @@ def validate_experiment_result(result: dict[str, Any]) -> dict[str, Any]:
             raise ValueError(
                 "Failed backend preflight requires a rejected capability_mismatch result."
             )
+        if failure_class == "capability_mismatch":
+            expected_attempts = 1 if preflight_passed else 0
+            if budget_observations.get("attempts") != expected_attempts:
+                raise ValueError(
+                    "Experiment result capability_mismatch attempts must equal 1 after "
+                    "passed backend preflight and 0 after failed backend preflight."
+                )
 
     candidate_patch = str(result.get("candidate_patch", "")).strip()
     if not candidate_patch:

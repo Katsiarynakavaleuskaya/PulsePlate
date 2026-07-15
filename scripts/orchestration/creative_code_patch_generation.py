@@ -48,6 +48,7 @@ from scripts.orchestration.experiment_contract import (
     DEFAULT_STOP_CONDITION,
     validate_budget_payload,
     validate_experiment_packet,
+    validate_failure_retry_observations,
     validate_metrics,
 )
 from scripts.orchestration.creative_spec_learning_rollup_contract import (
@@ -481,9 +482,9 @@ def _normalize_fingerprint(value: Any, *, label: str) -> str:
 
 
 def _normalize_bool(value: Any, *, expected: bool, label: str) -> bool:
-    if value is not expected:
+    if not isinstance(value, bool) or value != expected:
         raise CreativeCodePatchGenerationError(f"{label} must be {expected}.")
-    return expected
+    return value
 
 
 def _normalize_int(value: Any, *, min_value: int, max_value: int, label: str) -> int:
@@ -1253,6 +1254,19 @@ def validate_generation_receipt(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
     if coherence_violation == "accepted_without_workspace_proof":
         raise CreativeCodePatchGenerationError("accepted receipt requires full workspace proof.")
+    for observed_failure, failure_label in (
+        (failure_class, "CreativeCodePatchGenerationReceipt.runner_summary"),
+        (runner_summary["failure_class"], "runner_summary"),
+    ):
+        try:
+            validate_failure_retry_observations(
+                failure_class=observed_failure,
+                attempts=runner_summary["attempts"],
+                retries_consumed=runner_summary["retries_consumed"],
+                label=failure_label,
+            )
+        except ValueError as exc:
+            raise CreativeCodePatchGenerationError(str(exc)) from exc
     if workspace_summary["detached_base_sha"] != normalized["base_commit_sha"]:
         raise CreativeCodePatchGenerationError(
             "workspace_summary.detached_base_sha must match base_commit_sha."
@@ -1415,6 +1429,15 @@ def _normalize_runner_summary(raw_summary: Any) -> dict[str, Any]:
             error_fingerprint,
             label="runner_summary.runner_error_fingerprint",
         )
+    attempts = _normalize_int(
+        raw_summary["attempts"], min_value=0, max_value=3, label="runner_summary.attempts"
+    )
+    retries_consumed = _normalize_int(
+        raw_summary["retries_consumed"],
+        min_value=0,
+        max_value=2,
+        label="runner_summary.retries_consumed",
+    )
     return {
         "experiment_id": _normalize_id(
             raw_summary["experiment_id"], label="runner_summary.experiment_id"
@@ -1439,15 +1462,8 @@ def _normalize_runner_summary(raw_summary: Any) -> dict[str, Any]:
             max_value=20,
             label="runner_summary.oracle_commands_executed",
         ),
-        "attempts": _normalize_int(
-            raw_summary["attempts"], min_value=0, max_value=3, label="runner_summary.attempts"
-        ),
-        "retries_consumed": _normalize_int(
-            raw_summary["retries_consumed"],
-            min_value=0,
-            max_value=2,
-            label="runner_summary.retries_consumed",
-        ),
+        "attempts": attempts,
+        "retries_consumed": retries_consumed,
         "shared_tree_untouched": _normalize_any_bool(
             raw_summary["shared_tree_untouched"], label="runner_summary.shared_tree_untouched"
         ),

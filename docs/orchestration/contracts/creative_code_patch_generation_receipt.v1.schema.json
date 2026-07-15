@@ -133,6 +133,22 @@
           }
         }
       }
+    },
+    {
+      "if": {
+        "required": ["failure_class"],
+        "properties": { "failure_class": { "const": "capability_mismatch" } }
+      },
+      "then": {
+        "properties": {
+          "runner_summary": {
+            "properties": {
+              "attempts": { "enum": [0, 1] },
+              "retries_consumed": { "const": 0 }
+            }
+          }
+        }
+      }
     }
   ],
   "$defs": {
@@ -269,6 +285,18 @@
                   "infra_flake"
                 ]
               }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["failure_class"],
+            "properties": { "failure_class": { "const": "capability_mismatch" } }
+          },
+          "then": {
+            "properties": {
+              "attempts": { "enum": [0, 1] },
+              "retries_consumed": { "const": 0 }
             }
           }
         }

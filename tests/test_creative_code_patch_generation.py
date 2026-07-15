@@ -498,6 +498,53 @@ def test_receipt_validator_rejects_unknown_failures_and_incoherent_runner_status
     ):
         validate_generation_receipt(unsupported_runner)
 
+    capability_retry_tamper = deepcopy(reference)
+    capability_retry_tamper["status"] = "rejected"
+    capability_retry_tamper["failure_class"] = "capability_mismatch"
+    capability_retry_tamper["runner_summary"].update(
+        {
+            "status": "rejected",
+            "failure_class": "capability_mismatch",
+            "attempts": 2,
+            "retries_consumed": 1,
+        }
+    )
+    _reset_receipt_identity(capability_retry_tamper)
+    with pytest.raises(
+        CreativeCodePatchGenerationError,
+        match="capability_mismatch must use attempts 0 or 1 and retries_consumed 0",
+    ):
+        validate_generation_receipt(capability_retry_tamper)
+
+    top_level_capability_retry_tamper = deepcopy(reference)
+    top_level_capability_retry_tamper["status"] = "rejected"
+    top_level_capability_retry_tamper["failure_class"] = "capability_mismatch"
+    top_level_capability_retry_tamper["runner_summary"]["attempts"] = 2
+    top_level_capability_retry_tamper["runner_summary"]["retries_consumed"] = 1
+    _reset_receipt_identity(top_level_capability_retry_tamper)
+    with pytest.raises(
+        CreativeCodePatchGenerationError,
+        match="capability_mismatch must use attempts 0 or 1 and retries_consumed 0",
+    ):
+        validate_generation_receipt(top_level_capability_retry_tamper)
+
+    compound_capability_retry_tamper = deepcopy(reference)
+    compound_capability_retry_tamper["failure_class"] = "capability_mismatch"
+    compound_capability_retry_tamper["runner_summary"].update(
+        {
+            "status": "rejected",
+            "failure_class": "capability_mismatch",
+            "attempts": 2,
+            "retries_consumed": 1,
+        }
+    )
+    _reset_receipt_identity(compound_capability_retry_tamper)
+    with pytest.raises(
+        CreativeCodePatchGenerationError,
+        match="accepted receipt must not have failure_class",
+    ):
+        validate_generation_receipt(compound_capability_retry_tamper)
+
     accepted_with_rejected_runner = deepcopy(reference)
     accepted_with_rejected_runner["runner_summary"]["status"] = "rejected"
     accepted_with_rejected_runner["runner_summary"]["failure_class"] = "guard_failure"
@@ -1396,9 +1443,20 @@ def test_generation_schemas_are_closed_and_authority_is_const_false() -> None:
     assert (
         receipt_schema["allOf"][1]["then"]["properties"]["failure_class"]["enum"] == failure_classes
     )
+    assert receipt_schema["allOf"][2]["if"]["properties"]["failure_class"] == {
+        "const": "capability_mismatch"
+    }
+    root_retry_rule = receipt_schema["allOf"][2]["then"]["properties"]["runner_summary"][
+        "properties"
+    ]
+    assert root_retry_rule["attempts"] == {"enum": [0, 1]}
+    assert root_retry_rule["retries_consumed"] == {"const": 0}
     runner_rules = receipt_schema["$defs"]["runner_summary"]["allOf"]
     assert runner_rules[0]["then"]["properties"]["failure_class"] == {"const": None}
     assert runner_rules[1]["then"]["properties"]["failure_class"]["enum"] == failure_classes
+    assert runner_rules[2]["if"]["properties"]["failure_class"] == {"const": "capability_mismatch"}
+    assert runner_rules[2]["then"]["properties"]["attempts"] == {"enum": [0, 1]}
+    assert runner_rules[2]["then"]["properties"]["retries_consumed"] == {"const": 0}
 
 
 def test_generation_cli_exposes_no_promotion_or_github_commands() -> None:
