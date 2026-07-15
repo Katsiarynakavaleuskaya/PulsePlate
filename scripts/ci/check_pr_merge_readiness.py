@@ -20,7 +20,7 @@ import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, cast
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
@@ -393,7 +393,7 @@ def _validate_v1_seal(
     snapshot: PrSnapshot,
     token: str,
 ) -> dict[str, Any]:
-    seal = parse_embedded_review_seal(artifact_text)
+    seal = cast(dict[str, Any], parse_embedded_review_seal(artifact_text))
     if seal["repository"] != repository or seal["pr_number"] != pr_number:
         raise ReviewEvidenceError("review seal repository/PR identity mismatch")
     manifest = compute_material_manifest(
@@ -504,15 +504,19 @@ def _duplicate_reply_coverage(
         for item in actionable_items
         if item.url not in mapped_urls and item.kind == "review_comment"
     }
-    return validated_duplicate_reply_urls(
-        candidate_urls=candidate_urls,
-        threads=threads,
-        fingerprint_records=records,
-        material_digest=str(seal["material"]["digest"]),
-        snapshot=snapshot,
-        repository=repository,
-        token=token,
+    covered_urls = cast(
+        set[str],
+        validated_duplicate_reply_urls(
+            candidate_urls=candidate_urls,
+            threads=threads,
+            fingerprint_records=records,
+            material_digest=str(seal["material"]["digest"]),
+            snapshot=snapshot,
+            repository=repository,
+            token=token,
+        ),
     )
+    return covered_urls
 
 
 def main() -> int:
