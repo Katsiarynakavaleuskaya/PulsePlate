@@ -2,7 +2,10 @@
 
 ## 💰 Budget-Friendly VPS Options
 
-**Last updated: 2025-01-27** - *Maintainers: Update this date when pricing or provider information changes*
+**Last updated: 2026-07-13** - *Maintainers: Update this date when deployment requirements change*
+
+> Current CD artifacts are `linux/amd64` only. Do not select an ARM staging host
+> until the CD workflow explicitly restores and validates multi-platform builds.
 
 ### Recommended Providers (Cheapest First)
 
@@ -29,8 +32,8 @@
 ### Free Options (Limited)
 
 1. **Oracle Cloud Always Free** - 0€/month
-   - 1/8 OCPU, 1GB RAM (ARM)
    - 1/8 OCPU, 1GB RAM (x86)
+   - ARM shapes are not compatible with the current staging artifact
    - Requires credit card verification
    - [oracle.com/cloud/free](https://www.oracle.com/cloud/free/)
 
@@ -82,7 +85,22 @@ sudo cp scripts/ops/postgres_restore.sh /srv/pulseplate-staging/scripts/ops/
 sudo chmod +x /srv/pulseplate-staging/deploy.sh
 sudo chmod +x /srv/pulseplate-staging/scripts/ops/postgres_backup.sh
 sudo chmod +x /srv/pulseplate-staging/scripts/ops/postgres_restore.sh
+
+# Create this marker only after copying all files from the same merged commit.
+printf '%s' 'pulseplate-staging-attested-digest-v1' | \
+  sudo tee /srv/pulseplate-staging/.attested-digest-deploy-v1 >/dev/null
+sudo chown root:root /srv/pulseplate-staging/.attested-digest-deploy-v1
+sudo chmod 0644 /srv/pulseplate-staging/.attested-digest-deploy-v1
 ```
+
+The marker is an activation contract, not a substitute for file synchronization.
+CD compares SHA-256 for `deploy.sh`, `docker-compose.staging.yaml`, `Caddyfile`,
+and `scripts/ops/postgres_backup.sh` against the current workflow commit before
+sending the GHCR read token. Set the
+staging Environment variable `STAGING_ATTESTED_DIGEST_READY=true` only after that
+server-local contract has been installed and reviewed. Once enabled, a marker or
+hash mismatch fails the CD job before registry credentials are transmitted, even
+when the later SSH deployment remains optional.
 
 ### 4. Configure Environment
 
@@ -105,6 +123,7 @@ DEBUG=false
 EOF
 
 sudo chown $USER:$USER /srv/pulseplate-staging/.env
+sudo chmod 0600 /srv/pulseplate-staging/.env
 ```
 
 Staging uses the same Postgres-first deploy contract as production: the compose stack includes an internal-only `postgres` service, deploy backups go through `scripts/ops/postgres_backup.sh`, and readiness must be verified via `/ready` or `/health/db`.
@@ -230,21 +249,22 @@ ssh -i ~/.ssh/pulseplate_staging user@your-server-ip
 
 Set the **Environment variable** (Settings → Environments → staging → Environment variables):
 
-- `WEB_IOS_RELEASE_READY` = `false` (default). Keep this `false` until both web and iOS are release-ready. (`.github/workflows/cd.yml:83,98`)
-- `STAGING_DEPLOY_ENABLED` = `true` — enables SSH deploy logic, but deploy still runs only when `WEB_IOS_RELEASE_READY=true`. (`.github/workflows/cd.yml:83,98`)
+- `WEB_IOS_RELEASE_READY` = `false` (default). Keep this `false` until both web and iOS are release-ready.
+- `STAGING_DEPLOY_ENABLED` = `true` — enables SSH deploy logic, but deploy still runs only when all three rollout gates are true.
+- `STAGING_ATTESTED_DIGEST_READY` = `false` (default). Set this to `true` only after the server-local two-digest deploy contract, marker, Compose file, Caddyfile, and deploy script have been synchronized and verified.
 - `STAGING_DEPLOY_REQUIRED` = `true|false` (optional, default `false`) — controls whether a failed staging SSH deploy should fail the whole CD workflow. Keep `false` for non-blocking staging; set `true` when staging deploy must be strict/blocking.
 
 **Build-only policy (canonical):**
-- If `WEB_IOS_RELEASE_READY` is not `true`, CD remains in build/validation mode (image build+push only, no staging SSH deploy). (`.github/workflows/cd.yml:67-77,83,98`)
-- If `WEB_IOS_RELEASE_READY=true` and `STAGING_DEPLOY_ENABLED=true`, deploy runs when required secrets are present. (`.github/workflows/cd.yml:83-99`)
-- If deploy is enabled but `SSH_KEY` or `SSH_HOST_STAGING` is missing, deploy/healthcheck steps are skipped and workflow stays green. (`.github/workflows/cd.yml:81-93,98,127`)
+- Unless `WEB_IOS_RELEASE_READY=true`, `STAGING_DEPLOY_ENABLED=true`, and `STAGING_ATTESTED_DIGEST_READY=true`, CD remains in build/validation mode (image build+push only, no staging SSH deploy).
+- When all three rollout gates are true, deploy runs only when every required staging secret is present.
+- If `STAGING_DEPLOY_REQUIRED=true`, a missing rollout gate or required secret fails the workflow instead of silently skipping deployment.
 
 Add these **secrets** to the `staging` environment:
 
 - `SSH_HOST_STAGING` - Your server IP or domain
 - `SSH_USER` - SSH username (usually `root` or `ubuntu`)
 - `SSH_KEY` - Full private SSH key (PEM format), including `-----BEGIN ... KEY-----` and `-----END ... KEY-----`; preserve newlines when pasting to avoid "ssh: no key found"
-- `SSH_HOST_STAGING_FINGERPRINT` - Staging **server** host key fingerprint, usually `SHA256:...` (optional but recommended). **Easiest from your laptop:** run `ssh -o VisualHostKey=yes user@your-staging-host` and copy the `SHA256:...` line shown when connecting. **Or on the server:** after SSH in, run `sudo ssh-keygen -l -f /etc/ssh/ssh_host_ed25519_key.pub` (or `ssh_host_rsa_key.pub` / `ssh_host_ecdsa_key.pub` if present; list with `ls /etc/ssh/ssh_host_*.pub`).
+- `SSH_HOST_STAGING_FINGERPRINT` - Required staging **server** host key fingerprint, usually `SHA256:...`. **Easiest from your laptop:** run `ssh -o VisualHostKey=yes user@your-staging-host` and copy the `SHA256:...` line shown when connecting. **Or on the server:** after SSH in, run `sudo ssh-keygen -l -f /etc/ssh/ssh_host_ed25519_key.pub` (or `ssh_host_rsa_key.pub` / `ssh_host_ecdsa_key.pub` if present; list with `ls /etc/ssh/ssh_host_*.pub`).
 - `GHCR_READ_TOKEN` - GitHub PAT with `read:packages` permission
 - `STAGING_DOMAIN` - Your staging domain
 
@@ -274,7 +294,8 @@ running app container.
 Evidence: `deploy/Caddyfile.production:25`, `deploy/docker-compose.production.yaml:46`
 
 - This fallback is transport-level only (TLS + reverse proxy) and does not replace a real staging deploy.
-- Once full staging deploy is enabled (`WEB_IOS_RELEASE_READY=true` + staging secrets), verify
+- Once full staging deploy is enabled (`WEB_IOS_RELEASE_READY=true`,
+  `STAGING_DEPLOY_ENABLED=true`, `STAGING_ATTESTED_DIGEST_READY=true` + staging secrets), verify
   `/srv/pulseplate-staging` compose stack is active and remove fallback dependency from ops checks.
 - Temporary seam tracking:
   - ADR: `docs/architecture/ADR_STAGING_TLS_FALLBACK_SEAM_2026-03-04.md`
@@ -294,10 +315,28 @@ Evidence: `deploy/Caddyfile.production:25`, `deploy/docker-compose.production.ya
 ```bash
 # On your server
 cd /srv/pulseplate-staging
-./deploy.sh latest
+read -rsp "GHCR read token: " GHCR_TOKEN
+printf '\n'
+STAGING_DOMAIN=staging.yourdomain.com \
+GHCR_USER=<read-only-ghcr-user> \
+GHCR_TOKEN="$GHCR_TOKEN" \
+./deploy.sh \
+  ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:<verified-backend-digest> \
+  ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:<verified-caddy-digest>
+unset GHCR_TOKEN
 ```
 
+Use digests from the same successful CD attestation run. Tags, commit SHAs,
+`staging-latest`, and `latest` are rejected. Image rollback reuses previously
+verified exact digests; it does not reverse Alembic migrations. Restoring a
+pre-migration database backup is a separate human-approved operation.
+
 ### Automatic Test
+
+Once all three rollout gates are enabled, successful pushes to `main` can
+deploy automatically. The repository does not enforce a per-run human approval
+for staging; configure required reviewers on the GitHub `staging` environment
+if that operational control is desired.
 
 1. Push a commit to `main` branch
 2. Check GitHub Actions → CD workflow
@@ -346,7 +385,7 @@ free -h
 
 ## 💡 Cost Optimization Tips
 
-1. **Use ARM instances** - Often 20-30% cheaper
+1. **Use right-sized x86_64 instances** - Current staging artifacts are amd64-only
 2. **Enable auto-shutdown** - Stop server when not in use
 3. **Monitor usage** - Set up billing alerts
 4. **Use spot instances** - Up to 90% cheaper (with risk of termination)
@@ -380,4 +419,6 @@ docker logs -f caddy
 
 **Total Monthly Cost**: €3-6 for a basic staging environment
 **Setup Time**: 30-60 minutes
-**Maintenance**: Minimal (automatic updates via GitHub Actions)
+**Maintenance**: Operator-managed; app/Caddy artifact deployment can be
+automated after all rollout gates are enabled. Host maintenance, backups,
+volumes, DNS/TLS, and server-local contract synchronization remain manual.

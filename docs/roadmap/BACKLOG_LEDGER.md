@@ -3672,6 +3672,36 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `make openapi-check` remains the canonical sync verifier
     - `AGENTS.md`, runbooks, API map, and CI docs reflect the split workflow without ambiguity
 
+<a id="ledger-p1-caddy-attested-staging-digests"></a>
+- [ ] P1: Harden Caddy and deploy staging by same-job attested digests
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Status: In progress
+  - Target PR: PR #2117 (`codex/caddy-2-11-attested-digests`)
+  - Area: deploy / CD / container supply chain
+  - Finding Type: release integrity and vulnerability remediation
+  - Reason: Active staging accepts floating Caddy/application tags while CD verifies one
+    backend build digest but invokes a server-local deploy script with a different SHA-tag
+    identity. The official Caddy 2.11.4 Alpine artifact also requires bounded remediation
+    for fixed `c-ares`, `curl`/`libcurl`, and Go standard-library findings before
+    PulsePlate can serve it.
+    Current-head Docker validation also exposed the expired review window for the existing
+    pinned SQLite source artifact; PR #2117 revalidates its unchanged URL and SHA3-256 and
+    renews that fail-closed window without changing the SQLite version.
+  - Links:
+    - `frontend/Dockerfile.caddy-spa`
+    - `deploy/docker-compose.staging.yaml`
+    - `scripts/deploy.sh`
+    - `.github/workflows/cd.yml`
+    - `docs/deploy/STAGING.md`
+  - DoD:
+    - PulsePlate Caddy reports v2.11.4 built with Go 1.26.5 and preserves standard modules
+    - Final hardened Caddy image has no HIGH/CRITICAL Trivy findings without suppressions
+    - Backend and Caddy each have distinct provenance, SBOM, verification, and exact-digest scan evidence
+    - Staging Compose and deploy script reject floating/tag-only image references
+    - Default-false rollout gate verifies root-owned marker and current-commit server file hashes before secrets/deploy
+    - Existing SQLite 3.53.2 source URL and SHA3-256 are revalidated and the bounded source-artifact review window is current
+    - No live deploy occurs in the PR; rollout and database-aware rollback remain human-approved
 
 - [ ] P1: Remove staging TLS fallback seam after full staging readiness
   - Owner: @katsiaryna_kavaleuskaya

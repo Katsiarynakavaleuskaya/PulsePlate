@@ -8,7 +8,8 @@
 # only when web + iOS are release-ready. Until then, deploy jobs/steps are skipped
 # and workflow runs in build/validation mode.
 #
-# Staging deploy (optional): set Environment "staging" variable STAGING_DEPLOY_ENABLED=true
+# Staging deploy (optional): set Environment "staging" variables STAGING_DEPLOY_ENABLED=true
+# and STAGING_ATTESTED_DIGEST_READY=true only after the server-local deploy contract is synced,
 # and secrets: SSH_HOST_STAGING, SSH_USER, SSH_KEY, SSH_HOST_STAGING_FINGERPRINT,
 # STAGING_DOMAIN, GHCR_READ_TOKEN. If unset, only build+push run (no SSH); avoids "ssh: no key found".
 #
@@ -48,7 +49,7 @@ jobs:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
-      actions: write
+      actions: read
       attestations: write
       contents: read
       packages: write
@@ -60,7 +61,8 @@ jobs:
       url: https://pulseplate-staging.duckdns.org
     concurrency:
       group: cd-build-${{ github.ref_name }}
-      cancel-in-progress: true
+      # Backup/migration/deploy is stateful and must not be cancelled mid-flight.
+      cancel-in-progress: false
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -69,7 +71,12 @@ jobs:
 
       - name: Free disk space (Ubuntu hosted runner)
         run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc || true
+          set -euo pipefail
+          for path in /usr/share/dotnet /usr/local/lib/android /opt/ghc; do
+            if [ -e "$path" ]; then
+              sudo rm -rf -- "$path"
+            fi
+          done
           df -h
 
       - name: Prepare Docker source artifacts
@@ -92,7 +99,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build & Push image (staging)
+      - name: Build & Push backend image (staging)
         id: build
         uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
         with:
@@ -106,7 +113,7 @@ jobs:
           # buildx + GHA cache/provenance path is stable again.
           platforms: linux/amd64
           push: true
-          tags: ${{ env.REGISTRY }}/${{ steps.image-name.outputs.image_name }}:staging-latest
+          tags: ${{ env.REGISTRY }}/${{ steps.image-name.outputs.image_name }}:staging-backend-${{ github.sha }}
           cache-from: type=gha,scope=cd-staging-${{ github.ref_name }}
           cache-to: type=gha,scope=cd-staging-${{ github.ref_name }},mode=min,ignore-error=true
           # Keep the scoped cache workaround and signed provenance, but avoid
@@ -118,7 +125,45 @@ jobs:
           # staging-specific customizations (e.g., debug logging, extended health checks)
           target: staging
 
-      - name: Attest staged image provenance
+      - name: Build & Push Caddy image (staging)
+        id: build-caddy
+        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile.caddy-spa
+          platforms: linux/amd64
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ steps.image-name.outputs.image_name }}:staging-caddy-${{ github.sha }}
+          cache-from: type=gha,scope=cd-staging-caddy-${{ github.ref_name }}
+          cache-to: type=gha,scope=cd-staging-caddy-${{ github.ref_name }},mode=min,ignore-error=true
+          provenance: mode=min
+          sbom: true
+
+      - name: Validate immutable staging image references
+        id: staging-image-refs
+        env:
+          IMAGE_REPOSITORY: ${{ env.REGISTRY }}/${{ steps.image-name.outputs.image_name }}
+          BACKEND_DIGEST: ${{ steps.build.outputs.digest }}
+          CADDY_DIGEST: ${{ steps.build-caddy.outputs.digest }}
+        run: |
+          set -euo pipefail
+          digest_pattern='^sha256:[0-9a-f]{64}$'
+          if [[ ! "$BACKEND_DIGEST" =~ $digest_pattern ]]; then
+            echo "::error::Invalid backend image digest"
+            exit 1
+          fi
+          if [[ ! "$CADDY_DIGEST" =~ $digest_pattern ]]; then
+            echo "::error::Invalid Caddy image digest"
+            exit 1
+          fi
+          if [ "$BACKEND_DIGEST" = "$CADDY_DIGEST" ]; then
+            echo "::error::Backend and Caddy image digests must be distinct"
+            exit 1
+          fi
+          echo "backend_ref=${IMAGE_REPOSITORY}@${BACKEND_DIGEST}" >> "$GITHUB_OUTPUT"
+          echo "caddy_ref=${IMAGE_REPOSITORY}@${CADDY_DIGEST}" >> "$GITHUB_OUTPUT"
+
+      - name: Attest staged backend image provenance
         id: attest-staged-provenance
         uses: actions/attest-build-provenance@b3e506e8c389afc651c5bacf2b8f2a1ea0557215 # v4
         with:
@@ -126,25 +171,26 @@ jobs:
           subject-digest: ${{ steps.build.outputs.digest }}
           push-to-registry: true
 
-      - name: Generate staged image SBOM
+      - name: Generate staged backend image SBOM
         id: generate-staged-sbom
         uses: anchore/sbom-action@da167eac915b4e86f08b264dbdbc867b61be6f0c # v0.20.5
         with:
           image: ${{ env.REGISTRY }}/${{ steps.image-name.outputs.image_name }}@${{ steps.build.outputs.digest }}
           format: spdx-json
-          output-file: docker-image-sbom.spdx.json
+          output-file: backend-image-sbom.spdx.json
 
-      - name: Attest staged image SBOM
+      - name: Attest staged backend image SBOM
         id: attest-staged-sbom
         uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
         with:
           subject-name: ${{ env.REGISTRY }}/${{ steps.image-name.outputs.image_name }}
           subject-digest: ${{ steps.build.outputs.digest }}
           predicate-type: https://spdx.dev/Document/v2.3
-          predicate-path: docker-image-sbom.spdx.json
+          predicate-path: backend-image-sbom.spdx.json
           push-to-registry: true
 
-      - name: Verify staged image attestations
+      - name: Verify staged backend image attestations
+        id: verify-staged-backend
         if: >-
           ${{
             always()
@@ -156,24 +202,82 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO_SLUG: ${{ github.repository }}
+          SOURCE_REF: ${{ github.ref }}
         run: |
           set -euo pipefail
           python3 scripts/ci/check_docker_provenance_attestation.py \
             --image-name "${{ env.REGISTRY }}/${{ steps.image-name.outputs.image_name }}" \
             --digest "${{ steps.build.outputs.digest }}" \
-            --repo "${{ github.repository }}" \
-            --signer-workflow "${{ github.repository }}/.github/workflows/cd.yml" \
-            --source-ref "${{ github.ref }}" \
-            --json-out docker-provenance-attestation-check.json \
-            --markdown-out docker-provenance-attestation-check.md
+            --repo "$REPO_SLUG" \
+            --signer-workflow "$REPO_SLUG/.github/workflows/cd.yml" \
+            --source-ref "$SOURCE_REF" \
+            --json-out backend-provenance-attestation-check.json \
+            --markdown-out backend-provenance-attestation-check.md
+
+      - name: Attest staged Caddy image provenance
+        id: attest-staged-caddy-provenance
+        uses: actions/attest-build-provenance@b3e506e8c389afc651c5bacf2b8f2a1ea0557215 # v4
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ steps.image-name.outputs.image_name }}
+          subject-digest: ${{ steps.build-caddy.outputs.digest }}
+          push-to-registry: true
+
+      - name: Generate staged Caddy image SBOM
+        id: generate-staged-caddy-sbom
+        uses: anchore/sbom-action@da167eac915b4e86f08b264dbdbc867b61be6f0c # v0.20.5
+        with:
+          image: ${{ env.REGISTRY }}/${{ steps.image-name.outputs.image_name }}@${{ steps.build-caddy.outputs.digest }}
+          format: spdx-json
+          output-file: caddy-image-sbom.spdx.json
+
+      - name: Attest staged Caddy image SBOM
+        id: attest-staged-caddy-sbom
+        uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ steps.image-name.outputs.image_name }}
+          subject-digest: ${{ steps.build-caddy.outputs.digest }}
+          predicate-type: https://spdx.dev/Document/v2.3
+          predicate-path: caddy-image-sbom.spdx.json
+          push-to-registry: true
+
+      - name: Verify staged Caddy image attestations
+        id: verify-staged-caddy
+        if: >-
+          ${{
+            always()
+            && steps.build-caddy.outcome == 'success'
+            && steps.attest-staged-caddy-provenance.outcome == 'success'
+            && steps.generate-staged-caddy-sbom.outcome == 'success'
+            && steps.attest-staged-caddy-sbom.outcome == 'success'
+          }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO_SLUG: ${{ github.repository }}
+          SOURCE_REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          python3 scripts/ci/check_docker_provenance_attestation.py \
+            --image-name "${{ env.REGISTRY }}/${{ steps.image-name.outputs.image_name }}" \
+            --digest "${{ steps.build-caddy.outputs.digest }}" \
+            --repo "$REPO_SLUG" \
+            --signer-workflow "$REPO_SLUG/.github/workflows/cd.yml" \
+            --source-ref "$SOURCE_REF" \
+            --json-out caddy-provenance-attestation-check.json \
+            --markdown-out caddy-provenance-attestation-check.md
 
       - name: Publish staging attestation verification to step summary
         if: ${{ always() }}
         run: |
           set -euo pipefail
-          if [ -f docker-provenance-attestation-check.md ]; then
-            cat docker-provenance-attestation-check.md >> "${GITHUB_STEP_SUMMARY}"
-          fi
+          for report in \
+            backend-provenance-attestation-check.md \
+            caddy-provenance-attestation-check.md; do
+            if [ -f "$report" ]; then
+              cat "$report" >> "${GITHUB_STEP_SUMMARY}"
+            fi
+          done
 
       - name: Upload staging attestation verification artifact
         if: ${{ always() }}
@@ -181,52 +285,196 @@ jobs:
         with:
           name: docker-provenance-attestation-check-cd-staging
           path: |
-            docker-provenance-attestation-check.json
-            docker-provenance-attestation-check.md
-          if-no-files-found: warn
+            backend-provenance-attestation-check.json
+            backend-provenance-attestation-check.md
+            caddy-provenance-attestation-check.json
+            caddy-provenance-attestation-check.md
+          if-no-files-found: error
           retention-days: 14
+
+      - name: Scan staged backend image
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0 / Node 24 cache path
+        with:
+          image-ref: ${{ steps.staging-image-refs.outputs.backend_ref }}
+          format: table
+          vuln-type: os,library
+          severity: CRITICAL,HIGH
+          exit-code: '1'
+          cache-dir: /tmp/trivy-cache-staging-backend
+
+      - name: Scan staged Caddy image
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0 / Node 24 cache path
+        with:
+          image-ref: ${{ steps.staging-image-refs.outputs.caddy_ref }}
+          format: table
+          vuln-type: os,library
+          severity: CRITICAL,HIGH
+          exit-code: '1'
+          cache-dir: /tmp/trivy-cache-staging-caddy
+
+      - name: Enforce required staging deployment policy
+        env:
+          STAGING_DEPLOY_REQUIRED: ${{ vars.STAGING_DEPLOY_REQUIRED }}
+          STAGING_DEPLOY_ENABLED: ${{ vars.STAGING_DEPLOY_ENABLED }}
+          WEB_IOS_RELEASE_READY: ${{ vars.WEB_IOS_RELEASE_READY }}
+          STAGING_ATTESTED_DIGEST_READY: ${{ vars.STAGING_ATTESTED_DIGEST_READY }}
+        run: |
+          set -euo pipefail
+          if [ "${STAGING_DEPLOY_REQUIRED:-false}" != "true" ]; then
+            exit 0
+          fi
+          for required_gate in \
+            STAGING_DEPLOY_ENABLED \
+            WEB_IOS_RELEASE_READY \
+            STAGING_ATTESTED_DIGEST_READY; do
+            if [ "${!required_gate:-false}" != "true" ]; then
+              echo "::error::STAGING_DEPLOY_REQUIRED=true requires ${required_gate}=true."
+              exit 1
+            fi
+          done
 
       # When STAGING_DEPLOY_ENABLED=true but SSH_KEY (or host) is not set, skip deploy to avoid "ssh: no key found" / fingerprint mismatch.
       # Use env so multi-line SSH_KEY is not inlined in run (avoids breaking when key was set and working).
       - name: Check staging deploy readiness
         id: staging-deploy-ready
-        if: vars.STAGING_DEPLOY_ENABLED == 'true' && vars.WEB_IOS_RELEASE_READY == 'true'
+        if: >-
+          vars.STAGING_DEPLOY_ENABLED == 'true'
+          && vars.WEB_IOS_RELEASE_READY == 'true'
+          && vars.STAGING_ATTESTED_DIGEST_READY == 'true'
         env:
           SSH_KEY_REF: ${{ secrets.SSH_KEY }}
           SSH_HOST_REF: ${{ secrets.SSH_HOST_STAGING }}
+          SSH_USER_REF: ${{ secrets.SSH_USER }}
+          SSH_FINGERPRINT_REF: ${{ secrets.SSH_HOST_STAGING_FINGERPRINT }}
+          STAGING_DOMAIN_REF: ${{ secrets.STAGING_DOMAIN }}
+          GHCR_READ_TOKEN_REF: ${{ secrets.GHCR_READ_TOKEN }}
+          STAGING_DEPLOY_REQUIRED: ${{ vars.STAGING_DEPLOY_REQUIRED }}
         run: |
-          if [ -z "$SSH_KEY_REF" ] || [ -z "$SSH_HOST_REF" ]; then
+          set -euo pipefail
+          if [ -z "$SSH_KEY_REF" ] || [ -z "$SSH_HOST_REF" ] || \
+             [ -z "$SSH_USER_REF" ] || [ -z "$SSH_FINGERPRINT_REF" ] || \
+             [ -z "$STAGING_DOMAIN_REF" ] || [ -z "$GHCR_READ_TOKEN_REF" ]; then
             echo "skip=1" >> "$GITHUB_OUTPUT"
-            echo "Staging deploy skipped: SSH_KEY or SSH_HOST_STAGING not configured."
+            echo "Staging deploy skipped: required staging credentials are incomplete."
+            if [ "${STAGING_DEPLOY_REQUIRED:-false}" = "true" ]; then
+              echo "::error::STAGING_DEPLOY_REQUIRED=true, but staging credentials are incomplete."
+              exit 1
+            fi
           else
             echo "skip=0" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Deploy to staging over SSH
-        id: deploy-staging
-        continue-on-error: true
-        if: vars.STAGING_DEPLOY_ENABLED == 'true' && vars.WEB_IOS_RELEASE_READY == 'true' && steps.staging-deploy-ready.outputs.skip != '1'
+      - name: Prepare staging deploy contract hashes
+        id: staging-contract
+        if: >-
+          vars.STAGING_DEPLOY_ENABLED == 'true'
+          && vars.WEB_IOS_RELEASE_READY == 'true'
+          && vars.STAGING_ATTESTED_DIGEST_READY == 'true'
+          && steps.staging-deploy-ready.outputs.skip != '1'
+        run: |
+          set -euo pipefail
+          {
+            echo "deploy_script_sha256=$(sha256sum scripts/deploy.sh | cut -d' ' -f1)"
+            echo "staging_compose_sha256=$(sha256sum deploy/docker-compose.staging.yaml | cut -d' ' -f1)"
+            echo "staging_caddyfile_sha256=$(sha256sum deploy/Caddyfile | cut -d' ' -f1)"
+            echo "backup_helper_sha256=$(sha256sum scripts/ops/postgres_backup.sh | cut -d' ' -f1)"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Verify remote staging deploy contract
+        id: staging-contract-preflight
+        if: >-
+          vars.STAGING_DEPLOY_ENABLED == 'true'
+          && vars.WEB_IOS_RELEASE_READY == 'true'
+          && vars.STAGING_ATTESTED_DIGEST_READY == 'true'
+          && steps.staging-deploy-ready.outputs.skip != '1'
+          && steps.staging-contract.outcome == 'success'
         uses: appleboy/ssh-action@3ca8a7c5359ac6ad91aa47f1946ece1c3b025004
+        env:
+          STAGING_DOMAIN: ${{ secrets.STAGING_DOMAIN }}
+          STAGING_IMAGE_REF: ${{ steps.staging-image-refs.outputs.backend_ref }}
+          STAGING_CADDY_IMAGE_REF: ${{ steps.staging-image-refs.outputs.caddy_ref }}
+          DEPLOY_SCRIPT_SHA256: ${{ steps.staging-contract.outputs.deploy_script_sha256 }}
+          STAGING_COMPOSE_SHA256: ${{ steps.staging-contract.outputs.staging_compose_sha256 }}
+          STAGING_CADDYFILE_SHA256: ${{ steps.staging-contract.outputs.staging_caddyfile_sha256 }}
+          BACKUP_HELPER_SHA256: ${{ steps.staging-contract.outputs.backup_helper_sha256 }}
         with:
           host: ${{ secrets.SSH_HOST_STAGING }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           fingerprint: ${{ secrets.SSH_HOST_STAGING_FINGERPRINT }}
+          envs: STAGING_DOMAIN,STAGING_IMAGE_REF,STAGING_CADDY_IMAGE_REF,DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256
           script: |
             set -euo pipefail
-            export GHCR_USER='${{ github.repository_owner }}'
-            export GHCR_TOKEN='${{ secrets.GHCR_READ_TOKEN }}'
-            export STAGING_DOMAIN='${{ secrets.STAGING_DOMAIN }}'
             cd /srv/pulseplate-staging
-            ./deploy.sh '${{ github.sha }}'
+            marker=.attested-digest-deploy-v1
+            [ ! -L "$marker" ] && [ -f "$marker" ]
+            [ "$(stat -c '%u:%g:%a' "$marker")" = "0:0:644" ]
+            [ "$(stat -c '%s' "$marker")" -eq 37 ]
+            [ "$(cat "$marker")" = "pulseplate-staging-attested-digest-v1" ]
+            grep -Fqx 'STAGING_DEPLOY_CONTRACT_VERSION="2"' ./deploy.sh
+            [ "$(sha256sum ./deploy.sh | cut -d' ' -f1)" = "$DEPLOY_SCRIPT_SHA256" ]
+            [ "$(sha256sum ./docker-compose.staging.yaml | cut -d' ' -f1)" = "$STAGING_COMPOSE_SHA256" ]
+            [ "$(sha256sum ./Caddyfile | cut -d' ' -f1)" = "$STAGING_CADDYFILE_SHA256" ]
+            [ ! -L ./scripts/ops/postgres_backup.sh ]
+            [ "$(sha256sum ./scripts/ops/postgres_backup.sh | cut -d' ' -f1)" = "$BACKUP_HELPER_SHA256" ]
+            ./deploy.sh --preflight-only "$STAGING_IMAGE_REF" "$STAGING_CADDY_IMAGE_REF"
 
-      - name: Handle staging deploy failure (non-blocking by default)
-        if: vars.STAGING_DEPLOY_ENABLED == 'true' && steps.staging-deploy-ready.outputs.skip != '1' && steps.deploy-staging.outcome == 'failure'
+      - name: Deploy to staging over SSH
+        id: deploy-staging
+        continue-on-error: true
+        if: >-
+          vars.STAGING_DEPLOY_ENABLED == 'true'
+          && vars.WEB_IOS_RELEASE_READY == 'true'
+          && vars.STAGING_ATTESTED_DIGEST_READY == 'true'
+          && steps.staging-deploy-ready.outputs.skip != '1'
+          && steps.staging-contract-preflight.outcome == 'success'
+        uses: appleboy/ssh-action@3ca8a7c5359ac6ad91aa47f1946ece1c3b025004
+        env:
+          GHCR_USER: ${{ github.repository_owner }}
+          GHCR_TOKEN: ${{ secrets.GHCR_READ_TOKEN }}
+          STAGING_DOMAIN: ${{ secrets.STAGING_DOMAIN }}
+          STAGING_IMAGE_REF: ${{ steps.staging-image-refs.outputs.backend_ref }}
+          STAGING_CADDY_IMAGE_REF: ${{ steps.staging-image-refs.outputs.caddy_ref }}
+          DEPLOY_SCRIPT_SHA256: ${{ steps.staging-contract.outputs.deploy_script_sha256 }}
+          STAGING_COMPOSE_SHA256: ${{ steps.staging-contract.outputs.staging_compose_sha256 }}
+          STAGING_CADDYFILE_SHA256: ${{ steps.staging-contract.outputs.staging_caddyfile_sha256 }}
+          BACKUP_HELPER_SHA256: ${{ steps.staging-contract.outputs.backup_helper_sha256 }}
+        with:
+          host: ${{ secrets.SSH_HOST_STAGING }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          fingerprint: ${{ secrets.SSH_HOST_STAGING_FINGERPRINT }}
+          envs: GHCR_USER,GHCR_TOKEN,STAGING_DOMAIN,STAGING_IMAGE_REF,STAGING_CADDY_IMAGE_REF,DEPLOY_SCRIPT_SHA256,STAGING_COMPOSE_SHA256,STAGING_CADDYFILE_SHA256,BACKUP_HELPER_SHA256
+          script: |
+            set -euo pipefail
+            cd /srv/pulseplate-staging
+            marker=.attested-digest-deploy-v1
+            [ ! -L "$marker" ] && [ -f "$marker" ]
+            [ "$(stat -c '%u:%g:%a' "$marker")" = "0:0:644" ]
+            [ "$(stat -c '%s' "$marker")" -eq 37 ]
+            [ "$(cat "$marker")" = "pulseplate-staging-attested-digest-v1" ]
+            grep -Fqx 'STAGING_DEPLOY_CONTRACT_VERSION="2"' ./deploy.sh
+            [ "$(sha256sum ./deploy.sh | cut -d' ' -f1)" = "$DEPLOY_SCRIPT_SHA256" ]
+            [ "$(sha256sum ./docker-compose.staging.yaml | cut -d' ' -f1)" = "$STAGING_COMPOSE_SHA256" ]
+            [ "$(sha256sum ./Caddyfile | cut -d' ' -f1)" = "$STAGING_CADDYFILE_SHA256" ]
+            [ ! -L ./scripts/ops/postgres_backup.sh ]
+            [ "$(sha256sum ./scripts/ops/postgres_backup.sh | cut -d' ' -f1)" = "$BACKUP_HELPER_SHA256" ]
+            ./deploy.sh "$STAGING_IMAGE_REF" "$STAGING_CADDY_IMAGE_REF"
+
+      - name: Handle staging deployment failure (non-blocking by default)
+        if: >-
+          always()
+          && vars.STAGING_DEPLOY_ENABLED == 'true'
+          && vars.WEB_IOS_RELEASE_READY == 'true'
+          && vars.STAGING_ATTESTED_DIGEST_READY == 'true'
+          && steps.staging-deploy-ready.outputs.skip != '1'
+          && steps.staging-contract-preflight.outcome == 'success'
+          && steps.deploy-staging.outcome == 'failure'
         env:
           STAGING_DEPLOY_REQUIRED: ${{ vars.STAGING_DEPLOY_REQUIRED }}
         run: |
-          echo "::warning::Staging SSH deploy failed. Common cause: SSH_HOST_STAGING_FINGERPRINT is outdated (host key rotated)."
-          echo "::warning::Rotate staging host fingerprint secret and re-run CD."
+          echo "::warning::Staging SSH deploy failed."
+          echo "::warning::Inspect the host logs or rotate the fingerprint, then re-run CD."
           if [ "${STAGING_DEPLOY_REQUIRED:-false}" = "true" ]; then
             echo "::error::STAGING_DEPLOY_REQUIRED=true, failing workflow due to staging deploy failure."
             exit 1
@@ -234,11 +482,19 @@ jobs:
           echo "Continuing because STAGING_DEPLOY_REQUIRED is not true."
 
       - name: Healthcheck (staging)
-        if: vars.STAGING_DEPLOY_ENABLED == 'true' && steps.staging-deploy-ready.outputs.skip != '1' && steps.deploy-staging.outcome == 'success'
+        if: >-
+          vars.STAGING_DEPLOY_ENABLED == 'true'
+          && vars.WEB_IOS_RELEASE_READY == 'true'
+          && vars.STAGING_ATTESTED_DIGEST_READY == 'true'
+          && steps.staging-deploy-ready.outputs.skip != '1'
+          && steps.staging-contract-preflight.outcome == 'success'
+          && steps.deploy-staging.outcome == 'success'
+        env:
+          STAGING_DOMAIN_REF: ${{ secrets.STAGING_DOMAIN }}
         run: |
           set -euo pipefail
           for i in 1 2 3; do
-            if curl -fsS --max-time 10 "https://${{ secrets.STAGING_DOMAIN }}/ready" > /dev/null; then
+            if curl -fsS --max-time 10 "https://${STAGING_DOMAIN_REF}/ready" > /dev/null; then
               echo "Healthcheck passed"
               exit 0
             fi
