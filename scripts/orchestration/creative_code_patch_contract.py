@@ -79,6 +79,7 @@ TerminalOutcomeCoherenceViolation = Literal[
     "accepted_with_failure_class",
     "rejected_without_failure_class",
     "accepted_with_nonaccepted_runner",
+    "accepted_without_runner_proof",
     "accepted_without_workspace_proof",
     "rejected_capability_without_runner_proof",
     "rejected_failure_mismatch",
@@ -112,6 +113,9 @@ def classify_terminal_outcome_coherence(
     failure_class: str | None,
     runner_status: str,
     runner_failure_class: str | None,
+    runner_oracle_commands_configured: int,
+    runner_oracle_commands_executed: int,
+    runner_shared_tree_untouched: bool,
     workspace_summary: Mapping[str, Any],
 ) -> TerminalOutcomeCoherenceViolation | None:
     """Apply shared result/receipt coherence rules in canonical precedence."""
@@ -124,6 +128,12 @@ def classify_terminal_outcome_coherence(
         return failure_violation
     if status == "accepted" and runner_status != "accepted":
         return "accepted_with_nonaccepted_runner"
+    if status == "accepted" and (
+        runner_oracle_commands_configured < 1
+        or runner_oracle_commands_executed != runner_oracle_commands_configured
+        or not runner_shared_tree_untouched
+    ):
+        return "accepted_without_runner_proof"
     if status == "accepted" and not (
         workspace_summary["origin_removed"]
         and workspace_summary["checkout_destroyed"]
@@ -1176,6 +1186,9 @@ def validate_creative_code_patch_result(payload: dict[str, Any]) -> dict[str, An
         failure_class=normalized["failure_class"],
         runner_status=runner_summary["status"],
         runner_failure_class=runner_summary["failure_class"],
+        runner_oracle_commands_configured=runner_summary["oracle_commands_configured"],
+        runner_oracle_commands_executed=runner_summary["oracle_commands_executed"],
+        runner_shared_tree_untouched=runner_summary["shared_tree_untouched"],
         workspace_summary=workspace_summary,
     )
     if coherence_violation == "accepted_with_failure_class":
@@ -1184,6 +1197,10 @@ def validate_creative_code_patch_result(payload: dict[str, Any]) -> dict[str, An
         raise CreativeCodePatchContractError("rejected results require failure_class.")
     if coherence_violation == "accepted_with_nonaccepted_runner":
         raise CreativeCodePatchContractError("accepted results require an accepted runner summary.")
+    if coherence_violation == "accepted_without_runner_proof":
+        raise CreativeCodePatchContractError(
+            "accepted results require complete runner oracle and shared-tree proof."
+        )
     if coherence_violation == "accepted_without_workspace_proof":
         raise CreativeCodePatchContractError("accepted results require full workspace proof.")
     if coherence_violation == "rejected_capability_without_runner_proof":

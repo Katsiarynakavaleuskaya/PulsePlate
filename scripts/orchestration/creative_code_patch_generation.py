@@ -1244,6 +1244,9 @@ def validate_generation_receipt(payload: Mapping[str, Any]) -> dict[str, Any]:
         failure_class=failure_class,
         runner_status=runner_summary["status"],
         runner_failure_class=runner_summary["failure_class"],
+        runner_oracle_commands_configured=runner_summary["oracle_commands_configured"],
+        runner_oracle_commands_executed=runner_summary["oracle_commands_executed"],
+        runner_shared_tree_untouched=runner_summary["shared_tree_untouched"],
         workspace_summary=workspace_summary,
     )
     if coherence_violation == "accepted_with_failure_class":
@@ -1253,6 +1256,10 @@ def validate_generation_receipt(payload: Mapping[str, Any]) -> dict[str, Any]:
     if coherence_violation == "accepted_with_nonaccepted_runner":
         raise CreativeCodePatchGenerationError(
             "accepted receipt requires an accepted runner summary."
+        )
+    if coherence_violation == "accepted_without_runner_proof":
+        raise CreativeCodePatchGenerationError(
+            "accepted receipt requires complete runner oracle and shared-tree proof."
         )
     if coherence_violation == "accepted_without_workspace_proof":
         raise CreativeCodePatchGenerationError("accepted receipt requires full workspace proof.")

@@ -885,6 +885,15 @@ def validate_experiment_result(result: dict[str, Any]) -> dict[str, Any]:
     budget_observations = result.get("budget_observations")
     if not isinstance(budget_observations, dict):
         raise ValueError("Experiment result budget_observations must be an object.")
+    oracle_commands_executed = budget_observations.get("oracle_commands_executed")
+    if oracle_commands_executed is not None:
+        if not isinstance(oracle_commands_executed, int) or isinstance(
+            oracle_commands_executed, bool
+        ):
+            raise ValueError(
+                "Experiment result budget_observations.oracle_commands_executed "
+                "must be an integer."
+            )
 
     shared_tree_untouched = result.get("shared_tree_untouched")
     if not isinstance(shared_tree_untouched, bool):
@@ -993,6 +1002,11 @@ def validate_experiment_result(result: dict[str, Any]) -> dict[str, Any]:
         oracle_commands_executed=len(oracle_results),
         label="Experiment result budget_observations",
     )
+    if oracle_commands_executed is not None and oracle_commands_executed != len(oracle_results):
+        raise ValueError(
+            "Experiment result budget_observations.oracle_commands_executed "
+            "must match oracle_results."
+        )
 
     candidate_patch = str(result.get("candidate_patch", "")).strip()
     if not candidate_patch:

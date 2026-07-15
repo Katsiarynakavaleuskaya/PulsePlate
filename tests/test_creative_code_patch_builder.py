@@ -334,8 +334,20 @@ def test_reference_patch_contracts_validate_and_schema_is_closed() -> None:
         "failure_class"
     )
     assert result_schema["allOf"][0]["then"]["properties"]["runner_summary"] == {
-        "properties": {"status": {"const": "accepted"}}
+        "$ref": "#/$defs/accepted_runner_proof"
     }
+    accepted_runner_proof = result_schema["$defs"]["accepted_runner_proof"]
+    assert accepted_runner_proof["properties"]["status"] == {"const": "accepted"}
+    assert accepted_runner_proof["properties"]["failure_class"] == {"const": None}
+    assert accepted_runner_proof["properties"]["shared_tree_untouched"] == {"const": True}
+    accepted_oracle_pairs = {
+        (
+            pair["properties"]["oracle_commands_configured"]["const"],
+            pair["properties"]["oracle_commands_executed"]["const"],
+        )
+        for pair in accepted_runner_proof["oneOf"]
+    }
+    assert accepted_oracle_pairs == {(count, count) for count in range(1, 21)}
     ordered_failure_classes = result_schema["$defs"]["failure_class"]["enum"][1:]
     assert result_schema["allOf"][1]["then"]["properties"]["failure_class"]["enum"] == (
         ordered_failure_classes
@@ -539,6 +551,27 @@ def test_patch_result_rejects_incoherent_runner_status_and_preserves_wrapper_rej
         match="capability_mismatch results require a rejected runner summary",
     ):
         validate_creative_code_patch_result(capability_without_runner_proof)
+
+
+@pytest.mark.parametrize(
+    "runner_updates",
+    [
+        {"shared_tree_untouched": False},
+        {"oracle_commands_configured": 0, "oracle_commands_executed": 0},
+        {"oracle_commands_configured": 2, "oracle_commands_executed": 1},
+    ],
+)
+def test_patch_result_rejects_incomplete_accepted_runner_proof(
+    runner_updates: dict[str, Any],
+) -> None:
+    result = _reference_result()
+    result["runner_summary"].update(runner_updates)
+
+    with pytest.raises(
+        CreativeCodePatchContractError,
+        match="accepted results require complete runner oracle and shared-tree proof",
+    ):
+        validate_creative_code_patch_result(result)
 
 
 @pytest.mark.parametrize(

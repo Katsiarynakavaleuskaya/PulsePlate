@@ -627,6 +627,20 @@ def test_receipt_validator_rejects_unknown_failures_and_incoherent_runner_status
     ):
         validate_generation_receipt(accepted_with_rejected_runner)
 
+    for runner_updates in (
+        {"shared_tree_untouched": False},
+        {"oracle_commands_configured": 0, "oracle_commands_executed": 0},
+        {"oracle_commands_configured": 2, "oracle_commands_executed": 1},
+    ):
+        incomplete_runner_proof = deepcopy(reference)
+        incomplete_runner_proof["runner_summary"].update(runner_updates)
+        _reset_receipt_identity(incomplete_runner_proof)
+        with pytest.raises(
+            CreativeCodePatchGenerationError,
+            match="accepted receipt requires complete runner oracle and shared-tree proof",
+        ):
+            validate_generation_receipt(incomplete_runner_proof)
+
     wrapper_rejection = deepcopy(reference)
     wrapper_rejection["status"] = "rejected"
     wrapper_rejection["failure_class"] = "guard_failure"
@@ -768,7 +782,7 @@ def test_validate_artifacts_rejects_stale_result_fingerprint(
     run_dir = creative_code_patch_workspace.resolve_run_dir(run_id, create=False)
     result_path = run_dir / creative_code_patch_builder.RESULT_FILE
     result = json.loads(result_path.read_text(encoding="utf-8"))
-    result["runner_summary"]["oracle_commands_executed"] = 0
+    result["runner_summary"]["runner_result_fingerprint"] = "sha256:" + ("0" * 64)
     _write_json(result_path, result)
 
     assert (
@@ -1519,8 +1533,20 @@ def test_generation_schemas_are_closed_and_authority_is_const_false() -> None:
     assert receipt_schema["$defs"]["failure_class"]["enum"] == [None, *failure_classes]
     assert receipt_schema["allOf"][0]["then"]["properties"]["failure_class"] == {"const": None}
     assert receipt_schema["allOf"][0]["then"]["properties"]["runner_summary"] == {
-        "properties": {"status": {"const": "accepted"}}
+        "$ref": "#/$defs/accepted_runner_proof"
     }
+    accepted_runner_proof = receipt_schema["$defs"]["accepted_runner_proof"]
+    assert accepted_runner_proof["properties"]["status"] == {"const": "accepted"}
+    assert accepted_runner_proof["properties"]["failure_class"] == {"const": None}
+    assert accepted_runner_proof["properties"]["shared_tree_untouched"] == {"const": True}
+    accepted_oracle_pairs = {
+        (
+            pair["properties"]["oracle_commands_configured"]["const"],
+            pair["properties"]["oracle_commands_executed"]["const"],
+        )
+        for pair in accepted_runner_proof["oneOf"]
+    }
+    assert accepted_oracle_pairs == {(count, count) for count in range(1, 21)}
     assert (
         receipt_schema["allOf"][1]["then"]["properties"]["failure_class"]["enum"] == failure_classes
     )

@@ -100,6 +100,10 @@ def _result_payload(
         coauthor_required = False
         coauthor_reason = ""
 
+    normalized_budget_observations = dict(budget_observations)
+    if "oracle_commands_executed" in normalized_budget_observations:
+        normalized_budget_observations["oracle_commands_executed"] = len(oracle_results)
+
     return {
         "schema_version": RESULT_SCHEMA_VERSION,
         "experiment_id": experiment_id,
@@ -109,7 +113,7 @@ def _result_payload(
         "failure_class": failure_class,
         "mutated_paths": mutated_paths,
         "oracle_results": oracle_results,
-        "budget_observations": budget_observations,
+        "budget_observations": normalized_budget_observations,
         "shared_tree_untouched": shared_tree_untouched,
         "promotion_ready": False,
         "contribution_kind": contribution_kind,

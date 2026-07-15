@@ -1349,11 +1349,13 @@ def test_evaluate_candidate_classifies_returned_capability_loss_after_infra_retr
     capability_path_canary = "/Users/returned-capability-loss-canary"
     capability_credential_canary = "returned-credential-capability-loss-canary"
 
-    def _mixed_failure(**_kwargs: object) -> dict[str, Any]:
+    def _mixed_failure(**kwargs: object) -> dict[str, Any]:
         nonlocal calls
         calls += 1
         if calls == 1:
             raise experiment_runner.InfraFlakeError(infra_canary)
+        budget_observations = cast(dict[str, Any], kwargs["budget_observations"])
+        budget_observations["oracle_commands_executed"] = 1
         return {
             "status": "rejected",
             "failure_class": "capability_mismatch",
@@ -1371,6 +1373,8 @@ def test_evaluate_candidate_classifies_returned_capability_loss_after_infra_retr
     assert result["status"] == "rejected"
     assert result["failure_class"] == "infra_flake"
     assert result["promotion_ready"] is False
+    assert result["oracle_results"] == []
+    assert result["budget_observations"]["oracle_commands_executed"] == 0
     assert result["budget_observations"]["attempts"] == 2
     assert result["budget_observations"]["retries_consumed"] == 1
     assert experiment_contract.validate_experiment_result(result)["failure_class"] == "infra_flake"
@@ -1381,6 +1385,19 @@ def test_evaluate_candidate_classifies_returned_capability_loss_after_infra_retr
     assert infra_canary not in serialized
     assert capability_path_canary not in serialized
     assert capability_credential_canary not in serialized
+
+    tampered = {
+        **result,
+        "budget_observations": {
+            **result["budget_observations"],
+            "oracle_commands_executed": 1,
+        },
+    }
+    with pytest.raises(
+        ValueError,
+        match="oracle_commands_executed must match oracle_results",
+    ):
+        experiment_contract.validate_experiment_result(tampered)
 
 
 def test_evaluate_candidate_allows_first_oracle_on_one_second_budget(
