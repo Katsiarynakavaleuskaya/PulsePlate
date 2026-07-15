@@ -348,6 +348,11 @@ if [ ${#TEST_FILES[@]} -gt 0 ]; then
     declare -a PYTEST_ARGS=("-q" "--tb=short")
     if [ -n "${PRE_COMMIT:-}" ]; then
         PYTEST_ARGS+=("-x")
+        # Coverage is intentionally test-profile-only and absent from ci-lite.
+        # test-main, validate-changed, and pre-push still execute this canary.
+        PYTEST_ARGS+=(
+            "--deselect=tests/test_python_supply_chain_controls.py::test_coverage_html_context_is_safely_escaped"
+        )
         log_debug "pytest fast-fail enabled (-x) for pre-commit"
     fi
 

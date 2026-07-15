@@ -270,7 +270,6 @@ DEPENDENCY_SURFACES: tuple[DependencySurface, ...] = (
         install_authority="Manual local locked-installer sync only",
         pip_audit_required=True,
         dependency_submission_required=True,
-        allow_lock_directives=("--extra-index-url https://download.pytorch.org/whl/cpu",),
         compile_profile="rag-vector-cpu",
         compile_sources=("requirements-rag-vector-cpu.in",),
     ),

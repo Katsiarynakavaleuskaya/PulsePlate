@@ -35,6 +35,7 @@ from scripts.ci.check_private_python_proxy_health import (  # noqa: E402
 )
 from scripts.ci.check_python_dependency_surfaces import (  # noqa: E402
     DependencySurface,
+    FORBIDDEN_LOCK_TOKENS,
     _requirement_package_names,
     compiled_dependency_surfaces,
     render_governed_lock_header,
@@ -329,6 +330,22 @@ def _exact_pin_map(text: str, *, label: str) -> dict[str, ExactPin]:
     return pins
 
 
+def _validate_candidate_surface(surface: DependencySurface, candidate_text: str) -> None:
+    """Reject resolver metadata that must never survive into a governed lock."""
+
+    for token in FORBIDDEN_LOCK_TOKENS:
+        if token in candidate_text:
+            raise RuntimeError(
+                f"{surface.lockfile}: forbidden token in resolver candidate: {token!r}"
+            )
+    for raw_line in candidate_text.splitlines():
+        line = raw_line.split("#", 1)[0].strip()
+        if line.startswith(("-", "--")):
+            raise RuntimeError(
+                f"{surface.lockfile}: unexpected resolver directive in candidate: {line!r}"
+            )
+
+
 def _validate_candidate_delta(
     *,
     surface: DependencySurface,
@@ -338,6 +355,7 @@ def _validate_candidate_delta(
     graph_changes: frozenset[str],
     repo_root: Path,
 ) -> None:
+    _validate_candidate_surface(surface, candidate_text)
     baseline = _exact_pin_map(baseline_text, label=f"{surface.lockfile} baseline")
     candidate = _exact_pin_map(candidate_text, label=f"{surface.lockfile} candidate")
     if "pip" in candidate:

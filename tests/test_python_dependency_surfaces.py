@@ -1081,6 +1081,11 @@ def test_candidate_delta_allows_only_exact_reviewed_graph_changes(tmp_path: Path
             "coverage[toml]==7.15.1\nfaker==40.31.0\n",
             "dependency graph change is not exactly authorized",
         ),
+        (
+            "--index-url https://pypi.org/simple\n"
+            "coverage[toml]==7.15.1\nfaker==40.31.0\npytest==9.1.3\n",
+            "unexpected resolver directive in candidate",
+        ),
     ),
 )
 def test_prepare_lock_rejects_unsafe_candidate_without_mutating_output(
@@ -1280,16 +1285,13 @@ def test_source_manifest_rejects_direct_urls_and_unowned_directives(tmp_path: Pa
     with pytest.raises(RuntimeError, match="Unsupported resolver directive"):
         compiler._validate_source_manifest(tmp_path, source)
 
-    cpu_index = "--extra-index-url https://download.pytorch.org/whl/cpu"
-    source.write_text(f"{cpu_index}\n", encoding="utf-8")
-    assert (
-        compiler._validate_source_manifest(
-            tmp_path,
-            source,
-            allow_directives=(cpu_index,),
-        )
-        == ()
+    source.write_text(
+        "--extra-index-url https://download.pytorch.org/whl/cpu\n",
+        encoding="utf-8",
     )
+    assert not _surface("rag-vector-cpu").allow_lock_directives
+    with pytest.raises(RuntimeError, match="Unsupported resolver directive"):
+        compiler._validate_source_manifest(tmp_path, source)
 
 
 def test_direct_helper_invocation_requires_make_authority(
