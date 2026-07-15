@@ -37,10 +37,12 @@ contracts.
 - `a0696db25d0ce31ea5a7bc1bcd69ee078d65d345` - add a fail-fast
   `Path.mkdir` oracle so lineage rejection proves that neither run-owned
   staging nor final publication can be created before failure.
+- `a9f990956e73ee2adae34ca0b36ee92cae5d71c8` - extend the lineage no-write
+  oracle so direct top-level `spec_bridge` file, link, and open/write attempts
+  fail fast without restoring flaky whole-directory snapshots.
 
 Last validated material head:
-`a0696db25d0ce31ea5a7bc1bcd69ee078d65d345`. Any later tracked commits in this
-lane are governance-only updates to this canonical artifact.
+`a9f990956e73ee2adae34ca0b36ee92cae5d71c8`.
 
 ## Governance Remediation Commit
 
@@ -59,7 +61,7 @@ lane are governance-only updates to this canonical artifact.
   governance activity, including the mutable CodeRabbit walkthrough and Codex
   review `4703668869`.
 - [x] Current bot capacity and status notices dispositioned below.
-- [x] All five actionable review threads and their actionable review summaries
+- [x] All six actionable review threads and their actionable review summaries
   dispositioned below.
 - [x] Mandatory post-open role-agent chain completed.
 - [x] Codex Security diff scan and `pulseplate-pr-review` completed.
@@ -68,6 +70,11 @@ lane are governance-only updates to this canonical artifact.
   `fd1bc481a`, including Python 3.13 and diff coverage. The first strict
   authenticated wrapper at `fd1bc481a` correctly stopped on the new Codex
   thread below instead of issuing a stale readiness result.
+- [x] Current-head CI run `29415036355` completed successfully at `a0e39ef9`,
+  including lint, security, OpenAPI sync, Python 3.13 `test-pr`, `coverage-pr`,
+  and `diff-coverage`. It is superseded for merge readiness by the later
+  lineage write-guard fix commit `a9f990956`, which must receive its own final
+  current-head cycle.
 
 ## Fixed in Commit Mapping
 
@@ -96,6 +103,11 @@ Reason: The body-only `2d5fbaab` snapshot is not in the GitHub PR commit list, a
 Disposition: NOT-A-BUG
 Evidence: GitHub anchors PR head, review `4703668869`, and inline comment `3586875307` to actual commit `fd1bc481a88c5edc5977edddc25d98341f9d7e60`; the PR commits API contains the complete linear history from `f4efdc363` through `fd1bc481a`, `git merge-base --is-ancestor` exits `0` for both material proof commits against `fd1bc481a`, and `f4efdc363` carries the required Experiment Runner co-author trailer.
 Reason: The comment's `e0eecfb` snapshot is absent from the GitHub PR commit list, and the repository commit endpoint returns `No commit found for SHA: e0eecfb (HTTP 422)`. It cannot replace the authoritative GitHub review commit or invalidate evidence already bound to final material head `a0696db25`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2136#discussion_r3587228123 -> a9f990956e73ee2adae34ca0b36ee92cae5d71c8
+Disposition: FIXED
+Commit: a9f990956e73ee2adae34ca0b36ee92cae5d71c8
+Evidence: `tests/test_creative_pilot_workspace.py:1701` now routes lineage failure no-write checks through one direct-`spec_bridge` artifact guard and applies it to `Path.mkdir`, write-mode `Path.open`, write-mode builtins `open`, `Path.touch`, `Path.symlink_to`, `Path.hardlink_to`, `os.open`, and `os.symlink` before preserving the independent publisher spy. The focused lineage test, 12-test adaptive-resume pack, and full `tests/test_creative_pilot_workspace.py` all passed after the fix; the post-comment commit is not trigger-only.
 
 ## Bot Capacity and Status Notices
 
@@ -159,9 +171,9 @@ finding or merge-readiness evidence.
 - Foreign regression artifacts leak across shards: FIXED by unique sibling
   identities and `finally` cleanup of every recorded publication path.
 - Invalid lineage reaches publication after removing whole-tree equality:
-  FIXED by fail-fast spies on both direct `Path.mkdir` staging/output creation
-  under `spec_root` and `_atomic_publish_directory_noreplace`, while retaining
-  exit-code, error-text, traceback, and byte-stability assertions.
+  FIXED by fail-fast spies on direct top-level `spec_bridge` directory, file,
+  link, and open/write creation attempts plus `_atomic_publish_directory_noreplace`,
+  while retaining exit-code, error-text, traceback, and byte-stability assertions.
 - Runtime/governance scope silently widens: NOT-A-BUG. The material commit
   changes one test file; this numbered artifact is mandatory governance
   overhead and does not alter runtime behavior.
@@ -210,6 +222,10 @@ network authority.
 - PASS at material head `a0696db25`: canonical CI `lint`, `security`, Python
   3.13 `test-pr`, `coverage-pr`, `diff-coverage`, CodeQL, Codecov patch,
   governance, and applicable build checks.
+- PASS at governance head `a0e39ef9`: canonical CI run `29415036355`
+  completed `lint`, `security`, OpenAPI sync, Python 3.13 `test-pr`,
+  `coverage-pr`, and `diff-coverage`. This evidence is superseded for merge
+  readiness by material fix commit `a9f990956`.
 - EXPECTED SKIP: `test-main`, `test-feature`, `coverage-main`, and
   `coverage-feature` were not selected by the canonical changed-path router;
   the applicable Python 3.13 `test-pr` job passed.
@@ -274,8 +290,8 @@ confirmed main flake; prefer a narrow follow-up receipt-contract update.
 - [ ] Mandatory post-open review/security chain completed.
 - [ ] Sealed Codex Security scan and `pulseplate-pr-review` completed at the
   final material head.
-- [ ] Applicable current-head CI at material head `a0696db25` is terminal PASS;
-  the Python 3.13 `test-pr` lane ran, while `test-main` was canonically skipped.
+- [ ] Applicable current-head CI at material head `a9f990956` is terminal PASS;
+  the Python 3.13 `test-pr` lane runs, while `test-main` may be canonically skipped.
 - [ ] All review threads resolved only after their dispositions are published.
 - [ ] CodeRabbit, Sourcery, and Cubic are checked for actionable findings after
   the final governance-only activity.
