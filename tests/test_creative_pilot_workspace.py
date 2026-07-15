@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import builtins
 from collections.abc import Callable
 from copy import deepcopy
 import importlib
@@ -1697,7 +1698,24 @@ def _assert_resume_lineage_failure(
         monkeypatch.setattr(pilot_cli, "PILOT_ROOT", pilot_root)
         monkeypatch.setattr(pilot_cli, "SPEC_BRIDGE_ROOT", spec_root)
 
+        def fail_if_direct_spec_bridge_artifact_created(path: object, operation: str) -> None:
+            if not isinstance(path, (str, os.PathLike)):
+                return
+            candidate = Path(path)
+            if candidate.parent == spec_root:
+                pytest.fail(
+                    "adaptive resume lineage failure created a spec_bridge artifact "
+                    f"via {operation}: {candidate}"
+                )
+
+        real_builtin_open = builtins.open
+        real_hardlink_to = Path.hardlink_to
         real_mkdir = Path.mkdir
+        real_open = Path.open
+        real_os_open = os.open
+        real_os_symlink = os.symlink
+        real_symlink_to = Path.symlink_to
+        real_touch = Path.touch
 
         def fail_if_resume_artifact_created(
             path: Path,
@@ -1705,11 +1723,93 @@ def _assert_resume_lineage_failure(
             parents: bool = False,
             exist_ok: bool = False,
         ) -> None:
-            if path.parent == spec_root:
-                pytest.fail("adaptive resume lineage failure created an artifact: " f"{path}")
+            fail_if_direct_spec_bridge_artifact_created(path, "Path.mkdir")
             real_mkdir(path, mode=mode, parents=parents, exist_ok=exist_ok)
 
+        def fail_if_path_open_creates_resume_artifact(
+            path: Path,
+            mode: str = "r",
+            buffering: int = -1,
+            encoding: str | None = None,
+            errors: str | None = None,
+            newline: str | None = None,
+        ):
+            if any(flag in mode for flag in ("w", "a", "x", "+")):
+                fail_if_direct_spec_bridge_artifact_created(path, "Path.open")
+            return real_open(
+                path,
+                mode=mode,
+                buffering=buffering,
+                encoding=encoding,
+                errors=errors,
+                newline=newline,
+            )
+
+        def fail_if_builtin_open_creates_resume_artifact(
+            file: object, *args: object, **kwargs: object
+        ):
+            mode = args[0] if args else kwargs.get("mode", "r")
+            if isinstance(mode, str) and any(flag in mode for flag in ("w", "a", "x", "+")):
+                fail_if_direct_spec_bridge_artifact_created(file, "open")
+            return real_builtin_open(file, *args, **kwargs)
+
+        def fail_if_touch_creates_resume_artifact(
+            path: Path,
+            mode: int = 0o666,
+            exist_ok: bool = True,
+        ) -> None:
+            fail_if_direct_spec_bridge_artifact_created(path, "Path.touch")
+            real_touch(path, mode=mode, exist_ok=exist_ok)
+
+        def fail_if_symlink_to_creates_resume_artifact(
+            path: Path,
+            target: str | os.PathLike[str],
+            target_is_directory: bool = False,
+        ) -> None:
+            fail_if_direct_spec_bridge_artifact_created(path, "Path.symlink_to")
+            real_symlink_to(path, target, target_is_directory=target_is_directory)
+
+        def fail_if_hardlink_to_creates_resume_artifact(
+            path: Path,
+            target: str | os.PathLike[str],
+        ) -> None:
+            fail_if_direct_spec_bridge_artifact_created(path, "Path.hardlink_to")
+            real_hardlink_to(path, target)
+
+        def fail_if_os_open_creates_resume_artifact(
+            path: str | bytes | os.PathLike[str] | os.PathLike[bytes],
+            flags: int,
+            mode: int = 0o777,
+            *,
+            dir_fd: int | None = None,
+        ) -> int:
+            if dir_fd is None:
+                fail_if_direct_spec_bridge_artifact_created(path, "os.open")
+            return real_os_open(path, flags, mode, dir_fd=dir_fd)
+
+        def fail_if_os_symlink_creates_resume_artifact(
+            src: str | bytes | os.PathLike[str] | os.PathLike[bytes],
+            dst: str | bytes | os.PathLike[str] | os.PathLike[bytes],
+            target_is_directory: bool = False,
+            *,
+            dir_fd: int | None = None,
+        ) -> None:
+            if dir_fd is None:
+                fail_if_direct_spec_bridge_artifact_created(dst, "os.symlink")
+            real_os_symlink(src, dst, target_is_directory=target_is_directory, dir_fd=dir_fd)
+
+        monkeypatch.setattr(builtins, "open", fail_if_builtin_open_creates_resume_artifact)
+        monkeypatch.setattr(pilot_cli.os, "open", fail_if_os_open_creates_resume_artifact)
+        monkeypatch.setattr(pilot_cli.os, "symlink", fail_if_os_symlink_creates_resume_artifact)
+        monkeypatch.setattr(
+            pilot_cli.Path, "hardlink_to", fail_if_hardlink_to_creates_resume_artifact
+        )
         monkeypatch.setattr(pilot_cli.Path, "mkdir", fail_if_resume_artifact_created)
+        monkeypatch.setattr(pilot_cli.Path, "open", fail_if_path_open_creates_resume_artifact)
+        monkeypatch.setattr(
+            pilot_cli.Path, "symlink_to", fail_if_symlink_to_creates_resume_artifact
+        )
+        monkeypatch.setattr(pilot_cli.Path, "touch", fail_if_touch_creates_resume_artifact)
 
         def fail_if_publish_attempted(staging: Path, final_dir: Path) -> None:
             pytest.fail(
