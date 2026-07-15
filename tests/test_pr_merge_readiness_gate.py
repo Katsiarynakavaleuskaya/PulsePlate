@@ -67,6 +67,12 @@ def test_review_seal_rollout_boundary_is_explicit_and_self_opt_in(
         merge_gate._review_seal_v1_required(99, None)
 
 
+def test_review_seal_rollout_activates_after_governance_pr() -> None:
+    assert merge_gate.REVIEW_SEAL_REQUIRED_FROM_PR == 2142
+    assert merge_gate._review_seal_v1_required(2141, None) is False
+    assert merge_gate._review_seal_v1_required(2142, None) is True
+
+
 def test_graphql_unresolved_threads_ignores_ghas_non_conversation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

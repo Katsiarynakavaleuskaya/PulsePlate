@@ -57,7 +57,7 @@ from scripts.orchestration.pr_review_evidence import (  # noqa: E402
 
 # Set to governance PR number + 1 immediately after that PR is opened.  ``None``
 # deliberately blocks CI v1 activation finalization until the PR number exists.
-REVIEW_SEAL_REQUIRED_FROM_PR: int | None = None
+REVIEW_SEAL_REQUIRED_FROM_PR: int | None = 2142
 
 
 def _review_seal_v1_required(pr_number: int, seal_version: str | None) -> bool:
