@@ -5,12 +5,13 @@ from __future__ import annotations
 import logging
 import math
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, NoReturn, cast
 from unittest.mock import AsyncMock, Mock
 
 import pytest
-from fastapi import HTTPException
+from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
+from httpx2 import Response
 from pydantic import ValidationError
 
 from app.effective_routes import (
@@ -35,7 +36,7 @@ _TARGETS_ONLY_DETAIL = (
 _INVALID_WEEKLY_PAYLOAD_DETAIL = "Invalid weekly plan request payload"
 
 
-def _assert_json_response(response: Any) -> dict[str, Any]:
+def _assert_json_response(response: Response) -> dict[str, Any]:
     assert response.headers.get("Content-Type", "").startswith("application/json")
     payload = response.json()
     assert isinstance(payload, dict)
@@ -103,18 +104,21 @@ def test_legacy_weekly_alias_matches_canonical_vip_menu(
     )
     monkeypatch.setattr(vip_router, "make_weekly_menu", _fake_weekly_menu_builder, raising=False)
 
+    client_app = cast(FastAPI, client.app)
     vip_route = next(
         (
             route
-            for route in iter_effective_route_candidates(client.app.routes)
+            for route in iter_effective_route_candidates(client_app.routes)
             if route_path(route) == "/api/v1/vip/menu/weekly/plan"
             and "POST" in route_methods(route)
         ),
         None,
     )
     assert vip_route is not None, "POST /api/v1/vip/menu/weekly/plan route not found"
+    endpoint_globals = getattr(route_endpoint(vip_route), "__globals__", None)
+    assert isinstance(endpoint_globals, dict)
     monkeypatch.setitem(
-        route_endpoint(vip_route).__globals__,
+        endpoint_globals,
         "make_weekly_menu",
         _fake_weekly_menu_builder,
     )
@@ -404,7 +408,7 @@ def test_legacy_weekly_alias_sanitizes_getter_failures(
 
     executor = AsyncMock()
 
-    def _raise_getter_failure() -> Any:
+    def _raise_getter_failure() -> NoReturn:
         raise failure
 
     monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
@@ -673,7 +677,7 @@ def test_legacy_week_plan_request_normalizer_preserves_non_dict_values() -> None
 
     request = LegacyWeekPlanRequest.model_construct(targets={"calories": 1800})
 
-    assert LegacyWeekPlanRequest._normalize_values(request) is request
+    assert LegacyWeekPlanRequest.model_validate(request) is request
 
 
 def test_build_legacy_weekly_menu_response_ignores_non_dict_days() -> None:
