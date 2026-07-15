@@ -12,17 +12,22 @@ isolation capability is retained as a sanitized terminal rejection without a
 retry or promotion path. The replacement also permits that exact rejection
 when backend preflight passed but the isolation primitive was lost during
 execution, while all accepted/failure and rejected/promotion combinations stay
-fail closed.
+fail closed. A capability loss on the first execution attempt remains the
+non-retryable `capability_mismatch 1/0` outcome; if an infrastructure failure
+already consumed a retry, the compound terminal sequence is retained as the
+sanitized `infra_flake 2/1` outcome instead of producing an artifact that the
+closed contracts cannot validate.
 
 ## Split Justification
 
-The 16-file owner surface is the operator-approved consolidation of the
+The 18-file owner surface is the operator-approved consolidation of the
 existing 14-file result/receipt/telemetry contract with the two exact source
-paths from PR #2130. Splitting the validator and dispatch regression from the
-owner taxonomy would temporarily leave the same terminal outcome incoherent
-across Experiment Runner, receipt, and telemetry consumers. No public API,
-OpenAPI, setup/dependency, product runtime, or unrelated backend surface is
-included.
+paths from PR #2130 and the two bounded Experiment Runner paths required to fix
+current-head review finding `discussion_r3587200566`. Splitting the validator,
+runner classifier, and regressions from the owner taxonomy would temporarily
+leave reachable terminal outcomes incoherent across Experiment Runner, receipt,
+and telemetry consumers. No public API, OpenAPI, setup/dependency, product
+runtime, or unrelated backend surface is included.
 
 ## Lane Start Provenance
 
@@ -30,12 +35,21 @@ Packet: `artifacts/orchestration/task_packets/910a4151ec61.json`
 
 Replacement packet: `artifacts/orchestration/task_packets/7492c83d4ee9.json`
 
+Mixed-failure corrective packet:
+`artifacts/orchestration/task_packets/378d20859cdd.json`
+
+Final post-open packet: `artifacts/orchestration/task_packets/845bc26a3b44.json`
+
 - Fresh `origin/main` at `7c149a84c44406f698d73fbd0dee0bd34b64d085`
   was merged without history rewriting in
   `d998a82e8dd1ca1d1ab961f77b4acc143838f1d1`.
 - Replacement role order completed as declared by the executable manifest:
   `agent-coordinator -> architecture-specialist -> security-auditor ->
   backend-engineer -> cursor-specialist-agent`.
+- The current-head post-open order completed serially as declared by the final
+  executable manifest: `agent-coordinator -> cursor-specialist-agent ->
+  architecture-specialist -> qa-engineer-agent -> bug-hunter ->
+  security-auditor`.
 - Local packets, role outputs, and Experiment Runner artifacts remain
   gitignored control-plane evidence.
 - Experiment Runner oracle evidence materially shaped the commit decision; the
@@ -57,15 +71,27 @@ Replacement packet: `artifacts/orchestration/task_packets/7492c83d4ee9.json`
   post-preflight rejected capability mismatch, reject accepted failures and
   rejected promotion authority, preserve trusted Apple backend provenance,
   and add deterministic sanitization/tamper regressions.
+- `a8f8cbba895c88eee48334983734b0026d70eb60` - reject retried
+  `capability_mismatch` observations across Experiment Runner, result, receipt,
+  telemetry, and schemas while preserving `infra_flake 2/1`.
+- `12893eee63ce1888ba093783d45c630e9cadf705` - require rejected root and
+  rejected runner failure provenance to match without removing the legitimate
+  rejected-wrapper / accepted-runner outcome.
+- `2a3b277be40209bf1a116cafa77fedd072d0e243` - return the validated exact
+  boolean from telemetry authority checks and reject bool-like values.
+- `b5f8f07937161b428a547f5d57b389da77b85a83` - classify capability loss after
+  a consumed infrastructure retry as a sanitized terminal `infra_flake`, while
+  preserving direct capability loss as non-retryable `capability_mismatch`.
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed on the replacement head.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 - [x] Source PR #2130 replacement mapping recorded below.
-- [ ] Post-open `qa-engineer-agent -> bug-hunter -> security-auditor` rerun on
-  the replacement head.
+- [x] Post-open `qa-engineer-agent -> bug-hunter -> security-auditor` rerun on
+  published head `b5f8f07937161b428a547f5d57b389da77b85a83`.
 - [x] Earlier Codex Security scans marked superseded; operator-directed native
-  scan stop recorded without a PASS claim.
+  scan stop recorded without a PASS claim or restart.
 - Current-head CI, authenticated merge readiness, the mandatory wait window,
   and human merge authorization are live PR-state gates; they are intentionally
   not frozen as completed in this artifact.
@@ -78,9 +104,11 @@ Replacement packet: `artifacts/orchestration/task_packets/7492c83d4ee9.json`
   deterministic tamper tests now enforce the canonical closed taxonomy and
   accepted/rejected coherence.
 - NOT-A-BUG: the local `pulseplate-pr-review` dry run emitted only the
-  mechanical `large-diff-risk` note. The 14-file surface is the smallest
+  mechanical `large-diff-risk` note. The 18-file surface is the smallest
   atomic result/receipt/telemetry/schema/test/governance propagation that
-  prevents `capability_mismatch` from degrading to `unknown`.
+  prevents `capability_mismatch` from degrading to `unknown` and fixes the
+  reachable mixed infrastructure/capability sequence reported on the published
+  review head.
 - FIXED in `3698beae144485d59ce97c1c742ebd1e66696059`: architecture and
   security review found that the direct PR #2130 deletion would also admit
   `accepted + failure_class`, while rejected results could retain promotion
@@ -94,6 +122,22 @@ Replacement packet: `artifacts/orchestration/task_packets/7492c83d4ee9.json`
   its cached skill catalog. The tracked worktree mirror and repo source resolve
   to identical content; the source skill was loaded explicitly and no skill
   installation or workflow-file change belongs in this PR.
+- FIXED in `a8f8cbba895c88eee48334983734b0026d70eb60`: post-open review found that
+  a non-retryable capability mismatch could carry retry observations. One
+  shared validator and mirrored schemas now admit only direct `0/0` or `1/0`
+  capability-loss observations.
+- FIXED in `12893eee63ce1888ba093783d45c630e9cadf705`: post-open review found that
+  rejected root and runner failure classes could disagree while identities
+  remained valid. Shared outcome coherence, schema pairs, and telemetry now
+  reject both mismatch directions before emission.
+- FIXED in `2a3b277be40209bf1a116cafa77fedd072d0e243`: focused MyPy found an `Any`
+  return in the telemetry boolean helper. Exact bool narrowing closes the type
+  gap without weakening runtime checks.
+- FIXED in `b5f8f07937161b428a547f5d57b389da77b85a83`: current-head review found a
+  reachable `infra_flake -> retry -> capability loss` result that the strict
+  capability contract would reject. The runner now stops immediately with a
+  constant sanitized `infra_flake 2/1`; direct capability loss remains
+  `capability_mismatch 1/0`.
 
 ## Fixed in Commit Mapping
 
@@ -120,6 +164,22 @@ Commit: 44276b9af4d6fc153922bd5e9317358bcd78909d
 Evidence: The canonical mapping marks `Discussion-thread pass completed` and contains disposition-specific proof for every actionable Codex and CodeRabbit review item.
 Reason: The parser-required discussion-thread checkbox reflects the completed review audit.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2119#discussion_r3575382511 -> 44276b9af4d6fc153922bd5e9317358bcd78909d
+
+Disposition: NOT-A-BUG
+Evidence: `git merge-base --is-ancestor <mapped_sha> b5f8f07937161b428a547f5d57b389da77b85a83` exits 0 for `8241a9fd`, `e203a39f`, `d6a74f3e`, and `44276b9a`; all four proof commits are in the current PR history.
+Reason: The review referenced a non-current `ea1bd478` snapshot. Current local and published PR head truth contains every mapped FIXED commit.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2119#discussion_r3586985668
+
+Disposition: NOT-A-BUG
+Evidence: `_validate_gate_context()` rebuilds and validates the generation gate before `_generate_candidate()` checks the receipt path; `test_generate_candidate_persists_capability_mismatch_without_retry_or_promotion` passes on the current head.
+Reason: A second generation request reaches the prepared-run stale-candidate guard before the receipt-exists check, so the asserted error matches the production control flow.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2119#discussion_r3586985674
+
+Disposition: FIXED
+Commit: b5f8f07937161b428a547f5d57b389da77b85a83
+Evidence: The Experiment Runner classifies capability loss after a consumed infrastructure retry as rejected `infra_flake` with attempts `2`, retries `1`, `promotion_ready=false`, and a constant sanitized error; the deterministic regression also proves direct capability loss remains `capability_mismatch 1/0`.
+Reason: The reachable mixed failure now produces a valid, honest terminal artifact without permitting a retry after capability loss or adding fallback authority.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2119#discussion_r3587200566 -> b5f8f07937161b428a547f5d57b389da77b85a83
 
 ## Source PR #2130 Replacement Mapping
 
@@ -148,23 +208,31 @@ superseded by this replacement-head evidence.
 
 ## Validation Evidence
 
-- PASS on material commit `3698beae144485d59ce97c1c742ebd1e66696059`:
-  scoped execution preflight and agent consistency.
-- PASS: focused outcome/sanitization matrix (20 tests), full Experiment Runner
-  and dispatch suites, and the downstream patch-builder, generation, and
-  telemetry suites.
-- PASS: Ruff and canonical MyPy with `MYPYPATH=.`,
-  `--explicit-package-bases`, no incremental cache, and both changed files.
+- PASS on material head `b5f8f07937161b428a547f5d57b389da77b85a83`:
+  18-path scoped execution preflight and agent consistency.
+- PASS: the full six-file focused contract, Experiment Runner, dispatch,
+  patch-builder, generation, and telemetry regression bundle.
+- PASS: the exact direct-capability, mixed-failure, and infra-retry tests; the
+  mixed result also passes `validate_experiment_result` as sanitized rejected
+  `infra_flake 2/1` with no promotion authority.
+- PASS: Ruff and canonical MyPy with no incremental cache across all six
+  changed orchestration source files.
 - PASS: commit hooks, including detect-secrets, Ruff, type-hint checks, Bandit,
   and changed backend tests.
 - PASS: `make validate-changed` and the exact `BRANCH_DIFF_MODE=1`
-  pre-commit backend-test path; both selected the four owner/runner test files
-  and completed all 195 tests.
+  pre-commit backend-test path; both selected the five changed owner/runner
+  test files and passed.
 - PASS: `pre-commit run --all-files`, including detect-secrets, workflow
   checks, Black, Ruff, Bandit, frontend tests, changed backend tests, and iOS
   syntax; hooks made no file changes.
 - PASS: `git diff --check`.
-- PASS: actual-diff premortem after its one false-green test finding was fixed.
+- PASS: actual-diff premortem on the final two-file corrective diff, with no
+  actionable findings.
+- PASS: final current-head role order
+  `agent-coordinator -> cursor-specialist-agent -> architecture-specialist ->
+  qa-engineer-agent -> bug-hunter -> security-auditor`, followed by
+  `pulseplate-pr-review`; all role decisions were `PROCEED` with no code
+  findings.
 - PASS: explicit Apple Container oracle evidence, three of three commands.
 - HISTORICAL FAILURE: Docker build run `29311424356` failed only while
   preparing source artifacts because `review_by: 2026-07-13` was stale.
@@ -189,11 +257,11 @@ superseded by this replacement-head evidence.
   lane after repeated unstable scan/session transport. No replacement scan was
   run and no scan PASS is claimed. Deterministic security evidence consists of
   the ordered security-auditor pass, Bandit/detect-secrets hooks, redaction and
-  provenance-tamper tests, the Apple Container oracle, and pending current-head
-  CI security.
-- LIVE FINAL GATE: post-open role/review closure, current-head CI,
-  authenticated merge readiness, wait window, and human authorization must
-  still complete on the published replacement head.
+  provenance-tamper tests, mixed-failure canary tests, the Apple Container
+  oracle, and pending current-head CI security.
+- LIVE FINAL GATE: current-head CI, authenticated merge readiness, bot
+  dispositions, the mandatory wait window, and human authorization must still
+  complete on the published replacement head.
 
 Full local `make verify` was not run because repository policy prohibits that
 machine-heavy invocation without a one-time human override.
@@ -202,19 +270,22 @@ machine-heavy invocation without a one-time human override.
 
 Both earlier sealed scans are superseded by the replacement material commit.
 Under the explicit operator stop, no native scan was run or claimed. The
-replacement adds no network, provider, retry, promotion, product-runtime, or
-cache authority; ordered security review plus deterministic tests prove that
-untrusted backend provenance is overwritten, local paths and credentials are
-redacted, accepted failures are rejected, and rejected results cannot retain
-promotion authority. Current-head CI security remains a live gate.
+replacement adds no network, provider, fallback, promotion, product-runtime,
+or cache authority; ordered security review plus deterministic tests prove
+that untrusted backend provenance is overwritten, local paths and credentials
+are redacted, accepted failures are rejected, rejected results cannot retain
+promotion authority, and capability loss after an infrastructure retry cannot
+leak the underlying exception. Current-head CI security remains a live gate.
 
 ## Risks / Rollback
 
 Risk is limited to internal outcome validation and taxonomy compatibility.
 Accepted results reject every non-null canonical failure, rejected results
 cannot be promotion-ready, and failed preflight still requires a rejected
-capability mismatch. Rollback is a revert of PR #2119; no database, runtime,
-public API, provider, cache, client, or migration rollback is required.
+capability mismatch. Compound infrastructure/capability failure is classified
+as `infra_flake` only after an infrastructure retry was already consumed.
+Rollback is a revert of PR #2119; no database, runtime, public API, provider,
+cache, client, or migration rollback is required.
 
 ## Deferred / Follow-ups
 
