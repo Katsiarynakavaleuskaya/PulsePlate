@@ -15,6 +15,7 @@ DOCKERFILE = REPO_ROOT / "frontend" / "Dockerfile.caddy-spa"
 STAGING_COMPOSE = REPO_ROOT / "deploy" / "docker-compose.staging.yaml"
 CD_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "cd.yml"
 FRONTEND_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "frontend-ci.yml"
+TRIVY_ACTION = "aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25"
 
 GO_BUILDER = (
     "golang:1.26.5-alpine3.23@"
@@ -129,6 +130,7 @@ def test_cd_builds_attests_scans_and_deploys_both_same_job_digests() -> None:
         "Validate immutable staging image references",
         "Verify staged backend image attestations",
         "Verify staged Caddy image attestations",
+        "Prepare Trivy ignore policy",
         "Scan staged backend image",
         "Scan staged Caddy image",
         "Verify remote staging deploy contract",
@@ -149,20 +151,57 @@ def test_cd_builds_attests_scans_and_deploys_both_same_job_digests() -> None:
     assert "staging-backend-${{ github.sha }}" in backend_with["tags"]
     assert "staging-caddy-${{ github.sha }}" in caddy_with["tags"]
 
-    for name, digest_ref in (
-        ("Scan staged backend image", "steps.staging-image-refs.outputs.backend_ref"),
-        ("Scan staged Caddy image", "steps.staging-image-refs.outputs.caddy_ref"),
+    prepare_policy = _named_step(steps, "Prepare Trivy ignore policy")
+    assert prepare_policy.get("continue-on-error") is not True
+    assert prepare_policy["run"].splitlines() == [
+        "set -euo pipefail",
+        "test -f .trivyignore",
+        "test -f trivy/ignore-policy.rego",
+        "cp trivy/ignore-policy.rego .trivy-ignore-policy.rego",
+        "test -s .trivy-ignore-policy.rego",
+        "cmp -s trivy/ignore-policy.rego .trivy-ignore-policy.rego",
+    ]
+    assert _step_index(steps, "Prepare Trivy ignore policy") + 1 == _step_index(
+        steps, "Scan staged backend image"
+    )
+    assert _step_index(steps, "Scan staged backend image") + 1 == _step_index(
+        steps, "Scan staged Caddy image"
+    )
+
+    for name, digest_ref, cache_dir in (
+        (
+            "Scan staged backend image",
+            "steps.staging-image-refs.outputs.backend_ref",
+            "/tmp/trivy-cache-staging-backend",
+        ),
+        (
+            "Scan staged Caddy image",
+            "steps.staging-image-refs.outputs.caddy_ref",
+            "/tmp/trivy-cache-staging-caddy",
+        ),
     ):
         step = _named_step(steps, name)
         assert step.get("continue-on-error") is not True
+        assert step["uses"] == TRIVY_ACTION
+        assert step["env"] == {
+            "TRIVY_DB_REPOSITORY": "ghcr.io/aquasecurity/trivy-db",
+        }
         with_block = step.get("with")
         assert isinstance(with_block, dict)
-        assert digest_ref in with_block["image-ref"]
-        assert with_block["severity"] == "CRITICAL,HIGH"
-        assert with_block["exit-code"] == "1"
-        assert "trivyignores" not in with_block
-        assert "ignore-policy" not in with_block
-        assert with_block.get("ignore-unfixed") is not True
+        assert with_block == {
+            "scan-type": "image",
+            "image-ref": "${{ " + digest_ref + " }}",
+            "scanners": "vuln",
+            "format": "table",
+            "vuln-type": "os,library",
+            "severity": "CRITICAL,HIGH",
+            "exit-code": "1",
+            "timeout": "15m",
+            "trivyignores": ".trivyignore",
+            "ignore-policy": ".trivy-ignore-policy.rego",
+            "version": "v0.71.2",
+            "cache-dir": cache_dir,
+        }
 
     image_refs = _named_step(steps, "Validate immutable staging image references")
     image_refs_env = image_refs.get("env")
