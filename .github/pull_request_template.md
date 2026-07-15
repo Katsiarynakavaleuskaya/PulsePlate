@@ -28,7 +28,7 @@
 
 ## Tests / validation
 
-<!-- Exact local commands and current-head CI evidence; distinguish pending from passed. -->
+<!-- Exact local commands and current-head CI evidence; distinguish pending from passed. Review relevant guidance in docs/ENGINEERING_LESSONS.md. -->
 
 ## Security notes
 
