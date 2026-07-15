@@ -19,6 +19,9 @@ sanitized `infra_flake 2/1` outcome instead of producing an artifact that the
 closed contracts cannot validate. Accepted standalone result and receipt
 validation now requires complete runner proof, and every published Oracle
 execution counter is bound to the Oracle evidence retained in the artifact.
+Every admitted `capability_mismatch`, including post-preflight `1/0`, now also
+requires trusted backend/preflight provenance; dispatch injects that trusted
+provenance before strict validation instead of accepting caller metadata.
 
 ## Split Justification
 
@@ -35,7 +38,9 @@ inside those same 18 paths. The later zero-attempt proof finding
 `discussion_r3588115330` and its missing-backend reproduction are also closed
 inside the existing surface. Final findings `discussion_r3588654515` and
 `discussion_r3588716979` close incomplete accepted proof and a stale
-mixed-failure Oracle counter inside the same published file set.
+mixed-failure Oracle counter inside the same published file set. Final finding
+`discussion_r3588809763` closes backendless post-preflight capability proof in
+the existing contract/dispatch/test surface.
 
 ## Lane Start Provenance
 
@@ -57,6 +62,9 @@ Zero-attempt proof corrective packet:
 Final runner-proof coherence packet:
 `artifacts/orchestration/task_packets/807fdae1c4b4.json`
 
+Final backend-provenance packet:
+`artifacts/orchestration/task_packets/8e30e32ac3dd.json`
+
 - Fresh `origin/main` at `7c149a84c44406f698d73fbd0dee0bd34b64d085`
   was merged without history rewriting in
   `d998a82e8dd1ca1d1ab961f77b4acc143838f1d1`.
@@ -70,10 +78,11 @@ Final runner-proof coherence packet:
   `agent-coordinator -> architecture-specialist -> security-auditor ->
   backend-engineer`.
 - The terminal material review tail completed on published head
-  `8a2b0d8324750c103063aada7f25a9da2b9e9e27` in exact order:
+  `21343ba5560d71d5dc484feef86a92783558ae7f` in exact order:
   `architecture-specialist -> security-auditor -> backend-engineer ->
-  qa-engineer-agent -> bug-hunter`; every role returned `PROCEED` with no
-  findings.
+  qa-engineer-agent -> bug-hunter -> security-auditor`; every role returned
+  `PROCEED` with no findings, and the post-security seal marked the tail
+  terminal.
 - Local packets, role outputs, and Experiment Runner artifacts remain
   gitignored control-plane evidence.
 - Experiment Runner oracle evidence materially shaped commit
@@ -122,6 +131,9 @@ Final runner-proof coherence packet:
   runner proof in standalone result/receipt validators and both schemas,
   derive terminal Oracle counters from retained evidence, and reject raw
   counter/list mismatches.
+- `21343ba5560d71d5dc484feef86a92783558ae7f` - require trusted backend
+  provenance for every capability mismatch and inject/overwrite dispatch-owned
+  passed-probe metadata before strict validation.
 
 ## Discussion Thread Pass
 
@@ -129,9 +141,10 @@ Final runner-proof coherence packet:
 - [x] Fixed in commit mapping completed
 - [x] Source PR #2130 replacement mapping recorded below.
 - [x] Terminal material tail completed on final material head
-  `8a2b0d8324750c103063aada7f25a9da2b9e9e27` in the bounded order
+  `21343ba5560d71d5dc484feef86a92783558ae7f` in the bounded order
   `architecture-specialist -> security-auditor -> backend-engineer ->
-  qa-engineer-agent -> bug-hunter`; all findings were empty.
+  qa-engineer-agent -> bug-hunter -> security-auditor`; all findings were
+  empty and the post-security seal marked the material tail terminal.
 - [x] Earlier Codex Security scans marked superseded; operator-directed native
   scan stop recorded without a PASS claim or restart.
 - Current-head CI, authenticated merge readiness, the mandatory wait window,
@@ -210,6 +223,11 @@ Final runner-proof coherence packet:
   `infra_flake` with no retained Oracle records. Result construction now
   derives the counter from retained evidence and raw validation rejects any
   present counter/list mismatch.
+- FIXED in `21343ba5560d71d5dc484feef86a92783558ae7f`: exact-head review proved that
+  raw post-preflight `capability_mismatch 1/0` could omit backend provenance.
+  Strict validation now requires provenance for both `0/0` and `1/0`, while
+  dispatch copies the raw result and injects exact trusted passed-probe
+  provenance before validation; failed `0/0` evidence cannot be laundered.
 
 ## Fixed in Commit Mapping
 
@@ -305,6 +323,22 @@ Evidence: The terminal result builder derives `oracle_commands_executed` from re
 Reason: Discarded retry-attempt Oracle evidence can no longer leave a contradictory execution counter in the terminal artifact.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2119#discussion_r3588716979 -> 8a2b0d8324750c103063aada7f25a9da2b9e9e27
 
+Disposition: NOT-A-BUG
+Evidence: GitHub object lookup for synthetic `a5768c97` returns null, while every cited FIXED proof SHA is an ancestor of published head `21343ba5560d71d5dc484feef86a92783558ae7f` under `git merge-base --is-ancestor`.
+Reason: The review again reasoned from a synthetic squash that is not the PR head; the unsquashed public owner history contains every mapped fix.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2119#discussion_r3588809755
+
+Disposition: NOT-A-BUG
+Evidence: Public ancestor commit `3698beae144485d59ce97c1c742ebd1e66696059` contains the exact `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>` trailer, and later review-driven commits did not use Runner evidence for their commit decisions.
+Reason: The attribution invariant applies to the material commit shaped by Runner evidence, not to a nonexistent synthetic squash or every later governance/review commit.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2119#discussion_r3588809759
+
+Disposition: FIXED
+Commit: 21343ba5560d71d5dc484feef86a92783558ae7f
+Evidence: Raw validation rejects backendless capability mismatch for attempts `0` and `1`; dispatch injects exact trusted passed-probe provenance into a copy before validation, overwrites spoofed metadata, leaves caller input unchanged, and rejects failed-preflight `0/0` evidence under a passed probe.
+Reason: Standalone raw consumers can no longer admit a post-preflight capability signal without trusted backend proof, while the dispatch boundary remains the sole authority that can attach that proof.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2119#discussion_r3588809763 -> 21343ba5560d71d5dc484feef86a92783558ae7f
+
 ## Source PR #2130 Replacement Mapping
 
 | Source evidence | Disposition | Owner replacement | Evidence |
@@ -388,12 +422,26 @@ superseded by this replacement-head evidence.
   `architecture-specialist -> security-auditor -> backend-engineer ->
   qa-engineer-agent -> bug-hunter` tail returned `PROCEED` with no findings.
   Native Codex Security remained `operator_directed_stop` and was not invoked.
+- PASS on terminal material head
+  `21343ba5560d71d5dc484feef86a92783558ae7f`: seven targeted provenance
+  cases, full dispatch suite, committed-diff five-suite selection, canonical
+  MyPy, Black, Ruff, `git diff --check`, full pre-commit, pip-audit, backend,
+  full Bandit, and Docker pre-push hooks.
+- PASS: final backend-provenance premortem covers validation order, spoofed
+  metadata, failed-preflight laundering, caller mutation, and legacy
+  non-capability compatibility; every risk is closed in code/tests.
+- PASS on terminal material head
+  `21343ba5560d71d5dc484feef86a92783558ae7f`: serial
+  `architecture-specialist -> security-auditor -> backend-engineer ->
+  qa-engineer-agent -> bug-hunter -> security-auditor` returned `PROCEED` with
+  no findings; the final security seal marked `material_tail: TERMINAL` and
+  native scanning remained `operator_directed_stop`.
 - ADVISORY: `pulseplate-pr-review` on local governance head `b9e146455745`
   found only the already-justified large-diff note plus the expected warning
   that the two local commits were not yet published. Published-head context
   refresh remains a live readiness check and does not reopen material review.
 - LOOP STOP: material evidence is anchored to code head
-  `8a2b0d8324750c103063aada7f25a9da2b9e9e27`; this mapping/body reconciliation
+  `21343ba5560d71d5dc484feef86a92783558ae7f`; this mapping/body reconciliation
   is governance-only. The ancestry and trailer comments were closed by
   evidence without a material restart; only the genuinely new zero-attempt
   execution path triggered one bounded corrective wave. Equivalent duplicate
