@@ -63,6 +63,8 @@ RESULT_VOLUME_SIZE = "2M"
 MAX_RESULT_BYTES = 2 * 1024 * 1024
 PUBLIC_STATUS_ACCEPTED = "accepted"
 PUBLIC_STATUS_REJECTED = "rejected"
+RUNNER_CAPABILITY_EXIT_CODE = 3
+RUNNER_CAPABILITY_ERROR = "runner_capability_mismatch"
 IMAGE_REF_RE = re.compile(
     r"^(?P<name>[A-Za-z0-9][A-Za-z0-9._:/-]{0,254})@(?P<digest>sha256:[0-9a-f]{64})$"
 )
@@ -1481,6 +1483,45 @@ def _infra_flake_result(
     return _validated_experiment_result(_redact_result_value(result))
 
 
+def _post_preflight_capability_mismatch_result(
+    packet: dict[str, Any],
+    image: ImageReference,
+    probe: BackendProbe,
+) -> dict[str, Any]:
+    """Build the sole publishable result for the runner's owned capability signal."""
+
+    runner_mode = packet["runner_mode"]
+    candidate_patch = (
+        ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE
+        if runner_mode == ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE
+        else "candidate.patch"
+    )
+    result = {
+        "schema_version": "1.0",
+        "experiment_id": packet["experiment_id"],
+        "runner_mode": runner_mode,
+        "candidate_patch": candidate_patch,
+        "status": "rejected",
+        "failure_class": "capability_mismatch",
+        "mutated_paths": [],
+        "oracle_results": [],
+        "budget_observations": {
+            "configured_budgets": dict(packet["budgets"]),
+            "oracle_commands_executed": 0,
+            "attempts": 1,
+            "retries_consumed": 0,
+            "runner_error": RUNNER_CAPABILITY_ERROR,
+        },
+        "shared_tree_untouched": True,
+        "promotion_ready": False,
+        "contribution_kind": "none",
+        "coauthor_required": False,
+        "coauthor_reason": "",
+        "execution_backend": _execution_backend_payload(probe, passed=True),
+    }
+    return _validated_experiment_result(result)
+
+
 _SECRET_TEXT_PATTERNS = (
     re.compile(r"(?i)(token|secret|password|api[_-]?key)\s*[:=]\s*[^\s,;]+"),
     re.compile(r"\b(?:gh[pousr]_[A-Za-z0-9_]{20,}|sk-[A-Za-z0-9_-]{20,})\b"),
@@ -1708,16 +1749,19 @@ def _invoke_container_runner(
                 )
             if not cleanup_completed:
                 raise DispatchError("container_cleanup_failed")
-            if completed.returncode not in {0, 1}:
+            runner_capability_signal = completed.returncode == RUNNER_CAPABILITY_EXIT_CODE
+            if completed.returncode not in {0, 1, RUNNER_CAPABILITY_EXIT_CODE}:
                 raise DispatchError("runner_execution_failed")
-            payload = _collect_result_volume(
-                cli=cli,
-                backend=probe.backend,
-                image_ref=runtime_ref,
-                volume=volume,
-                output_name=output_name,
-                apple_network=apple_network,
-            )
+            payload = None
+            if not runner_capability_signal:
+                payload = _collect_result_volume(
+                    cli=cli,
+                    backend=probe.backend,
+                    image_ref=runtime_ref,
+                    volume=volume,
+                    output_name=output_name,
+                    apple_network=apple_network,
+                )
         except BaseException as exc:
             cleanup_completed = _cleanup_container_resources(
                 cli=cli,
@@ -1738,6 +1782,10 @@ def _invoke_container_runner(
         )
         if not cleanup_completed:
             raise DispatchError("container_cleanup_failed")
+        if runner_capability_signal:
+            return _post_preflight_capability_mismatch_result(packet, image, probe)
+        if payload is None:
+            raise DispatchError("result_extraction_failed")
         return _sanitize_result(
             payload,
             probe,

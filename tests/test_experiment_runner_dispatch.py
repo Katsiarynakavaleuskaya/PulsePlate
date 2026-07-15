@@ -13,6 +13,7 @@ from typing import Any
 import pytest
 
 from scripts.orchestration import experiment_contract
+from scripts.orchestration import experiment_runner
 from scripts.orchestration import experiment_runner_dispatch as dispatch
 
 _DIGEST = "sha256:" + "a" * 64
@@ -144,6 +145,10 @@ def test_image_reference_requires_immutable_digest() -> None:
         dispatch.parse_image_reference("runner:latest")
     with pytest.raises(ValueError, match="immutable"):
         dispatch.parse_image_reference(f"runner:local@sha256:{'A' * 64}")
+
+
+def test_runner_capability_exit_code_matches_dispatch_owned_code() -> None:
+    assert dispatch.RUNNER_CAPABILITY_EXIT_CODE == experiment_runner.RUNNER_CAPABILITY_EXIT_CODE
 
 
 def test_auto_prefers_strict_apple_without_probing_docker(
@@ -1723,6 +1728,113 @@ def test_sanitize_accepts_rejected_result_with_canonical_attribution_reset() -> 
     assert sanitized["contribution_kind"] == "none"
     assert sanitized["coauthor_required"] is False
     assert sanitized["coauthor_reason"] == ""
+
+
+def _configure_container_runner_exit(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    returncode: int,
+    cleanup_ok: bool = True,
+) -> None:
+    monkeypatch.setattr(dispatch, "_resolve_cli", lambda _name: "/usr/local/bin/container")
+    monkeypatch.setattr(
+        dispatch,
+        "_create_snapshot",
+        lambda _root, destination: destination.mkdir() or "",
+    )
+    monkeypatch.setattr(dispatch, "_create_apple_network", lambda _cli: "run-network")
+    monkeypatch.setattr(dispatch, "_inspect_image", lambda *_args: _DIGEST)
+    monkeypatch.setattr(dispatch, "_create_result_volume", lambda *_args: "result-volume")
+    monkeypatch.setattr(dispatch, "_initialize_result_volume", lambda **_kwargs: True)
+    monkeypatch.setattr(
+        dispatch,
+        "_run",
+        lambda argv, **_kwargs: subprocess.CompletedProcess(
+            argv, returncode, "ignored-stdout", "ignored-stderr"
+        ),
+    )
+    monkeypatch.setattr(dispatch, "_cleanup_container", lambda *_args: cleanup_ok)
+    monkeypatch.setattr(
+        dispatch,
+        "_cleanup_container_resources",
+        lambda **_kwargs: cleanup_ok,
+    )
+
+
+def test_container_runner_converts_only_owned_exit_three_after_cleanup(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    packet_path = tmp_path / "packet.json"
+    packet_path.write_text(json.dumps(_packet()), encoding="utf-8")
+    _configure_container_runner_exit(
+        monkeypatch,
+        returncode=dispatch.RUNNER_CAPABILITY_EXIT_CODE,
+    )
+    monkeypatch.setattr(
+        dispatch,
+        "_collect_result_volume",
+        lambda **_kwargs: pytest.fail("capability signal must not collect a result artifact"),
+    )
+
+    result = dispatch._invoke_container_runner(
+        probe=_probe("apple-container", strict=True),
+        image=_image(),
+        packet_path=packet_path,
+        candidate_patch=None,
+        output_name="result.json",
+    )
+
+    assert result["status"] == "rejected"
+    assert result["failure_class"] == "capability_mismatch"
+    assert result["mutated_paths"] == []
+    assert result["oracle_results"] == []
+    assert result["budget_observations"]["attempts"] == 1
+    assert result["budget_observations"]["retries_consumed"] == 0
+    assert result["budget_observations"]["runner_error"] == dispatch.RUNNER_CAPABILITY_ERROR
+    assert result["execution_backend"]["preflight_status"] == "passed"
+    assert result["execution_backend"]["name"] == "apple-container"
+    assert experiment_contract.validate_experiment_result(result) == result
+
+
+def test_container_runner_rejects_non_owned_nonzero_exit(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    packet_path = tmp_path / "packet.json"
+    packet_path.write_text(json.dumps(_packet()), encoding="utf-8")
+    _configure_container_runner_exit(monkeypatch, returncode=4)
+
+    with pytest.raises(dispatch.DispatchError, match="runner_execution_failed"):
+        dispatch._invoke_container_runner(
+            probe=_probe("apple-container", strict=True),
+            image=_image(),
+            packet_path=packet_path,
+            candidate_patch=None,
+            output_name="result.json",
+        )
+
+
+def test_container_cleanup_failure_overrides_owned_capability_exit(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    packet_path = tmp_path / "packet.json"
+    packet_path.write_text(json.dumps(_packet()), encoding="utf-8")
+    _configure_container_runner_exit(
+        monkeypatch,
+        returncode=dispatch.RUNNER_CAPABILITY_EXIT_CODE,
+        cleanup_ok=False,
+    )
+
+    with pytest.raises(dispatch.DispatchError, match="container_cleanup_failed"):
+        dispatch._invoke_container_runner(
+            probe=_probe("apple-container", strict=True),
+            image=_image(),
+            packet_path=packet_path,
+            candidate_patch=None,
+            output_name="result.json",
+        )
 
 
 def test_collector_is_nofollow_regular_file_and_size_bounded() -> None:

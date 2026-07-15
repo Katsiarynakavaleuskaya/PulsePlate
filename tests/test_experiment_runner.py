@@ -1259,13 +1259,90 @@ def test_evaluate_candidate_does_not_retry_lost_unshare_capability(
 
     monkeypatch.setattr(experiment_runner.sandbox, "run_local_sandbox", _missing_unshare)
 
+    with pytest.raises(experiment_runner.RunnerCapabilitySignal) as caught:
+        experiment_runner.evaluate_candidate(packet, patch_path)
+
+    assert caught.value.args == ()
+    assert attempts["count"] == 1
+
+
+def test_evaluate_candidate_returns_data_free_signal_for_returned_capability_mismatch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_runner_repo(monkeypatch, repo)
+    patch_path = _write_patch(
+        repo,
+        "core/rag/allowed.py",
+        "def candidate_value() -> int:\n    return 2\n",
+        tmp_path / "returned-first-capability.patch",
+    )
+    packet = _validate_packet(
+        _base_packet(
+            mutable_path="core/rag/allowed.py",
+            oracle_command='python3 -c "print(1)"',
+            network_budget=0,
+        )
+    )
+    calls = 0
+
+    def _returned_capability(**_kwargs: object) -> dict[str, Any]:
+        nonlocal calls
+        calls += 1
+        return {
+            "status": "rejected",
+            "failure_class": "capability_mismatch",
+            "budget_observations": {"runner_error": "/private/capability-canary"},
+        }
+
+    monkeypatch.setattr(experiment_runner, "_evaluate_attempt", _returned_capability)
+
+    with pytest.raises(experiment_runner.RunnerCapabilitySignal) as caught:
+        experiment_runner.evaluate_candidate(packet, patch_path)
+
+    assert caught.value.args == ()
+    assert calls == 1
+
+
+def test_evaluate_candidate_shared_tree_change_overrides_capability_signal(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_runner_repo(monkeypatch, repo)
+    patch_path = _write_patch(
+        repo,
+        "core/rag/allowed.py",
+        "def candidate_value() -> int:\n    return 2\n",
+        tmp_path / "capability-shared-tree-change.patch",
+    )
+    packet = _validate_packet(
+        _base_packet(
+            mutable_path="core/rag/allowed.py",
+            oracle_command='python3 -c "print(1)"',
+            network_budget=0,
+        )
+    )
+    statuses = iter(("before", "after"))
+    monkeypatch.setattr(experiment_runner, "_shared_tree_status", lambda _root: next(statuses))
+    monkeypatch.setattr(
+        experiment_runner,
+        "_evaluate_attempt",
+        lambda **_kwargs: {
+            "status": "rejected",
+            "failure_class": "capability_mismatch",
+        },
+    )
+
     result = experiment_runner.evaluate_candidate(packet, patch_path)
 
     assert result["status"] == "rejected"
-    assert result["failure_class"] == "capability_mismatch"
-    assert result["budget_observations"]["attempts"] == 1
-    assert result["budget_observations"]["retries_consumed"] == 0
-    assert attempts["count"] == 1
+    assert result["failure_class"] == "infra_flake"
+    assert result["shared_tree_untouched"] is False
+    assert result["budget_observations"]["runner_error"] == (
+        "Shared working tree changed during run."
+    )
 
 
 def test_evaluate_candidate_classifies_capability_loss_after_infra_retry_as_infra_flake(
@@ -1859,6 +1936,52 @@ def test_main_writes_result_inside_artifact_dir(
     assert "exp-cli" not in captured.out
 
 
+def test_main_capability_signal_uses_fixed_exit_without_artifact_or_canary(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = _init_repo(tmp_path)
+    result_dir = _configure_runner_repo(monkeypatch, repo)
+    packet_path = tmp_path / "packet.json"
+    patch_path = tmp_path / "candidate.patch"
+    packet_path.write_text(
+        json.dumps(
+            _base_packet(
+                mutable_path="core/rag/allowed.py",
+                oracle_command='python3 -c "print(1)"',
+                experiment_id="exp-capability-cli",
+                network_budget=0,
+            )
+        ),
+        encoding="utf-8",
+    )
+    patch_path.write_text("private-capability-canary", encoding="utf-8")
+    monkeypatch.setattr(
+        experiment_runner,
+        "evaluate_candidate",
+        lambda *_args: (_ for _ in ()).throw(experiment_runner.RunnerCapabilitySignal()),
+    )
+
+    exit_code = experiment_runner.main(
+        [
+            "--packet",
+            str(packet_path),
+            "--candidate-patch",
+            str(patch_path),
+            "--output",
+            "capability.json",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == experiment_runner.RUNNER_CAPABILITY_EXIT_CODE
+    assert captured.out == experiment_runner.RUNNER_CAPABILITY_DIAGNOSTIC + "\n"
+    assert captured.err == ""
+    assert "private-capability-canary" not in captured.out
+    assert not (result_dir / "capability.json").exists()
+
+
 def test_main_writes_oracle_only_governance_reviewer_artifact(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -2064,6 +2187,96 @@ def test_main_rejects_candidate_patch_attribution_flags(
 
     assert exit_code == 1
     assert "supported only in oracle-only mode" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("returned", [False, True])
+def test_oracle_only_capability_loss_raises_data_free_signal_after_cleanup(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    returned: bool,
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_runner_repo(monkeypatch, repo)
+    packet = _validate_packet(
+        _base_packet(
+            mutable_path="core/rag/allowed.py",
+            oracle_command='python3 -c "print(1)"',
+            runner_mode="oracle_only_governance_reviewer",
+            network_budget=0,
+        )
+    )
+    temp_cleanup = {"completed": False}
+
+    class _CleanupProbe:
+        def cleanup(self) -> None:
+            temp_cleanup["completed"] = True
+
+    monkeypatch.setattr(
+        experiment_runner,
+        "_create_temp_checkout",
+        lambda _root: (_CleanupProbe(), repo),
+    )
+    if returned:
+        monkeypatch.setattr(
+            experiment_runner,
+            "_run_oracles",
+            lambda *_args: (
+                [
+                    {
+                        "command": "oracle",
+                        "returncode": 1,
+                        "stderr": "private-oracle-capability-canary",
+                    }
+                ],
+                "capability_mismatch",
+            ),
+        )
+    else:
+        monkeypatch.setattr(
+            experiment_runner,
+            "_run_oracles",
+            lambda *_args: (_ for _ in ()).throw(
+                experiment_runner.CapabilityMismatchError("private-oracle-capability-canary")
+            ),
+        )
+
+    with pytest.raises(experiment_runner.RunnerCapabilitySignal) as caught:
+        experiment_runner.evaluate_oracle_only_governance_reviewer(packet)
+
+    assert caught.value.args == ()
+    assert temp_cleanup["completed"] is True
+
+
+def test_oracle_only_shared_tree_change_overrides_capability_signal(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_runner_repo(monkeypatch, repo)
+    packet = _validate_packet(
+        _base_packet(
+            mutable_path="core/rag/allowed.py",
+            oracle_command='python3 -c "print(1)"',
+            runner_mode="oracle_only_governance_reviewer",
+            network_budget=0,
+        )
+    )
+    statuses = iter(("before", "after"))
+    monkeypatch.setattr(experiment_runner, "_shared_tree_status", lambda _root: next(statuses))
+    monkeypatch.setattr(
+        experiment_runner,
+        "_run_oracles",
+        lambda *_args: ([], "capability_mismatch"),
+    )
+
+    result = experiment_runner.evaluate_oracle_only_governance_reviewer(packet)
+
+    assert result["status"] == "rejected"
+    assert result["failure_class"] == "infra_flake"
+    assert result["shared_tree_untouched"] is False
+    assert result["budget_observations"]["runner_error"] == (
+        "Shared working tree changed during run."
+    )
 
 
 def test_oracle_only_governance_reviewer_applies_current_tracked_diff(
