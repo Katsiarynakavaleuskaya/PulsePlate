@@ -97,6 +97,7 @@ Post-open packet: `artifacts/orchestration/task_packets/ef8acc9c0ac1.json`
 Disposition: FIXED
 Commit: 881d81da017c18bbfe932aa9565726f7e830ddea
 Evidence: docs/review/PR_2143_FIXED_MAPPING.md keeps live readiness items unchecked; Phase2 validation passes.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2143#pullrequestreview-4708903988 -> 881d81da017c18bbfe932aa9565726f7e830ddea
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2143#discussion_r3591427105 -> 881d81da017c18bbfe932aa9565726f7e830ddea
 
 ## Merge Readiness
