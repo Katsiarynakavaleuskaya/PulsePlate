@@ -44,6 +44,25 @@ Evidence: All CodeRabbit actionables and review-level findings were fixed by the
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#pullrequestreview-4691892060 -> 31d7aeb01
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#discussion_r3576961278 -> 9d227a08b
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#pullrequestreview-4691964978 -> 9d227a08b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#discussion_r3585346559 -> 18f0468ce
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#discussion_r3585346574 -> 18f0468ce
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#pullrequestreview-4701934244 -> 18f0468ce
+
+### Final post-rebase CodeRabbit review
+
+Disposition: FIXED
+Commit: 18f0468ce
+Evidence: The frontend workflow self-trigger was already present and is now
+covered explicitly. Staging Compose/Caddy inputs reject symlinks, the backup
+helper rejects group/world-writable modes, each in-container readiness request
+has a five-second timeout, and staging attestation verification passes GitHub
+context through named environment variables. Focused deploy/attestation tests,
+`make validate-changed`, and full pre-commit pass.
+Reason: Both inline findings and the bounded actionable items in the review
+summary were verified against current code. The duplicated remote marker/hash
+block remains intentional: two independent SSH sessions must each recheck the
+same server-local state immediately before use, without introducing another
+remote helper authority.
 
 ## Intermediate Codex Security Review Evidence
 
