@@ -793,6 +793,8 @@ def validate_experiment_result(result: dict[str, Any]) -> dict[str, Any]:
             )
     else:
         failure_class = None
+    if status == "accepted" and failure_class is not None:
+        raise ValueError("Accepted experiment results must use a null failure_class.")
     if status == "rejected" and failure_class is None:
         allowed_failures = ", ".join(FAILURE_CLASSES)
         raise ValueError(
@@ -838,6 +840,8 @@ def validate_experiment_result(result: dict[str, Any]) -> dict[str, Any]:
     promotion_ready = result.get("promotion_ready")
     if not isinstance(promotion_ready, bool):
         raise ValueError("Experiment result promotion_ready must be a boolean.")
+    if status == "rejected" and promotion_ready:
+        raise ValueError("Rejected experiment results must not be promotion_ready.")
 
     contribution_kind, coauthor_required, coauthor_reason = validate_contribution_attribution(
         contribution_kind=result.get("contribution_kind", "none"),
@@ -905,8 +909,6 @@ def validate_experiment_result(result: dict[str, Any]) -> dict[str, Any]:
             raise ValueError(
                 "Failed backend preflight requires a rejected capability_mismatch result."
             )
-        if failure_class == "capability_mismatch" and preflight_passed:
-            raise ValueError("Capability mismatch results require a failed backend preflight.")
 
     candidate_patch = str(result.get("candidate_patch", "")).strip()
     if not candidate_patch:

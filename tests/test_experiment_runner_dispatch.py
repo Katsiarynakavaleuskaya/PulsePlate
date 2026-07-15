@@ -498,15 +498,85 @@ def test_result_v1_rejects_impossible_backend_provenance(
         experiment_contract.validate_experiment_result(result)
 
 
-def test_capability_mismatch_requires_failed_preflight() -> None:
+def test_capability_mismatch_allows_post_preflight_isolation_loss() -> None:
     result = _legacy_result()
-    result["status"] = "rejected"
-    result["failure_class"] = "capability_mismatch"
-    result["execution_backend"] = dispatch._execution_backend_payload(
-        _probe("docker", strict=True), passed=True
+    expected_backend = dispatch._execution_backend_payload(
+        _probe("apple-container", strict=True), passed=True
+    )
+    result.update(
+        {
+            "status": "rejected",
+            "failure_class": "capability_mismatch",
+            "mutated_paths": [],
+            "budget_observations": {
+                "attempts": 1,
+                "retries_consumed": 0,
+            },
+            "promotion_ready": False,
+            "execution_backend": expected_backend,
+        }
     )
 
-    with pytest.raises(ValueError, match="failed backend preflight"):
+    validated = experiment_contract.validate_experiment_result(result)
+
+    assert validated["status"] == "rejected"
+    assert validated["failure_class"] == "capability_mismatch"
+    assert validated["execution_backend"] == expected_backend
+    assert validated["budget_observations"]["attempts"] == 1
+    assert validated["budget_observations"]["retries_consumed"] == 0
+    assert validated["promotion_ready"] is False
+
+
+@pytest.mark.parametrize("failure_class", experiment_contract.FAILURE_CLASSES)
+def test_accepted_results_reject_every_failure_class(failure_class: str) -> None:
+    result = _legacy_result()
+    result["failure_class"] = failure_class
+    result["execution_backend"] = dispatch._execution_backend_payload(
+        _probe("apple-container", strict=True), passed=True
+    )
+
+    with pytest.raises(ValueError, match="must use a null failure_class"):
+        experiment_contract.validate_experiment_result(result)
+
+
+def test_rejected_results_cannot_be_promotion_ready() -> None:
+    result = _legacy_result()
+    result.update(
+        {
+            "status": "rejected",
+            "failure_class": "capability_mismatch",
+            "promotion_ready": True,
+            "execution_backend": dispatch._execution_backend_payload(
+                _probe("apple-container", strict=True), passed=True
+            ),
+        }
+    )
+
+    with pytest.raises(ValueError, match="must not be promotion_ready"):
+        experiment_contract.validate_experiment_result(result)
+
+
+def test_result_rejects_unknown_failure_class() -> None:
+    result = _legacy_result()
+    result.update({"status": "rejected", "failure_class": "unknown_failure"})
+
+    with pytest.raises(ValueError, match="failure_class must be null or one of"):
+        experiment_contract.validate_experiment_result(result)
+
+
+def test_failed_preflight_still_requires_capability_mismatch() -> None:
+    result = _legacy_result()
+    result.update(
+        {
+            "status": "rejected",
+            "failure_class": "infra_flake",
+            "execution_backend": dispatch._execution_backend_payload(
+                _probe("apple-container", strict=False), passed=False
+            ),
+        }
+    )
+
+    with pytest.raises(ValueError, match="Failed backend preflight requires"):
         experiment_contract.validate_experiment_result(result)
 
 
@@ -788,7 +858,7 @@ def test_apple_host_bind_address_filters_unsafe_runtime_and_unbindable_candidate
     monkeypatch.setattr(dispatch, "_address_is_bindable", bindable)
 
     selected = dispatch._discover_apple_host_bind_address(
-        (dispatch.ipaddress.ip_network("192.168.64.0/24"),)
+        (dispatch.ipaddress.IPv4Network("192.168.64.0/24"),)
     )
 
     assert selected == "10.0.0.20"
@@ -891,7 +961,7 @@ def test_docker_gateway_preserves_bridge_inspection_without_host_bind_requiremen
 def test_apple_canaries_share_exact_listener_address_on_unique_internal_network(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    runtime_subnets = (dispatch.ipaddress.ip_network("192.168.64.0/24"),)
+    runtime_subnets = (dispatch.ipaddress.IPv4Network("192.168.64.0/24"),)
     host_address = "10.0.0.20"
     call_order: list[str] = []
     listener_addresses: list[str | None] = []
@@ -1366,6 +1436,46 @@ def test_sanitize_result_rejects_malformed_oracle_before_transform() -> None:
 
     with pytest.raises(dispatch.DispatchError, match="result_validation_failed"):
         dispatch._sanitize_result(result, _probe("apple-container", strict=True))
+
+
+def test_sanitize_result_preserves_safe_post_preflight_capability_mismatch() -> None:
+    trusted_probe = _probe("apple-container", strict=True)
+    trusted_backend = dispatch._execution_backend_payload(trusted_probe, passed=True)
+    raw_token = "ghp_" + "a" * 24
+    raw_error = f"failure at {dispatch.REPO_ROOT}/runner.py leaked credential {raw_token}"
+    spoofed_backend = {
+        **trusted_backend,
+        "runtime_version": "spoofed-runtime",
+        "image_digest": "sha256:" + "b" * 64,
+    }
+    result = _legacy_result()
+    result.update(
+        {
+            "status": "rejected",
+            "failure_class": "capability_mismatch",
+            "mutated_paths": [],
+            "budget_observations": {
+                "attempts": 1,
+                "retries_consumed": 0,
+                "runner_error": raw_error,
+            },
+            "promotion_ready": False,
+            "execution_backend": spoofed_backend,
+        }
+    )
+
+    sanitized = dispatch._sanitize_result(result, trusted_probe)
+    serialized = json.dumps(sanitized)
+
+    assert sanitized["status"] == "rejected"
+    assert sanitized["failure_class"] == "capability_mismatch"
+    assert sanitized["execution_backend"] == trusted_backend
+    assert sanitized["budget_observations"]["attempts"] == 1
+    assert sanitized["budget_observations"]["retries_consumed"] == 0
+    assert sanitized["promotion_ready"] is False
+    assert str(dispatch.REPO_ROOT) not in serialized
+    assert raw_token not in serialized
+    assert "<redacted>" in sanitized["budget_observations"]["runner_error"]
 
 
 def test_sanitize_accepted_result_preserves_material_attribution() -> None:
