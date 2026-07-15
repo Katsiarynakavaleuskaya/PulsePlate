@@ -16,6 +16,7 @@ from scripts.orchestration.check_review_threads_disposition import (
     ResolvedThreadRef,
     _block_thread_urls,
     _check_commit_after_comment,
+    _check_real_commit_proofs,
     _check_trigger_only_mapping,
     _env_diagnostic,
     _find_disposition_block_in_section,
@@ -25,6 +26,13 @@ from scripts.orchestration.check_review_threads_disposition import (
     _parse_mapping_section,
     _require_gh_token_preflight,
     _validate_fixed_commit_blocks,
+)
+from scripts.orchestration.pr_commit_identity import (
+    CommitRefKind,
+    PrCommitEvidence,
+    PrSnapshot,
+    RepositoryCommitRef,
+    ReviewExecutionRef,
 )
 from scripts.orchestration.review_mapping_artifact import extract_fixed_mapping_section
 
@@ -550,6 +558,91 @@ Evidence: file.md:1
 """
     violations = _check_commit_after_comment([thread], section)
     assert violations == []
+
+
+def test_v1_commit_after_comment_uses_server_timestamp() -> None:
+    sha = "a" * 40
+    thread = ResolvedThreadRef(
+        url="https://github.com/org/repo/pull/1#discussion_r1",
+        source="comment",
+        is_resolved=True,
+        created_at="2026-02-27T12:00:00Z",
+    )
+    section = f"- {thread.url} -> {sha}\nDisposition: FIXED\nCommit: {sha}\n"
+
+    violations = _check_commit_after_comment(
+        [thread],
+        section,
+        _git_commit_time_fn=lambda _sha: (_ for _ in ()).throw(
+            AssertionError("local git timestamp must not be used")
+        ),
+        commit_time_by_sha={sha: "2026-02-27T13:00:00+00:00"},
+    )
+    assert violations == []
+
+
+@pytest.mark.parametrize(
+    ("original_kind", "expected_violation"),
+    [
+        (CommitRefKind.REVIEW_REF_UNAVAILABLE, None),
+        (CommitRefKind.API_UNKNOWN, "API_UNKNOWN"),
+    ],
+)
+def test_real_commit_proof_never_uses_unavailable_original_for_ancestry(
+    monkeypatch: "MonkeyPatch",
+    original_kind: CommitRefKind,
+    expected_violation: str | None,
+) -> None:
+    fix_sha = "b" * 40
+    original_sha = "c" * 40
+    head_sha = "d" * 40
+    url = "https://github.com/org/repo/pull/1#discussion_r1"
+    snapshot = PrSnapshot(
+        repository="org/repo",
+        pr_number=1,
+        base_sha="e" * 40,
+        head_sha=head_sha,
+        commits=(
+            PrCommitEvidence(fix_sha, "2026-02-27T13:00:00Z"),
+            PrCommitEvidence(head_sha, "2026-02-27T14:00:00Z"),
+        ),
+    )
+    thread = ResolvedThreadRef(
+        url=url,
+        source="comment",
+        is_resolved=True,
+        created_at="2026-02-27T12:00:00Z",
+        original_commit_sha=original_sha,
+    )
+    ancestry_calls: list[tuple[str, str]] = []
+
+    def classify(value: str, *_args: object, **_kwargs: object) -> object:
+        if value == original_sha:
+            return ReviewExecutionRef(value, original_kind, "test")
+        return RepositoryCommitRef(
+            value,
+            CommitRefKind.PR_HEAD if value == head_sha else CommitRefKind.PR_COMMIT,
+        )
+
+    def ancestor(left: RepositoryCommitRef, right: RepositoryCommitRef, **_kwargs: object) -> bool:
+        ancestry_calls.append((left.sha, right.sha))
+        return True
+
+    monkeypatch.setattr(_disposition_mod, "classify_commit_ref", classify)
+    monkeypatch.setattr(_disposition_mod, "is_ancestor", ancestor)
+    violations = _check_real_commit_proofs(
+        [thread],
+        f"- {url} -> {fix_sha}\nDisposition: FIXED\nCommit: {fix_sha}\n",
+        snapshot=snapshot,
+        repository="org/repo",
+        token="opaque",
+    )
+
+    assert ancestry_calls == [(fix_sha, head_sha)]
+    if expected_violation is None:
+        assert violations == []
+    else:
+        assert expected_violation in violations[0]
 
 
 def test_env_diagnostic_returns_set_or_missing() -> None:
