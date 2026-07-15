@@ -300,6 +300,11 @@ jobs:
           cp trivy/ignore-policy.rego .trivy-ignore-policy.rego
           test -s .trivy-ignore-policy.rego
           cmp -s trivy/ignore-policy.rego .trivy-ignore-policy.rego
+          rm -f -- .trivyignore-caddy
+          : > .trivyignore-caddy
+          test -f .trivyignore-caddy
+          test ! -L .trivyignore-caddy
+          test ! -s .trivyignore-caddy
 
       - name: Scan staged backend image
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0 / Node 24 cache path
@@ -332,8 +337,9 @@ jobs:
           severity: CRITICAL,HIGH
           exit-code: '1'
           timeout: 15m
-          trivyignores: .trivyignore
-          ignore-policy: .trivy-ignore-policy.rego
+          # Override Trivy's default root .trivyignore: it is backend/Debian-specific,
+          # while the staged Caddy runtime is Alpine and must remain suppression-free.
+          trivyignores: .trivyignore-caddy
           version: v0.71.2
           cache-dir: /tmp/trivy-cache-staging-caddy
 

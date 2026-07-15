@@ -160,6 +160,11 @@ def test_cd_builds_attests_scans_and_deploys_both_same_job_digests() -> None:
         "cp trivy/ignore-policy.rego .trivy-ignore-policy.rego",
         "test -s .trivy-ignore-policy.rego",
         "cmp -s trivy/ignore-policy.rego .trivy-ignore-policy.rego",
+        "rm -f -- .trivyignore-caddy",
+        ": > .trivyignore-caddy",
+        "test -f .trivyignore-caddy",
+        "test ! -L .trivyignore-caddy",
+        "test ! -s .trivyignore-caddy",
     ]
     assert _step_index(steps, "Prepare Trivy ignore policy") + 1 == _step_index(
         steps, "Scan staged backend image"
@@ -168,16 +173,31 @@ def test_cd_builds_attests_scans_and_deploys_both_same_job_digests() -> None:
         steps, "Scan staged Caddy image"
     )
 
-    for name, digest_ref, cache_dir in (
+    common_scan_contract = {
+        "scan-type": "image",
+        "scanners": "vuln",
+        "format": "table",
+        "vuln-type": "os,library",
+        "severity": "CRITICAL,HIGH",
+        "exit-code": "1",
+        "timeout": "15m",
+        "version": "v0.71.2",
+    }
+    for name, digest_ref, cache_dir, policy_contract in (
         (
             "Scan staged backend image",
             "steps.staging-image-refs.outputs.backend_ref",
             "/tmp/trivy-cache-staging-backend",
+            {
+                "trivyignores": ".trivyignore",
+                "ignore-policy": ".trivy-ignore-policy.rego",
+            },
         ),
         (
             "Scan staged Caddy image",
             "steps.staging-image-refs.outputs.caddy_ref",
             "/tmp/trivy-cache-staging-caddy",
+            {"trivyignores": ".trivyignore-caddy"},
         ),
     ):
         step = _named_step(steps, name)
@@ -189,17 +209,9 @@ def test_cd_builds_attests_scans_and_deploys_both_same_job_digests() -> None:
         with_block = step.get("with")
         assert isinstance(with_block, dict)
         assert with_block == {
-            "scan-type": "image",
+            **common_scan_contract,
             "image-ref": "${{ " + digest_ref + " }}",
-            "scanners": "vuln",
-            "format": "table",
-            "vuln-type": "os,library",
-            "severity": "CRITICAL,HIGH",
-            "exit-code": "1",
-            "timeout": "15m",
-            "trivyignores": ".trivyignore",
-            "ignore-policy": ".trivy-ignore-policy.rego",
-            "version": "v0.71.2",
+            **policy_contract,
             "cache-dir": cache_dir,
         }
 
