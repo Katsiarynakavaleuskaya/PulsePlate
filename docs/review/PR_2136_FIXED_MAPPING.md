@@ -23,30 +23,50 @@ contracts.
   every concrete finding is dispositioned below.
 - Experiment Runner result `exp-2561c6a43b19` was accepted after both local
   immutable oracles passed and the shared tree remained untouched.
-- Post-open `qa-engineer-agent -> bug-hunter -> security-auditor`, Codex
-  Security, and `pulseplate-pr-review` remain mandatory before readiness.
+- Post-open `qa-engineer-agent -> bug-hunter -> security-auditor` completed in
+  the declared order; the QA and bug-hunter final-head follow-ups found no new
+  actionable defect.
+- Sealed Codex Security scan `c28f183e-577c-42ea-8a9a-525f20e170d3` and
+  `pulseplate-pr-review` completed for material head `a0696db25`.
 
 ## Implementation Commit
 
 - `f4efdc36306588a4825f1ff049bf8eda565cdb57` - replace whole-root output
   deltas with strict receipt ownership, add deterministic foreign-sibling and
   parser regressions, and prove lineage failures never reach publication.
+- `a0696db25d0ce31ea5a7bc1bcd69ee078d65d345` - add a fail-fast
+  `Path.mkdir` oracle so lineage rejection proves that neither run-owned
+  staging nor final publication can be created before failure.
+
+Last validated material head:
+`a0696db25d0ce31ea5a7bc1bcd69ee078d65d345`. Any later tracked commits in this
+lane are governance-only updates to this canonical artifact.
 
 ## Discussion Thread Pass
 
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
-- [x] Current issue comments and reviews inspected at functional head
-  `f4efdc36306588a4825f1ff049bf8eda565cdb57`.
+- [x] Current issue comments and reviews inspected at material head
+  `a0696db25d0ce31ea5a7bc1bcd69ee078d65d345`.
 - [x] Current bot capacity notices dispositioned below.
-- [x] No actionable review thread existed when this artifact was created.
-- [ ] Mandatory post-open role-agent chain completed.
-- [ ] Codex Security diff scan and `pulseplate-pr-review` completed.
-- [ ] Current-head CI and strict authenticated merge readiness completed.
+- [x] Both actionable review threads dispositioned below.
+- [x] Mandatory post-open role-agent chain completed.
+- [x] Codex Security diff scan and `pulseplate-pr-review` completed.
+- [x] Current-head CI at the final material head inspected; strict
+  authenticated merge readiness remains pending thread resolution and the
+  final governance-only review cycle.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2136#discussion_r3583378560
+Disposition: NOT-A-BUG
+Evidence: `git merge-base --is-ancestor f4efdc36306588a4825f1ff049bf8eda565cdb57 a0696db25d0ce31ea5a7bc1bcd69ee078d65d345` exits `0`; current PR history is `f4efdc363 -> b438acff8 -> a0696db25`, and `f4efdc363` carries the required Experiment Runner co-author trailer.
+Reason: The cited implementation commit is an ancestor of the actual published material head; the comment's synthetic `adbaa974` snapshot is not the current PR head, and this artifact also names the later review-fix commit explicitly.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2136#discussion_r3583378562 -> a0696db25d0ce31ea5a7bc1bcd69ee078d65d345
+Disposition: FIXED
+Commit: a0696db25d0ce31ea5a7bc1bcd69ee078d65d345
+Evidence: `tests/test_creative_pilot_workspace.py:1700` installs a fail-fast `Path.mkdir` spy for direct staging/output creation under `spec_root` while preserving the independent publisher spy; the focused pack passed 12 tests and the full file passed 78 tests, and the post-comment commit is not trigger-only.
 
 ## Bot Capacity Notices
 
@@ -97,8 +117,9 @@ finding or merge-readiness evidence.
 - Foreign regression artifacts leak across shards: FIXED by unique sibling
   identities and `finally` cleanup of every recorded publication path.
 - Invalid lineage reaches publication after removing whole-tree equality:
-  FIXED by a fail-fast spy on `_atomic_publish_directory_noreplace` while
-  retaining exit-code, error-text, traceback, and byte-stability assertions.
+  FIXED by fail-fast spies on both direct `Path.mkdir` staging/output creation
+  under `spec_root` and `_atomic_publish_directory_noreplace`, while retaining
+  exit-code, error-text, traceback, and byte-stability assertions.
 - Runtime/governance scope silently widens: NOT-A-BUG. The material commit
   changes one test file; this numbered artifact is mandatory governance
   overhead and does not alter runtime behavior.
@@ -133,8 +154,8 @@ network authority.
   tests/test_creative_pilot_workspace.py`.
 - PASS: `python3 scripts/orchestration/check_agent_consistency.py`.
 - PASS: focused parser, foreign-sibling, exact-publication, lineage,
-  attach/reentry, and source-fingerprint pack.
-- PASS: full `tests/test_creative_pilot_workspace.py`.
+  attach/reentry, and source-fingerprint pack; 12 selected tests.
+- PASS: full `tests/test_creative_pilot_workspace.py`; 78 tests.
 - PASS: branch-scoped `make validate-changed`; selected and completed the full
   changed test file.
 - PASS: `pre-commit run --all-files` after the first Black pass formatted the
@@ -144,8 +165,14 @@ network authority.
 - PASS: `git diff --check`.
 - NOT RUN: local full `make verify`; prohibited by repository local budget
   policy.
-- PENDING: canonical current-head GitHub CI, including Python 3.13 `test-main`
-  and diff coverage at or above 97%.
+- PASS at material head `a0696db25`: canonical CI `lint`, `security`, Python
+  3.13 `test-pr`, `coverage-pr`, `diff-coverage`, CodeQL, Codecov patch,
+  governance, and applicable build checks.
+- EXPECTED SKIP: `test-main`, `test-feature`, `coverage-main`, and
+  `coverage-feature` were not selected by the canonical changed-path router;
+  the applicable Python 3.13 `test-pr` job passed.
+- EXPECTED BLOCKER: the current-head `Merge readiness gate` failed only because
+  the two review threads were still unresolved when it ran.
 
 ## Security Review
 
@@ -153,9 +180,28 @@ network authority.
   subprocess, quota, persistence, deploy, or runtime trust boundary.
 - Strict canonical evidence-ID parsing rejects traversal-like, malformed,
   idempotent, missing-directory, and multi-line ownership receipts.
-- PENDING: mandatory post-open security-auditor pass.
-- PENDING: one sealed Codex Security diff scan / finding discovery pass.
-- PENDING: `pulseplate-pr-review` on the published diff.
+- PASS: post-open `security-auditor` found no runtime-security actionable in
+  the test-only material diff.
+- PASS: sealed Codex Security scan
+  `c28f183e-577c-42ea-8a9a-525f20e170d3` covered 2/2 changed files for
+  `b432aeb78a6b18cdedf760bb7872daf9241dacd6..a0696db25d0ce31ea5a7bc1bcd69ee078d65d345`.
+  The adaptive-resume ownership/lineage surface had no finding.
+- The scan reported one Low/P3 governance finding,
+  `csf_68bf70902fb8efcc7b18f6d9`: prior-head evidence remained in this mapping
+  after the later material review fix. Disposition: FIXED by this refresh,
+  which binds every mandatory evidence claim to material head `a0696db25`;
+  the publishing commit SHA will be recorded in the next governance-only
+  disposition update.
+- The scan's structural head-binding option is advisory design guidance for a
+  separately authorized governance lane. It is not needed to close this
+  concrete stale artifact instance and is not implemented in this test-only
+  hotfix.
+- PASS: final-material-head `pulseplate-pr-review` and its 11 calibration tests.
+  Its only `NEEDS-HUMAN` note was the 336-line review threshold.
+  Disposition: NOT-A-BUG. The diff is two coherent files: one functional test
+  file plus this mandatory numbered governance artifact; splitting either
+  would remove required evidence from the same PR. Focused, full-file,
+  `make validate-changed`, and pre-commit gates passed.
 
 ## Risks / Rollback
 
@@ -168,12 +214,16 @@ confirmed main flake; prefer a narrow follow-up receipt-contract update.
 ## Merge Readiness
 
 - [x] Functional diff is limited to one test file.
-- [x] Required local narrow validation passed at functional head.
+- [x] Required local narrow validation passed at final material head.
 - [x] Pre-open role order, premortem, and Experiment Runner completed.
-- [ ] Mandatory post-open review/security chain completed.
-- [ ] All current-head required checks are terminal PASS.
+- [x] Mandatory post-open review/security chain completed.
+- [x] Sealed Codex Security scan and `pulseplate-pr-review` completed at the
+  final material head.
+- [x] Applicable current-head CI at material head `a0696db25` is terminal PASS;
+  the Python 3.13 `test-pr` lane ran, while `test-main` was canonically skipped.
+- [ ] Both review threads resolved only after their dispositions are published.
 - [ ] CodeRabbit, Sourcery, and Cubic are checked for actionable findings after
-  the final material activity.
+  the final governance-only activity.
 - [ ] Strict authenticated merge-readiness and mandatory final review window
   completed.
 
