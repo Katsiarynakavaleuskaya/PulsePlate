@@ -976,6 +976,16 @@ def validate_experiment_result(result: dict[str, Any]) -> dict[str, Any]:
                     "passed backend preflight and 0 after failed backend preflight."
                 )
 
+    if (
+        failure_class == "capability_mismatch"
+        and budget_observations.get("attempts") == 0
+        and execution_backend is None
+    ):
+        raise ValueError(
+            "Experiment result capability_mismatch with attempts 0 requires failed "
+            "backend preflight provenance."
+        )
+
     validate_capability_zero_attempt_observations(
         failure_class=failure_class,
         attempts=budget_observations.get("attempts"),

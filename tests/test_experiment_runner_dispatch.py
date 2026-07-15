@@ -624,6 +624,21 @@ def test_capability_mismatch_zero_attempts_reject_execution_evidence(
         experiment_contract.validate_experiment_result(result)
 
 
+def test_capability_mismatch_zero_attempts_require_backend_preflight_provenance() -> None:
+    result = dispatch._capability_mismatch_result(
+        _packet(network_budget=0),
+        _image(),
+        _probe("apple-container", strict=False),
+    )
+    result.pop("execution_backend")
+
+    with pytest.raises(
+        ValueError,
+        match="capability_mismatch with attempts 0 requires failed backend preflight provenance",
+    ):
+        experiment_contract.validate_experiment_result(result)
+
+
 def test_retryable_failure_preserves_retry_evidence() -> None:
     result = _legacy_result()
     result.update(
