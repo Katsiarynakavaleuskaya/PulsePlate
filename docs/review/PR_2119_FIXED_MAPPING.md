@@ -409,6 +409,16 @@ Evidence: Direct candidate and Oracle runner paths emit a data-free signal and n
 Reason: Direct runner consumers can no longer publish backendless capability proof or fabricate execution provenance; failed preflight, cleanup/shared-tree failures, and post-infra-retry outcomes remain fail closed.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2119#discussion_r3589281986 -> da7650b0b1f7cc9c481639f66559a8f4652c8d0c
 
+Disposition: NOT-A-BUG
+Evidence: Published head `e5d19d7fef92f0e3f65c526874b25f6a9542720e` contains ancestor `da7650b0b1f7cc9c481639f66559a8f4652c8d0c`; its direct candidate and Oracle paths raise the data-free `RunnerCapabilitySignal`, the CLI exits `3` without writing an artifact, and the full runner/dispatch suites pass.
+Reason: The automatic reviewer repeated the already-fixed direct-producer finding while reasoning from synthetic commit `81223267`; the current published implementation cannot emit the backendless capability artifact described by the comment.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2119#discussion_r3590431927
+
+Disposition: NOT-A-BUG
+Evidence: GitHub attaches this thread to published commit `e5d19d7fef92f0e3f65c526874b25f6a9542720e`, whose unsquashed owner history contains every FIXED proof commit; the canonical ancestry evidence is the published PR head, not reviewer-generated synthetic commit `81223267`.
+Reason: The automatic reviewer repeated the earlier synthetic-squash ancestry claim without identifying a GitHub PR-head commit or a missing fix in the published owner history.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2119#discussion_r3590431932
+
 ## Source PR #2130 Replacement Mapping
 
 | Source evidence | Disposition | Owner replacement | Evidence |
