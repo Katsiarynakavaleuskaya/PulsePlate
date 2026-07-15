@@ -167,23 +167,6 @@ def test_export_pdf_error(
     assert response.status_code in [404, 403]
 
 
-def test_weekly_menu_generation_error(
-    client: TestClient, pro_headers: dict[str, str], monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Проверяет 500 Internal Server Error при ошибке генерации недельного меню."""
-
-    import app as app_module
-
-    def raise_menu(*args, **kwargs):
-        raise RuntimeError("Menu fail")
-
-    monkeypatch.setattr(app_module, "make_weekly_menu", raise_menu)
-    payload = {"weight_kg": 70, "height_cm": 170, "age": 30, "sex": "male", "activity": "sedentary"}
-    response = client.post("/api/v1/premium/plan/week", json=payload, headers=pro_headers)
-    # Endpoint requires API key, may return 403 if key is invalid, or 500 if error
-    assert response.status_code in [500, 403]
-
-
 # NOTE (CI trust): `test_no_calculate_all_bmr` was removed in PR-602.
 # It relied on `importlib.reload(app)` + asserting internal symbols become None, which is not a
 # supported contract and is nondeterministic under pytest import graph. Audit basis: PR-600.

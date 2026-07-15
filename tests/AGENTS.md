@@ -46,6 +46,15 @@
 - Admin route tests must assert deterministic success, exact sanitized failure
   details, and exact missing/invalid API-key `403` responses. Broad multi-status
   assertions are not evidence for this route family.
+- Legacy weekly-plan route tests patch only the consumer binding
+  `app.routers.legacy_premium_weekly_plan.get_weekly_menu_builder`. Do not patch
+  `app.make_weekly_menu`, `legacy_app.make_weekly_menu`, package dictionaries,
+  `sys.modules`, or deleted resolver helpers to control that route.
+- Weekly-menu access tests must distinguish exact canonical-module absence from
+  transitive module, symbol, plain import, and non-callable-export failures.
+  Route tests assert exact `403`/`400`/`422`/`500`/`503` contracts and prove
+  builder/executor non-calls on short-circuit paths; broad allowed-status
+  assertions are not evidence.
 - For extracted legacy AI routes (e.g. `/insight`, `/api/v1/insight`), prefer client/route
   behavior tests against `app.main` or the canonical router. Direct `legacy_app` callable tests
   are allowed only as compatibility-shim tests and must assert delegation to `app/routers` or

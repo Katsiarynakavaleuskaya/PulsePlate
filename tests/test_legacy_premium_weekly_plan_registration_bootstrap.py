@@ -227,6 +227,7 @@ def test_legacy_premium_weekly_plan_requires_legacy_api_key(
     assert missing_key.status_code == 403
     assert invalid_key.status_code == 403
     assert accepted_key.status_code == 503
+    assert accepted_key.headers.get("Content-Type", "").startswith("application/json")
     assert accepted_key.json()["detail"] == "VIP module is disabled"
 
 

@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 import math
 from types import SimpleNamespace
 from typing import Any
+from unittest.mock import AsyncMock, Mock
 
 import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
@@ -22,6 +25,21 @@ from app.schemas.legacy_premium_weekly_plan import (
 )
 import app.services.legacy_premium_weekly_plan as weekly_plan_service
 import legacy_app
+import app.routers.legacy_premium_weekly_plan as weekly_plan_router
+import app.routers.vip as vip_router
+
+_TARGETS_ONLY_DETAIL = (
+    "Targets-based weekly plans are not supported on this endpoint. "
+    "Provide full profile data or use /api/v1/premium/plan/week-flexible."
+)
+_INVALID_WEEKLY_PAYLOAD_DETAIL = "Invalid weekly plan request payload"
+
+
+def _assert_json_response(response: Any) -> dict[str, Any]:
+    assert response.headers.get("Content-Type", "").startswith("application/json")
+    payload = response.json()
+    assert isinstance(payload, dict)
+    return payload
 
 
 def _fake_weekly_menu_builder(profile: object) -> dict[str, Any]:
@@ -76,13 +94,13 @@ def test_legacy_weekly_alias_matches_canonical_vip_menu(
 ) -> None:
     """Legacy premium alias must be a thin adapter over canonical VIP weekly menu logic."""
 
-    import app as app_module
-    import app.routers.vip as vip_router
-
     monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
     monkeypatch.setenv("API_KEY", vip_headers["X-API-Key"])
-    monkeypatch.setattr(app_module, "make_weekly_menu", _fake_weekly_menu_builder, raising=False)
-    monkeypatch.setattr(legacy_app, "make_weekly_menu", _fake_weekly_menu_builder, raising=False)
+    monkeypatch.setattr(
+        weekly_plan_router,
+        "get_weekly_menu_builder",
+        lambda: _fake_weekly_menu_builder,
+    )
     monkeypatch.setattr(vip_router, "make_weekly_menu", _fake_weekly_menu_builder, raising=False)
 
     vip_route = next(
@@ -139,9 +157,6 @@ def test_legacy_weekly_alias_delegates_to_canonical_vip_execution(
 ) -> None:
     """Legacy alias must delegate through the canonical VIP execution seam."""
 
-    import app as app_module
-    import app.routers.vip as vip_router
-
     captured: dict[str, Any] = {}
 
     async def _fake_run_weekly_plan_task(
@@ -155,7 +170,11 @@ def test_legacy_weekly_alias_delegates_to_canonical_vip_execution(
 
     monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
     monkeypatch.setenv("API_KEY", vip_headers["X-API-Key"])
-    monkeypatch.setattr(app_module, "make_weekly_menu", _fake_weekly_menu_builder, raising=False)
+    monkeypatch.setattr(
+        weekly_plan_router,
+        "get_weekly_menu_builder",
+        lambda: _fake_weekly_menu_builder,
+    )
     monkeypatch.setattr(
         vip_router.fitchef_runtime,
         "run_weekly_plan_task",
@@ -179,6 +198,11 @@ def test_legacy_weekly_alias_rejects_targets_only_payload_with_guidance(
 
     monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
     monkeypatch.setenv("API_KEY", vip_headers["X-API-Key"])
+    monkeypatch.setattr(
+        weekly_plan_router,
+        "get_weekly_menu_builder",
+        lambda: _fake_weekly_menu_builder,
+    )
 
     response = client.post(
         "/api/v1/premium/plan/week",
@@ -207,35 +231,38 @@ def test_legacy_weekly_alias_returns_503_when_vip_module_disabled(
 ) -> None:
     """VIP feature flag must short-circuit before canonical weekly-plan delegation."""
 
+    getter = Mock(return_value=_fake_weekly_menu_builder)
     monkeypatch.setenv("VIP_MODULE_ENABLED", "false")
     monkeypatch.setenv("API_KEY", vip_headers["X-API-Key"])
+    monkeypatch.setattr(weekly_plan_router, "get_weekly_menu_builder", getter)
 
     response = client.post("/api/v1/premium/plan/week", json=_valid_payload(), headers=vip_headers)
 
     assert response.status_code == 503, response.text
     assert response.headers.get("Content-Type", "").startswith("application/json")
     assert response.json()["detail"] == "VIP module is disabled"
+    getter.assert_not_called()
 
 
-def test_legacy_weekly_alias_honors_explicit_none_package_override(
+def test_legacy_weekly_alias_returns_503_when_builder_is_unavailable(
     client: TestClient,
     vip_headers: dict[str, str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Explicit package-level disablement must beat the legacy module fallback."""
+    """The canonical getter's explicit unavailable result keeps the legacy 503."""
 
-    import app as app_module
-
+    executor = AsyncMock()
     monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
     monkeypatch.setenv("API_KEY", vip_headers["X-API-Key"])
-    monkeypatch.setattr(legacy_app, "make_weekly_menu", _fake_weekly_menu_builder, raising=False)
-    monkeypatch.setattr(app_module, "make_weekly_menu", None, raising=False)
+    monkeypatch.setattr(weekly_plan_router, "get_weekly_menu_builder", lambda: None)
+    monkeypatch.setattr(vip_router, "execute_legacy_premium_week_alias_payload", executor)
 
     response = client.post("/api/v1/premium/plan/week", json=_valid_payload(), headers=vip_headers)
 
     assert response.status_code == 503, response.text
     assert response.headers.get("Content-Type", "").startswith("application/json")
     assert response.json()["detail"] == "Weekly menu generation feature not available"
+    executor.assert_not_awaited()
 
 
 def test_legacy_weekly_plan_contracts_are_canonically_owned() -> None:
@@ -250,10 +277,351 @@ def test_legacy_weekly_plan_contracts_are_canonically_owned() -> None:
     assert weekly_plan_router.build_legacy_weekly_menu_response is (
         weekly_plan_service.build_legacy_weekly_menu_response
     )
-    assert weekly_plan_router.resolve_legacy_weekly_menu_builder is (
-        weekly_plan_service.resolve_legacy_weekly_menu_builder
+    assert weekly_plan_router.get_weekly_menu_builder is (
+        weekly_plan_service.get_weekly_menu_builder
     )
     assert not hasattr(weekly_plan_router, "_legacy_module")
+
+
+@pytest.mark.parametrize(
+    "request_headers",
+    ({}, {"X-API-Key": "invalid-weekly-key"}),
+    ids=("missing-key", "invalid-key"),
+)
+def test_legacy_weekly_alias_auth_short_circuits_invalid_body(
+    client: TestClient,
+    vip_headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+    request_headers: dict[str, str],
+) -> None:
+    """Authentication remains authoritative before body validation and builder access."""
+
+    getter = Mock(return_value=_fake_weekly_menu_builder)
+    executor = AsyncMock()
+    monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
+    monkeypatch.setenv("API_KEY", vip_headers["X-API-Key"])
+    monkeypatch.setattr(weekly_plan_router, "get_weekly_menu_builder", getter)
+    monkeypatch.setattr(vip_router, "execute_legacy_premium_week_alias_payload", executor)
+
+    response = client.post(
+        "/api/v1/premium/plan/week",
+        json={},
+        headers=request_headers,
+    )
+
+    assert response.status_code == 403, response.text
+    assert _assert_json_response(response) == {"detail": "Invalid API Key"}
+    getter.assert_not_called()
+    executor.assert_not_awaited()
+
+
+def test_legacy_weekly_alias_valid_key_invalid_body_skips_builder(
+    client: TestClient,
+    vip_headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Request validation remains a 422 and does not enter the route body."""
+
+    getter = Mock(return_value=_fake_weekly_menu_builder)
+    monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
+    monkeypatch.setenv("API_KEY", vip_headers["X-API-Key"])
+    monkeypatch.setattr(weekly_plan_router, "get_weekly_menu_builder", getter)
+
+    response = client.post(
+        "/api/v1/premium/plan/week",
+        json={},
+        headers=vip_headers,
+    )
+
+    assert response.status_code == 422, response.text
+    _assert_json_response(response)
+    getter.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "failure",
+    (
+        RuntimeError("private flag failure"),
+        HTTPException(status_code=418, detail="private flag HTTP detail"),
+    ),
+    ids=("runtime", "http"),
+)
+def test_legacy_weekly_alias_sanitizes_feature_flag_failure(
+    client: TestClient,
+    vip_headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    failure: Exception,
+) -> None:
+    """A broken feature-flag resolver is a server failure, not feature disablement."""
+
+    getter = Mock(return_value=_fake_weekly_menu_builder)
+
+    def _raise_flag_error() -> bool:
+        raise failure
+
+    monkeypatch.setenv("API_KEY", vip_headers["X-API-Key"])
+    monkeypatch.setattr(weekly_plan_router, "is_vip_module_enabled", _raise_flag_error)
+    monkeypatch.setattr(weekly_plan_router, "get_weekly_menu_builder", getter)
+    caplog.set_level(logging.ERROR, logger=weekly_plan_router.__name__)
+
+    response = client.post(
+        "/api/v1/premium/plan/week",
+        json=_valid_payload(),
+        headers=vip_headers,
+    )
+
+    assert response.status_code == 500, response.text
+    assert _assert_json_response(response) == {"detail": "Weekly menu generation failed"}
+    assert any(
+        record.name == weekly_plan_router.__name__
+        and record.getMessage() == "Legacy weekly menu generation failed"
+        and record.exc_info is not None
+        for record in caplog.records
+    )
+    getter.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "failure",
+    (
+        RuntimeError("private runtime failure"),
+        ValueError("private getter value failure"),
+        ImportError("private missing symbol failure"),
+        ModuleNotFoundError("private transitive failure", name="optional_provider"),
+        HTTPException(status_code=422, detail=_INVALID_WEEKLY_PAYLOAD_DETAIL),
+    ),
+    ids=("runtime", "value", "import", "transitive-module", "http"),
+)
+def test_legacy_weekly_alias_sanitizes_getter_failures(
+    client: TestClient,
+    vip_headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    failure: Exception,
+) -> None:
+    """Every getter failure is a broken runtime and must use the generic 500 boundary."""
+
+    executor = AsyncMock()
+
+    def _raise_getter_failure() -> Any:
+        raise failure
+
+    monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
+    monkeypatch.setenv("API_KEY", vip_headers["X-API-Key"])
+    monkeypatch.setattr(weekly_plan_router, "get_weekly_menu_builder", _raise_getter_failure)
+    monkeypatch.setattr(vip_router, "execute_legacy_premium_week_alias_payload", executor)
+    caplog.set_level(logging.ERROR, logger=weekly_plan_router.__name__)
+
+    response = client.post(
+        "/api/v1/premium/plan/week",
+        json=_valid_payload(),
+        headers=vip_headers,
+    )
+
+    assert response.status_code == 500, response.text
+    assert _assert_json_response(response) == {"detail": "Weekly menu generation failed"}
+    assert any(
+        record.name == weekly_plan_router.__name__
+        and record.getMessage() == "Legacy weekly menu generation failed"
+        and record.exc_info is not None
+        for record in caplog.records
+    )
+    executor.assert_not_awaited()
+
+
+def test_legacy_weekly_alias_maps_executor_value_error_to_static_400(
+    client: TestClient,
+    vip_headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Only canonical execution ValueError keeps the legacy input-error contract."""
+
+    executor = AsyncMock(side_effect=ValueError("private executor detail"))
+    monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
+    monkeypatch.setenv("API_KEY", vip_headers["X-API-Key"])
+    monkeypatch.setattr(
+        weekly_plan_router,
+        "get_weekly_menu_builder",
+        lambda: _fake_weekly_menu_builder,
+    )
+    monkeypatch.setattr(vip_router, "execute_legacy_premium_week_alias_payload", executor)
+
+    response = client.post(
+        "/api/v1/premium/plan/week",
+        json=_valid_payload(),
+        headers=vip_headers,
+    )
+
+    assert response.status_code == 400, response.text
+    assert _assert_json_response(response) == {"detail": "Invalid input"}
+    assert "private executor detail" not in response.text
+
+
+@pytest.mark.parametrize(
+    "detail",
+    (_TARGETS_ONLY_DETAIL, _INVALID_WEEKLY_PAYLOAD_DETAIL),
+    ids=("targets-only", "invalid-payload"),
+)
+def test_legacy_weekly_alias_passes_only_known_safe_422_errors(
+    client: TestClient,
+    vip_headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+    detail: str,
+) -> None:
+    """The two static migration/validation errors remain exact pass-through contracts."""
+
+    executor = AsyncMock(side_effect=HTTPException(status_code=422, detail=detail))
+    monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
+    monkeypatch.setenv("API_KEY", vip_headers["X-API-Key"])
+    monkeypatch.setattr(
+        weekly_plan_router,
+        "get_weekly_menu_builder",
+        lambda: _fake_weekly_menu_builder,
+    )
+    monkeypatch.setattr(vip_router, "execute_legacy_premium_week_alias_payload", executor)
+
+    response = client.post(
+        "/api/v1/premium/plan/week",
+        json=_valid_payload(),
+        headers=vip_headers,
+    )
+
+    assert response.status_code == 422, response.text
+    assert _assert_json_response(response) == {"detail": detail}
+
+
+@pytest.mark.parametrize(
+    ("status_code", "detail", "headers"),
+    (
+        (409, _TARGETS_ONLY_DETAIL, None),
+        (422, "private downstream detail", None),
+        (422, {"debug": "private"}, None),
+        (422, ["private"], None),
+        (422, _INVALID_WEEKLY_PAYLOAD_DETAIL, {"X-Internal-Debug": "private"}),
+    ),
+    ids=("wrong-status", "unknown-text", "dict-detail", "list-detail", "headers"),
+)
+def test_legacy_weekly_alias_sanitizes_unknown_downstream_http_errors(
+    client: TestClient,
+    vip_headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    status_code: int,
+    detail: Any,
+    headers: dict[str, str] | None,
+) -> None:
+    """Unknown HTTP details and headers never cross the compatibility boundary."""
+
+    executor = AsyncMock(
+        side_effect=HTTPException(status_code=status_code, detail=detail, headers=headers)
+    )
+    monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
+    monkeypatch.setenv("API_KEY", vip_headers["X-API-Key"])
+    monkeypatch.setattr(
+        weekly_plan_router,
+        "get_weekly_menu_builder",
+        lambda: _fake_weekly_menu_builder,
+    )
+    monkeypatch.setattr(vip_router, "execute_legacy_premium_week_alias_payload", executor)
+    caplog.set_level(logging.ERROR, logger=weekly_plan_router.__name__)
+
+    response = client.post(
+        "/api/v1/premium/plan/week",
+        json=_valid_payload(),
+        headers=vip_headers,
+    )
+
+    assert response.status_code == 500, response.text
+    assert _assert_json_response(response) == {"detail": "Weekly menu generation failed"}
+    assert "X-Internal-Debug" not in response.headers
+    assert any(
+        record.name == weekly_plan_router.__name__
+        and record.getMessage() == "Legacy weekly menu generation failed"
+        and record.exc_info is not None
+        for record in caplog.records
+    )
+
+
+def test_legacy_weekly_alias_sanitizes_unexpected_executor_failure(
+    client: TestClient,
+    vip_headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Unexpected canonical execution failures use the same fixed server boundary."""
+
+    executor = AsyncMock(side_effect=RuntimeError("private executor runtime detail"))
+    monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
+    monkeypatch.setenv("API_KEY", vip_headers["X-API-Key"])
+    monkeypatch.setattr(
+        weekly_plan_router,
+        "get_weekly_menu_builder",
+        lambda: _fake_weekly_menu_builder,
+    )
+    monkeypatch.setattr(vip_router, "execute_legacy_premium_week_alias_payload", executor)
+    caplog.set_level(logging.ERROR, logger=weekly_plan_router.__name__)
+
+    response = client.post(
+        "/api/v1/premium/plan/week",
+        json=_valid_payload(),
+        headers=vip_headers,
+    )
+
+    assert response.status_code == 500, response.text
+    assert _assert_json_response(response) == {"detail": "Weekly menu generation failed"}
+    assert "private executor runtime detail" not in response.text
+    assert any(
+        record.name == weekly_plan_router.__name__
+        and record.getMessage() == "Legacy weekly menu generation failed"
+        and record.exc_info is not None
+        for record in caplog.records
+    )
+
+
+def test_legacy_weekly_alias_does_not_classify_response_shaping_value_error_as_input(
+    client: TestClient,
+    vip_headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A response-adapter defect is a server failure, not a client input error."""
+
+    executor = AsyncMock(return_value=_fake_weekly_menu_builder(object()))
+
+    def _raise_response_error(_payload: dict[str, Any]) -> WeeklyMenuResponse:
+        raise ValueError("private response adapter detail")
+
+    monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
+    monkeypatch.setenv("API_KEY", vip_headers["X-API-Key"])
+    monkeypatch.setattr(
+        weekly_plan_router,
+        "get_weekly_menu_builder",
+        lambda: _fake_weekly_menu_builder,
+    )
+    monkeypatch.setattr(vip_router, "execute_legacy_premium_week_alias_payload", executor)
+    monkeypatch.setattr(
+        weekly_plan_router,
+        "build_legacy_weekly_menu_response",
+        _raise_response_error,
+    )
+    caplog.set_level(logging.ERROR, logger=weekly_plan_router.__name__)
+
+    response = client.post(
+        "/api/v1/premium/plan/week",
+        json=_valid_payload(),
+        headers=vip_headers,
+    )
+
+    assert response.status_code == 500, response.text
+    assert _assert_json_response(response) == {"detail": "Weekly menu generation failed"}
+    assert "private response adapter detail" not in response.text
+    assert any(
+        record.name == weekly_plan_router.__name__
+        and record.getMessage() == "Legacy weekly menu generation failed"
+        and record.exc_info is not None
+        for record in caplog.records
+    )
 
 
 def test_legacy_week_plan_request_normalizes_legacy_goal_aliases() -> None:
@@ -306,33 +674,6 @@ def test_legacy_week_plan_request_normalizer_preserves_non_dict_values() -> None
     request = LegacyWeekPlanRequest.model_construct(targets={"calories": 1800})
 
     assert LegacyWeekPlanRequest._normalize_values(request) is request
-
-
-def test_legacy_app_weekly_plan_helpers_delegate_to_canonical_service() -> None:
-    """Compatibility helper output must stay identical to the canonical service."""
-
-    payload = {
-        "week_start": "2026-03-09",
-        "daily_menus": [
-            {
-                "date": "2026-03-10",
-                "meals": [{"title": "Lunch", "kcal": 420}],
-                "total_kcal": 420,
-                "daily_cost": 12.25,
-            }
-        ],
-        "weekly_coverage": {"fiber": 0.84},
-        "shopping_list": {"rice": 250.0},
-        "total_cost": 12.25,
-        "adherence_score": 0.1,
-    }
-
-    assert legacy_app._build_legacy_weekly_menu_response(payload) == (
-        weekly_plan_service.build_legacy_weekly_menu_response(payload)
-    )
-    assert legacy_app._resolve_legacy_weekly_menu_builder() is (
-        weekly_plan_service.resolve_legacy_weekly_menu_builder()
-    )
 
 
 def test_build_legacy_weekly_menu_response_ignores_non_dict_days() -> None:
