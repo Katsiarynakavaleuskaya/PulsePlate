@@ -28,7 +28,10 @@ closed with a constant dispatcher error and cannot reach stdout, stderr, or the
 result artifact. Direct runner capability loss is now a data-free internal
 signal and produces no standalone artifact; only dispatch, after a passed
 backend probe and successful cleanup, can construct the strict-valid rejected
-`capability_mismatch 1/0` result with trusted provenance.
+`capability_mismatch 1/0` result with trusted provenance. Direct builder and
+promotion consumers translate that signal to fixed domain errors, create no
+result or validation artifacts, and preserve cleanup without fabricating
+retryable outcomes or backend proof.
 
 ## Split Justification
 
@@ -80,6 +83,9 @@ CodeQL status-output corrective packet:
 Direct capability-provenance corrective packet:
 `artifacts/orchestration/task_packets/28a934c1905c.json`
 
+Direct consumer corrective packet:
+`artifacts/orchestration/task_packets/c93c79c4a833.json`
+
 - Fresh `origin/main` at `7c149a84c44406f698d73fbd0dee0bd34b64d085`
   was merged without history rewriting in
   `d998a82e8dd1ca1d1ab961f77b4acc143838f1d1`.
@@ -113,6 +119,13 @@ Direct capability-provenance corrective packet:
   The final three roles reviewed exact material head
   `da7650b0b1f7cc9c481639f66559a8f4652c8d0c`; every role returned `PROCEED`
   with no findings. Native scanning remained `operator_directed_stop`.
+- The direct consumer correction completed in the declared order:
+  `agent-coordinator -> architecture-specialist -> security-auditor ->
+  backend-engineer -> qa-engineer-agent -> bug-hunter -> security-auditor`.
+  The terminal three roles reviewed exact material head
+  `05e6e0105d07ae82a3c8716319cf9c27766b4f48`; every role returned `PROCEED`
+  with no findings and confirmed zero MyPy errors on changed lines. Native
+  scanning remained `operator_directed_stop`.
 - Local packets, role outputs, and Experiment Runner artifacts remain
   gitignored control-plane evidence.
 - Experiment Runner oracle evidence materially shaped commit
@@ -171,6 +184,10 @@ Direct capability-provenance corrective packet:
 - `da7650b0b1f7cc9c481639f66559a8f4652c8d0c` - replace backendless direct
   capability artifacts with a data-free runner signal and let only dispatch
   attach trusted post-preflight provenance after successful cleanup.
+- `05e6e0105d07ae82a3c8716319cf9c27766b4f48` - translate that signal at the
+  direct builder and promotion callers before generic fallbacks, preserve
+  promotion cleanup, emit fixed domain errors, and write no result or
+  validation artifact.
 
 ## Discussion Thread Pass
 
@@ -178,7 +195,7 @@ Direct capability-provenance corrective packet:
 - [x] Fixed in commit mapping completed
 - [x] Source PR #2130 replacement mapping recorded below.
 - [x] Terminal material tail completed on final material head
-  `da7650b0b1f7cc9c481639f66559a8f4652c8d0c` in the bounded corrective
+  `05e6e0105d07ae82a3c8716319cf9c27766b4f48` in the bounded corrective
   order declared above; the final `qa-engineer-agent -> bug-hunter ->
   security-auditor` tail returned empty findings and the post-security seal
   marked the material tail terminal.
@@ -277,6 +294,22 @@ Direct capability-provenance corrective packet:
   alone converts exact exit `3` into strict-valid trusted `1/0` proof after
   successful cleanup. Shared-tree drift, cleanup failure, failed preflight
   `0/0`, and post-retry `2/1` retain precedence.
+- FIXED in `05e6e0105d07ae82a3c8716319cf9c27766b4f48`: current-head review found
+  that the PR-2 builder broad exception fallback could persist the internal
+  signal as retryable `infra_flake`. The builder now catches only the exact
+  signal first, emits a fixed domain error with suppressed chaining, leaves
+  evaluation state unset, and writes no result or receipt artifact; ordinary
+  runtime failures retain the existing sanitized fallback.
+- FIXED in `05e6e0105d07ae82a3c8716319cf9c27766b4f48`: current-head review found
+  that PR-3 fresh-oracle validation could expose the internal signal. The gate
+  runner now translates only that signal to a fixed promotion-domain error;
+  existing `finally` cleanup destroys the validation checkout and no
+  validation, approval, receipt, or promotion path can proceed.
+- FIXED in `05e6e0105d07ae82a3c8716319cf9c27766b4f48`: QA found two MyPy errors on
+  newly added test lines. Runtime narrowing establishes the checkout dirname
+  and run directory as typed paths, and a typed transport cast closes the
+  fake-transport boundary. Automated intersection of MyPy diagnostics with
+  changed-line ranges reports zero in-diff errors.
 
 ## Fixed in Commit Mapping
 
@@ -419,6 +452,18 @@ Evidence: GitHub attaches this thread to published commit `e5d19d7fef92f0e3f65c5
 Reason: The automatic reviewer repeated the earlier synthetic-squash ancestry claim without identifying a GitHub PR-head commit or a missing fix in the published owner history.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2119#discussion_r3590431932
 
+Disposition: FIXED
+Commit: 05e6e0105d07ae82a3c8716319cf9c27766b4f48
+Evidence: The builder catches exact `RunnerCapabilitySignal` before its generic fallback, raises a fixed `CreativeCodePatchBuilderError` with suppressed chaining, writes no `result.json`, leaves `candidate_patch_evaluated` unset, and its CLI test proves no canary or traceback; generic `RuntimeError` still produces the existing sanitized `infra_flake` artifact.
+Reason: PR-2 generation can no longer persist the internal capability signal as a retryable false artifact or fabricate backend provenance.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2119#discussion_r3590772779 -> 05e6e0105d07ae82a3c8716319cf9c27766b4f48
+
+Disposition: FIXED
+Commit: 05e6e0105d07ae82a3c8716319cf9c27766b4f48
+Evidence: `GateRunner.run_fresh_oracle()` translates exact `RunnerCapabilitySignal` to a fixed `CreativeCodePRPromotionError` with suppressed chaining; validation cleanup destroys the checkout, no validation artifact is written, and the terminal test proves canary absence.
+Reason: PR-3 validation now fails deterministically inside its public domain contract instead of exposing an internal traceback, while no promotion authority or provenance is synthesized.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2119#discussion_r3590772783 -> 05e6e0105d07ae82a3c8716319cf9c27766b4f48
+
 ## Source PR #2130 Replacement Mapping
 
 | Source evidence | Disposition | Owner replacement | Evidence |
@@ -547,6 +592,23 @@ superseded by this replacement-head evidence.
   `qa-engineer-agent -> bug-hunter -> security-auditor` tail returned
   `PROCEED` with no findings; native scanning remained
   `operator_directed_stop` and was not invoked.
+- PASS on final material head
+  `05e6e0105d07ae82a3c8716319cf9c27766b4f48`: complete builder and promotion
+  suites, the seven-suite runner/dispatch/builder/generation/promotion/
+  telemetry/promote bundle, Black, Ruff, canonical production MyPy,
+  `git diff --check`, scoped preflight, agent consistency,
+  committed-diff `make validate-changed`, exact backend selector, and full
+  pre-commit.
+- PASS: automated MyPy-to-diff intersection reports zero diagnostics on added
+  or modified lines after QA's two in-diff findings were fixed.
+- PASS: direct consumer premortem covers retryable false artifacts, domain
+  error leakage, cleanup precedence, generic-failure preservation,
+  provenance fabrication, and higher-level generation error handling.
+- PASS on final material head
+  `05e6e0105d07ae82a3c8716319cf9c27766b4f48`: serial
+  `qa-engineer-agent -> bug-hunter -> security-auditor` tail returned
+  `PROCEED` with no findings; native scanning remained
+  `operator_directed_stop` and was not invoked.
 - ADVISORY: `pulseplate-pr-review` on final material head
   `9320795d6f57b67c112b9a4ca985817b43aeefa4` found no deterministic
   security or architecture issue; its only notes were the already-justified
@@ -554,11 +616,13 @@ superseded by this replacement-head evidence.
   Published-head context refresh remains a live readiness check and does not
   reopen material review.
 - LOOP STOP: material evidence is anchored to code head
-  `da7650b0b1f7cc9c481639f66559a8f4652c8d0c`; this mapping/body
+  `05e6e0105d07ae82a3c8716319cf9c27766b4f48`; this mapping/body
   reconciliation is governance-only. The ancestry and trailer comments were
   closed by evidence without a material restart; the direct producer finding
   identified one genuinely new execution path and received one bounded
-  corrective wave, just as the current-head CodeQL HIGH did earlier.
+  corrective wave. The later builder/promotion comments identified two real
+  direct consumers and received one final bounded consumer correction. The
+  current-head CodeQL HIGH likewise received one bounded correction earlier.
   Equivalent duplicate or stale review text does not trigger another role or
   security wave. The operator disabled Codex GitHub automatic reviews; one
   already-queued review still arrived and is fully dispositioned above. The
@@ -614,8 +678,10 @@ status now crosses a constant-only CLI boundary before artifact publication;
 unknown values fail with a fixed error and are absent from stdout, stderr, and
 the output artifact. Direct runner capability loss is data-free and
 artifact-free; dispatch recognizes only exact exit `3` after passed preflight,
-successful cleanup, and trusted probe ownership. Current-head CodeQL and CI
-security remain live gates.
+successful cleanup, and trusted probe ownership. Direct builder and promotion
+consumers translate only the exact signal to fixed domain errors, emit no
+traceback/canary, fabricate no provenance, and retain cleanup. Current-head
+CodeQL and CI security remain live gates.
 
 ## Risks / Rollback
 
