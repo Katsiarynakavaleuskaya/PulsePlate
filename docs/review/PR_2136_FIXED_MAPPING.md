@@ -56,16 +56,19 @@ lane are governance-only updates to this canonical artifact.
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 - [x] Current issue comments and reviews inspected through governance head
-  `1543c1c38582c745ade0f7fbe740bf9ce6f8a825`, including the mutable CodeRabbit
-  walkthrough update at `2026-07-15T11:04:50Z`.
+  `fd1bc481a88c5edc5977edddc25d98341f9d7e60`, including the mutable CodeRabbit
+  walkthrough update at `2026-07-15T11:04:50Z` and Codex review
+  `4703668869`.
 - [x] Current bot capacity and status notices dispositioned below.
-- [x] All four actionable review threads and their actionable review summaries
+- [x] All five actionable review threads and their actionable review summaries
   dispositioned below.
 - [x] Mandatory post-open role-agent chain completed.
 - [x] Codex Security diff scan and `pulseplate-pr-review` completed.
 - [x] Governance-head CI run `29410359678` completed successfully at
-  `1543c1c38`; the first strict authenticated wrapper and a separate later
-  review-cycle state check also passed with zero unresolved threads.
+  `1543c1c38`; current-head CI run `29412017542` then completed successfully at
+  `fd1bc481a`, including Python 3.13 and diff coverage. The first strict
+  authenticated wrapper at `fd1bc481a` correctly stopped on the new Codex
+  thread below instead of issuing a stale readiness result.
 
 ## Fixed in Commit Mapping
 
@@ -89,6 +92,11 @@ Evidence: The review summary has exactly one actionable inline thread. `docs/rev
 Disposition: NOT-A-BUG
 Evidence: GitHub anchors the review comment to actual commit `0294f0a55c49dde056e490fd087985a5d59126da`; the PR commits API returns the linear history `f4efdc363 -> b438acff8 -> a0696db25 -> b3b0decf4 -> 0294f0a55`, and `git merge-base --is-ancestor` exits `0` for every cited proof commit against `0294f0a55`.
 Reason: The body-only `2d5fbaab` snapshot is not in the GitHub PR commit list, and the repository commit endpoint returns `No commit found for SHA: 2d5fbaab (HTTP 422)`. It cannot replace the authoritative GitHub review commit or the published branch history.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2136#discussion_r3586875307
+Disposition: NOT-A-BUG
+Evidence: GitHub anchors PR head, review `4703668869`, and inline comment `3586875307` to actual commit `fd1bc481a88c5edc5977edddc25d98341f9d7e60`; the PR commits API contains the complete linear history from `f4efdc363` through `fd1bc481a`, `git merge-base --is-ancestor` exits `0` for both material proof commits against `fd1bc481a`, and `f4efdc363` carries the required Experiment Runner co-author trailer.
+Reason: The comment's `e0eecfb` snapshot is absent from the GitHub PR commit list, and the repository commit endpoint returns `No commit found for SHA: e0eecfb (HTTP 422)`. It cannot replace the authoritative GitHub review commit or invalidate evidence already bound to final material head `a0696db25`.
 
 ## Bot Capacity and Status Notices
 
