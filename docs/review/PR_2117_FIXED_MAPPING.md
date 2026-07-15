@@ -48,7 +48,7 @@ Evidence: All CodeRabbit actionables and review-level findings were fixed by the
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#discussion_r3585346574 -> 18f0468ce
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#pullrequestreview-4701934244 -> 18f0468ce
 
-### Final post-rebase CodeRabbit review
+## Final post-rebase CodeRabbit review
 
 Disposition: FIXED
 Commit: 18f0468ce
@@ -73,8 +73,8 @@ remote helper authority.
   before the success claim.
 
 This receipt predates the final review-hardening commits and is not used as the
-exact-head Codex Security merge gate. A new sealed scan is still required after
-the final governance commit.
+exact-head Codex Security merge gate. The subsequent sealed receipts below
+provide the later material-diff evidence without requiring another scan.
 
 ## Final Codex Security Evidence
 
