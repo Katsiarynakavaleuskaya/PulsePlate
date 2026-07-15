@@ -16,7 +16,9 @@ fail closed. A capability loss on the first execution attempt remains the
 non-retryable `capability_mismatch 1/0` outcome; if an infrastructure failure
 already consumed a retry, the compound terminal sequence is retained as the
 sanitized `infra_flake 2/1` outcome instead of producing an artifact that the
-closed contracts cannot validate.
+closed contracts cannot validate. Accepted standalone result and receipt
+validation now requires complete runner proof, and every published Oracle
+execution counter is bound to the Oracle evidence retained in the artifact.
 
 ## Split Justification
 
@@ -31,7 +33,9 @@ runtime, or unrelated backend surface is included. The later current-head
 findings `discussion_r3587568042` and `discussion_r3587568047` are corrected
 inside those same 18 paths. The later zero-attempt proof finding
 `discussion_r3588115330` and its missing-backend reproduction are also closed
-inside the existing surface; none expands the published file set.
+inside the existing surface. Final findings `discussion_r3588654515` and
+`discussion_r3588716979` close incomplete accepted proof and a stale
+mixed-failure Oracle counter inside the same published file set.
 
 ## Lane Start Provenance
 
@@ -50,6 +54,9 @@ Current-head provenance corrective packet:
 Zero-attempt proof corrective packet:
 `artifacts/orchestration/task_packets/afaa24da2da2.json`
 
+Final runner-proof coherence packet:
+`artifacts/orchestration/task_packets/807fdae1c4b4.json`
+
 - Fresh `origin/main` at `7c149a84c44406f698d73fbd0dee0bd34b64d085`
   was merged without history rewriting in
   `d998a82e8dd1ca1d1ab961f77b4acc143838f1d1`.
@@ -62,9 +69,11 @@ Zero-attempt proof corrective packet:
 - The current corrective pre-implementation order completed as declared:
   `agent-coordinator -> architecture-specialist -> security-auditor ->
   backend-engineer`.
-- The final material review tail completed on published head
-  `208d11c4fbe37cfd7d5258727b32f8cbaa3bd411` in exact order:
-  `qa-engineer-agent -> bug-hunter -> security-auditor`.
+- The terminal material review tail completed on published head
+  `8a2b0d8324750c103063aada7f25a9da2b9e9e27` in exact order:
+  `architecture-specialist -> security-auditor -> backend-engineer ->
+  qa-engineer-agent -> bug-hunter`; every role returned `PROCEED` with no
+  findings.
 - Local packets, role outputs, and Experiment Runner artifacts remain
   gitignored control-plane evidence.
 - Experiment Runner oracle evidence materially shaped commit
@@ -109,16 +118,20 @@ Zero-attempt proof corrective packet:
   oracles and direct `1/0` capability loss.
 - `208d11c4fbe37cfd7d5258727b32f8cbaa3bd411` - require explicit failed backend
   preflight provenance for raw zero-attempt capability results.
+- `8a2b0d8324750c103063aada7f25a9da2b9e9e27` - require complete accepted
+  runner proof in standalone result/receipt validators and both schemas,
+  derive terminal Oracle counters from retained evidence, and reject raw
+  counter/list mismatches.
 
 ## Discussion Thread Pass
 
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 - [x] Source PR #2130 replacement mapping recorded below.
-- [x] Post-open `qa-engineer-agent -> bug-hunter -> security-auditor` rerun
-  completed on final material head
-  `208d11c4fbe37cfd7d5258727b32f8cbaa3bd411`; bug-hunter's missing-backend
-  reproduction was fixed before the final three-role pass.
+- [x] Terminal material tail completed on final material head
+  `8a2b0d8324750c103063aada7f25a9da2b9e9e27` in the bounded order
+  `architecture-specialist -> security-auditor -> backend-engineer ->
+  qa-engineer-agent -> bug-hunter`; all findings were empty.
 - [x] Earlier Codex Security scans marked superseded; operator-directed native
   scan stop recorded without a PASS claim or restart.
 - Current-head CI, authenticated merge readiness, the mandatory wait window,
@@ -187,6 +200,16 @@ Zero-attempt proof corrective packet:
   proved that raw zero-attempt capability evidence could omit backend
   provenance. The raw validator now requires failed-preflight proof while
   preserving backend-less legacy accepted results and direct `1/0` outcomes.
+- FIXED in `8a2b0d8324750c103063aada7f25a9da2b9e9e27`: exact-head review proved that
+  standalone accepted results and receipts could omit full runner success
+  proof. Shared coherence and both closed schemas now require at least one
+  configured Oracle, exact configured/executed equality, and untouched shared
+  tree proof before acceptance.
+- FIXED in `8a2b0d8324750c103063aada7f25a9da2b9e9e27`: exact-head review reproduced a
+  stale non-zero Oracle counter after an infra retry was converted to terminal
+  `infra_flake` with no retained Oracle records. Result construction now
+  derives the counter from retained evidence and raw validation rejects any
+  present counter/list mismatch.
 
 ## Fixed in Commit Mapping
 
@@ -270,6 +293,18 @@ Evidence: Raw, result, and generation-receipt validators plus both JSON Schemas 
 Reason: A failed-preflight-shaped artifact can no longer carry impossible execution evidence or omit the backend proof that explains why no attempt ran.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2119#discussion_r3588115330 -> efa91adecac6adbc89b34a7117754ea56fed3c65
 
+Disposition: FIXED
+Commit: 8a2b0d8324750c103063aada7f25a9da2b9e9e27
+Evidence: Standalone result and generation-receipt validators plus both JSON Schemas require accepted runner status, null failure, one or more configured Oracles, exact configured/executed equality, and untouched shared-tree proof; negative result/receipt and bounded schema-parity tests cover every reported bypass.
+Reason: Telemetry and other standalone consumers can no longer accept incomplete runner success evidence.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2119#discussion_r3588654515 -> 8a2b0d8324750c103063aada7f25a9da2b9e9e27
+
+Disposition: FIXED
+Commit: 8a2b0d8324750c103063aada7f25a9da2b9e9e27
+Evidence: The terminal result builder derives `oracle_commands_executed` from retained `oracle_results`, raw validation rejects counter/list mismatches, and the mixed infra/capability regression proves calls `2`, attempts/retries `2/1`, empty Oracle evidence, counter `0`, no third retry, sanitized `infra_flake`, and no promotion.
+Reason: Discarded retry-attempt Oracle evidence can no longer leave a contradictory execution counter in the terminal artifact.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2119#discussion_r3588716979 -> 8a2b0d8324750c103063aada7f25a9da2b9e9e27
+
 ## Source PR #2130 Replacement Mapping
 
 | Source evidence | Disposition | Owner replacement | Evidence |
@@ -339,12 +374,26 @@ superseded by this replacement-head evidence.
   `qa-engineer-agent -> bug-hunter -> security-auditor` tail returned
   `PROCEED` with no findings. Native Codex Security remained
   `operator_directed_stop` and was not invoked.
+- PASS on terminal material head
+  `8a2b0d8324750c103063aada7f25a9da2b9e9e27`: targeted reproducers and the
+  full five-suite runner/dispatch/builder/generation/telemetry bundle;
+  canonical changed-file MyPy; Black, Ruff, `git diff --check`, committed-diff
+  `make validate-changed`, full pre-commit, pip-audit, full Bandit, backend,
+  and Docker pre-push hooks.
+- PASS: actual-diff premortem covers Python/schema drift, rejected-wrapper
+  compatibility, discarded Oracle evidence, and optional legacy counter
+  compatibility; all four risks are closed in code/tests.
+- PASS on terminal material head
+  `8a2b0d8324750c103063aada7f25a9da2b9e9e27`: serial
+  `architecture-specialist -> security-auditor -> backend-engineer ->
+  qa-engineer-agent -> bug-hunter` tail returned `PROCEED` with no findings.
+  Native Codex Security remained `operator_directed_stop` and was not invoked.
 - ADVISORY: `pulseplate-pr-review` on local governance head `b9e146455745`
   found only the already-justified large-diff note plus the expected warning
   that the two local commits were not yet published. Published-head context
   refresh remains a live readiness check and does not reopen material review.
 - LOOP STOP: material evidence is anchored to code head
-  `208d11c4fbe37cfd7d5258727b32f8cbaa3bd411`; this mapping/body reconciliation
+  `8a2b0d8324750c103063aada7f25a9da2b9e9e27`; this mapping/body reconciliation
   is governance-only. The ancestry and trailer comments were closed by
   evidence without a material restart; only the genuinely new zero-attempt
   execution path triggered one bounded corrective wave. Equivalent duplicate
