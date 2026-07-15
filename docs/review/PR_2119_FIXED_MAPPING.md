@@ -41,8 +41,9 @@ Packet: `artifacts/orchestration/task_packets/910a4151ec61.json`
 - [x] Fixed in commit mapping completed.
 - [x] Post-open `qa-engineer-agent -> bug-hunter -> security-auditor` completed.
 - [x] Codex Security scan completed for the final material diff.
-- [ ] Canonical current-head CI completed.
-- [ ] Strict authenticated merge readiness and mandatory wait window completed.
+- Current-head CI, authenticated merge readiness, the mandatory wait window,
+  and human merge authorization are live PR-state gates; they are intentionally
+  not frozen as completed in this artifact.
 
 ## Local Role Findings
 
@@ -105,6 +106,20 @@ authority. The artifact is local-only and gitignored.
 - PASS: focused patch-contract, generation, and telemetry suites after review
   fixes, including compound coherence precedence and non-retryable telemetry
   preservation.
+- PASS: detached conflict-free merge validation of PR head
+  `2cc32219f08f87e1850a8d6897337eff953af33c` against current
+  `origin/main` `7861b960e8ab02b839ae1cf36e77d2bdcc9da717`;
+  `tests/test_creative_code_patch_builder.py`,
+  `tests/test_creative_code_patch_generation.py`, and
+  `tests/test_creative_code_telemetry.py` passed, and the temporary worktree
+  was removed.
+- HISTORICAL FAILURE: Docker build run `29311424356` failed only while
+  preparing source artifacts because `review_by: 2026-07-13` was stale.
+- REMEDIATED OUTSIDE THIS PR: PR #2133, merge
+  `b432aeb78a6b18cdedf760bb7872daf9241dacd6`, contains commit
+  `ad381545dc487764f1ed1ad54a311c03b05e4467`, which refreshed the Docker
+  source-artifact review window. Current-main Docker run `29398196158`
+  completed successfully on `7861b960e8ab02b839ae1cf36e77d2bdcc9da717`.
 - SUPERSEDED: Codex Security scan
   `3062dc47-44f4-4cdd-b7c0-eedcf726103a` found zero issues on exact head
   `b156a4f690e190d6581e5d60553d524f015f8d27`; later security-relevant review
@@ -115,8 +130,12 @@ authority. The artifact is local-only and gitignored.
   `5463ac2a5a6f310cc510e46c1cfcb6aa2c50d11d`, snapshot
   `b6de86840ef62d42488cce7b1e8ee07e5dd07807711041daa575b943a11eaaee`,
   with complete coverage and zero findings.
-- PENDING: parser-safe mapping/body publication, canonical current-head CI,
-  and strict authenticated merge readiness.
+- PASS: parser-safe mapping/body publication and the local narrow bundle on
+  PR head `2cc32219f08f87e1850a8d6897337eff953af33c`.
+- LIVE FINAL GATE: after this mapping-only current-base evidence update is
+  pushed, require fresh current-head CI and authenticated
+  `check_merge_ready.py`; the wait window and human authorization remain live
+  PR state.
 
 Full local `make verify` was not run because repository policy prohibits that
 machine-heavy invocation without a one-time human override.
@@ -127,6 +146,11 @@ The final sealed scan found zero issues across the exact result, receipt, and
 telemetry material diff. The change adds no network, provider, retry, promotion,
 product-runtime, or cache authority; rejected receipts and telemetry remain
 sanitized and fail closed.
+
+Changes after sealed material head
+`5463ac2a5a6f310cc510e46c1cfcb6aa2c50d11d` are mapping-only and do not alter
+the four scanned source-like files. Do not repeat the scan unless
+security-relevant material changes.
 
 ## Risks / Rollback
 
