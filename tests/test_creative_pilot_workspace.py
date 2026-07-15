@@ -1697,6 +1697,20 @@ def _assert_resume_lineage_failure(
         monkeypatch.setattr(pilot_cli, "PILOT_ROOT", pilot_root)
         monkeypatch.setattr(pilot_cli, "SPEC_BRIDGE_ROOT", spec_root)
 
+        real_mkdir = Path.mkdir
+
+        def fail_if_resume_artifact_created(
+            path: Path,
+            mode: int = 0o777,
+            parents: bool = False,
+            exist_ok: bool = False,
+        ) -> None:
+            if path.parent == spec_root:
+                pytest.fail("adaptive resume lineage failure created an artifact: " f"{path}")
+            real_mkdir(path, mode=mode, parents=parents, exist_ok=exist_ok)
+
+        monkeypatch.setattr(pilot_cli.Path, "mkdir", fail_if_resume_artifact_created)
+
         def fail_if_publish_attempted(staging: Path, final_dir: Path) -> None:
             pytest.fail(
                 "adaptive resume lineage failure reached publisher: " f"{staging} -> {final_dir}"
