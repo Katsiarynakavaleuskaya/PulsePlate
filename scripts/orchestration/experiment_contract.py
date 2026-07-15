@@ -55,6 +55,59 @@ FAILURE_CLASSES: tuple[str, ...] = (
     "infra_flake",
 )
 
+
+def validate_failure_retry_observations(
+    *,
+    failure_class: str | None,
+    attempts: Any,
+    retries_consumed: Any,
+    label: str,
+) -> None:
+    """Reject retry evidence for terminal non-retryable capability loss."""
+
+    if failure_class != "capability_mismatch":
+        return
+    attempts_valid = (
+        isinstance(attempts, int) and not isinstance(attempts, bool) and attempts in {0, 1}
+    )
+    retries_valid = (
+        isinstance(retries_consumed, int)
+        and not isinstance(retries_consumed, bool)
+        and retries_consumed == 0
+    )
+    if not attempts_valid or not retries_valid:
+        raise ValueError(
+            f"{label} capability_mismatch must use attempts 0 or 1 and " "retries_consumed 0."
+        )
+
+
+def validate_capability_zero_attempt_observations(
+    *,
+    failure_class: str | None,
+    attempts: Any,
+    mutated_path_count: int,
+    oracle_commands_executed: int,
+    label: str,
+) -> None:
+    """Reject execution evidence when capability preflight stopped the run."""
+
+    if (
+        failure_class != "capability_mismatch"
+        or not isinstance(attempts, int)
+        or isinstance(attempts, bool)
+        or attempts != 0
+    ):
+        return
+    if mutated_path_count != 0:
+        raise ValueError(
+            f"{label} capability_mismatch with attempts 0 must use mutated_path_count 0."
+        )
+    if oracle_commands_executed != 0:
+        raise ValueError(
+            f"{label} capability_mismatch with attempts 0 must use " "oracle_commands_executed 0."
+        )
+
+
 EXECUTION_BACKEND_NAMES: tuple[str, ...] = (
     "native-linux",
     "apple-container",
@@ -793,6 +846,8 @@ def validate_experiment_result(result: dict[str, Any]) -> dict[str, Any]:
             )
     else:
         failure_class = None
+    if status == "accepted" and failure_class is not None:
+        raise ValueError("Accepted experiment results must use a null failure_class.")
     if status == "rejected" and failure_class is None:
         allowed_failures = ", ".join(FAILURE_CLASSES)
         raise ValueError(
@@ -830,6 +885,15 @@ def validate_experiment_result(result: dict[str, Any]) -> dict[str, Any]:
     budget_observations = result.get("budget_observations")
     if not isinstance(budget_observations, dict):
         raise ValueError("Experiment result budget_observations must be an object.")
+    oracle_commands_executed = budget_observations.get("oracle_commands_executed")
+    if oracle_commands_executed is not None:
+        if not isinstance(oracle_commands_executed, int) or isinstance(
+            oracle_commands_executed, bool
+        ):
+            raise ValueError(
+                "Experiment result budget_observations.oracle_commands_executed "
+                "must be an integer."
+            )
 
     shared_tree_untouched = result.get("shared_tree_untouched")
     if not isinstance(shared_tree_untouched, bool):
@@ -838,6 +902,14 @@ def validate_experiment_result(result: dict[str, Any]) -> dict[str, Any]:
     promotion_ready = result.get("promotion_ready")
     if not isinstance(promotion_ready, bool):
         raise ValueError("Experiment result promotion_ready must be a boolean.")
+    if status == "rejected" and promotion_ready:
+        raise ValueError("Rejected experiment results must not be promotion_ready.")
+    validate_failure_retry_observations(
+        failure_class=failure_class,
+        attempts=budget_observations.get("attempts"),
+        retries_consumed=budget_observations.get("retries_consumed"),
+        label="Experiment result budget_observations",
+    )
 
     contribution_kind, coauthor_required, coauthor_reason = validate_contribution_attribution(
         contribution_kind=result.get("contribution_kind", "none"),
@@ -905,8 +977,31 @@ def validate_experiment_result(result: dict[str, Any]) -> dict[str, Any]:
             raise ValueError(
                 "Failed backend preflight requires a rejected capability_mismatch result."
             )
-        if failure_class == "capability_mismatch" and preflight_passed:
-            raise ValueError("Capability mismatch results require a failed backend preflight.")
+        if failure_class == "capability_mismatch":
+            expected_attempts = 1 if preflight_passed else 0
+            if budget_observations.get("attempts") != expected_attempts:
+                raise ValueError(
+                    "Experiment result capability_mismatch attempts must equal 1 after "
+                    "passed backend preflight and 0 after failed backend preflight."
+                )
+
+    if failure_class == "capability_mismatch" and execution_backend is None:
+        raise ValueError(
+            "Experiment result capability_mismatch requires backend preflight provenance."
+        )
+
+    validate_capability_zero_attempt_observations(
+        failure_class=failure_class,
+        attempts=budget_observations.get("attempts"),
+        mutated_path_count=len(mutated_paths),
+        oracle_commands_executed=len(oracle_results),
+        label="Experiment result budget_observations",
+    )
+    if oracle_commands_executed is not None and oracle_commands_executed != len(oracle_results):
+        raise ValueError(
+            "Experiment result budget_observations.oracle_commands_executed "
+            "must match oracle_results."
+        )
 
     candidate_patch = str(result.get("candidate_patch", "")).strip()
     if not candidate_patch:

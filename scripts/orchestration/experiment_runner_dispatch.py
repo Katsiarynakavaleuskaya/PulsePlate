@@ -61,6 +61,10 @@ CONTAINER_RESULT_DIR = "/repo/artifacts/orchestration/experiments/results"
 CONTAINER_PRIVATE_TMP = Path("/", "tmp").as_posix()
 RESULT_VOLUME_SIZE = "2M"
 MAX_RESULT_BYTES = 2 * 1024 * 1024
+PUBLIC_STATUS_ACCEPTED = "accepted"
+PUBLIC_STATUS_REJECTED = "rejected"
+RUNNER_CAPABILITY_EXIT_CODE = 3
+RUNNER_CAPABILITY_ERROR = "runner_capability_mismatch"
 IMAGE_REF_RE = re.compile(
     r"^(?P<name>[A-Za-z0-9][A-Za-z0-9._:/-]{0,254})@(?P<digest>sha256:[0-9a-f]{64})$"
 )
@@ -1319,6 +1323,15 @@ def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
         temp_path.unlink(missing_ok=True)
 
 
+def _public_result_status(result: dict[str, Any]) -> str:
+    status = result.get("status")
+    if status == "accepted":
+        return PUBLIC_STATUS_ACCEPTED
+    if status == "rejected":
+        return PUBLIC_STATUS_REJECTED
+    raise DispatchError("result_validation_failed")
+
+
 def _require_repo_local_file(raw: str, *, suffix: str) -> Path:
     candidate = Path(raw)
     if candidate.is_absolute():
@@ -1470,6 +1483,45 @@ def _infra_flake_result(
     return _validated_experiment_result(_redact_result_value(result))
 
 
+def _post_preflight_capability_mismatch_result(
+    packet: dict[str, Any],
+    image: ImageReference,
+    probe: BackendProbe,
+) -> dict[str, Any]:
+    """Build the sole publishable result for the runner's owned capability signal."""
+
+    runner_mode = packet["runner_mode"]
+    candidate_patch = (
+        ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE
+        if runner_mode == ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE
+        else "candidate.patch"
+    )
+    result = {
+        "schema_version": "1.0",
+        "experiment_id": packet["experiment_id"],
+        "runner_mode": runner_mode,
+        "candidate_patch": candidate_patch,
+        "status": "rejected",
+        "failure_class": "capability_mismatch",
+        "mutated_paths": [],
+        "oracle_results": [],
+        "budget_observations": {
+            "configured_budgets": dict(packet["budgets"]),
+            "oracle_commands_executed": 0,
+            "attempts": 1,
+            "retries_consumed": 0,
+            "runner_error": RUNNER_CAPABILITY_ERROR,
+        },
+        "shared_tree_untouched": True,
+        "promotion_ready": False,
+        "contribution_kind": "none",
+        "coauthor_required": False,
+        "coauthor_reason": "",
+        "execution_backend": _execution_backend_payload(probe, passed=True),
+    }
+    return _validated_experiment_result(result)
+
+
 _SECRET_TEXT_PATTERNS = (
     re.compile(r"(?i)(token|secret|password|api[_-]?key)\s*[:=]\s*[^\s,;]+"),
     re.compile(r"\b(?:gh[pousr]_[A-Za-z0-9_]{20,}|sk-[A-Za-z0-9_-]{20,})\b"),
@@ -1509,14 +1561,16 @@ def _sanitize_result(
     requested_coauthor_required: bool = False,
     requested_coauthor_reason: str = "",
 ) -> dict[str, Any]:
+    trusted_backend = _execution_backend_payload(probe, passed=True)
+    result_with_trusted_backend = {**result, "execution_backend": trusted_backend}
     try:
-        validated = _validated_experiment_result(result)
+        validated = _validated_experiment_result(result_with_trusted_backend)
     except (TypeError, ValueError) as exc:
         raise DispatchError("result_validation_failed") from exc
     sanitized = _redact_result_value(validated)
     if not isinstance(sanitized, dict):
         raise DispatchError("result_redaction_failed")
-    sanitized["execution_backend"] = _execution_backend_payload(probe, passed=True)
+    sanitized["execution_backend"] = trusted_backend
     oracle_results = []
     for raw_oracle in sanitized.get("oracle_results", []):
         oracle = dict(raw_oracle)
@@ -1695,16 +1749,19 @@ def _invoke_container_runner(
                 )
             if not cleanup_completed:
                 raise DispatchError("container_cleanup_failed")
-            if completed.returncode not in {0, 1}:
+            runner_capability_signal = completed.returncode == RUNNER_CAPABILITY_EXIT_CODE
+            if completed.returncode not in {0, 1, RUNNER_CAPABILITY_EXIT_CODE}:
                 raise DispatchError("runner_execution_failed")
-            payload = _collect_result_volume(
-                cli=cli,
-                backend=probe.backend,
-                image_ref=runtime_ref,
-                volume=volume,
-                output_name=output_name,
-                apple_network=apple_network,
-            )
+            payload = None
+            if not runner_capability_signal:
+                payload = _collect_result_volume(
+                    cli=cli,
+                    backend=probe.backend,
+                    image_ref=runtime_ref,
+                    volume=volume,
+                    output_name=output_name,
+                    apple_network=apple_network,
+                )
         except BaseException as exc:
             cleanup_completed = _cleanup_container_resources(
                 cli=cli,
@@ -1725,6 +1782,10 @@ def _invoke_container_runner(
         )
         if not cleanup_completed:
             raise DispatchError("container_cleanup_failed")
+        if runner_capability_signal:
+            return _post_preflight_capability_mismatch_result(packet, image, probe)
+        if payload is None:
+            raise DispatchError("result_extraction_failed")
         return _sanitize_result(
             payload,
             probe,
@@ -1924,14 +1985,15 @@ def main(argv: list[str] | None = None) -> int:
         if int(packet["budgets"]["network_budget"]) != 0:
             probe = _strict_network_budget_probe(args.backend, image)
             result = _capability_mismatch_result(packet, image, probe)
+            public_status = _public_result_status(result)
             _atomic_write_json(output_path, result)
             print(
                 json.dumps(
-                    {"artifact": output_path.name, "status": result["status"]},
+                    {"artifact": output_path.name, "status": public_status},
                     sort_keys=True,
                 )
             )
-            return 1
+            return 0 if public_status == PUBLIC_STATUS_ACCEPTED else 1
         selected, attempts = select_backend(args.backend, image)
         if selected is None:
             result = _capability_mismatch_result(packet, image, attempts[-1])
@@ -1959,11 +2021,10 @@ def main(argv: list[str] | None = None) -> int:
                 result = _infra_flake_result(packet, image, selected, exc.code)
             except (OSError, ValueError):
                 result = _infra_flake_result(packet, image, selected, "result_validation_failed")
+        public_status = _public_result_status(result)
         _atomic_write_json(output_path, result)
-        print(
-            json.dumps({"artifact": output_path.name, "status": result["status"]}, sort_keys=True)
-        )
-        return 0 if result["status"] == "accepted" else 1
+        print(json.dumps({"artifact": output_path.name, "status": public_status}, sort_keys=True))
+        return 0 if public_status == PUBLIC_STATUS_ACCEPTED else 1
     except (DispatchError, OSError, ValueError) as exc:
         print(f"experiment_runner_dispatch: {exc}", file=sys.stderr)
         return 2
