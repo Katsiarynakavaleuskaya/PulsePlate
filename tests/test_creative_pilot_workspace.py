@@ -1708,6 +1708,43 @@ def _assert_resume_lineage_failure(
                     f"via {operation}: {candidate}"
                 )
 
+        spec_root_stat = spec_root.stat()
+
+        def fd_targets_spec_root(fd: int) -> bool:
+            fd_stat = os.fstat(fd)
+            return (
+                fd_stat.st_dev == spec_root_stat.st_dev and fd_stat.st_ino == spec_root_stat.st_ino
+            )
+
+        def flags_may_create_or_write(flags: int) -> bool:
+            return bool(
+                flags & (os.O_CREAT | os.O_TRUNC | os.O_APPEND)
+                or flags & os.O_RDWR
+                or flags & os.O_WRONLY
+            )
+
+        def fail_if_direct_spec_bridge_fd_artifact_created(
+            path: object,
+            operation: str,
+            *,
+            dir_fd: int | None,
+            flags: int | None = None,
+        ) -> None:
+            if dir_fd is None:
+                fail_if_direct_spec_bridge_artifact_created(path, operation)
+                return
+            if flags is not None and not flags_may_create_or_write(flags):
+                return
+            if not isinstance(path, (str, os.PathLike)):
+                return
+            candidate = Path(path)
+            if candidate.parent != Path(".") or not fd_targets_spec_root(dir_fd):
+                return
+            pytest.fail(
+                "adaptive resume lineage failure created a spec_bridge artifact "
+                f"via {operation}: {candidate}"
+            )
+
         real_builtin_open = builtins.open
         real_hardlink_to = Path.hardlink_to
         real_mkdir = Path.mkdir
@@ -1783,8 +1820,12 @@ def _assert_resume_lineage_failure(
             *,
             dir_fd: int | None = None,
         ) -> int:
-            if dir_fd is None:
-                fail_if_direct_spec_bridge_artifact_created(path, "os.open")
+            fail_if_direct_spec_bridge_fd_artifact_created(
+                path,
+                "os.open",
+                dir_fd=dir_fd,
+                flags=flags,
+            )
             return real_os_open(path, flags, mode, dir_fd=dir_fd)
 
         def fail_if_os_symlink_creates_resume_artifact(
@@ -1794,8 +1835,11 @@ def _assert_resume_lineage_failure(
             *,
             dir_fd: int | None = None,
         ) -> None:
-            if dir_fd is None:
-                fail_if_direct_spec_bridge_artifact_created(dst, "os.symlink")
+            fail_if_direct_spec_bridge_fd_artifact_created(
+                dst,
+                "os.symlink",
+                dir_fd=dir_fd,
+            )
             real_os_symlink(src, dst, target_is_directory=target_is_directory, dir_fd=dir_fd)
 
         monkeypatch.setattr(builtins, "open", fail_if_builtin_open_creates_resume_artifact)
