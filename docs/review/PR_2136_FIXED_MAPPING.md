@@ -119,9 +119,9 @@ Disposition: FIXED
 Commit: 0aa56a8000aaa6a6cd81f034d73f2267dbc836e2
 Evidence: `tests/test_creative_pilot_workspace.py:1709` records the `spec_root` device/inode and extends the `os.open` / `os.symlink` lineage no-write spies to resolve `dir_fd` against that root before failing direct child create/write attempts through the pinned-parent writer path. The focused lineage test, 12-test adaptive-resume pack, and full changed test file passed after the fix; the post-comment commit is not trigger-only.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2136#discussion_r3587549025 -> c735528a6a44838363b711d50205a0a798aead45
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2136#discussion_r3587549025 -> 1a586b3cb
 Disposition: FIXED
-Commit: c735528a6a44838363b711d50205a0a798aead45
+Commit: 1a586b3cb
 Evidence: pending governance commit changes the Discussion Thread Pass claim from completed fresh specialist/security evidence to an unchecked pending item for the final lineage write-guard material head. Prior sealed Codex Security and `pulseplate-pr-review` evidence remains documented only for material head `a0696db25` until fresh final-head evidence is produced.
 
 ## Bot Capacity and Status Notices
