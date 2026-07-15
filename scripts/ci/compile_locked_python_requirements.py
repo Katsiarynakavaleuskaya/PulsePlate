@@ -421,6 +421,24 @@ def _reject_ambient_resolver_overrides(environment: Mapping[str, str]) -> None:
         )
 
 
+def _validated_netrc_snapshot(netrc_path: Path) -> FileSnapshot | None:
+    """Return a stable snapshot for a private, user-owned default netrc file."""
+
+    try:
+        metadata = netrc_path.lstat()
+    except FileNotFoundError:
+        return None
+    if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
+        raise RuntimeError("Default ~/.netrc must be a regular non-symlink file.")
+    effective_uid = getattr(os, "geteuid", None)
+    if effective_uid is not None and metadata.st_uid != effective_uid():
+        raise RuntimeError("Default ~/.netrc must be owned by the effective user.")
+    mode = stat.S_IMODE(metadata.st_mode)
+    if mode & 0o077:
+        raise RuntimeError("Default ~/.netrc permissions must be no broader than 0600.")
+    return _snapshot(netrc_path)
+
+
 def _private_proxy_child_env(environment: Mapping[str, str]) -> dict[str, str]:
     _reject_ambient_resolver_overrides(environment)
     if environment.get("PULSEPLATE_PYTHON_NETRC", "").strip():
@@ -439,7 +457,12 @@ def _private_proxy_child_env(environment: Mapping[str, str]) -> dict[str, str]:
     if hostname is None:
         raise RuntimeError("Approved private proxy URL has no hostname.")
     resolver_home = Path(environment.get("HOME", str(Path.home())))
-    basic_auth_from_netrc(hostname, netrc_file=resolver_home / ".netrc")
+    netrc_path = resolver_home / ".netrc"
+    netrc_snapshot = _validated_netrc_snapshot(netrc_path)
+    basic_auth_from_netrc(hostname, netrc_file=netrc_path)
+    if netrc_snapshot is not None:
+        if _validated_netrc_snapshot(netrc_path) != netrc_snapshot:
+            raise RuntimeError("Default ~/.netrc changed while credentials were validated.")
 
     child_env = {
         name: value for name in PASSTHROUGH_ENV_VARS if (value := environment.get(name)) is not None

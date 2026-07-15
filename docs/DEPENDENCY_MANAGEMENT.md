@@ -346,8 +346,9 @@ executable `VENV_PYTHON`, rejects ambient pip/uv source overrides, seeds each
 existing lock, validates referenced constraint files, and rolls back already
 replaced locks if a later replacement fails. Lock compilation uses the default
 non-root `~/.netrc`; `PULSEPLATE_PYTHON_NETRC` is rejected because pip does not
-consume that application-specific override. Do not call the underlying
-resolver directly.
+consume that application-specific override. When present, the default netrc
+must be a regular non-symlink file owned by the effective user with permissions
+no broader than `0600`. Do not call the underlying resolver directly.
 
 ### Update a specific dependency
 

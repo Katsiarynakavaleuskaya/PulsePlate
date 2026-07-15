@@ -1001,6 +1001,67 @@ def test_private_proxy_environment_rejects_root_netrc_authority(
         compiler._private_proxy_child_env({compiler.APPROVED_INDEX_ENV_VAR: APPROVED_INDEX})
 
 
+def _write_private_proxy_netrc(home: Path, *, mode: int = 0o600) -> Path:
+    netrc_path = home / ".netrc"
+    netrc_path.write_text(
+        "machine packages.pulseplate.app\n"
+        "  login ci-reader\n"
+        "  password test-only-placeholder\n",
+        encoding="utf-8",
+    )
+    netrc_path.chmod(mode)
+    return netrc_path
+
+
+def test_private_proxy_environment_accepts_private_user_owned_netrc(tmp_path: Path) -> None:
+    _write_private_proxy_netrc(tmp_path)
+
+    child_env = compiler._private_proxy_child_env(
+        {"HOME": str(tmp_path), compiler.APPROVED_INDEX_ENV_VAR: APPROVED_INDEX}
+    )
+
+    assert child_env["PIP_INDEX_URL"] == APPROVED_INDEX
+
+
+def test_private_proxy_environment_rejects_broad_netrc_permissions(tmp_path: Path) -> None:
+    _write_private_proxy_netrc(tmp_path, mode=0o644)
+
+    with pytest.raises(RuntimeError, match="no broader than 0600"):
+        compiler._private_proxy_child_env(
+            {"HOME": str(tmp_path), compiler.APPROVED_INDEX_ENV_VAR: APPROVED_INDEX}
+        )
+
+
+def test_private_proxy_environment_rejects_symlinked_netrc(tmp_path: Path) -> None:
+    real_netrc = tmp_path / "credentials"
+    real_netrc.write_text("machine packages.pulseplate.app\n", encoding="utf-8")
+    real_netrc.chmod(0o600)
+    (tmp_path / ".netrc").symlink_to(real_netrc)
+
+    with pytest.raises(RuntimeError, match="regular non-symlink"):
+        compiler._private_proxy_child_env(
+            {"HOME": str(tmp_path), compiler.APPROVED_INDEX_ENV_VAR: APPROVED_INDEX}
+        )
+
+
+def test_private_proxy_environment_rejects_foreign_owned_netrc(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    netrc_path = _write_private_proxy_netrc(tmp_path)
+    monkeypatch.setattr(
+        compiler.os,
+        "geteuid",
+        lambda: netrc_path.stat().st_uid + 1,
+        raising=False,
+    )
+
+    with pytest.raises(RuntimeError, match="owned by the effective user"):
+        compiler._private_proxy_child_env(
+            {"HOME": str(tmp_path), compiler.APPROVED_INDEX_ENV_VAR: APPROVED_INDEX}
+        )
+
+
 def test_compile_command_uses_module_argv_and_excludes_pip() -> None:
     command = compiler._build_compile_command(
         surface=_surface("test"),
