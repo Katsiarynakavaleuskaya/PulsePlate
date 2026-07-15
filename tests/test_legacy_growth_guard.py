@@ -3196,6 +3196,28 @@ def test_legacy_growth_guard_rejects_new_route() -> None:
     ]
 
 
+def test_legacy_growth_guard_rejects_dynamic_app_rebinding_route() -> None:
+    source = textwrap.dedent("""
+        _existing_app = app
+
+        def _resolve_app():
+            return _existing_app
+
+        app = _resolve_app()
+
+        @app.get("/api/v1/hidden")
+        async def hidden():
+            return {"ok": True}
+        """)
+
+    errors = legacy_guard.validate_legacy_growth(source)
+
+    assert errors == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "decorator:get:/api/v1/hidden -> hidden"
+    ]
+
+
 @pytest.mark.parametrize(
     ("path", "owner"),
     [

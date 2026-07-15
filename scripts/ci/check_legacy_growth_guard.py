@@ -1711,7 +1711,16 @@ class _LexicalBindings:
 
     def bind(self, name: str, *, reference: str | None, string: str | None) -> None:
         if reference is None:
-            self.references.pop(name, None)
+            existing_reference = self.resolve_reference(name)
+            if existing_reference in {"pulseplate.app", _POSSIBLE_APP_REFERENCE}:
+                self.references[name] = _POSSIBLE_APP_REFERENCE
+            elif existing_reference in {
+                "pulseplate.app.router",
+                _POSSIBLE_ROUTER_REFERENCE,
+            }:
+                self.references[name] = _POSSIBLE_ROUTER_REFERENCE
+            else:
+                self.references.pop(name, None)
         else:
             self.references[name] = reference
         if string is None:
