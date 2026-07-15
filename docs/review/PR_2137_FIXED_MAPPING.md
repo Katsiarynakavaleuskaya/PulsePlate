@@ -8,7 +8,8 @@ Branch: `codex/fix-cd-trivy-policy-parity`
 
 Restore the push-only `main` CD security gate by aligning the staged backend
 digest scan with the canonical repository Trivy policy while keeping the
-Alpine Caddy digest scan explicitly suppression-free. Preserve immutable image
+Alpine Caddy digest scan explicitly suppression-free and preserving the prior
+image-layer secret scan on both exact staged digests. Preserve immutable image
 digests, fail-closed deployment ordering, the pinned scanner/action versions,
 and all public/runtime contracts.
 
@@ -45,6 +46,8 @@ Artifact: artifacts/orchestration/experiments/results/cd-trivy-policy-parity-ora
   preparation and exact staged-digest scan contracts.
 - `fe7ff2017029ee9ede21264f2fbe19dca1ce23a2` - keep the Caddy/Alpine scan
   suppression-free while retaining canonical policy only for backend/Debian.
+- `f9f1a5f6c40bd1eaea4298ebe6f7d5ef64a7c461` - restore explicit
+  vulnerability-plus-secret scanning on both exact staged image digests.
 
 ## Discussion Thread Pass
 
@@ -63,6 +66,10 @@ Artifact: artifacts/orchestration/experiments/results/cd-trivy-policy-parity-ora
 - [x] The later ancestry-review thread has the evidence-backed NOT-A-BUG
   disposition recorded below; its live resolution remains enforced by the
   final strict wrapper.
+- [x] The repeated synthetic-review-SHA thread has an evidence-backed
+  NOT-A-BUG disposition recorded below.
+- [x] The image-layer secret-scan regression was fixed after the review comment
+  in `f9f1a5f6c40bd1eaea4298ebe6f7d5ef64a7c461` and mapped below.
 - [ ] Current-head CI, strict authenticated merge readiness, and the mandatory
   quiet review cycle are complete.
 
@@ -79,6 +86,17 @@ Evidence: GitHub PR metadata lists actual head `e801ef152a7bc7731a9135556fd8d0f1
 Reason: The mapped remediation SHA is an ancestor of the real published PR head and is the exact post-comment code commit that fixed the Caddy policy defect; the inaccessible `66c86347...` revision cited by the review is not the PR head or a repository commit and cannot invalidate truthful FIXED proof.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2137#discussion_r3587112584
 
+Disposition: NOT-A-BUG
+Evidence: GitHub reports the reviewed PR commit as `69168f8e7bb3f0e6a0e50de2677fb97e94e69a78`; the PR commit list contains `fe7ff2017029ee9ede21264f2fbe19dca1ce23a2`; `git merge-base --is-ancestor fe7ff2017029ee9ede21264f2fbe19dca1ce23a2 69168f8e7bb3f0e6a0e50de2677fb97e94e69a78` exits 0; GitHub REST returns HTTP 422 and commit search returns zero results for the cited `2aa032f808cdedc8f4b9a6514a5051cd6ff801be` revision.
+Reason: The cited `2aa032f8...` is an unpublished reviewer-internal synthetic revision, not the PR head or a PulsePlate repository commit; `fe7ff201...` is the exact reachable post-comment remediation commit, while replacing it with a docs-only head or inaccessible synthetic SHA would weaken FIXED proof.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2137#discussion_r3587528212
+
+Disposition: FIXED
+Commit: f9f1a5f6c40bd1eaea4298ebe6f7d5ef64a7c461
+Evidence: `.github/workflows/cd.yml:316,334` explicitly runs `vuln,secret` for both immutable staged-image digests; `tests/test_caddy_deploy_provenance.py:175-183` locks the restored scanner contract; exact-main CD run `29403124174` proves the predecessor default enabled secret scanning on the staged backend digest, and Frontend CI run `29417923153` proves the current Caddy build remains compatible with combined vulnerability and secret scanning.
+Reason: Explicit `vuln,secret` restores the prior exact-digest image-layer secret guard without adding a waiver, changing policy ownership, or weakening the HIGH/CRITICAL fail-closed vulnerability gate.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2137#discussion_r3587528218 -> f9f1a5f6c40bd1eaea4298ebe6f7d5ef64a7c461
+
 ## Premortem Closure
 
 - Missing or stale policy input: closed by file, non-empty-copy, and byte-parity
@@ -90,9 +108,10 @@ Reason: The mapped remediation SHA is an ancestor of the real published PR head 
   backend owns the canonical Debian policy and Caddy is suppression-free.
 - Scanner/action drift or cache collision: closed by the exact action SHA,
   Trivy `v0.71.2`, fixed database repository, and distinct cache directories.
-- Secret-scan regression: not part of the image-vulnerability contract;
-  `scanners: vuln` aligns CD with the canonical vulnerability lane while secret
-  coverage remains with separate repository and CI guards.
+- Secret-scan regression: surfaced by current-head review and fixed by explicit
+  `vuln,secret` on both exact staged digests; the canonical vulnerability policy
+  remains backend-only while image-layer secret findings retain fail-closed
+  coverage and receive no new suppression.
 - Rollback masking the outage: closed by documenting that reverting the
   eventual PR/squash commit deliberately returns CD to a fail-closed red state
   until a replacement fix is available.
@@ -107,9 +126,19 @@ Reason: The mapped remediation SHA is an ancestor of the real published PR head 
 - PASS: `pre-commit run --all-files`.
 - PASS: full pre-push hooks, including MyPy, `pip-audit`, backend tests,
   Bandit, and the Docker build test.
-- PASS: direct remote-digest backend scan with canonical policy and Caddy scan
-  with the explicit empty regular ignore and no Rego, both on Trivy `0.71.2`,
-  with zero HIGH/CRITICAL findings.
+- PASS: direct remote-digest vulnerability scans of backend with canonical
+  policy and Caddy with the explicit empty regular ignore and no Rego, both on
+  Trivy `0.71.2`, returned zero HIGH/CRITICAL vulnerability findings.
+- PASS: exact-main CD run `29403124174` enabled the secret scanner on the staged
+  backend digest and reported no secret finding; its failure was the 12 HIGH
+  vulnerability findings remediated by this policy-parity PR. Frontend CI run
+  `29417923153` completed combined vulnerability-plus-secret scanning of the
+  current Caddy build without a finding.
+- SOURCE-DEGRADED: local combined remote-digest re-scans confirmed both
+  `[vuln]` and `[secret]` were enabled, then failed before image analysis because
+  `pkg-containers.githubusercontent.com` DNS resolution was unavailable. This is
+  not represented as a scan PASS; exact-final-head CI and post-merge exact-main
+  CD remain required hosted proof.
 - PASS: fail-closed negative smokes for missing `.trivyignore` and missing
   `trivy/ignore-policy.rego`; Caddy ignore preparation also rejects a retained
   symlink/non-empty file state.
@@ -135,6 +164,12 @@ Reason: The mapped remediation SHA is an ancestor of the real published PR head 
   `7142ea9cc58ebe1cc5f120ee548786ebc80da5948929b62a948e1a8fd415f5c7`.
 - The earlier scan of `46fccc221` was invalidated by the material P1
   remediation and is not merge-readiness evidence for the final material diff.
+- The sealed scan predates the later `f9f1a5f6c` defense-in-depth remediation.
+  At the operator's explicit direction, no additional Codex Security scan was
+  started; the new two-line scanner hardening is covered by focused contracts,
+  the mandatory local bundle, GitHub review disposition, and required
+  exact-final-head hosted CI/CD, and is not misrepresented as part of scan
+  `a6fc1013-279e-4bef-ab3a-d93af5722f91`.
 - PASS: remediated `pulseplate-pr-review` found no code, security,
   architecture, or QA defect. Its only findings are the expected governance
   notes that this artifact was not yet present; local report SHA-256:
@@ -151,8 +186,9 @@ Reason: The mapped remediation SHA is an ancestor of the real published PR head 
 - Cubic: source-degraded/neutral because its monthly line quota was reached; it
   produced no review comments or actionable finding and is not represented as
   a PASS.
-- Codex GitHub review: one P1 thread, fixed and mapped above; no other review
-  thread exists at this publication point.
+- Codex GitHub review: the P1 cross-distribution policy defect and P2
+  secret-scan regression are FIXED; both synthetic-review-SHA P2 comments are
+  NOT-A-BUG with repository-graph evidence. All four threads are mapped above.
 
 ## Risks / Rollback
 
@@ -172,11 +208,12 @@ required to restore canonical-policy parity at the repository pin.
 - PASS: functional diff remains limited to `.github/workflows/cd.yml` and
   `tests/test_caddy_deploy_provenance.py`; this canonical mapping is the only
   tracked governance addition.
-- PASS: local narrow bundle and exact material-diff security/review passes are
-  recorded above.
-- PASS: this fixed mapping and the exact PR-body mirror are published; the only
-  mapped FIXED thread is resolved and the authenticated disposition guard
-  passes.
+- PASS: local narrow bundle and review passes through the post-comment
+  `f9f1a5f6c` security hardening are recorded above; the earlier sealed security
+  scan scope is stated exactly and is not widened by claim.
+- PASS: this fixed mapping and the exact PR-body mirror include dispositions
+  for all four current review threads; live resolution and authenticated
+  disposition validation remain required before merge.
 - PENDING final merge cycle: require terminal canonical CI and diff coverage
   at least 97% on the exact final head, with no required pending or failed job.
 - PENDING final merge cycle: require no actionable bot feedback and zero
