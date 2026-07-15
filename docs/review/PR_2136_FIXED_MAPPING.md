@@ -59,6 +59,9 @@ Last validated material head:
 - `7448523de72a9b74ba90c582a77b7203ca1c726e` - restore the fail-closed final
   cycle by leaving every merge-readiness checkbox unchecked until the final
   current-head CI, bot, wait-window, and strict-wrapper pass.
+- `956cc499b82e9c22959d247b3137bc9ed361833a` - bind the implementation list,
+  last validated material head, single-scan rationale, and latest real review
+  findings to final test-only material commit `24cf22bdb`.
 
 ## Discussion Thread Pass
 
@@ -68,7 +71,7 @@ Last validated material head:
   governance activity, including the mutable CodeRabbit walkthrough and Codex
   reviews `4703668869` and `4705038794`.
 - [x] Current bot capacity and status notices dispositioned below.
-- [x] All twelve actionable review threads and their actionable review summaries
+- [x] All thirteen actionable review threads and their actionable review summaries
   dispositioned below.
 - [x] Mandatory post-open role-agent chain completed.
 - [x] Sealed Codex Security scan `c28f183e-577c-42ea-8a9a-525f20e170d3`
@@ -145,6 +148,12 @@ Evidence: The CodeRabbit review summary contains exactly these two actionable in
 Disposition: FIXED
 Commit: 24cf22bdb8546ecd8f0579dc8e71bf1b22216099
 Evidence: `tests/test_creative_pilot_workspace.py:1326` asserts that successful adaptive-resume publication leaves no run-owned `.<resume_id>.*.staging` sibling. The focused publication test, `make validate-changed`, `pre-commit run --all-files`, and push hooks passed; the post-comment commit is not trigger-only.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2136#pullrequestreview-4705338690 -> 956cc499b82e9c22959d247b3137bc9ed361833a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2136#discussion_r3588345254 -> 956cc499b82e9c22959d247b3137bc9ed361833a
+Disposition: FIXED
+Commit: 956cc499b82e9c22959d247b3137bc9ed361833a
+Evidence: The Codex review summary contains exactly this one actionable inline thread. `docs/review/PR_2136_FIXED_MAPPING.md:47` lists final test-only material commit `24cf22bdb`, and `docs/review/PR_2136_FIXED_MAPPING.md:51` binds `Last validated material head` to its full SHA. The artifact-first Phase 2 parser passed after the post-comment, non-trigger-only governance commit.
 
 ## Bot Capacity and Status Notices
 
