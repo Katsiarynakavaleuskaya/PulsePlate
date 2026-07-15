@@ -5,13 +5,12 @@ from __future__ import annotations
 import logging
 import math
 from types import SimpleNamespace
-from typing import Any, NoReturn, cast
+from typing import TYPE_CHECKING, Any, NoReturn, cast
 from unittest.mock import AsyncMock, Mock
 
 import pytest
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
-from httpx2 import Response
 from pydantic import ValidationError
 
 from app.effective_routes import (
@@ -28,6 +27,9 @@ import app.services.legacy_premium_weekly_plan as weekly_plan_service
 import legacy_app
 import app.routers.legacy_premium_weekly_plan as weekly_plan_router
 import app.routers.vip as vip_router
+
+if TYPE_CHECKING:
+    from httpx2 import Response
 
 _TARGETS_ONLY_DETAIL = (
     "Targets-based weekly plans are not supported on this endpoint. "
