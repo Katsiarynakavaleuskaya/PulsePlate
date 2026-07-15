@@ -29,7 +29,9 @@ leave reachable terminal outcomes incoherent across Experiment Runner, receipt,
 and telemetry consumers. No public API, OpenAPI, setup/dependency, product
 runtime, or unrelated backend surface is included. The later current-head
 findings `discussion_r3587568042` and `discussion_r3587568047` are corrected
-inside those same 18 paths; they do not expand the published file surface.
+inside those same 18 paths. The later zero-attempt proof finding
+`discussion_r3588115330` and its missing-backend reproduction are also closed
+inside the existing surface; none expands the published file set.
 
 ## Lane Start Provenance
 
@@ -45,6 +47,9 @@ Final post-open packet: `artifacts/orchestration/task_packets/845bc26a3b44.json`
 Current-head provenance corrective packet:
 `artifacts/orchestration/task_packets/21207672e486.json`
 
+Zero-attempt proof corrective packet:
+`artifacts/orchestration/task_packets/afaa24da2da2.json`
+
 - Fresh `origin/main` at `7c149a84c44406f698d73fbd0dee0bd34b64d085`
   was merged without history rewriting in
   `d998a82e8dd1ca1d1ab961f77b4acc143838f1d1`.
@@ -57,13 +62,15 @@ Current-head provenance corrective packet:
 - The current corrective pre-implementation order completed as declared:
   `agent-coordinator -> architecture-specialist -> security-auditor ->
   backend-engineer`.
-- The current material review tail completed on governance review head
-  `b9e146455745c184f2f8f93e6ba6297007b98883` in exact order:
+- The final material review tail completed on published head
+  `208d11c4fbe37cfd7d5258727b32f8cbaa3bd411` in exact order:
   `qa-engineer-agent -> bug-hunter -> security-auditor`.
 - Local packets, role outputs, and Experiment Runner artifacts remain
   gitignored control-plane evidence.
-- Experiment Runner oracle evidence materially shaped the commit decision; the
-  implementation commit carries the canonical co-author trailer.
+- Experiment Runner oracle evidence materially shaped commit
+  `3698beae144485d59ce97c1c742ebd1e66696059`, which carries the canonical
+  co-author trailer. Later review-driven corrective commits did not use Runner
+  evidence for their commit decisions and do not require another trailer.
 
 ## Implementation Commit
 
@@ -96,6 +103,12 @@ Current-head provenance corrective packet:
   capability mismatch after an infrastructure retry through the same sanitized
   terminal path and require matching rejected runner proof in Python and JSON
   result/receipt contracts.
+- `efa91adecac6adbc89b34a7117754ea56fed3c65` - reject zero-attempt
+  capability summaries that report mutated paths or executed oracles across
+  raw, result, receipt, and JSON Schema consumers while preserving configured
+  oracles and direct `1/0` capability loss.
+- `208d11c4fbe37cfd7d5258727b32f8cbaa3bd411` - require explicit failed backend
+  preflight provenance for raw zero-attempt capability results.
 
 ## Discussion Thread Pass
 
@@ -103,10 +116,9 @@ Current-head provenance corrective packet:
 - [x] Fixed in commit mapping completed
 - [x] Source PR #2130 replacement mapping recorded below.
 - [x] Post-open `qa-engineer-agent -> bug-hunter -> security-auditor` rerun
-  completed on governance review head
-  `b9e146455745c184f2f8f93e6ba6297007b98883`; QA found no implementation
-  defect and its governance-only stale-role wording finding is corrected in
-  this closeout.
+  completed on final material head
+  `208d11c4fbe37cfd7d5258727b32f8cbaa3bd411`; bug-hunter's missing-backend
+  reproduction was fixed before the final three-role pass.
 - [x] Earlier Codex Security scans marked superseded; operator-directed native
   scan stop recorded without a PASS claim or restart.
 - Current-head CI, authenticated merge readiness, the mandatory wait window,
@@ -166,6 +178,15 @@ Current-head provenance corrective packet:
   Shared result/receipt coherence and both JSON Schemas now require rejected,
   matching runner proof while preserving legitimate wrapper-stage
   `guard_failure` over an accepted runner.
+- FIXED in `efa91adecac6adbc89b34a7117754ea56fed3c65`: current-head review found
+  that zero-attempt capability summaries could report mutation or executed
+  oracle evidence. A shared validator, raw/result/receipt consumers, both
+  schemas, and deterministic positive/negative tests now enforce coherent
+  execution proof without constraining configured oracles or direct `1/0`.
+- FIXED in `208d11c4fbe37cfd7d5258727b32f8cbaa3bd411`: the material bug-hunter tail
+  proved that raw zero-attempt capability evidence could omit backend
+  provenance. The raw validator now requires failed-preflight proof while
+  preserving backend-less legacy accepted results and direct `1/0` outcomes.
 
 ## Fixed in Commit Mapping
 
@@ -233,6 +254,22 @@ Evidence: Shared Python coherence plus result and generation-receipt JSON Schema
 Reason: Capability loss can no longer be attributed to a successful runner or survive with contradictory backend provenance.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2119#discussion_r3587568047 -> 97ddb482cbfa642400e2ec00f4f1ccd025a5c4ae
 
+Disposition: NOT-A-BUG
+Evidence: Published head `208d11c4fbe37cfd7d5258727b32f8cbaa3bd411` is the PR head, and `git merge-base --is-ancestor <mapped_sha> 208d11c4fbe37cfd7d5258727b32f8cbaa3bd411` exits 0 for every FIXED proof SHA in this artifact, including `8241a9fd`, `e203a39f`, `d6a74f3e`, `44276b9a`, `e5a5b422`, `b5f8f079`, and `97ddb482`.
+Reason: The review reasoned from synthetic snapshot `eaebf23b`, which is neither the reviewed commit recorded by GitHub nor the published PR head; the mapped proof commits are present in current history.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2119#discussion_r3588115320
+
+Disposition: NOT-A-BUG
+Evidence: Material Oracle-shaped commit `3698beae144485d59ce97c1c742ebd1e66696059` and its replacement-evidence commit `8248afba40411444f1fc78791b29d3b605374121` contain the exact `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>` trailer. Later review-driven commits did not use Runner evidence for their commit decisions.
+Reason: The review again reasoned from non-current snapshot `eaebf23b`; the public material commit identified by the artifact already satisfies the attribution invariant.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2119#discussion_r3588115328
+
+Disposition: FIXED
+Commit: efa91adecac6adbc89b34a7117754ea56fed3c65
+Evidence: Raw, result, and generation-receipt validators plus both JSON Schemas reject `capability_mismatch` with attempts `0` when mutation or executed-oracle evidence is nonzero; configured-but-unexecuted oracles and direct `1/0` remain valid. Follow-up commit `208d11c4fbe37cfd7d5258727b32f8cbaa3bd411` also requires failed backend-preflight provenance for the raw zero-attempt path.
+Reason: A failed-preflight-shaped artifact can no longer carry impossible execution evidence or omit the backend proof that explains why no attempt ran.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2119#discussion_r3588115330 -> efa91adecac6adbc89b34a7117754ea56fed3c65
+
 ## Source PR #2130 Replacement Mapping
 
 | Source evidence | Disposition | Owner replacement | Evidence |
@@ -289,20 +326,30 @@ superseded by this replacement-head evidence.
 - PASS: actual-diff premortem for the current eight-file corrective delta;
   loop control, third-retry, raw-result leakage, Python/schema parity, and
   wrapper-rejection compatibility risks are covered by deterministic tests.
-- PASS on governance review head
-  `b9e146455745c184f2f8f93e6ba6297007b98883`: QA reported no implementation
-  findings and one governance-only stale-role wording correction; bug-hunter
-  and security-auditor then returned `PROCEED` with no findings. This closeout
-  incorporates the QA correction without restarting the material role chain.
+- PASS on final material head
+  `208d11c4fbe37cfd7d5258727b32f8cbaa3bd411`: targeted zero-attempt tests,
+  full dispatch suite, the committed-diff five-suite bundle, Black, Ruff,
+  canonical changed-file MyPy, pre-commit, pip-audit, full Bandit, and Docker
+  pre-push hooks.
+- PASS: actual-diff premortem covers Python/schema drift, configured-oracle
+  over-constraint, direct `1/0` regression, and missing backend provenance;
+  every material finding is fixed in executable validators and tests.
+- PASS on final material head
+  `208d11c4fbe37cfd7d5258727b32f8cbaa3bd411`: final
+  `qa-engineer-agent -> bug-hunter -> security-auditor` tail returned
+  `PROCEED` with no findings. Native Codex Security remained
+  `operator_directed_stop` and was not invoked.
 - ADVISORY: `pulseplate-pr-review` on local governance head `b9e146455745`
   found only the already-justified large-diff note plus the expected warning
   that the two local commits were not yet published. Published-head context
   refresh remains a live readiness check and does not reopen material review.
 - LOOP STOP: material evidence is anchored to code head
-  `97ddb482cbfa642400e2ec00f4f1ccd025a5c4ae`; this mapping/body reconciliation
-  is governance-only. Equivalent duplicate or stale review text does not
-  trigger another role or security wave. The bounded alternatives and stop
-  rule are recorded locally in
+  `208d11c4fbe37cfd7d5258727b32f8cbaa3bd411`; this mapping/body reconciliation
+  is governance-only. The ancestry and trailer comments were closed by
+  evidence without a material restart; only the genuinely new zero-attempt
+  execution path triggered one bounded corrective wave. Equivalent duplicate
+  or stale review text does not trigger another role or security wave. The
+  bounded alternatives and stop rule are recorded locally in
   `artifacts/orchestration/pr2119-review-loop-brainstorm.md`.
 - PASS: explicit Apple Container oracle evidence, three of three commands.
 - HISTORICAL FAILURE: Docker build run `29311424356` failed only while
@@ -345,18 +392,21 @@ replacement adds no network, provider, fallback, promotion, product-runtime,
 or cache authority; ordered security review plus deterministic tests prove
 that untrusted backend provenance is overwritten, local paths and credentials
 are redacted, accepted failures are rejected, rejected results cannot retain
-promotion authority, and capability loss after an infrastructure retry cannot
-leak the underlying exception. Current-head CI security remains a live gate.
+promotion authority, zero-attempt capability results require failed-preflight
+backend proof and contain no execution evidence, and capability loss after an
+infrastructure retry cannot leak the underlying exception. Current-head CI
+security remains a live gate.
 
 ## Risks / Rollback
 
 Risk is limited to internal outcome validation and taxonomy compatibility.
 Accepted results reject every non-null canonical failure, rejected results
 cannot be promotion-ready, and failed preflight still requires a rejected
-capability mismatch. Compound infrastructure/capability failure is classified
-as `infra_flake` only after an infrastructure retry was already consumed.
-Rollback is a revert of PR #2119; no database, runtime, public API, provider,
-cache, client, or migration rollback is required.
+capability mismatch with explicit backend provenance, zero attempts, and no
+mutation or executed-oracle evidence. Compound infrastructure/capability
+failure is classified as `infra_flake` only after an infrastructure retry was
+already consumed. Rollback is a revert of PR #2119; no database, runtime,
+public API, provider, cache, client, or migration rollback is required.
 
 ## Deferred / Follow-ups
 
