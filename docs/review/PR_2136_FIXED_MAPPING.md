@@ -42,6 +42,12 @@ Last validated material head:
 `a0696db25d0ce31ea5a7bc1bcd69ee078d65d345`. Any later tracked commits in this
 lane are governance-only updates to this canonical artifact.
 
+## Governance Remediation Commit
+
+- `b3b0decf4a31d2f29cf5b3a85e2cb41b769243f1` - bind all mandatory local,
+  role-review, security, and CI evidence to final material head `a0696db25`,
+  replacing the stale prior-head artifact accepted by the pre-refresh parser.
+
 ## Discussion Thread Pass
 
 - [x] Discussion-thread pass completed
@@ -188,10 +194,11 @@ network authority.
   The adaptive-resume ownership/lineage surface had no finding.
 - The scan reported one Low/P3 governance finding,
   `csf_68bf70902fb8efcc7b18f6d9`: prior-head evidence remained in this mapping
-  after the later material review fix. Disposition: FIXED by this refresh,
-  which binds every mandatory evidence claim to material head `a0696db25`;
-  the publishing commit SHA will be recorded in the next governance-only
-  disposition update.
+  after the later material review fix. Disposition: FIXED. Commit:
+  `b3b0decf4a31d2f29cf5b3a85e2cb41b769243f1`. Evidence: that governance-only
+  commit binds every mandatory evidence claim to material head `a0696db25`;
+  this follow-up records its immutable proof without changing the material
+  surface.
 - The scan's structural head-binding option is advisory design guidance for a
   separately authorized governance lane. It is not needed to close this
   concrete stale artifact instance and is not implemented in this test-only
