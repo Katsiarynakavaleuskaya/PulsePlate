@@ -6,6 +6,7 @@ import json
 import os
 import re
 from pathlib import Path
+import runpy
 import shutil
 import subprocess
 
@@ -1156,6 +1157,33 @@ def test_test_dependency_profile_is_split_from_dev_tooling() -> None:
     assert "sentence-transformers==" not in requirements_test
     assert "transformers==" not in requirements_test
     assert "torch==" not in requirements_test
+
+
+def test_coverage_html_context_is_safely_escaped(tmp_path: Path) -> None:
+    """Coverage must not render a context label as executable HTML."""
+    import coverage
+
+    raw_context = "</script><script>window.pulseplateCoverageProbe=1</script>"
+    source = tmp_path / "coverage_probe.py"
+    source.write_text("value = 42\n", encoding="utf-8")
+
+    cov = coverage.Coverage(
+        config_file=False,
+        data_file=str(tmp_path / ".coverage"),
+    )
+    cov.start()
+    cov.switch_context(raw_context)
+    runpy.run_path(str(source))
+    cov.stop()
+    cov.save()
+
+    report_dir = tmp_path / "htmlcov"
+    cov.html_report(directory=str(report_dir), show_contexts=True)
+
+    report_files = tuple(report_dir.rglob("*.html"))
+    rendered_report = "\n".join(path.read_text(encoding="utf-8") for path in report_files)
+    assert report_files
+    assert raw_context not in rendered_report
 
 
 def test_ci_lite_dependency_profile_excludes_ml_gpu_stack() -> None:
