@@ -149,6 +149,86 @@
           }
         }
       }
+    },
+    {
+      "if": {
+        "required": ["status", "runner_summary"],
+        "properties": {
+          "status": { "const": "rejected" },
+          "runner_summary": {
+            "required": ["status"],
+            "properties": { "status": { "const": "rejected" } }
+          }
+        }
+      },
+      "then": {
+        "oneOf": [
+          {
+            "properties": {
+              "failure_class": { "const": "timeout" },
+              "runner_summary": {
+                "properties": { "failure_class": { "const": "timeout" } }
+              }
+            }
+          },
+          {
+            "properties": {
+              "failure_class": { "const": "oom" },
+              "runner_summary": {
+                "properties": { "failure_class": { "const": "oom" } }
+              }
+            }
+          },
+          {
+            "properties": {
+              "failure_class": { "const": "metric_regression" },
+              "runner_summary": {
+                "properties": { "failure_class": { "const": "metric_regression" } }
+              }
+            }
+          },
+          {
+            "properties": {
+              "failure_class": { "const": "guard_failure" },
+              "runner_summary": {
+                "properties": { "failure_class": { "const": "guard_failure" } }
+              }
+            }
+          },
+          {
+            "properties": {
+              "failure_class": { "const": "policy_violation" },
+              "runner_summary": {
+                "properties": { "failure_class": { "const": "policy_violation" } }
+              }
+            }
+          },
+          {
+            "properties": {
+              "failure_class": { "const": "unchanged_result" },
+              "runner_summary": {
+                "properties": { "failure_class": { "const": "unchanged_result" } }
+              }
+            }
+          },
+          {
+            "properties": {
+              "failure_class": { "const": "capability_mismatch" },
+              "runner_summary": {
+                "properties": { "failure_class": { "const": "capability_mismatch" } }
+              }
+            }
+          },
+          {
+            "properties": {
+              "failure_class": { "const": "infra_flake" },
+              "runner_summary": {
+                "properties": { "failure_class": { "const": "infra_flake" } }
+              }
+            }
+          }
+        ]
+      }
     }
   ],
   "$defs": {

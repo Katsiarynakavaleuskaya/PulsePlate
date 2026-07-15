@@ -79,6 +79,7 @@ TerminalOutcomeCoherenceViolation = Literal[
     "rejected_without_failure_class",
     "accepted_with_nonaccepted_runner",
     "accepted_without_workspace_proof",
+    "rejected_failure_mismatch",
 ]
 LEAK_TEXT_RE = re.compile(
     r"(diff --git|^\+\+\+ |^--- |@@ |raw[_ -]?(prompt|response|context)|"
@@ -108,6 +109,7 @@ def classify_terminal_outcome_coherence(
     status: str,
     failure_class: str | None,
     runner_status: str,
+    runner_failure_class: str | None,
     workspace_summary: Mapping[str, Any],
 ) -> TerminalOutcomeCoherenceViolation | None:
     """Apply shared result/receipt coherence rules in canonical precedence."""
@@ -126,6 +128,12 @@ def classify_terminal_outcome_coherence(
         and workspace_summary["shared_tree_untouched"]
     ):
         return "accepted_without_workspace_proof"
+    if (
+        status == "rejected"
+        and runner_status == "rejected"
+        and failure_class != runner_failure_class
+    ):
+        return "rejected_failure_mismatch"
     return None
 
 
@@ -1159,6 +1167,7 @@ def validate_creative_code_patch_result(payload: dict[str, Any]) -> dict[str, An
         status=normalized["status"],
         failure_class=normalized["failure_class"],
         runner_status=runner_summary["status"],
+        runner_failure_class=runner_summary["failure_class"],
         workspace_summary=workspace_summary,
     )
     if coherence_violation == "accepted_with_failure_class":
@@ -1169,6 +1178,10 @@ def validate_creative_code_patch_result(payload: dict[str, Any]) -> dict[str, An
         raise CreativeCodePatchContractError("accepted results require an accepted runner summary.")
     if coherence_violation == "accepted_without_workspace_proof":
         raise CreativeCodePatchContractError("accepted results require full workspace proof.")
+    if coherence_violation == "rejected_failure_mismatch":
+        raise CreativeCodePatchContractError(
+            "rejected result and runner summary failure_class values must match."
+        )
     for observed_failure, failure_label in (
         (normalized["failure_class"], "CreativeCodePatchResult.runner_summary"),
         (runner_summary["failure_class"], "runner_summary"),

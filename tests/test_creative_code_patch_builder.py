@@ -348,6 +348,19 @@ def test_reference_patch_contracts_validate_and_schema_is_closed() -> None:
     ]
     assert root_retry_rule["attempts"] == {"enum": [0, 1]}
     assert root_retry_rule["retries_consumed"] == {"const": 0}
+    rejected_pair_rule = result_schema["allOf"][3]
+    assert rejected_pair_rule["if"]["properties"]["status"] == {"const": "rejected"}
+    assert rejected_pair_rule["if"]["properties"]["runner_summary"]["properties"]["status"] == {
+        "const": "rejected"
+    }
+    rejected_pairs = {
+        (
+            pair["properties"]["failure_class"]["const"],
+            pair["properties"]["runner_summary"]["properties"]["failure_class"]["const"],
+        )
+        for pair in rejected_pair_rule["then"]["oneOf"]
+    }
+    assert rejected_pairs == {(failure, failure) for failure in ordered_failure_classes}
     runner_rules = result_schema["$defs"]["runner_summary"]["allOf"]
     assert runner_rules[0]["then"]["properties"]["failure_class"] == {"const": None}
     assert runner_rules[1]["then"]["properties"]["failure_class"]["enum"] == (
@@ -498,6 +511,39 @@ def test_patch_result_rejects_incoherent_runner_status_and_preserves_wrapper_rej
     wrapper_rejection["idempotency_key"] = idempotency_key
 
     assert validate_creative_code_patch_result(wrapper_rejection) == wrapper_rejection
+
+
+@pytest.mark.parametrize(
+    ("result_failure", "runner_failure"),
+    [
+        ("capability_mismatch", "infra_flake"),
+        ("infra_flake", "capability_mismatch"),
+    ],
+)
+def test_patch_result_rejects_mismatched_rejected_failures(
+    result_failure: str,
+    runner_failure: str,
+) -> None:
+    tampered = _reference_result()
+    tampered["status"] = "rejected"
+    tampered["failure_class"] = result_failure
+    tampered["runner_summary"].update(
+        {
+            "status": "rejected",
+            "failure_class": runner_failure,
+            "attempts": 1,
+            "retries_consumed": 0,
+        }
+    )
+    result_id, idempotency_key = creative_code_patch_contract._build_result_identity(tampered)
+    tampered["result_id"] = result_id
+    tampered["idempotency_key"] = idempotency_key
+
+    with pytest.raises(
+        CreativeCodePatchContractError,
+        match="rejected result and runner summary failure_class values must match",
+    ):
+        validate_creative_code_patch_result(tampered)
 
 
 def test_patch_result_rejects_capability_mismatch_retry_tamper() -> None:

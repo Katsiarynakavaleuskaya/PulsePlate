@@ -498,6 +498,28 @@ def test_receipt_validator_rejects_unknown_failures_and_incoherent_runner_status
     ):
         validate_generation_receipt(unsupported_runner)
 
+    for receipt_failure, runner_failure in (
+        ("capability_mismatch", "infra_flake"),
+        ("infra_flake", "capability_mismatch"),
+    ):
+        mismatched_rejection = deepcopy(reference)
+        mismatched_rejection["status"] = "rejected"
+        mismatched_rejection["failure_class"] = receipt_failure
+        mismatched_rejection["runner_summary"].update(
+            {
+                "status": "rejected",
+                "failure_class": runner_failure,
+                "attempts": 1,
+                "retries_consumed": 0,
+            }
+        )
+        _reset_receipt_identity(mismatched_rejection)
+        with pytest.raises(
+            CreativeCodePatchGenerationError,
+            match="rejected receipt and runner summary failure_class values must match",
+        ):
+            validate_generation_receipt(mismatched_rejection)
+
     capability_retry_tamper = deepcopy(reference)
     capability_retry_tamper["status"] = "rejected"
     capability_retry_tamper["failure_class"] = "capability_mismatch"
@@ -1451,6 +1473,19 @@ def test_generation_schemas_are_closed_and_authority_is_const_false() -> None:
     ]
     assert root_retry_rule["attempts"] == {"enum": [0, 1]}
     assert root_retry_rule["retries_consumed"] == {"const": 0}
+    rejected_pair_rule = receipt_schema["allOf"][3]
+    assert rejected_pair_rule["if"]["properties"]["status"] == {"const": "rejected"}
+    assert rejected_pair_rule["if"]["properties"]["runner_summary"]["properties"]["status"] == {
+        "const": "rejected"
+    }
+    rejected_pairs = {
+        (
+            pair["properties"]["failure_class"]["const"],
+            pair["properties"]["runner_summary"]["properties"]["failure_class"]["const"],
+        )
+        for pair in rejected_pair_rule["then"]["oneOf"]
+    }
+    assert rejected_pairs == {(failure, failure) for failure in failure_classes}
     runner_rules = receipt_schema["$defs"]["runner_summary"]["allOf"]
     assert runner_rules[0]["then"]["properties"]["failure_class"] == {"const": None}
     assert runner_rules[1]["then"]["properties"]["failure_class"]["enum"] == failure_classes

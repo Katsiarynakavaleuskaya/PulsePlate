@@ -1242,6 +1242,7 @@ def validate_generation_receipt(payload: Mapping[str, Any]) -> dict[str, Any]:
         status=cast(str, normalized["status"]),
         failure_class=failure_class,
         runner_status=runner_summary["status"],
+        runner_failure_class=runner_summary["failure_class"],
         workspace_summary=workspace_summary,
     )
     if coherence_violation == "accepted_with_failure_class":
@@ -1254,6 +1255,10 @@ def validate_generation_receipt(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
     if coherence_violation == "accepted_without_workspace_proof":
         raise CreativeCodePatchGenerationError("accepted receipt requires full workspace proof.")
+    if coherence_violation == "rejected_failure_mismatch":
+        raise CreativeCodePatchGenerationError(
+            "rejected receipt and runner summary failure_class values must match."
+        )
     for observed_failure, failure_label in (
         (failure_class, "CreativeCodePatchGenerationReceipt.runner_summary"),
         (runner_summary["failure_class"], "runner_summary"),

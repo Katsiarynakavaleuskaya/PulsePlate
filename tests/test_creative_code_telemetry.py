@@ -11,7 +11,7 @@ from typing import Any
 import pytest
 
 from core.evidence.fingerprints import fingerprint_payload
-from scripts.orchestration import creative_code_telemetry
+from scripts.orchestration import creative_code_patch_contract, creative_code_telemetry
 from scripts.orchestration.creative_code_patch_contract import (
     build_creative_code_patch_build_request,
     build_creative_code_patch_result,
@@ -397,6 +397,23 @@ def test_capability_mismatch_telemetry_preserves_non_retryable_class(
         "retryability": "not_retryable",
         "likely_owner": "dev-operator",
     }
+
+
+def test_telemetry_rejects_mismatched_result_and_runner_failures() -> None:
+    patch_result = _reference_patch_result(
+        accepted=False,
+        rejection_failure_class="capability_mismatch",
+    )
+    patch_result["runner_summary"]["failure_class"] = "infra_flake"
+    result_id, idempotency_key = creative_code_patch_contract._build_result_identity(patch_result)
+    patch_result["result_id"] = result_id
+    patch_result["idempotency_key"] = idempotency_key
+
+    with pytest.raises(
+        creative_code_patch_contract.CreativeCodePatchContractError,
+        match="rejected result and runner summary failure_class values must match",
+    ):
+        creative_code_telemetry.event_from_patch_result(patch_result)
 
 
 def test_collect_and_write_outputs_local_only_sanitized_sidecars(
