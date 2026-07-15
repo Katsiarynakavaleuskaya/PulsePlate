@@ -55,10 +55,9 @@ lane are governance-only updates to this canonical artifact.
 
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
-- [x] Current issue comments and reviews inspected through governance head
-  `fd1bc481a88c5edc5977edddc25d98341f9d7e60`, including the mutable CodeRabbit
-  walkthrough update at `2026-07-15T11:04:50Z` and Codex review
-  `4703668869`.
+- [x] Current issue comments and reviews inspected after the latest published
+  governance activity, including the mutable CodeRabbit walkthrough and Codex
+  review `4703668869`.
 - [x] Current bot capacity and status notices dispositioned below.
 - [x] All five actionable review threads and their actionable review summaries
   dispositioned below.
@@ -114,10 +113,11 @@ approval, or merge-readiness signal.
 
 Disposition: NOT-A-BUG
 
-Evidence: CodeRabbit last updated this mutable comment at
-`2026-07-15T11:04:50Z` with a walkthrough of the exact test and governance diff
-and five passed pre-merge checks. It published no new finding or thread; its one
-actionable governance thread is mapped as `FIXED` above.
+Evidence: At the latest inspection, this mutable CodeRabbit comment contains a
+walkthrough of the exact test and governance diff and five passed pre-merge
+checks. It publishes no new finding or thread; its one actionable governance
+thread is mapped as `FIXED` above. Any later in-place update remains subject to
+the final status/thread recheck rather than a brittle stored timestamp.
 
 Reason: The walkthrough and optional finishing-touch automation controls are
 status/UI content, not separate code findings or approval; the substantive
