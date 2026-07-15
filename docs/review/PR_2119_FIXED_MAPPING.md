@@ -9,14 +9,33 @@ Branch: `codex/align-pr2-runner-failure-taxonomy`
 Align the creative-code PR-2 result and generation-receipt taxonomies with the
 canonical Experiment Runner `capability_mismatch` outcome so an unavailable
 isolation capability is retained as a sanitized terminal rejection without a
-retry or promotion path.
+retry or promotion path. The replacement also permits that exact rejection
+when backend preflight passed but the isolation primitive was lost during
+execution, while all accepted/failure and rejected/promotion combinations stay
+fail closed.
+
+## Split Justification
+
+The 16-file owner surface is the operator-approved consolidation of the
+existing 14-file result/receipt/telemetry contract with the two exact source
+paths from PR #2130. Splitting the validator and dispatch regression from the
+owner taxonomy would temporarily leave the same terminal outcome incoherent
+across Experiment Runner, receipt, and telemetry consumers. No public API,
+OpenAPI, setup/dependency, product runtime, or unrelated backend surface is
+included.
 
 ## Lane Start Provenance
 
 Packet: `artifacts/orchestration/task_packets/910a4151ec61.json`
 
-- Coordinator-first pre-open routing and every assigned role pass completed in
-  packet order.
+Replacement packet: `artifacts/orchestration/task_packets/7492c83d4ee9.json`
+
+- Fresh `origin/main` at `7c149a84c44406f698d73fbd0dee0bd34b64d085`
+  was merged without history rewriting in
+  `d998a82e8dd1ca1d1ab961f77b4acc143838f1d1`.
+- Replacement role order completed as declared by the executable manifest:
+  `agent-coordinator -> architecture-specialist -> security-auditor ->
+  backend-engineer -> cursor-specialist-agent`.
 - Local packets, role outputs, and Experiment Runner artifacts remain
   gitignored control-plane evidence.
 - Experiment Runner oracle evidence materially shaped the commit decision; the
@@ -34,13 +53,19 @@ Packet: `artifacts/orchestration/task_packets/910a4151ec61.json`
   coherence so both validators report compound violations in the same order.
 - `e203a39f8` - preserve `capability_mismatch` as a closed, non-retryable PR-4
   telemetry class instead of degrading it to `unknown`.
+- `3698beae144485d59ce97c1c742ebd1e66696059` - admit only the coherent
+  post-preflight rejected capability mismatch, reject accepted failures and
+  rejected promotion authority, preserve trusted Apple backend provenance,
+  and add deterministic sanitization/tamper regressions.
 
 ## Discussion Thread Pass
 
-- [x] Discussion-thread pass completed.
-- [x] Fixed in commit mapping completed.
-- [x] Post-open `qa-engineer-agent -> bug-hunter -> security-auditor` completed.
-- [x] Codex Security scan completed for the final material diff.
+- [ ] Discussion-thread pass completed on the replacement head.
+- [x] Source PR #2130 replacement mapping recorded below.
+- [ ] Post-open `qa-engineer-agent -> bug-hunter -> security-auditor` rerun on
+  the replacement head.
+- [x] Earlier Codex Security scans marked superseded; operator-directed native
+  scan stop recorded without a PASS claim.
 - Current-head CI, authenticated merge readiness, the mandatory wait window,
   and human merge authorization are live PR-state gates; they are intentionally
   not frozen as completed in this artifact.
@@ -56,6 +81,19 @@ Packet: `artifacts/orchestration/task_packets/910a4151ec61.json`
   mechanical `large-diff-risk` note. The 14-file surface is the smallest
   atomic result/receipt/telemetry/schema/test/governance propagation that
   prevents `capability_mismatch` from degrading to `unknown`.
+- FIXED in `3698beae144485d59ce97c1c742ebd1e66696059`: architecture and
+  security review found that the direct PR #2130 deletion would also admit
+  `accepted + failure_class`, while rejected results could retain promotion
+  authority. General fail-closed outcome checks and the full canonical failure
+  matrix now close both escalation paths.
+- FIXED in `3698beae144485d59ce97c1c742ebd1e66696059`: the actual-diff
+  premortem found a false-green sanitizer fixture that exercised only the
+  generic `token=` redactor. The regression now uses an unlabeled bare GitHub
+  token pattern and independently proves path and credential redaction.
+- NOT-A-BUG: the runtime omitted the symlinked `pulseplate-workflow` slug from
+  its cached skill catalog. The tracked worktree mirror and repo source resolve
+  to identical content; the source skill was loaded explicitly and no skill
+  installation or workflow-file change belongs in this PR.
 
 ## Fixed in Commit Mapping
 
@@ -83,36 +121,48 @@ Evidence: The canonical mapping marks `Discussion-thread pass completed` and con
 Reason: The parser-required discussion-thread checkbox reflects the completed review audit.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2119#discussion_r3575382511 -> 44276b9af4d6fc153922bd5e9317358bcd78909d
 
+## Source PR #2130 Replacement Mapping
+
+| Source evidence | Disposition | Owner replacement | Evidence |
+| --- | --- | --- | --- |
+| PR #2130 head `5538147f5f8db9d7188b1612422b552775f3ce9a` | SUPERSEDED | `3698beae144485d59ce97c1c742ebd1e66696059` | Reimplemented the narrow relaxation with general accepted/failure and rejected/promotion fail-closed checks instead of applying the source diff directly. |
+| [Sourcery discussion r3578862151](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2130#discussion_r3578862151) | FIXED | `3698beae144485d59ce97c1c742ebd1e66696059` | The Apple Container regression asserts `status=rejected`, exact trusted backend provenance, attempts `1`, retries `0`, `promotion_ready=false`, sanitized runner error, and spoofed-provenance overwrite. |
+
 ## Experiment Runner Evidence
 
 Artifact:
-`artifacts/orchestration/experiments/results/pr2-capability-mismatch-taxonomy-oracle-strict-result.json`
+`artifacts/orchestration/experiments/results/pr2119-post-preflight-capability-oracle-result.json`
 
-The strict oracle-only run was accepted under Apple Container isolation with
-network budget zero, zero retries, no mutated paths, and no promotion
-authority. The artifact is local-only and gitignored.
+Experiment `exp-bad0eafaee64` was accepted through the explicit
+`apple-container` backend, runtime `1.1.0`, immutable image digest
+`sha256:8b95aa8a94d989ff18af7449fbb0feae6783623a7bf49434f0e16341bd61c483`,
+and `apple_internal_no_dns_plus_linux_unshare`. All three immutable oracle
+commands passed with network budget zero, one attempt, zero retries, no mutated
+paths, and no promotion authority. The accepted evidence shaped the commit
+decision, so the implementation commit carries the canonical Experiment Runner
+co-author trailer. The artifact is local-only and gitignored.
+
+The older
+`pr2-capability-mismatch-taxonomy-oracle-strict-result.json` artifact is
+superseded by this replacement-head evidence.
 
 ## Validation Evidence
 
-- PASS: expanded creative-code contract, generation, inventory, Experiment
-  Runner, and dispatcher tests after both post-open fixes.
-- PASS: review-pattern oracle tests.
-- PASS: `make validate-changed` (78 tests post-commit).
-- PASS: orchestration preflight and agent consistency.
-- PASS: `pre-commit run --all-files`.
-- PASS: pre-push Black, Ruff, MyPy, pip-audit, backend tests, Bandit, and Docker
-  hooks.
-- PASS: mandatory post-open QA, bug-hunter, and security role chain.
-- PASS: focused patch-contract, generation, and telemetry suites after review
-  fixes, including compound coherence precedence and non-retryable telemetry
-  preservation.
-- PASS: detached conflict-free merge validation of PR head
-  `2cc32219f08f87e1850a8d6897337eff953af33c` against current
-  `origin/main` `7861b960e8ab02b839ae1cf36e77d2bdcc9da717`;
-  `tests/test_creative_code_patch_builder.py`,
-  `tests/test_creative_code_patch_generation.py`, and
-  `tests/test_creative_code_telemetry.py` passed, and the temporary worktree
-  was removed.
+- PASS on material commit `3698beae144485d59ce97c1c742ebd1e66696059`:
+  scoped execution preflight and agent consistency.
+- PASS: focused outcome/sanitization matrix (20 tests), full Experiment Runner
+  and dispatch suites, and the downstream patch-builder, generation, and
+  telemetry suites.
+- PASS: Ruff and canonical MyPy with `MYPYPATH=.`,
+  `--explicit-package-bases`, no incremental cache, and both changed files.
+- PASS: commit hooks, including detect-secrets, Ruff, type-hint checks, Bandit,
+  and changed backend tests.
+- PASS: `make validate-changed` and the exact `BRANCH_DIFF_MODE=1`
+  pre-commit backend-test path; both selected the four owner/runner test files
+  and completed all 195 tests.
+- PASS: `git diff --check`.
+- PASS: actual-diff premortem after its one false-green test finding was fixed.
+- PASS: explicit Apple Container oracle evidence, three of three commands.
 - HISTORICAL FAILURE: Docker build run `29311424356` failed only while
   preparing source artifacts because `review_by: 2026-07-13` was stale.
 - REMEDIATED OUTSIDE THIS PR: PR #2133, merge
@@ -124,39 +174,44 @@ authority. The artifact is local-only and gitignored.
   `3062dc47-44f4-4cdd-b7c0-eedcf726103a` found zero issues on exact head
   `b156a4f690e190d6581e5d60553d524f015f8d27`; later security-relevant review
   fixes changed the material diff.
-- PASS: final Codex Security scan
+- SUPERSEDED: Codex Security scan
   `7ab0578d-f469-4149-a2e3-025a3e532dfa` covered all four changed
   source-like files at exact material head
   `5463ac2a5a6f310cc510e46c1cfcb6aa2c50d11d`, snapshot
   `b6de86840ef62d42488cce7b1e8ee07e5dd07807711041daa575b943a11eaaee`,
-  with complete coverage and zero findings.
-- PASS: parser-safe mapping/body publication and the local narrow bundle on
-  PR head `2cc32219f08f87e1850a8d6897337eff953af33c`.
-- LIVE FINAL GATE: after this mapping-only current-base evidence update is
-  pushed, require fresh current-head CI and authenticated
-  `check_merge_ready.py`; the wait window and human authorization remain live
-  PR state.
+  with complete coverage and zero findings on that older material. Commit
+  `3698beae144485d59ce97c1c742ebd1e66696059` changed security-relevant
+  validator and sanitizer tests, so that sealed scan is not current evidence.
+- OPERATOR-DIRECTED STOP: native Codex Security scanning is disabled for this
+  lane after repeated unstable scan/session transport. No replacement scan was
+  run and no scan PASS is claimed. Deterministic security evidence consists of
+  the ordered security-auditor pass, Bandit/detect-secrets hooks, redaction and
+  provenance-tamper tests, the Apple Container oracle, and pending current-head
+  CI security.
+- LIVE FINAL GATE: full pre-commit, post-open role/review closure, current-head
+  CI, authenticated merge readiness, wait window, and human authorization must
+  still complete on the published replacement head.
 
 Full local `make verify` was not run because repository policy prohibits that
 machine-heavy invocation without a one-time human override.
 
 ## Security Review
 
-The final sealed scan found zero issues across the exact result, receipt, and
-telemetry material diff. The change adds no network, provider, retry, promotion,
-product-runtime, or cache authority; rejected receipts and telemetry remain
-sanitized and fail closed.
-
-Changes after sealed material head
-`5463ac2a5a6f310cc510e46c1cfcb6aa2c50d11d` are mapping-only and do not alter
-the four scanned source-like files. Do not repeat the scan unless
-security-relevant material changes.
+Both earlier sealed scans are superseded by the replacement material commit.
+Under the explicit operator stop, no native scan was run or claimed. The
+replacement adds no network, provider, retry, promotion, product-runtime, or
+cache authority; ordered security review plus deterministic tests prove that
+untrusted backend provenance is overwritten, local paths and credentials are
+redacted, accepted failures are rejected, and rejected results cannot retain
+promotion authority. Current-head CI security remains a live gate.
 
 ## Risks / Rollback
 
-Risk is limited to taxonomy compatibility. Accepted results continue to reject
-non-null failure classes. Rollback is a revert of PR #2119; no database,
-runtime, API, provider, cache, client, or migration rollback is required.
+Risk is limited to internal outcome validation and taxonomy compatibility.
+Accepted results reject every non-null canonical failure, rejected results
+cannot be promotion-ready, and failed preflight still requires a rejected
+capability mismatch. Rollback is a revert of PR #2119; no database, runtime,
+public API, provider, cache, client, or migration rollback is required.
 
 ## Deferred / Follow-ups
 
