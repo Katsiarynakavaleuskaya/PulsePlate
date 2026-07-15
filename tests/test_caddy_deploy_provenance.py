@@ -60,6 +60,17 @@ def _step_index(steps: list[dict[str, object]], name: str) -> int:
     return steps.index(_named_step(steps, name))
 
 
+def test_frontend_workflow_self_triggers_caddy_contract_on_pull_requests() -> None:
+    workflow = _workflow(FRONTEND_WORKFLOW)
+    triggers = workflow.get("on", workflow.get(True))
+    assert isinstance(triggers, dict)
+    pull_request = triggers.get("pull_request")
+    assert isinstance(pull_request, dict)
+    paths = pull_request.get("paths")
+    assert isinstance(paths, list)
+    assert ".github/workflows/frontend-ci.yml" in paths
+
+
 def test_caddy_dockerfile_owns_exact_hardened_build_recipe() -> None:
     text = DOCKERFILE.read_text(encoding="utf-8")
 

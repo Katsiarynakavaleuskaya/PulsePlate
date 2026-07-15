@@ -2269,6 +2269,7 @@ set -euo pipefail
 case "${*: -1}" in
   *.attested-digest-deploy-v1) printf '0:0:644\\n' ;;
   *.env) printf '%s\\n' "${STUB_ENV_MODE:-600}" ;;
+  *postgres_backup.sh) printf '%s\\n' "${STUB_HELPER_MODE:-755}" ;;
   *) exit 1 ;;
 esac
 """,
@@ -2511,7 +2512,15 @@ def test_staging_deploy_treats_env_file_as_data_and_drops_registry_credentials(
 
 
 @pytest.mark.parametrize(
-    "invalid_boundary", ("env-symlink", "env-mode", "helper-symlink", "helper-mode")
+    "invalid_boundary",
+    (
+        "env-symlink",
+        "env-mode",
+        "compose-symlink",
+        "caddy-symlink",
+        "helper-symlink",
+        "helper-mode",
+    ),
 )
 def test_staging_deploy_rejects_invalid_local_control_files_before_docker_side_effects(
     tmp_path: Path,
@@ -2520,6 +2529,8 @@ def test_staging_deploy_rejects_invalid_local_control_files_before_docker_side_e
     env, log_file = _staging_deploy_fixture(tmp_path)
     project_dir = Path(env["PROJECT_DIR"])
     env_file = project_dir / ".env"
+    compose_file = project_dir / "docker-compose.staging.yaml"
+    caddyfile = project_dir / "Caddyfile"
     backup_helper = Path(env["BACKUP_HELPER"])
 
     if invalid_boundary == "env-symlink":
@@ -2528,12 +2539,21 @@ def test_staging_deploy_rejects_invalid_local_control_files_before_docker_side_e
         env_file.symlink_to(real_env)
     elif invalid_boundary == "env-mode":
         env["STUB_ENV_MODE"] = "644"
+    elif invalid_boundary == "compose-symlink":
+        real_compose = compose_file.with_suffix(".real")
+        compose_file.rename(real_compose)
+        compose_file.symlink_to(real_compose)
+    elif invalid_boundary == "caddy-symlink":
+        real_caddyfile = caddyfile.with_suffix(".real")
+        caddyfile.rename(real_caddyfile)
+        caddyfile.symlink_to(real_caddyfile)
     elif invalid_boundary == "helper-symlink":
         real_helper = backup_helper.with_suffix(".real")
         backup_helper.rename(real_helper)
         backup_helper.symlink_to(real_helper)
     else:
-        backup_helper.chmod(0o600)
+        backup_helper.chmod(0o777)
+        env["STUB_HELPER_MODE"] = "777"
 
     backend_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "a" * 64
     caddy_ref = "ghcr.io/katsiarynakavaleuskaya/pulseplate@sha256:" + "b" * 64
@@ -2548,3 +2568,9 @@ def test_staging_deploy_rejects_invalid_local_control_files_before_docker_side_e
 
     assert completed.returncode != 0
     assert not log_file.exists()
+
+
+def test_staging_deploy_readiness_probe_has_per_request_timeout() -> None:
+    deploy_script = (REPO_ROOT / "scripts" / "deploy.sh").read_text(encoding="utf-8")
+
+    assert "urlopen('http://localhost:8000/ready', timeout=5).read()" in deploy_script

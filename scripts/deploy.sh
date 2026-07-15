@@ -80,15 +80,11 @@ if [ "$marker_content" != "$STAGING_DEPLOY_MARKER_CONTENT" ] || \
 fi
 
 for required_path in "$ENV_FILE" "$COMPOSE_FILE" "$CADDYFILE"; do
-  if [ ! -f "$required_path" ]; then
-    echo "❌ Missing required staging file: $required_path" >&2
+  if [ -L "$required_path" ] || [ ! -f "$required_path" ]; then
+    echo "❌ Staging file must be a regular non-symlink file: $required_path" >&2
     exit 1
   fi
 done
-if [ -L "$ENV_FILE" ] || [ ! -f "$ENV_FILE" ]; then
-  echo "❌ Staging env file must be a regular non-symlink file: $ENV_FILE" >&2
-  exit 1
-fi
 env_file_mode="$($STAT_BIN -c '%a' "$ENV_FILE")"
 if [ "$env_file_mode" != "600" ]; then
   echo "❌ Staging env file must use mode 0600; got $env_file_mode" >&2
@@ -96,6 +92,11 @@ if [ "$env_file_mode" != "600" ]; then
 fi
 if [ -L "$BACKUP_HELPER" ] || [ ! -f "$BACKUP_HELPER" ] || [ ! -x "$BACKUP_HELPER" ]; then
   echo "❌ Postgres backup helper must be a regular executable non-symlink file: $BACKUP_HELPER" >&2
+  exit 1
+fi
+backup_helper_mode="$($STAT_BIN -c '%a' "$BACKUP_HELPER")"
+if (( (8#$backup_helper_mode & 8#22) != 0 )); then
+  echo "❌ Postgres backup helper must not be group- or world-writable; got mode $backup_helper_mode" >&2
   exit 1
 fi
 
@@ -221,7 +222,7 @@ while [ "$wait_count" -lt "$max_wait" ]; do
   app_container="$("${COMPOSE[@]}" ps -q app | tr -d '\n\r ')"
   if [ -n "$app_container" ] && \
      "$DOCKER_BIN" exec "$app_container" python -c \
-       "import urllib.request; urllib.request.urlopen('http://localhost:8000/ready').read()" \
+       "import urllib.request; urllib.request.urlopen('http://localhost:8000/ready', timeout=5).read()" \
        2>/dev/null; then
     echo "App is ready"
     break

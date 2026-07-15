@@ -2299,16 +2299,26 @@ def test_push_to_registry_workflows_restore_signed_attestations_on_publish_lanes
         == "${{ steps.docker-build-push.outputs.digest }}"
     )
 
-    for verify_step in (staging_verify_step, production_verify_step, staging_caddy_verify_step):
+    for verify_step in (staging_verify_step, staging_caddy_verify_step):
         verify_script = verify_step["run"]
         verify_if = verify_step["if"]
+        verify_env = verify_step["env"]
         assert "always()" in verify_if
         assert "scripts/ci/check_docker_provenance_attestation.py" in verify_script
-        assert '--repo "${{ github.repository }}"' in verify_script
-        assert '--signer-workflow "${{ github.repository }}/.github/workflows/cd.yml"' in (
-            verify_script
-        )
-        assert '--source-ref "${{ github.ref }}"' in verify_script
+        assert verify_env["REPO_SLUG"] == "${{ github.repository }}"
+        assert verify_env["SOURCE_REF"] == "${{ github.ref }}"
+        assert '--repo "$REPO_SLUG"' in verify_script
+        assert '--signer-workflow "$REPO_SLUG/.github/workflows/cd.yml"' in verify_script
+        assert '--source-ref "$SOURCE_REF"' in verify_script
+
+    production_verify_script = production_verify_step["run"]
+    assert "always()" in production_verify_step["if"]
+    assert "scripts/ci/check_docker_provenance_attestation.py" in production_verify_script
+    assert '--repo "${{ github.repository }}"' in production_verify_script
+    assert '--signer-workflow "${{ github.repository }}/.github/workflows/cd.yml"' in (
+        production_verify_script
+    )
+    assert '--source-ref "${{ github.ref }}"' in production_verify_script
 
     assert "steps.build.outcome == 'success'" in staging_verify_step["if"]
     assert "backend-provenance-attestation-check.json" in staging_verify_step["run"]

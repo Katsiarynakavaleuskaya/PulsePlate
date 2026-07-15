@@ -90,6 +90,19 @@ def test_cd_staging_attestation_verify_depends_on_all_attestation_steps() -> Non
     assert "steps.generate-staged-caddy-sbom.outcome == 'success'" in caddy_verify_if
     assert "steps.attest-staged-caddy-sbom.outcome == 'success'" in caddy_verify_if
 
+    for step in (verify_step, caddy_verify_step):
+        env = step.get("env")
+        assert isinstance(env, dict)
+        assert env["REPO_SLUG"] == "${{ github.repository }}"
+        assert env["SOURCE_REF"] == "${{ github.ref }}"
+        run = step.get("run")
+        assert isinstance(run, str)
+        assert '--repo "$REPO_SLUG"' in run
+        assert '--signer-workflow "$REPO_SLUG/.github/workflows/cd.yml"' in run
+        assert '--source-ref "$SOURCE_REF"' in run
+        assert "${{ github.repository }}" not in run
+        assert "${{ github.ref }}" not in run
+
 
 def test_cd_production_attestation_verify_depends_on_all_attestation_steps() -> None:
     """Production verify must not run unless build + all attestation steps succeeded."""

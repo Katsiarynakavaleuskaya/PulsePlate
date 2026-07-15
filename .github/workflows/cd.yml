@@ -202,14 +202,16 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO_SLUG: ${{ github.repository }}
+          SOURCE_REF: ${{ github.ref }}
         run: |
           set -euo pipefail
           python3 scripts/ci/check_docker_provenance_attestation.py \
             --image-name "${{ env.REGISTRY }}/${{ steps.image-name.outputs.image_name }}" \
             --digest "${{ steps.build.outputs.digest }}" \
-            --repo "${{ github.repository }}" \
-            --signer-workflow "${{ github.repository }}/.github/workflows/cd.yml" \
-            --source-ref "${{ github.ref }}" \
+            --repo "$REPO_SLUG" \
+            --signer-workflow "$REPO_SLUG/.github/workflows/cd.yml" \
+            --source-ref "$SOURCE_REF" \
             --json-out backend-provenance-attestation-check.json \
             --markdown-out backend-provenance-attestation-check.md
 
@@ -252,14 +254,16 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO_SLUG: ${{ github.repository }}
+          SOURCE_REF: ${{ github.ref }}
         run: |
           set -euo pipefail
           python3 scripts/ci/check_docker_provenance_attestation.py \
             --image-name "${{ env.REGISTRY }}/${{ steps.image-name.outputs.image_name }}" \
             --digest "${{ steps.build-caddy.outputs.digest }}" \
-            --repo "${{ github.repository }}" \
-            --signer-workflow "${{ github.repository }}/.github/workflows/cd.yml" \
-            --source-ref "${{ github.ref }}" \
+            --repo "$REPO_SLUG" \
+            --signer-workflow "$REPO_SLUG/.github/workflows/cd.yml" \
+            --source-ref "$SOURCE_REF" \
             --json-out caddy-provenance-attestation-check.json \
             --markdown-out caddy-provenance-attestation-check.md
 
