@@ -292,24 +292,55 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+      - name: Prepare Trivy ignore policy
+        run: |
+          set -euo pipefail
+          test -f .trivyignore
+          test -f trivy/ignore-policy.rego
+          cp trivy/ignore-policy.rego .trivy-ignore-policy.rego
+          test -s .trivy-ignore-policy.rego
+          cmp -s trivy/ignore-policy.rego .trivy-ignore-policy.rego
+          rm -f -- .trivyignore-caddy
+          : > .trivyignore-caddy
+          test -f .trivyignore-caddy
+          test ! -L .trivyignore-caddy
+          test ! -s .trivyignore-caddy
+
       - name: Scan staged backend image
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0 / Node 24 cache path
+        env:
+          TRIVY_DB_REPOSITORY: ghcr.io/aquasecurity/trivy-db
         with:
+          scan-type: image
           image-ref: ${{ steps.staging-image-refs.outputs.backend_ref }}
+          scanners: vuln,secret
           format: table
           vuln-type: os,library
           severity: CRITICAL,HIGH
           exit-code: '1'
+          timeout: 15m
+          trivyignores: .trivyignore
+          ignore-policy: .trivy-ignore-policy.rego
+          version: v0.71.2
           cache-dir: /tmp/trivy-cache-staging-backend
 
       - name: Scan staged Caddy image
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0 / Node 24 cache path
+        env:
+          TRIVY_DB_REPOSITORY: ghcr.io/aquasecurity/trivy-db
         with:
+          scan-type: image
           image-ref: ${{ steps.staging-image-refs.outputs.caddy_ref }}
+          scanners: vuln,secret
           format: table
           vuln-type: os,library
           severity: CRITICAL,HIGH
           exit-code: '1'
+          timeout: 15m
+          # Override Trivy's default root .trivyignore: it is backend/Debian-specific,
+          # while the staged Caddy runtime is Alpine and must remain suppression-free.
+          trivyignores: .trivyignore-caddy
+          version: v0.71.2
           cache-dir: /tmp/trivy-cache-staging-caddy
 
       - name: Enforce required staging deployment policy
