@@ -22,6 +22,10 @@ execution counter is bound to the Oracle evidence retained in the artifact.
 Every admitted `capability_mismatch`, including post-preflight `1/0`, now also
 requires trusted backend/preflight provenance; dispatch injects that trusted
 provenance before strict validation instead of accepting caller metadata.
+Public CLI status output is now selected only from local `accepted`/`rejected`
+constants before artifact publication; any other runner-controlled value fails
+closed with a constant dispatcher error and cannot reach stdout, stderr, or the
+result artifact.
 
 ## Split Justification
 
@@ -40,7 +44,9 @@ inside the existing surface. Final findings `discussion_r3588654515` and
 `discussion_r3588716979` close incomplete accepted proof and a stale
 mixed-failure Oracle counter inside the same published file set. Final finding
 `discussion_r3588809763` closes backendless post-preflight capability proof in
-the existing contract/dispatch/test surface.
+the existing contract/dispatch/test surface. GitHub CodeQL alert `#632` is
+closed in the same dispatch/test paths without changing result schemas, backend
+selection, public APIs, or OpenAPI.
 
 ## Lane Start Provenance
 
@@ -65,6 +71,9 @@ Final runner-proof coherence packet:
 Final backend-provenance packet:
 `artifacts/orchestration/task_packets/8e30e32ac3dd.json`
 
+CodeQL status-output corrective packet:
+`artifacts/orchestration/task_packets/6a4f7409cb4c.json`
+
 - Fresh `origin/main` at `7c149a84c44406f698d73fbd0dee0bd34b64d085`
   was merged without history rewriting in
   `d998a82e8dd1ca1d1ab961f77b4acc143838f1d1`.
@@ -83,6 +92,15 @@ Final backend-provenance packet:
   qa-engineer-agent -> bug-hunter -> security-auditor`; every role returned
   `PROCEED` with no findings, and the post-security seal marked the tail
   terminal.
+- The bounded CodeQL corrective order completed as coordinator-declared:
+  `agent-coordinator -> architecture-specialist -> security-auditor ->
+  backend-engineer -> qa-engineer-agent -> bug-hunter -> security-auditor`.
+  The final `qa-engineer-agent -> bug-hunter -> security-auditor` tail ran on
+  exact material head `9320795d6f57b67c112b9a4ca985817b43aeefa4`; every
+  role returned `PROCEED` with no findings and the final security pass marked
+  the tail terminal. The auto-routed `cursor-specialist-agent` was removed by
+  the coordinator because no Cursor, packet-schema, or agent-definition
+  surface changed.
 - Local packets, role outputs, and Experiment Runner artifacts remain
   gitignored control-plane evidence.
 - Experiment Runner oracle evidence materially shaped commit
@@ -134,6 +152,10 @@ Final backend-provenance packet:
 - `21343ba5560d71d5dc484feef86a92783558ae7f` - require trusted backend
   provenance for every capability mismatch and inject/overwrite dispatch-owned
   passed-probe metadata before strict validation.
+- `9320795d6f57b67c112b9a4ca985817b43aeefa4` - convert runner-controlled CLI
+  status to local `accepted`/`rejected` constants before artifact publication,
+  fail closed on every other value, and add deterministic no-leak coverage for
+  both terminal paths.
 
 ## Discussion Thread Pass
 
@@ -141,10 +163,10 @@ Final backend-provenance packet:
 - [x] Fixed in commit mapping completed
 - [x] Source PR #2130 replacement mapping recorded below.
 - [x] Terminal material tail completed on final material head
-  `21343ba5560d71d5dc484feef86a92783558ae7f` in the bounded order
-  `architecture-specialist -> security-auditor -> backend-engineer ->
-  qa-engineer-agent -> bug-hunter -> security-auditor`; all findings were
-  empty and the post-security seal marked the material tail terminal.
+  `9320795d6f57b67c112b9a4ca985817b43aeefa4` in the bounded corrective
+  order declared above; the final `qa-engineer-agent -> bug-hunter ->
+  security-auditor` tail returned empty findings and the post-security seal
+  marked the material tail terminal.
 - [x] Earlier Codex Security scans marked superseded; operator-directed native
   scan stop recorded without a PASS claim or restart.
 - Current-head CI, authenticated merge readiness, the mandatory wait window,
@@ -228,6 +250,11 @@ Final backend-provenance packet:
   Strict validation now requires provenance for both `0/0` and `1/0`, while
   dispatch copies the raw result and injects exact trusted passed-probe
   provenance before validation; failed `0/0` evidence cannot be laundered.
+- FIXED in `9320795d6f57b67c112b9a4ca985817b43aeefa4`: current-head CodeQL alert
+  `#632` traced container result status into clear-text CLI output. Both run
+  paths now select only literal-backed public constants before writing the
+  artifact; a secret-like invalid status returns exit `2`, emits only the
+  constant error, produces no stdout, and writes no artifact.
 
 ## Fixed in Commit Mapping
 
@@ -339,6 +366,21 @@ Evidence: Raw validation rejects backendless capability mismatch for attempts `0
 Reason: Standalone raw consumers can no longer admit a post-preflight capability signal without trusted backend proof, while the dispatch boundary remains the sole authority that can attach that proof.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2119#discussion_r3588809763 -> 21343ba5560d71d5dc484feef86a92783558ae7f
 
+Disposition: NOT-A-BUG
+Evidence: GitHub marks this thread outdated on governance commit `693532fe9ecf523e030721a76ebf8439d5dfd15f`; published head `0ddcd0b4f7e753a512570672c11e678db2d76a50` contains ancestor `21343ba5560d71d5dc484feef86a92783558ae7f`, whose raw validator and dispatch regressions already reject or repair every reported backendless capability path.
+Reason: The automatic reviewer repeated `discussion_r3588809763` against an older commit after the correction was already published; the current implementation is correct and no new execution path exists.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2119#discussion_r3589076057
+
+Disposition: NOT-A-BUG
+Evidence: GitHub object lookup for synthetic `ea3878f8` returns null, while every FIXED proof SHA listed in this artifact is an ancestor of published head `0ddcd0b4f7e753a512570672c11e678db2d76a50` under `git merge-base --is-ancestor`.
+Reason: The automatic reviewer again reasoned from a synthetic squash that is neither a GitHub commit object nor the PR head; the unsquashed owner history contains every mapped fix.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2119#discussion_r3589076065
+
+Disposition: NOT-A-BUG
+Evidence: Public ancestor commit `3698beae144485d59ce97c1c742ebd1e66696059` contains the exact `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>` trailer, and later review/governance commits did not use Runner evidence for their commit decisions.
+Reason: The attribution invariant applies to the public material commit shaped by Runner evidence, not to nonexistent synthetic squash `ea3878f8` or every later governance commit.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2119#discussion_r3589076070
+
 ## Source PR #2130 Replacement Mapping
 
 | Source evidence | Disposition | Owner replacement | Evidence |
@@ -436,17 +478,38 @@ superseded by this replacement-head evidence.
   qa-engineer-agent -> bug-hunter -> security-auditor` returned `PROCEED` with
   no findings; the final security seal marked `material_tail: TERMINAL` and
   native scanning remained `operator_directed_stop`.
-- ADVISORY: `pulseplate-pr-review` on local governance head `b9e146455745`
-  found only the already-justified large-diff note plus the expected warning
-  that the two local commits were not yet published. Published-head context
-  refresh remains a live readiness check and does not reopen material review.
+- PASS on final material head
+  `9320795d6f57b67c112b9a4ca985817b43aeefa4`: accepted/rejected constant
+  mapping and secret-like invalid-status no-leak tests; full dispatch suite;
+  committed-diff five-suite selection; canonical MyPy with explicit package
+  bases; Black, Ruff, `git diff --check`; exact pre-commit backend selector;
+  and `pre-commit run --all-files` including detect-secrets and Bandit.
+- PASS: actual-diff CodeQL premortem covers stderr echo, write-before-check,
+  early network-budget divergence, exit-code drift, and static-analysis taint;
+  the first four risks are closed in code/tests and current-head CodeQL is the
+  final proof for the fifth.
+- PASS on final material head
+  `9320795d6f57b67c112b9a4ca985817b43aeefa4`: bounded
+  `agent-coordinator -> architecture-specialist -> security-auditor ->
+  backend-engineer -> qa-engineer-agent -> bug-hunter -> security-auditor`
+  pass returned `PROCEED` with no findings. The final security seal marked
+  `material_tail: TERMINAL`; native scanning remained
+  `operator_directed_stop` and was not invoked.
+- ADVISORY: `pulseplate-pr-review` on final material head
+  `9320795d6f57b67c112b9a4ca985817b43aeefa4` found no deterministic
+  security or architecture issue; its only notes were the already-justified
+  large-diff risk and the expected pre-publish local/remote head mismatch.
+  Published-head context refresh remains a live readiness check and does not
+  reopen material review.
 - LOOP STOP: material evidence is anchored to code head
-  `21343ba5560d71d5dc484feef86a92783558ae7f`; this mapping/body reconciliation
-  is governance-only. The ancestry and trailer comments were closed by
-  evidence without a material restart; only the genuinely new zero-attempt
-  execution path triggered one bounded corrective wave. Equivalent duplicate
-  or stale review text does not trigger another role or security wave. The
-  bounded alternatives and stop rule are recorded locally in
+  `9320795d6f57b67c112b9a4ca985817b43aeefa4`; this mapping/body
+  reconciliation is governance-only. The ancestry and trailer comments were
+  closed by evidence without a material restart; only genuinely new execution
+  paths and the current-head CodeQL HIGH triggered bounded corrective waves.
+  Equivalent duplicate or stale review text does not trigger another role or
+  security wave. The operator disabled Codex GitHub automatic reviews before
+  the final governance push. The bounded alternatives and stop rule are
+  recorded locally in
   `artifacts/orchestration/pr2119-review-loop-brainstorm.md`.
 - PASS: explicit Apple Container oracle evidence, three of three commands.
 - HISTORICAL FAILURE: Docker build run `29311424356` failed only while
@@ -474,9 +537,10 @@ superseded by this replacement-head evidence.
   the ordered security-auditor pass, Bandit/detect-secrets hooks, redaction and
   provenance-tamper tests, mixed-failure canary tests, the Apple Container
   oracle, and pending current-head CI security.
-- LIVE FINAL GATE: current-head CI, authenticated merge readiness, bot
-  dispositions, the mandatory wait window, and human authorization must still
-  complete on the published replacement head.
+- LIVE FINAL GATE: current-head CodeQL must close alert `#632`; current-head CI,
+  authenticated merge readiness, bot dispositions, the mandatory wait window,
+  and human authorization must still complete on the published replacement
+  head.
 
 Full local `make verify` was not run because repository policy prohibits that
 machine-heavy invocation without a one-time human override.
@@ -491,8 +555,10 @@ that untrusted backend provenance is overwritten, local paths and credentials
 are redacted, accepted failures are rejected, rejected results cannot retain
 promotion authority, zero-attempt capability results require failed-preflight
 backend proof and contain no execution evidence, and capability loss after an
-infrastructure retry cannot leak the underlying exception. Current-head CI
-security remains a live gate.
+infrastructure retry cannot leak the underlying exception. Runner-controlled
+status now crosses a constant-only CLI boundary before artifact publication;
+unknown values fail with a fixed error and are absent from stdout, stderr, and
+the output artifact. Current-head CodeQL and CI security remain live gates.
 
 ## Risks / Rollback
 
@@ -502,8 +568,10 @@ cannot be promotion-ready, and failed preflight still requires a rejected
 capability mismatch with explicit backend provenance, zero attempts, and no
 mutation or executed-oracle evidence. Compound infrastructure/capability
 failure is classified as `infra_flake` only after an infrastructure retry was
-already consumed. Rollback is a revert of PR #2119; no database, runtime,
-public API, provider, cache, client, or migration rollback is required.
+already consumed. CLI status output remains exactly `accepted` or `rejected`,
+with invalid internal status failing closed before publication. Rollback is a
+revert of PR #2119; no database, runtime, public API, provider, cache, client,
+or migration rollback is required.
 
 ## Deferred / Follow-ups
 
