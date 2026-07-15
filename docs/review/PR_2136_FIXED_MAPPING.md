@@ -40,9 +40,11 @@ contracts.
 - `a9f990956e73ee2adae34ca0b36ee92cae5d71c8` - extend the lineage no-write
   oracle so direct top-level `spec_bridge` file, link, and open/write attempts
   fail fast without restoring flaky whole-directory snapshots.
+- `0aa56a8000aaa6a6cd81f034d73f2267dbc836e2` - cover direct top-level
+  `spec_bridge` writes that use pinned-parent `dir_fd` file descriptors.
 
 Last validated material head:
-`a9f990956e73ee2adae34ca0b36ee92cae5d71c8`.
+`0aa56a8000aaa6a6cd81f034d73f2267dbc836e2`.
 
 ## Governance Remediation Commit
 
@@ -61,10 +63,13 @@ Last validated material head:
   governance activity, including the mutable CodeRabbit walkthrough and Codex
   review `4703668869`.
 - [x] Current bot capacity and status notices dispositioned below.
-- [x] All six actionable review threads and their actionable review summaries
+- [x] All eight actionable review threads and their actionable review summaries
   dispositioned below.
 - [x] Mandatory post-open role-agent chain completed.
-- [x] Codex Security diff scan and `pulseplate-pr-review` completed.
+- [ ] Fresh Codex Security diff scan and current-PR `pulseplate-pr-review`
+  evidence for the final lineage write-guard material head is pending; prior
+  sealed scan and `pulseplate-pr-review` evidence covered material head
+  `a0696db25`.
 - [x] Governance-head CI run `29410359678` completed successfully at
   `1543c1c38`; current-head CI run `29412017542` then completed successfully at
   `fd1bc481a`, including Python 3.13 and diff coverage. The first strict
@@ -73,8 +78,8 @@ Last validated material head:
 - [x] Current-head CI run `29415036355` completed successfully at `a0e39ef9`,
   including lint, security, OpenAPI sync, Python 3.13 `test-pr`, `coverage-pr`,
   and `diff-coverage`. It is superseded for merge readiness by the later
-  lineage write-guard fix commit `a9f990956`, which must receive its own final
-  current-head cycle.
+  lineage write-guard fix commits `a9f990956` and `0aa56a800`, which must
+  receive their own final current-head cycle.
 
 ## Fixed in Commit Mapping
 
@@ -108,6 +113,16 @@ Reason: The comment's `e0eecfb` snapshot is absent from the GitHub PR commit lis
 Disposition: FIXED
 Commit: a9f990956e73ee2adae34ca0b36ee92cae5d71c8
 Evidence: `tests/test_creative_pilot_workspace.py:1701` now routes lineage failure no-write checks through one direct-`spec_bridge` artifact guard and applies it to `Path.mkdir`, write-mode `Path.open`, write-mode builtins `open`, `Path.touch`, `Path.symlink_to`, `Path.hardlink_to`, `os.open`, and `os.symlink` before preserving the independent publisher spy. The focused lineage test, 12-test adaptive-resume pack, and full `tests/test_creative_pilot_workspace.py` all passed after the fix; the post-comment commit is not trigger-only.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2136#discussion_r3587549016 -> 0aa56a8000aaa6a6cd81f034d73f2267dbc836e2
+Disposition: FIXED
+Commit: 0aa56a8000aaa6a6cd81f034d73f2267dbc836e2
+Evidence: `tests/test_creative_pilot_workspace.py:1709` records the `spec_root` device/inode and extends the `os.open` / `os.symlink` lineage no-write spies to resolve `dir_fd` against that root before failing direct child create/write attempts through the pinned-parent writer path. The focused lineage test, 12-test adaptive-resume pack, and full changed test file passed after the fix; the post-comment commit is not trigger-only.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2136#discussion_r3587549025 -> c735528a6a44838363b711d50205a0a798aead45
+Disposition: FIXED
+Commit: c735528a6a44838363b711d50205a0a798aead45
+Evidence: pending governance commit changes the Discussion Thread Pass claim from completed fresh specialist/security evidence to an unchecked pending item for the final lineage write-guard material head. Prior sealed Codex Security and `pulseplate-pr-review` evidence remains documented only for material head `a0696db25` until fresh final-head evidence is produced.
 
 ## Bot Capacity and Status Notices
 
@@ -266,8 +281,9 @@ network authority.
   separately authorized governance lane. It is not needed to close this
   concrete stale artifact instance and is not implemented in this test-only
   hotfix.
-- PASS: final-material-head `pulseplate-pr-review`, its published-governance-head
-  follow-up, and 11 calibration tests. The only `NEEDS-HUMAN` note was the
+- PASS: material-head `a0696db25` `pulseplate-pr-review`, its
+  published-governance-head follow-up, and 11 calibration tests. The only
+  `NEEDS-HUMAN` note was the
   393-line review threshold after governance evidence expanded.
   Disposition: NOT-A-BUG. The diff is two coherent files: one functional test
   file plus this mandatory numbered governance artifact; splitting either
@@ -290,7 +306,7 @@ confirmed main flake; prefer a narrow follow-up receipt-contract update.
 - [ ] Mandatory post-open review/security chain completed.
 - [ ] Sealed Codex Security scan and `pulseplate-pr-review` completed at the
   final material head.
-- [ ] Applicable current-head CI at material head `a9f990956` is terminal PASS;
+- [ ] Applicable current-head CI at material head `0aa56a800` is terminal PASS;
   the Python 3.13 `test-pr` lane runs, while `test-main` may be canonically skipped.
 - [ ] All review threads resolved only after their dispositions are published.
 - [ ] CodeRabbit, Sourcery, and Cubic are checked for actionable findings after
