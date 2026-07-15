@@ -25,7 +25,10 @@ provenance before strict validation instead of accepting caller metadata.
 Public CLI status output is now selected only from local `accepted`/`rejected`
 constants before artifact publication; any other runner-controlled value fails
 closed with a constant dispatcher error and cannot reach stdout, stderr, or the
-result artifact.
+result artifact. Direct runner capability loss is now a data-free internal
+signal and produces no standalone artifact; only dispatch, after a passed
+backend probe and successful cleanup, can construct the strict-valid rejected
+`capability_mismatch 1/0` result with trusted provenance.
 
 ## Split Justification
 
@@ -74,6 +77,9 @@ Final backend-provenance packet:
 CodeQL status-output corrective packet:
 `artifacts/orchestration/task_packets/6a4f7409cb4c.json`
 
+Direct capability-provenance corrective packet:
+`artifacts/orchestration/task_packets/28a934c1905c.json`
+
 - Fresh `origin/main` at `7c149a84c44406f698d73fbd0dee0bd34b64d085`
   was merged without history rewriting in
   `d998a82e8dd1ca1d1ab961f77b4acc143838f1d1`.
@@ -101,6 +107,12 @@ CodeQL status-output corrective packet:
   the tail terminal. The auto-routed `cursor-specialist-agent` was removed by
   the coordinator because no Cursor, packet-schema, or agent-definition
   surface changed.
+- The direct capability-provenance correction completed in the declared order:
+  `agent-coordinator -> architecture-specialist -> security-auditor ->
+  backend-engineer -> qa-engineer-agent -> bug-hunter -> security-auditor`.
+  The final three roles reviewed exact material head
+  `da7650b0b1f7cc9c481639f66559a8f4652c8d0c`; every role returned `PROCEED`
+  with no findings. Native scanning remained `operator_directed_stop`.
 - Local packets, role outputs, and Experiment Runner artifacts remain
   gitignored control-plane evidence.
 - Experiment Runner oracle evidence materially shaped commit
@@ -156,6 +168,9 @@ CodeQL status-output corrective packet:
   status to local `accepted`/`rejected` constants before artifact publication,
   fail closed on every other value, and add deterministic no-leak coverage for
   both terminal paths.
+- `da7650b0b1f7cc9c481639f66559a8f4652c8d0c` - replace backendless direct
+  capability artifacts with a data-free runner signal and let only dispatch
+  attach trusted post-preflight provenance after successful cleanup.
 
 ## Discussion Thread Pass
 
@@ -163,7 +178,7 @@ CodeQL status-output corrective packet:
 - [x] Fixed in commit mapping completed
 - [x] Source PR #2130 replacement mapping recorded below.
 - [x] Terminal material tail completed on final material head
-  `9320795d6f57b67c112b9a4ca985817b43aeefa4` in the bounded corrective
+  `da7650b0b1f7cc9c481639f66559a8f4652c8d0c` in the bounded corrective
   order declared above; the final `qa-engineer-agent -> bug-hunter ->
   security-auditor` tail returned empty findings and the post-security seal
   marked the material tail terminal.
@@ -255,6 +270,13 @@ CodeQL status-output corrective packet:
   paths now select only literal-backed public constants before writing the
   artifact; a secret-like invalid status returns exit `2`, emits only the
   constant error, produces no stdout, and writes no artifact.
+- FIXED in `da7650b0b1f7cc9c481639f66559a8f4652c8d0c`: current-head review found
+  that direct runner APIs could still return backendless capability artifacts
+  rejected by the strict validator. Direct raised and returned capability loss
+  now becomes one data-free signal; the CLI writes no artifact, while dispatch
+  alone converts exact exit `3` into strict-valid trusted `1/0` proof after
+  successful cleanup. Shared-tree drift, cleanup failure, failed preflight
+  `0/0`, and post-retry `2/1` retain precedence.
 
 ## Fixed in Commit Mapping
 
@@ -381,6 +403,12 @@ Evidence: Public ancestor commit `3698beae144485d59ce97c1c742ebd1e66696059` cont
 Reason: The attribution invariant applies to the public material commit shaped by Runner evidence, not to nonexistent synthetic squash `ea3878f8` or every later governance commit.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2119#discussion_r3589076070
 
+Disposition: FIXED
+Commit: da7650b0b1f7cc9c481639f66559a8f4652c8d0c
+Evidence: Direct candidate and Oracle runner paths emit a data-free signal and no artifact; the CLI uses fixed exit `3`, and dispatch converts only that exit after passed backend preflight and successful cleanup into validated rejected `capability_mismatch` with trusted provenance, attempts `1`, retries `0`, and promotion disabled.
+Reason: Direct runner consumers can no longer publish backendless capability proof or fabricate execution provenance; failed preflight, cleanup/shared-tree failures, and post-infra-retry outcomes remain fail closed.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2119#discussion_r3589281986 -> da7650b0b1f7cc9c481639f66559a8f4652c8d0c
+
 ## Source PR #2130 Replacement Mapping
 
 | Source evidence | Disposition | Owner replacement | Evidence |
@@ -495,6 +523,20 @@ superseded by this replacement-head evidence.
   pass returned `PROCEED` with no findings. The final security seal marked
   `material_tail: TERMINAL`; native scanning remained
   `operator_directed_stop` and was not invoked.
+- PASS on final material head
+  `da7650b0b1f7cc9c481639f66559a8f4652c8d0c`: complete runner and dispatch
+  suites plus notify, promote, patch-builder, generation, and telemetry;
+  Black, Ruff, canonical MyPy with explicit package bases, `git diff --check`,
+  scoped preflight, agent consistency, `make validate-changed`, exact backend
+  selector, and `pre-commit run --all-files`.
+- PASS: direct capability-signal premortem covers exit-code collision,
+  cleanup/shared-tree precedence, artifact and canary leakage, direct-consumer
+  fail-closed behavior, and preservation of `0/0`, `1/0`, and `2/1` outcomes.
+- PASS on final material head
+  `da7650b0b1f7cc9c481639f66559a8f4652c8d0c`: serial
+  `qa-engineer-agent -> bug-hunter -> security-auditor` tail returned
+  `PROCEED` with no findings; native scanning remained
+  `operator_directed_stop` and was not invoked.
 - ADVISORY: `pulseplate-pr-review` on final material head
   `9320795d6f57b67c112b9a4ca985817b43aeefa4` found no deterministic
   security or architecture issue; its only notes were the already-justified
@@ -502,13 +544,15 @@ superseded by this replacement-head evidence.
   Published-head context refresh remains a live readiness check and does not
   reopen material review.
 - LOOP STOP: material evidence is anchored to code head
-  `9320795d6f57b67c112b9a4ca985817b43aeefa4`; this mapping/body
+  `da7650b0b1f7cc9c481639f66559a8f4652c8d0c`; this mapping/body
   reconciliation is governance-only. The ancestry and trailer comments were
-  closed by evidence without a material restart; only genuinely new execution
-  paths and the current-head CodeQL HIGH triggered bounded corrective waves.
+  closed by evidence without a material restart; the direct producer finding
+  identified one genuinely new execution path and received one bounded
+  corrective wave, just as the current-head CodeQL HIGH did earlier.
   Equivalent duplicate or stale review text does not trigger another role or
-  security wave. The operator disabled Codex GitHub automatic reviews before
-  the final governance push. The bounded alternatives and stop rule are
+  security wave. The operator disabled Codex GitHub automatic reviews; one
+  already-queued review still arrived and is fully dispositioned above. The
+  bounded alternatives and stop rule are
   recorded locally in
   `artifacts/orchestration/pr2119-review-loop-brainstorm.md`.
 - PASS: explicit Apple Container oracle evidence, three of three commands.
@@ -558,7 +602,10 @@ backend proof and contain no execution evidence, and capability loss after an
 infrastructure retry cannot leak the underlying exception. Runner-controlled
 status now crosses a constant-only CLI boundary before artifact publication;
 unknown values fail with a fixed error and are absent from stdout, stderr, and
-the output artifact. Current-head CodeQL and CI security remain live gates.
+the output artifact. Direct runner capability loss is data-free and
+artifact-free; dispatch recognizes only exact exit `3` after passed preflight,
+successful cleanup, and trusted probe ownership. Current-head CodeQL and CI
+security remain live gates.
 
 ## Risks / Rollback
 
