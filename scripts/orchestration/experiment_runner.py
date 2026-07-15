@@ -57,6 +57,9 @@ OOM_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"\bcannot allocate memory\b", re.IGNORECASE),
 )
 PYTHON_ORACLE_BINARIES = {"python", "python3"}
+CAPABILITY_LOSS_AFTER_INFRA_RETRY_ERROR = (
+    "Execution capability became unavailable after an infrastructure retry."
+)
 
 
 class ExperimentRunnerError(RuntimeError):
@@ -733,6 +736,10 @@ def evaluate_candidate(packet: dict[str, Any], candidate_patch_path: Path) -> di
                     candidate_patch_ref=candidate_patch_ref,
                 )
                 break
+            except CapabilityMismatchError:
+                if attempt_number > 1:
+                    raise InfraFlakeError(CAPABILITY_LOSS_AFTER_INFRA_RETRY_ERROR) from None
+                raise
             except InfraFlakeError as exc:
                 last_infra_error = str(exc)
                 if attempt_number == max_attempts:

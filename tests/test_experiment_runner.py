@@ -1268,6 +1268,60 @@ def test_evaluate_candidate_does_not_retry_lost_unshare_capability(
     assert attempts["count"] == 1
 
 
+def test_evaluate_candidate_classifies_capability_loss_after_infra_retry_as_infra_flake(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_runner_repo(monkeypatch, repo)
+    patch_path = _write_patch(
+        repo,
+        "core/rag/allowed.py",
+        "def candidate_value() -> int:\n    return 2\n",
+        tmp_path / "capability-loss-after-retry.patch",
+    )
+    packet = _validate_packet(
+        _base_packet(
+            mutable_path="core/rag/allowed.py",
+            oracle_command='python3 -c "print(1)"',
+            network_budget=0,
+        )
+    )
+    calls = 0
+    infra_canary = "infra-retry-canary"
+    capability_path_canary = "/Users/capability-loss-canary"
+    capability_credential_canary = "credential-capability-loss-canary"
+
+    def _mixed_failure(**_kwargs: object) -> dict[str, Any]:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise experiment_runner.InfraFlakeError(infra_canary)
+        raise experiment_runner.CapabilityMismatchError(
+            f"{capability_path_canary} {capability_credential_canary}"
+        )
+
+    monkeypatch.setattr(experiment_runner, "_evaluate_attempt", _mixed_failure)
+
+    result = experiment_runner.evaluate_candidate(packet, patch_path)
+    serialized = json.dumps(result, sort_keys=True)
+
+    assert calls == 2
+    assert result["status"] == "rejected"
+    assert result["failure_class"] == "infra_flake"
+    assert result["promotion_ready"] is False
+    assert result["budget_observations"]["attempts"] == 2
+    assert result["budget_observations"]["retries_consumed"] == 1
+    assert experiment_contract.validate_experiment_result(result)["failure_class"] == "infra_flake"
+    assert (
+        result["budget_observations"]["runner_error"]
+        == experiment_runner.CAPABILITY_LOSS_AFTER_INFRA_RETRY_ERROR
+    )
+    assert infra_canary not in serialized
+    assert capability_path_canary not in serialized
+    assert capability_credential_canary not in serialized
+
+
 def test_evaluate_candidate_allows_first_oracle_on_one_second_budget(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
