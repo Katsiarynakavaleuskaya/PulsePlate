@@ -1509,14 +1509,16 @@ def _sanitize_result(
     requested_coauthor_required: bool = False,
     requested_coauthor_reason: str = "",
 ) -> dict[str, Any]:
+    trusted_backend = _execution_backend_payload(probe, passed=True)
+    result_with_trusted_backend = {**result, "execution_backend": trusted_backend}
     try:
-        validated = _validated_experiment_result(result)
+        validated = _validated_experiment_result(result_with_trusted_backend)
     except (TypeError, ValueError) as exc:
         raise DispatchError("result_validation_failed") from exc
     sanitized = _redact_result_value(validated)
     if not isinstance(sanitized, dict):
         raise DispatchError("result_redaction_failed")
-    sanitized["execution_backend"] = _execution_backend_payload(probe, passed=True)
+    sanitized["execution_backend"] = trusted_backend
     oracle_results = []
     for raw_oracle in sanitized.get("oracle_results", []):
         oracle = dict(raw_oracle)

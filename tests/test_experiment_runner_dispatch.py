@@ -624,17 +624,29 @@ def test_capability_mismatch_zero_attempts_reject_execution_evidence(
         experiment_contract.validate_experiment_result(result)
 
 
-def test_capability_mismatch_zero_attempts_require_backend_preflight_provenance() -> None:
-    result = dispatch._capability_mismatch_result(
-        _packet(network_budget=0),
-        _image(),
-        _probe("apple-container", strict=False),
-    )
-    result.pop("execution_backend")
+@pytest.mark.parametrize("attempts", [0, 1])
+def test_capability_mismatch_requires_backend_preflight_provenance(attempts: int) -> None:
+    if attempts == 0:
+        result = dispatch._capability_mismatch_result(
+            _packet(network_budget=0),
+            _image(),
+            _probe("apple-container", strict=False),
+        )
+        result.pop("execution_backend")
+    else:
+        result = _legacy_result()
+        result.update(
+            {
+                "status": "rejected",
+                "failure_class": "capability_mismatch",
+                "mutated_paths": [],
+                "budget_observations": {"attempts": 1, "retries_consumed": 0},
+            }
+        )
 
     with pytest.raises(
         ValueError,
-        match="capability_mismatch with attempts 0 requires failed backend preflight provenance",
+        match="capability_mismatch requires backend preflight provenance",
     ):
         experiment_contract.validate_experiment_result(result)
 
@@ -1617,6 +1629,37 @@ def test_sanitize_result_preserves_safe_post_preflight_capability_mismatch() -> 
     assert str(dispatch.REPO_ROOT) not in serialized
     assert raw_token not in serialized
     assert "<redacted>" in sanitized["budget_observations"]["runner_error"]
+
+
+def test_sanitize_result_injects_trusted_backend_before_capability_validation() -> None:
+    trusted_probe = _probe("apple-container", strict=True)
+    result = _legacy_result()
+    result.update(
+        {
+            "status": "rejected",
+            "failure_class": "capability_mismatch",
+            "mutated_paths": [],
+            "budget_observations": {"attempts": 1, "retries_consumed": 0},
+        }
+    )
+
+    sanitized = dispatch._sanitize_result(result, trusted_probe)
+
+    assert "execution_backend" not in result
+    assert sanitized["execution_backend"] == dispatch._execution_backend_payload(
+        trusted_probe, passed=True
+    )
+
+
+def test_sanitize_result_rejects_failed_preflight_shape_under_passed_probe() -> None:
+    result = dispatch._capability_mismatch_result(
+        _packet(network_budget=0),
+        _image(),
+        _probe("apple-container", strict=False),
+    )
+
+    with pytest.raises(dispatch.DispatchError, match="result_validation_failed"):
+        dispatch._sanitize_result(result, _probe("apple-container", strict=True))
 
 
 def test_sanitize_accepted_result_preserves_material_attribution() -> None:
