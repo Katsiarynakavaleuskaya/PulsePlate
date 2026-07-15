@@ -1748,6 +1748,17 @@ def test_post_preflight_failure_is_validated_infra_flake() -> None:
     assert result["coauthor_reason"] == ""
 
 
+@pytest.mark.parametrize(
+    ("status", "expected"),
+    [
+        ("accepted", dispatch.PUBLIC_STATUS_ACCEPTED),
+        ("rejected", dispatch.PUBLIC_STATUS_REJECTED),
+    ],
+)
+def test_public_result_status_maps_only_canonical_literals(status: str, expected: str) -> None:
+    assert dispatch._public_result_status({"status": status}) == expected
+
+
 def test_pre_run_image_drift_is_non_retryable_capability_mismatch(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -1874,6 +1885,49 @@ def test_main_normalizes_material_attribution_before_strict_dispatch(
     assert invocation["contribution_kind"] == "oracle_review"
     assert invocation["coauthor_required"] is True
     assert invocation["coauthor_reason"] == reason
+
+
+def test_main_rejects_invalid_result_status_without_leaking_or_writing(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    packet_path = tmp_path / "packet.json"
+    packet_path.write_text(json.dumps(_packet()), encoding="utf-8")
+    output_path = tmp_path / "result.json"
+    probe = _probe("apple-container", strict=True)
+    invalid_status = "api_" + "key=private-status-value"
+    result = _accepted_oracle_result()
+    result["status"] = invalid_status
+    writes: list[dict[str, Any]] = []
+
+    monkeypatch.setattr(
+        dispatch,
+        "_parse_args",
+        lambda _argv: SimpleNamespace(
+            command="run",
+            backend="apple-container",
+            packet="packet.json",
+            candidate_patch=None,
+            image=f"pulseplate/experiment-runner:local@{_DIGEST}",
+            output="result.json",
+        ),
+    )
+    monkeypatch.setattr(dispatch, "_require_repo_local_file", lambda *_args, **_kwargs: packet_path)
+    monkeypatch.setattr(dispatch, "_resolve_local_output", lambda *_args, **_kwargs: output_path)
+    monkeypatch.setattr(dispatch, "select_backend", lambda *_args: (probe, [probe]))
+    monkeypatch.setattr(dispatch, "_invoke_container_runner", lambda **_kwargs: result)
+    monkeypatch.setattr(
+        dispatch, "_atomic_write_json", lambda _path, payload: writes.append(payload)
+    )
+
+    assert dispatch.main([]) == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == "experiment_runner_dispatch: result_validation_failed\n"
+    assert invalid_status not in captured.out
+    assert invalid_status not in captured.err
+    assert writes == []
 
 
 @pytest.mark.parametrize("backend", ["apple-container", "docker"])

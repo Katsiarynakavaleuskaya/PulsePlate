@@ -61,6 +61,8 @@ CONTAINER_RESULT_DIR = "/repo/artifacts/orchestration/experiments/results"
 CONTAINER_PRIVATE_TMP = Path("/", "tmp").as_posix()
 RESULT_VOLUME_SIZE = "2M"
 MAX_RESULT_BYTES = 2 * 1024 * 1024
+PUBLIC_STATUS_ACCEPTED = "accepted"
+PUBLIC_STATUS_REJECTED = "rejected"
 IMAGE_REF_RE = re.compile(
     r"^(?P<name>[A-Za-z0-9][A-Za-z0-9._:/-]{0,254})@(?P<digest>sha256:[0-9a-f]{64})$"
 )
@@ -1319,6 +1321,15 @@ def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
         temp_path.unlink(missing_ok=True)
 
 
+def _public_result_status(result: dict[str, Any]) -> str:
+    status = result.get("status")
+    if status == "accepted":
+        return PUBLIC_STATUS_ACCEPTED
+    if status == "rejected":
+        return PUBLIC_STATUS_REJECTED
+    raise DispatchError("result_validation_failed")
+
+
 def _require_repo_local_file(raw: str, *, suffix: str) -> Path:
     candidate = Path(raw)
     if candidate.is_absolute():
@@ -1926,14 +1937,15 @@ def main(argv: list[str] | None = None) -> int:
         if int(packet["budgets"]["network_budget"]) != 0:
             probe = _strict_network_budget_probe(args.backend, image)
             result = _capability_mismatch_result(packet, image, probe)
+            public_status = _public_result_status(result)
             _atomic_write_json(output_path, result)
             print(
                 json.dumps(
-                    {"artifact": output_path.name, "status": result["status"]},
+                    {"artifact": output_path.name, "status": public_status},
                     sort_keys=True,
                 )
             )
-            return 1
+            return 0 if public_status == PUBLIC_STATUS_ACCEPTED else 1
         selected, attempts = select_backend(args.backend, image)
         if selected is None:
             result = _capability_mismatch_result(packet, image, attempts[-1])
@@ -1961,11 +1973,10 @@ def main(argv: list[str] | None = None) -> int:
                 result = _infra_flake_result(packet, image, selected, exc.code)
             except (OSError, ValueError):
                 result = _infra_flake_result(packet, image, selected, "result_validation_failed")
+        public_status = _public_result_status(result)
         _atomic_write_json(output_path, result)
-        print(
-            json.dumps({"artifact": output_path.name, "status": result["status"]}, sort_keys=True)
-        )
-        return 0 if result["status"] == "accepted" else 1
+        print(json.dumps({"artifact": output_path.name, "status": public_status}, sort_keys=True))
+        return 0 if public_status == PUBLIC_STATUS_ACCEPTED else 1
     except (DispatchError, OSError, ValueError) as exc:
         print(f"experiment_runner_dispatch: {exc}", file=sys.stderr)
         return 2
