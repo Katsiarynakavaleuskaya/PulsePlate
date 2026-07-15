@@ -32,7 +32,10 @@ ACTIVE_LOCK_WORKFLOW_DOCS = (
     CONTRACT_DOC,
     Path("docs/orchestration/workflow.md"),
     Path("docs/evals/RAGAS_SETUP.md"),
+    Path("docs/security/CVE-2025-14009-nltk.md"),
     Path("docs/security/DEPENDENCY_SECURITY_GUARD_WORKFLOW.md"),
+    Path("docs/security/GHSA-58qw-9mgm-455v-pip.md"),
+    Path("docs/security/PYSEC_2026_CLICK_PILLOW_HOTFIX.md"),
 )
 FORBIDDEN_ACTIVE_LOCK_WORKFLOW_TOKENS = (
     "pip-compile",

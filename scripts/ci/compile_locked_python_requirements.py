@@ -15,7 +15,7 @@ from pathlib import Path
 import re
 import shutil
 import stat
-import subprocess  # nosec B404: argv-only governed pip-tools invocation (remove-by: 2027-01-31, ref: PR-2134)
+import subprocess  # nosec B404: argv-only governed pip-tools invocation (remove-by: 2027-01-31, ref: PR-2142)
 import sys
 import tempfile
 from typing import Mapping, Sequence
@@ -522,7 +522,7 @@ def _prepare_lock(
         process_env["CUSTOM_COMPILE_COMMAND"] = (
             f'LOCK_PROFILES="{surface.compile_profile}" make requirements-locks'
         )
-        result = subprocess.run(  # nosec B603: fixed module argv and registry-owned paths (remove-by: 2027-01-31, ref: PR-2134)
+        result = subprocess.run(  # nosec B603: fixed module argv and registry-owned paths (remove-by: 2027-01-31, ref: PR-2142)
             command,
             cwd=repo_root,
             env=process_env,

@@ -606,9 +606,7 @@ jobs:
             --project ruff \
             --project librt \
             --project ast-serialize \
-            --project coverage \
-            --project faker \
-            --project pgvector
+            --project pgvector --project coverage --project faker
 
       - name: Emergency wheel mirror parity
         run: |

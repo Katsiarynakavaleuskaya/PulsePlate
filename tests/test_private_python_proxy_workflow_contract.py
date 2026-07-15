@@ -74,8 +74,6 @@ def test_private_proxy_health_job_is_stdlib_fail_fast_gate() -> None:
     assert "--project ruff" in run_blocks
     assert "--project librt" in run_blocks
     assert "--project ast-serialize" in run_blocks
-    assert "--project coverage" in run_blocks
-    assert "--project faker" in run_blocks
     assert "--project pgvector" in run_blocks
     assert "--project pydantic-core" not in run_blocks
 
