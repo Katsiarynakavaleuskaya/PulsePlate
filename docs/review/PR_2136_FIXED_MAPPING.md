@@ -220,13 +220,13 @@ confirmed main flake; prefer a narrow follow-up receipt-contract update.
 
 ## Merge Readiness
 
-- [x] Functional diff is limited to one test file.
-- [x] Required local narrow validation passed at final material head.
-- [x] Pre-open role order, premortem, and Experiment Runner completed.
-- [x] Mandatory post-open review/security chain completed.
-- [x] Sealed Codex Security scan and `pulseplate-pr-review` completed at the
+- [ ] Functional diff is limited to one test file.
+- [ ] Required local narrow validation passed at final material head.
+- [ ] Pre-open role order, premortem, and Experiment Runner completed.
+- [ ] Mandatory post-open review/security chain completed.
+- [ ] Sealed Codex Security scan and `pulseplate-pr-review` completed at the
   final material head.
-- [x] Applicable current-head CI at material head `a0696db25` is terminal PASS;
+- [ ] Applicable current-head CI at material head `a0696db25` is terminal PASS;
   the Python 3.13 `test-pr` lane ran, while `test-main` was canonically skipped.
 - [ ] Both review threads resolved only after their dispositions are published.
 - [ ] CodeRabbit, Sourcery, and Cubic are checked for actionable findings after
