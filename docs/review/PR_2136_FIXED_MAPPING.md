@@ -58,7 +58,8 @@ lane are governance-only updates to this canonical artifact.
 - [x] Current issue comments and reviews inspected through published governance
   head `0294f0a55c49dde056e490fd087985a5d59126da`.
 - [x] Current bot capacity and status notices dispositioned below.
-- [x] All four actionable review threads dispositioned below.
+- [x] All four actionable review threads and their actionable review summaries
+  dispositioned below.
 - [x] Mandatory post-open role-agent chain completed.
 - [x] Codex Security diff scan and `pulseplate-pr-review` completed.
 - [x] Current-head CI and bot activity at published governance head `0294f0a55`
@@ -77,10 +78,11 @@ Disposition: FIXED
 Commit: a0696db25d0ce31ea5a7bc1bcd69ee078d65d345
 Evidence: `tests/test_creative_pilot_workspace.py:1700` installs a fail-fast `Path.mkdir` spy for direct staging/output creation under `spec_root` while preserving the independent publisher spy; the focused pack passed 12 tests and the full file passed 78 tests, and the post-comment commit is not trigger-only.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2136#pullrequestreview-4703167417 -> 7448523de72a9b74ba90c582a77b7203ca1c726e
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2136#discussion_r3586417559 -> 7448523de72a9b74ba90c582a77b7203ca1c726e
 Disposition: FIXED
 Commit: 7448523de72a9b74ba90c582a77b7203ca1c726e
-Evidence: `docs/review/PR_2136_FIXED_MAPPING.md:252` now leaves every item under `Merge Readiness` unchecked until the final current-head CI, bot, wait-window, and strict-wrapper cycle completes; the artifact-first Phase 2 parser passes, and the post-comment commit is not trigger-only.
+Evidence: The review summary has exactly one actionable inline thread. `docs/review/PR_2136_FIXED_MAPPING.md:255` now leaves every item under `Merge Readiness` unchecked until the final current-head CI, bot, wait-window, and strict-wrapper cycle completes; the artifact-first Phase 2 parser passes, and the post-comment commit is not trigger-only.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2136#discussion_r3586429963
 Disposition: NOT-A-BUG
