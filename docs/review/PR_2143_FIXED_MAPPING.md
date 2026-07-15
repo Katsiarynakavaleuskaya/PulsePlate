@@ -84,13 +84,20 @@ Post-open packet: `artifacts/orchestration/task_packets/ef8acc9c0ac1.json`
 
 ## External Review Observations
 
-- CodeRabbit and Sourcery reported usage limits rather than review findings;
-  Cubic posted a summary with no actionable item. These are recorded as
-  no-actionable observations, not as reviewer PASS claims.
+- FIXED in `881d81da017c18bbfe932aa9565726f7e830ddea`: CodeRabbit found
+  that two live merge-readiness items were checked before terminal CI and the
+  strict wrapper. Both remain unchecked in the canonical artifact so the
+  evidence commit cannot manufacture its own readiness.
+- Sourcery reported a usage limit rather than a review finding; Cubic posted a
+  summary with no actionable item. These are recorded as observations, not as
+  reviewer PASS claims.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: 881d81da017c18bbfe932aa9565726f7e830ddea
+Evidence: docs/review/PR_2143_FIXED_MAPPING.md keeps live readiness items unchecked; Phase2 validation passes.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2143#discussion_r3591427105 -> 881d81da017c18bbfe932aa9565726f7e830ddea
 
 ## Merge Readiness
 
