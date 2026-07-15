@@ -42,9 +42,11 @@ contracts.
   fail fast without restoring flaky whole-directory snapshots.
 - `0aa56a8000aaa6a6cd81f034d73f2267dbc836e2` - cover direct top-level
   `spec_bridge` writes that use pinned-parent `dir_fd` file descriptors.
+- `963e2723c47000625ced8958eaec89e801f4d5b3` - cover direct top-level
+  `spec_bridge` directory creation through pinned-parent `dir_fd` mkdirs.
 
 Last validated material head:
-`0aa56a8000aaa6a6cd81f034d73f2267dbc836e2`.
+`963e2723c47000625ced8958eaec89e801f4d5b3`.
 
 ## Governance Remediation Commit
 
@@ -63,7 +65,7 @@ Last validated material head:
   governance activity, including the mutable CodeRabbit walkthrough and Codex
   review `4703668869`.
 - [x] Current bot capacity and status notices dispositioned below.
-- [x] All eight actionable review threads and their actionable review summaries
+- [x] All nine actionable review threads and their actionable review summaries
   dispositioned below.
 - [x] Mandatory post-open role-agent chain completed.
 - [ ] Fresh Codex Security diff scan and current-PR `pulseplate-pr-review`
@@ -78,8 +80,8 @@ Last validated material head:
 - [x] Current-head CI run `29415036355` completed successfully at `a0e39ef9`,
   including lint, security, OpenAPI sync, Python 3.13 `test-pr`, `coverage-pr`,
   and `diff-coverage`. It is superseded for merge readiness by the later
-  lineage write-guard fix commits `a9f990956` and `0aa56a800`, which must
-  receive their own final current-head cycle.
+  lineage write-guard fix commits `a9f990956`, `0aa56a800`, and `963e2723`,
+  which must receive their own final current-head cycle.
 
 ## Fixed in Commit Mapping
 
@@ -123,6 +125,11 @@ Evidence: `tests/test_creative_pilot_workspace.py:1709` records the `spec_root` 
 Disposition: FIXED
 Commit: 1a586b3cb
 Evidence: pending governance commit changes the Discussion Thread Pass claim from completed fresh specialist/security evidence to an unchecked pending item for the final lineage write-guard material head. Prior sealed Codex Security and `pulseplate-pr-review` evidence remains documented only for material head `a0696db25` until fresh final-head evidence is produced.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2136#discussion_r3587849589 -> 963e2723c47000625ced8958eaec89e801f4d5b3
+Disposition: FIXED
+Commit: 963e2723c47000625ced8958eaec89e801f4d5b3
+Evidence: `tests/test_creative_pilot_workspace.py:1832` adds a `dir_fd`-aware `os.mkdir` spy to the lineage no-write guard, so pinned-parent writers cannot create a direct child directory under `spec_root` before lineage rejection. The focused lineage test passed after the fix; the post-comment commit is not trigger-only.
 
 ## Bot Capacity and Status Notices
 
