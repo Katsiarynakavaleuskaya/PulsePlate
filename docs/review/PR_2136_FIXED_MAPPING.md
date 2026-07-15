@@ -44,9 +44,12 @@ contracts.
   `spec_bridge` writes that use pinned-parent `dir_fd` file descriptors.
 - `963e2723c47000625ced8958eaec89e801f4d5b3` - cover direct top-level
   `spec_bridge` directory creation through pinned-parent `dir_fd` mkdirs.
+- `24cf22bdb8546ecd8f0579dc8e71bf1b22216099` - assert successful publication
+  leaves no run-owned staging sibling, normalize byte-path lineage guards, and
+  add explicit return annotations to the open-wrapper spies.
 
 Last validated material head:
-`963e2723c47000625ced8958eaec89e801f4d5b3`.
+`24cf22bdb8546ecd8f0579dc8e71bf1b22216099`.
 
 ## Governance Remediation Commit
 
@@ -63,15 +66,15 @@ Last validated material head:
 - [x] Fixed in commit mapping completed
 - [x] Current issue comments and reviews inspected after the latest published
   governance activity, including the mutable CodeRabbit walkthrough and Codex
-  review `4703668869`.
+  reviews `4703668869` and `4705038794`.
 - [x] Current bot capacity and status notices dispositioned below.
-- [x] All nine actionable review threads and their actionable review summaries
+- [x] All twelve actionable review threads and their actionable review summaries
   dispositioned below.
 - [x] Mandatory post-open role-agent chain completed.
-- [ ] Fresh Codex Security diff scan and current-PR `pulseplate-pr-review`
-  evidence for the final lineage write-guard material head is pending; prior
-  sealed scan and `pulseplate-pr-review` evidence covered material head
-  `a0696db25`.
+- [x] Sealed Codex Security scan `c28f183e-577c-42ea-8a9a-525f20e170d3`
+  remains the single scan for this lane. Later changes stay test-only, add no
+  runtime/security surface, and close only targeted review findings; the full
+  scan/review chain is therefore not restarted.
 - [x] Governance-head CI run `29410359678` completed successfully at
   `1543c1c38`; current-head CI run `29412017542` then completed successfully at
   `fd1bc481a`, including Python 3.13 and diff coverage. The first strict
@@ -130,6 +133,18 @@ Evidence: pending governance commit changes the Discussion Thread Pass claim fro
 Disposition: FIXED
 Commit: 963e2723c47000625ced8958eaec89e801f4d5b3
 Evidence: `tests/test_creative_pilot_workspace.py:1832` adds a `dir_fd`-aware `os.mkdir` spy to the lineage no-write guard, so pinned-parent writers cannot create a direct child directory under `spec_root` before lineage rejection. The focused lineage test passed after the fix; the post-comment commit is not trigger-only.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2136#pullrequestreview-4705038794 -> 24cf22bdb8546ecd8f0579dc8e71bf1b22216099
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2136#discussion_r3588081772 -> 24cf22bdb8546ecd8f0579dc8e71bf1b22216099
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2136#discussion_r3588081776 -> 24cf22bdb8546ecd8f0579dc8e71bf1b22216099
+Disposition: FIXED
+Commit: 24cf22bdb8546ecd8f0579dc8e71bf1b22216099
+Evidence: The CodeRabbit review summary contains exactly these two actionable inline threads. `tests/test_creative_pilot_workspace.py:1707` and `tests/test_creative_pilot_workspace.py:1743` accept byte paths and normalize them with `os.fsdecode(...)` before direct-child checks, while `tests/test_creative_pilot_workspace.py:1779` and `tests/test_creative_pilot_workspace.py:1793` add explicit `IO[Any]` return annotations. The focused publish/lineage tests, `make validate-changed`, `pre-commit run --all-files`, and push hooks passed; the post-comment commit is not trigger-only.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2136#discussion_r3588086032 -> 24cf22bdb8546ecd8f0579dc8e71bf1b22216099
+Disposition: FIXED
+Commit: 24cf22bdb8546ecd8f0579dc8e71bf1b22216099
+Evidence: `tests/test_creative_pilot_workspace.py:1326` asserts that successful adaptive-resume publication leaves no run-owned `.<resume_id>.*.staging` sibling. The focused publication test, `make validate-changed`, `pre-commit run --all-files`, and push hooks passed; the post-comment commit is not trigger-only.
 
 ## Bot Capacity and Status Notices
 
