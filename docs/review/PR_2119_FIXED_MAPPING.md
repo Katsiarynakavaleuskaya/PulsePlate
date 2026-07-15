@@ -165,6 +165,18 @@ Evidence: The canonical mapping marks `Discussion-thread pass completed` and con
 Reason: The parser-required discussion-thread checkbox reflects the completed review audit.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2119#discussion_r3575382511 -> 44276b9af4d6fc153922bd5e9317358bcd78909d
 
+Disposition: FIXED
+Commit: e5a5b422e446bc92538da37e78ead0875de20d63
+Evidence: The canonical artifact marks the exact `Discussion-thread pass completed` and `Fixed in commit mapping completed` checkboxes and records disposition-specific proof for every current review thread.
+Reason: Checklist state and FIXED proof now agree on the final material head.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2119#discussion_r3586717095 -> e5a5b422e446bc92538da37e78ead0875de20d63
+
+Disposition: FIXED
+Commit: e5a5b422e446bc92538da37e78ead0875de20d63
+Evidence: The parser-required `Fixed in commit mapping completed` checkbox is restored as its own exact line, while the source PR #2130 replacement note remains a separate checked item.
+Reason: The Phase 2 artifact gate can now validate both required checklist labels without losing replacement provenance.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2119#discussion_r3586985650 -> e5a5b422e446bc92538da37e78ead0875de20d63
+
 Disposition: NOT-A-BUG
 Evidence: `git merge-base --is-ancestor <mapped_sha> b5f8f07937161b428a547f5d57b389da77b85a83` exits 0 for `8241a9fd`, `e203a39f`, `d6a74f3e`, and `44276b9a`; all four proof commits are in the current PR history.
 Reason: The review referenced a non-current `ea1bd478` snapshot. Current local and published PR head truth contains every mapped FIXED commit.
