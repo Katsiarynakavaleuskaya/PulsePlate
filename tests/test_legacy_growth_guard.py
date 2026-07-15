@@ -3868,6 +3868,35 @@ def test_legacy_growth_guard_clears_middleware_factory_after_safe_rebinding(
 
 
 @pytest.mark.parametrize(
+    ("use", "expected_error"),
+    [
+        (
+            "register_http(handler)",
+            "legacy_app.py: unexpected legacy route growth: registration:middleware:http",
+        ),
+        (
+            "@register_http\nasync def handler(request, call_next):\n    return await call_next(request)",
+            "legacy_app.py: unexpected legacy route growth: decorator:middleware:http -> handler",
+        ),
+    ],
+    ids=["functional", "decorator"],
+)
+def test_legacy_growth_guard_rejects_middleware_factory_called_before_safe_rebinding(
+    use: str,
+    expected_error: str,
+) -> None:
+    source = (
+        "def install():\n"
+        f"{textwrap.indent(use, '    ')}\n"
+        'register_http = app.middleware("http")\n'
+        "install()\n"
+        "register_http = safe_register\n"
+    )
+
+    assert legacy_guard.validate_legacy_growth(source) == [expected_error]
+
+
+@pytest.mark.parametrize(
     "use",
     [
         "register_http(handler)",

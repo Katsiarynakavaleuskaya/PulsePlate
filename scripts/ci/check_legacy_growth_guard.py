@@ -1895,6 +1895,8 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         self._terminal_controls = _TerminalControlBindings(return_scopes=[], raise_scopes=[])
         self._exception_scope_collectors: list[list[_LexicalBindings]] = []
         self._function_late_bindings: list[tuple[dict[str, str], dict[str, str]]] = []
+        self._function_definitions: dict[str, ast.FunctionDef | ast.AsyncFunctionDef] = {}
+        self._active_function_replays: set[str] = set()
         self._remaining_loop_iterations = _MAX_TOTAL_LOOP_BINDING_ITERATIONS
         self.scope = _LexicalBindings(parent=None)
         self.scope.bind("getattr", reference="builtins.getattr", string=None)
@@ -2243,7 +2245,18 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 or (value is not None and value.startswith(_MIDDLEWARE_DECORATOR_REFERENCE_PREFIX))
                 for value in values
             ):
-                joined_references[name] = _POSSIBLE_MIDDLEWARE_DECORATOR_REFERENCE
+                middleware_values = {
+                    value
+                    for value in values
+                    if value is not None
+                    and value.startswith(_MIDDLEWARE_DECORATOR_REFERENCE_PREFIX)
+                }
+                joined_references[name] = (
+                    next(iter(middleware_values))
+                    if len(middleware_values) == 1
+                    and _POSSIBLE_MIDDLEWARE_DECORATOR_REFERENCE not in values
+                    else _POSSIBLE_MIDDLEWARE_DECORATOR_REFERENCE
+                )
             elif any(value in {"pulseplate.app", _POSSIBLE_APP_REFERENCE} for value in values):
                 joined_references[name] = _POSSIBLE_APP_REFERENCE
             elif any(
@@ -2359,6 +2372,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
 
     def _visit_function(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> None:
         self._visit_function_header(node)
+        self._function_definitions[node.name] = node
         self._bind_name(
             node.name,
             reference=None,
@@ -3129,7 +3143,35 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     f"{self.filename}: dynamic legacy API-key dependency lookup is forbidden: "
                     f"{symbol_name if symbol_name in CANONICAL_API_KEY_SYMBOLS else '<dynamic>'}"
                 )
+        if self.analyze_function_bodies and isinstance(node.func, ast.Name):
+            self._replay_function_call(node.func.id)
         self.generic_visit(node)
+
+    def _replay_function_call(self, name: str) -> None:
+        node = self._function_definitions.get(name)
+        if node is None or name in self._active_function_replays:
+            return
+        previous = self.scope
+        previous_loop_controls = self._loop_controls
+        previous_terminal_controls = self._terminal_controls
+        previous_exception_scope_collectors = self._exception_scope_collectors
+        self.scope = _LexicalBindings(
+            parent=previous,
+            local_names=_function_local_binding_names(node),
+            scope_kind="function",
+        )
+        self._loop_controls = []
+        self._terminal_controls = _TerminalControlBindings(return_scopes=[], raise_scopes=[])
+        self._exception_scope_collectors = []
+        self._active_function_replays.add(name)
+        try:
+            self._visit_statements(node.body)
+        finally:
+            self._active_function_replays.remove(name)
+            self.scope = previous
+            self._loop_controls = previous_loop_controls
+            self._terminal_controls = previous_terminal_controls
+            self._exception_scope_collectors = previous_exception_scope_collectors
 
 
 def _collect_module_final_bindings(
