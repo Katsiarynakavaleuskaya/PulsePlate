@@ -17,6 +17,8 @@ Implementation commits:
 - `2356523bbbb51a41bee7296d4eb9e54a647454ec` - scope-aware, fail-closed AST resolver and deterministic regression coverage.
 - `da4d3207b4a21cded1bb1ba2467d9e4dd6cb5b0d` - exact nested-import matrix requested by the unresolved #2125 review.
 - `bcb9cf8616fcc8c0c1fbdf5b1447d2bf8a4f278d` - type-safe separation of lambda expressions from sync/async statement bodies after the exact pre-push MyPy finding.
+- `06629198e5edc8a88c39bccd14175f7cd56f2d3e` - unified lexical/control-flow hardening for lifecycle, route, namespace, exception, match, loop-budget, and late-binding analysis.
+- `53866a26b99451e9150ce7b064f1d79115101e6e` - moves the remaining middleware-factory aliases from whole-tree collectors into per-node lexical snapshots.
 
 Main synchronization:
 
@@ -26,6 +28,7 @@ Main synchronization:
 
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
+- [x] Final published-head post-open role chain and `pulseplate-pr-review` completed
 - [ ] Current-head GitHub CI, current-head bot pass, strict merge wrapper, and mandatory review wait-window remain pending.
 
 ## Fixed in Commit Mapping
@@ -64,6 +67,12 @@ Evidence: `scripts/ci/check_legacy_growth_guard.py:2532` implements a finite mon
 Reason: The replacement removes first-writer semantics while retaining exact diagnostics as a stronger CI guard contract.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2128#pullrequestreview-4694141608 -> 2356523bbbb51a41bee7296d4eb9e54a647454ec
 
+Disposition: FIXED
+Commit: 06629198e5edc8a88c39bccd14175f7cd56f2d3e
+Evidence: `scripts/ci/check_legacy_growth_guard.py:1991` merges repeated per-node snapshots instead of overwriting them; `scripts/ci/check_legacy_growth_guard.py:2719` and `scripts/ci/check_legacy_growth_guard.py:2810` preserve distinct zero-iteration, body, break, and loop-else scopes; `tests/test_legacy_growth_guard.py:3809` covers both `for ... else` and `while ... else` route-alias paths.
+Reason: Loop-else calls now observe every reachable alias outcome without a second-pass snapshot overwriting the first control-flow path.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2128#discussion_r3582913514 -> 06629198e5edc8a88c39bccd14175f7cd56f2d3e
+
 ## Replacement Findings
 
 | Source PR | Source head | Replacement evidence | Disposition |
@@ -73,7 +82,7 @@ Reason: The replacement removes first-writer semantics while retaining exact dia
 | #2125 | `ff6557744c2f338c1a215654a6179fcbfef14dcb` | Nested direct imports, aliased `importlib`, aliased `import_module`, plain imports, and intermediate imported-module bindings are covered by the focused matrix. | FIXED in `2356523bbbb51a41bee7296d4eb9e54a647454ec` and `da4d3207b4a21cded1bb1ba2467d9e4dd6cb5b0d` |
 | #2126 | `cfbc41b04e72e3f8d8d5a2bccb48b2ae13e18294` | Module binding counts exclude function parameters; the registrar-name shadow regression remains fail-closed. | FIXED in `2356523bbbb51a41bee7296d4eb9e54a647454ec` |
 | #2127 | `a635f9f5445f39487d15884bfdd504cba107fb22` | Reassigned or unresolved `getattr(app, method)` becomes a deterministic dynamic registration fact; parameter shadowing remains scoped. | FIXED in `2356523bbbb51a41bee7296d4eb9e54a647454ec` |
-| #2128 | `e0c6d68143e53d2cd95a93b35d7f6fc0a9b091e5` | Lifecycle aliases use a finite conflict lattice that cannot oscillate or silently keep only the first binding. | FIXED in `2356523bbbb51a41bee7296d4eb9e54a647454ec` |
+| #2128 | `e0c6d68143e53d2cd95a93b35d7f6fc0a9b091e5` | Lifecycle, route, namespace, and middleware aliases use one bounded lexical/control-flow model; the remaining whole-tree middleware collectors were removed after post-open architecture review. | FIXED in `2356523bbbb51a41bee7296d4eb9e54a647454ec`, hardened in `06629198e5edc8a88c39bccd14175f7cd56f2d3e` and `53866a26b99451e9150ce7b064f1d79115101e6e` |
 
 ## Supersession Closeout
 
@@ -91,13 +100,18 @@ Reason: The replacement removes first-writer semantics while retaining exact dia
 - Lifecycle alias resolution could oscillate or depend on assignment order. FIXED by the finite monotonic conflict lattice and repeated-run/order-independence tests.
 - A shared sync/async/lambda local-binding visitor could pass an `ast.expr` through a statement-only list and fail pre-push MyPy. FIXED by commit `bcb9cf8616fcc8c0c1fbdf5b1447d2bf8a4f278d`, which visits lambda bodies directly and iterates only sync/async statement bodies.
 - Source-review evidence could be mapped before the exact nested-import matrix existed. FIXED by commit `da4d3207b4a21cded1bb1ba2467d9e4dd6cb5b0d`; mapping was created only afterward.
+- Mixed lifecycle joins could lose an import loader or misclassify a benign non-FastAPI callable. FIXED by commit `06629198e5edc8a88c39bccd14175f7cd56f2d3e`, which keeps loader and FastAPI possibilities independent and covers both positive and inverse-negative cases.
+- Abrupt `match`, `return`, `raise`, loop `else`, and `finally` override paths could contaminate reachable joins. FIXED by commit `06629198e5edc8a88c39bccd14175f7cd56f2d3e`; bounded regressions cover exhaustive match fallthrough, caught raises, terminal finally overrides, and statically unreachable loops.
+- Repeated loops could exceed a stable analysis budget or leak a traceback. FIXED by commit `06629198e5edc8a88c39bccd14175f7cd56f2d3e`; per-loop and global budgets fail closed through one stable CLI diagnostic.
+- Whole-tree middleware-factory aliases could survive a safe rebind or function-parameter shadow. FIXED by commit `53866a26b99451e9150ce7b064f1d79115101e6e`; both functional and decorator consumers now read per-node lexical snapshots, with conservative branch-conflict joins.
+- Final bounded architecture, control-flow, premortem, QA, bug-hunter, and security-auditor passes found no remaining actionable defect on published head `53866a26b99451e9150ce7b064f1d79115101e6e`.
 
-Decision: the consolidated replacement is published on owner PR #2128, and #2123 through #2127 were closed unmerged only after the replacement commits, tests, and this mapping were visible on GitHub.
+Decision: the consolidated replacement and post-open middleware hardening are published on owner PR #2128, and #2123 through #2127 remain closed unmerged with their source branches preserved.
 
 ## Experiment Runner Evidence
 
-- Artifact: `artifacts/orchestration/experiments/results/pr2128-legacy-growth-guard-post-main-result.json`
-- Experiment: `exp-81724cfa1074`
+- Artifact: `artifacts/orchestration/experiments/results/pr2128-legacy-growth-guard-middleware-final-result.json`
+- Experiment: `exp-53798a5406fa`
 - Status: `accepted`
 - Runner mode: `oracle_only_governance_reviewer`
 - Backend: explicit `apple-container`; no `auto` selection and no Docker execution.
@@ -106,7 +120,8 @@ Decision: the consolidated replacement is published on owner PR #2128, and #2123
 - PASS: `python scripts/ci/check_legacy_growth_guard.py`.
 - PASS: `python -m pytest -q tests/test_legacy_growth_guard.py`.
 - PASS: `python -m pytest -q tests/test_review_pattern_oracles.py`.
-- Negative controls: `promotion_ready=false`, `mutated_paths=[]`, and `shared_tree_untouched=true`.
+- Applied source diff: exactly `scripts/ci/check_legacy_growth_guard.py` and `tests/test_legacy_growth_guard.py`.
+- Negative controls: `source_diff_applied=true`, `promotion_ready=false`, `mutated_paths=[]`, and `shared_tree_untouched=true`.
 - Authority: local, gitignored, evidence-only; it grants no merge, review-thread, promotion, or runtime authority.
 
 ## Lane Start Provenance
@@ -116,21 +131,26 @@ Decision: the consolidated replacement is published on owner PR #2128, and #2123
 - Candidate paths: `scripts/ci/check_legacy_growth_guard.py`, `tests/test_legacy_growth_guard.py`.
 - Declared role order completed: `agent-coordinator -> security-auditor -> backend-engineer`.
 - Additional premortem review completed: `cursor-specialist-agent -> architecture-specialist`.
+- Final post-open packet: `artifacts/orchestration/task_packets/pr2128-post-open-review.json` (`58e948396af0`).
+- Final merge-ready packet: `artifacts/orchestration/task_packets/pr2128-merge-ready.json` (`9c300fa8008c`).
+- Final corrected role order completed: `agent-coordinator -> architecture-specialist -> qa-engineer-agent -> bug-hunter -> security-auditor`; the mandatory QA -> bug-hunter -> security-auditor tail remained contiguous and last.
+- Coordinator scan disposition: operator-directed stop, incomplete result not used as evidence, no PASS claim, and no restart.
 
 ## Implementation Evidence
 
 - `git diff --name-only origin/main...HEAD` contains only `scripts/ci/check_legacy_growth_guard.py`, `tests/test_legacy_growth_guard.py`, and this mapping artifact.
-- `scripts/ci/check_legacy_growth_guard.py:1677` owns lexical binding visibility, cloning, shadowing, and deterministic branch joins.
-- `scripts/ci/check_legacy_growth_guard.py:1825` keeps lambda expressions type-distinct from sync/async statement bodies.
-- `scripts/ci/check_legacy_growth_guard.py:1896` owns statement-ordered API-key reference analysis for sync and async scopes.
-- `scripts/ci/check_legacy_growth_guard.py:2529` owns lifecycle reference fixed-point resolution.
-- `tests/test_legacy_growth_guard.py:774`, `tests/test_legacy_growth_guard.py:975`, `tests/test_legacy_growth_guard.py:987`, `tests/test_legacy_growth_guard.py:1668`, and `tests/test_legacy_growth_guard.py:2312` cover the consolidated source findings and negative controls.
+- `scripts/ci/check_legacy_growth_guard.py:1654` owns lexical binding visibility, cloning, shadowing, and deterministic branch joins.
+- `scripts/ci/check_legacy_growth_guard.py:1923` owns statement-ordered reference analysis for sync/async scopes, exception flow, structural targets, and bounded loops.
+- `scripts/ci/check_legacy_growth_guard.py:2246` owns the monotonic possible/conflicted reference lattice.
+- `scripts/ci/check_legacy_growth_guard.py:317` resolves route facts from per-node snapshots; `scripts/ci/check_legacy_growth_guard.py:425` resolves middleware factories without whole-tree alias state.
+- `scripts/ci/check_legacy_growth_guard.py:3949` and `scripts/ci/check_legacy_growth_guard.py:4122` enforce FastAPI lifespan and dynamic-facade ownership only at reachable snapshot sites.
+- `tests/test_legacy_growth_guard.py:1773`, `tests/test_legacy_growth_guard.py:2703`, `tests/test_legacy_growth_guard.py:3731`, `tests/test_legacy_growth_guard.py:3862`, and `tests/test_legacy_growth_guard.py:5925` cover structural bindings, lifecycle joins, dynamic routes, middleware shadowing, and bounded diagnostics.
 
 ## Validation Evidence
 
 - PASS: `python3 scripts/orchestration/check_preflight.py` with exact scoped paths.
 - PASS: `python3 scripts/orchestration/check_agent_consistency.py`.
-- PASS: complete `tests/test_legacy_growth_guard.py`.
+- PASS: all 578 tests in `tests/test_legacy_growth_guard.py` on published head `53866a26b99451e9150ce7b064f1d79115101e6e`.
 - PASS: direct `scripts/ci/check_legacy_growth_guard.py` execution.
 - PASS: `tests/test_review_pattern_oracles.py`.
 - PASS: focused mypy for `scripts/ci/check_legacy_growth_guard.py` and `tests/test_legacy_growth_guard.py` with explicit package bases.
@@ -141,6 +161,11 @@ Decision: the consolidated replacement is published on owner PR #2128, and #2123
 - PASS: exact pre-commit-selected backend-test path with `BRANCH_DIFF_MODE=1`.
 - PASS: `pre-commit run --all-files`.
 - PASS: commit hooks, including Black, Ruff, detect-secrets, backend changed-file tests, and conventional-commit validation.
+- PASS: pre-push hooks after both final commits, including MyPy, pip-audit, backend tests, full-repo Bandit, and the repository Docker build test; no Docker-based Oracle was used.
+- PASS: bounded final premortem and architecture re-review after the middleware finding.
+- PASS: post-open `qa-engineer-agent -> bug-hunter -> security-auditor` on the final published head, with no actionables.
+- PASS: `pulseplate-pr-review` dry-run; its only `note` was the expected large-diff planning advisory.
+- Disposition: `NOT-A-BUG` for the large-diff advisory. Evidence: the operator-approved owner consolidation intentionally replaces #2123 through #2127; the diff remains three files (guard, tests, mapping), and the complete focused suite, `make validate-changed`, role chain, and Apple Container Oracle all pass. No backlog entry is required because no defect or deferred work was identified.
 - Not run: local `make verify`, prohibited by the repository machine-budget rule. Canonical current-head CI remains required.
 
 ## Security Review
@@ -148,22 +173,23 @@ Decision: the consolidated replacement is published on owner PR #2128, and #2123
 - The native Codex Security scan was stopped at the operator's direction after repeated continuity failures. It remained incomplete and unsealed and is not claimed as PASS or used as merge evidence.
 - No further native Codex Security scan will be started for this lane.
 - Repository-native security-auditor review, changed-file Bandit hooks, deterministic guard tests, and the explicit Apple Container Oracle remain the bounded local evidence.
+- Full-repository pre-push Bandit and current-head GitHub security/governance checks remain independent security evidence; neither converts the stopped native scan into PASS.
 - Current-head GitHub security/governance checks remain authoritative before merge readiness.
 
 ## Post-Open Review Closure
 
-- Pending after the replacement head is published: `qa-engineer-agent -> bug-hunter -> security-auditor`.
+- COMPLETE on published head `53866a26b99451e9150ce7b064f1d79115101e6e`: `qa-engineer-agent -> bug-hunter -> security-auditor`; all three returned PASS with no actionables.
 - Native Codex Security diff scan/finding discovery: operator-directed stop; no PASS claim and no restart.
-- Pending after role closure: `pulseplate-pr-review`.
+- COMPLETE: `pulseplate-pr-review` dry-run found no code defect; its large-diff planning note is dispositioned `NOT-A-BUG` above.
 
 ## Merge Readiness
 
 Not ready at latest artifact update. Required before merge:
 
-- COMPLETE: replacement commits and this canonical artifact were published to the existing #2128 branch with a normal fast-forward push.
+- COMPLETE: replacement and middleware hardening commits were published to the existing #2128 branch with normal fast-forward pushes.
 - COMPLETE: `## Discussion Thread Pass`, `### Fixed in Commit Mapping`, and `## Merge Readiness` are mirrored in the PR body.
 - COMPLETE: #2123 through #2127 were closed unmerged after published replacement evidence existed; their source branches were preserved.
-- Complete the post-open role chain and `pulseplate-pr-review` on the final published head.
+- COMPLETE: post-open role chain and `pulseplate-pr-review` on the final published material head.
 - Require terminal current-head CI, diff coverage at least 97%, and all required backend/security/governance jobs.
 - Require no actionable CodeRabbit, Sourcery, or Cubic comments and no unresolved review threads.
 - Pass the strict authenticated merge wrapper and the mandatory review wait-window.
