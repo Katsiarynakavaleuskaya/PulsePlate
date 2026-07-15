@@ -213,6 +213,41 @@ def _request_for_base(base_sha: str) -> dict[str, Any]:
     )
 
 
+def _write_generated_run(
+    *,
+    run_id: str,
+    base_sha: str,
+) -> Path:
+    run_dir = creative_code_patch_workspace.resolve_run_dir(run_id, create=True)
+    assert isinstance(run_dir, Path)
+    request = _request_for_base(base_sha)
+    patch_text = "diff --git a/core/rag/orchestration.py b/core/rag/orchestration.py\n"
+    state = {
+        "run_id": run_id,
+        "request_id": request["request_id"],
+        "source_bundle_id": request["source_bundle_id"],
+        "selected_variant_id": request["selected_variant_id"],
+        "base_commit_sha": base_sha,
+        "workspace": {"origin_removed": True},
+        "candidate_patch_generated": True,
+        "checkout_destroyed": True,
+    }
+    metadata = {
+        "changed_paths": ["core/rag/orchestration.py"],
+        "patch_fingerprint": fingerprint_payload({"candidate_patch": patch_text}),
+        "patch_bytes": len(patch_text.encode("utf-8")),
+        "diff_lines": len(patch_text.splitlines()),
+    }
+    creative_code_patch_workspace.write_json_atomic(run_dir / "request.json", request)
+    creative_code_patch_workspace.write_json_atomic(
+        run_dir / "source_bundle.json", _reference_bundle()
+    )
+    creative_code_patch_workspace.write_json_atomic(run_dir / "state.json", state)
+    creative_code_patch_workspace.write_json_atomic(run_dir / "patch_metadata.json", metadata)
+    (run_dir / "candidate.patch").write_text(patch_text, encoding="utf-8")
+    return run_dir
+
+
 def test_generation_prompt_includes_budget_and_no_test_contract() -> None:
     bundle = _reference_bundle()
     request = _reference_request()
@@ -1484,6 +1519,51 @@ def test_evaluate_fallback_stores_error_class_not_raw_exception(
     assert result["runner_summary"]["runner_error_present"] is True
     assert "/Users/example" not in encoded
     assert "ghp_secret" not in encoded
+
+
+def test_evaluate_capability_signal_fails_closed_without_result_or_cli_leak(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo, base_sha = _init_patch_repo(tmp_path)
+    _patch_modules_to_repo(monkeypatch, repo)
+    run_id = "eval-capability-signal"
+    run_dir = _write_generated_run(run_id=run_id, base_sha=base_sha)
+    canary = "/Users/example/ghp_capability_canary"
+
+    def raise_capability_signal(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        raise experiment_runner.RunnerCapabilitySignal(canary)
+
+    monkeypatch.setattr(
+        creative_code_patch_builder,
+        "evaluate_candidate",
+        raise_capability_signal,
+    )
+
+    with pytest.raises(
+        CreativeCodePatchBuilderError,
+        match="^Experiment Runner capability unavailable; trusted dispatch is required\\.$",
+    ) as exc_info:
+        creative_code_patch_builder.evaluate(run_id=run_id)
+
+    assert exc_info.value.__cause__ is None
+    assert canary not in str(exc_info.value)
+    assert not (run_dir / creative_code_patch_builder.RESULT_FILE).exists()
+    state = json.loads((run_dir / creative_code_patch_builder.STATE_FILE).read_text())
+    assert state.get("candidate_patch_evaluated") is not True
+
+    assert creative_code_patch_builder.main(["evaluate", "--run-dir", run_id]) == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == (
+        "FAIL: Experiment Runner capability unavailable; trusted dispatch is required.\n"
+    )
+    assert canary not in captured.err
+    assert "Traceback" not in captured.err
+    assert not (run_dir / creative_code_patch_builder.RESULT_FILE).exists()
+    state = json.loads((run_dir / creative_code_patch_builder.STATE_FILE).read_text())
+    assert state.get("candidate_patch_evaluated") is not True
 
 
 def test_evaluate_rejects_tampered_candidate_patch(
