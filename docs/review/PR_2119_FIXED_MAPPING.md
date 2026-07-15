@@ -27,7 +27,9 @@ current-head review finding `discussion_r3587200566`. Splitting the validator,
 runner classifier, and regressions from the owner taxonomy would temporarily
 leave reachable terminal outcomes incoherent across Experiment Runner, receipt,
 and telemetry consumers. No public API, OpenAPI, setup/dependency, product
-runtime, or unrelated backend surface is included.
+runtime, or unrelated backend surface is included. The later current-head
+findings `discussion_r3587568042` and `discussion_r3587568047` are corrected
+inside those same 18 paths; they do not expand the published file surface.
 
 ## Lane Start Provenance
 
@@ -39,6 +41,9 @@ Mixed-failure corrective packet:
 `artifacts/orchestration/task_packets/378d20859cdd.json`
 
 Final post-open packet: `artifacts/orchestration/task_packets/845bc26a3b44.json`
+
+Current-head provenance corrective packet:
+`artifacts/orchestration/task_packets/21207672e486.json`
 
 - Fresh `origin/main` at `7c149a84c44406f698d73fbd0dee0bd34b64d085`
   was merged without history rewriting in
@@ -82,14 +87,19 @@ Final post-open packet: `artifacts/orchestration/task_packets/845bc26a3b44.json`
 - `b5f8f07937161b428a547f5d57b389da77b85a83` - classify capability loss after
   a consumed infrastructure retry as a sanitized terminal `infra_flake`, while
   preserving direct capability loss as non-retryable `capability_mismatch`.
+- `97ddb482cbfa642400e2ec00f4f1ccd025a5c4ae` - normalize a returned
+  capability mismatch after an infrastructure retry through the same sanitized
+  terminal path and require matching rejected runner proof in Python and JSON
+  result/receipt contracts.
 
 ## Discussion Thread Pass
 
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 - [x] Source PR #2130 replacement mapping recorded below.
-- [x] Post-open `qa-engineer-agent -> bug-hunter -> security-auditor` rerun on
-  published head `b5f8f07937161b428a547f5d57b389da77b85a83`.
+- [ ] Post-open `qa-engineer-agent -> bug-hunter -> security-auditor` rerun is
+  pending on the new material head after commit
+  `97ddb482cbfa642400e2ec00f4f1ccd025a5c4ae`.
 - [x] Earlier Codex Security scans marked superseded; operator-directed native
   scan stop recorded without a PASS claim or restart.
 - Current-head CI, authenticated merge readiness, the mandatory wait window,
@@ -138,6 +148,17 @@ Final post-open packet: `artifacts/orchestration/task_packets/845bc26a3b44.json`
   capability contract would reject. The runner now stops immediately with a
   constant sanitized `infra_flake 2/1`; direct capability loss remains
   `capability_mismatch 1/0`.
+- FIXED in `97ddb482cbfa642400e2ec00f4f1ccd025a5c4ae`: current-head review found
+  that `_run_oracles()` could return `capability_mismatch` after a consumed
+  infrastructure retry instead of raising `CapabilityMismatchError`. The
+  returned result is now discarded and rebuilt as constant sanitized
+  `infra_flake 2/1`; a retry-budget-two regression proves exactly two calls and
+  absence of path, credential, and prior-infra canaries.
+- FIXED in `97ddb482cbfa642400e2ec00f4f1ccd025a5c4ae`: architecture review found
+  that top-level `capability_mismatch` could retain an accepted runner summary.
+  Shared result/receipt coherence and both JSON Schemas now require rejected,
+  matching runner proof while preserving legitimate wrapper-stage
+  `guard_failure` over an accepted runner.
 
 ## Fixed in Commit Mapping
 
@@ -193,6 +214,18 @@ Evidence: The Experiment Runner classifies capability loss after a consumed infr
 Reason: The reachable mixed failure now produces a valid, honest terminal artifact without permitting a retry after capability loss or adding fallback authority.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2119#discussion_r3587200566 -> b5f8f07937161b428a547f5d57b389da77b85a83
 
+Disposition: FIXED
+Commit: 97ddb482cbfa642400e2ec00f4f1ccd025a5c4ae
+Evidence: The retry loop checks successful attempt results after the infra-retry handler, discards a returned capability-mismatch payload after attempt one, and emits constant sanitized `infra_flake 2/1`; the retry-budget-two regression proves exactly two calls, no promotion, validator acceptance, and no raw canaries.
+Reason: Returned and raised capability loss now share the same honest terminal outcome after an infrastructure retry without creating a third attempt or leaking runner details.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2119#discussion_r3587568042 -> 97ddb482cbfa642400e2ec00f4f1ccd025a5c4ae
+
+Disposition: FIXED
+Commit: 97ddb482cbfa642400e2ec00f4f1ccd025a5c4ae
+Evidence: Shared Python coherence plus result and generation-receipt JSON Schemas require top-level `capability_mismatch` to carry runner `status=rejected`, matching `failure_class=capability_mismatch`, attempts `0/1`, and retries `0`; builder and receipt tests reject accepted runner proof and retain the valid wrapper-stage guard rejection.
+Reason: Capability loss can no longer be attributed to a successful runner or survive with contradictory backend provenance.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2119#discussion_r3587568047 -> 97ddb482cbfa642400e2ec00f4f1ccd025a5c4ae
+
 ## Source PR #2130 Replacement Mapping
 
 | Source evidence | Disposition | Owner replacement | Evidence |
@@ -240,6 +273,15 @@ superseded by this replacement-head evidence.
 - PASS: `git diff --check`.
 - PASS: actual-diff premortem on the final two-file corrective diff, with no
   actionable findings.
+- PASS on code head `97ddb482cbfa642400e2ec00f4f1ccd025a5c4ae`:
+  eight-test targeted regression selection; full runner/builder/generation
+  suites; and the six-suite runner/dispatch/pipeline/builder/generation/
+  telemetry bundle.
+- PASS on code head `97ddb482cbfa642400e2ec00f4f1ccd025a5c4ae`:
+  Black, Ruff, pre-push-shape MyPy, commit hooks, and `git diff --check`.
+- PASS: actual-diff premortem for the current eight-file corrective delta;
+  loop control, third-retry, raw-result leakage, Python/schema parity, and
+  wrapper-rejection compatibility risks are covered by deterministic tests.
 - PASS: final current-head role order
   `agent-coordinator -> cursor-specialist-agent -> architecture-specialist ->
   qa-engineer-agent -> bug-hunter -> security-auditor`, followed by
