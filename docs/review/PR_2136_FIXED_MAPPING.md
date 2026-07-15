@@ -47,20 +47,23 @@ lane are governance-only updates to this canonical artifact.
 - `b3b0decf4a31d2f29cf5b3a85e2cb41b769243f1` - bind all mandatory local,
   role-review, security, and CI evidence to final material head `a0696db25`,
   replacing the stale prior-head artifact accepted by the pre-refresh parser.
+- `7448523de72a9b74ba90c582a77b7203ca1c726e` - restore the fail-closed final
+  cycle by leaving every merge-readiness checkbox unchecked until the final
+  current-head CI, bot, wait-window, and strict-wrapper pass.
 
 ## Discussion Thread Pass
 
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
-- [x] Current issue comments and reviews inspected at material head
-  `a0696db25d0ce31ea5a7bc1bcd69ee078d65d345`.
-- [x] Current bot capacity notices dispositioned below.
-- [x] Both actionable review threads dispositioned below.
+- [x] Current issue comments and reviews inspected through published governance
+  head `0294f0a55c49dde056e490fd087985a5d59126da`.
+- [x] Current bot capacity and status notices dispositioned below.
+- [x] All four actionable review threads dispositioned below.
 - [x] Mandatory post-open role-agent chain completed.
 - [x] Codex Security diff scan and `pulseplate-pr-review` completed.
-- [x] Current-head CI at the final material head inspected; strict
-  authenticated merge readiness remains pending thread resolution and the
-  final governance-only review cycle.
+- [x] Current-head CI and bot activity at published governance head `0294f0a55`
+  inspected; a transient package-proxy reset and the two newly dispositioned
+  threads keep strict authenticated merge readiness pending.
 
 ## Fixed in Commit Mapping
 
@@ -74,7 +77,17 @@ Disposition: FIXED
 Commit: a0696db25d0ce31ea5a7bc1bcd69ee078d65d345
 Evidence: `tests/test_creative_pilot_workspace.py:1700` installs a fail-fast `Path.mkdir` spy for direct staging/output creation under `spec_root` while preserving the independent publisher spy; the focused pack passed 12 tests and the full file passed 78 tests, and the post-comment commit is not trigger-only.
 
-## Bot Capacity Notices
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2136#discussion_r3586417559 -> 7448523de72a9b74ba90c582a77b7203ca1c726e
+Disposition: FIXED
+Commit: 7448523de72a9b74ba90c582a77b7203ca1c726e
+Evidence: `docs/review/PR_2136_FIXED_MAPPING.md:252` now leaves every item under `Merge Readiness` unchecked until the final current-head CI, bot, wait-window, and strict-wrapper cycle completes; the artifact-first Phase 2 parser passes, and the post-comment commit is not trigger-only.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2136#discussion_r3586429963
+Disposition: NOT-A-BUG
+Evidence: GitHub anchors the review comment to actual commit `0294f0a55c49dde056e490fd087985a5d59126da`; the PR commits API returns the linear history `f4efdc363 -> b438acff8 -> a0696db25 -> b3b0decf4 -> 0294f0a55`, and `git merge-base --is-ancestor` exits `0` for every cited proof commit against `0294f0a55`.
+Reason: The body-only `2d5fbaab` snapshot is not in the GitHub PR commit list, and the repository commit endpoint returns `No commit found for SHA: 2d5fbaab (HTTP 422)`. It cannot replace the authoritative GitHub review commit or the published branch history.
+
+## Bot Capacity and Status Notices
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2136#issuecomment-4974875390
 
@@ -90,13 +103,23 @@ approval, or merge-readiness signal.
 
 Disposition: NOT-A-BUG
 
-Evidence: CodeRabbit reports a temporary review-capacity limit and identifies
-the exact one-file range it would review. It provides no code, test, security,
-or governance finding.
+Evidence: CodeRabbit's current incremental status says there are no new commits
+to review beyond its completed published-head pass. Its one actionable
+governance thread is mapped as `FIXED` above.
 
-Reason: A rate-limit notice is external capacity state, not an actionable PR
-finding or approval. Review availability must be checked again after the
-documented wait window.
+Reason: The issue-level incremental status is not a separate code finding or
+approval; the substantive inline result remains governed by its own thread.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2136#issuecomment-4979517794
+
+Disposition: NOT-A-BUG
+
+Evidence: The explicit final CodeRabbit command completed and reports no new
+commits to review; it introduced no additional inline finding beyond the
+published-head thread mapped above.
+
+Reason: This is a completion status for the requested review cycle, not an
+actionable repository change or independent approval.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2136#pullrequestreview-4699268097
 
@@ -177,8 +200,14 @@ network authority.
 - EXPECTED SKIP: `test-main`, `test-feature`, `coverage-main`, and
   `coverage-feature` were not selected by the canonical changed-path router;
   the applicable Python 3.13 `test-pr` job passed.
-- EXPECTED BLOCKER: the current-head `Merge readiness gate` failed only because
-  the two review threads were still unresolved when it ran.
+- EXPECTED BLOCKER: the governance-head `Merge readiness gate` failed only
+  because the two earlier review threads were still unresolved when it ran;
+  both were dispositioned and resolved afterward, before the final bot cycle.
+- RETRY REQUIRED at governance head `0294f0a55`: CI run `29407857373` failed
+  `lint` during locked dependency installation with
+  `ConnectionResetError(104, 'Connection reset by peer')` from the approved
+  package proxy. This is external transport state, not a passing signal; the
+  failed job must succeed on retry before strict readiness.
 
 ## Security Review
 
@@ -203,8 +232,9 @@ network authority.
   separately authorized governance lane. It is not needed to close this
   concrete stale artifact instance and is not implemented in this test-only
   hotfix.
-- PASS: final-material-head `pulseplate-pr-review` and its 11 calibration tests.
-  Its only `NEEDS-HUMAN` note was the 336-line review threshold.
+- PASS: final-material-head `pulseplate-pr-review`, its published-governance-head
+  follow-up, and 11 calibration tests. The only `NEEDS-HUMAN` note was the
+  393-line review threshold after governance evidence expanded.
   Disposition: NOT-A-BUG. The diff is two coherent files: one functional test
   file plus this mandatory numbered governance artifact; splitting either
   would remove required evidence from the same PR. Focused, full-file,
@@ -228,7 +258,7 @@ confirmed main flake; prefer a narrow follow-up receipt-contract update.
   final material head.
 - [ ] Applicable current-head CI at material head `a0696db25` is terminal PASS;
   the Python 3.13 `test-pr` lane ran, while `test-main` was canonically skipped.
-- [ ] Both review threads resolved only after their dispositions are published.
+- [ ] All review threads resolved only after their dispositions are published.
 - [ ] CodeRabbit, Sourcery, and Cubic are checked for actionable findings after
   the final governance-only activity.
 - [ ] Strict authenticated merge-readiness and mandatory final review window
