@@ -94,7 +94,7 @@ Post-open packet: `artifacts/orchestration/task_packets/ef8acc9c0ac1.json`
 
 ## Merge Readiness
 
-- [x] Mandatory post-open role tail completed on current head.
+- [ ] Mandatory post-open role tail completed on current head.
 - [ ] Current-head CI and diff coverage are terminal and passing.
-- [x] CodeRabbit, Sourcery, and Cubic have no actionable findings.
+- [ ] CodeRabbit, Sourcery, and Cubic have no actionable findings.
 - [ ] Strict authenticated merge wrapper passes after the review wait window.
