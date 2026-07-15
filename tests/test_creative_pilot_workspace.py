@@ -1749,6 +1749,7 @@ def _assert_resume_lineage_failure(
         real_hardlink_to = Path.hardlink_to
         real_mkdir = Path.mkdir
         real_open = Path.open
+        real_os_mkdir = os.mkdir
         real_os_open = os.open
         real_os_symlink = os.symlink
         real_symlink_to = Path.symlink_to
@@ -1828,6 +1829,19 @@ def _assert_resume_lineage_failure(
             )
             return real_os_open(path, flags, mode, dir_fd=dir_fd)
 
+        def fail_if_os_mkdir_creates_resume_artifact(
+            path: str | bytes | os.PathLike[str] | os.PathLike[bytes],
+            mode: int = 0o777,
+            *,
+            dir_fd: int | None = None,
+        ) -> None:
+            fail_if_direct_spec_bridge_fd_artifact_created(
+                path,
+                "os.mkdir",
+                dir_fd=dir_fd,
+            )
+            real_os_mkdir(path, mode, dir_fd=dir_fd)
+
         def fail_if_os_symlink_creates_resume_artifact(
             src: str | bytes | os.PathLike[str] | os.PathLike[bytes],
             dst: str | bytes | os.PathLike[str] | os.PathLike[bytes],
@@ -1843,6 +1857,7 @@ def _assert_resume_lineage_failure(
             real_os_symlink(src, dst, target_is_directory=target_is_directory, dir_fd=dir_fd)
 
         monkeypatch.setattr(builtins, "open", fail_if_builtin_open_creates_resume_artifact)
+        monkeypatch.setattr(pilot_cli.os, "mkdir", fail_if_os_mkdir_creates_resume_artifact)
         monkeypatch.setattr(pilot_cli.os, "open", fail_if_os_open_creates_resume_artifact)
         monkeypatch.setattr(pilot_cli.os, "symlink", fail_if_os_symlink_creates_resume_artifact)
         monkeypatch.setattr(
