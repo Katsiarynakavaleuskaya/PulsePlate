@@ -70,6 +70,8 @@ Artifact: artifacts/orchestration/experiments/results/cd-trivy-policy-parity-ora
   NOT-A-BUG disposition recorded below.
 - [x] The image-layer secret-scan regression was fixed after the review comment
   in `f9f1a5f6c40bd1eaea4298ebe6f7d5ef64a7c461` and mapped below.
+- [x] The later synthetic-squash ancestry thread for that remediation has an
+  evidence-backed NOT-A-BUG disposition recorded below.
 - [ ] Current-head CI, strict authenticated merge readiness, and the mandatory
   quiet review cycle are complete.
 
@@ -96,6 +98,11 @@ Commit: f9f1a5f6c40bd1eaea4298ebe6f7d5ef64a7c461
 Evidence: `.github/workflows/cd.yml:316,334` explicitly runs `vuln,secret` for both immutable staged-image digests; `tests/test_caddy_deploy_provenance.py:175-183` locks the restored scanner contract; exact-main CD run `29403124174` proves the predecessor default enabled secret scanning on the staged backend digest, and Frontend CI run `29417923153` proves the current Caddy build remains compatible with combined vulnerability and secret scanning.
 Reason: Explicit `vuln,secret` restores the prior exact-digest image-layer secret guard without adding a waiver, changing policy ownership, or weakening the HIGH/CRITICAL fail-closed vulnerability gate.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2137#discussion_r3587528218 -> f9f1a5f6c40bd1eaea4298ebe6f7d5ef64a7c461
+
+Disposition: NOT-A-BUG
+Evidence: GitHub reports actual PR head `5a916507cc2d918133e894bb0cb112f18ea7d687`; `git merge-base --is-ancestor f9f1a5f6c40bd1eaea4298ebe6f7d5ef64a7c461 5a916507cc2d918133e894bb0cb112f18ea7d687` exits 0 and `git rev-parse 5a916507cc2d918133e894bb0cb112f18ea7d687^` returns `f9f1a5f6c40bd1eaea4298ebe6f7d5ef64a7c461`; GitHub REST returns HTTP 422 `No commit found for SHA` for the cited `f31fd6332eb85cd4f9cff1131db69781896ebb8a` synthetic squash revision.
+Reason: The cited `f31fd633...` is an unpublished reviewer-internal squash revision, not the PR head or a PulsePlate repository commit; `f9f1a5f6...` is the direct parent of the real published head and the exact post-comment code commit that restores secret scanning.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2137#discussion_r3587804311
 
 ## Premortem Closure
 
@@ -187,8 +194,9 @@ Reason: Explicit `vuln,secret` restores the prior exact-digest image-layer secre
   produced no review comments or actionable finding and is not represented as
   a PASS.
 - Codex GitHub review: the P1 cross-distribution policy defect and P2
-  secret-scan regression are FIXED; both synthetic-review-SHA P2 comments are
-  NOT-A-BUG with repository-graph evidence. All four threads are mapped above.
+  secret-scan regression are FIXED; all three synthetic-review-SHA P2 comments
+  are NOT-A-BUG with repository-graph evidence. All five threads are mapped
+  above.
 
 ## Risks / Rollback
 
@@ -212,7 +220,7 @@ required to restore canonical-policy parity at the repository pin.
   `f9f1a5f6c` security hardening are recorded above; the earlier sealed security
   scan scope is stated exactly and is not widened by claim.
 - PASS: this fixed mapping and the exact PR-body mirror include dispositions
-  for all four current review threads; live resolution and authenticated
+  for all five current review threads; live resolution and authenticated
   disposition validation remain required before merge.
 - PENDING final merge cycle: require terminal canonical CI and diff coverage
   at least 97% on the exact final head, with no required pending or failed job.
