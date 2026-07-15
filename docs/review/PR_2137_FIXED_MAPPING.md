@@ -47,8 +47,9 @@ Packet: artifacts/orchestration/task_packets/a4230146f0ae.json
 - [x] A renewed Codex Security diff scan completed for the final material diff.
 - [x] `pulseplate-pr-review` completed on the remediated material head.
 - [x] All current review threads have an evidence-backed disposition.
-- [ ] The mapped review thread is resolved after this artifact and its PR-body
-  mirror are published and the authenticated disposition guard passes.
+- [x] The mapped review thread was resolved after this artifact and its PR-body
+  mirror were published; the authenticated disposition guard passed for 1/1
+  resolved threads.
 - [ ] Current-head CI, strict authenticated merge readiness, and the mandatory
   quiet review cycle are complete.
 
@@ -155,9 +156,9 @@ required to restore canonical-policy parity at the repository pin.
   tracked governance addition.
 - PASS: local narrow bundle and exact material-diff security/review passes are
   recorded above.
-- PENDING final merge cycle: publish this fixed mapping and the exact PR-body
-  mirror, then resolve only the mapped FIXED thread after authenticated
-  disposition validation.
+- PASS: this fixed mapping and the exact PR-body mirror are published; the only
+  mapped FIXED thread is resolved and the authenticated disposition guard
+  passes.
 - PENDING final merge cycle: require terminal canonical CI and diff coverage
   at least 97% on the exact final head, with no required pending or failed job.
 - PENDING final merge cycle: require no actionable bot feedback and zero
