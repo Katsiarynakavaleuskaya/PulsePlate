@@ -31,25 +31,25 @@ Disposition: FIXED
 Commit: see mapping entries below
 Evidence: All CodeRabbit actionables and review-level findings were fixed by the mapped commits; focused Caddy, workflow, deploy, and supply-chain contract tests pass.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#discussion_r3574923686 -> f8246c554
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#discussion_r3574923694 -> f8246c554
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#discussion_r3574923702 -> dc0d7f07f
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#discussion_r3574923708 -> 04202ab1a
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#discussion_r3574923714 -> f8246c554
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#discussion_r3574923719 -> 04202ab1a
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#discussion_r3574923722 -> f8246c554
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#pullrequestreview-4689618115 -> 04202ab1a
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#pullrequestreview-4689852435 -> 6bb85cdb8
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#discussion_r3576902700 -> 07ec36b1e
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#pullrequestreview-4691892060 -> 07ec36b1e
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#discussion_r3576961278 -> 61e50343f
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#pullrequestreview-4691964978 -> 61e50343f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#discussion_r3574923686 -> bd6116803
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#discussion_r3574923694 -> bd6116803
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#discussion_r3574923702 -> bfa216247
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#discussion_r3574923708 -> 690a8d07d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#discussion_r3574923714 -> bd6116803
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#discussion_r3574923719 -> 690a8d07d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#discussion_r3574923722 -> bd6116803
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#pullrequestreview-4689618115 -> 690a8d07d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#pullrequestreview-4689852435 -> 4f44d1ab1
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#discussion_r3576902700 -> 31d7aeb01
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#pullrequestreview-4691892060 -> 31d7aeb01
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#discussion_r3576961278 -> 9d227a08b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2117#pullrequestreview-4691964978 -> 9d227a08b
 
 ## Intermediate Codex Security Review Evidence
 
 - The Codex Security scan for `95325b12f5a664a131ce79543f6a963c06f4de0a..2d4e03b48a2877f6da9e5994e3b3bfc0165cf151` completed with zero reportable findings.
 - It identified one operator-only stale-build correctness gap in `scripts/QUICK_FIX_PRODUCTION.sh`; attack-path analysis rejected it as a security finding because no attacker-controlled entrypoint or lower-privileged boundary exists.
-- Rebased commit `6bb85cdb8` still closes that bounded correctness gap by
+- Rebased commit `4f44d1ab1` still closes that bounded correctness gap by
   rebuilding Caddy fail closed and verifying the running Caddy/Go identity
   before the success claim.
 
@@ -131,7 +131,7 @@ rollback-safe provenance chain without runtime product expansion.
 ### Architecture Specialist
 
 Disposition: FIXED
-Commit: 1972f22a0
+Commit: 03c87f9a9
 Evidence: CD now creates, attests, verifies, scans, and passes both image
 digests from their own build steps; staging Compose and deploy accept the same
 two immutable identities.
@@ -141,7 +141,7 @@ split while preserving Caddy topology and persistent volumes.
 ### Security Auditor
 
 Disposition: FIXED
-Commit: 1972f22a0
+Commit: 03c87f9a9
 Evidence: Required deployments fail closed on contract readiness, credentials,
 server marker, input hashes, attestations, scans, and exact canonical digest
 shape; no new secret, permission, suppression, or PR deployment authority was
@@ -152,7 +152,7 @@ mutable/cross-workflow staging handoff risks.
 ### Dev Operator
 
 Disposition: FIXED
-Commit: 1972f22a0
+Commit: 03c87f9a9
 Evidence: `scripts/deploy.sh` provides a credential-free preflight, validates
 the root-owned migration marker and server-local file hashes before secrets,
 then performs the existing backup/migration/readiness sequence with two pulled
@@ -163,7 +163,7 @@ deployment is performed by this PR.
 ### QA Engineer Agent
 
 Disposition: FIXED
-Commit: 1972f22a0
+Commit: 03c87f9a9
 Evidence: Focused tests cover exact versions/digests, two-image workflow order,
 negative and positive deploy CLI cases, persistent volumes, route topology,
 headers, attestations, and scans. Local container evidence validates version,
@@ -175,7 +175,7 @@ change while heavy current-head CI remains a separate pending gate.
 ### Actual-diff Premortem
 
 Disposition: FIXED
-Commit: 1972f22a0
+Commit: 03c87f9a9
 Evidence: `docs/review/PR_CADDY_2_11_ATTESTED_DIGESTS_PREMORTEM.md` records the
 actual diff risks and the implementation contains their required mitigations,
 including default-false readiness, marker/hash preflight, same-job digests,
@@ -188,7 +188,7 @@ before PR open.
 ### QA Engineer Agent
 
 Disposition: FIXED
-Commit: 96ea5b16b
+Commit: c40bfb8cd
 Evidence: `.github/workflows/cd.yml` groups all contract-hash outputs under one
 redirect, satisfying Actionlint/ShellCheck SC2129; the canonical mapping uses
 the parser-safe no-actionables marker; the PR body now carries trusted-label
@@ -201,7 +201,7 @@ before the next role pass.
 ### Bug Hunter
 
 Disposition: FIXED
-Commit: b0c159f19
+Commit: 43878b634
 Evidence: The credentialed deploy SSH step receives the three expected hashes,
 revalidates the root-owned marker, contract version, deploy script, Compose,
 and Caddyfile immediately before invoking `deploy.sh`, and a focused regression
@@ -212,7 +212,7 @@ after only relying on the earlier credential-free preflight result.
 ### Security Auditor
 
 Disposition: FIXED
-Commit: 09901d225
+Commit: 933d308ff
 Evidence: An unconditional policy step makes `STAGING_DEPLOY_REQUIRED=true`
 fail unless all three rollout gates are explicitly true, and the staging
 healthcheck receives `STAGING_DOMAIN` through a step environment variable
@@ -224,7 +224,7 @@ and the healthcheck no longer creates a secret-to-shell-source injection seam.
 ### Final QA Engineer Agent
 
 Disposition: FIXED
-Commit: 04202ab1a
+Commit: 690a8d07d
 Evidence: the premortem now records four reviewed-file hashes, the Docker build
 fails unless Go metadata reports Caddy main module v2.11.4, and header assertions
 are bound to every active global header block. The focused suite passes.
@@ -314,7 +314,7 @@ privileged-boundary expansion was introduced.
 ### Production Environment Guard QA Engineer Agent
 
 Disposition: FIXED
-Commit: 07ec36b1e
+Commit: 31d7aeb01
 Evidence: Exact range `0a05abeb..0a3a43255`; 11 quick-fix tests and 70 bounded
 deploy/provenance tests passed. Compose-normalized required-key duplicates fail
 before backup, mutation, or Docker operations beyond the read-only version
@@ -337,7 +337,7 @@ managed-flag cleanup fixes.
 ### Production Environment Guard Security Auditor
 
 Disposition: FIXED
-Commit: 07ec36b1e
+Commit: 31d7aeb01
 Evidence: Exact range `0a05abeb..0a3a43255`; live Docker Compose probes confirmed
 that every accepted space/export/tab/CRLF variant is recognized by the guard.
 Diagnostics expose only line number, allowlisted key, and `<redacted>`; no value
@@ -349,7 +349,7 @@ or a relevant lower-privileged TOCTOU boundary.
 ### Post-rebase Curl/Libcurl Remediation
 
 Disposition: FIXED
-Commit: 8f7ff7e0c
+Commit: 1a85e24cf
 Evidence: A refreshed Trivy 0.71.2 database identified four fixed HIGH findings
 in inherited Alpine `curl`/`libcurl` 8.19.0-r0. The final stage now requires
 `curl>=8.20.0-r0` and `libcurl>=8.20.0-r0`; the rebuilt image reports Caddy
@@ -365,16 +365,16 @@ locks, application behavior, permissions, secrets, or deployment authority.
 ### Post-rebase Packet Role Refresh
 
 Disposition: FIXED
-Commits: `667804dc3`, `241199501`, `8455d4856`
+Commits: `91682df26`, `cdc5d761b`, `c220a1274`
 Evidence: The ordered packet roles ran sequentially. QA found no P0-P2 defects.
 Bug Hunter identified that the new app could become ready before migration and
-that the staging runbook omitted an activation gate; `667804dc3` now stops app
+that the staging runbook omitted an activation gate; `91682df26` now stops app
 and Caddy, runs Alembic in a one-shot container before app start, leaves both
 stopped on migration failure, and aligns the runbook. Security Auditor found no
 remaining P0-P2 issue. App Store Release Agent identified an unsupported
-per-run human-approval claim; `241199501` documents the actual automatic-main
+per-run human-approval claim; `cdc5d761b` documents the actual automatic-main
 behavior once all gates are enabled. Marketing Strategist identified an
-overbroad automatic-maintenance claim; `8455d4856` restores operator ownership
+overbroad automatic-maintenance claim; `c220a1274` restores operator ownership
 for host, backup, volume, DNS/TLS, and server-local contract maintenance. Every
 finding was re-reviewed by its originating role and received PASS.
 Reason: Current-PR defects and messaging overclaims were fixed before security
