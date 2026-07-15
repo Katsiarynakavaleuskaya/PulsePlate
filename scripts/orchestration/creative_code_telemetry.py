@@ -210,6 +210,7 @@ def _taxonomy_from_failure(failure_class: str | None) -> list[str]:
         "guard_failure",
         "policy_violation",
         "unchanged_result",
+        "capability_mismatch",
         "infra_flake",
     }:
         return [failure_class]

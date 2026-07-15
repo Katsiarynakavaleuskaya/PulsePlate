@@ -14,6 +14,7 @@ import pytest
 from core.evidence.fingerprints import fingerprint_payload
 from scripts.orchestration import (
     creative_code_patch_builder,
+    creative_code_patch_contract,
     creative_code_patch_executor,
     creative_code_patch_workspace,
     experiment_runner,
@@ -212,6 +213,41 @@ def _request_for_base(base_sha: str) -> dict[str, Any]:
     )
 
 
+def _write_generated_run(
+    *,
+    run_id: str,
+    base_sha: str,
+) -> Path:
+    run_dir = creative_code_patch_workspace.resolve_run_dir(run_id, create=True)
+    assert isinstance(run_dir, Path)
+    request = _request_for_base(base_sha)
+    patch_text = "diff --git a/core/rag/orchestration.py b/core/rag/orchestration.py\n"
+    state = {
+        "run_id": run_id,
+        "request_id": request["request_id"],
+        "source_bundle_id": request["source_bundle_id"],
+        "selected_variant_id": request["selected_variant_id"],
+        "base_commit_sha": base_sha,
+        "workspace": {"origin_removed": True},
+        "candidate_patch_generated": True,
+        "checkout_destroyed": True,
+    }
+    metadata = {
+        "changed_paths": ["core/rag/orchestration.py"],
+        "patch_fingerprint": fingerprint_payload({"candidate_patch": patch_text}),
+        "patch_bytes": len(patch_text.encode("utf-8")),
+        "diff_lines": len(patch_text.splitlines()),
+    }
+    creative_code_patch_workspace.write_json_atomic(run_dir / "request.json", request)
+    creative_code_patch_workspace.write_json_atomic(
+        run_dir / "source_bundle.json", _reference_bundle()
+    )
+    creative_code_patch_workspace.write_json_atomic(run_dir / "state.json", state)
+    creative_code_patch_workspace.write_json_atomic(run_dir / "patch_metadata.json", metadata)
+    (run_dir / "candidate.patch").write_text(patch_text, encoding="utf-8")
+    return run_dir
+
+
 def test_generation_prompt_includes_budget_and_no_test_contract() -> None:
     bundle = _reference_bundle()
     request = _reference_request()
@@ -322,12 +358,77 @@ def test_reference_patch_contracts_validate_and_schema_is_closed() -> None:
         "guard_failure",
         "policy_violation",
         "unchanged_result",
+        "capability_mismatch",
         "infra_flake",
     ]
+    assert set(result_schema["$defs"]["failure_class"]["enum"][1:]) == (
+        creative_code_patch_contract.FAILURE_CLASSES
+    )
     assert result_schema["properties"]["failure_class"]["$ref"].endswith("failure_class")
     assert result_schema["$defs"]["runner_summary"]["properties"]["failure_class"]["$ref"].endswith(
         "failure_class"
     )
+    assert result_schema["allOf"][0]["then"]["properties"]["runner_summary"] == {
+        "$ref": "#/$defs/accepted_runner_proof"
+    }
+    accepted_runner_proof = result_schema["$defs"]["accepted_runner_proof"]
+    assert accepted_runner_proof["properties"]["status"] == {"const": "accepted"}
+    assert accepted_runner_proof["properties"]["failure_class"] == {"const": None}
+    assert accepted_runner_proof["properties"]["shared_tree_untouched"] == {"const": True}
+    accepted_oracle_pairs = {
+        (
+            pair["properties"]["oracle_commands_configured"]["const"],
+            pair["properties"]["oracle_commands_executed"]["const"],
+        )
+        for pair in accepted_runner_proof["oneOf"]
+    }
+    assert accepted_oracle_pairs == {(count, count) for count in range(1, 21)}
+    ordered_failure_classes = result_schema["$defs"]["failure_class"]["enum"][1:]
+    assert result_schema["allOf"][1]["then"]["properties"]["failure_class"]["enum"] == (
+        ordered_failure_classes
+    )
+    assert result_schema["allOf"][2]["if"]["properties"]["failure_class"] == {
+        "const": "capability_mismatch"
+    }
+    root_runner_rule = result_schema["allOf"][2]["then"]["properties"]["runner_summary"]
+    assert root_runner_rule["required"] == ["status", "failure_class"]
+    root_retry_rule = root_runner_rule["properties"]
+    assert root_retry_rule["status"] == {"const": "rejected"}
+    assert root_retry_rule["failure_class"] == {"const": "capability_mismatch"}
+    assert root_retry_rule["attempts"] == {"enum": [0, 1]}
+    assert root_retry_rule["retries_consumed"] == {"const": 0}
+    rejected_pair_rule = result_schema["allOf"][3]
+    assert rejected_pair_rule["if"]["properties"]["status"] == {"const": "rejected"}
+    assert rejected_pair_rule["if"]["properties"]["runner_summary"]["properties"]["status"] == {
+        "const": "rejected"
+    }
+    rejected_pairs = {
+        (
+            pair["properties"]["failure_class"]["const"],
+            pair["properties"]["runner_summary"]["properties"]["failure_class"]["const"],
+        )
+        for pair in rejected_pair_rule["then"]["oneOf"]
+    }
+    assert rejected_pairs == {(failure, failure) for failure in ordered_failure_classes}
+    runner_rules = result_schema["$defs"]["runner_summary"]["allOf"]
+    assert runner_rules[0]["then"]["properties"]["failure_class"] == {"const": None}
+    assert runner_rules[1]["then"]["properties"]["failure_class"]["enum"] == (
+        ordered_failure_classes
+    )
+    assert runner_rules[2]["if"]["properties"]["failure_class"] == {"const": "capability_mismatch"}
+    assert runner_rules[2]["then"]["properties"]["attempts"] == {"enum": [0, 1]}
+    assert runner_rules[2]["then"]["properties"]["retries_consumed"] == {"const": 0}
+    zero_attempt_rule = runner_rules[3]
+    assert zero_attempt_rule["if"]["required"] == ["failure_class", "attempts"]
+    assert zero_attempt_rule["if"]["properties"] == {
+        "failure_class": {"const": "capability_mismatch"},
+        "attempts": {"const": 0},
+    }
+    assert zero_attempt_rule["then"]["properties"] == {
+        "mutated_path_count": {"const": 0},
+        "oracle_commands_executed": {"const": 0},
+    }
+    assert "oracle_commands_configured" not in zero_attempt_rule["then"]["properties"]
     assert (
         result_schema["$defs"]["authority"]["properties"]["candidate_patch_generated"]["const"]
         is True
@@ -405,6 +506,271 @@ def test_build_result_rejects_malformed_runner_summary_inputs() -> None:
             shared_tree_untouched=True,
             failure_class="guard_failure",
         )
+
+
+def test_build_result_rejects_accepted_capability_mismatch() -> None:
+    runner_result = {
+        "experiment_id": "exp-pr2-capability-mismatch",
+        "status": "accepted",
+        "failure_class": "capability_mismatch",
+        "mutated_paths": ["core/rag/orchestration.py"],
+        "budget_observations": {
+            "oracle_commands_configured": 1,
+            "attempts": 1,
+            "retries_consumed": 0,
+        },
+        "oracle_results": [],
+        "shared_tree_untouched": True,
+    }
+
+    with pytest.raises(
+        CreativeCodePatchContractError,
+        match="accepted runner summaries must not have failure_class",
+    ):
+        build_creative_code_patch_result(
+            request=_reference_request(),
+            changed_paths=["core/rag/orchestration.py"],
+            patch_fingerprint="sha256:" + ("b" * 64),
+            patch_bytes=128,
+            diff_lines=8,
+            runner_result=runner_result,
+            checkout_destroyed=True,
+            origin_removed=True,
+            shared_tree_untouched=True,
+        )
+
+
+def test_patch_result_rejects_incoherent_runner_status_and_preserves_wrapper_rejection() -> None:
+    accepted_with_rejected_runner = _reference_result()
+    accepted_with_rejected_runner["runner_summary"]["status"] = "rejected"
+    accepted_with_rejected_runner["runner_summary"]["failure_class"] = "guard_failure"
+    accepted_with_rejected_runner["workspace_summary"]["origin_removed"] = False
+
+    with pytest.raises(
+        CreativeCodePatchContractError,
+        match="accepted results require an accepted runner summary",
+    ):
+        validate_creative_code_patch_result(accepted_with_rejected_runner)
+
+    rejected_runner_without_failure = _reference_result()
+    rejected_runner_without_failure["runner_summary"]["status"] = "rejected"
+
+    with pytest.raises(
+        CreativeCodePatchContractError,
+        match="rejected runner summaries require failure_class",
+    ):
+        validate_creative_code_patch_result(rejected_runner_without_failure)
+
+    wrapper_rejection = _reference_result()
+    wrapper_rejection["status"] = "rejected"
+    wrapper_rejection["failure_class"] = "guard_failure"
+    result_id, idempotency_key = creative_code_patch_contract._build_result_identity(
+        wrapper_rejection
+    )
+    wrapper_rejection["result_id"] = result_id
+    wrapper_rejection["idempotency_key"] = idempotency_key
+
+    assert validate_creative_code_patch_result(wrapper_rejection) == wrapper_rejection
+
+    capability_without_runner_proof = _reference_result()
+    capability_without_runner_proof["status"] = "rejected"
+    capability_without_runner_proof["failure_class"] = "capability_mismatch"
+    result_id, idempotency_key = creative_code_patch_contract._build_result_identity(
+        capability_without_runner_proof
+    )
+    capability_without_runner_proof["result_id"] = result_id
+    capability_without_runner_proof["idempotency_key"] = idempotency_key
+
+    with pytest.raises(
+        CreativeCodePatchContractError,
+        match="capability_mismatch results require a rejected runner summary",
+    ):
+        validate_creative_code_patch_result(capability_without_runner_proof)
+
+
+@pytest.mark.parametrize(
+    "runner_updates",
+    [
+        {"shared_tree_untouched": False},
+        {"oracle_commands_configured": 0, "oracle_commands_executed": 0},
+        {"oracle_commands_configured": 2, "oracle_commands_executed": 1},
+    ],
+)
+def test_patch_result_rejects_incomplete_accepted_runner_proof(
+    runner_updates: dict[str, Any],
+) -> None:
+    result = _reference_result()
+    result["runner_summary"].update(runner_updates)
+
+    with pytest.raises(
+        CreativeCodePatchContractError,
+        match="accepted results require complete runner oracle and shared-tree proof",
+    ):
+        validate_creative_code_patch_result(result)
+
+
+@pytest.mark.parametrize(
+    ("result_failure", "runner_failure"),
+    [
+        ("capability_mismatch", "infra_flake"),
+        ("infra_flake", "capability_mismatch"),
+    ],
+)
+def test_patch_result_rejects_mismatched_rejected_failures(
+    result_failure: str,
+    runner_failure: str,
+) -> None:
+    tampered = _reference_result()
+    tampered["status"] = "rejected"
+    tampered["failure_class"] = result_failure
+    tampered["runner_summary"].update(
+        {
+            "status": "rejected",
+            "failure_class": runner_failure,
+            "attempts": 1,
+            "retries_consumed": 0,
+        }
+    )
+    result_id, idempotency_key = creative_code_patch_contract._build_result_identity(tampered)
+    tampered["result_id"] = result_id
+    tampered["idempotency_key"] = idempotency_key
+
+    with pytest.raises(
+        CreativeCodePatchContractError,
+        match="rejected result and runner summary failure_class values must match",
+    ):
+        validate_creative_code_patch_result(tampered)
+
+
+def test_patch_result_rejects_capability_mismatch_retry_tamper() -> None:
+    tampered = _reference_result()
+    tampered["status"] = "rejected"
+    tampered["failure_class"] = "capability_mismatch"
+    tampered["runner_summary"].update(
+        {
+            "status": "rejected",
+            "failure_class": "capability_mismatch",
+            "attempts": 2,
+            "retries_consumed": 1,
+        }
+    )
+    result_id, idempotency_key = creative_code_patch_contract._build_result_identity(tampered)
+    tampered["result_id"] = result_id
+    tampered["idempotency_key"] = idempotency_key
+
+    with pytest.raises(
+        CreativeCodePatchContractError,
+        match="capability_mismatch must use attempts 0 or 1 and retries_consumed 0",
+    ):
+        validate_creative_code_patch_result(tampered)
+
+    top_level_tamper = _reference_result()
+    top_level_tamper["status"] = "rejected"
+    top_level_tamper["failure_class"] = "capability_mismatch"
+    top_level_tamper["runner_summary"]["attempts"] = 2
+    top_level_tamper["runner_summary"]["retries_consumed"] = 1
+    result_id, idempotency_key = creative_code_patch_contract._build_result_identity(
+        top_level_tamper
+    )
+    top_level_tamper["result_id"] = result_id
+    top_level_tamper["idempotency_key"] = idempotency_key
+
+    with pytest.raises(
+        CreativeCodePatchContractError,
+        match="capability_mismatch results require a rejected runner summary",
+    ):
+        validate_creative_code_patch_result(top_level_tamper)
+
+    compound_tamper = _reference_result()
+    compound_tamper["failure_class"] = "capability_mismatch"
+    compound_tamper["runner_summary"].update(
+        {
+            "status": "rejected",
+            "failure_class": "capability_mismatch",
+            "attempts": 2,
+            "retries_consumed": 1,
+        }
+    )
+    result_id, idempotency_key = creative_code_patch_contract._build_result_identity(
+        compound_tamper
+    )
+    compound_tamper["result_id"] = result_id
+    compound_tamper["idempotency_key"] = idempotency_key
+
+    with pytest.raises(
+        CreativeCodePatchContractError,
+        match="accepted results must not have failure_class",
+    ):
+        validate_creative_code_patch_result(compound_tamper)
+
+
+@pytest.mark.parametrize(
+    ("field", "message"),
+    [
+        (
+            "mutated_path_count",
+            "capability_mismatch with attempts 0 must use mutated_path_count 0",
+        ),
+        (
+            "oracle_commands_executed",
+            "capability_mismatch with attempts 0 must use oracle_commands_executed 0",
+        ),
+    ],
+)
+def test_patch_result_rejects_zero_attempt_capability_execution_evidence(
+    field: str,
+    message: str,
+) -> None:
+    tampered = _reference_result()
+    tampered["status"] = "rejected"
+    tampered["failure_class"] = "capability_mismatch"
+    tampered["runner_summary"].update(
+        {
+            "status": "rejected",
+            "failure_class": "capability_mismatch",
+            "mutated_path_count": 0,
+            "oracle_commands_executed": 0,
+            "attempts": 0,
+            "retries_consumed": 0,
+        }
+    )
+    tampered["runner_summary"][field] = 1
+    result_id, idempotency_key = creative_code_patch_contract._build_result_identity(tampered)
+    tampered["result_id"] = result_id
+    tampered["idempotency_key"] = idempotency_key
+
+    with pytest.raises(CreativeCodePatchContractError, match=message):
+        validate_creative_code_patch_result(tampered)
+
+
+@pytest.mark.parametrize(
+    ("attempts", "mutated_path_count", "oracle_commands_executed"),
+    [(0, 0, 0), (1, 1, 1)],
+)
+def test_patch_result_accepts_coherent_capability_execution_evidence(
+    attempts: int,
+    mutated_path_count: int,
+    oracle_commands_executed: int,
+) -> None:
+    result = _reference_result()
+    result["status"] = "rejected"
+    result["failure_class"] = "capability_mismatch"
+    result["runner_summary"].update(
+        {
+            "status": "rejected",
+            "failure_class": "capability_mismatch",
+            "mutated_path_count": mutated_path_count,
+            "oracle_commands_configured": 1,
+            "oracle_commands_executed": oracle_commands_executed,
+            "attempts": attempts,
+            "retries_consumed": 0,
+        }
+    )
+    result_id, idempotency_key = creative_code_patch_contract._build_result_identity(result)
+    result["result_id"] = result_id
+    result["idempotency_key"] = idempotency_key
+
+    assert validate_creative_code_patch_result(result) == result
 
 
 def test_patch_path_schemas_match_validator_for_forbidden_surfaces() -> None:
@@ -1153,6 +1519,51 @@ def test_evaluate_fallback_stores_error_class_not_raw_exception(
     assert result["runner_summary"]["runner_error_present"] is True
     assert "/Users/example" not in encoded
     assert "ghp_secret" not in encoded
+
+
+def test_evaluate_capability_signal_fails_closed_without_result_or_cli_leak(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo, base_sha = _init_patch_repo(tmp_path)
+    _patch_modules_to_repo(monkeypatch, repo)
+    run_id = "eval-capability-signal"
+    run_dir = _write_generated_run(run_id=run_id, base_sha=base_sha)
+    canary = "/Users/example/ghp_capability_canary"
+
+    def raise_capability_signal(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        raise experiment_runner.RunnerCapabilitySignal(canary)
+
+    monkeypatch.setattr(
+        creative_code_patch_builder,
+        "evaluate_candidate",
+        raise_capability_signal,
+    )
+
+    with pytest.raises(
+        CreativeCodePatchBuilderError,
+        match="^Experiment Runner capability unavailable; trusted dispatch is required\\.$",
+    ) as exc_info:
+        creative_code_patch_builder.evaluate(run_id=run_id)
+
+    assert exc_info.value.__cause__ is None
+    assert canary not in str(exc_info.value)
+    assert not (run_dir / creative_code_patch_builder.RESULT_FILE).exists()
+    state = json.loads((run_dir / creative_code_patch_builder.STATE_FILE).read_text())
+    assert state.get("candidate_patch_evaluated") is not True
+
+    assert creative_code_patch_builder.main(["evaluate", "--run-dir", run_id]) == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == (
+        "FAIL: Experiment Runner capability unavailable; trusted dispatch is required.\n"
+    )
+    assert canary not in captured.err
+    assert "Traceback" not in captured.err
+    assert not (run_dir / creative_code_patch_builder.RESULT_FILE).exists()
+    state = json.loads((run_dir / creative_code_patch_builder.STATE_FILE).read_text())
+    assert state.get("candidate_patch_evaluated") is not True
 
 
 def test_evaluate_rejects_tampered_candidate_patch(

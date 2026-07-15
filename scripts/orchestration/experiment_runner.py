@@ -57,6 +57,14 @@ OOM_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"\bcannot allocate memory\b", re.IGNORECASE),
 )
 PYTHON_ORACLE_BINARIES = {"python", "python3"}
+CAPABILITY_LOSS_AFTER_INFRA_RETRY_ERROR = (
+    "Execution capability became unavailable after an infrastructure retry."
+)
+RUNNER_CAPABILITY_EXIT_CODE = 3
+RUNNER_CAPABILITY_DIAGNOSTIC = (
+    "FAIL: execution capability unavailable; trusted backend provenance is required."
+)
+RUNNER_CAPABILITY_ERROR = "runner_capability_mismatch"
 
 
 class ExperimentRunnerError(RuntimeError):
@@ -73,6 +81,10 @@ class InfraFlakeError(ExperimentRunnerError):
 
 class CapabilityMismatchError(ExperimentRunnerError):
     """Required execution isolation disappeared or is unsupported."""
+
+
+class RunnerCapabilitySignal(ExperimentRunnerError):
+    """Data-free internal signal for first-attempt post-preflight capability loss."""
 
 
 def _result_payload(
@@ -97,6 +109,10 @@ def _result_payload(
         coauthor_required = False
         coauthor_reason = ""
 
+    normalized_budget_observations = dict(budget_observations)
+    if "oracle_commands_executed" in normalized_budget_observations:
+        normalized_budget_observations["oracle_commands_executed"] = len(oracle_results)
+
     return {
         "schema_version": RESULT_SCHEMA_VERSION,
         "experiment_id": experiment_id,
@@ -106,7 +122,7 @@ def _result_payload(
         "failure_class": failure_class,
         "mutated_paths": mutated_paths,
         "oracle_results": oracle_results,
-        "budget_observations": budget_observations,
+        "budget_observations": normalized_budget_observations,
         "shared_tree_untouched": shared_tree_untouched,
         "promotion_ready": False,
         "contribution_kind": contribution_kind,
@@ -690,6 +706,7 @@ def evaluate_candidate(packet: dict[str, Any], candidate_patch_path: Path) -> di
         "retries_consumed": 0,
     }
     shared_status_before: str | None = None
+    capability_signal = False
 
     try:
         candidate_patch_ref = normalize_repo_path(candidate_patch_path)
@@ -732,11 +749,35 @@ def evaluate_candidate(packet: dict[str, Any], candidate_patch_path: Path) -> di
                     budget_observations=budget_observations,
                     candidate_patch_ref=candidate_patch_ref,
                 )
-                break
+            except CapabilityMismatchError:
+                if attempt_number > 1:
+                    raise InfraFlakeError(CAPABILITY_LOSS_AFTER_INFRA_RETRY_ERROR) from None
+                raise
             except InfraFlakeError as exc:
                 last_infra_error = str(exc)
                 if attempt_number == max_attempts:
                     raise
+                continue
+            if (
+                result.get("status") == "rejected"
+                and result.get("failure_class") == "capability_mismatch"
+            ):
+                if attempt_number > 1:
+                    raise InfraFlakeError(CAPABILITY_LOSS_AFTER_INFRA_RETRY_ERROR) from None
+                capability_signal = True
+                budget_observations["runner_error"] = RUNNER_CAPABILITY_ERROR
+                result = _result_payload(
+                    experiment_id=packet["experiment_id"],
+                    runner_mode=packet.get("runner_mode", DEFAULT_RUNNER_MODE),
+                    candidate_patch=candidate_patch_ref,
+                    status="rejected",
+                    failure_class="infra_flake",
+                    mutated_paths=[],
+                    oracle_results=[],
+                    budget_observations=budget_observations,
+                    shared_tree_untouched=True,
+                )
+            break
         else:
             raise InfraFlakeError(last_infra_error or "Unknown infra_flake during experiment run.")
     except PolicyViolationError as exc:
@@ -755,20 +796,22 @@ def evaluate_candidate(packet: dict[str, Any], candidate_patch_path: Path) -> di
             budget_observations=budget_observations,
             shared_tree_untouched=shared_status_before is not None,
         )
-    except CapabilityMismatchError as exc:
-        budget_observations["runner_error"] = str(exc)
+    except CapabilityMismatchError:
+        capability_signal = True
+        budget_observations["runner_error"] = RUNNER_CAPABILITY_ERROR
         result = _result_payload(
             experiment_id=packet["experiment_id"],
             runner_mode=packet.get("runner_mode", DEFAULT_RUNNER_MODE),
             candidate_patch=candidate_patch_ref,
             status="rejected",
-            failure_class="capability_mismatch",
+            failure_class="infra_flake",
             mutated_paths=[],
             oracle_results=[],
             budget_observations=budget_observations,
             shared_tree_untouched=shared_status_before is not None,
         )
     except InfraFlakeError as exc:
+        capability_signal = False
         budget_observations["runner_error"] = str(exc)
         result = _result_payload(
             experiment_id=packet["experiment_id"],
@@ -801,10 +844,13 @@ def evaluate_candidate(packet: dict[str, Any], candidate_patch_path: Path) -> di
         result["budget_observations"]["runner_error"] = str(exc)
         return result
     if shared_status_before != shared_status_after:
+        capability_signal = False
         result["shared_tree_untouched"] = False
         result["status"] = "rejected"
         result["failure_class"] = "infra_flake"
         result["budget_observations"]["runner_error"] = "Shared working tree changed during run."
+    if capability_signal:
+        raise RunnerCapabilitySignal
     return result
 
 
@@ -852,6 +898,7 @@ def evaluate_oracle_only_governance_reviewer(
         "source_diff_paths": [],
     }
     shared_status_before: str | None = None
+    capability_signal = False
 
     try:
         shared_status_before = _shared_tree_status(REPO_ROOT)
@@ -891,6 +938,20 @@ def evaluate_oracle_only_governance_reviewer(
                 coauthor_required=coauthor_required,
                 coauthor_reason=coauthor_reason.strip(),
             )
+            if failure_class == "capability_mismatch":
+                capability_signal = True
+                budget_observations["runner_error"] = RUNNER_CAPABILITY_ERROR
+                result = _result_payload(
+                    experiment_id=packet["experiment_id"],
+                    runner_mode=ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE,
+                    candidate_patch=ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE,
+                    status="rejected",
+                    failure_class="infra_flake",
+                    mutated_paths=[],
+                    oracle_results=[],
+                    budget_observations=budget_observations,
+                    shared_tree_untouched=True,
+                )
         finally:
             try:
                 temp_dir.cleanup()
@@ -909,20 +970,22 @@ def evaluate_oracle_only_governance_reviewer(
             budget_observations=budget_observations,
             shared_tree_untouched=shared_status_before is not None,
         )
-    except CapabilityMismatchError as exc:
-        budget_observations["runner_error"] = str(exc)
+    except CapabilityMismatchError:
+        capability_signal = True
+        budget_observations["runner_error"] = RUNNER_CAPABILITY_ERROR
         result = _result_payload(
             experiment_id=packet["experiment_id"],
             runner_mode=ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE,
             candidate_patch=ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE,
             status="rejected",
-            failure_class="capability_mismatch",
+            failure_class="infra_flake",
             mutated_paths=[],
             oracle_results=[],
             budget_observations=budget_observations,
             shared_tree_untouched=shared_status_before is not None,
         )
     except InfraFlakeError as exc:
+        capability_signal = False
         budget_observations["runner_error"] = str(exc)
         result = _result_payload(
             experiment_id=packet["experiment_id"],
@@ -955,10 +1018,13 @@ def evaluate_oracle_only_governance_reviewer(
         result["budget_observations"]["runner_error"] = str(exc)
         return result
     if shared_status_before != shared_status_after:
+        capability_signal = False
         result["shared_tree_untouched"] = False
         result["status"] = "rejected"
         result["failure_class"] = "infra_flake"
         result["budget_observations"]["runner_error"] = "Shared working tree changed during run."
+    if capability_signal:
+        raise RunnerCapabilitySignal
     return result
 
 
@@ -1011,29 +1077,35 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     runner_mode = packet.get("runner_mode", DEFAULT_RUNNER_MODE)
-    if runner_mode == ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE:
-        if args.candidate_patch:
-            print("FAIL: oracle-only governance reviewer mode does not accept --candidate-patch")
-            return 1
-        try:
-            result = evaluate_oracle_only_governance_reviewer(
-                packet,
-                contribution_kind=args.contribution_kind,
-                coauthor_required=bool(args.coauthor_required),
-                coauthor_reason=args.coauthor_reason,
-            )
-        except PolicyViolationError as exc:
-            print(f"FAIL: {exc}")
-            return 1
-    else:
-        if args.coauthor_required or args.contribution_kind != "none" or args.coauthor_reason:
-            print("FAIL: contribution attribution flags are supported only in oracle-only mode")
-            return 1
-        if not args.candidate_patch:
-            print("FAIL: --candidate-patch is required for candidate_patch runner mode")
-            return 1
-        candidate_patch_path = Path(args.candidate_patch).expanduser().resolve()
-        result = evaluate_candidate(packet, candidate_patch_path)
+    try:
+        if runner_mode == ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE:
+            if args.candidate_patch:
+                print(
+                    "FAIL: oracle-only governance reviewer mode does not accept --candidate-patch"
+                )
+                return 1
+            try:
+                result = evaluate_oracle_only_governance_reviewer(
+                    packet,
+                    contribution_kind=args.contribution_kind,
+                    coauthor_required=bool(args.coauthor_required),
+                    coauthor_reason=args.coauthor_reason,
+                )
+            except PolicyViolationError as exc:
+                print(f"FAIL: {exc}")
+                return 1
+        else:
+            if args.coauthor_required or args.contribution_kind != "none" or args.coauthor_reason:
+                print("FAIL: contribution attribution flags are supported only in oracle-only mode")
+                return 1
+            if not args.candidate_patch:
+                print("FAIL: --candidate-patch is required for candidate_patch runner mode")
+                return 1
+            candidate_patch_path = Path(args.candidate_patch).expanduser().resolve()
+            result = evaluate_candidate(packet, candidate_patch_path)
+    except RunnerCapabilitySignal:
+        print(RUNNER_CAPABILITY_DIAGNOSTIC)
+        return RUNNER_CAPABILITY_EXIT_CODE
     try:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(

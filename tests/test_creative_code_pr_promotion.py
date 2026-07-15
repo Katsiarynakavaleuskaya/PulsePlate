@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 import subprocess
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -935,6 +935,70 @@ def test_validation_uses_isolated_checkout_and_destroyed_on_success(
         "patch_unchanged",
         "destroy:validation_checkout",
     ]
+
+
+def test_validation_capability_signal_cleans_checkout_without_artifact_or_leak(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    _repo, run_id, _result = _make_patch_run(monkeypatch, tmp_path)
+    git = cast(creative_code_pr_promotion.GitTransport, FakeGit())
+    planned = creative_code_pr_promotion.plan(
+        patch_run=run_id,
+        promotion_id="promotion-pr3-capability-signal",
+        git=git,
+    )
+    calls: list[str] = []
+    canary = "/Users/example/ghp_capability_canary"
+
+    def fake_prepare(**kwargs: Any) -> Path:
+        dirname = kwargs["dirname"]
+        assert isinstance(dirname, str)
+        calls.append(f"prepare:{dirname}")
+        checkout = Path(planned["promotion_dir"]) / dirname
+        checkout.mkdir()
+        return checkout
+
+    def fake_apply(**kwargs: Any) -> None:
+        calls.append("apply")
+
+    def fake_destroy(_promotion_dir: Path, dirname: str) -> bool:
+        calls.append(f"destroy:{dirname}")
+        return True
+
+    def raise_capability_signal(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        raise creative_code_pr_promotion.RunnerCapabilitySignal(canary)
+
+    monkeypatch.setattr(creative_code_pr_promotion, "_prepare_checkout", fake_prepare)
+    monkeypatch.setattr(creative_code_pr_promotion, "_apply_patch_and_verify", fake_apply)
+    monkeypatch.setattr(creative_code_pr_promotion, "_destroy_checkout", fake_destroy)
+    monkeypatch.setattr(
+        creative_code_pr_promotion,
+        "evaluate_candidate",
+        raise_capability_signal,
+    )
+
+    with pytest.raises(
+        CreativeCodePRPromotionError,
+        match=(
+            "^Fresh Experiment Runner capability unavailable; " "trusted dispatch is required\\.$"
+        ),
+    ) as exc_info:
+        creative_code_pr_promotion.validate(
+            promotion_id="promotion-pr3-capability-signal",
+            git=git,
+            gate_runner=creative_code_pr_promotion.GateRunner(),
+        )
+
+    assert exc_info.value.__cause__ is None
+    assert canary not in str(exc_info.value)
+    assert calls == [
+        "prepare:validation_checkout",
+        "apply",
+        "destroy:validation_checkout",
+    ]
+    promotion_dir = Path(planned["promotion_dir"])
+    assert not (promotion_dir / creative_code_pr_promotion.VALIDATION_FILE).exists()
 
 
 def test_approval_requires_validation_tty_exact_phrase_and_actor(
