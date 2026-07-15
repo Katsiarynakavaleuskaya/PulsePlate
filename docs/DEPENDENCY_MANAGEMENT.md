@@ -106,8 +106,8 @@ Regenerate these local/manual profiles through the approved local package-proxy
 environment:
 
 ```bash
-.venv/bin/python -m piptools compile --allow-unsafe --no-emit-index-url --output-file=requirements-data.txt requirements-data.in
-.venv/bin/python -m piptools compile --allow-unsafe --no-emit-index-url --output-file=requirements-evals.txt requirements-evals.in
+export PULSEPLATE_PYTHON_INDEX_URL="https://packages.pulseplate.app/root/pulseplate/+simple/"
+LOCK_PROFILES="data evals" make requirements-locks
 ```
 
 These profiles are offline support surfaces. They do not change OpenAPI,
@@ -325,50 +325,66 @@ interpreter.
 
 ## Updating Dependencies
 
-### Update all dependencies to latest compatible versions
+### Compile affected profiles through the private proxy
 
 ```bash
-# Update production dependencies
-pip-compile requirements.in --upgrade -o requirements.txt
+export PULSEPLATE_PYTHON_INDEX_URL="https://packages.pulseplate.app/root/pulseplate/+simple/"
 
-# Update Docker runtime dependencies
-pip-compile --allow-unsafe --no-emit-index-url --output-file=requirements-docker-runtime.txt requirements-docker-runtime.in
-
-# Update development dependencies
-pip-compile --allow-unsafe --no-emit-index-url requirements-dev.in --upgrade -o requirements-dev.txt
-pip-compile --allow-unsafe --no-emit-index-url --output-file=requirements-test.txt requirements-test.in
-pip-compile --allow-unsafe --no-emit-index-url --output-file=requirements-ci-lite.txt requirements-ci-lite.in
-
-# Update optional vector runtime dependencies
-pip-compile --allow-unsafe --no-emit-index-url requirements-rag-vector.in --upgrade -o requirements-rag-vector.txt
-pip-compile --allow-unsafe --no-emit-index-url requirements-rag-vector-cpu.in --upgrade -o requirements-rag-vector-cpu.txt
-
-# Recompile local/manual data and eval profiles
-pip-compile --allow-unsafe --no-emit-index-url --output-file=requirements-data.txt requirements-data.in
-pip-compile --allow-unsafe --no-emit-index-url --output-file=requirements-evals.txt requirements-evals.in
+# Select only affected registry profiles.
+# Runtime is a separate first pass because dependent profiles constrain on it.
+LOCK_PROFILES="runtime" make requirements-locks
+LOCK_PROFILES="docker-runtime ci-lite test dev aggregate rag-vector rag-vector-cpu data evals" \
+  make requirements-locks
 
 # Refresh local dependencies through the locked installer path
 make venv-sync
 ```
 
+The profile keys above come from the executable registry in
+`scripts/ci/check_python_dependency_surfaces.py`. The Make target requires an
+executable `VENV_PYTHON`, rejects ambient pip/uv source overrides, seeds each
+existing lock, validates referenced constraint files, and rolls back already
+replaced locks if a later replacement fails. Lock compilation uses the default
+non-root `~/.netrc`; `PULSEPLATE_PYTHON_NETRC` is rejected because pip does not
+consume that application-specific override. Do not call the underlying
+resolver directly.
+
 ### Update a specific dependency
 
 ```bash
-# Update only fastapi
-pip-compile requirements.in --upgrade-package fastapi -o requirements.txt
+# Update only an existing package in each profile that already owns it.
+LOCK_PROFILES="runtime" \
+  UPGRADE_PACKAGES="fastapi==0.138.1" \
+  make requirements-locks
+LOCK_PROFILES="docker-runtime ci-lite" \
+  UPGRADE_PACKAGES="fastapi==0.138.1" \
+  make requirements-locks
 make venv-sync
 ```
 
-### Add a new dependency
+`UPGRADE_PACKAGES` accepts whitespace-separated exact `package==version`
+tokens only. Without the explicit graph-change contract below, the compiler
+rejects package additions/removals. It always rejects `pip`, URL or marker
+targets, missing direct owners, and any unrelated version movement.
+
+### Add or remove a dependency graph entry
 
 ```bash
-# Add to requirements.in or requirements-dev.in
-echo "new-package>=1.0.0" >> requirements.in
+# First edit one owning requirements*.in profile. Run once without an allowlist;
+# the validator reports the deterministic added/missing normalized package set.
+LOCK_PROFILES="test" make requirements-locks
 
-# Recompile
-pip-compile requirements.in -o requirements.txt
-make venv-sync
+# Review that set, then authorize exactly those names for this one profile.
+LOCK_PROFILES="test" \
+  GRAPH_CHANGE_PACKAGES="new-direct-package new-transitive-package" \
+  make requirements-locks
 ```
+
+Graph reconciliation is intentionally single-profile and exact. Every added or
+removed normalized name must be listed, unused names fail, `pip` is forbidden,
+and unrelated version movement still requires an exact `UPGRADE_PACKAGES`
+target. Repeat the transaction for each owning profile; do not combine graph
+changes across profiles.
 
 ## CI/CD Integration
 

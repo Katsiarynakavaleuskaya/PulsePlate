@@ -93,24 +93,20 @@ the proxy is stale.
    proxy. Preserve the existing output file as the resolver seed and never emit
    the index URL into a tracked lock:
    ```bash
-   pip-compile --allow-unsafe --no-emit-index-url \
-     --output-file=requirements.txt requirements.in
-   pip-compile --allow-unsafe --no-emit-index-url \
-     --output-file=requirements-docker-runtime.txt requirements-docker-runtime.in
-   pip-compile --allow-unsafe --no-emit-index-url \
-     --output-file=requirements-ci-lite.txt requirements-ci-lite.in
-   pip-compile --allow-unsafe --constraint=requirements.txt --no-emit-index-url \
-     --output-file=requirements-dev.txt requirements-dev.in
-   pip-compile --allow-unsafe --no-emit-index-url \
-     --output-file=requirements-lock.txt requirements-dev.in requirements.in
+   export PULSEPLATE_PYTHON_INDEX_URL="https://packages.pulseplate.app/root/pulseplate/+simple/"
+   LOCK_PROFILES="runtime" \
+     UPGRADE_PACKAGES="package-name==fixed.version" \
+     make requirements-locks
+   LOCK_PROFILES="docker-runtime ci-lite dev aggregate" \
+     UPGRADE_PACKAGES="package-name==fixed.version" \
+     make requirements-locks
    ```
 3. Regenerate an optional lock only when that profile already owns the affected
    package. For example:
    ```bash
-   pip-compile --allow-unsafe --no-emit-index-url \
-     --output-file=requirements-rag-vector.txt requirements-rag-vector.in
-   pip-compile --allow-unsafe --no-emit-index-url \
-     --output-file=requirements-rag-vector-cpu.txt requirements-rag-vector-cpu.in
+   LOCK_PROFILES="rag-vector rag-vector-cpu" \
+     UPGRADE_PACKAGES="package-name==fixed.version" \
+     make requirements-locks
    ```
    Do not pull optional data, eval, or vector dependencies into shared runtime
    profiles merely to make the versions uniform.

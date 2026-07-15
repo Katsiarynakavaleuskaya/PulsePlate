@@ -722,7 +722,7 @@ make diff-cov   # Diff-coverage ≥97% on changed lines
 - Do not pin `pip` to an exact version in the Dockerfile (e.g., `pip==24.2`). Exact pins can fail when the build environment cannot resolve the version from PyPI index (proxy/index/TLS issues).
 - Prefer using base image pip without upgrade, or upgrade without version pin if upgrade is required.
 - If a pip version constraint is required, use a version range and document the reason + CI verification.
-- **Security fixes for Python dependencies must be done via `requirements.in`/`requirements.txt`, not via ad-hoc `pip install -U ...` in Dockerfile.** We allow unsafe packages (setuptools/pip/wheel) in lockfiles via `pip-compile --allow-unsafe` so security fixes live in `requirements.txt` and Dockerfile remains simple (no upgrade/install steps).
+- **Security fixes for Python dependencies must be done via the owning `requirements*.in` surface and `make requirements-locks`, not via ad-hoc `pip install -U ...` in Dockerfile.** The Make target requires the approved private proxy, excludes `pip` from generated locks, and preserves explicit security-floor packages such as `setuptools`; Dockerfile remains free of dependency upgrade/install steps.
 - **Python 3.13+ compatibility:** If CI/main uses Python 3.13+, then `greenlet` must be `>=3.1.0,<4.0.0` (greenlet 3.1.0+ adds Python 3.13 support; 3.0.x may fail to build/run on 3.13).
 - Smoke tests must build the image on the current base image; any Python base image bumps → verify tooling compatibility (pip/setuptools/wheel).
 
@@ -2001,11 +2001,11 @@ git grep -nE "spec_from_file_location|exec_module|sys\.modules\[" -- scripts || 
 - If a package is yanked on public PyPI, any `==` pin on it must be replaced with a `>=` floor
   pointing to the next non-yanked patch/minor version in **all** `requirements*.in` surfaces.
 - After updating `.in` files, regenerate **every** affected `requirements*.txt` lockfile via
-  `pip-compile` so that no yanked version remains in any lock surface.
+  `LOCK_PROFILES="<profiles>" make requirements-locks` so that no yanked version remains in any lock surface.
 - Each yanked-package override must carry an explicit inline comment in the `.in` file with:
   the yanked version, the reason (if known), and a link to the PR or issue that introduced the
   change. Example: `# numpy: 2.4.0 was yanked on public PyPI; using >=2.4.1`.
-- `pip-compile` output must be checked for yanked warnings; a clean run with no yanked warnings
+- The governed Make output must be checked for yanked warnings; a clean run with no yanked warnings
   is required before the PR can be marked ready.
 
 ---

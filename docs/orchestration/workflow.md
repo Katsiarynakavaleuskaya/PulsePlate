@@ -269,7 +269,7 @@ Rule:
 |-------|--------------|
 | **Low** | "CVE-2026-1234 affects package X. Fix it." |
 | **Medium** | "CVE-2026-1234: package X < 2.0.0 is vulnerable. Bump to ≥2.0.0 in requirements.txt" |
-| **High** | "CVE-2026-1234: (1) Update `requirements.in` line 15, (2) Run `pip-compile`, (3) Update `constraints.txt`, (4) Create `docs/security/CVE-2026-1234-x.md`, (5) Run `pytest tests/test_dependency_security_guard.py`" |
+| **High** | "CVE-2026-1234: (1) Update the owning `requirements*.in` file, (2) Run the private-proxy `make requirements-locks` workflow for that profile, (3) Update `constraints.txt`, (4) Create `docs/security/CVE-2026-1234-x.md`, (5) Run `pytest tests/test_dependency_security_guard.py`" |
 
 ### Usage in Prompts
 

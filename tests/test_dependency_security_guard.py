@@ -517,7 +517,7 @@ def test_blocked_versions_check_all_pinned_versions(tmp_path: Path) -> None:
     """Blocked-version guard must not collapse marker-split pins to one version."""
     req = tmp_path / "requirements.txt"
     req.write_text(
-        'some-pkg==2.0.3; python_version < "3.13"\n' 'some_pkg==3.0.0; python_version >= "3.13"\n',
+        'some-pkg==2.0.3; python_version < "3.13"\nsome_pkg==3.0.0; python_version >= "3.13"\n',
         encoding="utf-8",
     )
 
@@ -608,10 +608,9 @@ def test_blocked_version_enforcement_with_fake_surface(tmp_path: Path) -> None:
 def test_repo_managed_lock_surfaces_do_not_pin_pip() -> None:
     """Guard: repo-managed lock surfaces must not pin pip as an unsafe package.
 
-    pip-compile --allow-unsafe may reintroduce pip==... entries; the repo
-    security policy (GHSA-58qw-9mgm-455v-pip.md) requires these entries to
-    be absent.  This guard prevents future drift regardless of the specific
-    pip version.
+    The governed private-proxy compiler must never emit pip==... entries; the
+    repo security policy (GHSA-58qw-9mgm-455v-pip.md) requires these entries
+    to be absent regardless of the specific pip version.
     """
     pinned_surfaces = [
         surface for surface in REQUIREMENT_SURFACES if not _is_constraint_style(surface)

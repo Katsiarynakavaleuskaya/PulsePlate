@@ -4,7 +4,7 @@ all: lint test cov-check
 validate-data: ensure-database-versions
 	python3 scripts/validate_data.py
 
-.PHONY: all ensure-database-versions ensure-python-proxy docker-source-artifacts
+.PHONY: all ensure-database-versions ensure-python-proxy requirements-locks docker-source-artifacts
 ensure-database-versions:
 	python3 scripts/ensure_database_versions.py
 
@@ -72,6 +72,24 @@ HOOK_REPO_PYTHON = . scripts/hooks/repo_python.sh; resolve_repo_python "$$PWD"
 # openapi) use DEV_PYTHON.  Venv-specific targets (venv, venv-sync, verify-env)
 # still use VENV_PYTHON directly.
 DEV_PYTHON ?= $(if $(wildcard $(VENV_PYTHON)),$(VENV_PYTHON),python3)
+
+# Preserve lock request values literally. GNU Make expands command-line and
+# environment variables recursively by default; $(value ...) captures the raw
+# operator input before exporting it to the argv-only Python parser.
+override PULSEPLATE_LOCK_PROFILES_RAW := $(value LOCK_PROFILES)
+override PULSEPLATE_LOCK_UPGRADES_RAW := $(value UPGRADE_PACKAGES)
+override PULSEPLATE_LOCK_GRAPH_CHANGES_RAW := $(value GRAPH_CHANGE_PACKAGES)
+export PULSEPLATE_LOCK_PROFILES_RAW
+export PULSEPLATE_LOCK_UPGRADES_RAW
+export PULSEPLATE_LOCK_GRAPH_CHANGES_RAW
+unexport LOCK_PROFILES
+unexport UPGRADE_PACKAGES
+unexport GRAPH_CHANGE_PACKAGES
+
+## Compile selected Python locks through the approved private proxy
+requirements-locks: ensure-python-proxy ## Compile registry-owned locks (set LOCK_PROFILES; optional UPGRADE_PACKAGES/GRAPH_CHANGE_PACKAGES)
+	@test -x "$(VENV_PYTHON)" || (echo "$(RED)❌ $(VENV_PYTHON) missing or not executable. Run 'make venv' first.$(NC)" && exit 1)
+	PULSEPLATE_LOCK_COMPILE_VIA_MAKE=1 "$(VENV_PYTHON)" scripts/ci/compile_locked_python_requirements.py
 
 # Dev Container compose settings (worktree-safe project name)
 COMPOSE_PROJECT_NAME_SUFFIX := $(strip $(shell pwd -P | cksum | cut -d' ' -f1))
@@ -603,4 +621,4 @@ dc-smoke: ## Verify tooling inside dev container
 	docker compose -f "$(DEVCONTAINER_COMPOSE)" run --rm devcontainer \
 		bash -lc "python3 --version && node --version && make --version"
 
-.PHONY: all help venv venv-sync setup-automation dev test test-fast validate-min validate-changed pr-start pr-regression-scan cov cov-check cov-html lint fmt fmt-check security pre-commit quick-check auto-push safe-push feature sync-main status clean check-all fix-all ci smoke-auto smoke-8000 smoke-8001 docker-source-artifacts docker-build docker-build-dev docker-run docker-run-dev docker-stop docker-clean docker-logs docker-shell bandit-full diff-cov typecheck verify verify-env openapi frontend-install openapi-check ios-test ios-snapshot ios-appstore-validate ios-appstore-upload ios-appstore-upload-privacy ios-appstore-verify icon-silhouette-lock icon-silhouette-check icon-core-validate design-guard tokens-build tokens-check design-validate design-execute design-verify design-list devcontainer-bootstrap dc-up dc-shell dc-down dc-smoke
+.PHONY: all help venv venv-sync requirements-locks setup-automation dev test test-fast validate-min validate-changed pr-start pr-regression-scan cov cov-check cov-html lint fmt fmt-check security pre-commit quick-check auto-push safe-push feature sync-main status clean check-all fix-all ci smoke-auto smoke-8000 smoke-8001 docker-source-artifacts docker-build docker-build-dev docker-run docker-run-dev docker-stop docker-clean docker-logs docker-shell bandit-full diff-cov typecheck verify verify-env openapi frontend-install openapi-check ios-test ios-snapshot ios-appstore-validate ios-appstore-upload ios-appstore-upload-privacy ios-appstore-verify icon-silhouette-lock icon-silhouette-check icon-core-validate design-guard tokens-build tokens-check design-validate design-execute design-verify design-list devcontainer-bootstrap dc-up dc-shell dc-down dc-smoke

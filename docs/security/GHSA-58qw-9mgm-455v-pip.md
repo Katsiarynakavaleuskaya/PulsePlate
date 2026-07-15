@@ -17,6 +17,11 @@ GitHub reports this advisory for lockfile entries produced by
 nonexistent safe version. Instead, it removes the unsafe `pip==...` lock entries
 and records a deterministic blocked-version guard.
 
+Current lock regeneration no longer exposes that historical direct command.
+The active workflow is `make requirements-locks`, which excludes `pip`, keeps
+the explicit `setuptools` security floor, and uses only the approved private
+proxy.
+
 ## Repo Evidence
 
 - `requirements-dev.txt:250` (`setuptools==78.1.1`) — unsafe block has no

@@ -25,6 +25,20 @@ if str(REPO_ROOT) not in sys.path:
 CONTRACT_DOC = Path("docs/contracts/PYTHON_DEPENDENCY_SURFACES.md")
 DEPENDENCY_DOC = Path("docs/DEPENDENCY_MANAGEMENT.md")
 REQUIREMENTS_GUIDE = Path("REQUIREMENTS.md")
+ACTIVE_LOCK_WORKFLOW_DOCS = (
+    Path("AGENTS.md"),
+    REQUIREMENTS_GUIDE,
+    DEPENDENCY_DOC,
+    CONTRACT_DOC,
+    Path("docs/orchestration/workflow.md"),
+    Path("docs/evals/RAGAS_SETUP.md"),
+    Path("docs/security/DEPENDENCY_SECURITY_GUARD_WORKFLOW.md"),
+)
+FORBIDDEN_ACTIVE_LOCK_WORKFLOW_TOKENS = (
+    "pip-compile",
+    "piptools compile",
+    "--allow-unsafe",
+)
 PYTHON_SETUP_ACTION = Path(".github/actions/python-setup/action.yml")
 PIP_AUDIT_HELPER = Path("scripts/ci_pip_audit.sh")
 DEPENDENCY_SUBMISSION_WORKFLOW = Path(".github/workflows/python-dependency-submission.yml")
@@ -59,6 +73,11 @@ WORKFLOW_PATH_ENTRY_RE = re.compile(
     r"^\s*-\s*[\"']?(?P<path>requirements[-A-Za-z0-9_]*\.(?:in|txt))[\"']?\s*$"
 )
 DEPENDENCY_SUBMISSION_TRIGGER_EVENTS = ("push", "pull_request")
+DIRECT_OWNER_CONTAINMENT_RELATIONS = (
+    (("requirements-test.in",), "requirements-test.txt"),
+    (("requirements-dev.in",), "requirements-dev.txt"),
+    (("requirements.in", "requirements-dev.in"), "requirements-lock.txt"),
+)
 
 OWNERSHIP_ERROR = "error"
 OWNERSHIP_WARNING = "warning"
@@ -141,10 +160,7 @@ class DependencyOwnershipFinding:
 
     def to_message(self) -> str:
         surface_text = ", ".join(self.surfaces) if self.surfaces else "repo imports"
-        return (
-            f"{self.package}: {self.severity}:{self.reason_code}: "
-            f"{self.detail} [{surface_text}]"
-        )
+        return f"{self.package}: {self.severity}:{self.reason_code}: {self.detail} [{surface_text}]"
 
 
 @dataclass(frozen=True)
@@ -163,6 +179,8 @@ class DependencySurface:
     allow_empty_lock: bool = False
     allow_lock_directives: tuple[str, ...] = ()
     noncanonical_install: bool = False
+    compile_profile: str | None = None
+    compile_sources: tuple[str, ...] = ()
 
 
 DEPENDENCY_SURFACES: tuple[DependencySurface, ...] = (
@@ -176,6 +194,8 @@ DEPENDENCY_SURFACES: tuple[DependencySurface, ...] = (
         shared_profiles=("runtime", "runtime-dev", "runtime-test", "rag-vector"),
         pip_audit_required=True,
         dependency_submission_required=True,
+        compile_profile="runtime",
+        compile_sources=("requirements.in",),
     ),
     DependencySurface(
         name="docker-runtime",
@@ -186,6 +206,8 @@ DEPENDENCY_SURFACES: tuple[DependencySurface, ...] = (
         install_authority="Dockerfile and production image workflows",
         pip_audit_required=True,
         dependency_submission_required=True,
+        compile_profile="docker-runtime",
+        compile_sources=("requirements-docker-runtime.in",),
     ),
     DependencySurface(
         name="ci-lite",
@@ -196,6 +218,8 @@ DEPENDENCY_SURFACES: tuple[DependencySurface, ...] = (
         install_authority="ci-lite and ci-test profiles",
         shared_profiles=("ci-lite", "ci-test"),
         dependency_submission_required=True,
+        compile_profile="ci-lite",
+        compile_sources=("requirements-ci-lite.in",),
     ),
     DependencySurface(
         name="test",
@@ -206,6 +230,8 @@ DEPENDENCY_SURFACES: tuple[DependencySurface, ...] = (
         install_authority="runtime-test and ci-test profiles",
         shared_profiles=("runtime-test", "ci-test"),
         dependency_submission_required=True,
+        compile_profile="test",
+        compile_sources=("requirements-test.in",),
     ),
     DependencySurface(
         name="dev",
@@ -216,6 +242,8 @@ DEPENDENCY_SURFACES: tuple[DependencySurface, ...] = (
         install_authority="runtime-dev profile",
         shared_profiles=("runtime-dev",),
         dependency_submission_required=True,
+        compile_profile="dev",
+        compile_sources=("requirements-dev.in",),
     ),
     DependencySurface(
         name="rag-vector",
@@ -227,6 +255,8 @@ DEPENDENCY_SURFACES: tuple[DependencySurface, ...] = (
         shared_profiles=("rag-vector",),
         pip_audit_required=True,
         dependency_submission_required=True,
+        compile_profile="rag-vector",
+        compile_sources=("requirements-rag-vector.in",),
     ),
     DependencySurface(
         name="rag-vector-cpu",
@@ -238,6 +268,8 @@ DEPENDENCY_SURFACES: tuple[DependencySurface, ...] = (
         pip_audit_required=True,
         dependency_submission_required=True,
         allow_lock_directives=("--extra-index-url https://download.pytorch.org/whl/cpu",),
+        compile_profile="rag-vector-cpu",
+        compile_sources=("requirements-rag-vector-cpu.in",),
     ),
     DependencySurface(
         name="data",
@@ -248,6 +280,8 @@ DEPENDENCY_SURFACES: tuple[DependencySurface, ...] = (
         install_authority="Manual local locked-installer sync only",
         pip_audit_required=True,
         dependency_submission_required=True,
+        compile_profile="data",
+        compile_sources=("requirements-data.in",),
     ),
     DependencySurface(
         name="evals",
@@ -259,6 +293,8 @@ DEPENDENCY_SURFACES: tuple[DependencySurface, ...] = (
         pip_audit_required=True,
         dependency_submission_required=True,
         allow_empty_lock=True,
+        compile_profile="evals",
+        compile_sources=("requirements-evals.in",),
     ),
     DependencySurface(
         name="dev-full-lock",
@@ -269,6 +305,8 @@ DEPENDENCY_SURFACES: tuple[DependencySurface, ...] = (
         install_authority="Noncanonical; not a shared install profile",
         dependency_submission_required=True,
         noncanonical_install=True,
+        compile_profile="aggregate",
+        compile_sources=("requirements-dev.in", "requirements.in"),
     ),
     DependencySurface(
         name="all-flexible",
@@ -280,6 +318,45 @@ DEPENDENCY_SURFACES: tuple[DependencySurface, ...] = (
         noncanonical_install=True,
     ),
 )
+
+
+def compiled_dependency_surfaces() -> tuple[DependencySurface, ...]:
+    """Return the registry-owned surfaces that the governed compiler may write."""
+
+    return tuple(surface for surface in DEPENDENCY_SURFACES if surface.compile_profile is not None)
+
+
+def validate_compile_registry() -> None:
+    """Reject source duplication between the primary registry and compiler metadata."""
+
+    for surface in compiled_dependency_surfaces():
+        if surface.source_file is None:
+            if surface.compile_profile != "aggregate" or len(surface.compile_sources) < 2:
+                raise ValueError(
+                    f"{surface.name}: only aggregate may have compiler sources without "
+                    "a primary source file"
+                )
+            continue
+        if surface.compile_sources != (surface.source_file,):
+            raise ValueError(f"{surface.name}: compile_sources must mirror source_file exactly")
+
+
+def render_governed_lock_header(surface: DependencySurface) -> str:
+    """Render stable Make-only provenance for a compiled dependency surface."""
+
+    if surface.compile_profile is None or not surface.compile_sources:
+        raise ValueError(f"Surface is not compile-enabled: {surface.name}")
+    source_list = ", ".join(surface.compile_sources)
+    return (
+        "#\n"
+        "# Managed by the PulsePlate private-proxy lock workflow.\n"
+        f"# Profile: {surface.compile_profile}\n"
+        f"# Sources: {source_list}\n"
+        "# Regenerate with:\n"
+        "#\n"
+        f'#    LOCK_PROFILES="{surface.compile_profile}" make requirements-locks\n'
+        "#\n"
+    )
 
 
 def _relative(path: str) -> Path:
@@ -578,18 +655,15 @@ def _require_exact_lock_entries(
             errors.append("requirements-all.txt must remain a reference to requirements.txt.")
         return
 
-    if "# This file is autogenerated by pip-compile" not in lock_text:
-        errors.append(f"{surface.lockfile}: missing pip-compile generated header.")
-    if f"--output-file={surface.lockfile}" not in lock_text:
-        errors.append(f"{surface.lockfile}: header must name --output-file={surface.lockfile}.")
-    expected_sources = (
-        ("requirements-dev.in", "requirements.in")
-        if surface.lockfile == "requirements-lock.txt"
-        else ((surface.source_file,) if surface.source_file is not None else ())
-    )
-    for source_file in expected_sources:
-        if source_file not in lock_text:
-            errors.append(f"{surface.lockfile}: generated header must reference {source_file}.")
+    if surface.compile_profile is None:
+        errors.append(f"{surface.lockfile}: compiled surface lacks a compiler profile.")
+    else:
+        expected_header = render_governed_lock_header(surface)
+        if not lock_text.startswith(expected_header):
+            errors.append(
+                f"{surface.lockfile}: header must match governed profile "
+                f"{surface.compile_profile!r} and sources {list(surface.compile_sources)!r}."
+            )
 
     for token in FORBIDDEN_LOCK_TOKENS:
         if token in lock_text:
@@ -613,6 +687,19 @@ def _require_exact_lock_entries(
     has_requirements = any(_is_requirement_line(line) for line in lock_text.splitlines())
     if not has_requirements and not surface.allow_empty_lock:
         errors.append(f"{surface.lockfile}: compiled lockfile must contain at least one pin.")
+
+
+def _validate_active_lock_workflow_docs(repo_root: Path, errors: list[str]) -> None:
+    """Reject obsolete direct lock-compilation commands in active authorities."""
+
+    for relative_path in ACTIVE_LOCK_WORKFLOW_DOCS:
+        text = _read_text(repo_root, relative_path)
+        for token in FORBIDDEN_ACTIVE_LOCK_WORKFLOW_TOKENS:
+            if token in text:
+                errors.append(
+                    f"{relative_path}: active lock workflow must use make requirements-locks; "
+                    f"forbidden token {token!r}."
+                )
 
 
 def _validate_shared_profiles(repo_root: Path, errors: list[str]) -> None:
@@ -662,6 +749,21 @@ def _validate_security_coverage(repo_root: Path, errors: list[str]) -> None:
                             f"{DEPENDENCY_SUBMISSION_WORKFLOW}: {event}.paths missing "
                             f"dependency submission trigger for {trigger_file}."
                         )
+
+
+def _validate_direct_owner_containment(repo_root: Path, errors: list[str]) -> None:
+    """Require each managed lock to retain its normalized direct package owners."""
+    for source_files, lockfile in DIRECT_OWNER_CONTAINMENT_RELATIONS:
+        direct_packages: set[str] = set()
+        for source_file in source_files:
+            direct_packages.update(_requirement_package_names(repo_root, source_file))
+        lock_packages = _requirement_package_names(repo_root, lockfile)
+        missing_packages = sorted(direct_packages - lock_packages)
+        if missing_packages:
+            source_label = " + ".join(source_files)
+            errors.append(
+                f"{lockfile}: missing direct packages from {source_label}: {missing_packages}."
+            )
 
 
 def _validate_docs(repo_root: Path, errors: list[str]) -> None:
@@ -941,11 +1043,13 @@ def collect_dependency_ownership_findings(
 def validate_repo(repo_root: Path = REPO_ROOT) -> list[str]:
     """Return all dependency-surface contract violations for a repo root."""
     errors: list[str] = []
+    try:
+        validate_compile_registry()
+    except ValueError as exc:
+        errors.append(str(exc))
     expected_files = _known_requirement_surfaces()
     required_policy_files = {
-        str(CONTRACT_DOC),
-        str(DEPENDENCY_DOC),
-        str(REQUIREMENTS_GUIDE),
+        *(str(path) for path in ACTIVE_LOCK_WORKFLOW_DOCS),
         str(PYTHON_SETUP_ACTION),
         str(PIP_AUDIT_HELPER),
         str(DEPENDENCY_SUBMISSION_WORKFLOW),
@@ -967,6 +1071,8 @@ def validate_repo(repo_root: Path = REPO_ROOT) -> list[str]:
 
     _validate_shared_profiles(repo_root, errors)
     _validate_security_coverage(repo_root, errors)
+    _validate_direct_owner_containment(repo_root, errors)
+    _validate_active_lock_workflow_docs(repo_root, errors)
     _validate_docs(repo_root, errors)
     errors.extend(
         finding.to_message()

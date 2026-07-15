@@ -69,12 +69,26 @@ python scripts/ci/check_python_dependency_surfaces.py
 ```
 
 The validator checks that every root `requirements*.in` / `requirements*.txt`
-surface is registered, compiled lockfiles still carry their pip-compile
+surface is registered, compiled lockfiles carry their governed Make/profile
 provenance, local/manual surfaces stay out of shared install routing, and
 security/dependency-submission coverage remains documented.
 
 ## Regeneration
 
-Use the commands in `docs/DEPENDENCY_MANAGEMENT.md` for lockfile regeneration.
-Do not regenerate lockfiles as part of dependency-surface documentation or
-validator-only PRs.
+Export the approved private proxy and compile only the profiles owned by the
+change:
+
+```bash
+export PULSEPLATE_PYTHON_INDEX_URL="https://packages.pulseplate.app/root/pulseplate/+simple/"
+LOCK_PROFILES="test dev aggregate" \
+  UPGRADE_PACKAGES="coverage==7.15.1 faker==40.31.0" \
+  make requirements-locks
+```
+
+`LOCK_PROFILES` is required. `UPGRADE_PACKAGES` is optional and accepts only
+exact existing `package==version` targets. The compiler seeds existing locks,
+rejects unrelated graph movement, never records the proxy URL, and rolls back a
+multi-lock update if any replacement fails. Runtime must be compiled in a
+separate first pass before profiles constrained by `requirements.txt`. See
+`docs/DEPENDENCY_MANAGEMENT.md` for profile and graph-change procedures. Do not
+regenerate lockfiles in documentation-only or validator-only PRs.
