@@ -1,130 +1,61 @@
-<!-- markdownlint-disable MD013 MD033 -->
+<!-- markdownlint-disable MD013 -->
 
 # Pull Request
 
-## Summary
+## Goal
 
-(Free-form description of changes, e.g., "Fix crash in BMI calculation when height is zero")
+<!-- Concrete outcome this PR must produce. -->
 
-- [ ] I reviewed `docs/ENGINEERING_LESSONS.md` and followed repo policies (determinism, import hygiene, contracts).
-- [ ] Select one change type:
-  - [ ] Bug fix
-  - [ ] Feature
-  - [ ] Refactor
-  - [ ] Docs
-- [ ] Linked issues/PRs: #
+## Business reason
 
-## Risk & Impact
+<!-- Revenue, retention, trust, automation, operations, or risk reduction. -->
 
-(User-facing change? Data model/migration? Security- or Performance-sensitive?)
+## Scope
 
-- [ ] User-facing change
-- [ ] Data model/migration
-- [ ] Security-sensitive
-- [ ] Performance-sensitive
+<!-- Narrow in-scope behavior and contracts. -->
 
-## Test Plan
+## Out of scope
 
-(Unit: small isolated functions; Integration: endpoints/DB; Manual: steps to verify)
+<!-- Explicit boundaries that keep the lane auditable. -->
 
-- [ ] Unit tests updated/added
-- [ ] Integration/slow tests (if applicable)
-- [ ] Manual verification steps
+## Files changed
 
-## CI Gates
+<!-- Important production, test, workflow, and contract surfaces. -->
 
-(PR tests must pass; Diff coverage means tests cover changed lines ≥ threshold)
+## Key decisions
 
-- [ ] PR tests green (lint, type, unit)
-- [ ] Diff coverage ≥ 97% on changed lines
+<!-- Decisions whose trade-offs a reviewer must understand. -->
 
-## Split Justification
+## Tests / validation
 
-(Required only when the PR is > 800 changed LoC under Tier 1 governance.)
+<!-- Exact local commands and current-head CI evidence; distinguish pending from passed. -->
+
+## Security notes
+
+<!-- Privileged surfaces, trust boundaries, threat model, or Not applicable with reason. -->
+
+## Risks / rollback
+
+<!-- Failure modes, observability, and the exact safe rollback. -->
+
+## Review governance
+
+- Canonical artifact: `docs/review/PR_<N>_FIXED_MAPPING.md`
+
+## Split justification
+
+<!-- Required only above the Tier 1 800 changed-LoC threshold. -->
 
 - Why this PR cannot be split safely:
-- What invariant, contract, or rollout constraint requires one PR:
-- What follow-up PRs remain after this large change:
-
-## Discussion Thread Pass
-
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
-
-### Fixed in Commit Mapping
-
-- `<review-comment-url>` -> `<commit-sha>`
-- No actionable review comments
-
-## Merge Readiness (Mandatory)
-
-- [ ] PR is non-draft only when truly ready for merge
-- [ ] All required checks are green on latest commit (no pending/rerun required)
-- [ ] No unresolved review threads
-- [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
-- [ ] Wait-window completed after latest bot/review activity (do not merge on first green tick)
+- Invariant or rollout constraint requiring one PR:
+- Follow-up PRs:
 
 ## Deferred / Follow-ups
 
-- [ ] Ledger item(s): <link to docs/roadmap/BACKLOG_LEDGER.md entry or "None">
-- [ ] GitHub issue(s): <link> (if any)
+<!-- Ledger links or None. -->
 
-## Notes
+## Next best step
 
-### For Simple Changes
+<!-- One bounded action after this PR. -->
 
-Use this checklist to confirm the PR is truly simple:
-
-- [ ] No database/schema/migration changes
-- [ ] No public API contract changes (endpoints, request/response, events)
-- [ ] Covered by existing tests (or adds ≤ 1-2 focused unit tests)
-- [ ] < 50 LOC changed (excluding tests/docs)
-- [ ] No performance or security impact
-
-Example: Copy change in docs, minor log level tweak, small refactor of a pure function.
-
-Rollback / Feature flag (brief):
-
-- How to revert: describe the commit to revert or config to change
-- Feature flag/toggle (if any): name and how to disable
-- Owner for emergency contact: @username
-
-### For Complex/High-Risk Changes
-
-Please fill out the following sections if applicable:
-
-#### Deployment Strategy
-
-- [ ] Deployment order for multi-service changes (if services depend on each other)
-- [ ] Feature flag configuration (enable/disable without redeploy)
-- [ ] Blue-green / canary deployment plan (if applicable)
-
-#### Database & Data Changes
-
-- [ ] Database migrations required (Alembic version, backwards compatibility)
-- [ ] Data migration/backfill steps (scripts, rollback procedures)
-- [ ] Data cleanup steps (if removing deprecated data)
-- [ ] Backwards compatibility guarantees (old clients still work)
-
-#### Monitoring & Observability
-
-- [ ] New monitoring/alerting rules to add (metrics, thresholds, SLOs)
-- [ ] Dashboards to create/update (Grafana, DataDog, etc.)
-- [ ] Logging changes (new log levels, structured logs, correlation IDs)
-- [ ] Health check endpoints affected
-
-#### Post-Deploy Verification
-
-- [ ] Manual verification checklist (specific endpoints, user flows)
-- [ ] Smoke tests to run (automated or manual)
-- [ ] Performance benchmarks to verify (latency, throughput)
-- [ ] Rollback triggers (what conditions require immediate rollback)
-
-#### Additional Context
-
-- [ ] Breaking changes (API contracts, response formats)
-- [ ] Dependencies updated (requirements.txt, package versions)
-- [ ] Configuration changes (env vars, secrets, feature toggles)
-- [ ] Documentation updates needed (README, API docs, runbooks)
-
-<!-- markdownlint-enable MD013 MD033 -->
+<!-- markdownlint-enable MD013 -->

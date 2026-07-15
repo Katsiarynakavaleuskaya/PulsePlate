@@ -101,7 +101,10 @@ dead interpreter. Missing scripts are OK; see
   pending jobs, not failed checks. Use the strict merge wrapper plus targeted
   `gh run view <RUN_ID>` inspection before calling a PR red or green.
 - Mandatory wait-window: after the latest bot/review activity, do one final check pass and wait at least one review cycle before merge (never merge on the first green tick).
-- Merge checklist is mandatory: canonical artifact `docs/review/PR_<N>_FIXED_MAPPING.md` (Fixed in Commit Mapping SoT) plus PR body mirror (`## Discussion Thread Pass`, `### Fixed in Commit Mapping`, `## Merge Readiness`).
+- Merge checklist is mandatory: canonical artifact
+  `docs/review/PR_<N>_FIXED_MAPPING.md` (Fixed in Commit Mapping and review-seal
+  SoT) plus one PR-body link to that artifact. Do not duplicate URL→SHA mapping
+  blocks in the PR body.
 - This gate applies to every non-draft PR before merge.
 
 **Current PR lane baseline (Tier 1 governance):**
@@ -196,6 +199,23 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
 5. If no disposition can be determined, **the thread remains open**.
 6. **Commit-after-comment:** When a thread is mapped to a commit SHA (e.g. `- <url> -> <sha>`), that commit MUST have been made **after** the comment timestamp. Merge readiness gate fails otherwise (enforced by `check_review_threads_disposition.py`). This prevents "map/resolve without fix": fix code first, then add mapping and resolve.
 7. **FIXED proof quality (trigger-only ban):** A commit SHA used as FIXED proof (`- <thread_url> -> <commit_sha>`) MUST NOT be a trigger-only commit. **Trigger-only** means: (a) **empty commit** (no changed files), or (b) commit subject containing `trigger ci`, `rerun ci`, or `rerun checks` (case-insensitive). Such SHAs are invalid FIXED proof and fail the merge readiness gate. Exceptions only via allowlist with TTL (empty by default; P2 if needed).
+8. **Review seal v1:** a FIXED proof uses a full 40-character SHA that GitHub
+   proves is in the complete live PR commit graph and reachable from the live
+   PR head. Reviewer execution SHAs are opaque until the Commit API proves
+   them repository-addressable; unavailable/API-unknown refs must never enter
+   ancestry checks.
+9. **Material identity:** one Codex review and one completed final Codex Security
+   diff scan bind to one material digest. The trusted submitted review object's
+   real GitHub `commit_id` must equal the frozen material head; a synthetic
+   execution ref is never review proof. Every path is material except the exact
+   current-PR mapping artifact. PR-body edits are outside Git. Any later code,
+   test, workflow, dependency, policy, contract, or other docs change invalidates
+   the seal and reopens review/final scan.
+10. **One closeout commit:** author dispositions and the content-bound human
+    receipt locally with `pr_review_closeout.py`, then publish mapping and seal
+    once. A repeated trusted Codex unavailable-ref ancestry finding on the same
+    digest is handled by an authorized structured reply in the resolved thread;
+    it does not create another docs commit or restart review/security scans.
 
 **Purpose:** This policy prevents "checkbox-only" resolutions and ensures that every review comment results in a concrete action, justification, or backlog entry.
 
@@ -504,10 +524,11 @@ Rules:
   pre-open role agents. This post-open chain is a single required pass for the
   lane, not an unbounded loop. Later review or bot comments must be handled by
   fixing or dispositioning the specific finding in `docs/review/PR_<N>_FIXED_MAPPING.md`
-  and rerunning targeted gates; do not restart the full role/Codex Security/
-  `pulseplate-pr-review` chain unless the diff gained new security-relevant code
-  surface, the coordinator records a new evidence-backed routing update, or the
-  operator explicitly requests another run.
+  and rerunning targeted gates. Request Codex review manually after material
+  freeze and run the final Codex Security diff scan only after all material
+  fixes. Do not restart the full role/review/scan chain unless the material
+  digest changed, a run failed or was incomplete, the coordinator records a
+  new evidence-backed routing update, or the operator explicitly overrides it.
 
 ### Mandatory PR Orchestration Gates
 
@@ -551,7 +572,11 @@ All non-trivial PR work must follow this coordinator-owned lifecycle:
 1. **Start**: run preflight, inspect the governing docs, and let coordinator define scope, risks, and required agents before editing code or docs.
 2. **Open non-draft by default**: open PRs as ready-for-review once the branch has a coherent scope, initial PR body, and canonical artifact path. Draft PRs require an explicit operator exception because they suppress or delay bot review and current-head merge verification.
 3. **Push cycle**: before each push, run `pre-commit run --all-files` and the applicable local gates; after each push, watch the **current-head** CI state, not stale historical runs.
-4. **Review cycle**: treat every new human or bot comment as coordinator input; record disposition in `docs/review/PR_<N>_FIXED_MAPPING.md` first, update the PR-body mirror second, and re-run merge-readiness checks after the latest activity.
+4. **Review cycle**: freeze the material state, request one Codex review, apply
+   any material fix and refreeze, then run one final security scan. Keep
+   dispositions in the gitignored closeout draft and publish one generated
+   mapping/seal commit. The PR body keeps one artifact link; a validated
+   same-digest duplicate uses a structured thread reply only.
 5. **Merge cycle**: claim merge readiness only after the strict wrapper passes, required current-head checks are green with no pending jobs, no actionable bot comments remain, and the mandatory wait-window has elapsed.
 
 ### Next-PR Start Gate
@@ -735,7 +760,9 @@ make fmt-check
 
 ### 5) PR body Phase 2 gates (PR metadata contract)
 
-Canonical source: `docs/review/PR_<N>_FIXED_MAPPING.md` (artifact). PR body is mirror/fallback when event has no pr_number.
+Canonical source: `docs/review/PR_<N>_FIXED_MAPPING.md` (artifact). For normal PR
+events the PR body contains one link to that artifact. Body-only parsing remains
+a legacy/local fallback, not an instruction to copy mapping lines.
 
 ```bash
 python scripts/ci/check_pr_body_phase2_gates.py --event-path /path/to/event.json
@@ -745,7 +772,9 @@ python scripts/ci/check_pr_body_phase2_gates.py --body "..."
 
 **Rules:**
 
-- Scope: Canonical artifact must include required headings + checked checklist + mapping details. PR body may mirror for human readability.
+- Scope: Canonical artifact must include required headings, checked checklist,
+  mapping details, and v1 seal when activated. The PR body must not mirror
+  URL→SHA entries.
 - Mapping validation is scoped to content under `## Fixed in Commit Mapping` in artifact (or body when used as fallback).
 - CI trigger requirement: workflow `pull_request` types MUST include `edited` so body updates re-run the gate.
 - Timeout policy: `pr_body_phase2_gates` timeout must be sourced from workflow context compatible with `timeout-minutes` (use `vars` + `fromJSON(...)`; `env` is not available at this key).
