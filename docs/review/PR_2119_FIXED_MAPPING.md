@@ -160,6 +160,9 @@ superseded by this replacement-head evidence.
 - PASS: `make validate-changed` and the exact `BRANCH_DIFF_MODE=1`
   pre-commit backend-test path; both selected the four owner/runner test files
   and completed all 195 tests.
+- PASS: `pre-commit run --all-files`, including detect-secrets, workflow
+  checks, Black, Ruff, Bandit, frontend tests, changed backend tests, and iOS
+  syntax; hooks made no file changes.
 - PASS: `git diff --check`.
 - PASS: actual-diff premortem after its one false-green test finding was fixed.
 - PASS: explicit Apple Container oracle evidence, three of three commands.
@@ -188,8 +191,8 @@ superseded by this replacement-head evidence.
   the ordered security-auditor pass, Bandit/detect-secrets hooks, redaction and
   provenance-tamper tests, the Apple Container oracle, and pending current-head
   CI security.
-- LIVE FINAL GATE: full pre-commit, post-open role/review closure, current-head
-  CI, authenticated merge readiness, wait window, and human authorization must
+- LIVE FINAL GATE: post-open role/review closure, current-head CI,
+  authenticated merge readiness, wait window, and human authorization must
   still complete on the published replacement head.
 
 Full local `make verify` was not run because repository policy prohibits that
