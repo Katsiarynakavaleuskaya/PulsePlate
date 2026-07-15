@@ -313,7 +313,7 @@ jobs:
         with:
           scan-type: image
           image-ref: ${{ steps.staging-image-refs.outputs.backend_ref }}
-          scanners: vuln
+          scanners: vuln,secret
           format: table
           vuln-type: os,library
           severity: CRITICAL,HIGH
@@ -331,7 +331,7 @@ jobs:
         with:
           scan-type: image
           image-ref: ${{ steps.staging-image-refs.outputs.caddy_ref }}
-          scanners: vuln
+          scanners: vuln,secret
           format: table
           vuln-type: os,library
           severity: CRITICAL,HIGH

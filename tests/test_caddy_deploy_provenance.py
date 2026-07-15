@@ -175,7 +175,7 @@ def test_cd_builds_attests_scans_and_deploys_both_same_job_digests() -> None:
 
     common_scan_contract = {
         "scan-type": "image",
-        "scanners": "vuln",
+        "scanners": "vuln,secret",
         "format": "table",
         "vuln-type": "os,library",
         "severity": "CRITICAL,HIGH",
