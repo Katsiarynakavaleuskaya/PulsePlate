@@ -24,6 +24,34 @@ If it is not recorded here — it does not exist.
 
 <!-- EXPERIMENT_BACKLOG_ENTRIES:INSERT BELOW -->
 
+<a id="ledger-p1-pr2133-docker-manifest-prerequisite-consolidation"></a>
+- [ ] P1: Consolidate the Docker source-manifest prerequisite into PR #2133
+  - Owner: @katsiaryna_kavaleuskaya (Security / CI)
+  - Priority: P1
+  - Target PR: #2133
+  - Status: In progress; carries over and supersedes PR #2120
+  - Area: supply-chain / dependency security / CI
+  - Reason (EN): PR #2133 remediates the setuptools exclusion-bypass
+    vulnerability, but its current-head Docker lane fails before the dependency
+    build because `main` still carries an expired SQLite source-artifact review
+    date. PR #2120 contains the already reviewed two-file freshness refresh, but
+    its governance-only follow-up cannot pass the mandatory pre-push audit while
+    that branch still consumes the vulnerable setuptools lock. To avoid bypassing
+    either fail-closed gate, PR #2133 carries the unchanged PR #2120 material
+    commit and becomes the single merge vehicle for both prerequisites.
+  - Links: `scripts/ci/docker_source_artifacts.json`,
+    `tests/test_docker_workflow_build_path_contract.py`,
+    `docs/review/PR_2133_FIXED_MAPPING.md`,
+    `docs/security/CVE-2026-59890-setuptools.md`,
+    `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2120`,
+    `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2133`
+  - DoD: PR #2133 preserves the exact reviewed manifest artifact identity and
+    digest, enforces setuptools 83.0.0 across every governed dependency surface,
+    records composition evidence for both sealed security scans, passes the
+    combined focused/local/current-head Docker and dependency gates, merges to
+    `main`, and PR #2120 is closed as superseded only after `main` is verified to
+    contain the two-file manifest content.
+
 <a id="ledger-p1-bodyfat-bmi-engine-delegation"></a>
 - [ ] P1: Delegate bodyfat missing-BMI derivation to canonical BMI engine
   - Owner: @katsiaryna_kavaleuskaya (Backend / Nutrition)
@@ -3644,6 +3672,36 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `make openapi-check` remains the canonical sync verifier
     - `AGENTS.md`, runbooks, API map, and CI docs reflect the split workflow without ambiguity
 
+<a id="ledger-p1-caddy-attested-staging-digests"></a>
+- [ ] P1: Harden Caddy and deploy staging by same-job attested digests
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Status: In progress
+  - Target PR: PR #2117 (`codex/caddy-2-11-attested-digests`)
+  - Area: deploy / CD / container supply chain
+  - Finding Type: release integrity and vulnerability remediation
+  - Reason: Active staging accepts floating Caddy/application tags while CD verifies one
+    backend build digest but invokes a server-local deploy script with a different SHA-tag
+    identity. The official Caddy 2.11.4 Alpine artifact also requires bounded remediation
+    for fixed `c-ares`, `curl`/`libcurl`, and Go standard-library findings before
+    PulsePlate can serve it.
+    Current-head Docker validation also exposed the expired review window for the existing
+    pinned SQLite source artifact; PR #2117 revalidates its unchanged URL and SHA3-256 and
+    renews that fail-closed window without changing the SQLite version.
+  - Links:
+    - `frontend/Dockerfile.caddy-spa`
+    - `deploy/docker-compose.staging.yaml`
+    - `scripts/deploy.sh`
+    - `.github/workflows/cd.yml`
+    - `docs/deploy/STAGING.md`
+  - DoD:
+    - PulsePlate Caddy reports v2.11.4 built with Go 1.26.5 and preserves standard modules
+    - Final hardened Caddy image has no HIGH/CRITICAL Trivy findings without suppressions
+    - Backend and Caddy each have distinct provenance, SBOM, verification, and exact-digest scan evidence
+    - Staging Compose and deploy script reject floating/tag-only image references
+    - Default-false rollout gate verifies root-owned marker and current-commit server file hashes before secrets/deploy
+    - Existing SQLite 3.53.2 source URL and SHA3-256 are revalidated and the bounded source-artifact review window is current
+    - No live deploy occurs in the PR; rollout and database-aware rollback remain human-approved
 
 - [ ] P1: Remove staging TLS fallback seam after full staging readiness
   - Owner: @katsiaryna_kavaleuskaya
@@ -6663,14 +6721,15 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 - [ ] P2: Complete legacy_app.py migration (delete legacy endpoints)
   - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: PR #2102 -> PR-TBD-APP-METADATA-OPENAPI -> PR-TBD-REMAINING-LEGACY-CUTOVERS -> PR-TBD-APP-FACTORY -> PR-TBD-LEGACY-DELETION
+  - Target PR: PR #2102 -> PR #2114 -> PR #2121 -> PR-TBD-REMAINING-LEGACY-CUTOVERS -> PR-TBD-APP-FACTORY -> PR-TBD-LEGACY-DELETION
   - Priority: P2 (long-term cleanup)
-  - Status: In progress. Route, middleware, lifespan, and app-client API-key dependency ownership are canonical. The active `codex/canonicalize-application-metadata-openapi-policy` slice moves immutable application metadata and fail-closed OpenAPI builder/cache policy to canonical modules without changing FastAPI identity or the public schema. Remaining reverse-dependency cutovers, app-factory inversion, and final compatibility inventory/deletion stay open.
+  - Status: In progress. Route, middleware, lifespan, app-client API-key dependency, application metadata, and OpenAPI policy ownership are canonical; PR #2114 merged at `e3825306d`. The active canonical admin scheduler-access slice removes legacy resolver/override state behind a lazy typed service delegator without changing scheduler lifecycle, worker topology, FastAPI identity, or OpenAPI. Remaining reverse-dependency cutovers, app-factory inversion, and final compatibility inventory/deletion stay open.
   - Reason: After all critical security fixes and endpoint migrations complete, eventually delete `legacy_app.py` entirely. Legacy business and route logic should move to its canonical owners: modular routers (`app/routers/*`), services (`app/services/*`), bootstrap modules (`app/bootstrap/*`), or core modules (`core/*`) according to responsibility. The current train has extracted lifecycle ownership and now cuts canonical `app/*` dependencies on legacy compatibility symbols before app-factory/OpenAPI ownership inversion and final facade removal.
   - Links:
     - docs/audit/LEGACY_APP_MIGRATION_STATUS.md (overall progress, migration status)
     - docs/pr/PR_THIN_PROXY_CLEANUP_PLAN.md
     - app/routers/api_key.py
+    - app/services/scheduler_access.py
     - docs/architecture/LEGACY_COMPATIBILITY_SEAM.md
   - Prerequisites:
     - ✅ All P0 security fixes complete (rate-limiting, tier guards)
@@ -6690,13 +6749,14 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (runtime correctness / operations)
   - Target PR: PR-TBD-BACKGROUND-SCHEDULER-OWNERSHIP
-  - Status: Opened during canonical lifespan extraction planning
+  - Status: Open; explicitly out of scope for the canonical admin scheduler-access slice
   - Reason: ASGI lifespan runs once per worker process. The current in-process
     food update scheduler is process-global only, so enabling `WEB_CONCURRENCY`
     above one can start duplicate update jobs even though each process correctly
     owns its own lifespan resources.
   - Links:
     - `app/bootstrap/lifespan.py`
+    - `app/services/scheduler_access.py`
     - `core/food_apis/scheduler.py`
   - DoD:
     - deployment uses one dedicated scheduler worker, a distributed lease/leader

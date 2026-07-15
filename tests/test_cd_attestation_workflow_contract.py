@@ -28,6 +28,9 @@ STAGING_ATTESTATION_STEP_IDS = (
     "attest-staged-provenance",
     "generate-staged-sbom",
     "attest-staged-sbom",
+    "attest-staged-caddy-provenance",
+    "generate-staged-caddy-sbom",
+    "attest-staged-caddy-sbom",
 )
 
 PRODUCTION_ATTESTATION_STEP_IDS = (
@@ -71,13 +74,34 @@ def test_cd_staging_attestation_verify_depends_on_all_attestation_steps() -> Non
         assert required_id in existing_ids, f"Missing step id {required_id!r} in build job"
 
     # Verify step condition must reference all attestation outcomes
-    verify_step = _step_by_name(steps, "Verify staged image attestations")
+    verify_step = _step_by_name(steps, "Verify staged backend image attestations")
     verify_if = verify_step["if"]
     assert "always()" in verify_if, "Verify step must use always() to ensure condition evaluation"
     assert "steps.build.outcome == 'success'" in verify_if
     assert "steps.attest-staged-provenance.outcome == 'success'" in verify_if
     assert "steps.generate-staged-sbom.outcome == 'success'" in verify_if
     assert "steps.attest-staged-sbom.outcome == 'success'" in verify_if
+
+    caddy_verify_step = _step_by_name(steps, "Verify staged Caddy image attestations")
+    caddy_verify_if = caddy_verify_step["if"]
+    assert "always()" in caddy_verify_if
+    assert "steps.build-caddy.outcome == 'success'" in caddy_verify_if
+    assert "steps.attest-staged-caddy-provenance.outcome == 'success'" in caddy_verify_if
+    assert "steps.generate-staged-caddy-sbom.outcome == 'success'" in caddy_verify_if
+    assert "steps.attest-staged-caddy-sbom.outcome == 'success'" in caddy_verify_if
+
+    for step in (verify_step, caddy_verify_step):
+        env = step.get("env")
+        assert isinstance(env, dict)
+        assert env["REPO_SLUG"] == "${{ github.repository }}"
+        assert env["SOURCE_REF"] == "${{ github.ref }}"
+        run = step.get("run")
+        assert isinstance(run, str)
+        assert '--repo "$REPO_SLUG"' in run
+        assert '--signer-workflow "$REPO_SLUG/.github/workflows/cd.yml"' in run
+        assert '--source-ref "$SOURCE_REF"' in run
+        assert "${{ github.repository }}" not in run
+        assert "${{ github.ref }}" not in run
 
 
 def test_cd_production_attestation_verify_depends_on_all_attestation_steps() -> None:
@@ -107,10 +131,14 @@ def test_cd_attestation_steps_remain_fail_closed() -> None:
     workflow = _load_cd_workflow()
 
     attestation_step_names = {
-        "Attest staged image provenance",
-        "Generate staged image SBOM",
-        "Attest staged image SBOM",
-        "Verify staged image attestations",
+        "Attest staged backend image provenance",
+        "Generate staged backend image SBOM",
+        "Attest staged backend image SBOM",
+        "Verify staged backend image attestations",
+        "Attest staged Caddy image provenance",
+        "Generate staged Caddy image SBOM",
+        "Attest staged Caddy image SBOM",
+        "Verify staged Caddy image attestations",
         "Attest production image provenance",
         "Generate production image SBOM",
         "Attest production image SBOM",

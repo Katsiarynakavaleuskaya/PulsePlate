@@ -35,6 +35,17 @@
   or fan one scheduler mock across `app`, `legacy_app`, and `app_module`.
 - Direct alias patching remains allowed only in focused compatibility tests for
   the legacy synchronous scheduler wrappers; it is not lifecycle evidence.
+- Admin scheduler tests must patch only the consumer binding
+  `app.services.admin_operations.get_update_scheduler`. Do not patch scheduler
+  access through `app`, `legacy_app`, core singleton state, private override
+  names, or `sys.modules`.
+- Scheduler-access ownership tests must assert lazy core delegation, exact
+  `app`/`legacy_app`/service callable identity, import-order safety, and
+  fail-closed calls when the optional core module is unavailable. Use sync tests
+  with `asyncio.run(...)` for directly exercised coroutines.
+- Admin route tests must assert deterministic success, exact sanitized failure
+  details, and exact missing/invalid API-key `403` responses. Broad multi-status
+  assertions are not evidence for this route family.
 - For extracted legacy AI routes (e.g. `/insight`, `/api/v1/insight`), prefer client/route
   behavior tests against `app.main` or the canonical router. Direct `legacy_app` callable tests
   are allowed only as compatibility-shim tests and must assert delegation to `app/routers` or

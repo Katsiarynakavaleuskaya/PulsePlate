@@ -119,6 +119,7 @@
           "guest_unshare_unavailable",
           "filesystem_isolation_unavailable",
           "strict_network_budget_required",
+          "host_listener_unavailable",
           "network_isolation_failed",
           "network_gateway_unavailable",
           "mount_contract_failed",

@@ -248,7 +248,7 @@ def _pushed_docker_steps_with_secret_index_args() -> tuple[dict[str, object], ..
         _workflow_step_by_name(
             ".github/workflows/cd.yml",
             "build",
-            "Build & Push image (staging)",
+            "Build & Push backend image (staging)",
         ),
         _workflow_step_by_name(
             ".github/workflows/cd.yml",
@@ -1261,6 +1261,34 @@ def test_click_and_pillow_security_pins_cover_every_existing_lock_surface() -> N
             }
 
 
+def test_setuptools_security_floor_covers_governed_dependency_surfaces() -> None:
+    for source_file in (
+        "requirements.in",
+        "requirements-ci-lite.in",
+        "requirements-docker-runtime.in",
+        "requirements-dev.in",
+    ):
+        assert _requirement_package_specifiers(REPO_ROOT / source_file, "setuptools") == {
+            (">=", "83.0.0"),
+            ("<", "84.0.0"),
+        }
+
+    assert _requirement_package_specifiers(REPO_ROOT / "constraints.txt", "setuptools") == {
+        (">=", "83.0.0")
+    }
+
+    for lockfile in (
+        "requirements.txt",
+        "requirements-ci-lite.txt",
+        "requirements-docker-runtime.txt",
+        "requirements-dev.txt",
+        "requirements-lock.txt",
+    ):
+        assert _requirement_package_specifiers(REPO_ROOT / lockfile, "setuptools") == {
+            ("==", "83.0.0")
+        }
+
+
 def test_base_runtime_dependency_profile_excludes_vector_ml_stack() -> None:
     requirements_runtime = (REPO_ROOT / "requirements.txt").read_text(encoding="utf-8")
 
@@ -1505,7 +1533,7 @@ def test_production_target_docker_workflows_use_runtime_requirements_profile() -
         build_workflow, "publish", "Build Docker image for publish scan"
     )
     cd_staging_build_args = _build_args_for_step(
-        cd_workflow, "build", "Build & Push image (staging)"
+        cd_workflow, "build", "Build & Push backend image (staging)"
     )
     cd_production_build_args = _build_args_for_step(
         cd_workflow, "build-production", "Build & Push image (production)"
@@ -2149,17 +2177,32 @@ def test_push_to_registry_workflows_restore_signed_attestations_on_publish_lanes
     staging_verify_step = _workflow_step_by_name(
         ".github/workflows/cd.yml",
         "build",
-        "Verify staged image attestations",
+        "Verify staged backend image attestations",
     )
     staging_provenance_step = _workflow_step_by_name(
         ".github/workflows/cd.yml",
         "build",
-        "Attest staged image provenance",
+        "Attest staged backend image provenance",
     )
     staging_sbom_step = _workflow_step_by_name(
         ".github/workflows/cd.yml",
         "build",
-        "Attest staged image SBOM",
+        "Attest staged backend image SBOM",
+    )
+    staging_caddy_verify_step = _workflow_step_by_name(
+        ".github/workflows/cd.yml",
+        "build",
+        "Verify staged Caddy image attestations",
+    )
+    staging_caddy_provenance_step = _workflow_step_by_name(
+        ".github/workflows/cd.yml",
+        "build",
+        "Attest staged Caddy image provenance",
+    )
+    staging_caddy_sbom_step = _workflow_step_by_name(
+        ".github/workflows/cd.yml",
+        "build",
+        "Attest staged Caddy image SBOM",
     )
     production_verify_step = _workflow_step_by_name(
         ".github/workflows/cd.yml",
@@ -2209,22 +2252,40 @@ def test_push_to_registry_workflows_restore_signed_attestations_on_publish_lanes
         assert "pp_py_index=PULSEPLATE_PYTHON_INDEX_URL" in step["with"]["secret-envs"]
         assert "pp_py_host=PULSEPLATE_PYTHON_TRUSTED_HOST" in step["with"]["secret-envs"]
 
-    for provenance_step in (staging_provenance_step, production_provenance_step):
+    for provenance_step in (
+        staging_provenance_step,
+        staging_caddy_provenance_step,
+        production_provenance_step,
+    ):
         assert provenance_step["uses"].startswith(
             "actions/attest-build-provenance@b3e506e8c389afc651c5bacf2b8f2a1ea0557215"
         )
         assert provenance_step["with"]["push-to-registry"] is True
-        assert provenance_step["with"]["subject-digest"] == "${{ steps.build.outputs.digest }}"
 
-    for sbom_step in (staging_sbom_step, production_sbom_step):
+    assert staging_provenance_step["with"]["subject-digest"] == "${{ steps.build.outputs.digest }}"
+    assert (
+        production_provenance_step["with"]["subject-digest"] == "${{ steps.build.outputs.digest }}"
+    )
+    assert staging_caddy_provenance_step["with"]["subject-digest"] == (
+        "${{ steps.build-caddy.outputs.digest }}"
+    )
+
+    for sbom_step in (staging_sbom_step, production_sbom_step, staging_caddy_sbom_step):
         assert sbom_step["uses"].startswith(
             "actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26"
         )
         assert sbom_step["with"]["push-to-registry"] is True
         assert sbom_step["with"]["predicate-type"] == SBOM_PREDICATE_TYPE
-        assert sbom_step["with"]["predicate-path"] == "docker-image-sbom.spdx.json"
         assert "sbom-path" not in sbom_step["with"]
-        assert sbom_step["with"]["subject-digest"] == "${{ steps.build.outputs.digest }}"
+
+    assert staging_sbom_step["with"]["predicate-path"] == "backend-image-sbom.spdx.json"
+    assert staging_sbom_step["with"]["subject-digest"] == "${{ steps.build.outputs.digest }}"
+    assert production_sbom_step["with"]["predicate-path"] == "docker-image-sbom.spdx.json"
+    assert production_sbom_step["with"]["subject-digest"] == "${{ steps.build.outputs.digest }}"
+    assert staging_caddy_sbom_step["with"]["predicate-path"] == "caddy-image-sbom.spdx.json"
+    assert staging_caddy_sbom_step["with"]["subject-digest"] == (
+        "${{ steps.build-caddy.outputs.digest }}"
+    )
 
     assert publish_sbom_step["uses"].startswith(
         "actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26"
@@ -2238,19 +2299,44 @@ def test_push_to_registry_workflows_restore_signed_attestations_on_publish_lanes
         == "${{ steps.docker-build-push.outputs.digest }}"
     )
 
-    for verify_step in (staging_verify_step, production_verify_step):
+    for verify_step in (staging_verify_step, staging_caddy_verify_step):
         verify_script = verify_step["run"]
         verify_if = verify_step["if"]
+        verify_env = verify_step["env"]
         assert "always()" in verify_if
-        assert "steps.build.outcome == 'success'" in verify_if
         assert "scripts/ci/check_docker_provenance_attestation.py" in verify_script
-        assert '--repo "${{ github.repository }}"' in verify_script
-        assert '--signer-workflow "${{ github.repository }}/.github/workflows/cd.yml"' in (
-            verify_script
-        )
-        assert '--source-ref "${{ github.ref }}"' in verify_script
-        assert "docker-provenance-attestation-check.json" in verify_script
-        assert "docker-provenance-attestation-check.md" in verify_script
+        assert verify_env["REPO_SLUG"] == "${{ github.repository }}"
+        assert verify_env["SOURCE_REF"] == "${{ github.ref }}"
+        assert '--repo "$REPO_SLUG"' in verify_script
+        assert '--signer-workflow "$REPO_SLUG/.github/workflows/cd.yml"' in verify_script
+        assert '--source-ref "$SOURCE_REF"' in verify_script
+
+    production_verify_script = production_verify_step["run"]
+    assert "always()" in production_verify_step["if"]
+    assert "scripts/ci/check_docker_provenance_attestation.py" in production_verify_script
+    assert '--repo "${{ github.repository }}"' in production_verify_script
+    assert '--signer-workflow "${{ github.repository }}/.github/workflows/cd.yml"' in (
+        production_verify_script
+    )
+    assert '--source-ref "${{ github.ref }}"' in production_verify_script
+
+    assert "steps.build.outcome == 'success'" in staging_verify_step["if"]
+    assert "backend-provenance-attestation-check.json" in staging_verify_step["run"]
+    assert "backend-provenance-attestation-check.md" in staging_verify_step["run"]
+    assert "steps.build.outcome == 'success'" in production_verify_step["if"]
+    assert "docker-provenance-attestation-check.json" in production_verify_step["run"]
+    assert "docker-provenance-attestation-check.md" in production_verify_step["run"]
+    assert "steps.build-caddy.outcome == 'success'" in staging_caddy_verify_step["if"]
+    assert (
+        "steps.attest-staged-caddy-provenance.outcome == 'success'"
+        in staging_caddy_verify_step["if"]
+    )
+    assert (
+        "steps.generate-staged-caddy-sbom.outcome == 'success'" in staging_caddy_verify_step["if"]
+    )
+    assert "steps.attest-staged-caddy-sbom.outcome == 'success'" in staging_caddy_verify_step["if"]
+    assert "caddy-provenance-attestation-check.json" in staging_caddy_verify_step["run"]
+    assert "caddy-provenance-attestation-check.md" in staging_caddy_verify_step["run"]
 
     # Staging verify must depend on all staging attestation steps
     staging_verify_if = staging_verify_step["if"]
@@ -2269,17 +2355,17 @@ def test_push_to_registry_workflows_restore_signed_attestations_on_publish_lanes
         production_upload_step["with"]["name"]
         == "docker-provenance-attestation-check-cd-production"
     )
-    assert staging_upload_step["with"]["if-no-files-found"] == "warn"
+    assert staging_upload_step["with"]["if-no-files-found"] == "error"
     assert production_upload_step["with"]["if-no-files-found"] == "warn"
-    assert staging_step_names.index("Build & Push image (staging)") < staging_step_names.index(
-        "Attest staged image provenance"
+    assert staging_step_names.index(
+        "Build & Push backend image (staging)"
+    ) < staging_step_names.index("Attest staged backend image provenance")
+    assert staging_step_names.index("Attest staged backend image SBOM") < staging_step_names.index(
+        "Verify staged backend image attestations"
     )
-    assert staging_step_names.index("Attest staged image SBOM") < staging_step_names.index(
-        "Verify staged image attestations"
-    )
-    assert staging_step_names.index("Verify staged image attestations") < staging_step_names.index(
-        "Check staging deploy readiness"
-    )
+    assert staging_step_names.index(
+        "Verify staged Caddy image attestations"
+    ) < staging_step_names.index("Check staging deploy readiness")
     assert production_step_names.index(
         "Build & Push image (production)"
     ) < production_step_names.index("Attest production image provenance")
