@@ -28,6 +28,17 @@ Packet: artifacts/orchestration/task_packets/a4230146f0ae.json
   zero retries, no candidate mutation, and an untouched shared tree. Its
   contribution kind is `none`, so no co-author trailer applies.
 
+## Experiment Runner Evidence
+
+Artifact: artifacts/orchestration/experiments/results/cd-trivy-policy-parity-oracle-final-result.json
+
+- Experiment `exp-8e390a0b9b73` was accepted in oracle-only governance-review
+  mode with 2/2 commands passing, zero retries, `mutated_paths=[]`, and
+  `shared_tree_untouched=true`.
+- `contribution_kind=none` and `coauthor_required=false`; the oracle did not
+  materially shape the implementation or commit decision, so no Experiment
+  Runner co-author trailer applies.
+
 ## Implementation Commits
 
 - `46fccc221c73d1c0c6f2958a270c8d8107382e2f` - add fail-closed Trivy policy
@@ -47,9 +58,11 @@ Packet: artifacts/orchestration/task_packets/a4230146f0ae.json
 - [x] A renewed Codex Security diff scan completed for the final material diff.
 - [x] `pulseplate-pr-review` completed on the remediated material head.
 - [x] All current review threads have an evidence-backed disposition.
-- [x] The mapped review thread was resolved after this artifact and its PR-body
-  mirror were published; the authenticated disposition guard passed for 1/1
-  resolved threads.
+- [x] The mapped FIXED thread was resolved after evidence publication and
+  authenticated disposition validation.
+- [x] The later ancestry-review thread has the evidence-backed NOT-A-BUG
+  disposition recorded below; its live resolution remains enforced by the
+  final strict wrapper.
 - [ ] Current-head CI, strict authenticated merge readiness, and the mandatory
   quiet review cycle are complete.
 
@@ -60,6 +73,11 @@ Commit: fe7ff2017029ee9ede21264f2fbe19dca1ce23a2
 Evidence: `.github/workflows/cd.yml:303-307` creates and verifies a fresh empty regular ignore file; `.github/workflows/cd.yml:322-344` keeps canonical ignore and Rego inputs backend-only while Caddy uses that empty file and no Rego; `tests/test_caddy_deploy_provenance.py:154-216` locks the preparation order and distinct exact scan contracts; a direct Trivy `0.71.2` scan of the published Caddy digest with the explicit empty ignore and no Rego returned zero HIGH/CRITICAL findings.
 Reason: The original implementation applied backend/Debian suppressions to the Caddy/Alpine scan; the remediation overrides Trivy's implicit repository-root `.trivyignore` for Caddy without adding any waiver or weakening the HIGH/CRITICAL fail-closed gate, and pinned-action inspection confirms that each invocation resets Trivy environment state and truncates its generated plain ignore file so backend policy cannot leak into Caddy.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2137#discussion_r3586535889 -> fe7ff2017029ee9ede21264f2fbe19dca1ce23a2
+
+Disposition: NOT-A-BUG
+Evidence: GitHub PR metadata lists actual head `e801ef152a7bc7731a9135556fd8d0f166642f48` and includes `fe7ff2017029ee9ede21264f2fbe19dca1ce23a2` in the four-commit PR history; `git merge-base --is-ancestor fe7ff2017029ee9ede21264f2fbe19dca1ce23a2 e801ef152a7bc7731a9135556fd8d0f166642f48` exits 0; GitHub REST returns HTTP 422 `No commit found for SHA` for the review-only `66c8634758c59916d46106e8e223e804c86733aa` cited by the comment.
+Reason: The mapped remediation SHA is an ancestor of the real published PR head and is the exact post-comment code commit that fixed the Caddy policy defect; the inaccessible `66c86347...` revision cited by the review is not the PR head or a repository commit and cannot invalidate truthful FIXED proof.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2137#discussion_r3587112584
 
 ## Premortem Closure
 
