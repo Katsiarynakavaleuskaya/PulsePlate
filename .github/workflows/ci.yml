@@ -960,6 +960,9 @@ jobs:
                   tests/test_legacy_bmi_shims.py \
                   tests/test_legacy_app_diff_coverage.py \
                   tests/test_legacy_growth_guard.py \
+                  tests/test_legacy_premium_weekly_plan_registration_bootstrap.py \
+                  tests/test_legacy_weekly_menu_builder_access.py \
+                  tests/test_legacy_weekly_plan_alias_api.py \
                   tests/test_lenient_mode_warning.py \
                   tests/test_metrics.py \
                   tests/test_paywall_exposure_ledger_api.py \
@@ -1265,6 +1268,9 @@ jobs:
                   tests/test_legacy_bmi_shims.py \
                   tests/test_legacy_app_diff_coverage.py \
                   tests/test_legacy_growth_guard.py \
+                  tests/test_legacy_premium_weekly_plan_registration_bootstrap.py \
+                  tests/test_legacy_weekly_menu_builder_access.py \
+                  tests/test_legacy_weekly_plan_alias_api.py \
                   tests/test_lenient_mode_warning.py \
                   tests/test_metrics.py \
                   tests/test_paywall_exposure_ledger_api.py \
