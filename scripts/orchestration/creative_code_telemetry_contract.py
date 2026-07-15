@@ -454,9 +454,9 @@ def _require_fingerprint(payload: Mapping[str, Any], key: str, *, label: str) ->
 
 def _require_bool(payload: Mapping[str, Any], key: str, *, expected: bool, label: str) -> bool:
     value = payload.get(key)
-    if value is not expected:
+    if not isinstance(value, bool) or value != expected:
         raise CreativeCodeTelemetryContractError(f"{label}.{key} must be {expected}.")
-    return expected
+    return value
 
 
 def _require_any_bool(payload: Mapping[str, Any], key: str, *, label: str) -> bool:
