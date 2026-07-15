@@ -538,6 +538,55 @@ def test_receipt_validator_rejects_unknown_failures_and_incoherent_runner_status
     ):
         validate_generation_receipt(capability_retry_tamper)
 
+    for field, message in (
+        (
+            "mutated_path_count",
+            "capability_mismatch with attempts 0 must use mutated_path_count 0",
+        ),
+        (
+            "oracle_commands_executed",
+            "capability_mismatch with attempts 0 must use oracle_commands_executed 0",
+        ),
+    ):
+        zero_attempt_tamper = deepcopy(reference)
+        zero_attempt_tamper["status"] = "rejected"
+        zero_attempt_tamper["failure_class"] = "capability_mismatch"
+        zero_attempt_tamper["runner_summary"].update(
+            {
+                "status": "rejected",
+                "failure_class": "capability_mismatch",
+                "mutated_path_count": 0,
+                "oracle_commands_executed": 0,
+                "attempts": 0,
+                "retries_consumed": 0,
+            }
+        )
+        zero_attempt_tamper["runner_summary"][field] = 1
+        _reset_receipt_identity(zero_attempt_tamper)
+        with pytest.raises(CreativeCodePatchGenerationError, match=message):
+            validate_generation_receipt(zero_attempt_tamper)
+
+    for attempts, mutated_path_count, oracle_commands_executed in (
+        (0, 0, 0),
+        (1, 1, 1),
+    ):
+        coherent_capability = deepcopy(reference)
+        coherent_capability["status"] = "rejected"
+        coherent_capability["failure_class"] = "capability_mismatch"
+        coherent_capability["runner_summary"].update(
+            {
+                "status": "rejected",
+                "failure_class": "capability_mismatch",
+                "mutated_path_count": mutated_path_count,
+                "oracle_commands_configured": 1,
+                "oracle_commands_executed": oracle_commands_executed,
+                "attempts": attempts,
+                "retries_consumed": 0,
+            }
+        )
+        _reset_receipt_identity(coherent_capability)
+        assert validate_generation_receipt(coherent_capability) == coherent_capability
+
     top_level_capability_retry_tamper = deepcopy(reference)
     top_level_capability_retry_tamper["status"] = "rejected"
     top_level_capability_retry_tamper["failure_class"] = "capability_mismatch"
@@ -1504,6 +1553,17 @@ def test_generation_schemas_are_closed_and_authority_is_const_false() -> None:
     assert runner_rules[2]["if"]["properties"]["failure_class"] == {"const": "capability_mismatch"}
     assert runner_rules[2]["then"]["properties"]["attempts"] == {"enum": [0, 1]}
     assert runner_rules[2]["then"]["properties"]["retries_consumed"] == {"const": 0}
+    zero_attempt_rule = runner_rules[3]
+    assert zero_attempt_rule["if"]["required"] == ["failure_class", "attempts"]
+    assert zero_attempt_rule["if"]["properties"] == {
+        "failure_class": {"const": "capability_mismatch"},
+        "attempts": {"const": 0},
+    }
+    assert zero_attempt_rule["then"]["properties"] == {
+        "mutated_path_count": {"const": 0},
+        "oracle_commands_executed": {"const": 0},
+    }
+    assert "oracle_commands_configured" not in zero_attempt_rule["then"]["properties"]
 
 
 def test_generation_cli_exposes_no_promotion_or_github_commands() -> None:

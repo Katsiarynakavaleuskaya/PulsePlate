@@ -371,6 +371,17 @@ def test_reference_patch_contracts_validate_and_schema_is_closed() -> None:
     assert runner_rules[2]["if"]["properties"]["failure_class"] == {"const": "capability_mismatch"}
     assert runner_rules[2]["then"]["properties"]["attempts"] == {"enum": [0, 1]}
     assert runner_rules[2]["then"]["properties"]["retries_consumed"] == {"const": 0}
+    zero_attempt_rule = runner_rules[3]
+    assert zero_attempt_rule["if"]["required"] == ["failure_class", "attempts"]
+    assert zero_attempt_rule["if"]["properties"] == {
+        "failure_class": {"const": "capability_mismatch"},
+        "attempts": {"const": 0},
+    }
+    assert zero_attempt_rule["then"]["properties"] == {
+        "mutated_path_count": {"const": 0},
+        "oracle_commands_executed": {"const": 0},
+    }
+    assert "oracle_commands_configured" not in zero_attempt_rule["then"]["properties"]
     assert (
         result_schema["$defs"]["authority"]["properties"]["candidate_patch_generated"]["const"]
         is True
@@ -623,6 +634,75 @@ def test_patch_result_rejects_capability_mismatch_retry_tamper() -> None:
         match="accepted results must not have failure_class",
     ):
         validate_creative_code_patch_result(compound_tamper)
+
+
+@pytest.mark.parametrize(
+    ("field", "message"),
+    [
+        (
+            "mutated_path_count",
+            "capability_mismatch with attempts 0 must use mutated_path_count 0",
+        ),
+        (
+            "oracle_commands_executed",
+            "capability_mismatch with attempts 0 must use oracle_commands_executed 0",
+        ),
+    ],
+)
+def test_patch_result_rejects_zero_attempt_capability_execution_evidence(
+    field: str,
+    message: str,
+) -> None:
+    tampered = _reference_result()
+    tampered["status"] = "rejected"
+    tampered["failure_class"] = "capability_mismatch"
+    tampered["runner_summary"].update(
+        {
+            "status": "rejected",
+            "failure_class": "capability_mismatch",
+            "mutated_path_count": 0,
+            "oracle_commands_executed": 0,
+            "attempts": 0,
+            "retries_consumed": 0,
+        }
+    )
+    tampered["runner_summary"][field] = 1
+    result_id, idempotency_key = creative_code_patch_contract._build_result_identity(tampered)
+    tampered["result_id"] = result_id
+    tampered["idempotency_key"] = idempotency_key
+
+    with pytest.raises(CreativeCodePatchContractError, match=message):
+        validate_creative_code_patch_result(tampered)
+
+
+@pytest.mark.parametrize(
+    ("attempts", "mutated_path_count", "oracle_commands_executed"),
+    [(0, 0, 0), (1, 1, 1)],
+)
+def test_patch_result_accepts_coherent_capability_execution_evidence(
+    attempts: int,
+    mutated_path_count: int,
+    oracle_commands_executed: int,
+) -> None:
+    result = _reference_result()
+    result["status"] = "rejected"
+    result["failure_class"] = "capability_mismatch"
+    result["runner_summary"].update(
+        {
+            "status": "rejected",
+            "failure_class": "capability_mismatch",
+            "mutated_path_count": mutated_path_count,
+            "oracle_commands_configured": 1,
+            "oracle_commands_executed": oracle_commands_executed,
+            "attempts": attempts,
+            "retries_consumed": 0,
+        }
+    )
+    result_id, idempotency_key = creative_code_patch_contract._build_result_identity(result)
+    result["result_id"] = result_id
+    result["idempotency_key"] = idempotency_key
+
+    assert validate_creative_code_patch_result(result) == result
 
 
 def test_patch_path_schemas_match_validator_for_forbidden_surfaces() -> None:

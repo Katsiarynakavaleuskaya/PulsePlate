@@ -382,6 +382,21 @@
               "retries_consumed": { "const": 0 }
             }
           }
+        },
+        {
+          "if": {
+            "required": ["failure_class", "attempts"],
+            "properties": {
+              "failure_class": { "const": "capability_mismatch" },
+              "attempts": { "const": 0 }
+            }
+          },
+          "then": {
+            "properties": {
+              "mutated_path_count": { "const": 0 },
+              "oracle_commands_executed": { "const": 0 }
+            }
+          }
         }
       ]
     },

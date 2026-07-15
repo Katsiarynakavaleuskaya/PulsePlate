@@ -81,6 +81,33 @@ def validate_failure_retry_observations(
         )
 
 
+def validate_capability_zero_attempt_observations(
+    *,
+    failure_class: str | None,
+    attempts: Any,
+    mutated_path_count: int,
+    oracle_commands_executed: int,
+    label: str,
+) -> None:
+    """Reject execution evidence when capability preflight stopped the run."""
+
+    if (
+        failure_class != "capability_mismatch"
+        or not isinstance(attempts, int)
+        or isinstance(attempts, bool)
+        or attempts != 0
+    ):
+        return
+    if mutated_path_count != 0:
+        raise ValueError(
+            f"{label} capability_mismatch with attempts 0 must use mutated_path_count 0."
+        )
+    if oracle_commands_executed != 0:
+        raise ValueError(
+            f"{label} capability_mismatch with attempts 0 must use " "oracle_commands_executed 0."
+        )
+
+
 EXECUTION_BACKEND_NAMES: tuple[str, ...] = (
     "native-linux",
     "apple-container",
@@ -948,6 +975,14 @@ def validate_experiment_result(result: dict[str, Any]) -> dict[str, Any]:
                     "Experiment result capability_mismatch attempts must equal 1 after "
                     "passed backend preflight and 0 after failed backend preflight."
                 )
+
+    validate_capability_zero_attempt_observations(
+        failure_class=failure_class,
+        attempts=budget_observations.get("attempts"),
+        mutated_path_count=len(mutated_paths),
+        oracle_commands_executed=len(oracle_results),
+        label="Experiment result budget_observations",
+    )
 
     candidate_patch = str(result.get("candidate_patch", "")).strip()
     if not candidate_patch:

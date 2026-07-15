@@ -47,6 +47,7 @@ from scripts.orchestration.creative_code_specification import (
 from scripts.orchestration.experiment_contract import (
     DEFAULT_STOP_CONDITION,
     validate_budget_payload,
+    validate_capability_zero_attempt_observations,
     validate_experiment_packet,
     validate_failure_retry_observations,
     validate_metrics,
@@ -1276,6 +1277,16 @@ def validate_generation_receipt(payload: Mapping[str, Any]) -> dict[str, Any]:
             )
         except ValueError as exc:
             raise CreativeCodePatchGenerationError(str(exc)) from exc
+    try:
+        validate_capability_zero_attempt_observations(
+            failure_class=runner_summary["failure_class"],
+            attempts=runner_summary["attempts"],
+            mutated_path_count=runner_summary["mutated_path_count"],
+            oracle_commands_executed=runner_summary["oracle_commands_executed"],
+            label="runner_summary",
+        )
+    except ValueError as exc:
+        raise CreativeCodePatchGenerationError(str(exc)) from exc
     if workspace_summary["detached_base_sha"] != normalized["base_commit_sha"]:
         raise CreativeCodePatchGenerationError(
             "workspace_summary.detached_base_sha must match base_commit_sha."

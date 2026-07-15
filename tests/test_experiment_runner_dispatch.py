@@ -592,6 +592,38 @@ def test_capability_mismatch_attempts_match_backend_preflight(
         experiment_contract.validate_experiment_result(result)
 
 
+@pytest.mark.parametrize(
+    ("mutated_paths", "oracle_results", "message"),
+    [
+        (
+            ["core/rag/orchestration.py"],
+            [],
+            "capability_mismatch with attempts 0 must use mutated_path_count 0",
+        ),
+        (
+            [],
+            [{"command": "pytest -q", "returncode": 0}],
+            "capability_mismatch with attempts 0 must use oracle_commands_executed 0",
+        ),
+    ],
+)
+def test_capability_mismatch_zero_attempts_reject_execution_evidence(
+    mutated_paths: list[str],
+    oracle_results: list[dict[str, object]],
+    message: str,
+) -> None:
+    result = dispatch._capability_mismatch_result(
+        _packet(network_budget=0),
+        _image(),
+        _probe("apple-container", strict=False),
+    )
+    result["mutated_paths"] = mutated_paths
+    result["oracle_results"] = oracle_results
+
+    with pytest.raises(ValueError, match=message):
+        experiment_contract.validate_experiment_result(result)
+
+
 def test_retryable_failure_preserves_retry_evidence() -> None:
     result = _legacy_result()
     result.update(
@@ -681,6 +713,9 @@ def test_capability_mismatch_is_non_retryable_and_preserves_zero_network() -> No
     assert validated["budget_observations"]["attempts"] == 0
     assert validated["budget_observations"]["retries_consumed"] == 0
     assert validated["budget_observations"]["configured_budgets"]["network_budget"] == 0
+    assert packet["immutable_oracles"]
+    assert validated["mutated_paths"] == []
+    assert validated["oracle_results"] == []
     assert validated["execution_backend"]["preflight_status"] == "failed"
     assert validated["contribution_kind"] == "none"
     assert validated["coauthor_required"] is False

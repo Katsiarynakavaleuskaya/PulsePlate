@@ -29,6 +29,7 @@ from scripts.orchestration.creative_code_specification import (
     validate_creative_code_specification_bundle,
 )
 from scripts.orchestration.experiment_contract import (
+    validate_capability_zero_attempt_observations,
     validate_failure_retry_observations,
     validate_immutable_oracles,
     validate_metrics,
@@ -1206,6 +1207,16 @@ def validate_creative_code_patch_result(payload: dict[str, Any]) -> dict[str, An
             )
         except ValueError as exc:
             raise CreativeCodePatchContractError(str(exc)) from exc
+    try:
+        validate_capability_zero_attempt_observations(
+            failure_class=runner_summary["failure_class"],
+            attempts=runner_summary["attempts"],
+            mutated_path_count=runner_summary["mutated_path_count"],
+            oracle_commands_executed=runner_summary["oracle_commands_executed"],
+            label="runner_summary",
+        )
+    except ValueError as exc:
+        raise CreativeCodePatchContractError(str(exc)) from exc
     _reject_result_leaks(normalized, label=label)
     expected_id, expected_key = _build_result_identity(normalized)
     if normalized["result_id"] != expected_id:
