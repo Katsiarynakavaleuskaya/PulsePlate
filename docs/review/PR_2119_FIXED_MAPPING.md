@@ -51,10 +51,15 @@ Current-head provenance corrective packet:
 - Replacement role order completed as declared by the executable manifest:
   `agent-coordinator -> architecture-specialist -> security-auditor ->
   backend-engineer -> cursor-specialist-agent`.
-- The current-head post-open order completed serially as declared by the final
-  executable manifest: `agent-coordinator -> cursor-specialist-agent ->
-  architecture-specialist -> qa-engineer-agent -> bug-hunter ->
-  security-auditor`.
+- The earlier post-open order completed on prior material head
+  `b5f8f07937161b428a547f5d57b389da77b85a83`; it is retained as historical
+  evidence rather than presented as the current corrective pass.
+- The current corrective pre-implementation order completed as declared:
+  `agent-coordinator -> architecture-specialist -> security-auditor ->
+  backend-engineer`.
+- The current material review tail completed on governance review head
+  `b9e146455745c184f2f8f93e6ba6297007b98883` in exact order:
+  `qa-engineer-agent -> bug-hunter -> security-auditor`.
 - Local packets, role outputs, and Experiment Runner artifacts remain
   gitignored control-plane evidence.
 - Experiment Runner oracle evidence materially shaped the commit decision; the
@@ -97,9 +102,11 @@ Current-head provenance corrective packet:
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 - [x] Source PR #2130 replacement mapping recorded below.
-- [ ] Post-open `qa-engineer-agent -> bug-hunter -> security-auditor` rerun is
-  pending on the new material head after commit
-  `97ddb482cbfa642400e2ec00f4f1ccd025a5c4ae`.
+- [x] Post-open `qa-engineer-agent -> bug-hunter -> security-auditor` rerun
+  completed on governance review head
+  `b9e146455745c184f2f8f93e6ba6297007b98883`; QA found no implementation
+  defect and its governance-only stale-role wording finding is corrected in
+  this closeout.
 - [x] Earlier Codex Security scans marked superseded; operator-directed native
   scan stop recorded without a PASS claim or restart.
 - Current-head CI, authenticated merge readiness, the mandatory wait window,
@@ -282,11 +289,21 @@ superseded by this replacement-head evidence.
 - PASS: actual-diff premortem for the current eight-file corrective delta;
   loop control, third-retry, raw-result leakage, Python/schema parity, and
   wrapper-rejection compatibility risks are covered by deterministic tests.
-- PASS: final current-head role order
-  `agent-coordinator -> cursor-specialist-agent -> architecture-specialist ->
-  qa-engineer-agent -> bug-hunter -> security-auditor`, followed by
-  `pulseplate-pr-review`; all role decisions were `PROCEED` with no code
-  findings.
+- PASS on governance review head
+  `b9e146455745c184f2f8f93e6ba6297007b98883`: QA reported no implementation
+  findings and one governance-only stale-role wording correction; bug-hunter
+  and security-auditor then returned `PROCEED` with no findings. This closeout
+  incorporates the QA correction without restarting the material role chain.
+- ADVISORY: `pulseplate-pr-review` on local governance head `b9e146455745`
+  found only the already-justified large-diff note plus the expected warning
+  that the two local commits were not yet published. Published-head context
+  refresh remains a live readiness check and does not reopen material review.
+- LOOP STOP: material evidence is anchored to code head
+  `97ddb482cbfa642400e2ec00f4f1ccd025a5c4ae`; this mapping/body reconciliation
+  is governance-only. Equivalent duplicate or stale review text does not
+  trigger another role or security wave. The bounded alternatives and stop
+  rule are recorded locally in
+  `artifacts/orchestration/pr2119-review-loop-brainstorm.md`.
 - PASS: explicit Apple Container oracle evidence, three of three commands.
 - HISTORICAL FAILURE: Docker build run `29311424356` failed only while
   preparing source artifacts because `review_by: 2026-07-13` was stale.
