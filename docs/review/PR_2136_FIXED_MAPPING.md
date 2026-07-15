@@ -55,16 +55,17 @@ lane are governance-only updates to this canonical artifact.
 
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
-- [x] Current issue comments and reviews inspected through published governance
-  head `0294f0a55c49dde056e490fd087985a5d59126da`.
+- [x] Current issue comments and reviews inspected through governance head
+  `1543c1c38582c745ade0f7fbe740bf9ce6f8a825`, including the mutable CodeRabbit
+  walkthrough update at `2026-07-15T11:04:50Z`.
 - [x] Current bot capacity and status notices dispositioned below.
 - [x] All four actionable review threads and their actionable review summaries
   dispositioned below.
 - [x] Mandatory post-open role-agent chain completed.
 - [x] Codex Security diff scan and `pulseplate-pr-review` completed.
-- [x] Current-head CI and bot activity at published governance head `0294f0a55`
-  inspected; a transient package-proxy reset and the two newly dispositioned
-  threads keep strict authenticated merge readiness pending.
+- [x] Governance-head CI run `29410359678` completed successfully at
+  `1543c1c38`; the first strict authenticated wrapper and a separate later
+  review-cycle state check also passed with zero unresolved threads.
 
 ## Fixed in Commit Mapping
 
@@ -105,12 +106,14 @@ approval, or merge-readiness signal.
 
 Disposition: NOT-A-BUG
 
-Evidence: CodeRabbit's current incremental status says there are no new commits
-to review beyond its completed published-head pass. Its one actionable
-governance thread is mapped as `FIXED` above.
+Evidence: CodeRabbit last updated this mutable comment at
+`2026-07-15T11:04:50Z` with a walkthrough of the exact test and governance diff
+and five passed pre-merge checks. It published no new finding or thread; its one
+actionable governance thread is mapped as `FIXED` above.
 
-Reason: The issue-level incremental status is not a separate code finding or
-approval; the substantive inline result remains governed by its own thread.
+Reason: The walkthrough and optional finishing-touch automation controls are
+status/UI content, not separate code findings or approval; the substantive
+inline result remains governed by its own thread.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2136#issuecomment-4979517794
 
@@ -205,11 +208,16 @@ network authority.
 - EXPECTED BLOCKER: the governance-head `Merge readiness gate` failed only
   because the two earlier review threads were still unresolved when it ran;
   both were dispositioned and resolved afterward, before the final bot cycle.
-- RETRY REQUIRED at governance head `0294f0a55`: CI run `29407857373` failed
-  `lint` during locked dependency installation with
+- SUPERSEDED RETRY EVIDENCE at governance head `0294f0a55`: CI run
+  `29407857373` failed `lint` during locked dependency installation with
   `ConnectionResetError(104, 'Connection reset by peer')` from the approved
-  package proxy. This is external transport state, not a passing signal; the
-  failed job must succeed on retry before strict readiness.
+  package proxy. This was external transport state, not a passing signal.
+- PASS at governance head `1543c1c38`: CI run `29410359678` completed with
+  current-head `lint`, `security`, Python 3.13 `test-pr`, OpenAPI sync,
+  `coverage-pr`, `diff-coverage`, Phase 2, merge-readiness, and applicable
+  security/build gates successful; the first strict authenticated wrapper
+  exited `0` and the later full state check found no pending/blocking checks or
+  unresolved threads.
 
 ## Security Review
 
