@@ -546,6 +546,37 @@ def validate_live_mapping(*, repository: str, pr_number: int, token: str | None)
         CommitRefKind.PR_COMMIT,
     }:
         raise CloseoutError("sealed material head is not a real live PR commit")
+    code_review = seal["code_review"]
+    review_prefix = f"https://github.com/{repository}/pull/{pr_number}#"
+    review_reference = code_review["review_reference"]
+    if not review_reference.startswith(review_prefix):
+        raise CloseoutError("code-review reference belongs to another PR")
+    review_evidence = verify_codex_review_reference(
+        review_reference,
+        repository=repository,
+        pr_number=pr_number,
+        token=token,
+    )
+    if (
+        code_review["review_commit_ref_kind"] != "repository_commit"
+        or review_evidence.commit_ref != code_review["review_commit_ref"]
+        or review_evidence.commit_ref != material_head.sha
+    ):
+        raise CloseoutError("Codex review is not bound to the sealed material head")
+    reviewed_manifest = compute_material_manifest(
+        REPO_ROOT,
+        base_ref_oid=snapshot.base_sha,
+        head_ref_oid=review_evidence.commit_ref,
+        pr_number=pr_number,
+    )
+    if reviewed_manifest.digest != material["digest"]:
+        raise CloseoutError("Codex review commit has a different material digest")
+    security_receipt = seal["codex_security"]
+    if (
+        security_receipt["base_revision"] != manifest.merge_base_sha
+        or security_receipt["head_revision"] != material_head.sha
+    ):
+        raise CloseoutError("Codex Security receipt range is stale")
     live_head = RepositoryCommitRef(snapshot.head_sha, CommitRefKind.PR_HEAD)
     if not is_ancestor(
         material_head,

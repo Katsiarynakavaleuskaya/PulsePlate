@@ -38,6 +38,7 @@ from scripts.orchestration.pr_review_evidence import (
     RECEIPT_AUTHORITY,
     SEAL_BEGIN,
     SEAL_END,
+    MaterialManifest,
     ReviewEvidenceError,
     compute_material_manifest,
     ingest_codex_security_receipt,
@@ -72,6 +73,17 @@ def _snapshot() -> PrSnapshot:
             PrCommitEvidence(FIX_SHA, "2026-07-15T10:00:00Z"),
             PrCommitEvidence(HEAD_SHA, "2026-07-15T11:00:00Z"),
         ),
+    )
+
+
+def _material_manifest(head_sha: str, *, digest: str = DIGEST) -> MaterialManifest:
+    return MaterialManifest(
+        base_ref_oid=BASE_SHA,
+        head_ref_oid=head_sha,
+        merge_base_sha=BASE_SHA,
+        pr_number=42,
+        entries=(),
+        digest=digest,
     )
 
 
@@ -135,6 +147,83 @@ def test_pr_snapshot_fails_closed_for_missing_next_cursor() -> None:
         )
 
     with pytest.raises(CommitIdentityError, match="cursor is missing or repeated"):
+        fetch_pr_snapshot("owner/repo", 42, token="opaque", request_json=request_json)
+
+
+@pytest.mark.parametrize("commit_count", [1, 100, 101, 251])
+def test_pr_snapshot_covers_graphql_page_boundaries(commit_count: int) -> None:
+    commit_shas = [f"{index:040x}" for index in range(1, commit_count)] + [HEAD_SHA]
+    pages = [commit_shas[index : index + 100] for index in range(0, commit_count, 100)]
+    requested_cursors: list[str | None] = []
+
+    def request_json(*_args: Any, **kwargs: Any) -> Any:
+        cursor = kwargs["payload"]["variables"]["cursor"]
+        requested_cursors.append(cursor)
+        page_index = len(requested_cursors) - 1
+        expected_cursor = None if page_index == 0 else f"cursor-{page_index}"
+        assert cursor == expected_cursor
+        has_next = page_index + 1 < len(pages)
+        end_cursor = f"cursor-{page_index + 1}" if has_next else None
+        return _graphql_page(
+            commits=[(sha, "2026-07-15T10:00:00Z") for sha in pages[page_index]],
+            has_next=has_next,
+            cursor=end_cursor,
+        )
+
+    snapshot = fetch_pr_snapshot("owner/repo", 42, token="opaque", request_json=request_json)
+
+    assert len(snapshot.commits) == commit_count
+    assert snapshot.commits[-1].sha == HEAD_SHA
+    assert len(requested_cursors) == len(pages)
+
+
+def test_pr_snapshot_rejects_empty_connection() -> None:
+    def request_json(*_args: Any, **_kwargs: Any) -> Any:
+        return _graphql_page(commits=[], has_next=False, cursor=None)
+
+    with pytest.raises(CommitIdentityError, match="connection is empty"):
+        fetch_pr_snapshot("owner/repo", 42, token="opaque", request_json=request_json)
+
+
+def test_pr_snapshot_rejects_repeated_non_adjacent_cursor() -> None:
+    responses = iter(
+        [
+            _graphql_page(
+                commits=[(FIX_SHA, "2026-07-15T10:00:00Z")],
+                has_next=True,
+                cursor="cursor-1",
+            ),
+            _graphql_page(
+                commits=[(OUTSIDE_SHA, "2026-07-15T10:30:00Z")],
+                has_next=True,
+                cursor="cursor-2",
+            ),
+            _graphql_page(
+                commits=[(HEAD_SHA, "2026-07-15T11:00:00Z")],
+                has_next=True,
+                cursor="cursor-1",
+            ),
+        ]
+    )
+
+    with pytest.raises(CommitIdentityError, match="cursor is missing or repeated"):
+        fetch_pr_snapshot(
+            "owner/repo",
+            42,
+            token="opaque",
+            request_json=lambda *_args, **_kwargs: next(responses),
+        )
+
+
+def test_pr_snapshot_rejects_incomplete_terminal_set_without_head() -> None:
+    def request_json(*_args: Any, **_kwargs: Any) -> Any:
+        return _graphql_page(
+            commits=[(FIX_SHA, "2026-07-15T10:00:00Z")],
+            has_next=False,
+            cursor=None,
+        )
+
+    with pytest.raises(CommitIdentityError, match="live PR head is absent"):
         fetch_pr_snapshot("owner/repo", 42, token="opaque", request_json=request_json)
 
 
@@ -238,6 +327,7 @@ def test_compare_accepts_only_bound_ancestor_response() -> None:
             "ahead_by": 1,
             "behind_by": 0,
             "base_commit": {"sha": FIX_SHA},
+            "head_commit": {"sha": HEAD_SHA},
             "merge_base_commit": {"sha": FIX_SHA},
         }
 
@@ -248,6 +338,31 @@ def test_compare_accepts_only_bound_ancestor_response() -> None:
         token="opaque",
         request_json=request_json,
     )
+
+
+@pytest.mark.parametrize("head_commit", [None, {"sha": OUTSIDE_SHA}])
+def test_compare_rejects_missing_or_mismatched_descendant(head_commit: Any) -> None:
+    ancestor = RepositoryCommitRef(FIX_SHA, CommitRefKind.PR_COMMIT)
+    descendant = RepositoryCommitRef(HEAD_SHA, CommitRefKind.PR_HEAD)
+
+    def request_json(*_args: Any, **_kwargs: Any) -> Any:
+        return {
+            "status": "ahead",
+            "ahead_by": 1,
+            "behind_by": 0,
+            "base_commit": {"sha": FIX_SHA},
+            "head_commit": head_commit,
+            "merge_base_commit": {"sha": FIX_SHA},
+        }
+
+    with pytest.raises(CommitIdentityError, match="does not bind"):
+        is_ancestor(
+            ancestor,
+            descendant,
+            repository="owner/repo",
+            token="opaque",
+            request_json=request_json,
+        )
 
 
 def test_codex_review_reference_requires_exact_trusted_submitted_review() -> None:
@@ -536,6 +651,79 @@ def _seal(receipt: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _mapping_artifact_with_seal(seal: dict[str, Any]) -> str:
+    return "\n".join(
+        [
+            "# PR 42 — Review Governance",
+            "",
+            "Review-Seal-Version: v1",
+            "",
+            "## Discussion Thread Pass",
+            "- [x] Discussion-thread pass completed",
+            "- [x] Fixed in commit mapping completed",
+            "",
+            "## Fixed in Commit Mapping",
+            "- No actionable review comments",
+            "",
+            "## Review Material Seal",
+            render_embedded_review_seal(seal),
+            "",
+        ]
+    )
+
+
+def test_authenticated_closeout_validation_rejects_nonexistent_review(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    receipt = ingest_codex_security_receipt(
+        _build_scan_bundle(tmp_path / "scan"),
+        expected_base_sha=BASE_SHA,
+        expected_head_sha=HEAD_SHA,
+    )
+    mapping = tmp_path / "PR_42_FIXED_MAPPING.md"
+    mapping.write_text(_mapping_artifact_with_seal(_seal(receipt)), encoding="utf-8")
+    manifest = MaterialManifest(
+        base_ref_oid=BASE_SHA,
+        head_ref_oid=HEAD_SHA,
+        merge_base_sha=BASE_SHA,
+        pr_number=42,
+        entries=(),
+        digest=DIGEST,
+    )
+    verifier_calls = 0
+
+    def reject_review(*_args: Any, **_kwargs: Any) -> Any:
+        nonlocal verifier_calls
+        verifier_calls += 1
+        raise CommitIdentityError("GitHub review not found")
+
+    monkeypatch.setattr(closeout_module, "mapping_artifact_path", lambda _pr: mapping)
+    monkeypatch.setattr(closeout_module, "fetch_pr_snapshot", lambda *_a, **_k: _snapshot())
+    monkeypatch.setattr(closeout_module, "_git", lambda *_a, **_k: HEAD_SHA)
+    monkeypatch.setattr(
+        closeout_module,
+        "compute_material_manifest",
+        lambda *_a, **_k: manifest,
+    )
+    monkeypatch.setattr(
+        closeout_module,
+        "classify_commit_ref",
+        lambda value, *_a, **_k: RepositoryCommitRef(value, CommitRefKind.PR_HEAD),
+    )
+    monkeypatch.setattr(closeout_module, "verify_codex_review_reference", reject_review)
+    monkeypatch.setattr(closeout_module, "is_ancestor", lambda *_a, **_k: True)
+    monkeypatch.setattr(closeout_module, "assert_snapshot_unchanged", lambda *_a, **_k: None)
+
+    with pytest.raises(CommitIdentityError, match="review not found"):
+        closeout_module.validate_live_mapping(
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+        )
+
+    assert verifier_calls == 1
+
+
 def test_embedded_seal_round_trip_is_strict_and_canonical(tmp_path: Path) -> None:
     receipt = ingest_codex_security_receipt(
         _build_scan_bundle(tmp_path / "scan"),
@@ -707,11 +895,17 @@ def test_sanitized_pr_2137_abbreviated_fix_dedupes_three_unavailable_refs(
 
     monkeypatch.setattr(identity_module, "classify_commit_ref", classify)
     monkeypatch.setattr(identity_module, "is_ancestor", ancestor)
+    monkeypatch.setattr(
+        evidence_module,
+        "compute_material_manifest",
+        lambda _root, *, head_ref_oid, **_kwargs: _material_manifest(head_ref_oid),
+    )
     covered = validated_duplicate_reply_urls(
         candidate_urls=set(root_urls[1:]),
         threads=threads,
         fingerprint_records={fingerprint: record},
         material_digest=DIGEST,
+        repo_root=Path(),
         snapshot=snapshot,
         repository="owner/repo",
         token="opaque",
@@ -970,12 +1164,18 @@ def test_duplicate_reply_requires_trusted_resolved_thread_and_real_fix(
 
     monkeypatch.setattr(identity_module, "classify_commit_ref", classify)
     monkeypatch.setattr(identity_module, "is_ancestor", lambda *_a, **_k: True)
+    monkeypatch.setattr(
+        evidence_module,
+        "compute_material_manifest",
+        lambda _root, *, head_ref_oid, **_kwargs: _material_manifest(head_ref_oid),
+    )
 
     covered = validated_duplicate_reply_urls(
         candidate_urls={finding.url},
         threads=(canonical_thread, thread),
         fingerprint_records={fingerprint: record},
         material_digest=DIGEST,
+        repo_root=Path(),
         snapshot=_snapshot(),
         repository="owner/repo",
         token="opaque",
@@ -992,10 +1192,195 @@ def test_duplicate_reply_requires_trusted_resolved_thread_and_real_fix(
         threads=(canonical_thread, spoofed),
         fingerprint_records={fingerprint: record},
         material_digest=DIGEST,
+        repo_root=Path(),
         snapshot=_snapshot(),
         repository="owner/repo",
         token="opaque",
     )
+
+    def classify_unknown(value: str, *_args: Any, **_kwargs: Any) -> Any:
+        if value == UNAVAILABLE_SHA:
+            return ReviewExecutionRef(
+                value=value,
+                kind=CommitRefKind.API_UNKNOWN,
+                reason="rate limited",
+            )
+        return RepositoryCommitRef(value, CommitRefKind.PR_COMMIT)
+
+    monkeypatch.setattr(identity_module, "classify_commit_ref", classify_unknown)
+    with pytest.raises(ReviewEvidenceError, match="API_UNKNOWN"):
+        validated_duplicate_reply_urls(
+            candidate_urls={finding.url},
+            threads=(canonical_thread, thread),
+            fingerprint_records={fingerprint: record},
+            material_digest=DIGEST,
+            repo_root=Path(),
+            snapshot=_snapshot(),
+            repository="owner/repo",
+            token="opaque",
+        )
+
+
+def test_duplicate_reply_binds_finding_original_commits_to_material_digest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init", "-q")
+    (repo / "README.md").write_text("base\n", encoding="utf-8")
+    base_sha = _commit(repo, "base")
+    source = repo / "src" / "policy.py"
+    source.parent.mkdir(parents=True)
+    source.write_text("ENFORCED = True\n", encoding="utf-8")
+    material_sha = _commit(repo, "material")
+    material_manifest = compute_material_manifest(
+        repo,
+        base_ref_oid=base_sha,
+        head_ref_oid=material_sha,
+        pr_number=42,
+    )
+    mapping = repo / "docs" / "review" / "PR_42_FIXED_MAPPING.md"
+    mapping.parent.mkdir(parents=True)
+    mapping.write_text("governance-only\n", encoding="utf-8")
+    governance_sha = _commit(repo, "governance closeout")
+    governance_manifest = compute_material_manifest(
+        repo,
+        base_ref_oid=base_sha,
+        head_ref_oid=governance_sha,
+        pr_number=42,
+    )
+    assert governance_manifest.digest == material_manifest.digest
+    source.write_text("ENFORCED = False\n", encoding="utf-8")
+    changed_sha = _commit(repo, "material change")
+    changed_manifest = compute_material_manifest(
+        repo,
+        base_ref_oid=base_sha,
+        head_ref_oid=changed_sha,
+        pr_number=42,
+    )
+    assert changed_manifest.digest != material_manifest.digest
+
+    def classify(value: str, snapshot: PrSnapshot, **_kwargs: Any) -> Any:
+        if value == UNAVAILABLE_SHA:
+            return ReviewExecutionRef(
+                value=value,
+                kind=CommitRefKind.REVIEW_REF_UNAVAILABLE,
+                reason="unavailable",
+            )
+        return RepositoryCommitRef(
+            value,
+            CommitRefKind.PR_HEAD if value == snapshot.head_sha else CommitRefKind.PR_COMMIT,
+        )
+
+    monkeypatch.setattr(identity_module, "classify_commit_ref", classify)
+    monkeypatch.setattr(identity_module, "is_ancestor", lambda *_a, **_k: True)
+
+    canonical_url = "https://github.com/owner/repo/pull/42#discussion_canonical"
+    duplicate_url = "https://github.com/owner/repo/pull/42#discussion_duplicate"
+
+    def evidence(
+        *, digest: str, canonical_original: str, duplicate_original: str
+    ) -> tuple[str, Any, tuple[ReviewThreadEvidence, ...]]:
+        fingerprint = unavailable_review_ref_fingerprint(
+            pr_number=42,
+            material_digest=digest,
+            verified_real_fix_sha=material_sha,
+        )
+        record = type(
+            "Record",
+            (),
+            {
+                "material_digest": digest,
+                "verified_fix": material_sha,
+                "urls": (canonical_url,),
+            },
+        )()
+        finding_body = (
+            f"Potential issue: commit ancestry says {material_sha} cannot reach {UNAVAILABLE_SHA}"
+        )
+        canonical = ReviewCommentEvidence(
+            url=canonical_url,
+            body=finding_body,
+            created_at="2026-07-15T09:00:00Z",
+            author_login="chatgpt-codex-connector",
+            author_association="NONE",
+            original_commit_sha=canonical_original,
+        )
+        duplicate = ReviewCommentEvidence(
+            url=duplicate_url,
+            body=finding_body,
+            created_at="2026-07-15T10:00:00Z",
+            author_login="chatgpt-codex-connector",
+            author_association="NONE",
+            original_commit_sha=duplicate_original,
+        )
+        reply = ReviewCommentEvidence(
+            url=f"{duplicate_url}-reply",
+            body=_duplicate_reply(fingerprint),
+            created_at="2026-07-15T11:00:00Z",
+            author_login="maintainer",
+            author_association="OWNER",
+            original_commit_sha=duplicate_original,
+        )
+        threads = (
+            ReviewThreadEvidence("canonical", True, (canonical,)),
+            ReviewThreadEvidence("duplicate", True, (duplicate, reply)),
+        )
+        return fingerprint, record, threads
+
+    governance_fingerprint, governance_record, governance_threads = evidence(
+        digest=material_manifest.digest,
+        canonical_original=material_sha,
+        duplicate_original=governance_sha,
+    )
+    governance_snapshot = PrSnapshot(
+        repository="owner/repo",
+        pr_number=42,
+        base_sha=base_sha,
+        head_sha=governance_sha,
+        commits=(
+            PrCommitEvidence(material_sha, None),
+            PrCommitEvidence(governance_sha, None),
+        ),
+    )
+    assert validated_duplicate_reply_urls(
+        candidate_urls={duplicate_url},
+        threads=governance_threads,
+        fingerprint_records={governance_fingerprint: governance_record},
+        material_digest=material_manifest.digest,
+        repo_root=repo,
+        snapshot=governance_snapshot,
+        repository="owner/repo",
+        token="opaque",
+    ) == {duplicate_url}
+
+    stale_fingerprint, stale_record, stale_threads = evidence(
+        digest=changed_manifest.digest,
+        canonical_original=material_sha,
+        duplicate_original=changed_sha,
+    )
+    changed_snapshot = PrSnapshot(
+        repository="owner/repo",
+        pr_number=42,
+        base_sha=base_sha,
+        head_sha=changed_sha,
+        commits=(
+            PrCommitEvidence(material_sha, None),
+            PrCommitEvidence(governance_sha, None),
+            PrCommitEvidence(changed_sha, None),
+        ),
+    )
+    with pytest.raises(ReviewEvidenceError, match="different material digest"):
+        validated_duplicate_reply_urls(
+            candidate_urls={duplicate_url},
+            threads=stale_threads,
+            fingerprint_records={stale_fingerprint: stale_record},
+            material_digest=changed_manifest.digest,
+            repo_root=repo,
+            snapshot=changed_snapshot,
+            repository="owner/repo",
+            token="opaque",
+        )
 
 
 def test_duplicate_reply_parser_rejects_extra_fields() -> None:

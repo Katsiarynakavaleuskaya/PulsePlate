@@ -511,6 +511,7 @@ def _duplicate_reply_coverage(
             threads=threads,
             fingerprint_records=records,
             material_digest=str(seal["material"]["digest"]),
+            repo_root=REPO_ROOT,
             snapshot=snapshot,
             repository=repository,
             token=token,

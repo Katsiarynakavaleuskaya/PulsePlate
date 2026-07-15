@@ -4,6 +4,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -250,7 +251,7 @@ def _artifact_with_seal(seal: dict[str, Any]) -> str:
 
 
 def test_ci_gate_accepts_governance_only_head_and_rejects_stale_material(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()
@@ -329,6 +330,47 @@ def test_ci_gate_accepts_governance_only_head_and_rejects_stale_material(
     )
     assert validated["material"]["digest"] == frozen.digest
 
+    live_snapshot = {"value": snapshot}
+    monkeypatch.setenv("GITHUB_TOKEN", "opaque")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "check_pr_merge_readiness.py",
+            "--pr-number",
+            "42",
+            "--repo",
+            "owner/repo",
+        ],
+    )
+    monkeypatch.setattr(
+        merge_gate,
+        "_fetch_pr_context",
+        lambda *_a, **_k: (
+            42,
+            "owner/repo",
+            False,
+            "Canonical artifact: docs/review/PR_42_FIXED_MAPPING.md",
+        ),
+    )
+    monkeypatch.setattr(
+        merge_gate,
+        "fetch_pr_snapshot",
+        lambda *_a, **_k: live_snapshot["value"],
+    )
+    monkeypatch.setattr(
+        merge_gate,
+        "_local_head_sha",
+        lambda: live_snapshot["value"].head_sha,
+    )
+    monkeypatch.setattr(merge_gate, "fetch_review_threads", lambda *_a, **_k: ())
+    monkeypatch.setattr(merge_gate, "_collect_actionable_items", lambda **_k: [])
+    monkeypatch.setattr(merge_gate, "read_mapping_artifact", lambda _pr: artifact)
+    monkeypatch.setattr(merge_gate, "assert_snapshot_unchanged", lambda *_a, **_k: None)
+
+    assert merge_gate.main() == 0
+    assert "CONTENT_BOUND_RECEIPT_VALID" in capsys.readouterr().out
+
     monkeypatch.setattr(
         merge_gate,
         "verify_codex_review_reference",
@@ -374,6 +416,51 @@ def test_ci_gate_accepts_governance_only_head_and_rejects_stale_material(
             snapshot=changed_snapshot,
             token="opaque",
         )
+    live_snapshot["value"] = changed_snapshot
+    assert merge_gate.main() == 1
+    assert "Material review seal validation failed" in capsys.readouterr().out
+
+
+def test_merge_readiness_main_blocks_missing_mapping(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    head_sha = "a" * 40
+    snapshot = PrSnapshot(
+        repository="owner/repo",
+        pr_number=42,
+        base_sha="b" * 40,
+        head_sha=head_sha,
+        commits=(PrCommitEvidence(head_sha, None),),
+    )
+
+    def missing_mapping(_pr_number: int) -> str:
+        raise FileNotFoundError("missing review seal")
+
+    monkeypatch.setenv("GITHUB_TOKEN", "opaque")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "check_pr_merge_readiness.py",
+            "--pr-number",
+            "42",
+            "--repo",
+            "owner/repo",
+        ],
+    )
+    monkeypatch.setattr(
+        merge_gate,
+        "_fetch_pr_context",
+        lambda *_a, **_k: (42, "owner/repo", False, "docs/review/PR_42_FIXED_MAPPING.md"),
+    )
+    monkeypatch.setattr(merge_gate, "fetch_pr_snapshot", lambda *_a, **_k: snapshot)
+    monkeypatch.setattr(merge_gate, "_local_head_sha", lambda: head_sha)
+    monkeypatch.setattr(merge_gate, "fetch_review_threads", lambda *_a, **_k: ())
+    monkeypatch.setattr(merge_gate, "_collect_actionable_items", lambda **_k: [])
+    monkeypatch.setattr(merge_gate, "read_mapping_artifact", missing_mapping)
+
+    assert merge_gate.main() == 1
+    assert "canonical review artifact is invalid" in capsys.readouterr().out
 
 
 def test_merge_readiness_checkout_uses_exact_pr_head_and_no_credentials() -> None:

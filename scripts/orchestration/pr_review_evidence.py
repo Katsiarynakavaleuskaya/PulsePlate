@@ -215,6 +215,7 @@ def validated_duplicate_reply_urls(
     threads: tuple[Any, ...],
     fingerprint_records: Mapping[str, Any],
     material_digest: str,
+    repo_root: Path,
     snapshot: Any,
     repository: str,
     token: str,
@@ -237,6 +238,20 @@ def validated_duplicate_reply_urls(
 
     live_head = RepositoryCommitRef(snapshot.head_sha, CommitRefKind.PR_HEAD)
     authorized_associations = {"OWNER", "MEMBER", "COLLABORATOR"}
+    original_commit_digests: dict[str, str] = {}
+
+    def original_commit_digest(commit_sha: str) -> str:
+        cached = original_commit_digests.get(commit_sha)
+        if cached is not None:
+            return cached
+        digest = compute_material_manifest(
+            repo_root,
+            base_ref_oid=snapshot.base_sha,
+            head_ref_oid=commit_sha,
+            pr_number=snapshot.pr_number,
+        ).digest
+        original_commit_digests[commit_sha] = digest
+        return digest
 
     def validate_finding(record: Any, thread: Any, finding_index: int) -> datetime:
         finding = thread.comments[finding_index]
@@ -248,6 +263,10 @@ def validated_duplicate_reply_urls(
         ):
             raise ReviewEvidenceError(
                 "unavailable-ref finding lacks trusted resolved live PR context"
+            )
+        if original_commit_digest(finding.original_commit_sha) != material_digest:
+            raise ReviewEvidenceError(
+                "unavailable-ref finding originalCommit has a different material digest"
             )
         candidates = review_finding_sha_candidates(finding.body)
         if not _review_finding_mentions_fix(finding.body, record.verified_fix):

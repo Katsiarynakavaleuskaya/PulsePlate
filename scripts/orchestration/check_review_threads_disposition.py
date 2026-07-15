@@ -843,6 +843,7 @@ def main() -> None:
                 threads=thread_evidence,
                 fingerprint_records=records,
                 material_digest=seal["material"]["digest"],
+                repo_root=REPO_ROOT,
                 snapshot=snapshot,
                 repository=repository,
                 token=api_token,
