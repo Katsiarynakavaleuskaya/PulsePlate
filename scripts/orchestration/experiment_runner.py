@@ -735,7 +735,6 @@ def evaluate_candidate(packet: dict[str, Any], candidate_patch_path: Path) -> di
                     budget_observations=budget_observations,
                     candidate_patch_ref=candidate_patch_ref,
                 )
-                break
             except CapabilityMismatchError:
                 if attempt_number > 1:
                     raise InfraFlakeError(CAPABILITY_LOSS_AFTER_INFRA_RETRY_ERROR) from None
@@ -744,6 +743,14 @@ def evaluate_candidate(packet: dict[str, Any], candidate_patch_path: Path) -> di
                 last_infra_error = str(exc)
                 if attempt_number == max_attempts:
                     raise
+                continue
+            if (
+                attempt_number > 1
+                and result.get("status") == "rejected"
+                and result.get("failure_class") == "capability_mismatch"
+            ):
+                raise InfraFlakeError(CAPABILITY_LOSS_AFTER_INFRA_RETRY_ERROR) from None
+            break
         else:
             raise InfraFlakeError(last_infra_error or "Unknown infra_flake during experiment run.")
     except PolicyViolationError as exc:

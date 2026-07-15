@@ -79,6 +79,7 @@ TerminalOutcomeCoherenceViolation = Literal[
     "rejected_without_failure_class",
     "accepted_with_nonaccepted_runner",
     "accepted_without_workspace_proof",
+    "rejected_capability_without_runner_proof",
     "rejected_failure_mismatch",
 ]
 LEAK_TEXT_RE = re.compile(
@@ -128,6 +129,12 @@ def classify_terminal_outcome_coherence(
         and workspace_summary["shared_tree_untouched"]
     ):
         return "accepted_without_workspace_proof"
+    if (
+        status == "rejected"
+        and failure_class == "capability_mismatch"
+        and runner_status != "rejected"
+    ):
+        return "rejected_capability_without_runner_proof"
     if (
         status == "rejected"
         and runner_status == "rejected"
@@ -1178,6 +1185,10 @@ def validate_creative_code_patch_result(payload: dict[str, Any]) -> dict[str, An
         raise CreativeCodePatchContractError("accepted results require an accepted runner summary.")
     if coherence_violation == "accepted_without_workspace_proof":
         raise CreativeCodePatchContractError("accepted results require full workspace proof.")
+    if coherence_violation == "rejected_capability_without_runner_proof":
+        raise CreativeCodePatchContractError(
+            "capability_mismatch results require a rejected runner summary."
+        )
     if coherence_violation == "rejected_failure_mismatch":
         raise CreativeCodePatchContractError(
             "rejected result and runner summary failure_class values must match."

@@ -142,7 +142,10 @@
       "then": {
         "properties": {
           "runner_summary": {
+            "required": ["status", "failure_class"],
             "properties": {
+              "status": { "const": "rejected" },
+              "failure_class": { "const": "capability_mismatch" },
               "attempts": { "enum": [0, 1] },
               "retries_consumed": { "const": 0 }
             }

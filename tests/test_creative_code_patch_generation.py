@@ -546,7 +546,7 @@ def test_receipt_validator_rejects_unknown_failures_and_incoherent_runner_status
     _reset_receipt_identity(top_level_capability_retry_tamper)
     with pytest.raises(
         CreativeCodePatchGenerationError,
-        match="capability_mismatch must use attempts 0 or 1 and retries_consumed 0",
+        match="capability_mismatch receipts require a rejected runner summary",
     ):
         validate_generation_receipt(top_level_capability_retry_tamper)
 
@@ -583,6 +583,16 @@ def test_receipt_validator_rejects_unknown_failures_and_incoherent_runner_status
     wrapper_rejection["failure_class"] = "guard_failure"
     _reset_receipt_identity(wrapper_rejection)
     assert validate_generation_receipt(wrapper_rejection) == wrapper_rejection
+
+    capability_without_runner_proof = deepcopy(reference)
+    capability_without_runner_proof["status"] = "rejected"
+    capability_without_runner_proof["failure_class"] = "capability_mismatch"
+    _reset_receipt_identity(capability_without_runner_proof)
+    with pytest.raises(
+        CreativeCodePatchGenerationError,
+        match="capability_mismatch receipts require a rejected runner summary",
+    ):
+        validate_generation_receipt(capability_without_runner_proof)
 
 
 def test_validate_artifacts_rejects_tampered_receipt_gate_ref_with_recomputed_identity(
@@ -1468,9 +1478,11 @@ def test_generation_schemas_are_closed_and_authority_is_const_false() -> None:
     assert receipt_schema["allOf"][2]["if"]["properties"]["failure_class"] == {
         "const": "capability_mismatch"
     }
-    root_retry_rule = receipt_schema["allOf"][2]["then"]["properties"]["runner_summary"][
-        "properties"
-    ]
+    root_runner_rule = receipt_schema["allOf"][2]["then"]["properties"]["runner_summary"]
+    assert root_runner_rule["required"] == ["status", "failure_class"]
+    root_retry_rule = root_runner_rule["properties"]
+    assert root_retry_rule["status"] == {"const": "rejected"}
+    assert root_retry_rule["failure_class"] == {"const": "capability_mismatch"}
     assert root_retry_rule["attempts"] == {"enum": [0, 1]}
     assert root_retry_rule["retries_consumed"] == {"const": 0}
     rejected_pair_rule = receipt_schema["allOf"][3]

@@ -343,9 +343,11 @@ def test_reference_patch_contracts_validate_and_schema_is_closed() -> None:
     assert result_schema["allOf"][2]["if"]["properties"]["failure_class"] == {
         "const": "capability_mismatch"
     }
-    root_retry_rule = result_schema["allOf"][2]["then"]["properties"]["runner_summary"][
-        "properties"
-    ]
+    root_runner_rule = result_schema["allOf"][2]["then"]["properties"]["runner_summary"]
+    assert root_runner_rule["required"] == ["status", "failure_class"]
+    root_retry_rule = root_runner_rule["properties"]
+    assert root_retry_rule["status"] == {"const": "rejected"}
+    assert root_retry_rule["failure_class"] == {"const": "capability_mismatch"}
     assert root_retry_rule["attempts"] == {"enum": [0, 1]}
     assert root_retry_rule["retries_consumed"] == {"const": 0}
     rejected_pair_rule = result_schema["allOf"][3]
@@ -512,6 +514,21 @@ def test_patch_result_rejects_incoherent_runner_status_and_preserves_wrapper_rej
 
     assert validate_creative_code_patch_result(wrapper_rejection) == wrapper_rejection
 
+    capability_without_runner_proof = _reference_result()
+    capability_without_runner_proof["status"] = "rejected"
+    capability_without_runner_proof["failure_class"] = "capability_mismatch"
+    result_id, idempotency_key = creative_code_patch_contract._build_result_identity(
+        capability_without_runner_proof
+    )
+    capability_without_runner_proof["result_id"] = result_id
+    capability_without_runner_proof["idempotency_key"] = idempotency_key
+
+    with pytest.raises(
+        CreativeCodePatchContractError,
+        match="capability_mismatch results require a rejected runner summary",
+    ):
+        validate_creative_code_patch_result(capability_without_runner_proof)
+
 
 @pytest.mark.parametrize(
     ("result_failure", "runner_failure"),
@@ -581,7 +598,7 @@ def test_patch_result_rejects_capability_mismatch_retry_tamper() -> None:
 
     with pytest.raises(
         CreativeCodePatchContractError,
-        match="capability_mismatch must use attempts 0 or 1 and retries_consumed 0",
+        match="capability_mismatch results require a rejected runner summary",
     ):
         validate_creative_code_patch_result(top_level_tamper)
 
