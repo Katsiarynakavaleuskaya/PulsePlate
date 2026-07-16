@@ -376,6 +376,40 @@ def test_operator_outage_override_rejects_newer_queued_security_attempt(
         )
 
 
+@pytest.mark.parametrize(
+    ("target", "newer_job"),
+    [
+        ("security", "pr_scope_guard"),
+        ("security-scan", "build"),
+    ],
+)
+def test_operator_outage_override_rejects_stale_success_before_newer_workflow_job(
+    monkeypatch: pytest.MonkeyPatch,
+    target: str,
+    newer_job: str,
+) -> None:
+    nodes = [_check_node(name) for name in merge_gate._OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES]
+    newer_workflow_activity = _check_node(
+        target,
+        suite_created_at="2026-07-16T11:01:00Z",
+    )
+    newer_workflow_activity["name"] = newer_job
+    newer_workflow_activity["detailsUrl"] = f"https://github.com/checks/{newer_job}"
+    nodes.append(newer_workflow_activity)
+    monkeypatch.setattr(
+        merge_gate,
+        "_fetch_current_head_pr_metadata",
+        lambda *_a, **_k: (False, "CLEAN", "main", nodes),
+    )
+
+    with pytest.raises(ReviewEvidenceError, match=rf"{target}=missing-latest"):
+        merge_gate._validate_operator_outage_security_checks(
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+        )
+
+
 def test_operator_outage_override_rejects_equal_time_pending_security_attempt(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -62,6 +62,7 @@ from scripts.ci.check_current_head_pr_checks import (  # noqa: E402
     _fetch_pr_metadata as _fetch_current_head_pr_metadata,
     _latest_entries as _latest_check_entries,
     _normalize_node as _normalize_check_node,
+    _suppress_stale_latest_entries_with_newer_workflow_activity as _suppress_stale_check_entries,
 )
 
 # Set to governance PR number + 1 immediately after that PR is opened.  ``None``
@@ -446,7 +447,12 @@ def _validate_operator_outage_security_checks(
         raise ReviewEvidenceError(
             f"operator outage override cannot order current-head security checks: {exc}"
         ) from exc
-    latest, _superseded = _latest_check_entries(entries)
+    latest, superseded = _latest_check_entries(entries)
+    latest, _superseded = _suppress_stale_check_entries(
+        entries,
+        latest,
+        superseded,
+    )
     failures: list[str] = []
     for name, expected_identity in sorted(_OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES.items()):
         candidates = [entry for entry in entries if entry.name == name]
