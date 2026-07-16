@@ -356,15 +356,17 @@ def test_ci_gate_accepts_governance_only_head_and_rejects_stale_material(
         ),
     )
     monkeypatch.setattr(merge_gate, "is_ancestor", lambda *_a, **_k: True)
-    monkeypatch.setattr(
-        merge_gate,
-        "verify_codex_review_reference",
-        lambda *_a, **_k: CodexReviewEvidence(
+    verifier_expected_commits: list[str | None] = []
+
+    def verify_review(*_args: Any, **kwargs: Any) -> CodexReviewEvidence:
+        verifier_expected_commits.append(kwargs.get("expected_commit_ref"))
+        return CodexReviewEvidence(
             reference="https://github.com/owner/repo/pull/42#pullrequestreview-1",
             submitted_at="2026-07-15T11:00:00Z",
             commit_ref=material_head,
-        ),
-    )
+        )
+
+    monkeypatch.setattr(merge_gate, "verify_codex_review_reference", verify_review)
 
     validated = merge_gate._validate_v1_seal(
         artifact_text=artifact,
@@ -374,6 +376,7 @@ def test_ci_gate_accepts_governance_only_head_and_rejects_stale_material(
         token="opaque",
     )
     assert validated["material"]["digest"] == frozen.digest
+    assert verifier_expected_commits == [material_head]
 
     live_snapshot = {"value": snapshot}
     monkeypatch.setenv("GITHUB_TOKEN", "opaque")

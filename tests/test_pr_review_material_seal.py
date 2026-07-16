@@ -401,6 +401,16 @@ def test_codex_review_reference_requires_exact_trusted_submitted_review() -> Non
     )
     assert evidence.commit_ref == HEAD_SHA
 
+    with pytest.raises(CommitIdentityError, match="expected material commit"):
+        verify_codex_review_reference(
+            reference,
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            expected_commit_ref=OUTSIDE_SHA,
+            request_json=request_json,
+        )
+
     with pytest.raises(CommitIdentityError, match="submitted trusted Codex"):
         verify_codex_review_reference(
             reference,
@@ -414,6 +424,204 @@ def test_codex_review_reference_requires_exact_trusted_submitted_review() -> Non
                 "submitted_at": "2026-07-15T11:00:00Z",
                 "user": {"login": "spoofed[bot]"},
             },
+        )
+
+
+def _codex_no_findings_body(commit_prefix: str = HEAD_SHA[:10]) -> str:
+    return f"""Codex Review: Didn't find any major issues. Breezy!
+
+**Reviewed commit:** `{commit_prefix}`
+
+<details> <summary>ℹ️ About Codex in GitHub</summary>
+<br/>
+
+[Your team has set up Codex to review pull requests in this repo](https://chatgpt.com/codex/cloud/settings/general). Reviews are triggered when you
+- Open a pull request for review
+- Mark a draft as ready
+- Comment "@codex review".
+
+If Codex has suggestions, it will comment; otherwise it will react with 👍.
+
+
+
+Codex can also answer questions or update the PR. Try commenting "@codex address that feedback".
+
+</details>"""
+
+
+def _codex_no_findings_comment(reference: str, *, body: str | None = None) -> dict[str, Any]:
+    return {
+        "body": _codex_no_findings_body() if body is None else body,
+        "created_at": "2026-07-15T11:00:00Z",
+        "html_url": reference,
+        "performed_via_github_app": {
+            "id": 1_144_995,
+            "owner": {"login": "openai"},
+            "slug": "chatgpt-codex-connector",
+        },
+        "updated_at": "2026-07-15T11:00:00Z",
+        "user": {"login": "chatgpt-codex-connector[bot]", "type": "Bot"},
+    }
+
+
+def test_codex_no_findings_comment_is_bound_to_expected_full_head() -> None:
+    reference = "https://github.com/owner/repo/pull/42#issuecomment-456"
+    requested_urls: list[str] = []
+
+    def request_json(url: str, **_kwargs: Any) -> Any:
+        requested_urls.append(url)
+        if url.endswith("/commits/" + HEAD_SHA[:10]):
+            return {"sha": HEAD_SHA}
+        return _codex_no_findings_comment(reference)
+
+    evidence = verify_codex_review_reference(
+        reference,
+        repository="owner/repo",
+        pr_number=42,
+        token="opaque",
+        expected_commit_ref=HEAD_SHA,
+        request_json=request_json,
+    )
+
+    assert evidence.commit_ref == HEAD_SHA
+    assert evidence.submitted_at == "2026-07-15T11:00:00Z"
+    assert requested_urls == [
+        "https://api.github.com/repos/owner/repo/issues/comments/456",
+        f"https://api.github.com/repos/owner/repo/commits/{HEAD_SHA[:10]}",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("mutate", "error"),
+    [
+        (
+            lambda response: response["user"].update(login="spoofed[bot]"),
+            "not trusted Codex evidence",
+        ),
+        (
+            lambda response: response["user"].update(type="User"),
+            "not trusted Codex evidence",
+        ),
+        (
+            lambda response: response["performed_via_github_app"].update(id=1),
+            "not trusted Codex evidence",
+        ),
+        (
+            lambda response: response["performed_via_github_app"].update(slug="spoofed"),
+            "not trusted Codex evidence",
+        ),
+        (
+            lambda response: response["performed_via_github_app"]["owner"].update(login="spoofed"),
+            "not trusted Codex evidence",
+        ),
+        (
+            lambda response: response.update(
+                html_url="https://github.com/owner/repo/pull/43#issuecomment-456"
+            ),
+            "not trusted Codex evidence",
+        ),
+        (
+            lambda response: response.update(updated_at="2026-07-15T11:01:00Z"),
+            "edited after creation",
+        ),
+        (
+            lambda response: response.update(
+                body=response["body"].replace(
+                    "Didn't find any major issues. Breezy!", "Found a major issue."
+                )
+            ),
+            "not an exact Codex no-findings response",
+        ),
+        (
+            lambda response: response.update(
+                body=response["body"].replace(
+                    "Didn't find any major issues. Breezy!",
+                    "Didn't find any major issues. But one issue exists.",
+                )
+            ),
+            "not an exact Codex no-findings response",
+        ),
+        (
+            lambda response: response.update(
+                body=response["body"].replace(HEAD_SHA[:10], "ABCDEF1234")
+            ),
+            "invalid commit evidence",
+        ),
+        (
+            lambda response: response.update(
+                body=response["body"].replace(
+                    f"**Reviewed commit:** `{HEAD_SHA[:10]}`",
+                    (
+                        f"**Reviewed commit:** `{HEAD_SHA[:10]}`\n"
+                        f"**Reviewed commit:** `{HEAD_SHA[:10]}`"
+                    ),
+                )
+            ),
+            "invalid commit evidence",
+        ),
+    ],
+)
+def test_codex_no_findings_comment_rejects_untrusted_or_ambiguous_evidence(
+    mutate: Any, error: str
+) -> None:
+    reference = "https://github.com/owner/repo/pull/42#issuecomment-456"
+    response = _codex_no_findings_comment(reference)
+    mutate(response)
+
+    with pytest.raises(CommitIdentityError, match=error):
+        verify_codex_review_reference(
+            reference,
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            expected_commit_ref=HEAD_SHA,
+            request_json=lambda *_a, **_k: response,
+        )
+
+
+def test_codex_no_findings_comment_requires_exact_full_head_binding() -> None:
+    reference = "https://github.com/owner/repo/pull/42#issuecomment-456"
+    response = _codex_no_findings_comment(
+        reference,
+        body=_codex_no_findings_body(OUTSIDE_SHA[:10]),
+    )
+
+    with pytest.raises(CommitIdentityError, match="does not match the material commit"):
+        verify_codex_review_reference(
+            reference,
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            expected_commit_ref=HEAD_SHA,
+            request_json=lambda *_a, **_k: response,
+        )
+
+
+def test_codex_no_findings_comment_rejects_unresolved_short_commit() -> None:
+    reference = "https://github.com/owner/repo/pull/42#issuecomment-456"
+
+    def request_json(url: str, **_kwargs: Any) -> Any:
+        if "/commits/" in url:
+            return {"sha": OUTSIDE_SHA}
+        return _codex_no_findings_comment(reference)
+
+    with pytest.raises(CommitIdentityError, match="does not resolve to the material commit"):
+        verify_codex_review_reference(
+            reference,
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            expected_commit_ref=HEAD_SHA,
+            request_json=request_json,
+        )
+
+    with pytest.raises(CommitIdentityError, match="requires an expected full material commit"):
+        verify_codex_review_reference(
+            reference,
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            request_json=lambda *_a, **_k: _codex_no_findings_comment(reference),
         )
 
 
@@ -705,11 +913,10 @@ def test_authenticated_closeout_validation_rejects_nonexistent_review(
         entries=(),
         digest=DIGEST,
     )
-    verifier_calls = 0
+    verifier_expected_commits: list[str | None] = []
 
-    def reject_review(*_args: Any, **_kwargs: Any) -> Any:
-        nonlocal verifier_calls
-        verifier_calls += 1
+    def reject_review(*_args: Any, **kwargs: Any) -> Any:
+        verifier_expected_commits.append(kwargs.get("expected_commit_ref"))
         raise CommitIdentityError("GitHub review not found")
 
     monkeypatch.setattr(closeout_module, "mapping_artifact_path", lambda _pr: mapping)
@@ -736,7 +943,7 @@ def test_authenticated_closeout_validation_rejects_nonexistent_review(
             token="opaque",
         )
 
-    assert verifier_calls == 1
+    assert verifier_expected_commits == [HEAD_SHA]
 
 
 def test_embedded_seal_round_trip_is_strict_and_canonical(tmp_path: Path) -> None:

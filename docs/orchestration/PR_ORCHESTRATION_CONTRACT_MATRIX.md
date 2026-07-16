@@ -133,9 +133,12 @@ governance PR number + 1; the governance PR may opt in with
   edits are outside Git. Other docs, AGENTS/runbook, workflows, tests,
   dependencies, schemas, and policies remain material.
 - The trusted submitted Codex review object's real GitHub `commit_id` must be
-  the frozen material head; reviewer-execution/synthetic refs never satisfy
-  this proof. Code review and one completed final Codex Security diff scan bind
-  to the same digest. The embedded security record is a
+  the frozen material head. An official unedited no-findings issue comment is
+  accepted only when the trusted Codex GitHub App identity and its short
+  reviewed-commit marker resolve through the Commit API to that same full head;
+  reviewer-execution/synthetic refs never satisfy this proof. Code review and
+  one completed final Codex Security diff scan bind to the same digest. The
+  embedded security record is a
   `human_asserted_content_receipt`: CI verifies schema, hashes, coverage, range,
   and content binding but does not claim signed/plugin attestation.
 - `pr_review_closeout.py` keeps `init`, `freeze`, and `add-disposition` state

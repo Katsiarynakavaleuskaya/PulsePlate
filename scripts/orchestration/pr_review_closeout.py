@@ -520,6 +520,7 @@ def _cmd_seal(args: argparse.Namespace) -> None:
         repository=args.repo,
         pr_number=args.pr_number,
         token=token,
+        expected_commit_ref=snapshot.head_sha,
     )
     review_commit = classify_commit_ref(review_evidence.commit_ref, snapshot, token=token)
     if (
@@ -613,6 +614,7 @@ def validate_live_mapping(*, repository: str, pr_number: int, token: str | None)
         repository=repository,
         pr_number=pr_number,
         token=token,
+        expected_commit_ref=material_head.sha,
     )
     if (
         code_review["review_commit_ref_kind"] != "repository_commit"

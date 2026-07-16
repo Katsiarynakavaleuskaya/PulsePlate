@@ -448,6 +448,7 @@ def _validate_v1_seal(
         repository=repository,
         pr_number=pr_number,
         token=token,
+        expected_commit_ref=material["material_head_sha"],
     )
     if (
         review_evidence.commit_ref != seal["code_review"]["review_commit_ref"]

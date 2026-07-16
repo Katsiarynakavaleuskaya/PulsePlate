@@ -206,8 +206,11 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
    ancestry checks.
 9. **Material identity:** one Codex review and one completed final Codex Security
    diff scan bind to one material digest. The trusted submitted review object's
-   real GitHub `commit_id` must equal the frozen material head; a synthetic
-   execution ref is never review proof. Every path is material except the exact
+   real GitHub `commit_id` must equal the frozen material head. When the official
+   Codex connector emits an unedited no-findings issue comment instead, its
+   trusted GitHub App identity and reviewed-commit prefix must resolve through
+   the Commit API to that same full frozen head. A synthetic execution ref is
+   never review proof. Every path is material except the exact
    current-PR mapping artifact. PR-body edits are outside Git. Any later code,
    test, workflow, dependency, policy, contract, or other docs change invalidates
    the seal and reopens review/final scan.

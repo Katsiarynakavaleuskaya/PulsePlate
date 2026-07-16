@@ -28,6 +28,26 @@ _MAX_REVIEW_THREADS = 10_000
 _MAX_REVIEW_COMMENTS = 10_000
 _SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 _ISO_8601_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$")
+_CODEX_CONNECTOR_LOGIN = "chatgpt-codex-connector[bot]"
+_CODEX_CONNECTOR_APP_ID = 1_144_995
+_CODEX_CONNECTOR_APP_SLUG = "chatgpt-codex-connector"
+_CODEX_CONNECTOR_OWNER = "openai"
+_CODEX_REVIEWED_COMMIT_RE = re.compile(r"^\*\*Reviewed commit:\*\* `(?P<commit>[0-9a-f]{10})`$")
+_CODEX_NO_FINDINGS_SUMMARIES = frozenset({"Codex Review: Didn't find any major issues. Breezy!"})
+_CODEX_NO_FINDINGS_DETAILS = """<details> <summary>ℹ️ About Codex in GitHub</summary>
+<br/>
+
+[Your team has set up Codex to review pull requests in this repo](https://chatgpt.com/codex/cloud/settings/general). Reviews are triggered when you
+- Open a pull request for review
+- Mark a draft as ready
+- Comment "@codex review".
+
+If Codex has suggestions, it will comment; otherwise it will react with 👍.
+
+
+
+Codex can also answer questions or update the PR. Try commenting "@codex address that feedback".
+</details>"""
 
 
 class CommitIdentityError(RuntimeError):
@@ -265,6 +285,17 @@ def _require_iso8601(value: Any, *, field: str) -> str:
     if parsed.tzinfo is None:
         raise CommitIdentityError(f"{field} must include a timezone")
     return value
+
+
+def _normalize_codex_comment_details(value: str) -> str:
+    """Ignore connector-only whitespace while preserving exact nonblank content."""
+
+    normalized: list[str] = []
+    for raw_line in value.splitlines():
+        line = raw_line.rstrip(" \t")
+        if line:
+            normalized.append(line)
+    return "\n".join(normalized)
 
 
 def _parse_pr_page(
@@ -523,43 +554,130 @@ def verify_codex_review_reference(
     repository: str,
     pr_number: int,
     token: str,
+    expected_commit_ref: str | None = None,
     request_json: ApiRequest = github_api_request,
 ) -> CodexReviewEvidence:
-    """Prove that a seal reference names one submitted trusted Codex PR review."""
+    """Prove that a seal reference names trusted exact-head Codex review evidence."""
 
     owner, name = _require_repository(repository)
-    pattern = re.compile(
+    expected_commit = (
+        _require_sha(expected_commit_ref, field="expected Codex review commit")
+        if expected_commit_ref is not None
+        else None
+    )
+    review_pattern = re.compile(
         rf"^https://github\.com/{re.escape(owner)}/{re.escape(name)}/pull/"
         rf"{pr_number}#pullrequestreview-(\d+)$"
     )
-    match = pattern.fullmatch(reference)
-    if not match:
-        raise CommitIdentityError("code-review reference must be a GitHub PR review URL")
-    review_id = match.group(1)
+    review_match = review_pattern.fullmatch(reference)
+    if review_match:
+        review_id = review_match.group(1)
+        response = request_json(
+            f"{_API_ROOT}/repos/{owner}/{name}/pulls/{pr_number}/reviews/{review_id}",
+            token=token,
+        )
+        if not isinstance(response, dict):
+            raise CommitIdentityError("GitHub review response is malformed")
+        user = response.get("user")
+        login = user.get("login") if isinstance(user, dict) else None
+        state = response.get("state")
+        submitted_at = response.get("submitted_at")
+        commit_id = response.get("commit_id")
+        html_url = response.get("html_url")
+        if (
+            login != _CODEX_CONNECTOR_LOGIN
+            or state not in {"COMMENTED", "APPROVED"}
+            or html_url != reference
+        ):
+            raise CommitIdentityError(
+                "code-review reference is not a submitted trusted Codex review"
+            )
+        submitted = _require_iso8601(submitted_at, field="Codex review submitted_at")
+        commit_ref = _require_sha(str(commit_id or ""), field="Codex review commit_id")
+        if expected_commit is not None and commit_ref != expected_commit:
+            raise CommitIdentityError("Codex review does not match the expected material commit")
+        return CodexReviewEvidence(
+            reference=reference,
+            submitted_at=submitted,
+            commit_ref=commit_ref,
+        )
+
+    comment_pattern = re.compile(
+        rf"^https://github\.com/{re.escape(owner)}/{re.escape(name)}/pull/"
+        rf"{pr_number}#issuecomment-(\d+)$"
+    )
+    comment_match = comment_pattern.fullmatch(reference)
+    if not comment_match:
+        raise CommitIdentityError(
+            "code-review reference must be a GitHub PR review or Codex no-findings comment URL"
+        )
+    if expected_commit is None:
+        raise CommitIdentityError(
+            "Codex no-findings comment requires an expected full material commit"
+        )
+    comment_id = comment_match.group(1)
     response = request_json(
-        f"{_API_ROOT}/repos/{owner}/{name}/pulls/{pr_number}/reviews/{review_id}",
+        f"{_API_ROOT}/repos/{owner}/{name}/issues/comments/{comment_id}",
         token=token,
     )
     if not isinstance(response, dict):
-        raise CommitIdentityError("GitHub review response is malformed")
+        raise CommitIdentityError("GitHub issue-comment response is malformed")
     user = response.get("user")
     login = user.get("login") if isinstance(user, dict) else None
-    state = response.get("state")
-    submitted_at = response.get("submitted_at")
-    commit_id = response.get("commit_id")
-    html_url = response.get("html_url")
+    user_type = user.get("type") if isinstance(user, dict) else None
+    app = response.get("performed_via_github_app")
+    app_owner = app.get("owner") if isinstance(app, dict) else None
+    app_owner_login = app_owner.get("login") if isinstance(app_owner, dict) else None
+    created_at = response.get("created_at")
+    updated_at = response.get("updated_at")
     if (
-        login != "chatgpt-codex-connector[bot]"
-        or state not in {"COMMENTED", "APPROVED"}
-        or html_url != reference
+        login != _CODEX_CONNECTOR_LOGIN
+        or user_type != "Bot"
+        or not isinstance(app, dict)
+        or app.get("id") != _CODEX_CONNECTOR_APP_ID
+        or app.get("slug") != _CODEX_CONNECTOR_APP_SLUG
+        or app_owner_login != _CODEX_CONNECTOR_OWNER
+        or response.get("html_url") != reference
     ):
-        raise CommitIdentityError("code-review reference is not a submitted trusted Codex review")
-    submitted = _require_iso8601(submitted_at, field="Codex review submitted_at")
-    commit_ref = _require_sha(str(commit_id or ""), field="Codex review commit_id")
+        raise CommitIdentityError("issue-comment reference is not trusted Codex evidence")
+    submitted = _require_iso8601(created_at, field="Codex comment created_at")
+    edited_at = _require_iso8601(updated_at, field="Codex comment updated_at")
+    if submitted != edited_at:
+        raise CommitIdentityError("Codex no-findings comment was edited after creation")
+    body = response.get("body")
+    if not isinstance(body, str) or "\r" in body:
+        raise CommitIdentityError("Codex no-findings comment body is malformed")
+    sections = body.split("\n\n", 2)
+    if (
+        len(sections) != 3
+        or sections[0] not in _CODEX_NO_FINDINGS_SUMMARIES
+        or _normalize_codex_comment_details(sections[2])
+        != _normalize_codex_comment_details(_CODEX_NO_FINDINGS_DETAILS)
+    ):
+        raise CommitIdentityError("issue-comment is not an exact Codex no-findings response")
+    commit_matches = list(_CODEX_REVIEWED_COMMIT_RE.finditer(sections[1]))
+    if len(commit_matches) != 1 or commit_matches[0].group(0) != sections[1]:
+        raise CommitIdentityError("Codex no-findings comment has invalid commit evidence")
+    reviewed_prefix = commit_matches[0].group("commit")
+    if not expected_commit.startswith(reviewed_prefix):
+        raise CommitIdentityError("Codex no-findings comment does not match the material commit")
+    resolved_commit = request_json(
+        f"{_API_ROOT}/repos/{owner}/{name}/commits/{reviewed_prefix}",
+        token=token,
+    )
+    if not isinstance(resolved_commit, dict):
+        raise CommitIdentityError("GitHub commit response is malformed")
+    resolved_sha = _require_sha(
+        str(resolved_commit.get("sha") or ""), field="resolved Codex review commit"
+    )
+    if resolved_sha != expected_commit:
+        raise CommitIdentityError(
+            "Codex no-findings commit marker does not resolve to the material commit"
+        )
     return CodexReviewEvidence(
         reference=reference,
         submitted_at=submitted,
-        commit_ref=commit_ref,
+        commit_ref=expected_commit,
     )
 
 
