@@ -4106,6 +4106,36 @@ def test_legacy_growth_guard_resolves_arguments_in_python_evaluation_order(
     ]
 
 
+@pytest.mark.parametrize(
+    ("registrars", "expected"),
+    [
+        (("app.get", "safe_register"), []),
+        (
+            ("safe_register", "app.get"),
+            ["legacy_app.py: unexpected legacy route growth: " "registration:dynamic:path"],
+        ),
+    ],
+    ids=["safe-last", "dangerous-last"],
+)
+def test_legacy_growth_guard_uses_last_value_for_duplicate_static_dict_keys(
+    registrars: tuple[str, str],
+    expected: list[str],
+) -> None:
+    first, second = registrars
+    source = textwrap.dedent(f"""
+        def install(registrar, path):
+            registrar(path)(handler)
+
+        install(**{{
+            "registrar": {first},
+            "registrar": {second},
+            "path": "/api/v1/duplicate-dict",
+        }})
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == expected
+
+
 def test_legacy_growth_guard_argument_evaluator_detaches_parent_scope_chain() -> None:
     tree = ast.parse(
         "def install(first, registrar):\n"
@@ -4135,6 +4165,213 @@ def test_legacy_growth_guard_argument_evaluator_detaches_parent_scope_chain() ->
 
     assert original_parent.references == original_references
     assert original_parent.resolve_reference("route") is None
+
+
+def test_legacy_growth_guard_propagates_global_callable_rebinding() -> None:
+    source = textwrap.dedent("""
+        def dangerous(registrar):
+            registrar("/api/v1/global-rebind")(handler)
+
+        def safe(registrar):
+            return registrar
+
+        install = safe
+
+        def replace():
+            global install
+            install = dangerous
+
+        replace()
+        install(app.get)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:dynamic:/api/v1/global-rebind"
+    ]
+
+
+def test_legacy_growth_guard_propagates_safe_global_callable_rebinding() -> None:
+    source = textwrap.dedent("""
+        def dangerous(registrar):
+            registrar("/api/v1/not-a-route")(handler)
+
+        def safe(registrar):
+            return registrar
+
+        install = dangerous
+
+        def replace():
+            global install
+            install = safe
+
+        replace()
+        install(app.get)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+def test_legacy_growth_guard_propagates_nested_global_callable_rebinding() -> None:
+    source = textwrap.dedent("""
+        def dangerous(registrar):
+            registrar("/api/v1/nested-global-rebind")(handler)
+
+        def safe(registrar):
+            return registrar
+
+        install = safe
+
+        def outer_replace():
+            global install
+
+            def inner_replace():
+                global install
+                install = dangerous
+
+            inner_replace()
+
+        outer_replace()
+        install(app.get)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:dynamic:/api/v1/nested-global-rebind"
+    ]
+
+
+def test_legacy_growth_guard_propagates_nested_safe_global_rebinding() -> None:
+    source = textwrap.dedent("""
+        def dangerous(registrar):
+            registrar("/api/v1/not-a-route")(handler)
+
+        def safe(registrar):
+            return registrar
+
+        install = dangerous
+
+        def outer_replace():
+            global install
+
+            def inner_replace():
+                global install
+                install = safe
+
+            inner_replace()
+
+        outer_replace()
+        install(app.get)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+def test_legacy_growth_guard_sandboxes_dormant_nested_global_rebinding() -> None:
+    source = textwrap.dedent("""
+        def dangerous(registrar):
+            registrar("/api/v1/dormant-global-rebind")(handler)
+
+        def safe(registrar):
+            return registrar
+
+        install = safe
+
+        def outer():
+            def dormant():
+                def inner_replace():
+                    global install
+                    install = dangerous
+
+                inner_replace()
+
+        outer()
+        install(app.get)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+def test_legacy_growth_guard_propagates_nonlocal_callable_rebinding() -> None:
+    source = textwrap.dedent("""
+        def outer():
+            def dangerous(registrar):
+                registrar("/api/v1/nonlocal-rebind")(handler)
+
+            def safe(registrar):
+                return registrar
+
+            install = safe
+
+            def replace():
+                nonlocal install
+                install = dangerous
+
+            replace()
+            install(app.get)
+
+        outer()
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:dynamic:/api/v1/nonlocal-rebind"
+    ]
+
+
+def test_legacy_growth_guard_propagates_deep_nonlocal_callable_rebinding() -> None:
+    source = textwrap.dedent("""
+        def outer():
+            def dangerous(registrar):
+                registrar("/api/v1/deep-nonlocal-rebind")(handler)
+
+            def safe(registrar):
+                return registrar
+
+            install = safe
+
+            def middle():
+                def replace():
+                    nonlocal install
+                    install = dangerous
+
+                replace()
+
+            middle()
+            install(app.get)
+
+        outer()
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:dynamic:/api/v1/deep-nonlocal-rebind"
+    ]
+
+
+def test_legacy_growth_guard_joins_conditional_global_callable_rebinding() -> None:
+    source = textwrap.dedent("""
+        def dangerous(registrar):
+            registrar("/api/v1/conditional-global-rebind")(handler)
+
+        def safe(registrar):
+            return registrar
+
+        install = safe
+
+        def replace(enabled):
+            global install
+            if enabled:
+                install = dangerous
+
+        replace(runtime_flag)
+        install(app.get)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:dynamic:/api/v1/conditional-global-rebind"
+    ]
 
 
 @pytest.mark.parametrize(

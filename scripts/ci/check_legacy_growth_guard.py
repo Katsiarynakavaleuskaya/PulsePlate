@@ -1922,6 +1922,37 @@ def _function_local_binding_names(
     return frozenset(names - global_names - nonlocal_names)
 
 
+def _function_outward_binding_names(
+    node: ast.FunctionDef | ast.AsyncFunctionDef,
+) -> tuple[frozenset[str], frozenset[str]]:
+    global_names: set[str] = set()
+    nonlocal_names: set[str] = set()
+
+    class _OutwardBindingVisitor(ast.NodeVisitor):
+        def visit_Global(self, child: ast.Global) -> None:
+            global_names.update(child.names)
+
+        def visit_Nonlocal(self, child: ast.Nonlocal) -> None:
+            nonlocal_names.update(child.names)
+
+        def visit_FunctionDef(self, child: ast.FunctionDef) -> None:
+            return
+
+        def visit_AsyncFunctionDef(self, child: ast.AsyncFunctionDef) -> None:
+            return
+
+        def visit_ClassDef(self, child: ast.ClassDef) -> None:
+            return
+
+        def visit_Lambda(self, child: ast.Lambda) -> None:
+            return
+
+    visitor = _OutwardBindingVisitor()
+    for statement in node.body:
+        visitor.visit(statement)
+    return frozenset(global_names), frozenset(nonlocal_names)
+
+
 _POSSIBLE_LEGACY_REFERENCE = "<possible:legacy_app>"
 _POSSIBLE_APP_REFERENCE = "<possible:pulseplate.app>"
 _POSSIBLE_ROUTER_REFERENCE = "<possible:pulseplate.app.router>"
@@ -1985,6 +2016,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         ] = []
         self._function_default_bindings: dict[_FunctionNode, dict[str, _ResolvedBinding]] = {}
         self._active_function_replays: set[_FunctionNode] = set()
+        self._outward_binding_targets: list[dict[str, _LexicalBindings]] = []
         self._awaited_call_ids: set[int] = set()
         self._remaining_loop_iterations = _MAX_TOTAL_LOOP_BINDING_ITERATIONS
         self.scope = _LexicalBindings(parent=None)
@@ -2645,6 +2677,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             )
             self.scope = active_scope
             lexical_parent = late_parent
+        lexical_parent = lexical_parent.detached_clone()
         summary_visitor = _ApiKeyLookupVisitor(
             filename=self.filename,
             errors=[],
@@ -3330,7 +3363,15 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 self.scope.references.pop(name, None)
                 self.scope.strings.pop(name, None)
                 self.scope.callables.pop(name, None)
-                if self.scope.scope_kind == "module" and name == "object":
+                outward_target = (
+                    self._outward_binding_targets[-1].get(name)
+                    if self._outward_binding_targets
+                    else None
+                )
+                restores_module_builtin = self.scope.scope_kind == "module" or (
+                    outward_target is not None and outward_target.scope_kind == "module"
+                )
+                if restores_module_builtin and name == "object":
                     self.scope.bind(
                         name,
                         reference="builtins.object",
@@ -3467,6 +3508,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 )
                 and all(key is not None for key in keyword.value.keys)
             ):
+                static_dict_bindings: dict[str, _ResolvedBinding] = {}
                 for key, value in zip(
                     keyword.value.keys,
                     keyword.value.values,
@@ -3476,12 +3518,10 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                         continue
                     evaluator.visit(key)
                     evaluator.visit(value)
-                    keyword_bindings.append(
-                        (
-                            str(key.value),
-                            evaluator._capture_argument_binding(value),
-                        )
+                    static_dict_bindings[str(key.value)] = evaluator._capture_argument_binding(
+                        value
                     )
+                keyword_bindings.extend(static_dict_bindings.items())
             else:
                 evaluator.visit(keyword.value)
                 unresolved_keywords = True
@@ -3629,11 +3669,38 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         previous_loop_controls = self._loop_controls
         previous_terminal_controls = self._terminal_controls
         previous_exception_scope_collectors = self._exception_scope_collectors
+        global_names, nonlocal_names = _function_outward_binding_names(node)
+        outward_targets: dict[str, _LexicalBindings] = {}
+        module_scope: _LexicalBindings | None = previous
+        while module_scope is not None and module_scope.scope_kind != "module":
+            module_scope = module_scope.parent
+        if module_scope is not None:
+            outward_targets.update({name: module_scope for name in global_names})
+        for name in nonlocal_names:
+            nonlocal_scope: _LexicalBindings | None = previous
+            while nonlocal_scope is not None:
+                owns_name = nonlocal_scope.scope_kind == "function" and (
+                    name in nonlocal_scope.local_names
+                    or name in nonlocal_scope.references
+                    or name in nonlocal_scope.strings
+                    or name in nonlocal_scope.callables
+                )
+                if owns_name:
+                    outward_targets[name] = nonlocal_scope
+                    break
+                nonlocal_scope = nonlocal_scope.parent
         self.scope = _LexicalBindings(
             parent=previous,
-            local_names=_function_local_binding_names(node),
+            local_names=(_function_local_binding_names(node) | global_names | nonlocal_names),
             scope_kind="function",
         )
+        for name, target in outward_targets.items():
+            self.scope.bind(
+                name,
+                reference=target.resolve_reference(name),
+                string=target.resolve_string(name),
+                callables=target.resolve_callables(name),
+            )
         for name, binding in arguments.items():
             self.scope.bind(
                 name,
@@ -3645,9 +3712,45 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         self._terminal_controls = _TerminalControlBindings(return_scopes=[], raise_scopes=[])
         self._exception_scope_collectors = []
         self._active_function_replays.add(node)
+        self._outward_binding_targets.append(outward_targets)
+        replay_entry = self.scope.clone()
         try:
             self._visit_statements(node.body)
+            outcomes = [
+                self.scope,
+                *self._terminal_controls.return_scopes,
+                *self._terminal_controls.raise_scopes,
+            ]
+            joined_scope = replay_entry.clone()
+            self._merge_outcomes(joined_scope, outcomes)
+            for name, target in outward_targets.items():
+                binding = _ResolvedBinding(
+                    reference=joined_scope.references.get(name),
+                    string=joined_scope.strings.get(name),
+                    callables=joined_scope.callables.get(name, frozenset()),
+                )
+                target.bind(
+                    name,
+                    reference=binding.reference,
+                    string=binding.string,
+                    callables=binding.callables,
+                )
+                parent_scope: _LexicalBindings | None = previous
+                for active_targets in reversed(self._outward_binding_targets[:-1]):
+                    while parent_scope is not None and parent_scope.scope_kind != "function":
+                        parent_scope = parent_scope.parent
+                    if parent_scope is None:
+                        break
+                    if active_targets.get(name) is target:
+                        parent_scope.bind(
+                            name,
+                            reference=binding.reference,
+                            string=binding.string,
+                            callables=binding.callables,
+                        )
+                    parent_scope = parent_scope.parent
         finally:
+            self._outward_binding_targets.pop()
             self._active_function_replays.remove(node)
             self.scope = previous
             self._loop_controls = previous_loop_controls
