@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 import sys
 import tempfile
-from typing import Any, cast
+from typing import Any, TypeGuard
 
 from core.evidence.fingerprints import fingerprint_payload
 from scripts.orchestration.creative_code_patch_contract import (
@@ -533,6 +533,12 @@ def _creative_research_origin(bundle: dict[str, Any]) -> dict[str, str]:
     }
 
 
+def _is_string_keyed_dict(value: object) -> TypeGuard[dict[str, Any]]:
+    """Narrow skipped-import results without a configuration-sensitive cast."""
+
+    return isinstance(value, dict) and all(isinstance(key, str) for key in value)
+
+
 def build_pr2_experiment_packet(
     *,
     request: Mapping[str, Any],
@@ -543,24 +549,23 @@ def build_pr2_experiment_packet(
     """Build the canonical Experiment Runner packet for a normalized PR-2 request."""
 
     selected_variant = _selected_variant(source_bundle)
-    packet = cast(
-        dict[str, Any],
-        build_experiment_packet(
-            decision_question=selected_variant["problem_statement"],
-            task_class="Experimentation",
-            mutable_paths=changed_paths,
-            oracle_commands=request["oracle_commands"],
-            metrics=request["metrics"],
-            negative_controls=selected_variant["negative_controls"],
-            promotion_target="audit_artifact",
-            budgets=build_pr2_experiment_budget_overrides(request),
-            cv_context=_cv_context_for_candidate(
-                selected_variant=selected_variant,
-                changed_paths=changed_paths,
-            ),
-            creative_research_origin=_creative_research_origin(source_bundle),
+    packet: object = build_experiment_packet(
+        decision_question=selected_variant["problem_statement"],
+        task_class="Experimentation",
+        mutable_paths=changed_paths,
+        oracle_commands=request["oracle_commands"],
+        metrics=request["metrics"],
+        negative_controls=selected_variant["negative_controls"],
+        promotion_target="audit_artifact",
+        budgets=build_pr2_experiment_budget_overrides(request),
+        cv_context=_cv_context_for_candidate(
+            selected_variant=selected_variant,
+            changed_paths=changed_paths,
         ),
+        creative_research_origin=_creative_research_origin(source_bundle),
     )
+    if not _is_string_keyed_dict(packet):
+        raise CreativeCodePatchBuilderError("experiment packet must be a string-keyed object.")
     packet["candidate_patch_fingerprint"] = patch_fingerprint
     return packet
 
@@ -651,7 +656,7 @@ def evaluate(*, run_id: str) -> dict[str, Any]:
         }
     shared_status_after = shared_tree_status()
     shared_untouched = shared_status_before == shared_status_after
-    result = build_creative_code_patch_result(
+    result: object = build_creative_code_patch_result(
         request=normalized_request,
         changed_paths=changed_paths,
         patch_fingerprint=patch_fingerprint,
@@ -663,10 +668,12 @@ def evaluate(*, run_id: str) -> dict[str, Any]:
         shared_tree_untouched=shared_untouched,
         failure_class=failure_class,
     )
+    if not _is_string_keyed_dict(result):
+        raise CreativeCodePatchBuilderError("patch result must be a string-keyed object.")
     state["candidate_patch_evaluated"] = True
     write_json_atomic(resolve_run_file(run_dir, RESULT_FILE, for_write=True), result)
     write_json_atomic(resolve_run_file(run_dir, STATE_FILE, for_write=True), state)
-    return cast(dict[str, Any], result)
+    return result
 
 
 def main(argv: list[str] | None = None) -> int:

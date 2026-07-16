@@ -1067,10 +1067,17 @@ def test_experiment_runner_uses_sanitized_git_env(
     experiment_runner._run_git(["status", "--short"], cwd=repo)
 
     argv = captured["args"][0]
-    assert argv[:2] == ["/usr/bin/git", "-c"]
+    assert argv[0] == "/usr/bin/git"
     assert "diff.external=" in argv
     assert "core.fsmonitor=false" in argv
     assert f"core.hooksPath={os.devnull}" in argv
+    assert f"core.worktree={repo.resolve(strict=True)}" in argv
+    assert argv.count(f"--work-tree={repo.resolve(strict=True)}") == 1
+    safe_directory_arg = f"safe.directory={repo.resolve(strict=True)}"
+    assert argv.count(safe_directory_arg) == 1
+    safe_index = argv.index(safe_directory_arg)
+    assert argv[safe_index - 1 : safe_index + 1] == ["-c", safe_directory_arg]
+    assert "safe.directory=*" not in argv
     env = captured["kwargs"]["env"]
     assert env["GIT_CONFIG_GLOBAL"] == os.devnull
     assert env["GIT_CONFIG_NOSYSTEM"] == "1"
@@ -1083,6 +1090,28 @@ def test_experiment_runner_uses_sanitized_git_env(
         "PYTHONPATH",
     ):
         assert forbidden not in env
+
+
+@pytest.mark.parametrize("cwd_kind", ["missing", "file"])
+def test_experiment_runner_rejects_non_directory_git_cwd_before_subprocess(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    cwd_kind: str,
+) -> None:
+    cwd = tmp_path / cwd_kind
+    if cwd_kind == "file":
+        cwd.write_text("not a directory", encoding="utf-8")
+    monkeypatch.setattr(
+        experiment_runner.subprocess,
+        "run",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("subprocess must not run")),
+    )
+
+    with pytest.raises(
+        experiment_runner.InfraFlakeError,
+        match="git cwd must resolve to an existing directory",
+    ):
+        experiment_runner._run_git(["status", "--short"], cwd=cwd)
 
 
 def test_workspace_creates_detached_no_remote_checkout_and_cleanup(
