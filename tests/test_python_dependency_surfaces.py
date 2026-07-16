@@ -1531,11 +1531,75 @@ def test_candidate_symlink_swap_before_replace_fails_and_rolls_back(
     assert victim.read_text(encoding="utf-8") == "must-stay-unchanged\n"
 
 
-def test_compiler_transaction_lock_rejects_concurrent_governed_writer(tmp_path: Path) -> None:
+def test_compiler_transaction_lock_rejects_concurrent_governed_writer_across_tmpdir(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    first_tmpdir = tmp_path / "ambient-a"
+    second_tmpdir = tmp_path / "ambient-b"
+    first_tmpdir.mkdir()
+    second_tmpdir.mkdir()
+    monkeypatch.setenv("TMPDIR", str(first_tmpdir))
+    monkeypatch.setattr(compiler.tempfile, "gettempdir", lambda: str(first_tmpdir))
     with compiler._compiler_transaction_lock(tmp_path):
+        monkeypatch.setenv("TMPDIR", str(second_tmpdir))
+        monkeypatch.setattr(compiler.tempfile, "gettempdir", lambda: str(second_tmpdir))
         with pytest.raises(RuntimeError, match="already running"):
             with compiler._compiler_transaction_lock(tmp_path):
                 pytest.fail("a second governed compiler acquired the transaction lock")
+
+
+def test_compiler_transaction_lock_has_one_cross_process_tmpdir_namespace(
+    tmp_path: Path,
+) -> None:
+    first_tmpdir = tmp_path / "ambient-a"
+    second_tmpdir = tmp_path / "ambient-b"
+    first_tmpdir.mkdir()
+    second_tmpdir.mkdir()
+    first_probe = (
+        "import sys; from pathlib import Path; "
+        "from scripts.ci.compile_locked_python_requirements import "
+        "_compiler_transaction_lock; "
+        "lock=_compiler_transaction_lock(Path(sys.argv[1])); "
+        "lock.__enter__(); print('ACQUIRED', flush=True); "
+        "sys.stdin.read(1); lock.__exit__(None, None, None)"
+    )
+    second_probe = (
+        "import sys; from pathlib import Path; "
+        "from scripts.ci.compile_locked_python_requirements import "
+        "_compiler_transaction_lock; "
+        "lock=_compiler_transaction_lock(Path(sys.argv[1])); lock.__enter__()"
+    )
+    first_env = {**os.environ, "TMPDIR": str(first_tmpdir)}
+    second_env = {**os.environ, "TMPDIR": str(second_tmpdir)}
+    first = subprocess.Popen(  # nosec B603: current interpreter and fixed local lock probe (remove-by: 2027-01-31, ref: PR-2142)
+        [sys.executable, "-c", first_probe, str(tmp_path)],
+        cwd=REPO_ROOT,
+        env=first_env,
+        text=True,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    assert first.stdout is not None
+    assert first.stdin is not None
+    try:
+        assert first.stdout.readline().strip() == "ACQUIRED"
+        second = subprocess.run(  # nosec B603: current interpreter and fixed local lock probe (remove-by: 2027-01-31, ref: PR-2142)
+            [sys.executable, "-c", second_probe, str(tmp_path)],
+            cwd=REPO_ROOT,
+            env=second_env,
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=2,
+        )
+        assert second.returncode != 0
+        assert "already running" in second.stderr
+    finally:
+        first.stdin.write("\n")
+        first.stdin.flush()
+        first.communicate(timeout=2)
 
 
 def test_prepared_lock_rejects_rollback_bytes_from_another_snapshot(tmp_path: Path) -> None:
@@ -1567,6 +1631,28 @@ def test_registry_paths_must_be_regular_non_symlink_files(tmp_path: Path) -> Non
         compiler._validated_repo_file(tmp_path, "requirements-test.in")
     with pytest.raises(RuntimeError, match="repo-relative"):
         compiler._validated_repo_file(tmp_path, "../requirements-test.in")
+
+
+def test_dependency_capture_rejects_fifo_without_blocking(tmp_path: Path) -> None:
+    fifo_path = tmp_path / "requirements-test.in"
+    os.mkfifo(fifo_path, 0o600)
+    probe = (
+        "import sys; from pathlib import Path; "
+        "from scripts.ci.compile_locked_python_requirements import _capture_file; "
+        "_capture_file(Path(sys.argv[1]))"
+    )
+
+    result = subprocess.run(  # nosec B603: current interpreter and fixed local FIFO probe (remove-by: 2027-01-31, ref: PR-2142)
+        [sys.executable, "-c", probe, str(fifo_path)],
+        cwd=REPO_ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+        timeout=2,
+    )
+
+    assert result.returncode != 0
+    assert "regular file" in result.stderr
 
 
 def test_source_manifest_rejects_direct_urls_and_unowned_directives(tmp_path: Path) -> None:

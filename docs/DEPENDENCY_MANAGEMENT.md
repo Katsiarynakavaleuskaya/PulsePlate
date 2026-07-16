@@ -353,7 +353,8 @@ that ownership. The compiler copies descriptor-captured credential and manifest
 bytes into private temporary resolver directories, so later path replacement
 cannot change resolver authority. A private POSIX transaction lock serializes
 capture, resolution, atomic replacement, verification, and rollback for each
-worktree. Do not call the underlying resolver directly.
+worktree from the canonical `/tmp` namespace, independent of ambient `TMPDIR`.
+Do not call the underlying resolver directly.
 
 ### Update a specific dependency
 

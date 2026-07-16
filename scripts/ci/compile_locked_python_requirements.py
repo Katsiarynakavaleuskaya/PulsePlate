@@ -205,7 +205,11 @@ def _parse_graph_changes(raw_value: str | None) -> frozenset[str]:
 def _capture_file(path: Path) -> FileCapture:
     """Read one regular file through a no-follow descriptor and bind bytes to identity."""
 
-    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+    no_follow = getattr(os, "O_NOFOLLOW", None)
+    nonblocking = getattr(os, "O_NONBLOCK", None)
+    if no_follow is None or nonblocking is None:
+        raise RuntimeError("Dependency capture requires POSIX no-follow nonblocking reads.")
+    flags = os.O_RDONLY | no_follow | nonblocking
     try:
         descriptor = os.open(path, flags)
     except OSError as exc:
@@ -806,7 +810,10 @@ def _compiler_transaction_lock(repo_root: Path) -> Iterator[None]:
     if not callable(effective_uid) or no_follow is None:
         raise RuntimeError("Governed lock compilation requires POSIX file-lock semantics.")
     owner_uid = effective_uid()
-    lock_root = Path(tempfile.gettempdir()) / f"pulseplate-lock-compiler-{owner_uid}"
+    canonical_tmp = (Path(os.sep) / "tmp").resolve(strict=True)
+    if not canonical_tmp.is_dir():
+        raise RuntimeError("Canonical POSIX /tmp lock root is unavailable.")
+    lock_root = canonical_tmp / f"pulseplate-lock-compiler-{owner_uid}"
     try:
         os.mkdir(lock_root, 0o700)
     except FileExistsError:
