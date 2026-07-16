@@ -327,7 +327,7 @@ def test_compare_accepts_only_bound_ancestor_response() -> None:
             "ahead_by": 1,
             "behind_by": 0,
             "base_commit": {"sha": FIX_SHA},
-            "head_commit": {"sha": HEAD_SHA},
+            "commits": [{"sha": HEAD_SHA}],
             "merge_base_commit": {"sha": FIX_SHA},
         }
 
@@ -340,8 +340,8 @@ def test_compare_accepts_only_bound_ancestor_response() -> None:
     )
 
 
-@pytest.mark.parametrize("head_commit", [None, {"sha": OUTSIDE_SHA}])
-def test_compare_rejects_missing_or_mismatched_descendant(head_commit: Any) -> None:
+@pytest.mark.parametrize("commits", [None, [], [{"sha": OUTSIDE_SHA}]])
+def test_compare_rejects_missing_or_mismatched_descendant(commits: Any) -> None:
     ancestor = RepositoryCommitRef(FIX_SHA, CommitRefKind.PR_COMMIT)
     descendant = RepositoryCommitRef(HEAD_SHA, CommitRefKind.PR_HEAD)
 
@@ -351,7 +351,7 @@ def test_compare_rejects_missing_or_mismatched_descendant(head_commit: Any) -> N
             "ahead_by": 1,
             "behind_by": 0,
             "base_commit": {"sha": FIX_SHA},
-            "head_commit": head_commit,
+            "commits": commits,
             "merge_base_commit": {"sha": FIX_SHA},
         }
 
@@ -363,6 +363,21 @@ def test_compare_rejects_missing_or_mismatched_descendant(head_commit: Any) -> N
             token="opaque",
             request_json=request_json,
         )
+
+
+def test_compare_accepts_identical_repository_commit_without_api_call() -> None:
+    commit = RepositoryCommitRef(HEAD_SHA, CommitRefKind.PR_HEAD)
+
+    def request_json(*_args: Any, **_kwargs: Any) -> Any:
+        raise AssertionError("identical commits must not call the Compare API")
+
+    assert is_ancestor(
+        commit,
+        commit,
+        repository="owner/repo",
+        token="opaque",
+        request_json=request_json,
+    )
 
 
 def test_codex_review_reference_requires_exact_trusted_submitted_review() -> None:
