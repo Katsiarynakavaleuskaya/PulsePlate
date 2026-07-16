@@ -10,6 +10,7 @@ import os
 import urllib.error
 import urllib.parse
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -261,7 +262,10 @@ def _fetch_pr_metadata(
         pr = repository_data.get("pullRequest") if isinstance(repository_data, dict) else None
         if not isinstance(pr, dict):
             raise ValueError("GraphQL status-check response is missing the pull request")
-        is_draft = bool(pr.get("isDraft", False))
+        raw_is_draft = pr.get("isDraft")
+        if not isinstance(raw_is_draft, bool):
+            raise ValueError("GraphQL pull request isDraft must be boolean")
+        is_draft = raw_is_draft
         merge_state = str(pr.get("mergeStateStatus") or "")
         base_ref = str(pr.get("baseRefName") or "")
         rollup = pr.get("statusCheckRollup")
@@ -372,11 +376,27 @@ def _normalize_node(node: dict[str, Any]) -> CheckEntry:
             state = "passed"
         else:
             state = "failed"
-        check_suite = node.get("checkSuite") or {}
-        workflow_name = str(
-            (((check_suite.get("workflowRun") or {}).get("workflow") or {}).get("name")) or ""
-        ).strip()
-        app = check_suite.get("app") or {}
+        check_suite = node.get("checkSuite")
+        if not isinstance(check_suite, dict):
+            raise ValueError(
+                f"CheckRun {name or '<unnamed>'!r} is missing valid checkSuite.createdAt"
+            )
+        workflow_run = check_suite.get("workflowRun")
+        if workflow_run is None:
+            workflow_run = {}
+        if not isinstance(workflow_run, dict):
+            raise ValueError(f"CheckRun {name or '<unnamed>'!r} has malformed workflowRun")
+        workflow = workflow_run.get("workflow")
+        if workflow is None:
+            workflow = {}
+        if not isinstance(workflow, dict):
+            raise ValueError(f"CheckRun {name or '<unnamed>'!r} has malformed workflow")
+        workflow_name = str(workflow.get("name") or "").strip()
+        app = check_suite.get("app")
+        if app is None:
+            app = {}
+        if not isinstance(app, dict):
+            raise ValueError(f"CheckRun {name or '<unnamed>'!r} has malformed app identity")
         raw_app_database_id = app.get("databaseId")
         app_database_id = (
             raw_app_database_id
@@ -390,12 +410,10 @@ def _normalize_node(node: dict[str, Any]) -> CheckEntry:
         # null while queued and can be later than a newer queued suite when an
         # older run waits for capacity. Mixing those clocks can select stale
         # success, so CheckSuite.createdAt is the only ordering authority.
-        raw_timestamp = check_suite.get("createdAt")
-        if not isinstance(raw_timestamp, str) or not raw_timestamp.strip():
-            raise ValueError(
-                f"CheckRun {name or '<unnamed>'!r} is missing valid checkSuite.createdAt"
-            )
-        timestamp = raw_timestamp.strip()
+        timestamp = _normalize_timestamp(
+            check_suite.get("createdAt"),
+            label=f"CheckRun {name or '<unnamed>'!r} checkSuite.createdAt",
+        )
         return CheckEntry(
             name=name,
             source_kind="check_run",
@@ -416,17 +434,36 @@ def _normalize_node(node: dict[str, Any]) -> CheckEntry:
         state = "pending"
     else:
         state = "failed"
+    timestamp = _normalize_timestamp(
+        node.get("createdAt"),
+        label=f"StatusContext {name or '<unnamed>'!r} createdAt",
+    )
     return CheckEntry(
         name=name,
         source_kind="status_context",
         state=state,
-        timestamp=str(node.get("createdAt") or ""),
+        timestamp=timestamp,
         details_url=str(node.get("targetUrl") or ""),
         workflow_name="",
         conclusion="",
         app_database_id=None,
         app_slug="",
     )
+
+
+def _normalize_timestamp(value: Any, *, label: str) -> str:
+    """Validate one timezone-aware ISO-8601 value and canonicalize it to UTC."""
+
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{label} is missing or invalid")
+    candidate = value.strip()
+    try:
+        parsed = datetime.fromisoformat(candidate.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError(f"{label} is missing or invalid") from exc
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise ValueError(f"{label} is missing or invalid")
+    return parsed.astimezone(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")
 
 
 def _latest_entries(entries: list[CheckEntry]) -> tuple[dict[str, CheckEntry], list[CheckEntry]]:

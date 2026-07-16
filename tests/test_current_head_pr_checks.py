@@ -545,8 +545,20 @@ def test_latest_entries_fails_closed_for_equal_time_neutral_check_run() -> None:
     assert superseded == [success]
 
 
-def test_check_run_without_suite_creation_time_fails_closed() -> None:
-    with pytest.raises(ValueError, match="missing valid checkSuite.createdAt"):
+@pytest.mark.parametrize(
+    "check_suite",
+    (
+        None,
+        [],
+        {"createdAt": ""},
+        {"createdAt": "not-a-timestamp"},
+        {"createdAt": "2026-07-16T12:00:00"},
+    ),
+)
+def test_check_run_without_valid_suite_creation_time_fails_closed(
+    check_suite: object,
+) -> None:
+    with pytest.raises(ValueError, match="checkSuite.createdAt"):
         current_head_checks._normalize_node(
             {
                 "__typename": "CheckRun",
@@ -556,9 +568,26 @@ def test_check_run_without_suite_creation_time_fails_closed() -> None:
                 "startedAt": "2026-07-16T12:00:00Z",
                 "completedAt": "2026-07-16T12:05:00Z",
                 "detailsUrl": "https://example.invalid/malformed-success",
-                "checkSuite": {"workflowRun": {"workflow": {"name": "CI"}}},
+                "checkSuite": check_suite,
             }
         )
+
+
+def test_check_run_suite_creation_time_is_canonicalized_to_utc() -> None:
+    entry = current_head_checks._normalize_node(
+        {
+            "__typename": "CheckRun",
+            "name": "security",
+            "status": "COMPLETED",
+            "conclusion": "SUCCESS",
+            "startedAt": "2026-07-16T13:00:00+02:00",
+            "completedAt": "2026-07-16T13:05:00+02:00",
+            "detailsUrl": "https://example.invalid/success",
+            "checkSuite": {"createdAt": "2026-07-16T13:00:00+02:00"},
+        }
+    )
+
+    assert entry.timestamp == "2026-07-16T11:00:00.000000Z"
 
 
 def test_fetch_pr_metadata_rejects_repeated_pagination_cursor(
@@ -629,6 +658,36 @@ def test_fetch_pr_metadata_rejects_malformed_pagination_fields(
     )
 
     with pytest.raises(ValueError, match=expected):
+        current_head_checks._fetch_pr_metadata(2142, "owner/repo", "opaque")
+
+
+def test_fetch_pr_metadata_rejects_non_boolean_is_draft(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    response = {
+        "data": {
+            "repository": {
+                "pullRequest": {
+                    "isDraft": "false",
+                    "mergeStateStatus": "CLEAN",
+                    "baseRefName": "main",
+                    "statusCheckRollup": {
+                        "contexts": {
+                            "nodes": [],
+                            "pageInfo": {"hasNextPage": False, "endCursor": None},
+                        }
+                    },
+                }
+            }
+        }
+    }
+    monkeypatch.setattr(
+        current_head_checks,
+        "_api_request",
+        lambda *_args, **_kwargs: response,
+    )
+
+    with pytest.raises(ValueError, match="isDraft must be boolean"):
         current_head_checks._fetch_pr_metadata(2142, "owner/repo", "opaque")
 
 
@@ -1529,7 +1588,7 @@ def test_main_fails_cleanly_when_github_metadata_is_malformed(
 ) -> None:
     monkeypatch.setattr(current_head_checks, "_github_token", lambda: "token")
 
-    def raise_validation_error(*args, **kwargs):
+    def raise_validation_error(*_args: object, **_kwargs: object) -> None:
         raise ValueError("GraphQL status-check pagination cursor repeated")
 
     monkeypatch.setattr(current_head_checks, "_fetch_pr_metadata", raise_validation_error)

@@ -334,7 +334,8 @@ def test_compare_accepts_only_bound_ancestor_response() -> None:
             "ahead_by": 1,
             "behind_by": 0,
             "base_commit": {"sha": FIX_SHA},
-            "commits": [{"sha": HEAD_SHA}],
+            "commits": [{"sha": OUTSIDE_SHA}],
+            "head_commit": {"sha": HEAD_SHA},
             "merge_base_commit": {"sha": FIX_SHA},
         }
 
@@ -347,8 +348,8 @@ def test_compare_accepts_only_bound_ancestor_response() -> None:
     )
 
 
-@pytest.mark.parametrize("commits", [None, [], [{"sha": OUTSIDE_SHA}]])
-def test_compare_rejects_missing_or_mismatched_descendant(commits: Any) -> None:
+@pytest.mark.parametrize("head_commit", [None, {}, {"sha": OUTSIDE_SHA}])
+def test_compare_rejects_missing_or_mismatched_descendant(head_commit: Any) -> None:
     ancestor = RepositoryCommitRef(FIX_SHA, CommitRefKind.PR_COMMIT)
     descendant = RepositoryCommitRef(HEAD_SHA, CommitRefKind.PR_HEAD)
 
@@ -358,7 +359,8 @@ def test_compare_rejects_missing_or_mismatched_descendant(commits: Any) -> None:
             "ahead_by": 1,
             "behind_by": 0,
             "base_commit": {"sha": FIX_SHA},
-            "commits": commits,
+            "commits": [],
+            "head_commit": head_commit,
             "merge_base_commit": {"sha": FIX_SHA},
         }
 
@@ -837,6 +839,7 @@ def test_security_outage_receipt_rejects_unknown_or_open_shapes(mutate: Any) -> 
             (".github/actions/python-setup/action.yml",),
             False,
         ),
+        ("owner/repo", 42, ("scripts/ci_pip_audit.sh",), False),
         ("owner/repo", 42, ("trivy/ignore-policy.rego",), False),
         ("owner/repo", 42, ("requirements-test.txt",), True),
     ],

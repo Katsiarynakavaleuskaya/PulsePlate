@@ -996,6 +996,34 @@ def test_private_proxy_environment_is_canonical_and_sanitized(
         )
 
 
+@pytest.mark.parametrize(
+    "variable",
+    (
+        "PIP_CONSTRAINT",
+        "PIP_REQUIREMENT",
+        "PIP_BUILD_CONSTRAINT",
+        "SSL_CERT_FILE",
+        "REQUESTS_CA_BUNDLE",
+        "CURL_CA_BUNDLE",
+    ),
+)
+def test_private_proxy_environment_rejects_ambient_constraint_and_ca_controls(
+    variable: str,
+    tmp_path: Path,
+) -> None:
+    resolver_home = tmp_path / "resolver-home"
+    resolver_home.mkdir()
+
+    with pytest.raises(RuntimeError, match=variable):
+        compiler._private_proxy_child_env(
+            {
+                compiler.APPROVED_INDEX_ENV_VAR: APPROVED_INDEX,
+                variable: "/tmp/untracked-control",
+            },
+            resolver_home=resolver_home,
+        )
+
+
 def test_private_proxy_environment_rejects_root_netrc_authority(
     tmp_path: Path,
 ) -> None:

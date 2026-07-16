@@ -1184,6 +1184,7 @@ def test_coverage_html_context_is_safely_escaped(tmp_path: Path) -> None:
     rendered_report = "\n".join(path.read_text(encoding="utf-8") for path in report_files)
     assert report_files
     assert raw_context not in rendered_report
+    assert "window.pulseplateCoverageProbe=1" in rendered_report
 
 
 def test_coverage_canary_runs_in_ci_lite_pre_commit() -> None:

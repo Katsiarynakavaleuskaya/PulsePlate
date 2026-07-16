@@ -675,15 +675,15 @@ def is_ancestor(
     behind_by = response.get("behind_by")
     base_commit = response.get("base_commit")
     commits = response.get("commits")
+    head_commit = response.get("head_commit")
     merge_base_commit = response.get("merge_base_commit")
     if (
         not isinstance(base_commit, dict)
         or not isinstance(commits, list)
-        or not commits
-        or not isinstance(commits[-1], dict)
+        or not isinstance(head_commit, dict)
         or not isinstance(merge_base_commit, dict)
         or base_commit.get("sha") != ancestor.sha
-        or commits[-1].get("sha") != descendant.sha
+        or head_commit.get("sha") != descendant.sha
         or merge_base_commit.get("sha") != ancestor.sha
         or not isinstance(ahead_by, int)
         or isinstance(ahead_by, bool)
