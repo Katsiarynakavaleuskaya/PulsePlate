@@ -6721,15 +6721,16 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 - [ ] P2: Complete legacy_app.py migration (delete legacy endpoints)
   - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: PR #2102 -> PR #2114 -> PR #2121 -> PR-TBD-REMAINING-LEGACY-CUTOVERS -> PR-TBD-APP-FACTORY -> PR-TBD-LEGACY-DELETION
+  - Target PR: PR #2102 -> PR #2114 -> PR #2121 -> PR-TBD-WEEKLY-MENU-ACCESS -> PR-TBD-BMI-VISUALIZATION-ACCESS -> PR-TBD-REMAINING-LEGACY-CUTOVERS -> PR-TBD-APP-FACTORY -> PR-TBD-LEGACY-DELETION
   - Priority: P2 (long-term cleanup)
-  - Status: In progress. Route, middleware, lifespan, app-client API-key dependency, application metadata, and OpenAPI policy ownership are canonical; PR #2114 merged at `e3825306d`. The active canonical admin scheduler-access slice removes legacy resolver/override state behind a lazy typed service delegator without changing scheduler lifecycle, worker topology, FastAPI identity, or OpenAPI. Remaining reverse-dependency cutovers, app-factory inversion, and final compatibility inventory/deletion stay open.
+  - Status: In progress. Route, middleware, lifespan, app-client API-key dependency, application metadata, OpenAPI policy, and admin scheduler-access ownership are canonical; PR #2114 merged at `e3825306d`, and PR #2121 merged at `83aeeec77c7454047683405d9b4d47bc1c2166aa`. The active weekly-menu builder-access slice removes facade/module-table resolver authority while preserving the hidden route, auth, VIP/FitChef execution, public compatibility exports, FastAPI identity, and OpenAPI. The BMI visualization resolver is the next bounded reverse-dependency cutover; PRO nutrition, insight compatibility, app-factory inversion, and final compatibility inventory/deletion remain separate lanes.
   - Reason: After all critical security fixes and endpoint migrations complete, eventually delete `legacy_app.py` entirely. Legacy business and route logic should move to its canonical owners: modular routers (`app/routers/*`), services (`app/services/*`), bootstrap modules (`app/bootstrap/*`), or core modules (`core/*`) according to responsibility. The current train has extracted lifecycle ownership and now cuts canonical `app/*` dependencies on legacy compatibility symbols before app-factory/OpenAPI ownership inversion and final facade removal.
   - Links:
     - docs/audit/LEGACY_APP_MIGRATION_STATUS.md (overall progress, migration status)
     - docs/pr/PR_THIN_PROXY_CLEANUP_PLAN.md
     - app/routers/api_key.py
     - app/services/scheduler_access.py
+    - app/services/legacy_premium_weekly_plan.py
     - docs/architecture/LEGACY_COMPATIBILITY_SEAM.md
   - Prerequisites:
     - ✅ All P0 security fixes complete (rate-limiting, tier guards)

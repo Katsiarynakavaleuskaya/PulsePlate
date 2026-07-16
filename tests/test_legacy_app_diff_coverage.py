@@ -261,94 +261,6 @@ def test_week_plan_response_builder_filters_and_normalizes_malformed_values() ->
     assert non_numeric_response.adherence_score == 0.0
 
 
-def test_week_plan_service_resolver_respects_overrides_and_fallbacks() -> None:
-    """Cover builder-resolution behavior through the public resolver seam."""
-
-    def _legacy_builder(profile: object) -> dict[str, object]:
-        return {"profile": profile}
-
-    explicit_package = ModuleType("explicit_package")
-    setattr(explicit_package, "make_weekly_menu", None)
-    legacy_module = ModuleType("legacy_module")
-    setattr(legacy_module, "make_weekly_menu", _legacy_builder)
-
-    assert (
-        weekly_plan_service.resolve_legacy_weekly_menu_builder(
-            get_app_package_module=lambda: explicit_package,
-            get_legacy_app_module=lambda: legacy_module,
-        )
-        is None
-    )
-    assert (
-        weekly_plan_service.resolve_legacy_weekly_menu_builder(
-            get_app_package_module=lambda: None,
-            get_legacy_app_module=lambda: legacy_module,
-        )
-        is _legacy_builder
-    )
-    assert (
-        weekly_plan_service.resolve_legacy_weekly_menu_builder(
-            get_app_package_module=lambda: None,
-            get_legacy_app_module=lambda: None,
-        )
-        is None
-    )
-
-    class _ImportErrorPackage:
-        __slots__ = ()
-
-        def __getattr__(self, name: str) -> object:
-            if name == "make_weekly_menu":
-                raise ImportError("weekly menu export unavailable")
-            raise AttributeError(name)
-
-    assert (
-        weekly_plan_service.resolve_legacy_weekly_menu_builder(
-            get_app_package_module=lambda: _ImportErrorPackage(),
-            get_legacy_app_module=lambda: None,
-        )
-        is None
-    )
-
-
-def test_week_plan_legacy_app_compatibility_shims_delegate(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """legacy_app keeps compatibility wrappers, but app.services owns behavior."""
-
-    payload = {
-        "week_start": "2026-03-09",
-        "daily_menus": [
-            {
-                "date": "2026-03-10",
-                "meals": [{"title": "Lunch", "kcal": 420}],
-                "total_kcal": 420,
-                "daily_cost": 12.25,
-            }
-        ],
-        "weekly_coverage": {"fiber": 0.84},
-        "shopping_list": {"rice": 250.0},
-        "total_cost": 12.25,
-        "adherence_score": 0.1,
-    }
-
-    def _builder(profile: object) -> dict[str, object]:
-        return {"profile": profile}
-
-    package = ModuleType("weekly_package")
-    setattr(package, "make_weekly_menu", _builder)
-
-    assert legacy_app._build_legacy_weekly_menu_response(payload) == (
-        weekly_plan_service.build_legacy_weekly_menu_response(payload)
-    )
-    assert legacy_app._get_app_package_module() is weekly_plan_service._get_app_package_module()
-    assert legacy_app._resolve_package_weekly_menu_export(package) is _builder
-
-    monkeypatch.setattr(legacy_app, "_get_app_package_module", lambda: None)
-    monkeypatch.setattr(legacy_app, "make_weekly_menu", None)
-    assert legacy_app._resolve_legacy_weekly_menu_builder() is None
-
-
 def test_language_cookie_has_samesite_and_secure_guard() -> None:
     """Security: language cookie must include SameSite and Secure-on-HTTPS guard."""
     client = TestClient(legacy_app.app)
@@ -902,7 +814,7 @@ def test_week_plan_rejects_missing_menu_builder(monkeypatch: pytest.MonkeyPatch)
         monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
         monkeypatch.setattr(
             legacy_premium_weekly_plan,
-            "resolve_legacy_weekly_menu_builder",
+            "get_weekly_menu_builder",
             lambda: None,
         )
 
@@ -922,7 +834,7 @@ def test_week_plan_handler_returns_normalized_weekly_menu(
         monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
         monkeypatch.setattr(
             legacy_premium_weekly_plan,
-            "resolve_legacy_weekly_menu_builder",
+            "get_weekly_menu_builder",
             lambda: object(),
         )
 
@@ -966,7 +878,7 @@ def test_week_plan_wraps_value_error_with_client_safe_detail(
         monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
         monkeypatch.setattr(
             legacy_premium_weekly_plan,
-            "resolve_legacy_weekly_menu_builder",
+            "get_weekly_menu_builder",
             lambda: object(),
         )
 
@@ -997,7 +909,7 @@ def test_week_plan_wraps_unexpected_error_with_client_safe_detail(
         monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
         monkeypatch.setattr(
             legacy_premium_weekly_plan,
-            "resolve_legacy_weekly_menu_builder",
+            "get_weekly_menu_builder",
             lambda: object(),
         )
 

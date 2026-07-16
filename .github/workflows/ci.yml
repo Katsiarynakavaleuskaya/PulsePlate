@@ -419,6 +419,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
 
       - name: Setup Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
@@ -960,6 +964,9 @@ jobs:
                   tests/test_legacy_bmi_shims.py \
                   tests/test_legacy_app_diff_coverage.py \
                   tests/test_legacy_growth_guard.py \
+                  tests/test_legacy_premium_weekly_plan_registration_bootstrap.py \
+                  tests/test_legacy_weekly_menu_builder_access.py \
+                  tests/test_legacy_weekly_plan_alias_api.py \
                   tests/test_lenient_mode_warning.py \
                   tests/test_metrics.py \
                   tests/test_paywall_exposure_ledger_api.py \
@@ -1265,6 +1272,9 @@ jobs:
                   tests/test_legacy_bmi_shims.py \
                   tests/test_legacy_app_diff_coverage.py \
                   tests/test_legacy_growth_guard.py \
+                  tests/test_legacy_premium_weekly_plan_registration_bootstrap.py \
+                  tests/test_legacy_weekly_menu_builder_access.py \
+                  tests/test_legacy_weekly_plan_alias_api.py \
                   tests/test_lenient_mode_warning.py \
                   tests/test_metrics.py \
                   tests/test_paywall_exposure_ledger_api.py \

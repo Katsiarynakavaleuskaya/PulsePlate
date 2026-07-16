@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 import legacy_app
+import app.routers.legacy_premium_weekly_plan as weekly_plan_router
 from app.schemas.nutrition_targets import TargetsIn as CanonicalTargetsIn
 
 
@@ -127,12 +128,14 @@ def test_legacy_week_endpoint_accepts_numeric_string_targets(
     EN: Legacy endpoint must not break when targets contains numeric strings.
     """
 
-    import app as app_module
-
     monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
     # Legacy API-key guard compares against env API_KEY; align it to the VIP test key.
     monkeypatch.setenv("API_KEY", vip_headers["X-API-Key"])
-    monkeypatch.setattr(app_module, "make_weekly_menu", _weekly_menu_stub)
+    monkeypatch.setattr(
+        weekly_plan_router,
+        "get_weekly_menu_builder",
+        lambda: _weekly_menu_stub,
+    )
 
     payload = {
         "sex": "male",
@@ -177,11 +180,13 @@ def test_legacy_week_endpoint_rejects_invalid_targets_values(
     EN: Legacy endpoint rejects invalid values in structured targets (contract no-break).
     """
 
-    import app as app_module
-
     monkeypatch.setenv("VIP_MODULE_ENABLED", "true")
     monkeypatch.setenv("API_KEY", vip_headers["X-API-Key"])
-    monkeypatch.setattr(app_module, "make_weekly_menu", _weekly_menu_stub)
+    monkeypatch.setattr(
+        weekly_plan_router,
+        "get_weekly_menu_builder",
+        lambda: _weekly_menu_stub,
+    )
 
     targets: dict[str, object] = {
         "kcal": 2000,

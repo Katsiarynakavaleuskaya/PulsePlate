@@ -75,12 +75,6 @@ from app.schemas.legacy_premium_weekly_plan import (  # noqa: F401
     LegacyWeekPlanRequest,
     WeeklyMenuResponse,
 )
-from app.services.legacy_premium_weekly_plan import (
-    _get_app_package_module as _canonical_get_app_package_module,
-    _resolve_package_weekly_menu_export as _canonical_resolve_package_weekly_menu_export,
-    build_legacy_weekly_menu_response as _canonical_build_legacy_weekly_menu_response,
-    resolve_legacy_weekly_menu_builder as _canonical_resolve_legacy_weekly_menu_builder,
-)
 from app.services import recipe_store
 from app.services.food_store import get_food
 from app.services.intervention_trigger_engine import build_targets_next_action
@@ -1523,34 +1517,6 @@ class NutrientGapsResponse(BaseModel):
     gaps: Dict[str, Dict[str, Any]]  # Detailed gap analysis
     food_recommendations: List[str]  # Food-based solutions
     adherence_score: float  # Overall adequacy score
-
-
-def _build_legacy_weekly_menu_response(menu_payload: Dict[str, Any]) -> WeeklyMenuResponse:
-    """Compatibility shim; canonical implementation lives in app/services."""
-
-    return _canonical_build_legacy_weekly_menu_response(menu_payload)
-
-
-def _get_app_package_module() -> Optional[Any]:
-    """Compatibility shim for tests that patch the historical helper name."""
-
-    return _canonical_get_app_package_module()
-
-
-def _resolve_package_weekly_menu_export(package_module: Any) -> Optional[Callable[..., Any]]:
-    """Compatibility shim; canonical implementation lives in app/services."""
-
-    return _canonical_resolve_package_weekly_menu_export(package_module)
-
-
-def _resolve_legacy_weekly_menu_builder() -> Optional[Callable[..., Any]]:
-    """Compatibility shim; canonical implementation lives in app/services."""
-
-    return _canonical_resolve_legacy_weekly_menu_builder(
-        get_app_package_module=_get_app_package_module,
-        get_legacy_app_module=lambda: sys.modules.get("legacy_app"),
-        resolve_package_weekly_menu_export=_resolve_package_weekly_menu_export,
-    )
 
 
 class WeeklyPlanFlexibleRequest(BaseModel):

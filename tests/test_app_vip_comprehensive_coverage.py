@@ -289,27 +289,6 @@ class TestAppVipComprehensiveCoverage:
             # May be 200, 503 when feature is disabled
             assert response.status_code in [200, 503, 500]
 
-    def test_make_weekly_menu_unavailable(self, test_client):
-        """Test when make_weekly_menu function is unavailable."""
-        client = test_client
-
-        # Mock make_weekly_menu to be None
-        with patch("app.make_weekly_menu", None):
-            response = client.post(
-                "/api/v1/premium/plan/week",
-                json={
-                    "sex": "male",
-                    "age": 30,
-                    "height_cm": 175.0,
-                    "weight_kg": 70.0,
-                    "activity": "moderate",
-                    "goal": "maintain",
-                },
-                headers={"X-API-Key": "test_key"},
-            )
-            # Should be 503 when function is unavailable
-            assert response.status_code in [200, 503, 500]
-
     def test_build_nutrition_targets_unavailable(self, test_client):
         """Test when build_nutrition_targets function is unavailable."""
         client = test_client

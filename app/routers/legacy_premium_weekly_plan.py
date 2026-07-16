@@ -7,21 +7,47 @@ legacy route while route registration ownership moves out of ``legacy_app.py``.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+import logging
+from typing import NoReturn
+
+from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.routers.api_key import _get_api_key_dynamic
 from app.schemas.legacy_premium_weekly_plan import LegacyWeekPlanRequest, WeeklyMenuResponse
 from app.services.legacy_premium_weekly_plan import (
     build_legacy_weekly_menu_response,
-    resolve_legacy_weekly_menu_builder,
+    get_weekly_menu_builder,
 )
 from app.utils.feature_flags import is_vip_module_enabled
+
+logger = logging.getLogger(__name__)
+
+_SAFE_DOWNSTREAM_HTTP_ERRORS = frozenset(
+    {
+        (
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "Targets-based weekly plans are not supported on this endpoint. "
+            "Provide full profile data or use /api/v1/premium/plan/week-flexible.",
+        ),
+        (status.HTTP_422_UNPROCESSABLE_CONTENT, "Invalid weekly plan request payload"),
+    }
+)
 
 LEGACY_PREMIUM_WEEKLY_PLAN_ROUTE_SPECS: tuple[tuple[str, str, bool], ...] = (
     ("/api/v1/premium/plan/week", "POST", False),
 )
 
 router = APIRouter()
+
+
+def _raise_weekly_menu_failure() -> NoReturn:
+    """Log the active server-side exception and raise the stable client error."""
+
+    logger.exception("Legacy weekly menu generation failed")
+    raise HTTPException(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        detail="Weekly menu generation failed",
+    ) from None
 
 
 @router.post(
@@ -40,29 +66,52 @@ async def api_weekly_menu(
 
     Returns keys: week_summary, daily_menus, weekly_coverage, shopping_list.
     """
+    # Guard VIP feature flag at request time to support tests that toggle env without reload.
     try:
-        # Guard VIP feature flag at request time to support tests that toggle env without reload.
-        if not is_vip_module_enabled():
-            raise HTTPException(status_code=503, detail="VIP module is disabled")
+        vip_module_enabled = is_vip_module_enabled()
+    except Exception:
+        _raise_weekly_menu_failure()
+    if not vip_module_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="VIP module is disabled",
+        )
 
-        menu_builder = resolve_legacy_weekly_menu_builder()
-        if menu_builder is None:
-            raise HTTPException(
-                status_code=503, detail="Weekly menu generation feature not available"
-            )
+    try:
+        menu_builder = get_weekly_menu_builder()
+    except Exception:
+        _raise_weekly_menu_failure()
 
+    if menu_builder is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Weekly menu generation feature not available",
+        )
+
+    try:
         from app.routers.vip import execute_legacy_premium_week_alias_payload
 
         menu_payload = await execute_legacy_premium_week_alias_payload(
             req.model_dump(exclude_none=True),
             menu_builder=menu_builder,
         )
-        return build_legacy_weekly_menu_response(menu_payload)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid input",
+        ) from None
+    except HTTPException as exc:
+        if (
+            exc.headers is None
+            and isinstance(exc.detail, str)
+            and (exc.status_code, exc.detail) in _SAFE_DOWNSTREAM_HTTP_ERRORS
+        ):
+            raise
+        _raise_weekly_menu_failure()
+    except Exception:
+        _raise_weekly_menu_failure()
 
-    except HTTPException:
-        # Pass through expected HTTP errors
-        raise
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail="Invalid input") from e
-    except Exception as e:
-        raise HTTPException(status_code=500, detail="Weekly menu generation failed") from e
+    try:
+        return build_legacy_weekly_menu_response(menu_payload)
+    except Exception:
+        _raise_weekly_menu_failure()
