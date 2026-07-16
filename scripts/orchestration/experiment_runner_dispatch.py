@@ -34,6 +34,7 @@ if str(DISPATCH_REPO_ROOT) not in sys.path:
 from scripts.orchestration.context_pack import REPO_ROOT
 from scripts.orchestration.creative_code_patch_workspace import (
     git_env_without_parent_state as _sanitized_git_env_without_parent_state,
+    safe_git_config_args as _safe_git_config_args,
 )
 from scripts.orchestration.experiment_contract import (
     CONTRIBUTION_KINDS,
@@ -1359,7 +1360,7 @@ def _git_binary() -> str:
 
 
 def _safe_git_config_args_for(cwd: Path) -> tuple[Path, list[str]]:
-    """Resolve one Git cwd and return its exact per-invocation trust entry."""
+    """Resolve one Git cwd and clamp local config before trusting it."""
 
     try:
         resolved_cwd = cwd.expanduser().resolve(strict=True)
@@ -1369,7 +1370,7 @@ def _safe_git_config_args_for(cwd: Path) -> tuple[Path, list[str]]:
         raise DispatchError("probe_execution_failed")
     return (
         resolved_cwd,
-        ["-c", f"safe.directory={resolved_cwd}"],
+        [*_safe_git_config_args(), "-c", f"safe.directory={resolved_cwd}"],
     )
 
 
@@ -1393,7 +1394,10 @@ def _create_snapshot(root: Path, destination: Path) -> str:
     _git(["clone", "--quiet", "--no-hardlinks", str(root), str(destination)], cwd=root)
     head = _git(["rev-parse", "HEAD"], cwd=root).stdout.strip()
     _git(["checkout", "--quiet", "--detach", head], cwd=destination)
-    tracked_diff = _git(["diff", "--binary", "HEAD"], cwd=root).stdout
+    tracked_diff = _git(
+        ["diff", "--no-ext-diff", "--no-textconv", "--binary", "HEAD"],
+        cwd=root,
+    ).stdout
     if tracked_diff:
         _git(["apply", "--index", "--binary", "-"], cwd=destination, input_text=tracked_diff)
     after = _git(["status", "--short", "--untracked-files=no"], cwd=root).stdout

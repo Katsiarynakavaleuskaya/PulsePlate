@@ -432,6 +432,9 @@ def test_dispatch_git_uses_one_resolved_per_invocation_safe_directory(
     assert argv.count(safe_directory_arg) == 1
     safe_index = argv.index(safe_directory_arg)
     assert argv[safe_index - 1 : safe_index + 1] == ["-c", safe_directory_arg]
+    assert "diff.external=" in argv
+    assert "core.fsmonitor=false" in argv
+    assert f"core.hooksPath={os.devnull}" in argv
     assert "safe.directory=*" not in argv
     assert captured["cwd"] == repo.resolve(strict=True)
     env_override = captured["env_override"]
@@ -499,6 +502,34 @@ def test_snapshot_applies_tracked_diff_and_leaves_source_unchanged(tmp_path: Pat
         git, "status", "--short", cwd=source, capture_output=True
     ).stdout
     assert after_status == before_status
+
+
+def test_snapshot_ignores_checkout_local_external_diff(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    source.mkdir()
+    git = dispatch._resolve_cli("git")
+    assert git is not None
+    _run_isolated_git(git, "init", "--quiet", cwd=source)
+    _run_isolated_git(git, "config", "user.email", "test@example.invalid", cwd=source)
+    _run_isolated_git(git, "config", "user.name", "Test", cwd=source)
+    tracked = source / "tracked.txt"
+    tracked.write_text("before\n", encoding="utf-8")
+    _run_isolated_git(git, "add", "tracked.txt", cwd=source)
+    _run_isolated_git(git, "commit", "--quiet", "-m", "init", cwd=source)
+
+    marker = tmp_path / "external-diff-ran"
+    helper = tmp_path / "external-diff.sh"
+    helper.write_text(f"#!/bin/sh\ntouch '{marker}'\n", encoding="utf-8")
+    helper.chmod(0o755)
+    _run_isolated_git(git, "config", "diff.external", str(helper), cwd=source)
+    tracked.write_text("after\n", encoding="utf-8")
+
+    snapshot = tmp_path / "snapshot"
+    tracked_diff = dispatch._create_snapshot(source, snapshot)
+
+    assert tracked_diff
+    assert marker.exists() is False
+    assert (snapshot / "tracked.txt").read_text(encoding="utf-8") == "after\n"
 
 
 def test_snapshot_preserves_staged_new_file_as_tracked(tmp_path: Path) -> None:
