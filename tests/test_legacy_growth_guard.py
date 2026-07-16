@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import textwrap
 from pathlib import Path
 
@@ -3257,6 +3258,65 @@ def test_legacy_growth_guard_clears_dynamic_app_after_definite_safe_rebinding(
     assert legacy_guard.validate_legacy_growth(source) == []
 
 
+def test_legacy_growth_guard_clears_dynamic_app_after_builtin_object_rebinding() -> None:
+    source = textwrap.dedent("""
+        app = resolve_app()
+        app = object()
+        app.get("/api/v1/not-a-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+def test_legacy_growth_guard_keeps_shadowed_object_call_fail_closed() -> None:
+    source = textwrap.dedent("""
+        app = resolve_app()
+        object = resolve_constructor()
+        app = object()
+        app.get("/api/v1/shadowed-object")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: " "registration:get:/api/v1/shadowed-object"
+    ]
+
+
+@pytest.mark.parametrize(
+    "delete_statement",
+    ["del object", "del (object, other)", "del [object, other]"],
+    ids=["direct", "tuple", "list"],
+)
+def test_legacy_growth_guard_restores_builtin_object_after_module_delete(
+    delete_statement: str,
+) -> None:
+    source = (
+        "object = safe_constructor\n"
+        "other = safe_value\n"
+        f"{delete_statement}\n"
+        "app = resolve_app()\n"
+        "app = object()\n"
+        'app.get("/api/v1/not-a-route")(handler)\n'
+    )
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+def test_legacy_growth_guard_keeps_deleted_function_local_object_fail_closed() -> None:
+    source = textwrap.dedent("""
+        def install(app, object):
+            del object
+            app = object()
+            app.get("/api/v1/deleted-local-object")(handler)
+
+        install(app, safe_constructor)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/deleted-local-object"
+    ]
+
+
 def test_legacy_growth_guard_does_not_promote_unrelated_unknown_binding() -> None:
     source = textwrap.dedent("""
         candidate = resolve_candidate()
@@ -4021,6 +4081,60 @@ def test_legacy_growth_guard_replays_helper_with_resolved_arguments(invocation: 
     assert legacy_guard.validate_legacy_growth(source) == [
         "legacy_app.py: unexpected legacy route growth: registration:middleware:http"
     ]
+
+
+@pytest.mark.parametrize(
+    "invocation",
+    [
+        'install((route := app.get), route, "/api/v1/named-positional")',
+        ("install(first=(route := app.get), registrar=route, " 'path="/api/v1/named-keyword")'),
+    ],
+    ids=["positional", "keyword"],
+)
+def test_legacy_growth_guard_resolves_arguments_in_python_evaluation_order(
+    invocation: str,
+) -> None:
+    source = textwrap.dedent(f"""
+        def install(first, registrar, path):
+            registrar(path)(handler)
+
+        {invocation}
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: registration:dynamic:path"
+    ]
+
+
+def test_legacy_growth_guard_argument_evaluator_detaches_parent_scope_chain() -> None:
+    tree = ast.parse(
+        "def install(first, registrar):\n"
+        "    registrar('/api/v1/hidden')(handler)\n"
+        "install((route := app.get), route)\n"
+    )
+    function = tree.body[0]
+    call_statement = tree.body[1]
+    assert isinstance(function, ast.FunctionDef)
+    assert isinstance(call_statement, ast.Expr)
+    assert isinstance(call_statement.value, ast.Call)
+
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="legacy_app.py",
+        errors=[],
+        initial_references={"app": "pulseplate.app"},
+        preserve_route_method_conflicts=True,
+    )
+    original_parent = visitor.scope
+    visitor.scope = legacy_guard._LexicalBindings(
+        parent=original_parent,
+        scope_kind="comprehension",
+    )
+    original_references = dict(original_parent.references)
+
+    visitor._resolve_call_argument_bindings(function, call_statement.value)
+
+    assert original_parent.references == original_references
+    assert original_parent.resolve_reference("route") is None
 
 
 @pytest.mark.parametrize(

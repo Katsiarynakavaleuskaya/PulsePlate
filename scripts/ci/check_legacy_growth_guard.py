@@ -1721,6 +1721,17 @@ class _LexicalBindings:
         clone.callables = dict(self.callables)
         return clone
 
+    def detached_clone(self) -> _LexicalBindings:
+        clone = _LexicalBindings(
+            parent=self.parent.detached_clone() if self.parent is not None else None,
+            local_names=self.local_names,
+            scope_kind=self.scope_kind,
+        )
+        clone.references = dict(self.references)
+        clone.strings = dict(self.strings)
+        clone.callables = dict(self.callables)
+        return clone
+
     def resolve_reference(self, name: str) -> str | None:
         if name in self.references:
             return self.references[name]
@@ -1978,6 +1989,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         self._remaining_loop_iterations = _MAX_TOTAL_LOOP_BINDING_ITERATIONS
         self.scope = _LexicalBindings(parent=None)
         self.scope.bind("getattr", reference="builtins.getattr", string=None)
+        self.scope.bind("object", reference="builtins.object", string=None)
         for name, reference in (initial_references or {}).items():
             self.scope.bind(name, reference=reference, string=None)
 
@@ -2432,21 +2444,26 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     callables=callables,
                 )
 
-    @staticmethod
-    def _is_definitely_non_app_value(node: ast.AST) -> bool:
+    def _is_definitely_non_app_value(self, node: ast.AST) -> bool:
         if isinstance(node, (ast.Constant, ast.JoinedStr, ast.Lambda)):
+            return True
+        if (
+            isinstance(node, ast.Call)
+            and not node.args
+            and not node.keywords
+            and self._resolve_reference(node.func) == "builtins.object"
+        ):
             return True
         if isinstance(node, (ast.List, ast.Tuple, ast.Set)):
             return all(
-                not isinstance(element, ast.Starred)
-                and _ApiKeyLookupVisitor._is_definitely_non_app_value(element)
+                not isinstance(element, ast.Starred) and self._is_definitely_non_app_value(element)
                 for element in node.elts
             )
         if isinstance(node, ast.Dict):
             return all(
                 key is not None
-                and _ApiKeyLookupVisitor._is_definitely_non_app_value(key)
-                and _ApiKeyLookupVisitor._is_definitely_non_app_value(value)
+                and self._is_definitely_non_app_value(key)
+                and self._is_definitely_non_app_value(value)
                 for key, value in zip(node.keys, node.values, strict=True)
             )
         return False
@@ -3303,6 +3320,23 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         finally:
             self.scope = active_scope
 
+    def visit_Delete(self, node: ast.Delete) -> None:
+        for target in node.targets:
+            names = _assignment_target_names(target)
+            if not names:
+                self.visit(target)
+                continue
+            for name in names:
+                self.scope.references.pop(name, None)
+                self.scope.strings.pop(name, None)
+                self.scope.callables.pop(name, None)
+                if self.scope.scope_kind == "module" and name == "object":
+                    self.scope.bind(
+                        name,
+                        reference="builtins.object",
+                        string=None,
+                    )
+
     def visit_Attribute(self, node: ast.Attribute) -> None:
         if node.attr in CANONICAL_API_KEY_SYMBOLS and self._is_legacy_module_reference(
             self._resolve_reference(node.value)
@@ -3384,24 +3418,45 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         function: _FunctionNode,
         call: ast.Call,
     ) -> dict[str, _ResolvedBinding]:
-        positional_values: list[ast.AST] = []
+        evaluator = _ApiKeyLookupVisitor(
+            filename=self.filename,
+            errors=[],
+            preserve_fastapi_conflicts=self.preserve_fastapi_conflicts,
+            preserve_lifecycle_conflicts=self.preserve_lifecycle_conflicts,
+            preserve_route_method_conflicts=self.preserve_route_method_conflicts,
+            analyze_function_bodies=False,
+        )
+        evaluator.scope = self.scope.detached_clone()
+        evaluator.visit(call.func)
+
+        positional_bindings: list[_ResolvedBinding] = []
         unresolved_positional = False
         for call_argument in call.args:
             if not isinstance(call_argument, ast.Starred):
-                positional_values.append(call_argument)
+                evaluator.visit(call_argument)
+                positional_bindings.append(evaluator._capture_argument_binding(call_argument))
                 continue
             if isinstance(call_argument.value, (ast.List, ast.Tuple)) and not any(
                 isinstance(element, ast.Starred) for element in call_argument.value.elts
             ):
-                positional_values.extend(call_argument.value.elts)
+                for element in call_argument.value.elts:
+                    evaluator.visit(element)
+                    positional_bindings.append(evaluator._capture_argument_binding(element))
             else:
+                evaluator.visit(call_argument.value)
                 unresolved_positional = True
 
-        keyword_values: list[tuple[str, ast.AST]] = []
+        keyword_bindings: list[tuple[str, _ResolvedBinding]] = []
         unresolved_keywords = False
         for keyword in call.keywords:
             if keyword.arg is not None:
-                keyword_values.append((keyword.arg, keyword.value))
+                evaluator.visit(keyword.value)
+                keyword_bindings.append(
+                    (
+                        keyword.arg,
+                        evaluator._capture_argument_binding(keyword.value),
+                    )
+                )
                 continue
             if (
                 isinstance(keyword.value, ast.Dict)
@@ -3412,16 +3467,23 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 )
                 and all(key is not None for key in keyword.value.keys)
             ):
-                keyword_values.extend(
-                    (str(key.value), value)
-                    for key, value in zip(
-                        keyword.value.keys,
-                        keyword.value.values,
-                        strict=True,
+                for key, value in zip(
+                    keyword.value.keys,
+                    keyword.value.values,
+                    strict=True,
+                ):
+                    if not isinstance(key, ast.Constant):
+                        continue
+                    evaluator.visit(key)
+                    evaluator.visit(value)
+                    keyword_bindings.append(
+                        (
+                            str(key.value),
+                            evaluator._capture_argument_binding(value),
+                        )
                     )
-                    if isinstance(key, ast.Constant)
-                )
             else:
+                evaluator.visit(keyword.value)
                 unresolved_keywords = True
 
         positional_parameters = [*function.args.posonlyargs, *function.args.args]
@@ -3429,18 +3491,18 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         keyword_parameters.update(parameter.arg for parameter in function.args.kwonlyargs)
         assignments: dict[str, list[_ResolvedBinding]] = {}
         overflow_positional_bindings: list[_ResolvedBinding] = []
-        for index, value in enumerate(positional_values):
+        for index, binding in enumerate(positional_bindings):
             if index < len(positional_parameters):
                 name = positional_parameters[index].arg
-                assignments.setdefault(name, []).append(self._capture_argument_binding(value))
+                assignments.setdefault(name, []).append(binding)
             else:
-                overflow_positional_bindings.append(self._capture_argument_binding(value))
+                overflow_positional_bindings.append(binding)
         unexpected_keyword_bindings: list[_ResolvedBinding] = []
-        for name, value in keyword_values:
+        for name, binding in keyword_bindings:
             if name in keyword_parameters:
-                assignments.setdefault(name, []).append(self._capture_argument_binding(value))
+                assignments.setdefault(name, []).append(binding)
             else:
-                unexpected_keyword_bindings.append(self._capture_argument_binding(value))
+                unexpected_keyword_bindings.append(binding)
 
         default_bindings = self._function_default_bindings.get(function, {})
         resolved: dict[str, _ResolvedBinding] = {}
