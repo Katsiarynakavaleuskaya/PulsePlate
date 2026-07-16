@@ -162,7 +162,7 @@ Evidence: tests/test_creative_code_patch_builder.py proves the resolved safe.dir
 
 Disposition: FIXED
 Commit: d2443a22cf10c0f59ec344e8ec9e077490037009
-Evidence: `docs/review/PR_2129_FIXED_MAPPING.md:120-121` restores both exact parser-required Discussion Thread Pass checkboxes; the local Phase2 validator passes.
+Evidence: The `Discussion Thread Pass` section contains both exact parser-required checkboxes; the local Phase2 validator passes.
 Reason: The canonical artifact now records completed discussion and mapping work without marking the still-pending CI and merge gates complete.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2129#discussion_r3592636352 -> d2443a22cf10c0f59ec344e8ec9e077490037009
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2129#discussion_r3592848184 -> d2443a22cf10c0f59ec344e8ec9e077490037009
@@ -170,20 +170,20 @@ Reason: The canonical artifact now records completed discussion and mapping work
 
 Disposition: FIXED
 Commit: d2443a22cf10c0f59ec344e8ec9e077490037009
-Evidence: `docs/review/PR_2129_FIXED_MAPPING.md:89-94` uses the canonical one-line `Artifact:` result reference accepted by the Experiment Runner evidence parser.
+Evidence: The `Experiment Runner Evidence` section uses the canonical one-line `Artifact:` result reference accepted by the Experiment Runner evidence parser.
 Reason: The prior multiline `Result:` label was valid prose but not parser-valid Phase2 evidence.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2129#discussion_r3592636357 -> d2443a22cf10c0f59ec344e8ec9e077490037009
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2129#discussion_r3592870393 -> d2443a22cf10c0f59ec344e8ec9e077490037009
 
 Disposition: FIXED
 Commit: d2443a22cf10c0f59ec344e8ec9e077490037009
-Evidence: `docs/review/PR_2129_FIXED_MAPPING.md:63-68` records the #2132 replacement behavior and explicitly states that its source review produced no actionable finding requiring a source-review mapping URL.
+Evidence: The `Source PR Replacement Matrix` section records the #2132 replacement behavior and explicitly states that its source review produced no actionable finding requiring a source-review mapping URL.
 Reason: Replacement evidence and the absence of an actionable source review are now explicit and auditable.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2129#discussion_r3592848181 -> d2443a22cf10c0f59ec344e8ec9e077490037009
 
 Disposition: FIXED
 Commit: d2443a22cf10c0f59ec344e8ec9e077490037009
-Evidence: `docs/review/PR_2129_FIXED_MAPPING.md:69-70` records the implemented bounded Docker tmpfs contract as `size=2m,mode=0700`.
+Evidence: The `Source PR Replacement Matrix` section records the implemented bounded Docker tmpfs contract as `size=2m,mode=0700`.
 Reason: The canonical evidence now matches `RESULT_VOLUME_SIZE = "2M"` and the exact Docker argv.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2129#discussion_r3592870388 -> d2443a22cf10c0f59ec344e8ec9e077490037009
 
