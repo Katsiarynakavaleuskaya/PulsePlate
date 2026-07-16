@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 import subprocess
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, NoReturn
 
 import pytest
 
@@ -2294,11 +2294,12 @@ def test_macos_oracle_only_requires_explicit_apple_before_probe_or_write(
     packet_path = tmp_path / "packet.json"
     packet_path.write_text(json.dumps(_packet()), encoding="utf-8")
     output_path = tmp_path / "result.json"
-    monkeypatch.setattr(dispatch.platform, "system", lambda: "Darwin")
-    monkeypatch.setattr(
-        dispatch,
-        "_parse_args",
-        lambda _argv: SimpleNamespace(
+
+    def darwin_system() -> str:
+        return "Darwin"
+
+    def parse_args(_argv: list[str] | None) -> SimpleNamespace:
+        return SimpleNamespace(
             command="run",
             backend=backend,
             packet="packet.json",
@@ -2308,22 +2309,26 @@ def test_macos_oracle_only_requires_explicit_apple_before_probe_or_write(
             contribution_kind="none",
             coauthor_required=False,
             coauthor_reason="",
-        ),
-    )
-    monkeypatch.setattr(dispatch, "_require_repo_local_file", lambda *_args, **_kwargs: packet_path)
-    monkeypatch.setattr(dispatch, "_resolve_local_output", lambda *_args, **_kwargs: output_path)
-    monkeypatch.setattr(
-        dispatch,
-        "select_backend",
-        lambda *_args: (_ for _ in ()).throw(AssertionError("backend probe must not run")),
-    )
-    monkeypatch.setattr(
-        dispatch,
-        "_atomic_write_json",
-        lambda *_args, **_kwargs: (_ for _ in ()).throw(
-            AssertionError("result artifact must not be written")
-        ),
-    )
+        )
+
+    def require_packet(*_args: object, **_kwargs: object) -> Path:
+        return packet_path
+
+    def resolve_output(*_args: object, **_kwargs: object) -> Path:
+        return output_path
+
+    def reject_backend_probe(*_args: object, **_kwargs: object) -> NoReturn:
+        raise AssertionError("backend probe must not run")
+
+    def reject_result_write(*_args: object, **_kwargs: object) -> NoReturn:
+        raise AssertionError("result artifact must not be written")
+
+    monkeypatch.setattr(dispatch.platform, "system", darwin_system)
+    monkeypatch.setattr(dispatch, "_parse_args", parse_args)
+    monkeypatch.setattr(dispatch, "_require_repo_local_file", require_packet)
+    monkeypatch.setattr(dispatch, "_resolve_local_output", resolve_output)
+    monkeypatch.setattr(dispatch, "select_backend", reject_backend_probe)
+    monkeypatch.setattr(dispatch, "_atomic_write_json", reject_result_write)
 
     assert dispatch.main([]) == 2
     captured = capsys.readouterr()
@@ -2341,11 +2346,12 @@ def test_macos_oracle_explicit_apple_failure_has_no_docker_fallback(
     output_path = tmp_path / "result.json"
     probes: list[str] = []
     written: dict[str, Any] = {}
-    monkeypatch.setattr(dispatch.platform, "system", lambda: "Darwin")
-    monkeypatch.setattr(
-        dispatch,
-        "_parse_args",
-        lambda _argv: SimpleNamespace(
+
+    def darwin_system() -> str:
+        return "Darwin"
+
+    def parse_args(_argv: list[str] | None) -> SimpleNamespace:
+        return SimpleNamespace(
             command="run",
             backend="apple-container",
             packet="packet.json",
@@ -2355,19 +2361,28 @@ def test_macos_oracle_explicit_apple_failure_has_no_docker_fallback(
             contribution_kind="none",
             coauthor_required=False,
             coauthor_reason="",
-        ),
-    )
-    monkeypatch.setattr(dispatch, "_require_repo_local_file", lambda *_args, **_kwargs: packet_path)
-    monkeypatch.setattr(dispatch, "_resolve_local_output", lambda *_args, **_kwargs: output_path)
+        )
+
+    def require_packet(*_args: object, **_kwargs: object) -> Path:
+        return packet_path
+
+    def resolve_output(*_args: object, **_kwargs: object) -> Path:
+        return output_path
+
+    def capture_result(_path: Path, payload: dict[str, Any]) -> None:
+        written.update(payload)
+
+    monkeypatch.setattr(dispatch.platform, "system", darwin_system)
+    monkeypatch.setattr(dispatch, "_parse_args", parse_args)
+    monkeypatch.setattr(dispatch, "_require_repo_local_file", require_packet)
+    monkeypatch.setattr(dispatch, "_resolve_local_output", resolve_output)
 
     def failed_probe(backend: str, _image: dispatch.ImageReference) -> dispatch.BackendProbe:
         probes.append(backend)
         return dispatch._failed_probe(backend, "runtime_not_ready", image_digest=_DIGEST)
 
     monkeypatch.setattr(dispatch, "probe_backend", failed_probe)
-    monkeypatch.setattr(
-        dispatch, "_atomic_write_json", lambda _path, payload: written.update(payload)
-    )
+    monkeypatch.setattr(dispatch, "_atomic_write_json", capture_result)
 
     assert dispatch.main([]) == 1
     assert probes == ["apple-container"]
@@ -2387,11 +2402,12 @@ def test_macos_candidate_mode_preserves_auto_backend_selection(
     candidate_patch = tmp_path / "candidate.patch"
     candidate_patch.write_text("", encoding="utf-8")
     requested: list[str] = []
-    monkeypatch.setattr(dispatch.platform, "system", lambda: "Darwin")
-    monkeypatch.setattr(
-        dispatch,
-        "_parse_args",
-        lambda _argv: SimpleNamespace(
+
+    def darwin_system() -> str:
+        return "Darwin"
+
+    def parse_args(_argv: list[str] | None) -> SimpleNamespace:
+        return SimpleNamespace(
             command="run",
             backend="auto",
             packet="packet.json",
@@ -2401,16 +2417,22 @@ def test_macos_candidate_mode_preserves_auto_backend_selection(
             contribution_kind="none",
             coauthor_required=False,
             coauthor_reason="",
-        ),
-    )
+        )
+
+    def resolve_output(*_args: object, **_kwargs: object) -> Path:
+        return tmp_path / "result.json"
+
+    def ignore_result_write(*_args: object, **_kwargs: object) -> None:
+        return None
+
+    monkeypatch.setattr(dispatch.platform, "system", darwin_system)
+    monkeypatch.setattr(dispatch, "_parse_args", parse_args)
 
     def resolve_input(raw: str, **_kwargs: object) -> Path:
         return candidate_patch if raw == "candidate.patch" else packet_path
 
     monkeypatch.setattr(dispatch, "_require_repo_local_file", resolve_input)
-    monkeypatch.setattr(
-        dispatch, "_resolve_local_output", lambda *_args, **_kwargs: tmp_path / "result.json"
-    )
+    monkeypatch.setattr(dispatch, "_resolve_local_output", resolve_output)
 
     def select(
         requested_backend: str, _image: dispatch.ImageReference
@@ -2421,7 +2443,7 @@ def test_macos_candidate_mode_preserves_auto_backend_selection(
         ]
 
     monkeypatch.setattr(dispatch, "select_backend", select)
-    monkeypatch.setattr(dispatch, "_atomic_write_json", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(dispatch, "_atomic_write_json", ignore_result_write)
 
     assert dispatch.main([]) == 1
     assert requested == ["auto"]
