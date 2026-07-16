@@ -416,6 +416,27 @@ Avoid `# type: ignore[no-any-return]` and prefer typed locals over `cast()`.
 - Scheduler lifecycle, worker topology, and update/rollback algorithms are
   outside an access-seam refactor and require separately approved scope.
 
+### Canonical legacy weekly-menu builder access
+
+- `core/menu_engine.py` owns `make_weekly_menu`; the hidden legacy weekly-plan
+  route resolves it only through the lazy, uncached getter in
+  `app/services/legacy_premium_weekly_plan.py`.
+- The getter must return the exact core callable. Only absence of `core` or
+  `core.menu_engine` may produce an unavailable result; missing exports, plain
+  `ImportError`, transitive `ModuleNotFoundError`, and non-callable exports are
+  broken-runtime failures.
+- Production resolution must not inspect `sys.modules`, `app`, `app_module`,
+  `legacy_app`, package dictionaries, mutable overrides, registries, or cached
+  fallback state. Public `app.make_weekly_menu` and
+  `legacy_app.make_weekly_menu` remain compatibility exports, not route
+  authority.
+- Keep the route's API-key dependency and request-time VIP gate ahead of
+  builder resolution. Only the two reviewed static downstream `422` details
+  may cross the route boundary; all other downstream HTTP or unexpected errors
+  use the fixed server log and generic client `500` contract.
+- A builder-access cutover must not change the core menu algorithm, canonical
+  VIP/FitChef execution, route registration, OpenAPI, or FastAPI app identity.
+
 - Import Hygiene: do NOT reintroduce dynamic module loading in `app/__init__.py`
   (no `spec_from_file_location`, no `exec_module`, no sys.path hacks).
 - `import app` is a PEP 562 shim: `app.app` MUST point to `legacy_app.app`, and
