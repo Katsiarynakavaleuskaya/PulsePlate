@@ -33,8 +33,10 @@ if str(DISPATCH_REPO_ROOT) not in sys.path:
 
 from scripts.orchestration.context_pack import REPO_ROOT
 from scripts.orchestration.experiment_contract import (
+    CONTRIBUTION_KINDS,
     IMAGE_DIGEST_RE,
     ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE,
+    validate_contribution_attribution,
     validate_experiment_packet,
     validate_experiment_result,
 )
@@ -59,6 +61,10 @@ CONTAINER_RESULT_DIR = "/repo/artifacts/orchestration/experiments/results"
 CONTAINER_PRIVATE_TMP = Path("/", "tmp").as_posix()
 RESULT_VOLUME_SIZE = "2M"
 MAX_RESULT_BYTES = 2 * 1024 * 1024
+PUBLIC_STATUS_ACCEPTED = "accepted"
+PUBLIC_STATUS_REJECTED = "rejected"
+RUNNER_CAPABILITY_EXIT_CODE = 3
+RUNNER_CAPABILITY_ERROR = "runner_capability_mismatch"
 IMAGE_REF_RE = re.compile(
     r"^(?P<name>[A-Za-z0-9][A-Za-z0-9._:/-]{0,254})@(?P<digest>sha256:[0-9a-f]{64})$"
 )
@@ -79,6 +85,7 @@ BLOCKER_CODES = frozenset(
         "guest_unshare_unavailable",
         "filesystem_isolation_unavailable",
         "strict_network_budget_required",
+        "host_listener_unavailable",
         "network_isolation_failed",
         "network_gateway_unavailable",
         "mount_contract_failed",
@@ -596,24 +603,25 @@ def _initialize_result_volume(
     apple_network: str | None,
 ) -> bool:
     name = f"pp-er-init-{uuid.uuid4().hex[:12]}"
-    completed_ok = False
-    cleanup_ok = False
+    argv = _container_run_argv(
+        cli=cli,
+        backend=backend,
+        image_ref=image_ref,
+        container_name=name,
+        result_volume=volume,
+        apple_network=apple_network,
+        user="0:0",
+        command=["/usr/bin/chown", "65532:65532", CONTAINER_RESULT_DIR],
+    )
     try:
-        argv = _container_run_argv(
-            cli=cli,
-            backend=backend,
-            image_ref=image_ref,
-            container_name=name,
-            result_volume=volume,
-            apple_network=apple_network,
-            user="0:0",
-            command=["/usr/bin/chown", "65532:65532", CONTAINER_RESULT_DIR],
-        )
         completed = _run(argv, cwd=REPO_ROOT, timeout=30)
-        completed_ok = completed.returncode == 0
-    finally:
-        cleanup_ok = _cleanup_container(cli, backend, name)
-    return completed_ok and cleanup_ok
+    except BaseException as exc:
+        if not _cleanup_container(cli, backend, name):
+            raise DispatchError("container_cleanup_failed") from exc
+        raise
+    if not _cleanup_container(cli, backend, name):
+        raise DispatchError("container_cleanup_failed")
+    return completed.returncode == 0
 
 
 def _address_is_bindable(address: str) -> bool:
@@ -659,14 +667,102 @@ def _discover_host_bind_address() -> str:
     raise DispatchError("host_listener_unavailable")
 
 
+def _find_apple_ipv4_subnets(value: Any) -> tuple[ipaddress.IPv4Network, ...]:
+    """Return Apple runtime IPv4 subnets used only to exclude host candidates."""
+
+    subnets: set[ipaddress.IPv4Network] = set()
+    if isinstance(value, dict):
+        for key, nested in value.items():
+            if str(key).lower() == "ipv4subnet":
+                if not isinstance(nested, str):
+                    raise DispatchError("network_gateway_unavailable")
+                try:
+                    subnet = ipaddress.ip_network(nested.strip(), strict=True)
+                except ValueError as exc:
+                    raise DispatchError("network_gateway_unavailable") from exc
+                if not isinstance(subnet, ipaddress.IPv4Network):
+                    raise DispatchError("network_gateway_unavailable")
+                subnets.add(subnet)
+            subnets.update(_find_apple_ipv4_subnets(nested))
+    elif isinstance(value, list):
+        for nested in value:
+            subnets.update(_find_apple_ipv4_subnets(nested))
+    return tuple(
+        sorted(subnets, key=lambda subnet: (int(subnet.network_address), subnet.prefixlen))
+    )
+
+
+def _discover_apple_runtime_subnets(cli: str) -> tuple[ipaddress.IPv4Network, ...]:
+    completed = _run([cli, "network", "inspect", "default"], cwd=REPO_ROOT)
+    if completed.returncode != 0:
+        raise DispatchError("network_gateway_unavailable")
+    try:
+        subnets = _find_apple_ipv4_subnets(json.loads(completed.stdout))
+    except json.JSONDecodeError as exc:
+        raise DispatchError("network_gateway_unavailable") from exc
+    if len(subnets) != 1:
+        raise DispatchError("network_gateway_unavailable")
+    return subnets
+
+
+def _discover_apple_host_bind_address(
+    runtime_subnets: tuple[ipaddress.IPv4Network, ...],
+) -> str:
+    """Require one safe, bindable hostname IPv4 outside Apple runtime subnets."""
+
+    try:
+        records = socket.getaddrinfo(
+            socket.gethostname(),
+            None,
+            family=socket.AF_INET,
+            type=socket.SOCK_STREAM,
+        )
+    except OSError as exc:
+        raise DispatchError("host_listener_unavailable") from exc
+
+    safe_candidates: set[str] = set()
+    for family, kind, _proto, _canonical, sockaddr in records:
+        if family != socket.AF_INET or kind != socket.SOCK_STREAM:
+            continue
+        candidate = str(sockaddr[0])
+        try:
+            address = ipaddress.ip_address(candidate)
+        except ValueError:
+            continue
+        if not isinstance(address, ipaddress.IPv4Address):
+            continue
+        if (
+            address.is_loopback
+            or address.is_unspecified
+            or address.is_multicast
+            or address.is_link_local
+            or address.is_reserved
+            or any(address in subnet for subnet in runtime_subnets)
+        ):
+            continue
+        safe_candidates.add(candidate)
+    candidates = {candidate for candidate in safe_candidates if _address_is_bindable(candidate)}
+    if len(candidates) != 1:
+        raise DispatchError("host_listener_unavailable")
+    return candidates.pop()
+
+
 @contextmanager
-def _host_listener() -> Iterator[tuple[str, int, bool]]:
-    bind_address = _discover_host_bind_address()
+def _host_listener(bind_address: str | None = None) -> Iterator[tuple[str, int, bool]]:
+    normalize_bind_failure = bind_address is not None
+    if bind_address is None:
+        bind_address = _discover_host_bind_address()
     listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    listener.bind((bind_address, 0))
-    listener.listen(8)
-    listener.settimeout(0.2)
+    try:
+        listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        listener.bind((bind_address, 0))
+        listener.listen(8)
+        listener.settimeout(0.2)
+    except OSError as exc:
+        listener.close()
+        if normalize_bind_failure:
+            raise DispatchError("host_listener_unavailable") from exc
+        raise
     stop = threading.Event()
 
     def serve() -> None:
@@ -685,8 +781,13 @@ def _host_listener() -> Iterator[tuple[str, int, bool]]:
     port = int(listener.getsockname()[1])
     ready = False
     try:
-        with socket.create_connection((bind_address, port), timeout=1):
-            ready = True
+        try:
+            with socket.create_connection((bind_address, port), timeout=1):
+                ready = True
+        except OSError as exc:
+            if normalize_bind_failure:
+                raise DispatchError("host_listener_unavailable") from exc
+            raise
         yield bind_address, port, ready
     finally:
         stop.set()
@@ -817,8 +918,13 @@ def _run_container_canary(
         cleanup_completed = True
         try:
             if backend == "apple-container":
+                runtime_subnets = _discover_apple_runtime_subnets(cli)
+                host_address = _discover_apple_host_bind_address(runtime_subnets)
                 apple_network = _create_apple_network(cli)
-            gateway = _discover_gateway(cli, backend, apple_network)
+                gateway = None
+            else:
+                host_address = None
+                gateway = _discover_gateway(cli, backend, apple_network)
             volume = _create_result_volume(cli, backend)
             runtime_ref = image.runtime_ref(backend)
             if not _initialize_result_volume(
@@ -832,11 +938,13 @@ def _run_container_canary(
             results = _base_probe_results(backend)
             results["runtime_available"] = True
             results["image_digest_verified"] = True
-            with _host_listener() as (host_address, port, listener_ready):
+            with _host_listener(host_address) as (listener_address, port, listener_ready):
                 results["host_listener_ready"] = listener_ready
                 outer_name = f"pp-er-outer-{uuid.uuid4().hex[:12]}"
                 inner_name = f"pp-er-inner-{uuid.uuid4().hex[:12]}"
-                canary_address = host_address if backend == "apple-container" else gateway
+                canary_address = listener_address if backend == "apple-container" else gateway
+                if canary_address is None:
+                    raise DispatchError("network_gateway_unavailable")
                 code = _canary_code(canary_address, port)
                 try:
                     outer = _run(
@@ -1078,6 +1186,8 @@ def select_backend(
     for backend in candidates:
         probe = probe_backend(backend, image)
         attempts.append(probe)
+        if "container_cleanup_failed" in probe.blocking_reasons:
+            return None, attempts
         if probe.strict:
             return probe, attempts
     return None, attempts
@@ -1198,6 +1308,15 @@ def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
         os.replace(temp_path, path)
     finally:
         temp_path.unlink(missing_ok=True)
+
+
+def _public_result_status(result: dict[str, Any]) -> str:
+    status = result.get("status")
+    if status == "accepted":
+        return PUBLIC_STATUS_ACCEPTED
+    if status == "rejected":
+        return PUBLIC_STATUS_REJECTED
+    raise DispatchError("result_validation_failed")
 
 
 def _require_repo_local_file(raw: str, *, suffix: str) -> Path:
@@ -1351,6 +1470,45 @@ def _infra_flake_result(
     return _validated_experiment_result(_redact_result_value(result))
 
 
+def _post_preflight_capability_mismatch_result(
+    packet: dict[str, Any],
+    image: ImageReference,
+    probe: BackendProbe,
+) -> dict[str, Any]:
+    """Build the sole publishable result for the runner's owned capability signal."""
+
+    runner_mode = packet["runner_mode"]
+    candidate_patch = (
+        ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE
+        if runner_mode == ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE
+        else "candidate.patch"
+    )
+    result = {
+        "schema_version": "1.0",
+        "experiment_id": packet["experiment_id"],
+        "runner_mode": runner_mode,
+        "candidate_patch": candidate_patch,
+        "status": "rejected",
+        "failure_class": "capability_mismatch",
+        "mutated_paths": [],
+        "oracle_results": [],
+        "budget_observations": {
+            "configured_budgets": dict(packet["budgets"]),
+            "oracle_commands_executed": 0,
+            "attempts": 1,
+            "retries_consumed": 0,
+            "runner_error": RUNNER_CAPABILITY_ERROR,
+        },
+        "shared_tree_untouched": True,
+        "promotion_ready": False,
+        "contribution_kind": "none",
+        "coauthor_required": False,
+        "coauthor_reason": "",
+        "execution_backend": _execution_backend_payload(probe, passed=True),
+    }
+    return _validated_experiment_result(result)
+
+
 _SECRET_TEXT_PATTERNS = (
     re.compile(r"(?i)(token|secret|password|api[_-]?key)\s*[:=]\s*[^\s,;]+"),
     re.compile(r"\b(?:gh[pousr]_[A-Za-z0-9_]{20,}|sk-[A-Za-z0-9_-]{20,})\b"),
@@ -1382,22 +1540,50 @@ def _redact_result_value(value: Any) -> Any:
     return redacted
 
 
-def _sanitize_result(result: dict[str, Any], probe: BackendProbe) -> dict[str, Any]:
+def _sanitize_result(
+    result: dict[str, Any],
+    probe: BackendProbe,
+    *,
+    requested_contribution_kind: str = "none",
+    requested_coauthor_required: bool = False,
+    requested_coauthor_reason: str = "",
+) -> dict[str, Any]:
+    trusted_backend = _execution_backend_payload(probe, passed=True)
+    result_with_trusted_backend = {**result, "execution_backend": trusted_backend}
     try:
-        validated = _validated_experiment_result(result)
+        validated = _validated_experiment_result(result_with_trusted_backend)
     except (TypeError, ValueError) as exc:
         raise DispatchError("result_validation_failed") from exc
     sanitized = _redact_result_value(validated)
     if not isinstance(sanitized, dict):
         raise DispatchError("result_redaction_failed")
-    sanitized["execution_backend"] = _execution_backend_payload(probe, passed=True)
+    sanitized["execution_backend"] = trusted_backend
     oracle_results = []
     for raw_oracle in sanitized.get("oracle_results", []):
         oracle = dict(raw_oracle)
         oracle["cwd"] = "/workspace"
         oracle_results.append(oracle)
     sanitized["oracle_results"] = oracle_results
-    return _validated_experiment_result(sanitized)
+    try:
+        sanitized = _validated_experiment_result(sanitized)
+        requested_attribution = validate_contribution_attribution(
+            contribution_kind=requested_contribution_kind,
+            coauthor_required=requested_coauthor_required,
+            coauthor_reason=requested_coauthor_reason,
+        )
+    except (TypeError, ValueError) as exc:
+        raise DispatchError("result_validation_failed") from exc
+    expected_attribution = (
+        requested_attribution if sanitized["status"] == "accepted" else ("none", False, "")
+    )
+    actual_attribution = (
+        sanitized["contribution_kind"],
+        sanitized["coauthor_required"],
+        sanitized["coauthor_reason"],
+    )
+    if actual_attribution != expected_attribution:
+        raise DispatchError("result_validation_failed")
+    return sanitized
 
 
 def _collect_result_volume(
@@ -1464,6 +1650,9 @@ def _invoke_container_runner(
     packet_path: Path,
     candidate_patch: Path | None,
     output_name: str,
+    contribution_kind: str = "none",
+    coauthor_required: bool = False,
+    coauthor_reason: str = "",
 ) -> dict[str, Any]:
     cli_name = "container" if probe.backend == "apple-container" else "docker"
     cli = _resolve_cli(cli_name)
@@ -1492,6 +1681,16 @@ def _invoke_container_runner(
         ]
         if candidate_patch is not None:
             command.extend(["--candidate-patch", f"{CONTAINER_INPUT}/candidate.patch"])
+        if contribution_kind != "none":
+            command.extend(
+                [
+                    "--contribution-kind",
+                    contribution_kind,
+                    "--coauthor-required",
+                    "--coauthor-reason",
+                    coauthor_reason,
+                ]
+            )
         apple_network: str | None = None
         volume: str | None = None
         runner_name = f"pp-er-runner-{uuid.uuid4().hex[:12]}"
@@ -1537,16 +1736,19 @@ def _invoke_container_runner(
                 )
             if not cleanup_completed:
                 raise DispatchError("container_cleanup_failed")
-            if completed.returncode not in {0, 1}:
+            runner_capability_signal = completed.returncode == RUNNER_CAPABILITY_EXIT_CODE
+            if completed.returncode not in {0, 1, RUNNER_CAPABILITY_EXIT_CODE}:
                 raise DispatchError("runner_execution_failed")
-            payload = _collect_result_volume(
-                cli=cli,
-                backend=probe.backend,
-                image_ref=runtime_ref,
-                volume=volume,
-                output_name=output_name,
-                apple_network=apple_network,
-            )
+            payload = None
+            if not runner_capability_signal:
+                payload = _collect_result_volume(
+                    cli=cli,
+                    backend=probe.backend,
+                    image_ref=runtime_ref,
+                    volume=volume,
+                    output_name=output_name,
+                    apple_network=apple_network,
+                )
         except BaseException as exc:
             cleanup_completed = _cleanup_container_resources(
                 cli=cli,
@@ -1567,7 +1769,17 @@ def _invoke_container_runner(
         )
         if not cleanup_completed:
             raise DispatchError("container_cleanup_failed")
-        return _sanitize_result(payload, probe)
+        if runner_capability_signal:
+            return _post_preflight_capability_mismatch_result(packet, image, probe)
+        if payload is None:
+            raise DispatchError("result_extraction_failed")
+        return _sanitize_result(
+            payload,
+            probe,
+            requested_contribution_kind=contribution_kind,
+            requested_coauthor_required=coauthor_required,
+            requested_coauthor_reason=coauthor_reason,
+        )
 
 
 def _build_image(backend: str, tag: str) -> dict[str, str]:
@@ -1683,6 +1895,31 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     run.add_argument("--candidate-patch", default=None)
     run.add_argument("--image", required=True)
     run.add_argument("--output", required=True)
+    run.add_argument(
+        "--contribution-kind",
+        default="none",
+        choices=CONTRIBUTION_KINDS,
+        help=(
+            "Material Experiment Runner contribution kind for oracle-only governance "
+            "evidence; candidate-patch mode rejects material/non-default attribution."
+        ),
+    )
+    run.add_argument(
+        "--coauthor-required",
+        action="store_true",
+        help=(
+            "Mark an accepted oracle-only result as requiring the canonical Experiment "
+            "Runner co-author trailer if it materially shapes the engineering decision."
+        ),
+    )
+    run.add_argument(
+        "--coauthor-reason",
+        default="",
+        help=(
+            "Non-empty material-contribution reason required with --coauthor-required "
+            "in oracle-only mode."
+        ),
+    )
     return parser.parse_args(argv)
 
 
@@ -1717,22 +1954,33 @@ def main(argv: list[str] | None = None) -> int:
         )
         output_path = _resolve_local_output(args.output, root=RESULT_ARTIFACT_DIR)
         packet = validate_experiment_packet(_read_packet(packet_path))
+        contribution_kind, coauthor_required, coauthor_reason = validate_contribution_attribution(
+            contribution_kind=getattr(args, "contribution_kind", "none"),
+            coauthor_required=getattr(args, "coauthor_required", False),
+            coauthor_reason=getattr(args, "coauthor_reason", ""),
+        )
         if packet["runner_mode"] == ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE:
             if candidate_patch is not None:
                 raise ValueError("Oracle-only packets must not include --candidate-patch.")
-        elif candidate_patch is None:
-            raise ValueError("Candidate-patch packets require --candidate-patch.")
+        else:
+            if contribution_kind != "none" or coauthor_required or coauthor_reason:
+                raise ValueError(
+                    "contribution attribution flags are supported only in oracle-only mode"
+                )
+            if candidate_patch is None:
+                raise ValueError("Candidate-patch packets require --candidate-patch.")
         if int(packet["budgets"]["network_budget"]) != 0:
             probe = _strict_network_budget_probe(args.backend, image)
             result = _capability_mismatch_result(packet, image, probe)
+            public_status = _public_result_status(result)
             _atomic_write_json(output_path, result)
             print(
                 json.dumps(
-                    {"artifact": output_path.name, "status": result["status"]},
+                    {"artifact": output_path.name, "status": public_status},
                     sort_keys=True,
                 )
             )
-            return 1
+            return 0 if public_status == PUBLIC_STATUS_ACCEPTED else 1
         selected, attempts = select_backend(args.backend, image)
         if selected is None:
             result = _capability_mismatch_result(packet, image, attempts[-1])
@@ -1746,6 +1994,9 @@ def main(argv: list[str] | None = None) -> int:
                     packet_path=packet_path,
                     candidate_patch=candidate_patch,
                     output_name=output_path.name,
+                    contribution_kind=contribution_kind,
+                    coauthor_required=coauthor_required,
+                    coauthor_reason=coauthor_reason,
                 )
             except PreRunCapabilityError as exc:
                 result = _capability_mismatch_result(
@@ -1757,11 +2008,10 @@ def main(argv: list[str] | None = None) -> int:
                 result = _infra_flake_result(packet, image, selected, exc.code)
             except (OSError, ValueError):
                 result = _infra_flake_result(packet, image, selected, "result_validation_failed")
+        public_status = _public_result_status(result)
         _atomic_write_json(output_path, result)
-        print(
-            json.dumps({"artifact": output_path.name, "status": result["status"]}, sort_keys=True)
-        )
-        return 0 if result["status"] == "accepted" else 1
+        print(json.dumps({"artifact": output_path.name, "status": public_status}, sort_keys=True))
+        return 0 if public_status == PUBLIC_STATUS_ACCEPTED else 1
     except (DispatchError, OSError, ValueError) as exc:
         print(f"experiment_runner_dispatch: {exc}", file=sys.stderr)
         return 2

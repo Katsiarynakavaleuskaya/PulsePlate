@@ -1,3 +1,4 @@
+import asyncio
 from typing import Any
 
 import pytest
@@ -26,16 +27,16 @@ def test_get_api_key_strict_and_dev_modes(monkeypatch: pytest.MonkeyPatch):
         appmod.get_api_key("bad")
 
 
-@pytest.mark.asyncio
-async def test_admin_status_scheduler_branches(monkeypatch: pytest.MonkeyPatch):
+def test_admin_status_scheduler_branches(monkeypatch: pytest.MonkeyPatch) -> None:
     import app as appmod
+    from app.services import admin_operations
 
     async def _none_scheduler():  # noqa: D401
         return None
 
-    monkeypatch.setattr(appmod, "get_update_scheduler", _none_scheduler)
+    monkeypatch.setattr(admin_operations, "get_update_scheduler", _none_scheduler)
     with pytest.raises(appmod.HTTPException) as ei:
-        await appmod.admin_status()
+        asyncio.run(appmod.admin_status())
     assert ei.value.status_code == 503
 
     class DummyScheduler:
@@ -44,8 +45,8 @@ async def test_admin_status_scheduler_branches(monkeypatch: pytest.MonkeyPatch):
     async def _ok_scheduler():
         return DummyScheduler()
 
-    monkeypatch.setattr(appmod, "get_update_scheduler", _ok_scheduler)
-    out = await appmod.admin_status()
+    monkeypatch.setattr(admin_operations, "get_update_scheduler", _ok_scheduler)
+    out = asyncio.run(appmod.admin_status())
     assert out["status"] == "ok" and out["scheduler"] == "available"
 
 
@@ -72,14 +73,13 @@ def test_add_visualization_if_requested_fallback(monkeypatch: pytest.MonkeyPatch
     assert "visualization" in result
 
 
-@pytest.mark.asyncio
-async def test_export_pdf_generic_missing_function(monkeypatch: pytest.MonkeyPatch):
+def test_export_pdf_generic_missing_function(monkeypatch: pytest.MonkeyPatch) -> None:
     import app as appmod
 
     # Ensure to_pdf_day is missing/non-callable
     monkeypatch.setattr(appmod, "to_pdf_day", None)
     with pytest.raises(appmod.HTTPException) as ei:
-        await appmod.export_pdf_generic({"meals": []})
+        asyncio.run(appmod.export_pdf_generic({"meals": []}))
     assert ei.value.status_code == 503
 
 

@@ -44,7 +44,7 @@ from scripts.orchestration.experiment_contract import (
     CV_UNCERTAINTY_BANDS,
     is_cv_experiment,
 )
-from scripts.orchestration.experiment_runner import evaluate_candidate
+from scripts.orchestration.experiment_runner import RunnerCapabilitySignal, evaluate_candidate
 
 PREPARE_SUCCESS_OUTPUT = "PASS: creative-code patch prepare complete"
 GENERATE_SUCCESS_OUTPUT = "PASS: creative-code patch generate complete"
@@ -68,6 +68,9 @@ SAFE_DIFF_FLAGS = ("--no-ext-diff", "--no-textconv")
 
 class CreativeCodePatchBuilderError(ValueError):
     """Raised when the PR-2 patch builder fails closed."""
+
+
+RUNNER_CAPABILITY_ERROR = "Experiment Runner capability unavailable; trusted dispatch is required."
 
 
 def _load_run_state(run_id: str) -> tuple[Path, dict[str, Any], dict[str, Any], dict[str, Any]]:
@@ -618,6 +621,8 @@ def evaluate(*, run_id: str) -> dict[str, Any]:
     failure_class: str | None = None
     try:
         runner_result = evaluate_candidate(packet, patch_file)
+    except RunnerCapabilitySignal:
+        raise CreativeCodePatchBuilderError(RUNNER_CAPABILITY_ERROR) from None
     except Exception as exc:
         failure_class = "infra_flake"
         runner_error = exc.__class__.__name__

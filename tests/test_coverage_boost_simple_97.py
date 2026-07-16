@@ -136,12 +136,6 @@ class TestCoverageBoostSimple:
             response = self.client.get("/")
             assert response.status_code == 200
 
-    def test_scheduler_import(self):
-        """Test scheduler import handling."""
-        with patch("legacy_app._scheduler_getter", None):
-            response = self.client.get("/")
-            assert response.status_code == 200
-
     def test_timeout_handling(self):
         """Test timeout handling."""
         with patch("legacy_app.time.sleep", side_effect=TimeoutError("Request timeout")):

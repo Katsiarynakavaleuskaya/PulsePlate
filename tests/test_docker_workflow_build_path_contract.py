@@ -20,7 +20,7 @@ EXPECTED_DOCKER_SOURCE_PREP_BUILD_STEPS = {
     ("build.yml", "build", "Build Docker image (local, for tests)"),
     ("build.yml", "publish", "Build Docker image for publish scan"),
     ("trivy.yml", "build", "Build Docker image (production target)"),
-    ("cd.yml", "build", "Build & Push image (staging)"),
+    ("cd.yml", "build", "Build & Push backend image (staging)"),
     ("cd.yml", "build-production", "Build & Push image (production)"),
 }
 
@@ -81,9 +81,9 @@ def _root_context_docker_build_steps(
                 dict,
             ), f"{job_name}/{step.get('name')} must define docker build inputs"
             context = step_with.get("context")
-            assert (
-                context == "."
-            ), f"{job_name}/{step.get('name')} must set docker build path context '.'"
+            if context != ".":
+                # Frontend/Caddy builds do not consume the backend SQLite source bundle.
+                continue
             step_name = step.get("name")
             assert isinstance(step_name, str)
             build_steps.append((job_name, job, step_name))
@@ -312,7 +312,8 @@ def test_docker_source_artifact_manifest_pins_sqlite_source() -> None:
     )
     artifacts = manifest["artifacts"]
     assert manifest["schema_version"] == 1
-    assert manifest["review_by"] == "2026-07-13"
+    assert manifest["generated_at"] == "2026-07-14"
+    assert manifest["review_by"] == "2026-07-28"
     assert len(artifacts) == 1
 
     artifact = artifacts[0]

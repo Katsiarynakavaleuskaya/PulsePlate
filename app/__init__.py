@@ -39,6 +39,10 @@ _LOCAL_EXPORTS: dict[str, tuple[str, str]] = {
     # Expose metrics_endpoint for patch-based tests (patch("app.metrics"))
     "metrics": ("app.bootstrap.metrics", "metrics_endpoint"),
     "lifespan": ("app.bootstrap.lifespan", "application_lifespan"),
+    "get_update_scheduler": (
+        "app.services.scheduler_access",
+        "get_update_scheduler",
+    ),
     "api_key_header": ("app.routers.api_key", "api_key_header"),
     "get_api_key": ("app.routers.api_key", "get_api_key"),
     "_get_api_key_dynamic": ("app.routers.api_key", "_get_api_key_dynamic"),

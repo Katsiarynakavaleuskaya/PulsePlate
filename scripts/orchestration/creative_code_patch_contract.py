@@ -16,7 +16,7 @@ from pathlib import Path
 from pathlib import PurePosixPath
 import re
 import sys
-from typing import Any
+from typing import Any, Literal
 
 from core.evidence.fingerprints import (
     build_asset_id,
@@ -29,6 +29,8 @@ from scripts.orchestration.creative_code_specification import (
     validate_creative_code_specification_bundle,
 )
 from scripts.orchestration.experiment_contract import (
+    validate_capability_zero_attempt_observations,
+    validate_failure_retry_observations,
     validate_immutable_oracles,
     validate_metrics,
     validate_mutable_candidate_surface,
@@ -65,9 +67,23 @@ FAILURE_CLASSES = frozenset(
         "guard_failure",
         "policy_violation",
         "unchanged_result",
+        "capability_mismatch",
         "infra_flake",
     }
 )
+FailureClassCoherenceViolation = Literal[
+    "accepted_with_failure_class",
+    "rejected_without_failure_class",
+]
+TerminalOutcomeCoherenceViolation = Literal[
+    "accepted_with_failure_class",
+    "rejected_without_failure_class",
+    "accepted_with_nonaccepted_runner",
+    "accepted_without_runner_proof",
+    "accepted_without_workspace_proof",
+    "rejected_capability_without_runner_proof",
+    "rejected_failure_mismatch",
+]
 LEAK_TEXT_RE = re.compile(
     r"(diff --git|^\+\+\+ |^--- |@@ |raw[_ -]?(prompt|response|context)|"
     r"chain[_ -]?of[_ -]?thought|provider[_ -]?payload|oracle stdout|oracle stderr|"
@@ -75,6 +91,69 @@ LEAK_TEXT_RE = re.compile(
     r"xox[abprs]-|sk-[A-Za-z0-9_-]{12,})",
     re.IGNORECASE | re.MULTILINE,
 )
+
+
+def classify_failure_class_coherence(
+    *,
+    status: str,
+    failure_class: str | None,
+) -> FailureClassCoherenceViolation | None:
+    """Return the closed coherence violation for one terminal status pair."""
+
+    if status == "accepted" and failure_class is not None:
+        return "accepted_with_failure_class"
+    if status == "rejected" and failure_class is None:
+        return "rejected_without_failure_class"
+    return None
+
+
+def classify_terminal_outcome_coherence(
+    *,
+    status: str,
+    failure_class: str | None,
+    runner_status: str,
+    runner_failure_class: str | None,
+    runner_oracle_commands_configured: int,
+    runner_oracle_commands_executed: int,
+    runner_shared_tree_untouched: bool,
+    workspace_summary: Mapping[str, Any],
+) -> TerminalOutcomeCoherenceViolation | None:
+    """Apply shared result/receipt coherence rules in canonical precedence."""
+
+    failure_violation = classify_failure_class_coherence(
+        status=status,
+        failure_class=failure_class,
+    )
+    if failure_violation is not None:
+        return failure_violation
+    if status == "accepted" and runner_status != "accepted":
+        return "accepted_with_nonaccepted_runner"
+    if status == "accepted" and (
+        runner_oracle_commands_configured < 1
+        or runner_oracle_commands_executed != runner_oracle_commands_configured
+        or not runner_shared_tree_untouched
+    ):
+        return "accepted_without_runner_proof"
+    if status == "accepted" and not (
+        workspace_summary["origin_removed"]
+        and workspace_summary["checkout_destroyed"]
+        and workspace_summary["shared_tree_untouched"]
+    ):
+        return "accepted_without_workspace_proof"
+    if (
+        status == "rejected"
+        and failure_class == "capability_mismatch"
+        and runner_status != "rejected"
+    ):
+        return "rejected_capability_without_runner_proof"
+    if (
+        status == "rejected"
+        and runner_status == "rejected"
+        and failure_class != runner_failure_class
+    ):
+        return "rejected_failure_mismatch"
+    return None
+
 
 REQUEST_KEYS = frozenset(
     {
@@ -370,9 +449,9 @@ def _require_fingerprint(payload: Mapping[str, Any], key: str, *, label: str) ->
 
 def _require_bool(payload: Mapping[str, Any], key: str, *, expected: bool, label: str) -> bool:
     value = payload.get(key)
-    if value is not expected:
+    if not isinstance(value, bool) or value != expected:
         raise CreativeCodePatchContractError(f"{label}.{key} must be {expected}.")
-    return expected
+    return value
 
 
 def _require_any_bool(payload: Mapping[str, Any], key: str, *, label: str) -> bool:
@@ -1102,21 +1181,59 @@ def validate_creative_code_patch_result(payload: dict[str, Any]) -> dict[str, An
         raise CreativeCodePatchContractError(
             "workspace_summary.detached_base_sha must match base_commit_sha."
         )
-    if normalized["status"] == "accepted":
-        if normalized["failure_class"] is not None:
-            raise CreativeCodePatchContractError("accepted results must not have failure_class.")
-        if not (
-            workspace_summary["origin_removed"]
-            and workspace_summary["checkout_destroyed"]
-            and workspace_summary["shared_tree_untouched"]
-        ):
-            raise CreativeCodePatchContractError("accepted results require full workspace proof.")
-    elif normalized["failure_class"] is None:
+    coherence_violation = classify_terminal_outcome_coherence(
+        status=normalized["status"],
+        failure_class=normalized["failure_class"],
+        runner_status=runner_summary["status"],
+        runner_failure_class=runner_summary["failure_class"],
+        runner_oracle_commands_configured=runner_summary["oracle_commands_configured"],
+        runner_oracle_commands_executed=runner_summary["oracle_commands_executed"],
+        runner_shared_tree_untouched=runner_summary["shared_tree_untouched"],
+        workspace_summary=workspace_summary,
+    )
+    if coherence_violation == "accepted_with_failure_class":
+        raise CreativeCodePatchContractError("accepted results must not have failure_class.")
+    if coherence_violation == "rejected_without_failure_class":
         raise CreativeCodePatchContractError("rejected results require failure_class.")
-    if runner_summary["status"] == "accepted" and runner_summary["failure_class"] is not None:
+    if coherence_violation == "accepted_with_nonaccepted_runner":
+        raise CreativeCodePatchContractError("accepted results require an accepted runner summary.")
+    if coherence_violation == "accepted_without_runner_proof":
         raise CreativeCodePatchContractError(
-            "accepted runner summaries must not have failure_class."
+            "accepted results require complete runner oracle and shared-tree proof."
         )
+    if coherence_violation == "accepted_without_workspace_proof":
+        raise CreativeCodePatchContractError("accepted results require full workspace proof.")
+    if coherence_violation == "rejected_capability_without_runner_proof":
+        raise CreativeCodePatchContractError(
+            "capability_mismatch results require a rejected runner summary."
+        )
+    if coherence_violation == "rejected_failure_mismatch":
+        raise CreativeCodePatchContractError(
+            "rejected result and runner summary failure_class values must match."
+        )
+    for observed_failure, failure_label in (
+        (normalized["failure_class"], "CreativeCodePatchResult.runner_summary"),
+        (runner_summary["failure_class"], "runner_summary"),
+    ):
+        try:
+            validate_failure_retry_observations(
+                failure_class=observed_failure,
+                attempts=runner_summary["attempts"],
+                retries_consumed=runner_summary["retries_consumed"],
+                label=failure_label,
+            )
+        except ValueError as exc:
+            raise CreativeCodePatchContractError(str(exc)) from exc
+    try:
+        validate_capability_zero_attempt_observations(
+            failure_class=runner_summary["failure_class"],
+            attempts=runner_summary["attempts"],
+            mutated_path_count=runner_summary["mutated_path_count"],
+            oracle_commands_executed=runner_summary["oracle_commands_executed"],
+            label="runner_summary",
+        )
+    except ValueError as exc:
+        raise CreativeCodePatchContractError(str(exc)) from exc
     _reject_result_leaks(normalized, label=label)
     expected_id, expected_key = _build_result_identity(normalized)
     if normalized["result_id"] != expected_id:
@@ -1427,6 +1544,16 @@ def _validate_runner_summary(raw_summary: Any) -> dict[str, Any]:
         raise CreativeCodePatchContractError("runner_summary.failure_class must be null or string.")
     if failure_class is not None and failure_class not in FAILURE_CLASSES:
         raise CreativeCodePatchContractError("runner_summary.failure_class is unsupported.")
+    coherence_violation = classify_failure_class_coherence(
+        status=status,
+        failure_class=failure_class,
+    )
+    if coherence_violation == "accepted_with_failure_class":
+        raise CreativeCodePatchContractError(
+            "accepted runner summaries must not have failure_class."
+        )
+    if coherence_violation == "rejected_without_failure_class":
+        raise CreativeCodePatchContractError("rejected runner summaries require failure_class.")
     runner_error_fingerprint = raw_summary["runner_error_fingerprint"]
     runner_error_present = _require_any_bool(
         raw_summary,
@@ -1444,6 +1571,20 @@ def _validate_runner_summary(raw_summary: Any) -> dict[str, Any]:
         raise CreativeCodePatchContractError(
             "runner_summary.runner_error_fingerprint must be null when no runner error is present."
         )
+    attempts = _require_int(
+        raw_summary,
+        "attempts",
+        min_value=0,
+        max_value=3,
+        label="runner_summary",
+    )
+    retries_consumed = _require_int(
+        raw_summary,
+        "retries_consumed",
+        min_value=0,
+        max_value=2,
+        label="runner_summary",
+    )
     return {
         "experiment_id": _require_id(raw_summary, "experiment_id", label="runner_summary"),
         "status": status,
@@ -1469,20 +1610,8 @@ def _validate_runner_summary(raw_summary: Any) -> dict[str, Any]:
             max_value=20,
             label="runner_summary",
         ),
-        "attempts": _require_int(
-            raw_summary,
-            "attempts",
-            min_value=0,
-            max_value=3,
-            label="runner_summary",
-        ),
-        "retries_consumed": _require_int(
-            raw_summary,
-            "retries_consumed",
-            min_value=0,
-            max_value=2,
-            label="runner_summary",
-        ),
+        "attempts": attempts,
+        "retries_consumed": retries_consumed,
         "shared_tree_untouched": _require_any_bool(
             raw_summary,
             "shared_tree_untouched",

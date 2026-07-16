@@ -13,14 +13,13 @@
 import os
 from types import SimpleNamespace
 from typing import cast
+from unittest.mock import AsyncMock
 
 import pytest
-import app as app_mod
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from app.services import admin_operations as admin_operations_service
 from starlette.types import ASGIApp
-from tests.helpers.fast_update_stubs import make_scheduler_stub, patch_app_get_update_scheduler
 
 
 @pytest.fixture
@@ -32,33 +31,18 @@ def client(app: FastAPI):
 class TestAdminEndpoints:
     """Тесты admin endpoints - ключ к 97%"""
 
-    def test_scheduler_resolver_preserves_app_module_alias_seam(self) -> None:
-        async def _default_get_update_scheduler() -> object:
-            return object()
-
-        async def _app_module_get_update_scheduler() -> object:
-            return object()
-
-        legacy_module = SimpleNamespace(
-            get_update_scheduler=_default_get_update_scheduler,
-            _DEFAULT_GET_UPDATE_SCHEDULER=_default_get_update_scheduler,
-        )
-        app_module_alias = SimpleNamespace(get_update_scheduler=_app_module_get_update_scheduler)
-
-        getter = admin_operations_service._select_scheduler_getter_from_modules(
-            legacy_module,
-            None,
-            app_module_alias,
-        )
-
-        assert getter is _app_module_get_update_scheduler
-
     def test_admin_routes_reject_missing_or_invalid_api_key(
         self,
         client: TestClient,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.setenv("API_KEY", "test_key")
+        scheduler_getter = AsyncMock()
+        monkeypatch.setattr(
+            admin_operations_service,
+            "get_update_scheduler",
+            scheduler_getter,
+        )
         protected_routes = [
             ("get", "/api/v1/admin/status", {}),
             ("post", "/admin/logs/cleanup", {}),
@@ -79,6 +63,8 @@ class TestAdminEndpoints:
 
             assert missing_response.status_code == 403
             assert invalid_response.status_code == 403
+
+        assert scheduler_getter.await_count == 0
 
     def test_admin_routes_accept_valid_api_key_with_scheduler_stub(
         self,
@@ -115,7 +101,14 @@ class TestAdminEndpoints:
                     )
                 }
 
-        patch_app_get_update_scheduler(monkeypatch, app_mod, _Scheduler())
+        async def get_scheduler() -> _Scheduler:
+            return _Scheduler()
+
+        monkeypatch.setattr(
+            admin_operations_service,
+            "get_update_scheduler",
+            get_scheduler,
+        )
         headers = {"X-API-Key": "test_key"}
 
         status_response = client.get("/api/v1/admin/status", headers=headers)
@@ -209,7 +202,7 @@ class TestAdminEndpoints:
             "deleted_files": 0,
             "data_class": "UNKNOWN",
             "message": (
-                "Invalid data_class: 'UNKNOWN'. Must be one of: " "PSEUDONYMOUS, PUBLIC, SENSITIVE"
+                "Invalid data_class: 'UNKNOWN'. Must be one of: PSEUDONYMOUS, PUBLIC, SENSITIVE"
             ),
         }
 
@@ -218,23 +211,39 @@ class TestAdminEndpoints:
     ) -> None:
         """Тест /api/v1/admin/force-update (блок 1566-1595)"""
         monkeypatch.setenv("API_KEY", "test_key")
-        scheduler = make_scheduler_stub()
-        patch_app_get_update_scheduler(monkeypatch, app_mod, scheduler)
+
+        class _Scheduler:
+            async def force_update(self, source: str | None = None) -> dict[str, object]:
+                return {
+                    "usda": SimpleNamespace(
+                        success=True,
+                        old_version="1.0.0",
+                        new_version="1.0.1",
+                        records_added=1,
+                        records_updated=0,
+                        records_removed=0,
+                        duration_seconds=0.1,
+                        errors=[],
+                    )
+                }
+
+        async def get_scheduler() -> _Scheduler:
+            return _Scheduler()
+
+        monkeypatch.setattr(
+            admin_operations_service,
+            "get_update_scheduler",
+            get_scheduler,
+        )
 
         response = client.post(
             "/api/v1/admin/force-update",
             headers={"X-API-Key": "test_key"},
-            json={"source": "usda"},
+            params={"source": "usda"},
         )
 
-        # Endpoint может работать или падать в зависимости от реализации
-        assert response.status_code in [200, 400, 500, 503]
-
-        if response.status_code == 500:
-            # Проверим что получили правильную ошибку
-            assert response.headers.get("content-type", "").startswith("application/json")
-            data = response.json()
-            assert "detail" in data
+        assert response.status_code == 200
+        assert response.json()["results"]["usda"]["success"] is True
 
     def test_check_updates_endpoint(
         self, client: TestClient, monkeypatch: pytest.MonkeyPatch
@@ -242,54 +251,49 @@ class TestAdminEndpoints:
         """Тест /api/v1/admin/check-updates (блок 1607-1624)"""
         monkeypatch.setenv("API_KEY", "test_key")
 
+        class _UpdateManager:
+            async def check_for_updates(self) -> dict[str, bool]:
+                return {"usda": True}
+
+        async def get_scheduler() -> object:
+            return SimpleNamespace(update_manager=_UpdateManager())
+
+        monkeypatch.setattr(
+            admin_operations_service,
+            "get_update_scheduler",
+            get_scheduler,
+        )
+
         response = client.get("/api/v1/admin/check-updates", headers={"X-API-Key": "test_key"})
 
-        assert response.status_code in [200, 500, 503]
-
-        if response.status_code == 200:
-            assert response.headers.get("content-type", "").startswith("application/json")
-            data = response.json()
-            assert "message" in data
+        assert response.status_code == 200
+        assert response.json()["total_sources_with_updates"] == 1
 
     def test_rollback_endpoint(self, client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
         """Тест /api/v1/admin/rollback (блок 1640-1662)"""
         monkeypatch.setenv("API_KEY", "test_key")
 
+        class _UpdateManager:
+            def rollback_database(self, source: str, target_version: str) -> bool:
+                return source == "usda" and target_version == "1.0.0"
+
+        async def get_scheduler() -> object:
+            return SimpleNamespace(update_manager=_UpdateManager())
+
+        monkeypatch.setattr(
+            admin_operations_service,
+            "get_update_scheduler",
+            get_scheduler,
+        )
+
         response = client.post(
             "/api/v1/admin/rollback",
             headers={"X-API-Key": "test_key"},
-            json={"source": "usda", "target_version": "1.0.0"},
+            params={"source": "usda", "target_version": "1.0.0"},
         )
 
-        assert response.status_code in [200, 400, 422, 500, 503]
-
-    def test_admin_endpoints_integration(
-        self, client: TestClient, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """Test admin endpoints with real behavior"""
-        monkeypatch.setenv("API_KEY", "test_key")
-        scheduler = make_scheduler_stub()
-        patch_app_get_update_scheduler(monkeypatch, app_mod, scheduler)
-
-        # Test force-update (real request, no invasive sys.modules patching)
-        response = client.post(
-            "/api/v1/admin/force-update",
-            headers={"X-API-Key": "test_key"},
-            json={"source": "usda"},
-        )
-        assert response.status_code in [200, 400, 404, 422, 500, 503]
-
-        # Test check-updates
-        response = client.get("/api/v1/admin/check-updates", headers={"X-API-Key": "test_key"})
-        assert response.status_code in [200, 404, 500, 503]
-
-        # Test rollback
-        response = client.post(
-            "/api/v1/admin/rollback",
-            headers={"X-API-Key": "test_key"},
-            json={"source": "usda", "target_version": "1.0.0"},
-        )
-        assert response.status_code in [200, 400, 404, 422, 500, 503]
+        assert response.status_code == 200
+        assert response.json()["success"] is True
 
 
 class TestRemainingBlocks:
@@ -431,12 +435,11 @@ class TestRemainingBlocks:
 
         for endpoint in admin_endpoints:
             response = client.post(endpoint, json={})
-            # Может быть 200 если endpoints не требуют API key в тестовом режиме
-            assert response.status_code in [200, 403, 422]
+            assert response.status_code == 403
 
         # Test check-updates separately since it's GET
         response = client.get("/api/v1/admin/check-updates")
-        assert response.status_code in [200, 403, 422]
+        assert response.status_code == 403
 
     def test_comprehensive_language_support(self, client):
         """Комплексный тест поддержки языков"""

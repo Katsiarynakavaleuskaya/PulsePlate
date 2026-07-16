@@ -414,7 +414,7 @@ zipp==3.23.0
     #   importlib-metadata
 
 # The following packages are considered to be unsafe in a requirements file:
-setuptools==78.1.1
+setuptools==83.0.0
     # via
     #   -c requirements.txt
     #   -r requirements-ci-lite.in

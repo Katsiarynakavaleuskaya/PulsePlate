@@ -437,14 +437,14 @@ def test_legacy_scheduler_stop_wrapper_executes() -> None:
     assert callable(stopper)
 
 
-def test_get_update_scheduler_late_getter_path(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_get_update_scheduler_delegates_to_core_at_call_time(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     async def _run() -> None:
-        """Cover legacy_app.get_update_scheduler branch that uses late getter (line ~386)."""
+        """The compatibility export delegates through the lazy service seam."""
 
         async def _late_getter() -> Any:
             return object()
-
-        monkeypatch.setattr(legacy_app, "_scheduler_getter", None, raising=False)
 
         import core.food_apis.scheduler as sched
 
@@ -1273,9 +1273,9 @@ def test_rollback_database_coroutine_callable_path(monkeypatch: pytest.MonkeyPat
         async def _getter() -> Any:
             return _Scheduler()
 
-        import app as app_pkg
+        from app.services import admin_operations
 
-        monkeypatch.setattr(app_pkg, "get_update_scheduler", _getter, raising=False)
+        monkeypatch.setattr(admin_operations, "get_update_scheduler", _getter)
         out = await legacy_app.rollback_database("usda", "v1")
         assert out["success"] is True
 
@@ -1323,7 +1323,7 @@ def test_build_fallback_plate_invalid_fiber_uses_fiber_min(monkeypatch: pytest.M
 
     monkeypatch.setattr(legacy_app, "_evaluate_targets_disabled", lambda: False, raising=False)
     monkeypatch.setattr(
-        legacy_app, "_resolve_build_targets_callable", lambda: (lambda _p: _Targets())
+        legacy_app, "_resolve_build_targets_callable", lambda: lambda _p: _Targets()
     )
 
     req = legacy_app.PlateRequest(

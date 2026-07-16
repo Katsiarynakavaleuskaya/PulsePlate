@@ -53,6 +53,15 @@ def test_canonical_lifespan_preserves_legacy_created_app_identity() -> None:
     assert legacy_app.app.router.lifespan_context is not None
 
 
+def test_scheduler_access_is_an_exact_compatibility_export() -> None:
+    import app
+    import legacy_app
+    from app.services import scheduler_access
+
+    assert app.get_update_scheduler is scheduler_access.get_update_scheduler
+    assert legacy_app.get_update_scheduler is scheduler_access.get_update_scheduler
+
+
 def test_legacy_openapi_symbols_are_exact_canonical_aliases() -> None:
     import legacy_app
     from app.bootstrap import openapi as canonical_openapi
