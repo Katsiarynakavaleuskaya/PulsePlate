@@ -515,7 +515,7 @@ def _validate_operator_outage_security_checks(
 def _operator_outage_security_required(material_paths: Iterable[str]) -> bool:
     """Recompute security-job applicability from the sealed material paths."""
 
-    return build_risk_profile(tuple(material_paths)).run_security
+    return bool(build_risk_profile(tuple(material_paths)).run_security)
 
 
 def _validate_v1_seal(
