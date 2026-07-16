@@ -141,9 +141,56 @@ Evidence: tests/test_creative_code_patch_builder.py proves the resolved safe.dir
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2131#pullrequestreview-4694153073 -> b0f3f18078020dfe4e3c656ae3610288098c1122
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2131#discussion_r3578866396 -> b0f3f18078020dfe4e3c656ae3610288098c1122
 
+Disposition: FIXED
+Commit: d2443a22cf10c0f59ec344e8ec9e077490037009
+Evidence: `docs/review/PR_2129_FIXED_MAPPING.md:120-121` restores both exact parser-required Discussion Thread Pass checkboxes; the local Phase2 validator passes.
+Reason: The canonical artifact now records completed discussion and mapping work without marking the still-pending CI and merge gates complete.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2129#discussion_r3592636352 -> d2443a22cf10c0f59ec344e8ec9e077490037009
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2129#discussion_r3592848184 -> d2443a22cf10c0f59ec344e8ec9e077490037009
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2129#discussion_r3592870391 -> d2443a22cf10c0f59ec344e8ec9e077490037009
+
+Disposition: FIXED
+Commit: d2443a22cf10c0f59ec344e8ec9e077490037009
+Evidence: `docs/review/PR_2129_FIXED_MAPPING.md:89-94` uses the canonical one-line `Artifact:` result reference accepted by the Experiment Runner evidence parser.
+Reason: The prior multiline `Result:` label was valid prose but not parser-valid Phase2 evidence.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2129#discussion_r3592636357 -> d2443a22cf10c0f59ec344e8ec9e077490037009
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2129#discussion_r3592870393 -> d2443a22cf10c0f59ec344e8ec9e077490037009
+
+Disposition: FIXED
+Commit: d2443a22cf10c0f59ec344e8ec9e077490037009
+Evidence: `docs/review/PR_2129_FIXED_MAPPING.md:63-68` records the #2132 replacement behavior and explicitly states that its source review produced no actionable finding requiring a source-review mapping URL.
+Reason: Replacement evidence and the absence of an actionable source review are now explicit and auditable.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2129#discussion_r3592848181 -> d2443a22cf10c0f59ec344e8ec9e077490037009
+
+Disposition: FIXED
+Commit: d2443a22cf10c0f59ec344e8ec9e077490037009
+Evidence: `docs/review/PR_2129_FIXED_MAPPING.md:69-70` records the implemented bounded Docker tmpfs contract as `size=2m,mode=0700`.
+Reason: The canonical evidence now matches `RESULT_VOLUME_SIZE = "2M"` and the exact Docker argv.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2129#discussion_r3592870388 -> d2443a22cf10c0f59ec344e8ec9e077490037009
+
+Disposition: FIXED
+Commit: 7e464ad929db9fd1a46f3529d5abab6b8271e79e
+Evidence: `tests/test_experiment_runner_dispatch.py` replaces every newly added lambda in the three macOS Oracle dispatch tests with fully annotated named local stubs; focused tests, Ruff, and changed-line MyPy pass with zero in-diff errors.
+Reason: The valid CodeRabbit typing finding was fixed in a real post-comment material commit.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2129#discussion_r3592848186 -> 7e464ad929db9fd1a46f3529d5abab6b8271e79e
+
+Disposition: NOT-A-BUG
+Evidence: `git merge-base --is-ancestor b0f3f18078020dfe4e3c656ae3610288098c1122 7e464ad929db9fd1a46f3529d5abab6b8271e79e` exits 0, and GitHub lists `b0f3f18078020dfe4e3c656ae3610288098c1122` in the complete live PR commit graph.
+Reason: Both reviews compared the real FIXED proof against unavailable synthetic reviewer-execution refs (`7a4b9d5d...` and `de0c399f...`) rather than the real GitHub PR head. The mapped implementation commit is reachable from the live owner head.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2129#discussion_r3592636349
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2129#discussion_r3592870385
+
+Disposition: NOT-A-BUG
+Evidence: Every actionable inline finding from these summary reviews is individually dispositioned above with post-comment commit proof; Sourcery reported no actionable finding.
+Reason: The review objects aggregate their inline threads or an explicit no-finding result and introduce no additional independent defect.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2129#pullrequestreview-4694139891
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2129#pullrequestreview-4710447514
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2129#pullrequestreview-4710682775
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2129#pullrequestreview-4710715767
+
 ## Merge Readiness
 
-- [ ] Mandatory post-open role tail completed on current head.
+- [x] Mandatory post-open role tail completed on current material head.
 - [ ] Current-head CI and diff coverage are terminal and passing.
 - [ ] CodeRabbit, Sourcery, and Cubic have no actionable findings.
 - [ ] Strict authenticated merge wrapper passes after the review wait window.
