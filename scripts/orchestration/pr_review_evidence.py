@@ -33,37 +33,16 @@ OPERATOR_OUTAGE_ERROR_CODE = "-32001"
 OPERATOR_OUTAGE_ERROR_MESSAGE = "Request timed out"
 OPERATOR_OUTAGE_BOOTSTRAP_REPOSITORY = "Katsiarynakavaleuskaya/PulsePlate"
 OPERATOR_OUTAGE_BOOTSTRAP_PR = 2142
-OPERATOR_OUTAGE_SECURITY_REQUIREMENT_PATHS = frozenset(
+OPERATOR_OUTAGE_TRUST_BOUNDARY_EXACT_PATHS = frozenset(
     {
+        ".trivyignore",
         "constraints.txt",
-        "requirements-ci-lite.in",
-        "requirements-ci-lite.txt",
-        "requirements-data.in",
-        "requirements-data.txt",
-        "requirements-docker-runtime.in",
-        "requirements-docker-runtime.txt",
-        "requirements-evals.in",
-        "requirements-evals.txt",
-        "requirements-rag-vector-cpu.in",
-        "requirements-rag-vector-cpu.txt",
-        "requirements-rag-vector.in",
-        "requirements-rag-vector.txt",
-        "requirements.in",
-        "requirements.txt",
+        "scripts/ci_bandit.sh",
+        "scripts/ci_pip_audit.sh",
+        "scripts/orchestration/pr_commit_identity.py",
+        "scripts/orchestration/pr_review_closeout.py",
+        "scripts/orchestration/pr_review_evidence.py",
     }
-)
-OPERATOR_OUTAGE_TRUST_BOUNDARY_EXACT_PATHS = (
-    frozenset(
-        {
-            ".trivyignore",
-            "scripts/ci_bandit.sh",
-            "scripts/ci_pip_audit.sh",
-            "scripts/orchestration/pr_commit_identity.py",
-            "scripts/orchestration/pr_review_closeout.py",
-            "scripts/orchestration/pr_review_evidence.py",
-        }
-    )
-    | OPERATOR_OUTAGE_SECURITY_REQUIREMENT_PATHS
 )
 OPERATOR_OUTAGE_TRUST_BOUNDARY_PREFIXES = (
     ".github/actions/",
@@ -77,6 +56,7 @@ SEAL_END = "<!-- PULSEPLATE_PR_REVIEW_SEAL_V1_END -->"
 _SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 _DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 _RAW_DIGEST_RE = re.compile(r"^[0-9a-f]{64}$")
+_ROOT_REQUIREMENTS_MANIFEST_RE = re.compile(r"^requirements(?:-[a-z0-9][a-z0-9-]*)?\.(?:in|txt)$")
 _SNAPSHOT_DIGEST_RE = re.compile(r"^codex-security-snapshot/v1:sha256:[0-9a-f]{64}$")
 _UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
 _VERSION_RE = re.compile(r"^\d+\.\d+\.\d+$")
@@ -955,6 +935,7 @@ def validate_security_outage_override_scope(
             for path in material_paths
             if path in OPERATOR_OUTAGE_TRUST_BOUNDARY_EXACT_PATHS
             or path.startswith(OPERATOR_OUTAGE_TRUST_BOUNDARY_PREFIXES)
+            or _ROOT_REQUIREMENTS_MANIFEST_RE.fullmatch(path)
         }
     )
     if not touched:

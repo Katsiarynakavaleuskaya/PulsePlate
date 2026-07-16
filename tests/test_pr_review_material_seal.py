@@ -40,8 +40,6 @@ from scripts.orchestration import pr_review_closeout as closeout_module
 from scripts.orchestration import pr_review_evidence as evidence_module
 from scripts.orchestration.pr_review_evidence import (
     MATERIAL_POLICY_VERSION,
-    OPERATOR_OUTAGE_SECURITY_REQUIREMENT_PATHS,
-    OPERATOR_OUTAGE_TRUST_BOUNDARY_EXACT_PATHS,
     RECEIPT_AUTHORITY,
     SEAL_BEGIN,
     SEAL_END,
@@ -842,7 +840,7 @@ def test_security_outage_receipt_rejects_unknown_or_open_shapes(mutate: Any) -> 
         ),
         ("owner/repo", 42, ("scripts/ci_pip_audit.sh",), False),
         ("owner/repo", 42, ("trivy/ignore-policy.rego",), False),
-        ("owner/repo", 42, ("requirements-test.txt",), True),
+        ("owner/repo", 42, ("requirements-test.txt",), False),
     ],
 )
 def test_security_outage_override_scope_blocks_future_self_authorization(
@@ -876,27 +874,33 @@ def test_security_outage_trust_boundary_covers_security_dependency_inputs() -> N
         for path in audited_manifests
         if (repo_root / f"{path.removesuffix('.txt')}.in").is_file()
     }
+    root_requirement_paths = {
+        path.name
+        for pattern in ("requirements*.in", "requirements*.txt")
+        for path in repo_root.glob(pattern)
+    }
+    protected_paths = root_requirement_paths | {"constraints.txt"}
 
     assert audited_manifests
-    assert audited_manifests | audited_inputs <= OPERATOR_OUTAGE_SECURITY_REQUIREMENT_PATHS
+    assert audited_manifests | audited_inputs <= protected_paths
     assert {
         "requirements-ci-lite.in",
         "constraints.txt",
         "requirements-ci-lite.txt",
-    } <= OPERATOR_OUTAGE_SECURITY_REQUIREMENT_PATHS
-    assert OPERATOR_OUTAGE_SECURITY_REQUIREMENT_PATHS <= OPERATOR_OUTAGE_TRUST_BOUNDARY_EXACT_PATHS
-
-
-@pytest.mark.parametrize("path", sorted(OPERATOR_OUTAGE_SECURITY_REQUIREMENT_PATHS))
-def test_security_outage_override_rejects_future_security_manifest_changes(
-    path: str,
-) -> None:
-    with pytest.raises(ReviewEvidenceError, match="trust-boundary changes"):
-        validate_security_outage_override_scope(
-            repository="owner/repo",
-            pr_number=42,
-            material_paths=(path,),
-        )
+        "requirements-test.in",
+        "requirements-test.txt",
+        "requirements-dev.in",
+        "requirements-dev.txt",
+        "requirements-lock.txt",
+        "requirements-all.txt",
+    } <= protected_paths
+    for path in sorted(protected_paths):
+        with pytest.raises(ReviewEvidenceError, match="trust-boundary changes"):
+            validate_security_outage_override_scope(
+                repository="owner/repo",
+                pr_number=42,
+                material_paths=(path,),
+            )
 
 
 def _git(repo: Path, *args: str, env: dict[str, str] | None = None) -> str:
