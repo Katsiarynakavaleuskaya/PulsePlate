@@ -67,7 +67,7 @@ RUNNER_CAPABILITY_DIAGNOSTIC = (
 RUNNER_CAPABILITY_ERROR = "runner_capability_mismatch"
 
 
-def _safe_git_config_args_for(cwd: Path) -> list[str]:
+def _safe_git_config_args_for(cwd: Path, *, bind_work_tree: bool = True) -> list[str]:
     """Return checkout clamps plus one exact per-invocation trust boundary."""
 
     try:
@@ -76,7 +76,16 @@ def _safe_git_config_args_for(cwd: Path) -> list[str]:
         raise InfraFlakeError("git cwd must resolve to an existing directory.") from exc
     if not resolved_cwd.is_dir():
         raise InfraFlakeError("git cwd must resolve to an existing directory.")
-    return [*_safe_git_config_args(), "-c", f"safe.directory={resolved_cwd}"]
+    args = [
+        *_safe_git_config_args(),
+        "-c",
+        f"core.worktree={resolved_cwd}",
+        "-c",
+        f"safe.directory={resolved_cwd}",
+    ]
+    if bind_work_tree:
+        args.insert(0, f"--work-tree={resolved_cwd}")
+    return args
 
 
 class ExperimentRunnerError(RuntimeError):
@@ -267,11 +276,16 @@ def _run_git(
     cwd: Path,
     check: bool = True,
     input_text: str | None = None,
+    bind_work_tree: bool = True,
 ) -> subprocess.CompletedProcess[str]:
     """Run git with an absolute binary and stable text capture."""
 
     process = subprocess.run(  # nosec B603: absolute git binary with bounded argv is required for isolated checkouts (remove-by: 2026-07-31, ref: PR-1082)
-        [_resolve_git_binary(), *_safe_git_config_args_for(cwd), *args],
+        [
+            _resolve_git_binary(),
+            *_safe_git_config_args_for(cwd, bind_work_tree=bind_work_tree),
+            *args,
+        ],
         cwd=str(cwd),
         env=_sanitized_git_env_without_parent_state(),
         capture_output=True,
@@ -487,7 +501,18 @@ def _create_temp_checkout(root: Path) -> tuple[tempfile.TemporaryDirectory[str],
 
     temp_dir = tempfile.TemporaryDirectory(prefix="experiment-runner-")
     checkout_root = Path(temp_dir.name) / "checkout"
-    _run_git(["clone", "--quiet", "--no-hardlinks", str(root), str(checkout_root)], cwd=root)
+    _run_git(
+        [
+            "clone",
+            "--quiet",
+            "--no-checkout",
+            "--no-hardlinks",
+            str(root),
+            str(checkout_root),
+        ],
+        cwd=root,
+        bind_work_tree=False,
+    )
     head_sha = _run_git(["rev-parse", "HEAD"], cwd=root).stdout.strip()
     _run_git(["checkout", "--quiet", "--detach", head_sha], cwd=checkout_root)
     return temp_dir, checkout_root

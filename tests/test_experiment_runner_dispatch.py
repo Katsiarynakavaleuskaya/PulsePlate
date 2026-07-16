@@ -435,6 +435,8 @@ def test_dispatch_git_uses_one_resolved_per_invocation_safe_directory(
     assert "diff.external=" in argv
     assert "core.fsmonitor=false" in argv
     assert f"core.hooksPath={os.devnull}" in argv
+    assert f"core.worktree={repo.resolve(strict=True)}" in argv
+    assert argv.count(f"--work-tree={repo.resolve(strict=True)}") == 1
     assert "safe.directory=*" not in argv
     assert captured["cwd"] == repo.resolve(strict=True)
     env_override = captured["env_override"]
@@ -530,6 +532,32 @@ def test_snapshot_ignores_checkout_local_external_diff(tmp_path: Path) -> None:
     assert tracked_diff
     assert marker.exists() is False
     assert (snapshot / "tracked.txt").read_text(encoding="utf-8") == "after\n"
+
+
+def test_snapshot_ignores_checkout_local_worktree_redirect(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    source.mkdir()
+    git = dispatch._resolve_cli("git")
+    assert git is not None
+    _run_isolated_git(git, "init", "--quiet", cwd=source)
+    _run_isolated_git(git, "config", "user.email", "test@example.invalid", cwd=source)
+    _run_isolated_git(git, "config", "user.name", "Test", cwd=source)
+    tracked = source / "tracked.txt"
+    tracked.write_text("before\n", encoding="utf-8")
+    _run_isolated_git(git, "add", "tracked.txt", cwd=source)
+    _run_isolated_git(git, "commit", "--quiet", "-m", "init", cwd=source)
+
+    redirected = tmp_path / "redirected"
+    redirected.mkdir()
+    (redirected / "tracked.txt").write_text("attacker-selected\n", encoding="utf-8")
+    _run_isolated_git(git, "config", "core.worktree", str(redirected), cwd=source)
+    tracked.write_text("trusted-change\n", encoding="utf-8")
+
+    snapshot = tmp_path / "snapshot"
+    tracked_diff = dispatch._create_snapshot(source, snapshot)
+
+    assert tracked_diff
+    assert (snapshot / "tracked.txt").read_text(encoding="utf-8") == "trusted-change\n"
 
 
 def test_snapshot_preserves_staged_new_file_as_tracked(tmp_path: Path) -> None:

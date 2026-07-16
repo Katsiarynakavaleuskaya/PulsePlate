@@ -1359,7 +1359,7 @@ def _git_binary() -> str:
     return git
 
 
-def _safe_git_config_args_for(cwd: Path) -> tuple[Path, list[str]]:
+def _safe_git_config_args_for(cwd: Path, *, bind_work_tree: bool = True) -> tuple[Path, list[str]]:
     """Resolve one Git cwd and clamp local config before trusting it."""
 
     try:
@@ -1368,16 +1368,26 @@ def _safe_git_config_args_for(cwd: Path) -> tuple[Path, list[str]]:
         raise DispatchError("probe_execution_failed") from exc
     if not resolved_cwd.is_dir():
         raise DispatchError("probe_execution_failed")
-    return (
-        resolved_cwd,
-        [*_safe_git_config_args(), "-c", f"safe.directory={resolved_cwd}"],
-    )
+    args = [
+        *_safe_git_config_args(),
+        "-c",
+        f"core.worktree={resolved_cwd}",
+        "-c",
+        f"safe.directory={resolved_cwd}",
+    ]
+    if bind_work_tree:
+        args.insert(0, f"--work-tree={resolved_cwd}")
+    return resolved_cwd, args
 
 
 def _git(
-    args: list[str], *, cwd: Path, input_text: str | None = None
+    args: list[str],
+    *,
+    cwd: Path,
+    input_text: str | None = None,
+    bind_work_tree: bool = True,
 ) -> subprocess.CompletedProcess[str]:
-    resolved_cwd, safe_config = _safe_git_config_args_for(cwd)
+    resolved_cwd, safe_config = _safe_git_config_args_for(cwd, bind_work_tree=bind_work_tree)
     result = _run(
         [_git_binary(), *safe_config, *args],
         cwd=resolved_cwd,
@@ -1391,7 +1401,18 @@ def _git(
 
 def _create_snapshot(root: Path, destination: Path) -> str:
     before = _git(["status", "--short", "--untracked-files=no"], cwd=root).stdout
-    _git(["clone", "--quiet", "--no-hardlinks", str(root), str(destination)], cwd=root)
+    _git(
+        [
+            "clone",
+            "--quiet",
+            "--no-checkout",
+            "--no-hardlinks",
+            str(root),
+            str(destination),
+        ],
+        cwd=root,
+        bind_work_tree=False,
+    )
     head = _git(["rev-parse", "HEAD"], cwd=root).stdout.strip()
     _git(["checkout", "--quiet", "--detach", head], cwd=destination)
     tracked_diff = _git(

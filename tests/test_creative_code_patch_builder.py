@@ -1065,10 +1065,12 @@ def test_experiment_runner_uses_sanitized_git_env(
     experiment_runner._run_git(["status", "--short"], cwd=repo)
 
     argv = captured["args"][0]
-    assert argv[:2] == ["/usr/bin/git", "-c"]
+    assert argv[0] == "/usr/bin/git"
     assert "diff.external=" in argv
     assert "core.fsmonitor=false" in argv
     assert f"core.hooksPath={os.devnull}" in argv
+    assert f"core.worktree={repo.resolve(strict=True)}" in argv
+    assert argv.count(f"--work-tree={repo.resolve(strict=True)}") == 1
     safe_directory_arg = f"safe.directory={repo.resolve(strict=True)}"
     assert argv.count(safe_directory_arg) == 1
     safe_index = argv.index(safe_directory_arg)
