@@ -22,12 +22,17 @@ control Docker surfaces remain supported.
 Packet: `artifacts/orchestration/task_packets/1418f71dc1a5.json`
 
 - The owner head was synchronized with fresh `origin/main` by non-rewriting
-  merge commit `7c41597d10060a4c52ef559d7a163d9e1a6bf764`.
+  merge commits `7c41597d10060a4c52ef559d7a163d9e1a6bf764` and
+  `42c9853ccc4572b753f8cab94b82fde74484197a`.
 - The pre-open role order completed as declared:
   `agent-coordinator -> architecture-specialist -> security-auditor ->
   backend-engineer -> dev-operator`.
 - Every role returned `PROCEED` with no unresolved finding after the bounded
   implementation and MyPy correction.
+- The final post-open role tail completed on material head
+  `7e464ad929db9fd1a46f3529d5abab6b8271e79e` in the required order:
+  `qa-engineer-agent -> bug-hunter -> security-auditor`; all three returned
+  `PROCEED` with no finding.
 - Native Codex Security scanning remained `operator_directed_stop`; no scan
   PASS is claimed and no scan was restarted.
 - Local packets, role outputs, premortem notes, and Experiment Runner evidence
@@ -40,6 +45,10 @@ Packet: `artifacts/orchestration/task_packets/1418f71dc1a5.json`
   inject one resolved, adjacent per-invocation Git trust boundary; compare
   retained JSON by canonical fingerprint; and admit only exact non-symlink
   failed-review quarantine directories.
+- `cdfc7d92d40ddf4ef001d5d6b176a500697e9601` - snapshot quarantine child
+  metadata once and fail closed on metadata-read errors.
+- `7e464ad929db9fd1a46f3529d5abab6b8271e79e` - replace newly added untyped
+  macOS dispatch lambdas with fully annotated named stubs.
 
 ## Source PR Replacement Matrix
 
@@ -55,8 +64,10 @@ Packet: `artifacts/orchestration/task_packets/1418f71dc1a5.json`
   fingerprint comparison for retained and exact prepare artifacts. Tests prove
   `int`/`float` drift and `NaN`/positive-infinity/negative-infinity rejection
   without leaking the rejected value.
+- PR #2132 had no actionable source-review finding: Sourcery reported only a
+  capacity/rate-limit notice, so no source-review URL requires FIXED mapping.
 - The original PR #2129 durable-volume change is superseded. Docker volume
-  creation is the bounded local `tmpfs` form with `size=16m,mode=0700`.
+  creation is the bounded local `tmpfs` form with `size=2m,mode=0700`.
 
 ## Premortem Closure
 
@@ -67,9 +78,10 @@ Packet: `artifacts/orchestration/task_packets/1418f71dc1a5.json`
 - FIXED in `b0f3f18078020dfe4e3c656ae3610288098c1122`: Docker handoff could have
   become an unbounded durable volume. Exact argv coverage requires bounded
   `tmpfs` creation and preserves multi-container named-volume handoff.
-- FIXED in `b0f3f18078020dfe4e3c656ae3610288098c1122`: quarantine inspection could
-  observe two directory snapshots. One captured child tuple now feeds both
-  symlink rejection and unexpected-entry validation.
+- FIXED in `cdfc7d92d40ddf4ef001d5d6b176a500697e9601`: quarantine inspection could
+  observe multiple metadata states. One `stat(follow_symlinks=False)` snapshot
+  per child now feeds symlink rejection and unexpected-entry validation, and
+  metadata-read failure is terminal.
 - FIXED in `b0f3f18078020dfe4e3c656ae3610288098c1122`: focused MyPy found an
   `Any` return on the new canonical comparison line. Explicit boolean
   normalization closes the changed-line error; the final intersection is zero.
@@ -78,8 +90,7 @@ Packet: `artifacts/orchestration/task_packets/1418f71dc1a5.json`
 
 - Packet:
   `artifacts/orchestration/experiments/pr-2129-consolidation/pr-2129-final-oracle-packet.json`.
-- Result:
-  `artifacts/orchestration/experiments/results/pr-2129-final-oracle-result.json`.
+Artifact: `artifacts/orchestration/experiments/results/pr-2129-final-oracle-result.json`
 - Experiment: `exp-2e324e6d35dd`.
 - Backend: explicit `apple-container` 1.1.0 with immutable image digest
   `sha256:8b95aa8a94d989ff18af7449fbb0feae6783623a7bf49434f0e16341bd61c483`.
@@ -106,12 +117,13 @@ Packet: `artifacts/orchestration/task_packets/1418f71dc1a5.json`
 
 ## Discussion Thread Pass
 
-- [x] Source PR replacement evidence published on owner head
-  `b0f3f18078020dfe4e3c656ae3610288098c1122`.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+- [x] Source PR replacement evidence published on owner head.
 - [x] Source review findings mapped below after their timestamps.
-- [ ] Mandatory post-open role tail completed on current material head.
-- [x] Native Codex Security operator stop recorded without a PASS claim or
-  restart.
+- [x] Mandatory post-open role tail completed on current material head.
+- [x] Native Codex Security `operator_directed_stop` recorded without a PASS
+  claim or restart.
 - Current-head CI, bot dispositions, strict authenticated merge readiness, and
   the mandatory wait window remain live PR-state gates and are not frozen as
   completed here.
