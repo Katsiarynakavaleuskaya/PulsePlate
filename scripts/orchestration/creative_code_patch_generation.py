@@ -21,6 +21,9 @@ from scripts.orchestration import creative_code_patch_builder
 from scripts.orchestration import creative_spec_patch_admission as admission_cli
 from scripts.orchestration.creative_code_patch_contract import (
     CreativeCodePatchContractError,
+    FAILURE_CLASSES,
+    classify_failure_class_coherence,
+    classify_terminal_outcome_coherence,
     read_creative_code_patch_build_request,
     read_creative_code_patch_result,
     validate_creative_code_patch_build_request,
@@ -44,7 +47,9 @@ from scripts.orchestration.creative_code_specification import (
 from scripts.orchestration.experiment_contract import (
     DEFAULT_STOP_CONDITION,
     validate_budget_payload,
+    validate_capability_zero_attempt_observations,
     validate_experiment_packet,
+    validate_failure_retry_observations,
     validate_metrics,
 )
 from scripts.orchestration.creative_spec_learning_rollup_contract import (
@@ -478,9 +483,9 @@ def _normalize_fingerprint(value: Any, *, label: str) -> str:
 
 
 def _normalize_bool(value: Any, *, expected: bool, label: str) -> bool:
-    if value is not expected:
+    if not isinstance(value, bool) or value != expected:
         raise CreativeCodePatchGenerationError(f"{label} must be {expected}.")
-    return expected
+    return value
 
 
 def _normalize_int(value: Any, *, min_value: int, max_value: int, label: str) -> int:
@@ -1229,16 +1234,66 @@ def validate_generation_receipt(payload: Mapping[str, Any]) -> dict[str, Any]:
             payload.get("sanitized"), expected=True, label=f"{label}.sanitized"
         ),
     }
-    if normalized["status"] == "accepted" and normalized["failure_class"] is not None:
-        raise CreativeCodePatchGenerationError("accepted receipt must not have failure_class.")
-    if normalized["status"] == "accepted" and not (
-        workspace_summary["origin_removed"]
-        and workspace_summary["checkout_destroyed"]
-        and workspace_summary["shared_tree_untouched"]
+    failure_class = normalized["failure_class"]
+    if failure_class is not None and (
+        not isinstance(failure_class, str) or failure_class not in FAILURE_CLASSES
     ):
-        raise CreativeCodePatchGenerationError("accepted receipt requires full workspace proof.")
-    if normalized["status"] == "rejected" and not isinstance(normalized["failure_class"], str):
+        raise CreativeCodePatchGenerationError("receipt failure_class is unsupported.")
+    coherence_violation = classify_terminal_outcome_coherence(
+        status=cast(str, normalized["status"]),
+        failure_class=failure_class,
+        runner_status=runner_summary["status"],
+        runner_failure_class=runner_summary["failure_class"],
+        runner_oracle_commands_configured=runner_summary["oracle_commands_configured"],
+        runner_oracle_commands_executed=runner_summary["oracle_commands_executed"],
+        runner_shared_tree_untouched=runner_summary["shared_tree_untouched"],
+        workspace_summary=workspace_summary,
+    )
+    if coherence_violation == "accepted_with_failure_class":
+        raise CreativeCodePatchGenerationError("accepted receipt must not have failure_class.")
+    if coherence_violation == "rejected_without_failure_class":
         raise CreativeCodePatchGenerationError("rejected receipt requires failure_class.")
+    if coherence_violation == "accepted_with_nonaccepted_runner":
+        raise CreativeCodePatchGenerationError(
+            "accepted receipt requires an accepted runner summary."
+        )
+    if coherence_violation == "accepted_without_runner_proof":
+        raise CreativeCodePatchGenerationError(
+            "accepted receipt requires complete runner oracle and shared-tree proof."
+        )
+    if coherence_violation == "accepted_without_workspace_proof":
+        raise CreativeCodePatchGenerationError("accepted receipt requires full workspace proof.")
+    if coherence_violation == "rejected_capability_without_runner_proof":
+        raise CreativeCodePatchGenerationError(
+            "capability_mismatch receipts require a rejected runner summary."
+        )
+    if coherence_violation == "rejected_failure_mismatch":
+        raise CreativeCodePatchGenerationError(
+            "rejected receipt and runner summary failure_class values must match."
+        )
+    for observed_failure, failure_label in (
+        (failure_class, "CreativeCodePatchGenerationReceipt.runner_summary"),
+        (runner_summary["failure_class"], "runner_summary"),
+    ):
+        try:
+            validate_failure_retry_observations(
+                failure_class=observed_failure,
+                attempts=runner_summary["attempts"],
+                retries_consumed=runner_summary["retries_consumed"],
+                label=failure_label,
+            )
+        except ValueError as exc:
+            raise CreativeCodePatchGenerationError(str(exc)) from exc
+    try:
+        validate_capability_zero_attempt_observations(
+            failure_class=runner_summary["failure_class"],
+            attempts=runner_summary["attempts"],
+            mutated_path_count=runner_summary["mutated_path_count"],
+            oracle_commands_executed=runner_summary["oracle_commands_executed"],
+            label="runner_summary",
+        )
+    except ValueError as exc:
+        raise CreativeCodePatchGenerationError(str(exc)) from exc
     if workspace_summary["detached_base_sha"] != normalized["base_commit_sha"]:
         raise CreativeCodePatchGenerationError(
             "workspace_summary.detached_base_sha must match base_commit_sha."
@@ -1382,17 +1437,39 @@ def _normalize_runner_summary(raw_summary: Any) -> dict[str, Any]:
         raise CreativeCodePatchGenerationError(
             "runner_summary.failure_class must be null or string."
         )
+    if failure_class is not None and failure_class not in FAILURE_CLASSES:
+        raise CreativeCodePatchGenerationError("runner_summary.failure_class is unsupported.")
+    status = _normalize_status(raw_summary["status"])
+    coherence_violation = classify_failure_class_coherence(
+        status=status,
+        failure_class=failure_class,
+    )
+    if coherence_violation == "accepted_with_failure_class":
+        raise CreativeCodePatchGenerationError(
+            "accepted runner summaries must not have failure_class."
+        )
+    if coherence_violation == "rejected_without_failure_class":
+        raise CreativeCodePatchGenerationError("rejected runner summaries require failure_class.")
     error_fingerprint = raw_summary["runner_error_fingerprint"]
     if error_fingerprint is not None:
         error_fingerprint = _normalize_fingerprint(
             error_fingerprint,
             label="runner_summary.runner_error_fingerprint",
         )
+    attempts = _normalize_int(
+        raw_summary["attempts"], min_value=0, max_value=3, label="runner_summary.attempts"
+    )
+    retries_consumed = _normalize_int(
+        raw_summary["retries_consumed"],
+        min_value=0,
+        max_value=2,
+        label="runner_summary.retries_consumed",
+    )
     return {
         "experiment_id": _normalize_id(
             raw_summary["experiment_id"], label="runner_summary.experiment_id"
         ),
-        "status": _normalize_status(raw_summary["status"]),
+        "status": status,
         "failure_class": failure_class,
         "mutated_path_count": _normalize_int(
             raw_summary["mutated_path_count"],
@@ -1412,15 +1489,8 @@ def _normalize_runner_summary(raw_summary: Any) -> dict[str, Any]:
             max_value=20,
             label="runner_summary.oracle_commands_executed",
         ),
-        "attempts": _normalize_int(
-            raw_summary["attempts"], min_value=0, max_value=3, label="runner_summary.attempts"
-        ),
-        "retries_consumed": _normalize_int(
-            raw_summary["retries_consumed"],
-            min_value=0,
-            max_value=2,
-            label="runner_summary.retries_consumed",
-        ),
+        "attempts": attempts,
+        "retries_consumed": retries_consumed,
         "shared_tree_untouched": _normalize_any_bool(
             raw_summary["shared_tree_untouched"], label="runner_summary.shared_tree_untouched"
         ),

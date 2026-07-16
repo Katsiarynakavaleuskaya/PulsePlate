@@ -89,6 +89,7 @@
         "approval_missing",
         "base_drift",
         "branch_exists",
+        "capability_mismatch",
         "duplicate_variant",
         "github_transport_failed",
         "guard_failure",

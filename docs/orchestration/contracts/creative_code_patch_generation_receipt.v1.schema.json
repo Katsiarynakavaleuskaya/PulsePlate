@@ -105,7 +105,8 @@
               "checkout_destroyed": { "const": true },
               "shared_tree_untouched": { "const": true }
             }
-          }
+          },
+          "runner_summary": { "$ref": "#/$defs/accepted_runner_proof" }
         }
       }
     },
@@ -124,10 +125,110 @@
               "guard_failure",
               "policy_violation",
               "unchanged_result",
+              "capability_mismatch",
               "infra_flake"
             ]
           }
         }
+      }
+    },
+    {
+      "if": {
+        "required": ["failure_class"],
+        "properties": { "failure_class": { "const": "capability_mismatch" } }
+      },
+      "then": {
+        "properties": {
+          "runner_summary": {
+            "required": ["status", "failure_class"],
+            "properties": {
+              "status": { "const": "rejected" },
+              "failure_class": { "const": "capability_mismatch" },
+              "attempts": { "enum": [0, 1] },
+              "retries_consumed": { "const": 0 }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": ["status", "runner_summary"],
+        "properties": {
+          "status": { "const": "rejected" },
+          "runner_summary": {
+            "required": ["status"],
+            "properties": { "status": { "const": "rejected" } }
+          }
+        }
+      },
+      "then": {
+        "oneOf": [
+          {
+            "properties": {
+              "failure_class": { "const": "timeout" },
+              "runner_summary": {
+                "properties": { "failure_class": { "const": "timeout" } }
+              }
+            }
+          },
+          {
+            "properties": {
+              "failure_class": { "const": "oom" },
+              "runner_summary": {
+                "properties": { "failure_class": { "const": "oom" } }
+              }
+            }
+          },
+          {
+            "properties": {
+              "failure_class": { "const": "metric_regression" },
+              "runner_summary": {
+                "properties": { "failure_class": { "const": "metric_regression" } }
+              }
+            }
+          },
+          {
+            "properties": {
+              "failure_class": { "const": "guard_failure" },
+              "runner_summary": {
+                "properties": { "failure_class": { "const": "guard_failure" } }
+              }
+            }
+          },
+          {
+            "properties": {
+              "failure_class": { "const": "policy_violation" },
+              "runner_summary": {
+                "properties": { "failure_class": { "const": "policy_violation" } }
+              }
+            }
+          },
+          {
+            "properties": {
+              "failure_class": { "const": "unchanged_result" },
+              "runner_summary": {
+                "properties": { "failure_class": { "const": "unchanged_result" } }
+              }
+            }
+          },
+          {
+            "properties": {
+              "failure_class": { "const": "capability_mismatch" },
+              "runner_summary": {
+                "properties": { "failure_class": { "const": "capability_mismatch" } }
+              }
+            }
+          },
+          {
+            "properties": {
+              "failure_class": { "const": "infra_flake" },
+              "runner_summary": {
+                "properties": { "failure_class": { "const": "infra_flake" } }
+              }
+            }
+          }
+        ]
       }
     }
   ],
@@ -174,6 +275,7 @@
         "guard_failure",
         "policy_violation",
         "unchanged_result",
+        "capability_mismatch",
         "infra_flake"
       ]
     },
@@ -236,7 +338,104 @@
           "type": ["string", "null"],
           "pattern": "^sha256:[a-f0-9]{64}$"
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": ["status"],
+            "properties": { "status": { "const": "accepted" } }
+          },
+          "then": { "properties": { "failure_class": { "const": null } } }
+        },
+        {
+          "if": {
+            "required": ["status"],
+            "properties": { "status": { "const": "rejected" } }
+          },
+          "then": {
+            "properties": {
+              "failure_class": {
+                "enum": [
+                  "timeout",
+                  "oom",
+                  "metric_regression",
+                  "guard_failure",
+                  "policy_violation",
+                  "unchanged_result",
+                  "capability_mismatch",
+                  "infra_flake"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["failure_class"],
+            "properties": { "failure_class": { "const": "capability_mismatch" } }
+          },
+          "then": {
+            "properties": {
+              "attempts": { "enum": [0, 1] },
+              "retries_consumed": { "const": 0 }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["failure_class", "attempts"],
+            "properties": {
+              "failure_class": { "const": "capability_mismatch" },
+              "attempts": { "const": 0 }
+            }
+          },
+          "then": {
+            "properties": {
+              "mutated_path_count": { "const": 0 },
+              "oracle_commands_executed": { "const": 0 }
+            }
+          }
+        }
+      ]
+    },
+    "accepted_runner_proof": {
+      "type": "object",
+      "required": [
+        "status",
+        "failure_class",
+        "oracle_commands_configured",
+        "oracle_commands_executed",
+        "shared_tree_untouched"
+      ],
+      "properties": {
+        "status": { "const": "accepted" },
+        "failure_class": { "const": null },
+        "oracle_commands_configured": { "type": "integer", "minimum": 1, "maximum": 20 },
+        "oracle_commands_executed": { "type": "integer", "minimum": 1, "maximum": 20 },
+        "shared_tree_untouched": { "const": true }
+      },
+      "oneOf": [
+        { "properties": { "oracle_commands_configured": { "const": 1 }, "oracle_commands_executed": { "const": 1 } } },
+        { "properties": { "oracle_commands_configured": { "const": 2 }, "oracle_commands_executed": { "const": 2 } } },
+        { "properties": { "oracle_commands_configured": { "const": 3 }, "oracle_commands_executed": { "const": 3 } } },
+        { "properties": { "oracle_commands_configured": { "const": 4 }, "oracle_commands_executed": { "const": 4 } } },
+        { "properties": { "oracle_commands_configured": { "const": 5 }, "oracle_commands_executed": { "const": 5 } } },
+        { "properties": { "oracle_commands_configured": { "const": 6 }, "oracle_commands_executed": { "const": 6 } } },
+        { "properties": { "oracle_commands_configured": { "const": 7 }, "oracle_commands_executed": { "const": 7 } } },
+        { "properties": { "oracle_commands_configured": { "const": 8 }, "oracle_commands_executed": { "const": 8 } } },
+        { "properties": { "oracle_commands_configured": { "const": 9 }, "oracle_commands_executed": { "const": 9 } } },
+        { "properties": { "oracle_commands_configured": { "const": 10 }, "oracle_commands_executed": { "const": 10 } } },
+        { "properties": { "oracle_commands_configured": { "const": 11 }, "oracle_commands_executed": { "const": 11 } } },
+        { "properties": { "oracle_commands_configured": { "const": 12 }, "oracle_commands_executed": { "const": 12 } } },
+        { "properties": { "oracle_commands_configured": { "const": 13 }, "oracle_commands_executed": { "const": 13 } } },
+        { "properties": { "oracle_commands_configured": { "const": 14 }, "oracle_commands_executed": { "const": 14 } } },
+        { "properties": { "oracle_commands_configured": { "const": 15 }, "oracle_commands_executed": { "const": 15 } } },
+        { "properties": { "oracle_commands_configured": { "const": 16 }, "oracle_commands_executed": { "const": 16 } } },
+        { "properties": { "oracle_commands_configured": { "const": 17 }, "oracle_commands_executed": { "const": 17 } } },
+        { "properties": { "oracle_commands_configured": { "const": 18 }, "oracle_commands_executed": { "const": 18 } } },
+        { "properties": { "oracle_commands_configured": { "const": 19 }, "oracle_commands_executed": { "const": 19 } } },
+        { "properties": { "oracle_commands_configured": { "const": 20 }, "oracle_commands_executed": { "const": 20 } } }
+      ]
     },
     "checks": {
       "type": "object",

@@ -11,8 +11,8 @@ Status: Accepted guardrail
 
 The runtime-behavior marker above records that this compatibility seam does not
 authorize a route/lifecycle/runtime expansion. It does not conceal the separately
-reviewed, bounded sanitization of three hidden admin error envelopes documented
-below.
+reviewed, bounded sanitization of hidden admin error envelopes and the legacy
+weekly-plan downstream error boundary documented below.
 
 ## Context
 
@@ -58,6 +58,19 @@ module-table lookup are forbidden. This access cutover does not change routes,
 auth, methods, OpenAPI, scheduler lifecycle, or worker topology. Operational
 database-status, force-update, and update-check failures use stable generic 500
 details while technical exceptions remain server-log-only.
+
+The canonical weekly-menu builder remains owned by
+`core/menu_engine.py`. The hidden legacy premium weekly-plan route obtains the
+exact callable through the lazy, uncached access seam in
+`app/services/legacy_premium_weekly_plan.py`; it no longer selects mutable
+`app`/`legacy_app` facade state or reads the module table. The service also owns
+legacy response normalization, while `app/routers/legacy_premium_weekly_plan.py`
+owns the hidden HTTP compatibility boundary. Public `app.make_weekly_menu` and
+`legacy_app.make_weekly_menu` symbols remain import compatibility only. Exact
+canonical-module absence retains the existing unavailable `503`; broken imports
+and unknown downstream errors are logged server-side and exposed only through
+the stable generic `500` envelope. Route auth, VIP/FitChef execution, OpenAPI,
+and application identity remain unchanged.
 
 The current policy is compatibility first:
 
@@ -106,6 +119,7 @@ Forbidden in `legacy_app.py`:
 | Application metadata | `app/application_metadata.py` | Immutable source; every FastAPI projection receives fresh nested mutable inputs. |
 | Public OpenAPI policy and builder | `app/bootstrap/openapi.py` | Validate before mutation; install after complete route bootstrap; stale/foreign state fails closed. |
 | Admin scheduler access | `app/services/scheduler_access.py` | Lazy typed delegation only; core owns singleton/lifecycle and compatibility exports preserve service-callable identity. |
+| Legacy weekly-menu builder access | `core/menu_engine.py` + `app/services/legacy_premium_weekly_plan.py` | Core owns the builder; the service provides lazy exact-callable access and response normalization; facade exports are compatibility only. |
 | Domain logic | `core/` and `app/services/` | Backend truth stays outside route shims. |
 | Public API contract | Backend OpenAPI gates | Legacy aliases must not become client contract truth. |
 

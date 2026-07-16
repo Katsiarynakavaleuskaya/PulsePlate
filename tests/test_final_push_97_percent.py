@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """
 ФИНАЛЬНЫЙ ТЕСТ для достижения 97% покрытия main.py
-Текущий статус: 59% (399/676 lines)
-Цель: 97% = 656 lines (нужно еще 257 строк)
 
 Стратегия: целенаправленно покрыть самые крупные missing блоки:
 - 1265-1339 (weekly planning): 75 строк
@@ -11,12 +9,10 @@
 - 854-870 (premium BMR logic): 17 строк
 - 885-897 (premium plate logic): 13 строк
 - Utility blocks: 1605-1622, 1638-1660, 1678-1734, 1749-1829
-
-Всего: 142 + 47 + ~68 = 257+ строк = ДОСТИГАЕМ 97%!
 """
 
 import os
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 from fastapi.testclient import TestClient
@@ -34,42 +30,46 @@ def client():
 class TestWeeklyPlanningCompleteCoverage:
     """Полное покрытие weekly planning блоков 1265-1339 и 1435-1501"""
 
-    def test_weekly_planning_full_logic_path(self, client, monkeypatch):
+    def test_weekly_planning_full_logic_path(
+        self,
+        client: TestClient,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
         """Покрытие ПОЛНОЙ логики weekly planning (1265-1339)"""
-        # Mock make_weekly_menu at the proper module path
+        from app.routers import legacy_premium_weekly_plan as weekly_plan_router
+
         mock_weekly_menu = MagicMock()
         mock_weekly_menu.week_start = "2025-01-01"
         mock_weekly_menu.total_cost = 140.0
         mock_weekly_menu.daily_menus = [
-            MagicMock(date="2025-01-01", meals={"breakfast": "oatmeal"}, cost=20.0),
-            MagicMock(date="2025-01-02", meals={"breakfast": "eggs"}, cost=20.0),
+            {"date": "2025-01-01", "meals": {"breakfast": "oatmeal"}, "daily_cost": 20.0},
+            {"date": "2025-01-02", "meals": {"breakfast": "eggs"}, "daily_cost": 20.0},
         ]
         mock_weekly_menu.shopping_list = {"milk": "2L", "eggs": "1 dozen"}
         mock_weekly_menu.weekly_coverage = {"protein": 95, "carbs": 88, "fats": 92}
 
         monkeypatch.setenv("API_KEY", "test_key")
-        # Patch at the location where it's used, not sys.modules
-        with patch("legacy_app.make_weekly_menu", return_value=mock_weekly_menu):
-            response = client.post(
-                "/api/v1/premium/plan/week",
-                headers={"X-API-Key": "test_key"},
-                json={
-                    "sex": "male",
-                    "age": 30,
-                    "height_cm": 175,
-                    "weight_kg": 75,
-                    "activity": "moderate",
-                    "goal": "maintain",
-                    "deficit_pct": 15,
-                    "surplus_pct": 10,
-                    "bodyfat": 18.0,
-                    "diet_flags": ["vegetarian"],
-                    "life_stage": "adult",
-                },
-            )
+        builder = MagicMock(return_value=mock_weekly_menu)
+        monkeypatch.setattr(weekly_plan_router, "get_weekly_menu_builder", lambda: builder)
+        response = client.post(
+            "/api/v1/premium/plan/week",
+            headers={"X-API-Key": "test_key"},
+            json={
+                "sex": "male",
+                "age": 30,
+                "height_cm": 175,
+                "weight_kg": 75,
+                "activity": "moderate",
+                "goal": "maintain",
+                "deficit_pct": 15,
+                "surplus_pct": 10,
+                "bodyfat": 18.0,
+                "diet_flags": ["VEG"],
+                "life_stage": "adult",
+            },
+        )
 
-            # Any of these statuses covers code paths
-            assert response.status_code in [200, 503, 422, 400]
+        assert response.status_code == 200, response.text
 
     def test_weekly_planning_error_paths(self, client):
         """Покрытие error paths в weekly planning (части блоков 1265-1339, 1435-1501)"""

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import builtins
 from collections.abc import Callable
 from copy import deepcopy
 import importlib
@@ -11,6 +12,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from typing import IO, Any
 
 import pytest
 
@@ -994,6 +996,72 @@ def _assert_resume_schema_binding_prefixes(binding: dict, schema: dict) -> None:
             assert re.search(properties["ref"]["pattern"], row["ref"])
 
 
+_NEW_RESUME_PASS_PATTERN = (
+    r"PASS resume_id=(?P<resume_id>"
+    r"evidence:creative_adaptive_pr1_resume_binding:orchestration:1\.0:[a-f0-9]{24}"
+    r") replay=new next=agent-skeptic-review\n"
+)
+
+
+def _published_resume_output_from_stdout(*, spec_root: Path, stdout: str) -> Path:
+    match = re.fullmatch(_NEW_RESUME_PASS_PATTERN, stdout)
+    assert match is not None, f"unexpected adaptive resume output: {stdout!r}"
+    output = spec_root / match.group("resume_id")
+    assert output.is_dir(), f"published adaptive resume directory is missing: {output}"
+    assert not output.is_symlink(), f"published adaptive resume path is a symlink: {output}"
+    return output
+
+
+def test_published_resume_output_from_stdout_returns_exact_directory(tmp_path: Path) -> None:
+    resume_id = "evidence:creative_adaptive_pr1_resume_binding:orchestration:1.0:" + "a" * 24
+    output = tmp_path / resume_id
+    output.mkdir()
+
+    assert (
+        _published_resume_output_from_stdout(
+            spec_root=tmp_path,
+            stdout=f"PASS resume_id={resume_id} replay=new next=agent-skeptic-review\n",
+        )
+        == output
+    )
+
+
+@pytest.mark.parametrize(
+    "stdout",
+    (
+        "PASS resume_id=malformed replay=new next=agent-skeptic-review\n",
+        (
+            "PASS resume_id=evidence:creative_adaptive_pr1_resume_binding:"
+            f"orchestration:1.0:{'b' * 24} replay=idempotent next=agent-skeptic-review\n"
+        ),
+        "PASS resume_id=../../escape replay=new next=agent-skeptic-review\n",
+        (
+            "PASS resume_id=evidence:creative_adaptive_pr1_resume_binding:"
+            f"orchestration:1.0:{'c' * 24} replay=new next=agent-skeptic-review\n"
+            "PASS resume_id=evidence:creative_adaptive_pr1_resume_binding:"
+            f"orchestration:1.0:{'d' * 24} replay=new next=agent-skeptic-review\n"
+        ),
+    ),
+)
+def test_published_resume_output_from_stdout_rejects_noncanonical_output(
+    tmp_path: Path,
+    stdout: str,
+) -> None:
+    with pytest.raises(AssertionError, match="unexpected adaptive resume output"):
+        _published_resume_output_from_stdout(spec_root=tmp_path, stdout=stdout)
+
+
+def test_published_resume_output_from_stdout_rejects_missing_directory(
+    tmp_path: Path,
+) -> None:
+    resume_id = "evidence:creative_adaptive_pr1_resume_binding:orchestration:1.0:" + "e" * 24
+    with pytest.raises(AssertionError, match="published adaptive resume directory is missing"):
+        _published_resume_output_from_stdout(
+            spec_root=tmp_path,
+            stdout=f"PASS resume_id={resume_id} replay=new next=agent-skeptic-review\n",
+        )
+
+
 def _publish_adaptive_resume_for_test(
     *,
     monkeypatch: pytest.MonkeyPatch,
@@ -1011,7 +1079,6 @@ def _publish_adaptive_resume_for_test(
     candidate = _write_terminal_pilot(pilot_dir)
     declarations.write_text(json.dumps(_resume_declarations(candidate), indent=2), encoding="utf-8")
     spec_root.mkdir(parents=True, exist_ok=True)
-    existing_outputs = {entry.name for entry in spec_root.iterdir()}
     monkeypatch.setattr(pilot_cli, "PILOT_ROOT", pilot_root)
     monkeypatch.setattr(pilot_cli, "SPEC_BRIDGE_ROOT", spec_root)
     monkeypatch.setattr(
@@ -1035,9 +1102,8 @@ def _publish_adaptive_resume_for_test(
         )
         == 0
     )
-    outputs = [entry for entry in spec_root.iterdir() if entry.name not in existing_outputs]
-    assert len(outputs) == 1
-    output = outputs[0]
+    captured = capsys.readouterr()
+    output = _published_resume_output_from_stdout(spec_root=spec_root, stdout=captured.out)
     return {
         "root": root,
         "pilot_id": pilot_id,
@@ -1057,6 +1123,54 @@ def _cleanup_published_adaptive_resume(fixture: dict[str, object]) -> None:
     shutil.rmtree(Path(fixture["output"]), ignore_errors=True)
     shutil.rmtree(Path(fixture["pilot_dir"]), ignore_errors=True)
     shutil.rmtree(Path(fixture["root"]), ignore_errors=True)
+
+
+def test_resume_pr1_selects_own_output_when_foreign_siblings_publish(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    real_publish = pilot_cli._atomic_publish_directory_noreplace
+    published_paths: list[Path] = []
+    fixture: dict[str, object] | None = None
+
+    def publish_with_foreign_siblings(staging: Path, final_dir: Path) -> None:
+        real_publish(staging, final_dir)
+        published_paths.append(final_dir)
+        for index in range(2):
+            digest = fingerprint_payload(
+                {
+                    "owner": final_dir.name,
+                    "foreign_sibling_index": index,
+                }
+            ).removeprefix("sha256:")[:24]
+            foreign = final_dir.parent / (
+                "evidence:creative_adaptive_pr1_resume_binding:orchestration:1.0:" + digest
+            )
+            assert foreign != final_dir
+            foreign.mkdir()
+            (foreign / "foreign-owner.marker").write_text("foreign\n", encoding="utf-8")
+            published_paths.append(foreign)
+
+    monkeypatch.setattr(
+        pilot_cli,
+        "_atomic_publish_directory_noreplace",
+        publish_with_foreign_siblings,
+    )
+    try:
+        fixture = _publish_adaptive_resume_for_test(
+            monkeypatch=monkeypatch,
+            capsys=capsys,
+            prefix="foreign-siblings",
+        )
+        output = Path(fixture["output"])
+        assert len(published_paths) == 3
+        assert output == published_paths[0]
+        assert all(path.is_dir() for path in published_paths[1:])
+    finally:
+        if fixture is not None:
+            _cleanup_published_adaptive_resume(fixture)
+        for path in reversed(published_paths):
+            shutil.rmtree(path, ignore_errors=True)
 
 
 def _rederive_resume_binding_identity(
@@ -1167,7 +1281,6 @@ def test_resume_pr1_publishes_exact_new_only_bundle(
     output: Path | None = None
     try:
         spec_root.mkdir(parents=True, exist_ok=True)
-        existing_outputs = {entry.name for entry in spec_root.iterdir()}
         candidate = _write_terminal_pilot(pilot_dir)
         with monkeypatch.context() as historical_sizes:
             historical_sizes.setattr(
@@ -1206,10 +1319,14 @@ def test_resume_pr1_publishes_exact_new_only_bundle(
             "--current-base-sha",
             _sha(),
         ]
+        capsys.readouterr()
         assert pilot_cli.main(args) == 0
-        outputs = [entry for entry in spec_root.iterdir() if entry.name not in existing_outputs]
-        assert len(outputs) == 1
-        output = outputs[0]
+        captured = capsys.readouterr()
+        output = _published_resume_output_from_stdout(spec_root=spec_root, stdout=captured.out)
+        assert not any(
+            entry.name.startswith(f".{output.name}.") and entry.name.endswith(".staging")
+            for entry in spec_root.iterdir()
+        )
         assert {entry.name for entry in output.iterdir()} == {
             pilot_cli.RESUME_INTAKE_FILENAME,
             pilot_cli.RESUME_BINDING_FILENAME,
@@ -1583,9 +1700,191 @@ def _assert_resume_lineage_failure(
             path.relative_to(pilot_dir): path.read_bytes() for path in pilot_dir.rglob("*.json")
         }
         spec_root.mkdir(parents=True, exist_ok=True)
-        outputs_before = {entry.name for entry in spec_root.iterdir()}
         monkeypatch.setattr(pilot_cli, "PILOT_ROOT", pilot_root)
         monkeypatch.setattr(pilot_cli, "SPEC_BRIDGE_ROOT", spec_root)
+
+        def fail_if_direct_spec_bridge_artifact_created(path: object, operation: str) -> None:
+            if not isinstance(path, (str, bytes, os.PathLike)):
+                return
+            candidate = Path(os.fsdecode(path))
+            if candidate.parent == spec_root:
+                pytest.fail(
+                    "adaptive resume lineage failure created a spec_bridge artifact "
+                    f"via {operation}: {candidate}"
+                )
+
+        spec_root_stat = spec_root.stat()
+
+        def fd_targets_spec_root(fd: int) -> bool:
+            fd_stat = os.fstat(fd)
+            return (
+                fd_stat.st_dev == spec_root_stat.st_dev and fd_stat.st_ino == spec_root_stat.st_ino
+            )
+
+        def flags_may_create_or_write(flags: int) -> bool:
+            return bool(
+                flags & (os.O_CREAT | os.O_TRUNC | os.O_APPEND)
+                or flags & os.O_RDWR
+                or flags & os.O_WRONLY
+            )
+
+        def fail_if_direct_spec_bridge_fd_artifact_created(
+            path: object,
+            operation: str,
+            *,
+            dir_fd: int | None,
+            flags: int | None = None,
+        ) -> None:
+            if dir_fd is None:
+                fail_if_direct_spec_bridge_artifact_created(path, operation)
+                return
+            if flags is not None and not flags_may_create_or_write(flags):
+                return
+            if not isinstance(path, (str, bytes, os.PathLike)):
+                return
+            candidate = Path(os.fsdecode(path))
+            if candidate.parent != Path(".") or not fd_targets_spec_root(dir_fd):
+                return
+            pytest.fail(
+                "adaptive resume lineage failure created a spec_bridge artifact "
+                f"via {operation}: {candidate}"
+            )
+
+        real_builtin_open = builtins.open
+        real_hardlink_to = Path.hardlink_to
+        real_mkdir = Path.mkdir
+        real_open = Path.open
+        real_os_mkdir = os.mkdir
+        real_os_open = os.open
+        real_os_symlink = os.symlink
+        real_symlink_to = Path.symlink_to
+        real_touch = Path.touch
+
+        def fail_if_resume_artifact_created(
+            path: Path,
+            mode: int = 0o777,
+            parents: bool = False,
+            exist_ok: bool = False,
+        ) -> None:
+            fail_if_direct_spec_bridge_artifact_created(path, "Path.mkdir")
+            real_mkdir(path, mode=mode, parents=parents, exist_ok=exist_ok)
+
+        def fail_if_path_open_creates_resume_artifact(
+            path: Path,
+            mode: str = "r",
+            buffering: int = -1,
+            encoding: str | None = None,
+            errors: str | None = None,
+            newline: str | None = None,
+        ) -> IO[Any]:
+            if any(flag in mode for flag in ("w", "a", "x", "+")):
+                fail_if_direct_spec_bridge_artifact_created(path, "Path.open")
+            return real_open(
+                path,
+                mode=mode,
+                buffering=buffering,
+                encoding=encoding,
+                errors=errors,
+                newline=newline,
+            )
+
+        def fail_if_builtin_open_creates_resume_artifact(
+            file: object, *args: object, **kwargs: object
+        ) -> IO[Any]:
+            mode = args[0] if args else kwargs.get("mode", "r")
+            if isinstance(mode, str) and any(flag in mode for flag in ("w", "a", "x", "+")):
+                fail_if_direct_spec_bridge_artifact_created(file, "open")
+            return real_builtin_open(file, *args, **kwargs)
+
+        def fail_if_touch_creates_resume_artifact(
+            path: Path,
+            mode: int = 0o666,
+            exist_ok: bool = True,
+        ) -> None:
+            fail_if_direct_spec_bridge_artifact_created(path, "Path.touch")
+            real_touch(path, mode=mode, exist_ok=exist_ok)
+
+        def fail_if_symlink_to_creates_resume_artifact(
+            path: Path,
+            target: str | os.PathLike[str],
+            target_is_directory: bool = False,
+        ) -> None:
+            fail_if_direct_spec_bridge_artifact_created(path, "Path.symlink_to")
+            real_symlink_to(path, target, target_is_directory=target_is_directory)
+
+        def fail_if_hardlink_to_creates_resume_artifact(
+            path: Path,
+            target: str | os.PathLike[str],
+        ) -> None:
+            fail_if_direct_spec_bridge_artifact_created(path, "Path.hardlink_to")
+            real_hardlink_to(path, target)
+
+        def fail_if_os_open_creates_resume_artifact(
+            path: str | bytes | os.PathLike[str] | os.PathLike[bytes],
+            flags: int,
+            mode: int = 0o777,
+            *,
+            dir_fd: int | None = None,
+        ) -> int:
+            fail_if_direct_spec_bridge_fd_artifact_created(
+                path,
+                "os.open",
+                dir_fd=dir_fd,
+                flags=flags,
+            )
+            return real_os_open(path, flags, mode, dir_fd=dir_fd)
+
+        def fail_if_os_mkdir_creates_resume_artifact(
+            path: str | bytes | os.PathLike[str] | os.PathLike[bytes],
+            mode: int = 0o777,
+            *,
+            dir_fd: int | None = None,
+        ) -> None:
+            fail_if_direct_spec_bridge_fd_artifact_created(
+                path,
+                "os.mkdir",
+                dir_fd=dir_fd,
+            )
+            real_os_mkdir(path, mode, dir_fd=dir_fd)
+
+        def fail_if_os_symlink_creates_resume_artifact(
+            src: str | bytes | os.PathLike[str] | os.PathLike[bytes],
+            dst: str | bytes | os.PathLike[str] | os.PathLike[bytes],
+            target_is_directory: bool = False,
+            *,
+            dir_fd: int | None = None,
+        ) -> None:
+            fail_if_direct_spec_bridge_fd_artifact_created(
+                dst,
+                "os.symlink",
+                dir_fd=dir_fd,
+            )
+            real_os_symlink(src, dst, target_is_directory=target_is_directory, dir_fd=dir_fd)
+
+        monkeypatch.setattr(builtins, "open", fail_if_builtin_open_creates_resume_artifact)
+        monkeypatch.setattr(pilot_cli.os, "mkdir", fail_if_os_mkdir_creates_resume_artifact)
+        monkeypatch.setattr(pilot_cli.os, "open", fail_if_os_open_creates_resume_artifact)
+        monkeypatch.setattr(pilot_cli.os, "symlink", fail_if_os_symlink_creates_resume_artifact)
+        monkeypatch.setattr(
+            pilot_cli.Path, "hardlink_to", fail_if_hardlink_to_creates_resume_artifact
+        )
+        monkeypatch.setattr(pilot_cli.Path, "mkdir", fail_if_resume_artifact_created)
+        monkeypatch.setattr(pilot_cli.Path, "open", fail_if_path_open_creates_resume_artifact)
+        monkeypatch.setattr(
+            pilot_cli.Path, "symlink_to", fail_if_symlink_to_creates_resume_artifact
+        )
+        monkeypatch.setattr(pilot_cli.Path, "touch", fail_if_touch_creates_resume_artifact)
+
+        def fail_if_publish_attempted(staging: Path, final_dir: Path) -> None:
+            pytest.fail(
+                "adaptive resume lineage failure reached publisher: " f"{staging} -> {final_dir}"
+            )
+
+        monkeypatch.setattr(
+            pilot_cli,
+            "_atomic_publish_directory_noreplace",
+            fail_if_publish_attempted,
+        )
         capsys.readouterr()
         assert (
             pilot_cli.main(
@@ -1604,7 +1903,6 @@ def _assert_resume_lineage_failure(
         captured = capsys.readouterr()
         assert captured.out.startswith("FAIL: adaptive_source_lineage_mismatch:")
         assert "Traceback" not in captured.out
-        assert {entry.name for entry in spec_root.iterdir()} == outputs_before
         retained_after = {
             path.relative_to(pilot_dir): path.read_bytes() for path in pilot_dir.rglob("*.json")
         }

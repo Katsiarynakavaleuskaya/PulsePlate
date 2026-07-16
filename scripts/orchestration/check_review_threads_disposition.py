@@ -27,7 +27,7 @@ import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Mapping, cast
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
@@ -35,7 +35,27 @@ if str(REPO_ROOT) not in sys.path:
 
 from scripts.orchestration.review_mapping_artifact import (
     extract_fixed_mapping_section as _artifact_extract_fixed_mapping,
+    parse_canonical_fingerprint_records,
     read_mapping_artifact,
+    review_seal_version,
+)
+from scripts.orchestration.pr_commit_identity import (
+    CommitIdentityError,
+    CommitRefKind,
+    PrSnapshot,
+    RepositoryCommitRef,
+    ReviewExecutionRef,
+    ReviewThreadEvidence,
+    assert_snapshot_unchanged,
+    classify_commit_ref,
+    fetch_pr_snapshot,
+    fetch_review_threads,
+    is_ancestor,
+)
+from scripts.orchestration.pr_review_evidence import (
+    ReviewEvidenceError,
+    parse_embedded_review_seal,
+    validated_duplicate_reply_urls,
 )
 
 DISPOSITION_RE = re.compile(r"Disposition:\s*(FIXED|NOT-A-BUG|DEFERRED)", re.IGNORECASE)
@@ -52,6 +72,7 @@ class ResolvedThreadRef:
     source: str
     is_resolved: bool
     created_at: str  # ISO 8601 from GraphQL (first comment createdAt)
+    original_commit_sha: str | None = None
 
 
 # Timeout for gh CLI calls to avoid hanging CI (CodeRabbit/Cubic).
@@ -393,6 +414,7 @@ def _check_commit_after_comment(
     section: str,
     *,
     _git_commit_time_fn: Any = None,
+    commit_time_by_sha: Mapping[str, str | None] | None = None,
 ) -> list[str]:
     """
     For each resolved thread with a mapped SHA, require commit_time > comment_time.
@@ -414,7 +436,12 @@ def _check_commit_after_comment(
             continue
         try:
             thread_created = _parse_iso_datetime(t.created_at)
-            commit_iso = get_commit_time(sha)
+            if commit_time_by_sha is None:
+                commit_iso = get_commit_time(sha)
+            else:
+                commit_iso = commit_time_by_sha.get(sha)
+                if not commit_iso:
+                    raise RuntimeError(f"commit {sha} lacks server-side pushedDate evidence")
             commit_dt = _parse_iso_datetime(commit_iso)
             if commit_dt <= thread_created:
                 violations.append(
@@ -548,6 +575,86 @@ def _collect_resolved_threads(pr_number: int) -> list[ResolvedThreadRef]:
     return list(uniq.values())
 
 
+def _resolved_threads_from_evidence(
+    threads: tuple[ReviewThreadEvidence, ...],
+) -> list[ResolvedThreadRef]:
+    """Return resolvable root comments from fully paginated thread evidence."""
+
+    resolved: list[ResolvedThreadRef] = []
+    for thread in threads:
+        if not thread.is_resolved or not thread.comments:
+            continue
+        first = thread.comments[0]
+        if first.author_login.strip().lower() == "github-advanced-security":
+            continue
+        resolved.append(
+            ResolvedThreadRef(
+                url=first.url,
+                source="comment",
+                is_resolved=True,
+                created_at=first.created_at,
+                original_commit_sha=first.original_commit_sha,
+            )
+        )
+    return resolved
+
+
+def _check_real_commit_proofs(
+    resolved_threads: list[ResolvedThreadRef],
+    section: str,
+    *,
+    snapshot: PrSnapshot,
+    repository: str,
+    token: str,
+) -> list[str]:
+    """Prove every mapped FIX SHA and original comment commit in the live PR graph."""
+
+    violations: list[str] = []
+    mapping = _parse_mapping_section(section)
+    live_head = RepositoryCommitRef(snapshot.head_sha, CommitRefKind.PR_HEAD)
+    for thread in resolved_threads:
+        fix_sha = mapping.get(thread.url)
+        if not fix_sha:
+            continue
+        fix = classify_commit_ref(fix_sha, snapshot, token=token)
+        if not isinstance(fix, RepositoryCommitRef) or fix.kind not in {
+            CommitRefKind.PR_HEAD,
+            CommitRefKind.PR_COMMIT,
+        }:
+            violations.append(f"{thread.url}: mapped FIX SHA is not a real live PR commit")
+            continue
+        if not is_ancestor(
+            fix,
+            live_head,
+            repository=repository,
+            token=token,
+        ):
+            violations.append(f"{thread.url}: mapped FIX SHA is not reachable from live head")
+            continue
+        if not thread.original_commit_sha:
+            continue
+        original = classify_commit_ref(thread.original_commit_sha, snapshot, token=token)
+        if isinstance(original, ReviewExecutionRef):
+            if original.kind is CommitRefKind.API_UNKNOWN:
+                violations.append(f"{thread.url}: original_commit_id identity is API_UNKNOWN")
+            # REVIEW_REF_UNAVAILABLE is reviewer execution context, not a graph
+            # endpoint. The independently proven real FIX remains sufficient.
+            continue
+        if original.kind not in {CommitRefKind.PR_HEAD, CommitRefKind.PR_COMMIT}:
+            violations.append(f"{thread.url}: original_commit_id is not a real live PR commit")
+            continue
+        if not is_ancestor(
+            original,
+            fix,
+            repository=repository,
+            token=token,
+        ):
+            violations.append(
+                f"{thread.url}: mapped FIX SHA does not descend from original_commit_id"
+            )
+    return violations
+
+
 def _has_gh_auth() -> bool:
     """True if gh CLI auth is actually usable for API calls."""
     try:
@@ -567,6 +674,18 @@ def _env_diagnostic() -> str:
     keys = ("GH_TOKEN", "GITHUB_TOKEN", "GITHUB_PAT", "CI", "GITHUB_ACTIONS")
     parts = [f"{k}={('SET' if (os.environ.get(k) or '').strip() else 'MISSING')}" for k in keys]
     return " ".join(parts)
+
+
+def _github_api_token() -> str:
+    """Return an opaque token without logging or introspecting it."""
+
+    token = (os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN") or "").strip()
+    if token:
+        return token
+    token = _run(["gh", "auth", "token"]).strip()
+    if not token:
+        raise RuntimeError("GitHub API token is unavailable")
+    return token
 
 
 def _require_gh_token_preflight(require_auth: bool, in_ci: bool) -> None:
@@ -679,19 +798,72 @@ def main() -> None:
         for error in fixed_block_errors:
             print(f"ERROR: {error}")
         sys.exit(1)
-    resolved_threads = _collect_resolved_threads(pr_number)
+    is_v1 = review_seal_version(artifact_text) == "v1"
+    snapshot: PrSnapshot | None = None
+    thread_evidence: tuple[ReviewThreadEvidence, ...] = ()
+    repository = ""
+    api_token: str | None = None
+    if is_v1:
+        try:
+            owner, repo_name = _get_owner_repo()
+            repository = f"{owner}/{repo_name}"
+            api_token = _github_api_token()
+            snapshot = fetch_pr_snapshot(repository, pr_number, token=api_token)
+            thread_evidence = fetch_review_threads(repository, pr_number, token=api_token)
+            resolved_threads = _resolved_threads_from_evidence(thread_evidence)
+        except (CommitIdentityError, OSError, RuntimeError) as exc:
+            print(f"ERROR: unable to establish live PR review evidence: {exc}")
+            sys.exit(1)
+    else:
+        resolved_threads = _collect_resolved_threads(pr_number)
 
     if not resolved_threads:
+        if snapshot is not None:
+            if api_token is None:
+                print("ERROR: internal v1 context is missing GitHub API auth")
+                sys.exit(1)
+            try:
+                assert_snapshot_unchanged(snapshot, token=api_token)
+            except (CommitIdentityError, OSError) as exc:
+                print(f"ERROR: {exc}")
+                sys.exit(1)
         print("OK: No resolved review threads found (nothing to enforce).")
         sys.exit(0)
+
+    duplicate_covered_urls: set[str] = set()
+    if is_v1:
+        if snapshot is None or api_token is None:
+            print("ERROR: internal v1 context is incomplete")
+            sys.exit(1)
+        try:
+            seal = parse_embedded_review_seal(artifact_text)
+            records = parse_canonical_fingerprint_records(artifact_text, pr_number=pr_number)
+            duplicate_covered_urls = validated_duplicate_reply_urls(
+                candidate_urls={thread.url for thread in resolved_threads},
+                threads=thread_evidence,
+                fingerprint_records=records,
+                material_digest=seal["material"]["digest"],
+                repo_root=REPO_ROOT,
+                snapshot=snapshot,
+                repository=repository,
+                token=api_token,
+            )
+        except (CommitIdentityError, ReviewEvidenceError, ValueError) as exc:
+            print(f"ERROR: invalid v1 duplicate-disposition evidence: {exc}")
+            sys.exit(1)
 
     missing_refs: list[str] = []
     missing_disposition: list[str] = []
 
     for t in resolved_threads:
         # Use exact URL match to avoid substring false positives (e.g. discussion_r1 vs r10)
-        if not re.search(re.escape(t.url) + r"(?![0-9a-zA-Z])", section):
+        if (
+            not re.search(re.escape(t.url) + r"(?![0-9a-zA-Z])", section)
+            and t.url not in duplicate_covered_urls
+        ):
             missing_refs.append(t.url)
+            continue
+        if t.url in duplicate_covered_urls:
             continue
         if not _find_disposition_block_in_section(section, t.url):
             missing_disposition.append(t.url)
@@ -715,8 +887,38 @@ def main() -> None:
         print("  and one of: Commit: / Evidence: / Backlog:")
         sys.exit(1)
 
+    if is_v1:
+        if snapshot is None or api_token is None:
+            print("ERROR: internal v1 context is incomplete")
+            sys.exit(1)
+        try:
+            real_commit_violations = _check_real_commit_proofs(
+                resolved_threads,
+                section,
+                snapshot=snapshot,
+                repository=repository,
+                token=api_token,
+            )
+        except (CommitIdentityError, OSError) as exc:
+            print(f"ERROR: unable to prove FIXED commit identities: {exc}")
+            sys.exit(1)
+        if real_commit_violations:
+            print("ERROR: Real-commit proof policy violated.\n")
+            for violation in real_commit_violations:
+                print(f"  - {violation}")
+            sys.exit(1)
+
     # Commit-after-comment guard: mapping must reference a commit made AFTER the comment
-    commit_after_violations = _check_commit_after_comment(resolved_threads, section)
+    server_commit_times = (
+        {commit.sha: commit.pushed_at for commit in snapshot.commits}
+        if is_v1 and snapshot is not None
+        else None
+    )
+    commit_after_violations = _check_commit_after_comment(
+        resolved_threads,
+        section,
+        commit_time_by_sha=server_commit_times,
+    )
     if commit_after_violations:
         print(
             "ERROR: Commit-after-comment policy violated. Map only commits made AFTER the comment.\n"
@@ -738,6 +940,16 @@ def main() -> None:
             "\nFix: Do not map to empty commits or commits whose subject contains 'trigger ci' / 'rerun ci' / 'rerun checks'."
         )
         sys.exit(1)
+
+    if snapshot is not None:
+        if api_token is None:
+            print("ERROR: internal v1 context is missing GitHub API auth")
+            sys.exit(1)
+        try:
+            assert_snapshot_unchanged(snapshot, token=api_token)
+        except (CommitIdentityError, OSError) as exc:
+            print(f"ERROR: {exc}")
+            sys.exit(1)
 
     print(
         f"OK: All {len(resolved_threads)} resolved review threads have Disposition + proof and commit-after-comment."

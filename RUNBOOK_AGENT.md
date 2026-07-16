@@ -481,15 +481,22 @@ Use this as the canonical operating loop from branch creation to merge window:
    - Read `AGENTS.md`, `RUNBOOK_AGENT.md`, and the nearest scoped `AGENTS.md`
    - Decide scope, risk, and which sub-agents or helpers are needed before edits
 2. **Open non-draft by default**
+   - For lanes using the material review seal, first disable automatic
+     synchronize-triggered Codex review in the external GitHub integration.
+     Repository code cannot enforce that external setting.
    - Open the PR ready-for-review once scope, artifact strategy, and initial local gates are coherent so bots and current-head checks run
    - Use draft only with an explicit operator exception when review/check suppression is intentional
    - Create or confirm the canonical artifact path `docs/review/PR_<N>_FIXED_MAPPING.md`
 3. **Post-open review entry**
    - Once the PR exists, run the mandatory post-open reviewer path declared by the lane packet/runbook before calling the lane stable
    - When the lane declares `qa-engineer-agent -> bug-hunter -> security-auditor`, that pass happens after PR open, not as a substitute for pre-PR local gates
-   - Run Codex Security diff scan / finding discovery and `pulseplate-pr-review`;
-     fix or disposition every finding before fixed-mapping and merge-readiness
-     checks
+   - Finish all implementation/docs/tests, then freeze the material digest with
+     `pr_review_closeout.py freeze`. The coordinator posts one manual
+     `@codex review` for that digest. A material fix invalidates the freeze and
+     returns here.
+   - After the final freeze, run the declared
+     `qa-engineer-agent -> bug-hunter -> security-auditor` pass, one Codex
+     Security diff scan / finding discovery, and `pulseplate-pr-review`.
 4. **Before each push**
    - Run `pre-commit run --all-files`
    - Run the required local narrow gates for the touched scope:
@@ -503,9 +510,13 @@ Use this as the canonical operating loop from branch creation to merge window:
    - Treat `scripts/orchestration/check_merge_ready.py` as the canonical current-head verdict
 6. **After each new review / bot activity**
    - Fix code/docs first when needed
-   - Update `docs/review/PR_<N>_FIXED_MAPPING.md` next
-   - Update the optional PR-body mirror only after the canonical artifact is correct
-   - Re-run merge-readiness checks; do not assume a previous pass still holds
+   - If material changed, refreeze and obtain review/final-scan evidence for the
+     new digest
+   - Keep dispositions in the gitignored closeout draft; generate the canonical
+     mapping/seal once after the final scan
+   - For a validated same-digest unavailable-ref duplicate, post the structured
+     reply, resolve the thread explicitly, and rerun merge readiness without a
+     docs commit, Codex review, or security scan
 7. **Before merge**
    - Re-run the strict merge wrapper after the latest bot/review activity
    - Confirm no pending required jobs remain
@@ -531,16 +542,18 @@ Run before merge after latest commit and latest bot/review activity:
 1. `python scripts/orchestration/check_merge_ready.py --pr-number <PR_NUMBER> --repo Katsiarynakavaleuskaya/PulsePlate --require-auth`
 2. `gh pr view <PR_NUMBER> --json mergeStateStatus,reviewDecision,isDraft`
 3. **Zero bot comments (hard rule):** Merge only when (a) **0 unresolved review threads** and (b) **every actionable bot comment is mapped** in the canonical artifact `docs/review/PR_<N>_FIXED_MAPPING.md`. PR body is mirror-only when `pr_number` is available. **Do not** report "0 comments" or "ready to merge" based only on unresolved thread count — new bot comments can appear after a check; use the canonical script (below) and re-run after bot activity.
-4. When a human-readable PR-body mirror is kept, confirm these sections are complete:
-   - `## Discussion Thread Pass`
-   - `### Fixed in Commit Mapping`
-   - `## Merge Readiness`
+4. Confirm the PR body contains the standard Goal/Scope/Tests/Security/Rollback
+   sections, the exact `## Discussion Thread Pass` / `### Fixed in Commit Mapping`
+   headings, both checked Phase 2 checklist items, and one link to
+   `docs/review/PR_<N>_FIXED_MAPPING.md`; URL→SHA mappings live only in the
+   artifact.
 5. CI `Merge readiness gate` must be green on latest PR commit.
 
-**Phase2 PR body gates (CI):** To pass `check_pr_body_phase2_gates.py` and merge-readiness:
-- In PR description, if you keep a human-readable mirror, under **Discussion Thread Pass**: check `[x] Discussion-thread pass completed` and `[x] Fixed in commit mapping completed`.
+**Phase2 artifact/body gates (CI):** To pass `check_pr_body_phase2_gates.py` and merge-readiness:
+- In the PR description, keep the validator-required discussion/mapping
+  headings, both checked checklist items, and one canonical artifact link; do
+  not hand-copy URL→SHA/disposition details.
 - In the canonical artifact `docs/review/PR_<N>_FIXED_MAPPING.md`: list each bot comment as `- <comment-url> -> <commit-sha>` or `- <comment-url>` depending on disposition, or use exactly `- No actionable review comments`.
-- Under **### Fixed in Commit Mapping** in the PR body: the mirror block is optional once the canonical artifact exists; if you keep it, generate it from the artifact helper instead of hand-maintaining mapping lines.
 - Local artifact-first check: `python scripts/ci/check_pr_body_phase2_gates.py --pr-number <PR_NUMBER>`
 - Local body-only fallback check: `python scripts/ci/check_pr_body_phase2_gates.py --body "$(cat .github/pr_body_*.md)"`
 
@@ -599,13 +612,21 @@ query { repository(owner: "Katsiarynakavaleuskaya", name: "PulsePlate") {
 
 Before merge: `unresolved` must be `0`. Resolve all threads in GitHub UI (Conversation → resolve thread) and map any actionable bot comments in the canonical artifact.
 
-**Loop until zero comments (canonical cycle):** Repeat until merge-readiness script exits 0 and CI is green:
+**Material-seal closeout cycle:**
 
-1. **Commit** (fixes for code/docs); **push** to PR branch.
-2. **Watch CI:** `gh run list --branch "$(git branch --show-current)" --limit 3` then `gh run watch <RUN_ID> --exit-status` (or wait for run completion).
-3. **Check comments/governance:** `python scripts/orchestration/check_merge_ready.py --pr-number <PR_NUMBER> --repo Katsiarynakavaleuskaya/PulsePlate --require-auth`. If exit 1 → inspect the failing sub-gate output and fix before re-running.
-4. **Fix:** Resolve each new review thread (GitHub UI or GraphQL `resolveReviewThread`); add every UNMAPPED comment URL to `docs/review/PR_<N>_FIXED_MAPPING.md`; if the bot asked for a code/docs change, implement it, commit, push, and use that commit sha in the mapping. Update the PR body mirror only after the canonical artifact is correct.
-5. **Re-run** step 3. If exit 0 and CI green → zero comments; only then is the PR ready for merge per AGENTS.md.
+1. `pr_review_closeout.py init` creates/resumes the gitignored local draft.
+2. `freeze` proves local HEAD equals the live PR head and records the material
+   digest. Request one manual Codex review for that digest.
+3. Apply actionable fixes. Any material change returns to step 2; governance
+   draft/body activity does not.
+4. After the final material freeze, complete the required role pass and one
+   final Codex Security diff scan.
+5. Record dispositions with `add-disposition`, then run `seal --review-ref ...
+   --scan-manifest ...`. This writes the sole canonical mapping/seal artifact.
+6. Commit that artifact once, update the PR body link without a Git commit, and
+   run the authenticated strict wrapper.
+7. A later validated duplicate uses the exact structured reply contract and an
+   explicit thread resolution, followed by one status-check cycle only.
 
 Do not report "ready to merge" or "0 comments" until the script passes and CI is green.
 

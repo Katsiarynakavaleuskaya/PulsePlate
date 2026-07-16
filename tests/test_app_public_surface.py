@@ -62,6 +62,15 @@ def test_scheduler_access_is_an_exact_compatibility_export() -> None:
     assert legacy_app.get_update_scheduler is scheduler_access.get_update_scheduler
 
 
+def test_weekly_menu_builder_remains_an_exact_public_compatibility_export() -> None:
+    import app
+    import legacy_app
+    from core.menu_engine import make_weekly_menu
+
+    assert app.make_weekly_menu is make_weekly_menu
+    assert legacy_app.make_weekly_menu is make_weekly_menu
+
+
 def test_legacy_openapi_symbols_are_exact_canonical_aliases() -> None:
     import legacy_app
     from app.bootstrap import openapi as canonical_openapi

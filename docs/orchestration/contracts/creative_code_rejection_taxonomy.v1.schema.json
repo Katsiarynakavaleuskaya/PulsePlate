@@ -39,6 +39,13 @@
           "stage": "promotion_plan"
         },
         {
+          "code": "capability_mismatch",
+          "likely_owner": "dev-operator",
+          "retryability": "not_retryable",
+          "severity": "medium",
+          "stage": "patch_evaluation"
+        },
+        {
           "code": "duplicate_variant",
           "likely_owner": "architecture-specialist",
           "retryability": "retryable",
@@ -192,6 +199,7 @@
             "approval_missing",
             "base_drift",
             "branch_exists",
+            "capability_mismatch",
             "duplicate_variant",
             "github_transport_failed",
             "guard_failure",

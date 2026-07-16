@@ -71,7 +71,7 @@ from scripts.orchestration.creative_code_specification import (
     read_creative_code_specification_bundle,
     validate_creative_code_specification_bundle,
 )
-from scripts.orchestration.experiment_runner import evaluate_candidate
+from scripts.orchestration.experiment_runner import RunnerCapabilitySignal, evaluate_candidate
 
 PROMOTION_ROOT = REPO_ROOT / "artifacts" / "orchestration" / "creative_code" / "promotions"
 
@@ -113,6 +113,11 @@ SECRET_ENV_SUBSTRINGS = (
 
 class CreativeCodePRPromotionError(ValueError):
     """Raised when the PR-3 promotion CLI fails closed."""
+
+
+RUNNER_CAPABILITY_ERROR = (
+    "Fresh Experiment Runner capability unavailable; trusted dispatch is required."
+)
 
 
 class TemporaryUploadBranchAmbiguousError(CreativeCodePRPromotionError):
@@ -645,7 +650,10 @@ class GateRunner:
         packet = read_json(experiment_packet)
         if not isinstance(packet, dict):
             raise CreativeCodePRPromotionError("experiment packet must be a JSON object.")
-        result = evaluate_candidate(packet, candidate_patch)
+        try:
+            result = evaluate_candidate(packet, candidate_patch)
+        except RunnerCapabilitySignal:
+            raise CreativeCodePRPromotionError(RUNNER_CAPABILITY_ERROR) from None
         if not isinstance(result, dict):
             raise CreativeCodePRPromotionError("fresh oracle must return a JSON object.")
         return result

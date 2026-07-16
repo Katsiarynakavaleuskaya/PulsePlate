@@ -16,7 +16,7 @@ Canonical reference for PR governance. Single source of truth to reduce drift be
 | 2     | Repository files                        | canonical governance artifacts |
 | 2a    | `docs/review/PR_<N>_FIXED_MAPPING.md`    | Fixed in Commit Mapping SoT    |
 | 3     | Latest CI run for current HEAD          | merge decision                 |
-| 4     | PR body                                 | human-readable mirror only     |
+| 4     | PR body                                 | summary + artifact link        |
 
 Evidence:
 - Level 2: `AGENTS.md:39`, `AGENTS.md:102`, `AGENTS.md:103`, `AGENTS.md:434`, `AGENTS.md:435`
@@ -29,7 +29,7 @@ Evidence:
 | Phase   | Gate                    | Artifact                                                         | Blocks Merge |
 | ------- | ----------------------- | ---------------------------------------------------------------- | ------------ |
 | Phase 1 | CI hygiene              | workflows/checks                                                 | yes          |
-| Phase 2 | artifact-first contract | canonical artifact (authoritative) + optional PR body mirror     | yes          |
+| Phase 2 | artifact-first contract | canonical artifact (authoritative) + PR body link                | yes          |
 | Phase 3 | Merge readiness         | unresolved threads + actionable mapping                          | yes          |
 | Phase 4 | Disposition proof       | script semantics                                                 | yes          |
 
@@ -42,18 +42,19 @@ Canonical operator entrypoint:
 
 Canonical source: `docs/review/PR_<N>_FIXED_MAPPING.md`.
 
-PR body **may mirror** the same review-governance sections for human review and fallback runs:
+The PR body keeps Goal, Scope, Tests/validation, Security notes,
+Risks/Rollback, and one link to the canonical artifact. It does not mirror
+review-thread URL→SHA entries. Required `## Experiment Runner Evidence` lives
+in the canonical artifact:
 
-- `## Discussion Thread Pass`
-- `### Fixed in Commit Mapping`
-- completed checkboxes matching the artifact
-- full URL→SHA mapping lines are required only in the canonical artifact when `pr_number` is available
-- required `## Experiment Runner Evidence` in the PR body mirror or canonical artifact:
+- full URL→SHA mapping lines exist only in the canonical artifact
+- required `## Experiment Runner Evidence` in the canonical artifact:
   non-trivial PRs must include an oracle-only artifact by default, and
   `Not applicable` requires an explicit coordinator/operator reason
 
 Canonical runtime behavior is artifact-first when `pr_number` is available.
-PR-body parsing is a temporary compatibility seam for local/body-only checks and human-readable review context. When `pr_number` is available, Phase 2 treats the artifact as authoritative and the PR body as an optional mirror-only surface.
+PR-body parsing is a temporary compatibility seam for legacy local/body-only
+checks. It is not authority and must not cause agents to copy mapping blocks.
 
 Temporary seam tracking:
 
@@ -71,8 +72,7 @@ Phase 2 sections and required orchestration evidence:
 - `## Discussion Thread Pass`
 - Checkbox contract (completed / mapping completed)
 - `## Fixed in Commit Mapping` in the canonical artifact
-- `### Fixed in Commit Mapping` in the optional PR-body mirror
-- Required `## Experiment Runner Evidence` with `Artifact: artifacts/orchestration/experiments/results/<id>.json` or `Not applicable: <reason>` in either the PR body mirror or canonical artifact. Non-trivial PRs must create oracle-only evidence by default; local artifact load/write failures are infrastructure blockers and are not valid `Not applicable` reasons. Malformed evidence is rejected.
+- Required `## Experiment Runner Evidence` with `Artifact: artifacts/orchestration/experiments/results/<id>.json` or `Not applicable: <reason>` in the canonical artifact. Non-trivial PRs must create oracle-only evidence by default; local artifact load/write failures are infrastructure blockers and are not valid `Not applicable` reasons. Malformed evidence is rejected.
 - Required premortem evidence for non-trivial PRs: `pulseplate-premortem-risk-review`
   must run against the actual diff before PR open, and every finding must be
   `FIXED`, `NOT-A-BUG`, or `DEFERRED` with evidence/backlog proof.
@@ -115,7 +115,32 @@ Valid mapping forms in the canonical artifact:
 - `- <url>`
 - `- No actionable review comments`
 
-PR body mirror requires the section headings and completed checkboxes only when the mirror is present. Mapping-line duplication in the body is optional once the canonical artifact exists. Use `render_phase2_body_mirror()` to generate the mirror block from the canonical artifact path.
+Legacy body mirrors and 7–40-character SHAs remain readable for pre-activation
+PRs. V1 artifacts require full 40-character FIXED SHAs and the embedded closed
+JSON block `PULSEPLATE_PR_REVIEW_SEAL_V1`. The activation boundary is the
+governance PR number + 1; the governance PR may opt in with
+`Review-Seal-Version: v1`.
+
+### Material review seal v1
+
+- The gate snapshots live base/head, fully paginates the PR commit connection,
+  reads the artifact from that exact checked-out head, and rechecks refs before
+  PASS. A change returns `SNAPSHOT_CHANGED`.
+- The material base is the unique real merge-base. The digest is canonical JSON
+  over merge-base, file status/path, old/new modes, full blob OIDs, and the
+  classification-policy version.
+- Every path is material except the exact current-PR mapping artifact. PR-body
+  edits are outside Git. Other docs, AGENTS/runbook, workflows, tests,
+  dependencies, schemas, and policies remain material.
+- The trusted submitted Codex review object's real GitHub `commit_id` must be
+  the frozen material head; reviewer-execution/synthetic refs never satisfy
+  this proof. Code review and one completed final Codex Security diff scan bind
+  to the same digest. The embedded security record is a
+  `human_asserted_content_receipt`: CI verifies schema, hashes, coverage, range,
+  and content binding but does not claim signed/plugin attestation.
+- `pr_review_closeout.py` keeps `init`, `freeze`, and `add-disposition` state
+  gitignored. `seal` is the only tracked authoring step; mapping and seal publish
+  in one batched governance-closeout commit.
 
 Evidence:
 - `scripts/orchestration/review_mapping_artifact.py:44`
@@ -133,6 +158,8 @@ Artifact-only governance findings are fixed in the canonical artifact itself, bu
 
 - Unresolved review threads must be zero
 - Actionable bot comments must be mapped
+- Activated PRs must have a current material review seal and real mapped FIX
+  commits in the complete live PR graph
 - Cancelled/stale runs do not define mergeability
 - PR lifecycle packets may distinguish `post_open_review` from `merge_ready`,
   but both phases still use current-head truth and the canonical artifact
@@ -156,7 +183,8 @@ Evidence:
 ### FIXED
 
 - Requires commit proof
-- SHA must be valid
+- V1 SHA must be full length, GitHub-addressable, in the live PR commit set, and
+  reachable from live head
 - Commit must not be trigger-only
 - Commit-after-comment applies
 
@@ -165,6 +193,14 @@ Evidence:
 - Requires written reasoning/evidence
 - Thread URL must still be listed in Fixed in Commit Mapping
 - No commit proof required
+
+The only mapping-less duplicate exception is a trusted Codex/App
+`unavailable_review_ref_ancestry` finding with the same material digest and
+verified real FIX SHA as a canonical fingerprint record. An authorized
+`OWNER|MEMBER|COLLABORATOR` reply must use the exact closed structured fields,
+come after the finding in the same explicitly resolved thread, and the cited
+review ref must resolve as unavailable (not API-unknown). The exception creates
+no docs commit and does not restart review/security scans.
 
 ### DEFERRED
 
@@ -221,7 +257,7 @@ Canonical lane matrix:
 | Local / PR process | `pulseplate-premortem-risk-review` | Hard gate | Every non-trivial PR must run premortem on the actual diff before PR open; findings are creative future-state risk forecasts for user/business/project/security/governance impact, but require FIXED / NOT-A-BUG / DEFERRED evidence; FIXED for code/runtime/schema/security/workflow/orchestration/CI/governance risks requires enforceable closure in the PR, not docs-only risk recording |
 | Local / PR process | `pulseplate-agent-learning-loop` | Conditional hard gate | Required when operator-triggered or when repeated failure/successful-iteration patterns appear; use redacted `agent_learning_record.v1` with `pattern_kind`, bounded `learning_metrics`, proposal-only authority, and reviewed repo-diff promotion before canonical instruction changes |
 | Local / PR process | Experiment Runner oracle evidence | Hard gate | Every non-trivial PR must create oracle-only evidence by default; artifact load/write failures are infrastructure blockers, and material contribution requires governed attribution |
-| Post-open review | `qa-engineer-agent -> bug-hunter -> security-auditor` plus Codex Security plus `pulseplate-pr-review` | Hard gate | Role passes, Codex Security diff scan / finding discovery, and `pulseplate-pr-review` must complete; any finding must be fixed or dispositioned before merge-readiness claims |
+| Post-open review | `qa-engineer-agent -> bug-hunter -> security-auditor` plus Codex Security plus `pulseplate-pr-review` | Hard gate | After material freeze, role passes, one final Codex Security diff scan / finding discovery, and `pulseplate-pr-review` must complete for that digest; rerun only after material change, failed/incomplete run, coordinator reroute, or explicit operator override |
 | GitHub PR CI | Full/heavy verification signal | Hard gate | Current-head CI must be green for `lint`, required/current-head checks for the touched PR surface, relevant `test-main` matrix, `diff-coverage` ≥97%, applicable security/governance checks, and merge-readiness; this replaces default local full `make verify` on agent machines |
 | GitHub PR CI | Operator-approved machine-heavy deferral | Hard gate | PR body and fixed mapping document the deferral, the narrow local bundle passes, canonical current-head CI parity is green, relevant `test-main` matrix passes when selected, `diff-coverage` ≥97% is preserved when selected, and security/governance checks remain strict |
 | Local / CI  | `python scripts/orchestration/check_merge_ready.py ...` | Hard gate | Wrapper must pass Phase 2 + review governance + current-head required checks + disposition proof |

@@ -8,11 +8,12 @@ import os
 from pathlib import Path
 import subprocess
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, NoReturn
 
 import pytest
 
 from scripts.orchestration import experiment_contract
+from scripts.orchestration import experiment_runner
 from scripts.orchestration import experiment_runner_dispatch as dispatch
 
 _DIGEST = "sha256:" + "a" * 64
@@ -144,6 +145,10 @@ def test_image_reference_requires_immutable_digest() -> None:
         dispatch.parse_image_reference("runner:latest")
     with pytest.raises(ValueError, match="immutable"):
         dispatch.parse_image_reference(f"runner:local@sha256:{'A' * 64}")
+
+
+def test_runner_capability_exit_code_matches_dispatch_owned_code() -> None:
+    assert dispatch.RUNNER_CAPABILITY_EXIT_CODE == experiment_runner.RUNNER_CAPABILITY_EXIT_CODE
 
 
 def test_auto_prefers_strict_apple_without_probing_docker(
@@ -387,6 +392,90 @@ def test_existing_v1_capability_artifact_remains_valid() -> None:
     assert dispatch.validate_capability_artifact(artifact) == artifact
 
 
+def test_dispatch_git_uses_one_resolved_per_invocation_safe_directory(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    captured: dict[str, Any] = {}
+
+    def fake_git_binary() -> str:
+        return "/usr/bin/git"
+
+    def fake_run(
+        argv: list[str],
+        *,
+        cwd: Path,
+        timeout: int = 30,
+        input_text: str | None = None,
+        secret_env_keys: tuple[str, ...] = (),
+        env_override: dict[str, str] | None = None,
+    ) -> subprocess.CompletedProcess[str]:
+        captured.update(
+            argv=argv,
+            cwd=cwd,
+            timeout=timeout,
+            input_text=input_text,
+            secret_env_keys=secret_env_keys,
+            env_override=env_override,
+        )
+        return subprocess.CompletedProcess(argv, 0, "", "")
+
+    monkeypatch.setattr(dispatch, "_git_binary", fake_git_binary)
+    monkeypatch.setattr(dispatch, "_run", fake_run)
+
+    dispatch._git(["status", "--short"], cwd=repo)
+
+    argv = captured["argv"]
+    safe_directory_arg = f"safe.directory={repo.resolve(strict=True)}"
+    assert argv[0] == "/usr/bin/git"
+    assert argv.count(safe_directory_arg) == 1
+    safe_index = argv.index(safe_directory_arg)
+    assert argv[safe_index - 1 : safe_index + 1] == ["-c", safe_directory_arg]
+    assert "diff.external=" in argv
+    assert "core.fsmonitor=false" in argv
+    assert f"core.hooksPath={os.devnull}" in argv
+    assert f"core.worktree={repo.resolve(strict=True)}" in argv
+    assert argv.count(f"--work-tree={repo.resolve(strict=True)}") == 1
+    assert "safe.directory=*" not in argv
+    assert captured["cwd"] == repo.resolve(strict=True)
+    env_override = captured["env_override"]
+    assert env_override["GIT_CONFIG_GLOBAL"] == os.devnull
+    assert env_override["GIT_CONFIG_NOSYSTEM"] == "1"
+    assert env_override["GIT_TERMINAL_PROMPT"] == "0"
+
+
+@pytest.mark.parametrize("invalid_kind", ["missing", "file"])
+def test_dispatch_git_rejects_invalid_cwd_before_subprocess(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, invalid_kind: str
+) -> None:
+    invalid_cwd = tmp_path / invalid_kind
+    if invalid_kind == "file":
+        invalid_cwd.write_text("not a directory\n", encoding="utf-8")
+    called = False
+
+    def fail_if_called(
+        argv: list[str],
+        *,
+        cwd: Path,
+        timeout: int = 30,
+        input_text: str | None = None,
+        secret_env_keys: tuple[str, ...] = (),
+        env_override: dict[str, str] | None = None,
+    ) -> subprocess.CompletedProcess[str]:
+        nonlocal called
+        del argv, cwd, timeout, input_text, secret_env_keys, env_override
+        called = True
+        raise AssertionError("subprocess must not run for an invalid Git cwd")
+
+    monkeypatch.setattr(dispatch, "_run", fail_if_called)
+
+    with pytest.raises(dispatch.DispatchError, match="probe_execution_failed"):
+        dispatch._git(["status", "--short"], cwd=invalid_cwd)
+
+    assert called is False
+
+
 def test_snapshot_applies_tracked_diff_and_leaves_source_unchanged(tmp_path: Path) -> None:
     source = tmp_path / "source"
     source.mkdir()
@@ -415,6 +504,60 @@ def test_snapshot_applies_tracked_diff_and_leaves_source_unchanged(tmp_path: Pat
         git, "status", "--short", cwd=source, capture_output=True
     ).stdout
     assert after_status == before_status
+
+
+def test_snapshot_ignores_checkout_local_external_diff(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    source.mkdir()
+    git = dispatch._resolve_cli("git")
+    assert git is not None
+    _run_isolated_git(git, "init", "--quiet", cwd=source)
+    _run_isolated_git(git, "config", "user.email", "test@example.invalid", cwd=source)
+    _run_isolated_git(git, "config", "user.name", "Test", cwd=source)
+    tracked = source / "tracked.txt"
+    tracked.write_text("before\n", encoding="utf-8")
+    _run_isolated_git(git, "add", "tracked.txt", cwd=source)
+    _run_isolated_git(git, "commit", "--quiet", "-m", "init", cwd=source)
+
+    marker = tmp_path / "external-diff-ran"
+    helper = tmp_path / "external-diff.sh"
+    helper.write_text(f"#!/bin/sh\ntouch '{marker}'\n", encoding="utf-8")
+    helper.chmod(0o755)
+    _run_isolated_git(git, "config", "diff.external", str(helper), cwd=source)
+    tracked.write_text("after\n", encoding="utf-8")
+
+    snapshot = tmp_path / "snapshot"
+    tracked_diff = dispatch._create_snapshot(source, snapshot)
+
+    assert tracked_diff
+    assert marker.exists() is False
+    assert (snapshot / "tracked.txt").read_text(encoding="utf-8") == "after\n"
+
+
+def test_snapshot_ignores_checkout_local_worktree_redirect(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    source.mkdir()
+    git = dispatch._resolve_cli("git")
+    assert git is not None
+    _run_isolated_git(git, "init", "--quiet", cwd=source)
+    _run_isolated_git(git, "config", "user.email", "test@example.invalid", cwd=source)
+    _run_isolated_git(git, "config", "user.name", "Test", cwd=source)
+    tracked = source / "tracked.txt"
+    tracked.write_text("before\n", encoding="utf-8")
+    _run_isolated_git(git, "add", "tracked.txt", cwd=source)
+    _run_isolated_git(git, "commit", "--quiet", "-m", "init", cwd=source)
+
+    redirected = tmp_path / "redirected"
+    redirected.mkdir()
+    (redirected / "tracked.txt").write_text("attacker-selected\n", encoding="utf-8")
+    _run_isolated_git(git, "config", "core.worktree", str(redirected), cwd=source)
+    tracked.write_text("trusted-change\n", encoding="utf-8")
+
+    snapshot = tmp_path / "snapshot"
+    tracked_diff = dispatch._create_snapshot(source, snapshot)
+
+    assert tracked_diff
+    assert (snapshot / "tracked.txt").read_text(encoding="utf-8") == "trusted-change\n"
 
 
 def test_snapshot_preserves_staged_new_file_as_tracked(tmp_path: Path) -> None:
@@ -498,15 +641,234 @@ def test_result_v1_rejects_impossible_backend_provenance(
         experiment_contract.validate_experiment_result(result)
 
 
-def test_capability_mismatch_requires_failed_preflight() -> None:
+def test_capability_mismatch_allows_post_preflight_isolation_loss() -> None:
     result = _legacy_result()
-    result["status"] = "rejected"
-    result["failure_class"] = "capability_mismatch"
-    result["execution_backend"] = dispatch._execution_backend_payload(
-        _probe("docker", strict=True), passed=True
+    expected_backend = dispatch._execution_backend_payload(
+        _probe("apple-container", strict=True), passed=True
+    )
+    result.update(
+        {
+            "status": "rejected",
+            "failure_class": "capability_mismatch",
+            "mutated_paths": [],
+            "budget_observations": {
+                "attempts": 1,
+                "retries_consumed": 0,
+            },
+            "promotion_ready": False,
+            "execution_backend": expected_backend,
+        }
     )
 
-    with pytest.raises(ValueError, match="failed backend preflight"):
+    validated = experiment_contract.validate_experiment_result(result)
+
+    assert validated["status"] == "rejected"
+    assert validated["failure_class"] == "capability_mismatch"
+    assert validated["execution_backend"] == expected_backend
+    assert validated["budget_observations"]["attempts"] == 1
+    assert validated["budget_observations"]["retries_consumed"] == 0
+    assert validated["promotion_ready"] is False
+
+
+@pytest.mark.parametrize(
+    ("attempts", "retries_consumed"),
+    [(2, 0), (1, 1), (2, 1)],
+)
+def test_capability_mismatch_rejects_retry_evidence(
+    attempts: int,
+    retries_consumed: int,
+) -> None:
+    result = _legacy_result()
+    result.update(
+        {
+            "status": "rejected",
+            "failure_class": "capability_mismatch",
+            "mutated_paths": [],
+            "budget_observations": {
+                "attempts": attempts,
+                "retries_consumed": retries_consumed,
+            },
+            "promotion_ready": False,
+            "execution_backend": dispatch._execution_backend_payload(
+                _probe("apple-container", strict=True), passed=True
+            ),
+        }
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="capability_mismatch must use attempts 0 or 1 and retries_consumed 0",
+    ):
+        experiment_contract.validate_experiment_result(result)
+
+
+@pytest.mark.parametrize(
+    ("preflight_passed", "attempts"),
+    [(False, 1), (True, 0)],
+)
+def test_capability_mismatch_attempts_match_backend_preflight(
+    preflight_passed: bool,
+    attempts: int,
+) -> None:
+    result = _legacy_result()
+    result.update(
+        {
+            "status": "rejected",
+            "failure_class": "capability_mismatch",
+            "mutated_paths": [],
+            "budget_observations": {
+                "attempts": attempts,
+                "retries_consumed": 0,
+            },
+            "promotion_ready": False,
+            "execution_backend": dispatch._execution_backend_payload(
+                _probe("apple-container", strict=preflight_passed),
+                passed=preflight_passed,
+            ),
+        }
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="capability_mismatch attempts must equal 1 after passed backend preflight",
+    ):
+        experiment_contract.validate_experiment_result(result)
+
+
+@pytest.mark.parametrize(
+    ("mutated_paths", "oracle_results", "message"),
+    [
+        (
+            ["core/rag/orchestration.py"],
+            [],
+            "capability_mismatch with attempts 0 must use mutated_path_count 0",
+        ),
+        (
+            [],
+            [{"command": "pytest -q", "returncode": 0}],
+            "capability_mismatch with attempts 0 must use oracle_commands_executed 0",
+        ),
+    ],
+)
+def test_capability_mismatch_zero_attempts_reject_execution_evidence(
+    mutated_paths: list[str],
+    oracle_results: list[dict[str, object]],
+    message: str,
+) -> None:
+    result = dispatch._capability_mismatch_result(
+        _packet(network_budget=0),
+        _image(),
+        _probe("apple-container", strict=False),
+    )
+    result["mutated_paths"] = mutated_paths
+    result["oracle_results"] = oracle_results
+
+    with pytest.raises(ValueError, match=message):
+        experiment_contract.validate_experiment_result(result)
+
+
+@pytest.mark.parametrize("attempts", [0, 1])
+def test_capability_mismatch_requires_backend_preflight_provenance(attempts: int) -> None:
+    if attempts == 0:
+        result = dispatch._capability_mismatch_result(
+            _packet(network_budget=0),
+            _image(),
+            _probe("apple-container", strict=False),
+        )
+        result.pop("execution_backend")
+    else:
+        result = _legacy_result()
+        result.update(
+            {
+                "status": "rejected",
+                "failure_class": "capability_mismatch",
+                "mutated_paths": [],
+                "budget_observations": {"attempts": 1, "retries_consumed": 0},
+            }
+        )
+
+    with pytest.raises(
+        ValueError,
+        match="capability_mismatch requires backend preflight provenance",
+    ):
+        experiment_contract.validate_experiment_result(result)
+
+
+def test_retryable_failure_preserves_retry_evidence() -> None:
+    result = _legacy_result()
+    result.update(
+        {
+            "status": "rejected",
+            "failure_class": "infra_flake",
+            "mutated_paths": [],
+            "budget_observations": {
+                "attempts": 2,
+                "retries_consumed": 1,
+            },
+            "promotion_ready": False,
+            "execution_backend": dispatch._execution_backend_payload(
+                _probe("apple-container", strict=True), passed=True
+            ),
+        }
+    )
+
+    validated = experiment_contract.validate_experiment_result(result)
+
+    assert validated["failure_class"] == "infra_flake"
+    assert validated["budget_observations"]["attempts"] == 2
+    assert validated["budget_observations"]["retries_consumed"] == 1
+
+
+@pytest.mark.parametrize("failure_class", experiment_contract.FAILURE_CLASSES)
+def test_accepted_results_reject_every_failure_class(failure_class: str) -> None:
+    result = _legacy_result()
+    result["failure_class"] = failure_class
+    result["execution_backend"] = dispatch._execution_backend_payload(
+        _probe("apple-container", strict=True), passed=True
+    )
+
+    with pytest.raises(ValueError, match="must use a null failure_class"):
+        experiment_contract.validate_experiment_result(result)
+
+
+def test_rejected_results_cannot_be_promotion_ready() -> None:
+    result = _legacy_result()
+    result.update(
+        {
+            "status": "rejected",
+            "failure_class": "capability_mismatch",
+            "promotion_ready": True,
+            "execution_backend": dispatch._execution_backend_payload(
+                _probe("apple-container", strict=True), passed=True
+            ),
+        }
+    )
+
+    with pytest.raises(ValueError, match="must not be promotion_ready"):
+        experiment_contract.validate_experiment_result(result)
+
+
+def test_result_rejects_unknown_failure_class() -> None:
+    result = _legacy_result()
+    result.update({"status": "rejected", "failure_class": "unknown_failure"})
+
+    with pytest.raises(ValueError, match="failure_class must be null or one of"):
+        experiment_contract.validate_experiment_result(result)
+
+
+def test_failed_preflight_still_requires_capability_mismatch() -> None:
+    result = _legacy_result()
+    result.update(
+        {
+            "status": "rejected",
+            "failure_class": "infra_flake",
+            "execution_backend": dispatch._execution_backend_payload(
+                _probe("apple-container", strict=False), passed=False
+            ),
+        }
+    )
+
+    with pytest.raises(ValueError, match="Failed backend preflight requires"):
         experiment_contract.validate_experiment_result(result)
 
 
@@ -515,15 +877,19 @@ def test_capability_mismatch_is_non_retryable_and_preserves_zero_network() -> No
     probe = _probe("apple-container", strict=False)
 
     result = dispatch._capability_mismatch_result(packet, _image(), probe)
+    validated = experiment_contract.validate_experiment_result(result)
 
-    assert result["failure_class"] == "capability_mismatch"
-    assert result["budget_observations"]["attempts"] == 0
-    assert result["budget_observations"]["retries_consumed"] == 0
-    assert result["budget_observations"]["configured_budgets"]["network_budget"] == 0
-    assert result["execution_backend"]["preflight_status"] == "failed"
-    assert result["contribution_kind"] == "none"
-    assert result["coauthor_required"] is False
-    assert result["coauthor_reason"] == ""
+    assert validated["failure_class"] == "capability_mismatch"
+    assert validated["budget_observations"]["attempts"] == 0
+    assert validated["budget_observations"]["retries_consumed"] == 0
+    assert validated["budget_observations"]["configured_budgets"]["network_budget"] == 0
+    assert packet["immutable_oracles"]
+    assert validated["mutated_paths"] == []
+    assert validated["oracle_results"] == []
+    assert validated["execution_backend"]["preflight_status"] == "failed"
+    assert validated["contribution_kind"] == "none"
+    assert validated["coauthor_required"] is False
+    assert validated["coauthor_reason"] == ""
 
 
 def test_result_backend_rejects_mutable_or_invalid_digest() -> None:
@@ -788,7 +1154,7 @@ def test_apple_host_bind_address_filters_unsafe_runtime_and_unbindable_candidate
     monkeypatch.setattr(dispatch, "_address_is_bindable", bindable)
 
     selected = dispatch._discover_apple_host_bind_address(
-        (dispatch.ipaddress.ip_network("192.168.64.0/24"),)
+        (dispatch.ipaddress.IPv4Network("192.168.64.0/24"),)
     )
 
     assert selected == "10.0.0.20"
@@ -891,7 +1257,7 @@ def test_docker_gateway_preserves_bridge_inspection_without_host_bind_requiremen
 def test_apple_canaries_share_exact_listener_address_on_unique_internal_network(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    runtime_subnets = (dispatch.ipaddress.ip_network("192.168.64.0/24"),)
+    runtime_subnets = (dispatch.ipaddress.IPv4Network("192.168.64.0/24"),)
     host_address = "10.0.0.20"
     call_order: list[str] = []
     listener_addresses: list[str | None] = []
@@ -1368,6 +1734,77 @@ def test_sanitize_result_rejects_malformed_oracle_before_transform() -> None:
         dispatch._sanitize_result(result, _probe("apple-container", strict=True))
 
 
+def test_sanitize_result_preserves_safe_post_preflight_capability_mismatch() -> None:
+    trusted_probe = _probe("apple-container", strict=True)
+    trusted_backend = dispatch._execution_backend_payload(trusted_probe, passed=True)
+    raw_token = "ghp_" + "a" * 24
+    raw_error = f"failure at {dispatch.REPO_ROOT}/runner.py leaked credential {raw_token}"
+    spoofed_backend = {
+        **trusted_backend,
+        "runtime_version": "spoofed-runtime",
+        "image_digest": "sha256:" + "b" * 64,
+    }
+    result = _legacy_result()
+    result.update(
+        {
+            "status": "rejected",
+            "failure_class": "capability_mismatch",
+            "mutated_paths": [],
+            "budget_observations": {
+                "attempts": 1,
+                "retries_consumed": 0,
+                "runner_error": raw_error,
+            },
+            "promotion_ready": False,
+            "execution_backend": spoofed_backend,
+        }
+    )
+
+    sanitized = dispatch._sanitize_result(result, trusted_probe)
+    serialized = json.dumps(sanitized)
+
+    assert sanitized["status"] == "rejected"
+    assert sanitized["failure_class"] == "capability_mismatch"
+    assert sanitized["execution_backend"] == trusted_backend
+    assert sanitized["budget_observations"]["attempts"] == 1
+    assert sanitized["budget_observations"]["retries_consumed"] == 0
+    assert sanitized["promotion_ready"] is False
+    assert str(dispatch.REPO_ROOT) not in serialized
+    assert raw_token not in serialized
+    assert "<redacted>" in sanitized["budget_observations"]["runner_error"]
+
+
+def test_sanitize_result_injects_trusted_backend_before_capability_validation() -> None:
+    trusted_probe = _probe("apple-container", strict=True)
+    result = _legacy_result()
+    result.update(
+        {
+            "status": "rejected",
+            "failure_class": "capability_mismatch",
+            "mutated_paths": [],
+            "budget_observations": {"attempts": 1, "retries_consumed": 0},
+        }
+    )
+
+    sanitized = dispatch._sanitize_result(result, trusted_probe)
+
+    assert "execution_backend" not in result
+    assert sanitized["execution_backend"] == dispatch._execution_backend_payload(
+        trusted_probe, passed=True
+    )
+
+
+def test_sanitize_result_rejects_failed_preflight_shape_under_passed_probe() -> None:
+    result = dispatch._capability_mismatch_result(
+        _packet(network_budget=0),
+        _image(),
+        _probe("apple-container", strict=False),
+    )
+
+    with pytest.raises(dispatch.DispatchError, match="result_validation_failed"):
+        dispatch._sanitize_result(result, _probe("apple-container", strict=True))
+
+
 def test_sanitize_accepted_result_preserves_material_attribution() -> None:
     sanitized = dispatch._sanitize_result(
         _accepted_oracle_result(),
@@ -1431,6 +1868,113 @@ def test_sanitize_accepts_rejected_result_with_canonical_attribution_reset() -> 
     assert sanitized["coauthor_reason"] == ""
 
 
+def _configure_container_runner_exit(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    returncode: int,
+    cleanup_ok: bool = True,
+) -> None:
+    monkeypatch.setattr(dispatch, "_resolve_cli", lambda _name: "/usr/local/bin/container")
+    monkeypatch.setattr(
+        dispatch,
+        "_create_snapshot",
+        lambda _root, destination: destination.mkdir() or "",
+    )
+    monkeypatch.setattr(dispatch, "_create_apple_network", lambda _cli: "run-network")
+    monkeypatch.setattr(dispatch, "_inspect_image", lambda *_args: _DIGEST)
+    monkeypatch.setattr(dispatch, "_create_result_volume", lambda *_args: "result-volume")
+    monkeypatch.setattr(dispatch, "_initialize_result_volume", lambda **_kwargs: True)
+    monkeypatch.setattr(
+        dispatch,
+        "_run",
+        lambda argv, **_kwargs: subprocess.CompletedProcess(
+            argv, returncode, "ignored-stdout", "ignored-stderr"
+        ),
+    )
+    monkeypatch.setattr(dispatch, "_cleanup_container", lambda *_args: cleanup_ok)
+    monkeypatch.setattr(
+        dispatch,
+        "_cleanup_container_resources",
+        lambda **_kwargs: cleanup_ok,
+    )
+
+
+def test_container_runner_converts_only_owned_exit_three_after_cleanup(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    packet_path = tmp_path / "packet.json"
+    packet_path.write_text(json.dumps(_packet()), encoding="utf-8")
+    _configure_container_runner_exit(
+        monkeypatch,
+        returncode=dispatch.RUNNER_CAPABILITY_EXIT_CODE,
+    )
+    monkeypatch.setattr(
+        dispatch,
+        "_collect_result_volume",
+        lambda **_kwargs: pytest.fail("capability signal must not collect a result artifact"),
+    )
+
+    result = dispatch._invoke_container_runner(
+        probe=_probe("apple-container", strict=True),
+        image=_image(),
+        packet_path=packet_path,
+        candidate_patch=None,
+        output_name="result.json",
+    )
+
+    assert result["status"] == "rejected"
+    assert result["failure_class"] == "capability_mismatch"
+    assert result["mutated_paths"] == []
+    assert result["oracle_results"] == []
+    assert result["budget_observations"]["attempts"] == 1
+    assert result["budget_observations"]["retries_consumed"] == 0
+    assert result["budget_observations"]["runner_error"] == dispatch.RUNNER_CAPABILITY_ERROR
+    assert result["execution_backend"]["preflight_status"] == "passed"
+    assert result["execution_backend"]["name"] == "apple-container"
+    assert experiment_contract.validate_experiment_result(result) == result
+
+
+def test_container_runner_rejects_non_owned_nonzero_exit(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    packet_path = tmp_path / "packet.json"
+    packet_path.write_text(json.dumps(_packet()), encoding="utf-8")
+    _configure_container_runner_exit(monkeypatch, returncode=4)
+
+    with pytest.raises(dispatch.DispatchError, match="runner_execution_failed"):
+        dispatch._invoke_container_runner(
+            probe=_probe("apple-container", strict=True),
+            image=_image(),
+            packet_path=packet_path,
+            candidate_patch=None,
+            output_name="result.json",
+        )
+
+
+def test_container_cleanup_failure_overrides_owned_capability_exit(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    packet_path = tmp_path / "packet.json"
+    packet_path.write_text(json.dumps(_packet()), encoding="utf-8")
+    _configure_container_runner_exit(
+        monkeypatch,
+        returncode=dispatch.RUNNER_CAPABILITY_EXIT_CODE,
+        cleanup_ok=False,
+    )
+
+    with pytest.raises(dispatch.DispatchError, match="container_cleanup_failed"):
+        dispatch._invoke_container_runner(
+            probe=_probe("apple-container", strict=True),
+            image=_image(),
+            packet_path=packet_path,
+            candidate_patch=None,
+            output_name="result.json",
+        )
+
+
 def test_collector_is_nofollow_regular_file_and_size_bounded() -> None:
     assert "O_NOFOLLOW" in dispatch._COLLECTOR_CODE
     assert "S_ISREG" in dispatch._COLLECTOR_CODE
@@ -1452,6 +1996,17 @@ def test_post_preflight_failure_is_validated_infra_flake() -> None:
     assert result["contribution_kind"] == "none"
     assert result["coauthor_required"] is False
     assert result["coauthor_reason"] == ""
+
+
+@pytest.mark.parametrize(
+    ("status", "expected"),
+    [
+        ("accepted", dispatch.PUBLIC_STATUS_ACCEPTED),
+        ("rejected", dispatch.PUBLIC_STATUS_REJECTED),
+    ],
+)
+def test_public_result_status_maps_only_canonical_literals(status: str, expected: str) -> None:
+    assert dispatch._public_result_status({"status": status}) == expected
 
 
 def test_pre_run_image_drift_is_non_retryable_capability_mismatch(
@@ -1580,6 +2135,49 @@ def test_main_normalizes_material_attribution_before_strict_dispatch(
     assert invocation["contribution_kind"] == "oracle_review"
     assert invocation["coauthor_required"] is True
     assert invocation["coauthor_reason"] == reason
+
+
+def test_main_rejects_invalid_result_status_without_leaking_or_writing(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    packet_path = tmp_path / "packet.json"
+    packet_path.write_text(json.dumps(_packet()), encoding="utf-8")
+    output_path = tmp_path / "result.json"
+    probe = _probe("apple-container", strict=True)
+    invalid_status = "api_" + "key=private-status-value"
+    result = _accepted_oracle_result()
+    result["status"] = invalid_status
+    writes: list[dict[str, Any]] = []
+
+    monkeypatch.setattr(
+        dispatch,
+        "_parse_args",
+        lambda _argv: SimpleNamespace(
+            command="run",
+            backend="apple-container",
+            packet="packet.json",
+            candidate_patch=None,
+            image=f"pulseplate/experiment-runner:local@{_DIGEST}",
+            output="result.json",
+        ),
+    )
+    monkeypatch.setattr(dispatch, "_require_repo_local_file", lambda *_args, **_kwargs: packet_path)
+    monkeypatch.setattr(dispatch, "_resolve_local_output", lambda *_args, **_kwargs: output_path)
+    monkeypatch.setattr(dispatch, "select_backend", lambda *_args: (probe, [probe]))
+    monkeypatch.setattr(dispatch, "_invoke_container_runner", lambda **_kwargs: result)
+    monkeypatch.setattr(
+        dispatch, "_atomic_write_json", lambda _path, payload: writes.append(payload)
+    )
+
+    assert dispatch.main([]) == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == "experiment_runner_dispatch: result_validation_failed\n"
+    assert invalid_status not in captured.out
+    assert invalid_status not in captured.err
+    assert writes == []
 
 
 @pytest.mark.parametrize("backend", ["apple-container", "docker"])
@@ -1719,7 +2317,7 @@ def test_nonzero_network_budget_fails_before_backend_selection(
         "_parse_args",
         lambda _argv: SimpleNamespace(
             command="run",
-            backend="auto",
+            backend="apple-container",
             packet="packet.json",
             candidate_patch=None,
             image=f"pulseplate/experiment-runner:local@{_DIGEST}",
@@ -1822,6 +2420,171 @@ def test_invalid_or_candidate_attribution_rejects_before_backend_selection(
 
     assert dispatch.main([]) == 2
     assert message in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("backend", ["auto", "docker", "native-linux"])
+def test_macos_oracle_only_requires_explicit_apple_before_probe_or_write(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    backend: str,
+) -> None:
+    packet_path = tmp_path / "packet.json"
+    packet_path.write_text(json.dumps(_packet()), encoding="utf-8")
+    output_path = tmp_path / "result.json"
+
+    def darwin_system() -> str:
+        return "Darwin"
+
+    def parse_args(_argv: list[str] | None) -> SimpleNamespace:
+        return SimpleNamespace(
+            command="run",
+            backend=backend,
+            packet="packet.json",
+            candidate_patch=None,
+            image=f"pulseplate/experiment-runner:local@{_DIGEST}",
+            output="result.json",
+            contribution_kind="none",
+            coauthor_required=False,
+            coauthor_reason="",
+        )
+
+    def require_packet(*_args: object, **_kwargs: object) -> Path:
+        return packet_path
+
+    def resolve_output(*_args: object, **_kwargs: object) -> Path:
+        return output_path
+
+    def reject_backend_probe(*_args: object, **_kwargs: object) -> NoReturn:
+        raise AssertionError("backend probe must not run")
+
+    def reject_result_write(*_args: object, **_kwargs: object) -> NoReturn:
+        raise AssertionError("result artifact must not be written")
+
+    monkeypatch.setattr(dispatch.platform, "system", darwin_system)
+    monkeypatch.setattr(dispatch, "_parse_args", parse_args)
+    monkeypatch.setattr(dispatch, "_require_repo_local_file", require_packet)
+    monkeypatch.setattr(dispatch, "_resolve_local_output", resolve_output)
+    monkeypatch.setattr(dispatch, "select_backend", reject_backend_probe)
+    monkeypatch.setattr(dispatch, "_atomic_write_json", reject_result_write)
+
+    assert dispatch.main([]) == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "requires explicit --backend apple-container" in captured.err
+    assert not output_path.exists()
+
+
+def test_macos_oracle_explicit_apple_failure_has_no_docker_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    packet_path = tmp_path / "packet.json"
+    packet_path.write_text(json.dumps(_packet()), encoding="utf-8")
+    output_path = tmp_path / "result.json"
+    probes: list[str] = []
+    written: dict[str, Any] = {}
+
+    def darwin_system() -> str:
+        return "Darwin"
+
+    def parse_args(_argv: list[str] | None) -> SimpleNamespace:
+        return SimpleNamespace(
+            command="run",
+            backend="apple-container",
+            packet="packet.json",
+            candidate_patch=None,
+            image=f"pulseplate/experiment-runner:local@{_DIGEST}",
+            output="result.json",
+            contribution_kind="none",
+            coauthor_required=False,
+            coauthor_reason="",
+        )
+
+    def require_packet(*_args: object, **_kwargs: object) -> Path:
+        return packet_path
+
+    def resolve_output(*_args: object, **_kwargs: object) -> Path:
+        return output_path
+
+    def capture_result(_path: Path, payload: dict[str, Any]) -> None:
+        written.update(payload)
+
+    monkeypatch.setattr(dispatch.platform, "system", darwin_system)
+    monkeypatch.setattr(dispatch, "_parse_args", parse_args)
+    monkeypatch.setattr(dispatch, "_require_repo_local_file", require_packet)
+    monkeypatch.setattr(dispatch, "_resolve_local_output", resolve_output)
+
+    def failed_probe(backend: str, _image: dispatch.ImageReference) -> dispatch.BackendProbe:
+        probes.append(backend)
+        return dispatch._failed_probe(backend, "runtime_not_ready", image_digest=_DIGEST)
+
+    monkeypatch.setattr(dispatch, "probe_backend", failed_probe)
+    monkeypatch.setattr(dispatch, "_atomic_write_json", capture_result)
+
+    assert dispatch.main([]) == 1
+    assert probes == ["apple-container"]
+    assert written["failure_class"] == "capability_mismatch"
+    assert written["budget_observations"]["runner_error"] == "runtime_not_ready"
+
+
+def test_macos_candidate_mode_preserves_auto_backend_selection(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    packet = _packet()
+    packet["runner_mode"] = "candidate_patch"
+    packet["mutable_candidate_surface"] = ["core/rag/orchestration.py"]
+    packet_path = tmp_path / "packet.json"
+    packet_path.write_text(json.dumps(packet), encoding="utf-8")
+    candidate_patch = tmp_path / "candidate.patch"
+    candidate_patch.write_text("", encoding="utf-8")
+    requested: list[str] = []
+
+    def darwin_system() -> str:
+        return "Darwin"
+
+    def parse_args(_argv: list[str] | None) -> SimpleNamespace:
+        return SimpleNamespace(
+            command="run",
+            backend="auto",
+            packet="packet.json",
+            candidate_patch="candidate.patch",
+            image=f"pulseplate/experiment-runner:local@{_DIGEST}",
+            output="result.json",
+            contribution_kind="none",
+            coauthor_required=False,
+            coauthor_reason="",
+        )
+
+    def resolve_output(*_args: object, **_kwargs: object) -> Path:
+        return tmp_path / "result.json"
+
+    def ignore_result_write(*_args: object, **_kwargs: object) -> None:
+        return None
+
+    monkeypatch.setattr(dispatch.platform, "system", darwin_system)
+    monkeypatch.setattr(dispatch, "_parse_args", parse_args)
+
+    def resolve_input(raw: str, **_kwargs: object) -> Path:
+        return candidate_patch if raw == "candidate.patch" else packet_path
+
+    monkeypatch.setattr(dispatch, "_require_repo_local_file", resolve_input)
+    monkeypatch.setattr(dispatch, "_resolve_local_output", resolve_output)
+
+    def select(
+        requested_backend: str, _image: dispatch.ImageReference
+    ) -> tuple[None, list[dispatch.BackendProbe]]:
+        requested.append(requested_backend)
+        return None, [
+            dispatch._failed_probe("apple-container", "runtime_not_ready", image_digest=_DIGEST)
+        ]
+
+    monkeypatch.setattr(dispatch, "select_backend", select)
+    monkeypatch.setattr(dispatch, "_atomic_write_json", ignore_result_write)
+
+    assert dispatch.main([]) == 1
+    assert requested == ["auto"]
 
 
 def test_probe_cleanup_failure_overrides_original_exception(

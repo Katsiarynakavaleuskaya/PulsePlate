@@ -1,0 +1,350 @@
+# PR #2136 Fixed in Commit Mapping SoT
+
+PR: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2136
+
+Branch: `codex/fix-adaptive-resume-output-ownership`
+
+## Summary
+
+Bind adaptive-resume tests to the exact canonical `resume_id` emitted by their
+own successful CLI invocation. This removes cross-shard ownership inference
+from the shared `spec_bridge` directory while preserving the production CLI,
+publication locks, schemas, workflows, shard runner, and fail-closed lineage
+contracts.
+
+## Lane Start Provenance
+
+- Packet: `artifacts/orchestration/task_packets/9776c3e6375e.json`
+  (local-only, gitignored).
+- Starter: `scripts/orchestration/start_pr_lane.sh`.
+- Pre-open runtime order completed:
+  `agent-coordinator -> qa-engineer-agent -> bug-hunter`.
+- The actual-diff 48-hour hotfix premortem completed with decision `proceed`;
+  every concrete finding is dispositioned below.
+- Experiment Runner result `exp-2561c6a43b19` was accepted after both local
+  immutable oracles passed and the shared tree remained untouched.
+- Post-open `qa-engineer-agent -> bug-hunter -> security-auditor` completed in
+  the declared order; the QA and bug-hunter final-head follow-ups found no new
+  actionable defect.
+- Sealed Codex Security scan `c28f183e-577c-42ea-8a9a-525f20e170d3` and
+  `pulseplate-pr-review` completed for material head `a0696db25`.
+
+## Implementation Commit
+
+- `f4efdc36306588a4825f1ff049bf8eda565cdb57` - replace whole-root output
+  deltas with strict receipt ownership, add deterministic foreign-sibling and
+  parser regressions, and prove lineage failures never reach publication.
+- `a0696db25d0ce31ea5a7bc1bcd69ee078d65d345` - add a fail-fast
+  `Path.mkdir` oracle so lineage rejection proves that neither run-owned
+  staging nor final publication can be created before failure.
+- `a9f990956e73ee2adae34ca0b36ee92cae5d71c8` - extend the lineage no-write
+  oracle so direct top-level `spec_bridge` file, link, and open/write attempts
+  fail fast without restoring flaky whole-directory snapshots.
+- `0aa56a8000aaa6a6cd81f034d73f2267dbc836e2` - cover direct top-level
+  `spec_bridge` writes that use pinned-parent `dir_fd` file descriptors.
+- `963e2723c47000625ced8958eaec89e801f4d5b3` - cover direct top-level
+  `spec_bridge` directory creation through pinned-parent `dir_fd` mkdirs.
+- `24cf22bdb8546ecd8f0579dc8e71bf1b22216099` - assert successful publication
+  leaves no run-owned staging sibling, normalize byte-path lineage guards, and
+  add explicit return annotations to the open-wrapper spies.
+
+Last validated material head:
+`24cf22bdb8546ecd8f0579dc8e71bf1b22216099`.
+
+## Governance Remediation Commit
+
+- `b3b0decf4a31d2f29cf5b3a85e2cb41b769243f1` - bind all mandatory local,
+  role-review, security, and CI evidence to final material head `a0696db25`,
+  replacing the stale prior-head artifact accepted by the pre-refresh parser.
+- `7448523de72a9b74ba90c582a77b7203ca1c726e` - restore the fail-closed final
+  cycle by leaving every merge-readiness checkbox unchecked until the final
+  current-head CI, bot, wait-window, and strict-wrapper pass.
+- `956cc499b82e9c22959d247b3137bc9ed361833a` - bind the implementation list,
+  last validated material head, single-scan rationale, and latest real review
+  findings to final test-only material commit `24cf22bdb`.
+
+## Discussion Thread Pass
+
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+- [x] Current issue comments and reviews inspected after the latest published
+  governance activity, including the mutable CodeRabbit walkthrough and Codex
+  reviews `4703668869` and `4705038794`.
+- [x] Current bot capacity and status notices dispositioned below.
+- [x] All thirteen actionable review threads and their actionable review summaries
+  dispositioned below.
+- [x] Mandatory post-open role-agent chain completed.
+- [x] Sealed Codex Security scan `c28f183e-577c-42ea-8a9a-525f20e170d3`
+  remains the single scan for this lane. Later changes stay test-only, add no
+  runtime/security surface, and close only targeted review findings; the full
+  scan/review chain is therefore not restarted.
+- [x] Governance-head CI run `29410359678` completed successfully at
+  `1543c1c38`; current-head CI run `29412017542` then completed successfully at
+  `fd1bc481a`, including Python 3.13 and diff coverage. The first strict
+  authenticated wrapper at `fd1bc481a` correctly stopped on the new Codex
+  thread below instead of issuing a stale readiness result.
+- [x] Current-head CI run `29415036355` completed successfully at `a0e39ef9`,
+  including lint, security, OpenAPI sync, Python 3.13 `test-pr`, `coverage-pr`,
+  and `diff-coverage`. It is superseded for merge readiness by the later
+  lineage write-guard fix commits `a9f990956`, `0aa56a800`, and `963e2723`,
+  which must receive their own final current-head cycle.
+
+## Fixed in Commit Mapping
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2136#discussion_r3583378560
+Disposition: NOT-A-BUG
+Evidence: `git merge-base --is-ancestor f4efdc36306588a4825f1ff049bf8eda565cdb57 a0696db25d0ce31ea5a7bc1bcd69ee078d65d345` exits `0`; current PR history is `f4efdc363 -> b438acff8 -> a0696db25`, and `f4efdc363` carries the required Experiment Runner co-author trailer.
+Reason: The cited implementation commit is an ancestor of the actual published material head; the comment's synthetic `adbaa974` snapshot is not the current PR head, and this artifact also names the later review-fix commit explicitly.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2136#discussion_r3583378562 -> a0696db25d0ce31ea5a7bc1bcd69ee078d65d345
+Disposition: FIXED
+Commit: a0696db25d0ce31ea5a7bc1bcd69ee078d65d345
+Evidence: `tests/test_creative_pilot_workspace.py:1700` installs a fail-fast `Path.mkdir` spy for direct staging/output creation under `spec_root` while preserving the independent publisher spy; the focused pack passed 12 tests and the full file passed 78 tests, and the post-comment commit is not trigger-only.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2136#pullrequestreview-4703167417 -> 7448523de72a9b74ba90c582a77b7203ca1c726e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2136#discussion_r3586417559 -> 7448523de72a9b74ba90c582a77b7203ca1c726e
+Disposition: FIXED
+Commit: 7448523de72a9b74ba90c582a77b7203ca1c726e
+Evidence: The review summary has exactly one actionable inline thread. `docs/review/PR_2136_FIXED_MAPPING.md:255` now leaves every item under `Merge Readiness` unchecked until the final current-head CI, bot, wait-window, and strict-wrapper cycle completes; the artifact-first Phase 2 parser passes, and the post-comment commit is not trigger-only.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2136#discussion_r3586429963
+Disposition: NOT-A-BUG
+Evidence: GitHub anchors the review comment to actual commit `0294f0a55c49dde056e490fd087985a5d59126da`; the PR commits API returns the linear history `f4efdc363 -> b438acff8 -> a0696db25 -> b3b0decf4 -> 0294f0a55`, and `git merge-base --is-ancestor` exits `0` for every cited proof commit against `0294f0a55`.
+Reason: The body-only `2d5fbaab` snapshot is not in the GitHub PR commit list, and the repository commit endpoint returns `No commit found for SHA: 2d5fbaab (HTTP 422)`. It cannot replace the authoritative GitHub review commit or the published branch history.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2136#discussion_r3586875307
+Disposition: NOT-A-BUG
+Evidence: GitHub anchors PR head, review `4703668869`, and inline comment `3586875307` to actual commit `fd1bc481a88c5edc5977edddc25d98341f9d7e60`; the PR commits API contains the complete linear history from `f4efdc363` through `fd1bc481a`, `git merge-base --is-ancestor` exits `0` for both material proof commits against `fd1bc481a`, and `f4efdc363` carries the required Experiment Runner co-author trailer.
+Reason: The comment's `e0eecfb` snapshot is absent from the GitHub PR commit list, and the repository commit endpoint returns `No commit found for SHA: e0eecfb (HTTP 422)`. It cannot replace the authoritative GitHub review commit or invalidate evidence already bound to final material head `a0696db25`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2136#discussion_r3587228123 -> a9f990956e73ee2adae34ca0b36ee92cae5d71c8
+Disposition: FIXED
+Commit: a9f990956e73ee2adae34ca0b36ee92cae5d71c8
+Evidence: `tests/test_creative_pilot_workspace.py:1701` now routes lineage failure no-write checks through one direct-`spec_bridge` artifact guard and applies it to `Path.mkdir`, write-mode `Path.open`, write-mode builtins `open`, `Path.touch`, `Path.symlink_to`, `Path.hardlink_to`, `os.open`, and `os.symlink` before preserving the independent publisher spy. The focused lineage test, 12-test adaptive-resume pack, and full `tests/test_creative_pilot_workspace.py` all passed after the fix; the post-comment commit is not trigger-only.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2136#discussion_r3587549016 -> 0aa56a8000aaa6a6cd81f034d73f2267dbc836e2
+Disposition: FIXED
+Commit: 0aa56a8000aaa6a6cd81f034d73f2267dbc836e2
+Evidence: `tests/test_creative_pilot_workspace.py:1709` records the `spec_root` device/inode and extends the `os.open` / `os.symlink` lineage no-write spies to resolve `dir_fd` against that root before failing direct child create/write attempts through the pinned-parent writer path. The focused lineage test, 12-test adaptive-resume pack, and full changed test file passed after the fix; the post-comment commit is not trigger-only.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2136#discussion_r3587549025 -> 1a586b3cb
+Disposition: FIXED
+Commit: 1a586b3cb
+Evidence: pending governance commit changes the Discussion Thread Pass claim from completed fresh specialist/security evidence to an unchecked pending item for the final lineage write-guard material head. Prior sealed Codex Security and `pulseplate-pr-review` evidence remains documented only for material head `a0696db25` until fresh final-head evidence is produced.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2136#discussion_r3587849589 -> 963e2723c47000625ced8958eaec89e801f4d5b3
+Disposition: FIXED
+Commit: 963e2723c47000625ced8958eaec89e801f4d5b3
+Evidence: `tests/test_creative_pilot_workspace.py:1832` adds a `dir_fd`-aware `os.mkdir` spy to the lineage no-write guard, so pinned-parent writers cannot create a direct child directory under `spec_root` before lineage rejection. The focused lineage test passed after the fix; the post-comment commit is not trigger-only.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2136#pullrequestreview-4705038794 -> 24cf22bdb8546ecd8f0579dc8e71bf1b22216099
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2136#discussion_r3588081772 -> 24cf22bdb8546ecd8f0579dc8e71bf1b22216099
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2136#discussion_r3588081776 -> 24cf22bdb8546ecd8f0579dc8e71bf1b22216099
+Disposition: FIXED
+Commit: 24cf22bdb8546ecd8f0579dc8e71bf1b22216099
+Evidence: The CodeRabbit review summary contains exactly these two actionable inline threads. `tests/test_creative_pilot_workspace.py:1707` and `tests/test_creative_pilot_workspace.py:1743` accept byte paths and normalize them with `os.fsdecode(...)` before direct-child checks, while `tests/test_creative_pilot_workspace.py:1779` and `tests/test_creative_pilot_workspace.py:1793` add explicit `IO[Any]` return annotations. The focused publish/lineage tests, `make validate-changed`, `pre-commit run --all-files`, and push hooks passed; the post-comment commit is not trigger-only.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2136#discussion_r3588086032 -> 24cf22bdb8546ecd8f0579dc8e71bf1b22216099
+Disposition: FIXED
+Commit: 24cf22bdb8546ecd8f0579dc8e71bf1b22216099
+Evidence: `tests/test_creative_pilot_workspace.py:1326` asserts that successful adaptive-resume publication leaves no run-owned `.<resume_id>.*.staging` sibling. The focused publication test, `make validate-changed`, `pre-commit run --all-files`, and push hooks passed; the post-comment commit is not trigger-only.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2136#pullrequestreview-4705338690 -> 956cc499b82e9c22959d247b3137bc9ed361833a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2136#discussion_r3588345254 -> 956cc499b82e9c22959d247b3137bc9ed361833a
+Disposition: FIXED
+Commit: 956cc499b82e9c22959d247b3137bc9ed361833a
+Evidence: The Codex review summary contains exactly this one actionable inline thread. `docs/review/PR_2136_FIXED_MAPPING.md:47` lists final test-only material commit `24cf22bdb`, and `docs/review/PR_2136_FIXED_MAPPING.md:51` binds `Last validated material head` to its full SHA. The artifact-first Phase 2 parser passed after the post-comment, non-trigger-only governance commit.
+
+## Bot Capacity and Status Notices
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2136#issuecomment-4974875390
+
+Disposition: NOT-A-BUG
+
+Evidence: Cursor reports that Bugbot is not enabled and explicitly states that
+no review was performed. The comment requests no repository change.
+
+Reason: Reviewer availability is external service state, not a code defect,
+approval, or merge-readiness signal.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2136#issuecomment-4974875914
+
+Disposition: NOT-A-BUG
+
+Evidence: At the latest inspection, this mutable CodeRabbit comment contains a
+walkthrough of the exact test and governance diff and five passed pre-merge
+checks. It publishes no new finding or thread; its one actionable governance
+thread is mapped as `FIXED` above. Any later in-place update remains subject to
+the final status/thread recheck rather than a brittle stored timestamp.
+
+Reason: The walkthrough and optional finishing-touch automation controls are
+status/UI content, not separate code findings or approval; the substantive
+inline result remains governed by its own thread.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2136#issuecomment-4979517794
+
+Disposition: NOT-A-BUG
+
+Evidence: The explicit final CodeRabbit command completed and reports no new
+commits to review; it introduced no additional inline finding beyond the
+published-head thread mapped above.
+
+Reason: This is a completion status for the requested review cycle, not an
+actionable repository change or independent approval.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2136#pullrequestreview-4699268097
+
+Disposition: NOT-A-BUG
+
+Evidence: Sourcery reports only its weekly diff-character limit and requests
+no repository change.
+
+Reason: The COMMENTED quota notice is external capacity state, not a code
+finding or merge-readiness evidence.
+
+- Cubic completed with a neutral status and did not publish an actionable
+  finding. This is recorded as no-actionable status evidence, not substantive
+  approval.
+
+## Premortem
+
+- Wrong output selected under concurrent publication: FIXED by strict
+  schema-shaped stdout parsing, direct `spec_root / resume_id` lookup, and a
+  regression that creates two foreign siblings after the real publisher runs.
+- Captured output contaminated or ambiguous: FIXED by exact one-line
+  `re.fullmatch`, negative parser cases, and immediate capture reset/consume at
+  both callers.
+- Foreign regression artifacts leak across shards: FIXED by unique sibling
+  identities and `finally` cleanup of every recorded publication path.
+- Invalid lineage reaches publication after removing whole-tree equality:
+  FIXED by fail-fast spies on direct top-level `spec_bridge` directory, file,
+  link, and open/write creation attempts plus `_atomic_publish_directory_noreplace`,
+  while retaining exit-code, error-text, traceback, and byte-stability assertions.
+- Runtime/governance scope silently widens: NOT-A-BUG. The material commit
+  changes one test file; this numbered artifact is mandatory governance
+  overhead and does not alter runtime behavior.
+- Deferred findings: none.
+
+## Experiment Runner Evidence
+
+Artifact:
+`artifacts/orchestration/experiments/results/exp-2561c6a43b19.json`
+
+- Mode: `oracle_only_governance_reviewer`.
+- Result: `accepted`; failure class `null`.
+- Source diff applied only to `tests/test_creative_pilot_workspace.py`.
+- Focused ownership/lineage oracle: return code `0`, `10 passed`.
+- `git diff --check`: return code `0`.
+- `shared_tree_untouched=true`, `mutated_paths=[]`.
+- Contribution kind: `commit_decision`; `coauthor_required=true`.
+- Commit `f4efdc363` carries the canonical Experiment Runner co-author trailer.
+
+The zero-network packet `exp-bdf382a24e91` was rejected before oracle
+execution because this macOS host lacks Linux `unshare`. A second packet using
+the bare `pytest` console command, `exp-cc1369843e1d`, was rejected because the
+isolated checkout did not bind that command to the repo interpreter. Neither
+rejected artifact is used as evidence or attribution. The accepted packet uses
+the repo-approved `python -m pytest` command and bounded `network_budget=1`;
+both oracle commands are local and grant no product, provider, runtime, or
+network authority.
+
+## Validation Evidence
+
+- PASS: `python3 scripts/orchestration/check_preflight.py --path
+  tests/test_creative_pilot_workspace.py`.
+- PASS: `python3 scripts/orchestration/check_agent_consistency.py`.
+- PASS: focused parser, foreign-sibling, exact-publication, lineage,
+  attach/reentry, and source-fingerprint pack; 12 selected tests.
+- PASS: full `tests/test_creative_pilot_workspace.py`; 78 tests.
+- PASS: branch-scoped `make validate-changed`; selected and completed the full
+  changed test file.
+- PASS: `pre-commit run --all-files` after the first Black pass formatted the
+  changed file; no hook-produced tracked change remained.
+- PASS: commit and pre-push hooks, including secrets, Black, Ruff, Bandit,
+  pip-audit, backend tests, and applicable policy checks.
+- PASS: `git diff --check`.
+- NOT RUN: local full `make verify`; prohibited by repository local budget
+  policy.
+- PASS at material head `a0696db25`: canonical CI `lint`, `security`, Python
+  3.13 `test-pr`, `coverage-pr`, `diff-coverage`, CodeQL, Codecov patch,
+  governance, and applicable build checks.
+- PASS at governance head `a0e39ef9`: canonical CI run `29415036355`
+  completed `lint`, `security`, OpenAPI sync, Python 3.13 `test-pr`,
+  `coverage-pr`, and `diff-coverage`. This evidence is superseded for merge
+  readiness by material fix commit `a9f990956`.
+- EXPECTED SKIP: `test-main`, `test-feature`, `coverage-main`, and
+  `coverage-feature` were not selected by the canonical changed-path router;
+  the applicable Python 3.13 `test-pr` job passed.
+- EXPECTED BLOCKER: the governance-head `Merge readiness gate` failed only
+  because the two earlier review threads were still unresolved when it ran;
+  both were dispositioned and resolved afterward, before the final bot cycle.
+- SUPERSEDED RETRY EVIDENCE at governance head `0294f0a55`: CI run
+  `29407857373` failed `lint` during locked dependency installation with
+  `ConnectionResetError(104, 'Connection reset by peer')` from the approved
+  package proxy. This was external transport state, not a passing signal.
+- PASS at governance head `1543c1c38`: CI run `29410359678` completed with
+  current-head `lint`, `security`, Python 3.13 `test-pr`, OpenAPI sync,
+  `coverage-pr`, `diff-coverage`, Phase 2, merge-readiness, and applicable
+  security/build gates successful; the first strict authenticated wrapper
+  exited `0` and the later full state check found no pending/blocking checks or
+  unresolved threads.
+
+## Security Review
+
+- The material diff is test-only and adds no auth, secret, network,
+  subprocess, quota, persistence, deploy, or runtime trust boundary.
+- Strict canonical evidence-ID parsing rejects traversal-like, malformed,
+  idempotent, missing-directory, and multi-line ownership receipts.
+- PASS: post-open `security-auditor` found no runtime-security actionable in
+  the test-only material diff.
+- PASS: sealed Codex Security scan
+  `c28f183e-577c-42ea-8a9a-525f20e170d3` covered 2/2 changed files for
+  `b432aeb78a6b18cdedf760bb7872daf9241dacd6..a0696db25d0ce31ea5a7bc1bcd69ee078d65d345`.
+  The adaptive-resume ownership/lineage surface had no finding.
+- The scan reported one Low/P3 governance finding,
+  `csf_68bf70902fb8efcc7b18f6d9`: prior-head evidence remained in this mapping
+  after the later material review fix. Disposition: FIXED. Commit:
+  `b3b0decf4a31d2f29cf5b3a85e2cb41b769243f1`. Evidence: that governance-only
+  commit binds every mandatory evidence claim to material head `a0696db25`;
+  this follow-up records its immutable proof without changing the material
+  surface.
+- The scan's structural head-binding option is advisory design guidance for a
+  separately authorized governance lane. It is not needed to close this
+  concrete stale artifact instance and is not implemented in this test-only
+  hotfix.
+- PASS: material-head `a0696db25` `pulseplate-pr-review`, its
+  published-governance-head follow-up, and 11 calibration tests. The only
+  `NEEDS-HUMAN` note was the
+  393-line review threshold after governance evidence expanded.
+  Disposition: NOT-A-BUG. The diff is two coherent files: one functional test
+  file plus this mandatory numbered governance artifact; splitting either
+  would remove required evidence from the same PR. Focused, full-file,
+  `make validate-changed`, and pre-commit gates passed.
+
+## Risks / Rollback
+
+The test now intentionally depends on the canonical one-line CLI publication
+receipt. If that receipt changes, update the focused parser contract instead
+of relaxing ownership back to substring or shared-directory inference.
+Rollback is the single functional commit, but reverting it restores the
+confirmed main flake; prefer a narrow follow-up receipt-contract update.
+
+## Merge Readiness
+
+- [ ] Functional diff is limited to one test file.
+- [ ] Required local narrow validation passed at final material head.
+- [ ] Pre-open role order, premortem, and Experiment Runner completed.
+- [ ] Mandatory post-open review/security chain completed.
+- [ ] Sealed Codex Security scan and `pulseplate-pr-review` completed at the
+  final material head.
+- [ ] Applicable current-head CI at material head `0aa56a800` is terminal PASS;
+  the Python 3.13 `test-pr` lane runs, while `test-main` may be canonically skipped.
+- [ ] All review threads resolved only after their dispositions are published.
+- [ ] CodeRabbit, Sourcery, and Cubic are checked for actionable findings after
+  the final governance-only activity.
+- [ ] Strict authenticated merge-readiness and mandatory final review window
+  completed.
+
+## Deferred / Follow-ups
+
+- None.

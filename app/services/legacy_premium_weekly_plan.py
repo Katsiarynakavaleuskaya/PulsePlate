@@ -3,10 +3,24 @@
 from __future__ import annotations
 
 import math
-import sys
-from typing import Any, Callable, Dict, Optional, cast
+from typing import TYPE_CHECKING, Any, Dict, Protocol
 
 from app.schemas.legacy_premium_weekly_plan import WeeklyMenuResponse
+
+if TYPE_CHECKING:
+    from core.menu_engine import FoodItem, Recipe, WeekMenu
+    from core.targets import UserProfile
+
+
+class WeeklyMenuBuilder(Protocol):
+    """Exact callable contract for the canonical weekly-menu builder."""
+
+    def __call__(
+        self,
+        profile: UserProfile,
+        food_db: dict[str, FoodItem] | None = None,
+        recipe_db: dict[str, Recipe] | None = None,
+    ) -> WeekMenu: ...
 
 
 def _coerce_weekly_menu_float(value: Any, default: float = 0.0) -> float:
@@ -109,61 +123,23 @@ def build_legacy_weekly_menu_response(menu_payload: Dict[str, Any]) -> WeeklyMen
     )
 
 
-def _get_app_package_module() -> Optional[Any]:
-    """Return the loaded `app` package module if present."""
+def _load_weekly_menu_builder() -> WeeklyMenuBuilder:
+    """Load the repo-owned weekly-menu builder without caching import state."""
 
-    return sys.modules.get("app")
+    from core.menu_engine import make_weekly_menu
+
+    builder: WeeklyMenuBuilder = make_weekly_menu
+    if not callable(builder):
+        raise TypeError("core.menu_engine.make_weekly_menu must be callable")
+    return builder
 
 
-def _get_legacy_app_module() -> Optional[Any]:
-    """Return the loaded `legacy_app` module if present without importing it."""
-
-    return sys.modules.get("legacy_app")
-
-
-def _resolve_package_weekly_menu_export(package_module: Any) -> Optional[Callable[..., Any]]:
-    """Resolve lazy `app.make_weekly_menu` export without surfacing ImportError."""
+def get_weekly_menu_builder() -> WeeklyMenuBuilder | None:
+    """Return the canonical builder or ``None`` only when its module is absent."""
 
     try:
-        package_builder = getattr(package_module, "make_weekly_menu", None)
-    except ImportError:
+        return _load_weekly_menu_builder()
+    except ModuleNotFoundError as exc:
+        if exc.name not in {"core", "core.menu_engine"}:
+            raise
         return None
-
-    return cast(Callable[..., Any], package_builder) if callable(package_builder) else None
-
-
-def resolve_legacy_weekly_menu_builder(
-    *,
-    get_app_package_module: Optional[Callable[[], Optional[Any]]] = None,
-    get_legacy_app_module: Optional[Callable[[], Optional[Any]]] = None,
-    resolve_package_weekly_menu_export: Optional[
-        Callable[[Any], Optional[Callable[..., Any]]]
-    ] = None,
-) -> Optional[Callable[..., Any]]:
-    """Resolve the canonical weekly-menu builder for the legacy premium alias."""
-
-    get_app_package_module = get_app_package_module or _get_app_package_module
-    get_legacy_app_module = get_legacy_app_module or _get_legacy_app_module
-    resolve_package_weekly_menu_export = (
-        resolve_package_weekly_menu_export or _resolve_package_weekly_menu_export
-    )
-
-    def _callable_or_none(value: Any) -> Optional[Callable[..., Any]]:
-        return cast(Callable[..., Any], value) if callable(value) else None
-
-    package_module = get_app_package_module()
-    package_namespace = getattr(package_module, "__dict__", {}) if package_module else {}
-
-    if "make_weekly_menu" in package_namespace:
-        return _callable_or_none(package_namespace.get("make_weekly_menu"))
-
-    legacy_module = get_legacy_app_module()
-    legacy_namespace = getattr(legacy_module, "__dict__", {}) if legacy_module else {}
-    resolved_legacy_builder = _callable_or_none(legacy_namespace.get("make_weekly_menu"))
-    if resolved_legacy_builder is not None:
-        return resolved_legacy_builder
-
-    if package_module is None:
-        return None
-
-    return resolve_package_weekly_menu_export(package_module)

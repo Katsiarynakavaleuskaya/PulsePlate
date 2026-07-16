@@ -4,7 +4,15 @@ from __future__ import annotations
 
 import os
 import re
+from dataclasses import dataclass
 from pathlib import Path
+
+from scripts.orchestration.pr_review_evidence import (
+    UNAVAILABLE_REVIEW_REF_CAUSE,
+    ReviewEvidenceError,
+    parse_embedded_review_seal,
+    unavailable_review_ref_fingerprint,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 REVIEW_DIR = REPO_ROOT / "docs" / "review"
@@ -32,12 +40,37 @@ MAPPING_LINE_RE = re.compile(r"^\s*-\s+(https://github\.com/\S+)\s+->\s+([0-9a-f
 THREAD_LINE_RE = re.compile(r"^\s*-\s+(https://github\.com/\S+)\s*$")
 NO_ACTIONABLE_LINE = "- No actionable review comments"
 # Disposition/proof lines allowed in section (disposition guard format)
-DETAIL_PREFIXES = ("Disposition:", "Commit:", "Evidence:", "Backlog:", "Reason:")
+DETAIL_PREFIXES = (
+    "Disposition:",
+    "Commit:",
+    "Evidence:",
+    "Backlog:",
+    "Reason:",
+    "Fingerprint:",
+    "Cause:",
+    "Material-Digest:",
+    "Verified-Fix:",
+)
 VALID_DISPOSITIONS = frozenset({"FIXED", "NOT-A-BUG", "DEFERRED"})
 COMMIT_SHA_RE = re.compile(r"^[0-9a-f]{7,40}$")
+FULL_COMMIT_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
+REVIEW_SEAL_VERSION_RE = re.compile(r"(?m)^Review-Seal-Version:\s*(\S+)\s*$")
 
 
-def _validate_fixed_mapping_block(lines: list[str]) -> list[str]:
+@dataclass(frozen=True)
+class CanonicalFingerprintRecord:
+    """Canonical mapping evidence reusable by one resolved duplicate thread."""
+
+    fingerprint: str
+    cause: str
+    material_digest: str
+    verified_fix: str
+    urls: tuple[str, ...]
+
+
+def _validate_fixed_mapping_block(
+    lines: list[str], *, require_full_shas: bool = False
+) -> list[str]:
     """Validate one disposition/proof block inside Fixed in Commit Mapping."""
 
     errors: list[str] = []
@@ -45,6 +78,7 @@ def _validate_fixed_mapping_block(lines: list[str]) -> list[str]:
     has_sha_mapping = False
     has_url_only_mapping = False
     proof_prefixes: set[str] = set()
+    detail_values: dict[str, list[str]] = {}
     commit_values: list[str] = []
     mapped_shas: list[str] = []
 
@@ -68,6 +102,7 @@ def _validate_fixed_mapping_block(lines: list[str]) -> list[str]:
                 errors.append(f"{matched_detail} proof value must not be empty.")
                 continue
             proof_prefixes.add(matched_detail)
+            detail_values.setdefault(matched_detail, []).append(proof_value)
             if matched_detail == "Commit:":
                 commit_values.append(proof_value)
             continue
@@ -128,6 +163,14 @@ def _validate_fixed_mapping_block(lines: list[str]) -> list[str]:
                 "Disposition FIXED Commit proof must be a commit SHA or "
                 "'see mapping entries below'."
             )
+        if require_full_shas:
+            abbreviated = [
+                sha
+                for sha in [*mapped_shas, *commit_values]
+                if COMMIT_SHA_RE.fullmatch(sha) and not FULL_COMMIT_SHA_RE.fullmatch(sha)
+            ]
+            if abbreviated:
+                errors.append("Review-Seal-Version v1 requires full 40-character FIXED SHAs.")
         commit_shas = {value for value in commit_values if COMMIT_SHA_RE.fullmatch(value)}
         mapped_sha_values = set(mapped_shas)
         if commit_shas and mapped_sha_values - commit_shas:
@@ -147,6 +190,34 @@ def _validate_fixed_mapping_block(lines: list[str]) -> list[str]:
             errors.append("Disposition DEFERRED must use URL-only review-thread lines.")
         if "Backlog:" not in proof_prefixes:
             errors.append("Disposition DEFERRED requires a 'Backlog:' proof line.")
+
+    fingerprint_fields = {
+        "Fingerprint:",
+        "Cause:",
+        "Material-Digest:",
+        "Verified-Fix:",
+    }
+    present_fingerprint_fields = fingerprint_fields & proof_prefixes
+    if present_fingerprint_fields:
+        if disposition != "NOT-A-BUG" or present_fingerprint_fields != fingerprint_fields:
+            errors.append(
+                "Fingerprint evidence is allowed only as one complete NOT-A-BUG v1 record."
+            )
+        elif any(len(detail_values.get(field, [])) != 1 for field in fingerprint_fields):
+            errors.append("Fingerprint evidence fields must each appear exactly once.")
+        else:
+            fingerprint = detail_values["Fingerprint:"][0]
+            cause = detail_values["Cause:"][0]
+            material_digest = detail_values["Material-Digest:"][0]
+            verified_fix = detail_values["Verified-Fix:"][0]
+            if cause != UNAVAILABLE_REVIEW_REF_CAUSE:
+                errors.append("Unsupported review fingerprint cause.")
+            if not re.fullmatch(r"sha256:[0-9a-f]{64}", fingerprint):
+                errors.append("Fingerprint must use sha256:<64 lowercase hex>.")
+            if not re.fullmatch(r"sha256:[0-9a-f]{64}", material_digest):
+                errors.append("Material-Digest must use sha256:<64 lowercase hex>.")
+            if not FULL_COMMIT_SHA_RE.fullmatch(verified_fix):
+                errors.append("Verified-Fix must use a full 40-character SHA.")
     return errors
 
 
@@ -337,7 +408,7 @@ def validate_discussion_thread_pass_section(section: str) -> list[str]:
     return errors
 
 
-def validate_fixed_mapping_section(section: str) -> list[str]:
+def validate_fixed_mapping_section(section: str, *, require_full_shas: bool = False) -> list[str]:
     """Validate Fixed in Commit Mapping section; return list of errors."""
     errors: list[str] = []
 
@@ -381,10 +452,14 @@ def validate_fixed_mapping_section(section: str) -> list[str]:
             and next_block is not None
             and _block_has_disposition(next_block)
         ):
-            errors.extend(_validate_fixed_mapping_block([*block, *next_block]))
+            errors.extend(
+                _validate_fixed_mapping_block(
+                    [*block, *next_block], require_full_shas=require_full_shas
+                )
+            )
             skip_indexes.add(index + 1)
             continue
-        errors.extend(_validate_fixed_mapping_block(block))
+        errors.extend(_validate_fixed_mapping_block(block, require_full_shas=require_full_shas))
 
     if not saw_thread_line and not errors:
         errors.append(
@@ -402,10 +477,103 @@ def validate_mapping_artifact_text(markdown_text: str) -> list[str]:
     discussion_section = extract_discussion_thread_pass_section(markdown_text)
     fixed_mapping_section = extract_fixed_mapping_section(markdown_text)
 
+    version_matches = REVIEW_SEAL_VERSION_RE.findall(markdown_text)
+    if len(version_matches) > 1:
+        errors.append("Review-Seal-Version must appear at most once.")
+    version = version_matches[0] if len(version_matches) == 1 else None
+    if version is not None and version != "v1":
+        errors.append(f"Unsupported Review-Seal-Version: {version}.")
+
     errors.extend(validate_discussion_thread_pass_section(discussion_section))
-    errors.extend(validate_fixed_mapping_section(fixed_mapping_section))
+    errors.extend(
+        validate_fixed_mapping_section(
+            fixed_mapping_section,
+            require_full_shas=version == "v1",
+        )
+    )
+    if version == "v1":
+        try:
+            seal = parse_embedded_review_seal(markdown_text)
+            records = parse_canonical_fingerprint_records(
+                markdown_text,
+                pr_number=seal["pr_number"],
+            )
+            if any(len(record.urls) != 1 for record in records.values()):
+                raise ValueError("canonical fingerprint record must identify exactly one URL")
+            if any(
+                record.material_digest != seal["material"]["digest"] for record in records.values()
+            ):
+                raise ValueError("canonical fingerprint record does not match sealed material")
+        except (ReviewEvidenceError, ValueError) as exc:
+            errors.append(f"Invalid v1 review seal: {exc}")
 
     return errors
+
+
+def review_seal_version(markdown_text: str) -> str | None:
+    """Return the declared seal version after enforcing marker cardinality."""
+
+    matches = REVIEW_SEAL_VERSION_RE.findall(markdown_text)
+    if len(matches) > 1:
+        raise ValueError("Review-Seal-Version must appear at most once")
+    return matches[0] if matches else None
+
+
+def parse_canonical_fingerprint_records(
+    markdown_text: str, *, pr_number: int
+) -> dict[str, CanonicalFingerprintRecord]:
+    """Parse and cryptographically recompute canonical v1 fingerprint records."""
+
+    section = extract_fixed_mapping_section(markdown_text)
+    records: dict[str, CanonicalFingerprintRecord] = {}
+    for block in _split_fixed_mapping_blocks([line.strip() for line in section.splitlines()]):
+        values: dict[str, str] = {}
+        urls: list[str] = []
+        for line in block:
+            if match := THREAD_LINE_RE.match(line):
+                urls.append(match.group(1))
+                continue
+            for prefix in (
+                "Disposition:",
+                "Fingerprint:",
+                "Cause:",
+                "Material-Digest:",
+                "Verified-Fix:",
+            ):
+                if line.startswith(prefix):
+                    if prefix in values:
+                        raise ValueError(f"duplicate {prefix} in fingerprint record")
+                    values[prefix] = line.removeprefix(prefix).strip()
+                    break
+        if "Fingerprint:" not in values:
+            continue
+        required = {
+            "Disposition:",
+            "Fingerprint:",
+            "Cause:",
+            "Material-Digest:",
+            "Verified-Fix:",
+        }
+        if set(values) != required or values["Disposition:"] != "NOT-A-BUG" or not urls:
+            raise ValueError("canonical fingerprint record is incomplete")
+        expected = unavailable_review_ref_fingerprint(
+            pr_number=pr_number,
+            material_digest=values["Material-Digest:"],
+            verified_real_fix_sha=values["Verified-Fix:"],
+        )
+        fingerprint = values["Fingerprint:"]
+        if values["Cause:"] != UNAVAILABLE_REVIEW_REF_CAUSE or fingerprint != expected:
+            raise ValueError("canonical fingerprint record does not recompute")
+        if fingerprint in records:
+            raise ValueError("canonical fingerprint appears more than once")
+        records[fingerprint] = CanonicalFingerprintRecord(
+            fingerprint=fingerprint,
+            cause=values["Cause:"],
+            material_digest=values["Material-Digest:"],
+            verified_fix=values["Verified-Fix:"],
+            urls=tuple(sorted(urls)),
+        )
+    return records
 
 
 def parse_fixed_mapping_entries(section: str) -> dict[str, str]:
