@@ -54,6 +54,51 @@ def test_mapped_urls_extracts_review_url_and_no_actionable_marker() -> None:
     assert has_no_actionable is True
 
 
+def test_review_summary_is_covered_by_all_mapped_actionable_children() -> None:
+    review_id = 4709310816
+    summary_url = "https://github.com/owner/repo/pull/42#pullrequestreview-4709310816"
+    child_one = "https://github.com/owner/repo/pull/42#discussion_r1"
+    child_two = "https://github.com/owner/repo/pull/42#discussion_r2"
+    items = [
+        merge_gate.ActionableItem(
+            author="coderabbitai[bot]",
+            url=summary_url,
+            created_at="2026-07-16T00:43:28Z",
+            kind="review",
+            review_id=review_id,
+        ),
+        merge_gate.ActionableItem(
+            author="coderabbitai[bot]",
+            url=child_one,
+            created_at="2026-07-16T00:43:26Z",
+            kind="review_comment",
+            review_id=review_id,
+        ),
+        merge_gate.ActionableItem(
+            author="coderabbitai[bot]",
+            url=child_two,
+            created_at="2026-07-16T00:43:26Z",
+            kind="review_comment",
+            review_id=review_id,
+        ),
+    ]
+
+    assert merge_gate._covered_review_summary_urls(items, {child_one, child_two}) == {summary_url}
+    assert merge_gate._covered_review_summary_urls(items, {child_one}) == set()
+
+
+def test_standalone_actionable_review_summary_still_requires_mapping() -> None:
+    summary = merge_gate.ActionableItem(
+        author="reviewer[bot]",
+        url="https://github.com/owner/repo/pull/42#pullrequestreview-7",
+        created_at="2026-07-16T00:43:28Z",
+        kind="review",
+        review_id=7,
+    )
+
+    assert merge_gate._covered_review_summary_urls([summary], set()) == set()
+
+
 def test_review_seal_rollout_boundary_is_explicit_and_self_opt_in(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

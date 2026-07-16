@@ -104,6 +104,7 @@ class ActionableItem:
     url: str
     created_at: str
     kind: str
+    review_id: int | None = None
 
 
 def _strip_fenced_code_blocks(text: str) -> str:
@@ -319,17 +320,47 @@ def _collect_actionable_items(repo: str, pr_number: int, token: str) -> list[Act
             created_at = str(row.get("created_at") or row.get("submitted_at") or "")
             if not url:
                 continue
+            raw_review_id = row.get("id") if kind == "review" else row.get("pull_request_review_id")
+            review_id = (
+                raw_review_id
+                if isinstance(raw_review_id, int)
+                and not isinstance(raw_review_id, bool)
+                and raw_review_id > 0
+                else None
+            )
             items.append(
                 ActionableItem(
                     author=author,
                     url=url,
                     created_at=created_at,
                     kind=kind,
+                    review_id=review_id,
                 )
             )
 
     unique = {item.url: item for item in items}
     return sorted(unique.values(), key=lambda it: it.created_at)
+
+
+def _covered_review_summary_urls(
+    actionable_items: list[ActionableItem],
+    evidence_covered_urls: set[str],
+) -> set[str]:
+    """Cover a review summary only when every actionable child comment is covered."""
+
+    child_urls_by_review: dict[int, set[str]] = {}
+    for item in actionable_items:
+        if item.kind == "review_comment" and item.review_id is not None:
+            child_urls_by_review.setdefault(item.review_id, set()).add(item.url)
+
+    covered: set[str] = set()
+    for item in actionable_items:
+        if item.kind != "review" or item.review_id is None:
+            continue
+        child_urls = child_urls_by_review.get(item.review_id, set())
+        if child_urls and child_urls.issubset(evidence_covered_urls):
+            covered.add(item.url)
+    return covered
 
 
 def _extract_pr_context(event_path: Path) -> tuple[int, str, bool, str]:
@@ -686,6 +717,11 @@ def main() -> int:
         except (CommitIdentityError, ReviewEvidenceError, ValueError) as exc:
             errors.append(f"Duplicate reply validation failed: {exc}")
 
+    review_summary_covered_urls = _covered_review_summary_urls(
+        actionable_items,
+        mapped_urls | duplicate_covered_urls,
+    )
+
     if actionable_items:
         if no_actionable_marker:
             errors.append(
@@ -694,7 +730,9 @@ def main() -> int:
         unmapped = [
             item
             for item in actionable_items
-            if item.url not in mapped_urls and item.url not in duplicate_covered_urls
+            if item.url not in mapped_urls
+            and item.url not in duplicate_covered_urls
+            and item.url not in review_summary_covered_urls
         ]
         if unmapped:
             errors.append(
