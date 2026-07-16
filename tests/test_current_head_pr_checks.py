@@ -417,6 +417,144 @@ def test_latest_entries_prefers_newest_duplicate_and_marks_older_superseded() ->
     assert superseded == [older]
 
 
+def test_latest_entries_uses_attempt_start_when_older_success_finishes_later() -> None:
+    older_success = current_head_checks._normalize_node(
+        {
+            "__typename": "CheckRun",
+            "name": "security",
+            "status": "COMPLETED",
+            "conclusion": "SUCCESS",
+            "startedAt": "2026-07-16T10:00:00Z",
+            "completedAt": "2026-07-16T12:00:00Z",
+            "detailsUrl": "https://example.invalid/older-success",
+            "checkSuite": {"workflowRun": {"workflow": {"name": "CI"}}},
+        }
+    )
+    newer_pending = current_head_checks._normalize_node(
+        {
+            "__typename": "CheckRun",
+            "name": "security",
+            "status": "IN_PROGRESS",
+            "conclusion": None,
+            "startedAt": "2026-07-16T11:00:00Z",
+            "completedAt": None,
+            "detailsUrl": "https://example.invalid/newer-pending",
+            "checkSuite": {"workflowRun": {"workflow": {"name": "CI"}}},
+        }
+    )
+
+    latest, superseded = current_head_checks._latest_entries([older_success, newer_pending])
+
+    assert latest["security"] == newer_pending
+    assert superseded == [older_success]
+
+
+def test_fetch_pr_metadata_rejects_repeated_pagination_cursor(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = 0
+
+    def repeated_cursor(*_args: object, **_kwargs: object) -> dict[str, object]:
+        nonlocal calls
+        calls += 1
+        return {
+            "data": {
+                "repository": {
+                    "pullRequest": {
+                        "isDraft": False,
+                        "mergeStateStatus": "CLEAN",
+                        "baseRefName": "main",
+                        "statusCheckRollup": {
+                            "contexts": {
+                                "nodes": [],
+                                "pageInfo": {
+                                    "hasNextPage": True,
+                                    "endCursor": "cursor-1",
+                                },
+                            }
+                        },
+                    }
+                }
+            }
+        }
+
+    monkeypatch.setattr(current_head_checks, "_api_request", repeated_cursor)
+
+    with pytest.raises(ValueError, match="pagination cursor repeated"):
+        current_head_checks._fetch_pr_metadata(2142, "owner/repo", "opaque")
+
+    assert calls == 2
+
+
+@pytest.mark.parametrize(
+    ("page_info", "expected"),
+    [
+        ({"hasNextPage": "true", "endCursor": "cursor-1"}, "must be boolean"),
+        ({"hasNextPage": True, "endCursor": 1}, "cursor is malformed"),
+    ],
+)
+def test_fetch_pr_metadata_rejects_malformed_pagination_fields(
+    monkeypatch: pytest.MonkeyPatch,
+    page_info: dict[str, object],
+    expected: str,
+) -> None:
+    response = {
+        "data": {
+            "repository": {
+                "pullRequest": {
+                    "isDraft": False,
+                    "mergeStateStatus": "CLEAN",
+                    "baseRefName": "main",
+                    "statusCheckRollup": {"contexts": {"nodes": [], "pageInfo": page_info}},
+                }
+            }
+        }
+    }
+    monkeypatch.setattr(
+        current_head_checks,
+        "_api_request",
+        lambda *_args, **_kwargs: response,
+    )
+
+    with pytest.raises(ValueError, match=expected):
+        current_head_checks._fetch_pr_metadata(2142, "owner/repo", "opaque")
+
+
+def test_fetch_pr_metadata_enforces_page_limit(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = 0
+
+    def unique_cursor(*_args: object, **_kwargs: object) -> dict[str, object]:
+        nonlocal calls
+        calls += 1
+        return {
+            "data": {
+                "repository": {
+                    "pullRequest": {
+                        "isDraft": False,
+                        "mergeStateStatus": "CLEAN",
+                        "baseRefName": "main",
+                        "statusCheckRollup": {
+                            "contexts": {
+                                "nodes": [],
+                                "pageInfo": {
+                                    "hasNextPage": True,
+                                    "endCursor": f"cursor-{calls}",
+                                },
+                            }
+                        },
+                    }
+                }
+            }
+        }
+
+    monkeypatch.setattr(current_head_checks, "_api_request", unique_cursor)
+
+    with pytest.raises(ValueError, match="exceeded page limit"):
+        current_head_checks._fetch_pr_metadata(2142, "owner/repo", "opaque")
+
+    assert calls == current_head_checks._MAX_STATUS_CHECK_PAGES
+
+
 def test_required_snapshot_adds_pending_placeholder_for_missing_required_check() -> None:
     snapshot = current_head_checks._required_snapshot(
         latest_entries={},

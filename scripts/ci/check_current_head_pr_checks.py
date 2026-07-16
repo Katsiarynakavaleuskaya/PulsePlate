@@ -30,6 +30,7 @@ class CheckEntry:
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+_MAX_STATUS_CHECK_PAGES = 100
 PENDING_STATUS_CONTEXT_STATES = {"EXPECTED", "PENDING"}
 CANONICAL_FALLBACK_STATUS_CONTEXT_NAMES = {"CI"}
 CANONICAL_FALLBACK_WORKFLOW_NAMES = {"CI"}
@@ -232,11 +233,12 @@ def _fetch_pr_metadata(
     }
     """
     cursor: str | None = None
+    seen_cursors: set[str] = set()
     nodes: list[dict[str, Any]] = []
     is_draft = False
     merge_state = ""
     base_ref = ""
-    while True:
+    for _page in range(_MAX_STATUS_CHECK_PAGES):
         response = _api_request(
             "https://api.github.com/graphql",
             token=token,
@@ -251,18 +253,43 @@ def _fetch_pr_metadata(
                 },
             },
         )
-        pr = response.get("data", {}).get("repository", {}).get("pullRequest", {})
+        if not isinstance(response, dict) or response.get("errors"):
+            raise ValueError("GraphQL status-check response is malformed")
+        data = response.get("data")
+        repository_data = data.get("repository") if isinstance(data, dict) else None
+        pr = repository_data.get("pullRequest") if isinstance(repository_data, dict) else None
+        if not isinstance(pr, dict):
+            raise ValueError("GraphQL status-check response is missing the pull request")
         is_draft = bool(pr.get("isDraft", False))
         merge_state = str(pr.get("mergeStateStatus") or "")
         base_ref = str(pr.get("baseRefName") or "")
-        contexts = (pr.get("statusCheckRollup") or {}).get("contexts") or {}
-        nodes.extend(contexts.get("nodes") or [])
+        rollup = pr.get("statusCheckRollup")
+        contexts = rollup.get("contexts") if isinstance(rollup, dict) else None
+        if not isinstance(contexts, dict):
+            raise ValueError("GraphQL status-check response is missing contexts")
+        page_nodes = contexts.get("nodes")
+        if not isinstance(page_nodes, list) or not all(
+            isinstance(node, dict) for node in page_nodes
+        ):
+            raise ValueError("GraphQL status-check nodes are malformed")
+        nodes.extend(page_nodes)
         page_info = contexts.get("pageInfo") or {}
-        if not page_info.get("hasNextPage", False):
+        if not isinstance(page_info, dict):
+            raise ValueError("GraphQL status-check pageInfo is malformed")
+        has_next_page = page_info.get("hasNextPage")
+        if not isinstance(has_next_page, bool):
+            raise ValueError("GraphQL status-check hasNextPage must be boolean")
+        if not has_next_page:
             break
-        cursor = page_info.get("endCursor")
-        if not cursor:
-            break
+        next_cursor = page_info.get("endCursor")
+        if not isinstance(next_cursor, str) or not next_cursor:
+            raise ValueError("GraphQL status-check pagination cursor is malformed")
+        if next_cursor in seen_cursors:
+            raise ValueError("GraphQL status-check pagination cursor repeated")
+        seen_cursors.add(next_cursor)
+        cursor = next_cursor
+    else:
+        raise ValueError("GraphQL status-check pagination exceeded page limit")
     return is_draft, merge_state, base_ref, nodes
 
 
@@ -368,7 +395,7 @@ def _normalize_node(node: dict[str, Any]) -> CheckEntry:
             else None
         )
         app_slug = str(app.get("slug") or "").strip()
-        timestamp = str(node.get("completedAt") or node.get("startedAt") or "")
+        timestamp = str(node.get("startedAt") or "")
         return CheckEntry(
             name=name,
             source_kind="check_run",

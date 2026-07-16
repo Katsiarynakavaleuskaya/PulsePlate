@@ -327,7 +327,7 @@ def test_operator_outage_override_requires_exact_successful_security_bundle(
 ) -> None:
     nodes = [_check_node(name) for name in merge_gate._OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES]
     stale_failed_security = _check_node("security", conclusion="FAILURE")
-    stale_failed_security["completedAt"] = "2026-07-16T10:59:00Z"
+    stale_failed_security["startedAt"] = "2026-07-16T10:59:00Z"
     nodes.append(stale_failed_security)
     monkeypatch.setattr(
         merge_gate,
