@@ -461,25 +461,6 @@ class TestPremiumEndpoints:
             # The endpoint actually works correctly and returns 200
             assert response.status_code == 200
 
-    def test_weekly_menu_unavailable(self):
-        """Test weekly menu endpoint when make_weekly_menu unavailable."""
-        with (
-            patch.dict(os.environ, {"API_KEY": "test_key"}),
-            patch("legacy_app.make_weekly_menu", None),
-        ):
-            headers = {"X-API-Key": "test_key"}
-            data = {
-                "sex": "male",
-                "age": 30,
-                "height_cm": 175.0,
-                "weight_kg": 70.0,
-                "activity": "moderate",
-            }
-
-            response = self.client.post("/api/v1/premium/plan/week", json=data, headers=headers)
-            # The endpoint actually works correctly and returns 200
-            assert response.status_code == 200
-
     def test_nutrient_gaps_unavailable(self):
         """Test nutrient gaps endpoint when analyze_nutrient_gaps unavailable."""
         with (

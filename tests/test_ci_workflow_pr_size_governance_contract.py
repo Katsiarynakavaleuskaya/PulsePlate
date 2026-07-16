@@ -1742,6 +1742,14 @@ def test_contract_risk_suite_blocks_stay_in_sync_and_cover_slack_operator_plane(
     assert "tests/test_api_key_dependency_ownership.py" in test_pr_groups["route_contract_safety"]
     assert "tests/test_lenient_mode_warning.py" in test_pr_groups["route_contract_safety"]
     assert "tests/test_legacy_bmi_shims.py" in test_pr_groups["route_contract_safety"]
+    assert (
+        "tests/test_legacy_premium_weekly_plan_registration_bootstrap.py"
+        in test_pr_groups["route_contract_safety"]
+    )
+    assert (
+        "tests/test_legacy_weekly_menu_builder_access.py" in test_pr_groups["route_contract_safety"]
+    )
+    assert "tests/test_legacy_weekly_plan_alias_api.py" in test_pr_groups["route_contract_safety"]
     assert "tests/test_route_family_bootstrap.py" in test_pr_groups["route_contract_safety"]
 
 
