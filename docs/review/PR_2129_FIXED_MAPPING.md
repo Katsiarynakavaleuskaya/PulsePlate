@@ -30,7 +30,7 @@ Packet: `artifacts/orchestration/task_packets/1418f71dc1a5.json`
 - Every role returned `PROCEED` with no unresolved finding after the bounded
   implementation and MyPy correction.
 - After the dispatcher local-config clamp fix, the final post-open role tail
-  reran on material head `bafa16bbb4d9fb6c48422027a2ef8d4eb8a3d1dd`
+  reran on material head `af2aed04166b2f3e1c1adf5b90903675f30c2f2d`
   in the coordinator-approved required order:
   `qa-engineer-agent -> bug-hunter -> security-auditor`; QA and bug-hunter
   returned `PROCEED`, security-auditor returned `PASS`, and all three reported
@@ -58,6 +58,10 @@ Packet: `artifacts/orchestration/task_packets/1418f71dc1a5.json`
 - `bafa16bbb4d9fb6c48422027a2ef8d4eb8a3d1dd` - clamp checkout-local Git
   execution config in the dispatcher and disable external/textconv diff
   processing while retaining binary snapshot fidelity.
+- `af2aed04166b2f3e1c1adf5b90903675f30c2f2d` - bind governed Git commands
+  to the resolved work tree, clone without materializing a checkout, reject
+  checkout-local `core.worktree` redirects, and replace configuration-sensitive
+  casts with a fail-closed typed result boundary.
 
 ## Source PR Replacement Matrix
 
@@ -118,9 +122,9 @@ Artifact: `artifacts/orchestration/experiments/results/pr-2129-final-oracle-resu
 - Focused runner/dispatch, patch-builder, specification/fingerprint,
   skeptic-review, subprocess, nosec-policy, and review-pattern suites: PASS.
 - Final dispatcher trust bundle: focused dispatcher/patch-builder tests,
-  external-diff non-execution, snapshot regressions, invalid-cwd
-  fail-before-subprocess coverage, Ruff, and bounded MyPy with zero
-  diagnostics: PASS.
+  external-diff and redirected-worktree non-execution, snapshot regressions,
+  invalid-cwd fail-before-subprocess coverage, Ruff, and both normal and
+  pre-push `--follow-imports=skip` MyPy with zero diagnostics: PASS.
 - `make validate-changed`: PASS.
 - Exact diff-selected backend-test hook: PASS.
 - `pre-commit run --all-files`: PASS.
@@ -251,6 +255,32 @@ Disposition: NOT-A-BUG
 Evidence: All four inline findings from this review are individually dispositioned above: the valid local-config defect is fixed in `bafa16bbb4d9fb6c48422027a2ef8d4eb8a3d1dd`; the three synthetic-ref claims are contradicted by the review object's real `commit_id`, live ancestry, canonical attribution, and current-head role evidence.
 Reason: The aggregate review object introduces no independent defect beyond its inline threads.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2129#pullrequestreview-4711673591
+
+Disposition: FIXED
+Commit: af2aed04166b2f3e1c1adf5b90903675f30c2f2d
+Evidence: Both governed Git wrappers bind normal commands with exact `--work-tree=<resolved-cwd>`, command-line `core.worktree=<resolved-cwd>`, and adjacent exact `safe.directory`; clone uses `--no-checkout` without the incompatible work-tree bind and is followed by an explicitly bound detached checkout. `tests/test_experiment_runner_dispatch.py::test_snapshot_ignores_checkout_local_worktree_redirect` proves attacker-selected content is not snapshotted. Full runner/dispatcher/patch-builder tests, Ruff, both MyPy modes, `make validate-changed`, exact backend hook, pre-commit, and pre-push gates pass.
+Reason: Work-tree discovery and materialization are now bound to the trusted resolved paths before any host snapshot diff/apply operation.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2129#discussion_r3595183214 -> af2aed04166b2f3e1c1adf5b90903675f30c2f2d
+
+Disposition: NOT-A-BUG
+Evidence: GitHub records this review object's trusted `commit_id` as real owner head `6a0e54b6a8802939d8ff14d9baa5cb20acfc2e1d`, where the mapped FIXED commits are reachable. The cited `86ce7261...` execution ref is neither that `commit_id` nor a live PR head.
+Reason: The finding again runs ancestry checks against an unavailable synthetic execution ref instead of the trusted GitHub review commit and complete live PR graph.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2129#discussion_r3595183202
+
+Disposition: NOT-A-BUG
+Evidence: GitHub records this review on real owner head `6a0e54b6a8802939d8ff14d9baa5cb20acfc2e1d`, not `86ce7261...`; the previously recorded material head was reachable there. After the later real work-tree fix, the mandatory QA, bug-hunter, and security-auditor tail reran sequentially on current material head `af2aed04166b2f3e1c1adf5b90903675f30c2f2d` and returned `PROCEED`, `PROCEED`, and `PASS` with no findings.
+Reason: Current role evidence is bound to the real material head, while the finding's replacement head is not the trusted review identity.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2129#discussion_r3595183208
+
+Disposition: NOT-A-BUG
+Evidence: The accepted Oracle evidence remains attributed to reachable material commit `b0f3f18078020dfe4e3c656ae3610288098c1122`, whose message contains the exact `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>` trailer. GitHub identifies this review commit as `6a0e54b6a8802939d8ff14d9baa5cb20acfc2e1d`, not `86ce7261...`.
+Reason: The synthetic execution ref cannot replace the real attributed implementation commit or its Git identity.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2129#discussion_r3595183212
+
+Disposition: NOT-A-BUG
+Evidence: All four inline findings from this review are individually dispositioned above: the valid work-tree redirect is fixed in `af2aed04166b2f3e1c1adf5b90903675f30c2f2d`; the three synthetic-ref claims are contradicted by the review object's real `commit_id`, live ancestry, canonical attribution, and current-head role evidence.
+Reason: The aggregate review object introduces no independent defect beyond its inline threads.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2129#pullrequestreview-4713398951
 
 ## Merge Readiness
 
