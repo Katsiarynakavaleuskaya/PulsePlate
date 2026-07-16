@@ -442,10 +442,13 @@ def _latest_entries(entries: list[CheckEntry]) -> tuple[dict[str, CheckEntry], l
 
     def attempt_order_key(entry: CheckEntry) -> tuple[str, int, str]:
         # Equal CheckSuite creation times cannot prove attempt order. Prefer a
-        # blocking state over success so URL lexicography can never create a
-        # false green. The URL is only a deterministic tie-break among states
-        # with the same security outcome.
-        fail_closed_rank = 0 if entry.state == "passed" else 1
+        # blocking or non-SUCCESS CheckRun over exact success so URL
+        # lexicography can never create a false green. Status contexts have no
+        # conclusion field, so their normalized passed state remains exact.
+        exact_success = entry.state == "passed" and (
+            entry.source_kind != "check_run" or entry.conclusion == "SUCCESS"
+        )
+        fail_closed_rank = 0 if exact_success else 1
         return entry.timestamp, fail_closed_rank, entry.details_url
 
     latest: dict[str, CheckEntry] = {}

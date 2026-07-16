@@ -519,6 +519,32 @@ def test_latest_entries_fails_closed_for_equal_suite_creation_times() -> None:
     assert superseded == [passed]
 
 
+def test_latest_entries_fails_closed_for_equal_time_neutral_check_run() -> None:
+    success = current_head_checks.CheckEntry(
+        name="security",
+        source_kind="check_run",
+        state="passed",
+        timestamp="2026-07-16T11:00:00Z",
+        details_url="https://example.invalid/z-success",
+        workflow_name="CI",
+        conclusion="SUCCESS",
+    )
+    neutral = current_head_checks.CheckEntry(
+        name="security",
+        source_kind="check_run",
+        state="passed",
+        timestamp="2026-07-16T11:00:00Z",
+        details_url="https://example.invalid/a-neutral",
+        workflow_name="CI",
+        conclusion="NEUTRAL",
+    )
+
+    latest, superseded = current_head_checks._latest_entries([success, neutral])
+
+    assert latest["security"] == neutral
+    assert superseded == [success]
+
+
 def test_check_run_without_suite_creation_time_fails_closed() -> None:
     with pytest.raises(ValueError, match="missing valid checkSuite.createdAt"):
         current_head_checks._normalize_node(
