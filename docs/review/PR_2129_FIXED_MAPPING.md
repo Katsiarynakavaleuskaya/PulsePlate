@@ -29,8 +29,9 @@ Packet: `artifacts/orchestration/task_packets/1418f71dc1a5.json`
   backend-engineer -> dev-operator`.
 - Every role returned `PROCEED` with no unresolved finding after the bounded
   implementation and MyPy correction.
-- After the dispatcher trust fix, the final post-open role tail reran on
-  material head `7767faf06e8ebfdb951d8e8e2a749c31af60bb3b` in the required order:
+- After the dispatcher local-config clamp fix, the final post-open role tail
+  reran on material head `bafa16bbb4d9fb6c48422027a2ef8d4eb8a3d1dd`
+  in the coordinator-approved required order:
   `qa-engineer-agent -> bug-hunter -> security-auditor`; QA and bug-hunter
   returned `PROCEED`, security-auditor returned `PASS`, and all three reported
   no finding.
@@ -51,6 +52,12 @@ Packet: `artifacts/orchestration/task_packets/1418f71dc1a5.json`
   metadata once and fail closed on metadata-read errors.
 - `7e464ad929db9fd1a46f3529d5abab6b8271e79e` - replace newly added untyped
   macOS dispatch lambdas with fully annotated named stubs.
+- `7767faf06e8ebfdb951d8e8e2a749c31af60bb3b` - apply the exact resolved
+  `safe.directory` trust boundary and sanitized Git environment to the active
+  dispatcher snapshot path.
+- `bafa16bbb4d9fb6c48422027a2ef8d4eb8a3d1dd` - clamp checkout-local Git
+  execution config in the dispatcher and disable external/textconv diff
+  processing while retaining binary snapshot fidelity.
 
 ## Source PR Replacement Matrix
 
@@ -110,17 +117,18 @@ Artifact: `artifacts/orchestration/experiments/results/pr-2129-final-oracle-resu
 - Scoped preflight and agent consistency: PASS.
 - Focused runner/dispatch, patch-builder, specification/fingerprint,
   skeptic-review, subprocess, nosec-policy, and review-pattern suites: PASS.
-- Final dispatcher trust bundle: 182 focused dispatcher/patch-builder tests,
-  both snapshot regressions, invalid-cwd fail-before-subprocess coverage,
-  Ruff, and bounded MyPy with zero diagnostics: PASS.
+- Final dispatcher trust bundle: focused dispatcher/patch-builder tests,
+  external-diff non-execution, snapshot regressions, invalid-cwd
+  fail-before-subprocess coverage, Ruff, and bounded MyPy with zero
+  diagnostics: PASS.
 - `make validate-changed`: PASS.
 - Exact diff-selected backend-test hook: PASS.
 - `pre-commit run --all-files`: PASS.
 - Pre-push MyPy, pip-audit, backend tests, full-repo Bandit, and Docker build:
   PASS.
 - `git diff --check`: PASS.
-- MyPy errors on changed lines: 0. The narrow direct run reports 47 existing
-  errors only on unchanged test lines.
+- MyPy errors on changed lines: 0; the final bounded direct run reports no
+  diagnostics in either changed source file.
 
 ## Discussion Thread Pass
 
@@ -217,6 +225,32 @@ Disposition: NOT-A-BUG
 Evidence: The three inline findings from this Codex review are individually dispositioned above: one valid dispatcher trust defect is fixed in `7767faf06e8ebfdb951d8e8e2a749c31af60bb3b`, and both synthetic-ref findings have live Git evidence.
 Reason: The review object introduces no independent finding beyond its three inline threads.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2129#pullrequestreview-4711276017
+
+Disposition: FIXED
+Commit: bafa16bbb4d9fb6c48422027a2ef8d4eb8a3d1dd
+Evidence: `scripts/orchestration/experiment_runner_dispatch.py` reuses the governed checkout-local Git clamps and invokes snapshot diff with `--no-ext-diff --no-textconv --binary`; `tests/test_experiment_runner_dispatch.py::test_snapshot_ignores_checkout_local_external_diff` proves a configured helper is not executed while the tracked change is retained. Focused tests, Ruff, MyPy, `make validate-changed`, the exact backend hook, pre-commit, and pre-push gates pass.
+Reason: The active host snapshot path now fails closed against checkout-local external diff execution without weakening binary patch capture.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2129#discussion_r3593666963 -> bafa16bbb4d9fb6c48422027a2ef8d4eb8a3d1dd
+
+Disposition: NOT-A-BUG
+Evidence: GitHub identifies the reviewed commit as real owner head `d849907345b59ae2ed96119b9a52c6ca6d2a0502`, where `b0f3f18078020dfe4e3c656ae3610288098c1122`, `d2443a22cf10c0f59ec344e8ec9e077490037009`, `7e464ad929db9fd1a46f3529d5abab6b8271e79e`, and `7767faf06e8ebfdb951d8e8e2a749c31af60bb3b` are reachable. The cited `5d426da1...` execution ref is not the review object's `commit_id` or the live PR head.
+Reason: The finding applies ancestry checks to an unavailable synthetic execution ref instead of the trusted GitHub review commit and complete live PR graph.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2129#discussion_r3593666950
+
+Disposition: NOT-A-BUG
+Evidence: `git show -s --format=%B b0f3f18078020dfe4e3c656ae3610288098c1122` contains the exact `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>` trailer, and that reachable material commit is the one to which the accepted Oracle evidence is attributed. GitHub reports the review object's commit as `d849907345b59ae2ed96119b9a52c6ca6d2a0502`, not `5d426da1...`.
+Reason: A synthetic reviewer-execution ref cannot replace the attributed material commit's real Git identity.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2129#discussion_r3593666957
+
+Disposition: NOT-A-BUG
+Evidence: GitHub reports the review object's trusted commit as real owner head `d849907345b59ae2ed96119b9a52c6ca6d2a0502`; at that head the recorded material identity was reachable. After the later real material fix, the coordinator-approved mandatory tail reran sequentially on current material head `bafa16bbb4d9fb6c48422027a2ef8d4eb8a3d1dd`: QA and bug-hunter returned `PROCEED`, security-auditor returned `PASS`, and all reported no findings with native scanning `operator_directed_stop`.
+Reason: The cited `5d426da1...` is not the trusted review commit or a live PR head, and current-head role evidence is now explicitly bound to the real material commit.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2129#discussion_r3593666969
+
+Disposition: NOT-A-BUG
+Evidence: All four inline findings from this review are individually dispositioned above: the valid local-config defect is fixed in `bafa16bbb4d9fb6c48422027a2ef8d4eb8a3d1dd`; the three synthetic-ref claims are contradicted by the review object's real `commit_id`, live ancestry, canonical attribution, and current-head role evidence.
+Reason: The aggregate review object introduces no independent defect beyond its inline threads.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2129#pullrequestreview-4711673591
 
 ## Merge Readiness
 
