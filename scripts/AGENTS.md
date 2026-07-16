@@ -120,6 +120,12 @@
   agent/runtime sockets, persist raw runtime output, or treat capability/result
   artifacts as readiness or promotion authority. Missing strict isolation is
   `capability_mismatch`, not `infra_flake`.
+- On macOS, `oracle_only_governance_reviewer` is stricter than the general
+  backend order: `run` requires explicit `--backend apple-container`. `auto`,
+  `docker`, and `native-linux` are rejected before any runtime probe or result
+  write, and an Apple capability failure is terminal `capability_mismatch`
+  without Docker fallback. General probe, candidate-patch, and negative-control
+  Docker surfaces remain supported.
 - Strict dispatch requires `network_budget=0` and container-equivalent
   filesystem containment. The existing native Linux Runner remains compatible,
   but `native-linux` capability probing must report

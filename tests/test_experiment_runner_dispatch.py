@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 import subprocess
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, NoReturn
 
 import pytest
 
@@ -392,6 +392,90 @@ def test_existing_v1_capability_artifact_remains_valid() -> None:
     assert dispatch.validate_capability_artifact(artifact) == artifact
 
 
+def test_dispatch_git_uses_one_resolved_per_invocation_safe_directory(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    captured: dict[str, Any] = {}
+
+    def fake_git_binary() -> str:
+        return "/usr/bin/git"
+
+    def fake_run(
+        argv: list[str],
+        *,
+        cwd: Path,
+        timeout: int = 30,
+        input_text: str | None = None,
+        secret_env_keys: tuple[str, ...] = (),
+        env_override: dict[str, str] | None = None,
+    ) -> subprocess.CompletedProcess[str]:
+        captured.update(
+            argv=argv,
+            cwd=cwd,
+            timeout=timeout,
+            input_text=input_text,
+            secret_env_keys=secret_env_keys,
+            env_override=env_override,
+        )
+        return subprocess.CompletedProcess(argv, 0, "", "")
+
+    monkeypatch.setattr(dispatch, "_git_binary", fake_git_binary)
+    monkeypatch.setattr(dispatch, "_run", fake_run)
+
+    dispatch._git(["status", "--short"], cwd=repo)
+
+    argv = captured["argv"]
+    safe_directory_arg = f"safe.directory={repo.resolve(strict=True)}"
+    assert argv[0] == "/usr/bin/git"
+    assert argv.count(safe_directory_arg) == 1
+    safe_index = argv.index(safe_directory_arg)
+    assert argv[safe_index - 1 : safe_index + 1] == ["-c", safe_directory_arg]
+    assert "diff.external=" in argv
+    assert "core.fsmonitor=false" in argv
+    assert f"core.hooksPath={os.devnull}" in argv
+    assert f"core.worktree={repo.resolve(strict=True)}" in argv
+    assert argv.count(f"--work-tree={repo.resolve(strict=True)}") == 1
+    assert "safe.directory=*" not in argv
+    assert captured["cwd"] == repo.resolve(strict=True)
+    env_override = captured["env_override"]
+    assert env_override["GIT_CONFIG_GLOBAL"] == os.devnull
+    assert env_override["GIT_CONFIG_NOSYSTEM"] == "1"
+    assert env_override["GIT_TERMINAL_PROMPT"] == "0"
+
+
+@pytest.mark.parametrize("invalid_kind", ["missing", "file"])
+def test_dispatch_git_rejects_invalid_cwd_before_subprocess(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, invalid_kind: str
+) -> None:
+    invalid_cwd = tmp_path / invalid_kind
+    if invalid_kind == "file":
+        invalid_cwd.write_text("not a directory\n", encoding="utf-8")
+    called = False
+
+    def fail_if_called(
+        argv: list[str],
+        *,
+        cwd: Path,
+        timeout: int = 30,
+        input_text: str | None = None,
+        secret_env_keys: tuple[str, ...] = (),
+        env_override: dict[str, str] | None = None,
+    ) -> subprocess.CompletedProcess[str]:
+        nonlocal called
+        del argv, cwd, timeout, input_text, secret_env_keys, env_override
+        called = True
+        raise AssertionError("subprocess must not run for an invalid Git cwd")
+
+    monkeypatch.setattr(dispatch, "_run", fail_if_called)
+
+    with pytest.raises(dispatch.DispatchError, match="probe_execution_failed"):
+        dispatch._git(["status", "--short"], cwd=invalid_cwd)
+
+    assert called is False
+
+
 def test_snapshot_applies_tracked_diff_and_leaves_source_unchanged(tmp_path: Path) -> None:
     source = tmp_path / "source"
     source.mkdir()
@@ -420,6 +504,60 @@ def test_snapshot_applies_tracked_diff_and_leaves_source_unchanged(tmp_path: Pat
         git, "status", "--short", cwd=source, capture_output=True
     ).stdout
     assert after_status == before_status
+
+
+def test_snapshot_ignores_checkout_local_external_diff(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    source.mkdir()
+    git = dispatch._resolve_cli("git")
+    assert git is not None
+    _run_isolated_git(git, "init", "--quiet", cwd=source)
+    _run_isolated_git(git, "config", "user.email", "test@example.invalid", cwd=source)
+    _run_isolated_git(git, "config", "user.name", "Test", cwd=source)
+    tracked = source / "tracked.txt"
+    tracked.write_text("before\n", encoding="utf-8")
+    _run_isolated_git(git, "add", "tracked.txt", cwd=source)
+    _run_isolated_git(git, "commit", "--quiet", "-m", "init", cwd=source)
+
+    marker = tmp_path / "external-diff-ran"
+    helper = tmp_path / "external-diff.sh"
+    helper.write_text(f"#!/bin/sh\ntouch '{marker}'\n", encoding="utf-8")
+    helper.chmod(0o755)
+    _run_isolated_git(git, "config", "diff.external", str(helper), cwd=source)
+    tracked.write_text("after\n", encoding="utf-8")
+
+    snapshot = tmp_path / "snapshot"
+    tracked_diff = dispatch._create_snapshot(source, snapshot)
+
+    assert tracked_diff
+    assert marker.exists() is False
+    assert (snapshot / "tracked.txt").read_text(encoding="utf-8") == "after\n"
+
+
+def test_snapshot_ignores_checkout_local_worktree_redirect(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    source.mkdir()
+    git = dispatch._resolve_cli("git")
+    assert git is not None
+    _run_isolated_git(git, "init", "--quiet", cwd=source)
+    _run_isolated_git(git, "config", "user.email", "test@example.invalid", cwd=source)
+    _run_isolated_git(git, "config", "user.name", "Test", cwd=source)
+    tracked = source / "tracked.txt"
+    tracked.write_text("before\n", encoding="utf-8")
+    _run_isolated_git(git, "add", "tracked.txt", cwd=source)
+    _run_isolated_git(git, "commit", "--quiet", "-m", "init", cwd=source)
+
+    redirected = tmp_path / "redirected"
+    redirected.mkdir()
+    (redirected / "tracked.txt").write_text("attacker-selected\n", encoding="utf-8")
+    _run_isolated_git(git, "config", "core.worktree", str(redirected), cwd=source)
+    tracked.write_text("trusted-change\n", encoding="utf-8")
+
+    snapshot = tmp_path / "snapshot"
+    tracked_diff = dispatch._create_snapshot(source, snapshot)
+
+    assert tracked_diff
+    assert (snapshot / "tracked.txt").read_text(encoding="utf-8") == "trusted-change\n"
 
 
 def test_snapshot_preserves_staged_new_file_as_tracked(tmp_path: Path) -> None:
@@ -2179,7 +2317,7 @@ def test_nonzero_network_budget_fails_before_backend_selection(
         "_parse_args",
         lambda _argv: SimpleNamespace(
             command="run",
-            backend="auto",
+            backend="apple-container",
             packet="packet.json",
             candidate_patch=None,
             image=f"pulseplate/experiment-runner:local@{_DIGEST}",
@@ -2282,6 +2420,171 @@ def test_invalid_or_candidate_attribution_rejects_before_backend_selection(
 
     assert dispatch.main([]) == 2
     assert message in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("backend", ["auto", "docker", "native-linux"])
+def test_macos_oracle_only_requires_explicit_apple_before_probe_or_write(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    backend: str,
+) -> None:
+    packet_path = tmp_path / "packet.json"
+    packet_path.write_text(json.dumps(_packet()), encoding="utf-8")
+    output_path = tmp_path / "result.json"
+
+    def darwin_system() -> str:
+        return "Darwin"
+
+    def parse_args(_argv: list[str] | None) -> SimpleNamespace:
+        return SimpleNamespace(
+            command="run",
+            backend=backend,
+            packet="packet.json",
+            candidate_patch=None,
+            image=f"pulseplate/experiment-runner:local@{_DIGEST}",
+            output="result.json",
+            contribution_kind="none",
+            coauthor_required=False,
+            coauthor_reason="",
+        )
+
+    def require_packet(*_args: object, **_kwargs: object) -> Path:
+        return packet_path
+
+    def resolve_output(*_args: object, **_kwargs: object) -> Path:
+        return output_path
+
+    def reject_backend_probe(*_args: object, **_kwargs: object) -> NoReturn:
+        raise AssertionError("backend probe must not run")
+
+    def reject_result_write(*_args: object, **_kwargs: object) -> NoReturn:
+        raise AssertionError("result artifact must not be written")
+
+    monkeypatch.setattr(dispatch.platform, "system", darwin_system)
+    monkeypatch.setattr(dispatch, "_parse_args", parse_args)
+    monkeypatch.setattr(dispatch, "_require_repo_local_file", require_packet)
+    monkeypatch.setattr(dispatch, "_resolve_local_output", resolve_output)
+    monkeypatch.setattr(dispatch, "select_backend", reject_backend_probe)
+    monkeypatch.setattr(dispatch, "_atomic_write_json", reject_result_write)
+
+    assert dispatch.main([]) == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "requires explicit --backend apple-container" in captured.err
+    assert not output_path.exists()
+
+
+def test_macos_oracle_explicit_apple_failure_has_no_docker_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    packet_path = tmp_path / "packet.json"
+    packet_path.write_text(json.dumps(_packet()), encoding="utf-8")
+    output_path = tmp_path / "result.json"
+    probes: list[str] = []
+    written: dict[str, Any] = {}
+
+    def darwin_system() -> str:
+        return "Darwin"
+
+    def parse_args(_argv: list[str] | None) -> SimpleNamespace:
+        return SimpleNamespace(
+            command="run",
+            backend="apple-container",
+            packet="packet.json",
+            candidate_patch=None,
+            image=f"pulseplate/experiment-runner:local@{_DIGEST}",
+            output="result.json",
+            contribution_kind="none",
+            coauthor_required=False,
+            coauthor_reason="",
+        )
+
+    def require_packet(*_args: object, **_kwargs: object) -> Path:
+        return packet_path
+
+    def resolve_output(*_args: object, **_kwargs: object) -> Path:
+        return output_path
+
+    def capture_result(_path: Path, payload: dict[str, Any]) -> None:
+        written.update(payload)
+
+    monkeypatch.setattr(dispatch.platform, "system", darwin_system)
+    monkeypatch.setattr(dispatch, "_parse_args", parse_args)
+    monkeypatch.setattr(dispatch, "_require_repo_local_file", require_packet)
+    monkeypatch.setattr(dispatch, "_resolve_local_output", resolve_output)
+
+    def failed_probe(backend: str, _image: dispatch.ImageReference) -> dispatch.BackendProbe:
+        probes.append(backend)
+        return dispatch._failed_probe(backend, "runtime_not_ready", image_digest=_DIGEST)
+
+    monkeypatch.setattr(dispatch, "probe_backend", failed_probe)
+    monkeypatch.setattr(dispatch, "_atomic_write_json", capture_result)
+
+    assert dispatch.main([]) == 1
+    assert probes == ["apple-container"]
+    assert written["failure_class"] == "capability_mismatch"
+    assert written["budget_observations"]["runner_error"] == "runtime_not_ready"
+
+
+def test_macos_candidate_mode_preserves_auto_backend_selection(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    packet = _packet()
+    packet["runner_mode"] = "candidate_patch"
+    packet["mutable_candidate_surface"] = ["core/rag/orchestration.py"]
+    packet_path = tmp_path / "packet.json"
+    packet_path.write_text(json.dumps(packet), encoding="utf-8")
+    candidate_patch = tmp_path / "candidate.patch"
+    candidate_patch.write_text("", encoding="utf-8")
+    requested: list[str] = []
+
+    def darwin_system() -> str:
+        return "Darwin"
+
+    def parse_args(_argv: list[str] | None) -> SimpleNamespace:
+        return SimpleNamespace(
+            command="run",
+            backend="auto",
+            packet="packet.json",
+            candidate_patch="candidate.patch",
+            image=f"pulseplate/experiment-runner:local@{_DIGEST}",
+            output="result.json",
+            contribution_kind="none",
+            coauthor_required=False,
+            coauthor_reason="",
+        )
+
+    def resolve_output(*_args: object, **_kwargs: object) -> Path:
+        return tmp_path / "result.json"
+
+    def ignore_result_write(*_args: object, **_kwargs: object) -> None:
+        return None
+
+    monkeypatch.setattr(dispatch.platform, "system", darwin_system)
+    monkeypatch.setattr(dispatch, "_parse_args", parse_args)
+
+    def resolve_input(raw: str, **_kwargs: object) -> Path:
+        return candidate_patch if raw == "candidate.patch" else packet_path
+
+    monkeypatch.setattr(dispatch, "_require_repo_local_file", resolve_input)
+    monkeypatch.setattr(dispatch, "_resolve_local_output", resolve_output)
+
+    def select(
+        requested_backend: str, _image: dispatch.ImageReference
+    ) -> tuple[None, list[dispatch.BackendProbe]]:
+        requested.append(requested_backend)
+        return None, [
+            dispatch._failed_probe("apple-container", "runtime_not_ready", image_digest=_DIGEST)
+        ]
+
+    monkeypatch.setattr(dispatch, "select_backend", select)
+    monkeypatch.setattr(dispatch, "_atomic_write_json", ignore_result_write)
+
+    assert dispatch.main([]) == 1
+    assert requested == ["auto"]
 
 
 def test_probe_cleanup_failure_overrides_original_exception(
