@@ -854,6 +854,50 @@ def test_main_fails_when_latest_required_check_is_pending(
     assert "Blocking current-head checks remain pending or failed." in captured.out
 
 
+def test_main_fails_when_latest_required_check_is_neutral(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(current_head_checks, "_github_token", lambda: "token")
+    monkeypatch.setattr(
+        current_head_checks,
+        "_fetch_pr_metadata",
+        lambda *args: (
+            False,
+            "UNSTABLE",
+            "main",
+            [
+                {
+                    "__typename": "CheckRun",
+                    "name": "security",
+                    "status": "COMPLETED",
+                    "conclusion": "NEUTRAL",
+                    "startedAt": "2026-03-12T05:05:00Z",
+                    "completedAt": "2026-03-12T05:09:03Z",
+                    "detailsUrl": "https://example.invalid/neutral",
+                    "checkSuite": {
+                        "createdAt": "2026-03-12T05:05:00Z",
+                        "workflowRun": {"workflow": {"name": "CI"}},
+                    },
+                }
+            ],
+        ),
+    )
+    monkeypatch.setattr(
+        current_head_checks,
+        "_fetch_required_check_names",
+        lambda *args: ({"security"}, True),
+    )
+
+    exit_code = current_head_checks.main(
+        ["--pr-number", "1127", "--repo", "Katsiarynakavaleuskaya/PulsePlate"]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "- security: failed [CI]" in captured.out
+    assert "Blocking current-head checks remain pending or failed." in captured.out
+
+
 def test_main_passes_when_merge_state_is_not_clean_but_required_snapshot_is_clean(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

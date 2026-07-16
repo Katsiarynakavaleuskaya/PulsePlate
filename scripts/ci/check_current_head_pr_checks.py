@@ -368,18 +368,10 @@ def _normalize_node(node: dict[str, Any]) -> CheckEntry:
         conclusion = str(node.get("conclusion") or "").strip().upper()
         if status in {"QUEUED", "IN_PROGRESS", "PENDING", "REQUESTED", "WAITING"}:
             state = "pending"
-        elif conclusion in {
-            "FAILURE",
-            "TIMED_OUT",
-            "CANCELLED",
-            "ACTION_REQUIRED",
-            "STALE",
-            "STARTUP_FAILURE",
-            "SKIPPED",
-        }:
-            state = "failed"
-        else:
+        elif status == "COMPLETED" and conclusion == "SUCCESS":
             state = "passed"
+        else:
+            state = "failed"
         check_suite = node.get("checkSuite") or {}
         workflow_name = str(
             (((check_suite.get("workflowRun") or {}).get("workflow") or {}).get("name")) or ""

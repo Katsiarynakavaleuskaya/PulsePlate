@@ -417,7 +417,7 @@ def test_operator_outage_override_rejects_equal_time_neutral_security_attempt(
         lambda *_a, **_k: (False, "CLEAN", "main", nodes),
     )
 
-    with pytest.raises(ReviewEvidenceError, match="security=passed/NEUTRAL"):
+    with pytest.raises(ReviewEvidenceError, match="security=failed/NEUTRAL"):
         merge_gate._validate_operator_outage_security_checks(
             repository="owner/repo",
             pr_number=42,
