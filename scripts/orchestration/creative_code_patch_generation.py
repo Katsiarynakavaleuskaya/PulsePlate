@@ -72,6 +72,12 @@ CREATIVE_CODE_ROOT = REPO_ROOT / "artifacts" / "orchestration" / "creative_code"
 PATCH_GENERATION_ROOT = CREATIVE_CODE_ROOT / "patch_generation"
 GATE_FILENAME = "generation_gate.json"
 RECEIPT_FILENAME = "generation_receipt.json"
+TRUSTED_DISPATCH_CANDIDATE_PATCH_REFS = frozenset(
+    {
+        "candidate.patch",
+        ".experiment-runner-input/candidate.patch",
+    }
+)
 
 VALIDATE_RUN_PLAN_SUCCESS_OUTPUT = "PASS: creative-code patch generation gate passed"
 GENERATE_CANDIDATE_SUCCESS_OUTPUT = "PASS: creative-code patch generate/evaluate complete"
@@ -2028,7 +2034,7 @@ def _validate_dispatch_result_binding(
         raise CreativeCodePatchGenerationError(
             "trusted dispatch result must use candidate_patch runner mode."
         )
-    if result["candidate_patch"] != "candidate.patch":
+    if result["candidate_patch"] not in TRUSTED_DISPATCH_CANDIDATE_PATCH_REFS:
         raise CreativeCodePatchGenerationError(
             "trusted dispatch result candidate marker is invalid."
         )

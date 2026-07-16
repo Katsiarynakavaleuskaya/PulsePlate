@@ -210,7 +210,7 @@ def _trusted_dispatch_result(
         "schema_version": "1.0",
         "experiment_id": packet["experiment_id"],
         "runner_mode": "candidate_patch",
-        "candidate_patch": "candidate.patch",
+        "candidate_patch": ".experiment-runner-input/candidate.patch",
         "candidate_patch_fingerprint": packet["candidate_patch_fingerprint"],
         "status": status,
         "failure_class": failure_class,
@@ -677,6 +677,7 @@ def test_finalize_dispatched_result_retains_trusted_rejection_without_retry(
     [
         ("experiment_id", "experiment_id does not match"),
         ("missing_backend", "execution backend provenance"),
+        ("candidate_marker", "candidate marker is invalid"),
         ("patch_fingerprint", "candidate patch fingerprint does not match"),
         ("retry", "one attempt and zero retries"),
         ("extra_path", "mutated paths do not match"),
@@ -704,6 +705,8 @@ def test_finalize_dispatched_result_rejects_unbound_dispatch_evidence(
         dispatch_result["experiment_id"] = "experiment_stale"
     elif mutation == "missing_backend":
         dispatch_result.pop("execution_backend")
+    elif mutation == "candidate_marker":
+        dispatch_result["candidate_patch"] = ".experiment-runner-input/other.patch"
     elif mutation == "patch_fingerprint":
         dispatch_result["candidate_patch_fingerprint"] = "sha256:" + ("f" * 64)
     elif mutation == "retry":

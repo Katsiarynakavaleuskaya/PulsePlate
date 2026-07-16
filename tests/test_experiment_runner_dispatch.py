@@ -1790,6 +1790,9 @@ def test_container_runner_converts_only_owned_exit_three_after_cleanup(
     assert result["failure_class"] == "capability_mismatch"
     assert result["mutated_paths"] == []
     assert result["oracle_results"] == []
+    assert result["budget_observations"]["oracle_commands_configured"] == len(
+        _packet()["immutable_oracles"]
+    )
     assert result["budget_observations"]["attempts"] == 1
     assert result["budget_observations"]["retries_consumed"] == 0
     assert result["budget_observations"]["runner_error"] == dispatch.RUNNER_CAPABILITY_ERROR

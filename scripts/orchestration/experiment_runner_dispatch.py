@@ -1419,6 +1419,7 @@ def _capability_mismatch_result(
         "oracle_results": [],
         "budget_observations": {
             "configured_budgets": dict(packet["budgets"]),
+            "oracle_commands_configured": len(packet["immutable_oracles"]),
             "oracle_commands_executed": 0,
             "attempts": 0,
             "retries_consumed": 0,
@@ -1469,6 +1470,7 @@ def _infra_flake_result(
         "oracle_results": [],
         "budget_observations": {
             "configured_budgets": dict(packet["budgets"]),
+            "oracle_commands_configured": len(packet["immutable_oracles"]),
             "oracle_commands_executed": 0,
             "attempts": 1,
             "retries_consumed": 0,
@@ -1510,6 +1512,7 @@ def _post_preflight_capability_mismatch_result(
         "oracle_results": [],
         "budget_observations": {
             "configured_budgets": dict(packet["budgets"]),
+            "oracle_commands_configured": len(packet["immutable_oracles"]),
             "oracle_commands_executed": 0,
             "attempts": 1,
             "retries_consumed": 0,
