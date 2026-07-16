@@ -35,6 +35,8 @@ OPERATOR_OUTAGE_BOOTSTRAP_REPOSITORY = "Katsiarynakavaleuskaya/PulsePlate"
 OPERATOR_OUTAGE_BOOTSTRAP_PR = 2142
 OPERATOR_OUTAGE_TRUST_BOUNDARY_EXACT_PATHS = frozenset(
     {
+        ".bandit",
+        ".bandit.yaml",
         ".trivyignore",
         "constraints.txt",
         "scripts/ci_bandit.sh",
