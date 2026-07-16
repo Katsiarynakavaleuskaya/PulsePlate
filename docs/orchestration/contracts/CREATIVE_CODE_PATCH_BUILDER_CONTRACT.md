@@ -162,9 +162,10 @@ resume seam revalidates:
   carry the recomputed canonical patch fingerprint;
 - every configured oracle passing before an accepted result can be published.
 
-The resume seam acquires a cooperative new-only per-run lock before final
+The resume seam acquires a cooperative fd-backed per-run lock before final
 revalidation and publication. A concurrent finalizer fails closed before it can
-publish or roll back another invocation's result, state, or receipt artifacts.
+publish or roll back another invocation's result, state, or receipt artifacts;
+process termination releases ownership without leaving a stale sentinel.
 
 Rejected trusted results remain valid terminal evidence when their failure class
 and observations satisfy the Experiment Runner contract. The seam persists only

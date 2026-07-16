@@ -3,6 +3,8 @@ from __future__ import annotations
 from copy import deepcopy
 import json
 from pathlib import Path
+import subprocess
+import sys
 from typing import Any
 
 import pytest
@@ -550,7 +552,68 @@ def test_finalize_dispatched_result_rejects_cooperative_lock_contention(
 
     assert generation_cli.main(command) == 0
     capsys.readouterr()
-    assert not (run_dir / generation_cli.FINALIZE_LOCK_FILENAME).exists()
+
+
+def test_finalize_lock_reports_unavailable_platform_and_open_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    real_import = generation_cli.importlib.import_module
+
+    def missing_fcntl(name: str) -> object:
+        if name == "fcntl":
+            raise ModuleNotFoundError(name)
+        return real_import(name)
+
+    with monkeypatch.context() as context:
+        context.setattr(generation_cli.importlib, "import_module", missing_fcntl)
+        with pytest.raises(
+            CreativeCodePatchGenerationError,
+            match="locking is unavailable",
+        ):
+            with generation_cli._exclusive_finalize_lock(run_dir):
+                pytest.fail("unavailable lock must not enter the finalization body")
+
+    def deny_open(*_args: object, **_kwargs: object) -> int:
+        raise PermissionError("denied")
+
+    with monkeypatch.context() as context:
+        context.setattr(
+            generation_cli.os,
+            "open",
+            deny_open,
+        )
+        with pytest.raises(
+            CreativeCodePatchGenerationError,
+            match="lock could not be acquired",
+        ):
+            with generation_cli._exclusive_finalize_lock(run_dir):
+                pytest.fail("unavailable lock must not enter the finalization body")
+
+
+def test_finalize_lock_is_released_after_abrupt_owner_exit(tmp_path: Path) -> None:
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    child = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "import fcntl, os, sys; "
+                "fd = os.open(sys.argv[1], os.O_RDONLY); "
+                "fcntl.flock(fd, fcntl.LOCK_EX); "
+                "os._exit(0)"
+            ),
+            str(run_dir),
+        ],
+        check=False,
+    )
+    assert child.returncode == 0
+
+    with generation_cli._exclusive_finalize_lock(run_dir):
+        pass
 
 
 def test_finalize_dispatched_result_rolls_back_partial_publication(

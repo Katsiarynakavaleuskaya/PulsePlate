@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 from collections.abc import Mapping
 from contextlib import contextmanager
+import importlib
 import json
 import os
 from pathlib import Path, PurePosixPath
@@ -74,7 +75,6 @@ CREATIVE_CODE_ROOT = REPO_ROOT / "artifacts" / "orchestration" / "creative_code"
 PATCH_GENERATION_ROOT = CREATIVE_CODE_ROOT / "patch_generation"
 GATE_FILENAME = "generation_gate.json"
 RECEIPT_FILENAME = "generation_receipt.json"
-FINALIZE_LOCK_FILENAME = ".finalize-dispatched-result.lock"
 TRUSTED_DISPATCH_CANDIDATE_PATCH_REFS = frozenset(
     {
         "candidate.patch",
@@ -476,20 +476,35 @@ def _write_json_new(path: Path, payload: Mapping[str, Any]) -> None:
 def _exclusive_finalize_lock(run_dir: Path) -> Iterator[None]:
     """Serialize cooperative finalizers for one generated patch run."""
 
-    lock_path = run_dir / FINALIZE_LOCK_FILENAME
-    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        fcntl_module = importlib.import_module("fcntl")
+    except ModuleNotFoundError as exc:
+        raise CreativeCodePatchGenerationError(
+            "trusted dispatch finalization locking is unavailable on this platform."
+        ) from exc
+    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
     flags |= getattr(os, "O_CLOEXEC", 0)
     lock_fd = -1
-    owned_identity: tuple[int, int] | None = None
     try:
         try:
-            lock_fd = os.open(lock_path, flags, 0o600)
-        except FileExistsError as exc:
+            lock_fd = os.open(run_dir, flags)
+        except OSError as exc:
+            raise CreativeCodePatchGenerationError(
+                "trusted dispatch finalization lock could not be acquired."
+            ) from exc
+        try:
+            fcntl_module.flock(
+                lock_fd,
+                fcntl_module.LOCK_EX | fcntl_module.LOCK_NB,
+            )
+        except BlockingIOError as exc:
             raise CreativeCodePatchGenerationError(
                 "trusted dispatch finalization is already in progress."
             ) from exc
-        info = os.fstat(lock_fd)
-        owned_identity = (info.st_dev, info.st_ino)
+        except OSError as exc:
+            raise CreativeCodePatchGenerationError(
+                "trusted dispatch finalization lock could not be acquired."
+            ) from exc
         yield
     finally:
         active_error = sys.exc_info()[1]
@@ -499,14 +514,6 @@ def _exclusive_finalize_lock(run_dir: Path) -> Iterator[None]:
                 os.close(lock_fd)
             except OSError as exc:
                 cleanup_error = exc
-        if owned_identity is not None:
-            try:
-                current = lock_path.stat(follow_symlinks=False)
-                if (current.st_dev, current.st_ino) != owned_identity:
-                    raise OSError("finalization lock identity changed")
-                lock_path.unlink()
-            except OSError as exc:
-                cleanup_error = cleanup_error or exc
         if active_error is None and cleanup_error is not None:
             raise CreativeCodePatchGenerationError(
                 "trusted dispatch finalization lock cleanup failed."
