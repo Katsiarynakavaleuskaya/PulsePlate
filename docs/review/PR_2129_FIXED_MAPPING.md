@@ -29,10 +29,11 @@ Packet: `artifacts/orchestration/task_packets/1418f71dc1a5.json`
   backend-engineer -> dev-operator`.
 - Every role returned `PROCEED` with no unresolved finding after the bounded
   implementation and MyPy correction.
-- The final post-open role tail completed on material head
-  `7e464ad929db9fd1a46f3529d5abab6b8271e79e` in the required order:
-  `qa-engineer-agent -> bug-hunter -> security-auditor`; all three returned
-  `PROCEED` with no finding.
+- After the dispatcher trust fix, the final post-open role tail reran on
+  material head `7767faf06e8ebfdb951d8e8e2a749c31af60bb3b` in the required order:
+  `qa-engineer-agent -> bug-hunter -> security-auditor`; QA and bug-hunter
+  returned `PROCEED`, security-auditor returned `PASS`, and all three reported
+  no finding.
 - Native Codex Security scanning remained `operator_directed_stop`; no scan
   PASS is claimed and no scan was restarted.
 - Local packets, role outputs, premortem notes, and Experiment Runner evidence
@@ -109,6 +110,9 @@ Artifact: `artifacts/orchestration/experiments/results/pr-2129-final-oracle-resu
 - Scoped preflight and agent consistency: PASS.
 - Focused runner/dispatch, patch-builder, specification/fingerprint,
   skeptic-review, subprocess, nosec-policy, and review-pattern suites: PASS.
+- Final dispatcher trust bundle: 182 focused dispatcher/patch-builder tests,
+  both snapshot regressions, invalid-cwd fail-before-subprocess coverage,
+  Ruff, and bounded MyPy with zero diagnostics: PASS.
 - `make validate-changed`: PASS.
 - Exact diff-selected backend-test hook: PASS.
 - `pre-commit run --all-files`: PASS.
@@ -192,6 +196,27 @@ Reason: The review objects aggregate their inline threads or an explicit no-find
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2129#pullrequestreview-4710682775
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2129#pullrequestreview-4710715767
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2129#pullrequestreview-4711111608
+
+Disposition: FIXED
+Commit: 7767faf06e8ebfdb951d8e8e2a749c31af60bb3b
+Evidence: `scripts/orchestration/experiment_runner_dispatch.py` resolves and validates each dispatcher Git cwd before subprocess execution, adds one adjacent exact `-c safe.directory=<resolved-cwd>` entry, and disables global/system Git config. `tests/test_experiment_runner_dispatch.py::test_dispatch_git_uses_one_resolved_per_invocation_safe_directory` and `::test_dispatch_git_rejects_invalid_cwd_before_subprocess` pass together with both snapshot regressions, Ruff, and MyPy with zero diagnostics.
+Reason: The pre-existing dispatcher Git wrapper is in the active Oracle snapshot execution path, so the valid finding was fixed in this PR rather than narrowed out of the replacement claim.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2129#discussion_r3593311728 -> 7767faf06e8ebfdb951d8e8e2a749c31af60bb3b
+
+Disposition: NOT-A-BUG
+Evidence: GitHub lists `b0f3f18078020dfe4e3c656ae3610288098c1122`, `7e464ad929db9fd1a46f3529d5abab6b8271e79e`, and `d2443a22cf10c0f59ec344e8ec9e077490037009` in the live PR commit graph; each is an ancestor of the owner head. The cited `6afe4b4b...` reviewer-execution ref is not a repository commit.
+Reason: The finding again compared real FIXED proofs against an unavailable synthetic ref instead of the real GitHub PR head.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2129#discussion_r3593311721
+
+Disposition: NOT-A-BUG
+Evidence: `git show -s --format=%B b0f3f18078020dfe4e3c656ae3610288098c1122` contains the exact `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>` trailer, and the artifact correctly attributes the accepted Oracle evidence to that material commit.
+Reason: The synthetic `6afe4b4b...` reviewer-execution ref is not the attributed implementation commit and cannot replace its real Git identity.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2129#discussion_r3593311724
+
+Disposition: NOT-A-BUG
+Evidence: The three inline findings from this Codex review are individually dispositioned above: one valid dispatcher trust defect is fixed in `7767faf06e8ebfdb951d8e8e2a749c31af60bb3b`, and both synthetic-ref findings have live Git evidence.
+Reason: The review object introduces no independent finding beyond its three inline threads.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2129#pullrequestreview-4711276017
 
 ## Merge Readiness
 
