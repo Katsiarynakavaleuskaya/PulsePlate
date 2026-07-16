@@ -282,6 +282,32 @@ Evidence: All four inline findings from this review are individually disposition
 Reason: The aggregate review object introduces no independent defect beyond its inline threads.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2129#pullrequestreview-4713398951
 
+Disposition: FIXED
+Commit: 00f680cf9597b5bfd02079c41f35eb9b9d84d9da
+Evidence: Every self-reference in the canonical artifact now uses the stable `Discussion Thread Pass`, `Experiment Runner Evidence`, or `Source PR Replacement Matrix` section name and exact parser fact; no disposition proof depends on line numbers that later mapping additions can invalidate. Phase2 validation passes.
+Reason: Canonical evidence anchors remain verifiable as the append-only disposition table grows.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2129#discussion_r3595555620 -> 00f680cf9597b5bfd02079c41f35eb9b9d84d9da
+
+Disposition: NOT-A-BUG
+Evidence: GitHub records this review object's trusted `commit_id` as real owner head `9e9b704f826b462f568c8b19093113a6f4c9f01f`, where every mapped proof commit is reachable. The cited `e119e365...` execution ref is neither the GitHub review commit nor a live PR head.
+Reason: An unavailable reviewer-execution ref cannot replace the trusted submitted review identity for ancestry validation.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2129#discussion_r3595555615
+
+Disposition: NOT-A-BUG
+Evidence: GitHub records this review on mapping-only owner head `9e9b704f826b462f568c8b19093113a6f4c9f01f`, whose real material head is reachable `af2aed04166b2f3e1c1adf5b90903675f30c2f2d`. The mandatory QA, bug-hunter, and security-auditor tail is bound to that material commit and returned `PROCEED`, `PROCEED`, and `PASS` with no findings.
+Reason: The cited `e119e365...` is not the trusted review commit, and an exact mapping-only commit does not change material identity or invalidate the material-head role tail.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2129#discussion_r3595555626
+
+Disposition: NOT-A-BUG
+Evidence: The accepted Oracle evidence remains attributed to reachable material commit `b0f3f18078020dfe4e3c656ae3610288098c1122`, whose message contains the exact `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>` trailer. GitHub identifies this review commit as `9e9b704f826b462f568c8b19093113a6f4c9f01f`, not `e119e365...`.
+Reason: The unavailable execution ref cannot replace the real attributed material commit or its Git identity.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2129#discussion_r3595555631
+
+Disposition: NOT-A-BUG
+Evidence: All four inline findings from this review are individually dispositioned above: the valid unstable-anchor defect is fixed in `00f680cf9597b5bfd02079c41f35eb9b9d84d9da`; the three synthetic-ref claims are contradicted by the review object's real `commit_id`, live ancestry, canonical attribution, and material-head role evidence.
+Reason: The aggregate review object introduces no independent defect beyond its inline threads.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2129#pullrequestreview-4713837551
+
 ## Merge Readiness
 
 - [x] Mandatory post-open role tail completed on current material head.
