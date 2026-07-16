@@ -364,6 +364,15 @@ def collect_legacy_route_facts(source_text: str, *, filename: str = LEGACY_APP) 
         references = route_reference_snapshots[node_id]
         strings = route_string_snapshots[node_id]
         scoped_app_aliases, scoped_router_aliases, _scoped_strings = scoped_route_bindings(node)
+        if isinstance(func, ast.Subscript):
+            reference = _static_module_reference(
+                func,
+                module_aliases=references,
+                import_module_aliases=frozenset(),
+                static_string_bindings=strings,
+            )
+            if reference == _POSSIBLE_APP_CALL_REFERENCE:
+                return "dynamic"
         if not isinstance(func, (ast.Name, ast.Call)):
             return _app_call_action(
                 func,
@@ -528,8 +537,31 @@ def _static_module_reference(
             import_module_aliases=import_module_aliases,
             static_string_bindings=static_string_bindings,
         )
+        if parent == _POSSIBLE_APP_REFERENCE:
+            if node.attr == "router":
+                return _POSSIBLE_ROUTER_REFERENCE
+            if node.attr in APP_ROUTE_METHODS | APP_REGISTRATION_METHODS:
+                return _POSSIBLE_APP_CALL_REFERENCE
+            return None
+        if parent == _POSSIBLE_ROUTER_REFERENCE:
+            if node.attr in APP_ROUTE_METHODS | APP_REGISTRATION_METHODS:
+                return _POSSIBLE_APP_CALL_REFERENCE
+            return None
         if parent is not None:
             return f"{parent}.{node.attr}"
+        return None
+    if isinstance(node, ast.Subscript):
+        parent = _static_module_reference(
+            node.value,
+            module_aliases=module_aliases,
+            import_module_aliases=import_module_aliases,
+            static_string_bindings=static_string_bindings,
+        )
+        if parent in {
+            _POSSIBLE_APP_CALL_REFERENCE,
+            _POSSIBLE_MIDDLEWARE_DECORATOR_REFERENCE,
+        }:
+            return parent
         return None
     if not isinstance(node, ast.Call):
         return None
@@ -1651,6 +1683,16 @@ def validate_legacy_growth(
     return errors
 
 
+_FunctionNode = ast.FunctionDef | ast.AsyncFunctionDef
+
+
+@dataclass(frozen=True)
+class _ResolvedBinding:
+    reference: str | None
+    string: str | None
+    callables: frozenset[_FunctionNode] = frozenset()
+
+
 class _LexicalBindings:
     """Statement-ordered bindings for one Python lexical scope."""
 
@@ -1666,6 +1708,7 @@ class _LexicalBindings:
         self.scope_kind = scope_kind
         self.references: dict[str, str] = {}
         self.strings: dict[str, str] = {}
+        self.callables: dict[str, frozenset[_FunctionNode]] = {}
 
     def clone(self) -> _LexicalBindings:
         clone = _LexicalBindings(
@@ -1675,6 +1718,7 @@ class _LexicalBindings:
         )
         clone.references = dict(self.references)
         clone.strings = dict(self.strings)
+        clone.callables = dict(self.callables)
         return clone
 
     def resolve_reference(self, name: str) -> str | None:
@@ -1695,6 +1739,15 @@ class _LexicalBindings:
             return self.parent.resolve_string(name)
         return None
 
+    def resolve_callables(self, name: str) -> frozenset[_FunctionNode]:
+        if name in self.callables:
+            return self.callables[name]
+        if name in self.local_names:
+            return frozenset()
+        if self.parent is not None:
+            return self.parent.resolve_callables(name)
+        return frozenset()
+
     def visible_references(self) -> dict[str, str]:
         visible = self.parent.visible_references() if self.parent is not None else {}
         for name in self.local_names:
@@ -1709,7 +1762,21 @@ class _LexicalBindings:
         visible.update(self.strings)
         return visible
 
-    def bind(self, name: str, *, reference: str | None, string: str | None) -> None:
+    def visible_callables(self) -> dict[str, frozenset[_FunctionNode]]:
+        visible = self.parent.visible_callables() if self.parent is not None else {}
+        for name in self.local_names:
+            visible.pop(name, None)
+        visible.update(self.callables)
+        return visible
+
+    def bind(
+        self,
+        name: str,
+        *,
+        reference: str | None,
+        string: str | None,
+        callables: frozenset[_FunctionNode] = frozenset(),
+    ) -> None:
         if reference is None:
             self.references.pop(name, None)
         else:
@@ -1718,6 +1785,10 @@ class _LexicalBindings:
             self.strings.pop(name, None)
         else:
             self.strings[name] = string
+        if callables:
+            self.callables[name] = callables
+        else:
+            self.callables.pop(name, None)
 
 
 @dataclass
@@ -1894,9 +1965,16 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         self._loop_controls: list[_LoopControlBindings] = []
         self._terminal_controls = _TerminalControlBindings(return_scopes=[], raise_scopes=[])
         self._exception_scope_collectors: list[list[_LexicalBindings]] = []
-        self._function_late_bindings: list[tuple[dict[str, str], dict[str, str]]] = []
-        self._function_definitions: dict[str, ast.FunctionDef | ast.AsyncFunctionDef] = {}
-        self._active_function_replays: set[str] = set()
+        self._function_late_bindings: list[
+            tuple[
+                dict[str, str],
+                dict[str, str],
+                dict[str, frozenset[_FunctionNode]],
+            ]
+        ] = []
+        self._function_default_bindings: dict[_FunctionNode, dict[str, _ResolvedBinding]] = {}
+        self._active_function_replays: set[_FunctionNode] = set()
+        self._awaited_call_ids: set[int] = set()
         self._remaining_loop_iterations = _MAX_TOTAL_LOOP_BINDING_ITERATIONS
         self.scope = _LexicalBindings(parent=None)
         self.scope.bind("getattr", reference="builtins.getattr", string=None)
@@ -1967,6 +2045,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         *,
         reference: str | None,
         string: str | None,
+        callables: frozenset[_FunctionNode] = frozenset(),
         overwrite_conflicts: bool = False,
     ) -> None:
         if self.preserve_fastapi_conflicts and not overwrite_conflicts:
@@ -1994,7 +2073,28 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 and (current_string in route_methods or string in route_methods)
             ):
                 string = _CONFLICTED_ROUTE_METHOD
-        self.scope.bind(name, reference=reference, string=string)
+        self.scope.bind(
+            name,
+            reference=reference,
+            string=string,
+            callables=callables,
+        )
+
+    def _resolve_callables(self, node: ast.AST) -> frozenset[_FunctionNode]:
+        if isinstance(node, ast.NamedExpr):
+            return self._resolve_callables(node.value)
+        if isinstance(node, ast.Name):
+            return self.scope.resolve_callables(node.id)
+        if isinstance(node, ast.BoolOp):
+            return frozenset().union(*(self._resolve_callables(value) for value in node.values))
+        if isinstance(node, ast.IfExp):
+            selected_nodes = (
+                [node.body if bool(node.test.value) else node.orelse]
+                if isinstance(node.test, ast.Constant)
+                else [node.body, node.orelse]
+            )
+            return frozenset().union(*(self._resolve_callables(value) for value in selected_nodes))
+        return frozenset()
 
     def _resolve_reference(self, node: ast.AST) -> str | None:
         if isinstance(node, ast.NamedExpr):
@@ -2022,7 +2122,22 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         )
         if reference is not None:
             return reference
+        if isinstance(node, ast.Subscript):
+            container_reference = self._resolve_reference(node.value)
+            if container_reference in {
+                _POSSIBLE_APP_CALL_REFERENCE,
+                _POSSIBLE_MIDDLEWARE_DECORATOR_REFERENCE,
+            }:
+                return container_reference
         if isinstance(node, ast.Call):
+            if (
+                self.preserve_route_method_conflicts
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "middleware"
+                and self._resolve_reference(node.func.value)
+                in {"pulseplate.app", _POSSIBLE_APP_REFERENCE}
+            ):
+                return f"{_MIDDLEWARE_DECORATOR_REFERENCE_PREFIX}{_first_arg_label(node)}"
             if self.preserve_route_method_conflicts and len(node.args) >= 2:
                 lookup_reference = _static_module_reference(
                     node.func,
@@ -2178,7 +2293,11 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
 
     @staticmethod
     def _bindings_equal(left: _LexicalBindings, right: _LexicalBindings) -> bool:
-        return left.references == right.references and left.strings == right.strings
+        return (
+            left.references == right.references
+            and left.strings == right.strings
+            and left.callables == right.callables
+        )
 
     def _consume_loop_iteration(self) -> None:
         if self._remaining_loop_iterations <= 0:
@@ -2286,16 +2405,79 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 joined_strings[name] = _POSSIBLE_API_KEY_SYMBOL
         self.scope.strings = joined_strings
 
+        callable_names = set().union(*(set(outcome.callables) for outcome in outcomes))
+        joined_callables: dict[str, frozenset[_FunctionNode]] = {}
+        for name in callable_names:
+            candidates = frozenset().union(
+                *(outcome.callables.get(name, frozenset()) for outcome in outcomes)
+            )
+            if candidates:
+                joined_callables[name] = candidates
+        self.scope.callables = joined_callables
+
     def _bind_targets(
         self,
         targets: Sequence[ast.expr],
         *,
         reference: str | None,
         string: str | None,
+        callables: frozenset[_FunctionNode] = frozenset(),
     ) -> None:
         for target in targets:
             for name in _assignment_target_names(target):
-                self._bind_name(name, reference=reference, string=string)
+                self._bind_name(
+                    name,
+                    reference=reference,
+                    string=string,
+                    callables=callables,
+                )
+
+    @staticmethod
+    def _is_definitely_non_app_value(node: ast.AST) -> bool:
+        if isinstance(node, (ast.Constant, ast.JoinedStr, ast.Lambda)):
+            return True
+        if isinstance(node, (ast.List, ast.Tuple, ast.Set)):
+            return all(
+                not isinstance(element, ast.Starred)
+                and _ApiKeyLookupVisitor._is_definitely_non_app_value(element)
+                for element in node.elts
+            )
+        if isinstance(node, ast.Dict):
+            return all(
+                key is not None
+                and _ApiKeyLookupVisitor._is_definitely_non_app_value(key)
+                and _ApiKeyLookupVisitor._is_definitely_non_app_value(value)
+                for key, value in zip(node.keys, node.values, strict=True)
+            )
+        return False
+
+    def _preserve_sensitive_reference(
+        self,
+        name: str,
+        value: ast.AST,
+        resolved_reference: str | None,
+        callables: frozenset[_FunctionNode],
+    ) -> str | None:
+        if resolved_reference is not None:
+            return resolved_reference
+        if callables or isinstance(value, ast.Name) or self._is_definitely_non_app_value(value):
+            return None
+        current = self.scope.resolve_reference(name)
+        if current in {"pulseplate.app", _POSSIBLE_APP_REFERENCE}:
+            return _POSSIBLE_APP_REFERENCE
+        if current in {"pulseplate.app.router", _POSSIBLE_ROUTER_REFERENCE}:
+            return _POSSIBLE_ROUTER_REFERENCE
+        if current == _POSSIBLE_APP_CALL_REFERENCE or (
+            current is not None
+            and current.startswith("pulseplate.app.")
+            and current.rsplit(".", maxsplit=1)[-1] in APP_ROUTE_METHODS | APP_REGISTRATION_METHODS
+        ):
+            return _POSSIBLE_APP_CALL_REFERENCE
+        if current == _POSSIBLE_MIDDLEWARE_DECORATOR_REFERENCE or (
+            current is not None and current.startswith(_MIDDLEWARE_DECORATOR_REFERENCE_PREFIX)
+        ):
+            return _POSSIBLE_MIDDLEWARE_DECORATOR_REFERENCE
+        return None
 
     def _bind_target_value(
         self,
@@ -2318,15 +2500,25 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 )
             return
         resolved_string = self._resolve_string(value)
-        self._bind_targets(
-            [target],
-            reference=self._resolve_reference(value),
-            string=(
-                resolved_string
-                if resolved_string is not None
-                else (_DYNAMIC_STRING_BINDING if dynamic_unknown_string else None)
-            ),
+        resolved_reference = self._resolve_reference(value)
+        callables = self._resolve_callables(value)
+        string = (
+            resolved_string
+            if resolved_string is not None
+            else (_DYNAMIC_STRING_BINDING if dynamic_unknown_string else None)
         )
+        for name in _assignment_target_names(target):
+            self._bind_name(
+                name,
+                reference=self._preserve_sensitive_reference(
+                    name,
+                    value,
+                    resolved_reference,
+                    callables,
+                ),
+                string=string,
+                callables=callables,
+            )
 
     def _bind_iteration_target(self, target: ast.expr, iterable: ast.AST) -> None:
         literal_values = (
@@ -2372,11 +2564,35 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
 
     def _visit_function(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> None:
         self._visit_function_header(node)
-        self._function_definitions[node.name] = node
+        positional_parameters = [*node.args.posonlyargs, *node.args.args]
+        positional_default_parameters = (
+            positional_parameters[-len(node.args.defaults) :] if node.args.defaults else []
+        )
+        default_bindings = {
+            parameter.arg: self._capture_argument_binding(default)
+            for parameter, default in zip(
+                positional_default_parameters,
+                node.args.defaults,
+                strict=True,
+            )
+        }
+        default_bindings.update(
+            {
+                parameter.arg: self._capture_argument_binding(default)
+                for parameter, default in zip(
+                    node.args.kwonlyargs,
+                    node.args.kw_defaults,
+                    strict=True,
+                )
+                if default is not None
+            }
+        )
+        self._function_default_bindings[node] = default_bindings
         self._bind_name(
             node.name,
             reference=None,
             string=None,
+            callables=frozenset({node}),
             overwrite_conflicts=True,
         )
         if not self.analyze_function_bodies:
@@ -2399,10 +2615,11 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             self.scope = active_scope
             lexical_parent = late_parent
         elif lexical_parent.scope_kind == "function" and self._function_late_bindings:
-            late_references, late_strings = self._function_late_bindings[-1]
+            late_references, late_strings, late_callables = self._function_late_bindings[-1]
             final_parent = lexical_parent.clone()
             final_parent.references = dict(late_references)
             final_parent.strings = dict(late_strings)
+            final_parent.callables = dict(late_callables)
             late_parent = lexical_parent.clone()
             active_scope = self.scope
             self._merge_outcomes(
@@ -2428,6 +2645,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         function_late_bindings = (
             dict(summary_visitor.scope.references),
             dict(summary_visitor.scope.strings),
+            dict(summary_visitor.scope.callables),
         )
         previous = self.scope
         previous_loop_controls = self._loop_controls
@@ -3109,6 +3327,171 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 )
         self.generic_visit(node)
 
+    def _capture_argument_binding(
+        self,
+        value: ast.AST,
+        *,
+        conservative: bool = False,
+    ) -> _ResolvedBinding:
+        reference = self._resolve_reference(value)
+        string = self._resolve_string(value)
+        unresolved_dynamic = reference is None and isinstance(
+            value,
+            (ast.Call, ast.Attribute, ast.Subscript),
+        )
+        if reference is None and (conservative or unresolved_dynamic):
+            reference = _POSSIBLE_APP_CALL_REFERENCE
+        if string is None and conservative:
+            string = _DYNAMIC_STRING_BINDING
+        return _ResolvedBinding(
+            reference=reference,
+            string=string,
+            callables=self._resolve_callables(value),
+        )
+
+    @staticmethod
+    def _conservative_argument_binding() -> _ResolvedBinding:
+        return _ResolvedBinding(
+            reference=_POSSIBLE_APP_CALL_REFERENCE,
+            string=_DYNAMIC_STRING_BINDING,
+        )
+
+    @staticmethod
+    def _argument_binding_may_register(binding: _ResolvedBinding) -> bool:
+        reference = binding.reference
+        return (
+            bool(binding.callables)
+            or reference
+            in {
+                "pulseplate.app",
+                "pulseplate.app.router",
+                _POSSIBLE_APP_REFERENCE,
+                _POSSIBLE_ROUTER_REFERENCE,
+                _POSSIBLE_APP_CALL_REFERENCE,
+                _POSSIBLE_MIDDLEWARE_DECORATOR_REFERENCE,
+            }
+            or (
+                reference is not None
+                and (
+                    reference.startswith("pulseplate.app.")
+                    or reference.startswith(_MIDDLEWARE_DECORATOR_REFERENCE_PREFIX)
+                )
+            )
+        )
+
+    def _resolve_call_argument_bindings(
+        self,
+        function: _FunctionNode,
+        call: ast.Call,
+    ) -> dict[str, _ResolvedBinding]:
+        positional_values: list[ast.AST] = []
+        unresolved_positional = False
+        for call_argument in call.args:
+            if not isinstance(call_argument, ast.Starred):
+                positional_values.append(call_argument)
+                continue
+            if isinstance(call_argument.value, (ast.List, ast.Tuple)) and not any(
+                isinstance(element, ast.Starred) for element in call_argument.value.elts
+            ):
+                positional_values.extend(call_argument.value.elts)
+            else:
+                unresolved_positional = True
+
+        keyword_values: list[tuple[str, ast.AST]] = []
+        unresolved_keywords = False
+        for keyword in call.keywords:
+            if keyword.arg is not None:
+                keyword_values.append((keyword.arg, keyword.value))
+                continue
+            if (
+                isinstance(keyword.value, ast.Dict)
+                and all(
+                    isinstance(key, ast.Constant) and isinstance(key.value, str)
+                    for key in keyword.value.keys
+                    if key is not None
+                )
+                and all(key is not None for key in keyword.value.keys)
+            ):
+                keyword_values.extend(
+                    (str(key.value), value)
+                    for key, value in zip(
+                        keyword.value.keys,
+                        keyword.value.values,
+                        strict=True,
+                    )
+                    if isinstance(key, ast.Constant)
+                )
+            else:
+                unresolved_keywords = True
+
+        positional_parameters = [*function.args.posonlyargs, *function.args.args]
+        keyword_parameters = {parameter.arg for parameter in function.args.args}
+        keyword_parameters.update(parameter.arg for parameter in function.args.kwonlyargs)
+        assignments: dict[str, list[_ResolvedBinding]] = {}
+        overflow_positional_bindings: list[_ResolvedBinding] = []
+        for index, value in enumerate(positional_values):
+            if index < len(positional_parameters):
+                name = positional_parameters[index].arg
+                assignments.setdefault(name, []).append(self._capture_argument_binding(value))
+            else:
+                overflow_positional_bindings.append(self._capture_argument_binding(value))
+        unexpected_keyword_bindings: list[_ResolvedBinding] = []
+        for name, value in keyword_values:
+            if name in keyword_parameters:
+                assignments.setdefault(name, []).append(self._capture_argument_binding(value))
+            else:
+                unexpected_keyword_bindings.append(self._capture_argument_binding(value))
+
+        default_bindings = self._function_default_bindings.get(function, {})
+        resolved: dict[str, _ResolvedBinding] = {}
+        for parameter in positional_parameters:
+            candidates = assignments.get(parameter.arg, [])
+            if len(candidates) == 1:
+                resolved[parameter.arg] = candidates[0]
+            elif len(candidates) > 1:
+                resolved[parameter.arg] = self._conservative_argument_binding()
+            elif parameter.arg in default_bindings:
+                resolved[parameter.arg] = default_bindings[parameter.arg]
+            elif unresolved_positional or (parameter in function.args.args and unresolved_keywords):
+                resolved[parameter.arg] = self._conservative_argument_binding()
+            else:
+                resolved[parameter.arg] = _ResolvedBinding(None, None)
+
+        for parameter in function.args.kwonlyargs:
+            candidates = assignments.get(parameter.arg, [])
+            if len(candidates) == 1:
+                resolved[parameter.arg] = candidates[0]
+            elif len(candidates) > 1:
+                resolved[parameter.arg] = self._conservative_argument_binding()
+            elif parameter.arg in default_bindings:
+                resolved[parameter.arg] = default_bindings[parameter.arg]
+            elif unresolved_keywords:
+                resolved[parameter.arg] = self._conservative_argument_binding()
+            else:
+                resolved[parameter.arg] = _ResolvedBinding(None, None)
+
+        if function.args.vararg is not None:
+            resolved[function.args.vararg.arg] = (
+                self._conservative_argument_binding()
+                if unresolved_positional
+                or any(
+                    self._argument_binding_may_register(binding)
+                    for binding in overflow_positional_bindings
+                )
+                else _ResolvedBinding(None, None)
+            )
+        if function.args.kwarg is not None:
+            resolved[function.args.kwarg.arg] = (
+                self._conservative_argument_binding()
+                if unresolved_keywords
+                or any(
+                    self._argument_binding_may_register(binding)
+                    for binding in unexpected_keyword_bindings
+                )
+                else _ResolvedBinding(None, None)
+            )
+        return resolved
+
     def visit_Call(self, node: ast.Call) -> None:
         if (
             isinstance(node.func, ast.Attribute)
@@ -3143,13 +3526,42 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     f"{self.filename}: dynamic legacy API-key dependency lookup is forbidden: "
                     f"{symbol_name if symbol_name in CANONICAL_API_KEY_SYMBOLS else '<dynamic>'}"
                 )
-        if self.analyze_function_bodies and isinstance(node.func, ast.Name):
-            self._replay_function_call(node.func.id)
+        awaited = id(node) in self._awaited_call_ids
+        replay_inputs: list[tuple[_FunctionNode, dict[str, _ResolvedBinding]]] = []
+        if self.analyze_function_bodies:
+            for target in sorted(
+                self._resolve_callables(node.func),
+                key=lambda candidate: (
+                    candidate.lineno,
+                    candidate.col_offset,
+                    candidate.name,
+                    isinstance(candidate, ast.AsyncFunctionDef),
+                ),
+            ):
+                if isinstance(target, ast.AsyncFunctionDef) and not awaited:
+                    continue
+                replay_inputs.append((target, self._resolve_call_argument_bindings(target, node)))
         self.generic_visit(node)
+        for target, arguments in replay_inputs:
+            self._replay_function_call(target, arguments)
 
-    def _replay_function_call(self, name: str) -> None:
-        node = self._function_definitions.get(name)
-        if node is None or name in self._active_function_replays:
+    def visit_Await(self, node: ast.Await) -> None:
+        if not isinstance(node.value, ast.Call):
+            self.generic_visit(node)
+            return
+        call_id = id(node.value)
+        self._awaited_call_ids.add(call_id)
+        try:
+            self.visit(node.value)
+        finally:
+            self._awaited_call_ids.remove(call_id)
+
+    def _replay_function_call(
+        self,
+        node: _FunctionNode,
+        arguments: Mapping[str, _ResolvedBinding],
+    ) -> None:
+        if node in self._active_function_replays:
             return
         previous = self.scope
         previous_loop_controls = self._loop_controls
@@ -3160,14 +3572,21 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             local_names=_function_local_binding_names(node),
             scope_kind="function",
         )
+        for name, binding in arguments.items():
+            self.scope.bind(
+                name,
+                reference=binding.reference,
+                string=binding.string,
+                callables=binding.callables,
+            )
         self._loop_controls = []
         self._terminal_controls = _TerminalControlBindings(return_scopes=[], raise_scopes=[])
         self._exception_scope_collectors = []
-        self._active_function_replays.add(name)
+        self._active_function_replays.add(node)
         try:
             self._visit_statements(node.body)
         finally:
-            self._active_function_replays.remove(name)
+            self._active_function_replays.remove(node)
             self.scope = previous
             self._loop_controls = previous_loop_controls
             self._terminal_controls = previous_terminal_controls
