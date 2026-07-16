@@ -69,6 +69,9 @@ AMBIENT_RESOLVER_ENV_VARS = (
     "PIP_CONSTRAINT",
     "PIP_REQUIREMENT",
     "PIP_BUILD_CONSTRAINT",
+    "PIP_ONLY_BINARY",
+    "PIP_NO_BINARY",
+    "PIP_PREFER_BINARY",
     "SSL_CERT_FILE",
     "REQUESTS_CA_BUNDLE",
     "CURL_CA_BUNDLE",
@@ -650,6 +653,7 @@ def _private_proxy_child_env(
             "PIP_CONFIG_FILE": os.devnull,
             "PIP_DISABLE_PIP_VERSION_CHECK": "1",
             "PIP_NO_INPUT": "1",
+            "PIP_ONLY_BINARY": ":all:",
         }
     )
     child_env["HOME"] = str(resolver_home)

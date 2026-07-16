@@ -960,6 +960,7 @@ def test_private_proxy_environment_is_canonical_and_sanitized(
     assert child_env["PIP_INDEX_URL"] == APPROVED_INDEX
     assert child_env["PIP_CONFIG_FILE"] == os.devnull
     assert child_env["PIP_NO_INPUT"] == "1"
+    assert child_env["PIP_ONLY_BINARY"] == ":all:"
     assert "PIP_EXTRA_INDEX_URL" not in child_env
     assert inspected_netrc_paths == [resolver_home / ".netrc"]
 
@@ -1002,6 +1003,9 @@ def test_private_proxy_environment_is_canonical_and_sanitized(
         "PIP_CONSTRAINT",
         "PIP_REQUIREMENT",
         "PIP_BUILD_CONSTRAINT",
+        "PIP_ONLY_BINARY",
+        "PIP_NO_BINARY",
+        "PIP_PREFER_BINARY",
         "SSL_CERT_FILE",
         "REQUESTS_CA_BUNDLE",
         "CURL_CA_BUNDLE",
