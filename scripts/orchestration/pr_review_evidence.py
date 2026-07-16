@@ -57,6 +57,34 @@ _SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 _DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 _RAW_DIGEST_RE = re.compile(r"^[0-9a-f]{64}$")
 _ROOT_REQUIREMENTS_MANIFEST_RE = re.compile(r"^requirements(?:-[a-z0-9][a-z0-9-]*)?\.(?:in|txt)$")
+_DEPENDENCY_MANIFEST_BASENAMES = frozenset(
+    {
+        "Cargo.lock",
+        "Cargo.toml",
+        "Gemfile",
+        "Gemfile.lock",
+        "Package.resolved",
+        "Package.swift",
+        "Pipfile",
+        "Pipfile.lock",
+        "Podfile",
+        "Podfile.lock",
+        "composer.json",
+        "composer.lock",
+        "constraints.txt",
+        "go.mod",
+        "go.sum",
+        "npm-shrinkwrap.json",
+        "package-lock.json",
+        "package.json",
+        "pnpm-lock.yaml",
+        "poetry.lock",
+        "pylock.toml",
+        "pyproject.toml",
+        "uv.lock",
+        "yarn.lock",
+    }
+)
 _SNAPSHOT_DIGEST_RE = re.compile(r"^codex-security-snapshot/v1:sha256:[0-9a-f]{64}$")
 _UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
 _VERSION_RE = re.compile(r"^\d+\.\d+\.\d+$")
@@ -935,7 +963,8 @@ def validate_security_outage_override_scope(
             for path in material_paths
             if path in OPERATOR_OUTAGE_TRUST_BOUNDARY_EXACT_PATHS
             or path.startswith(OPERATOR_OUTAGE_TRUST_BOUNDARY_PREFIXES)
-            or _ROOT_REQUIREMENTS_MANIFEST_RE.fullmatch(path)
+            or PurePosixPath(path).name in _DEPENDENCY_MANIFEST_BASENAMES
+            or _ROOT_REQUIREMENTS_MANIFEST_RE.fullmatch(PurePosixPath(path).name)
         }
     )
     if not touched:

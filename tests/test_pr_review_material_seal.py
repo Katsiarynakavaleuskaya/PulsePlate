@@ -10,7 +10,7 @@ import shutil
 import subprocess
 from argparse import Namespace
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, cast
 
 import pytest
@@ -874,16 +874,38 @@ def test_security_outage_trust_boundary_covers_security_dependency_inputs() -> N
         for path in audited_manifests
         if (repo_root / f"{path.removesuffix('.txt')}.in").is_file()
     }
-    root_requirement_paths = {
-        path.name
-        for pattern in ("requirements*.in", "requirements*.txt")
-        for path in repo_root.glob(pattern)
+    dependency_basenames = {
+        "Gemfile",
+        "Gemfile.lock",
+        "Package.resolved",
+        "Package.swift",
+        "package-lock.json",
+        "package.json",
+        "pyproject.toml",
     }
-    protected_paths = root_requirement_paths | {"constraints.txt"}
+    tracked_dependency_paths = {
+        path
+        for path in _git(repo_root, "ls-files").splitlines()
+        if PurePosixPath(path).name in dependency_basenames
+        or re.fullmatch(
+            r"requirements(?:-[a-z0-9][a-z0-9-]*)?\.(?:in|txt)",
+            PurePosixPath(path).name,
+        )
+    }
+    protected_paths = tracked_dependency_paths | {"constraints.txt"}
 
     assert audited_manifests
     assert audited_manifests | audited_inputs <= protected_paths
     assert {
+        "frontend/package-lock.json",
+        "frontend/package.json",
+        "ios/Gemfile",
+        "ios/Gemfile.lock",
+        "ios/Package.resolved",
+        "ios/Package.swift",
+        "package-lock.json",
+        "package.json",
+        "pyproject.toml",
         "requirements-ci-lite.in",
         "constraints.txt",
         "requirements-ci-lite.txt",
