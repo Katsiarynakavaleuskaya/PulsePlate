@@ -149,6 +149,92 @@ def _write_gate(
     return output_dir / generation_cli.GATE_FILENAME
 
 
+def _prepare_generated_dispatch_handoff(
+    *,
+    monkeypatch: pytest.MonkeyPatch,
+    repo: Path,
+    base_sha: str,
+    run_id: str,
+) -> tuple[Path, Path, dict[str, Any]]:
+    admission_path = _prepare_admission(repo=repo, base_sha=base_sha, run_id=run_id)
+    _mock_successful_builder_edges(monkeypatch)
+    gate_path = _write_gate(repo=repo, admission_path=admission_path, run_id=run_id)
+    metadata = creative_code_patch_builder.generate(run_id=run_id)
+    run_dir = creative_code_patch_workspace.resolve_run_dir(run_id, create=False)
+    request = json.loads(
+        (run_dir / creative_code_patch_builder.REQUEST_FILE).read_text(encoding="utf-8")
+    )
+    bundle = json.loads(
+        (run_dir / creative_code_patch_builder.SOURCE_BUNDLE_FILE).read_text(encoding="utf-8")
+    )
+    packet = creative_code_patch_builder.build_pr2_experiment_packet(
+        request=request,
+        source_bundle=bundle,
+        changed_paths=list(metadata["changed_paths"]),
+    )
+    _write_json(run_dir / creative_code_patch_builder.EXPERIMENT_PACKET_FILE, packet)
+    result_path = (
+        repo / "artifacts" / "orchestration" / "experiments" / "results" / f"{run_id}.json"
+    )
+    return gate_path, result_path, packet
+
+
+def _trusted_dispatch_result(
+    packet: dict[str, Any],
+    *,
+    status: str = "accepted",
+    failure_class: str | None = None,
+    mutated_paths: list[str] | None = None,
+) -> dict[str, Any]:
+    configured_commands = [oracle["command"] for oracle in packet["immutable_oracles"]]
+    accepted = status == "accepted"
+    if mutated_paths is None:
+        mutated_paths = list(packet["mutable_candidate_surface"])
+    oracle_results = [
+        {
+            "command": command,
+            "returncode": 0,
+            "timed_out": False,
+            "truncated": False,
+            "stdout": "",
+            "stderr": "",
+            "cwd": "/workspace",
+        }
+        for command in configured_commands
+    ]
+    return {
+        "schema_version": "1.0",
+        "experiment_id": packet["experiment_id"],
+        "runner_mode": "candidate_patch",
+        "candidate_patch": "candidate.patch",
+        "status": status,
+        "failure_class": failure_class,
+        "mutated_paths": mutated_paths,
+        "oracle_results": oracle_results,
+        "budget_observations": {
+            "configured_budgets": dict(packet["budgets"]),
+            "oracle_commands_configured": len(configured_commands),
+            "oracle_commands_executed": len(oracle_results),
+            "candidate_changed_files": len(packet["mutable_candidate_surface"]),
+            "attempts": 1,
+            "retries_consumed": 0,
+        },
+        "shared_tree_untouched": True,
+        "promotion_ready": accepted,
+        "contribution_kind": "oracle_review" if accepted else "none",
+        "coauthor_required": accepted,
+        "coauthor_reason": "Trusted isolated candidate evaluation." if accepted else "",
+        "execution_backend": {
+            "name": "apple-container",
+            "guest_platform": "linux_arm64",
+            "runtime_version": "1.1.0",
+            "image_digest": "sha256:" + ("a" * 64),
+            "network_isolation": "apple_internal_no_dns_plus_linux_unshare",
+            "preflight_status": "passed",
+        },
+    }
+
+
 def _reset_receipt_identity(receipt: dict[str, Any]) -> None:
     generation_cli._set_identity(
         receipt,
@@ -352,6 +438,277 @@ def test_generate_candidate_happy_path_writes_sanitized_receipt(
         )
         == 0
     )
+
+
+def test_finalize_dispatched_result_writes_canonical_result_and_receipt(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo, base_sha = _init_patch_repo(tmp_path)
+    _patch_modules_to_repo(monkeypatch, repo)
+    run_id = "dispatch-finalize-accepted"
+    gate_path, dispatch_path, packet = _prepare_generated_dispatch_handoff(
+        monkeypatch=monkeypatch,
+        repo=repo,
+        base_sha=base_sha,
+        run_id=run_id,
+    )
+    _write_json(dispatch_path, _trusted_dispatch_result(packet))
+    monkeypatch.setattr(
+        creative_code_patch_builder,
+        "generate",
+        lambda **_kwargs: pytest.fail("dispatch finalization must not regenerate"),
+    )
+    monkeypatch.setattr(
+        creative_code_patch_builder,
+        "evaluate",
+        lambda **_kwargs: pytest.fail("dispatch finalization must not re-evaluate directly"),
+    )
+
+    assert (
+        generation_cli.main(
+            [
+                "finalize-dispatched-result",
+                "--gate",
+                str(gate_path),
+                "--dispatch-result",
+                str(dispatch_path),
+            ]
+        )
+        == 0
+    )
+    captured = capsys.readouterr()
+    assert generation_cli.FINALIZE_DISPATCHED_RESULT_SUCCESS_OUTPUT in captured.out
+    run_dir = creative_code_patch_workspace.resolve_run_dir(run_id, create=False)
+    result = validate_creative_code_patch_result(
+        json.loads((run_dir / creative_code_patch_builder.RESULT_FILE).read_text(encoding="utf-8"))
+    )
+    receipt_path = gate_path.parent / generation_cli.RECEIPT_FILENAME
+    receipt = validate_generation_receipt(json.loads(receipt_path.read_text(encoding="utf-8")))
+    state = json.loads(
+        (run_dir / creative_code_patch_builder.STATE_FILE).read_text(encoding="utf-8")
+    )
+
+    assert result["status"] == "accepted"
+    assert result["runner_summary"]["attempts"] == 1
+    assert result["runner_summary"]["retries_consumed"] == 0
+    assert result["runner_summary"]["shared_tree_untouched"] is True
+    assert receipt["result_fingerprint"] == fingerprint_payload(result)
+    assert receipt["status"] == "accepted"
+    assert state["candidate_patch_generated"] is True
+    assert state["candidate_patch_evaluated"] is True
+    serialized = json.dumps({"result": result, "receipt": receipt}, sort_keys=True)
+    assert "oracle_results" not in serialized
+    assert "/workspace" not in serialized
+    assert "stdout" not in serialized
+    assert "stderr" not in serialized
+    assert (
+        generation_cli.main(
+            ["validate-artifacts", "--gate", str(gate_path), "--receipt", str(receipt_path)]
+        )
+        == 0
+    )
+
+
+def test_finalize_dispatched_result_rolls_back_partial_publication(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo, base_sha = _init_patch_repo(tmp_path)
+    _patch_modules_to_repo(monkeypatch, repo)
+    run_id = "dispatch-finalize-rollback"
+    gate_path, dispatch_path, packet = _prepare_generated_dispatch_handoff(
+        monkeypatch=monkeypatch,
+        repo=repo,
+        base_sha=base_sha,
+        run_id=run_id,
+    )
+    _write_json(dispatch_path, _trusted_dispatch_result(packet))
+    original_write_json_new = generation_cli._write_json_new
+
+    def fail_receipt_write(path: Path, payload: dict[str, Any]) -> None:
+        if path.name == generation_cli.RECEIPT_FILENAME:
+            raise CreativeCodePatchGenerationError("simulated receipt publication failure")
+        original_write_json_new(path, payload)
+
+    monkeypatch.setattr(generation_cli, "_write_json_new", fail_receipt_write)
+
+    assert (
+        generation_cli.main(
+            [
+                "finalize-dispatched-result",
+                "--gate",
+                str(gate_path),
+                "--dispatch-result",
+                str(dispatch_path),
+            ]
+        )
+        == 1
+    )
+    assert "simulated receipt publication failure" in capsys.readouterr().err
+    run_dir = creative_code_patch_workspace.resolve_run_dir(run_id, create=False)
+    assert not (run_dir / creative_code_patch_builder.RESULT_FILE).exists()
+    assert not (gate_path.parent / generation_cli.RECEIPT_FILENAME).exists()
+    state = json.loads(
+        (run_dir / creative_code_patch_builder.STATE_FILE).read_text(encoding="utf-8")
+    )
+    assert state["candidate_patch_generated"] is True
+    assert state["candidate_patch_evaluated"] is False
+
+
+@pytest.mark.parametrize(
+    ("failure_class", "mutated_paths"),
+    [
+        ("guard_failure", None),
+        ("capability_mismatch", []),
+    ],
+)
+def test_finalize_dispatched_result_retains_trusted_rejection_without_retry(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    failure_class: str,
+    mutated_paths: list[str] | None,
+) -> None:
+    repo, base_sha = _init_patch_repo(tmp_path)
+    _patch_modules_to_repo(monkeypatch, repo)
+    run_id = f"dispatch-finalize-{failure_class}"
+    gate_path, dispatch_path, packet = _prepare_generated_dispatch_handoff(
+        monkeypatch=monkeypatch,
+        repo=repo,
+        base_sha=base_sha,
+        run_id=run_id,
+    )
+    dispatch_result = _trusted_dispatch_result(
+        packet,
+        status="rejected",
+        failure_class=failure_class,
+        mutated_paths=mutated_paths,
+    )
+    if failure_class == "capability_mismatch":
+        dispatch_result["oracle_results"] = []
+        dispatch_result["budget_observations"]["oracle_commands_executed"] = 0
+    _write_json(dispatch_path, dispatch_result)
+
+    assert (
+        generation_cli.main(
+            [
+                "finalize-dispatched-result",
+                "--gate",
+                str(gate_path),
+                "--dispatch-result",
+                str(dispatch_path),
+            ]
+        )
+        == 0
+    )
+    capsys.readouterr()
+    receipt_path = gate_path.parent / generation_cli.RECEIPT_FILENAME
+    receipt = validate_generation_receipt(json.loads(receipt_path.read_text(encoding="utf-8")))
+    assert receipt["status"] == "rejected"
+    assert receipt["failure_class"] == failure_class
+    assert receipt["runner_summary"]["attempts"] == 1
+    assert receipt["runner_summary"]["retries_consumed"] == 0
+    assert receipt["promotion_ready"] is False
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
+        ("experiment_id", "experiment_id does not match"),
+        ("missing_backend", "execution backend provenance"),
+        ("retry", "one attempt and zero retries"),
+        ("extra_path", "mutated paths do not match"),
+        ("oracle_command", "oracle commands do not match"),
+    ],
+)
+def test_finalize_dispatched_result_rejects_unbound_dispatch_evidence(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    mutation: str,
+    message: str,
+) -> None:
+    repo, base_sha = _init_patch_repo(tmp_path)
+    _patch_modules_to_repo(monkeypatch, repo)
+    run_id = f"dispatch-unbound-{mutation}"
+    gate_path, dispatch_path, packet = _prepare_generated_dispatch_handoff(
+        monkeypatch=monkeypatch,
+        repo=repo,
+        base_sha=base_sha,
+        run_id=run_id,
+    )
+    dispatch_result = _trusted_dispatch_result(packet)
+    if mutation == "experiment_id":
+        dispatch_result["experiment_id"] = "experiment_stale"
+    elif mutation == "missing_backend":
+        dispatch_result.pop("execution_backend")
+    elif mutation == "retry":
+        dispatch_result["budget_observations"]["retries_consumed"] = 1
+    elif mutation == "extra_path":
+        dispatch_result["mutated_paths"] = ["core/rag/other.py"]
+    else:
+        dispatch_result["oracle_results"][0]["command"] = "pytest -q tests/test_other.py"
+    _write_json(dispatch_path, dispatch_result)
+
+    assert (
+        generation_cli.main(
+            [
+                "finalize-dispatched-result",
+                "--gate",
+                str(gate_path),
+                "--dispatch-result",
+                str(dispatch_path),
+            ]
+        )
+        == 1
+    )
+    assert message in capsys.readouterr().err
+    run_dir = creative_code_patch_workspace.resolve_run_dir(run_id, create=False)
+    assert not (run_dir / creative_code_patch_builder.RESULT_FILE).exists()
+    assert not (gate_path.parent / generation_cli.RECEIPT_FILENAME).exists()
+    state = json.loads(
+        (run_dir / creative_code_patch_builder.STATE_FILE).read_text(encoding="utf-8")
+    )
+    assert state["candidate_patch_evaluated"] is False
+
+
+def test_finalize_dispatched_result_rejects_tampered_candidate_and_duplicate_finalize(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo, base_sha = _init_patch_repo(tmp_path)
+    _patch_modules_to_repo(monkeypatch, repo)
+    run_id = "dispatch-tampered-candidate"
+    gate_path, dispatch_path, packet = _prepare_generated_dispatch_handoff(
+        monkeypatch=monkeypatch,
+        repo=repo,
+        base_sha=base_sha,
+        run_id=run_id,
+    )
+    _write_json(dispatch_path, _trusted_dispatch_result(packet))
+    run_dir = creative_code_patch_workspace.resolve_run_dir(run_id, create=False)
+    patch_path = run_dir / creative_code_patch_builder.CANDIDATE_PATCH_FILE
+    original_patch = patch_path.read_text(encoding="utf-8")
+    patch_path.write_text(original_patch.replace("return 2", "return 999"), encoding="utf-8")
+
+    command = [
+        "finalize-dispatched-result",
+        "--gate",
+        str(gate_path),
+        "--dispatch-result",
+        str(dispatch_path),
+    ]
+    assert generation_cli.main(command) == 1
+    assert "candidate patch metadata is stale" in capsys.readouterr().err
+    patch_path.write_text(original_patch, encoding="utf-8")
+    assert generation_cli.main(command) == 0
+    capsys.readouterr()
+    assert generation_cli.main(command) == 1
+    assert "generation receipt already exists" in capsys.readouterr().err
 
 
 def test_generate_candidate_persists_capability_mismatch_without_retry_or_promotion(

@@ -94,6 +94,10 @@ python -m scripts.orchestration.creative_code_patch_generation validate-run-plan
 
 python -m scripts.orchestration.creative_code_patch_generation generate-candidate \
   --gate artifacts/orchestration/creative_code/patch_generation/<run-id>/generation_gate.json
+
+python -m scripts.orchestration.creative_code_patch_generation finalize-dispatched-result \
+  --gate artifacts/orchestration/creative_code/patch_generation/<run-id>/generation_gate.json \
+  --dispatch-result artifacts/orchestration/experiments/results/<experiment-result>.json
 ```
 
 `validate-run-plan` writes `generation_gate.json` only after it revalidates:
@@ -128,6 +132,40 @@ The receipt stores named pass/fail checks and `passed_checks` /
 `CreativeCodePatchResult` may still produce a receipt, but `promotion_ready`
 remains `false`. Builder or wrapper failures exit non-zero and must not emit a
 success receipt.
+
+On hosts where direct candidate evaluation raises the bounded Runner capability
+signal after generation, `finalize-dispatched-result` is the only supported
+resume seam. The operator runs the existing trusted Experiment Runner dispatcher
+against the already-generated `experiment_packet.json` and `candidate.patch`,
+then passes its sanitized result artifact to this command. The command does not
+generate, modify, rebase, or retry the candidate.
+
+Before publishing the canonical `result.json` and `generation_receipt.json`, the
+resume seam revalidates:
+
+- the stored generation gate and its admission, request, source-bundle, selected
+  variant, budget, path, oracle, metric, and immutable-oracle bindings;
+- derivation of the current generated state from the gate-bound prepared-state
+  fingerprint;
+- current `origin/main`, a clean shared tree, destroyed generation checkout, and
+  removed checkout origin;
+- exact current patch bytes, metadata, changed paths, experiment packet, and
+  selected variant;
+- a dispatch result contained under
+  `artifacts/orchestration/experiments/results/`, with no symlink traversal;
+- normal candidate runner mode, the stable `candidate.patch` marker, exact
+  experiment ID, passed execution-backend preflight provenance, one attempt,
+  zero retries, packet-identical budgets and oracle commands, bounded mutated
+  paths, and an untouched shared tree;
+- every configured oracle passing before an accepted result can be published.
+
+Rejected trusted results remain valid terminal evidence when their failure class
+and observations satisfy the Experiment Runner contract. The seam persists only
+the existing sanitized creative-code result and receipt projections; raw oracle
+stdout/stderr, local paths, prompts, patches, provider payloads, and reasoning do
+not enter those projections. A pre-existing result or receipt, stale base,
+tampered sidecar, missing backend provenance, partial publication, or divergent
+replay fails closed. It does not authorize a second generation attempt.
 
 `validate-artifacts` must re-read the linked local sidecars before reporting
 success. It recomputes the current `candidate.patch` summary, validates
