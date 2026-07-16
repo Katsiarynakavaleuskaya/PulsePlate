@@ -213,8 +213,8 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
    and be revalidated with the current-head security bundle from its trusted
    GitHub Apps/workflows before merge. The bootstrap exception is PR `#2142`
    only; later PRs that change the override verifier, merge gate, current-head
-   check identity parser, any CI/security workflow, or an implementation/policy
-   input of the substitute security checks cannot authorize themselves with
+   check identity parser, any CI/security workflow or local GitHub Action, or an
+   implementation/policy input of the substitute security checks cannot authorize themselves with
    this override. It is tooling-unavailability evidence, never
    a security scan or no-findings claim. The trusted submitted review object's
    real GitHub `commit_id` must equal the frozen material head. When the official

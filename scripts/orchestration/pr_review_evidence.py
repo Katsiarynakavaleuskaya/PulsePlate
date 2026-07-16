@@ -43,6 +43,7 @@ OPERATOR_OUTAGE_TRUST_BOUNDARY_EXACT_PATHS = frozenset(
     }
 )
 OPERATOR_OUTAGE_TRUST_BOUNDARY_PREFIXES = (
+    ".github/actions/",
     ".github/workflows/",
     "scripts/ci/",
     "trivy/",

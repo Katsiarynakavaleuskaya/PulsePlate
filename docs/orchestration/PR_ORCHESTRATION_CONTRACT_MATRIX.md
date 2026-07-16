@@ -146,8 +146,8 @@ governance PR number + 1; the governance PR may opt in with
   private-proxy, and Trivy policy checks from their expected GitHub Apps and
   workflows all succeed. PR `#2142` is the one-time bootstrap. Future PRs that
   change the override verifier, merge gate, current-head check identity parser,
-  any CI/security workflow, or implementations/policy inputs of the substitute
-  security checks cannot use the override. This variant records tool
+  any CI/security workflow or local GitHub Action, or implementations/policy
+  inputs of the substitute security checks cannot use the override. This variant records tool
   unavailability and must never be represented as a scan or no-findings result.
   The embedded scan record is a
   `human_asserted_content_receipt`: CI verifies schema, hashes, coverage, range,

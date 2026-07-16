@@ -831,6 +831,12 @@ def test_security_outage_receipt_rejects_unknown_or_open_shapes(mutate: Any) -> 
             ("scripts/ci/check_private_python_proxy_health.py",),
             False,
         ),
+        (
+            "owner/repo",
+            42,
+            (".github/actions/python-setup/action.yml",),
+            False,
+        ),
         ("owner/repo", 42, ("trivy/ignore-policy.rego",), False),
         ("owner/repo", 42, ("requirements-test.txt",), True),
     ],

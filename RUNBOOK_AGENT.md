@@ -630,8 +630,8 @@ Before merge: `unresolved` must be `0`. Resolve all threads in GitHub UI (Conver
    user id and exact material head/digest, remain within its TTL, and pass the
    current-head security bundle from the expected GitHub Apps/workflows. PR
    `#2142` is the one-time bootstrap; future changes to the override verifier,
-   merge gate, current-head check identity parser, CI/security workflows, or
-   implementations/policy inputs of the substitute security checks cannot use
+   merge gate, current-head check identity parser, CI/security workflows, local
+   GitHub Actions, or implementations/policy inputs of the substitute security checks cannot use
    the override. This writes the sole canonical mapping/seal artifact.
 6. Commit that artifact once, update the PR body link without a Git commit, and
    run the authenticated strict wrapper.
