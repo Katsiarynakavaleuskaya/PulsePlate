@@ -31,6 +31,7 @@ DISPATCH_REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(DISPATCH_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(DISPATCH_REPO_ROOT))
 
+from core.evidence.fingerprints import fingerprint_payload
 from scripts.orchestration.context_pack import REPO_ROOT
 from scripts.orchestration.experiment_contract import (
     CONTRIBUTION_KINDS,
@@ -1480,6 +1481,8 @@ def _infra_flake_result(
         "coauthor_reason": "",
         "execution_backend": _execution_backend_payload(probe, passed=True),
     }
+    if "candidate_patch_fingerprint" in packet:
+        result["candidate_patch_fingerprint"] = packet["candidate_patch_fingerprint"]
     return _validated_experiment_result(_redact_result_value(result))
 
 
@@ -1519,6 +1522,8 @@ def _post_preflight_capability_mismatch_result(
         "coauthor_reason": "",
         "execution_backend": _execution_backend_payload(probe, passed=True),
     }
+    if "candidate_patch_fingerprint" in packet:
+        result["candidate_patch_fingerprint"] = packet["candidate_patch_fingerprint"]
     return _validated_experiment_result(result)
 
 
@@ -1982,6 +1987,16 @@ def main(argv: list[str] | None = None) -> int:
                 )
             if candidate_patch is None:
                 raise ValueError("Candidate-patch packets require --candidate-patch.")
+            try:
+                candidate_patch_text = candidate_patch.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError) as exc:
+                raise ValueError("Candidate patch could not be read.") from exc
+            expected_patch_fingerprint = packet.get("candidate_patch_fingerprint")
+            if expected_patch_fingerprint is not None and (
+                expected_patch_fingerprint
+                != fingerprint_payload({"candidate_patch": candidate_patch_text})
+            ):
+                raise ValueError("Candidate patch fingerprint does not match the packet.")
         if int(packet["budgets"]["network_budget"]) != 0:
             probe = _strict_network_budget_probe(args.backend, image)
             result = _capability_mismatch_result(packet, image, probe)

@@ -1639,6 +1639,7 @@ def _validate_experiment_packet_matches_result(
         request=request,
         source_bundle=source_bundle,
         changed_paths=list(result["changed_paths"]),
+        patch_fingerprint=str(experiment_packet_payload["candidate_patch_fingerprint"]),
     )
     if _stable_experiment_packet_semantics(
         experiment_packet_payload
@@ -1974,6 +1975,10 @@ def _load_generated_dispatch_context(
         or selected_variant.get("variant_fingerprint") != gate["selected_variant_fingerprint"]
     ):
         raise CreativeCodePatchGenerationError("selected variant no longer matches the gate.")
+    if selected_variant != creative_code_patch_builder._selected_variant(normalized_run_bundle):
+        raise CreativeCodePatchGenerationError(
+            "selected variant no longer matches the validated source bundle."
+        )
     candidate_patch, metadata_path, packet_path, result_path = _candidate_artifact_paths(run_dir)
     if result_path.exists() or result_path.is_symlink():
         raise CreativeCodePatchGenerationError("creative-code patch result already exists.")
@@ -1997,6 +2002,10 @@ def _load_generated_dispatch_context(
     if state.get("patch_metadata") != metadata:
         raise CreativeCodePatchGenerationError("generated run state patch metadata is stale.")
     packet = _read_experiment_packet(packet_path)
+    if packet.get("candidate_patch_fingerprint") != actual_summary["patch_fingerprint"]:
+        raise CreativeCodePatchGenerationError(
+            "experiment packet candidate patch fingerprint is stale."
+        )
     return run_dir, state, request, bundle, packet, patch_text
 
 
@@ -2005,6 +2014,7 @@ def _validate_dispatch_result_binding(
     dispatch_result: dict[str, Any],
     packet: Mapping[str, Any],
     changed_paths: list[str],
+    patch_fingerprint: str,
 ) -> dict[str, Any]:
     """Require trusted, one-attempt dispatcher evidence for the exact PR-2 packet."""
 
@@ -2021,6 +2031,13 @@ def _validate_dispatch_result_binding(
     if result["candidate_patch"] != "candidate.patch":
         raise CreativeCodePatchGenerationError(
             "trusted dispatch result candidate marker is invalid."
+        )
+    if (
+        packet.get("candidate_patch_fingerprint") != patch_fingerprint
+        or result.get("candidate_patch_fingerprint") != patch_fingerprint
+    ):
+        raise CreativeCodePatchGenerationError(
+            "trusted dispatch result candidate patch fingerprint does not match."
         )
     backend = result.get("execution_backend")
     if not isinstance(backend, dict) or backend.get("preflight_status") != "passed":
@@ -2096,6 +2113,7 @@ def _finalize_dispatched_result(args: argparse.Namespace) -> int:
         ),
         packet=packet,
         changed_paths=list(metadata["changed_paths"]),
+        patch_fingerprint=str(metadata["patch_fingerprint"]),
     )
     result = build_creative_code_patch_result(
         request=request,
@@ -2159,6 +2177,7 @@ def _finalize_dispatched_result(args: argparse.Namespace) -> int:
         ),
         packet=current_packet,
         changed_paths=list(metadata["changed_paths"]),
+        patch_fingerprint=str(metadata["patch_fingerprint"]),
     )
     if current_dispatch_result != dispatch_result:
         raise CreativeCodePatchGenerationError(
@@ -2178,16 +2197,51 @@ def _finalize_dispatched_result(args: argparse.Namespace) -> int:
         )
         state_written = True
         _write_json_new(receipt_path, receipt)
-    except Exception:
-        if receipt_path.exists() and not receipt_path.is_symlink():
-            receipt_path.unlink()
-        if state_written:
-            write_json_atomic(
-                resolve_run_file(run_dir, creative_code_patch_builder.STATE_FILE, for_write=True),
-                original_state,
-            )
-        if result_written and result_path.exists() and not result_path.is_symlink():
-            result_path.unlink()
+    except Exception as publication_error:
+        rollback_errors: list[str] = []
+        rollback_actions = (
+            (
+                "receipt removal",
+                lambda: (
+                    receipt_path.unlink()
+                    if receipt_path.exists() and not receipt_path.is_symlink()
+                    else None
+                ),
+            ),
+            (
+                "state restoration",
+                lambda: (
+                    write_json_atomic(
+                        resolve_run_file(
+                            run_dir,
+                            creative_code_patch_builder.STATE_FILE,
+                            for_write=True,
+                        ),
+                        original_state,
+                    )
+                    if state_written
+                    else None
+                ),
+            ),
+            (
+                "result removal",
+                lambda: (
+                    result_path.unlink()
+                    if result_written and result_path.exists() and not result_path.is_symlink()
+                    else None
+                ),
+            ),
+        )
+        for label, rollback in rollback_actions:
+            try:
+                rollback()
+            except Exception as rollback_error:
+                rollback_errors.append(f"{label}: {rollback_error.__class__.__name__}")
+        if rollback_errors:
+            raise CreativeCodePatchGenerationError(
+                "dispatch result publication failed and rollback was incomplete: "
+                + "; ".join(rollback_errors)
+            ) from publication_error
         raise
     print(FINALIZE_DISPATCHED_RESULT_SUCCESS_OUTPUT)
     print(_repo_ref(receipt_path))

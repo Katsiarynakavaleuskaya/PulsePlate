@@ -12,6 +12,7 @@ from typing import Any
 
 import pytest
 
+from core.evidence.fingerprints import fingerprint_payload
 from scripts.orchestration import experiment_contract
 from scripts.orchestration import experiment_runner
 from scripts.orchestration import experiment_runner_dispatch as dispatch
@@ -2282,6 +2283,57 @@ def test_invalid_or_candidate_attribution_rejects_before_backend_selection(
 
     assert dispatch.main([]) == 2
     assert message in capsys.readouterr().err
+
+
+def test_candidate_patch_fingerprint_mismatch_rejects_before_backend_selection(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    packet = _packet()
+    packet["runner_mode"] = "candidate_patch"
+    packet["mutable_candidate_surface"] = ["core/rag/orchestration.py"]
+    packet["candidate_patch_fingerprint"] = fingerprint_payload(
+        {"candidate_patch": "expected patch\n"}
+    )
+    packet_path = tmp_path / "packet.json"
+    packet_path.write_text(json.dumps(packet), encoding="utf-8")
+    candidate_patch = tmp_path / "candidate.patch"
+    candidate_patch.write_text("different patch\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        dispatch,
+        "_parse_args",
+        lambda _argv: SimpleNamespace(
+            command="run",
+            backend="auto",
+            packet="packet.json",
+            candidate_patch="candidate.patch",
+            image=f"pulseplate/experiment-runner:local@{_DIGEST}",
+            output="result.json",
+            contribution_kind="none",
+            coauthor_required=False,
+            coauthor_reason="",
+        ),
+    )
+    monkeypatch.setattr(
+        dispatch,
+        "_require_repo_local_file",
+        lambda raw, **_kwargs: candidate_patch if raw == "candidate.patch" else packet_path,
+    )
+    monkeypatch.setattr(
+        dispatch,
+        "_resolve_local_output",
+        lambda *_args, **_kwargs: tmp_path / "result.json",
+    )
+    monkeypatch.setattr(
+        dispatch,
+        "select_backend",
+        lambda *_args: (_ for _ in ()).throw(AssertionError("backend probe must not run")),
+    )
+
+    assert dispatch.main([]) == 2
+    assert "Candidate patch fingerprint does not match the packet" in capsys.readouterr().err
 
 
 def test_probe_cleanup_failure_overrides_original_exception(

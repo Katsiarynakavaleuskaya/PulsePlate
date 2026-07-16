@@ -538,11 +538,12 @@ def build_pr2_experiment_packet(
     request: Mapping[str, Any],
     source_bundle: dict[str, Any],
     changed_paths: list[str],
+    patch_fingerprint: str,
 ) -> dict[str, Any]:
     """Build the canonical Experiment Runner packet for a normalized PR-2 request."""
 
     selected_variant = _selected_variant(source_bundle)
-    return cast(
+    packet = cast(
         dict[str, Any],
         build_experiment_packet(
             decision_question=selected_variant["problem_statement"],
@@ -560,6 +561,8 @@ def build_pr2_experiment_packet(
             creative_research_origin=_creative_research_origin(source_bundle),
         ),
     )
+    packet["candidate_patch_fingerprint"] = patch_fingerprint
+    return packet
 
 
 def _verified_patch_metadata(
@@ -616,6 +619,7 @@ def evaluate(*, run_id: str) -> dict[str, Any]:
         request=normalized_request,
         source_bundle=bundle,
         changed_paths=changed_paths,
+        patch_fingerprint=patch_fingerprint,
     )
     write_json_atomic(resolve_run_file(run_dir, EXPERIMENT_PACKET_FILE, for_write=True), packet)
     failure_class: str | None = None

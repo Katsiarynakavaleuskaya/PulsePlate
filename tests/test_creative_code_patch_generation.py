@@ -158,21 +158,25 @@ def _prepare_generated_dispatch_handoff(
 ) -> tuple[Path, Path, dict[str, Any]]:
     admission_path = _prepare_admission(repo=repo, base_sha=base_sha, run_id=run_id)
     _mock_successful_builder_edges(monkeypatch)
+
+    def raise_capability_signal(_packet: dict[str, Any], _patch_file: Path) -> dict[str, Any]:
+        raise creative_code_patch_builder.RunnerCapabilitySignal
+
+    monkeypatch.setattr(
+        creative_code_patch_builder,
+        "evaluate_candidate",
+        raise_capability_signal,
+    )
     gate_path = _write_gate(repo=repo, admission_path=admission_path, run_id=run_id)
-    metadata = creative_code_patch_builder.generate(run_id=run_id)
+    assert generation_cli.main(["generate-candidate", "--gate", str(gate_path)]) == 1
     run_dir = creative_code_patch_workspace.resolve_run_dir(run_id, create=False)
-    request = json.loads(
-        (run_dir / creative_code_patch_builder.REQUEST_FILE).read_text(encoding="utf-8")
+    metadata = json.loads(
+        (run_dir / creative_code_patch_builder.PATCH_METADATA_FILE).read_text(encoding="utf-8")
     )
-    bundle = json.loads(
-        (run_dir / creative_code_patch_builder.SOURCE_BUNDLE_FILE).read_text(encoding="utf-8")
+    packet = json.loads(
+        (run_dir / creative_code_patch_builder.EXPERIMENT_PACKET_FILE).read_text(encoding="utf-8")
     )
-    packet = creative_code_patch_builder.build_pr2_experiment_packet(
-        request=request,
-        source_bundle=bundle,
-        changed_paths=list(metadata["changed_paths"]),
-    )
-    _write_json(run_dir / creative_code_patch_builder.EXPERIMENT_PACKET_FILE, packet)
+    assert packet["candidate_patch_fingerprint"] == metadata["patch_fingerprint"]
     result_path = (
         repo / "artifacts" / "orchestration" / "experiments" / "results" / f"{run_id}.json"
     )
@@ -207,6 +211,7 @@ def _trusted_dispatch_result(
         "experiment_id": packet["experiment_id"],
         "runner_mode": "candidate_patch",
         "candidate_patch": "candidate.patch",
+        "candidate_patch_fingerprint": packet["candidate_patch_fingerprint"],
         "status": status,
         "failure_class": failure_class,
         "mutated_paths": mutated_paths,
@@ -256,6 +261,7 @@ def _semantic_binding_inputs(
     }
     packet = {
         "experiment_id": "experiment:test",
+        "candidate_patch_fingerprint": "sha256:" + ("b" * 64),
         "mutable_candidate_surface": ["core/rag/example.py"],
         "immutable_oracles": [
             {
@@ -273,6 +279,7 @@ def _semantic_binding_inputs(
     }
     result = {
         "changed_paths": ["core/rag/example.py"],
+        "patch_fingerprint": "sha256:" + ("b" * 64),
         "runner_summary": {
             "experiment_id": "experiment:test",
             "oracle_commands_configured": 1,
@@ -558,6 +565,57 @@ def test_finalize_dispatched_result_rolls_back_partial_publication(
     assert state["candidate_patch_evaluated"] is False
 
 
+def test_finalize_dispatched_result_attempts_every_rollback_after_cleanup_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo, base_sha = _init_patch_repo(tmp_path)
+    _patch_modules_to_repo(monkeypatch, repo)
+    run_id = "dispatch-finalize-rollback-cleanup-failure"
+    gate_path, dispatch_path, packet = _prepare_generated_dispatch_handoff(
+        monkeypatch=monkeypatch,
+        repo=repo,
+        base_sha=base_sha,
+        run_id=run_id,
+    )
+    _write_json(dispatch_path, _trusted_dispatch_result(packet))
+    original_write_json_new = generation_cli._write_json_new
+    original_write_json_atomic = generation_cli.write_json_atomic
+
+    def publish_receipt_then_fail(path: Path, payload: dict[str, Any]) -> None:
+        original_write_json_new(path, payload)
+        if path.name == generation_cli.RECEIPT_FILENAME:
+            raise CreativeCodePatchGenerationError("simulated receipt publication failure")
+
+    def fail_state_restoration(path: Path, payload: dict[str, Any]) -> None:
+        if path.name == creative_code_patch_builder.STATE_FILE and (
+            payload.get("candidate_patch_evaluated") is False
+        ):
+            raise OSError("simulated state restoration failure")
+        original_write_json_atomic(path, payload)
+
+    monkeypatch.setattr(generation_cli, "_write_json_new", publish_receipt_then_fail)
+    monkeypatch.setattr(generation_cli, "write_json_atomic", fail_state_restoration)
+
+    assert (
+        generation_cli.main(
+            [
+                "finalize-dispatched-result",
+                "--gate",
+                str(gate_path),
+                "--dispatch-result",
+                str(dispatch_path),
+            ]
+        )
+        == 1
+    )
+    assert "rollback was incomplete: state restoration: OSError" in capsys.readouterr().err
+    run_dir = creative_code_patch_workspace.resolve_run_dir(run_id, create=False)
+    assert not (run_dir / creative_code_patch_builder.RESULT_FILE).exists()
+    assert not (gate_path.parent / generation_cli.RECEIPT_FILENAME).exists()
+
+
 @pytest.mark.parametrize(
     ("failure_class", "mutated_paths"),
     [
@@ -619,6 +677,7 @@ def test_finalize_dispatched_result_retains_trusted_rejection_without_retry(
     [
         ("experiment_id", "experiment_id does not match"),
         ("missing_backend", "execution backend provenance"),
+        ("patch_fingerprint", "candidate patch fingerprint does not match"),
         ("retry", "one attempt and zero retries"),
         ("extra_path", "mutated paths do not match"),
         ("oracle_command", "oracle commands do not match"),
@@ -645,6 +704,8 @@ def test_finalize_dispatched_result_rejects_unbound_dispatch_evidence(
         dispatch_result["experiment_id"] = "experiment_stale"
     elif mutation == "missing_backend":
         dispatch_result.pop("execution_backend")
+    elif mutation == "patch_fingerprint":
+        dispatch_result["candidate_patch_fingerprint"] = "sha256:" + ("f" * 64)
     elif mutation == "retry":
         dispatch_result["budget_observations"]["retries_consumed"] = 1
     elif mutation == "extra_path":
@@ -673,6 +734,44 @@ def test_finalize_dispatched_result_rejects_unbound_dispatch_evidence(
         (run_dir / creative_code_patch_builder.STATE_FILE).read_text(encoding="utf-8")
     )
     assert state["candidate_patch_evaluated"] is False
+
+
+def test_finalize_dispatched_result_rejects_selected_variant_content_tamper(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo, base_sha = _init_patch_repo(tmp_path)
+    _patch_modules_to_repo(monkeypatch, repo)
+    run_id = "dispatch-tampered-selected-variant"
+    gate_path, dispatch_path, packet = _prepare_generated_dispatch_handoff(
+        monkeypatch=monkeypatch,
+        repo=repo,
+        base_sha=base_sha,
+        run_id=run_id,
+    )
+    _write_json(dispatch_path, _trusted_dispatch_result(packet))
+    run_dir = creative_code_patch_workspace.resolve_run_dir(run_id, create=False)
+    selected_variant_path = run_dir / creative_code_patch_builder.SELECTED_VARIANT_FILE
+    selected_variant = json.loads(selected_variant_path.read_text(encoding="utf-8"))
+    selected_variant["problem_statement"] = "tampered but fingerprint field retained"
+    _write_json(selected_variant_path, selected_variant)
+
+    assert (
+        generation_cli.main(
+            [
+                "finalize-dispatched-result",
+                "--gate",
+                str(gate_path),
+                "--dispatch-result",
+                str(dispatch_path),
+            ]
+        )
+        == 1
+    )
+    assert (
+        "selected variant no longer matches the validated source bundle" in capsys.readouterr().err
+    )
 
 
 def test_finalize_dispatched_result_rejects_tampered_candidate_and_duplicate_finalize(

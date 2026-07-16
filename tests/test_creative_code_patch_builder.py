@@ -291,12 +291,14 @@ def test_pr2_experiment_packet_binds_builder_owned_semantics() -> None:
         request=request,
         source_bundle=bundle,
         changed_paths=["core/rag/orchestration.py"],
+        patch_fingerprint="sha256:" + ("a" * 64),
     )
 
     assert packet["decision_question"] == selected_variant["problem_statement"]
     assert packet["task_class"] == "Experimentation"
     assert packet["negative_controls"] == selected_variant["negative_controls"]
     assert packet["promotion_target"] == "audit_artifact"
+    assert packet["candidate_patch_fingerprint"] == "sha256:" + ("a" * 64)
     assert packet["creative_research_origin"] == {
         key: bundle["source_creative_research"][key]
         for key in ("bundle_id", "candidate_id", "promotion_decision")

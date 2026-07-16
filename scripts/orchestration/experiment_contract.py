@@ -17,6 +17,7 @@ from typing import Any
 from scripts.orchestration.context_pack import REPO_ROOT, normalize_text, repo_relative_paths
 
 SCHEMA_VERSION = "1.0"
+CANDIDATE_PATCH_FINGERPRINT_RE = re.compile(r"sha256:[0-9a-f]{64}")
 
 PRIMARY_AGENT = "agent-coordinator"
 REVIEWER = "architecture-specialist"
@@ -786,6 +787,18 @@ def validate_experiment_packet(packet: dict[str, Any]) -> dict[str, Any]:
     creative_research_origin = validate_creative_research_origin(
         packet.get("creative_research_origin")
     )
+    candidate_patch_fingerprint_raw = packet.get("candidate_patch_fingerprint")
+    candidate_patch_fingerprint: str | None = None
+    if candidate_patch_fingerprint_raw is not None:
+        candidate_patch_fingerprint = str(candidate_patch_fingerprint_raw).strip()
+        if not CANDIDATE_PATCH_FINGERPRINT_RE.fullmatch(candidate_patch_fingerprint):
+            raise ValueError(
+                "Experiment packet candidate_patch_fingerprint must be a sha256 digest."
+            )
+        if runner_mode == ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE:
+            raise ValueError(
+                "Oracle-only experiment packets must not bind a candidate patch fingerprint."
+            )
 
     normalized = dict(packet)
     normalized["schema_version"] = schema_version
@@ -808,6 +821,10 @@ def validate_experiment_packet(packet: dict[str, Any]) -> dict[str, Any]:
         normalized["creative_research_origin"] = creative_research_origin
     else:
         normalized.pop("creative_research_origin", None)
+    if candidate_patch_fingerprint is not None:
+        normalized["candidate_patch_fingerprint"] = candidate_patch_fingerprint
+    else:
+        normalized.pop("candidate_patch_fingerprint", None)
     return normalized
 
 
@@ -1018,6 +1035,18 @@ def validate_experiment_result(result: dict[str, Any]) -> dict[str, Any]:
                 "Oracle-only governance reviewer results must use the stable "
                 "candidate_patch marker."
             )
+    candidate_patch_fingerprint_raw = result.get("candidate_patch_fingerprint")
+    candidate_patch_fingerprint: str | None = None
+    if candidate_patch_fingerprint_raw is not None:
+        candidate_patch_fingerprint = str(candidate_patch_fingerprint_raw).strip()
+        if not CANDIDATE_PATCH_FINGERPRINT_RE.fullmatch(candidate_patch_fingerprint):
+            raise ValueError(
+                "Experiment result candidate_patch_fingerprint must be a sha256 digest."
+            )
+        if runner_mode == ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE:
+            raise ValueError(
+                "Oracle-only experiment results must not bind a candidate patch fingerprint."
+            )
 
     normalized = dict(result)
     normalized["schema_version"] = schema_version
@@ -1034,6 +1063,10 @@ def validate_experiment_result(result: dict[str, Any]) -> dict[str, Any]:
     normalized["coauthor_required"] = coauthor_required
     normalized["coauthor_reason"] = coauthor_reason
     normalized["candidate_patch"] = candidate_patch
+    if candidate_patch_fingerprint is not None:
+        normalized["candidate_patch_fingerprint"] = candidate_patch_fingerprint
+    else:
+        normalized.pop("candidate_patch_fingerprint", None)
     if execution_backend is not None:
         normalized["execution_backend"] = execution_backend
     return normalized

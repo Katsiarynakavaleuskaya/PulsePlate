@@ -150,13 +150,16 @@ resume seam revalidates:
 - current `origin/main`, a clean shared tree, destroyed generation checkout, and
   removed checkout origin;
 - exact current patch bytes, metadata, changed paths, experiment packet, and
-  selected variant;
+  selected variant; the selected variant must equal the complete canonical
+  variant from the validated source bundle, not merely repeat its stored ID and
+  fingerprint fields;
 - a dispatch result contained under
   `artifacts/orchestration/experiments/results/`, with no symlink traversal;
 - normal candidate runner mode, the stable `candidate.patch` marker, exact
   experiment ID, passed execution-backend preflight provenance, one attempt,
   zero retries, packet-identical budgets and oracle commands, bounded mutated
-  paths, and an untouched shared tree;
+  paths, and an untouched shared tree; both the packet and dispatch result must
+  carry the recomputed canonical patch fingerprint;
 - every configured oracle passing before an accepted result can be published.
 
 Rejected trusted results remain valid terminal evidence when their failure class
@@ -166,6 +169,10 @@ stdout/stderr, local paths, prompts, patches, provider payloads, and reasoning d
 not enter those projections. A pre-existing result or receipt, stale base,
 tampered sidecar, missing backend provenance, partial publication, or divergent
 replay fails closed. It does not authorize a second generation attempt.
+If bounded publication fails, receipt removal, state restoration, and result
+removal are attempted independently so one cleanup error cannot suppress the
+remaining rollback actions; any incomplete rollback remains an explicit
+terminal error.
 
 `validate-artifacts` must re-read the linked local sidecars before reporting
 success. It recomputes the current `candidate.patch` summary, validates

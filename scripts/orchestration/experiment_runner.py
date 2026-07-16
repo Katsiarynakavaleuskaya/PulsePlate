@@ -31,6 +31,7 @@ if str(RUNNER_REPO_ROOT) not in sys.path:
 from app.security import agent_control_plane as cp
 from app.security import execution_sandbox as sandbox
 from app.security.execution_sandbox import SandboxRequest
+from core.evidence.fingerprints import fingerprint_payload
 from scripts.orchestration.context_pack import REPO_ROOT, normalize_repo_path
 from scripts.orchestration.creative_code_patch_workspace import (
     git_env_without_parent_state as _sanitized_git_env_without_parent_state,
@@ -707,6 +708,7 @@ def evaluate_candidate(packet: dict[str, Any], candidate_patch_path: Path) -> di
     }
     shared_status_before: str | None = None
     capability_signal = False
+    candidate_patch_fingerprint: str | None = None
 
     try:
         candidate_patch_ref = normalize_repo_path(candidate_patch_path)
@@ -716,6 +718,14 @@ def evaluate_candidate(packet: dict[str, Any], candidate_patch_path: Path) -> di
                 "oracle_only_governance_reviewer mode must not evaluate candidate patches"
             )
         patch_text = _read_patch_text(candidate_patch_path)
+        actual_patch_fingerprint = fingerprint_payload({"candidate_patch": patch_text})
+        expected_patch_fingerprint = packet.get("candidate_patch_fingerprint")
+        if expected_patch_fingerprint is not None:
+            if expected_patch_fingerprint != actual_patch_fingerprint:
+                raise PolicyViolationError(
+                    "Candidate patch fingerprint does not match the experiment packet."
+                )
+            candidate_patch_fingerprint = actual_patch_fingerprint
         mutated_paths = _extract_mutated_paths(patch_text)
         budget_observations["candidate_changed_files"] = len(mutated_paths)
         if not mutated_paths:
@@ -730,6 +740,8 @@ def evaluate_candidate(packet: dict[str, Any], candidate_patch_path: Path) -> di
                 budget_observations=budget_observations,
                 shared_tree_untouched=True,
             )
+            if candidate_patch_fingerprint is not None:
+                result["candidate_patch_fingerprint"] = candidate_patch_fingerprint
             return result
 
         _validate_patch_targets(packet, mutated_paths)
@@ -825,6 +837,8 @@ def evaluate_candidate(packet: dict[str, Any], candidate_patch_path: Path) -> di
             shared_tree_untouched=shared_status_before is not None,
         )
 
+    if candidate_patch_fingerprint is not None:
+        result["candidate_patch_fingerprint"] = candidate_patch_fingerprint
     if shared_status_before is None:
         result["shared_tree_untouched"] = False
         result["status"] = "rejected"
