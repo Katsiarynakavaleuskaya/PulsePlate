@@ -334,8 +334,7 @@ def test_compare_accepts_only_bound_ancestor_response() -> None:
             "ahead_by": 1,
             "behind_by": 0,
             "base_commit": {"sha": FIX_SHA},
-            "commits": [{"sha": OUTSIDE_SHA}],
-            "head_commit": {"sha": HEAD_SHA},
+            "commits": [{"sha": OUTSIDE_SHA}, {"sha": HEAD_SHA}],
             "merge_base_commit": {"sha": FIX_SHA},
         }
 
@@ -348,8 +347,8 @@ def test_compare_accepts_only_bound_ancestor_response() -> None:
     )
 
 
-@pytest.mark.parametrize("head_commit", [None, {}, {"sha": OUTSIDE_SHA}])
-def test_compare_rejects_missing_or_mismatched_descendant(head_commit: Any) -> None:
+@pytest.mark.parametrize("commits", [None, [], [{"sha": OUTSIDE_SHA}]])
+def test_compare_rejects_missing_or_mismatched_descendant(commits: Any) -> None:
     ancestor = RepositoryCommitRef(FIX_SHA, CommitRefKind.PR_COMMIT)
     descendant = RepositoryCommitRef(HEAD_SHA, CommitRefKind.PR_HEAD)
 
@@ -359,8 +358,7 @@ def test_compare_rejects_missing_or_mismatched_descendant(head_commit: Any) -> N
             "ahead_by": 1,
             "behind_by": 0,
             "base_commit": {"sha": FIX_SHA},
-            "commits": [],
-            "head_commit": head_commit,
+            "commits": commits,
             "merge_base_commit": {"sha": FIX_SHA},
         }
 

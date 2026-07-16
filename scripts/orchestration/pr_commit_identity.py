@@ -675,15 +675,18 @@ def is_ancestor(
     behind_by = response.get("behind_by")
     base_commit = response.get("base_commit")
     commits = response.get("commits")
-    head_commit = response.get("head_commit")
     merge_base_commit = response.get("merge_base_commit")
+    # GitHub's unpaginated Compare response does not expose ``head_commit``.
+    # Its final ``commits`` entry is the most recent commit in the complete
+    # comparison, even when the returned commit list is capped.
+    last_commit = commits[-1] if isinstance(commits, list) and commits else None
     if (
         not isinstance(base_commit, dict)
         or not isinstance(commits, list)
-        or not isinstance(head_commit, dict)
+        or not isinstance(last_commit, dict)
         or not isinstance(merge_base_commit, dict)
         or base_commit.get("sha") != ancestor.sha
-        or head_commit.get("sha") != descendant.sha
+        or last_commit.get("sha") != descendant.sha
         or merge_base_commit.get("sha") != ancestor.sha
         or not isinstance(ahead_by, int)
         or isinstance(ahead_by, bool)
