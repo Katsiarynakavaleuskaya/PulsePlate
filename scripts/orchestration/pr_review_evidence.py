@@ -357,7 +357,10 @@ def _git_path() -> str:
     path = shutil.which("git")
     if not path:
         raise ReviewEvidenceError("git not found in PATH")
-    return path
+    try:
+        return str(Path(path).resolve(strict=True))
+    except OSError as exc:
+        raise ReviewEvidenceError("git executable could not be resolved") from exc
 
 
 def _git_environment() -> dict[str, str]:

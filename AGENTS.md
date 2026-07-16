@@ -761,8 +761,11 @@ make fmt-check
 ### 5) PR body Phase 2 gates (PR metadata contract)
 
 Canonical source: `docs/review/PR_<N>_FIXED_MAPPING.md` (artifact). For normal PR
-events the PR body contains one link to that artifact. Body-only parsing remains
-a legacy/local fallback, not an instruction to copy mapping lines.
+events the PR body retains the exact `## Discussion Thread Pass` and
+`### Fixed in Commit Mapping` structural headings, the two validator-required
+checked checklist items, and one link to that artifact. URL→SHA/disposition
+details remain canonical only in the artifact. Body-only parsing remains a
+legacy/local fallback, not an instruction to copy mapping lines.
 
 ```bash
 python scripts/ci/check_pr_body_phase2_gates.py --event-path /path/to/event.json
@@ -775,6 +778,9 @@ python scripts/ci/check_pr_body_phase2_gates.py --body "..."
 - Scope: Canonical artifact must include required headings, checked checklist,
   mapping details, and v1 seal when activated. The PR body must not mirror
   URL→SHA entries.
+- Before a readiness claim, render or verify the PR-body structural mirror with
+  `review_mapping_artifact.py`; do not remove its headings or checked checklist
+  merely because the mapping details moved to the artifact.
 - Mapping validation is scoped to content under `## Fixed in Commit Mapping` in artifact (or body when used as fallback).
 - CI trigger requirement: workflow `pull_request` types MUST include `edited` so body updates re-run the gate.
 - Timeout policy: `pr_body_phase2_gates` timeout must be sourced from workflow context compatible with `timeout-minutes` (use `vars` + `fromJSON(...)`; `env` is not available at this key).

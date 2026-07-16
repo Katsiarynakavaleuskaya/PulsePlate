@@ -53,9 +53,16 @@ from scripts.orchestration.review_mapping_artifact import (  # noqa: E402
 
 DRAFT_SCHEMA_VERSION = "pulseplate.pr-review-closeout-draft/v1"
 STATE_ROOT = REPO_ROOT / "artifacts" / "orchestration" / "pr_review_closeout"
+BACKLOG_LEDGER_PATH = REPO_ROOT / "docs" / "roadmap" / "BACKLOG_LEDGER.md"
 VALID_DISPOSITIONS = frozenset({"FIXED", "NOT-A-BUG", "DEFERRED"})
 _SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 _REPOSITORY_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
+_BACKLOG_REFERENCE_RE = re.compile(
+    r"^docs/roadmap/BACKLOG_LEDGER\.md#(?P<anchor>ledger-[a-z0-9-]+)$"
+)
+_BACKLOG_FIELD_RE = re.compile(
+    r"^  - (?P<label>Owner|Priority|Target PR|Reason(?: \(EN\))?|Links|DoD):\s*(?P<value>.*)$"
+)
 
 
 class CloseoutError(RuntimeError):
@@ -147,7 +154,10 @@ def _git_path() -> str:
     path = shutil.which("git")
     if not path:
         raise CloseoutError("git not found in PATH")
-    return path
+    try:
+        return str(Path(path).resolve(strict=True))
+    except OSError as exc:
+        raise CloseoutError("git executable could not be resolved") from exc
 
 
 def _git(*args: str) -> str:
@@ -192,6 +202,53 @@ def _required_line(value: str | None, *, label: str) -> str:
     if result is None:
         raise CloseoutError(f"{label} is required")
     return result
+
+
+def _validated_backlog_reference(value: str | None) -> str:
+    reference = _required_line(value, label="backlog")
+    match = _BACKLOG_REFERENCE_RE.fullmatch(reference)
+    if match is None:
+        raise CloseoutError("backlog must be docs/roadmap/BACKLOG_LEDGER.md#ledger-<entry>")
+    try:
+        ledger_text = BACKLOG_LEDGER_PATH.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        raise CloseoutError("canonical backlog ledger could not be read") from exc
+
+    marker = f'<a id="{match.group("anchor")}"></a>'
+    if ledger_text.count(marker) != 1:
+        raise CloseoutError("backlog anchor must identify exactly one canonical ledger entry")
+    entry_start = ledger_text.index(marker)
+    next_entry = ledger_text.find('\n<a id="ledger-', entry_start + len(marker))
+    entry = ledger_text[entry_start : next_entry if next_entry >= 0 else len(ledger_text)]
+
+    fields: dict[str, list[str]] = {}
+    lines = entry.splitlines()
+    for index, line in enumerate(lines):
+        field_match = _BACKLOG_FIELD_RE.match(line)
+        if field_match is None:
+            continue
+        label = field_match.group("label")
+        normalized_label = "Reason" if label.startswith("Reason") else label
+        values = [field_match.group("value").strip()]
+        for continuation in lines[index + 1 :]:
+            if continuation.startswith("  - ") or continuation.startswith('<a id="ledger-'):
+                break
+            if continuation.strip():
+                values.append(continuation.strip())
+        if normalized_label in fields:
+            raise CloseoutError(f"backlog entry contains duplicate {normalized_label} metadata")
+        fields[normalized_label] = values
+
+    required = {"Owner", "Priority", "Target PR", "Reason", "Links", "DoD"}
+    missing = sorted(
+        label for label in required if label not in fields or not " ".join(fields[label]).strip()
+    )
+    if missing:
+        raise CloseoutError("backlog entry is missing required metadata: " + ", ".join(missing))
+    priority = " ".join(fields["Priority"]).strip()
+    if priority not in {"P0", "P1", "P2"}:
+        raise CloseoutError("backlog entry Priority must be P0, P1, or P2")
+    return reference
 
 
 def _thread_url(repository: str, pr_number: int, value: str) -> str:
@@ -324,7 +381,7 @@ def _cmd_add_disposition(args: argparse.Namespace) -> None:
         reason = _required_line(args.reason, label="reason")
         item.update({"evidence": evidence, "reason": reason})
     else:
-        backlog = _required_line(args.backlog, label="backlog")
+        backlog = _validated_backlog_reference(args.backlog)
         item["backlog"] = backlog
 
     cause = _single_line(args.cause, label="cause", required=False)

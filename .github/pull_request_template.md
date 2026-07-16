@@ -38,9 +38,17 @@
 
 <!-- Failure modes, observability, and the exact safe rollback. -->
 
-## Review governance
+## Discussion Thread Pass
 
-- Canonical artifact: `docs/review/PR_<N>_FIXED_MAPPING.md`
+<!-- Change both boxes to [x] only after the canonical artifact is complete. -->
+
+- [ ] Discussion-thread pass completed
+- [ ] Fixed in commit mapping completed
+
+### Fixed in Commit Mapping
+
+- canonical artifact: `docs/review/PR_<N>_FIXED_MAPPING.md`
+- URL→SHA and disposition details belong only in the canonical artifact.
 
 ## Split justification
 

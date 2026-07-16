@@ -493,8 +493,18 @@ def validate_mapping_artifact_text(markdown_text: str) -> list[str]:
     )
     if version == "v1":
         try:
-            parse_embedded_review_seal(markdown_text)
-        except ReviewEvidenceError as exc:
+            seal = parse_embedded_review_seal(markdown_text)
+            records = parse_canonical_fingerprint_records(
+                markdown_text,
+                pr_number=seal["pr_number"],
+            )
+            if any(len(record.urls) != 1 for record in records.values()):
+                raise ValueError("canonical fingerprint record must identify exactly one URL")
+            if any(
+                record.material_digest != seal["material"]["digest"] for record in records.values()
+            ):
+                raise ValueError("canonical fingerprint record does not match sealed material")
+        except (ReviewEvidenceError, ValueError) as exc:
             errors.append(f"Invalid v1 review seal: {exc}")
 
     return errors

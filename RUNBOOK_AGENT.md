@@ -543,13 +543,16 @@ Run before merge after latest commit and latest bot/review activity:
 2. `gh pr view <PR_NUMBER> --json mergeStateStatus,reviewDecision,isDraft`
 3. **Zero bot comments (hard rule):** Merge only when (a) **0 unresolved review threads** and (b) **every actionable bot comment is mapped** in the canonical artifact `docs/review/PR_<N>_FIXED_MAPPING.md`. PR body is mirror-only when `pr_number` is available. **Do not** report "0 comments" or "ready to merge" based only on unresolved thread count — new bot comments can appear after a check; use the canonical script (below) and re-run after bot activity.
 4. Confirm the PR body contains the standard Goal/Scope/Tests/Security/Rollback
-   sections and one link to `docs/review/PR_<N>_FIXED_MAPPING.md`; URL→SHA
-   mappings live only in the artifact.
+   sections, the exact `## Discussion Thread Pass` / `### Fixed in Commit Mapping`
+   headings, both checked Phase 2 checklist items, and one link to
+   `docs/review/PR_<N>_FIXED_MAPPING.md`; URL→SHA mappings live only in the
+   artifact.
 5. CI `Merge readiness gate` must be green on latest PR commit.
 
 **Phase2 artifact/body gates (CI):** To pass `check_pr_body_phase2_gates.py` and merge-readiness:
-- In the PR description, keep one canonical artifact link; do not hand-copy
-  discussion or URL→SHA blocks.
+- In the PR description, keep the validator-required discussion/mapping
+  headings, both checked checklist items, and one canonical artifact link; do
+  not hand-copy URL→SHA/disposition details.
 - In the canonical artifact `docs/review/PR_<N>_FIXED_MAPPING.md`: list each bot comment as `- <comment-url> -> <commit-sha>` or `- <comment-url>` depending on disposition, or use exactly `- No actionable review comments`.
 - Local artifact-first check: `python scripts/ci/check_pr_body_phase2_gates.py --pr-number <PR_NUMBER>`
 - Local body-only fallback check: `python scripts/ci/check_pr_body_phase2_gates.py --body "$(cat .github/pr_body_*.md)"`

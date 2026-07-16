@@ -1036,6 +1036,97 @@ def test_review_comment_pagination_fails_closed_for_missing_cursor() -> None:
         fetch_review_threads("owner/repo", 42, token="opaque", request_json=request_json)
 
 
+def test_review_comments_use_one_global_retained_comment_budget(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(identity_module, "_MAX_REVIEW_COMMENTS", 1)
+
+    def request_json(*_args: Any, **_kwargs: Any) -> Any:
+        return {
+            "data": {
+                "repository": {
+                    "pullRequest": {
+                        "reviewThreads": {
+                            "nodes": [
+                                {
+                                    "comments": _comment_connection(
+                                        [_comment("1")], has_next=False, cursor=None
+                                    ),
+                                    "id": "thread-1",
+                                    "isResolved": True,
+                                },
+                                {
+                                    "comments": _comment_connection(
+                                        [_comment("2")], has_next=False, cursor=None
+                                    ),
+                                    "id": "thread-2",
+                                    "isResolved": False,
+                                },
+                            ],
+                            "pageInfo": {"hasNextPage": False, "endCursor": None},
+                        }
+                    }
+                }
+            }
+        }
+
+    with pytest.raises(CommitIdentityError, match="global safety limit"):
+        fetch_review_threads("owner/repo", 42, token="opaque", request_json=request_json)
+
+
+def test_review_comments_use_one_global_nested_page_budget(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(identity_module, "_MAX_REVIEW_COMMENT_PAGES", 1)
+    calls = 0
+
+    def request_json(_url: str, **kwargs: Any) -> Any:
+        nonlocal calls
+        calls += 1
+        variables = kwargs["payload"]["variables"]
+        if "id" in variables:
+            return {
+                "data": {
+                    "node": {
+                        "comments": _comment_connection(
+                            [_comment("2")], has_next=False, cursor=None
+                        )
+                    }
+                }
+            }
+        return {
+            "data": {
+                "repository": {
+                    "pullRequest": {
+                        "reviewThreads": {
+                            "nodes": [
+                                {
+                                    "comments": _comment_connection(
+                                        [_comment("1")], has_next=True, cursor="comments-1"
+                                    ),
+                                    "id": "thread-1",
+                                    "isResolved": True,
+                                },
+                                {
+                                    "comments": _comment_connection(
+                                        [_comment("3")], has_next=True, cursor="comments-2"
+                                    ),
+                                    "id": "thread-2",
+                                    "isResolved": False,
+                                },
+                            ],
+                            "pageInfo": {"hasNextPage": False, "endCursor": None},
+                        }
+                    }
+                }
+            }
+        }
+
+    with pytest.raises(CommitIdentityError, match="global page limit"):
+        fetch_review_threads("owner/repo", 42, token="opaque", request_json=request_json)
+    assert calls == 2
+
+
 def test_material_digest_tracks_rename_mode_binary_and_symlink(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()
@@ -1420,6 +1511,187 @@ def test_closeout_renderer_round_trips_fingerprint_record(tmp_path: Path) -> Non
     assert validate_mapping_artifact_text(rendered) == []
     records = parse_canonical_fingerprint_records(rendered, pr_number=42)
     assert records[fingerprint].verified_fix == FIX_SHA
+
+
+def _rendered_fingerprint_mapping(tmp_path: Path) -> tuple[str, str, str]:
+    receipt = ingest_codex_security_receipt(
+        _build_scan_bundle(tmp_path / "scan"),
+        expected_base_sha=BASE_SHA,
+        expected_head_sha=HEAD_SHA,
+    )
+    url = "https://github.com/owner/repo/pull/42#discussion_r1"
+    fingerprint = unavailable_review_ref_fingerprint(
+        pr_number=42, material_digest=DIGEST, verified_real_fix_sha=FIX_SHA
+    )
+    state = {
+        "dispositions": [
+            {
+                "cause": "unavailable_review_ref_ancestry",
+                "disposition": "NOT-A-BUG",
+                "evidence": "GitHub Commit API 404",
+                "fingerprint": fingerprint,
+                "material_digest": DIGEST,
+                "reason": "review execution ref is unavailable",
+                "url": url,
+                "verified_fix": FIX_SHA,
+            }
+        ],
+        "experiment_result": None,
+        "packet": None,
+        "pr_number": 42,
+    }
+    return closeout_module._render_mapping(state, _seal(receipt)), fingerprint, url
+
+
+def test_mapping_validator_rejects_non_recomputing_fingerprint(tmp_path: Path) -> None:
+    rendered, fingerprint, _url = _rendered_fingerprint_mapping(tmp_path)
+    tampered = rendered.replace(fingerprint, "sha256:" + "b" * 64, 1)
+
+    assert any(
+        "canonical fingerprint record does not recompute" in error
+        for error in validate_mapping_artifact_text(tampered)
+    )
+
+
+def test_mapping_validator_rejects_fingerprint_for_different_material(
+    tmp_path: Path,
+) -> None:
+    rendered, fingerprint, _url = _rendered_fingerprint_mapping(tmp_path)
+    other_digest = "sha256:" + "c" * 64
+    other_fingerprint = unavailable_review_ref_fingerprint(
+        pr_number=42,
+        material_digest=other_digest,
+        verified_real_fix_sha=FIX_SHA,
+    )
+    tampered = rendered.replace(fingerprint, other_fingerprint, 1).replace(
+        f"Material-Digest: {DIGEST}",
+        f"Material-Digest: {other_digest}",
+        1,
+    )
+
+    assert any(
+        "canonical fingerprint record does not match sealed material" in error
+        for error in validate_mapping_artifact_text(tampered)
+    )
+
+
+def test_mapping_validator_rejects_fingerprint_with_multiple_urls(tmp_path: Path) -> None:
+    rendered, _fingerprint, url = _rendered_fingerprint_mapping(tmp_path)
+    tampered = rendered.replace(
+        f"- {url}",
+        f"- {url}\n- https://github.com/owner/repo/pull/42#discussion_r2",
+        1,
+    )
+
+    assert any(
+        "canonical fingerprint record must identify exactly one URL" in error
+        for error in validate_mapping_artifact_text(tampered)
+    )
+
+
+@pytest.mark.parametrize(
+    ("module", "error_type"),
+    [
+        (evidence_module, ReviewEvidenceError),
+        (closeout_module, closeout_module.CloseoutError),
+    ],
+)
+def test_git_path_normalizes_relative_which_result(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    module: Any,
+    error_type: type[Exception],
+) -> None:
+    del error_type
+    executable = tmp_path / "tools" / "git"
+    executable.parent.mkdir()
+    executable.write_text("git", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(shutil, "which", lambda _name: "tools/git")
+
+    assert module._git_path() == str(executable.resolve())
+
+
+@pytest.mark.parametrize(
+    ("module", "error_type"),
+    [
+        (evidence_module, ReviewEvidenceError),
+        (closeout_module, closeout_module.CloseoutError),
+    ],
+)
+def test_git_path_rejects_unresolvable_which_result(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    module: Any,
+    error_type: type[Exception],
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(shutil, "which", lambda _name: "missing/git")
+
+    with pytest.raises(error_type, match="could not be resolved"):
+        module._git_path()
+
+
+def _write_backlog_entry(path: Path, *, include_dod: bool = True) -> None:
+    lines = [
+        '<a id="ledger-p1-governance-followup"></a>',
+        "- [ ] P1: Governance follow-up",
+        "  - Owner: @owner",
+        "  - Priority: P1",
+        "  - Target PR: #999",
+        "  - Reason (EN): Keep the current PR bounded.",
+        "  - Links: `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`",
+    ]
+    if include_dod:
+        lines.append("  - DoD: Ship the bounded follow-up with deterministic tests.")
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def test_deferred_disposition_requires_complete_canonical_backlog_entry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ledger = tmp_path / "BACKLOG_LEDGER.md"
+    _write_backlog_entry(ledger)
+    monkeypatch.setattr(closeout_module, "BACKLOG_LEDGER_PATH", ledger)
+    reference = "docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-governance-followup"
+
+    assert closeout_module._validated_backlog_reference(reference) == reference
+
+
+def test_deferred_disposition_rejects_incomplete_backlog_entry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ledger = tmp_path / "BACKLOG_LEDGER.md"
+    _write_backlog_entry(ledger, include_dod=False)
+    monkeypatch.setattr(closeout_module, "BACKLOG_LEDGER_PATH", ledger)
+
+    with pytest.raises(closeout_module.CloseoutError, match="DoD"):
+        closeout_module._validated_backlog_reference(
+            "docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-governance-followup"
+        )
+
+
+def test_deferred_disposition_rejects_noncanonical_backlog_reference() -> None:
+    with pytest.raises(closeout_module.CloseoutError, match="BACKLOG_LEDGER"):
+        closeout_module._validated_backlog_reference("docs/roadmap/OTHER.md#ledger-p1-item")
+
+
+def test_authoritative_docs_preserve_phase2_body_scaffolding() -> None:
+    template = (closeout_module.REPO_ROOT / ".github/pull_request_template.md").read_text(
+        encoding="utf-8"
+    )
+    agents = (closeout_module.REPO_ROOT / "AGENTS.md").read_text(encoding="utf-8")
+    runbook = (closeout_module.REPO_ROOT / "RUNBOOK_AGENT.md").read_text(encoding="utf-8")
+
+    assert template.count("docs/review/PR_<N>_FIXED_MAPPING.md") == 1
+    assert "## Discussion Thread Pass" in template
+    assert "### Fixed in Commit Mapping" in template
+    assert "- [ ] Discussion-thread pass completed" in template
+    assert "- [ ] Fixed in commit mapping completed" in template
+    for document in (agents, runbook):
+        assert "## Discussion Thread Pass" in document
+        assert "### Fixed in Commit Mapping" in document
+        assert "checked checklist" in document
 
 
 def test_closeout_init_is_atomic_and_idempotent(

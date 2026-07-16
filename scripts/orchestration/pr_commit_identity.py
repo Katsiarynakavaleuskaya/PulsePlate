@@ -97,6 +97,24 @@ class ReviewThreadEvidence:
     comments: tuple[ReviewCommentEvidence, ...]
 
 
+@dataclass
+class _ReviewCommentBudget:
+    """One shared nested-pagination and retained-comment budget per PR fetch."""
+
+    remaining_pages: int
+    remaining_comments: int
+
+    def consume_page(self) -> None:
+        if self.remaining_pages <= 0:
+            raise CommitIdentityError("review comment pagination exceeded global page limit")
+        self.remaining_pages -= 1
+
+    def retain_comments(self, count: int) -> None:
+        if count < 0 or count > self.remaining_comments:
+            raise CommitIdentityError("review comments exceed global safety limit")
+        self.remaining_comments -= count
+
+
 @dataclass(frozen=True)
 class CodexReviewEvidence:
     """Trusted submitted review metadata; commit_ref still needs graph proof."""
@@ -644,6 +662,7 @@ def _fetch_remaining_review_comments(
     initial_comments: list[ReviewCommentEvidence],
     initial_cursor: str | None,
     *,
+    budget: _ReviewCommentBudget,
     token: str,
     request_json: ApiRequest,
 ) -> list[ReviewCommentEvidence]:
@@ -666,10 +685,11 @@ def _fetch_remaining_review_comments(
     comments = list(initial_comments)
     cursor = initial_cursor
     seen_cursors: set[str] = set()
-    for _page in range(_MAX_REVIEW_COMMENT_PAGES):
+    while True:
         if not cursor or cursor in seen_cursors:
             raise CommitIdentityError("review comment pagination cursor is missing or repeated")
         seen_cursors.add(cursor)
+        budget.consume_page()
         response = request_json(
             f"{_API_ROOT}/graphql",
             token=token,
@@ -683,15 +703,13 @@ def _fetch_remaining_review_comments(
         page_comments, has_next, end_cursor = _parse_review_comments_connection(
             node.get("comments")
         )
+        budget.retain_comments(len(page_comments))
         comments.extend(page_comments)
-        if len(comments) > _MAX_REVIEW_COMMENTS:
-            raise CommitIdentityError("review thread comments exceed safety limit")
         if not has_next:
             return comments
         if not end_cursor or end_cursor == cursor:
             raise CommitIdentityError("review comment pagination cursor is missing or repeated")
         cursor = end_cursor
-    raise CommitIdentityError("review comment pagination exceeded page limit")
 
 
 def fetch_review_threads(
@@ -731,6 +749,10 @@ def fetch_review_threads(
     cursor: str | None = None
     seen_cursors: set[str] = set()
     threads: list[ReviewThreadEvidence] = []
+    comment_budget = _ReviewCommentBudget(
+        remaining_pages=_MAX_REVIEW_COMMENT_PAGES,
+        remaining_comments=_MAX_REVIEW_COMMENTS,
+    )
     for _page in range(_MAX_REVIEW_THREAD_PAGES):
         response = request_json(
             f"{_API_ROOT}/graphql",
@@ -768,11 +790,13 @@ def fetch_review_threads(
             comments, has_more_comments, comment_cursor = _parse_review_comments_connection(
                 node.get("comments")
             )
+            comment_budget.retain_comments(len(comments))
             if has_more_comments:
                 comments = _fetch_remaining_review_comments(
                     thread_id,
                     comments,
                     comment_cursor,
+                    budget=comment_budget,
                     token=token,
                     request_json=request_json,
                 )
