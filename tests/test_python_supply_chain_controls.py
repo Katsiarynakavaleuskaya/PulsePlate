@@ -1799,6 +1799,20 @@ def test_security_scan_workflow_audits_runtime_and_optional_manifests() -> None:
     assert "CVE-2025-3000" not in ci_pip_audit_text
 
 
+def test_pre_push_pip_audit_does_not_create_or_upgrade_an_installer_environment() -> None:
+    config = yaml.safe_load((REPO_ROOT / ".pre-commit-config.yaml").read_text(encoding="utf-8"))
+    pip_audit_hook = next(
+        hook
+        for repository in config["repos"]
+        if repository.get("repo") == "https://github.com/pypa/pip-audit"
+        for hook in repository["hooks"]
+        if hook.get("id") == "pip-audit"
+    )
+
+    assert "--no-deps" in pip_audit_hook["args"]
+    assert "--disable-pip" in pip_audit_hook["args"]
+
+
 def test_pip_audit_helper_invokes_cpu_rag_vector_manifest(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
