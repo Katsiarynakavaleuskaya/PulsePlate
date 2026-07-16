@@ -176,9 +176,10 @@ Reason: The valid CodeRabbit typing finding was fixed in a real post-comment mat
 
 Disposition: NOT-A-BUG
 Evidence: `git merge-base --is-ancestor b0f3f18078020dfe4e3c656ae3610288098c1122 7e464ad929db9fd1a46f3529d5abab6b8271e79e` exits 0, and GitHub lists `b0f3f18078020dfe4e3c656ae3610288098c1122` in the complete live PR commit graph.
-Reason: Both reviews compared the real FIXED proof against unavailable synthetic reviewer-execution refs (`7a4b9d5d...` and `de0c399f...`) rather than the real GitHub PR head. The mapped implementation commit is reachable from the live owner head.
+Reason: All three reviews compared the real FIXED proof against unavailable synthetic reviewer-execution refs (`7a4b9d5d...`, `de0c399f...`, and `2f7f724b...`) rather than the real GitHub PR head. The mapped implementation commit is reachable from the live owner head.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2129#discussion_r3592636349
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2129#discussion_r3592870385
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2129#discussion_r3593163624
 
 Disposition: NOT-A-BUG
 Evidence: Every actionable inline finding from these summary reviews is individually dispositioned above with post-comment commit proof; Sourcery reported no actionable finding.
@@ -187,6 +188,7 @@ Reason: The review objects aggregate their inline threads or an explicit no-find
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2129#pullrequestreview-4710447514
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2129#pullrequestreview-4710682775
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2129#pullrequestreview-4710715767
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2129#pullrequestreview-4711111608
 
 ## Merge Readiness
 
