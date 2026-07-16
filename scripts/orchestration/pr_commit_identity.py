@@ -537,7 +537,7 @@ def is_ancestor(
                 raise CommitIdentityError("Compare API terminal page response is malformed")
             terminal_base = terminal_response.get("base_commit")
             terminal_merge_base = terminal_response.get("merge_base_commit")
-            terminal_commits = terminal_response.get("commits")
+            terminal_page_commits = terminal_response.get("commits")
             if (
                 terminal_response.get("status") != status
                 or terminal_response.get("ahead_by") != ahead_by
@@ -547,12 +547,13 @@ def is_ancestor(
                 or terminal_base.get("sha") != ancestor.sha
                 or not isinstance(terminal_merge_base, dict)
                 or terminal_merge_base.get("sha") != ancestor.sha
-                or not isinstance(terminal_commits, list)
-                or len(terminal_commits) != 1
+                or not isinstance(terminal_page_commits, list)
+                or len(terminal_page_commits) != 1
             ):
                 raise CommitIdentityError(
                     "Compare API terminal page does not bind the requested commits"
                 )
+            terminal_commits = terminal_page_commits
         last_commit = terminal_commits[-1] if terminal_commits else None
         if not isinstance(last_commit, dict) or last_commit.get("sha") != descendant.sha:
             raise CommitIdentityError("Compare API response does not bind the requested commits")
