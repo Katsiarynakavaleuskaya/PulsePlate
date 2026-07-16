@@ -12,6 +12,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 import fcntl
 import hashlib
+import netrc
 import os
 from pathlib import Path
 import re
@@ -541,13 +542,58 @@ def _validated_netrc_capture(netrc_path: Path) -> FileCapture | None:
     return capture
 
 
-def _write_private_capture(path: Path, capture: FileCapture) -> FileSnapshot:
+def _write_private_bytes(path: Path, content: bytes) -> FileSnapshot:
     descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(descriptor, "wb") as output:
-        output.write(capture.content)
+        output.write(content)
         output.flush()
         os.fsync(output.fileno())
     return _snapshot(path)
+
+
+def _render_canonical_netrc(
+    *,
+    capture: FileCapture,
+    hostname: str,
+    resolver_home: Path,
+) -> bytes | None:
+    """Return a netrc containing only the canonical private-proxy authority."""
+
+    parse_path = resolver_home / ".netrc.source"
+    parse_snapshot = _write_private_bytes(parse_path, capture.content)
+    try:
+        _assert_snapshot(parse_path, parse_snapshot)
+        try:
+            parsed = netrc.netrc(str(parse_path))
+        except (netrc.NetrcParseError, OSError) as exc:
+            raise ValueError(
+                f"netrc_error: unable to read credentials for {hostname}: {type(exc).__name__}"
+            ) from exc
+        _assert_snapshot(parse_path, parse_snapshot)
+    finally:
+        parse_path.unlink(missing_ok=True)
+
+    credentials = parsed.hosts.get(hostname)
+    if credentials is None:
+        return None
+    login, _, password = credentials
+    if not login or not password:
+        raise ValueError(f"netrc_error: incomplete credentials for {hostname}")
+    if login.strip().lower() == "root":
+        raise ValueError("root_devpi_credentials: root devpi credentials are forbidden")
+
+    def quote(value: str, *, field: str) -> str:
+        if any(ord(character) < 32 or ord(character) == 127 for character in value):
+            raise ValueError(f"netrc_error: invalid control character in {field} for {hostname}")
+        escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+        return f'"{escaped}"'
+
+    rendered = (
+        f"machine {quote(hostname, field='hostname')}\n"
+        f"  login {quote(login, field='login')}\n"
+        f"  password {quote(password, field='password')}\n"
+    )
+    return rendered.encode("utf-8")
 
 
 def _private_proxy_child_env(
@@ -580,7 +626,13 @@ def _private_proxy_child_env(
     resolver_netrc = resolver_home / ".netrc"
     materialized_snapshot: FileSnapshot | None = None
     if netrc_capture is not None:
-        materialized_snapshot = _write_private_capture(resolver_netrc, netrc_capture)
+        canonical_netrc = _render_canonical_netrc(
+            capture=netrc_capture,
+            hostname=hostname,
+            resolver_home=resolver_home,
+        )
+        if canonical_netrc is not None:
+            materialized_snapshot = _write_private_bytes(resolver_netrc, canonical_netrc)
     basic_auth_from_netrc(hostname, netrc_file=resolver_netrc)
     if materialized_snapshot is not None:
         _assert_snapshot(resolver_netrc, materialized_snapshot)

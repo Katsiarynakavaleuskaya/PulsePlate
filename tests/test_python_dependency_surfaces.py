@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import netrc
 import os
 from pathlib import Path
 import shutil
@@ -996,19 +997,16 @@ def test_private_proxy_environment_is_canonical_and_sanitized(
 
 
 def test_private_proxy_environment_rejects_root_netrc_authority(
-    monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    for name in compiler.AMBIENT_RESOLVER_ENV_VARS:
-        monkeypatch.delenv(name, raising=False)
-    monkeypatch.delenv("PULSEPLATE_PYTHON_TRUSTED_HOST", raising=False)
-
-    def reject_root(_host: str, *, netrc_file: Path | None = None) -> None:
-        raise ValueError("root_devpi_credentials: root devpi credentials are forbidden")
-
-    monkeypatch.setattr(compiler, "basic_auth_from_netrc", reject_root)
     source_home = tmp_path / "source-home"
     source_home.mkdir()
+    source_netrc = source_home / ".netrc"
+    source_netrc.write_text(
+        "machine packages.pulseplate.app\n" "  login root\n" "  password test-only-placeholder\n",
+        encoding="utf-8",
+    )
+    source_netrc.chmod(0o600)
     resolver_home = tmp_path / "resolver-home"
     resolver_home.mkdir()
 
@@ -1046,6 +1044,34 @@ def test_private_proxy_environment_accepts_private_user_owned_netrc(tmp_path: Pa
     assert (resolver_home / ".netrc").stat().st_mode & 0o077 == 0
 
 
+def test_private_proxy_environment_materializes_only_canonical_machine(
+    tmp_path: Path,
+) -> None:
+    source_netrc = _write_private_proxy_netrc(tmp_path)
+    source_netrc.write_text(
+        source_netrc.read_text(encoding="utf-8")
+        + "machine unrelated.example\n"
+        + "  login unrelated-user\n"
+        + "  password unrelated-secret\n",
+        encoding="utf-8",
+    )
+    source_netrc.chmod(0o600)
+    resolver_home = tmp_path / "resolver-home"
+    resolver_home.mkdir()
+
+    child_env = compiler._private_proxy_child_env(
+        {"HOME": str(tmp_path), compiler.APPROVED_INDEX_ENV_VAR: APPROVED_INDEX},
+        resolver_home=resolver_home,
+    )
+
+    resolver_credentials = (Path(child_env["HOME"]) / ".netrc").read_text(encoding="utf-8")
+    assert "packages.pulseplate.app" in resolver_credentials
+    assert "ci-reader" in resolver_credentials
+    assert "unrelated.example" not in resolver_credentials
+    assert "unrelated-secret" not in resolver_credentials
+    assert not (resolver_home / ".netrc.source").exists()
+
+
 def test_private_proxy_environment_materializes_stable_netrc_authority(tmp_path: Path) -> None:
     source_netrc = _write_private_proxy_netrc(tmp_path)
     resolver_home = tmp_path / "resolver-home"
@@ -1066,9 +1092,9 @@ def test_private_proxy_environment_materializes_stable_netrc_authority(tmp_path:
     replacement.replace(source_netrc)
 
     resolver_netrc = Path(child_env["HOME"]) / ".netrc"
-    resolver_credentials = resolver_netrc.read_text(encoding="utf-8")
-    assert "login ci-reader" in resolver_credentials
-    assert "login root" not in resolver_credentials
+    resolver_credentials = netrc.netrc(str(resolver_netrc)).hosts["packages.pulseplate.app"]
+    assert resolver_credentials[0] == "ci-reader"
+    assert resolver_credentials[2] == "test-only-placeholder"
 
 
 def test_private_proxy_environment_fails_closed_without_effective_uid_check(
