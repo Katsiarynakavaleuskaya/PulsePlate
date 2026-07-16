@@ -1801,13 +1801,20 @@ def test_container_runner_converts_only_owned_exit_three_after_cleanup(
     assert experiment_contract.validate_experiment_result(result) == result
 
 
+@pytest.mark.parametrize("returncode", [1, 4])
 def test_container_runner_rejects_non_owned_nonzero_exit(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
+    returncode: int,
 ) -> None:
     packet_path = tmp_path / "packet.json"
     packet_path.write_text(json.dumps(_packet()), encoding="utf-8")
-    _configure_container_runner_exit(monkeypatch, returncode=4)
+    _configure_container_runner_exit(monkeypatch, returncode=returncode)
+    monkeypatch.setattr(
+        dispatch,
+        "_collect_result_volume",
+        lambda **_kwargs: pytest.fail("failed runner must not collect a result artifact"),
+    )
 
     with pytest.raises(dispatch.DispatchError, match="runner_execution_failed"):
         dispatch._invoke_container_runner(

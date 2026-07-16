@@ -518,6 +518,41 @@ def test_finalize_dispatched_result_writes_canonical_result_and_receipt(
     )
 
 
+def test_finalize_dispatched_result_rejects_cooperative_lock_contention(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo, base_sha = _init_patch_repo(tmp_path)
+    _patch_modules_to_repo(monkeypatch, repo)
+    run_id = "dispatch-finalize-lock-contention"
+    gate_path, dispatch_path, packet = _prepare_generated_dispatch_handoff(
+        monkeypatch=monkeypatch,
+        repo=repo,
+        base_sha=base_sha,
+        run_id=run_id,
+    )
+    _write_json(dispatch_path, _trusted_dispatch_result(packet))
+    run_dir = creative_code_patch_workspace.resolve_run_dir(run_id, create=False)
+    command = [
+        "finalize-dispatched-result",
+        "--gate",
+        str(gate_path),
+        "--dispatch-result",
+        str(dispatch_path),
+    ]
+
+    with generation_cli._exclusive_finalize_lock(run_dir):
+        assert generation_cli.main(command) == 1
+        assert "finalization is already in progress" in capsys.readouterr().err
+        assert not (run_dir / creative_code_patch_builder.RESULT_FILE).exists()
+        assert not (gate_path.parent / generation_cli.RECEIPT_FILENAME).exists()
+
+    assert generation_cli.main(command) == 0
+    capsys.readouterr()
+    assert not (run_dir / generation_cli.FINALIZE_LOCK_FILENAME).exists()
+
+
 def test_finalize_dispatched_result_rolls_back_partial_publication(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

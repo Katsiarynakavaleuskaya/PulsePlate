@@ -5,12 +5,14 @@ from __future__ import annotations
 
 import argparse
 from collections.abc import Mapping
+from contextlib import contextmanager
 import json
+import os
 from pathlib import Path, PurePosixPath
 import re
 import shutil
 import sys
-from typing import Any, cast
+from typing import Any, Iterator, cast
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
@@ -72,6 +74,7 @@ CREATIVE_CODE_ROOT = REPO_ROOT / "artifacts" / "orchestration" / "creative_code"
 PATCH_GENERATION_ROOT = CREATIVE_CODE_ROOT / "patch_generation"
 GATE_FILENAME = "generation_gate.json"
 RECEIPT_FILENAME = "generation_receipt.json"
+FINALIZE_LOCK_FILENAME = ".finalize-dispatched-result.lock"
 TRUSTED_DISPATCH_CANDIDATE_PATCH_REFS = frozenset(
     {
         "candidate.patch",
@@ -467,6 +470,47 @@ def _write_json_new(path: Path, payload: Mapping[str, Any]) -> None:
     if path.exists() or path.is_symlink():
         raise CreativeCodePatchGenerationError("output artifact already exists.")
     write_json_atomic(path, dict(payload))
+
+
+@contextmanager
+def _exclusive_finalize_lock(run_dir: Path) -> Iterator[None]:
+    """Serialize cooperative finalizers for one generated patch run."""
+
+    lock_path = run_dir / FINALIZE_LOCK_FILENAME
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+    flags |= getattr(os, "O_CLOEXEC", 0)
+    lock_fd = -1
+    owned_identity: tuple[int, int] | None = None
+    try:
+        try:
+            lock_fd = os.open(lock_path, flags, 0o600)
+        except FileExistsError as exc:
+            raise CreativeCodePatchGenerationError(
+                "trusted dispatch finalization is already in progress."
+            ) from exc
+        info = os.fstat(lock_fd)
+        owned_identity = (info.st_dev, info.st_ino)
+        yield
+    finally:
+        active_error = sys.exc_info()[1]
+        cleanup_error: OSError | None = None
+        if lock_fd >= 0:
+            try:
+                os.close(lock_fd)
+            except OSError as exc:
+                cleanup_error = exc
+        if owned_identity is not None:
+            try:
+                current = lock_path.stat(follow_symlinks=False)
+                if (current.st_dev, current.st_ino) != owned_identity:
+                    raise OSError("finalization lock identity changed")
+                lock_path.unlink()
+            except OSError as exc:
+                cleanup_error = cleanup_error or exc
+        if active_error is None and cleanup_error is not None:
+            raise CreativeCodePatchGenerationError(
+                "trusted dispatch finalization lock cleanup failed."
+            ) from cleanup_error
 
 
 def _resolve_existing_receipt_ref(ref: str, *, label: str) -> Path:
@@ -2096,9 +2140,12 @@ def _validate_dispatch_result_binding(
     return result
 
 
-def _finalize_dispatched_result(args: argparse.Namespace) -> int:
-    gate_path = admission_cli._resolve_repo_json_file(args.gate, label="generation gate")
-    gate = validate_generation_gate(_read_json_object(gate_path, label="generation gate"))
+def _finalize_dispatched_result_locked(
+    args: argparse.Namespace,
+    *,
+    gate_path: Path,
+    gate: dict[str, Any],
+) -> int:
     receipt_path = gate_path.parent / RECEIPT_FILENAME
     if receipt_path.exists() or receipt_path.is_symlink():
         raise CreativeCodePatchGenerationError("generation receipt already exists.")
@@ -2252,6 +2299,18 @@ def _finalize_dispatched_result(args: argparse.Namespace) -> int:
     print(FINALIZE_DISPATCHED_RESULT_SUCCESS_OUTPUT)
     print(_repo_ref(receipt_path))
     return 0
+
+
+def _finalize_dispatched_result(args: argparse.Namespace) -> int:
+    gate_path = admission_cli._resolve_repo_json_file(args.gate, label="generation gate")
+    gate = validate_generation_gate(_read_json_object(gate_path, label="generation gate"))
+    run_dir = resolve_existing_run_dir(str(gate["run_id"]))
+    with _exclusive_finalize_lock(run_dir):
+        return _finalize_dispatched_result_locked(
+            args,
+            gate_path=gate_path,
+            gate=gate,
+        )
 
 
 def _validate_run_plan(args: argparse.Namespace) -> int:

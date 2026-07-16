@@ -1758,7 +1758,7 @@ def _invoke_container_runner(
             if not cleanup_completed:
                 raise DispatchError("container_cleanup_failed")
             runner_capability_signal = completed.returncode == RUNNER_CAPABILITY_EXIT_CODE
-            if completed.returncode not in {0, 1, RUNNER_CAPABILITY_EXIT_CODE}:
+            if completed.returncode not in {0, RUNNER_CAPABILITY_EXIT_CODE}:
                 raise DispatchError("runner_execution_failed")
             payload = None
             if not runner_capability_signal:
