@@ -988,6 +988,30 @@ def test_resolve_dispatch_result_rejects_symlinked_canonical_root(
         generation_cli._resolve_dispatch_result(result_path)
 
 
+def test_pinned_dispatch_read_rejects_leaf_replaced_by_symlink(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _patch_modules_to_repo(monkeypatch, repo)
+    result_root = repo / "artifacts" / "orchestration" / "experiments" / "results"
+    result_root.mkdir(parents=True)
+    result_path = result_root / "dispatch.json"
+    _write_json(result_path, {"status": "accepted"})
+    resolved = result_path.resolve(strict=True)
+    external_result = tmp_path / "external-dispatch.json"
+    _write_json(external_result, {"status": "rejected"})
+    result_path.unlink()
+    result_path.symlink_to(external_result)
+
+    with pytest.raises(
+        generation_cli.CreativeCodePatchGenerationError,
+        match="unable to read trusted dispatch result safely",
+    ):
+        generation_cli._read_pinned_dispatch_json_object(resolved)
+
+
 def test_finalize_dispatched_result_rejects_selected_variant_content_tamper(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

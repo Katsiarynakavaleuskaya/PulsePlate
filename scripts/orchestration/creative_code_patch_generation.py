@@ -12,6 +12,7 @@ import os
 from pathlib import Path, PurePosixPath
 import re
 import shutil
+import stat
 import sys
 from typing import Any, Iterator, cast
 
@@ -467,6 +468,81 @@ def _read_resolved_json_object(path: Path, *, label: str) -> dict[str, Any]:
         raise CreativeCodePatchGenerationError(f"unable to read {label}.") from exc
     if not isinstance(payload, dict):
         raise CreativeCodePatchGenerationError(f"{label} must be a JSON object.")
+    return payload
+
+
+def _read_pinned_dispatch_json_object(path: Path) -> dict[str, Any]:
+    """Read a trusted dispatch result through a no-follow, root-relative descriptor."""
+
+    result_root = REPO_ROOT / "artifacts" / "orchestration" / "experiments" / "results"
+    try:
+        relative = path.relative_to(result_root)
+    except ValueError as exc:
+        raise CreativeCodePatchGenerationError(
+            "trusted dispatch result must stay under experiment results."
+        ) from exc
+    parts = relative.parts
+    if not parts or any(part in {"", ".", ".."} for part in parts):
+        raise CreativeCodePatchGenerationError(
+            "trusted dispatch result must use a safe relative path."
+        )
+    nofollow = getattr(os, "O_NOFOLLOW", None)
+    directory = getattr(os, "O_DIRECTORY", None)
+    if not isinstance(nofollow, int) or not isinstance(directory, int):
+        raise CreativeCodePatchGenerationError(
+            "trusted dispatch result no-follow reads are unavailable on this platform."
+        )
+    directory_flags = os.O_RDONLY | directory | nofollow | getattr(os, "O_CLOEXEC", 0)
+    file_flags = os.O_RDONLY | nofollow | getattr(os, "O_CLOEXEC", 0)
+    descriptor = -1
+    file_descriptor = -1
+    try:
+        descriptor = os.open(REPO_ROOT, directory_flags)
+        root_parts = ("artifacts", "orchestration", "experiments", "results")
+        for component in (*root_parts, *parts[:-1]):
+            child = os.open(component, directory_flags, dir_fd=descriptor)
+            previous = descriptor
+            descriptor = child
+            try:
+                os.close(previous)
+            except OSError:
+                os.close(child)
+                descriptor = -1
+                raise
+        file_descriptor = os.open(parts[-1], file_flags, dir_fd=descriptor)
+        if not stat.S_ISREG(os.fstat(file_descriptor).st_mode):
+            raise CreativeCodePatchGenerationError(
+                "trusted dispatch result must be a regular file."
+            )
+        with os.fdopen(file_descriptor, "r", encoding="utf-8") as handle:
+            file_descriptor = -1
+            raw = handle.read()
+        payload = json.loads(
+            raw,
+            object_pairs_hook=_reject_duplicate_json_object_keys,
+        )
+    except CreativeCodePatchGenerationError:
+        raise
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, NotImplementedError) as exc:
+        raise CreativeCodePatchGenerationError(
+            "unable to read trusted dispatch result safely."
+        ) from exc
+    finally:
+        active_error = sys.exc_info()[1]
+        close_error: OSError | None = None
+        for active_descriptor in (file_descriptor, descriptor):
+            if active_descriptor >= 0:
+                try:
+                    os.close(active_descriptor)
+                except OSError as exc:
+                    if close_error is None:
+                        close_error = exc
+        if active_error is None and close_error is not None:
+            raise CreativeCodePatchGenerationError(
+                "trusted dispatch result descriptor cleanup failed."
+            ) from close_error
+    if not isinstance(payload, dict):
+        raise CreativeCodePatchGenerationError("trusted dispatch result must be a JSON object.")
     return payload
 
 
@@ -2219,10 +2295,7 @@ def _finalize_dispatched_result_locked(
         raise CreativeCodePatchGenerationError("selected variant must be a JSON object.")
     dispatch_path = _resolve_dispatch_result(args.dispatch_result)
     dispatch_result = _validate_dispatch_result_binding(
-        dispatch_result=_read_resolved_json_object(
-            dispatch_path,
-            label="trusted dispatch result",
-        ),
+        dispatch_result=_read_pinned_dispatch_json_object(dispatch_path),
         packet=packet,
         changed_paths=list(metadata["changed_paths"]),
         patch_fingerprint=str(metadata["patch_fingerprint"]),
@@ -2283,10 +2356,7 @@ def _finalize_dispatched_result_locked(
             "generated dispatch context changed before result publication."
         )
     current_dispatch_result = _validate_dispatch_result_binding(
-        dispatch_result=_read_resolved_json_object(
-            dispatch_path,
-            label="trusted dispatch result",
-        ),
+        dispatch_result=_read_pinned_dispatch_json_object(dispatch_path),
         packet=current_packet,
         changed_paths=list(metadata["changed_paths"]),
         patch_fingerprint=str(metadata["patch_fingerprint"]),
