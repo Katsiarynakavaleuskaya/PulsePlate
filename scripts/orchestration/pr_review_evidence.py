@@ -33,15 +33,37 @@ OPERATOR_OUTAGE_ERROR_CODE = "-32001"
 OPERATOR_OUTAGE_ERROR_MESSAGE = "Request timed out"
 OPERATOR_OUTAGE_BOOTSTRAP_REPOSITORY = "Katsiarynakavaleuskaya/PulsePlate"
 OPERATOR_OUTAGE_BOOTSTRAP_PR = 2142
-OPERATOR_OUTAGE_TRUST_BOUNDARY_EXACT_PATHS = frozenset(
+OPERATOR_OUTAGE_SECURITY_REQUIREMENT_PATHS = frozenset(
     {
-        ".trivyignore",
-        "scripts/ci_bandit.sh",
-        "scripts/ci_pip_audit.sh",
-        "scripts/orchestration/pr_commit_identity.py",
-        "scripts/orchestration/pr_review_closeout.py",
-        "scripts/orchestration/pr_review_evidence.py",
+        "constraints.txt",
+        "requirements-ci-lite.in",
+        "requirements-ci-lite.txt",
+        "requirements-data.in",
+        "requirements-data.txt",
+        "requirements-docker-runtime.in",
+        "requirements-docker-runtime.txt",
+        "requirements-evals.in",
+        "requirements-evals.txt",
+        "requirements-rag-vector-cpu.in",
+        "requirements-rag-vector-cpu.txt",
+        "requirements-rag-vector.in",
+        "requirements-rag-vector.txt",
+        "requirements.in",
+        "requirements.txt",
     }
+)
+OPERATOR_OUTAGE_TRUST_BOUNDARY_EXACT_PATHS = (
+    frozenset(
+        {
+            ".trivyignore",
+            "scripts/ci_bandit.sh",
+            "scripts/ci_pip_audit.sh",
+            "scripts/orchestration/pr_commit_identity.py",
+            "scripts/orchestration/pr_review_closeout.py",
+            "scripts/orchestration/pr_review_evidence.py",
+        }
+    )
+    | OPERATOR_OUTAGE_SECURITY_REQUIREMENT_PATHS
 )
 OPERATOR_OUTAGE_TRUST_BOUNDARY_PREFIXES = (
     ".github/actions/",

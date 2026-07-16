@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 from argparse import Namespace
@@ -39,6 +40,8 @@ from scripts.orchestration import pr_review_closeout as closeout_module
 from scripts.orchestration import pr_review_evidence as evidence_module
 from scripts.orchestration.pr_review_evidence import (
     MATERIAL_POLICY_VERSION,
+    OPERATOR_OUTAGE_SECURITY_REQUIREMENT_PATHS,
+    OPERATOR_OUTAGE_TRUST_BOUNDARY_EXACT_PATHS,
     RECEIPT_AUTHORITY,
     SEAL_BEGIN,
     SEAL_END,
@@ -861,6 +864,38 @@ def test_security_outage_override_scope_blocks_future_self_authorization(
             repository=repository,
             pr_number=pr_number,
             material_paths=paths,
+        )
+
+
+def test_security_outage_trust_boundary_covers_security_dependency_inputs() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    audit_script = (repo_root / "scripts/ci_pip_audit.sh").read_text(encoding="utf-8")
+    audited_manifests = set(re.findall(r'manifests(?:\+)?=\("([^"]+)"\)', audit_script))
+    audited_inputs = {
+        f"{path.removesuffix('.txt')}.in"
+        for path in audited_manifests
+        if (repo_root / f"{path.removesuffix('.txt')}.in").is_file()
+    }
+
+    assert audited_manifests
+    assert audited_manifests | audited_inputs <= OPERATOR_OUTAGE_SECURITY_REQUIREMENT_PATHS
+    assert {
+        "requirements-ci-lite.in",
+        "constraints.txt",
+        "requirements-ci-lite.txt",
+    } <= OPERATOR_OUTAGE_SECURITY_REQUIREMENT_PATHS
+    assert OPERATOR_OUTAGE_SECURITY_REQUIREMENT_PATHS <= OPERATOR_OUTAGE_TRUST_BOUNDARY_EXACT_PATHS
+
+
+@pytest.mark.parametrize("path", sorted(OPERATOR_OUTAGE_SECURITY_REQUIREMENT_PATHS))
+def test_security_outage_override_rejects_future_security_manifest_changes(
+    path: str,
+) -> None:
+    with pytest.raises(ReviewEvidenceError, match="trust-boundary changes"):
+        validate_security_outage_override_scope(
+            repository="owner/repo",
+            pr_number=42,
+            material_paths=(path,),
         )
 
 
