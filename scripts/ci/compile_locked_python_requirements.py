@@ -751,7 +751,7 @@ def _prepare_lock(
             candidate_snapshot=candidate_snapshot,
             baseline_bytes=baseline_bytes,
         )
-    except Exception:
+    except BaseException:
         if governed_candidate_path is not None:
             governed_candidate_path.unlink(missing_ok=True)
         raise
@@ -927,8 +927,11 @@ def _compile_selected_profiles_locked(
             try:
                 for candidate in prepared:
                     _assert_snapshot(candidate.candidate_path, candidate.candidate_snapshot)
-                    os.replace(candidate.candidate_path, candidate.output_path)
+                    # Record the attempted replacement before the atomic rename so an
+                    # interrupt immediately after os.replace cannot strand a partial
+                    # multi-lock transaction outside the rollback set.
                     replaced.append(candidate)
+                    os.replace(candidate.candidate_path, candidate.output_path)
                     _fsync_directory(candidate.output_path.parent)
                     _assert_snapshot(candidate.output_path, candidate.candidate_snapshot)
                 for candidate in prepared:
@@ -936,7 +939,7 @@ def _compile_selected_profiles_locked(
                         "Updated governed lock profile "
                         f"{candidate.surface.compile_profile}: {candidate.surface.lockfile}"
                     )
-            except Exception as replacement_error:
+            except BaseException as replacement_error:
                 rollback_errors: list[str] = []
                 for candidate in reversed(replaced):
                     try:
@@ -945,7 +948,9 @@ def _compile_selected_profiles_locked(
                             candidate.baseline_bytes,
                             candidate.output_snapshot.mode,
                         )
-                    except Exception as rollback_error:  # pragma: no cover - catastrophic FS fault
+                    except (
+                        BaseException
+                    ) as rollback_error:  # pragma: no cover - catastrophic FS fault
                         rollback_errors.append(
                             f"{candidate.surface.lockfile}: {type(rollback_error).__name__}"
                         )
@@ -954,6 +959,8 @@ def _compile_selected_profiles_locked(
                         "Lock replacement failed and rollback was incomplete: "
                         + ", ".join(rollback_errors)
                     ) from replacement_error
+                if not isinstance(replacement_error, Exception):
+                    raise
                 raise RuntimeError(
                     "Lock replacement failed; all previously replaced locks were rolled back."
                 ) from replacement_error

@@ -1176,6 +1176,37 @@ def test_prepare_lock_is_seeded_validated_and_atomic(
     prepared.candidate_path.unlink()
 
 
+def test_prepare_lock_cleans_candidate_on_keyboard_interrupt(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    surface = _write_test_profile(tmp_path)
+    output_path = tmp_path / surface.lockfile
+    original = output_path.read_bytes()
+    monkeypatch.setattr(compiler.subprocess, "run", _successful_resolver)
+    real_snapshot = compiler._snapshot
+
+    def interrupt_candidate_snapshot(path: Path) -> compiler.FileSnapshot:
+        if path.name.endswith(".candidate"):
+            raise KeyboardInterrupt
+        return real_snapshot(path)
+
+    monkeypatch.setattr(compiler, "_snapshot", interrupt_candidate_snapshot)
+
+    with pytest.raises(KeyboardInterrupt):
+        compiler._prepare_lock(
+            repo_root=tmp_path,
+            surface=surface,
+            upgrades={"coverage": "7.15.1", "faker": "40.31.0"},
+            graph_changes=frozenset(),
+            child_env={},
+        )
+
+    assert output_path.read_bytes() == original
+    assert not tuple(tmp_path.glob(f".{surface.lockfile}.*.candidate"))
+    assert not tuple(tmp_path.glob(f".{surface.lockfile}.*.resolver"))
+
+
 def test_resolver_candidate_symlink_swap_cannot_overwrite_target(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1477,6 +1508,72 @@ def test_multi_lock_replacement_rolls_back_on_partial_failure(
 
     assert (tmp_path / "requirements-test.txt").read_text(encoding="utf-8") == "baseline-0\n"
     assert (tmp_path / "requirements-dev.txt").read_text(encoding="utf-8") == "baseline-1\n"
+
+
+@pytest.mark.parametrize("interrupt_after", (1, 2))
+def test_multi_lock_replacement_rolls_back_on_keyboard_interrupt(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    interrupt_after: int,
+) -> None:
+    selected_surfaces = (_surface("test"), _surface("dev"))
+    prepared_by_profile: dict[str, compiler.PreparedLock] = {}
+    for index, surface in enumerate(selected_surfaces):
+        output_path = tmp_path / surface.lockfile
+        output_path.write_text(f"baseline-{index}\n", encoding="utf-8")
+        candidate_path = tmp_path / f".{surface.lockfile}.candidate"
+        candidate_path.write_text(f"candidate-{index}\n", encoding="utf-8")
+        prepared_by_profile[str(surface.compile_profile)] = compiler.PreparedLock(
+            surface=surface,
+            output_path=output_path,
+            candidate_path=candidate_path,
+            source_snapshots=(),
+            output_snapshot=compiler._snapshot(output_path),
+            candidate_snapshot=compiler._snapshot(candidate_path),
+            baseline_bytes=output_path.read_bytes(),
+        )
+
+    monkeypatch.setattr(
+        compiler,
+        "_profile_registry",
+        lambda: {str(surface.compile_profile): surface for surface in selected_surfaces},
+    )
+    monkeypatch.setattr(
+        compiler,
+        "_private_proxy_child_env",
+        lambda _environment, *, resolver_home: {},
+    )
+    monkeypatch.setattr(
+        compiler,
+        "_prepare_lock",
+        lambda **kwargs: prepared_by_profile[str(kwargs["surface"].compile_profile)],
+    )
+    monkeypatch.setattr(compiler, "_fsync_directory", lambda _path: None)
+    real_replace = os.replace
+    replacement_count = 0
+
+    def interrupt_after_replace(source: Path, destination: Path) -> None:
+        nonlocal replacement_count
+        real_replace(source, destination)
+        if source.name.endswith(".candidate"):
+            replacement_count += 1
+            if replacement_count == interrupt_after:
+                raise KeyboardInterrupt
+
+    monkeypatch.setattr(compiler.os, "replace", interrupt_after_replace)
+
+    with pytest.raises(KeyboardInterrupt):
+        compiler.compile_selected_profiles(
+            repo_root=tmp_path,
+            profiles=("test", "dev"),
+            upgrades={},
+            graph_changes=frozenset(),
+            environment={},
+        )
+
+    for index, surface in enumerate(selected_surfaces):
+        assert (tmp_path / surface.lockfile).read_text(encoding="utf-8") == f"baseline-{index}\n"
+        assert not (tmp_path / f".{surface.lockfile}.candidate").exists()
 
 
 def test_candidate_symlink_swap_before_replace_fails_and_rolls_back(

@@ -1186,15 +1186,16 @@ def test_coverage_html_context_is_safely_escaped(tmp_path: Path) -> None:
     assert raw_context not in rendered_report
 
 
-def test_coverage_canary_is_excluded_only_from_ci_lite_pre_commit() -> None:
+def test_coverage_canary_runs_in_ci_lite_pre_commit() -> None:
     runner = (REPO_ROOT / "scripts/run-backend-tests-pre-commit.sh").read_text(encoding="utf-8")
     deselect = (
         "--deselect=tests/test_python_supply_chain_controls.py::"
         "test_coverage_html_context_is_safely_escaped"
     )
+    requirements_ci_lite = (REPO_ROOT / "requirements-ci-lite.txt").read_text(encoding="utf-8")
 
-    assert deselect in runner
-    assert 'if [ -n "${PRE_COMMIT:-}" ]; then' in runner
+    assert deselect not in runner
+    assert "coverage==7.15.1" in requirements_ci_lite
 
 
 def test_ci_lite_dependency_profile_excludes_ml_gpu_stack() -> None:
@@ -1207,6 +1208,7 @@ def test_ci_lite_dependency_profile_excludes_ml_gpu_stack() -> None:
     assert "bandit==" in requirements_ci_lite
     assert "diff-cover==" in requirements_ci_lite
     assert "pytest==" in requirements_ci_lite
+    assert "coverage==7.15.1" in requirements_ci_lite
     assert "sentence-transformers==" not in requirements_ci_lite
     assert "transformers==" not in requirements_ci_lite
     assert "torch==" not in requirements_ci_lite
