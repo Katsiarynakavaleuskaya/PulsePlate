@@ -394,10 +394,16 @@ def _normalize_node(node: dict[str, Any]) -> CheckEntry:
             else None
         )
         app_slug = str(app.get("slug") or "").strip()
-        # GitHub leaves ``startedAt`` null while a fresh CheckRun is queued.
-        # CheckSuite.createdAt is non-null and orders that attempt ahead of an
-        # older completed run instead of allowing stale success to win.
-        timestamp = str(node.get("startedAt") or check_suite.get("createdAt") or "")
+        # Order every CheckRun by one attempt-creation clock. ``startedAt`` is
+        # null while queued and can be later than a newer queued suite when an
+        # older run waits for capacity. Mixing those clocks can select stale
+        # success, so CheckSuite.createdAt is the only ordering authority.
+        raw_timestamp = check_suite.get("createdAt")
+        if not isinstance(raw_timestamp, str) or not raw_timestamp.strip():
+            raise ValueError(
+                f"CheckRun {name or '<unnamed>'!r} is missing valid checkSuite.createdAt"
+            )
+        timestamp = raw_timestamp.strip()
         return CheckEntry(
             name=name,
             source_kind="check_run",
@@ -615,6 +621,7 @@ def main(argv: list[str] | None = None) -> int:
         required_names, required_metadata_available = _fetch_required_check_names(
             repo, base_ref, token
         )
+        normalized_entries = [_normalize_node(node) for node in nodes if node]
     except urllib.error.HTTPError as exc:
         print(f"ERROR: failed to query GitHub check state: HTTP {exc.code}")
         return 1
@@ -626,7 +633,6 @@ def main(argv: list[str] | None = None) -> int:
         print("current-head-checks: PR is draft; skipping strict checks.")
         return 0
 
-    normalized_entries = [_normalize_node(node) for node in nodes if node]
     latest, superseded = _latest_entries(normalized_entries)
     latest, superseded = _suppress_stale_latest_entries_with_newer_workflow_activity(
         normalized_entries,

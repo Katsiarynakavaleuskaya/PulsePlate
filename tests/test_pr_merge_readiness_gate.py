@@ -329,8 +329,12 @@ def test_operator_outage_override_requires_exact_successful_security_bundle(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     nodes = [_check_node(name) for name in merge_gate._OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES]
-    stale_failed_security = _check_node("security", conclusion="FAILURE")
-    stale_failed_security["startedAt"] = "2026-07-16T10:59:00Z"
+    stale_failed_security = _check_node(
+        "security",
+        conclusion="FAILURE",
+        started_at="2026-07-16T10:59:00Z",
+        suite_created_at="2026-07-16T10:59:00Z",
+    )
     nodes.append(stale_failed_security)
     monkeypatch.setattr(
         merge_gate,
@@ -365,6 +369,45 @@ def test_operator_outage_override_rejects_newer_queued_security_attempt(
     )
 
     with pytest.raises(ReviewEvidenceError, match="security=pending/status"):
+        merge_gate._validate_operator_outage_security_checks(
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+        )
+
+
+def test_operator_outage_override_rejects_unorderable_newer_security_attempt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    nodes = [
+        _check_node(name)
+        for name in merge_gate._OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES
+        if name != "security"
+    ]
+    nodes.extend(
+        [
+            _check_node(
+                "security",
+                suite_created_at="2026-07-16T10:00:00Z",
+                started_at="2026-07-16T10:00:00Z",
+            ),
+            _check_node(
+                "security",
+                suite_created_at="",
+                started_at="2026-07-16T12:00:00Z",
+            ),
+        ]
+    )
+    monkeypatch.setattr(
+        merge_gate,
+        "_fetch_current_head_pr_metadata",
+        lambda *_a, **_k: (False, "CLEAN", "main", nodes),
+    )
+
+    with pytest.raises(
+        ReviewEvidenceError,
+        match="cannot order current-head security checks",
+    ):
         merge_gate._validate_operator_outage_security_checks(
             repository="owner/repo",
             pr_number=42,

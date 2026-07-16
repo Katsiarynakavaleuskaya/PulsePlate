@@ -440,7 +440,12 @@ def _validate_operator_outage_security_checks(
     _is_draft, _merge_state, _base_ref, nodes = _fetch_current_head_pr_metadata(
         pr_number, repository, token
     )
-    entries = [_normalize_check_node(node) for node in nodes if node]
+    try:
+        entries = [_normalize_check_node(node) for node in nodes if node]
+    except ValueError as exc:
+        raise ReviewEvidenceError(
+            f"operator outage override cannot order current-head security checks: {exc}"
+        ) from exc
     latest, _superseded = _latest_check_entries(entries)
     failures: list[str] = []
     for name, expected_identity in sorted(_OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES.items()):

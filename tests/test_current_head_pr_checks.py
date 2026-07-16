@@ -417,7 +417,7 @@ def test_latest_entries_prefers_newest_duplicate_and_marks_older_superseded() ->
     assert superseded == [older]
 
 
-def test_latest_entries_uses_attempt_start_when_older_success_finishes_later() -> None:
+def test_latest_entries_uses_suite_creation_when_older_success_finishes_later() -> None:
     older_success = current_head_checks._normalize_node(
         {
             "__typename": "CheckRun",
@@ -427,7 +427,10 @@ def test_latest_entries_uses_attempt_start_when_older_success_finishes_later() -
             "startedAt": "2026-07-16T10:00:00Z",
             "completedAt": "2026-07-16T12:00:00Z",
             "detailsUrl": "https://example.invalid/older-success",
-            "checkSuite": {"workflowRun": {"workflow": {"name": "CI"}}},
+            "checkSuite": {
+                "createdAt": "2026-07-16T10:00:00Z",
+                "workflowRun": {"workflow": {"name": "CI"}},
+            },
         }
     )
     newer_pending = current_head_checks._normalize_node(
@@ -439,7 +442,10 @@ def test_latest_entries_uses_attempt_start_when_older_success_finishes_later() -
             "startedAt": "2026-07-16T11:00:00Z",
             "completedAt": None,
             "detailsUrl": "https://example.invalid/newer-pending",
-            "checkSuite": {"workflowRun": {"workflow": {"name": "CI"}}},
+            "checkSuite": {
+                "createdAt": "2026-07-16T11:00:00Z",
+                "workflowRun": {"workflow": {"name": "CI"}},
+            },
         }
     )
 
@@ -449,15 +455,15 @@ def test_latest_entries_uses_attempt_start_when_older_success_finishes_later() -
     assert superseded == [older_success]
 
 
-def test_latest_entries_uses_check_suite_creation_for_queued_attempt() -> None:
+def test_latest_entries_uses_suite_creation_when_older_run_starts_late() -> None:
     older_success = current_head_checks._normalize_node(
         {
             "__typename": "CheckRun",
             "name": "security",
             "status": "COMPLETED",
             "conclusion": "SUCCESS",
-            "startedAt": "2026-07-16T10:00:00Z",
-            "completedAt": "2026-07-16T10:05:00Z",
+            "startedAt": "2026-07-16T12:00:00Z",
+            "completedAt": "2026-07-16T12:05:00Z",
             "detailsUrl": "https://example.invalid/older-success",
             "checkSuite": {
                 "createdAt": "2026-07-16T10:00:00Z",
@@ -485,6 +491,22 @@ def test_latest_entries_uses_check_suite_creation_for_queued_attempt() -> None:
 
     assert latest["security"] == newer_queued
     assert superseded == [older_success]
+
+
+def test_check_run_without_suite_creation_time_fails_closed() -> None:
+    with pytest.raises(ValueError, match="missing valid checkSuite.createdAt"):
+        current_head_checks._normalize_node(
+            {
+                "__typename": "CheckRun",
+                "name": "security",
+                "status": "COMPLETED",
+                "conclusion": "SUCCESS",
+                "startedAt": "2026-07-16T12:00:00Z",
+                "completedAt": "2026-07-16T12:05:00Z",
+                "detailsUrl": "https://example.invalid/malformed-success",
+                "checkSuite": {"workflowRun": {"workflow": {"name": "CI"}}},
+            }
+        )
 
 
 def test_fetch_pr_metadata_rejects_repeated_pagination_cursor(
@@ -702,7 +724,10 @@ def test_main_passes_when_latest_current_head_is_clean_and_old_failure_is_supers
                     "startedAt": "2026-03-12T04:48:16Z",
                     "completedAt": "2026-03-12T04:48:49Z",
                     "detailsUrl": "https://example.invalid/failed",
-                    "checkSuite": {"workflowRun": {"workflow": {"name": "Docker Image CI"}}},
+                    "checkSuite": {
+                        "createdAt": "2026-03-12T04:48:16Z",
+                        "workflowRun": {"workflow": {"name": "Docker Image CI"}},
+                    },
                 },
                 {
                     "__typename": "CheckRun",
@@ -712,7 +737,10 @@ def test_main_passes_when_latest_current_head_is_clean_and_old_failure_is_supers
                     "startedAt": "2026-03-12T05:05:00Z",
                     "completedAt": "2026-03-12T05:09:03Z",
                     "detailsUrl": "https://example.invalid/passed",
-                    "checkSuite": {"workflowRun": {"workflow": {"name": "Docker Image CI"}}},
+                    "checkSuite": {
+                        "createdAt": "2026-03-12T05:05:00Z",
+                        "workflowRun": {"workflow": {"name": "Docker Image CI"}},
+                    },
                 },
             ],
         ),
@@ -752,7 +780,10 @@ def test_main_fails_when_latest_required_check_is_pending(
                     "startedAt": "2026-03-12T05:05:00Z",
                     "completedAt": None,
                     "detailsUrl": "https://example.invalid/pending",
-                    "checkSuite": {"workflowRun": {"workflow": {"name": "Docker Image CI"}}},
+                    "checkSuite": {
+                        "createdAt": "2026-03-12T05:05:00Z",
+                        "workflowRun": {"workflow": {"name": "Docker Image CI"}},
+                    },
                 }
             ],
         ),
@@ -791,7 +822,10 @@ def test_main_passes_when_merge_state_is_not_clean_but_required_snapshot_is_clea
                     "startedAt": "2026-03-12T05:05:00Z",
                     "completedAt": "2026-03-12T05:09:03Z",
                     "detailsUrl": "https://example.invalid/passed",
-                    "checkSuite": {"workflowRun": {"workflow": {"name": "Docker Image CI"}}},
+                    "checkSuite": {
+                        "createdAt": "2026-03-12T05:05:00Z",
+                        "workflowRun": {"workflow": {"name": "Docker Image CI"}},
+                    },
                 }
             ],
         ),
@@ -829,7 +863,10 @@ def test_main_passes_when_merge_state_is_not_clean_but_advisory_snapshot_is_clea
                     "startedAt": "2026-03-12T05:05:00Z",
                     "completedAt": "2026-03-12T05:09:03Z",
                     "detailsUrl": "https://example.invalid/passed",
-                    "checkSuite": {"workflowRun": {"workflow": {"name": "Docker Image CI"}}},
+                    "checkSuite": {
+                        "createdAt": "2026-03-12T05:05:00Z",
+                        "workflowRun": {"workflow": {"name": "Docker Image CI"}},
+                    },
                 }
             ],
         ),
@@ -868,7 +905,10 @@ def test_main_fails_when_security_scan_is_pending_in_fallback_mode(
                     "startedAt": "2026-03-12T05:05:00Z",
                     "completedAt": None,
                     "detailsUrl": "https://example.invalid/pending-security-scan",
-                    "checkSuite": {"workflowRun": {"workflow": {"name": "Docker Build and Push"}}},
+                    "checkSuite": {
+                        "createdAt": "2026-03-12T05:05:00Z",
+                        "workflowRun": {"workflow": {"name": "Docker Build and Push"}},
+                    },
                 }
             ],
         ),
@@ -912,7 +952,10 @@ def test_main_fails_when_merge_state_is_not_clean_and_attached_specialized_check
                     "startedAt": "2026-03-12T05:05:00Z",
                     "completedAt": None,
                     "detailsUrl": "https://example.invalid/pending-security-scan",
-                    "checkSuite": {"workflowRun": {"workflow": {"name": "Docker Build and Push"}}},
+                    "checkSuite": {
+                        "createdAt": "2026-03-12T05:05:00Z",
+                        "workflowRun": {"workflow": {"name": "Docker Build and Push"}},
+                    },
                 }
             ],
         ),
@@ -951,7 +994,10 @@ def test_main_passes_when_unattached_specialized_ci_job_is_pending_in_fallback_m
                     "startedAt": "2026-03-12T05:05:00Z",
                     "completedAt": None,
                     "detailsUrl": "https://example.invalid/pending-ios-unit",
-                    "checkSuite": {"workflowRun": {"workflow": {"name": "CI"}}},
+                    "checkSuite": {
+                        "createdAt": "2026-03-12T05:05:00Z",
+                        "workflowRun": {"workflow": {"name": "CI"}},
+                    },
                 }
             ],
         ),
@@ -996,7 +1042,10 @@ def test_main_fails_when_attached_ios_ci_job_is_pending_in_fallback_mode(
                     "startedAt": "2026-03-12T05:05:00Z",
                     "completedAt": None,
                     "detailsUrl": "https://example.invalid/pending-ios-unit",
-                    "checkSuite": {"workflowRun": {"workflow": {"name": "CI"}}},
+                    "checkSuite": {
+                        "createdAt": "2026-03-12T05:05:00Z",
+                        "workflowRun": {"workflow": {"name": "CI"}},
+                    },
                 }
             ],
         ),
@@ -1041,7 +1090,8 @@ def test_main_keeps_greenlight_report_only_job_advisory_in_fallback_mode(
                     "completedAt": "2026-03-12T05:09:03Z",
                     "detailsUrl": "https://example.invalid/greenlight-failed",
                     "checkSuite": {
-                        "workflowRun": {"workflow": {"name": "Greenlight iOS Preflight"}}
+                        "createdAt": "2026-03-12T05:05:00Z",
+                        "workflowRun": {"workflow": {"name": "Greenlight iOS Preflight"}},
                     },
                 }
             ],
@@ -1081,7 +1131,10 @@ def test_main_fails_when_merge_state_is_not_clean_and_canonical_fallback_check_i
                     "startedAt": "2026-03-12T05:05:00Z",
                     "completedAt": None,
                     "detailsUrl": "https://example.invalid/pending-ci-docs",
-                    "checkSuite": {"workflowRun": {"workflow": {"name": "CI"}}},
+                    "checkSuite": {
+                        "createdAt": "2026-03-12T05:05:00Z",
+                        "workflowRun": {"workflow": {"name": "CI"}},
+                    },
                 }
             ],
         ),
@@ -1121,7 +1174,10 @@ def test_main_fails_when_merge_state_is_clean_and_canonical_fallback_check_is_pe
                     "startedAt": "2026-03-12T05:05:00Z",
                     "completedAt": None,
                     "detailsUrl": "https://example.invalid/pending-ci-docs-clean",
-                    "checkSuite": {"workflowRun": {"workflow": {"name": "CI"}}},
+                    "checkSuite": {
+                        "createdAt": "2026-03-12T05:05:00Z",
+                        "workflowRun": {"workflow": {"name": "CI"}},
+                    },
                 }
             ],
         ),
@@ -1197,7 +1253,10 @@ def test_main_does_not_fetch_changed_paths_when_required_metadata_is_available(
                     "startedAt": "2026-03-12T05:05:00Z",
                     "completedAt": "2026-03-12T05:09:03Z",
                     "detailsUrl": "https://example.invalid/passed",
-                    "checkSuite": {"workflowRun": {"workflow": {"name": "Docker Image CI"}}},
+                    "checkSuite": {
+                        "createdAt": "2026-03-12T05:05:00Z",
+                        "workflowRun": {"workflow": {"name": "Docker Image CI"}},
+                    },
                 }
             ],
         ),
@@ -1244,7 +1303,10 @@ def test_skipped_canonical_check_run_is_failed_for_required_and_fallback_gates()
             "startedAt": "2026-06-29T05:05:00Z",
             "completedAt": "2026-06-29T05:05:30Z",
             "detailsUrl": "https://example.invalid/skipped",
-            "checkSuite": {"workflowRun": {"workflow": {"name": "CI"}}},
+            "checkSuite": {
+                "createdAt": "2026-06-29T05:05:00Z",
+                "workflowRun": {"workflow": {"name": "CI"}},
+            },
         }
     )
 
@@ -1262,7 +1324,10 @@ def test_skipped_docker_publish_is_non_blocking_release_only_fallback() -> None:
             "startedAt": "2026-06-29T19:12:16Z",
             "completedAt": "2026-06-29T19:12:16Z",
             "detailsUrl": "https://example.invalid/publish-skipped",
-            "checkSuite": {"workflowRun": {"workflow": {"name": "Docker Build and Push"}}},
+            "checkSuite": {
+                "createdAt": "2026-06-29T19:12:16Z",
+                "workflowRun": {"workflow": {"name": "Docker Build and Push"}},
+            },
         }
     )
 
@@ -1405,7 +1470,10 @@ def test_main_passes_when_required_check_metadata_is_unavailable_and_optional_la
                     "startedAt": "2026-03-12T05:05:00Z",
                     "completedAt": "2026-03-12T05:09:03Z",
                     "detailsUrl": "https://example.invalid/failed-optional",
-                    "checkSuite": {"workflowRun": {"workflow": {"name": "Optional CI"}}},
+                    "checkSuite": {
+                        "createdAt": "2026-03-12T05:05:00Z",
+                        "workflowRun": {"workflow": {"name": "Optional CI"}},
+                    },
                 }
             ],
         ),
