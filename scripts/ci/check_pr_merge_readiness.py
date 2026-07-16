@@ -107,7 +107,9 @@ MAPPING_NO_ACTIONABLE_RE = re.compile(r"(?im)^\s*-\s*No actionable review commen
 _MAX_API_RESPONSE_BYTES = 8 * 1024 * 1024
 _MAX_API_PAGES = 100
 _OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES: Mapping[str, tuple[str, int, str]] = {
-    "CodeQL": ("", 57_789, "github-advanced-security"),
+    "Analyze (actions)": ("CodeQL Advanced", 15_368, "github-actions"),
+    "Analyze (javascript-typescript)": ("CodeQL Advanced", 15_368, "github-actions"),
+    "Analyze (python)": ("CodeQL Advanced", 15_368, "github-actions"),
     "Private Python proxy health": ("CI", 15_368, "github-actions"),
     "Trivy ignore-policy expiry": ("CI", 15_368, "github-actions"),
     "security": ("CI", 15_368, "github-actions"),

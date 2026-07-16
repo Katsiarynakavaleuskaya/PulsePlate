@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -535,7 +536,12 @@ def test_operator_outage_override_rejects_unorderable_newer_security_attempt(
     [
         ("security", "IN_PROGRESS", "", "security=pending/status"),
         ("security", "COMPLETED", "SKIPPED", "security=failed/SKIPPED"),
-        ("CodeQL", "COMPLETED", "SKIPPED", "CodeQL=failed/SKIPPED"),
+        (
+            "Analyze (python)",
+            "COMPLETED",
+            "SKIPPED",
+            r"Analyze \(python\)=failed/SKIPPED",
+        ),
         ("security-scan", "COMPLETED", "FAILURE", "security-scan=failed/FAILURE"),
     ],
 )
@@ -595,7 +601,7 @@ def test_operator_outage_override_rejects_missing_security_check(
     [
         ("security", {"workflow_name": "Evil workflow"}),
         ("security-scan", {"app_database_id": 999}),
-        ("CodeQL", {"app_slug": "foreign-codeql"}),
+        ("Analyze (python)", {"app_slug": "foreign-codeql"}),
     ],
 )
 def test_operator_outage_override_rejects_foreign_check_producers(
@@ -613,7 +619,10 @@ def test_operator_outage_override_rejects_foreign_check_producers(
         lambda *_a, **_k: (False, "CLEAN", "main", nodes),
     )
 
-    with pytest.raises(ReviewEvidenceError, match=f"{target}=untrusted-producer"):
+    with pytest.raises(
+        ReviewEvidenceError,
+        match=rf"{re.escape(target)}=untrusted-producer",
+    ):
         merge_gate._validate_operator_outage_security_checks(
             repository="owner/repo",
             pr_number=42,
@@ -627,12 +636,12 @@ def test_operator_outage_override_rejects_foreign_status_context(
     nodes = [
         _check_node(name)
         for name in merge_gate._OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES
-        if name != "CodeQL"
+        if name != "Analyze (python)"
     ]
     nodes.append(
         {
             "__typename": "StatusContext",
-            "context": "CodeQL",
+            "context": "Analyze (python)",
             "state": "SUCCESS",
             "createdAt": "2026-07-16T11:01:00Z",
             "targetUrl": "https://example.invalid/spoof",
@@ -644,7 +653,10 @@ def test_operator_outage_override_rejects_foreign_status_context(
         lambda *_a, **_k: (False, "CLEAN", "main", nodes),
     )
 
-    with pytest.raises(ReviewEvidenceError, match="CodeQL=untrusted-producer"):
+    with pytest.raises(
+        ReviewEvidenceError,
+        match=r"Analyze \(python\)=untrusted-producer",
+    ):
         merge_gate._validate_operator_outage_security_checks(
             repository="owner/repo",
             pr_number=42,
