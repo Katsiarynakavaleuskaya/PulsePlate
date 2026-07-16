@@ -208,6 +208,7 @@ def _fetch_pr_metadata(
                   completedAt
                   detailsUrl
                   checkSuite {
+                    createdAt
                     app {
                       databaseId
                       slug
@@ -379,13 +380,11 @@ def _normalize_node(node: dict[str, Any]) -> CheckEntry:
             state = "failed"
         else:
             state = "passed"
+        check_suite = node.get("checkSuite") or {}
         workflow_name = str(
-            (((node.get("checkSuite") or {}).get("workflowRun") or {}).get("workflow") or {}).get(
-                "name"
-            )
-            or ""
+            (((check_suite.get("workflowRun") or {}).get("workflow") or {}).get("name")) or ""
         ).strip()
-        app = (node.get("checkSuite") or {}).get("app") or {}
+        app = check_suite.get("app") or {}
         raw_app_database_id = app.get("databaseId")
         app_database_id = (
             raw_app_database_id
@@ -395,7 +394,10 @@ def _normalize_node(node: dict[str, Any]) -> CheckEntry:
             else None
         )
         app_slug = str(app.get("slug") or "").strip()
-        timestamp = str(node.get("startedAt") or "")
+        # GitHub leaves ``startedAt`` null while a fresh CheckRun is queued.
+        # CheckSuite.createdAt is non-null and orders that attempt ahead of an
+        # older completed run instead of allowing stale success to win.
+        timestamp = str(node.get("startedAt") or check_suite.get("createdAt") or "")
         return CheckEntry(
             name=name,
             source_kind="check_run",
@@ -615,6 +617,9 @@ def main(argv: list[str] | None = None) -> int:
         )
     except urllib.error.HTTPError as exc:
         print(f"ERROR: failed to query GitHub check state: HTTP {exc.code}")
+        return 1
+    except ValueError as exc:
+        print(f"ERROR: failed to validate GitHub check state: {exc}")
         return 1
 
     if is_draft:

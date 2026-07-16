@@ -297,6 +297,8 @@ def _check_node(
     workflow_name: str | None = None,
     app_database_id: int | None = None,
     app_slug: str | None = None,
+    started_at: str | None = "2026-07-16T11:00:00Z",
+    suite_created_at: str = "2026-07-16T11:00:00Z",
 ) -> dict[str, Any]:
     expected_workflow, expected_app_id, expected_app_slug = (
         merge_gate._OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES[name]
@@ -307,10 +309,11 @@ def _check_node(
         "name": name,
         "status": status,
         "conclusion": conclusion,
-        "startedAt": "2026-07-16T11:00:00Z",
+        "startedAt": started_at,
         "completedAt": "2026-07-16T11:01:00Z" if status == "COMPLETED" else None,
         "detailsUrl": f"https://github.com/checks/{name}",
         "checkSuite": {
+            "createdAt": suite_created_at,
             "app": {
                 "databaseId": expected_app_id if app_database_id is None else app_database_id,
                 "slug": expected_app_slug if app_slug is None else app_slug,
@@ -340,6 +343,33 @@ def test_operator_outage_override_requires_exact_successful_security_bundle(
         pr_number=42,
         token="opaque",
     )
+
+
+def test_operator_outage_override_rejects_newer_queued_security_attempt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    nodes = [_check_node(name) for name in merge_gate._OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES]
+    nodes.append(
+        _check_node(
+            "security",
+            status="QUEUED",
+            conclusion="",
+            started_at=None,
+            suite_created_at="2026-07-16T11:01:00Z",
+        )
+    )
+    monkeypatch.setattr(
+        merge_gate,
+        "_fetch_current_head_pr_metadata",
+        lambda *_a, **_k: (False, "CLEAN", "main", nodes),
+    )
+
+    with pytest.raises(ReviewEvidenceError, match="security=pending/status"):
+        merge_gate._validate_operator_outage_security_checks(
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+        )
 
 
 @pytest.mark.parametrize(

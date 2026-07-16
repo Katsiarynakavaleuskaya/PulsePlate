@@ -449,6 +449,44 @@ def test_latest_entries_uses_attempt_start_when_older_success_finishes_later() -
     assert superseded == [older_success]
 
 
+def test_latest_entries_uses_check_suite_creation_for_queued_attempt() -> None:
+    older_success = current_head_checks._normalize_node(
+        {
+            "__typename": "CheckRun",
+            "name": "security",
+            "status": "COMPLETED",
+            "conclusion": "SUCCESS",
+            "startedAt": "2026-07-16T10:00:00Z",
+            "completedAt": "2026-07-16T10:05:00Z",
+            "detailsUrl": "https://example.invalid/older-success",
+            "checkSuite": {
+                "createdAt": "2026-07-16T10:00:00Z",
+                "workflowRun": {"workflow": {"name": "CI"}},
+            },
+        }
+    )
+    newer_queued = current_head_checks._normalize_node(
+        {
+            "__typename": "CheckRun",
+            "name": "security",
+            "status": "QUEUED",
+            "conclusion": None,
+            "startedAt": None,
+            "completedAt": None,
+            "detailsUrl": "https://example.invalid/newer-queued",
+            "checkSuite": {
+                "createdAt": "2026-07-16T11:00:00Z",
+                "workflowRun": {"workflow": {"name": "CI"}},
+            },
+        }
+    )
+
+    latest, superseded = current_head_checks._latest_entries([older_success, newer_queued])
+
+    assert latest["security"] == newer_queued
+    assert superseded == [older_success]
+
+
 def test_fetch_pr_metadata_rejects_repeated_pagination_cursor(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1323,6 +1361,28 @@ def test_main_fails_when_github_metadata_query_errors(
     captured = capsys.readouterr()
     assert exit_code == 1
     assert "ERROR: failed to query GitHub check state: HTTP 503" in captured.out
+
+
+def test_main_fails_cleanly_when_github_metadata_is_malformed(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(current_head_checks, "_github_token", lambda: "token")
+
+    def raise_validation_error(*args, **kwargs):
+        raise ValueError("GraphQL status-check pagination cursor repeated")
+
+    monkeypatch.setattr(current_head_checks, "_fetch_pr_metadata", raise_validation_error)
+
+    exit_code = current_head_checks.main(
+        ["--pr-number", "1129", "--repo", "Katsiarynakavaleuskaya/PulsePlate"]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert (
+        "ERROR: failed to validate GitHub check state: "
+        "GraphQL status-check pagination cursor repeated"
+    ) in captured.out
 
 
 def test_main_passes_when_required_check_metadata_is_unavailable_and_optional_lane_fails(
