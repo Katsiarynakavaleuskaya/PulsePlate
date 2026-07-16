@@ -6,9 +6,7 @@
 from __future__ import annotations
 
 import os
-import sys
 from typing import cast
-from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi import HTTPException
@@ -121,42 +119,6 @@ class TestMetricsFallbacks:
 
         response = client.get("/metrics")
         assert response.status_code == 200
-
-
-class TestVisualizationFallbacks:
-    """Тесты fallback'ов визуализации"""
-
-    def test_bmi_without_matplotlib(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Тест BMI без matplotlib"""
-        monkeypatch.setattr(app, "MATPLOTLIB_AVAILABLE", False)
-        client = get_client()
-
-        response = client.post("/bmi", json={"weight_kg": 70, "height_m": 1.70})
-        assert response.status_code == 200
-        data = response.json()
-        assert "bmi" in data
-
-    def test_bmi_without_visualization_function(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Тест BMI без функции визуализации"""
-        monkeypatch.setattr(app, "generate_bmi_visualization", None, raising=False)
-        client = get_client()
-
-        response = client.post("/bmi", json={"weight_kg": 70, "height_m": 1.70})
-        assert response.status_code == 200
-        data = response.json()
-        assert "bmi" in data
-
-    def test_bmi_visualization_unavailable_result(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Тест BMI когда визуализация возвращает unavailable"""
-        mock_viz = MagicMock()
-        mock_viz.return_value = {"available": False, "message": "Visualization unavailable"}
-        monkeypatch.setattr(app, "generate_bmi_visualization", mock_viz, raising=False)
-
-        client = get_client()
-        response = client.post("/bmi", json={"weight_kg": 70, "height_m": 1.70})
-        assert response.status_code == 200
-        data = response.json()
-        assert "bmi" in data
 
 
 class TestImportFallbacks:

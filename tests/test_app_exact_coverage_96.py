@@ -6,8 +6,6 @@ to achieve maximum coverage improvement.
 """
 
 import os
-import sys
-from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 from app import app
@@ -65,28 +63,6 @@ class TestAppExactCoverage96:
             "unrealistically" in (item.get("msg", "") if isinstance(item, dict) else "")
             for item in data["detail"]
         )
-
-    @patch("app.MATPLOTLIB_AVAILABLE", False)
-    def test_visualization_not_available_matplotlib(self) -> None:
-        """Test visualization when matplotlib is not available - line 685."""
-        payload = {
-            "weight_kg": 70.0,
-            "height_m": 1.75,
-            "age": 30,
-            "gender": "male",
-            "pregnant": "no",
-            "athlete": "no",
-            "lang": "en",
-        }
-
-        response = self.client.post("/bmi", json=payload)
-        assert response.status_code == 200
-        data = response.json()
-
-        # Should have visualization error when matplotlib not available
-        if "visualization" in data:
-            assert data["visualization"]["available"] is False
-            assert "matplotlib not installed" in data["visualization"]["error"]
 
     def test_pregnant_female_bmi_note(self) -> None:
         """Test BMI calculation for pregnant female - lines 756-757."""

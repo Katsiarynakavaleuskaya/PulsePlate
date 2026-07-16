@@ -23,6 +23,7 @@ from sqlalchemy import create_engine
 
 from app.routers import legacy_premium_weekly_plan
 from app.routers import health as health_router
+import app.services.bmi_compat as bmi_compat_service
 import app.services.legacy_premium_weekly_plan as weekly_plan_service
 import legacy_app
 
@@ -495,15 +496,12 @@ def test_add_visualization_calls_generate_bmi_visualization(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Cover add_visualization_if_requested call into viz function (line ~1479)."""
-    monkeypatch.setattr(legacy_app, "MATPLOTLIB_AVAILABLE", True, raising=False)
-    import app as app_pkg
-
-    monkeypatch.setattr(app_pkg, "MATPLOTLIB_AVAILABLE", True, raising=False)
+    monkeypatch.setattr(bmi_compat_service, "MATPLOTLIB_AVAILABLE", True)
 
     def _viz(**_kw: Any) -> dict[str, Any]:
         return {"available": True, "ok": True}
 
-    monkeypatch.setattr(legacy_app, "generate_bmi_visualization", _viz, raising=False)
+    monkeypatch.setattr(bmi_compat_service, "generate_bmi_visualization", _viz)
 
     req = legacy_app.BMIRequest.model_validate(
         {
