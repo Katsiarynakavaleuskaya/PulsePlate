@@ -351,7 +351,9 @@ must be a regular non-symlink file owned by the effective user with permissions
 no broader than `0600`; compilation fails closed if the platform cannot establish
 that ownership. The compiler copies descriptor-captured credential and manifest
 bytes into private temporary resolver directories, so later path replacement
-cannot change resolver authority. Do not call the underlying resolver directly.
+cannot change resolver authority. A private POSIX transaction lock serializes
+capture, resolution, atomic replacement, verification, and rollback for each
+worktree. Do not call the underlying resolver directly.
 
 ### Update a specific dependency
 

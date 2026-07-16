@@ -1176,6 +1176,53 @@ def test_prepare_lock_is_seeded_validated_and_atomic(
     prepared.candidate_path.unlink()
 
 
+def test_resolver_candidate_symlink_swap_cannot_overwrite_target(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    surface = _write_test_profile(tmp_path)
+    victim = tmp_path / "victim.txt"
+    victim.write_text("must-stay-unchanged\n", encoding="utf-8")
+    monkeypatch.setattr(compiler.subprocess, "run", _successful_resolver)
+    real_validate = compiler._validate_candidate_delta
+
+    def validate_then_swap(
+        *,
+        surface: surfaces.DependencySurface,
+        baseline_text: str,
+        candidate_text: str,
+        upgrades: dict[str, str],
+        graph_changes: frozenset[str],
+        repo_root: Path,
+    ) -> None:
+        real_validate(
+            surface=surface,
+            baseline_text=baseline_text,
+            candidate_text=candidate_text,
+            upgrades=upgrades,
+            graph_changes=graph_changes,
+            repo_root=repo_root,
+        )
+        resolver_candidate = next(tmp_path.glob(f".{surface.lockfile}.*.resolver"))
+        resolver_candidate.unlink()
+        resolver_candidate.symlink_to(victim)
+
+    monkeypatch.setattr(compiler, "_validate_candidate_delta", validate_then_swap)
+
+    prepared = compiler._prepare_lock(
+        repo_root=tmp_path,
+        surface=surface,
+        upgrades={"coverage": "7.15.1", "faker": "40.31.0"},
+        graph_changes=frozenset(),
+        child_env={},
+    )
+
+    assert victim.read_text(encoding="utf-8") == "must-stay-unchanged\n"
+    assert not tuple(tmp_path.glob(f".{surface.lockfile}.*.resolver"))
+    assert not prepared.candidate_path.is_symlink()
+    prepared.candidate_path.unlink()
+
+
 def test_candidate_delta_allows_only_exact_reviewed_graph_changes(tmp_path: Path) -> None:
     surface = _write_test_profile(tmp_path)
     baseline = (tmp_path / surface.lockfile).read_text(encoding="utf-8")
@@ -1430,6 +1477,65 @@ def test_multi_lock_replacement_rolls_back_on_partial_failure(
 
     assert (tmp_path / "requirements-test.txt").read_text(encoding="utf-8") == "baseline-0\n"
     assert (tmp_path / "requirements-dev.txt").read_text(encoding="utf-8") == "baseline-1\n"
+
+
+def test_candidate_symlink_swap_before_replace_fails_and_rolls_back(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    surface = _surface("test")
+    output_path = tmp_path / surface.lockfile
+    output_path.write_text("baseline\n", encoding="utf-8")
+    candidate_path = tmp_path / f".{surface.lockfile}.candidate"
+    candidate_path.write_text("candidate\n", encoding="utf-8")
+    victim = tmp_path / "victim.txt"
+    victim.write_text("must-stay-unchanged\n", encoding="utf-8")
+    prepared = compiler.PreparedLock(
+        surface=surface,
+        output_path=output_path,
+        candidate_path=candidate_path,
+        source_snapshots=(),
+        output_snapshot=compiler._snapshot(output_path),
+        candidate_snapshot=compiler._snapshot(candidate_path),
+        baseline_bytes=output_path.read_bytes(),
+    )
+    monkeypatch.setattr(compiler, "_profile_registry", lambda: {"test": surface})
+    monkeypatch.setattr(
+        compiler,
+        "_private_proxy_child_env",
+        lambda _environment, *, resolver_home: {},
+    )
+    monkeypatch.setattr(compiler, "_prepare_lock", lambda **_kwargs: prepared)
+    monkeypatch.setattr(compiler, "_fsync_directory", lambda _path: None)
+    real_replace = os.replace
+
+    def swap_candidate(source: Path, destination: Path) -> None:
+        if source == candidate_path:
+            source.unlink()
+            source.symlink_to(victim)
+        real_replace(source, destination)
+
+    monkeypatch.setattr(compiler.os, "replace", swap_candidate)
+
+    with pytest.raises(RuntimeError, match="rolled back"):
+        compiler.compile_selected_profiles(
+            repo_root=tmp_path,
+            profiles=("test",),
+            upgrades={},
+            graph_changes=frozenset(),
+            environment={},
+        )
+
+    assert output_path.read_text(encoding="utf-8") == "baseline\n"
+    assert not output_path.is_symlink()
+    assert victim.read_text(encoding="utf-8") == "must-stay-unchanged\n"
+
+
+def test_compiler_transaction_lock_rejects_concurrent_governed_writer(tmp_path: Path) -> None:
+    with compiler._compiler_transaction_lock(tmp_path):
+        with pytest.raises(RuntimeError, match="already running"):
+            with compiler._compiler_transaction_lock(tmp_path):
+                pytest.fail("a second governed compiler acquired the transaction lock")
 
 
 def test_prepared_lock_rejects_rollback_bytes_from_another_snapshot(tmp_path: Path) -> None:

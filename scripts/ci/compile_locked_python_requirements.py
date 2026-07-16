@@ -8,7 +8,9 @@ come from ``check_python_dependency_surfaces.py``.
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from dataclasses import dataclass
+import fcntl
 import hashlib
 import os
 from pathlib import Path
@@ -17,7 +19,7 @@ import stat
 import subprocess  # nosec B404: argv-only governed pip-tools invocation (remove-by: 2027-01-31, ref: PR-2142)
 import sys
 import tempfile
-from typing import Mapping, Sequence
+from typing import Iterator, Mapping, Sequence
 from urllib.parse import urlparse
 
 from packaging.requirements import InvalidRequirement, Requirement
@@ -659,18 +661,19 @@ def _prepare_lock(
             )
 
     output_snapshot = output_capture.snapshot
-    descriptor, temp_name = tempfile.mkstemp(
+    resolver_descriptor, resolver_temp_name = tempfile.mkstemp(
         prefix=f".{output_path.name}.",
-        suffix=".candidate",
+        suffix=".resolver",
         dir=output_path.parent,
     )
-    candidate_path = Path(temp_name)
+    resolver_candidate_path = Path(resolver_temp_name)
+    governed_candidate_path: Path | None = None
     try:
-        with os.fdopen(descriptor, "wb") as candidate_file:
+        with os.fdopen(resolver_descriptor, "wb") as candidate_file:
             candidate_file.write(baseline_bytes)
             candidate_file.flush()
             os.fsync(candidate_file.fileno())
-        os.chmod(candidate_path, output_snapshot.mode)
+        os.chmod(resolver_candidate_path, output_snapshot.mode)
         with tempfile.TemporaryDirectory(prefix="pulseplate-lock-inputs-") as input_dir:
             resolver_input_root = Path(input_dir)
             os.chmod(resolver_input_root, 0o700)
@@ -681,7 +684,7 @@ def _prepare_lock(
             )
             command = _build_compile_command(
                 surface=surface,
-                output_path=candidate_path,
+                output_path=resolver_candidate_path,
                 upgrades=upgrades,
             )
             process_env = dict(child_env)
@@ -709,7 +712,11 @@ def _prepare_lock(
                 _assert_snapshot(path, snapshot)
             _assert_snapshot(output_path, output_snapshot)
 
-            candidate_body = candidate_path.read_text(encoding="utf-8").lstrip("\n")
+            resolver_candidate_capture = _capture_file(resolver_candidate_path)
+            try:
+                candidate_body = resolver_candidate_capture.content.decode("utf-8").lstrip("\n")
+            except UnicodeDecodeError as exc:
+                raise RuntimeError(f"{surface.lockfile}: resolver candidate must be UTF-8") from exc
             rendered = render_governed_lock_header(surface) + candidate_body
             _validate_candidate_delta(
                 surface=surface,
@@ -719,23 +726,33 @@ def _prepare_lock(
                 graph_changes=graph_changes,
                 repo_root=resolver_input_root,
             )
-        with candidate_path.open("w", encoding="utf-8", newline="\n") as candidate_file:
-            candidate_file.write(rendered)
+        governed_descriptor, governed_temp_name = tempfile.mkstemp(
+            prefix=f".{output_path.name}.",
+            suffix=".candidate",
+            dir=output_path.parent,
+        )
+        governed_candidate_path = Path(governed_temp_name)
+        with os.fdopen(governed_descriptor, "wb") as candidate_file:
+            os.fchmod(candidate_file.fileno(), output_snapshot.mode)
+            candidate_file.write(rendered.encode("utf-8"))
             candidate_file.flush()
             os.fsync(candidate_file.fileno())
-        candidate_snapshot = _snapshot(candidate_path)
+        candidate_snapshot = _snapshot(governed_candidate_path)
         return PreparedLock(
             surface=surface,
             output_path=output_path,
-            candidate_path=candidate_path,
+            candidate_path=governed_candidate_path,
             source_snapshots=source_snapshots,
             output_snapshot=output_snapshot,
             candidate_snapshot=candidate_snapshot,
             baseline_bytes=baseline_bytes,
         )
     except Exception:
-        candidate_path.unlink(missing_ok=True)
+        if governed_candidate_path is not None:
+            governed_candidate_path.unlink(missing_ok=True)
         raise
+    finally:
+        resolver_candidate_path.unlink(missing_ok=True)
 
 
 def _validate_profile_transaction(
@@ -780,6 +797,54 @@ def _fsync_directory(path: Path) -> None:
         os.close(descriptor)
 
 
+@contextmanager
+def _compiler_transaction_lock(repo_root: Path) -> Iterator[None]:
+    """Serialize governed compilation for one worktree without tracked lock artifacts."""
+
+    effective_uid = getattr(os, "geteuid", None)
+    no_follow = getattr(os, "O_NOFOLLOW", None)
+    if not callable(effective_uid) or no_follow is None:
+        raise RuntimeError("Governed lock compilation requires POSIX file-lock semantics.")
+    owner_uid = effective_uid()
+    lock_root = Path(tempfile.gettempdir()) / f"pulseplate-lock-compiler-{owner_uid}"
+    try:
+        os.mkdir(lock_root, 0o700)
+    except FileExistsError:
+        pass
+    lock_root_metadata = lock_root.lstat()
+    if (
+        stat.S_ISLNK(lock_root_metadata.st_mode)
+        or not stat.S_ISDIR(lock_root_metadata.st_mode)
+        or lock_root_metadata.st_uid != owner_uid
+        or stat.S_IMODE(lock_root_metadata.st_mode) & 0o077
+    ):
+        raise RuntimeError("Compiler lock directory must be private and user-owned.")
+
+    worktree_key = hashlib.sha256(str(repo_root.resolve()).encode("utf-8")).hexdigest()
+    lock_path = lock_root / f"{worktree_key}.lock"
+    descriptor = os.open(lock_path, os.O_RDWR | os.O_CREAT | no_follow, 0o600)
+    try:
+        metadata = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(metadata.st_mode)
+            or metadata.st_uid != owner_uid
+            or stat.S_IMODE(metadata.st_mode) & 0o077
+        ):
+            raise RuntimeError("Compiler transaction lock must be private and user-owned.")
+        try:
+            fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as exc:
+            raise RuntimeError(
+                "Another governed lock compilation transaction is already running."
+            ) from exc
+        try:
+            yield
+        finally:
+            fcntl.flock(descriptor, fcntl.LOCK_UN)
+    finally:
+        os.close(descriptor)
+
+
 def _atomic_write_bytes(path: Path, content: bytes, mode: int) -> None:
     descriptor, temp_name = tempfile.mkstemp(
         prefix=f".{path.name}.",
@@ -800,6 +865,24 @@ def _atomic_write_bytes(path: Path, content: bytes, mode: int) -> None:
 
 
 def compile_selected_profiles(
+    *,
+    repo_root: Path,
+    profiles: Sequence[str],
+    upgrades: Mapping[str, str],
+    graph_changes: frozenset[str],
+    environment: Mapping[str, str],
+) -> None:
+    with _compiler_transaction_lock(repo_root):
+        _compile_selected_profiles_locked(
+            repo_root=repo_root,
+            profiles=profiles,
+            upgrades=upgrades,
+            graph_changes=graph_changes,
+            environment=environment,
+        )
+
+
+def _compile_selected_profiles_locked(
     *,
     repo_root: Path,
     profiles: Sequence[str],
@@ -840,6 +923,7 @@ def compile_selected_profiles(
                     os.replace(candidate.candidate_path, candidate.output_path)
                     replaced.append(candidate)
                     _fsync_directory(candidate.output_path.parent)
+                    _assert_snapshot(candidate.output_path, candidate.candidate_snapshot)
                 for candidate in prepared:
                     print(
                         "Updated governed lock profile "
