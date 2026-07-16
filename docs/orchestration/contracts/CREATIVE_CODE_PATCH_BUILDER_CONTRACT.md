@@ -158,9 +158,12 @@ resume seam revalidates:
 - normal candidate runner mode, the stable `candidate.patch` marker, exact
   experiment ID, passed execution-backend preflight provenance, one attempt,
   zero retries, packet-identical budgets and oracle commands, bounded mutated
-  paths, and an untouched shared tree; both the packet and dispatch result must
-  carry the recomputed canonical patch fingerprint;
+  paths, no promotion/material-attribution claim, and an untouched shared tree;
+  the packet, dispatch result, and canonical creative-code result must carry one
+  recomputed patch fingerprint;
 - every configured oracle passing before an accepted result can be published.
+- every oracle-derived rejection binding the candidate paths and retaining the
+  executed failure evidence required by its failure class.
 
 The resume seam acquires a cooperative fd-backed per-run lock before final
 revalidation and publication. A concurrent finalizer fails closed before it can
@@ -176,8 +179,9 @@ tampered sidecar, missing backend provenance, partial publication, or divergent
 replay fails closed. It does not authorize a second generation attempt.
 If bounded publication fails, receipt removal, state restoration, and result
 removal are attempted independently so one cleanup error cannot suppress the
-remaining rollback actions; any incomplete rollback remains an explicit
-terminal error.
+remaining rollback actions. Receipt rollback removes only content matching the
+current invocation, preserving a colliding foreign artifact; any incomplete
+rollback remains an explicit terminal error.
 
 `validate-artifacts` must re-read the linked local sidecars before reporting
 success. It recomputes the current `candidate.patch` summary, validates

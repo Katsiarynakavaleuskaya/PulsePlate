@@ -208,6 +208,8 @@ def _trusted_dispatch_result(
         }
         for command in configured_commands
     ]
+    if not accepted and failure_class in generation_cli.FAILING_ORACLE_REQUIRED_FAILURE_CLASSES:
+        oracle_results[-1]["returncode"] = 1
     return {
         "schema_version": "1.0",
         "experiment_id": packet["experiment_id"],
@@ -227,10 +229,10 @@ def _trusted_dispatch_result(
             "retries_consumed": 0,
         },
         "shared_tree_untouched": True,
-        "promotion_ready": accepted,
-        "contribution_kind": "oracle_review" if accepted else "none",
-        "coauthor_required": accepted,
-        "coauthor_reason": "Trusted isolated candidate evaluation." if accepted else "",
+        "promotion_ready": False,
+        "contribution_kind": "none",
+        "coauthor_required": False,
+        "coauthor_reason": "",
         "execution_backend": {
             "name": "apple-container",
             "guest_platform": "linux_arm64",
@@ -281,7 +283,11 @@ def _semantic_binding_inputs(
     }
     result = {
         "changed_paths": ["core/rag/example.py"],
-        "patch_fingerprint": "sha256:" + ("b" * 64),
+        "patch_summary": {
+            "patch_fingerprint": "sha256:" + ("b" * 64),
+            "patch_bytes": 1,
+            "diff_lines": 1,
+        },
         "runner_summary": {
             "experiment_id": "experiment:test",
             "oracle_commands_configured": 1,
@@ -326,6 +332,7 @@ def test_semantic_binding_rejects_invalid_metrics_with_domain_error(metrics: lis
         ("oracle_command", "immutable oracles are stale"),
         ("oracle_count", "oracle count is stale"),
         ("oracle_executions", "oracle executions exceed"),
+        ("patch_fingerprint", "candidate patch fingerprint is stale"),
         ("budgets", "budgets are stale"),
         ("metrics", "metrics are stale"),
     ],
@@ -345,6 +352,8 @@ def test_semantic_binding_rejects_cross_artifact_mismatches(
         result["runner_summary"]["oracle_commands_configured"] = 2
     elif mismatch == "oracle_executions":
         result["runner_summary"]["oracle_commands_executed"] = 2
+    elif mismatch == "patch_fingerprint":
+        result["patch_summary"]["patch_fingerprint"] = "sha256:" + ("c" * 64)
     elif mismatch == "budgets":
         packet["budgets"]["network_budget"] = 1
     else:
@@ -663,6 +672,51 @@ def test_finalize_dispatched_result_rolls_back_partial_publication(
     assert state["candidate_patch_evaluated"] is False
 
 
+def test_finalize_dispatched_result_preserves_foreign_receipt_on_collision(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo, base_sha = _init_patch_repo(tmp_path)
+    _patch_modules_to_repo(monkeypatch, repo)
+    run_id = "dispatch-finalize-foreign-receipt"
+    gate_path, dispatch_path, packet = _prepare_generated_dispatch_handoff(
+        monkeypatch=monkeypatch,
+        repo=repo,
+        base_sha=base_sha,
+        run_id=run_id,
+    )
+    _write_json(dispatch_path, _trusted_dispatch_result(packet))
+    foreign_receipt = {"owner": "another-publication"}
+    original_write_json_new = generation_cli._write_json_new
+
+    def collide_on_receipt(path: Path, payload: dict[str, Any]) -> None:
+        if path.name == generation_cli.RECEIPT_FILENAME:
+            _write_json(path, foreign_receipt)
+            raise CreativeCodePatchGenerationError("simulated foreign receipt collision")
+        original_write_json_new(path, payload)
+
+    monkeypatch.setattr(generation_cli, "_write_json_new", collide_on_receipt)
+
+    assert (
+        generation_cli.main(
+            [
+                "finalize-dispatched-result",
+                "--gate",
+                str(gate_path),
+                "--dispatch-result",
+                str(dispatch_path),
+            ]
+        )
+        == 1
+    )
+    assert "simulated foreign receipt collision" in capsys.readouterr().err
+    receipt_path = gate_path.parent / generation_cli.RECEIPT_FILENAME
+    assert json.loads(receipt_path.read_text(encoding="utf-8")) == foreign_receipt
+    run_dir = creative_code_patch_workspace.resolve_run_dir(run_id, create=False)
+    assert not (run_dir / creative_code_patch_builder.RESULT_FILE).exists()
+
+
 def test_finalize_dispatched_result_attempts_every_rollback_after_cleanup_failure(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -780,6 +834,9 @@ def test_finalize_dispatched_result_retains_trusted_rejection_without_retry(
         ("retry", "one attempt and zero retries"),
         ("extra_path", "mutated paths do not match"),
         ("oracle_command", "oracle commands do not match"),
+        ("material_attribution", "must not claim promotion or material attribution"),
+        ("all_pass_rejection", "requires failing oracle evidence"),
+        ("missing_oracle_paths", "must bind every candidate path"),
     ],
 )
 def test_finalize_dispatched_result_rejects_unbound_dispatch_evidence(
@@ -811,6 +868,19 @@ def test_finalize_dispatched_result_rejects_unbound_dispatch_evidence(
         dispatch_result["budget_observations"]["retries_consumed"] = 1
     elif mutation == "extra_path":
         dispatch_result["mutated_paths"] = ["core/rag/other.py"]
+    elif mutation == "material_attribution":
+        dispatch_result["promotion_ready"] = True
+        dispatch_result["contribution_kind"] = "oracle_review"
+        dispatch_result["coauthor_required"] = True
+        dispatch_result["coauthor_reason"] = "Untrusted attribution."
+    elif mutation == "all_pass_rejection":
+        dispatch_result["status"] = "rejected"
+        dispatch_result["failure_class"] = "guard_failure"
+    elif mutation == "missing_oracle_paths":
+        dispatch_result["status"] = "rejected"
+        dispatch_result["failure_class"] = "guard_failure"
+        dispatch_result["mutated_paths"] = []
+        dispatch_result["oracle_results"][-1]["returncode"] = 1
     else:
         dispatch_result["oracle_results"][0]["command"] = "pytest -q tests/test_other.py"
     _write_json(dispatch_path, dispatch_result)

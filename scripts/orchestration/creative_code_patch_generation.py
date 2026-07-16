@@ -81,6 +81,10 @@ TRUSTED_DISPATCH_CANDIDATE_PATCH_REFS = frozenset(
         ".experiment-runner-input/candidate.patch",
     }
 )
+ORACLE_REQUIRED_FAILURE_CLASSES = frozenset(
+    {"timeout", "oom", "metric_regression", "guard_failure"}
+)
+FAILING_ORACLE_REQUIRED_FAILURE_CLASSES = frozenset({"timeout", "oom", "guard_failure"})
 
 VALIDATE_RUN_PLAN_SUCCESS_OUTPUT = "PASS: creative-code patch generation gate passed"
 GENERATE_CANDIDATE_SUCCESS_OUTPUT = "PASS: creative-code patch generate/evaluate complete"
@@ -1676,6 +1680,17 @@ def _validate_experiment_packet_matches_result(
         raise CreativeCodePatchGenerationError(
             "generation receipt runner oracle executions exceed configured packet oracles."
         )
+    packet_patch_fingerprint = experiment_packet_payload.get("candidate_patch_fingerprint")
+    result_patch_summary = result.get("patch_summary")
+    result_patch_fingerprint = (
+        result_patch_summary.get("patch_fingerprint")
+        if isinstance(result_patch_summary, Mapping)
+        else None
+    )
+    if packet_patch_fingerprint != result_patch_fingerprint:
+        raise CreativeCodePatchGenerationError(
+            "generation receipt experiment packet candidate patch fingerprint is stale."
+        )
 
     if experiment_packet_payload["budgets"] != _expected_experiment_budgets(request):
         raise CreativeCodePatchGenerationError(
@@ -2090,6 +2105,15 @@ def _validate_dispatch_result_binding(
             "trusted dispatch result candidate marker is invalid."
         )
     if (
+        result["promotion_ready"] is not False
+        or result["contribution_kind"] != "none"
+        or result["coauthor_required"] is not False
+        or result["coauthor_reason"] != ""
+    ):
+        raise CreativeCodePatchGenerationError(
+            "trusted candidate dispatch result must not claim promotion or material attribution."
+        )
+    if (
         packet.get("candidate_patch_fingerprint") != patch_fingerprint
         or result.get("candidate_patch_fingerprint") != patch_fingerprint
     ):
@@ -2110,9 +2134,12 @@ def _validate_dispatch_result_binding(
         raise CreativeCodePatchGenerationError(
             "trusted dispatch result mutated paths do not match the generated candidate."
         )
-    if result["status"] == "accepted" and mutated_paths != sorted(changed_paths):
+    failure_class = result["failure_class"]
+    if (
+        result["status"] == "accepted" or failure_class in ORACLE_REQUIRED_FAILURE_CLASSES
+    ) and mutated_paths != sorted(changed_paths):
         raise CreativeCodePatchGenerationError(
-            "accepted trusted dispatch result must bind every candidate path."
+            "oracle-evaluated trusted dispatch result must bind every candidate path."
         )
     observations = result["budget_observations"]
     if observations.get("configured_budgets") != packet["budgets"]:
@@ -2139,6 +2166,17 @@ def _validate_dispatch_result_binding(
         ):
             raise CreativeCodePatchGenerationError(
                 "accepted trusted dispatch result requires every configured oracle to pass."
+            )
+    elif failure_class in ORACLE_REQUIRED_FAILURE_CLASSES:
+        if not result["oracle_results"]:
+            raise CreativeCodePatchGenerationError(
+                "oracle-derived trusted dispatch rejection requires executed oracle evidence."
+            )
+        if failure_class in FAILING_ORACLE_REQUIRED_FAILURE_CLASSES and not any(
+            item["returncode"] != 0 or item["timed_out"] for item in result["oracle_results"]
+        ):
+            raise CreativeCodePatchGenerationError(
+                "oracle-derived trusted dispatch rejection requires failing oracle evidence."
             )
     if result["shared_tree_untouched"] is not True:
         raise CreativeCodePatchGenerationError(
@@ -2247,6 +2285,17 @@ def _finalize_dispatched_result_locked(
     original_state = dict(state)
     result_written = False
     state_written = False
+
+    def remove_matching_receipt() -> None:
+        if not receipt_path.exists() or receipt_path.is_symlink():
+            return
+        current_receipt = _read_resolved_json_object(
+            receipt_path,
+            label="rollback generation receipt",
+        )
+        if current_receipt == receipt:
+            receipt_path.unlink()
+
     try:
         _write_json_new(result_path, result)
         result_written = True
@@ -2262,11 +2311,7 @@ def _finalize_dispatched_result_locked(
         rollback_actions = (
             (
                 "receipt removal",
-                lambda: (
-                    receipt_path.unlink()
-                    if receipt_path.exists() and not receipt_path.is_symlink()
-                    else None
-                ),
+                remove_matching_receipt,
             ),
             (
                 "state restoration",
