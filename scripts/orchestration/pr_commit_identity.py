@@ -491,27 +491,75 @@ def is_ancestor(
     ahead_by = response.get("ahead_by")
     behind_by = response.get("behind_by")
     base_commit = response.get("base_commit")
-    head_commit = response.get("head_commit")
+    commits = response.get("commits")
+    total_commits = response.get("total_commits")
     merge_base_commit = response.get("merge_base_commit")
     if (
         not isinstance(base_commit, dict)
-        or not isinstance(head_commit, dict)
         or not isinstance(merge_base_commit, dict)
         or base_commit.get("sha") != ancestor.sha
-        or head_commit.get("sha") != descendant.sha
-        or merge_base_commit.get("sha") != ancestor.sha
+        or not isinstance(commits, list)
         or not isinstance(ahead_by, int)
         or isinstance(ahead_by, bool)
         or not isinstance(behind_by, int)
         or isinstance(behind_by, bool)
+        or ahead_by < 0
+        or behind_by < 0
     ):
         raise CommitIdentityError("Compare API response does not bind the requested commits")
+    if status in {"behind", "diverged"}:
+        return False
+    if status not in {"ahead", "identical"}:
+        raise CommitIdentityError("Compare API returned unknown ancestry status")
+    if merge_base_commit.get("sha") != ancestor.sha:
+        raise CommitIdentityError("Compare API response does not bind the requested commits")
+    if status == "identical" and ancestor.sha != descendant.sha:
+        raise CommitIdentityError("Compare API response does not bind the requested commits")
+    if (
+        not isinstance(total_commits, int)
+        or isinstance(total_commits, bool)
+        or total_commits < len(commits)
+        or (status == "identical" and total_commits != 0)
+        or (status == "ahead" and ahead_by != total_commits)
+    ):
+        raise CommitIdentityError("Compare API response does not bind the requested commits")
+    if status == "ahead":
+        terminal_commits = commits
+        if total_commits > len(commits):
+            terminal_url = f"{url}?per_page=1&page={total_commits}"
+            try:
+                terminal_response = request_json(terminal_url, token=token)
+            except GitHubHttpError as exc:
+                raise CommitIdentityError(
+                    f"Compare API terminal page failed with HTTP {exc.status}"
+                ) from exc
+            if not isinstance(terminal_response, dict):
+                raise CommitIdentityError("Compare API terminal page response is malformed")
+            terminal_base = terminal_response.get("base_commit")
+            terminal_merge_base = terminal_response.get("merge_base_commit")
+            terminal_commits = terminal_response.get("commits")
+            if (
+                terminal_response.get("status") != status
+                or terminal_response.get("ahead_by") != ahead_by
+                or terminal_response.get("behind_by") != behind_by
+                or terminal_response.get("total_commits") != total_commits
+                or not isinstance(terminal_base, dict)
+                or terminal_base.get("sha") != ancestor.sha
+                or not isinstance(terminal_merge_base, dict)
+                or terminal_merge_base.get("sha") != ancestor.sha
+                or not isinstance(terminal_commits, list)
+                or len(terminal_commits) != 1
+            ):
+                raise CommitIdentityError(
+                    "Compare API terminal page does not bind the requested commits"
+                )
+        last_commit = terminal_commits[-1] if terminal_commits else None
+        if not isinstance(last_commit, dict) or last_commit.get("sha") != descendant.sha:
+            raise CommitIdentityError("Compare API response does not bind the requested commits")
     if status == "identical":
         return ahead_by == 0 and behind_by == 0
     if status == "ahead":
         return ahead_by >= 1 and behind_by == 0
-    if status in {"behind", "diverged"}:
-        return False
     raise CommitIdentityError("Compare API returned unknown ancestry status")
 
 

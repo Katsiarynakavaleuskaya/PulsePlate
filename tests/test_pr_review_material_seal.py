@@ -329,6 +329,8 @@ def test_compare_accepts_only_bound_ancestor_response() -> None:
             "base_commit": {"sha": FIX_SHA},
             "head_commit": {"sha": HEAD_SHA},
             "merge_base_commit": {"sha": FIX_SHA},
+            "commits": [{"sha": HEAD_SHA}],
+            "total_commits": 1,
         }
 
     assert is_ancestor(
@@ -340,8 +342,34 @@ def test_compare_accepts_only_bound_ancestor_response() -> None:
     )
 
 
-@pytest.mark.parametrize("head_commit", [None, {"sha": OUTSIDE_SHA}])
-def test_compare_rejects_missing_or_mismatched_descendant(head_commit: Any) -> None:
+def test_compare_accepts_current_api_shape_without_head_commit() -> None:
+    ancestor = RepositoryCommitRef(FIX_SHA, CommitRefKind.PR_COMMIT)
+    descendant = RepositoryCommitRef(HEAD_SHA, CommitRefKind.PR_HEAD)
+
+    def request_json(*_args: Any, **_kwargs: Any) -> Any:
+        return {
+            "status": "ahead",
+            "ahead_by": 1,
+            "behind_by": 0,
+            "base_commit": {"sha": FIX_SHA},
+            "merge_base_commit": {"sha": FIX_SHA},
+            "commits": [{"sha": HEAD_SHA}],
+            "total_commits": 1,
+        }
+
+    assert is_ancestor(
+        ancestor,
+        descendant,
+        repository="owner/repo",
+        token="opaque",
+        request_json=request_json,
+    )
+
+
+@pytest.mark.parametrize("head_commit", [None, {"sha": OUTSIDE_SHA}, {"sha": HEAD_SHA}])
+def test_compare_rejects_unbound_descendant_even_with_head_commit(
+    head_commit: Any,
+) -> None:
     ancestor = RepositoryCommitRef(FIX_SHA, CommitRefKind.PR_COMMIT)
     descendant = RepositoryCommitRef(HEAD_SHA, CommitRefKind.PR_HEAD)
 
@@ -353,6 +381,176 @@ def test_compare_rejects_missing_or_mismatched_descendant(head_commit: Any) -> N
             "base_commit": {"sha": FIX_SHA},
             "head_commit": head_commit,
             "merge_base_commit": {"sha": FIX_SHA},
+            "commits": [],
+            "total_commits": 1,
+        }
+
+    with pytest.raises(CommitIdentityError, match="does not bind"):
+        is_ancestor(
+            ancestor,
+            descendant,
+            repository="owner/repo",
+            token="opaque",
+            request_json=request_json,
+        )
+
+
+def test_compare_fetches_terminal_page_for_truncated_commit_inventory() -> None:
+    ancestor = RepositoryCommitRef(FIX_SHA, CommitRefKind.PR_COMMIT)
+    descendant = RepositoryCommitRef(HEAD_SHA, CommitRefKind.PR_HEAD)
+    calls: list[str] = []
+
+    def request_json(url: str, **_kwargs: Any) -> Any:
+        calls.append(url)
+        commits = [{"sha": FIX_SHA}]
+        if url.endswith("?per_page=1&page=2"):
+            commits = [{"sha": HEAD_SHA}]
+        return {
+            "status": "ahead",
+            "ahead_by": 2,
+            "behind_by": 0,
+            "base_commit": {"sha": FIX_SHA},
+            "merge_base_commit": {"sha": FIX_SHA},
+            "commits": commits,
+            "total_commits": 2,
+        }
+
+    assert is_ancestor(
+        ancestor,
+        descendant,
+        repository="owner/repo",
+        token="opaque",
+        request_json=request_json,
+    )
+    assert calls[-1].endswith("?per_page=1&page=2")
+
+
+def test_compare_identical_requires_the_same_requested_sha() -> None:
+    ancestor = RepositoryCommitRef(FIX_SHA, CommitRefKind.PR_COMMIT)
+    descendant = RepositoryCommitRef(HEAD_SHA, CommitRefKind.PR_HEAD)
+
+    def request_json(*_args: Any, **_kwargs: Any) -> Any:
+        return {
+            "status": "identical",
+            "ahead_by": 0,
+            "behind_by": 0,
+            "base_commit": {"sha": FIX_SHA},
+            "head_commit": {"sha": HEAD_SHA},
+            "merge_base_commit": {"sha": FIX_SHA},
+            "commits": [],
+            "total_commits": 0,
+        }
+
+    with pytest.raises(CommitIdentityError, match="does not bind"):
+        is_ancestor(
+            ancestor,
+            descendant,
+            repository="owner/repo",
+            token="opaque",
+            request_json=request_json,
+        )
+
+
+def test_compare_identical_accepts_same_sha_without_head_commit() -> None:
+    commit = RepositoryCommitRef(HEAD_SHA, CommitRefKind.PR_HEAD)
+
+    def request_json(*_args: Any, **_kwargs: Any) -> Any:
+        return {
+            "status": "identical",
+            "ahead_by": 0,
+            "behind_by": 0,
+            "base_commit": {"sha": HEAD_SHA},
+            "merge_base_commit": {"sha": HEAD_SHA},
+            "commits": [],
+            "total_commits": 0,
+        }
+
+    assert is_ancestor(
+        commit,
+        commit,
+        repository="owner/repo",
+        token="opaque",
+        request_json=request_json,
+    )
+
+
+@pytest.mark.parametrize(
+    ("status", "merge_base_sha"),
+    [("behind", HEAD_SHA), ("diverged", OUTSIDE_SHA)],
+)
+def test_compare_non_ancestor_statuses_return_false(status: str, merge_base_sha: str) -> None:
+    ancestor = RepositoryCommitRef(FIX_SHA, CommitRefKind.PR_COMMIT)
+    descendant = RepositoryCommitRef(HEAD_SHA, CommitRefKind.PR_HEAD)
+
+    def request_json(*_args: Any, **_kwargs: Any) -> Any:
+        return {
+            "status": status,
+            "ahead_by": 0,
+            "behind_by": 1,
+            "base_commit": {"sha": FIX_SHA},
+            "merge_base_commit": {"sha": merge_base_sha},
+            "commits": [],
+            "total_commits": 0,
+        }
+
+    assert not is_ancestor(
+        ancestor,
+        descendant,
+        repository="owner/repo",
+        token="opaque",
+        request_json=request_json,
+    )
+
+
+@pytest.mark.parametrize(
+    ("commits", "total_commits", "ahead_by"),
+    [
+        ([], 1, 1),
+        ([{"sha": HEAD_SHA}], 1, 2),
+        ("not-a-list", 1, 1),
+    ],
+)
+def test_compare_rejects_incomplete_or_malformed_commit_inventory(
+    commits: Any, total_commits: Any, ahead_by: Any
+) -> None:
+    ancestor = RepositoryCommitRef(FIX_SHA, CommitRefKind.PR_COMMIT)
+    descendant = RepositoryCommitRef(HEAD_SHA, CommitRefKind.PR_HEAD)
+
+    def request_json(*_args: Any, **_kwargs: Any) -> Any:
+        return {
+            "status": "ahead",
+            "ahead_by": ahead_by,
+            "behind_by": 0,
+            "base_commit": {"sha": FIX_SHA},
+            "merge_base_commit": {"sha": FIX_SHA},
+            "commits": commits,
+            "total_commits": total_commits,
+        }
+
+    with pytest.raises(CommitIdentityError, match="does not bind"):
+        is_ancestor(
+            ancestor,
+            descendant,
+            repository="owner/repo",
+            token="opaque",
+            request_json=request_json,
+        )
+
+
+@pytest.mark.parametrize(("ahead_by", "behind_by"), [(True, 0), (-1, 0), (0, -1)])
+def test_compare_rejects_invalid_counters(ahead_by: Any, behind_by: Any) -> None:
+    ancestor = RepositoryCommitRef(FIX_SHA, CommitRefKind.PR_COMMIT)
+    descendant = RepositoryCommitRef(HEAD_SHA, CommitRefKind.PR_HEAD)
+
+    def request_json(*_args: Any, **_kwargs: Any) -> Any:
+        return {
+            "status": "ahead",
+            "ahead_by": ahead_by,
+            "behind_by": behind_by,
+            "base_commit": {"sha": FIX_SHA},
+            "merge_base_commit": {"sha": FIX_SHA},
+            "commits": [{"sha": HEAD_SHA}],
+            "total_commits": 1,
         }
 
     with pytest.raises(CommitIdentityError, match="does not bind"):
