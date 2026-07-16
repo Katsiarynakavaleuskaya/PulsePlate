@@ -1786,3 +1786,79 @@ def test_reviewed_finalize_modules_do_not_import_mutation_surfaces() -> None:
             for imported in imports
             if imported in banned_exact or imported.startswith(banned_prefixes)
         ]
+
+
+def test_adaptive_resume_allows_exact_failed_reviewed_run_quarantine(tmp_path: Path) -> None:
+    (tmp_path / review_cli.ADAPTIVE_RESUME_FILENAME).write_text("{}", encoding="utf-8")
+    quarantine = tmp_path / f".{review_cli.REVIEWED_RUN_DIRNAME}.0123456789abcdef.failed"
+    quarantine.mkdir()
+
+    review_cli._reject_unexpected_entries(
+        tmp_path,
+        allowed={review_cli.ADAPTIVE_RESUME_FILENAME},
+        label="adaptive resume",
+        allowed_quarantines=True,
+    )
+    assert review_cli.FAILED_REVIEWED_RUN_TOKEN_BYTES * 2 == 16
+    assert review_cli._is_failed_reviewed_run_quarantine(quarantine)
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        ".spec_finalize_reviewed.0123456789abcde.failed",
+        ".spec_finalize_reviewed.0123456789abcdef0.failed",
+        ".spec_finalize_reviewed.0123456789abcdeF.failed",
+        ".spec_finalize_reviewed.0123456789abcdef.failure",
+        "spec_finalize_reviewed.0123456789abcdef.failed",
+        ".spec_finalize_reviewed.extra.0123456789abcdef.failed",
+    ],
+)
+def test_adaptive_resume_rejects_near_match_quarantine_directories(
+    tmp_path: Path,
+    name: str,
+) -> None:
+    (tmp_path / review_cli.ADAPTIVE_RESUME_FILENAME).write_text("{}", encoding="utf-8")
+    (tmp_path / name).mkdir()
+
+    with pytest.raises(
+        review_cli.CreativeSpecificationSkepticReviewCliError,
+        match=r"adaptive resume contains unexpected artifact\(s\)",
+    ):
+        review_cli._reject_unexpected_entries(
+            tmp_path,
+            allowed={review_cli.ADAPTIVE_RESUME_FILENAME},
+            label="adaptive resume",
+            allowed_quarantines=True,
+        )
+
+
+def test_adaptive_resume_rejects_file_or_symlink_quarantine(tmp_path: Path) -> None:
+    exact_name = f".{review_cli.REVIEWED_RUN_DIRNAME}.0123456789abcdef.failed"
+    regular_file = tmp_path / exact_name
+    regular_file.write_text("not a retained run", encoding="utf-8")
+    with pytest.raises(
+        review_cli.CreativeSpecificationSkepticReviewCliError,
+        match=r"adaptive resume contains unexpected artifact\(s\)",
+    ):
+        review_cli._reject_unexpected_entries(
+            tmp_path,
+            allowed=set(),
+            label="adaptive resume",
+            allowed_quarantines=True,
+        )
+
+    regular_file.unlink()
+    target = tmp_path / "target"
+    target.mkdir()
+    regular_file.symlink_to(target, target_is_directory=True)
+    with pytest.raises(
+        review_cli.CreativeSpecificationSkepticReviewCliError,
+        match="adaptive resume contains symlink artifact",
+    ):
+        review_cli._reject_unexpected_entries(
+            tmp_path,
+            allowed=set(),
+            label="adaptive resume",
+            allowed_quarantines=True,
+        )

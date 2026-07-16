@@ -575,7 +575,20 @@ def _create_result_volume(cli: str, backend: str) -> str:
     argv = (
         [cli, "volume", "create", "-s", RESULT_VOLUME_SIZE, name]
         if backend == "apple-container"
-        else [cli, "volume", "create", name]
+        else [
+            cli,
+            "volume",
+            "create",
+            "--driver",
+            "local",
+            "--opt",
+            "type=tmpfs",
+            "--opt",
+            "device=tmpfs",
+            "--opt",
+            f"o=size={RESULT_VOLUME_SIZE.lower()},mode=0700",
+            name,
+        ]
     )
     if _run(argv, cwd=REPO_ROOT).returncode != 0:
         raise DispatchError("result_volume_failed")
@@ -1969,6 +1982,14 @@ def main(argv: list[str] | None = None) -> int:
                 )
             if candidate_patch is None:
                 raise ValueError("Candidate-patch packets require --candidate-patch.")
+        if (
+            platform.system() == "Darwin"
+            and packet["runner_mode"] == ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE
+            and args.backend != "apple-container"
+        ):
+            raise ValueError(
+                "macOS oracle-only governance review requires explicit --backend apple-container"
+            )
         if int(packet["budgets"]["network_budget"]) != 0:
             probe = _strict_network_budget_probe(args.backend, image)
             result = _capability_mismatch_result(packet, image, probe)

@@ -1370,7 +1370,7 @@ def test_apple_volume_uses_supported_bounded_size_flag(
     ]
 
 
-def test_docker_volume_uses_durable_named_volume_for_phase_handoff(
+def test_docker_volume_is_bounded_tmpfs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[list[str]] = []
@@ -1384,11 +1384,20 @@ def test_docker_volume_uses_durable_named_volume_for_phase_handoff(
 
     dispatch._create_result_volume("/usr/local/bin/docker", "docker")
 
+    assert dispatch.RESULT_VOLUME_SIZE.lower() == f"{dispatch.MAX_RESULT_BYTES // (1024 * 1024)}m"
     assert calls == [
         [
             "/usr/local/bin/docker",
             "volume",
             "create",
+            "--driver",
+            "local",
+            "--opt",
+            "type=tmpfs",
+            "--opt",
+            "device=tmpfs",
+            "--opt",
+            f"o=size={dispatch.RESULT_VOLUME_SIZE.lower()},mode=0700",
             "pp-er-result-bbbbbbbbbbbb",
         ]
     ]
@@ -2170,7 +2179,7 @@ def test_nonzero_network_budget_fails_before_backend_selection(
         "_parse_args",
         lambda _argv: SimpleNamespace(
             command="run",
-            backend="auto",
+            backend="apple-container",
             packet="packet.json",
             candidate_patch=None,
             image=f"pulseplate/experiment-runner:local@{_DIGEST}",
@@ -2273,6 +2282,149 @@ def test_invalid_or_candidate_attribution_rejects_before_backend_selection(
 
     assert dispatch.main([]) == 2
     assert message in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("backend", ["auto", "docker", "native-linux"])
+def test_macos_oracle_only_requires_explicit_apple_before_probe_or_write(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    backend: str,
+) -> None:
+    packet_path = tmp_path / "packet.json"
+    packet_path.write_text(json.dumps(_packet()), encoding="utf-8")
+    output_path = tmp_path / "result.json"
+    monkeypatch.setattr(dispatch.platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(
+        dispatch,
+        "_parse_args",
+        lambda _argv: SimpleNamespace(
+            command="run",
+            backend=backend,
+            packet="packet.json",
+            candidate_patch=None,
+            image=f"pulseplate/experiment-runner:local@{_DIGEST}",
+            output="result.json",
+            contribution_kind="none",
+            coauthor_required=False,
+            coauthor_reason="",
+        ),
+    )
+    monkeypatch.setattr(dispatch, "_require_repo_local_file", lambda *_args, **_kwargs: packet_path)
+    monkeypatch.setattr(dispatch, "_resolve_local_output", lambda *_args, **_kwargs: output_path)
+    monkeypatch.setattr(
+        dispatch,
+        "select_backend",
+        lambda *_args: (_ for _ in ()).throw(AssertionError("backend probe must not run")),
+    )
+    monkeypatch.setattr(
+        dispatch,
+        "_atomic_write_json",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("result artifact must not be written")
+        ),
+    )
+
+    assert dispatch.main([]) == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "requires explicit --backend apple-container" in captured.err
+    assert not output_path.exists()
+
+
+def test_macos_oracle_explicit_apple_failure_has_no_docker_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    packet_path = tmp_path / "packet.json"
+    packet_path.write_text(json.dumps(_packet()), encoding="utf-8")
+    output_path = tmp_path / "result.json"
+    probes: list[str] = []
+    written: dict[str, Any] = {}
+    monkeypatch.setattr(dispatch.platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(
+        dispatch,
+        "_parse_args",
+        lambda _argv: SimpleNamespace(
+            command="run",
+            backend="apple-container",
+            packet="packet.json",
+            candidate_patch=None,
+            image=f"pulseplate/experiment-runner:local@{_DIGEST}",
+            output="result.json",
+            contribution_kind="none",
+            coauthor_required=False,
+            coauthor_reason="",
+        ),
+    )
+    monkeypatch.setattr(dispatch, "_require_repo_local_file", lambda *_args, **_kwargs: packet_path)
+    monkeypatch.setattr(dispatch, "_resolve_local_output", lambda *_args, **_kwargs: output_path)
+
+    def failed_probe(backend: str, _image: dispatch.ImageReference) -> dispatch.BackendProbe:
+        probes.append(backend)
+        return dispatch._failed_probe(backend, "runtime_not_ready", image_digest=_DIGEST)
+
+    monkeypatch.setattr(dispatch, "probe_backend", failed_probe)
+    monkeypatch.setattr(
+        dispatch, "_atomic_write_json", lambda _path, payload: written.update(payload)
+    )
+
+    assert dispatch.main([]) == 1
+    assert probes == ["apple-container"]
+    assert written["failure_class"] == "capability_mismatch"
+    assert written["budget_observations"]["runner_error"] == "runtime_not_ready"
+
+
+def test_macos_candidate_mode_preserves_auto_backend_selection(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    packet = _packet()
+    packet["runner_mode"] = "candidate_patch"
+    packet["mutable_candidate_surface"] = ["core/rag/orchestration.py"]
+    packet_path = tmp_path / "packet.json"
+    packet_path.write_text(json.dumps(packet), encoding="utf-8")
+    candidate_patch = tmp_path / "candidate.patch"
+    candidate_patch.write_text("", encoding="utf-8")
+    requested: list[str] = []
+    monkeypatch.setattr(dispatch.platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(
+        dispatch,
+        "_parse_args",
+        lambda _argv: SimpleNamespace(
+            command="run",
+            backend="auto",
+            packet="packet.json",
+            candidate_patch="candidate.patch",
+            image=f"pulseplate/experiment-runner:local@{_DIGEST}",
+            output="result.json",
+            contribution_kind="none",
+            coauthor_required=False,
+            coauthor_reason="",
+        ),
+    )
+
+    def resolve_input(raw: str, **_kwargs: object) -> Path:
+        return candidate_patch if raw == "candidate.patch" else packet_path
+
+    monkeypatch.setattr(dispatch, "_require_repo_local_file", resolve_input)
+    monkeypatch.setattr(
+        dispatch, "_resolve_local_output", lambda *_args, **_kwargs: tmp_path / "result.json"
+    )
+
+    def select(
+        requested_backend: str, _image: dispatch.ImageReference
+    ) -> tuple[None, list[dispatch.BackendProbe]]:
+        requested.append(requested_backend)
+        return None, [
+            dispatch._failed_probe("apple-container", "runtime_not_ready", image_digest=_DIGEST)
+        ]
+
+    monkeypatch.setattr(dispatch, "select_backend", select)
+    monkeypatch.setattr(dispatch, "_atomic_write_json", lambda *_args, **_kwargs: None)
+
+    assert dispatch.main([]) == 1
+    assert requested == ["auto"]
 
 
 def test_probe_cleanup_failure_overrides_original_exception(

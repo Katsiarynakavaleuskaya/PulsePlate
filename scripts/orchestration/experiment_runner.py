@@ -67,6 +67,18 @@ RUNNER_CAPABILITY_DIAGNOSTIC = (
 RUNNER_CAPABILITY_ERROR = "runner_capability_mismatch"
 
 
+def _safe_git_config_args_for(cwd: Path) -> list[str]:
+    """Return checkout clamps plus one exact per-invocation trust boundary."""
+
+    try:
+        resolved_cwd = cwd.expanduser().resolve(strict=True)
+    except OSError as exc:
+        raise InfraFlakeError("git cwd must resolve to an existing directory.") from exc
+    if not resolved_cwd.is_dir():
+        raise InfraFlakeError("git cwd must resolve to an existing directory.")
+    return [*_safe_git_config_args(), "-c", f"safe.directory={resolved_cwd}"]
+
+
 class ExperimentRunnerError(RuntimeError):
     """Base error for internal runner failures."""
 
@@ -259,7 +271,7 @@ def _run_git(
     """Run git with an absolute binary and stable text capture."""
 
     process = subprocess.run(  # nosec B603: absolute git binary with bounded argv is required for isolated checkouts (remove-by: 2026-07-31, ref: PR-1082)
-        [_resolve_git_binary(), *_safe_git_config_args(), *args],
+        [_resolve_git_binary(), *_safe_git_config_args_for(cwd), *args],
         cwd=str(cwd),
         env=_sanitized_git_env_without_parent_state(),
         capture_output=True,
