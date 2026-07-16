@@ -672,6 +672,44 @@ def test_finalize_dispatched_result_rolls_back_partial_publication(
     assert state["candidate_patch_evaluated"] is False
 
 
+def test_finalize_dispatched_result_wraps_raw_publication_error_after_rollback(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo, base_sha = _init_patch_repo(tmp_path)
+    _patch_modules_to_repo(monkeypatch, repo)
+    run_id = "dispatch-finalize-raw-publication-error"
+    gate_path, dispatch_path, packet = _prepare_generated_dispatch_handoff(
+        monkeypatch=monkeypatch,
+        repo=repo,
+        base_sha=base_sha,
+        run_id=run_id,
+    )
+    _write_json(dispatch_path, _trusted_dispatch_result(packet))
+
+    def fail_result_write(_path: Path, _payload: dict[str, Any]) -> None:
+        raise OSError("simulated filesystem failure")
+
+    monkeypatch.setattr(generation_cli, "_write_json_new", fail_result_write)
+
+    assert (
+        generation_cli.main(
+            [
+                "finalize-dispatched-result",
+                "--gate",
+                str(gate_path),
+                "--dispatch-result",
+                str(dispatch_path),
+            ]
+        )
+        == 1
+    )
+    captured = capsys.readouterr()
+    assert "dispatch result publication failed after complete rollback" in captured.err
+    assert "Traceback" not in captured.err
+
+
 def test_finalize_dispatched_result_preserves_foreign_receipt_on_collision(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -832,6 +870,7 @@ def test_finalize_dispatched_result_retains_trusted_rejection_without_retry(
     [
         ("experiment_id", "experiment_id does not match"),
         ("missing_backend", "execution backend provenance"),
+        ("native_linux_backend", "failed Experiment Runner validation"),
         ("candidate_marker", "candidate marker is invalid"),
         ("patch_fingerprint", "candidate patch fingerprint does not match"),
         ("retry", "one attempt and zero retries"),
@@ -842,6 +881,7 @@ def test_finalize_dispatched_result_retains_trusted_rejection_without_retry(
         ("timeout_without_timeout", "requires timed-out oracle evidence"),
         ("timeout_non_boolean", "failed Experiment Runner validation"),
         ("missing_oracle_paths", "must bind every candidate path"),
+        ("unchanged_result", "does not support unchanged_result"),
     ],
 )
 def test_finalize_dispatched_result_rejects_unbound_dispatch_evidence(
@@ -865,6 +905,8 @@ def test_finalize_dispatched_result_rejects_unbound_dispatch_evidence(
         dispatch_result["experiment_id"] = "experiment_stale"
     elif mutation == "missing_backend":
         dispatch_result.pop("execution_backend")
+    elif mutation == "native_linux_backend":
+        dispatch_result["execution_backend"]["name"] = "native-linux"
     elif mutation == "candidate_marker":
         dispatch_result["candidate_patch"] = ".experiment-runner-input/other.patch"
     elif mutation == "patch_fingerprint":
@@ -894,6 +936,10 @@ def test_finalize_dispatched_result_rejects_unbound_dispatch_evidence(
         dispatch_result["failure_class"] = "guard_failure"
         dispatch_result["mutated_paths"] = []
         dispatch_result["oracle_results"][-1]["returncode"] = 1
+    elif mutation == "unchanged_result":
+        dispatch_result["status"] = "rejected"
+        dispatch_result["failure_class"] = "unchanged_result"
+        dispatch_result["mutated_paths"] = []
     else:
         dispatch_result["oracle_results"][0]["command"] = "pytest -q tests/test_other.py"
     _write_json(dispatch_path, dispatch_result)
@@ -918,6 +964,28 @@ def test_finalize_dispatched_result_rejects_unbound_dispatch_evidence(
         (run_dir / creative_code_patch_builder.STATE_FILE).read_text(encoding="utf-8")
     )
     assert state["candidate_patch_evaluated"] is False
+
+
+def test_resolve_dispatch_result_rejects_symlinked_canonical_root(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _patch_modules_to_repo(monkeypatch, repo)
+    external_root = tmp_path / "external-results"
+    external_root.mkdir()
+    result_path = external_root / "dispatch.json"
+    _write_json(result_path, {})
+    canonical_parent = repo / "artifacts" / "orchestration" / "experiments"
+    canonical_parent.mkdir(parents=True)
+    (canonical_parent / "results").symlink_to(external_root, target_is_directory=True)
+
+    with pytest.raises(
+        generation_cli.CreativeCodePatchGenerationError,
+        match="trusted dispatch result root must not traverse symlinks",
+    ):
+        generation_cli._resolve_dispatch_result(result_path)
 
 
 def test_finalize_dispatched_result_rejects_selected_variant_content_tamper(

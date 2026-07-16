@@ -1894,15 +1894,15 @@ def validate_generation_receipt_linked_artifacts(receipt: Mapping[str, Any]) -> 
 def _resolve_dispatch_result(path: Path) -> Path:
     """Resolve one trusted dispatcher result under the local experiment result rail."""
 
+    canonical_result_root = REPO_ROOT / "artifacts" / "orchestration" / "experiments" / "results"
+    _reject_symlink_components(canonical_result_root, label="trusted dispatch result root")
     candidate = path if path.is_absolute() else REPO_ROOT / path
     _reject_symlink_components(candidate, label="trusted dispatch result")
     try:
         resolved = candidate.resolve(strict=True)
     except OSError as exc:
         raise CreativeCodePatchGenerationError("trusted dispatch result must exist.") from exc
-    result_root = (REPO_ROOT / "artifacts" / "orchestration" / "experiments" / "results").resolve(
-        strict=False
-    )
+    result_root = canonical_result_root.resolve(strict=False)
     if not _is_relative_to(resolved, result_root) or not resolved.is_file():
         raise CreativeCodePatchGenerationError(
             "trusted dispatch result must be a file under experiment results."
@@ -2135,6 +2135,10 @@ def _validate_dispatch_result_binding(
             "trusted dispatch result mutated paths do not match the generated candidate."
         )
     failure_class = result["failure_class"]
+    if failure_class == "unchanged_result":
+        raise CreativeCodePatchGenerationError(
+            "trusted dispatch finalization does not support unchanged_result for a generated patch."
+        )
     if (
         result["status"] == "accepted" or failure_class in ORACLE_REQUIRED_FAILURE_CLASSES
     ) and mutated_paths != sorted(changed_paths):
@@ -2357,7 +2361,11 @@ def _finalize_dispatched_result_locked(
                 "dispatch result publication failed and rollback was incomplete: "
                 + "; ".join(rollback_errors)
             ) from publication_error
-        raise
+        if isinstance(publication_error, CreativeCodePatchGenerationError):
+            raise publication_error
+        raise CreativeCodePatchGenerationError(
+            "dispatch result publication failed after complete rollback."
+        ) from publication_error
     print(FINALIZE_DISPATCHED_RESULT_SUCCESS_OUTPUT)
     print(_repo_ref(receipt_path))
     return 0
