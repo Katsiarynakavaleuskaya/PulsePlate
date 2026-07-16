@@ -439,14 +439,20 @@ def _normalize_node(node: dict[str, Any]) -> CheckEntry:
 
 def _latest_entries(entries: list[CheckEntry]) -> tuple[dict[str, CheckEntry], list[CheckEntry]]:
     """Split latest-per-name entries from superseded historical entries."""
+
+    def attempt_order_key(entry: CheckEntry) -> tuple[str, int, str]:
+        # Equal CheckSuite creation times cannot prove attempt order. Prefer a
+        # blocking state over success so URL lexicography can never create a
+        # false green. The URL is only a deterministic tie-break among states
+        # with the same security outcome.
+        fail_closed_rank = 0 if entry.state == "passed" else 1
+        return entry.timestamp, fail_closed_rank, entry.details_url
+
     latest: dict[str, CheckEntry] = {}
     superseded: list[CheckEntry] = []
-    for entry in sorted(entries, key=lambda item: (item.name, item.timestamp, item.details_url)):
+    for entry in sorted(entries, key=lambda item: (item.name, *attempt_order_key(item))):
         previous = latest.get(entry.name)
-        if previous is None or (entry.timestamp, entry.details_url) >= (
-            previous.timestamp,
-            previous.details_url,
-        ):
+        if previous is None or attempt_order_key(entry) >= attempt_order_key(previous):
             if previous is not None:
                 superseded.append(previous)
             latest[entry.name] = entry

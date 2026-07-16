@@ -376,6 +376,31 @@ def test_operator_outage_override_rejects_newer_queued_security_attempt(
         )
 
 
+def test_operator_outage_override_rejects_equal_time_pending_security_attempt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    nodes = [_check_node(name) for name in merge_gate._OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES]
+    equal_time_pending = _check_node(
+        "security",
+        status="QUEUED",
+        conclusion="",
+    )
+    equal_time_pending["detailsUrl"] = "https://github.com/checks/a-pending-security"
+    nodes.append(equal_time_pending)
+    monkeypatch.setattr(
+        merge_gate,
+        "_fetch_current_head_pr_metadata",
+        lambda *_a, **_k: (False, "CLEAN", "main", nodes),
+    )
+
+    with pytest.raises(ReviewEvidenceError, match="security=pending/status"):
+        merge_gate._validate_operator_outage_security_checks(
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+        )
+
+
 def test_operator_outage_override_rejects_unorderable_newer_security_attempt(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
