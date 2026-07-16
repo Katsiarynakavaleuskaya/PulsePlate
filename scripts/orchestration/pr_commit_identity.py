@@ -13,7 +13,7 @@ import json
 import re
 import urllib.parse
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any, Callable, Mapping
 
@@ -48,6 +48,13 @@ If Codex has suggestions, it will comment; otherwise it will react with 👍.
 
 Codex can also answer questions or update the PR. Try commenting "@codex address that feedback".
 </details>"""
+_MATERIAL_DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
+_CODEX_SECURITY_OUTAGE_CLASS = "codex_security_mcp_timeout"
+_CODEX_SECURITY_OUTAGE_CODE = "-32001"
+_CODEX_SECURITY_OUTAGE_MESSAGE = "Request timed out"
+_CODEX_SECURITY_OUTAGE_STATUS = "TOOLING_UNAVAILABLE"
+_CODEX_SECURITY_OUTAGE_TTL = timedelta(hours=24)
+_CODEX_SECURITY_OUTAGE_CLOCK_SKEW = timedelta(minutes=5)
 
 
 class CommitIdentityError(RuntimeError):
@@ -142,6 +149,19 @@ class CodexReviewEvidence:
     reference: str
     submitted_at: str
     commit_ref: str
+
+
+@dataclass(frozen=True)
+class SecurityOutageOverrideEvidence:
+    """Authenticated, exact-material operator evidence for a bounded MCP outage."""
+
+    reference: str
+    created_at: str
+    operator_user_id: int
+    operator_login: str
+    operator_association: str
+    material_head_sha: str
+    material_digest: str
 
 
 @dataclass(frozen=True)
@@ -261,6 +281,136 @@ def _require_repository(repository: str) -> tuple[str, str]:
     if len(parts) != 2 or not all(re.fullmatch(r"[A-Za-z0-9_.-]+", part) for part in parts):
         raise CommitIdentityError("repository must be owner/name")
     return parts[0], parts[1]
+
+
+def _require_material_digest(value: str) -> str:
+    normalized = value.strip()
+    if not _MATERIAL_DIGEST_RE.fullmatch(normalized):
+        raise CommitIdentityError("material digest must use sha256:<64 lowercase hex>")
+    return normalized
+
+
+def render_security_outage_override_comment(
+    *, pr_number: int, material_head_sha: str, material_digest: str
+) -> str:
+    """Render the sole accepted operator-outage comment body."""
+
+    if pr_number <= 0:
+        raise CommitIdentityError("pr_number must be positive")
+    head = _require_sha(material_head_sha, field="operator override material head")
+    digest = _require_material_digest(material_digest)
+    return "\n".join(
+        (
+            "PulsePlate Codex Security operator outage override v1",
+            "",
+            f"Status: {_CODEX_SECURITY_OUTAGE_STATUS}",
+            f"Outage-Class: {_CODEX_SECURITY_OUTAGE_CLASS}",
+            f"MCP-Error-Code: {_CODEX_SECURITY_OUTAGE_CODE}",
+            f"MCP-Error-Message: {_CODEX_SECURITY_OUTAGE_MESSAGE}",
+            "Scan-ID: none",
+            f"PR: #{pr_number}",
+            f"Material-Head: {head}",
+            f"Material-Digest: {digest}",
+            (
+                "Attestation: This operator override records tool unavailability; "
+                "it is not a security scan or a no-findings claim."
+            ),
+        )
+    )
+
+
+def verify_security_outage_override_reference(
+    reference: str,
+    *,
+    repository: str,
+    pr_number: int,
+    token: str,
+    expected_material_head_sha: str,
+    expected_material_digest: str,
+    now: datetime | None = None,
+    request_json: ApiRequest = github_api_request,
+) -> SecurityOutageOverrideEvidence:
+    """Verify one short-lived, unedited GitHub operator outage override."""
+
+    owner, name = _require_repository(repository)
+    if pr_number <= 0:
+        raise CommitIdentityError("pr_number must be positive")
+    expected_head = _require_sha(
+        expected_material_head_sha, field="operator override material head"
+    )
+    expected_digest = _require_material_digest(expected_material_digest)
+    pattern = re.compile(
+        rf"^https://github\.com/{re.escape(owner)}/{re.escape(name)}/pull/"
+        rf"{pr_number}#issuecomment-(\d+)$"
+    )
+    match = pattern.fullmatch(reference)
+    if not match:
+        raise CommitIdentityError(
+            "security outage override must be a GitHub issue comment on the exact PR"
+        )
+
+    response = request_json(
+        f"{_API_ROOT}/repos/{owner}/{name}/issues/comments/{match.group(1)}",
+        token=token,
+    )
+    if not isinstance(response, dict):
+        raise CommitIdentityError("GitHub operator comment response is malformed")
+    user = response.get("user")
+    user_id = user.get("id") if isinstance(user, dict) else None
+    login = user.get("login") if isinstance(user, dict) else None
+    user_type = user.get("type") if isinstance(user, dict) else None
+    association = response.get("author_association")
+    expected_issue_url = f"{_API_ROOT}/repos/{owner}/{name}/issues/{pr_number}"
+    if (
+        not isinstance(login, str)
+        or not login
+        or not isinstance(user_id, int)
+        or isinstance(user_id, bool)
+        or user_id <= 0
+        or user_type != "User"
+        or association not in {"OWNER", "MEMBER"}
+        or "performed_via_github_app" not in response
+        or response.get("performed_via_github_app") is not None
+        or response.get("html_url") != reference
+        or response.get("issue_url") != expected_issue_url
+    ):
+        raise CommitIdentityError("issue comment is not trusted operator outage evidence")
+
+    created_at = _require_iso8601(response.get("created_at"), field="operator override created_at")
+    updated_at = _require_iso8601(response.get("updated_at"), field="operator override updated_at")
+    if created_at != updated_at:
+        raise CommitIdentityError("operator outage override was edited after creation")
+    body = response.get("body")
+    expected_body = render_security_outage_override_comment(
+        pr_number=pr_number,
+        material_head_sha=expected_head,
+        material_digest=expected_digest,
+    )
+    if not isinstance(body, str) or "\r" in body or body != expected_body:
+        raise CommitIdentityError(
+            "operator outage override body does not exactly match the expected material"
+        )
+
+    created = datetime.fromisoformat(
+        created_at[:-1] + "+00:00" if created_at.endswith("Z") else created_at
+    )
+    current = now or datetime.now(timezone.utc)
+    if current.tzinfo is None:
+        raise CommitIdentityError("operator override validation time must include a timezone")
+    if created > current + _CODEX_SECURITY_OUTAGE_CLOCK_SKEW:
+        raise CommitIdentityError("operator outage override timestamp is in the future")
+    if current - created > _CODEX_SECURITY_OUTAGE_TTL:
+        raise CommitIdentityError("operator outage override has expired")
+
+    return SecurityOutageOverrideEvidence(
+        reference=reference,
+        created_at=created_at,
+        operator_user_id=user_id,
+        operator_login=login,
+        operator_association=association,
+        material_head_sha=expected_head,
+        material_digest=expected_digest,
+    )
 
 
 def _require_graphql_object(response: Any) -> dict[str, Any]:

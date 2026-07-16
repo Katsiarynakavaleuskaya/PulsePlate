@@ -25,6 +25,8 @@ class CheckEntry:
     details_url: str
     workflow_name: str
     conclusion: str
+    app_database_id: int | None = None
+    app_slug: str = ""
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -205,6 +207,10 @@ def _fetch_pr_metadata(
                   completedAt
                   detailsUrl
                   checkSuite {
+                    app {
+                      databaseId
+                      slug
+                    }
                     workflowRun {
                       workflow {
                         name
@@ -352,6 +358,16 @@ def _normalize_node(node: dict[str, Any]) -> CheckEntry:
             )
             or ""
         ).strip()
+        app = (node.get("checkSuite") or {}).get("app") or {}
+        raw_app_database_id = app.get("databaseId")
+        app_database_id = (
+            raw_app_database_id
+            if isinstance(raw_app_database_id, int)
+            and not isinstance(raw_app_database_id, bool)
+            and raw_app_database_id > 0
+            else None
+        )
+        app_slug = str(app.get("slug") or "").strip()
         timestamp = str(node.get("completedAt") or node.get("startedAt") or "")
         return CheckEntry(
             name=name,
@@ -361,6 +377,8 @@ def _normalize_node(node: dict[str, Any]) -> CheckEntry:
             details_url=str(node.get("detailsUrl") or ""),
             workflow_name=workflow_name,
             conclusion=conclusion,
+            app_database_id=app_database_id,
+            app_slug=app_slug,
         )
 
     name = str(node.get("context") or "").strip()
@@ -379,6 +397,8 @@ def _normalize_node(node: dict[str, Any]) -> CheckEntry:
         details_url=str(node.get("targetUrl") or ""),
         workflow_name="",
         conclusion="",
+        app_database_id=None,
+        app_slug="",
     )
 
 

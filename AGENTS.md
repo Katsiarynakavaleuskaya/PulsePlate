@@ -205,7 +205,18 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
    them repository-addressable; unavailable/API-unknown refs must never enter
    ancestry checks.
 9. **Material identity:** one Codex review and one completed final Codex Security
-   diff scan bind to one material digest. The trusted submitted review object's
+   diff scan bind to one material digest. When Codex Security is systemically
+   unavailable with MCP `-32001 Request timed out`, a short-lived fail-closed
+   operator-outage override may replace only the plugin receipt: it must be an
+   unedited exact-material GitHub comment from an `OWNER` or `MEMBER`, bind the
+   immutable GitHub user id plus PR/head/material digest, declare `scan_id: none`,
+   and be revalidated with the current-head security bundle from its trusted
+   GitHub Apps/workflows before merge. The bootstrap exception is PR `#2142`
+   only; later PRs that change the override verifier, merge gate, current-head
+   check identity parser, any CI/security workflow, or an implementation/policy
+   input of the substitute security checks cannot authorize themselves with
+   this override. It is tooling-unavailability evidence, never
+   a security scan or no-findings claim. The trusted submitted review object's
    real GitHub `commit_id` must equal the frozen material head. When the official
    Codex connector emits an unedited no-findings issue comment instead, its
    trusted GitHub App identity and reviewed-commit prefix must resolve through
@@ -576,7 +587,9 @@ All non-trivial PR work must follow this coordinator-owned lifecycle:
 2. **Open non-draft by default**: open PRs as ready-for-review once the branch has a coherent scope, initial PR body, and canonical artifact path. Draft PRs require an explicit operator exception because they suppress or delay bot review and current-head merge verification.
 3. **Push cycle**: before each push, run `pre-commit run --all-files` and the applicable local gates; after each push, watch the **current-head** CI state, not stale historical runs.
 4. **Review cycle**: freeze the material state, request one Codex review, apply
-   any material fix and refreeze, then run one final security scan. Keep
+   any material fix and refreeze, then run one final security scan. A systemic
+   MCP `-32001` outage may use only the authenticated, expiring operator-outage
+   evidence variant described above; do not fabricate or relabel a scan receipt. Keep
    dispositions in the gitignored closeout draft and publish one generated
    mapping/seal commit. The PR body keeps one artifact link; a validated
    same-digest duplicate uses a structured thread reply only.

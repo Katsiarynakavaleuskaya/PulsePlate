@@ -8,6 +8,7 @@ import os
 import shutil
 import subprocess
 from argparse import Namespace
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, cast
 
@@ -23,12 +24,15 @@ from scripts.orchestration.pr_commit_identity import (
     RepositoryCommitRef,
     ReviewExecutionRef,
     ReviewThreadEvidence,
+    SecurityOutageOverrideEvidence,
     assert_snapshot_unchanged,
     classify_commit_ref,
     fetch_pr_snapshot,
     fetch_review_threads,
     is_ancestor,
+    render_security_outage_override_comment,
     verify_codex_review_reference,
+    verify_security_outage_override_reference,
 )
 from scripts.orchestration import pr_commit_identity as identity_module
 from scripts.orchestration import pr_review_closeout as closeout_module
@@ -40,12 +44,15 @@ from scripts.orchestration.pr_review_evidence import (
     SEAL_END,
     MaterialManifest,
     ReviewEvidenceError,
+    build_security_outage_override_receipt,
     compute_material_manifest,
     ingest_codex_security_receipt,
+    is_security_outage_override_receipt,
     parse_duplicate_disposition_reply,
     parse_embedded_review_seal,
     render_embedded_review_seal,
     unavailable_review_ref_fingerprint,
+    validate_security_outage_override_scope,
     validated_duplicate_reply_urls,
 )
 from scripts.orchestration.review_mapping_artifact import (
@@ -625,6 +632,231 @@ def test_codex_no_findings_comment_rejects_unresolved_short_commit() -> None:
         )
 
 
+def _security_outage_comment(
+    reference: str,
+    *,
+    body: str | None = None,
+    created_at: str = "2026-07-15T11:00:00Z",
+) -> dict[str, Any]:
+    return {
+        "author_association": "OWNER",
+        "body": (
+            body
+            if body is not None
+            else render_security_outage_override_comment(
+                pr_number=42,
+                material_head_sha=HEAD_SHA,
+                material_digest=DIGEST,
+            )
+        ),
+        "created_at": created_at,
+        "html_url": reference,
+        "issue_url": "https://api.github.com/repos/owner/repo/issues/42",
+        "performed_via_github_app": None,
+        "updated_at": created_at,
+        "user": {"id": 123, "login": "owner", "type": "User"},
+    }
+
+
+def test_security_outage_override_is_bound_to_exact_operator_and_material() -> None:
+    reference = "https://github.com/owner/repo/pull/42#issuecomment-789"
+    evidence = verify_security_outage_override_reference(
+        reference,
+        repository="owner/repo",
+        pr_number=42,
+        token="opaque",
+        expected_material_head_sha=HEAD_SHA,
+        expected_material_digest=DIGEST,
+        now=datetime(2026, 7, 15, 12, tzinfo=timezone.utc),
+        request_json=lambda *_a, **_k: _security_outage_comment(reference),
+    )
+
+    assert evidence.operator_login == "owner"
+    assert evidence.operator_user_id == 123
+    assert evidence.operator_association == "OWNER"
+    assert evidence.material_head_sha == HEAD_SHA
+    assert evidence.material_digest == DIGEST
+
+
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        lambda response: response.update(author_association="COLLABORATOR"),
+        lambda response: response["user"].update(type="Bot"),
+        lambda response: response["user"].pop("id"),
+        lambda response: response["user"].update(id=0),
+        lambda response: response.pop("performed_via_github_app"),
+        lambda response: response.update(performed_via_github_app={"id": 1}),
+        lambda response: response.update(
+            issue_url="https://api.github.com/repos/owner/repo/issues/43"
+        ),
+        lambda response: response.update(updated_at="2026-07-15T11:01:00Z"),
+        lambda response: response.update(body=response["body"] + "\nextra"),
+        lambda response: response.update(
+            body=response["body"].replace("codex_security_mcp_timeout", "unknown")
+        ),
+        lambda response: response.update(body=response["body"].replace("-32001", "-32002")),
+        lambda response: response.update(
+            body=response["body"].replace("Scan-ID: none", "Scan-ID: scan-123")
+        ),
+        lambda response: response.update(body=response["body"].replace(HEAD_SHA, OUTSIDE_SHA)),
+        lambda response: response.update(
+            body=response["body"].replace(DIGEST, "sha256:" + "f" * 64)
+        ),
+    ],
+)
+def test_security_outage_override_rejects_untrusted_or_ambiguous_comment(
+    mutate: Any,
+) -> None:
+    reference = "https://github.com/owner/repo/pull/42#issuecomment-789"
+    response = _security_outage_comment(reference)
+    mutate(response)
+
+    with pytest.raises(CommitIdentityError):
+        verify_security_outage_override_reference(
+            reference,
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            expected_material_head_sha=HEAD_SHA,
+            expected_material_digest=DIGEST,
+            now=datetime(2026, 7, 15, 12, tzinfo=timezone.utc),
+            request_json=lambda *_a, **_k: response,
+        )
+
+
+def test_security_outage_override_rejects_expired_or_deleted_comment() -> None:
+    reference = "https://github.com/owner/repo/pull/42#issuecomment-789"
+    with pytest.raises(CommitIdentityError, match="expired"):
+        verify_security_outage_override_reference(
+            reference,
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            expected_material_head_sha=HEAD_SHA,
+            expected_material_digest=DIGEST,
+            now=datetime(2026, 7, 16, 12, 0, 1, tzinfo=timezone.utc),
+            request_json=lambda *_a, **_k: _security_outage_comment(reference),
+        )
+
+    with pytest.raises(GitHubHttpError, match="HTTP 404"):
+        verify_security_outage_override_reference(
+            reference,
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            expected_material_head_sha=HEAD_SHA,
+            expected_material_digest=DIGEST,
+            now=datetime(2026, 7, 15, 12, tzinfo=timezone.utc),
+            request_json=lambda *_a, **_k: (_ for _ in ()).throw(GitHubHttpError(404, "Not Found")),
+        )
+
+
+def test_security_outage_receipt_is_distinct_and_material_bound() -> None:
+    receipt = build_security_outage_override_receipt(
+        base_revision=BASE_SHA,
+        head_revision=HEAD_SHA,
+        material_digest=DIGEST,
+        override_reference="https://github.com/owner/repo/pull/42#issuecomment-789",
+        created_at="2026-07-15T11:00:00Z",
+        operator_user_id=123,
+        operator_login="owner",
+        operator_association="OWNER",
+    )
+
+    assert is_security_outage_override_receipt(receipt)
+    assert receipt["scan_id"] is None
+    assert receipt["status"] == "tooling_unavailable"
+    assert "findings_count" not in receipt
+    assert (
+        parse_embedded_review_seal(render_embedded_review_seal(_seal(receipt)))["codex_security"]
+        == receipt
+    )
+
+
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        lambda receipt: receipt.update(outage_class="unknown"),
+        lambda receipt: receipt.update(error_code="-32002"),
+        lambda receipt: receipt.update(scan_id="123e4567-e89b-42d3-a456-426614174000"),
+        lambda receipt: receipt.update(operator_user_id=0),
+        lambda receipt: receipt.update(operator_user_id=True),
+        lambda receipt: receipt.update(extra="unexpected"),
+        lambda receipt: receipt.pop("material_digest"),
+        lambda receipt: receipt.update(material_digest="sha256:" + "f" * 64),
+    ],
+)
+def test_security_outage_receipt_rejects_unknown_or_open_shapes(mutate: Any) -> None:
+    receipt = build_security_outage_override_receipt(
+        base_revision=BASE_SHA,
+        head_revision=HEAD_SHA,
+        material_digest=DIGEST,
+        override_reference="https://github.com/owner/repo/pull/42#issuecomment-789",
+        created_at="2026-07-15T11:00:00Z",
+        operator_user_id=123,
+        operator_login="owner",
+        operator_association="OWNER",
+    )
+    mutate(receipt)
+
+    with pytest.raises(ReviewEvidenceError):
+        render_embedded_review_seal(_seal(receipt))
+
+
+@pytest.mark.parametrize(
+    ("repository", "pr_number", "paths", "allowed"),
+    [
+        (
+            "Katsiarynakavaleuskaya/PulsePlate",
+            2142,
+            ("scripts/ci/check_pr_merge_readiness.py",),
+            True,
+        ),
+        (
+            "Katsiarynakavaleuskaya/PulsePlate",
+            2143,
+            ("scripts/ci/check_pr_merge_readiness.py",),
+            False,
+        ),
+        (
+            "owner/repo",
+            2142,
+            ("scripts/ci/check_pr_merge_readiness.py",),
+            False,
+        ),
+        (
+            "owner/repo",
+            42,
+            ("scripts/ci/check_private_python_proxy_health.py",),
+            False,
+        ),
+        ("owner/repo", 42, ("trivy/ignore-policy.rego",), False),
+        ("owner/repo", 42, ("requirements-test.txt",), True),
+    ],
+)
+def test_security_outage_override_scope_blocks_future_self_authorization(
+    repository: str,
+    pr_number: int,
+    paths: tuple[str, ...],
+    allowed: bool,
+) -> None:
+    if allowed:
+        validate_security_outage_override_scope(
+            repository=repository,
+            pr_number=pr_number,
+            material_paths=paths,
+        )
+        return
+
+    with pytest.raises(ReviewEvidenceError, match="trust-boundary changes"):
+        validate_security_outage_override_scope(
+            repository=repository,
+            pr_number=pr_number,
+            material_paths=paths,
+        )
+
+
 def _git(repo: Path, *args: str, env: dict[str, str] | None = None) -> str:
     git = shutil.which("git")
     assert git is not None
@@ -944,6 +1176,85 @@ def test_authenticated_closeout_validation_rejects_nonexistent_review(
         )
 
     assert verifier_expected_commits == [HEAD_SHA]
+
+
+def test_authenticated_closeout_revalidates_operator_outage_override(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    receipt = build_security_outage_override_receipt(
+        base_revision=BASE_SHA,
+        head_revision=HEAD_SHA,
+        material_digest=DIGEST,
+        override_reference="https://github.com/owner/repo/pull/42#issuecomment-789",
+        created_at="2026-07-15T11:00:00Z",
+        operator_user_id=123,
+        operator_login="owner",
+        operator_association="OWNER",
+    )
+    mapping = tmp_path / "PR_42_FIXED_MAPPING.md"
+    mapping.write_text(_mapping_artifact_with_seal(_seal(receipt)), encoding="utf-8")
+    manifest = MaterialManifest(
+        base_ref_oid=BASE_SHA,
+        head_ref_oid=HEAD_SHA,
+        merge_base_sha=BASE_SHA,
+        pr_number=42,
+        entries=(),
+        digest=DIGEST,
+    )
+    monkeypatch.setattr(closeout_module, "mapping_artifact_path", lambda _pr: mapping)
+    monkeypatch.setattr(closeout_module, "fetch_pr_snapshot", lambda *_a, **_k: _snapshot())
+    monkeypatch.setattr(closeout_module, "_git", lambda *_a, **_k: HEAD_SHA)
+    monkeypatch.setattr(
+        closeout_module,
+        "compute_material_manifest",
+        lambda *_a, **_k: manifest,
+    )
+    monkeypatch.setattr(
+        closeout_module,
+        "classify_commit_ref",
+        lambda value, *_a, **_k: RepositoryCommitRef(value, CommitRefKind.PR_HEAD),
+    )
+    monkeypatch.setattr(
+        closeout_module,
+        "verify_codex_review_reference",
+        lambda *_a, **_k: identity_module.CodexReviewEvidence(
+            reference="https://github.com/owner/repo/pull/42#pullrequestreview-1",
+            submitted_at="2026-07-15T11:00:00Z",
+            commit_ref=HEAD_SHA,
+        ),
+    )
+    override_calls: list[tuple[str, str]] = []
+
+    def verify_override(*_args: Any, **kwargs: Any) -> SecurityOutageOverrideEvidence:
+        override_calls.append(
+            (kwargs["expected_material_head_sha"], kwargs["expected_material_digest"])
+        )
+        return SecurityOutageOverrideEvidence(
+            reference=receipt["override_reference"],
+            created_at=receipt["created_at"],
+            operator_user_id=receipt["operator_user_id"],
+            operator_login=receipt["operator_login"],
+            operator_association=receipt["operator_association"],
+            material_head_sha=HEAD_SHA,
+            material_digest=DIGEST,
+        )
+
+    monkeypatch.setattr(
+        closeout_module,
+        "verify_security_outage_override_reference",
+        verify_override,
+    )
+    monkeypatch.setattr(closeout_module, "is_ancestor", lambda *_a, **_k: True)
+    monkeypatch.setattr(closeout_module, "assert_snapshot_unchanged", lambda *_a, **_k: None)
+
+    seal = closeout_module.validate_live_mapping(
+        repository="owner/repo",
+        pr_number=42,
+        token="opaque",
+    )
+
+    assert seal["codex_security"] == receipt
+    assert override_calls == [(HEAD_SHA, DIGEST)]
 
 
 def test_embedded_seal_round_trip_is_strict_and_canonical(tmp_path: Path) -> None:
@@ -1930,3 +2241,40 @@ def test_closeout_init_is_atomic_and_idempotent(
     first = closeout_module._state_path(42).read_bytes()
     closeout_module._cmd_init(args)
     assert closeout_module._state_path(42).read_bytes() == first
+
+
+def test_closeout_seal_requires_exactly_one_security_evidence_input() -> None:
+    parser = closeout_module._parser()
+    common = [
+        "seal",
+        "--repo",
+        "owner/repo",
+        "--pr-number",
+        "42",
+        "--review-ref",
+        "https://github.com/owner/repo/pull/42#issuecomment-456",
+    ]
+
+    with pytest.raises(SystemExit):
+        parser.parse_args(common)
+    with pytest.raises(SystemExit):
+        parser.parse_args(
+            [
+                *common,
+                "--scan-manifest",
+                "/tmp/scan-manifest.json",
+                "--security-outage-override-ref",
+                "https://github.com/owner/repo/pull/42#issuecomment-789",
+            ]
+        )
+
+    scan_args = parser.parse_args([*common, "--scan-manifest", "/tmp/scan-manifest.json"])
+    override_args = parser.parse_args(
+        [
+            *common,
+            "--security-outage-override-ref",
+            "https://github.com/owner/repo/pull/42#issuecomment-789",
+        ]
+    )
+    assert scan_args.security_outage_override_ref is None
+    assert override_args.scan_manifest is None

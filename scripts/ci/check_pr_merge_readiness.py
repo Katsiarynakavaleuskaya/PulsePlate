@@ -47,12 +47,21 @@ from scripts.orchestration.pr_commit_identity import (  # noqa: E402
     fetch_review_threads,
     is_ancestor,
     verify_codex_review_reference,
+    verify_security_outage_override_reference,
 )
 from scripts.orchestration.pr_review_evidence import (  # noqa: E402
     ReviewEvidenceError,
+    build_security_outage_override_receipt,
     compute_material_manifest,
+    is_security_outage_override_receipt,
     parse_embedded_review_seal,
+    validate_security_outage_override_scope,
     validated_duplicate_reply_urls,
+)
+from scripts.ci.check_current_head_pr_checks import (  # noqa: E402
+    _fetch_pr_metadata as _fetch_current_head_pr_metadata,
+    _latest_entries as _latest_check_entries,
+    _normalize_node as _normalize_check_node,
 )
 
 # Set to governance PR number + 1 immediately after that PR is opened.  ``None``
@@ -94,6 +103,13 @@ MAPPING_ENTRY_RE = re.compile(r"(?im)^\s*-\s*`?(https?://[^\s`]+)`?\s*->\s*`?[0-
 MAPPING_NO_ACTIONABLE_RE = re.compile(r"(?im)^\s*-\s*No actionable review comments\s*$")
 _MAX_API_RESPONSE_BYTES = 8 * 1024 * 1024
 _MAX_API_PAGES = 100
+_OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES: Mapping[str, tuple[str, int, str]] = {
+    "CodeQL": ("", 57_789, "github-advanced-security"),
+    "Private Python proxy health": ("CI", 15_368, "github-actions"),
+    "Trivy ignore-policy expiry": ("CI", 15_368, "github-actions"),
+    "security": ("CI", 15_368, "github-actions"),
+    "security-scan": ("Docker Build and Push", 15_368, "github-actions"),
+}
 
 
 @dataclass
@@ -416,6 +432,63 @@ def _is_ghas_thread(thread: ReviewThreadEvidence) -> bool:
     )
 
 
+def _validate_operator_outage_security_checks(
+    *, repository: str, pr_number: int, token: str
+) -> None:
+    """Require a strict successful current-head security bundle for outage overrides."""
+
+    _is_draft, _merge_state, _base_ref, nodes = _fetch_current_head_pr_metadata(
+        pr_number, repository, token
+    )
+    entries = [_normalize_check_node(node) for node in nodes if node]
+    latest, _superseded = _latest_check_entries(entries)
+    failures: list[str] = []
+    for name, expected_identity in sorted(_OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES.items()):
+        candidates = [entry for entry in entries if entry.name == name]
+        if not candidates:
+            failures.append(f"{name}=missing")
+            continue
+        expected_workflow, expected_app_id, expected_app_slug = expected_identity
+        untrusted = [
+            entry
+            for entry in candidates
+            if entry.source_kind != "check_run"
+            or entry.workflow_name != expected_workflow
+            or entry.app_database_id != expected_app_id
+            or entry.app_slug != expected_app_slug
+        ]
+        if untrusted:
+            producers = sorted(
+                {
+                    (
+                        entry.source_kind,
+                        entry.workflow_name or "none",
+                        str(entry.app_database_id or "none"),
+                        entry.app_slug or "none",
+                    )
+                    for entry in untrusted
+                }
+            )
+            rendered = ";".join("/".join(item) for item in producers)
+            failures.append(f"{name}=untrusted-producer({rendered})")
+            continue
+        entry = latest.get(name)
+        if entry is None:  # Defensive: candidates were present above.
+            failures.append(f"{name}=missing-latest")
+            continue
+        if entry.source_kind == "check_run":
+            passed = entry.state == "passed" and entry.conclusion == "SUCCESS"
+        else:
+            passed = entry.state == "passed"
+        if not passed:
+            failures.append(f"{name}={entry.state}/{entry.conclusion or 'status'}")
+    if failures:
+        raise ReviewEvidenceError(
+            "operator outage override requires successful current-head security checks: "
+            + ", ".join(failures)
+        )
+
+
 def _validate_v1_seal(
     *,
     artifact_text: str,
@@ -489,6 +562,38 @@ def _validate_v1_seal(
         or seal["codex_security"]["head_revision"] != material_head.sha
     ):
         raise ReviewEvidenceError("Codex Security receipt range is stale")
+    security_receipt = seal["codex_security"]
+    if is_security_outage_override_receipt(security_receipt):
+        validate_security_outage_override_scope(
+            repository=repository,
+            pr_number=pr_number,
+            material_paths=(entry.path for entry in manifest.entries),
+        )
+        outage_evidence = verify_security_outage_override_reference(
+            security_receipt["override_reference"],
+            repository=repository,
+            pr_number=pr_number,
+            token=token,
+            expected_material_head_sha=material_head.sha,
+            expected_material_digest=material["digest"],
+        )
+        expected_receipt = build_security_outage_override_receipt(
+            base_revision=manifest.merge_base_sha,
+            head_revision=material_head.sha,
+            material_digest=material["digest"],
+            override_reference=outage_evidence.reference,
+            created_at=outage_evidence.created_at,
+            operator_user_id=outage_evidence.operator_user_id,
+            operator_login=outage_evidence.operator_login,
+            operator_association=outage_evidence.operator_association,
+        )
+        if security_receipt != expected_receipt:
+            raise ReviewEvidenceError("Codex Security operator outage override receipt is stale")
+        _validate_operator_outage_security_checks(
+            repository=repository,
+            pr_number=pr_number,
+            token=token,
+        )
     return seal
 
 

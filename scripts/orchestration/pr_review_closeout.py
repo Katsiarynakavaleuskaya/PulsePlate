@@ -32,6 +32,7 @@ from scripts.orchestration.pr_commit_identity import (  # noqa: E402
     fetch_pr_snapshot,
     is_ancestor,
     verify_codex_review_reference,
+    verify_security_outage_override_reference,
 )
 from scripts.orchestration.pr_review_evidence import (  # noqa: E402
     MATERIAL_POLICY_VERSION,
@@ -39,11 +40,14 @@ from scripts.orchestration.pr_review_evidence import (  # noqa: E402
     SEAL_SCHEMA_VERSION,
     UNAVAILABLE_REVIEW_REF_CAUSE,
     ReviewEvidenceError,
+    build_security_outage_override_receipt,
     compute_material_manifest,
     ingest_codex_security_receipt,
+    is_security_outage_override_receipt,
     parse_embedded_review_seal,
     render_embedded_review_seal,
     unavailable_review_ref_fingerprint,
+    validate_security_outage_override_scope,
 )
 from scripts.orchestration.review_mapping_artifact import (  # noqa: E402
     NO_ACTIONABLE_LINE,
@@ -529,11 +533,39 @@ def _cmd_seal(args: argparse.Namespace) -> None:
         or review_commit.sha != snapshot.head_sha
     ):
         raise CloseoutError("Codex review must be machine-bound to the exact frozen material head")
-    receipt = ingest_codex_security_receipt(
-        Path(args.scan_manifest),
-        expected_base_sha=manifest.merge_base_sha,
-        expected_head_sha=snapshot.head_sha,
-    )
+    if args.scan_manifest:
+        receipt = ingest_codex_security_receipt(
+            Path(args.scan_manifest),
+            expected_base_sha=manifest.merge_base_sha,
+            expected_head_sha=snapshot.head_sha,
+        )
+    else:
+        validate_security_outage_override_scope(
+            repository=args.repo,
+            pr_number=args.pr_number,
+            material_paths=(entry.path for entry in manifest.entries),
+        )
+        outage_evidence = verify_security_outage_override_reference(
+            _required_line(
+                args.security_outage_override_ref,
+                label="security-outage-override-ref",
+            ),
+            repository=args.repo,
+            pr_number=args.pr_number,
+            token=token,
+            expected_material_head_sha=snapshot.head_sha,
+            expected_material_digest=manifest.digest,
+        )
+        receipt = build_security_outage_override_receipt(
+            base_revision=manifest.merge_base_sha,
+            head_revision=snapshot.head_sha,
+            material_digest=manifest.digest,
+            override_reference=outage_evidence.reference,
+            created_at=outage_evidence.created_at,
+            operator_user_id=outage_evidence.operator_user_id,
+            operator_login=outage_evidence.operator_login,
+            operator_association=outage_evidence.operator_association,
+        )
     seal = {
         "authority": RECEIPT_AUTHORITY,
         "code_review": {
@@ -636,6 +668,32 @@ def validate_live_mapping(*, repository: str, pr_number: int, token: str | None)
         or security_receipt["head_revision"] != material_head.sha
     ):
         raise CloseoutError("Codex Security receipt range is stale")
+    if is_security_outage_override_receipt(security_receipt):
+        validate_security_outage_override_scope(
+            repository=repository,
+            pr_number=pr_number,
+            material_paths=(entry.path for entry in manifest.entries),
+        )
+        outage_evidence = verify_security_outage_override_reference(
+            security_receipt["override_reference"],
+            repository=repository,
+            pr_number=pr_number,
+            token=token,
+            expected_material_head_sha=material_head.sha,
+            expected_material_digest=material["digest"],
+        )
+        expected_receipt = build_security_outage_override_receipt(
+            base_revision=manifest.merge_base_sha,
+            head_revision=material_head.sha,
+            material_digest=material["digest"],
+            override_reference=outage_evidence.reference,
+            created_at=outage_evidence.created_at,
+            operator_user_id=outage_evidence.operator_user_id,
+            operator_login=outage_evidence.operator_login,
+            operator_association=outage_evidence.operator_association,
+        )
+        if security_receipt != expected_receipt:
+            raise CloseoutError("Codex Security operator outage override receipt is stale")
     live_head = RepositoryCommitRef(snapshot.head_sha, CommitRefKind.PR_HEAD)
     if not is_ancestor(
         material_head,
@@ -691,7 +749,9 @@ def _parser() -> argparse.ArgumentParser:
     seal.add_argument("--repo", required=True)
     seal.add_argument("--pr-number", required=True, type=int)
     seal.add_argument("--review-ref", required=True)
-    seal.add_argument("--scan-manifest", required=True)
+    security_evidence = seal.add_mutually_exclusive_group(required=True)
+    security_evidence.add_argument("--scan-manifest")
+    security_evidence.add_argument("--security-outage-override-ref")
     seal.set_defaults(handler=_cmd_seal)
 
     validate = subparsers.add_parser("validate")

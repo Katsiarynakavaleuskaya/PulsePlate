@@ -17,7 +17,7 @@ import subprocess  # nosec B404: fixed absolute git only (remove-by: 2026-09-30,
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path, PurePosixPath
-from typing import Any, Mapping
+from typing import Any, Iterable, Mapping
 
 MATERIAL_SCHEMA_VERSION = "pulseplate.material-diff/v1"
 MATERIAL_POLICY_VERSION = "pulseplate.material-classification/v1"
@@ -27,6 +27,26 @@ UNAVAILABLE_REVIEW_REF_CAUSE = "unavailable_review_ref_ancestry"
 CODEX_REVIEW_SOURCE = "codex-github-review"
 SEAL_SCHEMA_VERSION = "pulseplate.pr-review-seal/v1"
 RECEIPT_AUTHORITY = "human_asserted_content_receipt"
+OPERATOR_OUTAGE_AUTHORITY = "operator_outage_override"
+OPERATOR_OUTAGE_CLASS = "codex_security_mcp_timeout"
+OPERATOR_OUTAGE_ERROR_CODE = "-32001"
+OPERATOR_OUTAGE_ERROR_MESSAGE = "Request timed out"
+OPERATOR_OUTAGE_BOOTSTRAP_REPOSITORY = "Katsiarynakavaleuskaya/PulsePlate"
+OPERATOR_OUTAGE_BOOTSTRAP_PR = 2142
+OPERATOR_OUTAGE_TRUST_BOUNDARY_EXACT_PATHS = frozenset(
+    {
+        ".trivyignore",
+        "scripts/ci_bandit.sh",
+        "scripts/orchestration/pr_commit_identity.py",
+        "scripts/orchestration/pr_review_closeout.py",
+        "scripts/orchestration/pr_review_evidence.py",
+    }
+)
+OPERATOR_OUTAGE_TRUST_BOUNDARY_PREFIXES = (
+    ".github/workflows/",
+    "scripts/ci/",
+    "trivy/",
+)
 SEAL_BEGIN = "<!-- PULSEPLATE_PR_REVIEW_SEAL_V1_BEGIN -->"
 SEAL_END = "<!-- PULSEPLATE_PR_REVIEW_SEAL_V1_END -->"
 
@@ -861,9 +881,118 @@ def ingest_codex_security_receipt(
         os.close(root_descriptor)
 
 
+def build_security_outage_override_receipt(
+    *,
+    base_revision: str,
+    head_revision: str,
+    material_digest: str,
+    override_reference: str,
+    created_at: str,
+    operator_user_id: int,
+    operator_login: str,
+    operator_association: str,
+) -> dict[str, Any]:
+    """Build one validated, distinct operator-outage evidence receipt."""
+
+    receipt = {
+        "authority": OPERATOR_OUTAGE_AUTHORITY,
+        "base_revision": base_revision,
+        "created_at": created_at,
+        "error_code": OPERATOR_OUTAGE_ERROR_CODE,
+        "error_message": OPERATOR_OUTAGE_ERROR_MESSAGE,
+        "head_revision": head_revision,
+        "material_digest": material_digest,
+        "operator_association": operator_association,
+        "operator_login": operator_login,
+        "operator_user_id": operator_user_id,
+        "outage_class": OPERATOR_OUTAGE_CLASS,
+        "override_reference": override_reference,
+        "scan_id": None,
+        "status": "tooling_unavailable",
+    }
+    _validate_security_receipt(receipt)
+    return receipt
+
+
+def is_security_outage_override_receipt(receipt: Any) -> bool:
+    """Return whether a validated receipt uses the operator-outage variant."""
+
+    return isinstance(receipt, dict) and receipt.get("authority") == OPERATOR_OUTAGE_AUTHORITY
+
+
+def validate_security_outage_override_scope(
+    *, repository: str, pr_number: int, material_paths: Iterable[str]
+) -> None:
+    """Deny outage self-authorization outside the one reviewed bootstrap PR."""
+
+    touched = sorted(
+        {
+            path
+            for path in material_paths
+            if path in OPERATOR_OUTAGE_TRUST_BOUNDARY_EXACT_PATHS
+            or path.startswith(OPERATOR_OUTAGE_TRUST_BOUNDARY_PREFIXES)
+        }
+    )
+    if not touched:
+        return
+    is_bootstrap = (
+        repository.casefold() == OPERATOR_OUTAGE_BOOTSTRAP_REPOSITORY.casefold()
+        and pr_number == OPERATOR_OUTAGE_BOOTSTRAP_PR
+    )
+    if not is_bootstrap:
+        raise ReviewEvidenceError(
+            "Codex Security outage override cannot authorize trust-boundary changes: "
+            + ", ".join(touched)
+        )
+
+
 def _validate_security_receipt(receipt: Any) -> None:
     if not isinstance(receipt, dict):
         raise ReviewEvidenceError("codex_security must be an object")
+    if receipt.get("authority") == OPERATOR_OUTAGE_AUTHORITY:
+        _require_exact_keys(
+            receipt,
+            {
+                "authority",
+                "base_revision",
+                "created_at",
+                "error_code",
+                "error_message",
+                "head_revision",
+                "material_digest",
+                "operator_association",
+                "operator_login",
+                "operator_user_id",
+                "outage_class",
+                "override_reference",
+                "scan_id",
+                "status",
+            },
+            label="codex_security operator outage override",
+        )
+        _require_sha(receipt["base_revision"], label="codex_security.base_revision")
+        _require_sha(receipt["head_revision"], label="codex_security.head_revision")
+        _require_digest(receipt["material_digest"], label="codex_security.material_digest")
+        _parse_timestamp(receipt["created_at"], label="codex_security.created_at")
+        if (
+            receipt["outage_class"] != OPERATOR_OUTAGE_CLASS
+            or receipt["error_code"] != OPERATOR_OUTAGE_ERROR_CODE
+            or receipt["error_message"] != OPERATOR_OUTAGE_ERROR_MESSAGE
+            or receipt["scan_id"] is not None
+            or receipt["status"] != "tooling_unavailable"
+            or receipt["operator_association"] not in {"OWNER", "MEMBER"}
+            or not isinstance(receipt["operator_user_id"], int)
+            or isinstance(receipt["operator_user_id"], bool)
+            or receipt["operator_user_id"] <= 0
+            or not isinstance(receipt["operator_login"], str)
+            or not 1 <= len(receipt["operator_login"]) <= 100
+            or any(ord(ch) < 32 for ch in receipt["operator_login"])
+            or not isinstance(receipt["override_reference"], str)
+            or not 1 <= len(receipt["override_reference"]) <= 500
+            or any(ord(ch) < 32 for ch in receipt["override_reference"])
+        ):
+            raise ReviewEvidenceError("Codex Security operator outage override is malformed")
+        return
     _require_exact_keys(
         receipt,
         {
@@ -988,6 +1117,12 @@ def validate_review_seal(seal: Any) -> dict[str, Any]:
         or seal["codex_security"]["head_revision"] != material["material_head_sha"]
     ):
         raise ReviewEvidenceError("Codex Security receipt does not match sealed material range")
+    if is_security_outage_override_receipt(seal["codex_security"]) and (
+        seal["codex_security"]["material_digest"] != material_digest
+    ):
+        raise ReviewEvidenceError(
+            "Codex Security operator outage override does not match sealed material digest"
+        )
     return seal
 
 

@@ -620,9 +620,19 @@ Before merge: `unresolved` must be `0`. Resolve all threads in GitHub UI (Conver
 3. Apply actionable fixes. Any material change returns to step 2; governance
    draft/body activity does not.
 4. After the final material freeze, complete the required role pass and one
-   final Codex Security diff scan.
-5. Record dispositions with `add-disposition`, then run `seal --review-ref ...
-   --scan-manifest ...`. This writes the sole canonical mapping/seal artifact.
+   final Codex Security diff scan. If the plugin is systemically unavailable
+   with MCP `-32001 Request timed out`, use the bounded operator-outage path only
+   after an explicit operator decision; it is not scan or no-findings evidence.
+5. Record dispositions with `add-disposition`, then run `seal --review-ref ...`
+   with exactly one of `--scan-manifest ...` or
+   `--security-outage-override-ref <exact GitHub comment URL>`. The override
+   comment must be unedited, from an `OWNER`/`MEMBER`, bind the immutable GitHub
+   user id and exact material head/digest, remain within its TTL, and pass the
+   current-head security bundle from the expected GitHub Apps/workflows. PR
+   `#2142` is the one-time bootstrap; future changes to the override verifier,
+   merge gate, current-head check identity parser, CI/security workflows, or
+   implementations/policy inputs of the substitute security checks cannot use
+   the override. This writes the sole canonical mapping/seal artifact.
 6. Commit that artifact once, update the PR body link without a Git commit, and
    run the authenticated strict wrapper.
 7. A later validated duplicate uses the exact structured reply contract and an

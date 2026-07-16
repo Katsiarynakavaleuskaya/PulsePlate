@@ -137,8 +137,19 @@ governance PR number + 1; the governance PR may opt in with
   accepted only when the trusted Codex GitHub App identity and its short
   reviewed-commit marker resolve through the Commit API to that same full head;
   reviewer-execution/synthetic refs never satisfy this proof. Code review and
-  one completed final Codex Security diff scan bind to the same digest. The
-  embedded security record is a
+  one completed final Codex Security diff scan bind to the same digest. A
+  systemic MCP `-32001 Request timed out` outage may use a distinct
+  `operator_outage_override` evidence variant only when an unedited GitHub
+  comment from an `OWNER` or `MEMBER` binds the immutable GitHub user id, exact
+  PR, material head, and material digest, declares `scan_id: none`, remains
+  within its TTL, and the current-head `security`, `CodeQL`, `security-scan`,
+  private-proxy, and Trivy policy checks from their expected GitHub Apps and
+  workflows all succeed. PR `#2142` is the one-time bootstrap. Future PRs that
+  change the override verifier, merge gate, current-head check identity parser,
+  any CI/security workflow, or implementations/policy inputs of the substitute
+  security checks cannot use the override. This variant records tool
+  unavailability and must never be represented as a scan or no-findings result.
+  The embedded scan record is a
   `human_asserted_content_receipt`: CI verifies schema, hashes, coverage, range,
   and content binding but does not claim signed/plugin attestation.
 - `pr_review_closeout.py` keeps `init`, `freeze`, and `add-disposition` state
