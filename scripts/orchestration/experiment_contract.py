@@ -887,11 +887,14 @@ def validate_experiment_result(result: dict[str, Any]) -> dict[str, Any]:
         command = str(oracle_result.get("command", "")).strip()
         if not command:
             raise ValueError("Each oracle result must include a non-empty command.")
+        timed_out = oracle_result.get("timed_out", False)
+        if not isinstance(timed_out, bool):
+            raise ValueError("Each oracle result timed_out must be a boolean.")
         oracle_results.append(
             {
                 "command": command,
                 "returncode": int(oracle_result.get("returncode", 0) or 0),
-                "timed_out": bool(oracle_result.get("timed_out", False)),
+                "timed_out": timed_out,
                 "truncated": bool(oracle_result.get("truncated", False)),
                 "stdout": str(oracle_result.get("stdout", "")),
                 "stderr": str(oracle_result.get("stderr", "")),

@@ -2172,8 +2172,18 @@ def _validate_dispatch_result_binding(
             raise CreativeCodePatchGenerationError(
                 "oracle-derived trusted dispatch rejection requires executed oracle evidence."
             )
-        if failure_class in FAILING_ORACLE_REQUIRED_FAILURE_CLASSES and not any(
-            item["returncode"] != 0 or item["timed_out"] for item in result["oracle_results"]
+        if failure_class == "timeout" and not any(
+            item["timed_out"] for item in result["oracle_results"]
+        ):
+            raise CreativeCodePatchGenerationError(
+                "timeout trusted dispatch rejection requires timed-out oracle evidence."
+            )
+        if (
+            failure_class != "timeout"
+            and failure_class in FAILING_ORACLE_REQUIRED_FAILURE_CLASSES
+            and not any(
+                item["returncode"] != 0 or item["timed_out"] for item in result["oracle_results"]
+            )
         ):
             raise CreativeCodePatchGenerationError(
                 "oracle-derived trusted dispatch rejection requires failing oracle evidence."

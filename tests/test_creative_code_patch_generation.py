@@ -772,6 +772,7 @@ def test_finalize_dispatched_result_attempts_every_rollback_after_cleanup_failur
     ("failure_class", "mutated_paths"),
     [
         ("guard_failure", None),
+        ("timeout", None),
         ("capability_mismatch", []),
     ],
 )
@@ -800,6 +801,8 @@ def test_finalize_dispatched_result_retains_trusted_rejection_without_retry(
     if failure_class == "capability_mismatch":
         dispatch_result["oracle_results"] = []
         dispatch_result["budget_observations"]["oracle_commands_executed"] = 0
+    elif failure_class == "timeout":
+        dispatch_result["oracle_results"][-1]["timed_out"] = True
     _write_json(dispatch_path, dispatch_result)
 
     assert (
@@ -836,6 +839,8 @@ def test_finalize_dispatched_result_retains_trusted_rejection_without_retry(
         ("oracle_command", "oracle commands do not match"),
         ("material_attribution", "must not claim promotion or material attribution"),
         ("all_pass_rejection", "requires failing oracle evidence"),
+        ("timeout_without_timeout", "requires timed-out oracle evidence"),
+        ("timeout_non_boolean", "failed Experiment Runner validation"),
         ("missing_oracle_paths", "must bind every candidate path"),
     ],
 )
@@ -876,6 +881,14 @@ def test_finalize_dispatched_result_rejects_unbound_dispatch_evidence(
     elif mutation == "all_pass_rejection":
         dispatch_result["status"] = "rejected"
         dispatch_result["failure_class"] = "guard_failure"
+    elif mutation == "timeout_without_timeout":
+        dispatch_result["status"] = "rejected"
+        dispatch_result["failure_class"] = "timeout"
+        dispatch_result["oracle_results"][-1]["returncode"] = 1
+    elif mutation == "timeout_non_boolean":
+        dispatch_result["status"] = "rejected"
+        dispatch_result["failure_class"] = "timeout"
+        dispatch_result["oracle_results"][-1]["timed_out"] = "false"
     elif mutation == "missing_oracle_paths":
         dispatch_result["status"] = "rejected"
         dispatch_result["failure_class"] = "guard_failure"
