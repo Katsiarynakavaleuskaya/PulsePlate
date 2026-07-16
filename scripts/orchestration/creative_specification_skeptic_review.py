@@ -666,12 +666,8 @@ def _pending_skeptic_review_count(reviews: Sequence[Any]) -> int:
     )
 
 
-def _is_failed_reviewed_run_quarantine(child: Path) -> bool:
-    return (
-        not child.is_symlink()
-        and child.is_dir()
-        and FAILED_REVIEWED_RUN_QUARANTINE_PATTERN.fullmatch(child.name) is not None
-    )
+def _is_failed_reviewed_run_quarantine(*, name: str, mode: int) -> bool:
+    return stat.S_ISDIR(mode) and FAILED_REVIEWED_RUN_QUARANTINE_PATTERN.fullmatch(name) is not None
 
 
 def _reject_unexpected_entries(
@@ -686,7 +682,17 @@ def _reject_unexpected_entries(
     if not path.exists():
         return
     children = tuple(path.iterdir())
-    symlink_children = sorted(child.name for child in children if child.is_symlink())
+    child_modes: dict[str, int] = {}
+    for child in children:
+        try:
+            child_modes[child.name] = child.stat(follow_symlinks=False).st_mode
+        except OSError as exc:
+            raise CreativeSpecificationSkepticReviewCliError(
+                f"{label} contains unreadable artifact: {child.name}."
+            ) from exc
+    symlink_children = sorted(
+        child.name for child in children if stat.S_ISLNK(child_modes[child.name])
+    )
     if symlink_children:
         raise CreativeSpecificationSkepticReviewCliError(
             f"{label} contains symlink artifact(s): {', '.join(symlink_children)}."
@@ -695,7 +701,13 @@ def _reject_unexpected_entries(
         child.name
         for child in children
         if child.name not in allowed
-        and not (allowed_quarantines and _is_failed_reviewed_run_quarantine(child))
+        and not (
+            allowed_quarantines
+            and _is_failed_reviewed_run_quarantine(
+                name=child.name,
+                mode=child_modes[child.name],
+            )
+        )
     )
     if unexpected:
         raise CreativeSpecificationSkepticReviewCliError(
