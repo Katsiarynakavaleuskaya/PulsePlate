@@ -2090,6 +2090,8 @@ _CONFLICTED_FASTAPI_REFERENCE = "<conflicted:fastapi>"
 _POSSIBLE_IMPORT_CALLABLE_REFERENCE = "<possible:import_callable>"
 _ITERABLE_SENSITIVE_ELEMENT_REFERENCE = "<iterable:possible-app-call>"
 _ITERABLE_APP_ELEMENT_REFERENCE = "<iterable:possible-app>"
+_CLASS_REFERENCE_PREFIX = "<class:"
+_INSTANCE_REFERENCE_PREFIX = "<instance:"
 _MAX_LOOP_BINDING_ITERATIONS = 32
 _MAX_TOTAL_LOOP_BINDING_ITERATIONS = 128
 
@@ -2147,6 +2149,8 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         self._deferred_generator_scopes: dict[_FunctionNode, _LexicalBindings] = {}
         self._deferred_generator_outer_bindings: dict[_FunctionNode, _ResolvedBinding] = {}
         self._consumed_deferred_calls: set[_DeferredFunctionCall] = set()
+        self._lambda_function_bindings: dict[int, _FunctionNode] = {}
+        self._class_member_callables: dict[tuple[str, str], frozenset[_FunctionNode]] = {}
         self._active_function_replays: set[_FunctionNode] = set()
         self._outward_binding_targets: list[dict[str, _LexicalBindings]] = []
         self._awaited_call_ids: set[int] = set()
@@ -2282,6 +2286,16 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             return self._call_result_bindings[id(node)].callables
         if isinstance(node, ast.Await):
             return self._resolve_callables(node.value)
+        if isinstance(node, ast.Lambda):
+            synthetic = self._lambda_function_bindings.get(id(node))
+            return frozenset({synthetic}) if synthetic is not None else frozenset()
+        if isinstance(node, ast.Attribute):
+            owner_reference = self._resolve_reference(node.value)
+            if owner_reference is not None:
+                return self._class_member_callables.get(
+                    (owner_reference, node.attr),
+                    frozenset(),
+                )
         if isinstance(node, ast.NamedExpr):
             return self._resolve_callables(node.value)
         if isinstance(node, ast.Name):
@@ -2390,6 +2404,16 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     f"pulseplate.app.router.{node.attr}"
                     if owner_reference == "pulseplate.app.router"
                     else _POSSIBLE_APP_CALL_REFERENCE
+                )
+        if isinstance(node, ast.Call):
+            constructor_reference = self._resolve_reference(node.func)
+            if constructor_reference is not None and constructor_reference.startswith(
+                _CLASS_REFERENCE_PREFIX
+            ):
+                return constructor_reference.replace(
+                    _CLASS_REFERENCE_PREFIX,
+                    _INSTANCE_REFERENCE_PREFIX,
+                    1,
                 )
         references = self.scope.visible_references()
         strings = self.scope.visible_strings()
@@ -3098,28 +3122,17 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
     def visit_Lambda(self, node: ast.Lambda) -> None:
         if not self.analyze_function_bodies:
             return
-        previous = self.scope
-        previous_loop_controls = self._loop_controls
-        previous_terminal_controls = self._terminal_controls
-        previous_exception_scope_collectors = self._exception_scope_collectors
-        previous_return_binding_collectors = self._return_binding_collectors
-        self.scope = _LexicalBindings(
-            parent=previous,
-            local_names=_function_local_binding_names(node),
-            scope_kind="function",
+        synthetic = ast.FunctionDef(
+            name="<lambda>",
+            args=node.args,
+            body=[ast.Return(value=node.body)],
+            decorator_list=[],
         )
-        self._loop_controls = []
-        self._terminal_controls = _TerminalControlBindings(return_scopes=[], raise_scopes=[])
-        self._exception_scope_collectors = []
-        self._return_binding_collectors = []
-        try:
-            self.visit(node.body)
-        finally:
-            self.scope = previous
-            self._loop_controls = previous_loop_controls
-            self._terminal_controls = previous_terminal_controls
-            self._exception_scope_collectors = previous_exception_scope_collectors
-            self._return_binding_collectors = previous_return_binding_collectors
+        ast.copy_location(synthetic, node)
+        self._lambda_function_bindings[id(node)] = synthetic
+        self._function_default_bindings[synthetic] = {}
+        if self.scope.scope_kind != "module":
+            self._function_definition_scopes[synthetic] = self.scope
 
     def visit_ClassDef(self, node: ast.ClassDef) -> None:
         decorator_targets: list[frozenset[_FunctionNode]] = []
@@ -3136,6 +3149,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         previous = self.scope
         self.scope = _LexicalBindings(parent=previous, scope_kind="class")
         self._visit_statements(node.body)
+        class_scope = self.scope
         self.scope = previous
         result_binding = _ResolvedBinding(None, None)
         if metaclass_targets:
@@ -3174,9 +3188,18 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     decorator_results.append(self._replay_function_call(target, arguments))
             result_binding = self._join_resolved_bindings(decorator_results)
             self.scope.bind(temporary_name, reference=None, string=None)
+        class_reference = f"{_CLASS_REFERENCE_PREFIX}{node.name}:{id(node)}>"
+        instance_reference = class_reference.replace(
+            _CLASS_REFERENCE_PREFIX,
+            _INSTANCE_REFERENCE_PREFIX,
+            1,
+        )
+        for member_name, callables in class_scope.callables.items():
+            self._class_member_callables[(class_reference, member_name)] = callables
+            self._class_member_callables[(instance_reference, member_name)] = callables
         self._bind_name(
             node.name,
-            reference=result_binding.reference,
+            reference=result_binding.reference or class_reference,
             string=result_binding.string,
             callables=result_binding.callables,
             overwrite_conflicts=True,
@@ -4112,6 +4135,22 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             else:
                 evaluator.visit(keyword.value)
                 unresolved_keywords = True
+
+        if isinstance(call.func, ast.Attribute):
+            owner_reference = self._resolve_reference(call.func.value)
+            is_instance_method = owner_reference is not None and owner_reference.startswith(
+                _INSTANCE_REFERENCE_PREFIX
+            )
+            is_class_method = (
+                owner_reference is not None
+                and owner_reference.startswith(_CLASS_REFERENCE_PREFIX)
+                and any(
+                    isinstance(decorator, ast.Name) and decorator.id == "classmethod"
+                    for decorator in function.decorator_list
+                )
+            )
+            if is_instance_method or is_class_method:
+                positional_bindings.insert(0, _ResolvedBinding(None, None))
 
         positional_parameters = [*function.args.posonlyargs, *function.args.args]
         keyword_parameters = {parameter.arg for parameter in function.args.args}

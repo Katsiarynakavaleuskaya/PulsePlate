@@ -5053,6 +5053,43 @@ def test_legacy_growth_guard_applies_local_class_decorator_result() -> None:
     assert len(legacy_guard.validate_legacy_growth(source)) == 1
 
 
+@pytest.mark.parametrize(
+    "source",
+    [
+        'install = lambda target: target.get("/api/v1/lambda")(handler)\ninstall(app)\n',
+        'install = lambda target: target.get("/api/v1/lambda-alias")(handler)\n'
+        "alias = install\nalias(app)\n",
+    ],
+    ids=["direct", "alias"],
+)
+def test_legacy_growth_guard_replays_invoked_lambda_helpers(source: str) -> None:
+    assert len(legacy_guard.validate_legacy_growth(source)) == 1
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "class Installer:\n"
+        "    @staticmethod\n"
+        "    def install(target):\n"
+        '        target.get("/api/v1/static-method")(handler)\n'
+        "Installer.install(app)\n",
+        "class Installer:\n"
+        "    @classmethod\n"
+        "    def install(cls, target):\n"
+        '        target.get("/api/v1/class-method")(handler)\n'
+        "Installer.install(app)\n",
+        "class Installer:\n"
+        "    def install(self, target):\n"
+        '        target.get("/api/v1/instance-method")(handler)\n'
+        "Installer().install(app)\n",
+    ],
+    ids=["staticmethod", "classmethod", "instance-method"],
+)
+def test_legacy_growth_guard_replays_class_method_helpers(source: str) -> None:
+    assert len(legacy_guard.validate_legacy_growth(source)) == 1
+
+
 @pytest.mark.parametrize("consumer", ["sorted", "max", "min", "frozenset"])
 def test_legacy_growth_guard_replays_additional_eager_consumers(consumer: str) -> None:
     source = textwrap.dedent(f"""
