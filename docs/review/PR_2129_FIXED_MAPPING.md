@@ -42,7 +42,8 @@ Packet: `artifacts/orchestration/task_packets/1418f71dc1a5.json`
 
 - `b0f3f18078020dfe4e3c656ae3610288098c1122` - restore bounded Docker
   `tmpfs`; enforce explicit Apple Container for macOS Oracle-only review;
-  inject one resolved, adjacent per-invocation Git trust boundary; compare
+  inject one resolved, adjacent trust boundary into every Experiment Runner
+  and dispatcher Git invocation; compare
   retained JSON by canonical fingerprint; and admit only exact non-symlink
   failed-review quarantine directories.
 - `cdfc7d92d40ddf4ef001d5d6b176a500697e9601` - snapshot quarantine child
@@ -57,9 +58,11 @@ Packet: `artifacts/orchestration/task_packets/1418f71dc1a5.json`
   token length is derived from `FAILED_REVIEWED_RUN_TOKEN_BYTES`, children are
   captured once, and tests reject near matches, files, and symlinks.
 - PR #2131 (`cde62eae3ae043af581b71b9500a30bad184410f`) is replaced by one exact
-  `-c safe.directory=<resolved-cwd>` pair per Git invocation. The test proves
-  adjacency, uniqueness, resolved-path equality, and absence of wildcard
-  trust; missing or non-directory cwd fails before subprocess execution.
+  `-c safe.directory=<resolved-cwd>` pair in every
+  `experiment_runner._run_git` and `experiment_runner_dispatch._git`
+  invocation. Tests prove adjacency, uniqueness, resolved-path equality,
+  sanitized Git config, and absence of wildcard trust; missing or
+  non-directory cwd fails before subprocess execution.
 - PR #2132 (`1c1575ab2885b6db769ad86ca548c0d0cfea28f0`) is replaced by canonical
   fingerprint comparison for retained and exact prepare artifacts. Tests prove
   `int`/`float` drift and `NaN`/positive-infinity/negative-infinity rejection

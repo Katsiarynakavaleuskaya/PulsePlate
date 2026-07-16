@@ -392,6 +392,85 @@ def test_existing_v1_capability_artifact_remains_valid() -> None:
     assert dispatch.validate_capability_artifact(artifact) == artifact
 
 
+def test_dispatch_git_uses_one_resolved_per_invocation_safe_directory(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    captured: dict[str, Any] = {}
+
+    def fake_git_binary() -> str:
+        return "/usr/bin/git"
+
+    def fake_run(
+        argv: list[str],
+        *,
+        cwd: Path,
+        timeout: int = 30,
+        input_text: str | None = None,
+        secret_env_keys: tuple[str, ...] = (),
+        env_override: dict[str, str] | None = None,
+    ) -> subprocess.CompletedProcess[str]:
+        captured.update(
+            argv=argv,
+            cwd=cwd,
+            timeout=timeout,
+            input_text=input_text,
+            secret_env_keys=secret_env_keys,
+            env_override=env_override,
+        )
+        return subprocess.CompletedProcess(argv, 0, "", "")
+
+    monkeypatch.setattr(dispatch, "_git_binary", fake_git_binary)
+    monkeypatch.setattr(dispatch, "_run", fake_run)
+
+    dispatch._git(["status", "--short"], cwd=repo)
+
+    argv = captured["argv"]
+    safe_directory_arg = f"safe.directory={repo.resolve(strict=True)}"
+    assert argv[0] == "/usr/bin/git"
+    assert argv.count(safe_directory_arg) == 1
+    safe_index = argv.index(safe_directory_arg)
+    assert argv[safe_index - 1 : safe_index + 1] == ["-c", safe_directory_arg]
+    assert "safe.directory=*" not in argv
+    assert captured["cwd"] == repo.resolve(strict=True)
+    env_override = captured["env_override"]
+    assert env_override["GIT_CONFIG_GLOBAL"] == os.devnull
+    assert env_override["GIT_CONFIG_NOSYSTEM"] == "1"
+    assert env_override["GIT_TERMINAL_PROMPT"] == "0"
+
+
+@pytest.mark.parametrize("invalid_kind", ["missing", "file"])
+def test_dispatch_git_rejects_invalid_cwd_before_subprocess(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, invalid_kind: str
+) -> None:
+    invalid_cwd = tmp_path / invalid_kind
+    if invalid_kind == "file":
+        invalid_cwd.write_text("not a directory\n", encoding="utf-8")
+    called = False
+
+    def fail_if_called(
+        argv: list[str],
+        *,
+        cwd: Path,
+        timeout: int = 30,
+        input_text: str | None = None,
+        secret_env_keys: tuple[str, ...] = (),
+        env_override: dict[str, str] | None = None,
+    ) -> subprocess.CompletedProcess[str]:
+        nonlocal called
+        del argv, cwd, timeout, input_text, secret_env_keys, env_override
+        called = True
+        raise AssertionError("subprocess must not run for an invalid Git cwd")
+
+    monkeypatch.setattr(dispatch, "_run", fail_if_called)
+
+    with pytest.raises(dispatch.DispatchError, match="probe_execution_failed"):
+        dispatch._git(["status", "--short"], cwd=invalid_cwd)
+
+    assert called is False
+
+
 def test_snapshot_applies_tracked_diff_and_leaves_source_unchanged(tmp_path: Path) -> None:
     source = tmp_path / "source"
     source.mkdir()

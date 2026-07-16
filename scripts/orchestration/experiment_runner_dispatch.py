@@ -32,6 +32,9 @@ if str(DISPATCH_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(DISPATCH_REPO_ROOT))
 
 from scripts.orchestration.context_pack import REPO_ROOT
+from scripts.orchestration.creative_code_patch_workspace import (
+    git_env_without_parent_state as _sanitized_git_env_without_parent_state,
+)
 from scripts.orchestration.experiment_contract import (
     CONTRIBUTION_KINDS,
     IMAGE_DIGEST_RE,
@@ -320,11 +323,12 @@ def _run(
     timeout: int = 30,
     input_text: str | None = None,
     secret_env_keys: tuple[str, ...] = (),
+    env_override: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     if not argv or not Path(argv[0]).is_absolute():
         raise DispatchError("runtime_cli_missing")
     try:
-        child_env = _safe_env()
+        child_env = dict(env_override) if env_override is not None else _safe_env()
         child_env.update({key: os.environ[key] for key in secret_env_keys if os.environ.get(key)})
         return subprocess.run(  # nosec B603: argv begins with resolved absolute executable, no shell (remove-by: 2026-10-31, ref: ledger-p1-experiment-runner-macos-strict-backend)
             argv,
@@ -1354,10 +1358,31 @@ def _git_binary() -> str:
     return git
 
 
+def _safe_git_config_args_for(cwd: Path) -> tuple[Path, list[str]]:
+    """Resolve one Git cwd and return its exact per-invocation trust entry."""
+
+    try:
+        resolved_cwd = cwd.expanduser().resolve(strict=True)
+    except OSError as exc:
+        raise DispatchError("probe_execution_failed") from exc
+    if not resolved_cwd.is_dir():
+        raise DispatchError("probe_execution_failed")
+    return (
+        resolved_cwd,
+        ["-c", f"safe.directory={resolved_cwd}"],
+    )
+
+
 def _git(
     args: list[str], *, cwd: Path, input_text: str | None = None
 ) -> subprocess.CompletedProcess[str]:
-    result = _run([_git_binary(), *args], cwd=cwd, input_text=input_text)
+    resolved_cwd, safe_config = _safe_git_config_args_for(cwd)
+    result = _run(
+        [_git_binary(), *safe_config, *args],
+        cwd=resolved_cwd,
+        input_text=input_text,
+        env_override=_sanitized_git_env_without_parent_state(),
+    )
     if result.returncode != 0:
         raise DispatchError("probe_execution_failed")
     return result
