@@ -933,6 +933,7 @@ def test_profile_and_upgrade_selection_rejects_untrusted_values() -> None:
 
 def test_private_proxy_environment_is_canonical_and_sanitized(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     for name in compiler.AMBIENT_RESOLVER_ENV_VARS:
         monkeypatch.delenv(name, raising=False)
@@ -948,19 +949,23 @@ def test_private_proxy_environment_is_canonical_and_sanitized(
         inspect_netrc,
     )
 
+    resolver_home = tmp_path / "resolver-home"
+    resolver_home.mkdir()
     child_env = compiler._private_proxy_child_env(
-        {"HOME": "/tmp/home", compiler.APPROVED_INDEX_ENV_VAR: APPROVED_INDEX}
+        {"HOME": "/tmp/home", compiler.APPROVED_INDEX_ENV_VAR: APPROVED_INDEX},
+        resolver_home=resolver_home,
     )
 
     assert child_env["PIP_INDEX_URL"] == APPROVED_INDEX
     assert child_env["PIP_CONFIG_FILE"] == os.devnull
     assert child_env["PIP_NO_INPUT"] == "1"
     assert "PIP_EXTRA_INDEX_URL" not in child_env
-    assert inspected_netrc_paths == [Path("/tmp/home/.netrc")]
+    assert inspected_netrc_paths == [resolver_home / ".netrc"]
 
     with pytest.raises((RuntimeError, ValueError)):
         compiler._private_proxy_child_env(
-            {compiler.APPROVED_INDEX_ENV_VAR: "https://pypi.org/simple/"}
+            {compiler.APPROVED_INDEX_ENV_VAR: "https://pypi.org/simple/"},
+            resolver_home=resolver_home,
         )
     with pytest.raises((RuntimeError, ValueError)):
         credentialed_index = (
@@ -968,25 +973,31 @@ def test_private_proxy_environment_is_canonical_and_sanitized(
             + ":".join(("user", "placeholder"))
             + "@packages.pulseplate.app/root/pulseplate/+simple/"
         )
-        compiler._private_proxy_child_env({compiler.APPROVED_INDEX_ENV_VAR: credentialed_index})
+        compiler._private_proxy_child_env(
+            {compiler.APPROVED_INDEX_ENV_VAR: credentialed_index},
+            resolver_home=resolver_home,
+        )
     with pytest.raises(RuntimeError, match="PIP_FIND_LINKS"):
         compiler._private_proxy_child_env(
             {
                 compiler.APPROVED_INDEX_ENV_VAR: APPROVED_INDEX,
                 "PIP_FIND_LINKS": "/tmp/wheels",
-            }
+            },
+            resolver_home=resolver_home,
         )
     with pytest.raises(RuntimeError, match="does not consume it"):
         compiler._private_proxy_child_env(
             {
                 compiler.APPROVED_INDEX_ENV_VAR: APPROVED_INDEX,
                 "PULSEPLATE_PYTHON_NETRC": "/tmp/custom.netrc",
-            }
+            },
+            resolver_home=resolver_home,
         )
 
 
 def test_private_proxy_environment_rejects_root_netrc_authority(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     for name in compiler.AMBIENT_RESOLVER_ENV_VARS:
         monkeypatch.delenv(name, raising=False)
@@ -996,9 +1007,16 @@ def test_private_proxy_environment_rejects_root_netrc_authority(
         raise ValueError("root_devpi_credentials: root devpi credentials are forbidden")
 
     monkeypatch.setattr(compiler, "basic_auth_from_netrc", reject_root)
+    source_home = tmp_path / "source-home"
+    source_home.mkdir()
+    resolver_home = tmp_path / "resolver-home"
+    resolver_home.mkdir()
 
     with pytest.raises(ValueError, match="root_devpi_credentials"):
-        compiler._private_proxy_child_env({compiler.APPROVED_INDEX_ENV_VAR: APPROVED_INDEX})
+        compiler._private_proxy_child_env(
+            {"HOME": str(source_home), compiler.APPROVED_INDEX_ENV_VAR: APPROVED_INDEX},
+            resolver_home=resolver_home,
+        )
 
 
 def _write_private_proxy_netrc(home: Path, *, mode: int = 0o600) -> Path:
@@ -1015,20 +1033,69 @@ def _write_private_proxy_netrc(home: Path, *, mode: int = 0o600) -> Path:
 
 def test_private_proxy_environment_accepts_private_user_owned_netrc(tmp_path: Path) -> None:
     _write_private_proxy_netrc(tmp_path)
+    resolver_home = tmp_path / "resolver-home"
+    resolver_home.mkdir()
 
     child_env = compiler._private_proxy_child_env(
-        {"HOME": str(tmp_path), compiler.APPROVED_INDEX_ENV_VAR: APPROVED_INDEX}
+        {"HOME": str(tmp_path), compiler.APPROVED_INDEX_ENV_VAR: APPROVED_INDEX},
+        resolver_home=resolver_home,
     )
 
     assert child_env["PIP_INDEX_URL"] == APPROVED_INDEX
+    assert Path(child_env["HOME"]) == resolver_home
+    assert (resolver_home / ".netrc").stat().st_mode & 0o077 == 0
+
+
+def test_private_proxy_environment_materializes_stable_netrc_authority(tmp_path: Path) -> None:
+    source_netrc = _write_private_proxy_netrc(tmp_path)
+    resolver_home = tmp_path / "resolver-home"
+    resolver_home.mkdir()
+
+    child_env = compiler._private_proxy_child_env(
+        {"HOME": str(tmp_path), compiler.APPROVED_INDEX_ENV_VAR: APPROVED_INDEX},
+        resolver_home=resolver_home,
+    )
+    replacement = tmp_path / "replacement.netrc"
+    replacement.write_text(
+        "machine packages.pulseplate.app\n"
+        "  login root\n"
+        "  password replaced-after-validation\n",
+        encoding="utf-8",
+    )
+    replacement.chmod(0o600)
+    replacement.replace(source_netrc)
+
+    resolver_netrc = Path(child_env["HOME"]) / ".netrc"
+    resolver_credentials = resolver_netrc.read_text(encoding="utf-8")
+    assert "login ci-reader" in resolver_credentials
+    assert "login root" not in resolver_credentials
+
+
+def test_private_proxy_environment_fails_closed_without_effective_uid_check(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_private_proxy_netrc(tmp_path)
+    resolver_home = tmp_path / "resolver-home"
+    resolver_home.mkdir()
+    monkeypatch.delattr(compiler.os, "geteuid", raising=False)
+
+    with pytest.raises(RuntimeError, match="requires POSIX effective-UID"):
+        compiler._private_proxy_child_env(
+            {"HOME": str(tmp_path), compiler.APPROVED_INDEX_ENV_VAR: APPROVED_INDEX},
+            resolver_home=resolver_home,
+        )
 
 
 def test_private_proxy_environment_rejects_broad_netrc_permissions(tmp_path: Path) -> None:
     _write_private_proxy_netrc(tmp_path, mode=0o644)
+    resolver_home = tmp_path / "resolver-home"
+    resolver_home.mkdir()
 
     with pytest.raises(RuntimeError, match="no broader than 0600"):
         compiler._private_proxy_child_env(
-            {"HOME": str(tmp_path), compiler.APPROVED_INDEX_ENV_VAR: APPROVED_INDEX}
+            {"HOME": str(tmp_path), compiler.APPROVED_INDEX_ENV_VAR: APPROVED_INDEX},
+            resolver_home=resolver_home,
         )
 
 
@@ -1037,10 +1104,13 @@ def test_private_proxy_environment_rejects_symlinked_netrc(tmp_path: Path) -> No
     real_netrc.write_text("machine packages.pulseplate.app\n", encoding="utf-8")
     real_netrc.chmod(0o600)
     (tmp_path / ".netrc").symlink_to(real_netrc)
+    resolver_home = tmp_path / "resolver-home"
+    resolver_home.mkdir()
 
     with pytest.raises(RuntimeError, match="regular non-symlink"):
         compiler._private_proxy_child_env(
-            {"HOME": str(tmp_path), compiler.APPROVED_INDEX_ENV_VAR: APPROVED_INDEX}
+            {"HOME": str(tmp_path), compiler.APPROVED_INDEX_ENV_VAR: APPROVED_INDEX},
+            resolver_home=resolver_home,
         )
 
 
@@ -1055,10 +1125,13 @@ def test_private_proxy_environment_rejects_foreign_owned_netrc(
         lambda: netrc_path.stat().st_uid + 1,
         raising=False,
     )
+    resolver_home = tmp_path / "resolver-home"
+    resolver_home.mkdir()
 
     with pytest.raises(RuntimeError, match="owned by the effective user"):
         compiler._private_proxy_child_env(
-            {"HOME": str(tmp_path), compiler.APPROVED_INDEX_ENV_VAR: APPROVED_INDEX}
+            {"HOME": str(tmp_path), compiler.APPROVED_INDEX_ENV_VAR: APPROVED_INDEX},
+            resolver_home=resolver_home,
         )
 
 
@@ -1216,6 +1289,40 @@ def test_failed_resolver_and_source_mutation_leave_output_unchanged(
     assert output_path.read_bytes() == original
 
 
+def test_atomic_source_replacement_never_reaches_resolver_inputs(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    surface = _write_test_profile(tmp_path)
+    source_path = tmp_path / surface.compile_sources[0]
+
+    def replace_source(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        replacement = tmp_path / "replacement.in"
+        replacement.write_text(
+            "--extra-index-url https://pypi.org/simple\n"
+            "coverage~=7.15.1\n"
+            "faker~=40.31.0\n"
+            "pytest~=9.1.3\n",
+            encoding="utf-8",
+        )
+        replacement.replace(source_path)
+        resolver_cwd = Path(str(kwargs["cwd"]))
+        resolver_source = (resolver_cwd / surface.compile_sources[0]).read_text(encoding="utf-8")
+        assert "pypi.org" not in resolver_source
+        return _successful_resolver(command)
+
+    monkeypatch.setattr(compiler.subprocess, "run", replace_source)
+
+    with pytest.raises(RuntimeError, match="file changed"):
+        compiler._prepare_lock(
+            repo_root=tmp_path,
+            surface=surface,
+            upgrades={"coverage": "7.15.1", "faker": "40.31.0"},
+            graph_changes=frozenset(),
+            child_env={},
+        )
+
+
 def test_constraint_identity_change_is_detected_even_when_content_is_unchanged(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1289,7 +1396,11 @@ def test_multi_lock_replacement_rolls_back_on_partial_failure(
         "_profile_registry",
         lambda: {str(surface.compile_profile): surface for surface in selected_surfaces},
     )
-    monkeypatch.setattr(compiler, "_private_proxy_child_env", lambda _environment: {})
+    monkeypatch.setattr(
+        compiler,
+        "_private_proxy_child_env",
+        lambda _environment, *, resolver_home: {},
+    )
     monkeypatch.setattr(
         compiler,
         "_prepare_lock",
@@ -1319,6 +1430,25 @@ def test_multi_lock_replacement_rolls_back_on_partial_failure(
 
     assert (tmp_path / "requirements-test.txt").read_text(encoding="utf-8") == "baseline-0\n"
     assert (tmp_path / "requirements-dev.txt").read_text(encoding="utf-8") == "baseline-1\n"
+
+
+def test_prepared_lock_rejects_rollback_bytes_from_another_snapshot(tmp_path: Path) -> None:
+    surface = _surface("test")
+    output_path = tmp_path / surface.lockfile
+    output_path.write_text("captured-baseline\n", encoding="utf-8")
+    candidate_path = tmp_path / f".{surface.lockfile}.candidate"
+    candidate_path.write_text("candidate\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="Rollback baseline bytes"):
+        compiler.PreparedLock(
+            surface=surface,
+            output_path=output_path,
+            candidate_path=candidate_path,
+            source_snapshots=(),
+            output_snapshot=compiler._snapshot(output_path),
+            candidate_snapshot=compiler._snapshot(candidate_path),
+            baseline_bytes=b"stale-pre-race-baseline\n",
+        )
 
 
 def test_registry_paths_must_be_regular_non_symlink_files(tmp_path: Path) -> None:

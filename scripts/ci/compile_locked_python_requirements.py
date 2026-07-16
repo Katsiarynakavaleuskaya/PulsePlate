@@ -13,7 +13,6 @@ import hashlib
 import os
 from pathlib import Path
 import re
-import shutil
 import stat
 import subprocess  # nosec B404: argv-only governed pip-tools invocation (remove-by: 2027-01-31, ref: PR-2142)
 import sys
@@ -102,7 +101,16 @@ class FileSnapshot:
     mode: int
     device: int
     inode: int
+    owner_uid: int
     size: int
+
+
+@dataclass(frozen=True)
+class FileCapture:
+    """Bytes paired with the exact filesystem identity used to read them."""
+
+    content: bytes
+    snapshot: FileSnapshot
 
 
 @dataclass(frozen=True)
@@ -116,6 +124,10 @@ class PreparedLock:
     output_snapshot: FileSnapshot
     candidate_snapshot: FileSnapshot
     baseline_bytes: bytes
+
+    def __post_init__(self) -> None:
+        if hashlib.sha256(self.baseline_bytes).hexdigest() != self.output_snapshot.digest:
+            raise ValueError("Rollback baseline bytes must match the captured output snapshot.")
 
 
 def _profile_registry() -> dict[str, DependencySurface]:
@@ -188,7 +200,9 @@ def _parse_graph_changes(raw_value: str | None) -> frozenset[str]:
     return frozenset(packages)
 
 
-def _snapshot(path: Path) -> FileSnapshot:
+def _capture_file(path: Path) -> FileCapture:
+    """Read one regular file through a no-follow descriptor and bind bytes to identity."""
+
     flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
     try:
         descriptor = os.open(path, flags)
@@ -196,13 +210,13 @@ def _snapshot(path: Path) -> FileSnapshot:
         raise RuntimeError(
             f"Dependency path must remain a readable regular non-symlink file: {path}"
         ) from exc
-    digest = hashlib.sha256()
+    chunks: list[bytes] = []
     try:
         metadata = os.fstat(descriptor)
         if not stat.S_ISREG(metadata.st_mode):
             raise RuntimeError(f"Dependency path must remain a regular file: {path}")
         while chunk := os.read(descriptor, 1024 * 1024):
-            digest.update(chunk)
+            chunks.append(chunk)
         final_metadata = os.fstat(descriptor)
     finally:
         os.close(descriptor)
@@ -214,27 +228,47 @@ def _snapshot(path: Path) -> FileSnapshot:
             metadata.st_ino,
             metadata.st_size,
             metadata.st_mode,
+            metadata.st_uid,
         )
         != (
             final_metadata.st_dev,
             final_metadata.st_ino,
             final_metadata.st_size,
             final_metadata.st_mode,
+            final_metadata.st_uid,
         )
-        or (metadata.st_dev, metadata.st_ino)
+        or (
+            metadata.st_dev,
+            metadata.st_ino,
+            metadata.st_size,
+            metadata.st_mode,
+            metadata.st_uid,
+        )
         != (
             path_metadata.st_dev,
             path_metadata.st_ino,
+            path_metadata.st_size,
+            path_metadata.st_mode,
+            path_metadata.st_uid,
         )
     ):
         raise RuntimeError(f"Dependency file identity changed while it was read: {path}")
-    return FileSnapshot(
-        digest=digest.hexdigest(),
-        mode=stat.S_IMODE(metadata.st_mode),
-        device=metadata.st_dev,
-        inode=metadata.st_ino,
-        size=metadata.st_size,
+    content = b"".join(chunks)
+    return FileCapture(
+        content=content,
+        snapshot=FileSnapshot(
+            digest=hashlib.sha256(content).hexdigest(),
+            mode=stat.S_IMODE(metadata.st_mode),
+            device=metadata.st_dev,
+            inode=metadata.st_ino,
+            owner_uid=metadata.st_uid,
+            size=metadata.st_size,
+        ),
     )
+
+
+def _snapshot(path: Path) -> FileSnapshot:
+    return _capture_file(path).snapshot
 
 
 def _assert_snapshot(path: Path, expected: FileSnapshot) -> None:
@@ -269,12 +303,40 @@ def _validate_source_manifest(
     visited: set[Path] | None = None,
     allow_directives: tuple[str, ...] = (),
 ) -> tuple[Path, ...]:
+    captures: dict[Path, FileCapture] = {}
+    return _capture_and_validate_source_manifest(
+        repo_root,
+        source_path,
+        captures=captures,
+        visited=visited,
+        allow_directives=allow_directives,
+    )
+
+
+def _capture_and_validate_source_manifest(
+    repo_root: Path,
+    source_path: Path,
+    *,
+    captures: dict[Path, FileCapture],
+    visited: set[Path] | None = None,
+    allow_directives: tuple[str, ...] = (),
+) -> tuple[Path, ...]:
+    """Capture and validate the exact manifest bytes later exposed to the resolver."""
+
     visited = set() if visited is None else visited
     if source_path in visited:
         return ()
     visited.add(source_path)
+    capture = captures.get(source_path)
+    if capture is None:
+        capture = _capture_file(source_path)
+        captures[source_path] = capture
+    try:
+        source_text = capture.content.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise RuntimeError(f"Dependency manifest must be UTF-8: {source_path.name}") from exc
     referenced_paths: list[Path] = []
-    for raw_line in source_path.read_text(encoding="utf-8").splitlines():
+    for raw_line in source_text.splitlines():
         line = raw_line.split("#", 1)[0].strip()
         if not line:
             continue
@@ -283,7 +345,12 @@ def _validate_source_manifest(
             referenced_path = _validated_repo_file(repo_root, referenced)
             referenced_paths.append(referenced_path)
             referenced_paths.extend(
-                _validate_source_manifest(repo_root, referenced_path, visited=visited)
+                _capture_and_validate_source_manifest(
+                    repo_root,
+                    referenced_path,
+                    captures=captures,
+                    visited=visited,
+                )
             )
             continue
         if line in allow_directives:
@@ -301,6 +368,31 @@ def _validate_source_manifest(
                 f"Direct URL requirements are forbidden in {source_path.name}: {line!r}"
             )
     return tuple(dict.fromkeys(referenced_paths))
+
+
+def _materialize_resolver_inputs(
+    *,
+    repo_root: Path,
+    captures: Mapping[Path, FileCapture],
+    destination_root: Path,
+) -> tuple[tuple[Path, FileSnapshot], ...]:
+    """Write descriptor-captured manifests into one private resolver-only tree."""
+
+    materialized: list[tuple[Path, FileSnapshot]] = []
+    for source_path, capture in captures.items():
+        try:
+            relative_path = source_path.relative_to(repo_root)
+        except ValueError as exc:
+            raise RuntimeError(f"Dependency source escapes the repository: {source_path}") from exc
+        destination = destination_root / relative_path
+        destination.parent.mkdir(parents=True, mode=0o700, exist_ok=True)
+        descriptor = os.open(destination, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(descriptor, "wb") as output:
+            output.write(capture.content)
+            output.flush()
+            os.fsync(output.fileno())
+        materialized.append((destination, _snapshot(destination)))
+    return tuple(materialized)
 
 
 def _exact_pin_map(text: str, *, label: str) -> dict[str, ExactPin]:
@@ -421,8 +513,8 @@ def _reject_ambient_resolver_overrides(environment: Mapping[str, str]) -> None:
         )
 
 
-def _validated_netrc_snapshot(netrc_path: Path) -> FileSnapshot | None:
-    """Return a stable snapshot for a private, user-owned default netrc file."""
+def _validated_netrc_capture(netrc_path: Path) -> FileCapture | None:
+    """Capture a private, user-owned default netrc through a no-follow descriptor."""
 
     try:
         metadata = netrc_path.lstat()
@@ -431,15 +523,32 @@ def _validated_netrc_snapshot(netrc_path: Path) -> FileSnapshot | None:
     if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
         raise RuntimeError("Default ~/.netrc must be a regular non-symlink file.")
     effective_uid = getattr(os, "geteuid", None)
-    if effective_uid is not None and metadata.st_uid != effective_uid():
+    if not callable(effective_uid):
+        raise RuntimeError(
+            "Governed lock compilation requires POSIX effective-UID ownership checks."
+        )
+    capture = _capture_file(netrc_path)
+    if capture.snapshot.owner_uid != effective_uid():
         raise RuntimeError("Default ~/.netrc must be owned by the effective user.")
-    mode = stat.S_IMODE(metadata.st_mode)
-    if mode & 0o077:
+    if capture.snapshot.mode & 0o077:
         raise RuntimeError("Default ~/.netrc permissions must be no broader than 0600.")
-    return _snapshot(netrc_path)
+    return capture
 
 
-def _private_proxy_child_env(environment: Mapping[str, str]) -> dict[str, str]:
+def _write_private_capture(path: Path, capture: FileCapture) -> FileSnapshot:
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(descriptor, "wb") as output:
+        output.write(capture.content)
+        output.flush()
+        os.fsync(output.fileno())
+    return _snapshot(path)
+
+
+def _private_proxy_child_env(
+    environment: Mapping[str, str],
+    *,
+    resolver_home: Path,
+) -> dict[str, str]:
     _reject_ambient_resolver_overrides(environment)
     if environment.get("PULSEPLATE_PYTHON_NETRC", "").strip():
         raise RuntimeError(
@@ -456,13 +565,19 @@ def _private_proxy_child_env(environment: Mapping[str, str]) -> dict[str, str]:
     hostname = urlparse(canonical_index).hostname
     if hostname is None:
         raise RuntimeError("Approved private proxy URL has no hostname.")
-    resolver_home = Path(environment.get("HOME", str(Path.home())))
-    netrc_path = resolver_home / ".netrc"
-    netrc_snapshot = _validated_netrc_snapshot(netrc_path)
-    basic_auth_from_netrc(hostname, netrc_file=netrc_path)
-    if netrc_snapshot is not None:
-        if _validated_netrc_snapshot(netrc_path) != netrc_snapshot:
-            raise RuntimeError("Default ~/.netrc changed while credentials were validated.")
+    if resolver_home.is_symlink() or not resolver_home.is_dir():
+        raise RuntimeError("Resolver HOME must be a private regular directory.")
+    os.chmod(resolver_home, 0o700)
+    source_home = Path(environment.get("HOME", str(Path.home())))
+    source_netrc = source_home / ".netrc"
+    netrc_capture = _validated_netrc_capture(source_netrc)
+    resolver_netrc = resolver_home / ".netrc"
+    materialized_snapshot: FileSnapshot | None = None
+    if netrc_capture is not None:
+        materialized_snapshot = _write_private_capture(resolver_netrc, netrc_capture)
+    basic_auth_from_netrc(hostname, netrc_file=resolver_netrc)
+    if materialized_snapshot is not None:
+        _assert_snapshot(resolver_netrc, materialized_snapshot)
 
     child_env = {
         name: value for name in PASSTHROUGH_ENV_VARS if (value := environment.get(name)) is not None
@@ -475,6 +590,7 @@ def _private_proxy_child_env(environment: Mapping[str, str]) -> dict[str, str]:
             "PIP_NO_INPUT": "1",
         }
     )
+    child_env["HOME"] = str(resolver_home)
     return child_env
 
 
@@ -521,18 +637,18 @@ def _prepare_lock(
     source_paths = tuple(
         _validated_repo_file(repo_root, source) for source in surface.compile_sources
     )
-    constraint_paths: list[Path] = []
+    source_captures: dict[Path, FileCapture] = {}
     for source_path in source_paths:
-        constraint_paths.extend(
-            _validate_source_manifest(
-                repo_root,
-                source_path,
-                allow_directives=surface.allow_lock_directives,
-            )
+        _capture_and_validate_source_manifest(
+            repo_root,
+            source_path,
+            captures=source_captures,
+            allow_directives=surface.allow_lock_directives,
         )
-    tracked_source_paths = tuple(dict.fromkeys((*source_paths, *constraint_paths)))
+    source_snapshots = tuple((path, capture.snapshot) for path, capture in source_captures.items())
 
-    baseline_bytes = output_path.read_bytes()
+    output_capture = _capture_file(output_path)
+    baseline_bytes = output_capture.content
     baseline_text = baseline_bytes.decode("utf-8")
     baseline_pins = _exact_pin_map(baseline_text, label=f"{surface.lockfile} baseline")
     for package in upgrades:
@@ -542,56 +658,67 @@ def _prepare_lock(
                 f"{package}"
             )
 
-    output_snapshot = _snapshot(output_path)
-    source_snapshots = tuple((path, _snapshot(path)) for path in tracked_source_paths)
+    output_snapshot = output_capture.snapshot
     descriptor, temp_name = tempfile.mkstemp(
         prefix=f".{output_path.name}.",
         suffix=".candidate",
         dir=output_path.parent,
     )
     candidate_path = Path(temp_name)
-    os.close(descriptor)
     try:
-        shutil.copyfile(output_path, candidate_path)
+        with os.fdopen(descriptor, "wb") as candidate_file:
+            candidate_file.write(baseline_bytes)
+            candidate_file.flush()
+            os.fsync(candidate_file.fileno())
         os.chmod(candidate_path, output_snapshot.mode)
-        command = _build_compile_command(
-            surface=surface,
-            output_path=candidate_path,
-            upgrades=upgrades,
-        )
-        process_env = dict(child_env)
-        process_env["CUSTOM_COMPILE_COMMAND"] = (
-            f'LOCK_PROFILES="{surface.compile_profile}" make requirements-locks'
-        )
-        result = subprocess.run(  # nosec B603: fixed module argv and registry-owned paths (remove-by: 2027-01-31, ref: PR-2142)
-            command,
-            cwd=repo_root,
-            env=process_env,
-            text=True,
-            capture_output=True,
-            check=False,
-            timeout=COMPILE_TIMEOUT_SECONDS,
-        )
-        if result.returncode != 0:
-            detail = redact_text((result.stderr or result.stdout).strip())[-2000:]
-            raise RuntimeError(
-                f"{surface.lockfile}: governed resolver failed with exit "
-                f"{result.returncode}: {detail}"
+        with tempfile.TemporaryDirectory(prefix="pulseplate-lock-inputs-") as input_dir:
+            resolver_input_root = Path(input_dir)
+            os.chmod(resolver_input_root, 0o700)
+            materialized_snapshots = _materialize_resolver_inputs(
+                repo_root=repo_root,
+                captures=source_captures,
+                destination_root=resolver_input_root,
             )
-        for path, snapshot in source_snapshots:
-            _assert_snapshot(path, snapshot)
-        _assert_snapshot(output_path, output_snapshot)
+            command = _build_compile_command(
+                surface=surface,
+                output_path=candidate_path,
+                upgrades=upgrades,
+            )
+            process_env = dict(child_env)
+            process_env["CUSTOM_COMPILE_COMMAND"] = (
+                f'LOCK_PROFILES="{surface.compile_profile}" make requirements-locks'
+            )
+            result = subprocess.run(  # nosec B603: fixed module argv and registry-owned paths (remove-by: 2027-01-31, ref: PR-2142)
+                command,
+                cwd=resolver_input_root,
+                env=process_env,
+                text=True,
+                capture_output=True,
+                check=False,
+                timeout=COMPILE_TIMEOUT_SECONDS,
+            )
+            if result.returncode != 0:
+                detail = redact_text((result.stderr or result.stdout).strip())[-2000:]
+                raise RuntimeError(
+                    f"{surface.lockfile}: governed resolver failed with exit "
+                    f"{result.returncode}: {detail}"
+                )
+            for path, snapshot in materialized_snapshots:
+                _assert_snapshot(path, snapshot)
+            for path, snapshot in source_snapshots:
+                _assert_snapshot(path, snapshot)
+            _assert_snapshot(output_path, output_snapshot)
 
-        candidate_body = candidate_path.read_text(encoding="utf-8").lstrip("\n")
-        rendered = render_governed_lock_header(surface) + candidate_body
-        _validate_candidate_delta(
-            surface=surface,
-            baseline_text=baseline_text,
-            candidate_text=rendered,
-            upgrades=upgrades,
-            graph_changes=graph_changes,
-            repo_root=repo_root,
-        )
+            candidate_body = candidate_path.read_text(encoding="utf-8").lstrip("\n")
+            rendered = render_governed_lock_header(surface) + candidate_body
+            _validate_candidate_delta(
+                surface=surface,
+                baseline_text=baseline_text,
+                candidate_text=rendered,
+                upgrades=upgrades,
+                graph_changes=graph_changes,
+                repo_root=resolver_input_root,
+            )
         with candidate_path.open("w", encoding="utf-8", newline="\n") as candidate_file:
             candidate_file.write(rendered)
             candidate_file.flush()
@@ -686,60 +813,62 @@ def compile_selected_profiles(
         profiles=profiles,
         graph_changes=graph_changes,
     )
-    child_env = _private_proxy_child_env(environment)
-    prepared: list[PreparedLock] = []
-    replaced: list[PreparedLock] = []
-    try:
-        for profile in profiles:
-            prepared.append(
-                _prepare_lock(
-                    repo_root=repo_root,
-                    surface=registry[profile],
-                    upgrades=upgrades,
-                    graph_changes=graph_changes,
-                    child_env=child_env,
-                )
-            )
-        for candidate in prepared:
-            for path, snapshot in candidate.source_snapshots:
-                _assert_snapshot(path, snapshot)
-            _assert_snapshot(candidate.output_path, candidate.output_snapshot)
-            _assert_snapshot(candidate.candidate_path, candidate.candidate_snapshot)
+    with tempfile.TemporaryDirectory(prefix="pulseplate-lock-home-") as home_dir:
+        resolver_home = Path(home_dir)
+        child_env = _private_proxy_child_env(environment, resolver_home=resolver_home)
+        prepared: list[PreparedLock] = []
+        replaced: list[PreparedLock] = []
         try:
-            for candidate in prepared:
-                _assert_snapshot(candidate.candidate_path, candidate.candidate_snapshot)
-                os.replace(candidate.candidate_path, candidate.output_path)
-                replaced.append(candidate)
-                _fsync_directory(candidate.output_path.parent)
-            for candidate in prepared:
-                print(
-                    "Updated governed lock profile "
-                    f"{candidate.surface.compile_profile}: {candidate.surface.lockfile}"
+            for profile in profiles:
+                prepared.append(
+                    _prepare_lock(
+                        repo_root=repo_root,
+                        surface=registry[profile],
+                        upgrades=upgrades,
+                        graph_changes=graph_changes,
+                        child_env=child_env,
+                    )
                 )
-        except Exception as replacement_error:
-            rollback_errors: list[str] = []
-            for candidate in reversed(replaced):
-                try:
-                    _atomic_write_bytes(
-                        candidate.output_path,
-                        candidate.baseline_bytes,
-                        candidate.output_snapshot.mode,
+            for candidate in prepared:
+                for path, snapshot in candidate.source_snapshots:
+                    _assert_snapshot(path, snapshot)
+                _assert_snapshot(candidate.output_path, candidate.output_snapshot)
+                _assert_snapshot(candidate.candidate_path, candidate.candidate_snapshot)
+            try:
+                for candidate in prepared:
+                    _assert_snapshot(candidate.candidate_path, candidate.candidate_snapshot)
+                    os.replace(candidate.candidate_path, candidate.output_path)
+                    replaced.append(candidate)
+                    _fsync_directory(candidate.output_path.parent)
+                for candidate in prepared:
+                    print(
+                        "Updated governed lock profile "
+                        f"{candidate.surface.compile_profile}: {candidate.surface.lockfile}"
                     )
-                except Exception as rollback_error:  # pragma: no cover - catastrophic FS fault
-                    rollback_errors.append(
-                        f"{candidate.surface.lockfile}: {type(rollback_error).__name__}"
-                    )
-            if rollback_errors:
+            except Exception as replacement_error:
+                rollback_errors: list[str] = []
+                for candidate in reversed(replaced):
+                    try:
+                        _atomic_write_bytes(
+                            candidate.output_path,
+                            candidate.baseline_bytes,
+                            candidate.output_snapshot.mode,
+                        )
+                    except Exception as rollback_error:  # pragma: no cover - catastrophic FS fault
+                        rollback_errors.append(
+                            f"{candidate.surface.lockfile}: {type(rollback_error).__name__}"
+                        )
+                if rollback_errors:
+                    raise RuntimeError(
+                        "Lock replacement failed and rollback was incomplete: "
+                        + ", ".join(rollback_errors)
+                    ) from replacement_error
                 raise RuntimeError(
-                    "Lock replacement failed and rollback was incomplete: "
-                    + ", ".join(rollback_errors)
+                    "Lock replacement failed; all previously replaced locks were rolled back."
                 ) from replacement_error
-            raise RuntimeError(
-                "Lock replacement failed; all previously replaced locks were rolled back."
-            ) from replacement_error
-    finally:
-        for candidate in prepared:
-            candidate.candidate_path.unlink(missing_ok=True)
+        finally:
+            for candidate in prepared:
+                candidate.candidate_path.unlink(missing_ok=True)
 
 
 def main() -> int:

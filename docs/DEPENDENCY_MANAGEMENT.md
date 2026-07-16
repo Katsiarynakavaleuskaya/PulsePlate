@@ -348,7 +348,10 @@ replaced locks if a later replacement fails. Lock compilation uses the default
 non-root `~/.netrc`; `PULSEPLATE_PYTHON_NETRC` is rejected because pip does not
 consume that application-specific override. When present, the default netrc
 must be a regular non-symlink file owned by the effective user with permissions
-no broader than `0600`. Do not call the underlying resolver directly.
+no broader than `0600`; compilation fails closed if the platform cannot establish
+that ownership. The compiler copies descriptor-captured credential and manifest
+bytes into private temporary resolver directories, so later path replacement
+cannot change resolver authority. Do not call the underlying resolver directly.
 
 ### Update a specific dependency
 
