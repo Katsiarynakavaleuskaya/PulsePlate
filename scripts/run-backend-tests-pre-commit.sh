@@ -153,6 +153,8 @@ declare -a PYTHON_DEPENDENCY_TESTCLIENT_SURFACE_FILES=(
     "docs/contracts/PYTHON_DEPENDENCY_SURFACES.md"
     "requirements-dev.in"
     "requirements-dev.txt"
+    "requirements-ci-lite.in"
+    "requirements-ci-lite.txt"
     "requirements-lock.txt"
     "requirements-test.in"
     "requirements-test.txt"

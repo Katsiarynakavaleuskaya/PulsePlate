@@ -349,6 +349,38 @@ def test_operator_outage_override_requires_exact_successful_security_bundle(
     )
 
 
+def test_operator_outage_override_accepts_trusted_skipped_inapplicable_security(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    nodes = [
+        _check_node(
+            name,
+            conclusion="SKIPPED" if name == "security" else "SUCCESS",
+        )
+        for name in merge_gate._OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES
+    ]
+    monkeypatch.setattr(
+        merge_gate,
+        "_fetch_current_head_pr_metadata",
+        lambda *_a, **_k: (False, "CLEAN", "main", nodes),
+    )
+
+    merge_gate._validate_operator_outage_security_checks(
+        repository="owner/repo",
+        pr_number=42,
+        token="opaque",
+        security_required=merge_gate._operator_outage_security_required(("docs/README.md",)),
+    )
+
+
+def test_operator_outage_security_applicability_uses_material_risk_profile() -> None:
+    assert merge_gate._operator_outage_security_required(("docs/README.md",)) is False
+    assert (
+        merge_gate._operator_outage_security_required(("scripts/ci/check_pr_merge_readiness.py",))
+        is True
+    )
+
+
 def test_operator_outage_override_rejects_newer_queued_security_attempt(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -502,6 +534,7 @@ def test_operator_outage_override_rejects_unorderable_newer_security_attempt(
     ("target", "status", "conclusion", "expected"),
     [
         ("security", "IN_PROGRESS", "", "security=pending/status"),
+        ("security", "COMPLETED", "SKIPPED", "security=failed/SKIPPED"),
         ("CodeQL", "COMPLETED", "SKIPPED", "CodeQL=failed/SKIPPED"),
         ("security-scan", "COMPLETED", "FAILURE", "security-scan=failed/FAILURE"),
     ],
@@ -923,6 +956,21 @@ def test_ci_gate_revalidates_live_operator_outage_override(
     assert validated["codex_security"]["status"] == "tooling_unavailable"
     assert override_calls == [(material_head, frozen.digest)]
     assert check_calls == [1]
+
+    override_calls.clear()
+    check_calls.clear()
+    validated = merge_gate._validate_v1_seal(
+        artifact_text=artifact,
+        repository="owner/repo",
+        pr_number=42,
+        snapshot=snapshot,
+        token="opaque",
+        validate_outage_security_checks=False,
+    )
+
+    assert validated["codex_security"]["status"] == "tooling_unavailable"
+    assert override_calls == [(material_head, frozen.digest)]
+    assert check_calls == []
 
 
 def test_merge_readiness_main_blocks_missing_mapping(

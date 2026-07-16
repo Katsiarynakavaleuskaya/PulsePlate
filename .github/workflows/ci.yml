@@ -435,7 +435,12 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          python scripts/ci/check_pr_merge_readiness.py --event-path "$GITHUB_EVENT_PATH"
+          # This job runs concurrently with CodeQL and Docker security workflows.
+          # The terminal authenticated merge wrapper revalidates their exact
+          # current-head identities after every required check has settled.
+          python scripts/ci/check_pr_merge_readiness.py \
+            --event-path "$GITHUB_EVENT_PATH" \
+            --defer-outage-security-checks
 
   private_python_proxy_health:
     name: Private Python proxy health

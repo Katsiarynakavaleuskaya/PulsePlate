@@ -18,6 +18,7 @@ import sys
 import urllib.error
 import urllib.parse
 import urllib.request
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, cast
@@ -64,6 +65,7 @@ from scripts.ci.check_current_head_pr_checks import (  # noqa: E402
     _normalize_node as _normalize_check_node,
     _suppress_stale_latest_entries_with_newer_workflow_activity as _suppress_stale_check_entries,
 )
+from scripts.ci.ci_risk_profile import build_risk_profile  # noqa: E402
 
 # Set to governance PR number + 1 immediately after that PR is opened.  ``None``
 # deliberately blocks CI v1 activation finalization until the PR number exists.
@@ -434,7 +436,7 @@ def _is_ghas_thread(thread: ReviewThreadEvidence) -> bool:
 
 
 def _validate_operator_outage_security_checks(
-    *, repository: str, pr_number: int, token: str
+    *, repository: str, pr_number: int, token: str, security_required: bool = True
 ) -> None:
     """Require a strict successful current-head security bundle for outage overrides."""
 
@@ -487,7 +489,15 @@ def _validate_operator_outage_security_checks(
         if entry is None:  # Defensive: candidates were present above.
             failures.append(f"{name}=missing-latest")
             continue
-        if entry.source_kind == "check_run":
+        if (
+            name == "security"
+            and not security_required
+            and entry.source_kind == "check_run"
+            and entry.state == "failed"
+            and entry.conclusion == "SKIPPED"
+        ):
+            passed = True
+        elif entry.source_kind == "check_run":
             passed = entry.state == "passed" and entry.conclusion == "SUCCESS"
         else:
             passed = entry.state == "passed"
@@ -500,6 +510,12 @@ def _validate_operator_outage_security_checks(
         )
 
 
+def _operator_outage_security_required(material_paths: Iterable[str]) -> bool:
+    """Recompute security-job applicability from the sealed material paths."""
+
+    return build_risk_profile(tuple(material_paths)).run_security
+
+
 def _validate_v1_seal(
     *,
     artifact_text: str,
@@ -507,6 +523,7 @@ def _validate_v1_seal(
     pr_number: int,
     snapshot: PrSnapshot,
     token: str,
+    validate_outage_security_checks: bool = True,
 ) -> dict[str, Any]:
     seal = cast(dict[str, Any], parse_embedded_review_seal(artifact_text))
     if seal["repository"] != repository or seal["pr_number"] != pr_number:
@@ -600,11 +617,15 @@ def _validate_v1_seal(
         )
         if security_receipt != expected_receipt:
             raise ReviewEvidenceError("Codex Security operator outage override receipt is stale")
-        _validate_operator_outage_security_checks(
-            repository=repository,
-            pr_number=pr_number,
-            token=token,
-        )
+        if validate_outage_security_checks:
+            _validate_operator_outage_security_checks(
+                repository=repository,
+                pr_number=pr_number,
+                token=token,
+                security_required=_operator_outage_security_required(
+                    entry.path for entry in manifest.entries
+                ),
+            )
     return seal
 
 
@@ -686,12 +707,22 @@ def main() -> int:
         "--repo",
         help="Repo full name owner/repo for local/agent run (e.g. Katsiarynakavaleuskaya/PulsePlate).",
     )
+    parser.add_argument(
+        "--defer-outage-security-checks",
+        action="store_true",
+        help=(
+            "CI-only: defer cross-workflow outage security-bundle validation to "
+            "the terminal authenticated merge-readiness wrapper."
+        ),
+    )
     args = parser.parse_args()
     # Mutually exclusive: CI mode (--event-path) vs local/agent mode (--pr-number + --repo).
     if args.event_path and (args.pr_number is not None or (args.repo or "").strip()):
         parser.error("Use either --event-path (CI) or --pr-number and --repo (local), not both.")
     if (args.pr_number is not None) != bool((args.repo or "").strip()):
         parser.error("For local/agent mode provide both --pr-number and --repo.")
+    if args.defer_outage_security_checks and not args.event_path:
+        parser.error("--defer-outage-security-checks requires --event-path CI mode.")
 
     token = os.getenv("GITHUB_TOKEN", "").strip()
     if not token:
@@ -800,6 +831,7 @@ def main() -> int:
                     pr_number=pr_number,
                     snapshot=snapshot,
                     token=token,
+                    validate_outage_security_checks=not args.defer_outage_security_checks,
                 )
                 _prove_v1_fixed_commits(
                     mapping_entries=mapping_entries,

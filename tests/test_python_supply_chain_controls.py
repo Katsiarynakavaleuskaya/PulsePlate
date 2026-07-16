@@ -1189,6 +1189,12 @@ def test_coverage_html_context_is_safely_escaped(tmp_path: Path) -> None:
 
 def test_coverage_canary_runs_in_ci_lite_pre_commit() -> None:
     runner = (REPO_ROOT / "scripts/run-backend-tests-pre-commit.sh").read_text(encoding="utf-8")
+    dependency_surface_block = runner.split(
+        "declare -a PYTHON_DEPENDENCY_TESTCLIENT_SURFACE_FILES=(", 1
+    )[1].split("\n)", 1)[0]
+    dependency_test_block = runner.split("add_python_dependency_testclient_tests() {", 1)[1].split(
+        "\n}", 1
+    )[0]
     deselect = (
         "--deselect=tests/test_python_supply_chain_controls.py::"
         "test_coverage_html_context_is_safely_escaped"
@@ -1196,6 +1202,11 @@ def test_coverage_canary_runs_in_ci_lite_pre_commit() -> None:
     requirements_ci_lite = (REPO_ROOT / "requirements-ci-lite.txt").read_text(encoding="utf-8")
 
     assert deselect not in runner
+    assert '"requirements-ci-lite.in"' in dependency_surface_block
+    assert '"requirements-ci-lite.txt"' in dependency_surface_block
+    assert (
+        'EXTRA_TEST_FILES+=("tests/test_python_supply_chain_controls.py")' in dependency_test_block
+    )
     assert "coverage==7.15.1" in requirements_ci_lite
 
 
