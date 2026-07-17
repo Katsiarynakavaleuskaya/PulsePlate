@@ -766,6 +766,50 @@ def test_retained_prepare_returns_defensive_snapshot_copies(
     assert historical == historical_before
 
 
+def test_retained_prepare_rejects_numeric_type_drift() -> None:
+    packet = _packet()
+    snapshots = creative_code_spec_pipeline.build_default_prepare_artifacts(packet)
+    expected_source = creative_code_spec_pipeline.build_default_prepare_artifacts(packet)[
+        "source_packet.json"
+    ]
+    variant_count = packet["variant_count"]
+    assert isinstance(variant_count, int) and not isinstance(variant_count, bool)
+    snapshots["source_packet.json"]["variant_count"] = float(variant_count)
+    assert snapshots["source_packet.json"] == expected_source
+
+    with pytest.raises(
+        CreativeCodeSpecPipelineError,
+        match="retained source_packet.json is not canonical",
+    ):
+        creative_code_spec_pipeline.validate_default_prepare_artifact_snapshots(
+            snapshots,
+            expected_packet=packet,
+            historical_context_char_counts=_historical_context_char_counts(packet),
+        )
+
+
+@pytest.mark.parametrize("nonfinite", [float("nan"), float("inf"), float("-inf")])
+def test_retained_prepare_rejects_nonfinite_json_without_value_leak(nonfinite: float) -> None:
+    packet = _packet()
+    snapshots = creative_code_spec_pipeline.build_default_prepare_artifacts(packet)
+    snapshots["source_packet.json"]["variant_count"] = nonfinite
+
+    with pytest.raises(
+        CreativeCodeSpecPipelineError,
+        match=(
+            "^adaptive_source_lineage_mismatch: retained prepare artifact is not "
+            "deterministic JSON-compatible data$"
+        ),
+    ) as exc_info:
+        creative_code_spec_pipeline.validate_default_prepare_artifact_snapshots(
+            snapshots,
+            expected_packet=packet,
+            historical_context_char_counts=_historical_context_char_counts(packet),
+        )
+
+    assert repr(nonfinite) not in str(exc_info.value)
+
+
 def test_retained_prepare_normalizes_size_derived_no_reduction_reason(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1065,6 +1109,36 @@ def test_prepare_exact_preserves_legacy_prepare_and_rejects_test_drift(
             expected_packet=packet,
             expected_variants=exact,
         )
+        exact_source_path = exact_dir / "source_packet.json"
+        exact_source_bytes = exact_source_path.read_bytes()
+        exact_source = json.loads(exact_source_bytes)
+        exact_source["variant_count"] = float(exact_source["variant_count"])
+        assert exact_source == packet
+        exact_source_path.write_text(json.dumps(exact_source), encoding="utf-8")
+        with pytest.raises(
+            CreativeCodeSpecPipelineError,
+            match="adaptive_prepare_source_packet_mismatch",
+        ):
+            creative_code_spec_pipeline.validate_exact_prepare_artifacts(
+                run_dir=exact_dir,
+                expected_packet=packet,
+                expected_variants=exact,
+            )
+        exact_source["variant_count"] = float("nan")
+        exact_source_path.write_text(json.dumps(exact_source), encoding="utf-8")
+        with pytest.raises(
+            CreativeCodeSpecPipelineError,
+            match=(
+                "^adaptive_source_lineage_mismatch: retained prepare artifact is not "
+                "deterministic JSON-compatible data$"
+            ),
+        ):
+            creative_code_spec_pipeline.validate_exact_prepare_artifacts(
+                run_dir=exact_dir,
+                expected_packet=packet,
+                expected_variants=exact,
+            )
+        exact_source_path.write_bytes(exact_source_bytes)
         exact_context_path = exact_dir / "context_pack.json"
         exact_context_bytes = exact_context_path.read_bytes()
         historical_context = _historical_default_prepare_artifacts(monkeypatch, packet)[

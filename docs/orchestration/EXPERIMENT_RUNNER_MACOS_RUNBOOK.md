@@ -6,8 +6,9 @@ promotion, merge, release, GitHub App, or Slack authority.
 ## Purpose
 
 The macOS dispatcher preserves the canonical `network_budget=0` contract by
-running the existing Linux Experiment Runner in an isolated OCI guest. Backend
-selection happens once, before the experiment:
+running the existing Linux Experiment Runner in an isolated OCI guest. For
+general probe and candidate execution, backend selection happens once before
+the experiment:
 
 1. Apple `container` on Apple silicon;
 2. Docker with `--network none` when the Apple probe is not strict;
@@ -17,13 +18,20 @@ There is no mid-run fallback and no retry with a weaker network mode. The
 strict dispatcher accepts only packets whose `network_budget` is exactly zero;
 a non-zero value produces `capability_mismatch` before any runtime probe.
 
+For `oracle_only_governance_reviewer` on macOS, do not use that automatic
+fallback order. `run` accepts only explicit `--backend apple-container` and
+rejects `auto`, `docker`, and `native-linux` before runtime probing or result
+creation. Apple capability loss is terminal `capability_mismatch`; it never
+falls back to Docker.
+
 ## Host prerequisites
 
 - Apple silicon and supported macOS for Apple Container 1.1.0;
 - official signed Apple package installed;
 - `container system start` completed;
 - recommended kernel configured when requested by the runtime;
-- Docker Desktop is an optional fallback, not a co-required runtime;
+- Docker Desktop is an optional general candidate/negative-control fallback,
+  not a macOS Oracle runtime or co-required runtime;
 - approved private Python proxy is available only during image build.
 
 Do not add `CAP_SYS_ADMIN`, mount a runtime socket, or change
@@ -125,7 +133,7 @@ Oracle-only governance evidence:
 
 ```bash
 python3 scripts/orchestration/experiment_runner_dispatch.py run \
-  --backend auto \
+  --backend apple-container \
   --packet artifacts/orchestration/experiments/packets/<packet>.json \
   --image pulseplate/experiment-runner:mac-local@sha256:<digest> \
   --output <result>.json
@@ -137,7 +145,7 @@ one literal argv value, including when it contains spaces:
 
 ```bash
 python3 scripts/orchestration/experiment_runner_dispatch.py run \
-  --backend auto \
+  --backend apple-container \
   --packet artifacts/orchestration/experiments/packets/<packet>.json \
   --image pulseplate/experiment-runner:mac-local@sha256:<digest> \
   --output <result>.json \
@@ -150,8 +158,9 @@ Omit all three attribution flags when the Runner contribution is not material.
 The dispatcher validates the tuple before backend selection and accepts a
 material tuple only for oracle-only governance review. Candidate-patch mode
 rejects material/non-default attribution. The same validated tuple is forwarded
-as exact inner-runner argv on Apple Container and Docker; default tuples add no
-inner argv. After collection and redaction, the host dispatcher requires an
+as exact inner-runner argv; on macOS the material Oracle path is Apple Container
+only, while default candidate tuples retain Apple/Docker parity and add no inner
+argv. After collection and redaction, the host dispatcher requires an
 accepted result's attribution tuple to equal the requested normalized tuple
 exactly; a rejected result must use canonical `contribution_kind: none`,
 `coauthor_required: false`, and `coauthor_reason: ""`. Any mismatch fails as
@@ -200,9 +209,11 @@ or substitute an image after preflight.
 - `result_volume_failed`, `container_cleanup_failed`;
 - `probe_execution_failed`.
 
-Automatic Apple-to-Docker fallback is allowed only after Apple preflight
-cleanup completes. `container_cleanup_failed` is terminal because residual
-resources may remain; `auto` must not probe or start another backend.
+For general probe/candidate execution, automatic Apple-to-Docker fallback is
+allowed only after Apple preflight cleanup completes. It is never allowed for
+macOS Oracle-only governance review. `container_cleanup_failed` is terminal
+because residual resources may remain; `auto` must not probe or start another
+backend.
 
 After the experiment starts, any runtime failure remains on the selected
 backend and is reported without trying Docker, Apple Container, or a networked

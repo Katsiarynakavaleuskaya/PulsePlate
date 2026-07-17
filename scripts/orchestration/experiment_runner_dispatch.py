@@ -32,6 +32,10 @@ if str(DISPATCH_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(DISPATCH_REPO_ROOT))
 
 from scripts.orchestration.context_pack import REPO_ROOT
+from scripts.orchestration.creative_code_patch_workspace import (
+    git_env_without_parent_state as _sanitized_git_env_without_parent_state,
+    safe_git_config_args as _safe_git_config_args,
+)
 from scripts.orchestration.experiment_contract import (
     CONTRIBUTION_KINDS,
     IMAGE_DIGEST_RE,
@@ -320,11 +324,12 @@ def _run(
     timeout: int = 30,
     input_text: str | None = None,
     secret_env_keys: tuple[str, ...] = (),
+    env_override: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     if not argv or not Path(argv[0]).is_absolute():
         raise DispatchError("runtime_cli_missing")
     try:
-        child_env = _safe_env()
+        child_env = dict(env_override) if env_override is not None else _safe_env()
         child_env.update({key: os.environ[key] for key in secret_env_keys if os.environ.get(key)})
         return subprocess.run(  # nosec B603: argv begins with resolved absolute executable, no shell (remove-by: 2026-10-31, ref: ledger-p1-experiment-runner-macos-strict-backend)
             argv,
@@ -1354,10 +1359,41 @@ def _git_binary() -> str:
     return git
 
 
+def _safe_git_config_args_for(cwd: Path, *, bind_work_tree: bool = True) -> tuple[Path, list[str]]:
+    """Resolve one Git cwd and clamp local config before trusting it."""
+
+    try:
+        resolved_cwd = cwd.expanduser().resolve(strict=True)
+    except OSError as exc:
+        raise DispatchError("probe_execution_failed") from exc
+    if not resolved_cwd.is_dir():
+        raise DispatchError("probe_execution_failed")
+    args = [
+        *_safe_git_config_args(),
+        "-c",
+        f"core.worktree={resolved_cwd}",
+        "-c",
+        f"safe.directory={resolved_cwd}",
+    ]
+    if bind_work_tree:
+        args.insert(0, f"--work-tree={resolved_cwd}")
+    return resolved_cwd, args
+
+
 def _git(
-    args: list[str], *, cwd: Path, input_text: str | None = None
+    args: list[str],
+    *,
+    cwd: Path,
+    input_text: str | None = None,
+    bind_work_tree: bool = True,
 ) -> subprocess.CompletedProcess[str]:
-    result = _run([_git_binary(), *args], cwd=cwd, input_text=input_text)
+    resolved_cwd, safe_config = _safe_git_config_args_for(cwd, bind_work_tree=bind_work_tree)
+    result = _run(
+        [_git_binary(), *safe_config, *args],
+        cwd=resolved_cwd,
+        input_text=input_text,
+        env_override=_sanitized_git_env_without_parent_state(),
+    )
     if result.returncode != 0:
         raise DispatchError("probe_execution_failed")
     return result
@@ -1365,10 +1401,24 @@ def _git(
 
 def _create_snapshot(root: Path, destination: Path) -> str:
     before = _git(["status", "--short", "--untracked-files=no"], cwd=root).stdout
-    _git(["clone", "--quiet", "--no-hardlinks", str(root), str(destination)], cwd=root)
+    _git(
+        [
+            "clone",
+            "--quiet",
+            "--no-checkout",
+            "--no-hardlinks",
+            str(root),
+            str(destination),
+        ],
+        cwd=root,
+        bind_work_tree=False,
+    )
     head = _git(["rev-parse", "HEAD"], cwd=root).stdout.strip()
     _git(["checkout", "--quiet", "--detach", head], cwd=destination)
-    tracked_diff = _git(["diff", "--binary", "HEAD"], cwd=root).stdout
+    tracked_diff = _git(
+        ["diff", "--no-ext-diff", "--no-textconv", "--binary", "HEAD"],
+        cwd=root,
+    ).stdout
     if tracked_diff:
         _git(["apply", "--index", "--binary", "-"], cwd=destination, input_text=tracked_diff)
     after = _git(["status", "--short", "--untracked-files=no"], cwd=root).stdout
@@ -1982,6 +2032,14 @@ def main(argv: list[str] | None = None) -> int:
                 )
             if candidate_patch is None:
                 raise ValueError("Candidate-patch packets require --candidate-patch.")
+        if (
+            platform.system() == "Darwin"
+            and packet["runner_mode"] == ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE
+            and args.backend != "apple-container"
+        ):
+            raise ValueError(
+                "macOS oracle-only governance review requires explicit --backend apple-container"
+            )
         if int(packet["budgets"]["network_budget"]) != 0:
             probe = _strict_network_budget_probe(args.backend, image)
             result = _capability_mismatch_result(packet, image, probe)
