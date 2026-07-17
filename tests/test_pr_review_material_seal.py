@@ -471,8 +471,12 @@ def test_codex_review_reference_requires_exact_trusted_submitted_review() -> Non
         )
 
 
-def _codex_no_findings_body(commit_prefix: str = HEAD_SHA[:10]) -> str:
-    return f"""Codex Review: Didn't find any major issues. Breezy!
+def _codex_no_findings_body(
+    commit_prefix: str = HEAD_SHA[:10],
+    *,
+    summary: str = "Codex Review: Didn't find any major issues. Breezy!",
+) -> str:
+    return f"""{summary}
 
 **Reviewed commit:** `{commit_prefix}`
 
@@ -533,6 +537,31 @@ def test_codex_no_findings_comment_is_bound_to_expected_full_head() -> None:
         "https://api.github.com/repos/owner/repo/issues/comments/456",
         f"https://api.github.com/repos/owner/repo/commits/{HEAD_SHA[:10]}",
     ]
+
+
+def test_codex_no_findings_comment_accepts_current_connector_summary() -> None:
+    reference = "https://github.com/owner/repo/pull/42#issuecomment-456"
+
+    def request_json(url: str, **_kwargs: Any) -> Any:
+        if url.endswith("/commits/" + HEAD_SHA[:10]):
+            return {"sha": HEAD_SHA}
+        return _codex_no_findings_comment(
+            reference,
+            body=_codex_no_findings_body(
+                summary="Codex Review: Didn't find any major issues. Nice work!"
+            ),
+        )
+
+    evidence = verify_codex_review_reference(
+        reference,
+        repository="owner/repo",
+        pr_number=42,
+        token="opaque",
+        expected_commit_ref=HEAD_SHA,
+        request_json=request_json,
+    )
+
+    assert evidence.commit_ref == HEAD_SHA
 
 
 @pytest.mark.parametrize(

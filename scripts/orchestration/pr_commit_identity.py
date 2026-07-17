@@ -33,7 +33,12 @@ _CODEX_CONNECTOR_APP_ID = 1_144_995
 _CODEX_CONNECTOR_APP_SLUG = "chatgpt-codex-connector"
 _CODEX_CONNECTOR_OWNER = "openai"
 _CODEX_REVIEWED_COMMIT_RE = re.compile(r"^\*\*Reviewed commit:\*\* `(?P<commit>[0-9a-f]{10})`$")
-_CODEX_NO_FINDINGS_SUMMARIES = frozenset({"Codex Review: Didn't find any major issues. Breezy!"})
+_CODEX_NO_FINDINGS_SUMMARIES = frozenset(
+    {
+        "Codex Review: Didn't find any major issues. Breezy!",
+        "Codex Review: Didn't find any major issues. Nice work!",
+    }
+)
 _CODEX_NO_FINDINGS_DETAILS = """<details> <summary>ℹ️ About Codex in GitHub</summary>
 <br/>
 
