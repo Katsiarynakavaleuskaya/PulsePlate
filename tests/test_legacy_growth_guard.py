@@ -3372,6 +3372,16 @@ def test_legacy_growth_guard_honors_later_literal_after_unresolved_unpack() -> N
     assert legacy_guard.validate_legacy_growth(source) == []
 
 
+def test_legacy_growth_guard_keeps_known_safe_mapping_unpack_clean() -> None:
+    source = textwrap.dedent("""
+        routes = {"route": None}
+        register = {"route": None, **routes}["route"]
+        register("/api/v1/not-a-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
 @pytest.mark.parametrize(
     "invocation",
     [

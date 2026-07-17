@@ -671,6 +671,24 @@ def _unpacked_mapping_reference(
     return reference
 
 
+def _collection_element_reference(
+    node: ast.AST,
+    *,
+    module_aliases: Mapping[str, str],
+    import_module_aliases: AbstractSet[str],
+    static_string_bindings: Mapping[str, str],
+) -> str | None:
+    reference = _static_module_reference(
+        node,
+        module_aliases=module_aliases,
+        import_module_aliases=import_module_aliases,
+        static_string_bindings=static_string_bindings,
+    )
+    if reference is None and isinstance(node, (ast.Constant, ast.JoinedStr)):
+        return _KNOWN_NON_APP_REFERENCE
+    return reference
+
+
 def _static_module_reference(
     node: ast.AST,
     *,
@@ -690,7 +708,7 @@ def _static_module_reference(
     if isinstance(node, (ast.List, ast.Tuple, ast.Set)):
         return _collection_reference(
             [
-                _static_module_reference(
+                _collection_element_reference(
                     element.value if isinstance(element, ast.Starred) else element,
                     module_aliases=module_aliases,
                     import_module_aliases=import_module_aliases,
@@ -705,7 +723,7 @@ def _static_module_reference(
             [
                 _unpacked_mapping_reference(
                     key,
-                    _static_module_reference(
+                    _collection_element_reference(
                         value,
                         module_aliases=module_aliases,
                         import_module_aliases=import_module_aliases,
@@ -749,8 +767,6 @@ def _static_module_reference(
                 import_module_aliases=import_module_aliases,
                 static_string_bindings=static_string_bindings,
             )
-        if unresolved:
-            return _POSSIBLE_APP_CALL_REFERENCE
         parent = _static_module_reference(
             node.value,
             module_aliases=module_aliases,
@@ -771,6 +787,8 @@ def _static_module_reference(
             return _POSSIBLE_APP_REFERENCE
         if parent == _KNOWN_NON_APP_REFERENCE:
             return _KNOWN_NON_APP_REFERENCE
+        if unresolved:
+            return _POSSIBLE_APP_CALL_REFERENCE
         return None
     if not isinstance(node, ast.Call):
         return None
@@ -2577,11 +2595,9 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     1,
                 )
         if isinstance(node, ast.Subscript):
-            selected, unresolved = _literal_subscript_value(node)
+            selected, _unresolved = _literal_subscript_value(node)
             if selected is not None:
                 return self._resolve_reference(selected)
-            if unresolved:
-                return _POSSIBLE_APP_CALL_REFERENCE
         if self._is_definitely_non_app_value(node):
             return _KNOWN_NON_APP_REFERENCE
         references = self.scope.visible_references()
