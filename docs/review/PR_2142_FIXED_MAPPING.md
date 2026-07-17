@@ -3,7 +3,7 @@
 Review-Seal-Version: v1
 
 ## Lane Start Provenance
-Not applicable: no retained coordinator packet was supplied.
+Packet: `artifacts/orchestration/task_packets/b7e9baaa7ff0.json`
 
 ## Experiment Runner Evidence
 Not applicable: Experiment Runner did not materially contribute.
@@ -129,6 +129,11 @@ Commit: ff6745d84e00aadd330d032042a3559032391e98
 Evidence: scripts/orchestration/pr_commit_identity.py:684-701; tests/test_pr_review_material_seal.py:387-415
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2142#discussion_r3605723072 -> ff6745d84e00aadd330d032042a3559032391e98
 
+Disposition: FIXED
+Commit: 561207c507d6adf2a274ad1ed1e4f8917d3dbc8a
+Evidence: scripts/ci/check_private_python_proxy_health.py:581-586; tests/test_private_python_proxy_health.py:244-269
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2142#discussion_r3606023723 -> 561207c507d6adf2a274ad1ed1e4f8917d3dbc8a
+
 Disposition: NOT-A-BUG
 Evidence: .github/workflows/ci.yml:411-443; scripts/ci/check_pr_merge_readiness.py:517-519
 Reason: Cross-workflow CodeQL and Docker jobs cannot be expressed as CI job needs; the gate intentionally fails closed and documents a targeted rerun only after exact-current-head substitute checks settle.
@@ -137,5 +142,5 @@ Reason: Cross-workflow CodeQL and Docker jobs cannot be expressed as CI job need
 ## Review Material Seal
 <!-- PULSEPLATE_PR_REVIEW_SEAL_V1_BEGIN -->
 <!-- pragma: allowlist nextline secret -->
-{"authority":"human_asserted_content_receipt","code_review":{"review_commit_ref":"c50089d3f0a0ae7523d94a2a7b87a533327bc6ba","review_commit_ref_kind":"repository_commit","review_reference":"https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2142#issuecomment-5007143318","reviewed_material_digest":"sha256:4ebc2e6af8a892076772715437550abbbe44754f02be587542db66fa5f571fbe","status":"completed"},"codex_security":{"authority":"operator_outage_override","base_revision":"b6a3bd2f0b22d2e6c5c93e476e823e891e633a09","created_at":"2026-07-17T20:14:13Z","error_code":"-32001","error_message":"Request timed out","head_revision":"c50089d3f0a0ae7523d94a2a7b87a533327bc6ba","material_digest":"sha256:4ebc2e6af8a892076772715437550abbbe44754f02be587542db66fa5f571fbe","operator_association":"OWNER","operator_login":"Katsiarynakavaleuskaya","operator_user_id":169792616,"outage_class":"codex_security_mcp_timeout","override_reference":"https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2142#issuecomment-5007112766","scan_id":null,"status":"tooling_unavailable"},"material":{"base_ref_oid":"b6a3bd2f0b22d2e6c5c93e476e823e891e633a09","digest":"sha256:4ebc2e6af8a892076772715437550abbbe44754f02be587542db66fa5f571fbe","material_head_sha":"c50089d3f0a0ae7523d94a2a7b87a533327bc6ba","merge_base_sha":"b6a3bd2f0b22d2e6c5c93e476e823e891e633a09","policy_version":"pulseplate.material-classification/v1"},"pr_number":2142,"repository":"Katsiarynakavaleuskaya/PulsePlate","schema_version":"pulseplate.pr-review-seal/v1"}
+{"authority":"human_asserted_content_receipt","code_review":{"review_commit_ref":"907220cae44ee75f90ef8ba3ec4dc53d0297456b","review_commit_ref_kind":"repository_commit","review_reference":"https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2142#issuecomment-5007546818","reviewed_material_digest":"sha256:f40c2283d0f2d36348a4938b56487176569c5546661d25e65406b59fda75a64b","status":"completed"},"codex_security":{"authority":"operator_outage_override","base_revision":"b6a3bd2f0b22d2e6c5c93e476e823e891e633a09","created_at":"2026-07-17T21:13:21Z","error_code":"-32001","error_message":"Request timed out","head_revision":"907220cae44ee75f90ef8ba3ec4dc53d0297456b","material_digest":"sha256:f40c2283d0f2d36348a4938b56487176569c5546661d25e65406b59fda75a64b","operator_association":"OWNER","operator_login":"Katsiarynakavaleuskaya","operator_user_id":169792616,"outage_class":"codex_security_mcp_timeout","override_reference":"https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2142#issuecomment-5007527814","scan_id":null,"status":"tooling_unavailable"},"material":{"base_ref_oid":"b6a3bd2f0b22d2e6c5c93e476e823e891e633a09","digest":"sha256:f40c2283d0f2d36348a4938b56487176569c5546661d25e65406b59fda75a64b","material_head_sha":"907220cae44ee75f90ef8ba3ec4dc53d0297456b","merge_base_sha":"b6a3bd2f0b22d2e6c5c93e476e823e891e633a09","policy_version":"pulseplate.material-classification/v1"},"pr_number":2142,"repository":"Katsiarynakavaleuskaya/PulsePlate","schema_version":"pulseplate.pr-review-seal/v1"}
 <!-- PULSEPLATE_PR_REVIEW_SEAL_V1_END -->
