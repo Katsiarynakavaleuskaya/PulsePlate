@@ -1074,8 +1074,8 @@ def _validate_one_wheel(
             f"{wheel_path.name}: wheel must remain a regular non-symlink file"
         ) from exc
     try:
-        metadata = os.fstat(descriptor)
-        if not stat.S_ISREG(metadata.st_mode):
+        wheel_stat = os.fstat(descriptor)
+        if not stat.S_ISREG(wheel_stat.st_mode):
             raise RuntimeError(f"{wheel_path.name}: wheel artifact is not a regular file")
         digest = hashlib.sha256()
         while chunk := os.read(descriptor, 1024 * 1024):
@@ -1083,7 +1083,7 @@ def _validate_one_wheel(
         _validate_zip_central_directory_bounds(
             descriptor=descriptor,
             wheel_path=wheel_path,
-            file_size=metadata.st_size,
+            file_size=wheel_stat.st_size,
         )
         os.lseek(descriptor, 0, os.SEEK_SET)
         with os.fdopen(descriptor, "rb") as wheel_stream:
@@ -1134,11 +1134,11 @@ def _validate_one_wheel(
             os.close(descriptor)
     path_metadata = wheel_path.lstat()
     identity = (
-        metadata.st_dev,
-        metadata.st_ino,
-        metadata.st_size,
-        metadata.st_mode,
-        metadata.st_uid,
+        wheel_stat.st_dev,
+        wheel_stat.st_ino,
+        wheel_stat.st_size,
+        wheel_stat.st_mode,
+        wheel_stat.st_uid,
     )
     if (
         stat.S_ISLNK(path_metadata.st_mode)
@@ -1162,24 +1162,24 @@ def _validate_one_wheel(
         raise RuntimeError(f"{wheel_path.name}: wheel identity changed during validation")
     artifact_snapshot = FileSnapshot(
         digest=digest.hexdigest(),
-        mode=stat.S_IMODE(metadata.st_mode),
-        device=metadata.st_dev,
-        inode=metadata.st_ino,
-        owner_uid=metadata.st_uid,
-        size=metadata.st_size,
+        mode=stat.S_IMODE(wheel_stat.st_mode),
+        device=wheel_stat.st_dev,
+        inode=wheel_stat.st_ino,
+        owner_uid=wheel_stat.st_uid,
+        size=wheel_stat.st_size,
     )
 
-    metadata = BytesParser(policy=policy.default).parsebytes(metadata_bytes)
-    if metadata.defects:
+    metadata_message = BytesParser(policy=policy.default).parsebytes(metadata_bytes)
+    if metadata_message.defects:
         raise RuntimeError(f"{wheel_path.name}: malformed wheel METADATA headers")
     metadata_name = _single_metadata_header(
         wheel_path=wheel_path,
-        metadata=metadata,
+        metadata=metadata_message,
         header_name="Name",
     )
     metadata_version = _single_metadata_header(
         wheel_path=wheel_path,
-        metadata=metadata,
+        metadata=metadata_message,
         header_name="Version",
     )
     metadata_key = (
@@ -1201,10 +1201,10 @@ def _validate_one_wheel(
     if dist_info_key != filename_key:
         raise RuntimeError(f"{wheel_path.name}: dist-info and filename Name/Version do not match")
 
-    dependency_links = metadata.get_all("Dependency-Link", [])
+    dependency_links = metadata_message.get_all("Dependency-Link", [])
     if dependency_links:
         raise RuntimeError(f"{wheel_path.name}: Dependency-Link metadata is forbidden")
-    for raw_requirement in metadata.get_all("Requires-Dist", []):
+    for raw_requirement in metadata_message.get_all("Requires-Dist", []):
         if not isinstance(raw_requirement, str):
             raise RuntimeError(f"{wheel_path.name}: malformed Requires-Dist metadata")
         try:
