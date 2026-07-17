@@ -31,6 +31,8 @@ from scripts.orchestration.pr_review_evidence import (
     render_embedded_review_seal,
 )
 
+OUTAGE_HEAD_SHA = "d" * 40
+
 
 def test_is_actionable_detects_known_markers() -> None:
     body = "Actionable comments posted: 1\nPrompt for AI Agents"
@@ -337,17 +339,25 @@ def test_operator_outage_override_requires_exact_successful_security_bundle(
         suite_created_at="2026-07-16T10:59:00Z",
     )
     nodes.append(stale_failed_security)
+    observed_heads: list[str | None] = []
+
+    def fetch_metadata(*args: Any, **_kwargs: Any) -> tuple[bool, str, str, list[dict[str, Any]]]:
+        observed_heads.append(args[3])
+        return False, "CLEAN", "main", nodes
+
     monkeypatch.setattr(
         merge_gate,
         "_fetch_current_head_pr_metadata",
-        lambda *_a, **_k: (False, "CLEAN", "main", nodes),
+        fetch_metadata,
     )
 
     merge_gate._validate_operator_outage_security_checks(
         repository="owner/repo",
         pr_number=42,
         token="opaque",
+        expected_head_sha=OUTAGE_HEAD_SHA,
     )
+    assert observed_heads == [OUTAGE_HEAD_SHA]
 
 
 def test_operator_outage_override_accepts_trusted_skipped_inapplicable_security(
@@ -370,6 +380,7 @@ def test_operator_outage_override_accepts_trusted_skipped_inapplicable_security(
         repository="owner/repo",
         pr_number=42,
         token="opaque",
+        expected_head_sha=OUTAGE_HEAD_SHA,
         security_required=merge_gate._operator_outage_security_required(("docs/README.md",)),
     )
 
@@ -406,6 +417,7 @@ def test_operator_outage_override_rejects_newer_queued_security_attempt(
             repository="owner/repo",
             pr_number=42,
             token="opaque",
+            expected_head_sha=OUTAGE_HEAD_SHA,
         )
     message = str(exc_info.value)
     assert "This gate does not wait or repair named checks" in message
@@ -447,6 +459,7 @@ def test_operator_outage_override_rejects_stale_success_before_newer_workflow_jo
             repository="owner/repo",
             pr_number=42,
             token="opaque",
+            expected_head_sha=OUTAGE_HEAD_SHA,
         )
 
 
@@ -472,6 +485,7 @@ def test_operator_outage_override_rejects_equal_time_pending_security_attempt(
             repository="owner/repo",
             pr_number=42,
             token="opaque",
+            expected_head_sha=OUTAGE_HEAD_SHA,
         )
 
 
@@ -496,6 +510,7 @@ def test_operator_outage_override_rejects_equal_time_neutral_security_attempt(
             repository="owner/repo",
             pr_number=42,
             token="opaque",
+            expected_head_sha=OUTAGE_HEAD_SHA,
         )
 
 
@@ -535,6 +550,7 @@ def test_operator_outage_override_rejects_unorderable_newer_security_attempt(
             repository="owner/repo",
             pr_number=42,
             token="opaque",
+            expected_head_sha=OUTAGE_HEAD_SHA,
         )
 
 
@@ -578,6 +594,7 @@ def test_operator_outage_override_rejects_non_successful_security_checks(
             repository="owner/repo",
             pr_number=42,
             token="opaque",
+            expected_head_sha=OUTAGE_HEAD_SHA,
         )
     assert (
         "resolve every missing, failed, or untrusted check before rerunning only "
@@ -604,6 +621,7 @@ def test_operator_outage_override_rejects_missing_security_check(
             repository="owner/repo",
             pr_number=42,
             token="opaque",
+            expected_head_sha=OUTAGE_HEAD_SHA,
         )
 
 
@@ -638,6 +656,7 @@ def test_operator_outage_override_rejects_foreign_check_producers(
             repository="owner/repo",
             pr_number=42,
             token="opaque",
+            expected_head_sha=OUTAGE_HEAD_SHA,
         )
 
 
@@ -672,6 +691,7 @@ def test_operator_outage_override_rejects_foreign_status_context(
             repository="owner/repo",
             pr_number=42,
             token="opaque",
+            expected_head_sha=OUTAGE_HEAD_SHA,
         )
 
 
@@ -956,7 +976,7 @@ def test_ci_gate_revalidates_live_operator_outage_override(
             material_digest=frozen.digest,
         )
 
-    check_calls: list[int] = []
+    check_calls: list[str] = []
     monkeypatch.setattr(
         merge_gate,
         "verify_security_outage_override_reference",
@@ -965,7 +985,7 @@ def test_ci_gate_revalidates_live_operator_outage_override(
     monkeypatch.setattr(
         merge_gate,
         "_validate_operator_outage_security_checks",
-        lambda **_kwargs: check_calls.append(1),
+        lambda **kwargs: check_calls.append(kwargs["expected_head_sha"]),
     )
 
     validated = merge_gate._validate_v1_seal(
@@ -978,7 +998,7 @@ def test_ci_gate_revalidates_live_operator_outage_override(
 
     assert validated["codex_security"]["status"] == "tooling_unavailable"
     assert override_calls == [(material_head, frozen.digest)]
-    assert check_calls == [1]
+    assert check_calls == [governance_head]
 
 
 def test_merge_readiness_main_blocks_missing_mapping(

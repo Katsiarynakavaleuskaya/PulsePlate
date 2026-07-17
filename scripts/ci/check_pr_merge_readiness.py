@@ -21,7 +21,7 @@ import urllib.request
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Mapping, cast
+from typing import Any, Mapping
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
@@ -438,12 +438,17 @@ def _is_ghas_thread(thread: ReviewThreadEvidence) -> bool:
 
 
 def _validate_operator_outage_security_checks(
-    *, repository: str, pr_number: int, token: str, security_required: bool = True
+    *,
+    repository: str,
+    pr_number: int,
+    token: str,
+    expected_head_sha: str,
+    security_required: bool = True,
 ) -> None:
     """Require a strict successful current-head security bundle for outage overrides."""
 
     _is_draft, _merge_state, _base_ref, nodes = _fetch_current_head_pr_metadata(
-        pr_number, repository, token
+        pr_number, repository, token, expected_head_sha
     )
     try:
         entries = [_normalize_check_node(node) for node in nodes if node]
@@ -529,7 +534,14 @@ def _validate_v1_seal(
     snapshot: PrSnapshot,
     token: str,
 ) -> dict[str, Any]:
-    seal = cast(dict[str, Any], parse_embedded_review_seal(artifact_text))
+    raw_seal = parse_embedded_review_seal(artifact_text)
+    if not isinstance(raw_seal, dict):
+        raise ReviewEvidenceError("embedded review seal must be a string-keyed object")
+    seal: dict[str, Any] = {}
+    for key, value in raw_seal.items():
+        if not isinstance(key, str):
+            raise ReviewEvidenceError("embedded review seal must be a string-keyed object")
+        seal[key] = value
     if seal["repository"] != repository or seal["pr_number"] != pr_number:
         raise ReviewEvidenceError("review seal repository/PR identity mismatch")
     manifest = compute_material_manifest(
@@ -625,6 +637,7 @@ def _validate_v1_seal(
             repository=repository,
             pr_number=pr_number,
             token=token,
+            expected_head_sha=snapshot.head_sha,
             security_required=_operator_outage_security_required(
                 entry.path for entry in manifest.entries
             ),
@@ -676,19 +689,23 @@ def _duplicate_reply_coverage(
         for item in actionable_items
         if item.url not in mapped_urls and item.kind == "review_comment"
     }
-    covered_urls = cast(
-        set[str],
-        validated_duplicate_reply_urls(
-            candidate_urls=candidate_urls,
-            threads=threads,
-            fingerprint_records=records,
-            material_digest=str(seal["material"]["digest"]),
-            repo_root=REPO_ROOT,
-            snapshot=snapshot,
-            repository=repository,
-            token=token,
-        ),
+    raw_covered_urls = validated_duplicate_reply_urls(
+        candidate_urls=candidate_urls,
+        threads=threads,
+        fingerprint_records=records,
+        material_digest=str(seal["material"]["digest"]),
+        repo_root=REPO_ROOT,
+        snapshot=snapshot,
+        repository=repository,
+        token=token,
     )
+    if not isinstance(raw_covered_urls, set):
+        raise ReviewEvidenceError("duplicate-reply coverage must be a set of URLs")
+    covered_urls: set[str] = set()
+    for url in raw_covered_urls:
+        if not isinstance(url, str):
+            raise ReviewEvidenceError("duplicate-reply coverage must be a set of URLs")
+        covered_urls.add(url)
     return covered_urls
 
 

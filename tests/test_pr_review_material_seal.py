@@ -821,6 +821,12 @@ def test_security_outage_receipt_rejects_unknown_or_open_shapes(mutate: Any) -> 
             False,
         ),
         (
+            "Katsiarynakavaleuskaya/PulsePlate",
+            2143,
+            ("scripts/orchestration/check_merge_ready.py",),
+            False,
+        ),
+        (
             "owner/repo",
             2142,
             ("scripts/ci/check_pr_merge_readiness.py",),

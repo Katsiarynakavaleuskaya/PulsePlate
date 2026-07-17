@@ -76,11 +76,6 @@ WORKFLOW_PATH_ENTRY_RE = re.compile(
     r"^\s*-\s*[\"']?(?P<path>requirements[-A-Za-z0-9_]*\.(?:in|txt))[\"']?\s*$"
 )
 DEPENDENCY_SUBMISSION_TRIGGER_EVENTS = ("push", "pull_request")
-DIRECT_OWNER_CONTAINMENT_RELATIONS = (
-    (("requirements-test.in",), "requirements-test.txt"),
-    (("requirements-dev.in",), "requirements-dev.txt"),
-    (("requirements.in", "requirements-dev.in"), "requirements-lock.txt"),
-)
 
 OWNERSHIP_ERROR = "error"
 OWNERSHIP_WARNING = "warning"
@@ -755,16 +750,17 @@ def _validate_security_coverage(repo_root: Path, errors: list[str]) -> None:
 
 def _validate_direct_owner_containment(repo_root: Path, errors: list[str]) -> None:
     """Require each managed lock to retain its normalized direct package owners."""
-    for source_files, lockfile in DIRECT_OWNER_CONTAINMENT_RELATIONS:
+    for surface in compiled_dependency_surfaces():
         direct_packages: set[str] = set()
-        for source_file in source_files:
+        for source_file in surface.compile_sources:
             direct_packages.update(_requirement_package_names(repo_root, source_file))
-        lock_packages = _requirement_package_names(repo_root, lockfile)
+        lock_packages = _requirement_package_names(repo_root, surface.lockfile)
         missing_packages = sorted(direct_packages - lock_packages)
         if missing_packages:
-            source_label = " + ".join(source_files)
+            source_label = " + ".join(surface.compile_sources)
             errors.append(
-                f"{lockfile}: missing direct packages from {source_label}: {missing_packages}."
+                f"{surface.lockfile}: missing direct packages from "
+                f"{source_label}: {missing_packages}."
             )
 
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -605,6 +606,7 @@ def test_fetch_pr_metadata_rejects_repeated_pagination_cursor(
                         "isDraft": False,
                         "mergeStateStatus": "CLEAN",
                         "baseRefName": "main",
+                        "headRefOid": "a" * 40,
                         "statusCheckRollup": {
                             "contexts": {
                                 "nodes": [],
@@ -646,6 +648,7 @@ def test_fetch_pr_metadata_rejects_malformed_pagination_fields(
                     "isDraft": False,
                     "mergeStateStatus": "CLEAN",
                     "baseRefName": "main",
+                    "headRefOid": "a" * 40,
                     "statusCheckRollup": {"contexts": {"nodes": [], "pageInfo": page_info}},
                 }
             }
@@ -671,6 +674,7 @@ def test_fetch_pr_metadata_rejects_non_boolean_is_draft(
                     "isDraft": "false",
                     "mergeStateStatus": "CLEAN",
                     "baseRefName": "main",
+                    "headRefOid": "a" * 40,
                     "statusCheckRollup": {
                         "contexts": {
                             "nodes": [],
@@ -704,6 +708,7 @@ def test_fetch_pr_metadata_enforces_page_limit(monkeypatch: pytest.MonkeyPatch) 
                         "isDraft": False,
                         "mergeStateStatus": "CLEAN",
                         "baseRefName": "main",
+                        "headRefOid": "a" * 40,
                         "statusCheckRollup": {
                             "contexts": {
                                 "nodes": [],
@@ -726,6 +731,381 @@ def test_fetch_pr_metadata_enforces_page_limit(monkeypatch: pytest.MonkeyPatch) 
     assert calls == current_head_checks._MAX_STATUS_CHECK_PAGES
 
 
+def test_fetch_pr_metadata_rejects_mixed_head_pages(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    responses = iter(
+        [
+            {
+                "data": {
+                    "repository": {
+                        "pullRequest": {
+                            "isDraft": False,
+                            "mergeStateStatus": "CLEAN",
+                            "baseRefName": "main",
+                            "headRefOid": "a" * 40,
+                            "statusCheckRollup": {
+                                "contexts": {
+                                    "nodes": [],
+                                    "pageInfo": {
+                                        "hasNextPage": True,
+                                        "endCursor": "cursor-1",
+                                    },
+                                }
+                            },
+                        }
+                    }
+                }
+            },
+            {
+                "data": {
+                    "repository": {
+                        "pullRequest": {
+                            "isDraft": False,
+                            "mergeStateStatus": "CLEAN",
+                            "baseRefName": "main",
+                            "headRefOid": "b" * 40,
+                            "statusCheckRollup": {
+                                "contexts": {
+                                    "nodes": [],
+                                    "pageInfo": {
+                                        "hasNextPage": False,
+                                        "endCursor": None,
+                                    },
+                                }
+                            },
+                        }
+                    }
+                }
+            },
+        ]
+    )
+    monkeypatch.setattr(
+        current_head_checks,
+        "_api_request",
+        lambda *_args, **_kwargs: next(responses),
+    )
+
+    with pytest.raises(ValueError, match="SNAPSHOT_CHANGED"):
+        current_head_checks._fetch_pr_metadata(2142, "owner/repo", "opaque")
+
+
+def test_fetch_pr_metadata_rejects_explicit_head_mismatch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    response = {
+        "data": {
+            "repository": {
+                "pullRequest": {
+                    "isDraft": False,
+                    "mergeStateStatus": "CLEAN",
+                    "baseRefName": "main",
+                    "headRefOid": "b" * 40,
+                    "statusCheckRollup": {
+                        "contexts": {
+                            "nodes": [],
+                            "pageInfo": {
+                                "hasNextPage": False,
+                                "endCursor": None,
+                            },
+                        }
+                    },
+                }
+            }
+        }
+    }
+    monkeypatch.setattr(
+        current_head_checks,
+        "_api_request",
+        lambda *_args, **_kwargs: response,
+    )
+
+    with pytest.raises(ValueError, match="SNAPSHOT_CHANGED"):
+        current_head_checks._fetch_pr_metadata(
+            2142,
+            "owner/repo",
+            "opaque",
+            "a" * 40,
+        )
+
+
+def test_required_check_parser_preserves_app_and_unbound_identities(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        current_head_checks,
+        "_api_request",
+        lambda *_args, **_kwargs: {
+            "contexts": ["bound", "unbound", "unbound-null", "legacy"],
+            "checks": [
+                {"context": "bound", "app_id": 15368},
+                {"context": "unbound", "app_id": -1},
+                {"context": "unbound-null", "app_id": None},
+            ],
+        },
+    )
+
+    required, available = current_head_checks._fetch_required_check_names(
+        "owner/repo", "main", "opaque"
+    )
+
+    assert available is True
+    assert required == {
+        current_head_checks.RequiredCheck("bound", 15368),
+        current_head_checks.RequiredCheck("unbound", None),
+        current_head_checks.RequiredCheck("unbound-null", None),
+        current_head_checks.RequiredCheck("legacy", None),
+    }
+
+
+@pytest.mark.parametrize("app_id", ["15368", True, 0, -2, -1.0, [], {}])
+def test_required_check_parser_rejects_malformed_app_id(
+    monkeypatch: pytest.MonkeyPatch,
+    app_id: object,
+) -> None:
+    monkeypatch.setattr(
+        current_head_checks,
+        "_api_request",
+        lambda *_args, **_kwargs: {
+            "contexts": ["build"],
+            "checks": [{"context": "build", "app_id": app_id}],
+        },
+    )
+
+    with pytest.raises(ValueError, match="malformed app_id"):
+        current_head_checks._fetch_required_check_names("owner/repo", "main", "opaque")
+
+
+def test_required_app_identity_ignores_foreign_app_collision() -> None:
+    trusted = current_head_checks.CheckEntry(
+        name="build",
+        source_kind="check_run",
+        state="passed",
+        timestamp="2026-07-17T10:00:00Z",
+        details_url="https://example.invalid/trusted",
+        workflow_name="CI",
+        conclusion="SUCCESS",
+        app_database_id=15368,
+        app_slug="github-actions",
+    )
+    foreign = current_head_checks.CheckEntry(
+        name="build",
+        source_kind="check_run",
+        state="passed",
+        timestamp="2026-07-17T10:01:00Z",
+        details_url="https://example.invalid/foreign",
+        workflow_name="Foreign",
+        conclusion="SUCCESS",
+        app_database_id=999,
+        app_slug="foreign",
+    )
+
+    snapshot = current_head_checks._required_snapshot(
+        [trusted, foreign],
+        {current_head_checks.RequiredCheck("build", 15368)},
+    )
+
+    assert snapshot == [trusted]
+
+
+def test_foreign_app_success_cannot_replace_failed_or_missing_required_app() -> None:
+    trusted_failure = current_head_checks.CheckEntry(
+        name="build",
+        source_kind="check_run",
+        state="failed",
+        timestamp="2026-07-17T10:00:00Z",
+        details_url="https://example.invalid/trusted-failure",
+        workflow_name="CI",
+        conclusion="FAILURE",
+        app_database_id=15368,
+        app_slug="github-actions",
+    )
+    foreign_success = current_head_checks.CheckEntry(
+        name="build",
+        source_kind="check_run",
+        state="passed",
+        timestamp="2026-07-17T10:01:00Z",
+        details_url="https://example.invalid/foreign-success",
+        workflow_name="CI",
+        conclusion="SUCCESS",
+        app_database_id=999,
+        app_slug="foreign",
+    )
+    required = {current_head_checks.RequiredCheck("build", 15368)}
+
+    failed = current_head_checks._required_snapshot(
+        [trusted_failure, foreign_success],
+        required,
+    )
+    missing = current_head_checks._required_snapshot(
+        [foreign_success],
+        required,
+    )
+
+    assert failed == [trusted_failure]
+    assert missing[0].source_kind == "missing"
+    assert missing[0].state == "pending"
+    assert missing[0].app_database_id == 15368
+
+
+def test_required_app_identity_is_not_satisfied_by_status_context() -> None:
+    status_context = current_head_checks.CheckEntry(
+        name="build",
+        source_kind="status_context",
+        state="passed",
+        timestamp="2026-07-17T10:00:00Z",
+        details_url="https://example.invalid/status",
+        workflow_name="",
+        conclusion="",
+    )
+
+    bound = current_head_checks._required_snapshot(
+        [status_context],
+        {current_head_checks.RequiredCheck("build", 15368)},
+    )
+    unbound = current_head_checks._required_snapshot(
+        [status_context],
+        {current_head_checks.RequiredCheck("build", None)},
+    )
+    structured_unbound = current_head_checks._required_snapshot(
+        [status_context],
+        {current_head_checks.RequiredCheck("build", None)},
+    )
+
+    assert bound[0].source_kind == "missing"
+    assert bound[0].state == "pending"
+    assert bound[0].app_database_id == 15368
+    assert unbound == [status_context]
+    assert structured_unbound == [status_context]
+
+
+def test_required_same_name_check_and_status_both_remain_blocking() -> None:
+    passing_check = current_head_checks.CheckEntry(
+        name="build",
+        source_kind="check_run",
+        state="passed",
+        timestamp="2026-07-17T10:01:00Z",
+        details_url="https://example.invalid/check",
+        workflow_name="CI",
+        conclusion="SUCCESS",
+        app_database_id=15368,
+    )
+    failing_status = current_head_checks.CheckEntry(
+        name="build",
+        source_kind="status_context",
+        state="failed",
+        timestamp="2026-07-17T10:02:00Z",
+        details_url="https://example.invalid/status",
+        workflow_name="",
+        conclusion="",
+    )
+
+    snapshot = current_head_checks._required_snapshot(
+        [passing_check, failing_status],
+        {current_head_checks.RequiredCheck("build", 15368)},
+    )
+
+    assert snapshot == [passing_check, failing_status]
+
+
+def test_required_same_name_status_cannot_hide_failed_check_run() -> None:
+    failing_check = current_head_checks.CheckEntry(
+        name="build",
+        source_kind="check_run",
+        state="failed",
+        timestamp="2026-07-17T10:01:00Z",
+        details_url="https://example.invalid/check",
+        workflow_name="CI",
+        conclusion="FAILURE",
+    )
+    passing_status = current_head_checks.CheckEntry(
+        name="build",
+        source_kind="status_context",
+        state="passed",
+        timestamp="2026-07-17T10:02:00Z",
+        details_url="https://example.invalid/status",
+        workflow_name="",
+        conclusion="",
+    )
+
+    snapshot = current_head_checks._required_snapshot(
+        [failing_check, passing_status],
+        {current_head_checks.RequiredCheck("build")},
+    )
+
+    assert snapshot == [failing_check, passing_status]
+
+
+def test_required_status_cannot_hide_stale_suppressed_check_run() -> None:
+    stale_check = current_head_checks.CheckEntry(
+        name="build",
+        source_kind="check_run",
+        state="passed",
+        timestamp="2026-07-17T10:01:00Z",
+        details_url="https://example.invalid/build",
+        workflow_name="CI",
+        conclusion="SUCCESS",
+    )
+    newer_workflow_activity = current_head_checks.CheckEntry(
+        name="lint",
+        source_kind="check_run",
+        state="pending",
+        timestamp="2026-07-17T10:02:00Z",
+        details_url="https://example.invalid/lint",
+        workflow_name="CI",
+        conclusion="",
+    )
+    passing_status = current_head_checks.CheckEntry(
+        name="build",
+        source_kind="status_context",
+        state="passed",
+        timestamp="2026-07-17T10:03:00Z",
+        details_url="https://example.invalid/status",
+        workflow_name="",
+        conclusion="",
+    )
+
+    snapshot = current_head_checks._required_snapshot(
+        [stale_check, newer_workflow_activity, passing_status],
+        {current_head_checks.RequiredCheck("build")},
+    )
+
+    assert snapshot[0].source_kind == "missing"
+    assert snapshot[0].state == "pending"
+    assert snapshot[1] == passing_status
+
+
+@pytest.mark.parametrize("field", ("checks", "contexts"))
+@pytest.mark.parametrize("malformed", ({}, "", 0, False))
+def test_required_check_parser_rejects_falsey_malformed_containers(
+    monkeypatch: pytest.MonkeyPatch,
+    field: str,
+    malformed: object,
+) -> None:
+    payload: dict[str, object] = {"checks": [], "contexts": []}
+    payload[field] = malformed
+    monkeypatch.setattr(
+        current_head_checks,
+        "_api_request",
+        lambda *_args, **_kwargs: payload,
+    )
+
+    with pytest.raises(ValueError, match="response lists are malformed"):
+        current_head_checks._fetch_required_check_names("owner/repo", "main", "opaque")
+
+
+def test_normalize_node_rejects_unknown_graphql_union_member() -> None:
+    with pytest.raises(ValueError, match="unsupported status-check node type"):
+        current_head_checks._normalize_node(
+            {
+                "__typename": "FutureStatusCheck",
+                "context": "build",
+                "state": "SUCCESS",
+                "createdAt": "2026-07-17T10:00:00Z",
+            }
+        )
+
+
 def test_required_snapshot_adds_pending_placeholder_for_missing_required_check() -> None:
     snapshot = current_head_checks._required_snapshot(
         latest_entries={},
@@ -743,6 +1123,47 @@ def test_required_snapshot_adds_pending_placeholder_for_missing_required_check()
             conclusion="",
         )
     ]
+
+
+def test_main_forwards_event_head_to_metadata_fetch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    event_head_sha = "c" * 40
+    event_path = tmp_path / "event.json"
+    event_path.write_text(
+        json.dumps(
+            {
+                "pull_request": {
+                    "number": 2142,
+                    "head": {"sha": event_head_sha},
+                },
+                "repository": {"full_name": "owner/repo"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    observed_heads: list[str | None] = []
+
+    def fetch_metadata(
+        _pr_number: int,
+        _repo: str,
+        _token: str,
+        expected_head_sha: str | None,
+    ) -> tuple[bool, str, str, list[dict[str, object]]]:
+        observed_heads.append(expected_head_sha)
+        return True, "CLEAN", "main", []
+
+    monkeypatch.setattr(current_head_checks, "_github_token", lambda: "opaque")
+    monkeypatch.setattr(current_head_checks, "_fetch_pr_metadata", fetch_metadata)
+    monkeypatch.setattr(
+        current_head_checks,
+        "_fetch_required_check_names",
+        lambda *_args: (set(), True),
+    )
+
+    assert current_head_checks.main(["--event-path", str(event_path)]) == 0
+    assert observed_heads == [event_head_sha]
 
 
 def test_stale_latest_entry_is_demoted_when_same_workflow_has_newer_activity() -> None:

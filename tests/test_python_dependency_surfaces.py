@@ -49,7 +49,8 @@ def _write_valid_contract_repo(root: Path) -> None:
     all_surface_files = sorted(surfaces._known_requirement_surfaces())
     for surface in surfaces.DEPENDENCY_SURFACES:
         if surface.source_file is not None:
-            (root / surface.source_file).write_text("example>=1.0.0\n", encoding="utf-8")
+            source_body = "" if surface.allow_empty_lock else "example>=1.0.0\n"
+            (root / surface.source_file).write_text(source_body, encoding="utf-8")
         _write_lockfile(root, surface)
 
     contract_body = "\n".join(
@@ -110,6 +111,26 @@ def _remove_requirement(root: Path, relative_path: str, requirement_line: str) -
     updated = original.replace(f"{requirement_line}\n", "", 1)
     assert updated != original
     path.write_text(updated, encoding="utf-8")
+
+
+def _write_registry_direct_owner_fixture(
+    root: Path,
+    surface: surfaces.DependencySurface,
+) -> tuple[tuple[str, ...], list[str]]:
+    exact_requirements: list[str] = []
+    normalized_packages: list[str] = []
+    compiled_surfaces = surfaces.compiled_dependency_surfaces()
+    for source_index, source_file in enumerate(surface.compile_sources):
+        for prefix in ("Zulu", "alpha"):
+            package = f"{prefix}_{surface.name}_{source_index}"
+            exact_requirement = f"{package}==1.0.0"
+            _append_requirement(root, source_file, f"{package}>=1.0.0")
+            for compiled_surface in compiled_surfaces:
+                if source_file in compiled_surface.compile_sources:
+                    _append_requirement(root, compiled_surface.lockfile, exact_requirement)
+            exact_requirements.append(exact_requirement)
+            normalized_packages.append(package.lower().replace("_", "-"))
+    return tuple(exact_requirements), sorted(normalized_packages)
 
 
 def _write_python_setup_action(root: Path, extra_case_labels: tuple[str, ...] = ()) -> None:
@@ -412,7 +433,9 @@ def test_dependency_surface_contract_rejects_non_exact_compiled_entry(tmp_path: 
         surface for surface in surfaces.DEPENDENCY_SURFACES if surface.name == "runtime"
     )
     (tmp_path / "requirements.txt").write_text(
-        surfaces.render_governed_lock_header(runtime_surface) + "fastapi>=0.122.0\n",
+        surfaces.render_governed_lock_header(runtime_surface)
+        + "example==1.0.0\n"
+        + "fastapi>=0.122.0\n",
         encoding="utf-8",
     )
 
@@ -455,47 +478,46 @@ def test_dependency_surface_contract_rejects_wrong_profile_header(tmp_path: Path
     ]
 
 
-def test_dependency_surface_contract_rejects_missing_test_direct_owner(tmp_path: Path) -> None:
-    _write_valid_contract_repo(tmp_path)
-    _append_requirement(tmp_path, "requirements-test.in", "pytest>=9.1.1")
-    _append_requirement(tmp_path, "requirements-test.txt", "pytest==9.1.1")
-    _remove_requirement(tmp_path, "requirements-test.txt", "pytest==9.1.1")
-
-    errors = surfaces.validate_repo(tmp_path)
-
-    assert errors == [
-        "requirements-test.txt: missing direct packages from requirements-test.in: ['pytest']."
-    ]
-
-
-def test_dependency_surface_contract_rejects_missing_dev_direct_owner(tmp_path: Path) -> None:
-    _write_valid_contract_repo(tmp_path)
-    _append_requirement(tmp_path, "requirements-dev.in", "mypy>=2.2.0")
-    _append_requirement(tmp_path, "requirements-dev.txt", "mypy==2.2.0")
-    _append_requirement(tmp_path, "requirements-lock.txt", "mypy==2.2.0")
-    _remove_requirement(tmp_path, "requirements-dev.txt", "mypy==2.2.0")
-
-    errors = surfaces.validate_repo(tmp_path)
-
-    assert errors == [
-        "requirements-dev.txt: missing direct packages from requirements-dev.in: ['mypy']."
-    ]
-
-
-def test_dependency_surface_contract_rejects_missing_aggregate_direct_owner(
+@pytest.mark.parametrize(
+    "surface",
+    surfaces.compiled_dependency_surfaces(),
+    ids=[surface.name for surface in surfaces.compiled_dependency_surfaces()],
+)
+def test_dependency_surface_contract_accepts_direct_owners_for_every_compiled_surface(
     tmp_path: Path,
+    surface: surfaces.DependencySurface,
 ) -> None:
     _write_valid_contract_repo(tmp_path)
-    _append_requirement(tmp_path, "requirements-dev.in", "bandit>=1.9.4")
-    _append_requirement(tmp_path, "requirements-dev.txt", "bandit==1.9.4")
-    _append_requirement(tmp_path, "requirements-lock.txt", "bandit==1.9.4")
-    _remove_requirement(tmp_path, "requirements-lock.txt", "bandit==1.9.4")
+    _write_registry_direct_owner_fixture(tmp_path, surface)
 
     errors = surfaces.validate_repo(tmp_path)
 
+    assert errors == []
+
+
+@pytest.mark.parametrize(
+    "surface",
+    surfaces.compiled_dependency_surfaces(),
+    ids=[surface.name for surface in surfaces.compiled_dependency_surfaces()],
+)
+def test_dependency_surface_contract_rejects_missing_direct_owners_for_every_compiled_surface(
+    tmp_path: Path,
+    surface: surfaces.DependencySurface,
+) -> None:
+    _write_valid_contract_repo(tmp_path)
+    exact_requirements, normalized_packages = _write_registry_direct_owner_fixture(
+        tmp_path,
+        surface,
+    )
+    for exact_requirement in exact_requirements:
+        _remove_requirement(tmp_path, surface.lockfile, exact_requirement)
+
+    errors = surfaces.validate_repo(tmp_path)
+
+    source_label = " + ".join(surface.compile_sources)
     assert errors == [
-        "requirements-lock.txt: missing direct packages from requirements.in + "
-        "requirements-dev.in: ['bandit']."
+        f"{surface.lockfile}: missing direct packages from "
+        f"{source_label}: {normalized_packages}."
     ]
 
 

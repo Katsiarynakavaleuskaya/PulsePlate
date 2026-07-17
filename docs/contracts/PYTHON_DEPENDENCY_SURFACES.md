@@ -127,7 +127,8 @@ The validator fails when:
 - a compiled lockfile lacks its exact governed Make/profile/source header;
 - an active lock workflow document teaches a direct resolver command or unsafe-package mode;
 - a compiled lockfile contains a non-exact requirement entry;
-- test, dev, or aggregate locks omit a normalized direct package from their inputs;
+- a compiled lockfile omits a normalized direct package from the union of its registry-owned
+  `compile_sources`;
 - local/manual surfaces leak into shared `requirements-profile` routing;
 - required pip-audit or dependency-submission coverage is missing; or
 - the first audited ownership subset violates its severity-tier policy; or
