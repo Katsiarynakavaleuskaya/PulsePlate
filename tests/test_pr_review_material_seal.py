@@ -384,6 +384,35 @@ def test_compare_fetches_the_last_page_to_bind_a_distant_descendant() -> None:
     ]
 
 
+@pytest.mark.parametrize(
+    ("status", "ahead_by", "behind_by"),
+    [("behind", 0, 1), ("diverged", 1, 1)],
+)
+def test_compare_returns_false_for_valid_negative_relationships(
+    status: str, ahead_by: int, behind_by: int
+) -> None:
+    ancestor = RepositoryCommitRef(FIX_SHA, CommitRefKind.PR_COMMIT)
+    descendant = RepositoryCommitRef(HEAD_SHA, CommitRefKind.PR_HEAD)
+
+    def request_json(*_args: Any, **_kwargs: Any) -> Any:
+        return {
+            "status": status,
+            "ahead_by": ahead_by,
+            "behind_by": behind_by,
+            "base_commit": {"sha": FIX_SHA},
+            "commits": [],
+            "merge_base_commit": {"sha": OUTSIDE_SHA},
+        }
+
+    assert not is_ancestor(
+        ancestor,
+        descendant,
+        repository="owner/repo",
+        token="opaque",
+        request_json=request_json,
+    )
+
+
 @pytest.mark.parametrize("commits", [None, [], [{"sha": OUTSIDE_SHA}]])
 def test_compare_rejects_missing_or_mismatched_descendant(commits: Any) -> None:
     ancestor = RepositoryCommitRef(FIX_SHA, CommitRefKind.PR_COMMIT)

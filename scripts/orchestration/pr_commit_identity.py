@@ -683,9 +683,7 @@ def is_ancestor(
     merge_base_commit = response.get("merge_base_commit")
     if (
         not isinstance(base_commit, dict)
-        or not isinstance(merge_base_commit, dict)
         or base_commit.get("sha") != ancestor.sha
-        or merge_base_commit.get("sha") != ancestor.sha
         or not isinstance(ahead_by, int)
         or isinstance(ahead_by, bool)
         or not isinstance(behind_by, int)
@@ -697,6 +695,8 @@ def is_ancestor(
         return False
     if status != "ahead" or not 1 <= ahead_by <= _MAX_PR_COMMITS or behind_by != 0:
         raise CommitIdentityError("Compare API returned unknown ancestry status")
+    if not isinstance(merge_base_commit, dict) or merge_base_commit.get("sha") != ancestor.sha:
+        raise CommitIdentityError("Compare API response does not bind the requested commits")
 
     last_page = response if ahead_by == 1 else fetch_compare_page(ahead_by)
     if ahead_by > 1 and (
