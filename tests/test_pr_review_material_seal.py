@@ -539,7 +539,15 @@ def test_codex_no_findings_comment_is_bound_to_expected_full_head() -> None:
     ]
 
 
-def test_codex_no_findings_comment_accepts_current_connector_summary() -> None:
+@pytest.mark.parametrize(
+    "summary",
+    [
+        "Codex Review: Didn't find any major issues. Breezy!",
+        "Codex Review: Didn't find any major issues. Nice work!",
+        "Codex Review: Didn't find any major issues. Can't wait for the next one!",
+    ],
+)
+def test_codex_no_findings_comment_accepts_connector_summary_variants(summary: str) -> None:
     reference = "https://github.com/owner/repo/pull/42#issuecomment-456"
 
     def request_json(url: str, **_kwargs: Any) -> Any:
@@ -547,9 +555,7 @@ def test_codex_no_findings_comment_accepts_current_connector_summary() -> None:
             return {"sha": HEAD_SHA}
         return _codex_no_findings_comment(
             reference,
-            body=_codex_no_findings_body(
-                summary="Codex Review: Didn't find any major issues. Nice work!"
-            ),
+            body=_codex_no_findings_body(summary=summary),
         )
 
     evidence = verify_codex_review_reference(
@@ -608,8 +614,8 @@ def test_codex_no_findings_comment_accepts_current_connector_summary() -> None:
         (
             lambda response: response.update(
                 body=response["body"].replace(
-                    "Didn't find any major issues. Breezy!",
-                    "Didn't find any major issues. But one issue exists.",
+                    "Didn't find any major issues.",
+                    "Didn't find major issues.",
                 )
             ),
             "not an exact Codex no-findings response",
