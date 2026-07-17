@@ -1015,7 +1015,15 @@ def test_merge_readiness_main_blocks_missing_mapping(
 def test_merge_readiness_checkout_uses_exact_pr_head_and_no_credentials() -> None:
     workflow_path = Path(__file__).resolve().parents[1] / ".github" / "workflows" / "ci.yml"
     workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
-    steps = workflow["jobs"]["merge_readiness_gate"]["steps"]
+    job = workflow["jobs"]["merge_readiness_gate"]
+    assert job["permissions"] == {
+        "actions": "read",
+        "checks": "read",
+        "contents": "read",
+        "pull-requests": "read",
+        "statuses": "read",
+    }
+    steps = job["steps"]
     checkout = next(step for step in steps if step.get("name") == "Checkout")
     assert checkout["with"] == {
         "fetch-depth": 0,

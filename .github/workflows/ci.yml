@@ -414,8 +414,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
+      actions: read
+      checks: read
       contents: read
       pull-requests: read
+      statuses: read
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -435,10 +438,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          # Outage receipts remain fail-closed.
-          # Exact-current-head security jobs can still be pending here.
-          # In that case this job fails and must be rerun after they settle.
-          # No terminal-only deferral is permitted.
+          # Outage receipts fail closed until exact-current-head security jobs settle.
           python scripts/ci/check_pr_merge_readiness.py \
             --event-path "$GITHUB_EVENT_PATH"
 
