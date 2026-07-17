@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import netrc
 import os
 from pathlib import Path
@@ -879,6 +880,10 @@ def _write_test_wheel(
     return wheel_path
 
 
+def _admit_test_wheel(admissions: dict[str, str], wheel_path: Path) -> None:
+    admissions[wheel_path.name.lower()] = hashlib.sha256(wheel_path.read_bytes()).hexdigest()
+
+
 def test_compile_registry_is_single_authority_for_every_compiled_surface() -> None:
     registry = compiler._profile_registry()
 
@@ -1301,6 +1306,48 @@ def test_download_phase_batches_exact_profile_pins_without_dependencies(
     }
 
 
+def test_artifact_admission_collects_only_proxy_hash_bound_wheels(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    resolver_home = tmp_path / "resolver-home"
+    resolver_home.mkdir(mode=0o700)
+    child_env = {
+        "HOME": str(resolver_home),
+        "PIP_INDEX_URL": APPROVED_INDEX,
+    }
+
+    monkeypatch.setattr(
+        compiler,
+        "basic_auth_from_netrc",
+        lambda *_args, **_kwargs: "Basic opaque",
+    )
+
+    def fetch(
+        url: str,
+        **kwargs: object,
+    ) -> tuple[int, bytes]:
+        assert kwargs["authorization_header"] == "Basic opaque"
+        package = url.rstrip("/").rsplit("/", 1)[-1]
+        version = {"coverage": "7.15.1", "faker": "40.31.0"}[package]
+        filename = f"{package}-{version}-py3-none-any.whl"
+        digest = ("a" if package == "coverage" else "b") * 64
+        return (
+            200,
+            f'<a href="../../+f/abc/{filename}#sha256={digest}">wheel</a>'.encode(),
+        )
+
+    monkeypatch.setattr(compiler, "fetch_project_page", fetch)
+
+    assert compiler._collect_private_proxy_artifact_hashes(
+        expected_artifacts=frozenset({("coverage", "7.15.1"), ("faker", "40.31.0")}),
+        child_env=child_env,
+    ) == {
+        "coverage-7.15.1-py3-none-any.whl": "a" * 64,
+        "faker-40.31.0-py3-none-any.whl": "b" * 64,
+    }
+
+
 def test_resolver_bootstrap_uses_exact_approved_interpreter_pip(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1442,6 +1489,40 @@ def test_wheel_metadata_validation_accepts_normal_dependency_metadata(tmp_path: 
             expected_artifacts=expected,
         )
     ) == set(expected)
+
+
+def test_wheelhouse_requires_matching_private_proxy_admission_hash(
+    tmp_path: Path,
+) -> None:
+    wheelhouse = tmp_path / "wheelhouse"
+    wheelhouse.mkdir(mode=0o700)
+    wheel_path = _write_test_wheel(
+        wheelhouse,
+        name="example-package",
+        version="1.0.0",
+    )
+    expected = frozenset({("example-package", "1.0.0")})
+    digest = hashlib.sha256(wheel_path.read_bytes()).hexdigest()
+
+    assert compiler._validate_wheelhouse(
+        wheelhouse=wheelhouse,
+        expected_artifacts=expected,
+        admitted_hashes={wheel_path.name.lower(): digest},
+    )
+
+    with pytest.raises(RuntimeError, match="does not match"):
+        compiler._validate_wheelhouse(
+            wheelhouse=wheelhouse,
+            expected_artifacts=expected,
+            admitted_hashes={wheel_path.name.lower(): "0" * 64},
+        )
+
+    with pytest.raises(RuntimeError, match="absent from"):
+        compiler._validate_wheelhouse(
+            wheelhouse=wheelhouse,
+            expected_artifacts=expected,
+            admitted_hashes={},
+        )
 
 
 def test_wheelhouse_rejects_missing_extra_duplicate_and_malformed_artifacts(
@@ -1674,6 +1755,12 @@ def test_untrusted_wheel_metadata_stops_before_compiler_subprocess(
         return {"HOME": str(resolver_home)}
 
     monkeypatch.setattr(compiler, "_private_proxy_child_env", credentialed_env)
+    admissions: dict[str, str] = {}
+    monkeypatch.setattr(
+        compiler,
+        "_collect_private_proxy_artifact_hashes",
+        lambda **_kwargs: admissions,
+    )
 
     def malicious_download(
         *,
@@ -1687,12 +1774,13 @@ def test_untrusted_wheel_metadata_stops_before_compiler_subprocess(
             requires_dist = (
                 ("dep @ https://example.invalid/dep.whl",) if package == "coverage" else ()
             )
-            _write_test_wheel(
+            wheel_path = _write_test_wheel(
                 wheelhouse,
                 name=package,
                 version=version,
                 requires_dist=requires_dist,
             )
+            _admit_test_wheel(admissions, wheel_path)
 
     monkeypatch.setattr(compiler, "_download_profile_wheels", malicious_download)
     real_validate_wheelhouse = compiler._validate_wheelhouse
@@ -1748,6 +1836,12 @@ def test_two_phase_pipeline_passes_only_offline_profile_artifacts_to_compiler(
         }
 
     monkeypatch.setattr(compiler, "_private_proxy_child_env", credentialed_env)
+    admissions: dict[str, str] = {}
+    monkeypatch.setattr(
+        compiler,
+        "_collect_private_proxy_artifact_hashes",
+        lambda **_kwargs: admissions,
+    )
 
     def admitted_download(
         *,
@@ -1757,7 +1851,12 @@ def test_two_phase_pipeline_passes_only_offline_profile_artifacts_to_compiler(
         **_: object,
     ) -> None:
         for package, version in plans[0].expected_artifacts | bootstrap_artifacts:
-            _write_test_wheel(wheelhouse, name=package, version=version)
+            wheel_path = _write_test_wheel(
+                wheelhouse,
+                name=package,
+                version=version,
+            )
+            _admit_test_wheel(admissions, wheel_path)
 
     monkeypatch.setattr(compiler, "_download_profile_wheels", admitted_download)
 
@@ -1822,6 +1921,12 @@ def test_network_phase_source_mutation_stops_before_offline_compile(
         "_private_proxy_child_env",
         lambda _environment, *, resolver_home: {"HOME": str(resolver_home)},
     )
+    admissions: dict[str, str] = {}
+    monkeypatch.setattr(
+        compiler,
+        "_collect_private_proxy_artifact_hashes",
+        lambda **_kwargs: admissions,
+    )
 
     def mutate_during_download(
         *,
@@ -1830,7 +1935,12 @@ def test_network_phase_source_mutation_stops_before_offline_compile(
         **_: object,
     ) -> None:
         for package, version in plans[0].expected_artifacts:
-            _write_test_wheel(wheelhouse, name=package, version=version)
+            wheel_path = _write_test_wheel(
+                wheelhouse,
+                name=package,
+                version=version,
+            )
+            _admit_test_wheel(admissions, wheel_path)
         source_path.write_text(
             source_path.read_text(encoding="utf-8") + "# changed during network phase\n",
             encoding="utf-8",
@@ -2247,6 +2357,11 @@ def _stub_two_phase_pipeline(
         compiler,
         "_private_proxy_child_env",
         lambda _environment, *, resolver_home: {"HOME": str(resolver_home)},
+    )
+    monkeypatch.setattr(
+        compiler,
+        "_collect_private_proxy_artifact_hashes",
+        lambda **_kwargs: {},
     )
     monkeypatch.setattr(compiler, "_download_profile_wheels", lambda **_kwargs: None)
     monkeypatch.setattr(compiler, "_validate_wheelhouse", lambda **_kwargs: {})

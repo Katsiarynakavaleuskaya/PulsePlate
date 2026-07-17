@@ -17,7 +17,7 @@ import ssl
 import sys
 from typing import Any, Iterable, Iterator, Sequence
 from urllib.error import HTTPError, URLError
-from urllib.parse import quote, unquote, urlparse
+from urllib.parse import quote, unquote, urljoin, urlparse
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 INDEX_ENV_VAR = "PULSEPLATE_PYTHON_INDEX_URL"
@@ -54,6 +54,7 @@ PYTHON_VERSION_RE = re.compile(r"^(?:cp)?(?P<major>3)(?:\.?)(?P<minor>\d{1,2})$"
 REQUIRES_PYTHON_SPECIFIER_RE = re.compile(
     r"^(?P<operator>~=|==|!=|<=|>=|<|>)\s*" r"(?P<version>\d+(?:\.\d+){0,2})(?P<wildcard>\.\*)?$"
 )
+SHA256_FRAGMENT_RE = re.compile(r"^sha256=(?P<digest>[0-9a-fA-F]{64})$")
 
 
 class NoRedirect(HTTPRedirectHandler):
@@ -476,6 +477,74 @@ def exact_pin_wheel_filenames(
     return tuple(filenames)
 
 
+def trusted_exact_pin_wheel_hashes(
+    *,
+    body: bytes,
+    project_url: str,
+    normalized_project: str,
+    expected_version: str,
+) -> dict[str, str]:
+    """Return exact wheel hashes only when every matching link is proxy-hosted.
+
+    This is the artifact-admission parser used by governed lock compilation.
+    Unlike the health probe's compatibility helpers, it fails closed when an
+    exact-version wheel link leaves the canonical project origin, omits its
+    SHA-256 fragment, or advertises one filename ambiguously.
+    """
+
+    project = urlparse(project_url)
+    if (
+        project.scheme.lower() != "https"
+        or not project.netloc
+        or project.username is not None
+        or project.password is not None
+        or project.query
+        or project.fragment
+    ):
+        raise ValueError("artifact_admission_invalid_project_url")
+
+    anchors, has_malformed_anchor = _parse_simple_page_anchors(body)
+    if has_malformed_anchor:
+        raise ValueError("artifact_admission_malformed_anchor")
+
+    admitted: dict[str, str] = {}
+    for anchor in anchors:
+        try:
+            raw_path = urlparse(anchor.href).path
+        except ValueError as exc:
+            raise ValueError("artifact_admission_malformed_href") from exc
+        filename = unquote(raw_path.rsplit("/", 1)[-1]).lower()
+        if not _wheel_matches_exact_pin(
+            filename,
+            normalized_project=normalized_project,
+            expected_version=expected_version,
+        ):
+            continue
+
+        resolved = urlparse(urljoin(project_url, anchor.href))
+        if (
+            resolved.scheme.lower() != "https"
+            or resolved.netloc.lower() != project.netloc.lower()
+            or resolved.username is not None
+            or resolved.password is not None
+            or resolved.query
+        ):
+            raise ValueError(f"artifact_admission_untrusted_url: {filename}")
+        fragment_match = SHA256_FRAGMENT_RE.fullmatch(resolved.fragment)
+        if fragment_match is None:
+            raise ValueError(f"artifact_admission_missing_sha256: {filename}")
+        digest = fragment_match.group("digest").lower()
+        if filename in admitted:
+            raise ValueError(f"artifact_admission_ambiguous_filename: {filename}")
+        admitted[filename] = digest
+
+    if not admitted:
+        raise ValueError(
+            f"artifact_admission_exact_pin_missing: " f"{normalized_project}=={expected_version}"
+        )
+    return admitted
+
+
 def _platform_tag_is_linux_x86_64(platform_tag: str) -> bool:
     if platform_tag == "any":
         return True
@@ -579,11 +648,10 @@ def _requires_python_clause_allows_target(
             and _compare_releases(required_release, target_upper) < 0
         )
     if operator == "<=":
-        # A minor-only inclusive bound covers that target minor. Patch-specific
-        # bounds stay fail-closed because the target patch is intentionally unknown.
-        if len(required_release) > len(target_release):
-            return False
-        return _compare_releases(target_floor, required_release) <= 0
+        # The target patch is intentionally unknown.  PEP 440 interprets
+        # ``<=3.11`` as ``<=3.11.0``, so an inclusive bound covers the entire
+        # target minor only when it reaches at least the next minor boundary.
+        return _compare_releases(target_upper, required_release) <= 0
     if operator == ">=":
         return _compare_releases(target_floor, required_release) >= 0
     if operator == "<":

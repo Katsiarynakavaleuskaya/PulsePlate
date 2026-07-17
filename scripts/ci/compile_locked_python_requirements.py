@@ -8,12 +8,14 @@ come from ``check_python_dependency_surfaces.py``.
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from dataclasses import dataclass
 from email import policy
 from email.parser import BytesParser
 import fcntl
 import hashlib
+import hmac
 from importlib import metadata as importlib_metadata
 import netrc
 import os
@@ -39,7 +41,11 @@ if str(REPO_ROOT) not in sys.path:
 
 from scripts.ci.check_private_python_proxy_health import (  # noqa: E402
     basic_auth_from_netrc,
+    fetch_project_page,
+    normalize_project_name,
+    project_page_url,
     redact_text,
+    trusted_exact_pin_wheel_hashes,
     validate_index_url,
 )
 from scripts.ci.check_python_dependency_surfaces import (  # noqa: E402
@@ -61,6 +67,10 @@ UPGRADE_SELECTION_ENV = "PULSEPLATE_LOCK_UPGRADES_RAW"
 GRAPH_CHANGE_SELECTION_ENV = "PULSEPLATE_LOCK_GRAPH_CHANGES_RAW"
 COMPILE_TIMEOUT_SECONDS = 300
 DOWNLOAD_TIMEOUT_SECONDS = 300
+ARTIFACT_ADMISSION_TIMEOUT_SECONDS = 60.0
+ARTIFACT_ADMISSION_MAX_BYTES = 16 * 1024 * 1024
+ARTIFACT_ADMISSION_MAX_WORKERS = 4
+ARTIFACT_ADMISSION_ATTEMPTS = 2
 MAX_WHEEL_METADATA_BYTES = 2 * 1024 * 1024
 MAX_WHEEL_MEMBERS = 100_000
 MAX_WHEEL_CENTRAL_DIRECTORY_BYTES = 32 * 1024 * 1024
@@ -919,6 +929,96 @@ def _build_download_command(
     return command
 
 
+def _collect_private_proxy_artifact_hashes(
+    *,
+    expected_artifacts: frozenset[tuple[str, str]],
+    child_env: Mapping[str, str],
+) -> dict[str, str]:
+    """Collect proxy-origin SHA-256 admissions for every exact artifact.
+
+    The credentialed phase reads only canonical private Simple API pages.  A
+    wheel is admitted later only when its filename and digest match one of
+    these proxy-hosted, hash-fragment-bound links.
+    """
+
+    canonical_index = validate_index_url(child_env.get("PIP_INDEX_URL", ""))
+    parsed_index = urlparse(canonical_index)
+    hostname = parsed_index.hostname
+    if hostname is None:
+        raise RuntimeError("Approved private proxy URL has no hostname.")
+    resolver_home = Path(child_env.get("HOME", ""))
+    if not resolver_home.is_dir() or resolver_home.is_symlink():
+        raise RuntimeError("Credentialed resolver HOME is unavailable for artifact admission.")
+    authorization_header = basic_auth_from_netrc(
+        hostname,
+        netrc_file=resolver_home / ".netrc",
+    )
+
+    artifacts = sorted(expected_artifacts)
+    if not artifacts:
+        return {}
+
+    def fetch_one(artifact: tuple[str, str]) -> dict[str, str]:
+        package, version = artifact
+        normalized_package = normalize_project_name(package)
+        url = project_page_url(canonical_index, normalized_package)
+        last_error: OSError | None = None
+        for _attempt in range(ARTIFACT_ADMISSION_ATTEMPTS):
+            try:
+                status, body = fetch_project_page(
+                    url,
+                    timeout_seconds=ARTIFACT_ADMISSION_TIMEOUT_SECONDS,
+                    max_bytes=ARTIFACT_ADMISSION_MAX_BYTES,
+                    authorization_header=authorization_header,
+                )
+                break
+            except OSError as exc:
+                last_error = exc
+        else:
+            if last_error is None:
+                raise RuntimeError("Artifact-admission retry state is inconsistent.")
+            raise RuntimeError(
+                f"{normalized_package}=={version}: private proxy artifact-admission "
+                f"request failed after {ARTIFACT_ADMISSION_ATTEMPTS} attempts: "
+                f"{redact_text(str(last_error))}"
+            ) from last_error
+        if status < 200 or status >= 300:
+            raise RuntimeError(
+                f"{normalized_package}=={version}: private proxy artifact-admission "
+                f"request returned HTTP {status}"
+            )
+        if len(body) > ARTIFACT_ADMISSION_MAX_BYTES:
+            raise RuntimeError(
+                f"{normalized_package}=={version}: private proxy Simple page exceeds "
+                "the artifact-admission size limit"
+            )
+        try:
+            project_hashes: dict[str, str] = trusted_exact_pin_wheel_hashes(
+                body=body,
+                project_url=url,
+                normalized_project=normalized_package,
+                expected_version=version,
+            )
+        except ValueError as exc:
+            raise RuntimeError(f"{normalized_package}=={version}: {redact_text(str(exc))}") from exc
+        return project_hashes
+
+    admitted: dict[str, str] = {}
+    with ThreadPoolExecutor(
+        max_workers=min(ARTIFACT_ADMISSION_MAX_WORKERS, len(artifacts)),
+        thread_name_prefix="lock-artifact-admission",
+    ) as executor:
+        for project_hashes in executor.map(fetch_one, artifacts):
+            for filename, digest in sorted(project_hashes.items()):
+                previous = admitted.get(filename)
+                if previous is not None and previous != digest:
+                    raise RuntimeError(
+                        f"{filename}: private proxy advertised conflicting SHA-256 hashes"
+                    )
+                admitted[filename] = digest
+    return admitted
+
+
 def _download_profile_wheels(
     *,
     wheelhouse: Path,
@@ -1228,6 +1328,7 @@ def _validate_wheelhouse(
     *,
     wheelhouse: Path,
     expected_artifacts: frozenset[tuple[str, str]],
+    admitted_hashes: Mapping[str, str] | None = None,
 ) -> dict[tuple[str, str], ValidatedWheel]:
     """Statically validate exact wheel identity and metadata without importing code."""
 
@@ -1259,6 +1360,18 @@ def _validate_wheelhouse(
                 f"{previous.path.name}, {wheel_path.name}"
             )
         actual[artifact_key] = artifact
+        if admitted_hashes is not None:
+            expected_digest = admitted_hashes.get(wheel_path.name.lower())
+            if expected_digest is None:
+                raise RuntimeError(
+                    f"{wheel_path.name}: wheel filename is absent from the "
+                    "private-proxy artifact admission set"
+                )
+            if not hmac.compare_digest(artifact.snapshot.digest, expected_digest):
+                raise RuntimeError(
+                    f"{wheel_path.name}: wheel SHA-256 does not match the "
+                    "private-proxy artifact admission hash"
+                )
 
     missing = sorted(expected_artifacts - set(actual))
     extra = sorted(set(actual) - expected_artifacts)
@@ -1701,6 +1814,10 @@ def _compile_selected_profiles_locked(
                 environment,
                 resolver_home=credentialed_home,
             )
+            artifact_admissions = _collect_private_proxy_artifact_hashes(
+                expected_artifacts=_expected_artifacts(plans) | bootstrap_artifacts,
+                child_env=download_env,
+            )
             _download_profile_wheels(
                 wheelhouse=wheelhouse,
                 plans=plans,
@@ -1715,6 +1832,7 @@ def _compile_selected_profiles_locked(
         artifacts = _validate_wheelhouse(
             wheelhouse=wheelhouse,
             expected_artifacts=_expected_artifacts(plans) | bootstrap_artifacts,
+            admitted_hashes=artifact_admissions,
         )
 
         views_root = transaction_root / "profile-wheelhouses"

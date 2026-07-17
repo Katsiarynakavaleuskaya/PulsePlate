@@ -83,6 +83,7 @@ _GIT_TIMEOUT_SEC = 15
 _MAPPING_LINE_RE = re.compile(r"^\s*-\s*(https://[^\s]+)\s*->\s*([a-f0-9]{7,40})\b", re.IGNORECASE)
 # Relaxed: match mapping-like lines to validate SHA (catches "- url -> notasha")
 _MAPPING_LINE_RELAXED_RE = re.compile(r"^\s*-\s*(https://[^\s]+)\s*->\s*(\S+)", re.IGNORECASE)
+_REPOSITORY_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 
 
 def _gh_path() -> str:
@@ -415,7 +416,6 @@ def _check_commit_after_comment(
     *,
     _git_commit_time_fn: Any = None,
     commit_time_by_sha: Mapping[str, str | None] | None = None,
-    graph_ordered_urls: frozenset[str] = frozenset(),
 ) -> list[str]:
     """
     For each resolved thread with a mapped SHA, require commit_time > comment_time.
@@ -442,10 +442,9 @@ def _check_commit_after_comment(
             else:
                 commit_iso = commit_time_by_sha.get(sha)
                 if not commit_iso:
-                    if t.url in graph_ordered_urls:
-                        continue
                     raise RuntimeError(
-                        f"commit {sha} lacks server-side pushedDate or graph-order evidence"
+                        f"commit {sha} lacks server-side pushedDate, PushEvent, "
+                        "or exact-PR check-suite timestamp evidence"
                     )
             commit_dt = _parse_iso_datetime(commit_iso)
             if commit_dt <= thread_created:
@@ -456,6 +455,144 @@ def _check_commit_after_comment(
         except RuntimeError as e:
             violations.append(f"{t.url}: {e}")
     return violations
+
+
+def _validated_server_timestamp(value: object, *, label: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise RuntimeError(f"{label} is missing a server timestamp")
+    try:
+        _parse_iso_datetime(value)
+    except ValueError as exc:
+        raise RuntimeError(f"{label} has a malformed server timestamp") from exc
+    return value
+
+
+def _fetch_server_commit_times(
+    *,
+    snapshot: PrSnapshot,
+    repository: str,
+    pr_number: int,
+    mapped_shas: frozenset[str],
+) -> dict[str, str | None]:
+    """Resolve server-observed PR commit times without trusting local git dates."""
+
+    if _REPOSITORY_RE.fullmatch(repository) is None:
+        raise RuntimeError(f"Invalid repository identity: {repository!r}")
+    for sha in mapped_shas:
+        if _GIT_SHA_RE.fullmatch(sha) is None:
+            raise RuntimeError(f"Invalid mapped commit SHA: {sha!r}")
+
+    times: dict[str, str | None] = {commit.sha: commit.pushed_at for commit in snapshot.commits}
+    missing = {sha for sha in mapped_shas if not times.get(sha)}
+    if not missing:
+        return times
+
+    pull_payload = json.loads(_run(["gh", "api", f"repos/{repository}/pulls/{pr_number}"]))
+    head = pull_payload.get("head") if isinstance(pull_payload, dict) else None
+    head_repo = head.get("repo") if isinstance(head, dict) else None
+    head_repository = head_repo.get("full_name") if isinstance(head_repo, dict) else None
+    head_ref = head.get("ref") if isinstance(head, dict) else None
+    if (
+        not isinstance(head_repository, str)
+        or _REPOSITORY_RE.fullmatch(head_repository) is None
+        or not isinstance(head_ref, str)
+        or not head_ref
+        or any(character in head_ref for character in "\r\n")
+    ):
+        raise RuntimeError("GitHub PR head repository/ref evidence is malformed")
+
+    event_pages = json.loads(
+        _run(
+            [
+                "gh",
+                "api",
+                "--paginate",
+                "--slurp",
+                f"repos/{head_repository}/events?per_page=100",
+            ]
+        )
+    )
+    if not isinstance(event_pages, list):
+        raise RuntimeError("GitHub repository events response is malformed")
+    commit_index = {commit.sha: index for index, commit in enumerate(snapshot.commits)}
+    expected_ref = f"refs/heads/{head_ref}"
+    for page in event_pages:
+        if not isinstance(page, list):
+            raise RuntimeError("GitHub repository events page is malformed")
+        for event in page:
+            if not isinstance(event, dict) or event.get("type") != "PushEvent":
+                continue
+            payload = event.get("payload")
+            if not isinstance(payload, dict) or payload.get("ref") != expected_ref:
+                continue
+            event_head = str(payload.get("head") or "").lower()
+            event_before = str(payload.get("before") or "").lower()
+            head_index = commit_index.get(event_head)
+            if head_index is None:
+                continue
+            if event_before == snapshot.base_sha:
+                first_index = 0
+            elif event_before in commit_index:
+                first_index = commit_index[event_before] + 1
+            else:
+                # The exact event head remains provable, but an unknown range
+                # boundary cannot timestamp intermediate commits.
+                first_index = head_index
+            if first_index > head_index:
+                continue
+            created_at = _validated_server_timestamp(
+                event.get("created_at"),
+                label="GitHub PushEvent",
+            )
+            for commit in snapshot.commits[first_index : head_index + 1]:
+                if commit.sha not in missing:
+                    continue
+                previous = times.get(commit.sha)
+                if previous is None or _parse_iso_datetime(created_at) < _parse_iso_datetime(
+                    previous
+                ):
+                    times[commit.sha] = created_at
+
+    missing = {sha for sha in missing if not times.get(sha)}
+    for sha in sorted(missing):
+        suite_pages = json.loads(
+            _run(
+                [
+                    "gh",
+                    "api",
+                    "--paginate",
+                    "--slurp",
+                    f"repos/{repository}/commits/{sha}/check-suites?per_page=100",
+                ]
+            )
+        )
+        if not isinstance(suite_pages, list):
+            raise RuntimeError("GitHub check-suites response is malformed")
+        observed: list[str] = []
+        for page in suite_pages:
+            if not isinstance(page, dict):
+                raise RuntimeError("GitHub check-suites page is malformed")
+            suites = page.get("check_suites")
+            if not isinstance(suites, list):
+                raise RuntimeError("GitHub check-suites page lacks check_suites")
+            for suite in suites:
+                if not isinstance(suite, dict) or suite.get("head_sha") != sha:
+                    continue
+                pull_requests = suite.get("pull_requests")
+                if not isinstance(pull_requests, list) or not any(
+                    isinstance(pull_request, dict) and pull_request.get("number") == pr_number
+                    for pull_request in pull_requests
+                ):
+                    continue
+                observed.append(
+                    _validated_server_timestamp(
+                        suite.get("created_at"),
+                        label=f"check suite for {sha}",
+                    )
+                )
+        if observed:
+            times[sha] = min(observed, key=_parse_iso_datetime)
+    return times
 
 
 def _get_pr_number(pr_number: int | None = None) -> int:
@@ -611,7 +748,6 @@ def _check_real_commit_proofs(
     snapshot: PrSnapshot,
     repository: str,
     token: str,
-    graph_ordered_urls: set[str] | None = None,
 ) -> list[str]:
     """Prove every mapped FIX SHA and original comment commit in the live PR graph."""
 
@@ -684,8 +820,6 @@ def _check_real_commit_proofs(
                 f"{thread.url}: mapped FIX SHA does not descend from original_commit_id"
             )
             continue
-        if graph_ordered_urls is not None and original.sha != fix.sha:
-            graph_ordered_urls.add(thread.url)
     return violations
 
 
@@ -921,7 +1055,6 @@ def main() -> None:
         print("  and one of: Commit: / Evidence: / Backlog:")
         sys.exit(1)
 
-    graph_ordered_urls: set[str] = set()
     if is_v1:
         if snapshot is None or api_token is None:
             print("ERROR: internal v1 context is incomplete")
@@ -933,7 +1066,6 @@ def main() -> None:
                 snapshot=snapshot,
                 repository=repository,
                 token=api_token,
-                graph_ordered_urls=graph_ordered_urls,
             )
         except (CommitIdentityError, OSError) as exc:
             print(f"ERROR: unable to prove FIXED commit identities: {exc}")
@@ -945,16 +1077,22 @@ def main() -> None:
             sys.exit(1)
 
     # Commit-after-comment guard: mapping must reference a commit made AFTER the comment
-    server_commit_times = (
-        {commit.sha: commit.pushed_at for commit in snapshot.commits}
-        if is_v1 and snapshot is not None
-        else None
-    )
+    server_commit_times: Mapping[str, str | None] | None = None
+    if is_v1 and snapshot is not None:
+        try:
+            server_commit_times = _fetch_server_commit_times(
+                snapshot=snapshot,
+                repository=repository,
+                pr_number=pr_number,
+                mapped_shas=frozenset(_parse_mapping_section(section).values()),
+            )
+        except (json.JSONDecodeError, OSError, RuntimeError) as exc:
+            print(f"ERROR: unable to establish server-side commit timestamps: {exc}")
+            sys.exit(1)
     commit_after_violations = _check_commit_after_comment(
         resolved_threads,
         section,
         commit_time_by_sha=server_commit_times,
-        graph_ordered_urls=frozenset(graph_ordered_urls) if is_v1 else frozenset(),
     )
     if commit_after_violations:
         print(

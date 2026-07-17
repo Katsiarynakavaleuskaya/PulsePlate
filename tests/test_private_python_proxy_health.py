@@ -160,6 +160,57 @@ def test_exact_pin_wheel_identity_comes_only_from_real_anchor_hrefs() -> None:
     ) == (real_wheel,)
 
 
+def test_trusted_exact_pin_hashes_require_proxy_origin_and_sha256() -> None:
+    filename = "coverage-7.15.1-py3-none-any.whl"
+    digest = "a" * 64
+    project_url = f"{APPROVED_INDEX}coverage/"
+    body = (f'<a href="../../+f/abc/{filename}#sha256={digest}">{filename}</a>').encode()
+
+    assert checker.trusted_exact_pin_wheel_hashes(
+        body=body,
+        project_url=project_url,
+        normalized_project="coverage",
+        expected_version="7.15.1",
+    ) == {filename: digest}
+
+    external = (
+        f'<a href="https://files.pythonhosted.org/{filename}#sha256={digest}">' f"{filename}</a>"
+    ).encode()
+    with pytest.raises(ValueError, match="artifact_admission_untrusted_url"):
+        checker.trusted_exact_pin_wheel_hashes(
+            body=external,
+            project_url=project_url,
+            normalized_project="coverage",
+            expected_version="7.15.1",
+        )
+
+    unhashed = f'<a href="../../+f/abc/{filename}">{filename}</a>'.encode()
+    with pytest.raises(ValueError, match="artifact_admission_missing_sha256"):
+        checker.trusted_exact_pin_wheel_hashes(
+            body=unhashed,
+            project_url=project_url,
+            normalized_project="coverage",
+            expected_version="7.15.1",
+        )
+
+
+def test_trusted_exact_pin_hashes_reject_ambiguous_filename() -> None:
+    filename = "coverage-7.15.1-py3-none-any.whl"
+    project_url = f"{APPROVED_INDEX}coverage/"
+    body = (
+        f'<a href="../../+f/one/{filename}#sha256={"a" * 64}">one</a>'
+        f'<a href="../../+f/two/{filename}#sha256={"b" * 64}">two</a>'
+    ).encode()
+
+    with pytest.raises(ValueError, match="artifact_admission_ambiguous_filename"):
+        checker.trusted_exact_pin_wheel_hashes(
+            body=body,
+            project_url=project_url,
+            normalized_project="coverage",
+            expected_version="7.15.1",
+        )
+
+
 def test_exact_pin_requires_python_is_bound_to_each_wheel_link() -> None:
     body = wheel_page_with_requires_python(
         (
@@ -241,7 +292,7 @@ def test_exact_pin_accepts_common_compatible_and_wildcard_specifiers() -> None:
     )
 
 
-def test_exact_pin_accepts_inclusive_requires_python_minor_upper_bound() -> None:
+def test_exact_pin_rejects_inclusive_requires_python_same_minor_upper_bound() -> None:
     body = wheel_page_with_requires_python(
         (
             "coverage-7.15.1-cp313-cp313-manylinux_2_28_x86_64.whl",
@@ -249,7 +300,7 @@ def test_exact_pin_accepts_inclusive_requires_python_minor_upper_bound() -> None
         ),
     )
 
-    assert checker.simple_page_has_exact_pin(
+    assert not checker.simple_page_has_exact_pin(
         body=body,
         normalized_project="coverage",
         expected_version="7.15.1",
@@ -265,6 +316,10 @@ def test_exact_pin_accepts_inclusive_requires_python_minor_upper_bound() -> None
     )
     assert not checker._requires_python_allows_target(
         "<=3.13.1",
+        target_python_tag="cp313",
+    )
+    assert not checker._requires_python_allows_target(
+        "<=3.13",
         target_python_tag="cp313",
     )
 

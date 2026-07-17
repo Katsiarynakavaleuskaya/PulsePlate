@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 from typing import TYPE_CHECKING
 
@@ -581,28 +582,7 @@ def test_v1_commit_after_comment_uses_server_timestamp() -> None:
     assert violations == []
 
 
-def test_v1_commit_after_comment_uses_proven_graph_order_when_pushed_date_is_null() -> None:
-    sha = "a" * 40
-    thread = ResolvedThreadRef(
-        url="https://github.com/org/repo/pull/1#discussion_r1",
-        source="comment",
-        is_resolved=True,
-        created_at="2026-02-27T12:00:00Z",
-    )
-    section = f"- {thread.url} -> {sha}\nDisposition: FIXED\nCommit: {sha}\n"
-
-    assert (
-        _check_commit_after_comment(
-            [thread],
-            section,
-            commit_time_by_sha={sha: None},
-            graph_ordered_urls=frozenset({thread.url}),
-        )
-        == []
-    )
-
-
-def test_v1_commit_after_comment_fails_without_server_or_graph_order() -> None:
+def test_v1_commit_after_comment_fails_without_server_timestamp() -> None:
     sha = "a" * 40
     thread = ResolvedThreadRef(
         url="https://github.com/org/repo/pull/1#discussion_r1",
@@ -619,10 +599,79 @@ def test_v1_commit_after_comment_fails_without_server_or_graph_order() -> None:
     )
 
     assert len(violations) == 1
-    assert "lacks server-side pushedDate or graph-order evidence" in violations[0]
+    assert "lacks server-side pushedDate, PushEvent" in violations[0]
 
 
-def test_real_commit_proof_records_graph_order_and_caches_ancestry(
+def test_server_commit_times_use_push_range_and_exact_pr_check_suite(
+    monkeypatch: "MonkeyPatch",
+) -> None:
+    first_sha = "a" * 40
+    second_sha = "b" * 40
+    third_sha = "c" * 40
+    base_sha = "d" * 40
+    snapshot = PrSnapshot(
+        repository="org/repo",
+        pr_number=1,
+        base_sha=base_sha,
+        head_sha=third_sha,
+        commits=(
+            PrCommitEvidence(first_sha, None),
+            PrCommitEvidence(second_sha, None),
+            PrCommitEvidence(third_sha, None),
+        ),
+    )
+
+    def run(command: list[str]) -> str:
+        endpoint = command[-1]
+        if endpoint == "repos/org/repo/pulls/1":
+            return json.dumps({"head": {"ref": "feature", "repo": {"full_name": "org/repo"}}})
+        if endpoint == "repos/org/repo/events?per_page=100":
+            return json.dumps(
+                [
+                    [
+                        {
+                            "type": "PushEvent",
+                            "created_at": "2026-02-27T13:00:00Z",
+                            "payload": {
+                                "ref": "refs/heads/feature",
+                                "before": base_sha,
+                                "head": second_sha,
+                            },
+                        }
+                    ]
+                ]
+            )
+        if endpoint == f"repos/org/repo/commits/{third_sha}/check-suites?per_page=100":
+            return json.dumps(
+                [
+                    {
+                        "check_suites": [
+                            {
+                                "head_sha": third_sha,
+                                "created_at": "2026-02-27T14:00:00Z",
+                                "pull_requests": [{"number": 1}],
+                            }
+                        ]
+                    }
+                ]
+            )
+        raise AssertionError(command)
+
+    monkeypatch.setattr(_disposition_mod, "_run", run)
+
+    assert _disposition_mod._fetch_server_commit_times(
+        snapshot=snapshot,
+        repository="org/repo",
+        pr_number=1,
+        mapped_shas=frozenset({first_sha, second_sha, third_sha}),
+    ) == {
+        first_sha: "2026-02-27T13:00:00Z",
+        second_sha: "2026-02-27T13:00:00Z",
+        third_sha: "2026-02-27T14:00:00Z",
+    }
+
+
+def test_real_commit_proof_caches_ancestry(
     monkeypatch: "MonkeyPatch",
 ) -> None:
     original_sha = "a" * 40
@@ -675,8 +724,6 @@ def test_real_commit_proof_records_graph_order_and_caches_ancestry(
         return True
 
     monkeypatch.setattr(_disposition_mod, "is_ancestor", ancestor)
-    graph_ordered_urls: set[str] = set()
-
     assert (
         _check_real_commit_proofs(
             threads,
@@ -684,11 +731,9 @@ def test_real_commit_proof_records_graph_order_and_caches_ancestry(
             snapshot=snapshot,
             repository="org/repo",
             token="opaque",
-            graph_ordered_urls=graph_ordered_urls,
         )
         == []
     )
-    assert graph_ordered_urls == set(urls)
     assert ancestry_calls == [(fix_sha, head_sha), (original_sha, fix_sha)]
 
 
