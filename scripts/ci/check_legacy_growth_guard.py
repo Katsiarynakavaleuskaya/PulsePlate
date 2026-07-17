@@ -2719,6 +2719,31 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             return self._resolve_descriptors(node.value)
         if isinstance(node, ast.NamedExpr):
             return self._resolve_descriptors(node.value)
+        if isinstance(node, ast.Attribute):
+            resolved: set[_DescriptorBinding] = set()
+            for owner_reference in self._resolve_object_references(node.value):
+                for function, descriptor_kind in self._class_member_descriptors.get(
+                    (owner_reference, node.attr),
+                    frozenset(),
+                ):
+                    if descriptor_kind in {"bound", "classmethod"}:
+                        resolved.add((function, "bound"))
+                    elif descriptor_kind == "staticmethod":
+                        resolved.add((function, "unbound"))
+                    elif descriptor_kind == "plain":
+                        resolved.add(
+                            (
+                                function,
+                                (
+                                    "bound"
+                                    if owner_reference.startswith(_INSTANCE_REFERENCE_PREFIX)
+                                    else "unbound"
+                                ),
+                            )
+                        )
+                    else:
+                        resolved.add((function, descriptor_kind))
+            return frozenset(resolved)
         if isinstance(node, ast.Name):
             return self.scope.resolve_descriptors(node.id)
         if isinstance(node, ast.Subscript):
@@ -4028,6 +4053,13 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 if current_present
                 else frozenset()
             )
+            current_descriptors = frozenset(
+                (
+                    function,
+                    "plain" if descriptor_kind == "unbound" else descriptor_kind,
+                )
+                for function, descriptor_kind in current_descriptors
+            )
             described_callables = {function for function, _kind in current_descriptors}
             current_descriptors |= frozenset(
                 (function, "plain")
@@ -5111,41 +5143,26 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 evaluator.visit(keyword.value)
                 unresolved_keywords = True
 
-        receiver_options = {False}
-        if isinstance(call.func, ast.Attribute):
+        receiver_options: set[bool] = set()
+        call_descriptor_kinds = {
+            descriptor_kind
+            for candidate, descriptor_kind in self._resolve_descriptors(call.func)
+            if candidate is function
+        }
+        for descriptor_kind in call_descriptor_kinds:
+            if descriptor_kind in {"bound", "classmethod"}:
+                receiver_options.add(True)
+            elif descriptor_kind in {"unbound", "plain", "staticmethod"}:
+                receiver_options.add(False)
+        if not receiver_options and isinstance(call.func, ast.Attribute):
             owner_references = self._resolve_object_references(call.func.value)
-            descriptor_kinds = {
-                kind
-                for owner_reference in owner_references
-                for candidate, kind in self._class_member_descriptors.get(
-                    (owner_reference, call.func.attr),
-                    frozenset(),
-                )
-                if candidate is function
-            }
             instance_access = any(
                 owner_reference.startswith(_INSTANCE_REFERENCE_PREFIX)
                 for owner_reference in owner_references
             )
-            class_access = any(
-                owner_reference.startswith(_CLASS_REFERENCE_PREFIX)
-                for owner_reference in owner_references
-            )
-            receiver_options = set()
-            if not descriptor_kinds:
-                receiver_options.add(instance_access)
-            for descriptor_kind in descriptor_kinds:
-                if descriptor_kind == "classmethod":
-                    receiver_options.add(True)
-                elif descriptor_kind == "staticmethod":
-                    receiver_options.add(False)
-                elif descriptor_kind == "plain":
-                    if instance_access:
-                        receiver_options.add(True)
-                    if class_access or not instance_access:
-                        receiver_options.add(False)
-            if not receiver_options:
-                receiver_options.add(False)
+            receiver_options.add(instance_access)
+        if not receiver_options:
+            receiver_options.add(False)
 
         positional_variants = [
             [

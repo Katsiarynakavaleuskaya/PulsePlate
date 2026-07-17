@@ -3982,6 +3982,39 @@ def test_legacy_growth_guard_preserves_staticmethod_alternative_to_plain() -> No
     ]
 
 
+def test_legacy_growth_guard_preserves_bound_classmethod_alias() -> None:
+    source = textwrap.dedent("""
+        class Installer:
+            @classmethod
+            def install(cls, target):
+                target.get("/api/v1/classmethod-alias-danger")(handler)
+
+        install = Installer.install
+        install(app)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/classmethod-alias-danger"
+    ]
+
+
+def test_legacy_growth_guard_preserves_bound_instance_method_alias() -> None:
+    source = textwrap.dedent("""
+        class Installer:
+            def install(self, target):
+                target.get("/api/v1/instance-method-alias-danger")(handler)
+
+        install = Installer().install
+        install(app)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/instance-method-alias-danger"
+    ]
+
+
 def test_legacy_growth_guard_unions_replayed_class_site_members() -> None:
     source = textwrap.dedent("""
         def dangerous(self, target):
