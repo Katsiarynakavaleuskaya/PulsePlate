@@ -1951,6 +1951,7 @@ def validate_legacy_growth(
 
 
 _FunctionNode = ast.FunctionDef | ast.AsyncFunctionDef
+_DescriptorBinding = tuple[_FunctionNode, str]
 
 
 @dataclass(frozen=True)
@@ -1967,6 +1968,7 @@ class _ResolvedBinding:
     deferred_calls: frozenset[_DeferredFunctionCall] = frozenset()
     mapping: _StaticMapping | None = None
     class_references: frozenset[str] = frozenset()
+    descriptors: frozenset[_DescriptorBinding] = frozenset()
 
 
 @dataclass(frozen=True)
@@ -2023,6 +2025,7 @@ class _LexicalBindings:
         self.deferred_calls: dict[str, frozenset[_DeferredFunctionCall]] = {}
         self.mappings: dict[str, _StaticMapping] = {}
         self.class_references: dict[str, frozenset[str]] = {}
+        self.descriptors: dict[str, frozenset[_DescriptorBinding]] = {}
         self.bound_names: set[str] = set()
         self.possibly_bound_names: set[str] = set()
 
@@ -2038,6 +2041,7 @@ class _LexicalBindings:
         clone.deferred_calls = dict(self.deferred_calls)
         clone.mappings = dict(self.mappings)
         clone.class_references = dict(self.class_references)
+        clone.descriptors = dict(self.descriptors)
         clone.bound_names = set(self.bound_names)
         clone.possibly_bound_names = set(self.possibly_bound_names)
         return clone
@@ -2054,6 +2058,7 @@ class _LexicalBindings:
         clone.deferred_calls = dict(self.deferred_calls)
         clone.mappings = dict(self.mappings)
         clone.class_references = dict(self.class_references)
+        clone.descriptors = dict(self.descriptors)
         clone.bound_names = set(self.bound_names)
         clone.possibly_bound_names = set(self.possibly_bound_names)
         return clone
@@ -2112,6 +2117,15 @@ class _LexicalBindings:
             return self.parent.resolve_class_references(name)
         return frozenset()
 
+    def resolve_descriptors(self, name: str) -> frozenset[_DescriptorBinding]:
+        if name in self.descriptors:
+            return self.descriptors[name]
+        if name in self.local_names:
+            return frozenset()
+        if self.parent is not None:
+            return self.parent.resolve_descriptors(name)
+        return frozenset()
+
     def visible_references(self) -> dict[str, str]:
         visible = self.parent.visible_references() if self.parent is not None else {}
         for name in self.local_names:
@@ -2143,6 +2157,7 @@ class _LexicalBindings:
         deferred_calls: frozenset[_DeferredFunctionCall] = frozenset(),
         mapping: _StaticMapping | None = None,
         class_references: frozenset[str] = frozenset(),
+        descriptors: frozenset[_DescriptorBinding] = frozenset(),
         runtime_binding: bool = True,
     ) -> None:
         if reference is None:
@@ -2169,6 +2184,10 @@ class _LexicalBindings:
             self.class_references[name] = class_references
         else:
             self.class_references.pop(name, None)
+        if descriptors:
+            self.descriptors[name] = descriptors
+        else:
+            self.descriptors.pop(name, None)
         if runtime_binding:
             self.bound_names.add(name)
             self.possibly_bound_names.add(name)
@@ -2180,6 +2199,7 @@ class _LexicalBindings:
         self.deferred_calls.pop(name, None)
         self.mappings.pop(name, None)
         self.class_references.pop(name, None)
+        self.descriptors.pop(name, None)
         self.bound_names.discard(name)
         self.possibly_bound_names.discard(name)
 
@@ -2494,11 +2514,13 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         self._deferred_generator_outer_bindings: dict[_FunctionNode, _ResolvedBinding] = {}
         self._consumed_deferred_calls: set[_DeferredFunctionCall] = set()
         self._lambda_function_bindings: dict[int, _FunctionNode] = {}
-        self._classmethod_functions: set[_FunctionNode] = set()
-        self._staticmethod_functions: set[_FunctionNode] = set()
         self._class_member_callables: dict[tuple[str, str], frozenset[_FunctionNode]] = {}
+        self._class_member_descriptors: dict[tuple[str, str], frozenset[_DescriptorBinding]] = {}
         self._class_member_presence: dict[tuple[str, str], bool] = {}
         self._class_direct_member_callables: dict[tuple[str, str], frozenset[_FunctionNode]] = {}
+        self._class_direct_member_descriptors: dict[
+            tuple[str, str], frozenset[_DescriptorBinding]
+        ] = {}
         self._class_direct_member_presence: dict[tuple[str, str], bool] = {}
         self._class_direct_member_noncallable: dict[tuple[str, str], bool] = {}
         self._class_mros: dict[str, tuple[str, ...]] = {}
@@ -2605,6 +2627,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         overwrite_conflicts: bool = False,
         mapping: _StaticMapping | None = None,
         class_references: frozenset[str] = frozenset(),
+        descriptors: frozenset[_DescriptorBinding] = frozenset(),
         runtime_binding: bool = True,
     ) -> None:
         if self.preserve_fastapi_conflicts and not overwrite_conflicts:
@@ -2640,6 +2663,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             deferred_calls=deferred_calls,
             mapping=mapping,
             class_references=class_references,
+            descriptors=descriptors,
             runtime_binding=runtime_binding,
         )
 
@@ -2672,12 +2696,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 and len(node.args) == 1
                 and not node.keywords
             ):
-                callables = self._resolve_callables(node.args[0])
-                if constructor_reference == "builtins.staticmethod":
-                    self._staticmethod_functions.update(callables)
-                else:
-                    self._classmethod_functions.update(callables)
-                return callables
+                return self._resolve_callables(node.args[0])
         if isinstance(node, ast.NamedExpr):
             return self._resolve_callables(node.value)
         if isinstance(node, ast.Name):
@@ -2691,6 +2710,43 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 else [node.body, node.orelse]
             )
             return frozenset().union(*(self._resolve_callables(value) for value in selected_nodes))
+        return frozenset()
+
+    def _resolve_descriptors(self, node: ast.AST) -> frozenset[_DescriptorBinding]:
+        if id(node) in self._call_result_bindings:
+            return self._call_result_bindings[id(node)].descriptors
+        if isinstance(node, ast.Await):
+            return self._resolve_descriptors(node.value)
+        if isinstance(node, ast.NamedExpr):
+            return self._resolve_descriptors(node.value)
+        if isinstance(node, ast.Name):
+            return self.scope.resolve_descriptors(node.id)
+        if isinstance(node, ast.Subscript):
+            mapping_binding, _unresolved = self._resolve_mapping_subscript_binding(node)
+            if mapping_binding is not None:
+                return mapping_binding.descriptors
+        if isinstance(node, ast.BoolOp):
+            return frozenset().union(*(self._resolve_descriptors(value) for value in node.values))
+        if isinstance(node, ast.IfExp):
+            selected_nodes = (
+                [node.body if bool(node.test.value) else node.orelse]
+                if isinstance(node.test, ast.Constant)
+                else [node.body, node.orelse]
+            )
+            return frozenset().union(
+                *(self._resolve_descriptors(value) for value in selected_nodes)
+            )
+        if isinstance(node, ast.Call):
+            constructor_reference = self._resolve_reference(node.func)
+            if (
+                constructor_reference in {"builtins.classmethod", "builtins.staticmethod"}
+                and len(node.args) == 1
+                and not node.keywords
+            ):
+                kind = constructor_reference.rsplit(".", maxsplit=1)[-1]
+                return frozenset(
+                    (function, kind) for function in self._resolve_callables(node.args[0])
+                )
         return frozenset()
 
     def _resolve_deferred_calls(self, node: ast.AST) -> frozenset[_DeferredFunctionCall]:
@@ -3127,6 +3183,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             and left.deferred_calls == right.deferred_calls
             and left.mappings == right.mappings
             and left.class_references == right.class_references
+            and left.descriptors == right.descriptors
             and left.bound_names == right.bound_names
             and left.possibly_bound_names == right.possibly_bound_names
         )
@@ -3294,6 +3351,13 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             )
             for name in class_reference_names
         }
+        descriptor_names = set().union(*(set(outcome.descriptors) for outcome in outcomes))
+        self.scope.descriptors = {
+            name: frozenset().union(
+                *(outcome.descriptors.get(name, frozenset()) for outcome in outcomes)
+            )
+            for name in descriptor_names
+        }
         self.scope.bound_names = set.intersection(
             *(set(outcome.bound_names) for outcome in outcomes)
         )
@@ -3311,6 +3375,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         deferred_calls: frozenset[_DeferredFunctionCall] = frozenset(),
         mapping: _StaticMapping | None = None,
         class_references: frozenset[str] = frozenset(),
+        descriptors: frozenset[_DescriptorBinding] = frozenset(),
         runtime_binding: bool = True,
     ) -> None:
         for target in targets:
@@ -3323,6 +3388,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     deferred_calls=deferred_calls,
                     mapping=mapping,
                     class_references=class_references,
+                    descriptors=descriptors,
                     runtime_binding=runtime_binding,
                 )
 
@@ -3438,6 +3504,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         deferred_calls = self._resolve_deferred_calls(value)
         mapping = self._resolve_mapping(value)
         class_references = self._resolve_class_references(value)
+        descriptors = self._resolve_descriptors(value)
         string = (
             resolved_string
             if resolved_string is not None
@@ -3456,6 +3523,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 deferred_calls=deferred_calls,
                 mapping=mapping,
                 class_references=class_references,
+                descriptors=descriptors,
             )
 
     def _bind_iteration_target(self, target: ast.expr, iterable: ast.AST) -> None:
@@ -3542,6 +3610,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 reference=binding.reference,
                 string=binding.string,
                 callables=binding.callables,
+                descriptors=binding.descriptors,
             )
             synthetic_call = ast.Call(
                 func=decorator,
@@ -3611,11 +3680,21 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         decorated_reference = decorated_binding.reference
         if not node.decorator_list and decorated_reference is None:
             decorated_reference = _KNOWN_NON_APP_REFERENCE
+        descriptor_kinds = {
+            decorator_reference.rsplit(".", maxsplit=1)[-1]
+            for decorator in node.decorator_list
+            if (decorator_reference := self._resolve_reference(decorator))
+            in {"builtins.classmethod", "builtins.staticmethod"}
+        }
+        descriptors = frozenset(
+            (candidate, kind) for candidate in decorated_callables for kind in descriptor_kinds
+        )
         self._bind_name(
             node.name,
             reference=decorated_reference,
             string=decorated_binding.string,
             callables=decorated_callables,
+            descriptors=descriptors,
             overwrite_conflicts=True,
         )
         if not self.analyze_function_bodies:
@@ -3781,6 +3860,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         }
         for member_name in member_names:
             candidates: frozenset[_FunctionNode] = frozenset()
+            descriptors: frozenset[_DescriptorBinding] = frozenset()
             definitely_present = False
             possibly_present = False
             for owner_reference in mro:
@@ -3793,6 +3873,10 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     frozenset(),
                 )
                 candidates |= direct_callables
+                descriptors |= self._class_direct_member_descriptors.get(
+                    (owner_reference, member_name),
+                    frozenset(),
+                )
                 proven_noncallable = self._class_direct_member_noncallable.get(
                     (owner_reference, member_name),
                     False,
@@ -3813,6 +3897,12 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             else:
                 self._class_member_callables.pop((class_reference, member_name), None)
                 self._class_member_callables.pop((instance_reference, member_name), None)
+            if descriptors:
+                self._class_member_descriptors[(class_reference, member_name)] = descriptors
+                self._class_member_descriptors[(instance_reference, member_name)] = descriptors
+            else:
+                self._class_member_descriptors.pop((class_reference, member_name), None)
+                self._class_member_descriptors.pop((instance_reference, member_name), None)
 
     def visit_ClassDef(self, node: ast.ClassDef) -> None:
         decorator_targets: list[frozenset[_FunctionNode]] = []
@@ -3868,6 +3958,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 reference=result_binding.reference,
                 string=result_binding.string,
                 callables=result_binding.callables,
+                descriptors=result_binding.descriptors,
             )
             decorator_call = ast.Call(
                 func=decorator,
@@ -3921,6 +4012,17 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 if current_present
                 else frozenset()
             )
+            current_descriptors = (
+                class_scope.descriptors.get(member_name, frozenset())
+                if current_present
+                else frozenset()
+            )
+            described_callables = {function for function, _kind in current_descriptors}
+            current_descriptors |= frozenset(
+                (function, "plain")
+                for function in current_callables
+                if function not in described_callables
+            )
             current_noncallable = (
                 current_present
                 and not current_callables
@@ -3930,23 +4032,33 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             if seen_class_site:
                 prior_definite = self._class_direct_member_presence.get(key, False)
                 prior_callables = self._class_direct_member_callables.get(key, frozenset())
+                prior_descriptors = self._class_direct_member_descriptors.get(
+                    key,
+                    frozenset(),
+                )
                 prior_noncallable = self._class_direct_member_noncallable.get(key, False)
                 definitely_present = (
                     prior_definite and current_definite if current_present else False
                 )
                 callables = prior_callables | current_callables
+                descriptors = prior_descriptors | current_descriptors
                 proven_noncallable = (
                     prior_noncallable and current_noncallable and not callables and current_present
                 )
             else:
                 definitely_present = current_definite
                 callables = current_callables
+                descriptors = current_descriptors
                 proven_noncallable = current_noncallable
             self._class_direct_member_presence[key] = definitely_present
             if callables:
                 self._class_direct_member_callables[key] = callables
             else:
                 self._class_direct_member_callables.pop(key, None)
+            if descriptors:
+                self._class_direct_member_descriptors[key] = descriptors
+            else:
+                self._class_direct_member_descriptors.pop(key, None)
             self._class_direct_member_noncallable[key] = proven_noncallable
         self._publish_class_member_summaries(class_reference, instance_reference)
         self._bind_name(
@@ -3955,6 +4067,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             string=result_binding.string,
             callables=result_binding.callables,
             class_references=(result_binding.class_references or frozenset({class_reference})),
+            descriptors=result_binding.descriptors,
             overwrite_conflicts=True,
         )
 
@@ -4595,6 +4708,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     callables=binding.callables,
                     deferred_calls=binding.deferred_calls,
                     class_references=binding.class_references,
+                    descriptors=binding.descriptors,
                 )
             entries.append(_StaticMappingEntry(key=key, binding=binding))
         candidate = _StaticMapping(site=node, entries=tuple(entries))
@@ -4841,6 +4955,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             deferred_calls=self._resolve_deferred_calls(value),
             mapping=self._resolve_mapping(value),
             class_references=self._resolve_class_references(value),
+            descriptors=self._resolve_descriptors(value),
         )
 
     @staticmethod
@@ -4868,6 +4983,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 deferred_calls=binding.deferred_calls,
                 mapping=binding.mapping,
                 class_references=binding.class_references,
+                descriptors=binding.descriptors,
             )
             outcomes.append(outcome)
         merged = _LexicalBindings(parent=None)
@@ -4886,6 +5002,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 else None
             ),
             class_references=frozenset().union(*(binding.class_references for binding in bindings)),
+            descriptors=frozenset().union(*(binding.descriptors for binding in bindings)),
         )
 
     @staticmethod
@@ -4984,28 +5101,27 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 unresolved_keywords = True
 
         if isinstance(call.func, ast.Attribute):
-            owner_reference = self._resolve_reference(call.func.value)
-            is_static_method = function in self._staticmethod_functions or any(
-                isinstance(decorator, ast.Name) and decorator.id == "staticmethod"
-                for decorator in function.decorator_list
+            owner_references = self._resolve_object_references(call.func.value)
+            descriptor_kinds = {
+                kind
+                for owner_reference in owner_references
+                for candidate, kind in self._class_member_descriptors.get(
+                    (owner_reference, call.func.attr),
+                    frozenset(),
+                )
+                if candidate is function
+            }
+            accessed_through_instance = any(
+                owner_reference.startswith(_INSTANCE_REFERENCE_PREFIX)
+                for owner_reference in owner_references
             )
-            is_instance_method = (
-                not is_static_method
-                and owner_reference is not None
-                and owner_reference.startswith(_INSTANCE_REFERENCE_PREFIX)
-            )
-            is_class_method = (
-                owner_reference is not None
-                and owner_reference.startswith(_CLASS_REFERENCE_PREFIX)
+            inject_receiver = "classmethod" in descriptor_kinds or (
+                accessed_through_instance
                 and (
-                    function in self._classmethod_functions
-                    or any(
-                        isinstance(decorator, ast.Name) and decorator.id == "classmethod"
-                        for decorator in function.decorator_list
-                    )
+                    not descriptor_kinds or any(kind != "staticmethod" for kind in descriptor_kinds)
                 )
             )
-            if is_instance_method or is_class_method:
+            if inject_receiver:
                 positional_bindings.insert(0, _ResolvedBinding(None, None))
 
         positional_parameters = [*function.args.posonlyargs, *function.args.args]
@@ -5161,6 +5277,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         target.deferred_calls = dict(snapshot.deferred_calls)
         target.mappings = dict(snapshot.mappings)
         target.class_references = dict(snapshot.class_references)
+        target.descriptors = dict(snapshot.descriptors)
         target.bound_names = set(snapshot.bound_names)
         target.possibly_bound_names = set(snapshot.possibly_bound_names)
 
@@ -5501,6 +5618,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     or name in nonlocal_scope.callables
                     or name in nonlocal_scope.mappings
                     or name in nonlocal_scope.class_references
+                    or name in nonlocal_scope.descriptors
                 )
                 if owns_name:
                     outward_targets[name] = nonlocal_scope
@@ -5520,6 +5638,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 deferred_calls=target.resolve_deferred_calls(name),
                 mapping=target.resolve_mapping(name),
                 class_references=target.resolve_class_references(name),
+                descriptors=target.resolve_descriptors(name),
             )
         for name, binding in arguments.items():
             self.scope.bind(
@@ -5530,6 +5649,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 deferred_calls=binding.deferred_calls,
                 mapping=binding.mapping,
                 class_references=binding.class_references,
+                descriptors=binding.descriptors,
             )
         self._loop_controls = []
         self._terminal_controls = _TerminalControlBindings(return_scopes=[], raise_scopes=[])
@@ -5556,6 +5676,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     result_binding.deferred_calls,
                     result_binding.mapping,
                     result_binding.class_references,
+                    result_binding.descriptors,
                 )
             elif result_binding.reference == "pulseplate.app.router":
                 result_binding = _ResolvedBinding(
@@ -5565,6 +5686,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     result_binding.deferred_calls,
                     result_binding.mapping,
                     result_binding.class_references,
+                    result_binding.descriptors,
                 )
             outcomes = [
                 self.scope,
@@ -5576,6 +5698,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             for name, target in outward_targets.items():
                 mapping = joined_scope.mappings.get(name)
                 class_references = joined_scope.class_references.get(name, frozenset())
+                descriptors = joined_scope.descriptors.get(name, frozenset())
                 binding = _ResolvedBinding(
                     reference=joined_scope.references.get(name),
                     string=joined_scope.strings.get(name),
@@ -5583,6 +5706,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     deferred_calls=joined_scope.deferred_calls.get(name, frozenset()),
                     mapping=mapping,
                     class_references=class_references,
+                    descriptors=descriptors,
                 )
                 target.bind(
                     name,
@@ -5592,6 +5716,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     deferred_calls=binding.deferred_calls,
                     mapping=mapping,
                     class_references=class_references,
+                    descriptors=descriptors,
                 )
                 parent_scope: _LexicalBindings | None = previous
                 for active_targets in reversed(self._outward_binding_targets[:-1]):
@@ -5608,6 +5733,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                             deferred_calls=binding.deferred_calls,
                             mapping=mapping,
                             class_references=class_references,
+                            descriptors=descriptors,
                         )
                     parent_scope = parent_scope.parent
         finally:

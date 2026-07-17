@@ -3902,6 +3902,46 @@ def test_legacy_growth_guard_keeps_safe_classmethod_wrapper_clean() -> None:
     assert legacy_guard.validate_legacy_growth(source) == []
 
 
+def test_legacy_growth_guard_scopes_classmethod_wrapper_to_owning_member() -> None:
+    source = textwrap.dedent("""
+        def dangerous_install(target):
+            target.get("/api/v1/shared-classmethod-danger")(handler)
+
+        class Plain:
+            install = dangerous_install
+
+        class Wrapped:
+            install = classmethod(dangerous_install)
+
+        Plain.install(app)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/shared-classmethod-danger"
+    ]
+
+
+def test_legacy_growth_guard_scopes_staticmethod_wrapper_to_owning_member() -> None:
+    source = textwrap.dedent("""
+        def dangerous_install(self, target):
+            target.get("/api/v1/shared-staticmethod-danger")(handler)
+
+        class Plain:
+            install = dangerous_install
+
+        class Wrapped:
+            install = staticmethod(dangerous_install)
+
+        Plain().install(app)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/shared-staticmethod-danger"
+    ]
+
+
 def test_legacy_growth_guard_unions_replayed_class_site_members() -> None:
     source = textwrap.dedent("""
         def dangerous(self, target):
