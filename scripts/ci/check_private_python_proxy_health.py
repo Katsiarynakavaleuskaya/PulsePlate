@@ -579,7 +579,11 @@ def _requires_python_clause_allows_target(
             and _compare_releases(required_release, target_upper) < 0
         )
     if operator == "<=":
-        return _compare_releases(target_upper, required_release) <= 0
+        # A minor-only inclusive bound covers that target minor. Patch-specific
+        # bounds stay fail-closed because the target patch is intentionally unknown.
+        if len(required_release) > len(target_release):
+            return False
+        return _compare_releases(target_floor, required_release) <= 0
     if operator == ">=":
         return _compare_releases(target_floor, required_release) >= 0
     if operator == "<":

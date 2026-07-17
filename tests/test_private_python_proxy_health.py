@@ -241,6 +241,34 @@ def test_exact_pin_accepts_common_compatible_and_wildcard_specifiers() -> None:
     )
 
 
+def test_exact_pin_accepts_inclusive_requires_python_minor_upper_bound() -> None:
+    body = wheel_page_with_requires_python(
+        (
+            "coverage-7.15.1-cp313-cp313-manylinux_2_28_x86_64.whl",
+            "<=3.13",
+        ),
+    )
+
+    assert checker.simple_page_has_exact_pin(
+        body=body,
+        normalized_project="coverage",
+        expected_version="7.15.1",
+        target_python_versions=["3.13"],
+    )
+    assert checker._requires_python_allows_target(
+        "<=3.14",
+        target_python_tag="cp313",
+    )
+    assert not checker._requires_python_allows_target(
+        "<=3.12",
+        target_python_tag="cp313",
+    )
+    assert not checker._requires_python_allows_target(
+        "<=3.13.1",
+        target_python_tag="cp313",
+    )
+
+
 def test_requires_python_minor_target_rejects_patch_specific_constraints() -> None:
     assert not checker._requires_python_allows_target(
         "==3.11.0.*",
