@@ -616,13 +616,17 @@ def _literal_subscript_value(node: ast.Subscript) -> ast.AST | None:
         return selected.value if isinstance(selected, ast.Starred) else selected
     if isinstance(node.value, ast.Dict):
         items = list(zip(node.value.keys, node.value.values, strict=True))
+        later_unpack_may_override = False
         for candidate_key, candidate_value in reversed(items):
+            if candidate_key is None:
+                later_unpack_may_override = True
+                continue
             if (
                 isinstance(candidate_key, ast.Constant)
                 and type(candidate_key.value) is type(key)
                 and candidate_key.value == key
             ):
-                return candidate_value
+                return None if later_unpack_may_override else candidate_value
     return None
 
 
@@ -649,6 +653,19 @@ def _collection_reference(
     if references and all(reference == _KNOWN_NON_APP_REFERENCE for reference in references):
         return _KNOWN_NON_APP_REFERENCE
     return None
+
+
+def _unpacked_mapping_reference(
+    key: ast.expr | None,
+    reference: str | None,
+) -> str | None:
+    if key is not None:
+        return reference
+    if reference == _MAPPING_APP_VALUE_REFERENCE:
+        return _POSSIBLE_APP_REFERENCE
+    if reference == _MAPPING_SENSITIVE_VALUE_REFERENCE:
+        return _POSSIBLE_APP_CALL_REFERENCE
+    return reference
 
 
 def _static_module_reference(
@@ -683,13 +700,16 @@ def _static_module_reference(
     if isinstance(node, ast.Dict):
         return _collection_reference(
             [
-                _static_module_reference(
-                    value,
-                    module_aliases=module_aliases,
-                    import_module_aliases=import_module_aliases,
-                    static_string_bindings=static_string_bindings,
+                _unpacked_mapping_reference(
+                    key,
+                    _static_module_reference(
+                        value,
+                        module_aliases=module_aliases,
+                        import_module_aliases=import_module_aliases,
+                        static_string_bindings=static_string_bindings,
+                    ),
                 )
-                for value in node.values
+                for key, value in zip(node.keys, node.values, strict=True)
             ],
             mapping=True,
         )
@@ -2507,7 +2527,13 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 return collection_reference
         if isinstance(node, ast.Dict):
             collection_reference = _collection_reference(
-                [self._resolve_reference(value) for value in node.values],
+                [
+                    _unpacked_mapping_reference(
+                        key,
+                        self._resolve_reference(value),
+                    )
+                    for key, value in zip(node.keys, node.values, strict=True)
+                ],
                 mapping=True,
             )
             if collection_reference is not None:

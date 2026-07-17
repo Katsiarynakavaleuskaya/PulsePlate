@@ -3301,6 +3301,29 @@ def test_legacy_growth_guard_uses_last_duplicate_literal_mapping_value() -> None
     assert legacy_guard.validate_legacy_growth(source) == []
 
 
+def test_legacy_growth_guard_keeps_later_mapping_unpack_fail_closed() -> None:
+    source = textwrap.dedent("""
+        routes = {"route": app.get}
+        register = {"route": None, **routes}["route"]
+        register("/api/v1/unpacked-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:dynamic:/api/v1/unpacked-route"
+    ]
+
+
+def test_legacy_growth_guard_honors_later_literal_after_mapping_unpack() -> None:
+    source = textwrap.dedent("""
+        routes = {"route": app.get}
+        register = {**routes, "route": None}["route"]
+        register("/api/v1/not-a-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
 @pytest.mark.parametrize(
     "invocation",
     [
