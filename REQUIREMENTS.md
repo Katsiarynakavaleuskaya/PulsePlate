@@ -87,8 +87,12 @@ LOCK_PROFILES="test dev aggregate" \
 
 `LOCK_PROFILES` is required. `UPGRADE_PACKAGES` is optional and accepts only
 exact existing `package==version` targets. The compiler seeds existing locks,
-rejects unrelated graph movement, never records the proxy URL, and rolls back a
-multi-lock update if any replacement fails. Runtime must be compiled in a
-separate first pass before profiles constrained by `requirements.txt`. See
-`docs/DEPENDENCY_MANAGEMENT.md` for profile and graph-change procedures. Do not
-regenerate lockfiles in documentation-only or validator-only PRs.
+downloads the exact desired artifacts through a temporary private-proxy HOME,
+destroys that credentialed HOME, statically validates wheel metadata, then
+compiles from profile-narrow wheelhouses with indexes disabled. It rejects
+unrelated graph movement and rolls back a multi-lock update if any replacement
+fails. Runtime must be compiled in a separate first pass before profiles
+constrained by `requirements.txt`. `GRAPH_CHANGE_PACKAGES` is intentionally
+unavailable until a versioned artifact-admission contract exists. See
+`docs/DEPENDENCY_MANAGEMENT.md` for profile procedures. Do not regenerate
+lockfiles in documentation-only or validator-only PRs.

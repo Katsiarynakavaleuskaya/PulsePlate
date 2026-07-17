@@ -405,17 +405,22 @@ def simple_page_has_exact_pin(
     expected_version: str,
     target_python_versions: Sequence[str] | None = None,
 ) -> bool:
-    """Return True when the page advertises a compatible exact-version wheel."""
-    return any(
-        wheel_is_compatible_with_targets(
-            filename,
-            target_python_versions=target_python_versions,
+    """Return True when exact-version wheels cover every requested Python target."""
+    filenames = exact_pin_wheel_filenames(
+        body=body,
+        normalized_project=normalized_project,
+        expected_version=expected_version,
+    )
+    target_python_tags = normalize_target_python_versions(target_python_versions)
+    return all(
+        any(
+            wheel_is_compatible_with_targets(
+                filename,
+                target_python_versions=(target_python_tag,),
+            )
+            for filename in filenames
         )
-        for filename in exact_pin_wheel_filenames(
-            body=body,
-            normalized_project=normalized_project,
-            expected_version=expected_version,
-        )
+        for target_python_tag in target_python_tags
     )
 
 

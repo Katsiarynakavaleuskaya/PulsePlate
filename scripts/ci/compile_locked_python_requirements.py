@@ -10,21 +10,28 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from dataclasses import dataclass
+from email import policy
+from email.parser import BytesParser
 import fcntl
 import hashlib
+from importlib import metadata as importlib_metadata
 import netrc
 import os
 from pathlib import Path
+from pathlib import PurePosixPath
 import re
 import stat
+import struct
 import subprocess  # nosec B404: argv-only governed pip-tools invocation (remove-by: 2027-01-31, ref: PR-2142)
 import sys
 import tempfile
 from typing import Iterator, Mapping, Sequence
 from urllib.parse import urlparse
+import zipfile
 
 from packaging.requirements import InvalidRequirement, Requirement
-from packaging.utils import canonicalize_name
+from packaging.utils import InvalidWheelFilename, canonicalize_name, parse_wheel_filename
+from packaging.version import InvalidVersion, Version
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
@@ -53,11 +60,19 @@ PROFILE_SELECTION_ENV = "PULSEPLATE_LOCK_PROFILES_RAW"
 UPGRADE_SELECTION_ENV = "PULSEPLATE_LOCK_UPGRADES_RAW"
 GRAPH_CHANGE_SELECTION_ENV = "PULSEPLATE_LOCK_GRAPH_CHANGES_RAW"
 COMPILE_TIMEOUT_SECONDS = 300
+DOWNLOAD_TIMEOUT_SECONDS = 300
+MAX_WHEEL_METADATA_BYTES = 2 * 1024 * 1024
+MAX_WHEEL_MEMBERS = 100_000
+MAX_WHEEL_CENTRAL_DIRECTORY_BYTES = 32 * 1024 * 1024
+ZIP_END_OF_CENTRAL_DIRECTORY_SIZE = 22
+ZIP_MAX_COMMENT_BYTES = 65_535
+ZIP_END_OF_CENTRAL_DIRECTORY_SIGNATURE = b"PK\x05\x06"
 PROFILE_NAME_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 EXACT_UPGRADE_RE = re.compile(
     r"^(?P<name>[A-Za-z0-9][A-Za-z0-9._-]*)==" r"(?P<version>[A-Za-z0-9][A-Za-z0-9._+!~-]*)$"
 )
 AMBIENT_RESOLVER_ENV_VARS = (
+    "NETRC",
     "PIP_INDEX_URL",
     "PIP_EXTRA_INDEX_URL",
     "PIP_CONFIG_FILE",
@@ -72,6 +87,8 @@ AMBIENT_RESOLVER_ENV_VARS = (
     "PIP_ONLY_BINARY",
     "PIP_NO_BINARY",
     "PIP_PREFER_BINARY",
+    "PIP_NO_CACHE_DIR",
+    "PIP_KEYRING_PROVIDER",
     "SSL_CERT_FILE",
     "REQUESTS_CA_BUNDLE",
     "CURL_CA_BUNDLE",
@@ -121,6 +138,34 @@ class FileCapture:
 
     content: bytes
     snapshot: FileSnapshot
+
+
+@dataclass(frozen=True)
+class LockInputPlan:
+    """Descriptor-bound lock inputs and the exact artifacts they require."""
+
+    surface: DependencySurface
+    output_path: Path
+    output_capture: FileCapture
+    source_captures: tuple[tuple[Path, FileCapture], ...]
+    expected_artifacts: frozenset[tuple[str, str]]
+
+
+@dataclass(frozen=True)
+class ValidatedWheel:
+    """One statically validated wheel bound to immutable filesystem identity."""
+
+    path: Path
+    artifact_key: tuple[str, str]
+    snapshot: FileSnapshot
+
+
+@dataclass(frozen=True)
+class ProfileWheelhouse:
+    """A profile-narrow wheel view and its validated regular files."""
+
+    path: Path
+    artifacts: tuple[ValidatedWheel, ...]
 
 
 @dataclass(frozen=True)
@@ -207,6 +252,13 @@ def _parse_graph_changes(raw_value: str | None) -> frozenset[str]:
         if normalized_name in packages:
             raise RuntimeError(f"Duplicate graph-change package: {normalized_name}")
         packages.add(normalized_name)
+    if packages:
+        raise RuntimeError(
+            "GRAPH_CHANGE_PACKAGES is not supported by the governed lock compiler. "
+            "Only exact seeded-baseline refreshes selected with UPGRADE_PACKAGES are "
+            "admitted; dependency graph changes require a future versioned "
+            "artifact-admission contract."
+        )
     return frozenset(packages)
 
 
@@ -289,6 +341,82 @@ def _assert_snapshot(path: Path, expected: FileSnapshot) -> None:
     actual = _snapshot(path)
     if actual != expected:
         raise RuntimeError(f"Dependency file changed during lock compilation: {path.name}")
+
+
+def _streaming_file_snapshot(path: Path) -> FileSnapshot:
+    """Hash one regular file without following links or retaining its bytes."""
+
+    no_follow = getattr(os, "O_NOFOLLOW", None)
+    nonblocking = getattr(os, "O_NONBLOCK", None)
+    if no_follow is None or nonblocking is None:
+        raise RuntimeError("Wheel validation requires POSIX no-follow nonblocking reads.")
+    descriptor = os.open(path, os.O_RDONLY | no_follow | nonblocking)
+    try:
+        metadata = os.fstat(descriptor)
+        if not stat.S_ISREG(metadata.st_mode):
+            raise RuntimeError(f"Wheel artifact must remain a regular file: {path.name}")
+        digest = hashlib.sha256()
+        while chunk := os.read(descriptor, 1024 * 1024):
+            digest.update(chunk)
+        final_metadata = os.fstat(descriptor)
+    finally:
+        os.close(descriptor)
+    path_metadata = path.lstat()
+    identity = (
+        metadata.st_dev,
+        metadata.st_ino,
+        metadata.st_size,
+        metadata.st_mode,
+        metadata.st_uid,
+    )
+    if (
+        stat.S_ISLNK(path_metadata.st_mode)
+        or identity
+        != (
+            final_metadata.st_dev,
+            final_metadata.st_ino,
+            final_metadata.st_size,
+            final_metadata.st_mode,
+            final_metadata.st_uid,
+        )
+        or identity
+        != (
+            path_metadata.st_dev,
+            path_metadata.st_ino,
+            path_metadata.st_size,
+            path_metadata.st_mode,
+            path_metadata.st_uid,
+        )
+    ):
+        raise RuntimeError(f"Wheel artifact identity changed while it was read: {path.name}")
+    return FileSnapshot(
+        digest=digest.hexdigest(),
+        mode=stat.S_IMODE(metadata.st_mode),
+        device=metadata.st_dev,
+        inode=metadata.st_ino,
+        owner_uid=metadata.st_uid,
+        size=metadata.st_size,
+    )
+
+
+def _assert_validated_wheel(artifact: ValidatedWheel) -> None:
+    if _streaming_file_snapshot(artifact.path) != artifact.snapshot:
+        raise RuntimeError(
+            f"Validated wheel changed before offline compilation: {artifact.path.name}"
+        )
+
+
+def _assert_private_directory(path: Path, *, label: str) -> None:
+    metadata = path.lstat()
+    effective_uid = getattr(os, "geteuid", None)
+    if (
+        not callable(effective_uid)
+        or stat.S_ISLNK(metadata.st_mode)
+        or not stat.S_ISDIR(metadata.st_mode)
+        or metadata.st_uid != effective_uid()
+        or stat.S_IMODE(metadata.st_mode) & 0o077
+    ):
+        raise RuntimeError(f"{label} must be a private user-owned directory.")
 
 
 def _validated_repo_file(repo_root: Path, relative_path: str) -> Path:
@@ -434,6 +562,111 @@ def _exact_pin_map(text: str, *, label: str) -> dict[str, ExactPin]:
             url=requirement.url,
         )
     return pins
+
+
+def _canonical_version(raw_version: str, *, label: str) -> str:
+    try:
+        return str(Version(raw_version))
+    except InvalidVersion as exc:
+        raise RuntimeError(f"{label}: invalid package version {raw_version!r}") from exc
+
+
+def _resolver_bootstrap_artifacts() -> frozenset[tuple[str, str]]:
+    """Return exact metadata-only artifacts required by the offline resolver."""
+
+    try:
+        pip_version = importlib_metadata.version("pip")
+    except importlib_metadata.PackageNotFoundError as exc:
+        raise RuntimeError(
+            "The governed lock compiler requires pip in its approved interpreter."
+        ) from exc
+    return frozenset(
+        {
+            (
+                "pip",
+                _canonical_version(
+                    pip_version,
+                    label="offline resolver bootstrap pip",
+                ),
+            )
+        }
+    )
+
+
+def _capture_lock_input_plan(
+    *,
+    repo_root: Path,
+    surface: DependencySurface,
+    upgrades: Mapping[str, str],
+) -> LockInputPlan:
+    """Capture one seeded lock transaction before any credentialed network work."""
+
+    output_path = _validated_repo_file(repo_root, surface.lockfile)
+    source_paths = tuple(
+        _validated_repo_file(repo_root, source) for source in surface.compile_sources
+    )
+    source_captures: dict[Path, FileCapture] = {}
+    for source_path in source_paths:
+        _capture_and_validate_source_manifest(
+            repo_root,
+            source_path,
+            captures=source_captures,
+            allow_directives=surface.allow_lock_directives,
+        )
+
+    output_capture = _capture_file(output_path)
+    try:
+        baseline_text = output_capture.content.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise RuntimeError(f"{surface.lockfile}: seeded lock must be UTF-8") from exc
+    baseline_pins = _exact_pin_map(baseline_text, label=f"{surface.lockfile} baseline")
+    if "pip" in baseline_pins:
+        raise RuntimeError(f"{surface.lockfile}: seeded locks must not pin pip")
+    for package in upgrades:
+        if package not in baseline_pins:
+            raise RuntimeError(
+                f"{surface.lockfile}: requested upgrade package is absent from the seeded lock: "
+                f"{package}"
+            )
+
+    expected_artifacts: set[tuple[str, str]] = set()
+    for package, pin in baseline_pins.items():
+        if pin.url is not None:
+            raise RuntimeError(
+                f"{surface.lockfile}: seeded lock contains forbidden direct URL for {package}"
+            )
+        desired_version = upgrades.get(package, pin.version)
+        expected_artifacts.add(
+            (
+                package,
+                _canonical_version(
+                    desired_version,
+                    label=f"{surface.lockfile} expected artifact {package}",
+                ),
+            )
+        )
+    return LockInputPlan(
+        surface=surface,
+        output_path=output_path,
+        output_capture=output_capture,
+        source_captures=tuple(source_captures.items()),
+        expected_artifacts=frozenset(expected_artifacts),
+    )
+
+
+def _assert_lock_input_plan(plan: LockInputPlan) -> None:
+    _assert_snapshot(plan.output_path, plan.output_capture.snapshot)
+    for path, capture in plan.source_captures:
+        _assert_snapshot(path, capture.snapshot)
+
+
+def _expected_artifacts(
+    plans: Sequence[LockInputPlan],
+) -> frozenset[tuple[str, str]]:
+    expected: set[tuple[str, str]] = set()
+    for plan in plans:
+        expected.update(plan.expected_artifacts)
+    return frozenset(expected)
 
 
 def _validate_candidate_surface(surface: DependencySurface, candidate_text: str) -> None:
@@ -630,6 +863,7 @@ def _private_proxy_child_env(
     source_home = Path(environment.get("HOME", str(Path.home())))
     source_netrc = source_home / ".netrc"
     netrc_capture = _validated_netrc_capture(source_netrc)
+    _assert_private_directory(resolver_home, label="Credentialed resolver HOME")
     resolver_netrc = resolver_home / ".netrc"
     materialized_snapshot: FileSnapshot | None = None
     if netrc_capture is not None:
@@ -652,11 +886,471 @@ def _private_proxy_child_env(
             "PIP_INDEX_URL": canonical_index,
             "PIP_CONFIG_FILE": os.devnull,
             "PIP_DISABLE_PIP_VERSION_CHECK": "1",
+            "PIP_KEYRING_PROVIDER": "disabled",
+            "PIP_NO_CACHE_DIR": "1",
             "PIP_NO_INPUT": "1",
             "PIP_ONLY_BINARY": ":all:",
         }
     )
     child_env["HOME"] = str(resolver_home)
+    return child_env
+
+
+def _build_download_command(
+    *,
+    wheelhouse: Path,
+    expected_artifacts: frozenset[tuple[str, str]],
+) -> list[str]:
+    command = [
+        sys.executable,
+        "-m",
+        "pip",
+        "download",
+        "--disable-pip-version-check",
+        "--no-input",
+        "--only-binary=:all:",
+        "--no-deps",
+        "--dest",
+        str(wheelhouse),
+        "--find-links",
+        str(wheelhouse),
+    ]
+    command.extend(f"{package}=={version}" for package, version in sorted(expected_artifacts))
+    return command
+
+
+def _download_profile_wheels(
+    *,
+    wheelhouse: Path,
+    plans: Sequence[LockInputPlan],
+    child_env: Mapping[str, str],
+    bootstrap_artifacts: frozenset[tuple[str, str]] = frozenset(),
+) -> None:
+    """Fetch one exact, no-dependency artifact batch per selected profile."""
+
+    if wheelhouse.is_symlink() or not wheelhouse.is_dir():
+        raise RuntimeError("Wheelhouse must be a private regular directory.")
+    os.chmod(wheelhouse, 0o700)
+    _assert_private_directory(wheelhouse, label="Wheelhouse")
+    if tuple(wheelhouse.iterdir()):
+        raise RuntimeError("Wheelhouse must be empty before credentialed artifact download.")
+    for plan in plans:
+        resolver_artifacts = plan.expected_artifacts | bootstrap_artifacts
+        if not resolver_artifacts:
+            continue
+        command = _build_download_command(
+            wheelhouse=wheelhouse,
+            expected_artifacts=resolver_artifacts,
+        )
+        result = subprocess.run(  # nosec B603: fixed pip download argv and exact governed pins (remove-by: 2027-01-31, ref: PR-2142)
+            command,
+            cwd=wheelhouse,
+            env=dict(child_env),
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=DOWNLOAD_TIMEOUT_SECONDS,
+        )
+        if result.returncode != 0:
+            detail = redact_text((result.stderr or result.stdout).strip())[-2000:]
+            raise RuntimeError(
+                f"{plan.surface.lockfile}: exact artifact download failed with exit "
+                f"{result.returncode}: {detail}"
+            )
+
+
+def _validate_wheel_member_name(wheel_path: Path, member_name: str) -> PurePosixPath:
+    if "\\" in member_name:
+        raise RuntimeError(f"{wheel_path.name}: wheel member contains a backslash")
+    member_path = PurePosixPath(member_name)
+    if member_path.is_absolute() or ".." in member_path.parts:
+        raise RuntimeError(f"{wheel_path.name}: wheel member escapes the archive root")
+    return member_path
+
+
+def _validate_zip_central_directory_bounds(
+    *,
+    descriptor: int,
+    wheel_path: Path,
+    file_size: int,
+) -> None:
+    """Bound parser work before ``ZipFile`` materializes the central directory."""
+
+    if file_size < ZIP_END_OF_CENTRAL_DIRECTORY_SIZE:
+        raise RuntimeError(f"{wheel_path.name}: malformed wheel archive")
+    tail_size = min(
+        file_size,
+        ZIP_END_OF_CENTRAL_DIRECTORY_SIZE + ZIP_MAX_COMMENT_BYTES,
+    )
+    pread = getattr(os, "pread", None)
+    if not callable(pread):
+        raise RuntimeError("Wheel validation requires POSIX descriptor-bound reads.")
+    tail = pread(descriptor, tail_size, file_size - tail_size)
+    search_end = len(tail)
+    while True:
+        offset = tail.rfind(
+            ZIP_END_OF_CENTRAL_DIRECTORY_SIGNATURE,
+            0,
+            search_end,
+        )
+        if offset < 0:
+            raise RuntimeError(f"{wheel_path.name}: malformed wheel archive")
+        if offset + ZIP_END_OF_CENTRAL_DIRECTORY_SIZE <= len(tail):
+            (
+                signature,
+                disk_number,
+                central_directory_disk,
+                entries_on_disk,
+                total_entries,
+                central_directory_size,
+                central_directory_offset,
+                comment_size,
+            ) = struct.unpack_from("<4s4H2LH", tail, offset)
+            if (
+                signature == ZIP_END_OF_CENTRAL_DIRECTORY_SIGNATURE
+                and offset + ZIP_END_OF_CENTRAL_DIRECTORY_SIZE + comment_size == len(tail)
+            ):
+                break
+        search_end = offset
+
+    if disk_number or central_directory_disk or entries_on_disk != total_entries:
+        raise RuntimeError(f"{wheel_path.name}: multi-disk wheel archives are forbidden")
+    if (
+        total_entries == 0xFFFF
+        or central_directory_size == 0xFFFFFFFF
+        or central_directory_offset == 0xFFFFFFFF
+    ):
+        raise RuntimeError(f"{wheel_path.name}: ZIP64 wheel archives are forbidden")
+    if total_entries > MAX_WHEEL_MEMBERS:
+        raise RuntimeError(f"{wheel_path.name}: wheel contains too many archive members")
+    if central_directory_size > MAX_WHEEL_CENTRAL_DIRECTORY_BYTES:
+        raise RuntimeError(f"{wheel_path.name}: wheel central directory exceeds the size limit")
+    end_of_central_directory = file_size - tail_size + offset
+    if central_directory_offset + central_directory_size != end_of_central_directory:
+        raise RuntimeError(f"{wheel_path.name}: malformed wheel central directory bounds")
+
+
+def _single_metadata_header(
+    *,
+    wheel_path: Path,
+    metadata: object,
+    header_name: str,
+) -> str:
+    get_all = getattr(metadata, "get_all", None)
+    values = get_all(header_name, []) if callable(get_all) else []
+    if len(values) != 1 or not isinstance(values[0], str) or not values[0].strip():
+        raise RuntimeError(
+            f"{wheel_path.name}: METADATA must contain exactly one {header_name} header"
+        )
+    return values[0].strip()
+
+
+def _validate_one_wheel(
+    *,
+    wheel_path: Path,
+    expected_artifacts: frozenset[tuple[str, str]],
+) -> ValidatedWheel:
+    try:
+        filename_name, filename_version, _, _ = parse_wheel_filename(wheel_path.name)
+    except (InvalidWheelFilename, ValueError) as exc:
+        raise RuntimeError(f"{wheel_path.name}: malformed wheel filename") from exc
+    filename_key = (
+        str(canonicalize_name(filename_name)),
+        str(filename_version),
+    )
+    if filename_key not in expected_artifacts:
+        raise RuntimeError(
+            f"{wheel_path.name}: unexpected wheel artifact " f"{filename_key[0]}=={filename_key[1]}"
+        )
+
+    no_follow = getattr(os, "O_NOFOLLOW", None)
+    nonblocking = getattr(os, "O_NONBLOCK", None)
+    if no_follow is None or nonblocking is None:
+        raise RuntimeError("Wheel validation requires POSIX no-follow nonblocking reads.")
+    try:
+        descriptor = os.open(wheel_path, os.O_RDONLY | no_follow | nonblocking)
+    except OSError as exc:
+        raise RuntimeError(
+            f"{wheel_path.name}: wheel must remain a regular non-symlink file"
+        ) from exc
+    try:
+        metadata = os.fstat(descriptor)
+        if not stat.S_ISREG(metadata.st_mode):
+            raise RuntimeError(f"{wheel_path.name}: wheel artifact is not a regular file")
+        digest = hashlib.sha256()
+        while chunk := os.read(descriptor, 1024 * 1024):
+            digest.update(chunk)
+        _validate_zip_central_directory_bounds(
+            descriptor=descriptor,
+            wheel_path=wheel_path,
+            file_size=metadata.st_size,
+        )
+        os.lseek(descriptor, 0, os.SEEK_SET)
+        with os.fdopen(descriptor, "rb") as wheel_stream:
+            descriptor = -1
+            try:
+                with zipfile.ZipFile(wheel_stream, "r") as wheel:
+                    metadata_members: list[zipfile.ZipInfo] = []
+                    members = wheel.infolist()
+                    if len(members) > MAX_WHEEL_MEMBERS:
+                        raise RuntimeError(
+                            f"{wheel_path.name}: wheel member count changed during parsing"
+                        )
+                    member_names: set[str] = set()
+                    for member in members:
+                        if member.filename in member_names:
+                            raise RuntimeError(
+                                f"{wheel_path.name}: wheel contains duplicate archive members"
+                            )
+                        member_names.add(member.filename)
+                        member_path = _validate_wheel_member_name(wheel_path, member.filename)
+                        member_mode = member.external_attr >> 16
+                        if member_mode and stat.S_ISLNK(member_mode):
+                            raise RuntimeError(
+                                f"{wheel_path.name}: wheel contains a symlink member"
+                            )
+                        if (
+                            len(member_path.parts) == 2
+                            and member_path.parts[0].endswith(".dist-info")
+                            and member_path.parts[1] == "METADATA"
+                        ):
+                            metadata_members.append(member)
+                    if len(metadata_members) != 1:
+                        raise RuntimeError(
+                            f"{wheel_path.name}: wheel must contain exactly one "
+                            "*.dist-info/METADATA"
+                        )
+                    metadata_member = metadata_members[0]
+                    if metadata_member.file_size > MAX_WHEEL_METADATA_BYTES:
+                        raise RuntimeError(
+                            f"{wheel_path.name}: METADATA exceeds the static size limit"
+                        )
+                    metadata_bytes = wheel.read(metadata_member)
+                final_metadata = os.fstat(wheel_stream.fileno())
+            except zipfile.BadZipFile as exc:
+                raise RuntimeError(f"{wheel_path.name}: malformed wheel archive") from exc
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+    path_metadata = wheel_path.lstat()
+    identity = (
+        metadata.st_dev,
+        metadata.st_ino,
+        metadata.st_size,
+        metadata.st_mode,
+        metadata.st_uid,
+    )
+    if (
+        stat.S_ISLNK(path_metadata.st_mode)
+        or identity
+        != (
+            final_metadata.st_dev,
+            final_metadata.st_ino,
+            final_metadata.st_size,
+            final_metadata.st_mode,
+            final_metadata.st_uid,
+        )
+        or identity
+        != (
+            path_metadata.st_dev,
+            path_metadata.st_ino,
+            path_metadata.st_size,
+            path_metadata.st_mode,
+            path_metadata.st_uid,
+        )
+    ):
+        raise RuntimeError(f"{wheel_path.name}: wheel identity changed during validation")
+    artifact_snapshot = FileSnapshot(
+        digest=digest.hexdigest(),
+        mode=stat.S_IMODE(metadata.st_mode),
+        device=metadata.st_dev,
+        inode=metadata.st_ino,
+        owner_uid=metadata.st_uid,
+        size=metadata.st_size,
+    )
+
+    metadata = BytesParser(policy=policy.default).parsebytes(metadata_bytes)
+    if metadata.defects:
+        raise RuntimeError(f"{wheel_path.name}: malformed wheel METADATA headers")
+    metadata_name = _single_metadata_header(
+        wheel_path=wheel_path,
+        metadata=metadata,
+        header_name="Name",
+    )
+    metadata_version = _single_metadata_header(
+        wheel_path=wheel_path,
+        metadata=metadata,
+        header_name="Version",
+    )
+    metadata_key = (
+        str(canonicalize_name(metadata_name)),
+        _canonical_version(metadata_version, label=f"{wheel_path.name} METADATA"),
+    )
+    if metadata_key != filename_key:
+        raise RuntimeError(f"{wheel_path.name}: filename and METADATA Name/Version do not match")
+
+    metadata_path = PurePosixPath(metadata_member.filename)
+    dist_info_stem = metadata_path.parts[0][: -len(".dist-info")]
+    if "-" not in dist_info_stem:
+        raise RuntimeError(f"{wheel_path.name}: malformed dist-info directory")
+    dist_info_name, dist_info_version = dist_info_stem.rsplit("-", 1)
+    dist_info_key = (
+        str(canonicalize_name(dist_info_name)),
+        _canonical_version(dist_info_version, label=f"{wheel_path.name} dist-info"),
+    )
+    if dist_info_key != filename_key:
+        raise RuntimeError(f"{wheel_path.name}: dist-info and filename Name/Version do not match")
+
+    dependency_links = metadata.get_all("Dependency-Link", [])
+    if dependency_links:
+        raise RuntimeError(f"{wheel_path.name}: Dependency-Link metadata is forbidden")
+    for raw_requirement in metadata.get_all("Requires-Dist", []):
+        if not isinstance(raw_requirement, str):
+            raise RuntimeError(f"{wheel_path.name}: malformed Requires-Dist metadata")
+        try:
+            requirement = Requirement(raw_requirement)
+        except InvalidRequirement as exc:
+            raise RuntimeError(
+                f"{wheel_path.name}: malformed Requires-Dist metadata: {raw_requirement!r}"
+            ) from exc
+        if requirement.url is not None:
+            raise RuntimeError(
+                f"{wheel_path.name}: direct-reference Requires-Dist metadata is forbidden"
+            )
+    return ValidatedWheel(
+        path=wheel_path,
+        artifact_key=filename_key,
+        snapshot=artifact_snapshot,
+    )
+
+
+def _validate_wheelhouse(
+    *,
+    wheelhouse: Path,
+    expected_artifacts: frozenset[tuple[str, str]],
+) -> dict[tuple[str, str], ValidatedWheel]:
+    """Statically validate exact wheel identity and metadata without importing code."""
+
+    if wheelhouse.is_symlink() or not wheelhouse.is_dir():
+        raise RuntimeError("Wheelhouse must be a regular non-symlink directory.")
+    _assert_private_directory(wheelhouse, label="Wheelhouse")
+    actual: dict[tuple[str, str], ValidatedWheel] = {}
+    for wheel_path in sorted(wheelhouse.iterdir(), key=lambda path: path.name):
+        metadata = wheel_path.lstat()
+        if (
+            stat.S_ISLNK(metadata.st_mode)
+            or not stat.S_ISREG(metadata.st_mode)
+            or wheel_path.suffix != ".whl"
+        ):
+            raise RuntimeError(
+                f"Wheelhouse artifact must be a regular non-symlink .whl file: "
+                f"{wheel_path.name}"
+            )
+        artifact = _validate_one_wheel(
+            wheel_path=wheel_path,
+            expected_artifacts=expected_artifacts,
+        )
+        artifact_key = artifact.artifact_key
+        previous = actual.get(artifact_key)
+        if previous is not None:
+            raise RuntimeError(
+                f"Wheelhouse contains duplicate artifacts for "
+                f"{artifact_key[0]}=={artifact_key[1]}: "
+                f"{previous.path.name}, {wheel_path.name}"
+            )
+        actual[artifact_key] = artifact
+
+    missing = sorted(expected_artifacts - set(actual))
+    extra = sorted(set(actual) - expected_artifacts)
+    if missing or extra:
+        raise RuntimeError(
+            "Wheelhouse artifact set does not match the exact seeded lock set: "
+            f"missing={missing}, extra={extra}"
+        )
+    return actual
+
+
+def _create_profile_wheelhouse_views(
+    *,
+    plans: Sequence[LockInputPlan],
+    artifacts: Mapping[tuple[str, str], ValidatedWheel],
+    views_root: Path,
+    bootstrap_artifacts: frozenset[tuple[str, str]] = frozenset(),
+) -> dict[str, ProfileWheelhouse]:
+    """Create regular-file-only views so one profile cannot see another pin."""
+
+    views: dict[str, ProfileWheelhouse] = {}
+    for plan in plans:
+        profile = plan.surface.compile_profile
+        if profile is None:
+            raise RuntimeError("Compiled dependency surface has no profile.")
+        view = views_root / profile
+        view.mkdir(mode=0o700)
+        _assert_private_directory(view, label=f"{profile} wheelhouse")
+        resolver_artifacts = plan.expected_artifacts | bootstrap_artifacts
+        for artifact_key in sorted(resolver_artifacts):
+            artifact = artifacts.get(artifact_key)
+            if artifact is None:
+                raise RuntimeError(
+                    f"{plan.surface.lockfile}: validated wheelhouse is missing "
+                    f"{artifact_key[0]}=={artifact_key[1]}"
+                )
+            _assert_validated_wheel(artifact)
+            destination = view / artifact.path.name
+            os.link(artifact.path, destination, follow_symlinks=False)
+        validated_view = _validate_wheelhouse(
+            wheelhouse=view,
+            expected_artifacts=resolver_artifacts,
+        )
+        views[profile] = ProfileWheelhouse(
+            path=view,
+            artifacts=tuple(validated_view[key] for key in sorted(resolver_artifacts)),
+        )
+    return views
+
+
+def _remove_credential_material(resolver_home: Path) -> None:
+    netrc_path = resolver_home / ".netrc"
+    netrc_path.unlink(missing_ok=True)
+    if netrc_path.exists() or netrc_path.is_symlink():
+        raise RuntimeError("Temporary private-proxy .netrc was not removed.")
+
+
+def _offline_compile_env(
+    environment: Mapping[str, str],
+    *,
+    resolver_home: Path,
+    wheelhouse: Path,
+) -> dict[str, str]:
+    """Return a credential-free, index-free environment for pip-tools."""
+
+    _reject_ambient_resolver_overrides(environment)
+    if resolver_home.is_symlink() or not resolver_home.is_dir():
+        raise RuntimeError("Offline resolver HOME must be a private regular directory.")
+    if wheelhouse.is_symlink() or not wheelhouse.is_dir():
+        raise RuntimeError("Offline wheelhouse must be a regular non-symlink directory.")
+    os.chmod(resolver_home, 0o700)
+    _assert_private_directory(resolver_home, label="Offline resolver HOME")
+    if (resolver_home / ".netrc").exists() or (resolver_home / ".netrc").is_symlink():
+        raise RuntimeError("Offline resolver HOME must not contain .netrc credentials.")
+    child_env = {
+        name: value
+        for name in PASSTHROUGH_ENV_VARS
+        if name != "HOME" and (value := environment.get(name)) is not None
+    }
+    child_env.update(
+        {
+            "HOME": str(resolver_home),
+            "PIP_CONFIG_FILE": os.devnull,
+            "PIP_DISABLE_PIP_VERSION_CHECK": "1",
+            "PIP_FIND_LINKS": str(wheelhouse),
+            "PIP_KEYRING_PROVIDER": "disabled",
+            "PIP_NO_CACHE_DIR": "1",
+            "PIP_NO_INDEX": "1",
+            "PIP_NO_INPUT": "1",
+            "PIP_ONLY_BINARY": ":all:",
+        }
+    )
     return child_env
 
 
@@ -698,31 +1392,47 @@ def _prepare_lock(
     upgrades: Mapping[str, str],
     graph_changes: frozenset[str],
     child_env: Mapping[str, str],
+    input_plan: LockInputPlan | None = None,
+    wheel_artifacts: Sequence[ValidatedWheel] = (),
 ) -> PreparedLock:
-    output_path = _validated_repo_file(repo_root, surface.lockfile)
-    source_paths = tuple(
-        _validated_repo_file(repo_root, source) for source in surface.compile_sources
-    )
-    source_captures: dict[Path, FileCapture] = {}
-    for source_path in source_paths:
-        _capture_and_validate_source_manifest(
-            repo_root,
-            source_path,
-            captures=source_captures,
-            allow_directives=surface.allow_lock_directives,
+    if graph_changes:
+        raise RuntimeError(
+            "Dependency graph changes require a future versioned artifact-admission contract."
         )
+    plan = input_plan or _capture_lock_input_plan(
+        repo_root=repo_root,
+        surface=surface,
+        upgrades=upgrades,
+    )
+    if plan.surface != surface:
+        raise RuntimeError("Lock input plan does not match the selected dependency surface.")
+    _assert_lock_input_plan(plan)
+    output_path = plan.output_path
+    source_captures = dict(plan.source_captures)
     source_snapshots = tuple((path, capture.snapshot) for path, capture in source_captures.items())
 
-    output_capture = _capture_file(output_path)
+    output_capture = plan.output_capture
     baseline_bytes = output_capture.content
-    baseline_text = baseline_bytes.decode("utf-8")
+    try:
+        baseline_text = baseline_bytes.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise RuntimeError(f"{surface.lockfile}: seeded lock must be UTF-8") from exc
     baseline_pins = _exact_pin_map(baseline_text, label=f"{surface.lockfile} baseline")
-    for package in upgrades:
-        if package not in baseline_pins and package not in graph_changes:
-            raise RuntimeError(
-                f"{surface.lockfile}: requested upgrade package is absent from the seeded lock: "
-                f"{package}"
-            )
+    desired_artifacts = frozenset(
+        (
+            package,
+            _canonical_version(
+                upgrades.get(package, pin.version),
+                label=f"{surface.lockfile} expected artifact {package}",
+            ),
+        )
+        for package, pin in baseline_pins.items()
+    )
+    if desired_artifacts != plan.expected_artifacts:
+        raise RuntimeError(
+            f"{surface.lockfile}: input-plan artifact set does not match the seeded lock "
+            "and exact upgrades."
+        )
 
     output_snapshot = output_capture.snapshot
     resolver_descriptor, resolver_temp_name = tempfile.mkstemp(
@@ -755,6 +1465,8 @@ def _prepare_lock(
             process_env["CUSTOM_COMPILE_COMMAND"] = (
                 f'LOCK_PROFILES="{surface.compile_profile}" make requirements-locks'
             )
+            for artifact in wheel_artifacts:
+                _assert_validated_wheel(artifact)
             result = subprocess.run(  # nosec B603: fixed module argv and registry-owned paths (remove-by: 2027-01-31, ref: PR-2142)
                 command,
                 cwd=resolver_input_root,
@@ -770,6 +1482,8 @@ def _prepare_lock(
                     f"{surface.lockfile}: governed resolver failed with exit "
                     f"{result.returncode}: {detail}"
                 )
+            for artifact in wheel_artifacts:
+                _assert_validated_wheel(artifact)
             for path, snapshot in materialized_snapshots:
                 _assert_snapshot(path, snapshot)
             for path, snapshot in source_snapshots:
@@ -825,10 +1539,10 @@ def _validate_profile_transaction(
     profiles: Sequence[str],
     graph_changes: frozenset[str],
 ) -> None:
-    if graph_changes and len(profiles) != 1:
+    if graph_changes:
         raise RuntimeError(
-            "GRAPH_CHANGE_PACKAGES requires exactly one LOCK_PROFILES entry so every "
-            "graph delta is reviewed and committed per owning profile."
+            "GRAPH_CHANGE_PACKAGES is not supported; dependency graph changes require "
+            "a future versioned artifact-admission contract."
         )
     if "runtime" not in profiles:
         return
@@ -963,70 +1677,137 @@ def _compile_selected_profiles_locked(
         profiles=profiles,
         graph_changes=graph_changes,
     )
-    with tempfile.TemporaryDirectory(prefix="pulseplate-lock-home-") as home_dir:
-        resolver_home = Path(home_dir)
-        child_env = _private_proxy_child_env(environment, resolver_home=resolver_home)
-        prepared: list[PreparedLock] = []
-        replaced: list[PreparedLock] = []
-        try:
-            for profile in profiles:
-                prepared.append(
-                    _prepare_lock(
-                        repo_root=repo_root,
-                        surface=registry[profile],
-                        upgrades=upgrades,
-                        graph_changes=graph_changes,
-                        child_env=child_env,
-                    )
-                )
-            for candidate in prepared:
-                for path, snapshot in candidate.source_snapshots:
-                    _assert_snapshot(path, snapshot)
-                _assert_snapshot(candidate.output_path, candidate.output_snapshot)
-                _assert_snapshot(candidate.candidate_path, candidate.candidate_snapshot)
+    plans = tuple(
+        _capture_lock_input_plan(
+            repo_root=repo_root,
+            surface=registry[profile],
+            upgrades=upgrades,
+        )
+        for profile in profiles
+    )
+    bootstrap_artifacts = _resolver_bootstrap_artifacts()
+    with tempfile.TemporaryDirectory(prefix="pulseplate-lock-transaction-") as transaction_dir:
+        transaction_root = Path(transaction_dir)
+        os.chmod(transaction_root, 0o700)
+        wheelhouse = transaction_root / "wheelhouse"
+        wheelhouse.mkdir(mode=0o700)
+        with tempfile.TemporaryDirectory(
+            prefix="credentialed-home-",
+            dir=transaction_root,
+        ) as credentialed_home_dir:
+            credentialed_home = Path(credentialed_home_dir)
+            os.chmod(credentialed_home, 0o700)
+            download_env = _private_proxy_child_env(
+                environment,
+                resolver_home=credentialed_home,
+            )
+            _download_profile_wheels(
+                wheelhouse=wheelhouse,
+                plans=plans,
+                child_env=download_env,
+                bootstrap_artifacts=bootstrap_artifacts,
+            )
+            for plan in plans:
+                _assert_lock_input_plan(plan)
+            _remove_credential_material(credentialed_home)
+        if Path(credentialed_home_dir).exists():
+            raise RuntimeError("Credentialed download HOME was not removed before compilation.")
+        artifacts = _validate_wheelhouse(
+            wheelhouse=wheelhouse,
+            expected_artifacts=_expected_artifacts(plans) | bootstrap_artifacts,
+        )
+
+        views_root = transaction_root / "profile-wheelhouses"
+        views_root.mkdir(mode=0o700)
+        profile_wheelhouses = _create_profile_wheelhouse_views(
+            plans=plans,
+            artifacts=artifacts,
+            views_root=views_root,
+            bootstrap_artifacts=bootstrap_artifacts,
+        )
+        for plan in plans:
+            _assert_lock_input_plan(plan)
+
+        with tempfile.TemporaryDirectory(
+            prefix="offline-home-",
+            dir=transaction_root,
+        ) as offline_home_dir:
+            offline_home = Path(offline_home_dir)
+            os.chmod(offline_home, 0o700)
+            if (offline_home / ".netrc").exists():
+                raise RuntimeError("Offline resolver HOME unexpectedly contains .netrc.")
+            prepared: list[PreparedLock] = []
+            replaced: list[PreparedLock] = []
             try:
-                for candidate in prepared:
-                    _assert_snapshot(candidate.candidate_path, candidate.candidate_snapshot)
-                    # Record the attempted replacement before the atomic rename so an
-                    # interrupt immediately after os.replace cannot strand a partial
-                    # multi-lock transaction outside the rollback set.
-                    replaced.append(candidate)
-                    os.replace(candidate.candidate_path, candidate.output_path)
-                    _fsync_directory(candidate.output_path.parent)
-                    _assert_snapshot(candidate.output_path, candidate.candidate_snapshot)
-                for candidate in prepared:
-                    print(
-                        "Updated governed lock profile "
-                        f"{candidate.surface.compile_profile}: {candidate.surface.lockfile}"
+                for plan in plans:
+                    profile = plan.surface.compile_profile
+                    if profile is None:
+                        raise RuntimeError("Compiled dependency surface has no profile.")
+                    profile_wheelhouse = profile_wheelhouses[profile]
+                    offline_env = _offline_compile_env(
+                        environment,
+                        resolver_home=offline_home,
+                        wheelhouse=profile_wheelhouse.path,
                     )
-            except BaseException as replacement_error:
-                rollback_errors: list[str] = []
-                for candidate in reversed(replaced):
-                    try:
-                        _atomic_write_bytes(
-                            candidate.output_path,
-                            candidate.baseline_bytes,
-                            candidate.output_snapshot.mode,
+                    prepared.append(
+                        _prepare_lock(
+                            repo_root=repo_root,
+                            surface=plan.surface,
+                            upgrades=upgrades,
+                            graph_changes=graph_changes,
+                            child_env=offline_env,
+                            input_plan=plan,
+                            wheel_artifacts=profile_wheelhouse.artifacts,
                         )
-                    except (
-                        BaseException
-                    ) as rollback_error:  # pragma: no cover - catastrophic FS fault
-                        rollback_errors.append(
-                            f"{candidate.surface.lockfile}: {type(rollback_error).__name__}"
+                    )
+                for candidate in prepared:
+                    for path, snapshot in candidate.source_snapshots:
+                        _assert_snapshot(path, snapshot)
+                    _assert_snapshot(candidate.output_path, candidate.output_snapshot)
+                    _assert_snapshot(candidate.candidate_path, candidate.candidate_snapshot)
+                try:
+                    for candidate in prepared:
+                        _assert_snapshot(candidate.candidate_path, candidate.candidate_snapshot)
+                        # Record the attempted replacement before the atomic rename so an
+                        # interrupt immediately after os.replace cannot strand a partial
+                        # multi-lock transaction outside the rollback set.
+                        replaced.append(candidate)
+                        os.replace(candidate.candidate_path, candidate.output_path)
+                        _fsync_directory(candidate.output_path.parent)
+                        _assert_snapshot(candidate.output_path, candidate.candidate_snapshot)
+                    for candidate in prepared:
+                        print(
+                            "Updated governed lock profile "
+                            f"{candidate.surface.compile_profile}: {candidate.surface.lockfile}"
                         )
-                if rollback_errors:
+                except BaseException as replacement_error:
+                    rollback_errors: list[str] = []
+                    for candidate in reversed(replaced):
+                        try:
+                            _atomic_write_bytes(
+                                candidate.output_path,
+                                candidate.baseline_bytes,
+                                candidate.output_snapshot.mode,
+                            )
+                        except (
+                            BaseException
+                        ) as rollback_error:  # pragma: no cover - catastrophic FS fault
+                            rollback_errors.append(
+                                f"{candidate.surface.lockfile}: " f"{type(rollback_error).__name__}"
+                            )
+                    if rollback_errors:
+                        raise RuntimeError(
+                            "Lock replacement failed and rollback was incomplete: "
+                            + ", ".join(rollback_errors)
+                        ) from replacement_error
+                    if not isinstance(replacement_error, Exception):
+                        raise
                     raise RuntimeError(
-                        "Lock replacement failed and rollback was incomplete: "
-                        + ", ".join(rollback_errors)
+                        "Lock replacement failed; all previously replaced locks were rolled back."
                     ) from replacement_error
-                if not isinstance(replacement_error, Exception):
-                    raise
-                raise RuntimeError(
-                    "Lock replacement failed; all previously replaced locks were rolled back."
-                ) from replacement_error
-        finally:
-            for candidate in prepared:
-                candidate.candidate_path.unlink(missing_ok=True)
+            finally:
+                for candidate in prepared:
+                    candidate.candidate_path.unlink(missing_ok=True)
 
 
 def main() -> int:

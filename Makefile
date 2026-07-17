@@ -87,7 +87,7 @@ unexport UPGRADE_PACKAGES
 unexport GRAPH_CHANGE_PACKAGES
 
 ## Compile selected Python locks through the approved private proxy
-requirements-locks: ensure-python-proxy ## Compile registry-owned locks (set LOCK_PROFILES; optional UPGRADE_PACKAGES/GRAPH_CHANGE_PACKAGES)
+requirements-locks: ensure-python-proxy ## Compile seeded registry locks (set LOCK_PROFILES; optional exact UPGRADE_PACKAGES)
 	@test -x "$(VENV_PYTHON)" || (echo "$(RED)❌ $(VENV_PYTHON) missing or not executable. Run 'make venv' first.$(NC)" && exit 1)
 	PULSEPLATE_LOCK_COMPILE_VIA_MAKE=1 "$(VENV_PYTHON)" scripts/ci/compile_locked_python_requirements.py
 

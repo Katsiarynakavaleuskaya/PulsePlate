@@ -8,6 +8,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import zipfile
 
 import pytest
 
@@ -828,6 +829,34 @@ def _successful_resolver(command: list[str], **_: object) -> subprocess.Complete
     return subprocess.CompletedProcess(command, 0, "", "")
 
 
+def _write_test_wheel(
+    wheelhouse: Path,
+    *,
+    name: str,
+    version: str,
+    metadata_name: str | None = None,
+    metadata_version: str | None = None,
+    requires_dist: tuple[str, ...] = (),
+    dependency_links: tuple[str, ...] = (),
+    tag: str = "py3-none-any",
+) -> Path:
+    filename_name = name.replace("-", "_")
+    wheel_path = wheelhouse / f"{filename_name}-{version}-{tag}.whl"
+    dist_info = f"{filename_name}-{version}.dist-info"
+    metadata_lines = [
+        "Metadata-Version: 2.3",
+        f"Name: {metadata_name or name}",
+        f"Version: {metadata_version or version}",
+        *(f"Requires-Dist: {requirement}" for requirement in requires_dist),
+        *(f"Dependency-Link: {link}" for link in dependency_links),
+        "",
+        "",
+    ]
+    with zipfile.ZipFile(wheel_path, "w") as wheel:
+        wheel.writestr(f"{dist_info}/METADATA", "\n".join(metadata_lines))
+    return wheel_path
+
+
 def test_compile_registry_is_single_authority_for_every_compiled_surface() -> None:
     registry = compiler._profile_registry()
 
@@ -910,9 +939,8 @@ def test_profile_and_upgrade_selection_rejects_untrusted_values() -> None:
         "coverage": "7.15.1",
         "faker": "40.31.0",
     }
-    assert compiler._parse_graph_changes("Example_Pkg transitive.pkg") == frozenset(
-        {"example-pkg", "transitive-pkg"}
-    )
+    with pytest.raises(RuntimeError, match="future versioned artifact-admission contract"):
+        compiler._parse_graph_changes("Example_Pkg transitive.pkg")
 
     for raw_profiles in (None, "", "test test", "test;touch-pwned"):
         with pytest.raises(RuntimeError):
@@ -1006,6 +1034,9 @@ def test_private_proxy_environment_is_canonical_and_sanitized(
         "PIP_ONLY_BINARY",
         "PIP_NO_BINARY",
         "PIP_PREFER_BINARY",
+        "PIP_NO_CACHE_DIR",
+        "PIP_KEYRING_PROVIDER",
+        "NETRC",
         "SSL_CERT_FILE",
         "REQUESTS_CA_BUNDLE",
         "CURL_CA_BUNDLE",
@@ -1190,6 +1221,647 @@ def test_private_proxy_environment_rejects_foreign_owned_netrc(
         compiler._private_proxy_child_env(
             {"HOME": str(tmp_path), compiler.APPROVED_INDEX_ENV_VAR: APPROVED_INDEX},
             resolver_home=resolver_home,
+        )
+
+
+def test_download_phase_batches_exact_profile_pins_without_dependencies(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    surface = _write_test_profile(tmp_path)
+    plan = compiler._capture_lock_input_plan(
+        repo_root=tmp_path,
+        surface=surface,
+        upgrades={"coverage": "7.15.1", "faker": "40.31.0"},
+    )
+    wheelhouse = tmp_path / "wheelhouse"
+    wheelhouse.mkdir(mode=0o700)
+    child_env = {
+        "HOME": str(tmp_path / "credentialed-home"),
+        "PIP_INDEX_URL": APPROVED_INDEX,
+        "PIP_KEYRING_PROVIDER": "disabled",
+        "PIP_NO_CACHE_DIR": "1",
+    }
+    commands: list[list[str]] = []
+
+    def download(
+        command: list[str],
+        **kwargs: object,
+    ) -> subprocess.CompletedProcess[str]:
+        commands.append(command)
+        assert kwargs["env"] == child_env
+        destination = Path(command[command.index("--dest") + 1])
+        for requirement in command[command.index("--find-links") + 2 :]:
+            name, version = requirement.split("==", 1)
+            _write_test_wheel(destination, name=name, version=version)
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr(compiler.subprocess, "run", download)
+
+    compiler._download_profile_wheels(
+        wheelhouse=wheelhouse,
+        plans=(plan,),
+        child_env=child_env,
+        bootstrap_artifacts=frozenset({("pip", "26.1.2")}),
+    )
+
+    assert len(commands) == 1
+    command = commands[0]
+    assert command[:4] == [sys.executable, "-m", "pip", "download"]
+    assert "--no-deps" in command
+    assert "--only-binary=:all:" in command
+    assert command[command.index("--find-links") + 1] == str(wheelhouse)
+    assert {token for token in command if "==" in token} == {
+        "coverage==7.15.1",
+        "faker==40.31.0",
+        "pip==26.1.2",
+        "pytest==9.1.3",
+    }
+
+
+def test_resolver_bootstrap_uses_exact_approved_interpreter_pip(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(compiler.importlib_metadata, "version", lambda name: "26.1.2")
+
+    assert compiler._resolver_bootstrap_artifacts() == frozenset({("pip", "26.1.2")})
+
+
+def test_offline_compile_environment_has_no_credentials_or_index(
+    tmp_path: Path,
+) -> None:
+    offline_home = tmp_path / "offline-home"
+    wheelhouse = tmp_path / "wheelhouse"
+    offline_home.mkdir(mode=0o700)
+    wheelhouse.mkdir(mode=0o700)
+
+    child_env = compiler._offline_compile_env(
+        {
+            "PATH": "/usr/bin",
+            compiler.APPROVED_INDEX_ENV_VAR: APPROVED_INDEX,
+        },
+        resolver_home=offline_home,
+        wheelhouse=wheelhouse,
+    )
+
+    assert child_env["HOME"] == str(offline_home)
+    assert child_env["PIP_NO_INDEX"] == "1"
+    assert child_env["PIP_FIND_LINKS"] == str(wheelhouse)
+    assert child_env["PIP_ONLY_BINARY"] == ":all:"
+    assert child_env["PIP_NO_CACHE_DIR"] == "1"
+    assert child_env["PIP_KEYRING_PROVIDER"] == "disabled"
+    assert child_env["PIP_CONFIG_FILE"] == os.devnull
+    assert "PIP_INDEX_URL" not in child_env
+    assert compiler.APPROVED_INDEX_ENV_VAR not in child_env
+    assert not (offline_home / ".netrc").exists()
+
+
+@pytest.mark.parametrize("variable", ("NETRC", "PIP_INDEX_URL", "PIP_EXTRA_INDEX_URL"))
+def test_offline_compile_environment_rejects_credential_and_index_overrides(
+    variable: str,
+    tmp_path: Path,
+) -> None:
+    offline_home = tmp_path / "offline-home"
+    wheelhouse = tmp_path / "wheelhouse"
+    offline_home.mkdir(mode=0o700)
+    wheelhouse.mkdir(mode=0o700)
+
+    with pytest.raises(RuntimeError, match=variable):
+        compiler._offline_compile_env(
+            {
+                "PATH": "/usr/bin",
+                compiler.APPROVED_INDEX_ENV_VAR: APPROVED_INDEX,
+                variable: "unexpected",
+            },
+            resolver_home=offline_home,
+            wheelhouse=wheelhouse,
+        )
+
+
+@pytest.mark.parametrize(
+    "metadata_kwargs,match",
+    (
+        (
+            {"requires_dist": ("dep @ https://example.invalid/dep.whl",)},
+            "direct-reference Requires-Dist",
+        ),
+        (
+            {"requires_dist": ("not a valid requirement @",)},
+            "malformed Requires-Dist",
+        ),
+        (
+            {"dependency_links": ("https://example.invalid/simple",)},
+            "Dependency-Link metadata is forbidden",
+        ),
+        (
+            {"metadata_name": "other-package"},
+            "filename and METADATA Name/Version do not match",
+        ),
+    ),
+)
+def test_wheel_metadata_validation_rejects_untrusted_metadata(
+    tmp_path: Path,
+    metadata_kwargs: dict[str, object],
+    match: str,
+) -> None:
+    wheelhouse = tmp_path / "wheelhouse"
+    wheelhouse.mkdir(mode=0o700)
+    _write_test_wheel(
+        wheelhouse,
+        name="example-package",
+        version="1.0.0",
+        **metadata_kwargs,
+    )
+
+    with pytest.raises(RuntimeError, match=match):
+        compiler._validate_wheelhouse(
+            wheelhouse=wheelhouse,
+            expected_artifacts=frozenset({("example-package", "1.0.0")}),
+        )
+
+
+def test_wheel_metadata_validation_accepts_normal_dependency_metadata(tmp_path: Path) -> None:
+    wheelhouse = tmp_path / "wheelhouse"
+    wheelhouse.mkdir(mode=0o700)
+    _write_test_wheel(
+        wheelhouse,
+        name="example-package",
+        version="1.0.0",
+        requires_dist=(
+            'required-dependency>=2; python_version >= "3.11"',
+            'optional-dependency; extra == "speed"',
+        ),
+    )
+    _write_test_wheel(
+        wheelhouse,
+        name="required-dependency",
+        version="2.0.0",
+    )
+    _write_test_wheel(
+        wheelhouse,
+        name="optional-dependency",
+        version="3.0.0",
+    )
+    expected = frozenset(
+        {
+            ("example-package", "1.0.0"),
+            ("required-dependency", "2.0.0"),
+            ("optional-dependency", "3.0.0"),
+        }
+    )
+
+    assert set(
+        compiler._validate_wheelhouse(
+            wheelhouse=wheelhouse,
+            expected_artifacts=expected,
+        )
+    ) == set(expected)
+
+
+def test_wheelhouse_rejects_missing_extra_duplicate_and_malformed_artifacts(
+    tmp_path: Path,
+) -> None:
+    wheelhouse = tmp_path / "wheelhouse"
+    wheelhouse.mkdir(mode=0o700)
+    _write_test_wheel(wheelhouse, name="one", version="1.0.0")
+    expected = frozenset({("one", "1.0.0"), ("two", "2.0.0")})
+    with pytest.raises(RuntimeError, match="missing=.*two"):
+        compiler._validate_wheelhouse(
+            wheelhouse=wheelhouse,
+            expected_artifacts=expected,
+        )
+
+    _write_test_wheel(wheelhouse, name="unexpected", version="3.0.0")
+    with pytest.raises(RuntimeError, match="unexpected wheel artifact"):
+        compiler._validate_wheelhouse(
+            wheelhouse=wheelhouse,
+            expected_artifacts=expected,
+        )
+
+    (wheelhouse / "unexpected-3.0.0-py3-none-any.whl").unlink()
+    _write_test_wheel(wheelhouse, name="one", version="1.0.0", tag="py2-none-any")
+    with pytest.raises(RuntimeError, match="duplicate artifacts"):
+        compiler._validate_wheelhouse(
+            wheelhouse=wheelhouse,
+            expected_artifacts=frozenset({("one", "1.0.0")}),
+        )
+
+    for artifact in wheelhouse.iterdir():
+        artifact.unlink()
+    (wheelhouse / "one-1.0.0-py3-none-any.whl").write_bytes(b"not-a-wheel")
+    with pytest.raises(RuntimeError, match="malformed wheel archive"):
+        compiler._validate_wheelhouse(
+            wheelhouse=wheelhouse,
+            expected_artifacts=frozenset({("one", "1.0.0")}),
+        )
+
+
+def test_wheelhouse_rejects_duplicate_members_and_member_count_overflow(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    wheelhouse = tmp_path / "wheelhouse"
+    wheelhouse.mkdir(mode=0o700)
+    wheel_path = _write_test_wheel(wheelhouse, name="one", version="1.0.0")
+    with pytest.warns(UserWarning, match="Duplicate name"):
+        with zipfile.ZipFile(wheel_path, "a") as wheel:
+            wheel.writestr("one/__init__.py", "")
+            wheel.writestr("one/__init__.py", "")
+    with pytest.raises(RuntimeError, match="duplicate archive members"):
+        compiler._validate_wheelhouse(
+            wheelhouse=wheelhouse,
+            expected_artifacts=frozenset({("one", "1.0.0")}),
+        )
+
+    wheel_path.unlink()
+    _write_test_wheel(wheelhouse, name="one", version="1.0.0")
+    monkeypatch.setattr(compiler, "MAX_WHEEL_MEMBERS", 0)
+
+    class UnexpectedZipFile:
+        def __init__(self, *_args: object, **_kwargs: object) -> None:
+            raise AssertionError("ZipFile must not run before the member bound is enforced")
+
+    monkeypatch.setattr(compiler.zipfile, "ZipFile", UnexpectedZipFile)
+    with pytest.raises(RuntimeError, match="too many archive members"):
+        compiler._validate_wheelhouse(
+            wheelhouse=wheelhouse,
+            expected_artifacts=frozenset({("one", "1.0.0")}),
+        )
+
+
+def test_wheel_central_directory_size_is_bounded_before_zipfile_parsing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    wheelhouse = tmp_path / "wheelhouse"
+    wheelhouse.mkdir(mode=0o700)
+    _write_test_wheel(wheelhouse, name="one", version="1.0.0")
+    monkeypatch.setattr(compiler, "MAX_WHEEL_CENTRAL_DIRECTORY_BYTES", 1)
+
+    class UnexpectedZipFile:
+        def __init__(self, *_args: object, **_kwargs: object) -> None:
+            raise AssertionError("ZipFile must not run before the size bound is enforced")
+
+    monkeypatch.setattr(compiler.zipfile, "ZipFile", UnexpectedZipFile)
+    with pytest.raises(RuntimeError, match="central directory exceeds the size limit"):
+        compiler._validate_wheelhouse(
+            wheelhouse=wheelhouse,
+            expected_artifacts=frozenset({("one", "1.0.0")}),
+        )
+
+
+def test_empty_profile_download_does_not_start_pip(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output_path = tmp_path / "requirements-evals.txt"
+    output_path.write_text("", encoding="utf-8")
+    plan = compiler.LockInputPlan(
+        surface=_surface("evals"),
+        output_path=output_path,
+        output_capture=compiler._capture_file(output_path),
+        source_captures=(),
+        expected_artifacts=frozenset(),
+    )
+    wheelhouse = tmp_path / "wheelhouse"
+    wheelhouse.mkdir(mode=0o700)
+
+    def unexpected_subprocess(*_: object, **__: object) -> subprocess.CompletedProcess[str]:
+        raise AssertionError("empty profiles must not start pip download")
+
+    monkeypatch.setattr(compiler.subprocess, "run", unexpected_subprocess)
+
+    compiler._download_profile_wheels(
+        wheelhouse=wheelhouse,
+        plans=(plan,),
+        child_env={},
+    )
+
+    assert tuple(wheelhouse.iterdir()) == ()
+
+
+def test_empty_profile_downloads_resolver_bootstrap_artifacts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output_path = tmp_path / "requirements-evals.txt"
+    output_path.write_text("", encoding="utf-8")
+    plan = compiler.LockInputPlan(
+        surface=_surface("evals"),
+        output_path=output_path,
+        output_capture=compiler._capture_file(output_path),
+        source_captures=(),
+        expected_artifacts=frozenset(),
+    )
+    wheelhouse = tmp_path / "wheelhouse"
+    wheelhouse.mkdir(mode=0o700)
+    commands: list[list[str]] = []
+
+    def download(
+        command: list[str],
+        **_: object,
+    ) -> subprocess.CompletedProcess[str]:
+        commands.append(command)
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr(compiler.subprocess, "run", download)
+
+    compiler._download_profile_wheels(
+        wheelhouse=wheelhouse,
+        plans=(plan,),
+        child_env={},
+        bootstrap_artifacts=frozenset({("pip", "26.1.2")}),
+    )
+
+    assert len(commands) == 1
+    assert [token for token in commands[0] if "==" in token] == ["pip==26.1.2"]
+
+
+def test_profile_wheelhouse_views_isolate_conflicting_versions(tmp_path: Path) -> None:
+    central = tmp_path / "central"
+    views_root = tmp_path / "views"
+    central.mkdir(mode=0o700)
+    views_root.mkdir(mode=0o700)
+    _write_test_wheel(central, name="shared-package", version="1.0.0")
+    _write_test_wheel(central, name="shared-package", version="2.0.0")
+    expected = frozenset(
+        {
+            ("shared-package", "1.0.0"),
+            ("shared-package", "2.0.0"),
+        }
+    )
+    artifacts = compiler._validate_wheelhouse(
+        wheelhouse=central,
+        expected_artifacts=expected,
+    )
+    output_a = tmp_path / "a.txt"
+    output_b = tmp_path / "b.txt"
+    output_a.write_text("shared-package==1.0.0\n", encoding="utf-8")
+    output_b.write_text("shared-package==2.0.0\n", encoding="utf-8")
+    plans = (
+        compiler.LockInputPlan(
+            surface=_surface("test"),
+            output_path=output_a,
+            output_capture=compiler._capture_file(output_a),
+            source_captures=(),
+            expected_artifacts=frozenset({("shared-package", "1.0.0")}),
+        ),
+        compiler.LockInputPlan(
+            surface=_surface("dev"),
+            output_path=output_b,
+            output_capture=compiler._capture_file(output_b),
+            source_captures=(),
+            expected_artifacts=frozenset({("shared-package", "2.0.0")}),
+        ),
+    )
+
+    views = compiler._create_profile_wheelhouse_views(
+        plans=plans,
+        artifacts=artifacts,
+        views_root=views_root,
+    )
+
+    assert {path.name for path in views["test"].path.iterdir()} == {
+        "shared_package-1.0.0-py3-none-any.whl"
+    }
+    assert {path.name for path in views["dev"].path.iterdir()} == {
+        "shared_package-2.0.0-py3-none-any.whl"
+    }
+
+
+def test_untrusted_wheel_metadata_stops_before_compiler_subprocess(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    surface = _write_test_profile(tmp_path)
+    original = (tmp_path / surface.lockfile).read_bytes()
+    monkeypatch.setattr(compiler, "_profile_registry", lambda: {"test": surface})
+    credentialed_homes: list[Path] = []
+
+    def credentialed_env(
+        _environment: dict[str, str],
+        *,
+        resolver_home: Path,
+    ) -> dict[str, str]:
+        credentialed_homes.append(resolver_home)
+        (resolver_home / ".netrc").write_text("temporary credentials\n", encoding="utf-8")
+        return {"HOME": str(resolver_home)}
+
+    monkeypatch.setattr(compiler, "_private_proxy_child_env", credentialed_env)
+
+    def malicious_download(
+        *,
+        wheelhouse: Path,
+        plans: tuple[compiler.LockInputPlan, ...],
+        child_env: dict[str, str],
+        bootstrap_artifacts: frozenset[tuple[str, str]],
+    ) -> None:
+        assert child_env["HOME"]
+        for package, version in plans[0].expected_artifacts | bootstrap_artifacts:
+            requires_dist = (
+                ("dep @ https://example.invalid/dep.whl",) if package == "coverage" else ()
+            )
+            _write_test_wheel(
+                wheelhouse,
+                name=package,
+                version=version,
+                requires_dist=requires_dist,
+            )
+
+    monkeypatch.setattr(compiler, "_download_profile_wheels", malicious_download)
+    real_validate_wheelhouse = compiler._validate_wheelhouse
+
+    def validate_after_credential_teardown(**kwargs: object) -> object:
+        assert len(credentialed_homes) == 1
+        assert not credentialed_homes[0].exists()
+        return real_validate_wheelhouse(**kwargs)
+
+    monkeypatch.setattr(compiler, "_validate_wheelhouse", validate_after_credential_teardown)
+
+    def compiler_must_not_run(*_: object, **__: object) -> subprocess.CompletedProcess[str]:
+        raise AssertionError("offline compiler ran before wheel validation")
+
+    monkeypatch.setattr(compiler.subprocess, "run", compiler_must_not_run)
+
+    with pytest.raises(RuntimeError, match="direct-reference Requires-Dist"):
+        compiler._compile_selected_profiles_locked(
+            repo_root=tmp_path,
+            profiles=("test",),
+            upgrades={"coverage": "7.15.1", "faker": "40.31.0"},
+            graph_changes=frozenset(),
+            environment={},
+        )
+    assert (tmp_path / surface.lockfile).read_bytes() == original
+
+
+def test_two_phase_pipeline_passes_only_offline_profile_artifacts_to_compiler(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    surface = _write_test_profile(tmp_path)
+    output_path = tmp_path / surface.lockfile
+    original = output_path.read_bytes()
+    monkeypatch.setattr(compiler, "_profile_registry", lambda: {"test": surface})
+    monkeypatch.setattr(
+        compiler,
+        "_resolver_bootstrap_artifacts",
+        lambda: frozenset({("pip", "26.1.2")}),
+    )
+    credentialed_homes: list[Path] = []
+
+    def credentialed_env(
+        _environment: dict[str, str],
+        *,
+        resolver_home: Path,
+    ) -> dict[str, str]:
+        credentialed_homes.append(resolver_home)
+        (resolver_home / ".netrc").write_text("temporary credentials\n", encoding="utf-8")
+        return {
+            "HOME": str(resolver_home),
+            "PIP_INDEX_URL": APPROVED_INDEX,
+        }
+
+    monkeypatch.setattr(compiler, "_private_proxy_child_env", credentialed_env)
+
+    def admitted_download(
+        *,
+        wheelhouse: Path,
+        plans: tuple[compiler.LockInputPlan, ...],
+        bootstrap_artifacts: frozenset[tuple[str, str]],
+        **_: object,
+    ) -> None:
+        for package, version in plans[0].expected_artifacts | bootstrap_artifacts:
+            _write_test_wheel(wheelhouse, name=package, version=version)
+
+    monkeypatch.setattr(compiler, "_download_profile_wheels", admitted_download)
+
+    class PipelineCaptured(RuntimeError):
+        pass
+
+    def capture_prepare(**kwargs: object) -> compiler.PreparedLock:
+        child_env_value = kwargs["child_env"]
+        wheel_artifacts_value = kwargs["wheel_artifacts"]
+        assert isinstance(child_env_value, dict)
+        assert isinstance(wheel_artifacts_value, tuple)
+        child_env = child_env_value
+        wheel_artifacts = wheel_artifacts_value
+        assert child_env["PIP_NO_INDEX"] == "1"
+        assert "PIP_INDEX_URL" not in child_env
+        assert compiler.APPROVED_INDEX_ENV_VAR not in child_env
+        offline_home = Path(child_env["HOME"])
+        assert offline_home.exists()
+        assert not (offline_home / ".netrc").exists()
+        assert credentialed_homes and offline_home != credentialed_homes[0]
+        profile_wheelhouse = Path(child_env["PIP_FIND_LINKS"])
+        assert profile_wheelhouse.name == "test"
+        assert profile_wheelhouse.parent.name == "profile-wheelhouses"
+        assert {artifact.artifact_key for artifact in wheel_artifacts} == (
+            compiler._capture_lock_input_plan(
+                repo_root=tmp_path,
+                surface=surface,
+                upgrades={"coverage": "7.15.1", "faker": "40.31.0"},
+            ).expected_artifacts
+            | {("pip", "26.1.2")}
+        )
+        raise PipelineCaptured
+
+    monkeypatch.setattr(compiler, "_prepare_lock", capture_prepare)
+
+    with pytest.raises(PipelineCaptured):
+        compiler._compile_selected_profiles_locked(
+            repo_root=tmp_path,
+            profiles=("test",),
+            upgrades={"coverage": "7.15.1", "faker": "40.31.0"},
+            graph_changes=frozenset(),
+            environment={
+                "PATH": "/usr/bin",
+                compiler.APPROVED_INDEX_ENV_VAR: APPROVED_INDEX,
+            },
+        )
+
+    assert len(credentialed_homes) == 1
+    assert not credentialed_homes[0].exists()
+    assert output_path.read_bytes() == original
+
+
+def test_network_phase_source_mutation_stops_before_offline_compile(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    surface = _write_test_profile(tmp_path)
+    source_path = tmp_path / "requirements-test.in"
+    monkeypatch.setattr(compiler, "_profile_registry", lambda: {"test": surface})
+    monkeypatch.setattr(
+        compiler,
+        "_private_proxy_child_env",
+        lambda _environment, *, resolver_home: {"HOME": str(resolver_home)},
+    )
+
+    def mutate_during_download(
+        *,
+        wheelhouse: Path,
+        plans: tuple[compiler.LockInputPlan, ...],
+        **_: object,
+    ) -> None:
+        for package, version in plans[0].expected_artifacts:
+            _write_test_wheel(wheelhouse, name=package, version=version)
+        source_path.write_text(
+            source_path.read_text(encoding="utf-8") + "# changed during network phase\n",
+            encoding="utf-8",
+        )
+
+    monkeypatch.setattr(compiler, "_download_profile_wheels", mutate_during_download)
+
+    def compiler_must_not_run(*_: object, **__: object) -> subprocess.CompletedProcess[str]:
+        raise AssertionError("offline compiler ran after captured source mutation")
+
+    monkeypatch.setattr(compiler.subprocess, "run", compiler_must_not_run)
+
+    with pytest.raises(RuntimeError, match="changed during lock compilation"):
+        compiler._compile_selected_profiles_locked(
+            repo_root=tmp_path,
+            profiles=("test",),
+            upgrades={"coverage": "7.15.1", "faker": "40.31.0"},
+            graph_changes=frozenset(),
+            environment={},
+        )
+
+
+def test_validated_wheel_mutation_is_rejected_after_offline_compile(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    surface = _write_test_profile(tmp_path)
+    wheelhouse = tmp_path / "wheelhouse"
+    wheelhouse.mkdir(mode=0o700)
+    wheel_path = _write_test_wheel(
+        wheelhouse,
+        name="coverage",
+        version="7.15.1",
+    )
+    artifact = compiler._validate_wheelhouse(
+        wheelhouse=wheelhouse,
+        expected_artifacts=frozenset({("coverage", "7.15.1")}),
+    )[("coverage", "7.15.1")]
+
+    def mutate_after_compile(
+        command: list[str],
+        **_: object,
+    ) -> subprocess.CompletedProcess[str]:
+        result = _successful_resolver(command)
+        wheel_path.write_bytes(wheel_path.read_bytes() + b"changed")
+        return result
+
+    monkeypatch.setattr(compiler.subprocess, "run", mutate_after_compile)
+
+    with pytest.raises(RuntimeError, match="Validated wheel changed"):
+        compiler._prepare_lock(
+            repo_root=tmp_path,
+            surface=surface,
+            upgrades={"coverage": "7.15.1", "faker": "40.31.0"},
+            graph_changes=frozenset(),
+            child_env={},
+            wheel_artifacts=(artifact,),
         )
 
 
@@ -1498,12 +2170,77 @@ def test_runtime_and_dependent_profiles_require_separate_transactions() -> None:
         profiles=("runtime",),
         graph_changes=frozenset(),
     )
-    with pytest.raises(RuntimeError, match="exactly one"):
+    with pytest.raises(RuntimeError, match="future versioned artifact-admission contract"):
         compiler._validate_profile_transaction(
             repo_root=REPO_ROOT,
             profiles=("dev", "test"),
             graph_changes=frozenset({"example"}),
         )
+
+
+def test_graph_change_rejection_happens_before_network_or_input_capture(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def unexpected_call(*_: object, **__: object) -> object:
+        raise AssertionError("graph-change rejection must precede capture and network")
+
+    monkeypatch.setattr(compiler, "_capture_lock_input_plan", unexpected_call)
+    monkeypatch.setattr(compiler, "_private_proxy_child_env", unexpected_call)
+
+    with pytest.raises(RuntimeError, match="future versioned artifact-admission contract"):
+        compiler._compile_selected_profiles_locked(
+            repo_root=REPO_ROOT,
+            profiles=("test",),
+            upgrades={},
+            graph_changes=frozenset({"new-package"}),
+            environment={},
+        )
+
+
+def _stub_two_phase_pipeline(
+    *,
+    monkeypatch: pytest.MonkeyPatch,
+    prepared_by_profile: dict[str, compiler.PreparedLock],
+) -> None:
+    plans = {
+        profile: compiler.LockInputPlan(
+            surface=prepared.surface,
+            output_path=prepared.output_path,
+            output_capture=compiler._capture_file(prepared.output_path),
+            source_captures=(),
+            expected_artifacts=frozenset(),
+        )
+        for profile, prepared in prepared_by_profile.items()
+    }
+    monkeypatch.setattr(
+        compiler,
+        "_capture_lock_input_plan",
+        lambda *, surface, **_kwargs: plans[str(surface.compile_profile)],
+    )
+    monkeypatch.setattr(
+        compiler,
+        "_private_proxy_child_env",
+        lambda _environment, *, resolver_home: {"HOME": str(resolver_home)},
+    )
+    monkeypatch.setattr(compiler, "_download_profile_wheels", lambda **_kwargs: None)
+    monkeypatch.setattr(compiler, "_validate_wheelhouse", lambda **_kwargs: {})
+    monkeypatch.setattr(
+        compiler,
+        "_create_profile_wheelhouse_views",
+        lambda *, plans, views_root, **_kwargs: {
+            str(plan.surface.compile_profile): compiler.ProfileWheelhouse(
+                path=views_root,
+                artifacts=(),
+            )
+            for plan in plans
+        },
+    )
+    monkeypatch.setattr(compiler, "_offline_compile_env", lambda *args, **kwargs: {})
+    monkeypatch.setattr(
+        compiler,
+        "_prepare_lock",
+        lambda **kwargs: prepared_by_profile[str(kwargs["surface"].compile_profile)],
+    )
 
 
 def test_multi_lock_replacement_rolls_back_on_partial_failure(
@@ -1532,15 +2269,9 @@ def test_multi_lock_replacement_rolls_back_on_partial_failure(
         "_profile_registry",
         lambda: {str(surface.compile_profile): surface for surface in selected_surfaces},
     )
-    monkeypatch.setattr(
-        compiler,
-        "_private_proxy_child_env",
-        lambda _environment, *, resolver_home: {},
-    )
-    monkeypatch.setattr(
-        compiler,
-        "_prepare_lock",
-        lambda **kwargs: prepared_by_profile[str(kwargs["surface"].compile_profile)],
+    _stub_two_phase_pipeline(
+        monkeypatch=monkeypatch,
+        prepared_by_profile=prepared_by_profile,
     )
     monkeypatch.setattr(compiler, "_fsync_directory", lambda _path: None)
     real_replace = os.replace
@@ -1596,15 +2327,9 @@ def test_multi_lock_replacement_rolls_back_on_keyboard_interrupt(
         "_profile_registry",
         lambda: {str(surface.compile_profile): surface for surface in selected_surfaces},
     )
-    monkeypatch.setattr(
-        compiler,
-        "_private_proxy_child_env",
-        lambda _environment, *, resolver_home: {},
-    )
-    monkeypatch.setattr(
-        compiler,
-        "_prepare_lock",
-        lambda **kwargs: prepared_by_profile[str(kwargs["surface"].compile_profile)],
+    _stub_two_phase_pipeline(
+        monkeypatch=monkeypatch,
+        prepared_by_profile=prepared_by_profile,
     )
     monkeypatch.setattr(compiler, "_fsync_directory", lambda _path: None)
     real_replace = os.replace
@@ -1655,12 +2380,10 @@ def test_candidate_symlink_swap_before_replace_fails_and_rolls_back(
         baseline_bytes=output_path.read_bytes(),
     )
     monkeypatch.setattr(compiler, "_profile_registry", lambda: {"test": surface})
-    monkeypatch.setattr(
-        compiler,
-        "_private_proxy_child_env",
-        lambda _environment, *, resolver_home: {},
+    _stub_two_phase_pipeline(
+        monkeypatch=monkeypatch,
+        prepared_by_profile={"test": prepared},
     )
-    monkeypatch.setattr(compiler, "_prepare_lock", lambda **_kwargs: prepared)
     monkeypatch.setattr(compiler, "_fsync_directory", lambda _path: None)
     real_replace = os.replace
 

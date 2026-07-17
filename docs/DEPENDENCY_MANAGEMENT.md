@@ -344,17 +344,26 @@ The profile keys above come from the executable registry in
 `scripts/ci/check_python_dependency_surfaces.py`. The Make target requires an
 executable `VENV_PYTHON`, rejects ambient pip/uv source overrides, seeds each
 existing lock, validates referenced constraint files, and rolls back already
-replaced locks if a later replacement fails. Lock compilation uses the default
-non-root `~/.netrc`; `PULSEPLATE_PYTHON_NETRC` is rejected because pip does not
-consume that application-specific override. When present, the default netrc
-must be a regular non-symlink file owned by the effective user with permissions
-no broader than `0600`; compilation fails closed if the platform cannot establish
-that ownership. The compiler copies descriptor-captured credential and manifest
-bytes into private temporary resolver directories, so later path replacement
-cannot change resolver authority. A private POSIX transaction lock serializes
-capture, resolution, atomic replacement, verification, and rollback for each
-worktree from the canonical `/tmp` namespace, independent of ambient `TMPDIR`.
-Do not call the underlying resolver directly.
+replaced locks if a later replacement fails. The credentialed phase uses the
+default non-root `~/.netrc` only to batch-download exact seeded/upgrade wheels
+with dependencies disabled into a private temporary store. The batch also
+admits the exact `pip` wheel matching the approved compiler interpreter as
+resolver-only metadata; candidate validation still forbids `pip` from every
+generated lock.
+`PULSEPLATE_PYTHON_NETRC` is rejected because pip does not consume that
+application-specific override. When present, the default netrc must be a regular
+non-symlink file owned by the effective user with permissions no broader than
+`0600`; compilation fails closed if the platform cannot establish that
+ownership. After the exact-wheel download completes, the credentialed temporary
+HOME is destroyed before the compiler statically validates regular wheel
+filenames, exact Name/Version metadata, dependency metadata, and the complete
+expected artifact set. The seeded pip-tools compiler then runs from a separate
+never-credentialed HOME with indexes disabled and one profile-narrow
+wheelhouse. Descriptor-captured manifests,
+streaming wheel snapshots, and a private POSIX transaction lock preserve input
+identity, atomic replacement, verification, and rollback from the canonical
+`/tmp` namespace, independent of ambient `TMPDIR`. Do not call the underlying
+download or resolver commands directly.
 
 ### Update a specific dependency
 
@@ -376,22 +385,12 @@ targets, missing direct owners, and any unrelated version movement.
 
 ### Add or remove a dependency graph entry
 
-```bash
-# First edit one owning requirements*.in profile. Run once without an allowlist;
-# the validator reports the deterministic added/missing normalized package set.
-LOCK_PROFILES="test" make requirements-locks
-
-# Review that set, then authorize exactly those names for this one profile.
-LOCK_PROFILES="test" \
-  GRAPH_CHANGE_PACKAGES="new-direct-package new-transitive-package" \
-  make requirements-locks
-```
-
-Graph reconciliation is intentionally single-profile and exact. Every added or
-removed normalized name must be listed, unused names fail, `pip` is forbidden,
-and unrelated version movement still requires an exact `UPGRADE_PACKAGES`
-target. Repeat the transaction for each owning profile; do not combine graph
-changes across profiles.
+`GRAPH_CHANGE_PACKAGES` is currently fail-closed. The governed compiler admits
+only the exact seeded graph plus exact existing-package `UPGRADE_PACKAGES`
+substitutions. Dependency additions or removals require a future versioned
+artifact-admission contract that can bind the newly admitted graph and its
+artifacts before credential-free compilation; do not bypass this boundary with
+direct pip or resolver commands.
 
 ## CI/CD Integration
 
