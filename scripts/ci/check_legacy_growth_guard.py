@@ -1958,6 +1958,9 @@ _DescriptorBinding = tuple[_FunctionNode, str]
 class _DeferredFunctionCall:
     function: _FunctionNode
     arguments: tuple[tuple[str, _ResolvedBinding], ...]
+    partial_template: bool = False
+    partial_positional: tuple[_ResolvedBinding, ...] = ()
+    partial_unresolved: bool = False
 
 
 @dataclass(frozen=True)
@@ -2547,6 +2550,8 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         self._mapping_literal_snapshots: dict[int, _StaticMapping] = {}
         self._mapping_snapshot_intern: dict[_StaticMapping, _StaticMapping] = {}
         self._active_function_replays: set[_FunctionNode] = set()
+        self._active_async_replay_depth = 0
+        self._active_task_group_depth = 0
         self._outward_binding_targets: list[dict[str, _LexicalBindings]] = []
         self._awaited_call_ids: set[int] = set()
         self._iterated_call_ids: set[int] = set()
@@ -4531,6 +4536,11 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
     def _resolve_with_enter_binding(self, context_expr: ast.AST) -> _ResolvedBinding:
         if (
             isinstance(context_expr, ast.Call)
+            and self._resolve_reference(context_expr.func) == "asyncio.TaskGroup"
+        ):
+            return _ResolvedBinding("asyncio.TaskGroup.instance", None)
+        if (
+            isinstance(context_expr, ast.Call)
             and self._resolve_reference(context_expr.func) == "contextlib.nullcontext"
         ):
             positional = [
@@ -4581,6 +4591,11 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         )
 
     def _visit_with(self, node: ast.With | ast.AsyncWith) -> bool:
+        enters_task_group = isinstance(node, ast.AsyncWith) and any(
+            isinstance(item.context_expr, ast.Call)
+            and self._resolve_reference(item.context_expr.func) == "asyncio.TaskGroup"
+            for item in node.items
+        )
         for item in node.items:
             self.visit(item.context_expr)
             if item.optional_vars is not None:
@@ -4604,7 +4619,13 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                             iterable_element=binding.iterable_element,
                         ),
                     )
-        return self._visit_statements(node.body)
+        if enters_task_group:
+            self._active_task_group_depth += 1
+        try:
+            return self._visit_statements(node.body)
+        finally:
+            if enters_task_group:
+                self._active_task_group_depth -= 1
 
     def visit_With(self, node: ast.With) -> bool:
         return self._visit_with(node)
@@ -5445,6 +5466,34 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             for name in resolved_variants[0]
         }
 
+    def _resolve_partial_invocation_bindings(
+        self,
+        template: _DeferredFunctionCall,
+        node: ast.Call,
+    ) -> dict[str, _ResolvedBinding] | None:
+        if (
+            template.partial_unresolved
+            or node.keywords
+            or any(isinstance(argument, ast.Starred) for argument in node.args)
+        ):
+            return {
+                parameter.arg: self._conservative_argument_binding()
+                for parameter in (
+                    *template.function.args.posonlyargs,
+                    *template.function.args.args,
+                    *template.function.args.kwonlyargs,
+                )
+            }
+        positional = [
+            *template.partial_positional,
+            *(self._capture_argument_binding(argument) for argument in node.args),
+        ]
+        return self._resolve_call_argument_bindings(
+            template.function,
+            node,
+            positional_override=positional,
+        )
+
     def _prepare_function_replay_inputs(
         self,
         node: ast.Call,
@@ -5456,8 +5505,12 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         awaited = id(node) in self._awaited_call_ids
         iterated = id(node) in self._iterated_call_ids
         replay_inputs: list[tuple[_FunctionNode, dict[str, _ResolvedBinding]]] = []
+        partial_templates = {
+            call for call in self._resolve_deferred_calls(node.func) if call.partial_template
+        }
+        partial_targets = {call.function for call in partial_templates}
         for target in sorted(
-            self._resolve_callables(node.func) - excluded_targets,
+            self._resolve_callables(node.func) - excluded_targets - partial_targets,
             key=lambda candidate: (
                 candidate.lineno,
                 candidate.col_offset,
@@ -5471,6 +5524,18 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             if isinstance(target, ast.AsyncFunctionDef) and not awaited and not iterated:
                 continue
             arguments = self._resolve_call_argument_bindings(target, node)
+            if arguments is not None:
+                replay_inputs.append((target, arguments))
+        for template in sorted(partial_templates, key=self._deferred_call_sort_key):
+            target = template.function
+            if target in excluded_targets:
+                continue
+            generator = _function_is_generator(target)
+            if generator and not iterated:
+                continue
+            if isinstance(target, ast.AsyncFunctionDef) and not awaited and not iterated:
+                continue
+            arguments = self._resolve_partial_invocation_bindings(template, node)
             if arguments is not None:
                 replay_inputs.append((target, arguments))
         return replay_inputs
@@ -5487,7 +5552,11 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         ):
             return frozenset()
         deferred: set[_DeferredFunctionCall] = set()
-        for target in self._resolve_callables(node.func):
+        partial_templates = {
+            call for call in self._resolve_deferred_calls(node.func) if call.partial_template
+        }
+        partial_targets = {call.function for call in partial_templates}
+        for target in self._resolve_callables(node.func) - partial_targets:
             is_generator = _function_is_generator(target)
             is_coroutine = isinstance(target, ast.AsyncFunctionDef) and not is_generator
             if not (is_generator or is_coroutine):
@@ -5518,12 +5587,23 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
     @staticmethod
     def _deferred_call_sort_key(
         call: _DeferredFunctionCall,
-    ) -> tuple[int, int, str, tuple[tuple[str, str | None, str | None], ...]]:
+    ) -> tuple[
+        int,
+        int,
+        str,
+        tuple[tuple[str, str | None, str | None], ...],
+        bool,
+        tuple[tuple[str | None, str | None], ...],
+        bool,
+    ]:
         return (
             call.function.lineno,
             call.function.col_offset,
             call.function.name,
             tuple((name, binding.reference, binding.string) for name, binding in call.arguments),
+            call.partial_template,
+            tuple((binding.reference, binding.string) for binding in call.partial_positional),
+            call.partial_unresolved,
         )
 
     def _replay_deferred_calls(
@@ -5536,6 +5616,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             call
             for call in calls
             if call not in self._consumed_deferred_calls
+            if not call.partial_template
             if (
                 execution == "iterate"
                 and (
@@ -5621,6 +5702,51 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 )
         return None
 
+    def _partial_function_templates(
+        self,
+        node: ast.Call,
+        *,
+        wrapper_reference: str | None,
+    ) -> frozenset[_DeferredFunctionCall]:
+        if wrapper_reference != "functools.partial" or not node.args:
+            return frozenset()
+        callable_expr = node.args[0]
+        nested_templates = {
+            call for call in self._resolve_deferred_calls(callable_expr) if call.partial_template
+        }
+        unresolved = bool(node.keywords) or any(
+            isinstance(argument, ast.Starred) for argument in node.args[1:]
+        )
+        positional = (
+            ()
+            if unresolved
+            else tuple(self._capture_argument_binding(argument) for argument in node.args[1:])
+        )
+        if nested_templates:
+            return frozenset(
+                {
+                    _DeferredFunctionCall(
+                        function=nested.function,
+                        arguments=(),
+                        partial_template=True,
+                        partial_positional=(*nested.partial_positional, *positional),
+                        partial_unresolved=nested.partial_unresolved or unresolved,
+                    )
+                    for nested in nested_templates
+                }
+            )
+
+        return frozenset(
+            _DeferredFunctionCall(
+                function=target,
+                arguments=(),
+                partial_template=True,
+                partial_positional=positional,
+                partial_unresolved=unresolved,
+            )
+            for target in self._resolve_callables(callable_expr)
+        )
+
     def visit_Call(self, node: ast.Call) -> None:
         escaped_mappings = [
             mapping
@@ -5687,9 +5813,13 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             "asyncio.create_task",
             "asyncio.ensure_future",
             "asyncio.shield",
-        }
-        gathers_awaitables = (
-            wrapper_reference == "asyncio.gather" and id(node) in self._awaited_call_ids
+        } or (
+            wrapper_reference == "asyncio.TaskGroup.instance.create_task"
+            and self._active_async_replay_depth > 0
+            and self._active_task_group_depth > 0
+        )
+        gathers_awaitables = wrapper_reference == "asyncio.gather" and (
+            id(node) in self._awaited_call_ids or self._active_async_replay_depth > 0
         )
         gathered_calls = [
             argument
@@ -5751,33 +5881,37 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 self._awaited_call_ids.remove(id(gathered_call))
             if iterated_argument is not None and not iterated_argument_was_marked:
                 self._iterated_call_ids.remove(id(iterated_argument))
-        replay_inputs = [
-            (
-                target,
-                {
-                    name: (
-                        initial_arguments[target][name]
-                        if (
-                            initial_arguments[target][name].reference is not None
-                            or initial_arguments[target][name].string is not None
-                            or initial_arguments[target][name].callables
-                            or initial_arguments[target][name].deferred_calls
+        replay_inputs: list[tuple[_FunctionNode, dict[str, _ResolvedBinding]]] = []
+        for target in sorted(
+            prepared_targets,
+            key=lambda candidate: (
+                candidate.lineno,
+                candidate.col_offset,
+                candidate.name,
+            ),
+        ):
+            arguments = self._resolve_call_argument_bindings(target, node)
+            if arguments is None:
+                replay_inputs.append((target, initial_arguments[target]))
+                continue
+            replay_inputs.append(
+                (
+                    target,
+                    {
+                        name: (
+                            initial_arguments[target][name]
+                            if (
+                                initial_arguments[target][name].reference is not None
+                                or initial_arguments[target][name].string is not None
+                                or initial_arguments[target][name].callables
+                                or initial_arguments[target][name].deferred_calls
+                            )
+                            else binding
                         )
-                        else binding
-                    )
-                    for name, binding in arguments.items()
-                },
+                        for name, binding in arguments.items()
+                    },
+                )
             )
-            for target in sorted(
-                prepared_targets,
-                key=lambda candidate: (
-                    candidate.lineno,
-                    candidate.col_offset,
-                    candidate.name,
-                ),
-            )
-            if (arguments := self._resolve_call_argument_bindings(target, node)) is not None
-        ]
         replay_inputs.extend(
             self._prepare_function_replay_inputs(
                 node,
@@ -5833,6 +5967,30 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     result_binding
                     if existing is None
                     else self._join_resolved_bindings([existing, result_binding])
+                )
+        partial_templates = self._partial_function_templates(
+            node,
+            wrapper_reference=wrapper_reference,
+        )
+        if partial_templates:
+            partial_binding = _ResolvedBinding(
+                reference=self._resolve_reference(node) or _KNOWN_NON_APP_REFERENCE,
+                string=None,
+                callables=frozenset(template.function for template in partial_templates),
+                deferred_calls=partial_templates,
+            )
+            existing = self._call_result_bindings.get(id(node))
+            self._call_result_bindings[id(node)] = (
+                partial_binding
+                if existing is None
+                else self._join_resolved_bindings([existing, partial_binding])
+            )
+            if self.call_result_snapshots is not None:
+                existing_snapshot = self.call_result_snapshots.get(id(node))
+                self.call_result_snapshots[id(node)] = (
+                    partial_binding
+                    if existing_snapshot is None
+                    else self._join_resolved_bindings([existing_snapshot, partial_binding])
                 )
         if executes_async and node.args and wrapped_call is None:
             deferred_result = self._replay_deferred_calls(
@@ -5960,6 +6118,9 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         return_bindings: list[_ResolvedBinding] = []
         self._return_binding_collectors.append(return_bindings)
         replay_entry = self.scope.clone()
+        replays_async = isinstance(node, ast.AsyncFunctionDef)
+        if replays_async:
+            self._active_async_replay_depth += 1
         try:
             falls_through = self._visit_statements(node.body)
             result_binding = self._join_resolved_bindings(
@@ -6043,6 +6204,8 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                         )
                     parent_scope = parent_scope.parent
         finally:
+            if replays_async:
+                self._active_async_replay_depth -= 1
             self._return_binding_collectors.pop()
             self._outward_binding_targets.pop()
             self._active_replay_contexts.pop()

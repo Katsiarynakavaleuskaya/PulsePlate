@@ -6043,6 +6043,91 @@ def test_legacy_growth_guard_closes_executor_and_consumer_callback_paths(
 
 
 @pytest.mark.parametrize(
+    ("helper", "binding", "invocation"),
+    [
+        (
+            "def install(registrar):\n" "    registrar(handler)\n",
+            'run = partial(install, app.middleware("http"))',
+            "run()",
+        ),
+        (
+            "def install(prefix, registrar):\n" "    registrar(handler)\n",
+            'run = partial(install, "prefix")',
+            'run(app.middleware("http"))',
+        ),
+    ],
+    ids=["fully-bound", "forwarded-argument"],
+)
+def test_legacy_growth_guard_replays_invoked_partial_helpers(
+    helper: str,
+    binding: str,
+    invocation: str,
+) -> None:
+    source = "from functools import partial\n\n" f"{helper}\n" f"{binding}\n" f"{invocation}\n"
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: registration:middleware:http"
+    ]
+
+
+@pytest.mark.parametrize(
+    "execution",
+    [
+        '    asyncio.gather(install(app.middleware("http")))',
+        "    async with asyncio.TaskGroup() as group:\n"
+        '        group.create_task(install(app.middleware("http")))',
+    ],
+    ids=["unawaited-gather", "task-group"],
+)
+def test_legacy_growth_guard_replays_scheduled_coroutines_in_running_async_flow(
+    execution: str,
+) -> None:
+    source = (
+        "import asyncio\n\n"
+        "async def install(registrar):\n"
+        "    registrar(handler)\n\n"
+        "async def start():\n"
+        f"{execution}\n\n"
+        "asyncio.run(start())\n"
+    )
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: registration:middleware:http"
+    ]
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "from functools import partial\n\n"
+        "def install(registrar):\n"
+        "    registrar(handler)\n\n"
+        'run = partial(install, app.middleware("http"))\n',
+        "import asyncio\n\n"
+        "async def install(registrar):\n"
+        "    registrar(handler)\n\n"
+        "async def start():\n"
+        '    asyncio.gather(install(app.middleware("http")))\n',
+        "import asyncio\n\n"
+        "async def install(registrar):\n"
+        "    registrar(handler)\n\n"
+        "async def start():\n"
+        "    async with asyncio.TaskGroup() as group:\n"
+        "        pass\n"
+        '    group.create_task(install(app.middleware("http")))\n\n'
+        "asyncio.run(start())\n",
+    ],
+    ids=[
+        "partial-not-invoked",
+        "gather-in-uninvoked-coroutine",
+        "task-group-after-exit",
+    ],
+)
+def test_legacy_growth_guard_does_not_replay_unexecuted_callback_paths(source: str) -> None:
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+@pytest.mark.parametrize(
     "source",
     [
         "import contextlib\n"
