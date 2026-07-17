@@ -525,7 +525,6 @@ def _validate_v1_seal(
     pr_number: int,
     snapshot: PrSnapshot,
     token: str,
-    validate_outage_security_checks: bool = True,
 ) -> dict[str, Any]:
     seal = cast(dict[str, Any], parse_embedded_review_seal(artifact_text))
     if seal["repository"] != repository or seal["pr_number"] != pr_number:
@@ -619,15 +618,14 @@ def _validate_v1_seal(
         )
         if security_receipt != expected_receipt:
             raise ReviewEvidenceError("Codex Security operator outage override receipt is stale")
-        if validate_outage_security_checks:
-            _validate_operator_outage_security_checks(
-                repository=repository,
-                pr_number=pr_number,
-                token=token,
-                security_required=_operator_outage_security_required(
-                    entry.path for entry in manifest.entries
-                ),
-            )
+        _validate_operator_outage_security_checks(
+            repository=repository,
+            pr_number=pr_number,
+            token=token,
+            security_required=_operator_outage_security_required(
+                entry.path for entry in manifest.entries
+            ),
+        )
     return seal
 
 
@@ -709,23 +707,12 @@ def main() -> int:
         "--repo",
         help="Repo full name owner/repo for local/agent run (e.g. Katsiarynakavaleuskaya/PulsePlate).",
     )
-    parser.add_argument(
-        "--defer-outage-security-checks",
-        action="store_true",
-        help=(
-            "CI-only: defer cross-workflow outage security-bundle validation to "
-            "the terminal authenticated merge-readiness wrapper."
-        ),
-    )
     args = parser.parse_args()
     # Mutually exclusive: CI mode (--event-path) vs local/agent mode (--pr-number + --repo).
     if args.event_path and (args.pr_number is not None or (args.repo or "").strip()):
         parser.error("Use either --event-path (CI) or --pr-number and --repo (local), not both.")
     if (args.pr_number is not None) != bool((args.repo or "").strip()):
         parser.error("For local/agent mode provide both --pr-number and --repo.")
-    if args.defer_outage_security_checks and not args.event_path:
-        parser.error("--defer-outage-security-checks requires --event-path CI mode.")
-
     token = os.getenv("GITHUB_TOKEN", "").strip()
     if not token:
         print("ERROR: GITHUB_TOKEN is required for merge-readiness gate.")
@@ -833,7 +820,6 @@ def main() -> int:
                     pr_number=pr_number,
                     snapshot=snapshot,
                     token=token,
-                    validate_outage_security_checks=not args.defer_outage_security_checks,
                 )
                 _prove_v1_fixed_commits(
                     mapping_entries=mapping_entries,

@@ -969,21 +969,6 @@ def test_ci_gate_revalidates_live_operator_outage_override(
     assert override_calls == [(material_head, frozen.digest)]
     assert check_calls == [1]
 
-    override_calls.clear()
-    check_calls.clear()
-    validated = merge_gate._validate_v1_seal(
-        artifact_text=artifact,
-        repository="owner/repo",
-        pr_number=42,
-        snapshot=snapshot,
-        token="opaque",
-        validate_outage_security_checks=False,
-    )
-
-    assert validated["codex_security"]["status"] == "tooling_unavailable"
-    assert override_calls == [(material_head, frozen.digest)]
-    assert check_calls == []
-
 
 def test_merge_readiness_main_blocks_missing_mapping(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
@@ -1037,6 +1022,12 @@ def test_merge_readiness_checkout_uses_exact_pr_head_and_no_credentials() -> Non
         "persist-credentials": False,
         "ref": "${{ github.event.pull_request.head.sha }}",
     }
+    enforcement = next(
+        step for step in steps if step.get("name") == "Enforce merge readiness policy"
+    )
+    run = enforcement["run"]
+    assert '--event-path "$GITHUB_EVENT_PATH"' in run
+    assert "--defer-outage-security-checks" not in run
 
 
 def test_event_head_sha_is_required_and_exact(tmp_path: Path) -> None:
