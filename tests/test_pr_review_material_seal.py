@@ -1441,6 +1441,7 @@ def test_embedded_seal_round_trip_is_strict_and_canonical(tmp_path: Path) -> Non
     )
     rendered = render_embedded_review_seal(_seal(receipt))
 
+    assert rendered.splitlines()[1] == "<!-- pragma: allowlist nextline secret -->"
     assert parse_embedded_review_seal(rendered) == _seal(receipt)
 
     noncanonical = rendered.replace('"authority":', '"authority" :', 1)

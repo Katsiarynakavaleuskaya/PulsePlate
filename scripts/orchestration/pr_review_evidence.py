@@ -53,7 +53,12 @@ OPERATOR_OUTAGE_TRUST_BOUNDARY_PREFIXES = (
     "scripts/ci/",
     "trivy/",
 )
-SEAL_BEGIN = "<!-- PULSEPLATE_PR_REVIEW_SEAL_V1_BEGIN -->"
+SEAL_BEGIN = "\n".join(
+    (
+        "<!-- PULSEPLATE_PR_REVIEW_SEAL_V1_BEGIN -->",
+        "<!-- pragma: allowlist nextline secret -->",
+    )
+)
 SEAL_END = "<!-- PULSEPLATE_PR_REVIEW_SEAL_V1_END -->"
 
 _SHA_RE = re.compile(r"^[0-9a-f]{40}$")
