@@ -401,12 +401,15 @@ def test_operator_outage_override_rejects_newer_queued_security_attempt(
         lambda *_a, **_k: (False, "CLEAN", "main", nodes),
     )
 
-    with pytest.raises(ReviewEvidenceError, match="security=pending/status"):
+    with pytest.raises(ReviewEvidenceError, match="security=pending/status") as exc_info:
         merge_gate._validate_operator_outage_security_checks(
             repository="owner/repo",
             pr_number=42,
             token="opaque",
         )
+    message = str(exc_info.value)
+    assert "This gate does not wait" in message
+    assert "rerun only the failed Merge readiness gate after all named checks settle" in message
 
 
 @pytest.mark.parametrize(
