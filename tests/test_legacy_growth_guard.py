@@ -3962,6 +3962,26 @@ def test_legacy_growth_guard_preserves_plain_alternative_to_staticmethod() -> No
     ]
 
 
+def test_legacy_growth_guard_preserves_staticmethod_alternative_to_plain() -> None:
+    source = textwrap.dedent("""
+        def dangerous_install(target):
+            target.get("/api/v1/conditional-staticmethod-danger")(handler)
+
+        class Child:
+            if condition:
+                install = staticmethod(dangerous_install)
+            else:
+                install = dangerous_install
+
+        Child().install(app)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/conditional-staticmethod-danger"
+    ]
+
+
 def test_legacy_growth_guard_unions_replayed_class_site_members() -> None:
     source = textwrap.dedent("""
         def dangerous(self, target):

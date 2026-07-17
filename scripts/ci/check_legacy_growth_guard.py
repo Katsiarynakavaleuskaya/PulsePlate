@@ -5111,6 +5111,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 evaluator.visit(keyword.value)
                 unresolved_keywords = True
 
+        receiver_options = {False}
         if isinstance(call.func, ast.Attribute):
             owner_references = self._resolve_object_references(call.func.value)
             descriptor_kinds = {
@@ -5122,106 +5123,145 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 )
                 if candidate is function
             }
-            accessed_through_instance = any(
+            instance_access = any(
                 owner_reference.startswith(_INSTANCE_REFERENCE_PREFIX)
                 for owner_reference in owner_references
             )
-            inject_receiver = "classmethod" in descriptor_kinds or (
-                accessed_through_instance
-                and (
-                    not descriptor_kinds or any(kind != "staticmethod" for kind in descriptor_kinds)
-                )
+            class_access = any(
+                owner_reference.startswith(_CLASS_REFERENCE_PREFIX)
+                for owner_reference in owner_references
             )
-            if inject_receiver:
-                positional_bindings.insert(0, _ResolvedBinding(None, None))
+            receiver_options = set()
+            if not descriptor_kinds:
+                receiver_options.add(instance_access)
+            for descriptor_kind in descriptor_kinds:
+                if descriptor_kind == "classmethod":
+                    receiver_options.add(True)
+                elif descriptor_kind == "staticmethod":
+                    receiver_options.add(False)
+                elif descriptor_kind == "plain":
+                    if instance_access:
+                        receiver_options.add(True)
+                    if class_access or not instance_access:
+                        receiver_options.add(False)
+            if not receiver_options:
+                receiver_options.add(False)
+
+        positional_variants = [
+            [
+                *([_ResolvedBinding(None, None)] if inject_receiver else []),
+                *positional_bindings,
+            ]
+            for inject_receiver in sorted(receiver_options)
+        ]
 
         positional_parameters = [*function.args.posonlyargs, *function.args.args]
         keyword_parameters = {parameter.arg for parameter in function.args.args}
         keyword_parameters.update(parameter.arg for parameter in function.args.kwonlyargs)
-        assignments: dict[str, list[_ResolvedBinding]] = {}
-        overflow_positional_bindings: list[_ResolvedBinding] = []
-        for index, binding in enumerate(positional_bindings):
-            if index < len(positional_parameters):
-                name = positional_parameters[index].arg
-                assignments.setdefault(name, []).append(binding)
-            else:
-                overflow_positional_bindings.append(binding)
-        unexpected_keyword_bindings: list[_ResolvedBinding] = []
-        for name, binding in keyword_bindings:
-            if name in keyword_parameters:
-                assignments.setdefault(name, []).append(binding)
-            else:
-                unexpected_keyword_bindings.append(binding)
-
         default_bindings = self._function_default_bindings.get(function, {})
-        if overflow_positional_bindings and function.args.vararg is None:
-            return None
-        if unexpected_keyword_bindings and function.args.kwarg is None:
-            return None
-        if any(len(candidates) > 1 for candidates in assignments.values()):
-            return None
-        for parameter in positional_parameters:
-            if assignments.get(parameter.arg) or parameter.arg in default_bindings:
-                continue
-            may_be_supplied = unresolved_positional or (
-                parameter in function.args.args and unresolved_keywords
-            )
-            if not may_be_supplied:
+
+        def resolve_variant(
+            variant: Sequence[_ResolvedBinding],
+        ) -> dict[str, _ResolvedBinding] | None:
+            assignments: dict[str, list[_ResolvedBinding]] = {}
+            overflow_positional_bindings: list[_ResolvedBinding] = []
+            for index, binding in enumerate(variant):
+                if index < len(positional_parameters):
+                    name = positional_parameters[index].arg
+                    assignments.setdefault(name, []).append(binding)
+                else:
+                    overflow_positional_bindings.append(binding)
+            unexpected_keyword_bindings: list[_ResolvedBinding] = []
+            for name, binding in keyword_bindings:
+                if name in keyword_parameters:
+                    assignments.setdefault(name, []).append(binding)
+                else:
+                    unexpected_keyword_bindings.append(binding)
+
+            if overflow_positional_bindings and function.args.vararg is None:
                 return None
-        for parameter in function.args.kwonlyargs:
-            if assignments.get(parameter.arg) or parameter.arg in default_bindings:
-                continue
-            if not unresolved_keywords:
+            if unexpected_keyword_bindings and function.args.kwarg is None:
                 return None
-
-        resolved: dict[str, _ResolvedBinding] = {}
-        for parameter in positional_parameters:
-            candidates = assignments.get(parameter.arg, [])
-            if len(candidates) == 1:
-                resolved[parameter.arg] = candidates[0]
-            elif len(candidates) > 1:
-                resolved[parameter.arg] = self._conservative_argument_binding()
-            elif parameter.arg in default_bindings:
-                resolved[parameter.arg] = default_bindings[parameter.arg]
-            elif unresolved_positional or (parameter in function.args.args and unresolved_keywords):
-                resolved[parameter.arg] = self._conservative_argument_binding()
-            else:
-                resolved[parameter.arg] = _ResolvedBinding(None, None)
-
-        for parameter in function.args.kwonlyargs:
-            candidates = assignments.get(parameter.arg, [])
-            if len(candidates) == 1:
-                resolved[parameter.arg] = candidates[0]
-            elif len(candidates) > 1:
-                resolved[parameter.arg] = self._conservative_argument_binding()
-            elif parameter.arg in default_bindings:
-                resolved[parameter.arg] = default_bindings[parameter.arg]
-            elif unresolved_keywords:
-                resolved[parameter.arg] = self._conservative_argument_binding()
-            else:
-                resolved[parameter.arg] = _ResolvedBinding(None, None)
-
-        if function.args.vararg is not None:
-            resolved[function.args.vararg.arg] = (
-                self._conservative_argument_binding()
-                if unresolved_positional
-                or any(
-                    self._argument_binding_may_register(binding)
-                    for binding in overflow_positional_bindings
+            if any(len(candidates) > 1 for candidates in assignments.values()):
+                return None
+            for parameter in positional_parameters:
+                if assignments.get(parameter.arg) or parameter.arg in default_bindings:
+                    continue
+                may_be_supplied = unresolved_positional or (
+                    parameter in function.args.args and unresolved_keywords
                 )
-                else _ResolvedBinding(None, None)
-            )
-        if function.args.kwarg is not None:
-            resolved[function.args.kwarg.arg] = (
-                self._conservative_argument_binding()
-                if unresolved_keywords
-                or any(
-                    self._argument_binding_may_register(binding)
-                    for binding in unexpected_keyword_bindings
+                if not may_be_supplied:
+                    return None
+            for parameter in function.args.kwonlyargs:
+                if assignments.get(parameter.arg) or parameter.arg in default_bindings:
+                    continue
+                if not unresolved_keywords:
+                    return None
+
+            resolved: dict[str, _ResolvedBinding] = {}
+            for parameter in positional_parameters:
+                candidates = assignments.get(parameter.arg, [])
+                if len(candidates) == 1:
+                    resolved[parameter.arg] = candidates[0]
+                elif len(candidates) > 1:
+                    resolved[parameter.arg] = self._conservative_argument_binding()
+                elif parameter.arg in default_bindings:
+                    resolved[parameter.arg] = default_bindings[parameter.arg]
+                elif unresolved_positional or (
+                    parameter in function.args.args and unresolved_keywords
+                ):
+                    resolved[parameter.arg] = self._conservative_argument_binding()
+                else:
+                    resolved[parameter.arg] = _ResolvedBinding(None, None)
+
+            for parameter in function.args.kwonlyargs:
+                candidates = assignments.get(parameter.arg, [])
+                if len(candidates) == 1:
+                    resolved[parameter.arg] = candidates[0]
+                elif len(candidates) > 1:
+                    resolved[parameter.arg] = self._conservative_argument_binding()
+                elif parameter.arg in default_bindings:
+                    resolved[parameter.arg] = default_bindings[parameter.arg]
+                elif unresolved_keywords:
+                    resolved[parameter.arg] = self._conservative_argument_binding()
+                else:
+                    resolved[parameter.arg] = _ResolvedBinding(None, None)
+
+            if function.args.vararg is not None:
+                resolved[function.args.vararg.arg] = (
+                    self._conservative_argument_binding()
+                    if unresolved_positional
+                    or any(
+                        self._argument_binding_may_register(binding)
+                        for binding in overflow_positional_bindings
+                    )
+                    else _ResolvedBinding(None, None)
                 )
-                else _ResolvedBinding(None, None)
-            )
-        return resolved
+            if function.args.kwarg is not None:
+                resolved[function.args.kwarg.arg] = (
+                    self._conservative_argument_binding()
+                    if unresolved_keywords
+                    or any(
+                        self._argument_binding_may_register(binding)
+                        for binding in unexpected_keyword_bindings
+                    )
+                    else _ResolvedBinding(None, None)
+                )
+            return resolved
+
+        resolved_variants = [
+            resolved
+            for variant in positional_variants
+            if (resolved := resolve_variant(variant)) is not None
+        ]
+        if not resolved_variants:
+            return None
+        if len(resolved_variants) == 1:
+            return resolved_variants[0]
+        return {
+            name: self._join_resolved_bindings([resolved[name] for resolved in resolved_variants])
+            for name in resolved_variants[0]
+        }
 
     def _prepare_function_replay_inputs(
         self,
