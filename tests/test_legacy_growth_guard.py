@@ -5642,7 +5642,7 @@ def test_legacy_growth_guard_freezes_generator_expression_outer_iterator() -> No
         """)
 
     assert legacy_guard.validate_legacy_growth(source) == [
-        "legacy_app.py: unexpected legacy route growth: registration:dynamic:handler"
+        "legacy_app.py: unexpected legacy route growth: registration:middleware:http"
     ]
 
 
@@ -5907,6 +5907,130 @@ def test_legacy_growth_guard_preserves_preexisting_app_during_binders(
 )
 def test_legacy_growth_guard_propagates_app_to_new_binder_name(source: str) -> None:
     assert len(legacy_guard.validate_legacy_growth(source)) == 1
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        (
+            "def install(registrar):\n"
+            "    registrar(handler)\n"
+            "match install:\n"
+            "    case alias:\n"
+            '        alias(app.middleware("http"))\n',
+            "registration:middleware:http",
+        ),
+        (
+            "def install(registrar):\n"
+            '    registrar("/api/v1/match-capture")(handler)\n'
+            "match install:\n"
+            "    case alias:\n"
+            "        alias(app.get)\n",
+            "registration:dynamic:/api/v1/match-capture",
+        ),
+        (
+            "import contextlib\n"
+            "def install(registrar):\n"
+            "    registrar(handler)\n"
+            "with contextlib.nullcontext(install) as alias:\n"
+            '    alias(app.middleware("http"))\n',
+            "registration:middleware:http",
+        ),
+        (
+            "from contextlib import nullcontext\n"
+            "def install(registrar):\n"
+            '    registrar("/api/v1/with-capture")(handler)\n'
+            "with nullcontext(enter_result=install) as alias:\n"
+            "    alias(app.get)\n",
+            "registration:dynamic:/api/v1/with-capture",
+        ),
+    ],
+    ids=["match-middleware", "match-route", "with-middleware", "with-route-keyword"],
+)
+def test_legacy_growth_guard_preserves_callable_provenance_across_binders(
+    source: str,
+    expected: str,
+) -> None:
+    assert legacy_guard.validate_legacy_growth(source) == [
+        f"legacy_app.py: unexpected legacy route growth: {expected}"
+    ]
+
+
+@pytest.mark.parametrize(
+    "collection",
+    ["[install]", "(install,)", "{install}", "first"],
+    ids=["list", "tuple", "set", "nested-alias"],
+)
+def test_legacy_growth_guard_preserves_named_collection_element_callables(
+    collection: str,
+) -> None:
+    prefix = "first = [install]\n" if collection == "first" else ""
+    source = (
+        "def install(registrar):\n"
+        "    registrar(handler)\n"
+        f"{prefix}"
+        f"helpers = {collection}\n"
+        "for alias in helpers:\n"
+        '    alias(app.middleware("http"))\n'
+    )
+
+    first = legacy_guard.validate_legacy_growth(source)
+    second = legacy_guard.validate_legacy_growth(source)
+
+    assert first == ["legacy_app.py: unexpected legacy route growth: registration:middleware:http"]
+    assert second == first
+
+
+@pytest.mark.parametrize(
+    "gather_body",
+    [
+        'await asyncio.gather(install(app.middleware("http")))',
+        'pending = install(app.middleware("http"))\n' "await asyncio.gather(safe(), pending)",
+        'pending = [install(app.middleware("http"))]\n' "await asyncio.gather(*pending)",
+    ],
+    ids=["direct", "named-coroutine", "starred-known-collection"],
+)
+def test_legacy_growth_guard_replays_awaited_asyncio_gather_arguments(
+    gather_body: str,
+) -> None:
+    source = (
+        "import asyncio\n\n"
+        "async def install(registrar):\n"
+        "    registrar(handler)\n\n"
+        "async def safe():\n"
+        "    return None\n\n"
+        "async def start():\n"
+        f"{textwrap.indent(gather_body, '    ')}\n\n"
+        "asyncio.run(start())\n"
+    )
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: registration:middleware:http"
+    ]
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "import contextlib\n"
+        "with contextlib.nullcontext() as alias:\n"
+        '    getattr(alias, "get", safe)("/api/v1/safe")(handler)\n',
+        "def install(registrar):\n"
+        "    registrar(handler)\n"
+        "helpers = [install]\n"
+        'helpers(app.middleware("http"))\n',
+        "def safe(registrar):\n"
+        "    pass\n"
+        "helpers = [safe]\n"
+        "for alias in helpers:\n"
+        '    alias(app.middleware("http"))\n',
+    ],
+    ids=["nullcontext-default", "collection-not-callable", "safe-element"],
+)
+def test_legacy_growth_guard_keeps_callable_binder_negative_controls(
+    source: str,
+) -> None:
+    assert legacy_guard.validate_legacy_growth(source) == []
 
 
 def test_legacy_growth_guard_applies_local_class_decorator_result() -> None:

@@ -1969,6 +1969,7 @@ class _ResolvedBinding:
     mapping: _StaticMapping | None = None
     class_references: frozenset[str] = frozenset()
     descriptors: frozenset[_DescriptorBinding] = frozenset()
+    iterable_element: _ResolvedBinding | None = None
 
 
 @dataclass(frozen=True)
@@ -2026,6 +2027,7 @@ class _LexicalBindings:
         self.mappings: dict[str, _StaticMapping] = {}
         self.class_references: dict[str, frozenset[str]] = {}
         self.descriptors: dict[str, frozenset[_DescriptorBinding]] = {}
+        self.iterable_elements: dict[str, _ResolvedBinding] = {}
         self.bound_names: set[str] = set()
         self.possibly_bound_names: set[str] = set()
 
@@ -2042,6 +2044,7 @@ class _LexicalBindings:
         clone.mappings = dict(self.mappings)
         clone.class_references = dict(self.class_references)
         clone.descriptors = dict(self.descriptors)
+        clone.iterable_elements = dict(self.iterable_elements)
         clone.bound_names = set(self.bound_names)
         clone.possibly_bound_names = set(self.possibly_bound_names)
         return clone
@@ -2059,6 +2062,7 @@ class _LexicalBindings:
         clone.mappings = dict(self.mappings)
         clone.class_references = dict(self.class_references)
         clone.descriptors = dict(self.descriptors)
+        clone.iterable_elements = dict(self.iterable_elements)
         clone.bound_names = set(self.bound_names)
         clone.possibly_bound_names = set(self.possibly_bound_names)
         return clone
@@ -2126,6 +2130,15 @@ class _LexicalBindings:
             return self.parent.resolve_descriptors(name)
         return frozenset()
 
+    def resolve_iterable_element(self, name: str) -> _ResolvedBinding | None:
+        if name in self.iterable_elements:
+            return self.iterable_elements[name]
+        if name in self.local_names:
+            return None
+        if self.parent is not None:
+            return self.parent.resolve_iterable_element(name)
+        return None
+
     def visible_references(self) -> dict[str, str]:
         visible = self.parent.visible_references() if self.parent is not None else {}
         for name in self.local_names:
@@ -2158,6 +2171,7 @@ class _LexicalBindings:
         mapping: _StaticMapping | None = None,
         class_references: frozenset[str] = frozenset(),
         descriptors: frozenset[_DescriptorBinding] = frozenset(),
+        iterable_element: _ResolvedBinding | None = None,
         runtime_binding: bool = True,
     ) -> None:
         if reference is None:
@@ -2188,6 +2202,10 @@ class _LexicalBindings:
             self.descriptors[name] = descriptors
         else:
             self.descriptors.pop(name, None)
+        if iterable_element is None:
+            self.iterable_elements.pop(name, None)
+        else:
+            self.iterable_elements[name] = iterable_element
         if runtime_binding:
             self.bound_names.add(name)
             self.possibly_bound_names.add(name)
@@ -2200,6 +2218,7 @@ class _LexicalBindings:
         self.mappings.pop(name, None)
         self.class_references.pop(name, None)
         self.descriptors.pop(name, None)
+        self.iterable_elements.pop(name, None)
         self.bound_names.discard(name)
         self.possibly_bound_names.discard(name)
 
@@ -2628,6 +2647,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         mapping: _StaticMapping | None = None,
         class_references: frozenset[str] = frozenset(),
         descriptors: frozenset[_DescriptorBinding] = frozenset(),
+        iterable_element: _ResolvedBinding | None = None,
         runtime_binding: bool = True,
     ) -> None:
         if self.preserve_fastapi_conflicts and not overwrite_conflicts:
@@ -2664,6 +2684,29 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             mapping=mapping,
             class_references=class_references,
             descriptors=descriptors,
+            iterable_element=iterable_element,
+            runtime_binding=runtime_binding,
+        )
+
+    def _bind_resolved_name(
+        self,
+        name: str,
+        binding: _ResolvedBinding,
+        *,
+        overwrite_conflicts: bool = False,
+        runtime_binding: bool = True,
+    ) -> None:
+        self._bind_name(
+            name,
+            reference=binding.reference,
+            string=binding.string,
+            callables=binding.callables,
+            deferred_calls=binding.deferred_calls,
+            overwrite_conflicts=overwrite_conflicts,
+            mapping=binding.mapping,
+            class_references=binding.class_references,
+            descriptors=binding.descriptors,
+            iterable_element=binding.iterable_element,
             runtime_binding=runtime_binding,
         )
 
@@ -3209,6 +3252,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             and left.mappings == right.mappings
             and left.class_references == right.class_references
             and left.descriptors == right.descriptors
+            and left.iterable_elements == right.iterable_elements
             and left.bound_names == right.bound_names
             and left.possibly_bound_names == right.possibly_bound_names
         )
@@ -3394,6 +3438,19 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             if descriptor_candidates:
                 joined_descriptors[name] = frozenset(descriptor_candidates)
         self.scope.descriptors = joined_descriptors
+        iterable_names = set().union(*(set(outcome.iterable_elements) for outcome in outcomes))
+        joined_iterable_elements: dict[str, _ResolvedBinding] = {}
+        for name in iterable_names:
+            iterable_values: list[_ResolvedBinding | None] = [
+                outcome.iterable_elements.get(name) for outcome in outcomes
+            ]
+            join_candidates: list[_ResolvedBinding] = []
+            for value in iterable_values:
+                join_candidates.append(
+                    value if value is not None else self._conservative_argument_binding()
+                )
+            joined_iterable_elements[name] = self._join_resolved_bindings(join_candidates)
+        self.scope.iterable_elements = joined_iterable_elements
         self.scope.bound_names = set.intersection(
             *(set(outcome.bound_names) for outcome in outcomes)
         )
@@ -3412,6 +3469,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         mapping: _StaticMapping | None = None,
         class_references: frozenset[str] = frozenset(),
         descriptors: frozenset[_DescriptorBinding] = frozenset(),
+        iterable_element: _ResolvedBinding | None = None,
         runtime_binding: bool = True,
     ) -> None:
         for target in targets:
@@ -3425,6 +3483,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     mapping=mapping,
                     class_references=class_references,
                     descriptors=descriptors,
+                    iterable_element=iterable_element,
                     runtime_binding=runtime_binding,
                 )
 
@@ -3541,6 +3600,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         mapping = self._resolve_mapping(value)
         class_references = self._resolve_class_references(value)
         descriptors = self._resolve_descriptors(value)
+        iterable_element = self._resolve_iterable_element_binding(value)
         string = (
             resolved_string
             if resolved_string is not None
@@ -3560,9 +3620,27 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 mapping=mapping,
                 class_references=class_references,
                 descriptors=descriptors,
+                iterable_element=iterable_element,
             )
 
     def _bind_iteration_target(self, target: ast.expr, iterable: ast.AST) -> None:
+        iterable_element = self._resolve_iterable_element_binding(iterable)
+        if iterable_element is not None and not isinstance(
+            iterable,
+            (ast.List, ast.Tuple, ast.Set),
+        ):
+            self._bind_targets(
+                [target],
+                reference=iterable_element.reference,
+                string=iterable_element.string,
+                callables=iterable_element.callables,
+                deferred_calls=iterable_element.deferred_calls,
+                mapping=iterable_element.mapping,
+                class_references=iterable_element.class_references,
+                descriptors=iterable_element.descriptors,
+                iterable_element=iterable_element.iterable_element,
+            )
+            return
         iterable_reference = self._resolve_reference(iterable)
         if iterable_reference in {
             _ITERABLE_APP_ELEMENT_REFERENCE,
@@ -4450,43 +4528,81 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             orelse=node.orelse,
         )
 
+    def _resolve_with_enter_binding(self, context_expr: ast.AST) -> _ResolvedBinding:
+        if (
+            isinstance(context_expr, ast.Call)
+            and self._resolve_reference(context_expr.func) == "contextlib.nullcontext"
+        ):
+            positional = [
+                argument for argument in context_expr.args if not isinstance(argument, ast.Starred)
+            ]
+            keyword = [item.value for item in context_expr.keywords if item.arg == "enter_result"]
+            unresolved = any(isinstance(argument, ast.Starred) for argument in context_expr.args)
+            unresolved = unresolved or any(item.arg is None for item in context_expr.keywords)
+            candidates = [*positional, *keyword]
+            if len(candidates) == 1 and not unresolved:
+                return self._capture_argument_binding(candidates[0])
+            if not candidates and not unresolved:
+                return _ResolvedBinding(_KNOWN_NON_APP_REFERENCE, None)
+            return self._conservative_argument_binding()
+
+        binding = self._capture_argument_binding(context_expr)
+        reference = self._resolve_reference(context_expr)
+        if reference is None and isinstance(context_expr, ast.Call) and context_expr.args:
+            argument_reference = self._resolve_reference(context_expr.args[0])
+            if argument_reference in {
+                "pulseplate.app",
+                "pulseplate.app.router",
+                _POSSIBLE_APP_REFERENCE,
+                _POSSIBLE_ROUTER_REFERENCE,
+                _POSSIBLE_APP_CALL_REFERENCE,
+            }:
+                reference = (
+                    _POSSIBLE_APP_REFERENCE
+                    if argument_reference in {"pulseplate.app", _POSSIBLE_APP_REFERENCE}
+                    else (
+                        _POSSIBLE_ROUTER_REFERENCE
+                        if argument_reference
+                        in {"pulseplate.app.router", _POSSIBLE_ROUTER_REFERENCE}
+                        else _POSSIBLE_APP_CALL_REFERENCE
+                    )
+                )
+        if reference is None:
+            reference = binding.reference
+        return _ResolvedBinding(
+            reference=reference,
+            string=self._resolve_string(context_expr),
+            callables=binding.callables,
+            deferred_calls=binding.deferred_calls,
+            mapping=binding.mapping,
+            class_references=binding.class_references,
+            descriptors=binding.descriptors,
+            iterable_element=binding.iterable_element,
+        )
+
     def _visit_with(self, node: ast.With | ast.AsyncWith) -> bool:
         for item in node.items:
             self.visit(item.context_expr)
             if item.optional_vars is not None:
-                reference = self._resolve_reference(item.context_expr)
-                if (
-                    reference is None
-                    and isinstance(item.context_expr, ast.Call)
-                    and item.context_expr.args
-                ):
-                    argument_reference = self._resolve_reference(item.context_expr.args[0])
-                    if argument_reference in {
-                        "pulseplate.app",
-                        "pulseplate.app.router",
-                        _POSSIBLE_APP_REFERENCE,
-                        _POSSIBLE_ROUTER_REFERENCE,
-                        _POSSIBLE_APP_CALL_REFERENCE,
-                    }:
-                        reference = (
-                            _POSSIBLE_APP_REFERENCE
-                            if argument_reference in {"pulseplate.app", _POSSIBLE_APP_REFERENCE}
-                            else (
-                                _POSSIBLE_ROUTER_REFERENCE
-                                if argument_reference
-                                in {"pulseplate.app.router", _POSSIBLE_ROUTER_REFERENCE}
-                                else _POSSIBLE_APP_CALL_REFERENCE
-                            )
-                        )
+                binding = self._resolve_with_enter_binding(item.context_expr)
                 for name in _assignment_target_names(item.optional_vars):
-                    self._bind_name(
+                    reference = (
+                        binding.reference
+                        if binding.reference is not None
+                        else self._possible_sensitive_reference(name)
+                    )
+                    self._bind_resolved_name(
                         name,
-                        reference=(
-                            reference
-                            if reference is not None
-                            else self._possible_sensitive_reference(name)
+                        _ResolvedBinding(
+                            reference=reference,
+                            string=binding.string,
+                            callables=binding.callables,
+                            deferred_calls=binding.deferred_calls,
+                            mapping=binding.mapping,
+                            class_references=binding.class_references,
+                            descriptors=binding.descriptors,
+                            iterable_element=binding.iterable_element,
                         ),
-                        string=self._resolve_string(item.context_expr),
                     )
         return self._visit_statements(node.body)
 
@@ -4510,10 +4626,14 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         return False
 
     def _bind_match_capture(self, name: str, value: ast.AST | None) -> None:
-        self._bind_name(
+        binding = (
+            self._capture_argument_binding(value)
+            if value is not None
+            else _ResolvedBinding(None, None)
+        )
+        self._bind_resolved_name(
             name,
-            reference=self._resolve_reference(value) if value is not None else None,
-            string=self._resolve_string(value) if value is not None else None,
+            binding,
             overwrite_conflicts=True,
         )
 
@@ -4752,6 +4872,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     deferred_calls=binding.deferred_calls,
                     class_references=binding.class_references,
                     descriptors=binding.descriptors,
+                    iterable_element=binding.iterable_element,
                 )
             entries.append(_StaticMappingEntry(key=key, binding=binding))
         candidate = _StaticMapping(site=node, entries=tuple(entries))
@@ -4810,16 +4931,36 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
     def visit_YieldFrom(self, node: ast.YieldFrom) -> None:
         self._visit_iterated_expression(node.value)
 
-    def _capture_iterable_element_binding(self, node: ast.AST) -> _ResolvedBinding:
+    def _resolve_iterable_element_binding(
+        self,
+        node: ast.AST,
+    ) -> _ResolvedBinding | None:
+        call_result = self._call_result_bindings.get(id(node))
+        if call_result is not None:
+            return call_result.iterable_element
+        if isinstance(node, ast.Await):
+            return self._resolve_iterable_element_binding(node.value)
+        if isinstance(node, ast.NamedExpr):
+            return self._resolve_iterable_element_binding(node.value)
+        if isinstance(node, ast.Name):
+            return self.scope.resolve_iterable_element(node.id)
         if isinstance(node, (ast.List, ast.Tuple, ast.Set)) and node.elts:
-            return self._join_resolved_bindings(
-                [
-                    self._capture_argument_binding(
-                        element.value if isinstance(element, ast.Starred) else element
-                    )
-                    for element in node.elts
-                ]
-            )
+            element_bindings: list[_ResolvedBinding] = []
+            for element in node.elts:
+                if not isinstance(element, ast.Starred):
+                    element_bindings.append(self._capture_argument_binding(element))
+                    continue
+                nested = self._resolve_iterable_element_binding(element.value)
+                element_bindings.append(
+                    nested if nested is not None else self._conservative_argument_binding()
+                )
+            return self._join_resolved_bindings(element_bindings)
+        return None
+
+    def _capture_iterable_element_binding(self, node: ast.AST) -> _ResolvedBinding:
+        iterable_element = self._resolve_iterable_element_binding(node)
+        if iterable_element is not None:
+            return iterable_element
         reference = self._resolve_reference(node)
         if reference in {
             _ITERABLE_APP_ELEMENT_REFERENCE,
@@ -4830,7 +4971,15 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 if reference == _ITERABLE_APP_ELEMENT_REFERENCE
                 else _POSSIBLE_APP_CALL_REFERENCE
             )
-        return _ResolvedBinding(reference, self._resolve_string(node))
+        return _ResolvedBinding(
+            reference=reference,
+            string=self._resolve_string(node),
+            callables=self._resolve_callables(node),
+            deferred_calls=self._resolve_deferred_calls(node),
+            mapping=self._resolve_mapping(node),
+            class_references=self._resolve_class_references(node),
+            descriptors=self._resolve_descriptors(node),
+        )
 
     def visit_DictComp(self, node: ast.DictComp) -> None:
         self._visit_comprehension(node.generators, [node.key, node.value])
@@ -4999,6 +5148,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             mapping=self._resolve_mapping(value),
             class_references=self._resolve_class_references(value),
             descriptors=self._resolve_descriptors(value),
+            iterable_element=self._resolve_iterable_element_binding(value),
         )
 
     @staticmethod
@@ -5027,6 +5177,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 mapping=binding.mapping,
                 class_references=binding.class_references,
                 descriptors=binding.descriptors,
+                iterable_element=binding.iterable_element,
             )
             outcomes.append(outcome)
         merged = _LexicalBindings(parent=None)
@@ -5046,6 +5197,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             ),
             class_references=frozenset().union(*(binding.class_references for binding in bindings)),
             descriptors=frozenset().union(*(binding.descriptors for binding in bindings)),
+            iterable_element=merged.iterable_elements.get(marker),
         )
 
     @staticmethod
@@ -5053,6 +5205,10 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         reference = binding.reference
         return (
             bool(binding.callables)
+            or (
+                binding.iterable_element is not None
+                and _ApiKeyLookupVisitor._argument_binding_may_register(binding.iterable_element)
+            )
             or reference
             in {
                 "pulseplate.app",
@@ -5346,6 +5502,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         target.mappings = dict(snapshot.mappings)
         target.class_references = dict(snapshot.class_references)
         target.descriptors = dict(snapshot.descriptors)
+        target.iterable_elements = dict(snapshot.iterable_elements)
         target.bound_names = set(snapshot.bound_names)
         target.possibly_bound_names = set(snapshot.possibly_bound_names)
 
@@ -5521,6 +5678,19 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             "asyncio.create_task",
             "asyncio.ensure_future",
         }
+        gathers_awaitables = (
+            wrapper_reference == "asyncio.gather" and id(node) in self._awaited_call_ids
+        )
+        gathered_calls = [
+            argument
+            for argument in node.args
+            if not isinstance(argument, ast.Starred) and isinstance(argument, ast.Call)
+        ]
+        newly_awaited_gather_calls = [
+            argument
+            for argument in gathered_calls
+            if gathers_awaitables and id(argument) not in self._awaited_call_ids
+        ]
         consumes_iterable = (
             wrapper_reference
             in {
@@ -5554,6 +5724,8 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         )
         if wrapped_call is not None and executes_async:
             self._awaited_call_ids.add(id(wrapped_call))
+        for gathered_call in newly_awaited_gather_calls:
+            self._awaited_call_ids.add(id(gathered_call))
         iterated_argument = node.args[0] if node.args and consumes_iterable else None
         iterated_argument_was_marked = (
             iterated_argument is not None and id(iterated_argument) in self._iterated_call_ids
@@ -5565,6 +5737,8 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         finally:
             if wrapped_call is not None and executes_async:
                 self._awaited_call_ids.remove(id(wrapped_call))
+            for gathered_call in newly_awaited_gather_calls:
+                self._awaited_call_ids.remove(id(gathered_call))
             if iterated_argument is not None and not iterated_argument_was_marked:
                 self._iterated_call_ids.remove(id(iterated_argument))
         replay_inputs = [
@@ -5620,6 +5794,14 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             )
             if deferred_result is not None:
                 self._call_result_bindings[id(node)] = deferred_result
+        if gathers_awaitables:
+            for argument in node.args:
+                if isinstance(argument, ast.Starred):
+                    element = self._resolve_iterable_element_binding(argument.value)
+                    deferred = element.deferred_calls if element is not None else frozenset()
+                else:
+                    deferred = self._resolve_deferred_calls(argument)
+                self._replay_deferred_calls(deferred, execution="await")
         if consumes_iterable and node.args:
             self._replay_deferred_calls(
                 self._resolve_deferred_calls(node.args[0]),
@@ -5687,6 +5869,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     or name in nonlocal_scope.mappings
                     or name in nonlocal_scope.class_references
                     or name in nonlocal_scope.descriptors
+                    or name in nonlocal_scope.iterable_elements
                 )
                 if owns_name:
                     outward_targets[name] = nonlocal_scope
@@ -5707,6 +5890,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 mapping=target.resolve_mapping(name),
                 class_references=target.resolve_class_references(name),
                 descriptors=target.resolve_descriptors(name),
+                iterable_element=target.resolve_iterable_element(name),
             )
         for name, binding in arguments.items():
             self.scope.bind(
@@ -5718,6 +5902,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 mapping=binding.mapping,
                 class_references=binding.class_references,
                 descriptors=binding.descriptors,
+                iterable_element=binding.iterable_element,
             )
         self._loop_controls = []
         self._terminal_controls = _TerminalControlBindings(return_scopes=[], raise_scopes=[])
@@ -5745,6 +5930,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     result_binding.mapping,
                     result_binding.class_references,
                     result_binding.descriptors,
+                    result_binding.iterable_element,
                 )
             elif result_binding.reference == "pulseplate.app.router":
                 result_binding = _ResolvedBinding(
@@ -5755,6 +5941,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     result_binding.mapping,
                     result_binding.class_references,
                     result_binding.descriptors,
+                    result_binding.iterable_element,
                 )
             outcomes = [
                 self.scope,
@@ -5767,6 +5954,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 mapping = joined_scope.mappings.get(name)
                 class_references = joined_scope.class_references.get(name, frozenset())
                 descriptors = joined_scope.descriptors.get(name, frozenset())
+                iterable_element = joined_scope.iterable_elements.get(name)
                 binding = _ResolvedBinding(
                     reference=joined_scope.references.get(name),
                     string=joined_scope.strings.get(name),
@@ -5775,6 +5963,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     mapping=mapping,
                     class_references=class_references,
                     descriptors=descriptors,
+                    iterable_element=iterable_element,
                 )
                 target.bind(
                     name,
@@ -5785,6 +5974,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     mapping=mapping,
                     class_references=class_references,
                     descriptors=descriptors,
+                    iterable_element=iterable_element,
                 )
                 parent_scope: _LexicalBindings | None = previous
                 for active_targets in reversed(self._outward_binding_targets[:-1]):
@@ -5802,6 +5992,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                             mapping=mapping,
                             class_references=class_references,
                             descriptors=descriptors,
+                            iterable_element=iterable_element,
                         )
                     parent_scope = parent_scope.parent
         finally:
