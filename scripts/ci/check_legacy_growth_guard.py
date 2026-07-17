@@ -3351,13 +3351,24 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             )
             for name in class_reference_names
         }
-        descriptor_names = set().union(*(set(outcome.descriptors) for outcome in outcomes))
-        self.scope.descriptors = {
-            name: frozenset().union(
-                *(outcome.descriptors.get(name, frozenset()) for outcome in outcomes)
-            )
-            for name in descriptor_names
-        }
+        descriptor_names = set().union(
+            *(set(outcome.descriptors) | set(outcome.callables) for outcome in outcomes)
+        )
+        joined_descriptors: dict[str, frozenset[_DescriptorBinding]] = {}
+        for name in descriptor_names:
+            descriptor_candidates: set[_DescriptorBinding] = set()
+            for outcome in outcomes:
+                outcome_descriptors = outcome.descriptors.get(name, frozenset())
+                descriptor_candidates.update(outcome_descriptors)
+                described_callables = {function for function, _kind in outcome_descriptors}
+                descriptor_candidates.update(
+                    (function, "plain")
+                    for function in outcome.callables.get(name, frozenset())
+                    if function not in described_callables
+                )
+            if descriptor_candidates:
+                joined_descriptors[name] = frozenset(descriptor_candidates)
+        self.scope.descriptors = joined_descriptors
         self.scope.bound_names = set.intersection(
             *(set(outcome.bound_names) for outcome in outcomes)
         )
