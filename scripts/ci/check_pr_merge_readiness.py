@@ -509,8 +509,9 @@ def _validate_operator_outage_security_checks(
         raise ReviewEvidenceError(
             "operator outage override requires successful current-head security checks: "
             + ", ".join(failures)
-            + ". This gate does not wait; rerun only the failed Merge readiness gate "
-            "after all named checks settle."
+            + ". This gate does not wait or repair named checks; let pending checks "
+            "settle and resolve every missing, failed, or untrusted check before "
+            "rerunning only the failed Merge readiness gate."
         )
 
 
