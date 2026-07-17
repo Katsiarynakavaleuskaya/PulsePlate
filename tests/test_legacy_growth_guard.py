@@ -6010,6 +6010,39 @@ def test_legacy_growth_guard_replays_awaited_asyncio_gather_arguments(
 
 
 @pytest.mark.parametrize(
+    ("helper", "execution"),
+    [
+        (
+            "async def install(registrar):\n" "    registrar(handler)\n",
+            "async def start():\n"
+            '    await asyncio.shield(install(app.middleware("http")))\n'
+            "asyncio.run(start())",
+        ),
+        (
+            "def install(registrar):\n" "    registrar(handler)\n",
+            'list(map(install, [app.middleware("http")]))',
+        ),
+        (
+            "def install(registrar):\n" "    yield None\n" "    registrar(handler)\n",
+            # The guard intentionally treats a consumed generator as fail-closed
+            # rather than attempting yield-by-yield control-flow interpretation.
+            'next(install(app.middleware("http")))',
+        ),
+    ],
+    ids=["asyncio-shield", "eager-map-callback", "next-fail-closed"],
+)
+def test_legacy_growth_guard_closes_executor_and_consumer_callback_paths(
+    helper: str,
+    execution: str,
+) -> None:
+    source = "import asyncio\n\n" f"{helper}\n" f"{execution}\n"
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: registration:middleware:http"
+    ]
+
+
+@pytest.mark.parametrize(
     "source",
     [
         "import contextlib\n"
@@ -6024,8 +6057,20 @@ def test_legacy_growth_guard_replays_awaited_asyncio_gather_arguments(
         "helpers = [safe]\n"
         "for alias in helpers:\n"
         '    alias(app.middleware("http"))\n',
+        "async def install(registrar):\n"
+        "    registrar(handler)\n"
+        'list(map(install, [app.middleware("http")]))\n',
+        "def install(registrar):\n"
+        "    yield registrar(handler)\n"
+        'list(map(install, [app.middleware("http")]))\n',
     ],
-    ids=["nullcontext-default", "collection-not-callable", "safe-element"],
+    ids=[
+        "nullcontext-default",
+        "collection-not-callable",
+        "safe-element",
+        "map-async-callback-not-awaited",
+        "map-generator-result-not-consumed",
+    ],
 )
 def test_legacy_growth_guard_keeps_callable_binder_negative_controls(
     source: str,

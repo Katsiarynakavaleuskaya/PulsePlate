@@ -5231,7 +5231,11 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         self,
         function: _FunctionNode,
         call: ast.Call,
+        *,
+        callable_expr: ast.expr | None = None,
+        positional_override: Sequence[_ResolvedBinding] | None = None,
     ) -> dict[str, _ResolvedBinding] | None:
+        callable_expr = callable_expr or call.func
         evaluator = _ApiKeyLookupVisitor(
             filename=self.filename,
             errors=[],
@@ -5241,68 +5245,73 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             analyze_function_bodies=False,
         )
         evaluator.scope = self.scope.detached_clone()
-        evaluator.visit(call.func)
-
-        positional_bindings: list[_ResolvedBinding] = []
-        unresolved_positional = False
-        for call_argument in call.args:
-            if not isinstance(call_argument, ast.Starred):
-                evaluator.visit(call_argument)
-                positional_bindings.append(evaluator._capture_argument_binding(call_argument))
-                continue
-            if isinstance(call_argument.value, (ast.List, ast.Tuple)) and not any(
-                isinstance(element, ast.Starred) for element in call_argument.value.elts
-            ):
-                for element in call_argument.value.elts:
-                    evaluator.visit(element)
-                    positional_bindings.append(evaluator._capture_argument_binding(element))
-            else:
-                evaluator.visit(call_argument.value)
-                unresolved_positional = True
+        evaluator.visit(callable_expr)
 
         keyword_bindings: list[tuple[str, _ResolvedBinding]] = []
-        unresolved_keywords = False
-        for keyword in call.keywords:
-            if keyword.arg is not None:
-                evaluator.visit(keyword.value)
-                keyword_bindings.append(
-                    (
-                        keyword.arg,
-                        evaluator._capture_argument_binding(keyword.value),
-                    )
-                )
-                continue
-            if (
-                isinstance(keyword.value, ast.Dict)
-                and all(
-                    isinstance(key, ast.Constant) and isinstance(key.value, str)
-                    for key in keyword.value.keys
-                    if key is not None
-                )
-                and all(key is not None for key in keyword.value.keys)
-            ):
-                static_dict_bindings: dict[str, _ResolvedBinding] = {}
-                for key, value in zip(
-                    keyword.value.keys,
-                    keyword.value.values,
-                    strict=True,
+        if positional_override is None:
+            positional_bindings: list[_ResolvedBinding] = []
+            unresolved_positional = False
+            for call_argument in call.args:
+                if not isinstance(call_argument, ast.Starred):
+                    evaluator.visit(call_argument)
+                    positional_bindings.append(evaluator._capture_argument_binding(call_argument))
+                    continue
+                if isinstance(call_argument.value, (ast.List, ast.Tuple)) and not any(
+                    isinstance(element, ast.Starred) for element in call_argument.value.elts
                 ):
-                    if not isinstance(key, ast.Constant):
-                        continue
-                    evaluator.visit(key)
-                    evaluator.visit(value)
-                    static_dict_bindings[str(key.value)] = evaluator._capture_argument_binding(
-                        value
+                    for element in call_argument.value.elts:
+                        evaluator.visit(element)
+                        positional_bindings.append(evaluator._capture_argument_binding(element))
+                else:
+                    evaluator.visit(call_argument.value)
+                    unresolved_positional = True
+
+            unresolved_keywords = False
+            for keyword in call.keywords:
+                if keyword.arg is not None:
+                    evaluator.visit(keyword.value)
+                    keyword_bindings.append(
+                        (
+                            keyword.arg,
+                            evaluator._capture_argument_binding(keyword.value),
+                        )
                     )
-                keyword_bindings.extend(static_dict_bindings.items())
-            else:
-                evaluator.visit(keyword.value)
-                unresolved_keywords = True
+                    continue
+                if (
+                    isinstance(keyword.value, ast.Dict)
+                    and all(
+                        isinstance(key, ast.Constant) and isinstance(key.value, str)
+                        for key in keyword.value.keys
+                        if key is not None
+                    )
+                    and all(key is not None for key in keyword.value.keys)
+                ):
+                    static_dict_bindings: dict[str, _ResolvedBinding] = {}
+                    for key, value in zip(
+                        keyword.value.keys,
+                        keyword.value.values,
+                        strict=True,
+                    ):
+                        if not isinstance(key, ast.Constant):
+                            continue
+                        evaluator.visit(key)
+                        evaluator.visit(value)
+                        static_dict_bindings[str(key.value)] = evaluator._capture_argument_binding(
+                            value
+                        )
+                    keyword_bindings.extend(static_dict_bindings.items())
+                else:
+                    evaluator.visit(keyword.value)
+                    unresolved_keywords = True
+        else:
+            positional_bindings = list(positional_override)
+            unresolved_positional = False
+            unresolved_keywords = False
 
         receiver_options: set[bool] = set()
         call_descriptor_kinds = {
             descriptor_kind
-            for candidate, descriptor_kind in self._resolve_descriptors(call.func)
+            for candidate, descriptor_kind in self._resolve_descriptors(callable_expr)
             if candidate is function
         }
         for descriptor_kind in call_descriptor_kinds:
@@ -5310,8 +5319,8 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 receiver_options.add(True)
             elif descriptor_kind in {"unbound", "plain", "staticmethod"}:
                 receiver_options.add(False)
-        if not receiver_options and isinstance(call.func, ast.Attribute):
-            owner_references = self._resolve_object_references(call.func.value)
+        if not receiver_options and isinstance(callable_expr, ast.Attribute):
+            owner_references = self._resolve_object_references(callable_expr.value)
             instance_access = any(
                 owner_reference.startswith(_INSTANCE_REFERENCE_PREFIX)
                 for owner_reference in owner_references
@@ -5677,6 +5686,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             "asyncio.run",
             "asyncio.create_task",
             "asyncio.ensure_future",
+            "asyncio.shield",
         }
         gathers_awaitables = (
             wrapper_reference == "asyncio.gather" and id(node) in self._awaited_call_ids
@@ -5774,6 +5784,43 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 excluded_targets=prepared_targets,
             )
         )
+        maps_callback = id(node) in self._iterated_call_ids and (
+            wrapper_reference == "builtins.map"
+            or isinstance(node.func, ast.Name)
+            and node.func.id == "map"
+        )
+        if maps_callback and len(node.args) >= 2:
+            iterable_bindings = [
+                (
+                    self._resolve_iterable_element_binding(
+                        argument.value if isinstance(argument, ast.Starred) else argument
+                    )
+                    or self._conservative_argument_binding()
+                )
+                for argument in node.args[1:]
+            ]
+            replay_inputs.extend(
+                (target, arguments)
+                for target in sorted(
+                    self._resolve_callables(node.args[0]),
+                    key=lambda candidate: (
+                        candidate.lineno,
+                        candidate.col_offset,
+                        candidate.name,
+                    ),
+                )
+                if not isinstance(target, ast.AsyncFunctionDef)
+                if not _function_is_generator(target)
+                if (
+                    arguments := self._resolve_call_argument_bindings(
+                        target,
+                        node,
+                        callable_expr=node.args[0],
+                        positional_override=iterable_bindings,
+                    )
+                )
+                is not None
+            )
         replay_results = [
             self._replay_function_call(target, arguments) for target, arguments in replay_inputs
         ]
