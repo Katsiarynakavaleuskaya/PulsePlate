@@ -2494,6 +2494,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         self._deferred_generator_outer_bindings: dict[_FunctionNode, _ResolvedBinding] = {}
         self._consumed_deferred_calls: set[_DeferredFunctionCall] = set()
         self._lambda_function_bindings: dict[int, _FunctionNode] = {}
+        self._classmethod_functions: set[_FunctionNode] = set()
         self._staticmethod_functions: set[_FunctionNode] = set()
         self._class_member_callables: dict[tuple[str, str], frozenset[_FunctionNode]] = {}
         self._class_member_presence: dict[tuple[str, str], bool] = {}
@@ -2674,6 +2675,8 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 callables = self._resolve_callables(node.args[0])
                 if constructor_reference == "builtins.staticmethod":
                     self._staticmethod_functions.update(callables)
+                else:
+                    self._classmethod_functions.update(callables)
                 return callables
         if isinstance(node, ast.NamedExpr):
             return self._resolve_callables(node.value)
@@ -4994,9 +4997,12 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             is_class_method = (
                 owner_reference is not None
                 and owner_reference.startswith(_CLASS_REFERENCE_PREFIX)
-                and any(
-                    isinstance(decorator, ast.Name) and decorator.id == "classmethod"
-                    for decorator in function.decorator_list
+                and (
+                    function in self._classmethod_functions
+                    or any(
+                        isinstance(decorator, ast.Name) and decorator.id == "classmethod"
+                        for decorator in function.decorator_list
+                    )
                 )
             )
             if is_instance_method or is_class_method:

@@ -3840,16 +3840,17 @@ def test_legacy_growth_guard_preserves_method_after_value_less_annotation() -> N
 
 
 @pytest.mark.parametrize(
-    ("wrapper", "parameters", "target"),
+    ("wrapper", "parameters", "target", "invocation"),
     [
-        ("staticmethod", "target", "target"),
-        ("classmethod", "cls, target", "target"),
+        ("staticmethod", "target", "target", "Child().install(app)"),
+        ("classmethod", "cls, target", "target", "Child.install(app)"),
     ],
 )
 def test_legacy_growth_guard_resolves_class_callable_wrappers(
     wrapper: str,
     parameters: str,
     target: str,
+    invocation: str,
 ) -> None:
     source = textwrap.dedent(f"""
         def dangerous_install({parameters}):
@@ -3858,13 +3859,47 @@ def test_legacy_growth_guard_resolves_class_callable_wrappers(
         class Child:
             install = {wrapper}(dangerous_install)
 
-        Child().install(app)
+        {invocation}
         """)
 
     assert legacy_guard.validate_legacy_growth(source) == [
         "legacy_app.py: unexpected legacy route growth: "
         "registration:get:/api/v1/wrapped-class-danger"
     ]
+
+
+def test_legacy_growth_guard_resolves_inherited_classmethod_wrapper() -> None:
+    source = textwrap.dedent("""
+        def dangerous_install(cls, target):
+            target.get("/api/v1/inherited-classmethod-danger")(handler)
+
+        class Base:
+            install = classmethod(dangerous_install)
+
+        class Child(Base):
+            pass
+
+        Child.install(app)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/inherited-classmethod-danger"
+    ]
+
+
+def test_legacy_growth_guard_keeps_safe_classmethod_wrapper_clean() -> None:
+    source = textwrap.dedent("""
+        def harmless_install(cls, target):
+            return None
+
+        class Child:
+            install = classmethod(harmless_install)
+
+        Child.install(app)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
 
 
 def test_legacy_growth_guard_unions_replayed_class_site_members() -> None:
