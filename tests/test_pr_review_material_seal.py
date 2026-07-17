@@ -2218,6 +2218,7 @@ def test_closeout_renderer_round_trips_fingerprint_record(tmp_path: Path) -> Non
         "pr_number": 42,
     }
     rendered = closeout_module._render_mapping(state, _seal(receipt))
+    assert "Exception: no retained coordinator packet was supplied." in rendered
     assert validate_mapping_artifact_text(rendered) == []
     records = parse_canonical_fingerprint_records(rendered, pr_number=42)
     assert records[fingerprint].verified_fix == FIX_SHA

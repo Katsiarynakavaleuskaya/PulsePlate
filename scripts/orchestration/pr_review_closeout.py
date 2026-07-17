@@ -17,7 +17,7 @@ import subprocess  # nosec B404: bounded absolute git commands are required (rem
 import sys
 import tempfile
 from pathlib import Path
-from typing import Any, Mapping, cast
+from typing import Any, Mapping
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
@@ -449,7 +449,7 @@ def _render_mapping(state: Mapping[str, Any], seal: Mapping[str, Any]) -> str:
         (
             f"Packet: `{packet}`"
             if packet
-            else "Not applicable: no retained coordinator packet was supplied."
+            else "Exception: no retained coordinator packet was supplied."
         ),
         "",
         "## Experiment Runner Evidence",
@@ -608,7 +608,7 @@ def validate_live_mapping(*, repository: str, pr_number: int, token: str | None)
     errors = validate_mapping_artifact_text(text)
     if errors:
         raise CloseoutError("invalid mapping artifact: " + "; ".join(errors))
-    seal = cast(dict[str, Any], parse_embedded_review_seal(text))
+    seal: dict[str, Any] = parse_embedded_review_seal(text)
     if seal["repository"] != repository or seal["pr_number"] != pr_number:
         raise CloseoutError("review seal repository/PR identity mismatch")
     if token is None:
