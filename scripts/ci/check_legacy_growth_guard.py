@@ -602,18 +602,23 @@ def _registration_action_for_reference(
     return None
 
 
-def _literal_subscript_value(node: ast.Subscript) -> ast.AST | None:
+def _literal_subscript_value(
+    node: ast.Subscript,
+) -> tuple[ast.AST | None, bool]:
     if not isinstance(node.slice, ast.Constant):
-        return None
+        return None, False
     key = node.slice.value
     if isinstance(node.value, (ast.List, ast.Tuple)):
         if not isinstance(key, int) or isinstance(key, bool):
-            return None
+            return None, False
         try:
             selected = node.value.elts[key]
         except IndexError:
-            return None
-        return selected.value if isinstance(selected, ast.Starred) else selected
+            return None, False
+        return (
+            selected.value if isinstance(selected, ast.Starred) else selected,
+            False,
+        )
     if isinstance(node.value, ast.Dict):
         items = list(zip(node.value.keys, node.value.values, strict=True))
         later_unpack_may_override = False
@@ -621,13 +626,11 @@ def _literal_subscript_value(node: ast.Subscript) -> ast.AST | None:
             if candidate_key is None:
                 later_unpack_may_override = True
                 continue
-            if (
-                isinstance(candidate_key, ast.Constant)
-                and type(candidate_key.value) is type(key)
-                and candidate_key.value == key
-            ):
-                return None if later_unpack_may_override else candidate_value
-    return None
+            if isinstance(candidate_key, ast.Constant) and candidate_key.value == key:
+                return (None, True) if later_unpack_may_override else (candidate_value, False)
+        if later_unpack_may_override:
+            return None, True
+    return None, False
 
 
 def _collection_reference(
@@ -738,7 +741,7 @@ def _static_module_reference(
             return f"{parent}.{node.attr}"
         return None
     if isinstance(node, ast.Subscript):
-        selected = _literal_subscript_value(node)
+        selected, unresolved = _literal_subscript_value(node)
         if selected is not None:
             return _static_module_reference(
                 selected,
@@ -746,6 +749,8 @@ def _static_module_reference(
                 import_module_aliases=import_module_aliases,
                 static_string_bindings=static_string_bindings,
             )
+        if unresolved:
+            return _POSSIBLE_APP_CALL_REFERENCE
         parent = _static_module_reference(
             node.value,
             module_aliases=module_aliases,
@@ -2572,9 +2577,11 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     1,
                 )
         if isinstance(node, ast.Subscript):
-            selected = _literal_subscript_value(node)
+            selected, unresolved = _literal_subscript_value(node)
             if selected is not None:
                 return self._resolve_reference(selected)
+            if unresolved:
+                return _POSSIBLE_APP_CALL_REFERENCE
         if self._is_definitely_non_app_value(node):
             return _KNOWN_NON_APP_REFERENCE
         references = self.scope.visible_references()

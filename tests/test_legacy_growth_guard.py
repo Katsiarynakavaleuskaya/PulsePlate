@@ -3325,6 +3325,54 @@ def test_legacy_growth_guard_honors_later_literal_after_mapping_unpack() -> None
 
 
 @pytest.mark.parametrize(
+    ("mapping", "expected"),
+    [
+        (
+            "{True: None, 1: app.get}",
+            [
+                "legacy_app.py: unexpected legacy route growth: "
+                "registration:get:/api/v1/equal-numeric-key-route"
+            ],
+        ),
+        ("{1: app.get, 1.0: None}", []),
+    ],
+    ids=["later-equivalent-sensitive", "later-equivalent-safe"],
+)
+def test_legacy_growth_guard_uses_python_numeric_key_equivalence(
+    mapping: str,
+    expected: list[str],
+) -> None:
+    source = (
+        f"register = {mapping}[True]\n" 'register("/api/v1/equal-numeric-key-route")(handler)\n'
+    )
+
+    assert legacy_guard.validate_legacy_growth(source) == expected
+
+
+def test_legacy_growth_guard_keeps_unresolved_mapping_unpack_fail_closed() -> None:
+    source = textwrap.dedent("""
+        routes = resolve_routes()
+        register = {"route": None, **routes}["route"]
+        register("/api/v1/unresolved-unpack-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:dynamic:/api/v1/unresolved-unpack-route"
+    ]
+
+
+def test_legacy_growth_guard_honors_later_literal_after_unresolved_unpack() -> None:
+    source = textwrap.dedent("""
+        routes = resolve_routes()
+        register = {**routes, "route": None}["route"]
+        register("/api/v1/not-a-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+@pytest.mark.parametrize(
     "invocation",
     [
         "Child().install(app)",
