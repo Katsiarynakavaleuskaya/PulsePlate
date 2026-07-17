@@ -1449,6 +1449,93 @@ def test_embedded_seal_round_trip_is_strict_and_canonical(tmp_path: Path) -> Non
         parse_embedded_review_seal(noncanonical)
 
 
+def test_closeout_reseal_requires_new_material_and_preserves_existing_proof() -> None:
+    old_receipt = build_security_outage_override_receipt(
+        base_revision=BASE_SHA,
+        head_revision=HEAD_SHA,
+        material_digest=DIGEST,
+        override_reference="https://github.com/owner/repo/pull/42#issuecomment-1",
+        created_at="2026-07-15T11:00:00Z",
+        operator_user_id=123,
+        operator_login="owner",
+        operator_association="OWNER",
+    )
+    new_digest = "sha256:" + "b" * 64
+    new_receipt = build_security_outage_override_receipt(
+        base_revision=BASE_SHA,
+        head_revision=OUTSIDE_SHA,
+        material_digest=new_digest,
+        override_reference="https://github.com/owner/repo/pull/42#issuecomment-2",
+        created_at="2026-07-15T12:00:00Z",
+        operator_user_id=123,
+        operator_login="owner",
+        operator_association="OWNER",
+    )
+    old_seal = _seal(old_receipt)
+    new_seal = _seal(new_receipt)
+    new_seal["code_review"]["review_commit_ref"] = OUTSIDE_SHA
+    new_seal["code_review"]["reviewed_material_digest"] = new_digest
+    new_seal["material"]["digest"] = new_digest
+    new_seal["material"]["material_head_sha"] = OUTSIDE_SHA
+    existing_disposition = {
+        "commit": FIX_SHA,
+        "disposition": "FIXED",
+        "evidence": "tests/test_example.py:10",
+        "url": "https://github.com/owner/repo/pull/42#discussion_r1",
+    }
+    new_disposition = {
+        "commit": OUTSIDE_SHA,
+        "disposition": "FIXED",
+        "evidence": "tests/test_example.py:20",
+        "url": "https://github.com/owner/repo/pull/42#discussion_r2",
+    }
+    state = {
+        "dispositions": [existing_disposition],
+        "experiment_result": None,
+        "packet": None,
+        "pr_number": 42,
+    }
+    existing = closeout_module._render_mapping(state, old_seal)
+    replacement = closeout_module._render_mapping(
+        {**state, "dispositions": [existing_disposition, new_disposition]},
+        new_seal,
+    )
+    expected_freeze = new_seal["material"]
+
+    assert (
+        closeout_module._validate_reseal_transition(
+            existing,
+            replacement,
+            repository="owner/repo",
+            pr_number=42,
+            expected_freeze=expected_freeze,
+        )
+        == HEAD_SHA
+    )
+    with pytest.raises(closeout_module.CloseoutError, match="already seals this material"):
+        closeout_module._validate_reseal_transition(
+            replacement,
+            replacement,
+            repository="owner/repo",
+            pr_number=42,
+            expected_freeze=expected_freeze,
+        )
+    with pytest.raises(
+        closeout_module.CloseoutError,
+        match="drop existing disposition proof",
+    ):
+        closeout_module._validate_reseal_transition(
+            existing,
+            closeout_module._render_mapping(
+                {**state, "dispositions": [new_disposition]},
+                new_seal,
+            ),
+            repository="owner/repo",
+            pr_number=42,
+            expected_freeze=expected_freeze,
+        )
+
+
 def test_embedded_seal_rejects_duplicate_keys() -> None:
     text = f'{SEAL_BEGIN}\n{{"authority":"x","authority":"y"}}\n{SEAL_END}'
 

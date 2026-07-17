@@ -51,6 +51,7 @@ from scripts.orchestration.pr_review_evidence import (  # noqa: E402
 )
 from scripts.orchestration.review_mapping_artifact import (  # noqa: E402
     NO_ACTIONABLE_LINE,
+    extract_fixed_mapping_section,
     mapping_artifact_path,
     validate_mapping_artifact_text,
 )
@@ -490,6 +491,43 @@ def _render_mapping(state: Mapping[str, Any], seal: Mapping[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _mapping_proof_blocks(markdown: str) -> set[str]:
+    section = extract_fixed_mapping_section(markdown)
+    return {block.strip() for block in section.split("\n\n") if block.strip()}
+
+
+def _validate_reseal_transition(
+    existing_markdown: str,
+    replacement_markdown: str,
+    *,
+    repository: str,
+    pr_number: int,
+    expected_freeze: Mapping[str, Any],
+) -> str:
+    errors = validate_mapping_artifact_text(existing_markdown)
+    if errors:
+        raise CloseoutError("existing canonical mapping is invalid: " + "; ".join(errors))
+    existing_seal = parse_embedded_review_seal(existing_markdown)
+    if existing_seal["repository"] != repository or existing_seal["pr_number"] != pr_number:
+        raise CloseoutError("existing canonical mapping identity does not match this PR")
+    existing_material = existing_seal["material"]
+    if existing_material["digest"] == expected_freeze["digest"]:
+        raise CloseoutError(
+            "canonical mapping already seals this material; use a structured duplicate reply"
+        )
+    for field in ("base_ref_oid", "merge_base_sha", "policy_version"):
+        if existing_material[field] != expected_freeze[field]:
+            raise CloseoutError(
+                f"existing canonical mapping {field} changed; automatic reseal is unsafe"
+            )
+    missing_blocks = sorted(
+        _mapping_proof_blocks(existing_markdown) - _mapping_proof_blocks(replacement_markdown)
+    )
+    if missing_blocks:
+        raise CloseoutError("replacement mapping would drop existing disposition proof")
+    return str(existing_material["material_head_sha"])
+
+
 def _cmd_seal(args: argparse.Namespace) -> None:
     state = _load_state(args.pr_number)
     if state["repository"] != args.repo:
@@ -586,11 +624,38 @@ def _cmd_seal(args: argparse.Namespace) -> None:
     if errors:
         raise CloseoutError("generated mapping is invalid: " + "; ".join(errors))
     target = mapping_artifact_path(args.pr_number)
-    tracked = _git("ls-tree", "--name-only", "HEAD", str(target.relative_to(REPO_ROOT)))
+    relative_target = str(target.relative_to(REPO_ROOT))
+    tracked = _git("ls-tree", "--name-only", "HEAD", relative_target)
     if tracked:
-        raise CloseoutError(
-            "canonical mapping is already committed; use a structured duplicate reply"
+        committed_blob = _git("rev-parse", f"HEAD:{relative_target}")
+        worktree_blob = _git("hash-object", "--", str(target))
+        if committed_blob != worktree_blob:
+            raise CloseoutError("canonical mapping has uncommitted changes")
+        previous_material_head = _validate_reseal_transition(
+            target.read_text(encoding="utf-8"),
+            markdown,
+            repository=args.repo,
+            pr_number=args.pr_number,
+            expected_freeze=expected_freeze,
         )
+        previous_resolution = classify_commit_ref(
+            previous_material_head,
+            snapshot,
+            token=token,
+        )
+        if (
+            not isinstance(previous_resolution, RepositoryCommitRef)
+            or previous_resolution.kind not in {CommitRefKind.PR_HEAD, CommitRefKind.PR_COMMIT}
+            or not is_ancestor(
+                previous_resolution,
+                RepositoryCommitRef(snapshot.head_sha, CommitRefKind.PR_HEAD),
+                repository=args.repo,
+                token=token,
+            )
+        ):
+            raise CloseoutError(
+                "existing canonical mapping material head is not reachable from live PR head"
+            )
     _atomic_write(target, markdown)
     assert_snapshot_unchanged(snapshot, token=token)
     print(f"CONTENT_BOUND_RECEIPT_VALID {manifest.digest}")
