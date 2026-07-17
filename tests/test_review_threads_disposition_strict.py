@@ -581,6 +581,117 @@ def test_v1_commit_after_comment_uses_server_timestamp() -> None:
     assert violations == []
 
 
+def test_v1_commit_after_comment_uses_proven_graph_order_when_pushed_date_is_null() -> None:
+    sha = "a" * 40
+    thread = ResolvedThreadRef(
+        url="https://github.com/org/repo/pull/1#discussion_r1",
+        source="comment",
+        is_resolved=True,
+        created_at="2026-02-27T12:00:00Z",
+    )
+    section = f"- {thread.url} -> {sha}\nDisposition: FIXED\nCommit: {sha}\n"
+
+    assert (
+        _check_commit_after_comment(
+            [thread],
+            section,
+            commit_time_by_sha={sha: None},
+            graph_ordered_urls=frozenset({thread.url}),
+        )
+        == []
+    )
+
+
+def test_v1_commit_after_comment_fails_without_server_or_graph_order() -> None:
+    sha = "a" * 40
+    thread = ResolvedThreadRef(
+        url="https://github.com/org/repo/pull/1#discussion_r1",
+        source="comment",
+        is_resolved=True,
+        created_at="2026-02-27T12:00:00Z",
+    )
+    section = f"- {thread.url} -> {sha}\nDisposition: FIXED\nCommit: {sha}\n"
+
+    violations = _check_commit_after_comment(
+        [thread],
+        section,
+        commit_time_by_sha={sha: None},
+    )
+
+    assert len(violations) == 1
+    assert "lacks server-side pushedDate or graph-order evidence" in violations[0]
+
+
+def test_real_commit_proof_records_graph_order_and_caches_ancestry(
+    monkeypatch: "MonkeyPatch",
+) -> None:
+    original_sha = "a" * 40
+    fix_sha = "b" * 40
+    head_sha = "c" * 40
+    urls = [
+        "https://github.com/org/repo/pull/1#discussion_r1",
+        "https://github.com/org/repo/pull/1#discussion_r2",
+    ]
+    snapshot = PrSnapshot(
+        repository="org/repo",
+        pr_number=1,
+        base_sha="d" * 40,
+        head_sha=head_sha,
+        commits=(
+            PrCommitEvidence(original_sha, None),
+            PrCommitEvidence(fix_sha, None),
+            PrCommitEvidence(head_sha, None),
+        ),
+    )
+    threads = [
+        ResolvedThreadRef(
+            url=url,
+            source="comment",
+            is_resolved=True,
+            created_at="2026-02-27T12:00:00Z",
+            original_commit_sha=original_sha,
+        )
+        for url in urls
+    ]
+    section = "\n".join(
+        f"- {url} -> {fix_sha}\nDisposition: FIXED\nCommit: {fix_sha}\n" for url in urls
+    )
+    ancestry_calls: list[tuple[str, str]] = []
+
+    monkeypatch.setattr(
+        _disposition_mod,
+        "classify_commit_ref",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("live PR snapshot identities must be reused")
+        ),
+    )
+
+    def ancestor(
+        left: RepositoryCommitRef,
+        right: RepositoryCommitRef,
+        **_kwargs: object,
+    ) -> bool:
+        ancestry_calls.append((left.sha, right.sha))
+        return True
+
+    monkeypatch.setattr(_disposition_mod, "is_ancestor", ancestor)
+    graph_ordered_urls: set[str] = set()
+
+    assert (
+        _check_real_commit_proofs(
+            threads,
+            section,
+            snapshot=snapshot,
+            repository="org/repo",
+            token="opaque",
+            graph_ordered_urls=graph_ordered_urls,
+        )
+        == []
+    )
+    assert graph_ordered_urls == set(urls)
+    assert ancestry_calls == [(fix_sha, head_sha), (original_sha, fix_sha)]
+
+
 @pytest.mark.parametrize(
     ("original_kind", "expected_violation"),
     [

@@ -415,6 +415,7 @@ def _check_commit_after_comment(
     *,
     _git_commit_time_fn: Any = None,
     commit_time_by_sha: Mapping[str, str | None] | None = None,
+    graph_ordered_urls: frozenset[str] = frozenset(),
 ) -> list[str]:
     """
     For each resolved thread with a mapped SHA, require commit_time > comment_time.
@@ -441,7 +442,11 @@ def _check_commit_after_comment(
             else:
                 commit_iso = commit_time_by_sha.get(sha)
                 if not commit_iso:
-                    raise RuntimeError(f"commit {sha} lacks server-side pushedDate evidence")
+                    if t.url in graph_ordered_urls:
+                        continue
+                    raise RuntimeError(
+                        f"commit {sha} lacks server-side pushedDate or graph-order evidence"
+                    )
             commit_dt = _parse_iso_datetime(commit_iso)
             if commit_dt <= thread_created:
                 violations.append(
@@ -606,34 +611,65 @@ def _check_real_commit_proofs(
     snapshot: PrSnapshot,
     repository: str,
     token: str,
+    graph_ordered_urls: set[str] | None = None,
 ) -> list[str]:
     """Prove every mapped FIX SHA and original comment commit in the live PR graph."""
 
     violations: list[str] = []
     mapping = _parse_mapping_section(section)
     live_head = RepositoryCommitRef(snapshot.head_sha, CommitRefKind.PR_HEAD)
+    snapshot_commits = {commit.sha: commit for commit in snapshot.commits}
+    classified: dict[str, RepositoryCommitRef | ReviewExecutionRef] = {}
+    ancestry: dict[tuple[str, str], bool] = {}
+
+    def classify(value: str) -> RepositoryCommitRef | ReviewExecutionRef:
+        normalized = value.strip().lower()
+        if normalized in classified:
+            return classified[normalized]
+        snapshot_commit = snapshot_commits.get(normalized)
+        if snapshot_commit is not None:
+            result: RepositoryCommitRef | ReviewExecutionRef = RepositoryCommitRef(
+                normalized,
+                (
+                    CommitRefKind.PR_HEAD
+                    if normalized == snapshot.head_sha
+                    else CommitRefKind.PR_COMMIT
+                ),
+                pushed_at=snapshot_commit.pushed_at,
+            )
+        else:
+            result = classify_commit_ref(normalized, snapshot, token=token)
+        classified[normalized] = result
+        return result
+
+    def ancestor(left: RepositoryCommitRef, right: RepositoryCommitRef) -> bool:
+        key = (left.sha, right.sha)
+        if key not in ancestry:
+            ancestry[key] = is_ancestor(
+                left,
+                right,
+                repository=repository,
+                token=token,
+            )
+        return ancestry[key]
+
     for thread in resolved_threads:
         fix_sha = mapping.get(thread.url)
         if not fix_sha:
             continue
-        fix = classify_commit_ref(fix_sha, snapshot, token=token)
+        fix = classify(fix_sha)
         if not isinstance(fix, RepositoryCommitRef) or fix.kind not in {
             CommitRefKind.PR_HEAD,
             CommitRefKind.PR_COMMIT,
         }:
             violations.append(f"{thread.url}: mapped FIX SHA is not a real live PR commit")
             continue
-        if not is_ancestor(
-            fix,
-            live_head,
-            repository=repository,
-            token=token,
-        ):
+        if not ancestor(fix, live_head):
             violations.append(f"{thread.url}: mapped FIX SHA is not reachable from live head")
             continue
         if not thread.original_commit_sha:
             continue
-        original = classify_commit_ref(thread.original_commit_sha, snapshot, token=token)
+        original = classify(thread.original_commit_sha)
         if isinstance(original, ReviewExecutionRef):
             if original.kind is CommitRefKind.API_UNKNOWN:
                 violations.append(f"{thread.url}: original_commit_id identity is API_UNKNOWN")
@@ -643,15 +679,13 @@ def _check_real_commit_proofs(
         if original.kind not in {CommitRefKind.PR_HEAD, CommitRefKind.PR_COMMIT}:
             violations.append(f"{thread.url}: original_commit_id is not a real live PR commit")
             continue
-        if not is_ancestor(
-            original,
-            fix,
-            repository=repository,
-            token=token,
-        ):
+        if not ancestor(original, fix):
             violations.append(
                 f"{thread.url}: mapped FIX SHA does not descend from original_commit_id"
             )
+            continue
+        if graph_ordered_urls is not None and original.sha != fix.sha:
+            graph_ordered_urls.add(thread.url)
     return violations
 
 
@@ -887,6 +921,7 @@ def main() -> None:
         print("  and one of: Commit: / Evidence: / Backlog:")
         sys.exit(1)
 
+    graph_ordered_urls: set[str] = set()
     if is_v1:
         if snapshot is None or api_token is None:
             print("ERROR: internal v1 context is incomplete")
@@ -898,6 +933,7 @@ def main() -> None:
                 snapshot=snapshot,
                 repository=repository,
                 token=api_token,
+                graph_ordered_urls=graph_ordered_urls,
             )
         except (CommitIdentityError, OSError) as exc:
             print(f"ERROR: unable to prove FIXED commit identities: {exc}")
@@ -918,6 +954,7 @@ def main() -> None:
         resolved_threads,
         section,
         commit_time_by_sha=server_commit_times,
+        graph_ordered_urls=frozenset(graph_ordered_urls) if is_v1 else frozenset(),
     )
     if commit_after_violations:
         print(
