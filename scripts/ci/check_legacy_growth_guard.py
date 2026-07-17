@@ -602,12 +602,22 @@ def _registration_action_for_reference(
     return None
 
 
+_UNRESOLVED_LITERAL_VALUE = object()
+
+
+def _literal_value(node: ast.AST) -> object:
+    try:
+        return ast.literal_eval(node)
+    except (TypeError, ValueError):
+        return _UNRESOLVED_LITERAL_VALUE
+
+
 def _literal_subscript_value(
     node: ast.Subscript,
 ) -> tuple[ast.AST | None, bool]:
-    if not isinstance(node.slice, ast.Constant):
+    key = _literal_value(node.slice)
+    if key is _UNRESOLVED_LITERAL_VALUE:
         return None, False
-    key = node.slice.value
     if isinstance(node.value, (ast.List, ast.Tuple)):
         if not isinstance(key, int) or isinstance(key, bool):
             return None, False
@@ -620,15 +630,19 @@ def _literal_subscript_value(
             False,
         )
     if isinstance(node.value, ast.Dict):
+        later_entry_may_override = False
         items = list(zip(node.value.keys, node.value.values, strict=True))
-        later_unpack_may_override = False
         for candidate_key, candidate_value in reversed(items):
             if candidate_key is None:
-                later_unpack_may_override = True
+                later_entry_may_override = True
                 continue
-            if isinstance(candidate_key, ast.Constant) and candidate_key.value == key:
-                return (None, True) if later_unpack_may_override else (candidate_value, False)
-        if later_unpack_may_override:
+            candidate = _literal_value(candidate_key)
+            if candidate is _UNRESOLVED_LITERAL_VALUE:
+                later_entry_may_override = True
+                continue
+            if candidate == key:
+                return (None, True) if later_entry_may_override else (candidate_value, False)
+        if later_entry_may_override:
             return None, True
     return None, False
 
@@ -1480,6 +1494,16 @@ def _assignment_target_names(node: ast.AST) -> tuple[str, ...]:
     return ()
 
 
+def _assignment_target_escapes_value(node: ast.AST) -> bool:
+    if isinstance(node, (ast.Attribute, ast.Subscript)):
+        return True
+    if isinstance(node, ast.Starred):
+        return _assignment_target_escapes_value(node.value)
+    if isinstance(node, (ast.Tuple, ast.List)):
+        return any(_assignment_target_escapes_value(element) for element in node.elts)
+    return False
+
+
 def _dynamic_app_router_import_assignments(
     value: ast.AST,
     target: ast.AST,
@@ -1941,6 +1965,43 @@ class _ResolvedBinding:
     string: str | None
     callables: frozenset[_FunctionNode] = frozenset()
     deferred_calls: frozenset[_DeferredFunctionCall] = frozenset()
+    mapping: _StaticMapping | None = None
+    class_references: frozenset[str] = frozenset()
+
+
+@dataclass(frozen=True)
+class _StaticMappingEntry:
+    key: ast.AST | None
+    binding: _ResolvedBinding
+
+
+@dataclass(frozen=True)
+class _StaticMapping:
+    site: ast.Dict
+    entries: tuple[_StaticMappingEntry, ...]
+
+
+def _static_mapping_binding(
+    mapping: _StaticMapping,
+    key: object,
+) -> tuple[_ResolvedBinding | None, bool]:
+    later_entry_may_override = False
+    for entry in reversed(mapping.entries):
+        if entry.key is None:
+            later_entry_may_override = True
+            continue
+        candidate = _literal_value(entry.key)
+        if candidate is _UNRESOLVED_LITERAL_VALUE:
+            later_entry_may_override = True
+            continue
+        try:
+            matches = candidate == key
+        except (TypeError, ValueError):
+            later_entry_may_override = True
+            continue
+        if matches is True:
+            return (None, True) if later_entry_may_override else (entry.binding, False)
+    return (None, True) if later_entry_may_override else (None, False)
 
 
 class _LexicalBindings:
@@ -1960,6 +2021,10 @@ class _LexicalBindings:
         self.strings: dict[str, str] = {}
         self.callables: dict[str, frozenset[_FunctionNode]] = {}
         self.deferred_calls: dict[str, frozenset[_DeferredFunctionCall]] = {}
+        self.mappings: dict[str, _StaticMapping] = {}
+        self.class_references: dict[str, frozenset[str]] = {}
+        self.bound_names: set[str] = set()
+        self.possibly_bound_names: set[str] = set()
 
     def clone(self) -> _LexicalBindings:
         clone = _LexicalBindings(
@@ -1971,6 +2036,10 @@ class _LexicalBindings:
         clone.strings = dict(self.strings)
         clone.callables = dict(self.callables)
         clone.deferred_calls = dict(self.deferred_calls)
+        clone.mappings = dict(self.mappings)
+        clone.class_references = dict(self.class_references)
+        clone.bound_names = set(self.bound_names)
+        clone.possibly_bound_names = set(self.possibly_bound_names)
         return clone
 
     def detached_clone(self) -> _LexicalBindings:
@@ -1983,6 +2052,10 @@ class _LexicalBindings:
         clone.strings = dict(self.strings)
         clone.callables = dict(self.callables)
         clone.deferred_calls = dict(self.deferred_calls)
+        clone.mappings = dict(self.mappings)
+        clone.class_references = dict(self.class_references)
+        clone.bound_names = set(self.bound_names)
+        clone.possibly_bound_names = set(self.possibly_bound_names)
         return clone
 
     def resolve_reference(self, name: str) -> str | None:
@@ -2021,6 +2094,24 @@ class _LexicalBindings:
             return self.parent.resolve_deferred_calls(name)
         return frozenset()
 
+    def resolve_mapping(self, name: str) -> _StaticMapping | None:
+        if name in self.mappings:
+            return self.mappings[name]
+        if name in self.local_names:
+            return None
+        if self.parent is not None:
+            return self.parent.resolve_mapping(name)
+        return None
+
+    def resolve_class_references(self, name: str) -> frozenset[str]:
+        if name in self.class_references:
+            return self.class_references[name]
+        if name in self.local_names:
+            return frozenset()
+        if self.parent is not None:
+            return self.parent.resolve_class_references(name)
+        return frozenset()
+
     def visible_references(self) -> dict[str, str]:
         visible = self.parent.visible_references() if self.parent is not None else {}
         for name in self.local_names:
@@ -2050,6 +2141,9 @@ class _LexicalBindings:
         string: str | None,
         callables: frozenset[_FunctionNode] = frozenset(),
         deferred_calls: frozenset[_DeferredFunctionCall] = frozenset(),
+        mapping: _StaticMapping | None = None,
+        class_references: frozenset[str] = frozenset(),
+        runtime_binding: bool = True,
     ) -> None:
         if reference is None:
             self.references.pop(name, None)
@@ -2067,6 +2161,27 @@ class _LexicalBindings:
             self.deferred_calls[name] = deferred_calls
         else:
             self.deferred_calls.pop(name, None)
+        if mapping is None:
+            self.mappings.pop(name, None)
+        else:
+            self.mappings[name] = mapping
+        if class_references:
+            self.class_references[name] = class_references
+        else:
+            self.class_references.pop(name, None)
+        if runtime_binding:
+            self.bound_names.add(name)
+            self.possibly_bound_names.add(name)
+
+    def unbind(self, name: str) -> None:
+        self.references.pop(name, None)
+        self.strings.pop(name, None)
+        self.callables.pop(name, None)
+        self.deferred_calls.pop(name, None)
+        self.mappings.pop(name, None)
+        self.class_references.pop(name, None)
+        self.bound_names.discard(name)
+        self.possibly_bound_names.discard(name)
 
 
 @dataclass
@@ -2220,6 +2335,40 @@ def _function_outward_binding_names(
     return frozenset(global_names), frozenset(nonlocal_names)
 
 
+def _statement_binding_names(statements: Sequence[ast.stmt]) -> frozenset[str]:
+    synthetic = ast.FunctionDef(
+        name="<statement-bindings>",
+        args=ast.arguments(
+            posonlyargs=[],
+            args=[],
+            kwonlyargs=[],
+            kw_defaults=[],
+            defaults=[],
+        ),
+        body=list(statements),
+        decorator_list=[],
+    )
+    return _function_local_binding_names(synthetic)
+
+
+def _statement_outward_binding_names(
+    statements: Sequence[ast.stmt],
+) -> tuple[frozenset[str], frozenset[str]]:
+    synthetic = ast.FunctionDef(
+        name="<statement-outward-bindings>",
+        args=ast.arguments(
+            posonlyargs=[],
+            args=[],
+            kwonlyargs=[],
+            kw_defaults=[],
+            defaults=[],
+        ),
+        body=list(statements),
+        decorator_list=[],
+    )
+    return _function_outward_binding_names(synthetic)
+
+
 def _function_is_generator(node: _FunctionNode) -> bool:
     found = False
 
@@ -2274,6 +2423,19 @@ _CLASS_REFERENCE_PREFIX = "<class:"
 _INSTANCE_REFERENCE_PREFIX = "<instance:"
 _MAX_LOOP_BINDING_ITERATIONS = 32
 _MAX_TOTAL_LOOP_BINDING_ITERATIONS = 128
+_MAPPING_MUTATOR_METHODS = frozenset(
+    {
+        "__delitem__",
+        "__init__",
+        "__ior__",
+        "__setitem__",
+        "clear",
+        "pop",
+        "popitem",
+        "setdefault",
+        "update",
+    }
+)
 
 
 class LegacyGrowthAnalysisError(RuntimeError):
@@ -2321,6 +2483,8 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             ]
         ] = []
         self._function_default_bindings: dict[_FunctionNode, dict[str, _ResolvedBinding]] = {}
+        self._function_binding_nodes: dict[tuple[_FunctionNode, object | None], _FunctionNode] = {}
+        self._active_replay_contexts: list[object] = []
         self._function_decorator_bindings: dict[
             _FunctionNode, tuple[frozenset[_FunctionNode], ...]
         ] = {}
@@ -2330,7 +2494,16 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         self._deferred_generator_outer_bindings: dict[_FunctionNode, _ResolvedBinding] = {}
         self._consumed_deferred_calls: set[_DeferredFunctionCall] = set()
         self._lambda_function_bindings: dict[int, _FunctionNode] = {}
+        self._staticmethod_functions: set[_FunctionNode] = set()
         self._class_member_callables: dict[tuple[str, str], frozenset[_FunctionNode]] = {}
+        self._class_member_presence: dict[tuple[str, str], bool] = {}
+        self._class_direct_member_callables: dict[tuple[str, str], frozenset[_FunctionNode]] = {}
+        self._class_direct_member_presence: dict[tuple[str, str], bool] = {}
+        self._class_direct_member_noncallable: dict[tuple[str, str], bool] = {}
+        self._class_mros: dict[str, tuple[str, ...]] = {}
+        self._class_mro_complete: dict[str, bool] = {}
+        self._mapping_literal_snapshots: dict[int, _StaticMapping] = {}
+        self._mapping_snapshot_intern: dict[_StaticMapping, _StaticMapping] = {}
         self._active_function_replays: set[_FunctionNode] = set()
         self._outward_binding_targets: list[dict[str, _LexicalBindings]] = []
         self._awaited_call_ids: set[int] = set()
@@ -2344,6 +2517,8 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         self.scope = _LexicalBindings(parent=None)
         self.scope.bind("getattr", reference="builtins.getattr", string=None)
         self.scope.bind("object", reference="builtins.object", string=None)
+        self.scope.bind("classmethod", reference="builtins.classmethod", string=None)
+        self.scope.bind("staticmethod", reference="builtins.staticmethod", string=None)
         for name, reference in (initial_references or {}).items():
             self.scope.bind(name, reference=reference, string=None)
 
@@ -2427,6 +2602,9 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         callables: frozenset[_FunctionNode] = frozenset(),
         deferred_calls: frozenset[_DeferredFunctionCall] = frozenset(),
         overwrite_conflicts: bool = False,
+        mapping: _StaticMapping | None = None,
+        class_references: frozenset[str] = frozenset(),
+        runtime_binding: bool = True,
     ) -> None:
         if self.preserve_fastapi_conflicts and not overwrite_conflicts:
             current = self.scope.references.get(name)
@@ -2459,6 +2637,9 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             string=string,
             callables=callables,
             deferred_calls=deferred_calls,
+            mapping=mapping,
+            class_references=class_references,
+            runtime_binding=runtime_binding,
         )
 
     def _resolve_callables(self, node: ast.AST) -> frozenset[_FunctionNode]:
@@ -2470,12 +2651,30 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             synthetic = self._lambda_function_bindings.get(id(node))
             return frozenset({synthetic}) if synthetic is not None else frozenset()
         if isinstance(node, ast.Attribute):
-            owner_reference = self._resolve_reference(node.value)
-            if owner_reference is not None:
-                return self._class_member_callables.get(
-                    (owner_reference, node.attr),
-                    frozenset(),
+            return frozenset().union(
+                *(
+                    self._class_member_callables.get(
+                        (owner_reference, node.attr),
+                        frozenset(),
+                    )
+                    for owner_reference in self._resolve_object_references(node.value)
                 )
+            )
+        if isinstance(node, ast.Subscript):
+            mapping_binding, _unresolved = self._resolve_mapping_subscript_binding(node)
+            if mapping_binding is not None:
+                return mapping_binding.callables
+        if isinstance(node, ast.Call):
+            constructor_reference = self._resolve_reference(node.func)
+            if (
+                constructor_reference in {"builtins.classmethod", "builtins.staticmethod"}
+                and len(node.args) == 1
+                and not node.keywords
+            ):
+                callables = self._resolve_callables(node.args[0])
+                if constructor_reference == "builtins.staticmethod":
+                    self._staticmethod_functions.update(callables)
+                return callables
         if isinstance(node, ast.NamedExpr):
             return self._resolve_callables(node.value)
         if isinstance(node, ast.Name):
@@ -2504,6 +2703,10 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             return self._resolve_deferred_calls(node.value)
         if isinstance(node, ast.Name):
             return self.scope.resolve_deferred_calls(node.id)
+        if isinstance(node, ast.Subscript):
+            mapping_binding, _unresolved = self._resolve_mapping_subscript_binding(node)
+            if mapping_binding is not None:
+                return mapping_binding.deferred_calls
         if isinstance(node, ast.BoolOp):
             return frozenset().union(
                 *(self._resolve_deferred_calls(value) for value in node.values)
@@ -2519,6 +2722,95 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             )
         return frozenset()
 
+    def _resolve_mapping_subscript_binding(
+        self,
+        node: ast.Subscript,
+    ) -> tuple[_ResolvedBinding | None, bool]:
+        mapping = self._resolve_mapping(node.value)
+        key = _literal_value(node.slice)
+        if mapping is None or key is _UNRESOLVED_LITERAL_VALUE:
+            return None, False
+        return _static_mapping_binding(mapping, key)
+
+    def _resolve_class_references(self, node: ast.AST) -> frozenset[str]:
+        if id(node) in self._call_result_bindings:
+            return self._call_result_bindings[id(node)].class_references
+        if isinstance(node, ast.Await):
+            return self._resolve_class_references(node.value)
+        if isinstance(node, ast.NamedExpr):
+            return self._resolve_class_references(node.value)
+        if isinstance(node, ast.Name):
+            return self.scope.resolve_class_references(node.id)
+        if isinstance(node, ast.BoolOp):
+            return frozenset().union(
+                *(self._resolve_class_references(value) for value in node.values)
+            )
+        if isinstance(node, ast.IfExp):
+            selected_nodes = (
+                [node.body if bool(node.test.value) else node.orelse]
+                if isinstance(node.test, ast.Constant)
+                else [node.body, node.orelse]
+            )
+            return frozenset().union(
+                *(self._resolve_class_references(value) for value in selected_nodes)
+            )
+        reference = self._resolve_reference(node)
+        if reference is not None and reference.startswith(_CLASS_REFERENCE_PREFIX):
+            return frozenset({reference})
+        return frozenset()
+
+    def _resolve_object_references(self, node: ast.AST) -> frozenset[str]:
+        references: set[str] = set()
+        reference = self._resolve_reference(node)
+        if reference is not None:
+            references.add(reference)
+        references.update(self._resolve_class_references(node))
+        if isinstance(node, ast.Call):
+            references.update(
+                class_reference.replace(
+                    _CLASS_REFERENCE_PREFIX,
+                    _INSTANCE_REFERENCE_PREFIX,
+                    1,
+                )
+                for class_reference in self._resolve_class_references(node.func)
+            )
+        return frozenset(references)
+
+    def _resolve_mapping(self, node: ast.AST) -> _StaticMapping | None:
+        if id(node) in self._call_result_bindings:
+            return self._call_result_bindings[id(node)].mapping
+        if isinstance(node, ast.Await):
+            return self._resolve_mapping(node.value)
+        if isinstance(node, ast.NamedExpr):
+            return self._resolve_mapping(node.value)
+        if isinstance(node, ast.Dict):
+            return self._mapping_literal_snapshots.get(id(node))
+        if isinstance(node, ast.Name):
+            return self.scope.resolve_mapping(node.id)
+        if isinstance(node, ast.Subscript):
+            binding, _unresolved = self._resolve_mapping_subscript_binding(node)
+            return binding.mapping if binding is not None else None
+        return None
+
+    def _invalidate_mapping(self, mapping: _StaticMapping) -> None:
+        scope: _LexicalBindings | None = self.scope
+        while scope is not None:
+            for name, candidate in tuple(scope.mappings.items()):
+                if candidate is mapping:
+                    scope.mappings.pop(name, None)
+                    if scope.references.get(name) != _MAPPING_APP_VALUE_REFERENCE:
+                        scope.references[name] = _MAPPING_SENSITIVE_VALUE_REFERENCE
+            scope = scope.parent
+
+    def _invalidate_mapping_aliases(self, node: ast.AST) -> None:
+        mapping = self._resolve_mapping(node)
+        if mapping is not None:
+            self._invalidate_mapping(mapping)
+
+    def _invalidate_mapping_target(self, target: ast.AST) -> None:
+        if isinstance(target, (ast.Attribute, ast.Subscript)):
+            self._invalidate_mapping_aliases(target.value)
+
     def _resolve_reference(self, node: ast.AST) -> str | None:
         if id(node) in self._call_result_bindings:
             return self._call_result_bindings[id(node)].reference
@@ -2526,6 +2818,13 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             return self._resolve_reference(node.value)
         if isinstance(node, ast.NamedExpr):
             return self._resolve_reference(node.value)
+        if isinstance(node, ast.Name):
+            reference = self.scope.resolve_reference(node.id)
+            if reference is not None:
+                return reference
+            class_references = self.scope.resolve_class_references(node.id)
+            if len(class_references) == 1:
+                return next(iter(class_references))
         if isinstance(node, ast.BoolOp):
             return self._join_expression_bindings(node.values)[0]
         if isinstance(node, ast.IfExp):
@@ -2549,14 +2848,19 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             if collection_reference is not None:
                 return collection_reference
         if isinstance(node, ast.Dict):
+            mapping = self._resolve_mapping(node)
             collection_reference = _collection_reference(
-                [
-                    _unpacked_mapping_reference(
-                        key,
-                        self._resolve_reference(value),
-                    )
-                    for key, value in zip(node.keys, node.values, strict=True)
-                ],
+                (
+                    [entry.binding.reference for entry in mapping.entries]
+                    if mapping is not None
+                    else [
+                        _unpacked_mapping_reference(
+                            key,
+                            self._resolve_reference(value),
+                        )
+                        for key, value in zip(node.keys, node.values, strict=True)
+                    ]
+                ),
                 mapping=True,
             )
             if collection_reference is not None:
@@ -2585,6 +2889,13 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     else _POSSIBLE_APP_CALL_REFERENCE
                 )
         if isinstance(node, ast.Call):
+            class_references = self._resolve_class_references(node.func)
+            if len(class_references) == 1:
+                return next(iter(class_references)).replace(
+                    _CLASS_REFERENCE_PREFIX,
+                    _INSTANCE_REFERENCE_PREFIX,
+                    1,
+                )
             constructor_reference = self._resolve_reference(node.func)
             if constructor_reference is not None and constructor_reference.startswith(
                 _CLASS_REFERENCE_PREFIX
@@ -2595,9 +2906,13 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     1,
                 )
         if isinstance(node, ast.Subscript):
-            selected, _unresolved = _literal_subscript_value(node)
-            if selected is not None:
-                return self._resolve_reference(selected)
+            mapping_binding, _mapping_unresolved = self._resolve_mapping_subscript_binding(node)
+            if mapping_binding is not None:
+                return mapping_binding.reference
+            if self._resolve_mapping(node.value) is None:
+                selected, _unresolved = _literal_subscript_value(node)
+                if selected is not None:
+                    return self._resolve_reference(selected)
         if self._is_definitely_non_app_value(node):
             return _KNOWN_NON_APP_REFERENCE
         references = self.scope.visible_references()
@@ -2706,6 +3021,10 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 else [node.body, node.orelse]
             )
             return self._join_expression_bindings(selected_nodes)[1]
+        if isinstance(node, ast.Subscript):
+            mapping_binding, _unresolved = self._resolve_mapping_subscript_binding(node)
+            if mapping_binding is not None:
+                return mapping_binding.string
         return _resolve_static_string(node, self.scope.visible_strings())
 
     def _join_expression_bindings(
@@ -2803,6 +3122,10 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             and left.strings == right.strings
             and left.callables == right.callables
             and left.deferred_calls == right.deferred_calls
+            and left.mappings == right.mappings
+            and left.class_references == right.class_references
+            and left.bound_names == right.bound_names
+            and left.possibly_bound_names == right.possibly_bound_names
         )
 
     def _consume_loop_iteration(self) -> None:
@@ -2949,6 +3272,32 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 joined_deferred_calls[name] = deferred_candidates
         self.scope.deferred_calls = joined_deferred_calls
 
+        mapping_names = set().union(*(set(outcome.mappings) for outcome in outcomes))
+        joined_mappings: dict[str, _StaticMapping] = {}
+        for name in mapping_names:
+            mapping_values = [outcome.mappings.get(name) for outcome in outcomes]
+            first_mapping = mapping_values[0]
+            if first_mapping is not None and all(
+                value is first_mapping for value in mapping_values
+            ):
+                joined_mappings[name] = first_mapping
+        self.scope.mappings = joined_mappings
+        class_reference_names = set().union(
+            *(set(outcome.class_references) for outcome in outcomes)
+        )
+        self.scope.class_references = {
+            name: frozenset().union(
+                *(outcome.class_references.get(name, frozenset()) for outcome in outcomes)
+            )
+            for name in class_reference_names
+        }
+        self.scope.bound_names = set.intersection(
+            *(set(outcome.bound_names) for outcome in outcomes)
+        )
+        self.scope.possibly_bound_names = set().union(
+            *(set(outcome.possibly_bound_names) for outcome in outcomes)
+        )
+
     def _bind_targets(
         self,
         targets: Sequence[ast.expr],
@@ -2957,6 +3306,9 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         string: str | None,
         callables: frozenset[_FunctionNode] = frozenset(),
         deferred_calls: frozenset[_DeferredFunctionCall] = frozenset(),
+        mapping: _StaticMapping | None = None,
+        class_references: frozenset[str] = frozenset(),
+        runtime_binding: bool = True,
     ) -> None:
         for target in targets:
             for name in _assignment_target_names(target):
@@ -2966,6 +3318,9 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     string=string,
                     callables=callables,
                     deferred_calls=deferred_calls,
+                    mapping=mapping,
+                    class_references=class_references,
+                    runtime_binding=runtime_binding,
                 )
 
     def _is_definitely_non_app_value(self, node: ast.AST) -> bool:
@@ -3078,6 +3433,8 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         resolved_reference = self._resolve_reference(value)
         callables = self._resolve_callables(value)
         deferred_calls = self._resolve_deferred_calls(value)
+        mapping = self._resolve_mapping(value)
+        class_references = self._resolve_class_references(value)
         string = (
             resolved_string
             if resolved_string is not None
@@ -3094,6 +3451,8 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 string=string,
                 callables=callables,
                 deferred_calls=deferred_calls,
+                mapping=mapping,
+                class_references=class_references,
             )
 
     def _bind_iteration_target(self, target: ast.expr, iterable: ast.AST) -> None:
@@ -3206,7 +3565,14 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         self._visit_function_header(node)
         binding_node: _FunctionNode = node
         if self.scope.scope_kind != "module" and self._replay_calls_enabled:
-            binding_node = copy.copy(node)
+            replay_context = (
+                self._active_replay_contexts[-1] if self._active_replay_contexts else None
+            )
+            binding_key = (node, replay_context)
+            binding_node = self._function_binding_nodes.get(binding_key, node)
+            if binding_node is node:
+                binding_node = copy.copy(node)
+                self._function_binding_nodes[binding_key] = binding_node
             self._function_definition_scopes[binding_node] = self.scope
         positional_parameters = [*node.args.posonlyargs, *node.args.args]
         positional_default_parameters = (
@@ -3351,17 +3717,120 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         if self.scope.scope_kind != "module":
             self._function_definition_scopes[synthetic] = self.scope
 
+    def _build_class_mro(
+        self,
+        class_reference: str,
+        base_references: Sequence[str],
+    ) -> tuple[tuple[str, ...], bool]:
+        sequences: list[list[str]] = []
+        complete = True
+        canonical_bases: list[str] = []
+        for base_reference in base_references:
+            if base_reference == "builtins.object":
+                continue
+            if not base_reference.startswith(_CLASS_REFERENCE_PREFIX):
+                complete = False
+                continue
+            canonical_bases.append(base_reference)
+            base_mro = self._class_mros.get(base_reference)
+            if base_mro is None:
+                complete = False
+                base_mro = (base_reference,)
+            elif not self._class_mro_complete.get(base_reference, False):
+                complete = False
+            sequences.append(list(base_mro))
+        sequences.append(list(canonical_bases))
+        merged: list[str] = []
+        while any(sequences):
+            sequences = [sequence for sequence in sequences if sequence]
+            candidate = next(
+                (
+                    sequence[0]
+                    for sequence in sequences
+                    if all(sequence[0] not in other[1:] for other in sequences)
+                ),
+                None,
+            )
+            if candidate is None:
+                complete = False
+                for sequence in sequences:
+                    for reference in sequence:
+                        if reference not in merged:
+                            merged.append(reference)
+                break
+            merged.append(candidate)
+            for sequence in sequences:
+                if sequence and sequence[0] == candidate:
+                    sequence.pop(0)
+        return (class_reference, *merged), complete
+
+    def _publish_class_member_summaries(
+        self,
+        class_reference: str,
+        instance_reference: str,
+    ) -> None:
+        mro = self._class_mros[class_reference]
+        complete = self._class_mro_complete[class_reference]
+        member_names = {
+            member_name
+            for owner_reference, member_name in self._class_direct_member_presence
+            if owner_reference in mro
+        }
+        for member_name in member_names:
+            candidates: frozenset[_FunctionNode] = frozenset()
+            definitely_present = False
+            possibly_present = False
+            for owner_reference in mro:
+                presence = self._class_direct_member_presence.get((owner_reference, member_name))
+                if presence is None:
+                    continue
+                possibly_present = True
+                direct_callables = self._class_direct_member_callables.get(
+                    (owner_reference, member_name),
+                    frozenset(),
+                )
+                candidates |= direct_callables
+                proven_noncallable = self._class_direct_member_noncallable.get(
+                    (owner_reference, member_name),
+                    False,
+                )
+                if not presence:
+                    continue
+                definitely_present = True
+                resolved_owner = bool(direct_callables) or proven_noncallable
+                if resolved_owner and (complete or owner_reference == class_reference):
+                    break
+            if not possibly_present:
+                continue
+            self._class_member_presence[(class_reference, member_name)] = definitely_present
+            self._class_member_presence[(instance_reference, member_name)] = definitely_present
+            if candidates:
+                self._class_member_callables[(class_reference, member_name)] = candidates
+                self._class_member_callables[(instance_reference, member_name)] = candidates
+            else:
+                self._class_member_callables.pop((class_reference, member_name), None)
+                self._class_member_callables.pop((instance_reference, member_name), None)
+
     def visit_ClassDef(self, node: ast.ClassDef) -> None:
         decorator_targets: list[frozenset[_FunctionNode]] = []
         for decorator in node.decorator_list:
             self.visit(decorator)
             decorator_targets.append(self._resolve_callables(decorator))
         base_references: list[str] = []
+        bases_complete = True
         for base in node.bases:
             self.visit(base)
+            class_candidates = self._resolve_class_references(base)
+            if class_candidates:
+                if len(class_candidates) != 1:
+                    bases_complete = False
+                base_references.extend(sorted(class_candidates))
+                continue
             base_reference = self._resolve_reference(base)
             if base_reference is not None:
                 base_references.append(base_reference)
+            else:
+                bases_complete = False
         metaclass_targets: frozenset[_FunctionNode] = frozenset()
         for keyword in node.keywords:
             self.visit(keyword.value)
@@ -3415,36 +3884,74 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             _INSTANCE_REFERENCE_PREFIX,
             1,
         )
-        member_callables: dict[str, frozenset[_FunctionNode]] = {}
-        for base_reference in base_references:
-            for (owner_reference, member_name), callables in tuple(
-                self._class_member_callables.items()
-            ):
-                if owner_reference != base_reference:
-                    continue
-                member_callables[member_name] = (
-                    member_callables.get(
-                        member_name,
-                        frozenset(),
-                    )
-                    | callables
-                )
-        for member_name, callables in class_scope.callables.items():
-            member_callables[member_name] = (
-                member_callables.get(
-                    member_name,
-                    frozenset(),
-                )
-                | callables
+        new_mro, mro_complete = self._build_class_mro(class_reference, base_references)
+        mro_complete = mro_complete and bases_complete
+        seen_class_site = class_reference in self._class_mros
+        if seen_class_site and self._class_mros[class_reference] != new_mro:
+            new_mro = (
+                class_reference,
+                *dict.fromkeys(
+                    [
+                        *self._class_mros[class_reference][1:],
+                        *new_mro[1:],
+                    ]
+                ),
             )
-        for member_name, callables in member_callables.items():
-            self._class_member_callables[(class_reference, member_name)] = callables
-            self._class_member_callables[(instance_reference, member_name)] = callables
+            mro_complete = False
+        self._class_mros[class_reference] = new_mro
+        self._class_mro_complete[class_reference] = mro_complete and (
+            not seen_class_site or self._class_mro_complete[class_reference]
+        )
+        global_names, nonlocal_names = _statement_outward_binding_names(node.body)
+        outward_names = global_names | nonlocal_names
+        current_member_names = class_scope.possibly_bound_names - outward_names
+        prior_member_names = {
+            member_name
+            for owner_reference, member_name in self._class_direct_member_presence
+            if owner_reference == class_reference
+        }
+        for member_name in current_member_names | prior_member_names:
+            current_present = member_name in current_member_names
+            current_definite = current_present and member_name in class_scope.bound_names
+            current_callables = (
+                class_scope.callables.get(member_name, frozenset())
+                if current_present
+                else frozenset()
+            )
+            current_noncallable = (
+                current_present
+                and not current_callables
+                and class_scope.references.get(member_name) == _KNOWN_NON_APP_REFERENCE
+            )
+            key = (class_reference, member_name)
+            if seen_class_site:
+                prior_definite = self._class_direct_member_presence.get(key, False)
+                prior_callables = self._class_direct_member_callables.get(key, frozenset())
+                prior_noncallable = self._class_direct_member_noncallable.get(key, False)
+                definitely_present = (
+                    prior_definite and current_definite if current_present else False
+                )
+                callables = prior_callables | current_callables
+                proven_noncallable = (
+                    prior_noncallable and current_noncallable and not callables and current_present
+                )
+            else:
+                definitely_present = current_definite
+                callables = current_callables
+                proven_noncallable = current_noncallable
+            self._class_direct_member_presence[key] = definitely_present
+            if callables:
+                self._class_direct_member_callables[key] = callables
+            else:
+                self._class_direct_member_callables.pop(key, None)
+            self._class_direct_member_noncallable[key] = proven_noncallable
+        self._publish_class_member_summaries(class_reference, instance_reference)
         self._bind_name(
             node.name,
             reference=result_binding.reference or class_reference,
             string=result_binding.string,
             callables=result_binding.callables,
+            class_references=(result_binding.class_references or frozenset({class_reference})),
             overwrite_conflicts=True,
         )
 
@@ -3539,6 +4046,8 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 if handler.name is not None:
                     self._bind_name(handler.name, reference=None, string=None)
                 handler_falls_through = self._visit_statements(handler.body)
+                if handler.name is not None:
+                    self.scope.unbind(handler.name)
             finally:
                 self._exception_scope_collectors.pop()
             if handler_falls_through:
@@ -3644,6 +4153,11 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             and all(not isinstance(element, ast.Starred) for element in node.iter.elts)
         )
         loop_head = incoming.clone()
+        for target_name in {
+            *_assignment_target_names(node.target),
+            *_statement_binding_names(node.body),
+        }:
+            loop_head.possibly_bound_names.add(target_name)
         break_scopes: list[_LexicalBindings] = []
         body_scope: _LexicalBindings | None = None
         controls = _LoopControlBindings(break_scopes=[], continue_scopes=[])
@@ -4034,6 +4548,58 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
     def visit_ListComp(self, node: ast.ListComp) -> None:
         self._visit_comprehension(node.generators, [node.elt])
 
+    def _visit_collection_elements(self, elements: Sequence[ast.expr]) -> None:
+        for element in elements:
+            value = element.value if isinstance(element, ast.Starred) else element
+            self.visit(value)
+            if not isinstance(element, ast.Starred):
+                self._invalidate_mapping_aliases(value)
+
+    def visit_List(self, node: ast.List) -> None:
+        self._visit_collection_elements(node.elts)
+
+    def visit_Tuple(self, node: ast.Tuple) -> None:
+        self._visit_collection_elements(node.elts)
+
+    def visit_Set(self, node: ast.Set) -> None:
+        self._visit_collection_elements(node.elts)
+
+    def visit_Dict(self, node: ast.Dict) -> None:
+        entries: list[_StaticMappingEntry] = []
+        escaped_mappings: list[_StaticMapping] = []
+        for key, value in zip(node.keys, node.values, strict=True):
+            if key is None:
+                self.visit(value)
+                unpacked = self._resolve_mapping(value)
+                if unpacked is None:
+                    entries.append(
+                        _StaticMappingEntry(
+                            key=None,
+                            binding=self._conservative_argument_binding(),
+                        )
+                    )
+                else:
+                    entries.extend(unpacked.entries)
+                continue
+            self.visit(key)
+            self.visit(value)
+            binding = self._capture_argument_binding(value)
+            if binding.mapping is not None:
+                escaped_mappings.append(binding.mapping)
+                binding = _ResolvedBinding(
+                    reference=_MAPPING_SENSITIVE_VALUE_REFERENCE,
+                    string=binding.string,
+                    callables=binding.callables,
+                    deferred_calls=binding.deferred_calls,
+                    class_references=binding.class_references,
+                )
+            entries.append(_StaticMappingEntry(key=key, binding=binding))
+        candidate = _StaticMapping(site=node, entries=tuple(entries))
+        snapshot = self._mapping_snapshot_intern.setdefault(candidate, candidate)
+        self._mapping_literal_snapshots[id(node)] = snapshot
+        for mapping in escaped_mappings:
+            self._invalidate_mapping(mapping)
+
     def visit_SetComp(self, node: ast.SetComp) -> None:
         self._visit_comprehension(node.generators, [node.elt])
 
@@ -4136,25 +4702,49 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
 
     def visit_Assign(self, node: ast.Assign) -> None:
         self.visit(node.value)
+        value_mapping = self._resolve_mapping(node.value)
         for target in node.targets:
+            self._invalidate_mapping_target(target)
             self._bind_target_value(
                 target,
                 node.value,
                 dynamic_unknown_string=True,
             )
+        if value_mapping is not None and any(
+            _assignment_target_escapes_value(target) for target in node.targets
+        ):
+            self._invalidate_mapping(value_mapping)
 
     def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
         if not self._postponed_annotations:
             self.visit(node.annotation)
-        if node.value is not None:
-            self.visit(node.value)
         if node.value is None:
-            self._bind_targets([node.target], reference=None, string=None)
-        else:
-            self._bind_target_value(
-                node.target,
-                node.value,
-                dynamic_unknown_string=True,
+            if not isinstance(node.target, ast.Name):
+                self.visit(node.target)
+            return
+        self.visit(node.value)
+        value_mapping = self._resolve_mapping(node.value)
+        self._invalidate_mapping_target(node.target)
+        self._bind_target_value(
+            node.target,
+            node.value,
+            dynamic_unknown_string=True,
+        )
+        if value_mapping is not None and _assignment_target_escapes_value(node.target):
+            self._invalidate_mapping(value_mapping)
+
+    def visit_AugAssign(self, node: ast.AugAssign) -> None:
+        self.visit(node.target)
+        self.visit(node.value)
+        target_mapping = self._resolve_mapping(node.target)
+        if target_mapping is not None:
+            self._invalidate_mapping(target_mapping)
+        self._invalidate_mapping_target(node.target)
+        if isinstance(node.target, ast.Name):
+            self._bind_name(
+                node.target.id,
+                reference=self._possible_sensitive_reference(node.target.id),
+                string=None,
             )
 
     def visit_NamedExpr(self, node: ast.NamedExpr) -> None:
@@ -4180,12 +4770,10 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             names = _assignment_target_names(target)
             if not names:
                 self.visit(target)
+                self._invalidate_mapping_target(target)
                 continue
             for name in names:
-                self.scope.references.pop(name, None)
-                self.scope.strings.pop(name, None)
-                self.scope.callables.pop(name, None)
-                self.scope.deferred_calls.pop(name, None)
+                self.scope.unbind(name)
                 outward_target = (
                     self._outward_binding_targets[-1].get(name)
                     if self._outward_binding_targets
@@ -4209,6 +4797,8 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 f"{self.filename}: legacy API-key dependency attribute access is forbidden: "
                 f"{node.attr}"
             )
+        if node.attr in _MAPPING_MUTATOR_METHODS:
+            self._invalidate_mapping_aliases(node.value)
         self.generic_visit(node)
 
     def visit_Subscript(self, node: ast.Subscript) -> None:
@@ -4246,6 +4836,8 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             string=string,
             callables=self._resolve_callables(value),
             deferred_calls=self._resolve_deferred_calls(value),
+            mapping=self._resolve_mapping(value),
+            class_references=self._resolve_class_references(value),
         )
 
     @staticmethod
@@ -4271,6 +4863,8 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 string=binding.string,
                 callables=binding.callables,
                 deferred_calls=binding.deferred_calls,
+                mapping=binding.mapping,
+                class_references=binding.class_references,
             )
             outcomes.append(outcome)
         merged = _LexicalBindings(parent=None)
@@ -4282,6 +4876,13 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             string=merged.strings.get(marker),
             callables=merged.callables.get(marker, frozenset()),
             deferred_calls=merged.deferred_calls.get(marker, frozenset()),
+            mapping=(
+                bindings[0].mapping
+                if bindings[0].mapping is not None
+                and all(binding.mapping is bindings[0].mapping for binding in bindings)
+                else None
+            ),
+            class_references=frozenset().union(*(binding.class_references for binding in bindings)),
         )
 
     @staticmethod
@@ -4381,8 +4982,14 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
 
         if isinstance(call.func, ast.Attribute):
             owner_reference = self._resolve_reference(call.func.value)
-            is_instance_method = owner_reference is not None and owner_reference.startswith(
-                _INSTANCE_REFERENCE_PREFIX
+            is_static_method = function in self._staticmethod_functions or any(
+                isinstance(decorator, ast.Name) and decorator.id == "staticmethod"
+                for decorator in function.decorator_list
+            )
+            is_instance_method = (
+                not is_static_method
+                and owner_reference is not None
+                and owner_reference.startswith(_INSTANCE_REFERENCE_PREFIX)
             )
             is_class_method = (
                 owner_reference is not None
@@ -4546,6 +5153,10 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         target.strings = dict(snapshot.strings)
         target.callables = dict(snapshot.callables)
         target.deferred_calls = dict(snapshot.deferred_calls)
+        target.mappings = dict(snapshot.mappings)
+        target.class_references = dict(snapshot.class_references)
+        target.bound_names = set(snapshot.bound_names)
+        target.possibly_bound_names = set(snapshot.possibly_bound_names)
 
     @staticmethod
     def _deferred_call_sort_key(
@@ -4654,6 +5265,24 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         return None
 
     def visit_Call(self, node: ast.Call) -> None:
+        escaped_mappings = [
+            mapping
+            for argument in node.args
+            if not isinstance(argument, ast.Starred)
+            if (mapping := self._resolve_mapping(argument)) is not None
+        ]
+        escaped_mappings.extend(
+            mapping
+            for keyword in node.keywords
+            if keyword.arg is not None
+            if (mapping := self._resolve_mapping(keyword.value)) is not None
+        )
+        if (
+            isinstance(node.func, ast.Attribute)
+            and node.func.attr in _MAPPING_MUTATOR_METHODS
+            and (mutated_mapping := self._resolve_mapping(node.func.value)) is not None
+        ):
+            escaped_mappings.append(mutated_mapping)
         if (
             isinstance(node.func, ast.Attribute)
             and node.func.attr in {"get", "__getitem__"}
@@ -4805,6 +5434,20 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 self._resolve_deferred_calls(node.args[0]),
                 execution="iterate",
             )
+        escaped_mappings.extend(
+            mapping
+            for argument in node.args
+            if not isinstance(argument, ast.Starred)
+            if (mapping := self._resolve_mapping(argument)) is not None
+        )
+        escaped_mappings.extend(
+            mapping
+            for keyword in node.keywords
+            if keyword.arg is not None
+            if (mapping := self._resolve_mapping(keyword.value)) is not None
+        )
+        for mapping in set(escaped_mappings):
+            self._invalidate_mapping(mapping)
 
     def visit_Await(self, node: ast.Await) -> None:
         if not isinstance(node.value, ast.Call):
@@ -4850,6 +5493,8 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     or name in nonlocal_scope.references
                     or name in nonlocal_scope.strings
                     or name in nonlocal_scope.callables
+                    or name in nonlocal_scope.mappings
+                    or name in nonlocal_scope.class_references
                 )
                 if owns_name:
                     outward_targets[name] = nonlocal_scope
@@ -4867,6 +5512,8 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 string=target.resolve_string(name),
                 callables=target.resolve_callables(name),
                 deferred_calls=target.resolve_deferred_calls(name),
+                mapping=target.resolve_mapping(name),
+                class_references=target.resolve_class_references(name),
             )
         for name, binding in arguments.items():
             self.scope.bind(
@@ -4875,11 +5522,14 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 string=binding.string,
                 callables=binding.callables,
                 deferred_calls=binding.deferred_calls,
+                mapping=binding.mapping,
+                class_references=binding.class_references,
             )
         self._loop_controls = []
         self._terminal_controls = _TerminalControlBindings(return_scopes=[], raise_scopes=[])
         self._exception_scope_collectors = []
         self._active_function_replays.add(node)
+        self._active_replay_contexts.append(object())
         self._outward_binding_targets.append(outward_targets)
         return_bindings: list[_ResolvedBinding] = []
         self._return_binding_collectors.append(return_bindings)
@@ -4898,6 +5548,8 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     result_binding.string,
                     result_binding.callables,
                     result_binding.deferred_calls,
+                    result_binding.mapping,
+                    result_binding.class_references,
                 )
             elif result_binding.reference == "pulseplate.app.router":
                 result_binding = _ResolvedBinding(
@@ -4905,6 +5557,8 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     result_binding.string,
                     result_binding.callables,
                     result_binding.deferred_calls,
+                    result_binding.mapping,
+                    result_binding.class_references,
                 )
             outcomes = [
                 self.scope,
@@ -4914,11 +5568,15 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             joined_scope = replay_entry.clone()
             self._merge_outcomes(joined_scope, outcomes)
             for name, target in outward_targets.items():
+                mapping = joined_scope.mappings.get(name)
+                class_references = joined_scope.class_references.get(name, frozenset())
                 binding = _ResolvedBinding(
                     reference=joined_scope.references.get(name),
                     string=joined_scope.strings.get(name),
                     callables=joined_scope.callables.get(name, frozenset()),
                     deferred_calls=joined_scope.deferred_calls.get(name, frozenset()),
+                    mapping=mapping,
+                    class_references=class_references,
                 )
                 target.bind(
                     name,
@@ -4926,6 +5584,8 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     string=binding.string,
                     callables=binding.callables,
                     deferred_calls=binding.deferred_calls,
+                    mapping=mapping,
+                    class_references=class_references,
                 )
                 parent_scope: _LexicalBindings | None = previous
                 for active_targets in reversed(self._outward_binding_targets[:-1]):
@@ -4940,11 +5600,14 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                             string=binding.string,
                             callables=binding.callables,
                             deferred_calls=binding.deferred_calls,
+                            mapping=mapping,
+                            class_references=class_references,
                         )
                     parent_scope = parent_scope.parent
         finally:
             self._return_binding_collectors.pop()
             self._outward_binding_targets.pop()
+            self._active_replay_contexts.pop()
             self._active_function_replays.remove(node)
             self.scope = previous
             self._loop_controls = previous_loop_controls
