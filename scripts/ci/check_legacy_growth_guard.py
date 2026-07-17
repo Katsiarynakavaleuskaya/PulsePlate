@@ -365,17 +365,9 @@ def collect_legacy_route_facts(source_text: str, *, filename: str = LEGACY_APP) 
     ) -> str | None:
         call_result = route_call_result_snapshots.get(id(func))
         if call_result is not None:
-            reference = call_result.reference
-            if reference == _POSSIBLE_APP_CALL_REFERENCE:
-                return "dynamic"
-            for prefix, action_prefix in (
-                ("pulseplate.app.router.", "router."),
-                ("pulseplate.app.", ""),
-            ):
-                if reference is not None and reference.startswith(prefix):
-                    method = reference.removeprefix(prefix)
-                    if method in methods:
-                        return f"{action_prefix}{method}"
+            action = _registration_action_for_reference(call_result.reference, methods)
+            if action is not None:
+                return action
         if isinstance(func, ast.Attribute):
             owner_result = route_call_result_snapshots.get(id(func.value))
             if owner_result is not None and func.attr in methods:
@@ -394,35 +386,33 @@ def collect_legacy_route_facts(source_text: str, *, filename: str = LEGACY_APP) 
         references = route_reference_snapshots[node_id]
         strings = route_string_snapshots[node_id]
         scoped_app_aliases, scoped_router_aliases, _scoped_strings = scoped_route_bindings(node)
-        if isinstance(func, ast.Subscript):
-            reference = _static_module_reference(
-                func,
-                module_aliases=references,
-                import_module_aliases=frozenset(),
-                static_string_bindings=strings,
-            )
-            if reference == _POSSIBLE_APP_CALL_REFERENCE:
-                return "dynamic"
         if not isinstance(func, (ast.Name, ast.Call)):
-            return _app_call_action(
+            direct_action = _app_call_action(
                 func,
                 methods,
                 app_aliases=scoped_app_aliases,
                 router_aliases=scoped_router_aliases,
                 static_string_bindings=strings,
             )
-        if isinstance(func, ast.Name):
-            reference = references.get(func.id)
-            if reference == _POSSIBLE_APP_CALL_REFERENCE:
-                return "dynamic"
-            for prefix, action_prefix in (
-                ("pulseplate.app.router.", "router."),
-                ("pulseplate.app.", ""),
+            if direct_action is not None:
+                return direct_action
+            if (
+                isinstance(func, ast.Attribute)
+                and func.attr in APP_ROUTE_METHODS | APP_REGISTRATION_METHODS
             ):
-                if reference is not None and reference.startswith(prefix):
-                    method = reference.removeprefix(prefix)
-                    if method in methods:
-                        return f"{action_prefix}{method}"
+                return None
+        reference = _static_module_reference(
+            func,
+            module_aliases=references,
+            import_module_aliases=frozenset(),
+            static_string_bindings=strings,
+        )
+        action = _registration_action_for_reference(reference, methods)
+        if action is not None:
+            return action
+        if not isinstance(func, (ast.Name, ast.Call)):
+            return None
+        if isinstance(func, ast.Name):
             return None
         lookup_reference = _static_module_reference(
             func.func,
@@ -580,6 +570,87 @@ def collect_legacy_route_facts(source_text: str, *, filename: str = LEGACY_APP) 
     return facts
 
 
+def _is_registration_callable_reference(reference: str | None) -> bool:
+    if reference in {
+        _POSSIBLE_APP_CALL_REFERENCE,
+        _POSSIBLE_MIDDLEWARE_DECORATOR_REFERENCE,
+    }:
+        return True
+    if reference is None:
+        return False
+    if reference.startswith(_MIDDLEWARE_DECORATOR_REFERENCE_PREFIX):
+        return True
+    return reference.startswith("pulseplate.app.") and (
+        reference.rsplit(".", maxsplit=1)[-1] in APP_ROUTE_METHODS | APP_REGISTRATION_METHODS
+    )
+
+
+def _registration_action_for_reference(
+    reference: str | None,
+    methods: AbstractSet[str],
+) -> str | None:
+    if reference == _POSSIBLE_APP_CALL_REFERENCE:
+        return "dynamic"
+    for prefix, action_prefix in (
+        ("pulseplate.app.router.", "router."),
+        ("pulseplate.app.", ""),
+    ):
+        if reference is not None and reference.startswith(prefix):
+            method = reference.removeprefix(prefix)
+            if method in methods:
+                return f"{action_prefix}{method}"
+    return None
+
+
+def _literal_subscript_value(node: ast.Subscript) -> ast.AST | None:
+    if not isinstance(node.slice, ast.Constant):
+        return None
+    key = node.slice.value
+    if isinstance(node.value, (ast.List, ast.Tuple)):
+        if not isinstance(key, int) or isinstance(key, bool):
+            return None
+        try:
+            selected = node.value.elts[key]
+        except IndexError:
+            return None
+        return selected.value if isinstance(selected, ast.Starred) else selected
+    if isinstance(node.value, ast.Dict):
+        items = list(zip(node.value.keys, node.value.values, strict=True))
+        for candidate_key, candidate_value in reversed(items):
+            if (
+                isinstance(candidate_key, ast.Constant)
+                and type(candidate_key.value) is type(key)
+                and candidate_key.value == key
+            ):
+                return candidate_value
+    return None
+
+
+def _collection_reference(
+    references: Sequence[str | None],
+    *,
+    mapping: bool,
+) -> str | None:
+    if any(
+        reference
+        in {
+            "pulseplate.app",
+            "pulseplate.app.router",
+            _POSSIBLE_APP_REFERENCE,
+            _POSSIBLE_ROUTER_REFERENCE,
+        }
+        for reference in references
+    ):
+        return _MAPPING_APP_VALUE_REFERENCE if mapping else _ITERABLE_APP_ELEMENT_REFERENCE
+    if any(_is_registration_callable_reference(reference) for reference in references):
+        return (
+            _MAPPING_SENSITIVE_VALUE_REFERENCE if mapping else _ITERABLE_SENSITIVE_ELEMENT_REFERENCE
+        )
+    if references and all(reference == _KNOWN_NON_APP_REFERENCE for reference in references):
+        return _KNOWN_NON_APP_REFERENCE
+    return None
+
+
 def _static_module_reference(
     node: ast.AST,
     *,
@@ -596,6 +667,32 @@ def _static_module_reference(
         )
     if isinstance(node, ast.Name):
         return module_aliases.get(node.id)
+    if isinstance(node, (ast.List, ast.Tuple, ast.Set)):
+        return _collection_reference(
+            [
+                _static_module_reference(
+                    element.value if isinstance(element, ast.Starred) else element,
+                    module_aliases=module_aliases,
+                    import_module_aliases=import_module_aliases,
+                    static_string_bindings=static_string_bindings,
+                )
+                for element in node.elts
+            ],
+            mapping=False,
+        )
+    if isinstance(node, ast.Dict):
+        return _collection_reference(
+            [
+                _static_module_reference(
+                    value,
+                    module_aliases=module_aliases,
+                    import_module_aliases=import_module_aliases,
+                    static_string_bindings=static_string_bindings,
+                )
+                for value in node.values
+            ],
+            mapping=True,
+        )
     if isinstance(node, ast.Attribute):
         parent = _static_module_reference(
             node.value,
@@ -603,6 +700,10 @@ def _static_module_reference(
             import_module_aliases=import_module_aliases,
             static_string_bindings=static_string_bindings,
         )
+        if parent == _KNOWN_NON_APP_REFERENCE:
+            return None
+        if node.attr == "__call__" and _is_registration_callable_reference(parent):
+            return parent
         if parent == _POSSIBLE_APP_REFERENCE:
             if node.attr == "router":
                 return _POSSIBLE_ROUTER_REFERENCE
@@ -617,6 +718,14 @@ def _static_module_reference(
             return f"{parent}.{node.attr}"
         return None
     if isinstance(node, ast.Subscript):
+        selected = _literal_subscript_value(node)
+        if selected is not None:
+            return _static_module_reference(
+                selected,
+                module_aliases=module_aliases,
+                import_module_aliases=import_module_aliases,
+                static_string_bindings=static_string_bindings,
+            )
         parent = _static_module_reference(
             node.value,
             module_aliases=module_aliases,
@@ -626,11 +735,36 @@ def _static_module_reference(
         if parent in {
             _POSSIBLE_APP_CALL_REFERENCE,
             _POSSIBLE_MIDDLEWARE_DECORATOR_REFERENCE,
+            _ITERABLE_SENSITIVE_ELEMENT_REFERENCE,
+            _MAPPING_SENSITIVE_VALUE_REFERENCE,
         }:
-            return parent
+            return _POSSIBLE_APP_CALL_REFERENCE
+        if parent in {
+            _ITERABLE_APP_ELEMENT_REFERENCE,
+            _MAPPING_APP_VALUE_REFERENCE,
+        }:
+            return _POSSIBLE_APP_REFERENCE
+        if parent == _KNOWN_NON_APP_REFERENCE:
+            return _KNOWN_NON_APP_REFERENCE
         return None
     if not isinstance(node, ast.Call):
         return None
+
+    callable_reference = _static_module_reference(
+        node.func,
+        module_aliases=module_aliases,
+        import_module_aliases=import_module_aliases,
+        static_string_bindings=static_string_bindings,
+    )
+    if callable_reference == "functools.partial" and node.args:
+        wrapped_reference = _static_module_reference(
+            node.args[0],
+            module_aliases=module_aliases,
+            import_module_aliases=import_module_aliases,
+            static_string_bindings=static_string_bindings,
+        )
+        if _is_registration_callable_reference(wrapped_reference):
+            return wrapped_reference
 
     is_import_module = (
         isinstance(node.func, ast.Name) and node.func.id in import_module_aliases
@@ -2090,6 +2224,9 @@ _CONFLICTED_FASTAPI_REFERENCE = "<conflicted:fastapi>"
 _POSSIBLE_IMPORT_CALLABLE_REFERENCE = "<possible:import_callable>"
 _ITERABLE_SENSITIVE_ELEMENT_REFERENCE = "<iterable:possible-app-call>"
 _ITERABLE_APP_ELEMENT_REFERENCE = "<iterable:possible-app>"
+_MAPPING_SENSITIVE_VALUE_REFERENCE = "<mapping:possible-app-call>"
+_MAPPING_APP_VALUE_REFERENCE = "<mapping:possible-app>"
+_KNOWN_NON_APP_REFERENCE = "<known:non-app>"
 _CLASS_REFERENCE_PREFIX = "<class:"
 _INSTANCE_REFERENCE_PREFIX = "<instance:"
 _MAX_LOOP_BINDING_ITERATIONS = 32
@@ -2362,32 +2499,25 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 )
                 for element in node.elts
             ]
-            if any(
-                reference
-                in {
-                    "pulseplate.app",
-                    "pulseplate.app.router",
-                    _POSSIBLE_APP_REFERENCE,
-                    _POSSIBLE_ROUTER_REFERENCE,
-                }
-                for reference in element_references
-            ):
-                return _ITERABLE_APP_ELEMENT_REFERENCE
-            if any(
-                reference
-                in {
-                    _POSSIBLE_APP_CALL_REFERENCE,
-                    _POSSIBLE_MIDDLEWARE_DECORATOR_REFERENCE,
-                }
-                or (
-                    reference is not None
-                    and reference.startswith(_MIDDLEWARE_DECORATOR_REFERENCE_PREFIX)
-                )
-                for reference in element_references
-            ):
-                return _ITERABLE_SENSITIVE_ELEMENT_REFERENCE
+            collection_reference = _collection_reference(
+                element_references,
+                mapping=False,
+            )
+            if collection_reference is not None:
+                return collection_reference
+        if isinstance(node, ast.Dict):
+            collection_reference = _collection_reference(
+                [self._resolve_reference(value) for value in node.values],
+                mapping=True,
+            )
+            if collection_reference is not None:
+                return collection_reference
         if isinstance(node, ast.Attribute):
             owner_reference = self._resolve_reference(node.value)
+            if owner_reference == _KNOWN_NON_APP_REFERENCE:
+                return None
+            if node.attr == "__call__" and _is_registration_callable_reference(owner_reference):
+                return owner_reference
             if owner_reference in {"pulseplate.app", _POSSIBLE_APP_REFERENCE}:
                 if node.attr == "router":
                     return _POSSIBLE_ROUTER_REFERENCE
@@ -2415,6 +2545,12 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     _INSTANCE_REFERENCE_PREFIX,
                     1,
                 )
+        if isinstance(node, ast.Subscript):
+            selected = _literal_subscript_value(node)
+            if selected is not None:
+                return self._resolve_reference(selected)
+        if self._is_definitely_non_app_value(node):
+            return _KNOWN_NON_APP_REFERENCE
         references = self.scope.visible_references()
         strings = self.scope.visible_strings()
         reference = _static_module_reference(
@@ -2434,8 +2570,17 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             if container_reference in {
                 _POSSIBLE_APP_CALL_REFERENCE,
                 _POSSIBLE_MIDDLEWARE_DECORATOR_REFERENCE,
+                _ITERABLE_SENSITIVE_ELEMENT_REFERENCE,
+                _MAPPING_SENSITIVE_VALUE_REFERENCE,
             }:
-                return container_reference
+                return _POSSIBLE_APP_CALL_REFERENCE
+            if container_reference in {
+                _ITERABLE_APP_ELEMENT_REFERENCE,
+                _MAPPING_APP_VALUE_REFERENCE,
+            }:
+                return _POSSIBLE_APP_REFERENCE
+            if container_reference == _KNOWN_NON_APP_REFERENCE:
+                return _KNOWN_NON_APP_REFERENCE
         if isinstance(node, ast.Call):
             if (
                 self.preserve_route_method_conflicts
@@ -2665,14 +2810,19 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 in {
                     _ITERABLE_APP_ELEMENT_REFERENCE,
                     _ITERABLE_SENSITIVE_ELEMENT_REFERENCE,
+                    _MAPPING_APP_VALUE_REFERENCE,
+                    _MAPPING_SENSITIVE_VALUE_REFERENCE,
                 }
                 for value in values
             ):
-                joined_references[name] = (
-                    _ITERABLE_APP_ELEMENT_REFERENCE
-                    if _ITERABLE_APP_ELEMENT_REFERENCE in values
-                    else _ITERABLE_SENSITIVE_ELEMENT_REFERENCE
-                )
+                if _MAPPING_APP_VALUE_REFERENCE in values:
+                    joined_references[name] = _MAPPING_APP_VALUE_REFERENCE
+                elif _MAPPING_SENSITIVE_VALUE_REFERENCE in values:
+                    joined_references[name] = _MAPPING_SENSITIVE_VALUE_REFERENCE
+                elif _ITERABLE_APP_ELEMENT_REFERENCE in values:
+                    joined_references[name] = _ITERABLE_APP_ELEMENT_REFERENCE
+                else:
+                    joined_references[name] = _ITERABLE_SENSITIVE_ELEMENT_REFERENCE
             elif any(
                 value == _POSSIBLE_APP_CALL_REFERENCE
                 or (
@@ -2798,12 +2948,11 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         name: str,
         value: ast.AST,
         resolved_reference: str | None,
-        callables: frozenset[_FunctionNode],
     ) -> str | None:
         if resolved_reference is not None:
             return resolved_reference
-        if callables or isinstance(value, ast.Name) or self._is_definitely_non_app_value(value):
-            return None
+        if self._is_definitely_non_app_value(value):
+            return _KNOWN_NON_APP_REFERENCE
         current = self.scope.resolve_reference(name)
         if current in {"pulseplate.app", _POSSIBLE_APP_REFERENCE}:
             return _POSSIBLE_APP_REFERENCE
@@ -2819,6 +2968,16 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             current is not None and current.startswith(_MIDDLEWARE_DECORATOR_REFERENCE_PREFIX)
         ):
             return _POSSIBLE_MIDDLEWARE_DECORATOR_REFERENCE
+        if current in {
+            _ITERABLE_APP_ELEMENT_REFERENCE,
+            _MAPPING_APP_VALUE_REFERENCE,
+        }:
+            return current
+        if current in {
+            _ITERABLE_SENSITIVE_ELEMENT_REFERENCE,
+            _MAPPING_SENSITIVE_VALUE_REFERENCE,
+        }:
+            return current
         return None
 
     def _possible_sensitive_reference(self, name: str) -> str | None:
@@ -2837,6 +2996,13 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             current is not None and current.startswith(_MIDDLEWARE_DECORATOR_REFERENCE_PREFIX)
         ):
             return _POSSIBLE_MIDDLEWARE_DECORATOR_REFERENCE
+        if current in {
+            _ITERABLE_APP_ELEMENT_REFERENCE,
+            _ITERABLE_SENSITIVE_ELEMENT_REFERENCE,
+            _MAPPING_APP_VALUE_REFERENCE,
+            _MAPPING_SENSITIVE_VALUE_REFERENCE,
+        }:
+            return current
         return None
 
     def _bind_target_value(
@@ -2875,7 +3041,6 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     name,
                     value,
                     resolved_reference,
-                    callables,
                 ),
                 string=string,
                 callables=callables,
@@ -3025,9 +3190,12 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             binding_node if candidate is node else candidate
             for candidate in decorated_binding.callables
         )
+        decorated_reference = decorated_binding.reference
+        if not node.decorator_list and decorated_reference is None:
+            decorated_reference = _KNOWN_NON_APP_REFERENCE
         self._bind_name(
             node.name,
-            reference=decorated_binding.reference,
+            reference=decorated_reference,
             string=decorated_binding.string,
             callables=decorated_callables,
             overwrite_conflicts=True,
@@ -3139,8 +3307,12 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         for decorator in node.decorator_list:
             self.visit(decorator)
             decorator_targets.append(self._resolve_callables(decorator))
+        base_references: list[str] = []
         for base in node.bases:
             self.visit(base)
+            base_reference = self._resolve_reference(base)
+            if base_reference is not None:
+                base_references.append(base_reference)
         metaclass_targets: frozenset[_FunctionNode] = frozenset()
         for keyword in node.keywords:
             self.visit(keyword.value)
@@ -3194,7 +3366,29 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             _INSTANCE_REFERENCE_PREFIX,
             1,
         )
+        member_callables: dict[str, frozenset[_FunctionNode]] = {}
+        for base_reference in base_references:
+            for (owner_reference, member_name), callables in tuple(
+                self._class_member_callables.items()
+            ):
+                if owner_reference != base_reference:
+                    continue
+                member_callables[member_name] = (
+                    member_callables.get(
+                        member_name,
+                        frozenset(),
+                    )
+                    | callables
+                )
         for member_name, callables in class_scope.callables.items():
+            member_callables[member_name] = (
+                member_callables.get(
+                    member_name,
+                    frozenset(),
+                )
+                | callables
+            )
+        for member_name, callables in member_callables.items():
             self._class_member_callables[(class_reference, member_name)] = callables
             self._class_member_callables[(instance_reference, member_name)] = callables
         self._bind_name(
