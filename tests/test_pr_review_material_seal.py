@@ -348,6 +348,42 @@ def test_compare_accepts_only_bound_ancestor_response() -> None:
     )
 
 
+def test_compare_fetches_the_last_page_to_bind_a_distant_descendant() -> None:
+    ancestor = RepositoryCommitRef(FIX_SHA, CommitRefKind.PR_COMMIT)
+    descendant = RepositoryCommitRef(HEAD_SHA, CommitRefKind.PR_HEAD)
+    requested_urls: list[str] = []
+
+    def request_json(url: str, **_kwargs: Any) -> Any:
+        requested_urls.append(url)
+        commit_sha = HEAD_SHA if "page=257" in url else OUTSIDE_SHA
+        return {
+            "status": "ahead",
+            "ahead_by": 257,
+            "behind_by": 0,
+            "base_commit": {"sha": FIX_SHA},
+            "commits": [{"sha": commit_sha}],
+            "merge_base_commit": {"sha": FIX_SHA},
+        }
+
+    assert is_ancestor(
+        ancestor,
+        descendant,
+        repository="owner/repo",
+        token="opaque",
+        request_json=request_json,
+    )
+    assert requested_urls == [
+        (
+            "https://api.github.com/repos/owner/repo/compare/"
+            f"{FIX_SHA}...{HEAD_SHA}?per_page=1&page=1"
+        ),
+        (
+            "https://api.github.com/repos/owner/repo/compare/"
+            f"{FIX_SHA}...{HEAD_SHA}?per_page=1&page=257"
+        ),
+    ]
+
+
 @pytest.mark.parametrize("commits", [None, [], [{"sha": OUTSIDE_SHA}]])
 def test_compare_rejects_missing_or_mismatched_descendant(commits: Any) -> None:
     ancestor = RepositoryCommitRef(FIX_SHA, CommitRefKind.PR_COMMIT)

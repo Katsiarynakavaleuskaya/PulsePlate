@@ -545,6 +545,7 @@ def probe_artifact(
         body=body,
         normalized_project=artifact.normalized_package,
         expected_version=artifact.version,
+        allowed_netloc=urlparse(project_url).netloc,
     )
     if artifact.filename.lower() not in {filename.lower() for filename in exact_wheels}:
         return ArtifactResult(

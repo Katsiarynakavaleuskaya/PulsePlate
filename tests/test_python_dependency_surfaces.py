@@ -1304,7 +1304,11 @@ def test_download_phase_batches_exact_profile_pins_without_dependencies(
 def test_resolver_bootstrap_uses_exact_approved_interpreter_pip(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(compiler.importlib_metadata, "version", lambda name: "26.1.2")
+    def fake_version(distribution_name: str) -> str:
+        assert distribution_name == "pip"
+        return "26.1.2"
+
+    monkeypatch.setattr(compiler.importlib_metadata, "version", fake_version)
 
     assert compiler._resolver_bootstrap_artifacts() == frozenset({("pip", "26.1.2")})
 

@@ -965,7 +965,7 @@ def test_required_app_identity_is_not_satisfied_by_status_context() -> None:
     )
     unbound = current_head_checks._required_snapshot(
         [status_context],
-        {current_head_checks.RequiredCheck("build", None)},
+        {"build"},
     )
     structured_unbound = current_head_checks._required_snapshot(
         [status_context],

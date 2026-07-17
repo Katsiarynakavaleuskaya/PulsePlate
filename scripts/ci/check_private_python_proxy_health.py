@@ -375,8 +375,9 @@ def _artifact_filename_from_href(href: str, *, allowed_netloc: str | None) -> st
         parsed = urlparse(href)
     except ValueError:
         return ""
-    if parsed.scheme and parsed.scheme.lower() not in {"http", "https"}:
-        return ""
+    if parsed.scheme:
+        if parsed.scheme.lower() not in {"http", "https"} or not parsed.netloc:
+            return ""
     if parsed.username is not None or parsed.password is not None:
         return ""
     if parsed.netloc and (

@@ -659,34 +659,32 @@ def is_ancestor(
     if ancestor.sha == descendant.sha:
         return True
     owner, name = _require_repository(repository)
-    url = (
+    compare_url = (
         f"{_API_ROOT}/repos/{owner}/{name}/compare/"
         f"{urllib.parse.quote(ancestor.sha, safe='')}..."
         f"{urllib.parse.quote(descendant.sha, safe='')}"
     )
-    try:
-        response = request_json(url, token=token)
-    except GitHubHttpError as exc:
-        raise CommitIdentityError(f"Compare API failed with HTTP {exc.status}") from exc
-    if not isinstance(response, dict):
-        raise CommitIdentityError("Compare API response is malformed")
+
+    def fetch_compare_page(page: int) -> dict[str, Any]:
+        url = f"{compare_url}?per_page=1&page={page}"
+        try:
+            response = request_json(url, token=token)
+        except GitHubHttpError as exc:
+            raise CommitIdentityError(f"Compare API failed with HTTP {exc.status}") from exc
+        if not isinstance(response, dict):
+            raise CommitIdentityError("Compare API response is malformed")
+        return response
+
+    response = fetch_compare_page(1)
     status = response.get("status")
     ahead_by = response.get("ahead_by")
     behind_by = response.get("behind_by")
     base_commit = response.get("base_commit")
-    commits = response.get("commits")
     merge_base_commit = response.get("merge_base_commit")
-    # GitHub's unpaginated Compare response does not expose ``head_commit``.
-    # Its final ``commits`` entry is the most recent commit in the complete
-    # comparison, even when the returned commit list is capped.
-    last_commit = commits[-1] if isinstance(commits, list) and commits else None
     if (
         not isinstance(base_commit, dict)
-        or not isinstance(commits, list)
-        or not isinstance(last_commit, dict)
         or not isinstance(merge_base_commit, dict)
         or base_commit.get("sha") != ancestor.sha
-        or last_commit.get("sha") != descendant.sha
         or merge_base_commit.get("sha") != ancestor.sha
         or not isinstance(ahead_by, int)
         or isinstance(ahead_by, bool)
@@ -694,11 +692,28 @@ def is_ancestor(
         or isinstance(behind_by, bool)
     ):
         raise CommitIdentityError("Compare API response does not bind the requested commits")
-    if status == "ahead":
-        return ahead_by >= 1 and behind_by == 0
+
     if status in {"behind", "diverged"}:
         return False
-    raise CommitIdentityError("Compare API returned unknown ancestry status")
+    if status != "ahead" or not 1 <= ahead_by <= _MAX_PR_COMMITS or behind_by != 0:
+        raise CommitIdentityError("Compare API returned unknown ancestry status")
+
+    last_page = response if ahead_by == 1 else fetch_compare_page(ahead_by)
+    if ahead_by > 1 and (
+        last_page.get("status") != status
+        or last_page.get("ahead_by") != ahead_by
+        or last_page.get("behind_by") != behind_by
+        or not isinstance(last_page.get("base_commit"), dict)
+        or last_page["base_commit"].get("sha") != ancestor.sha
+        or not isinstance(last_page.get("merge_base_commit"), dict)
+        or last_page["merge_base_commit"].get("sha") != ancestor.sha
+    ):
+        raise CommitIdentityError("Compare API response changed while paginating")
+    commits = last_page.get("commits")
+    last_commit = commits[-1] if isinstance(commits, list) and commits else None
+    if not isinstance(last_commit, dict) or last_commit.get("sha") != descendant.sha:
+        raise CommitIdentityError("Compare API response does not bind the requested commits")
+    return True
 
 
 def verify_codex_review_reference(

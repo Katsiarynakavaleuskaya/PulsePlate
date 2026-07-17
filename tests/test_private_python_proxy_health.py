@@ -329,6 +329,19 @@ def test_exact_pin_rejects_external_absolute_or_scheme_relative_wheel_urls() -> 
     )
 
 
+def test_exact_pin_rejects_absolute_scheme_without_authority() -> None:
+    filename = "coverage-7.15.1-cp311-cp311-manylinux_2_28_x86_64.whl"
+    body = f'<a href="https:///path/{filename}">wheel</a>'.encode()
+
+    assert not checker.simple_page_has_exact_pin(
+        body=body,
+        normalized_project="coverage",
+        expected_version="7.15.1",
+        target_python_versions=["3.11"],
+        allowed_netloc="packages.pulseplate.app",
+    )
+
+
 def test_malformed_anchor_poisoning_cannot_be_bypassed_by_later_valid_link() -> None:
     filename = "coverage-7.15.1-cp311-cp311-manylinux_2_28_x86_64.whl"
     body = (
