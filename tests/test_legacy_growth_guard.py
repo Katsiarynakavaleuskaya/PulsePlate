@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import textwrap
 from pathlib import Path
 
@@ -2044,6 +2045,21 @@ def test_api_key_ownership_guard_enforces_global_loop_iteration_budget() -> None
         )
 
 
+def test_api_key_ownership_guard_preserves_budget_for_loop_body_bindings() -> None:
+    legacy_source = "from app.routers.api_key import _get_api_key_dynamic, get_api_key\n"
+    source = "".join(
+        f"for item_{index} in values:\n    value_{index} = object()\n" for index in range(128)
+    )
+
+    assert (
+        legacy_guard.validate_api_key_dependency_ownership(
+            legacy_source,
+            {"app/main.py": source},
+        )
+        == []
+    )
+
+
 @pytest.mark.parametrize("method", ["get", "__getitem__"])
 def test_api_key_ownership_guard_rejects_namespace_mapping_calls(method: str) -> None:
     legacy_source = "from app.routers.api_key import _get_api_key_dynamic, get_api_key\n"
@@ -3197,6 +3213,995 @@ def test_legacy_growth_guard_rejects_new_route() -> None:
 
 
 @pytest.mark.parametrize(
+    ("registration", "expected"),
+    [
+        (
+            'app.get("/api/v1/dynamic-app")(handler)',
+            "registration:get:/api/v1/dynamic-app",
+        ),
+        (
+            'router = app.router\nrouter.post("/api/v1/dynamic-router")(handler)',
+            "registration:router.post:/api/v1/dynamic-router",
+        ),
+        (
+            'route = app.get\nroute("/api/v1/dynamic-method")(handler)',
+            "registration:dynamic:/api/v1/dynamic-method",
+        ),
+        (
+            'register = app.middleware("http")\nregister(handler)',
+            "registration:middleware:http",
+        ),
+    ],
+    ids=["app", "router", "route-method", "middleware"],
+)
+def test_legacy_growth_guard_rejects_derived_dynamic_app_rebinding(
+    registration: str,
+    expected: str,
+) -> None:
+    source = textwrap.dedent("""
+        _existing_app = app
+
+        def _resolve_app():
+            return _existing_app
+
+        app = _resolve_app()
+        """) + registration + "\n"
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        f"legacy_app.py: unexpected legacy route growth: {expected}"
+    ]
+
+
+@pytest.mark.parametrize(
+    ("setup", "registration", "expected"),
+    [
+        (
+            "import functools\n" 'register = functools.partial(app.get, "/api/v1/partial-route")\n',
+            "register()(handler)",
+            "registration:get:<missing>",
+        ),
+        (
+            'register = {"route": app.get}["route"]\n',
+            'register("/api/v1/mapping-route")(handler)',
+            "registration:get:/api/v1/mapping-route",
+        ),
+        (
+            'routes = {"route": app.get}\nregister = routes["route"]\n',
+            'register("/api/v1/assigned-mapping-route")(handler)',
+            "registration:get:/api/v1/assigned-mapping-route",
+        ),
+        (
+            "register = [app.get][0]\n",
+            'register("/api/v1/sequence-route")(handler)',
+            "registration:get:/api/v1/sequence-route",
+        ),
+        (
+            "register = app.get.__call__\n",
+            'register("/api/v1/call-route")(handler)',
+            "registration:get:/api/v1/call-route",
+        ),
+    ],
+    ids=["partial", "mapping", "assigned-mapping", "sequence", "dunder-call"],
+)
+def test_legacy_growth_guard_preserves_opaque_route_callable_provenance(
+    setup: str,
+    registration: str,
+    expected: str,
+) -> None:
+    source = f"{setup}{registration}\n"
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        f"legacy_app.py: unexpected legacy route growth: {expected}"
+    ]
+
+
+def test_legacy_growth_guard_does_not_unwrap_shadowed_partial() -> None:
+    source = textwrap.dedent("""
+        from functools import partial
+
+        partial = safe_partial
+        register = partial(app.get)
+        register("/api/v1/not-a-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+def test_legacy_growth_guard_uses_last_duplicate_literal_mapping_value() -> None:
+    source = textwrap.dedent("""
+        register = {"route": app.get, "route": None}["route"]
+        register("/api/v1/not-a-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+def test_legacy_growth_guard_resolves_later_static_mapping_unpack() -> None:
+    source = textwrap.dedent("""
+        routes = {"route": app.get}
+        register = {"route": None, **routes}["route"]
+        register("/api/v1/unpacked-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: " "registration:get:/api/v1/unpacked-route"
+    ]
+
+
+def test_legacy_growth_guard_honors_later_literal_after_mapping_unpack() -> None:
+    source = textwrap.dedent("""
+        routes = {"route": app.get}
+        register = {**routes, "route": None}["route"]
+        register("/api/v1/not-a-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+@pytest.mark.parametrize(
+    ("mapping", "expected"),
+    [
+        (
+            "{True: None, 1: app.get}",
+            [
+                "legacy_app.py: unexpected legacy route growth: "
+                "registration:get:/api/v1/equal-numeric-key-route"
+            ],
+        ),
+        ("{1: app.get, 1.0: None}", []),
+    ],
+    ids=["later-equivalent-sensitive", "later-equivalent-safe"],
+)
+def test_legacy_growth_guard_uses_python_numeric_key_equivalence(
+    mapping: str,
+    expected: list[str],
+) -> None:
+    source = (
+        f"register = {mapping}[True]\n" 'register("/api/v1/equal-numeric-key-route")(handler)\n'
+    )
+
+    assert legacy_guard.validate_legacy_growth(source) == expected
+
+
+def test_legacy_growth_guard_keeps_unresolved_mapping_unpack_fail_closed() -> None:
+    source = textwrap.dedent("""
+        routes = resolve_routes()
+        register = {"route": None, **routes}["route"]
+        register("/api/v1/unresolved-unpack-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:dynamic:/api/v1/unresolved-unpack-route"
+    ]
+
+
+def test_legacy_growth_guard_honors_later_literal_after_unresolved_unpack() -> None:
+    source = textwrap.dedent("""
+        routes = resolve_routes()
+        register = {**routes, "route": None}["route"]
+        register("/api/v1/not-a-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+def test_legacy_growth_guard_keeps_known_safe_mapping_unpack_clean() -> None:
+    source = textwrap.dedent("""
+        routes = {"route": None}
+        register = {"route": None, **routes}["route"]
+        register("/api/v1/not-a-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+def test_legacy_growth_guard_honors_later_known_safe_mapping_unpack() -> None:
+    source = textwrap.dedent("""
+        routes = {"route": None}
+        register = {"route": app.get, **routes}["route"]
+        register("/api/v1/not-a-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+def test_legacy_growth_guard_invalidates_mutated_static_mapping() -> None:
+    source = textwrap.dedent("""
+        routes = {"route": None}
+        routes.update(resolve_routes())
+        register = {"route": None, **routes}["route"]
+        register("/api/v1/mutated-mapping-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:dynamic:/api/v1/mutated-mapping-route"
+    ]
+
+
+def test_legacy_growth_guard_invalidates_escaped_mapping_by_identity() -> None:
+    source = textwrap.dedent("""
+        routes = {"route": None}
+        alias = routes
+
+        def rebind(value):
+            global routes
+            routes = {"route": None}
+
+        rebind(routes)
+        register = {"route": app.get, **alias}["route"]
+        register("/api/v1/escaped-mapping-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:dynamic:/api/v1/escaped-mapping-route"
+    ]
+
+
+def test_legacy_growth_guard_snapshots_mapping_unpack_before_rebinding() -> None:
+    source = textwrap.dedent("""
+        base = {"route": app.get}
+        routes = {**base}
+        base = {"route": None}
+        register = {"route": None, **routes}["route"]
+        register("/api/v1/copied-before-rebind")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/copied-before-rebind"
+    ]
+
+
+def test_legacy_growth_guard_snapshots_mapping_value_before_rebinding() -> None:
+    source = textwrap.dedent("""
+        method = app.get
+        routes = {"route": method}
+        method = None
+        register = routes["route"]
+        register("/api/v1/value-before-rebind")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/value-before-rebind"
+    ]
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        'del routes["route"]',
+        'routes |= {"route": app.get}',
+        'mutate = routes.update\nmutate({"route": app.get})',
+    ],
+    ids=["delete", "in-place-union", "bound-mutator"],
+)
+def test_legacy_growth_guard_invalidates_mapping_mutation_aliases(
+    mutation: str,
+) -> None:
+    source = (
+        'routes = {"route": None}\n'
+        "alias = routes\n"
+        f"{mutation}\n"
+        'register = {"route": app.get, **alias}["route"]\n'
+        'register("/api/v1/mutated-alias-route")(handler)\n'
+    )
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:dynamic:/api/v1/mutated-alias-route"
+    ]
+
+
+def test_legacy_growth_guard_keeps_in_place_mapping_rebinding_fail_closed() -> None:
+    source = textwrap.dedent("""
+        routes = {"route": None}
+        routes |= {"route": app.get}
+        register = routes["route"]
+        register("/api/v1/in-place-union-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:dynamic:/api/v1/in-place-union-route"
+    ]
+
+
+@pytest.mark.parametrize(
+    "escape",
+    [
+        """
+        def mutate(value=routes):
+            value["route"] = app.get
+
+        mutate()
+        """,
+        """
+        def get_routes():
+            return routes
+
+        alias = get_routes()
+        alias["route"] = app.get
+        """,
+        """
+        holder.routes = routes
+        holder.routes["route"] = app.get
+        """,
+        """
+        holder = [routes]
+        holder[0]["route"] = app.get
+        """,
+        """
+        holder = {"value": routes}
+        holder["value"]["route"] = app.get
+        """,
+        """
+        def mutate(*args):
+            args[0]["route"] = app.get
+
+        mutate(*(routes,))
+        """,
+        """
+        def mutate(**kwargs):
+            kwargs["routes"]["route"] = app.get
+
+        mutate(**{"routes": routes})
+        """,
+    ],
+    ids=[
+        "default-argument",
+        "returned-alias",
+        "attribute-storage",
+        "sequence-storage",
+        "mapping-storage",
+        "starred-argument",
+        "expanded-keyword",
+    ],
+)
+def test_legacy_growth_guard_invalidates_escaped_mapping_identities(
+    escape: str,
+) -> None:
+    source = (
+        'routes = {"route": None}\n'
+        f"{textwrap.dedent(escape)}"
+        'register = {"route": app.get, **routes}["route"]\n'
+        'register("/api/v1/escaped-identity-route")(handler)\n'
+    )
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:dynamic:/api/v1/escaped-identity-route"
+    ]
+
+
+def test_legacy_growth_guard_invalidates_pre_and_post_call_mapping_identities() -> None:
+    source = textwrap.dedent("""
+        routes = {"route": None}
+
+        def mutate(value):
+            value["route"] = app.get
+
+        def factory():
+            global routes
+            routes = {"route": None}
+            return mutate
+
+        factory()(routes)
+        register = {"route": app.get, **routes}["route"]
+        register("/api/v1/evaluation-order-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:dynamic:/api/v1/evaluation-order-route"
+    ]
+
+
+def test_legacy_growth_guard_bounds_long_static_mapping_chains() -> None:
+    source = 'mapping_0 = {"route": None}\n' + "".join(
+        f"mapping_{index} = {{**mapping_{index - 1}}}\n" for index in range(1, 1_101)
+    )
+    source += (
+        'register = {"route": app.get, **mapping_1100}["route"]\n'
+        'register("/api/v1/not-a-route")(handler)\n'
+    )
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+def test_legacy_growth_guard_uses_unary_numeric_key_equivalence() -> None:
+    source = textwrap.dedent("""
+        register = {-1: app.get, -1.0: None}[-1]
+        register("/api/v1/not-a-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+@pytest.mark.parametrize(
+    "invocation",
+    [
+        "Child().install(app)",
+        "Child.install(app)",
+    ],
+    ids=["instance", "class"],
+)
+def test_legacy_growth_guard_replays_inherited_class_helpers(invocation: str) -> None:
+    decorator = "@classmethod\n    " if invocation == "Child.install(app)" else ""
+    receiver = "cls, " if decorator else "self, "
+    source = (
+        "class Base:\n"
+        f"    {decorator}def install({receiver}target):\n"
+        '        target.get("/api/v1/inherited-route")(handler)\n'
+        "\n"
+        "class Child(Base):\n"
+        "    pass\n"
+        "\n"
+        f"{invocation}\n"
+    )
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: " "registration:get:/api/v1/inherited-route"
+    ]
+
+
+def test_legacy_growth_guard_replays_transitive_aliased_inherited_helper() -> None:
+    source = textwrap.dedent("""
+        class Base:
+            def install(self, target):
+                target.get("/api/v1/transitive-inherited-route")(handler)
+
+        Alias = Base
+
+        class Middle(Alias):
+            pass
+
+        class Child(Middle):
+            pass
+
+        Child().install(app)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/transitive-inherited-route"
+    ]
+
+
+def test_legacy_growth_guard_keeps_inherited_helper_non_app_argument_clean() -> None:
+    source = textwrap.dedent("""
+        class Base:
+            def install(self, target):
+                target.get("/api/v1/not-a-route")(handler)
+
+        class Child(Base):
+            pass
+
+        Child().install(object())
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+@pytest.mark.parametrize(
+    "child_body",
+    [
+        """
+            def install(self, target):
+                return None
+        """,
+        """
+            install = None
+        """,
+    ],
+    ids=["method", "non-callable"],
+)
+def test_legacy_growth_guard_honors_definite_inherited_helper_override(
+    child_body: str,
+) -> None:
+    source = (
+        "class Base:\n"
+        "    def install(self, target):\n"
+        '        target.get("/api/v1/not-a-route")(handler)\n'
+        "\n"
+        "class Child(Base):\n"
+        f"{textwrap.indent(textwrap.dedent(child_body).strip(), '    ')}\n"
+        "\n"
+        "Child().install(app)\n"
+    )
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+def test_legacy_growth_guard_honors_inherited_helper_mro_precedence() -> None:
+    source = textwrap.dedent("""
+        class Safe:
+            def install(self, target):
+                return None
+
+        class Dangerous:
+            def install(self, target):
+                target.get("/api/v1/not-a-route")(handler)
+
+        class Child(Safe, Dangerous):
+            pass
+
+        Child().install(app)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+def test_legacy_growth_guard_keeps_conditional_helper_override_fail_closed() -> None:
+    source = textwrap.dedent("""
+        class Base:
+            def install(self, target):
+                target.get("/api/v1/conditional-inherited-route")(handler)
+
+        class Child(Base):
+            if enabled:
+                def install(self, target):
+                    return None
+
+        Child().install(app)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/conditional-inherited-route"
+    ]
+
+
+def test_legacy_growth_guard_uses_c3_member_precedence_in_diamonds() -> None:
+    source = textwrap.dedent("""
+        class Root:
+            def install(self, target):
+                return None
+
+        class Left(Root):
+            pass
+
+        class Right(Root):
+            def install(self, target):
+                target.get("/api/v1/diamond-danger")(handler)
+
+        class Child(Left, Right):
+            pass
+
+        Child().install(app)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: " "registration:get:/api/v1/diamond-danger"
+    ]
+
+
+def test_legacy_growth_guard_excludes_class_global_bindings_from_members() -> None:
+    source = textwrap.dedent("""
+        class Base:
+            def install(self, target):
+                target.get("/api/v1/class-global-danger")(handler)
+
+        class Child(Base):
+            global install
+            install = None
+
+        Child().install(app)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/class-global-danger"
+    ]
+
+
+def test_legacy_growth_guard_excludes_class_nonlocal_bindings_from_members() -> None:
+    source = textwrap.dedent("""
+        class Base:
+            def install(self, target):
+                target.get("/api/v1/class-nonlocal-danger")(handler)
+
+        def build():
+            install = None
+
+            class Child(Base):
+                nonlocal install
+                install = None
+
+            return Child
+
+        build()().install(app)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/class-nonlocal-danger"
+    ]
+
+
+def test_legacy_growth_guard_preserves_method_after_value_less_annotation() -> None:
+    source = textwrap.dedent("""
+        class Child:
+            def install(self, target):
+                target.get("/api/v1/annotated-direct-danger")(handler)
+
+            install: object
+
+        Child().install(app)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/annotated-direct-danger"
+    ]
+
+
+@pytest.mark.parametrize(
+    ("wrapper", "parameters", "target", "invocation"),
+    [
+        ("staticmethod", "target", "target", "Child().install(app)"),
+        ("classmethod", "cls, target", "target", "Child.install(app)"),
+    ],
+)
+def test_legacy_growth_guard_resolves_class_callable_wrappers(
+    wrapper: str,
+    parameters: str,
+    target: str,
+    invocation: str,
+) -> None:
+    source = textwrap.dedent(f"""
+        def dangerous_install({parameters}):
+            {target}.get("/api/v1/wrapped-class-danger")(handler)
+
+        class Child:
+            install = {wrapper}(dangerous_install)
+
+        {invocation}
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/wrapped-class-danger"
+    ]
+
+
+def test_legacy_growth_guard_resolves_inherited_classmethod_wrapper() -> None:
+    source = textwrap.dedent("""
+        def dangerous_install(cls, target):
+            target.get("/api/v1/inherited-classmethod-danger")(handler)
+
+        class Base:
+            install = classmethod(dangerous_install)
+
+        class Child(Base):
+            pass
+
+        Child.install(app)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/inherited-classmethod-danger"
+    ]
+
+
+def test_legacy_growth_guard_keeps_safe_classmethod_wrapper_clean() -> None:
+    source = textwrap.dedent("""
+        def harmless_install(cls, target):
+            return None
+
+        class Child:
+            install = classmethod(harmless_install)
+
+        Child.install(app)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+def test_legacy_growth_guard_scopes_classmethod_wrapper_to_owning_member() -> None:
+    source = textwrap.dedent("""
+        def dangerous_install(target):
+            target.get("/api/v1/shared-classmethod-danger")(handler)
+
+        class Plain:
+            install = dangerous_install
+
+        class Wrapped:
+            install = classmethod(dangerous_install)
+
+        Plain.install(app)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/shared-classmethod-danger"
+    ]
+
+
+def test_legacy_growth_guard_scopes_staticmethod_wrapper_to_owning_member() -> None:
+    source = textwrap.dedent("""
+        def dangerous_install(self, target):
+            target.get("/api/v1/shared-staticmethod-danger")(handler)
+
+        class Plain:
+            install = dangerous_install
+
+        class Wrapped:
+            install = staticmethod(dangerous_install)
+
+        Plain().install(app)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/shared-staticmethod-danger"
+    ]
+
+
+def test_legacy_growth_guard_preserves_plain_alternative_to_staticmethod() -> None:
+    source = textwrap.dedent("""
+        def dangerous_install(self, target):
+            target.get("/api/v1/conditional-plain-danger")(handler)
+
+        class Child:
+            if condition:
+                install = staticmethod(dangerous_install)
+            else:
+                install = dangerous_install
+
+        Child().install(app)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/conditional-plain-danger"
+    ]
+
+
+def test_legacy_growth_guard_preserves_staticmethod_alternative_to_plain() -> None:
+    source = textwrap.dedent("""
+        def dangerous_install(target):
+            target.get("/api/v1/conditional-staticmethod-danger")(handler)
+
+        class Child:
+            if condition:
+                install = staticmethod(dangerous_install)
+            else:
+                install = dangerous_install
+
+        Child().install(app)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/conditional-staticmethod-danger"
+    ]
+
+
+def test_legacy_growth_guard_preserves_bound_classmethod_alias() -> None:
+    source = textwrap.dedent("""
+        class Installer:
+            @classmethod
+            def install(cls, target):
+                target.get("/api/v1/classmethod-alias-danger")(handler)
+
+        install = Installer.install
+        install(app)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/classmethod-alias-danger"
+    ]
+
+
+def test_legacy_growth_guard_preserves_bound_instance_method_alias() -> None:
+    source = textwrap.dedent("""
+        class Installer:
+            def install(self, target):
+                target.get("/api/v1/instance-method-alias-danger")(handler)
+
+        install = Installer().install
+        install(app)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/instance-method-alias-danger"
+    ]
+
+
+def test_legacy_growth_guard_unions_replayed_class_site_members() -> None:
+    source = textwrap.dedent("""
+        def dangerous(self, target):
+            target.get("/api/v1/replay-overwrite-hidden")(handler)
+
+        def harmless(self, target):
+            return None
+
+        def factory(value):
+            class Child:
+                install = value
+
+            return Child
+
+        Dangerous = factory(dangerous)
+        Safe = factory(harmless)
+        Dangerous().install(app)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/replay-overwrite-hidden"
+    ]
+
+
+@pytest.mark.parametrize(
+    "container",
+    [
+        """
+        if enabled:
+            class Installer:
+                def install(self, target):
+                    target.get("/api/v1/conditional-class-danger")(handler)
+        """,
+        """
+        for _ in values:
+            class Installer:
+                def install(self, target):
+                    target.get("/api/v1/conditional-class-danger")(handler)
+        """,
+    ],
+    ids=["branch", "loop"],
+)
+def test_legacy_growth_guard_preserves_possible_class_references(
+    container: str,
+) -> None:
+    source = textwrap.dedent(container) + "\nInstaller().install(app)\n"
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/conditional-class-danger"
+    ]
+
+
+def test_legacy_growth_guard_converges_for_nested_loop_function_bindings() -> None:
+    source = textwrap.dedent("""
+        def configure():
+            for _ in values:
+                def install(target):
+                    target.get("/api/v1/local-loop-def")(handler)
+
+            install(app)
+
+        configure()
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: " "registration:get:/api/v1/local-loop-def"
+    ]
+
+
+@pytest.mark.parametrize(
+    "safe_rebinding",
+    [
+        "app = None",
+        "safe_app = None\napp = safe_app",
+        "app = lambda: None",
+        "def app():\n    return None",
+        "class app:\n    pass",
+    ],
+    ids=["literal", "name", "lambda", "function", "class"],
+)
+def test_legacy_growth_guard_clears_dynamic_app_after_definite_safe_rebinding(
+    safe_rebinding: str,
+) -> None:
+    source = (
+        "app = resolve_app()\n" f"{safe_rebinding}\n" 'app.get("/api/v1/not-a-route")(handler)\n'
+    )
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+def test_legacy_growth_guard_keeps_unknown_name_app_rebinding_fail_closed() -> None:
+    source = textwrap.dedent("""
+        app = resolve_app()
+        app = safe_app
+        app.get("/api/v1/unknown-name-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/unknown-name-route"
+    ]
+
+
+def test_legacy_growth_guard_clears_dynamic_app_after_builtin_object_rebinding() -> None:
+    source = textwrap.dedent("""
+        app = resolve_app()
+        app = object()
+        app.get("/api/v1/not-a-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+def test_legacy_growth_guard_keeps_shadowed_object_call_fail_closed() -> None:
+    source = textwrap.dedent("""
+        app = resolve_app()
+        object = resolve_constructor()
+        app = object()
+        app.get("/api/v1/shadowed-object")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: " "registration:get:/api/v1/shadowed-object"
+    ]
+
+
+@pytest.mark.parametrize(
+    "delete_statement",
+    ["del object", "del (object, other)", "del [object, other]"],
+    ids=["direct", "tuple", "list"],
+)
+def test_legacy_growth_guard_restores_builtin_object_after_module_delete(
+    delete_statement: str,
+) -> None:
+    source = (
+        "object = safe_constructor\n"
+        "other = safe_value\n"
+        f"{delete_statement}\n"
+        "app = resolve_app()\n"
+        "app = object()\n"
+        'app.get("/api/v1/not-a-route")(handler)\n'
+    )
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+def test_legacy_growth_guard_keeps_deleted_function_local_object_fail_closed() -> None:
+    source = textwrap.dedent("""
+        def install(app, object):
+            del object
+            app = object()
+            app.get("/api/v1/deleted-local-object")(handler)
+
+        install(app, safe_constructor)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/deleted-local-object"
+    ]
+
+
+def test_legacy_growth_guard_does_not_promote_unrelated_unknown_binding() -> None:
+    source = textwrap.dedent("""
+        candidate = resolve_candidate()
+        candidate.get("/api/v1/not-a-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+def test_legacy_growth_guard_rejects_dynamic_router_rebinding() -> None:
+    source = textwrap.dedent("""
+        router = app.router
+        router = resolve_router()
+        getattr(router, "get")("/api/v1/dynamic-router-getattr")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:router.get:/api/v1/dynamic-router-getattr"
+    ]
+
+
+@pytest.mark.parametrize(
     ("path", "owner"),
     [
         ("/api/v1/premium/plate", "api_premium_plate"),
@@ -3673,6 +4678,7 @@ def test_legacy_growth_guard_ignores_statically_unreachable_route_call() -> None
 
 def test_legacy_growth_guard_clears_bound_route_callable_after_safe_rebinding() -> None:
     source = textwrap.dedent("""
+        safe_route = None
         route = app.get
         route = safe_route
         route("/api/v1/not-a-route")(handler)
@@ -3862,9 +4868,44 @@ def test_legacy_growth_guard_rejects_functional_middleware_registration(
 def test_legacy_growth_guard_clears_middleware_factory_after_safe_rebinding(
     use: str,
 ) -> None:
-    source = 'register_http = app.middleware("http")\n' "register_http = safe_register\n" f"{use}\n"
+    source = (
+        "safe_register = None\n"
+        'register_http = app.middleware("http")\n'
+        "register_http = safe_register\n"
+        f"{use}\n"
+    )
 
     assert legacy_guard.validate_legacy_growth(source) == []
+
+
+@pytest.mark.parametrize(
+    ("use", "expected_error"),
+    [
+        (
+            "register_http(handler)",
+            "legacy_app.py: unexpected legacy route growth: registration:middleware:http",
+        ),
+        (
+            "@register_http\nasync def handler(request, call_next):\n    return await call_next(request)",
+            "legacy_app.py: unexpected legacy route growth: decorator:middleware:http -> handler",
+        ),
+    ],
+    ids=["functional", "decorator"],
+)
+def test_legacy_growth_guard_rejects_middleware_factory_called_before_safe_rebinding(
+    use: str,
+    expected_error: str,
+) -> None:
+    source = (
+        "safe_register = None\n"
+        "def install():\n"
+        f"{textwrap.indent(use, '    ')}\n"
+        'register_http = app.middleware("http")\n'
+        "install()\n"
+        "register_http = safe_register\n"
+    )
+
+    assert legacy_guard.validate_legacy_growth(source) == [expected_error]
 
 
 @pytest.mark.parametrize(
@@ -3885,6 +4926,1457 @@ def test_legacy_growth_guard_respects_middleware_factory_parameter_shadowing(
     )
 
     assert legacy_guard.validate_legacy_growth(source) == []
+
+
+@pytest.mark.parametrize(
+    "invocation",
+    [
+        "install(register_http)",
+        "install(registrar=register_http)",
+        "install(*(register_http,))",
+        'install(**{"registrar": register_http})',
+    ],
+    ids=["positional", "keyword", "starred", "double-starred"],
+)
+def test_legacy_growth_guard_replays_helper_with_resolved_arguments(invocation: str) -> None:
+    source = textwrap.dedent(f"""
+        def install(registrar):
+            registrar(handler)
+
+        register_http = app.middleware("http")
+        {invocation}
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: registration:middleware:http"
+    ]
+
+
+@pytest.mark.parametrize(
+    "invocation",
+    [
+        'install((route := app.get), route, "/api/v1/named-positional")',
+        ("install(first=(route := app.get), registrar=route, " 'path="/api/v1/named-keyword")'),
+    ],
+    ids=["positional", "keyword"],
+)
+def test_legacy_growth_guard_resolves_arguments_in_python_evaluation_order(
+    invocation: str,
+) -> None:
+    source = textwrap.dedent(f"""
+        def install(first, registrar, path):
+            registrar(path)(handler)
+
+        {invocation}
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: registration:dynamic:path"
+    ]
+
+
+@pytest.mark.parametrize(
+    ("registrars", "expected"),
+    [
+        (("app.get", "safe_register"), []),
+        (
+            ("safe_register", "app.get"),
+            ["legacy_app.py: unexpected legacy route growth: " "registration:dynamic:path"],
+        ),
+    ],
+    ids=["safe-last", "dangerous-last"],
+)
+def test_legacy_growth_guard_uses_last_value_for_duplicate_static_dict_keys(
+    registrars: tuple[str, str],
+    expected: list[str],
+) -> None:
+    first, second = registrars
+    source = textwrap.dedent(f"""
+        def install(registrar, path):
+            registrar(path)(handler)
+
+        install(**{{
+            "registrar": {first},
+            "registrar": {second},
+            "path": "/api/v1/duplicate-dict",
+        }})
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == expected
+
+
+def test_legacy_growth_guard_argument_evaluator_detaches_parent_scope_chain() -> None:
+    tree = ast.parse(
+        "def install(first, registrar):\n"
+        "    registrar('/api/v1/hidden')(handler)\n"
+        "install((route := app.get), route)\n"
+    )
+    function = tree.body[0]
+    call_statement = tree.body[1]
+    assert isinstance(function, ast.FunctionDef)
+    assert isinstance(call_statement, ast.Expr)
+    assert isinstance(call_statement.value, ast.Call)
+
+    visitor = legacy_guard._ApiKeyLookupVisitor(
+        filename="legacy_app.py",
+        errors=[],
+        initial_references={"app": "pulseplate.app"},
+        preserve_route_method_conflicts=True,
+    )
+    original_parent = visitor.scope
+    visitor.scope = legacy_guard._LexicalBindings(
+        parent=original_parent,
+        scope_kind="comprehension",
+    )
+    original_references = dict(original_parent.references)
+
+    visitor._resolve_call_argument_bindings(function, call_statement.value)
+
+    assert original_parent.references == original_references
+    assert original_parent.resolve_reference("route") is None
+
+
+def test_legacy_growth_guard_propagates_global_callable_rebinding() -> None:
+    source = textwrap.dedent("""
+        def dangerous(registrar):
+            registrar("/api/v1/global-rebind")(handler)
+
+        def safe(registrar):
+            return registrar
+
+        install = safe
+
+        def replace():
+            global install
+            install = dangerous
+
+        replace()
+        install(app.get)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:dynamic:/api/v1/global-rebind"
+    ]
+
+
+def test_legacy_growth_guard_propagates_safe_global_callable_rebinding() -> None:
+    source = textwrap.dedent("""
+        def dangerous(registrar):
+            registrar("/api/v1/not-a-route")(handler)
+
+        def safe(registrar):
+            return registrar
+
+        install = dangerous
+
+        def replace():
+            global install
+            install = safe
+
+        replace()
+        install(app.get)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+def test_legacy_growth_guard_propagates_nested_global_callable_rebinding() -> None:
+    source = textwrap.dedent("""
+        def dangerous(registrar):
+            registrar("/api/v1/nested-global-rebind")(handler)
+
+        def safe(registrar):
+            return registrar
+
+        install = safe
+
+        def outer_replace():
+            global install
+
+            def inner_replace():
+                global install
+                install = dangerous
+
+            inner_replace()
+
+        outer_replace()
+        install(app.get)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:dynamic:/api/v1/nested-global-rebind"
+    ]
+
+
+def test_legacy_growth_guard_propagates_nested_safe_global_rebinding() -> None:
+    source = textwrap.dedent("""
+        def dangerous(registrar):
+            registrar("/api/v1/not-a-route")(handler)
+
+        def safe(registrar):
+            return registrar
+
+        install = dangerous
+
+        def outer_replace():
+            global install
+
+            def inner_replace():
+                global install
+                install = safe
+
+            inner_replace()
+
+        outer_replace()
+        install(app.get)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+def test_legacy_growth_guard_sandboxes_dormant_nested_global_rebinding() -> None:
+    source = textwrap.dedent("""
+        def dangerous(registrar):
+            registrar("/api/v1/dormant-global-rebind")(handler)
+
+        def safe(registrar):
+            return registrar
+
+        install = safe
+
+        def outer():
+            def dormant():
+                def inner_replace():
+                    global install
+                    install = dangerous
+
+                inner_replace()
+
+        outer()
+        install(app.get)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+def test_legacy_growth_guard_propagates_nonlocal_callable_rebinding() -> None:
+    source = textwrap.dedent("""
+        def outer():
+            def dangerous(registrar):
+                registrar("/api/v1/nonlocal-rebind")(handler)
+
+            def safe(registrar):
+                return registrar
+
+            install = safe
+
+            def replace():
+                nonlocal install
+                install = dangerous
+
+            replace()
+            install(app.get)
+
+        outer()
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:dynamic:/api/v1/nonlocal-rebind"
+    ]
+
+
+def test_legacy_growth_guard_propagates_deep_nonlocal_callable_rebinding() -> None:
+    source = textwrap.dedent("""
+        def outer():
+            def dangerous(registrar):
+                registrar("/api/v1/deep-nonlocal-rebind")(handler)
+
+            def safe(registrar):
+                return registrar
+
+            install = safe
+
+            def middle():
+                def replace():
+                    nonlocal install
+                    install = dangerous
+
+                replace()
+
+            middle()
+            install(app.get)
+
+        outer()
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:dynamic:/api/v1/deep-nonlocal-rebind"
+    ]
+
+
+def test_legacy_growth_guard_joins_conditional_global_callable_rebinding() -> None:
+    source = textwrap.dedent("""
+        def dangerous(registrar):
+            registrar("/api/v1/conditional-global-rebind")(handler)
+
+        def safe(registrar):
+            return registrar
+
+        install = safe
+
+        def replace(enabled):
+            global install
+            if enabled:
+                install = dangerous
+
+        replace(runtime_flag)
+        install(app.get)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:dynamic:/api/v1/conditional-global-rebind"
+    ]
+
+
+@pytest.mark.parametrize(
+    ("signature", "invocation"),
+    [
+        ("registrar, /", "install(register_http)"),
+        ("*, registrar", "install(registrar=register_http)"),
+        ('registrar=app.middleware("http")', "install()"),
+    ],
+    ids=["positional-only", "keyword-only", "default"],
+)
+def test_legacy_growth_guard_replays_helper_parameter_kinds(
+    signature: str,
+    invocation: str,
+) -> None:
+    source = textwrap.dedent(f"""
+        def install({signature}):
+            registrar(handler)
+
+        register_http = app.middleware("http")
+        {invocation}
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: registration:middleware:http"
+    ]
+
+
+def test_legacy_growth_guard_freezes_default_binding_at_function_definition() -> None:
+    source = textwrap.dedent("""
+        register_http = app.middleware("http")
+
+        def install(registrar=register_http):
+            registrar(handler)
+
+        register_http = safe_register
+        install()
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: registration:middleware:http"
+    ]
+
+
+@pytest.mark.parametrize(
+    ("signature", "access", "invocation", "path"),
+    [
+        (
+            "*registrars",
+            "registrars[0]",
+            "install(app.get)",
+            "/api/v1/vararg-route",
+        ),
+        (
+            "**registrars",
+            'registrars["route"]',
+            "install(route=app.get)",
+            "/api/v1/kwarg-route",
+        ),
+    ],
+    ids=["vararg", "kwarg"],
+)
+def test_legacy_growth_guard_keeps_declared_variadics_fail_closed(
+    signature: str,
+    access: str,
+    invocation: str,
+    path: str,
+) -> None:
+    source = textwrap.dedent(f"""
+        def install({signature}):
+            {access}("{path}")(handler)
+
+        {invocation}
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: " f"registration:dynamic:{path}"
+    ]
+
+
+@pytest.mark.parametrize(
+    ("signature", "access", "invocation"),
+    [
+        ("*registrars", "registrars[0]", "install(safe_register)"),
+        (
+            "**registrars",
+            'registrars["route"]',
+            "install(route=safe_register)",
+        ),
+    ],
+    ids=["vararg", "kwarg"],
+)
+def test_legacy_growth_guard_clears_safe_declared_variadics(
+    signature: str,
+    access: str,
+    invocation: str,
+) -> None:
+    source = textwrap.dedent(f"""
+        def install({signature}):
+            {access}("/api/v1/not-a-route")(handler)
+
+        {invocation}
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+def test_legacy_growth_guard_respects_safe_argument_shadowing() -> None:
+    source = textwrap.dedent("""
+        registrar = app.middleware("http")
+
+        def install(registrar):
+            registrar(handler)
+
+        install(safe_register)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+def test_legacy_growth_guard_keeps_unresolved_starred_arguments_fail_closed() -> None:
+    source = textwrap.dedent("""
+        def install(registrar):
+            registrar("/api/v1/dynamic-star")(handler)
+
+        install(*resolve_arguments())
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:dynamic:/api/v1/dynamic-star"
+    ]
+
+
+def test_legacy_growth_guard_replays_exact_nested_same_name_function() -> None:
+    source = textwrap.dedent("""
+        def install(registrar):
+            registrar(handler)
+
+        def outer():
+            def install(registrar):
+                return registrar
+
+            install(app.middleware("http"))
+
+        outer()
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+def test_legacy_growth_guard_preserves_aliased_function_identity_after_rebinding() -> None:
+    source = textwrap.dedent("""
+        def install(registrar):
+            registrar(handler)
+
+        original_install = install
+
+        def install(registrar):
+            return registrar
+
+        install(app.middleware("http"))
+        original_install(app.middleware("http"))
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: registration:middleware:http"
+    ]
+
+
+def test_legacy_growth_guard_keeps_dangerous_callable_across_branch_join() -> None:
+    source = textwrap.dedent("""
+        def install(registrar):
+            registrar(handler)
+
+        if enabled:
+            selected = install
+        else:
+            selected = safe_install
+
+        selected(app.middleware("http"))
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: registration:middleware:http"
+    ]
+
+
+def test_legacy_growth_guard_clears_helper_after_safe_rebinding() -> None:
+    source = textwrap.dedent("""
+        def install(registrar):
+            registrar(handler)
+
+        install = safe_install
+        install(app.middleware("http"))
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+def test_legacy_growth_guard_stops_recursive_function_replay_by_identity() -> None:
+    source = textwrap.dedent("""
+        def install(registrar):
+            registrar(handler)
+            install(registrar)
+
+        install(app.middleware("http"))
+        """)
+
+    first = legacy_guard.validate_legacy_growth(source)
+    second = legacy_guard.validate_legacy_growth(source)
+
+    assert first == ["legacy_app.py: unexpected legacy route growth: registration:middleware:http"]
+    assert second == first
+
+
+def test_legacy_growth_guard_stops_mutual_recursion_by_function_identity() -> None:
+    source = textwrap.dedent("""
+        def first(registrar):
+            second(registrar)
+
+        def second(registrar):
+            registrar(handler)
+            first(registrar)
+
+        first(app.middleware("http"))
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: registration:middleware:http"
+    ]
+
+
+def test_legacy_growth_guard_does_not_replay_plain_async_call() -> None:
+    source = textwrap.dedent("""
+        safe_register = None
+        register_http = safe_register
+
+        async def install():
+            register_http(handler)
+
+        register_http = app.middleware("http")
+        install()
+        register_http = safe_register
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+def test_legacy_growth_guard_replays_asyncio_run_call_chain() -> None:
+    source = textwrap.dedent("""
+        import asyncio
+
+        async def install(registrar):
+            registrar(handler)
+
+        async def start():
+            await install(app.middleware("http"))
+
+        asyncio.run(start())
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: registration:middleware:http"
+    ]
+
+
+def test_legacy_growth_guard_does_not_replay_await_in_uncalled_helper() -> None:
+    source = textwrap.dedent("""
+        async def install(registrar):
+            registrar(handler)
+
+        async def start():
+            await install(app.middleware("http"))
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+def test_legacy_growth_guard_skips_invalid_excess_argument_call() -> None:
+    source = textwrap.dedent("""
+        def install(registrar):
+            registrar(handler)
+
+        install(app.middleware("http"), unexpected)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+def test_legacy_growth_guard_does_not_replay_uniterated_generator_helper() -> None:
+    source = textwrap.dedent("""
+        def install(registrar):
+            yield registrar(handler)
+
+        install(app.middleware("http"))
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+def test_legacy_growth_guard_replays_iterated_generator_helper() -> None:
+    source = textwrap.dedent("""
+        def install(registrar):
+            yield registrar(handler)
+
+        for item in install(app.middleware("http")):
+            pass
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: registration:middleware:http"
+    ]
+
+
+def test_legacy_growth_guard_defers_unconsumed_generator_expression_body() -> None:
+    source = textwrap.dedent("""
+        def install(registrar):
+            registrar(handler)
+
+        pending = (install(app.middleware("http")) for item in ())
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "def install(registrar):\n"
+        "    registrar(handler)\n"
+        'list(install(app.middleware("http")) for _ in [1])\n',
+        "def install(registrar):\n"
+        "    yield registrar(handler)\n"
+        '[item for item in install(app.middleware("http"))]\n',
+        "def install(registrar):\n"
+        "    yield registrar(handler)\n"
+        "def outer(registrar):\n"
+        "    yield from install(registrar)\n"
+        'list(outer(app.middleware("http")))\n',
+    ],
+    ids=["consumed-generator-expression", "list-comprehension", "yield-from"],
+)
+def test_legacy_growth_guard_replays_executed_generator_paths(source: str) -> None:
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: registration:middleware:http"
+    ]
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "def install(registrar):\n"
+        "    yield registrar(handler)\n"
+        'pending = install(app.middleware("http"))\n'
+        "list(pending)\n",
+        "def install(registrar):\n"
+        "    registrar(handler)\n"
+        'pending = (install(app.middleware("http")) for _ in [1])\n'
+        "list(pending)\n",
+        "def install(registrar):\n"
+        "    registrar(handler)\n"
+        "def consume(items):\n"
+        "    for item in items:\n"
+        "        pass\n"
+        'consume(install(app.middleware("http")) for _ in [1])\n',
+    ],
+    ids=["generator-alias", "generator-expression-alias", "generator-argument"],
+)
+def test_legacy_growth_guard_replays_aliased_generator_values(source: str) -> None:
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: registration:middleware:http"
+    ]
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "def install(registrar):\n"
+        "    registrar(handler)\n"
+        'list(install(app.middleware("http")) for _ in ())\n',
+        "def install(registrar):\n"
+        "    registrar(handler)\n"
+        'list(install(app.middleware("http")) for _ in [1] if False)\n',
+        'pending = ((registrar := app.middleware("http")) for _ in ())\n' "registrar(handler)\n",
+    ],
+    ids=["empty-iterable", "false-filter", "unconsumed-named-expression"],
+)
+def test_legacy_growth_guard_skips_unreachable_generator_bodies(source: str) -> None:
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+def test_legacy_growth_guard_freezes_generator_expression_outer_iterator() -> None:
+    source = textwrap.dedent("""
+        registrars = [app.middleware("http")]
+        pending = (registrar(handler) for registrar in registrars)
+        registrars = [safe_register]
+        list(pending)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: registration:middleware:http"
+    ]
+
+
+def test_legacy_growth_guard_does_not_reevaluate_generator_outer_iterable() -> None:
+    source = textwrap.dedent("""
+        safe_register = None
+        registrar = safe_register
+
+        def make_items():
+            global registrar
+            registrar = app.middleware("http")
+            return [1]
+
+        pending = (registrar(handler) for _ in make_items())
+        registrar = safe_register
+        list(pending)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+def test_legacy_growth_guard_does_not_replay_exhausted_generator_alias() -> None:
+    source = textwrap.dedent("""
+        registrar = safe_register
+        pending = (registrar(handler) for _ in [1])
+        list(pending)
+        registrar = app.middleware("http")
+        list(pending)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+def test_legacy_growth_guard_skips_empty_later_comprehension_iterable() -> None:
+    source = textwrap.dedent("""
+        def install(registrar):
+            registrar(handler)
+
+        list(
+            install(app.middleware("http"))
+            for _ in [1]
+            for ignored in ()
+        )
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+def test_legacy_growth_guard_skips_postponed_annotation_calls() -> None:
+    source = textwrap.dedent("""
+        from __future__ import annotations
+
+        def install(registrar):
+            registrar(handler)
+
+        def endpoint(argument: install(app.middleware("http"))):
+            pass
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+def test_legacy_growth_guard_honors_decorator_replacement_before_replay() -> None:
+    source = textwrap.dedent("""
+        def safe_install(registrar):
+            return registrar
+
+        def wrap(function):
+            return safe_install
+
+        @wrap
+        def install(registrar):
+            registrar(handler)
+
+        install(app.middleware("http"))
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+def test_legacy_growth_guard_replays_identity_decorated_helper() -> None:
+    source = textwrap.dedent("""
+        def wrap(function):
+            return function
+
+        @wrap
+        def install(registrar):
+            registrar(handler)
+
+        install(app.middleware("http"))
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: registration:middleware:http"
+    ]
+
+
+def test_legacy_growth_guard_does_not_retain_async_decorator_target() -> None:
+    source = textwrap.dedent("""
+        async def wrap(function):
+            return safe_install
+
+        @wrap
+        def install(registrar):
+            registrar(handler)
+
+        install(app.middleware("http"))
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+def test_legacy_growth_guard_snapshots_decorator_before_defaults() -> None:
+    source = textwrap.dedent("""
+        def identity(function):
+            return function
+
+        def replace(function):
+            return safe_install
+
+        decorator = identity
+
+        @decorator
+        def install(registrar, marker=(decorator := replace)):
+            registrar(handler)
+
+        install(app.middleware("http"))
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: registration:middleware:http"
+    ]
+
+
+def test_legacy_growth_guard_evaluates_defaults_before_annotations() -> None:
+    source = textwrap.dedent("""
+        def install(registrar):
+            registrar(handler)
+
+        registrar = safe_install
+
+        def endpoint(
+            value: install(registrar) = (registrar := app.middleware("http")),
+        ):
+            pass
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: registration:middleware:http"
+    ]
+
+
+def test_legacy_growth_guard_replays_returned_closure_with_definition_scope() -> None:
+    source = textwrap.dedent("""
+        def factory(original):
+            def wrapped(registrar):
+                original(registrar)
+
+            return wrapped
+
+        def install(registrar):
+            registrar(handler)
+
+        replacement = factory(install)
+        replacement(app.middleware("http"))
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: registration:middleware:http"
+    ]
+
+
+def test_legacy_growth_guard_keeps_multiple_closure_instances_distinct() -> None:
+    source = textwrap.dedent("""
+        def make(original):
+            def wrapped(registrar):
+                original(registrar)
+
+            return wrapped
+
+        def install(registrar):
+            registrar(handler)
+
+        dangerous = make(install)
+        safe = make(safe_install)
+        dangerous(app.middleware("http"))
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: registration:middleware:http"
+    ]
+
+
+def test_legacy_growth_guard_captures_arguments_in_evaluation_order() -> None:
+    source = textwrap.dedent("""
+        def install(registrar, marker):
+            registrar(handler)
+
+        registrar = app.middleware("http")
+        install(registrar, (registrar := safe_install))
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: registration:middleware:http"
+    ]
+
+
+def test_legacy_growth_guard_tracks_direct_attribute_of_returned_app() -> None:
+    source = textwrap.dedent("""
+        def build():
+            return app
+
+        build().get("/api/v1/returned-app")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:dynamic:/api/v1/returned-app"
+    ]
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        (
+            'class app:\n    app.get("/api/v1/class-body")(handler)\n',
+            "registration:get:/api/v1/class-body",
+        ),
+        (
+            "items = [app]\n"
+            "for app in items:\n"
+            '    app.get("/api/v1/loop-binding")(handler)\n',
+            "registration:get:/api/v1/loop-binding",
+        ),
+        (
+            "import contextlib\n"
+            "with contextlib.nullcontext(app) as app:\n"
+            '    app.get("/api/v1/with-binding")(handler)\n',
+            "registration:get:/api/v1/with-binding",
+        ),
+    ],
+    ids=["class-body", "loop-binding", "with-binding"],
+)
+def test_legacy_growth_guard_preserves_preexisting_app_during_binders(
+    source: str,
+    expected: str,
+) -> None:
+    assert legacy_guard.validate_legacy_growth(source) == [
+        f"legacy_app.py: unexpected legacy route growth: {expected}"
+    ]
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "items = [app]\n" "for alias in items:\n" '    alias.get("/api/v1/loop-alias")(handler)\n',
+        "import contextlib\n"
+        "with contextlib.nullcontext(app) as alias:\n"
+        '    alias.get("/api/v1/with-alias")(handler)\n',
+    ],
+    ids=["loop", "with"],
+)
+def test_legacy_growth_guard_propagates_app_to_new_binder_name(source: str) -> None:
+    assert len(legacy_guard.validate_legacy_growth(source)) == 1
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        (
+            "def install(registrar):\n"
+            "    registrar(handler)\n"
+            "match install:\n"
+            "    case alias:\n"
+            '        alias(app.middleware("http"))\n',
+            "registration:middleware:http",
+        ),
+        (
+            "def install(registrar):\n"
+            '    registrar("/api/v1/match-capture")(handler)\n'
+            "match install:\n"
+            "    case alias:\n"
+            "        alias(app.get)\n",
+            "registration:dynamic:/api/v1/match-capture",
+        ),
+        (
+            "import contextlib\n"
+            "def install(registrar):\n"
+            "    registrar(handler)\n"
+            "with contextlib.nullcontext(install) as alias:\n"
+            '    alias(app.middleware("http"))\n',
+            "registration:middleware:http",
+        ),
+        (
+            "from contextlib import nullcontext\n"
+            "def install(registrar):\n"
+            '    registrar("/api/v1/with-capture")(handler)\n'
+            "with nullcontext(enter_result=install) as alias:\n"
+            "    alias(app.get)\n",
+            "registration:dynamic:/api/v1/with-capture",
+        ),
+    ],
+    ids=["match-middleware", "match-route", "with-middleware", "with-route-keyword"],
+)
+def test_legacy_growth_guard_preserves_callable_provenance_across_binders(
+    source: str,
+    expected: str,
+) -> None:
+    assert legacy_guard.validate_legacy_growth(source) == [
+        f"legacy_app.py: unexpected legacy route growth: {expected}"
+    ]
+
+
+@pytest.mark.parametrize(
+    "collection",
+    ["[install]", "(install,)", "{install}", "first"],
+    ids=["list", "tuple", "set", "nested-alias"],
+)
+def test_legacy_growth_guard_preserves_named_collection_element_callables(
+    collection: str,
+) -> None:
+    prefix = "first = [install]\n" if collection == "first" else ""
+    source = (
+        "def install(registrar):\n"
+        "    registrar(handler)\n"
+        f"{prefix}"
+        f"helpers = {collection}\n"
+        "for alias in helpers:\n"
+        '    alias(app.middleware("http"))\n'
+    )
+
+    first = legacy_guard.validate_legacy_growth(source)
+    second = legacy_guard.validate_legacy_growth(source)
+
+    assert first == ["legacy_app.py: unexpected legacy route growth: registration:middleware:http"]
+    assert second == first
+
+
+@pytest.mark.parametrize(
+    "gather_body",
+    [
+        'await asyncio.gather(install(app.middleware("http")))',
+        'pending = install(app.middleware("http"))\n' "await asyncio.gather(safe(), pending)",
+        'pending = [install(app.middleware("http"))]\n' "await asyncio.gather(*pending)",
+    ],
+    ids=["direct", "named-coroutine", "starred-known-collection"],
+)
+def test_legacy_growth_guard_replays_awaited_asyncio_gather_arguments(
+    gather_body: str,
+) -> None:
+    source = (
+        "import asyncio\n\n"
+        "async def install(registrar):\n"
+        "    registrar(handler)\n\n"
+        "async def safe():\n"
+        "    return None\n\n"
+        "async def start():\n"
+        f"{textwrap.indent(gather_body, '    ')}\n\n"
+        "asyncio.run(start())\n"
+    )
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: registration:middleware:http"
+    ]
+
+
+@pytest.mark.parametrize(
+    ("helper", "execution"),
+    [
+        (
+            "async def install(registrar):\n" "    registrar(handler)\n",
+            "async def start():\n"
+            '    await asyncio.shield(install(app.middleware("http")))\n'
+            "asyncio.run(start())",
+        ),
+        (
+            "def install(registrar):\n" "    registrar(handler)\n",
+            'list(map(install, [app.middleware("http")]))',
+        ),
+        (
+            "def install(registrar):\n" "    yield None\n" "    registrar(handler)\n",
+            # The guard intentionally treats a consumed generator as fail-closed
+            # rather than attempting yield-by-yield control-flow interpretation.
+            'next(install(app.middleware("http")))',
+        ),
+    ],
+    ids=["asyncio-shield", "eager-map-callback", "next-fail-closed"],
+)
+def test_legacy_growth_guard_closes_executor_and_consumer_callback_paths(
+    helper: str,
+    execution: str,
+) -> None:
+    source = "import asyncio\n\n" f"{helper}\n" f"{execution}\n"
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: registration:middleware:http"
+    ]
+
+
+@pytest.mark.parametrize(
+    ("helper", "binding", "invocation"),
+    [
+        (
+            "def install(registrar):\n" "    registrar(handler)\n",
+            'run = partial(install, app.middleware("http"))',
+            "run()",
+        ),
+        (
+            "def install(prefix, registrar):\n" "    registrar(handler)\n",
+            'run = partial(install, "prefix")',
+            'run(app.middleware("http"))',
+        ),
+    ],
+    ids=["fully-bound", "forwarded-argument"],
+)
+def test_legacy_growth_guard_replays_invoked_partial_helpers(
+    helper: str,
+    binding: str,
+    invocation: str,
+) -> None:
+    source = "from functools import partial\n\n" f"{helper}\n" f"{binding}\n" f"{invocation}\n"
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: registration:middleware:http"
+    ]
+
+
+@pytest.mark.parametrize(
+    "execution",
+    [
+        '    asyncio.gather(install(app.middleware("http")))',
+        "    async with asyncio.TaskGroup() as group:\n"
+        '        group.create_task(install(app.middleware("http")))',
+    ],
+    ids=["unawaited-gather", "task-group"],
+)
+def test_legacy_growth_guard_replays_scheduled_coroutines_in_running_async_flow(
+    execution: str,
+) -> None:
+    source = (
+        "import asyncio\n\n"
+        "async def install(registrar):\n"
+        "    registrar(handler)\n\n"
+        "async def start():\n"
+        f"{execution}\n\n"
+        "asyncio.run(start())\n"
+    )
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: registration:middleware:http"
+    ]
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "from functools import partial\n\n"
+        "def install(registrar):\n"
+        "    registrar(handler)\n\n"
+        'run = partial(install, app.middleware("http"))\n',
+        "import asyncio\n\n"
+        "async def install(registrar):\n"
+        "    registrar(handler)\n\n"
+        "async def start():\n"
+        '    asyncio.gather(install(app.middleware("http")))\n',
+        "import asyncio\n\n"
+        "async def install(registrar):\n"
+        "    registrar(handler)\n\n"
+        "async def start():\n"
+        "    async with asyncio.TaskGroup() as group:\n"
+        "        pass\n"
+        '    group.create_task(install(app.middleware("http")))\n\n'
+        "asyncio.run(start())\n",
+    ],
+    ids=[
+        "partial-not-invoked",
+        "gather-in-uninvoked-coroutine",
+        "task-group-after-exit",
+    ],
+)
+def test_legacy_growth_guard_does_not_replay_unexecuted_callback_paths(source: str) -> None:
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "import contextlib\n"
+        "with contextlib.nullcontext() as alias:\n"
+        '    getattr(alias, "get", safe)("/api/v1/safe")(handler)\n',
+        "def install(registrar):\n"
+        "    registrar(handler)\n"
+        "helpers = [install]\n"
+        'helpers(app.middleware("http"))\n',
+        "def safe(registrar):\n"
+        "    pass\n"
+        "helpers = [safe]\n"
+        "for alias in helpers:\n"
+        '    alias(app.middleware("http"))\n',
+        "async def install(registrar):\n"
+        "    registrar(handler)\n"
+        'list(map(install, [app.middleware("http")]))\n',
+        "def install(registrar):\n"
+        "    yield registrar(handler)\n"
+        'list(map(install, [app.middleware("http")]))\n',
+    ],
+    ids=[
+        "nullcontext-default",
+        "collection-not-callable",
+        "safe-element",
+        "map-async-callback-not-awaited",
+        "map-generator-result-not-consumed",
+    ],
+)
+def test_legacy_growth_guard_keeps_callable_binder_negative_controls(
+    source: str,
+) -> None:
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+def test_legacy_growth_guard_applies_local_class_decorator_result() -> None:
+    source = textwrap.dedent("""
+        def expose(cls):
+            return app
+
+        @expose
+        class alias:
+            pass
+
+        alias.get("/api/v1/decorated-class")(handler)
+        """)
+
+    assert len(legacy_guard.validate_legacy_growth(source)) == 1
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        'install = lambda target: target.get("/api/v1/lambda")(handler)\ninstall(app)\n',
+        'install = lambda target: target.get("/api/v1/lambda-alias")(handler)\n'
+        "alias = install\nalias(app)\n",
+    ],
+    ids=["direct", "alias"],
+)
+def test_legacy_growth_guard_replays_invoked_lambda_helpers(source: str) -> None:
+    assert len(legacy_guard.validate_legacy_growth(source)) == 1
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "class Installer:\n"
+        "    @staticmethod\n"
+        "    def install(target):\n"
+        '        target.get("/api/v1/static-method")(handler)\n'
+        "Installer.install(app)\n",
+        "class Installer:\n"
+        "    @classmethod\n"
+        "    def install(cls, target):\n"
+        '        target.get("/api/v1/class-method")(handler)\n'
+        "Installer.install(app)\n",
+        "class Installer:\n"
+        "    def install(self, target):\n"
+        '        target.get("/api/v1/instance-method")(handler)\n'
+        "Installer().install(app)\n",
+    ],
+    ids=["staticmethod", "classmethod", "instance-method"],
+)
+def test_legacy_growth_guard_replays_class_method_helpers(source: str) -> None:
+    assert len(legacy_guard.validate_legacy_growth(source)) == 1
+
+
+@pytest.mark.parametrize("consumer", ["sorted", "max", "min", "frozenset"])
+def test_legacy_growth_guard_replays_additional_eager_consumers(consumer: str) -> None:
+    source = textwrap.dedent(f"""
+        def install(registrar):
+            yield registrar(handler)
+
+        pending = install(app.middleware("http"))
+        {consumer}(pending)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: registration:middleware:http"
+    ]
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        (
+            "def install(registrar):\n"
+            "    return registrar\n"
+            'install(app.middleware("http"))(handler)\n',
+            "registration:middleware:http",
+        ),
+        (
+            "def install():\n"
+            "    return app.get\n"
+            'install()("/api/v1/returned-route")(handler)\n',
+            "registration:get:/api/v1/returned-route",
+        ),
+    ],
+    ids=["middleware", "route"],
+)
+def test_legacy_growth_guard_tracks_helper_return_bindings(
+    source: str,
+    expected: str,
+) -> None:
+    assert legacy_guard.validate_legacy_growth(source) == [
+        f"legacy_app.py: unexpected legacy route growth: {expected}"
+    ]
+
+
+@pytest.mark.parametrize(
+    "execution",
+    ["await pending", "asyncio.create_task(pending)"],
+    ids=["await-alias", "create-task-alias"],
+)
+def test_legacy_growth_guard_replays_executed_coroutine_alias(execution: str) -> None:
+    source = textwrap.dedent(f"""
+        import asyncio
+
+        async def install(registrar):
+            registrar(handler)
+
+        async def start():
+            pending = install(app.middleware("http"))
+            {execution}
+
+        asyncio.run(start())
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: registration:middleware:http"
+    ]
+
+
+@pytest.mark.parametrize(
+    ("returned", "invocation", "expected"),
+    [
+        (
+            "app.get",
+            'registrar("/api/v1/awaited-return")(handler)',
+            "registration:dynamic:/api/v1/awaited-return",
+        ),
+        (
+            'app.middleware("http")',
+            "registrar(handler)",
+            "registration:middleware:http",
+        ),
+    ],
+    ids=["route", "middleware"],
+)
+def test_legacy_growth_guard_tracks_awaited_helper_return_bindings(
+    returned: str,
+    invocation: str,
+    expected: str,
+) -> None:
+    source = textwrap.dedent(f"""
+        import asyncio
+
+        async def build():
+            return {returned}
+
+        async def start():
+            registrar = await build()
+            {invocation}
+
+        asyncio.run(start())
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        f"legacy_app.py: unexpected legacy route growth: {expected}"
+    ]
+
+
+@pytest.mark.parametrize(
+    "execution",
+    ["pending = await build(registrar); await pending", "await (await build(registrar))"],
+    ids=["assigned-double-await", "nested-double-await"],
+)
+def test_legacy_growth_guard_tracks_coroutine_returned_by_awaited_helper(
+    execution: str,
+) -> None:
+    source = textwrap.dedent(f"""
+        import asyncio
+
+        async def install(registrar):
+            registrar(handler)
+
+        async def build(registrar):
+            return install(registrar)
+
+        async def start():
+            registrar = app.middleware("http")
+            {execution}
+
+        asyncio.run(start())
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: registration:middleware:http"
+    ]
+
+
+def test_legacy_growth_guard_merges_deferred_branch_outward_effects() -> None:
+    source = textwrap.dedent("""
+        import asyncio
+
+        install = safe_install
+
+        async def make_dangerous():
+            global install
+
+            def register(registrar):
+                registrar(handler)
+
+            install = register
+
+        async def make_safe():
+            global install
+            install = safe_install
+
+        pending = make_dangerous() if enabled else make_safe()
+        asyncio.run(pending)
+        install(app.middleware("http"))
+        """)
+
+    first = legacy_guard.validate_legacy_growth(source)
+    second = legacy_guard.validate_legacy_growth(source)
+
+    assert first == ["legacy_app.py: unexpected legacy route growth: registration:middleware:http"]
+    assert second == first
 
 
 @pytest.mark.parametrize(
