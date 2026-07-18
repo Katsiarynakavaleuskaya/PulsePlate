@@ -12,7 +12,7 @@ numpy==2.4.6
     #   pandas
 pandas==3.0.3
     # via -r requirements-data.in
-pyarrow==24.0.0
+pyarrow==25.0.0
     # via -r requirements-data.in
 python-dateutil==2.9.0.post0
     # via

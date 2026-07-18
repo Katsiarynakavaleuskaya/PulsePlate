@@ -116,7 +116,7 @@ def main():
         )
     out_df = pd.DataFrame(out_rows)
     OUT_PARQUET.parent.mkdir(parents=True, exist_ok=True)
-    out_df.to_parquet(OUT_PARQUET, index=False)
+    out_df.to_parquet(OUT_PARQUET, engine="pyarrow", index=False)
     con = sqlite3.connect(OUT_SQLITE)
     out_df.to_sql("recipes", con, if_exists="replace", index=False)
     con.execute("DROP TABLE IF EXISTS recipes_fts;")
