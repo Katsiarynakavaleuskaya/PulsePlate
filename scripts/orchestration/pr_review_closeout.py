@@ -663,6 +663,7 @@ def _cmd_seal(args: argparse.Namespace) -> None:
             Path(args.scan_manifest),
             expected_base_sha=manifest.merge_base_sha,
             expected_head_sha=snapshot.head_sha,
+            expected_material_paths=(entry.path for entry in manifest.entries),
         )
     else:
         validate_security_outage_override_scope(

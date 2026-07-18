@@ -11,7 +11,7 @@ import subprocess
 from argparse import Namespace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path, PurePosixPath
-from typing import Any, cast
+from typing import Any, Iterable, cast
 
 import pytest
 
@@ -51,7 +51,7 @@ from scripts.orchestration.pr_review_evidence import (
     build_review_credit_outage_receipt,
     build_security_outage_override_receipt,
     compute_material_manifest,
-    ingest_codex_security_receipt,
+    ingest_codex_security_receipt as _ingest_codex_security_receipt,
     is_review_credit_outage_receipt,
     is_security_outage_override_receipt,
     parse_duplicate_disposition_reply,
@@ -76,6 +76,24 @@ UNAVAILABLE_SHA = "5" * 40
 DIGEST = "sha256:" + "a" * 64
 SNAPSHOT_DIGEST = "codex-security-snapshot/v1:sha256:" + "b" * 64
 SCAN_ID = "123e4567-e89b-42d3-a456-426614174000"
+DEFAULT_SCAN_MATERIAL_PATHS = ("scripts/orchestration/pr_review_evidence.py",)
+
+
+def ingest_codex_security_receipt(
+    manifest_path: Path,
+    *,
+    expected_base_sha: str,
+    expected_head_sha: str,
+    expected_material_paths: Iterable[str] = DEFAULT_SCAN_MATERIAL_PATHS,
+) -> dict[str, Any]:
+    """Ingest a test bundle against the default changed-file inventory."""
+
+    return _ingest_codex_security_receipt(
+        manifest_path,
+        expected_base_sha=expected_base_sha,
+        expected_head_sha=expected_head_sha,
+        expected_material_paths=expected_material_paths,
+    )
 
 
 def _snapshot() -> PrSnapshot:
@@ -1705,7 +1723,9 @@ def test_scan_receipt_validates_real_bundle_and_contains_no_local_path(tmp_path:
     manifest_path = _build_scan_bundle(tmp_path / "scan")
 
     receipt = ingest_codex_security_receipt(
-        manifest_path, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+        manifest_path,
+        expected_base_sha=BASE_SHA,
+        expected_head_sha=HEAD_SHA,
     )
 
     assert receipt["authority"] == RECEIPT_AUTHORITY
@@ -1774,7 +1794,10 @@ def test_scan_receipt_accepts_claim_followed_by_one_completed_row(tmp_path: Path
     )
 
     receipt = ingest_codex_security_receipt(
-        manifest_path, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+        manifest_path,
+        expected_base_sha=BASE_SHA,
+        expected_head_sha=HEAD_SHA,
+        expected_material_paths=("app/service.py",),
     )
 
     assert receipt["coverage_completeness"] == "complete"
@@ -1809,10 +1832,29 @@ def test_scan_receipt_accepts_versioned_completed_work_ledger_rows(
     )
 
     receipt = ingest_codex_security_receipt(
-        manifest_path, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+        manifest_path,
+        expected_base_sha=BASE_SHA,
+        expected_head_sha=HEAD_SHA,
+        expected_material_paths=("app/service.py",),
     )
 
     assert receipt["coverage_completeness"] == "complete"
+
+
+def test_scan_receipt_rejects_completed_ledger_path_outside_material_diff(
+    tmp_path: Path,
+) -> None:
+    manifest_path = _build_scan_bundle(
+        tmp_path / "scan",
+        work_ledger_raw=b'{"path":"README.md","status":"completed"}\n',
+    )
+
+    with pytest.raises(ReviewEvidenceError, match="material Git diff"):
+        ingest_codex_security_receipt(
+            manifest_path,
+            expected_base_sha=BASE_SHA,
+            expected_head_sha=HEAD_SHA,
+        )
 
 
 def test_scan_receipt_requires_surface_link_to_canonical_work_ledger(

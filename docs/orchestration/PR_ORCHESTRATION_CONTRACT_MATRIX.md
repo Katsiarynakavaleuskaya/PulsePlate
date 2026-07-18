@@ -166,10 +166,13 @@ governance PR number + 1; the governance PR may opt in with
   one sealed receipt, and the surface union must cite the canonical work
   ledger. The ledger is parsed as bounded UTF-8 JSONL: every row must name a
   repository-relative path and a non-empty status, and every unique path must
-  have at least one `complete` or `completed` row. Producer-specific spellings
+  have at least one `complete` or `completed` row. Every ledger path must also
+  belong to the canonical material Git diff; producer-specific supporting-file
+  metadata does not widen that top-level inventory. Producer-specific spellings
   for full-file review, reviewer identity, disposition, and evidence remain
   opaque until a separately versioned ledger schema defines them. A hash-valid
-  empty or pathless placeholder ledger cannot authorize a complete scan receipt.
+  empty, pathless, or unrelated placeholder ledger cannot authorize a complete
+  scan receipt.
   Its coverage record must also use `inventoryStrategy: "diff"`,
   `mode: "branch_diff"`, and no explicit exclusions. Because this receipt
   variant requires an empty `findings.json`, each surface disposition must be

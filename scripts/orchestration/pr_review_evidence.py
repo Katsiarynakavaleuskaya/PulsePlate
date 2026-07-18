@@ -851,7 +851,17 @@ def _coverage_receipt_refs(coverage: Mapping[str, Any]) -> set[str]:
     return receipt_refs
 
 
-def _validate_work_ledger(raw: bytes) -> None:
+def _validate_work_ledger(
+    raw: bytes,
+    *,
+    expected_material_paths: Iterable[str],
+) -> None:
+    material_paths = {
+        _safe_relative_artifact_path(path).as_posix() for path in expected_material_paths
+    }
+    if not material_paths or len(material_paths) > _MAX_WORK_LEDGER_ROWS:
+        raise ReviewEvidenceError("material path count is outside supported bounds")
+
     try:
         text = raw.decode("utf-8")
     except UnicodeDecodeError as exc:
@@ -884,6 +894,8 @@ def _validate_work_ledger(raw: bytes) -> None:
 
     if not completed_paths or completed_paths != ledger_paths:
         raise ReviewEvidenceError("work ledger must contain a completed row for every path")
+    if not ledger_paths <= material_paths:
+        raise ReviewEvidenceError("work ledger paths must belong to the material Git diff")
 
 
 def _scan_scope_paths(value: Any, *, label: str) -> tuple[str, ...]:
@@ -930,6 +942,7 @@ def _ingest_codex_security_receipt_from_descriptor(
     *,
     expected_base_sha: str,
     expected_head_sha: str,
+    expected_material_paths: Iterable[str],
 ) -> dict[str, Any]:
     """Validate one completed bundle through a stable scan-root descriptor."""
     expected_base = _require_sha(expected_base_sha, label="expected_base_sha")
@@ -1127,7 +1140,10 @@ def _ingest_codex_security_receipt_from_descriptor(
         if path in _CANONICAL_SCAN_ARTIFACT_MEDIA_TYPES:
             artifact_raw[path] = raw
 
-    _validate_work_ledger(artifact_raw["artifacts/02_discovery/work_ledger.jsonl"])
+    _validate_work_ledger(
+        artifact_raw["artifacts/02_discovery/work_ledger.jsonl"],
+        expected_material_paths=expected_material_paths,
+    )
     findings = _load_json_bytes(artifact_raw["findings.json"], label="findings.json")
     if not isinstance(findings, dict):
         raise ReviewEvidenceError("findings.json must contain an object")
@@ -1169,6 +1185,7 @@ def ingest_codex_security_receipt(
     *,
     expected_base_sha: str,
     expected_head_sha: str,
+    expected_material_paths: Iterable[str],
 ) -> dict[str, Any]:
     """Validate one completed plugin bundle and return a bounded human receipt."""
 
@@ -1180,6 +1197,7 @@ def ingest_codex_security_receipt(
             root_descriptor,
             expected_base_sha=expected_base_sha,
             expected_head_sha=expected_head_sha,
+            expected_material_paths=expected_material_paths,
         )
     finally:
         os.close(root_descriptor)
