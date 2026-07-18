@@ -784,8 +784,7 @@ def _operator_exact_head_review(reference: str) -> dict[str, Any]:
     return {
         "author_association": "OWNER",
         "body": (
-            f"Exact-head bounded review completed for `{HEAD_SHA}`. "
-            "No actionable findings remain."
+            f"Exact-head bounded review completed for `{HEAD_SHA}`. No actionable findings remain."
         ),
         "commit_id": HEAD_SHA,
         "html_url": reference,
@@ -1524,7 +1523,19 @@ def _write_json(path: Path, value: Any) -> bytes:
     return raw
 
 
-def _build_scan_bundle(root: Path) -> Path:
+def _build_scan_bundle(
+    root: Path,
+    *,
+    receipt_artifacts: dict[str, bytes] | None = None,
+    surfaces: list[dict[str, Any]] | None = None,
+) -> Path:
+    receipt_artifacts = dict(receipt_artifacts or {})
+    if set(receipt_artifacts) & {
+        "coverage.json",
+        "findings.json",
+        "artifacts/02_discovery/work_ledger.jsonl",
+    }:
+        raise ValueError("receipt artifacts must not replace canonical scan artifacts")
     coverage = {
         "completeness": "complete",
         "deferred": [],
@@ -1537,7 +1548,7 @@ def _build_scan_bundle(root: Path) -> Path:
         "openQuestions": [],
         "scanId": SCAN_ID,
         "schemaVersion": "1.0",
-        "surfaces": [],
+        "surfaces": list(surfaces or []),
     }
     findings = {
         "documentType": "codex-security.findings",
@@ -1552,26 +1563,39 @@ def _build_scan_bundle(root: Path) -> Path:
     ledger_raw = b'{"status":"reviewed"}\n'
     ledger_path.write_bytes(ledger_raw)
 
+    artifact_records = [
+        {
+            "mediaType": "application/json",
+            "path": "findings.json",
+            "sha256": hashlib.sha256(findings_raw).hexdigest(),
+        },
+        {
+            "mediaType": "application/json",
+            "path": "coverage.json",
+            "sha256": hashlib.sha256(coverage_raw).hexdigest(),
+        },
+        {
+            "mediaType": "application/octet-stream",
+            "path": "artifacts/02_discovery/work_ledger.jsonl",
+            "sha256": hashlib.sha256(ledger_raw).hexdigest(),
+        },
+    ]
+    for relative_path, raw in sorted(receipt_artifacts.items()):
+        artifact_path = root.joinpath(*PurePosixPath(relative_path).parts)
+        artifact_path.parent.mkdir(parents=True, exist_ok=True)
+        artifact_path.write_bytes(raw)
+        artifact_records.append(
+            {
+                "mediaType": "application/octet-stream",
+                "path": relative_path,
+                "sha256": hashlib.sha256(raw).hexdigest(),
+            }
+        )
+
     manifest = {
         "documentType": "codex-security.scan-manifest",
         "scan": {
-            "artifacts": [
-                {
-                    "mediaType": "application/json",
-                    "path": "findings.json",
-                    "sha256": hashlib.sha256(findings_raw).hexdigest(),
-                },
-                {
-                    "mediaType": "application/json",
-                    "path": "coverage.json",
-                    "sha256": hashlib.sha256(coverage_raw).hexdigest(),
-                },
-                {
-                    "mediaType": "application/octet-stream",
-                    "path": "artifacts/02_discovery/work_ledger.jsonl",
-                    "sha256": hashlib.sha256(ledger_raw).hexdigest(),
-                },
-            ],
+            "artifacts": artifact_records,
             "completedAt": "2026-07-15T11:00:00Z",
             "coverageRef": "coverage.json",
             "findingsRef": "findings.json",
@@ -1597,6 +1621,55 @@ def _build_scan_bundle(root: Path) -> Path:
     return root / "scan-manifest.json"
 
 
+def _rewrite_scan_json_artifact(
+    manifest_path: Path,
+    relative_path: str,
+    value: Any,
+) -> None:
+    raw = _write_json(manifest_path.parent / relative_path, value)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    for artifact in manifest["scan"]["artifacts"]:
+        if artifact["path"] == relative_path:
+            artifact["sha256"] = hashlib.sha256(raw).hexdigest()
+            break
+    else:
+        raise AssertionError(f"manifest does not contain {relative_path}")
+    _write_json(manifest_path, manifest)
+
+
+def _build_scan_superset(root: Path) -> Path:
+    shared_receipt = "artifacts/03_coverage/reviewed_surfaces.md"
+    return _build_scan_bundle(
+        root,
+        receipt_artifacts={
+            "artifacts/02_discovery/finding_discovery_report.md": b"no findings\n",
+            "artifacts/03_coverage/repository_coverage_ledger.md": b"complete\n",
+            shared_receipt: b"all reviewed\n",
+        },
+        surfaces=[
+            {
+                "disposition": "no_issue_found",
+                "id": "runtime",
+                "label": "Runtime",
+                "receiptRefs": [
+                    "artifacts/02_discovery/work_ledger.jsonl",
+                    "artifacts/02_discovery/finding_discovery_report.md",
+                    shared_receipt,
+                ],
+            },
+            {
+                "disposition": "no_issue_found",
+                "id": "contracts",
+                "label": "Contracts",
+                "receiptRefs": [
+                    "artifacts/03_coverage/repository_coverage_ledger.md",
+                    shared_receipt,
+                ],
+            },
+        ],
+    )
+
+
 def test_scan_receipt_validates_real_bundle_and_contains_no_local_path(tmp_path: Path) -> None:
     manifest_path = _build_scan_bundle(tmp_path / "scan")
 
@@ -1607,6 +1680,417 @@ def test_scan_receipt_validates_real_bundle_and_contains_no_local_path(tmp_path:
     assert receipt["authority"] == RECEIPT_AUTHORITY
     assert receipt["findings_count"] == 0
     assert str(tmp_path) not in json.dumps(receipt)
+
+
+def test_scan_receipt_accepts_exact_referenced_superset_in_any_order(tmp_path: Path) -> None:
+    manifest_path = _build_scan_superset(tmp_path / "scan")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["scan"]["artifacts"].reverse()
+    _write_json(manifest_path, manifest)
+
+    receipt = ingest_codex_security_receipt(
+        manifest_path, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+    )
+
+    assert set(receipt["artifacts"]) == {
+        "coverage_sha256",
+        "findings_sha256",
+        "work_ledger_sha256",
+    }
+    assert "reviewed_surfaces" not in json.dumps(receipt)
+    assert str(tmp_path) not in json.dumps(receipt)
+
+
+def test_scan_receipt_rejects_tampered_referenced_artifact(tmp_path: Path) -> None:
+    manifest_path = _build_scan_superset(tmp_path / "scan")
+    (manifest_path.parent / "artifacts" / "03_coverage" / "reviewed_surfaces.md").write_text(
+        "tampered\n", encoding="utf-8"
+    )
+
+    with pytest.raises(ReviewEvidenceError, match="hash mismatch.*reviewed_surfaces"):
+        ingest_codex_security_receipt(
+            manifest_path, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+        )
+
+
+def test_scan_receipt_rejects_missing_ref_and_unreferenced_manifest_entry(
+    tmp_path: Path,
+) -> None:
+    missing_ref_manifest = _build_scan_bundle(
+        tmp_path / "missing-ref",
+        surfaces=[
+            {
+                "id": "runtime",
+                "receiptRefs": ["artifacts/02_discovery/missing.md"],
+            }
+        ],
+    )
+    with pytest.raises(ReviewEvidenceError, match="must exactly match"):
+        ingest_codex_security_receipt(
+            missing_ref_manifest,
+            expected_base_sha=BASE_SHA,
+            expected_head_sha=HEAD_SHA,
+        )
+
+    unreferenced_manifest = _build_scan_bundle(
+        tmp_path / "unreferenced",
+        receipt_artifacts={"artifacts/02_discovery/unreferenced.md": b"extra\n"},
+    )
+    with pytest.raises(ReviewEvidenceError, match="must exactly match"):
+        ingest_codex_security_receipt(
+            unreferenced_manifest,
+            expected_base_sha=BASE_SHA,
+            expected_head_sha=HEAD_SHA,
+        )
+
+
+def test_scan_receipt_ignores_unsealed_projection_file(tmp_path: Path) -> None:
+    manifest_path = _build_scan_bundle(tmp_path / "scan")
+    (manifest_path.parent / "report.md").write_text("projection\n", encoding="utf-8")
+
+    receipt = ingest_codex_security_receipt(
+        manifest_path, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+    )
+
+    assert receipt["coverage_completeness"] == "complete"
+
+
+def test_scan_receipt_rejects_duplicate_manifest_path_and_surface_ref(tmp_path: Path) -> None:
+    manifest_path = _build_scan_bundle(tmp_path / "duplicate-manifest")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["scan"]["artifacts"].append(dict(manifest["scan"]["artifacts"][0]))
+    _write_json(manifest_path, manifest)
+    with pytest.raises(ReviewEvidenceError, match="paths must be unique"):
+        ingest_codex_security_receipt(
+            manifest_path, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+        )
+
+    duplicate_ref_manifest = _build_scan_bundle(
+        tmp_path / "duplicate-ref",
+        surfaces=[
+            {
+                "id": "runtime",
+                "receiptRefs": [
+                    "artifacts/02_discovery/work_ledger.jsonl",
+                    "artifacts/02_discovery/work_ledger.jsonl",
+                ],
+            }
+        ],
+    )
+    with pytest.raises(ReviewEvidenceError, match="receiptRefs must be unique"):
+        ingest_codex_security_receipt(
+            duplicate_ref_manifest,
+            expected_base_sha=BASE_SHA,
+            expected_head_sha=HEAD_SHA,
+        )
+
+
+@pytest.mark.parametrize(
+    ("receipt_ref", "message"),
+    [
+        ("../outside.md", "escapes the scan root"),
+        ("/absolute.md", "escapes the scan root"),
+        (r"artifacts\outside.md", "POSIX path"),
+        ("artifacts/\x00outside.md", "control characters"),
+        ("artifacts//outside.md", "canonical POSIX form"),
+        ("artifacts/./outside.md", "canonical POSIX form"),
+        ("other/outside.md", "stay under artifacts"),
+        ("artifacts/\ud800.md", "valid UTF-8"),
+    ],
+)
+def test_scan_receipt_rejects_unsafe_receipt_refs(
+    tmp_path: Path,
+    receipt_ref: str,
+    message: str,
+) -> None:
+    manifest_path = _build_scan_bundle(
+        tmp_path / hashlib.sha256(receipt_ref.encode("utf-8", "surrogatepass")).hexdigest(),
+        surfaces=[{"id": "runtime", "receiptRefs": [receipt_ref]}],
+    )
+
+    with pytest.raises(ReviewEvidenceError, match=message):
+        ingest_codex_security_receipt(
+            manifest_path, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+        )
+
+
+@pytest.mark.parametrize(
+    ("constant", "limit", "receipt_ref", "message"),
+    [
+        ("_MAX_ARTIFACT_PATH_BYTES", 10, "artifacts/long-name.md", "path exceeds size"),
+        ("_MAX_ARTIFACT_PATH_DEPTH", 1, "artifacts/nested.md", "depth limit"),
+        ("_MAX_ARTIFACT_COMPONENT_BYTES", 3, "artifacts/x.md", "component exceeds"),
+    ],
+)
+def test_scan_receipt_enforces_receipt_path_bounds(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    constant: str,
+    limit: int,
+    receipt_ref: str,
+    message: str,
+) -> None:
+    manifest_path = _build_scan_bundle(
+        tmp_path / constant,
+        surfaces=[{"id": "runtime", "receiptRefs": [receipt_ref]}],
+    )
+    monkeypatch.setattr(evidence_module, constant, limit)
+
+    with pytest.raises(ReviewEvidenceError, match=message):
+        ingest_codex_security_receipt(
+            manifest_path, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+        )
+
+
+def test_scan_receipt_rejects_malformed_surfaces_and_refs(tmp_path: Path) -> None:
+    malformed_cases: list[tuple[list[dict[str, Any]], str]] = [
+        ([{"receiptRefs": []}], "id must be"),
+        ([{"id": "runtime", "receiptRefs": "not-a-list"}], "outside supported bounds"),
+        ([{"id": "runtime", "receiptRefs": [7]}], "non-empty POSIX path"),
+        (
+            [
+                {"id": "duplicate", "receiptRefs": []},
+                {"id": "duplicate", "receiptRefs": []},
+            ],
+            "ids must be unique",
+        ),
+    ]
+    for index, (surfaces, message) in enumerate(malformed_cases):
+        manifest_path = _build_scan_bundle(tmp_path / str(index), surfaces=surfaces)
+        with pytest.raises(ReviewEvidenceError, match=message):
+            ingest_codex_security_receipt(
+                manifest_path, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+            )
+
+
+def test_scan_receipt_enforces_inventory_and_reference_count_bounds(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest_path = _build_scan_superset(tmp_path / "artifact-count")
+    monkeypatch.setattr(evidence_module, "_MAX_SCAN_ARTIFACTS", 3)
+    with pytest.raises(ReviewEvidenceError, match="artifact count"):
+        ingest_codex_security_receipt(
+            manifest_path, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+        )
+
+    monkeypatch.setattr(evidence_module, "_MAX_SCAN_ARTIFACTS", 256)
+    surface_manifest = _build_scan_bundle(
+        tmp_path / "surface-count",
+        surfaces=[
+            {
+                "id": "runtime",
+                "receiptRefs": ["artifacts/02_discovery/work_ledger.jsonl"],
+            }
+        ],
+    )
+    monkeypatch.setattr(evidence_module, "_MAX_COVERAGE_SURFACES", 0)
+    with pytest.raises(ReviewEvidenceError, match="coverage surfaces"):
+        ingest_codex_security_receipt(
+            surface_manifest, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+        )
+
+    monkeypatch.setattr(evidence_module, "_MAX_COVERAGE_SURFACES", 1024)
+    monkeypatch.setattr(evidence_module, "_MAX_RECEIPT_REFS_PER_SURFACE", 0)
+    with pytest.raises(ReviewEvidenceError, match="receiptRefs are outside"):
+        ingest_codex_security_receipt(
+            surface_manifest, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+        )
+
+    monkeypatch.setattr(evidence_module, "_MAX_RECEIPT_REFS_PER_SURFACE", 64)
+    monkeypatch.setattr(evidence_module, "_MAX_RECEIPT_REF_OCCURRENCES", 0)
+    with pytest.raises(ReviewEvidenceError, match="occurrence limit"):
+        ingest_codex_security_receipt(
+            surface_manifest, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+        )
+
+
+def test_scan_receipt_enforces_per_file_and_aggregate_byte_bounds(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest_path = _build_scan_bundle(
+        tmp_path / "per-file",
+        receipt_artifacts={"artifacts/02_discovery/report.md": b"too large"},
+        surfaces=[
+            {
+                "id": "runtime",
+                "receiptRefs": ["artifacts/02_discovery/report.md"],
+            }
+        ],
+    )
+    monkeypatch.setattr(evidence_module, "_MAX_RECEIPT_ARTIFACT_BYTES", 1)
+    with pytest.raises(ReviewEvidenceError, match="exceeds size limit"):
+        ingest_codex_security_receipt(
+            manifest_path, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+        )
+
+    monkeypatch.setattr(evidence_module, "_MAX_RECEIPT_ARTIFACT_BYTES", 8 * 1024 * 1024)
+    aggregate_manifest = _build_scan_bundle(tmp_path / "aggregate")
+    coverage_size = (aggregate_manifest.parent / "coverage.json").stat().st_size
+    monkeypatch.setattr(evidence_module, "_MAX_SCAN_ARTIFACT_BYTES", coverage_size)
+    with pytest.raises(ReviewEvidenceError, match="exceeds size limit"):
+        ingest_codex_security_receipt(
+            aggregate_manifest, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+        )
+
+
+def test_scan_receipt_hashes_coverage_before_using_receipt_refs(tmp_path: Path) -> None:
+    manifest_path = _build_scan_bundle(tmp_path / "scan")
+    coverage_path = manifest_path.parent / "coverage.json"
+    coverage = json.loads(coverage_path.read_text(encoding="utf-8"))
+    coverage["surfaces"] = [
+        {
+            "id": "hostile",
+            "receiptRefs": ["../must-not-be-interpreted.md"],
+        }
+    ]
+    _write_json(coverage_path, coverage)
+
+    with pytest.raises(ReviewEvidenceError, match="hash mismatch for coverage.json"):
+        ingest_codex_security_receipt(
+            manifest_path, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+        )
+
+
+def test_scan_receipt_uses_stable_root_descriptor_for_referenced_artifacts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "scan"
+    manifest_path = _build_scan_superset(root)
+    original_reader = evidence_module._read_contained_artifact_from_descriptor
+    swapped = False
+
+    def swap_root_after_coverage(descriptor: int, relative: Any, *, max_bytes: int) -> bytes:
+        nonlocal swapped
+        raw = original_reader(descriptor, relative, max_bytes=max_bytes)
+        if str(relative) == "coverage.json" and not swapped:
+            swapped = True
+            root.rename(tmp_path / "original-scan")
+            root.mkdir()
+            replacement = root / "artifacts" / "03_coverage" / "reviewed_surfaces.md"
+            replacement.parent.mkdir(parents=True)
+            replacement.write_text("attacker-controlled\n", encoding="utf-8")
+        return raw
+
+    monkeypatch.setattr(
+        evidence_module,
+        "_read_contained_artifact_from_descriptor",
+        swap_root_after_coverage,
+    )
+
+    receipt = ingest_codex_security_receipt(
+        manifest_path, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+    )
+
+    assert receipt["coverage_completeness"] == "complete"
+
+
+def test_scan_receipt_rejects_non_regular_referenced_artifact(tmp_path: Path) -> None:
+    if not hasattr(os, "mkfifo"):
+        pytest.skip("FIFO creation is unavailable")
+    manifest_path = _build_scan_bundle(
+        tmp_path / "scan",
+        receipt_artifacts={"artifacts/02_discovery/report.md": b"receipt\n"},
+        surfaces=[
+            {
+                "id": "runtime",
+                "receiptRefs": ["artifacts/02_discovery/report.md"],
+            }
+        ],
+    )
+    receipt_path = manifest_path.parent / "artifacts" / "02_discovery" / "report.md"
+    receipt_path.unlink()
+    os.mkfifo(receipt_path)
+
+    with pytest.raises(ReviewEvidenceError, match="regular file"):
+        ingest_codex_security_receipt(
+            manifest_path, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+        )
+
+
+def test_scan_receipt_rejects_malformed_canonical_and_receipt_metadata(
+    tmp_path: Path,
+) -> None:
+    missing_manifest = _build_scan_bundle(
+        tmp_path / "missing-canonical",
+        receipt_artifacts={"artifacts/02_discovery/report.md": b"receipt\n"},
+        surfaces=[
+            {
+                "id": "runtime",
+                "receiptRefs": ["artifacts/02_discovery/report.md"],
+            }
+        ],
+    )
+    manifest = json.loads(missing_manifest.read_text(encoding="utf-8"))
+    manifest["scan"]["artifacts"] = [
+        artifact
+        for artifact in manifest["scan"]["artifacts"]
+        if artifact["path"] != "findings.json"
+    ]
+    _write_json(missing_manifest, manifest)
+    with pytest.raises(ReviewEvidenceError, match="canonical artifact inventory"):
+        ingest_codex_security_receipt(
+            missing_manifest, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+        )
+
+    media_manifest = _build_scan_superset(tmp_path / "wrong-media")
+    manifest = json.loads(media_manifest.read_text(encoding="utf-8"))
+    for artifact in manifest["scan"]["artifacts"]:
+        if artifact["path"] == "artifacts/03_coverage/reviewed_surfaces.md":
+            artifact["mediaType"] = "text/markdown"
+    _write_json(media_manifest, manifest)
+    with pytest.raises(ReviewEvidenceError, match="application/octet-stream"):
+        ingest_codex_security_receipt(
+            media_manifest, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+        )
+
+    digest_manifest = _build_scan_superset(tmp_path / "bad-digest")
+    manifest = json.loads(digest_manifest.read_text(encoding="utf-8"))
+    manifest["scan"]["artifacts"][-1]["sha256"] = "A" * 64
+    _write_json(digest_manifest, manifest)
+    with pytest.raises(ReviewEvidenceError, match="sha256 is malformed"):
+        ingest_codex_security_receipt(
+            digest_manifest, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+        )
+
+
+def test_scan_artifact_security_helpers_reject_malformed_entries_and_overflow() -> None:
+    with pytest.raises(ReviewEvidenceError, match="entry must be an object"):
+        evidence_module._parse_scan_artifact_inventory([None, {}, {}])
+
+    artifacts = [
+        {
+            "mediaType": "",
+            "path": "coverage.json",
+            "sha256": "0" * 64,
+        },
+        {
+            "mediaType": "application/json",
+            "path": "findings.json",
+            "sha256": "1" * 64,
+        },
+        {
+            "mediaType": "application/octet-stream",
+            "path": "artifacts/02_discovery/work_ledger.jsonl",
+            "sha256": "2" * 64,
+        },
+    ]
+    with pytest.raises(ReviewEvidenceError, match="mediaType must be a non-empty string"):
+        evidence_module._parse_scan_artifact_inventory(artifacts)
+
+    with pytest.raises(ReviewEvidenceError, match="surface 0 must be an object"):
+        evidence_module._coverage_receipt_refs({"surfaces": [None]})
+
+    with pytest.raises(ReviewEvidenceError, match="aggregate size limit"):
+        evidence_module._read_verified_scan_artifact(
+            -1,
+            path="coverage.json",
+            expected_digest="0" * 64,
+            per_file_limit=1,
+            aggregate_bytes_read=evidence_module._MAX_SCAN_ARTIFACT_BYTES + 1,
+        )
 
 
 def test_scan_receipt_rejects_symlinked_artifact(tmp_path: Path) -> None:
@@ -1982,16 +2466,14 @@ def test_embedded_seal_round_trip_is_strict_and_canonical(tmp_path: Path) -> Non
 
 
 def test_closeout_no_actionable_marker_is_not_persistent_reseal_proof() -> None:
-    existing = (
-        "## Fixed in Commit Mapping\n\n" f"{NO_ACTIONABLE_LINE}\n\n" "## Review Material Seal\n"
-    )
+    existing = f"## Fixed in Commit Mapping\n\n{NO_ACTIONABLE_LINE}\n\n## Review Material Seal\n"
     proof = (
         "Disposition: NOT-A-BUG\n"
         "Evidence: tests/test_example.py:10\n"
         "Reason: Exact contract remains satisfied.\n"
         "- https://github.com/owner/repo/pull/42#discussion_r1"
     )
-    replacement = "## Fixed in Commit Mapping\n\n" f"{proof}\n\n" "## Review Material Seal\n"
+    replacement = f"## Fixed in Commit Mapping\n\n{proof}\n\n## Review Material Seal\n"
 
     assert closeout_module._mapping_proof_blocks(existing) == set()
     assert closeout_module._mapping_proof_blocks(replacement) == {proof}

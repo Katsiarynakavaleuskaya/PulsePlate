@@ -127,6 +127,20 @@ _ZERO_SHA = "0" * 40
 _MAX_MANIFEST_BYTES = 2 * 1024 * 1024
 _MAX_JSON_ARTIFACT_BYTES = 8 * 1024 * 1024
 _MAX_LEDGER_BYTES = 32 * 1024 * 1024
+_MAX_RECEIPT_ARTIFACT_BYTES = 8 * 1024 * 1024
+_MAX_SCAN_ARTIFACT_BYTES = 128 * 1024 * 1024
+_MAX_SCAN_ARTIFACTS = 256
+_MAX_COVERAGE_SURFACES = 1024
+_MAX_RECEIPT_REFS_PER_SURFACE = 64
+_MAX_RECEIPT_REF_OCCURRENCES = 4096
+_MAX_ARTIFACT_PATH_BYTES = 1024
+_MAX_ARTIFACT_PATH_DEPTH = 16
+_MAX_ARTIFACT_COMPONENT_BYTES = 255
+_CANONICAL_SCAN_ARTIFACT_MEDIA_TYPES = {
+    "coverage.json": "application/json",
+    "findings.json": "application/json",
+    "artifacts/02_discovery/work_ledger.jsonl": "application/octet-stream",
+}
 _DUPLICATE_REPLY_KEYS = (
     "Disposition",
     "Fingerprint",
@@ -626,9 +640,21 @@ def compute_material_manifest(
 def _safe_relative_artifact_path(value: Any) -> PurePosixPath:
     if not isinstance(value, str) or not value or "\\" in value:
         raise ReviewEvidenceError("scan artifact path must be a non-empty POSIX path")
+    try:
+        encoded = value.encode("utf-8")
+    except UnicodeEncodeError as exc:
+        raise ReviewEvidenceError("scan artifact path must be valid UTF-8") from exc
+    if len(encoded) > _MAX_ARTIFACT_PATH_BYTES:
+        raise ReviewEvidenceError("scan artifact path exceeds size limit")
     path = PurePosixPath(value)
     if path.is_absolute() or any(part in {"", ".", ".."} for part in path.parts):
         raise ReviewEvidenceError("scan artifact path escapes the scan root")
+    if path.as_posix() != value:
+        raise ReviewEvidenceError("scan artifact path must use canonical POSIX form")
+    if len(path.parts) > _MAX_ARTIFACT_PATH_DEPTH:
+        raise ReviewEvidenceError("scan artifact path exceeds depth limit")
+    if any(len(part.encode("utf-8")) > _MAX_ARTIFACT_COMPONENT_BYTES for part in path.parts):
+        raise ReviewEvidenceError("scan artifact path component exceeds size limit")
     if any(ord(character) < 32 or ord(character) == 127 for character in value):
         raise ReviewEvidenceError("scan artifact path contains control characters")
     return path
@@ -701,7 +727,10 @@ def _read_contained_artifact_from_descriptor(
         try:
             file_descriptor = os.open(
                 relative.parts[-1],
-                os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0),
+                os.O_RDONLY
+                | getattr(os, "O_CLOEXEC", 0)
+                | getattr(os, "O_NOFOLLOW", 0)
+                | getattr(os, "O_NONBLOCK", 0),
                 dir_fd=descriptor,
             )
         except OSError as exc:
@@ -729,6 +758,85 @@ def _parse_timestamp(value: Any, *, label: str) -> datetime:
     if parsed.tzinfo is None:
         raise ReviewEvidenceError(f"{label} must include a timezone")
     return parsed
+
+
+def _parse_scan_artifact_inventory(value: Any) -> dict[str, tuple[str, str]]:
+    if not isinstance(value, list) or not 3 <= len(value) <= _MAX_SCAN_ARTIFACTS:
+        raise ReviewEvidenceError("scan artifact count is outside supported bounds")
+    artifact_specs: dict[str, tuple[str, str]] = {}
+    for artifact in value:
+        if not isinstance(artifact, dict):
+            raise ReviewEvidenceError("scan artifact entry must be an object")
+        _require_exact_keys(artifact, {"mediaType", "path", "sha256"}, label="scan artifact")
+        path = _safe_relative_artifact_path(artifact["path"]).as_posix()
+        digest = artifact["sha256"]
+        media_type = artifact["mediaType"]
+        if path in artifact_specs:
+            raise ReviewEvidenceError("scan artifact paths must be unique")
+        if not isinstance(digest, str) or not _RAW_DIGEST_RE.fullmatch(digest):
+            raise ReviewEvidenceError("scan artifact sha256 is malformed")
+        if not isinstance(media_type, str) or not media_type:
+            raise ReviewEvidenceError("scan artifact mediaType must be a non-empty string")
+        artifact_specs[path] = (media_type, digest)
+    return artifact_specs
+
+
+def _coverage_receipt_refs(coverage: Mapping[str, Any]) -> set[str]:
+    surfaces = coverage["surfaces"]
+    if not isinstance(surfaces, list) or len(surfaces) > _MAX_COVERAGE_SURFACES:
+        raise ReviewEvidenceError("coverage surfaces are outside supported bounds")
+    surface_ids: set[str] = set()
+    receipt_refs: set[str] = set()
+    receipt_ref_occurrences = 0
+    for index, surface in enumerate(surfaces):
+        if not isinstance(surface, dict):
+            raise ReviewEvidenceError(f"coverage surface {index} must be an object")
+        surface_id = surface.get("id")
+        if not isinstance(surface_id, str) or not surface_id:
+            raise ReviewEvidenceError(f"coverage surface {index} id must be a non-empty string")
+        if surface_id in surface_ids:
+            raise ReviewEvidenceError("coverage surface ids must be unique")
+        surface_ids.add(surface_id)
+        refs = surface.get("receiptRefs")
+        if not isinstance(refs, list) or len(refs) > _MAX_RECEIPT_REFS_PER_SURFACE:
+            raise ReviewEvidenceError(
+                f"coverage surface {index} receiptRefs are outside supported bounds"
+            )
+        receipt_ref_occurrences += len(refs)
+        if receipt_ref_occurrences > _MAX_RECEIPT_REF_OCCURRENCES:
+            raise ReviewEvidenceError("coverage receiptRefs exceed the occurrence limit")
+        surface_refs: set[str] = set()
+        for value in refs:
+            path = _safe_relative_artifact_path(value)
+            if len(path.parts) < 2 or path.parts[0] != "artifacts":
+                raise ReviewEvidenceError("coverage receiptRefs must stay under artifacts/")
+            normalized = path.as_posix()
+            if normalized in surface_refs:
+                raise ReviewEvidenceError(f"coverage surface {index} receiptRefs must be unique")
+            surface_refs.add(normalized)
+            receipt_refs.add(normalized)
+    return receipt_refs
+
+
+def _read_verified_scan_artifact(
+    root_descriptor: int,
+    *,
+    path: str,
+    expected_digest: str,
+    per_file_limit: int,
+    aggregate_bytes_read: int,
+) -> bytes:
+    remaining = _MAX_SCAN_ARTIFACT_BYTES - aggregate_bytes_read
+    if remaining < 0:
+        raise ReviewEvidenceError("scan artifacts exceed aggregate size limit")
+    raw = _read_contained_artifact_from_descriptor(
+        root_descriptor,
+        PurePosixPath(path),
+        max_bytes=min(per_file_limit, remaining),
+    )
+    if hashlib.sha256(raw).hexdigest() != expected_digest:
+        raise ReviewEvidenceError(f"scan artifact hash mismatch for {path}")
+    return raw
 
 
 def _ingest_codex_security_receipt_from_descriptor(
@@ -823,43 +931,22 @@ def _ingest_codex_security_receipt_from_descriptor(
 
     if scan["coverageRef"] != "coverage.json" or scan["findingsRef"] != "findings.json":
         raise ReviewEvidenceError("scan coverage/findings refs must use canonical filenames")
-    artifacts = scan["artifacts"]
-    if not isinstance(artifacts, list) or len(artifacts) != 3:
-        raise ReviewEvidenceError("scan must list exactly three canonical artifacts")
-    artifact_specs: dict[str, tuple[str, str]] = {}
-    for artifact in artifacts:
-        if not isinstance(artifact, dict):
-            raise ReviewEvidenceError("scan artifact entry must be an object")
-        _require_exact_keys(artifact, {"mediaType", "path", "sha256"}, label="scan artifact")
-        path = str(_safe_relative_artifact_path(artifact["path"]))
-        digest = artifact["sha256"]
-        media_type = artifact["mediaType"]
-        if path in artifact_specs:
-            raise ReviewEvidenceError("scan artifact paths must be unique")
-        if not isinstance(digest, str) or not _RAW_DIGEST_RE.fullmatch(digest):
-            raise ReviewEvidenceError("scan artifact sha256 is malformed")
-        if not isinstance(media_type, str):
-            raise ReviewEvidenceError("scan artifact mediaType must be a string")
-        artifact_specs[path] = (media_type, digest)
-    expected_paths = {
-        "coverage.json": "application/json",
-        "findings.json": "application/json",
-        "artifacts/02_discovery/work_ledger.jsonl": "application/octet-stream",
-    }
-    if {path: spec[0] for path, spec in artifact_specs.items()} != expected_paths:
-        raise ReviewEvidenceError("scan artifact inventory does not match the v1 contract")
+    artifact_specs = _parse_scan_artifact_inventory(scan["artifacts"])
+    for path, expected_media_type in _CANONICAL_SCAN_ARTIFACT_MEDIA_TYPES.items():
+        if artifact_specs.get(path, (None, None))[0] != expected_media_type:
+            raise ReviewEvidenceError(
+                "scan canonical artifact inventory is incomplete or malformed"
+            )
 
-    artifact_raw: dict[str, bytes] = {}
-    for path, (_media_type, expected_digest) in artifact_specs.items():
-        limit = _MAX_LEDGER_BYTES if path.endswith(".jsonl") else _MAX_JSON_ARTIFACT_BYTES
-        raw = _read_contained_artifact_from_descriptor(
-            root_descriptor, PurePosixPath(path), max_bytes=limit
-        )
-        if hashlib.sha256(raw).hexdigest() != expected_digest:
-            raise ReviewEvidenceError(f"scan artifact hash mismatch for {path}")
-        artifact_raw[path] = raw
-
-    coverage = _load_json_bytes(artifact_raw["coverage.json"], label="coverage.json")
+    coverage_raw = _read_verified_scan_artifact(
+        root_descriptor,
+        path="coverage.json",
+        expected_digest=artifact_specs["coverage.json"][1],
+        per_file_limit=_MAX_JSON_ARTIFACT_BYTES,
+        aggregate_bytes_read=0,
+    )
+    aggregate_bytes_read = len(coverage_raw)
+    coverage = _load_json_bytes(coverage_raw, label="coverage.json")
     if not isinstance(coverage, dict):
         raise ReviewEvidenceError("coverage.json must contain an object")
     _require_exact_keys(
@@ -889,6 +976,38 @@ def _ingest_codex_security_receipt_from_descriptor(
         or coverage["openQuestions"] != []
     ):
         raise ReviewEvidenceError("Codex Security coverage is incomplete or inconsistent")
+
+    receipt_refs = _coverage_receipt_refs(coverage)
+    expected_paths = set(_CANONICAL_SCAN_ARTIFACT_MEDIA_TYPES) | receipt_refs
+    if set(artifact_specs) != expected_paths:
+        raise ReviewEvidenceError(
+            "scan artifact inventory must exactly match canonical artifacts and coverage receipts"
+        )
+    for path in receipt_refs:
+        if artifact_specs[path][0] != "application/octet-stream":
+            raise ReviewEvidenceError(
+                "coverage receipt artifacts must use application/octet-stream"
+            )
+
+    artifact_raw = {"coverage.json": coverage_raw}
+    for path in sorted(expected_paths - {"coverage.json"}):
+        per_file_limit = (
+            _MAX_LEDGER_BYTES
+            if path == "artifacts/02_discovery/work_ledger.jsonl"
+            else (
+                _MAX_JSON_ARTIFACT_BYTES if path == "findings.json" else _MAX_RECEIPT_ARTIFACT_BYTES
+            )
+        )
+        raw = _read_verified_scan_artifact(
+            root_descriptor,
+            path=path,
+            expected_digest=artifact_specs[path][1],
+            per_file_limit=per_file_limit,
+            aggregate_bytes_read=aggregate_bytes_read,
+        )
+        aggregate_bytes_read += len(raw)
+        if path in _CANONICAL_SCAN_ARTIFACT_MEDIA_TYPES:
+            artifact_raw[path] = raw
 
     findings = _load_json_bytes(artifact_raw["findings.json"], label="findings.json")
     if not isinstance(findings, dict):

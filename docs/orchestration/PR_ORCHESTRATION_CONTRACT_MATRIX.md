@@ -152,6 +152,12 @@ governance PR number + 1; the governance PR may opt in with
   The embedded scan record is a
   `human_asserted_content_receipt`: CI verifies schema, hashes, coverage, range,
   and content binding but does not claim signed/plugin attestation.
+- V1 scan ingestion requires the exact sealed inventory formed by
+  `coverage.json`, `findings.json`, the canonical `work_ledger.jsonl`, and the
+  deduplicated union of `coverage.surfaces[*].receiptRefs`. Every sealed entry
+  is path-, media-type-, size-, and hash-verified; missing referenced receipts
+  and unreferenced sealed entries fail closed. The bounded review receipt keeps
+  the three canonical artifact hashes plus the full manifest hash.
 - If the trusted connector returns its exact review-credit exhaustion response
   for the final review cycle, the seal may use the closed
   `operator_review_credit_exhaustion_override` variant. It requires a prior
