@@ -133,6 +133,7 @@ _MAX_SCAN_ARTIFACTS = 256
 _MAX_COVERAGE_SURFACES = 1024
 _MAX_RECEIPT_REFS_PER_SURFACE = 64
 _MAX_RECEIPT_REF_OCCURRENCES = 4096
+_MAX_WORK_LEDGER_ROWS = 10000
 _MAX_SCOPE_PATHS = 256
 _MAX_ARTIFACT_PATH_BYTES = 1024
 _MAX_ARTIFACT_PATH_DEPTH = 16
@@ -161,6 +162,7 @@ _NO_FINDINGS_COVERAGE_DISPOSITIONS = {
     "rejected",
     "not_applicable",
 }
+_COMPLETE_WORK_LEDGER_STATUSES = {"complete", "completed"}
 _CANONICAL_SCAN_ARTIFACT_MEDIA_TYPES = {
     "coverage.json": "application/json",
     "findings.json": "application/json",
@@ -808,7 +810,7 @@ def _parse_scan_artifact_inventory(value: Any) -> dict[str, tuple[str, str]]:
 
 def _coverage_receipt_refs(coverage: Mapping[str, Any]) -> set[str]:
     surfaces = coverage["surfaces"]
-    if not isinstance(surfaces, list) or len(surfaces) > _MAX_COVERAGE_SURFACES:
+    if not isinstance(surfaces, list) or not surfaces or len(surfaces) > _MAX_COVERAGE_SURFACES:
         raise ReviewEvidenceError("coverage surfaces are outside supported bounds")
     surface_ids: set[str] = set()
     receipt_refs: set[str] = set()
@@ -833,7 +835,7 @@ def _coverage_receipt_refs(coverage: Mapping[str, Any]) -> set[str]:
                 f"zero-findings coverage cannot contain {disposition} surfaces"
             )
         refs = surface.get("receiptRefs")
-        if not isinstance(refs, list) or len(refs) > _MAX_RECEIPT_REFS_PER_SURFACE:
+        if not isinstance(refs, list) or not refs or len(refs) > _MAX_RECEIPT_REFS_PER_SURFACE:
             raise ReviewEvidenceError(
                 f"coverage surface {index} receiptRefs are outside supported bounds"
             )
@@ -847,6 +849,58 @@ def _coverage_receipt_refs(coverage: Mapping[str, Any]) -> set[str]:
             normalized = path.as_posix()
             receipt_refs.add(normalized)
     return receipt_refs
+
+
+def _validate_work_ledger(raw: bytes) -> None:
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ReviewEvidenceError("work ledger is not valid UTF-8 JSONL") from exc
+    lines = text.splitlines()
+    if not lines or len(lines) > _MAX_WORK_LEDGER_ROWS:
+        raise ReviewEvidenceError("work ledger row count is outside supported bounds")
+
+    ledger_paths: set[str] = set()
+    completed_paths: set[str] = set()
+    for index, line in enumerate(lines):
+        if not line.strip():
+            raise ReviewEvidenceError(f"work ledger row {index} must not be empty")
+        row = _load_json_bytes(line.encode("utf-8"), label=f"work ledger row {index}")
+        if not isinstance(row, dict):
+            raise ReviewEvidenceError(f"work ledger row {index} must be an object")
+
+        path_value = row.get("path")
+        if not isinstance(path_value, str) or not path_value.strip():
+            raise ReviewEvidenceError(f"work ledger row {index} path must be a non-empty string")
+        path = _safe_relative_artifact_path(path_value).as_posix()
+        ledger_paths.add(path)
+
+        status = row.get("status")
+        if not isinstance(status, str) or not status.strip():
+            raise ReviewEvidenceError(f"work ledger row {index} status must be a non-empty string")
+        if status not in _COMPLETE_WORK_LEDGER_STATUSES:
+            continue
+        if path in completed_paths:
+            raise ReviewEvidenceError("work ledger must contain exactly one completed row per path")
+        completed_paths.add(path)
+
+        if row.get("full_file_read") is not True:
+            raise ReviewEvidenceError(f"work ledger row {index} must attest full_file_read=true")
+        disposition = row.get("disposition")
+        if not isinstance(disposition, str) or not disposition.strip():
+            raise ReviewEvidenceError(
+                f"work ledger row {index} disposition must be a non-empty string"
+            )
+        evidence = row.get("evidence")
+        if not (
+            (isinstance(evidence, str) and evidence.strip())
+            or (isinstance(evidence, dict) and evidence)
+        ):
+            raise ReviewEvidenceError(f"work ledger row {index} evidence must be substantive")
+    if not completed_paths or completed_paths != ledger_paths:
+        raise ReviewEvidenceError(
+            "work ledger must contain a completed full-file row for every path"
+        )
 
 
 def _scan_scope_paths(value: Any, *, label: str) -> tuple[str, ...]:
@@ -1057,6 +1111,8 @@ def _ingest_codex_security_receipt_from_descriptor(
         raise ReviewEvidenceError("final Codex Security receipt must cover the complete Git diff")
 
     receipt_refs = _coverage_receipt_refs(coverage)
+    if "artifacts/02_discovery/work_ledger.jsonl" not in receipt_refs:
+        raise ReviewEvidenceError("coverage surfaces must reference the canonical work ledger")
     expected_paths = set(_CANONICAL_SCAN_ARTIFACT_MEDIA_TYPES) | receipt_refs
     if set(artifact_specs) != expected_paths:
         raise ReviewEvidenceError(
@@ -1088,6 +1144,7 @@ def _ingest_codex_security_receipt_from_descriptor(
         if path in _CANONICAL_SCAN_ARTIFACT_MEDIA_TYPES:
             artifact_raw[path] = raw
 
+    _validate_work_ledger(artifact_raw["artifacts/02_discovery/work_ledger.jsonl"])
     findings = _load_json_bytes(artifact_raw["findings.json"], label="findings.json")
     if not isinstance(findings, dict):
         raise ReviewEvidenceError("findings.json must contain an object")

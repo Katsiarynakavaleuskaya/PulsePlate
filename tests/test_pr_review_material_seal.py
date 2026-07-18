@@ -1528,6 +1528,7 @@ def _build_scan_bundle(
     *,
     receipt_artifacts: dict[str, bytes] | None = None,
     surfaces: list[dict[str, Any]] | None = None,
+    work_ledger_raw: bytes | None = None,
 ) -> Path:
     receipt_artifacts = dict(receipt_artifacts or {})
     if set(receipt_artifacts) & {
@@ -1536,14 +1537,22 @@ def _build_scan_bundle(
         "artifacts/02_discovery/work_ledger.jsonl",
     }:
         raise ValueError("receipt artifacts must not replace canonical scan artifacts")
+    if surfaces is None:
+        surfaces = [
+            {
+                "id": "runtime",
+                "receiptRefs": ["artifacts/02_discovery/work_ledger.jsonl"],
+            }
+        ]
     normalized_surfaces: list[Any] = []
-    for surface in surfaces or []:
+    for surface in surfaces:
         if not isinstance(surface, dict):
             normalized_surfaces.append(surface)
             continue
         normalized_surface = {
             "disposition": "no_issue_found",
             "label": str(surface.get("id") or "Surface"),
+            "receiptRefs": ["artifacts/02_discovery/work_ledger.jsonl"],
         }
         normalized_surface.update(surface)
         normalized_surfaces.append(normalized_surface)
@@ -1571,7 +1580,15 @@ def _build_scan_bundle(
     findings_raw = _write_json(root / "findings.json", findings)
     ledger_path = root / "artifacts" / "02_discovery" / "work_ledger.jsonl"
     ledger_path.parent.mkdir(parents=True)
-    ledger_raw = b'{"status":"reviewed"}\n'
+    ledger_raw = (
+        work_ledger_raw
+        if work_ledger_raw is not None
+        else (
+            b'{"path":"scripts/orchestration/pr_review_evidence.py",'
+            b'"full_file_read":true,"status":"complete","disposition":"no_issue",'
+            b'"evidence":"The changed source file was reviewed in full."}\n'
+        )
+    )
     ledger_path.write_bytes(ledger_raw)
 
     artifact_records = [
@@ -1694,6 +1711,117 @@ def test_scan_receipt_validates_real_bundle_and_contains_no_local_path(tmp_path:
     assert receipt["authority"] == RECEIPT_AUTHORITY
     assert receipt["findings_count"] == 0
     assert str(tmp_path) not in json.dumps(receipt)
+
+
+def test_scan_receipt_rejects_empty_coverage_surfaces(tmp_path: Path) -> None:
+    manifest_path = _build_scan_bundle(tmp_path / "scan", surfaces=[])
+
+    with pytest.raises(ReviewEvidenceError, match="coverage surfaces"):
+        ingest_codex_security_receipt(
+            manifest_path, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+        )
+
+
+def test_scan_receipt_rejects_surface_without_receipts(tmp_path: Path) -> None:
+    manifest_path = _build_scan_bundle(
+        tmp_path / "scan",
+        surfaces=[{"id": "runtime", "receiptRefs": []}],
+    )
+
+    with pytest.raises(ReviewEvidenceError, match="receiptRefs are outside"):
+        ingest_codex_security_receipt(
+            manifest_path, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+        )
+
+
+@pytest.mark.parametrize(
+    ("work_ledger_raw", "message"),
+    [
+        (b'{"status":"reviewed"}\n', "path must be a non-empty string"),
+        (
+            b'{"path":"app/service.py","full_file_read":false,'
+            b'"status":"complete","disposition":"no_issue","evidence":"partial"}\n',
+            "full_file_read=true",
+        ),
+        (
+            b'{"path":"app/service.py","full_file_read":true,'
+            b'"status":"reviewed","disposition":"no_issue","evidence":"reviewed"}\n',
+            "completed full-file row",
+        ),
+        (
+            b'{"path":"app/service.py","full_file_read":true,'
+            b'"status":"complete","disposition":"no_issue","evidence":""}\n',
+            "evidence must be substantive",
+        ),
+    ],
+)
+def test_scan_receipt_rejects_incomplete_work_ledger_rows(
+    tmp_path: Path,
+    work_ledger_raw: bytes,
+    message: str,
+) -> None:
+    manifest_path = _build_scan_bundle(
+        tmp_path / hashlib.sha256(work_ledger_raw).hexdigest(),
+        work_ledger_raw=work_ledger_raw,
+    )
+
+    with pytest.raises(ReviewEvidenceError, match=message):
+        ingest_codex_security_receipt(
+            manifest_path, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+        )
+
+
+def test_scan_receipt_accepts_claim_followed_by_one_completed_row(tmp_path: Path) -> None:
+    work_ledger_raw = (
+        b'{"path":"app/service.py","status":"claimed"}\n'
+        b'{"path":"app/service.py","full_file_read":true,'
+        b'"status":"completed","disposition":"no_issue",'
+        b'"evidence":{"summary":"full file reviewed"}}\n'
+    )
+    manifest_path = _build_scan_bundle(
+        tmp_path / "scan",
+        work_ledger_raw=work_ledger_raw,
+    )
+
+    receipt = ingest_codex_security_receipt(
+        manifest_path, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+    )
+
+    assert receipt["coverage_completeness"] == "complete"
+
+
+def test_scan_receipt_rejects_duplicate_completed_work_ledger_rows(
+    tmp_path: Path,
+) -> None:
+    completed_row = (
+        b'{"path":"app/service.py","full_file_read":true,'
+        b'"status":"complete","disposition":"no_issue","evidence":"reviewed"}\n'
+    )
+    manifest_path = _build_scan_bundle(
+        tmp_path / "scan",
+        work_ledger_raw=completed_row + completed_row,
+    )
+
+    with pytest.raises(ReviewEvidenceError, match="exactly one completed row"):
+        ingest_codex_security_receipt(
+            manifest_path, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+        )
+
+
+def test_scan_receipt_requires_surface_link_to_canonical_work_ledger(
+    tmp_path: Path,
+) -> None:
+    receipt_ref = "artifacts/03_coverage/reviewed_surfaces.md"
+    manifest_path = _build_scan_bundle(
+        tmp_path / "scan",
+        receipt_artifacts={receipt_ref: b"reviewed\n"},
+        surfaces=[{"id": "runtime", "receiptRefs": [receipt_ref]}],
+    )
+
+    with pytest.raises(ReviewEvidenceError, match="canonical work ledger"):
+        ingest_codex_security_receipt(
+            manifest_path, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+        )
 
 
 def test_scan_receipt_accepts_exact_referenced_superset_in_any_order(tmp_path: Path) -> None:
@@ -1935,7 +2063,10 @@ def test_scan_receipt_rejects_missing_ref_and_unreferenced_manifest_entry(
         surfaces=[
             {
                 "id": "runtime",
-                "receiptRefs": ["artifacts/02_discovery/missing.md"],
+                "receiptRefs": [
+                    "artifacts/02_discovery/work_ledger.jsonl",
+                    "artifacts/02_discovery/missing.md",
+                ],
             }
         ],
     )
@@ -2065,8 +2196,14 @@ def test_scan_receipt_rejects_malformed_surfaces_and_refs(tmp_path: Path) -> Non
         ([{"id": "runtime", "receiptRefs": [7]}], "non-empty POSIX path"),
         (
             [
-                {"id": "duplicate", "receiptRefs": []},
-                {"id": "duplicate", "receiptRefs": []},
+                {
+                    "id": "duplicate",
+                    "receiptRefs": ["artifacts/02_discovery/work_ledger.jsonl"],
+                },
+                {
+                    "id": "duplicate",
+                    "receiptRefs": ["artifacts/02_discovery/work_ledger.jsonl"],
+                },
             ],
             "ids must be unique",
         ),
@@ -2131,7 +2268,10 @@ def test_scan_receipt_enforces_per_file_and_aggregate_byte_bounds(
         surfaces=[
             {
                 "id": "runtime",
-                "receiptRefs": ["artifacts/02_discovery/report.md"],
+                "receiptRefs": [
+                    "artifacts/02_discovery/work_ledger.jsonl",
+                    "artifacts/02_discovery/report.md",
+                ],
             }
         ],
     )
@@ -2213,7 +2353,10 @@ def test_scan_receipt_rejects_non_regular_referenced_artifact(tmp_path: Path) ->
         surfaces=[
             {
                 "id": "runtime",
-                "receiptRefs": ["artifacts/02_discovery/report.md"],
+                "receiptRefs": [
+                    "artifacts/02_discovery/work_ledger.jsonl",
+                    "artifacts/02_discovery/report.md",
+                ],
             }
         ],
     )
@@ -2243,7 +2386,15 @@ def test_scan_receipt_requires_every_canonical_artifact(
     manifest_path = _build_scan_bundle(
         tmp_path / missing_path.replace("/", "-"),
         receipt_artifacts={receipt_ref: b"reviewed\n"},
-        surfaces=[{"id": "runtime", "receiptRefs": [receipt_ref]}],
+        surfaces=[
+            {
+                "id": "runtime",
+                "receiptRefs": [
+                    "artifacts/02_discovery/work_ledger.jsonl",
+                    receipt_ref,
+                ],
+            }
+        ],
     )
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest["scan"]["artifacts"] = [
@@ -2352,7 +2503,15 @@ def test_scan_receipt_rejects_symlinked_referenced_artifact(tmp_path: Path) -> N
     manifest_path = _build_scan_bundle(
         tmp_path / "scan",
         receipt_artifacts={receipt_ref: b"reviewed\n"},
-        surfaces=[{"id": "runtime", "receiptRefs": [receipt_ref]}],
+        surfaces=[
+            {
+                "id": "runtime",
+                "receiptRefs": [
+                    "artifacts/02_discovery/work_ledger.jsonl",
+                    receipt_ref,
+                ],
+            }
+        ],
     )
     receipt_path = manifest_path.parent.joinpath(*PurePosixPath(receipt_ref).parts)
     outside = tmp_path / "outside-receipt.md"
@@ -2371,7 +2530,15 @@ def test_scan_receipt_rejects_symlinked_referenced_artifact_parent(tmp_path: Pat
     manifest_path = _build_scan_bundle(
         tmp_path / "scan",
         receipt_artifacts={receipt_ref: b"reviewed\n"},
-        surfaces=[{"id": "runtime", "receiptRefs": [receipt_ref]}],
+        surfaces=[
+            {
+                "id": "runtime",
+                "receiptRefs": [
+                    "artifacts/02_discovery/work_ledger.jsonl",
+                    receipt_ref,
+                ],
+            }
+        ],
     )
     receipt_path = manifest_path.parent.joinpath(*PurePosixPath(receipt_ref).parts)
     outside_parent = tmp_path / "outside-parent"

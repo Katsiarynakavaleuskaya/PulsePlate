@@ -162,6 +162,12 @@ governance PR number + 1; the governance PR may opt in with
   no surface with a `needs_follow_up` disposition. Final Git-diff evidence must
   cover the whole diff with `includePaths: ["."]` and no excluded paths; a
   matching but narrower manifest/coverage scope cannot satisfy merge evidence.
+  Coverage must contain at least one surface, every surface must cite at least
+  one sealed receipt, and the surface union must cite the canonical work
+  ledger. The ledger is parsed as bounded UTF-8 JSONL: every unique
+  repository-relative path must attest `full_file_read=true`, a completed
+  status, a non-empty disposition, and substantive evidence. A hash-valid but
+  empty or opaque placeholder ledger cannot authorize a complete scan receipt.
   Its coverage record must also use `inventoryStrategy: "diff"`,
   `mode: "branch_diff"`, and no explicit exclusions. Because this receipt
   variant requires an empty `findings.json`, each surface disposition must be
