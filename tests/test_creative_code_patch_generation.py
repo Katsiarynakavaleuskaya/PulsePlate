@@ -883,6 +883,7 @@ def test_finalize_dispatched_result_retains_trusted_rejection_without_retry(
         ("fractional_returncode", "failed Experiment Runner validation"),
         ("missing_returncode", "failed Experiment Runner validation"),
         ("missing_oracle_paths", "must bind every candidate path"),
+        ("infra_flake", "does not publish transient infra_flake results"),
         ("unchanged_result", "does not support unchanged_result"),
     ],
 )
@@ -948,6 +949,12 @@ def test_finalize_dispatched_result_rejects_unbound_dispatch_evidence(
         dispatch_result["failure_class"] = "guard_failure"
         dispatch_result["mutated_paths"] = []
         dispatch_result["oracle_results"][-1]["returncode"] = 1
+    elif mutation == "infra_flake":
+        dispatch_result["status"] = "rejected"
+        dispatch_result["failure_class"] = "infra_flake"
+        dispatch_result["mutated_paths"] = []
+        dispatch_result["oracle_results"] = []
+        dispatch_result["budget_observations"]["oracle_commands_executed"] = 0
     elif mutation == "unchanged_result":
         dispatch_result["status"] = "rejected"
         dispatch_result["failure_class"] = "unchanged_result"

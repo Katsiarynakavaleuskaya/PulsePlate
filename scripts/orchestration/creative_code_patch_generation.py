@@ -2232,6 +2232,10 @@ def _validate_dispatch_result_binding(
         raise CreativeCodePatchGenerationError(
             "trusted dispatch finalization does not support unchanged_result for a generated patch."
         )
+    if failure_class == "infra_flake":
+        raise CreativeCodePatchGenerationError(
+            "trusted dispatch finalization does not publish transient infra_flake results."
+        )
     if (
         result["status"] == "accepted" or failure_class in ORACLE_REQUIRED_FAILURE_CLASSES
     ) and mutated_paths != sorted(changed_paths):
