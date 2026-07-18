@@ -811,7 +811,9 @@ def test_finalize_dispatched_result_attempts_every_rollback_after_cleanup_failur
     [
         ("guard_failure", None),
         ("timeout", None),
+        ("oom", None),
         ("capability_mismatch", []),
+        ("policy_violation", []),
     ],
 )
 def test_finalize_dispatched_result_retains_trusted_rejection_without_retry(
@@ -836,11 +838,18 @@ def test_finalize_dispatched_result_retains_trusted_rejection_without_retry(
         failure_class=failure_class,
         mutated_paths=mutated_paths,
     )
-    if failure_class == "capability_mismatch":
+    if failure_class in {"capability_mismatch", "policy_violation"}:
         dispatch_result["oracle_results"] = []
         dispatch_result["budget_observations"]["oracle_commands_executed"] = 0
+        dispatch_result["budget_observations"]["runner_error"] = (
+            generation_cli.TRUSTED_DISPATCH_CAPABILITY_ERROR
+            if failure_class == "capability_mismatch"
+            else "Oracle command is not permitted by the runner policy."
+        )
     elif failure_class == "timeout":
         dispatch_result["oracle_results"][-1]["timed_out"] = True
+    elif failure_class == "oom":
+        dispatch_result["oracle_results"][-1]["stderr"] = "out of memory"
     _write_json(dispatch_path, dispatch_result)
 
     assert (
@@ -879,6 +888,11 @@ def test_finalize_dispatched_result_retains_trusted_rejection_without_retry(
         ("material_attribution", "must not claim promotion or material attribution"),
         ("all_pass_rejection", "requires failing oracle evidence"),
         ("timeout_without_timeout", "requires timed-out oracle evidence"),
+        ("timeout_zero_returncode", "requires a nonzero return code"),
+        ("oom_without_oom_evidence", "requires OOM-specific oracle evidence"),
+        ("capability_missing_error", "requires the canonical runner signal"),
+        ("metric_regression_without_metrics", "without structured metric evidence"),
+        ("policy_without_error", "requires explanatory runner evidence"),
         ("timeout_non_boolean", "failed Experiment Runner validation"),
         ("fractional_returncode", "failed Experiment Runner validation"),
         ("missing_returncode", "failed Experiment Runner validation"),
@@ -936,6 +950,29 @@ def test_finalize_dispatched_result_rejects_unbound_dispatch_evidence(
         dispatch_result["status"] = "rejected"
         dispatch_result["failure_class"] = "timeout"
         dispatch_result["oracle_results"][-1]["returncode"] = 1
+    elif mutation == "timeout_zero_returncode":
+        dispatch_result["status"] = "rejected"
+        dispatch_result["failure_class"] = "timeout"
+        dispatch_result["oracle_results"][-1]["timed_out"] = True
+    elif mutation == "oom_without_oom_evidence":
+        dispatch_result["status"] = "rejected"
+        dispatch_result["failure_class"] = "oom"
+        dispatch_result["oracle_results"][-1]["returncode"] = 1
+    elif mutation == "capability_missing_error":
+        dispatch_result["status"] = "rejected"
+        dispatch_result["failure_class"] = "capability_mismatch"
+        dispatch_result["mutated_paths"] = []
+        dispatch_result["oracle_results"] = []
+        dispatch_result["budget_observations"]["oracle_commands_executed"] = 0
+    elif mutation == "metric_regression_without_metrics":
+        dispatch_result["status"] = "rejected"
+        dispatch_result["failure_class"] = "metric_regression"
+    elif mutation == "policy_without_error":
+        dispatch_result["status"] = "rejected"
+        dispatch_result["failure_class"] = "policy_violation"
+        dispatch_result["mutated_paths"] = []
+        dispatch_result["oracle_results"] = []
+        dispatch_result["budget_observations"]["oracle_commands_executed"] = 0
     elif mutation == "timeout_non_boolean":
         dispatch_result["status"] = "rejected"
         dispatch_result["failure_class"] = "timeout"
@@ -985,7 +1022,7 @@ def test_finalize_dispatched_result_rejects_unbound_dispatch_evidence(
     assert state["candidate_patch_evaluated"] is False
 
 
-def test_dispatch_binding_requires_complete_passing_metric_regression_oracles() -> None:
+def test_dispatch_binding_rejects_metric_regression_without_structured_metrics() -> None:
     patch_fingerprint = "sha256:" + ("a" * 64)
     packet = {
         "experiment_id": "metric-regression-test",
@@ -1002,12 +1039,9 @@ def test_dispatch_binding_requires_complete_passing_metric_regression_oracles() 
         status="rejected",
         failure_class="metric_regression",
     )
-    result["oracle_results"] = result["oracle_results"][:1]
-    result["budget_observations"]["oracle_commands_executed"] = 1
-
     with pytest.raises(
         generation_cli.CreativeCodePatchGenerationError,
-        match="requires every configured oracle to pass",
+        match="without structured metric evidence",
     ):
         generation_cli._validate_dispatch_result_binding(
             dispatch_result=result,

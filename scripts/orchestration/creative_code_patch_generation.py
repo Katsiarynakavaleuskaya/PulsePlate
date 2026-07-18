@@ -59,9 +59,11 @@ from scripts.orchestration.experiment_contract import (
     validate_failure_retry_observations,
     validate_metrics,
 )
+from scripts.orchestration.experiment_runner import OOM_PATTERNS
 from scripts.orchestration.experiment_runner_dispatch import (
     CONTAINER_BACKENDS as TRUSTED_DISPATCH_BACKENDS,
     MAX_RESULT_BYTES as TRUSTED_DISPATCH_RESULT_MAX_BYTES,
+    RUNNER_CAPABILITY_ERROR as TRUSTED_DISPATCH_CAPABILITY_ERROR,
 )
 from scripts.orchestration.creative_spec_learning_rollup_contract import (
     CreativeSpecLearningRollupError,
@@ -2236,6 +2238,11 @@ def _validate_dispatch_result_binding(
         raise CreativeCodePatchGenerationError(
             "trusted dispatch finalization does not publish transient infra_flake results."
         )
+    if failure_class == "metric_regression":
+        raise CreativeCodePatchGenerationError(
+            "trusted dispatch finalization does not support metric_regression "
+            "without structured metric evidence."
+        )
     if (
         result["status"] == "accepted" or failure_class in ORACLE_REQUIRED_FAILURE_CLASSES
     ) and mutated_paths != sorted(changed_paths):
@@ -2255,6 +2262,27 @@ def _validate_dispatch_result_binding(
         raise CreativeCodePatchGenerationError(
             "trusted dispatch result must record one attempt and zero retries."
         )
+    if failure_class in {"capability_mismatch", "policy_violation"} and (
+        mutated_paths
+        or result["oracle_results"]
+        or observations.get("oracle_commands_executed") != 0
+    ):
+        raise CreativeCodePatchGenerationError(
+            "pre-oracle trusted dispatch rejection must not claim mutation or oracle evidence."
+        )
+    if (
+        failure_class == "capability_mismatch"
+        and observations.get("runner_error") != TRUSTED_DISPATCH_CAPABILITY_ERROR
+    ):
+        raise CreativeCodePatchGenerationError(
+            "capability_mismatch trusted dispatch rejection requires the canonical runner signal."
+        )
+    if failure_class == "policy_violation":
+        runner_error = observations.get("runner_error")
+        if not isinstance(runner_error, str) or not runner_error.strip():
+            raise CreativeCodePatchGenerationError(
+                "policy_violation trusted dispatch rejection requires explanatory runner evidence."
+            )
     oracle_commands = [item["command"] for item in result["oracle_results"]]
     configured_commands = [item["command"] for item in packet["immutable_oracles"]]
     if oracle_commands != configured_commands[: len(oracle_commands)]:
@@ -2273,18 +2301,15 @@ def _validate_dispatch_result_binding(
             raise CreativeCodePatchGenerationError(
                 "oracle-derived trusted dispatch rejection requires executed oracle evidence."
             )
-        if failure_class == "metric_regression":
-            if oracle_commands != configured_commands or any(
-                item["returncode"] != 0 or item["timed_out"] for item in result["oracle_results"]
-            ):
-                raise CreativeCodePatchGenerationError(
-                    "metric_regression trusted dispatch rejection requires every "
-                    "configured oracle to pass."
-                )
-        elif failure_class == "timeout":
-            if not any(item["timed_out"] for item in result["oracle_results"]):
+        if failure_class == "timeout":
+            timed_out_oracles = [item for item in result["oracle_results"] if item["timed_out"]]
+            if not timed_out_oracles:
                 raise CreativeCodePatchGenerationError(
                     "timeout trusted dispatch rejection requires timed-out oracle evidence."
+                )
+            if any(item["returncode"] == 0 for item in timed_out_oracles):
+                raise CreativeCodePatchGenerationError(
+                    "timeout trusted dispatch rejection requires a nonzero return code."
                 )
         elif failure_class in FAILING_ORACLE_REQUIRED_FAILURE_CLASSES:
             if any(item["timed_out"] for item in result["oracle_results"]):
@@ -2294,6 +2319,14 @@ def _validate_dispatch_result_binding(
             if not any(item["returncode"] != 0 for item in result["oracle_results"]):
                 raise CreativeCodePatchGenerationError(
                     "oracle-derived trusted dispatch rejection requires failing oracle evidence."
+                )
+            if failure_class == "oom" and not any(
+                pattern.search(f"{item['stdout']}\n{item['stderr']}")
+                for item in result["oracle_results"]
+                for pattern in OOM_PATTERNS
+            ):
+                raise CreativeCodePatchGenerationError(
+                    "oom trusted dispatch rejection requires OOM-specific oracle evidence."
                 )
     if result["shared_tree_untouched"] is not True:
         raise CreativeCodePatchGenerationError(
