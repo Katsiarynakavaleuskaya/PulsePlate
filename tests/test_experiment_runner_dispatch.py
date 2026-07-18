@@ -746,7 +746,7 @@ def test_capability_mismatch_attempts_match_backend_preflight(
         ),
         (
             [],
-            [{"command": "pytest -q", "returncode": 0}],
+            [{"command": "pytest -q", "returncode": 0, "timed_out": False}],
             "capability_mismatch with attempts 0 must use oracle_commands_executed 0",
         ),
     ],

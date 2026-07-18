@@ -2262,6 +2262,12 @@ def _validate_dispatch_result_binding(
         raise CreativeCodePatchGenerationError(
             "trusted dispatch result must record one attempt and zero retries."
         )
+    if (
+        result["status"] == "accepted" or failure_class in ORACLE_REQUIRED_FAILURE_CLASSES
+    ) and "runner_error" in observations:
+        raise CreativeCodePatchGenerationError(
+            "accepted and oracle-derived trusted dispatch results must not carry runner_error."
+        )
     if failure_class in {"capability_mismatch", "policy_violation"} and (
         mutated_paths
         or result["oracle_results"]

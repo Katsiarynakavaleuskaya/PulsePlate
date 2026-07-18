@@ -887,7 +887,7 @@ def validate_experiment_result(result: dict[str, Any]) -> dict[str, Any]:
         command = str(oracle_result.get("command", "")).strip()
         if not command:
             raise ValueError("Each oracle result must include a non-empty command.")
-        timed_out = oracle_result.get("timed_out", False)
+        timed_out = oracle_result.get("timed_out")
         if not isinstance(timed_out, bool):
             raise ValueError("Each oracle result timed_out must be a boolean.")
         returncode = oracle_result.get("returncode")

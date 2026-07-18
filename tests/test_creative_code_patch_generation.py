@@ -893,7 +893,10 @@ def test_finalize_dispatched_result_retains_trusted_rejection_without_retry(
         ("capability_missing_error", "requires the canonical runner signal"),
         ("metric_regression_without_metrics", "without structured metric evidence"),
         ("policy_without_error", "requires explanatory runner evidence"),
+        ("accepted_runner_error", "must not carry runner_error"),
+        ("guard_runner_error", "must not carry runner_error"),
         ("timeout_non_boolean", "failed Experiment Runner validation"),
+        ("missing_timed_out", "failed Experiment Runner validation"),
         ("fractional_returncode", "failed Experiment Runner validation"),
         ("missing_returncode", "failed Experiment Runner validation"),
         ("missing_oracle_paths", "must bind every candidate path"),
@@ -973,10 +976,19 @@ def test_finalize_dispatched_result_rejects_unbound_dispatch_evidence(
         dispatch_result["mutated_paths"] = []
         dispatch_result["oracle_results"] = []
         dispatch_result["budget_observations"]["oracle_commands_executed"] = 0
+    elif mutation == "accepted_runner_error":
+        dispatch_result["budget_observations"]["runner_error"] = "stale runner failure"
+    elif mutation == "guard_runner_error":
+        dispatch_result["status"] = "rejected"
+        dispatch_result["failure_class"] = "guard_failure"
+        dispatch_result["oracle_results"][-1]["returncode"] = 1
+        dispatch_result["budget_observations"]["runner_error"] = "stale runner failure"
     elif mutation == "timeout_non_boolean":
         dispatch_result["status"] = "rejected"
         dispatch_result["failure_class"] = "timeout"
         dispatch_result["oracle_results"][-1]["timed_out"] = "false"
+    elif mutation == "missing_timed_out":
+        dispatch_result["oracle_results"][-1].pop("timed_out")
     elif mutation == "fractional_returncode":
         dispatch_result["oracle_results"][-1]["returncode"] = 0.5
     elif mutation == "missing_returncode":
