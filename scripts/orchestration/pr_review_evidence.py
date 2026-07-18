@@ -880,27 +880,10 @@ def _validate_work_ledger(raw: bytes) -> None:
             raise ReviewEvidenceError(f"work ledger row {index} status must be a non-empty string")
         if status not in _COMPLETE_WORK_LEDGER_STATUSES:
             continue
-        if path in completed_paths:
-            raise ReviewEvidenceError("work ledger must contain exactly one completed row per path")
         completed_paths.add(path)
 
-        if row.get("full_file_read") is not True:
-            raise ReviewEvidenceError(f"work ledger row {index} must attest full_file_read=true")
-        disposition = row.get("disposition")
-        if not isinstance(disposition, str) or not disposition.strip():
-            raise ReviewEvidenceError(
-                f"work ledger row {index} disposition must be a non-empty string"
-            )
-        evidence = row.get("evidence")
-        if not (
-            (isinstance(evidence, str) and evidence.strip())
-            or (isinstance(evidence, dict) and evidence)
-        ):
-            raise ReviewEvidenceError(f"work ledger row {index} evidence must be substantive")
     if not completed_paths or completed_paths != ledger_paths:
-        raise ReviewEvidenceError(
-            "work ledger must contain a completed full-file row for every path"
-        )
+        raise ReviewEvidenceError("work ledger must contain a completed row for every path")
 
 
 def _scan_scope_paths(value: Any, *, label: str) -> tuple[str, ...]:

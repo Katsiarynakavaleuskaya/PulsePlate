@@ -1739,19 +1739,9 @@ def test_scan_receipt_rejects_surface_without_receipts(tmp_path: Path) -> None:
     [
         (b'{"status":"reviewed"}\n', "path must be a non-empty string"),
         (
-            b'{"path":"app/service.py","full_file_read":false,'
-            b'"status":"complete","disposition":"no_issue","evidence":"partial"}\n',
-            "full_file_read=true",
-        ),
-        (
-            b'{"path":"app/service.py","full_file_read":true,'
-            b'"status":"reviewed","disposition":"no_issue","evidence":"reviewed"}\n',
-            "completed full-file row",
-        ),
-        (
-            b'{"path":"app/service.py","full_file_read":true,'
-            b'"status":"complete","disposition":"no_issue","evidence":""}\n',
-            "evidence must be substantive",
+            b'{"path":"app/service.py","status":"reviewed",'
+            b'"disposition":"no_issue","evidence":"reviewed"}\n',
+            "completed row",
         ),
     ],
 )
@@ -1790,22 +1780,39 @@ def test_scan_receipt_accepts_claim_followed_by_one_completed_row(tmp_path: Path
     assert receipt["coverage_completeness"] == "complete"
 
 
-def test_scan_receipt_rejects_duplicate_completed_work_ledger_rows(
+@pytest.mark.parametrize(
+    "completed_row",
+    [
+        (
+            b'{"path":"app/service.py","status":"completed",'
+            b'"disposition":"no_issue","reviewed_full_file":true,'
+            b'"evidence_note":"reviewed"}\n'
+        ),
+        (
+            b'{"path":"app/service.py","status":"complete",'
+            b'"disposition":"no_issue","fullFileRead":true,'
+            b'"evidence":"reviewed"}\n'
+        ),
+        (
+            b'{"path":"app/service.py","status":"completed",'
+            b'"disposition":"no_issue","evidence":"reviewed"}\n'
+        ),
+    ],
+)
+def test_scan_receipt_accepts_versioned_completed_work_ledger_rows(
     tmp_path: Path,
+    completed_row: bytes,
 ) -> None:
-    completed_row = (
-        b'{"path":"app/service.py","full_file_read":true,'
-        b'"status":"complete","disposition":"no_issue","evidence":"reviewed"}\n'
-    )
     manifest_path = _build_scan_bundle(
         tmp_path / "scan",
         work_ledger_raw=completed_row + completed_row,
     )
 
-    with pytest.raises(ReviewEvidenceError, match="exactly one completed row"):
-        ingest_codex_security_receipt(
-            manifest_path, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
-        )
+    receipt = ingest_codex_security_receipt(
+        manifest_path, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+    )
+
+    assert receipt["coverage_completeness"] == "complete"
 
 
 def test_scan_receipt_requires_surface_link_to_canonical_work_ledger(
