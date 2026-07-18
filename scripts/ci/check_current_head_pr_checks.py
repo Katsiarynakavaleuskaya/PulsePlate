@@ -88,6 +88,18 @@ DOCKER_SURFACE_PREFIXES = {
     "trivy/",
 }
 FRONTEND_FALLBACK_WORKFLOW_NAMES = {"Frontend CI"}
+CADDY_FALLBACK_CHECK_NAMES = {"caddy-contract"}
+CADDY_SURFACE_PREFIXES = {
+    ".github/workflows/cd.yml",
+    ".github/workflows/frontend-ci.yml",
+    "deploy/Caddyfile",
+    "deploy/Caddyfile.production",
+    "deploy/docker-compose.staging.yaml",
+    "frontend/Dockerfile.caddy-spa",
+    "scripts/deploy.sh",
+    "tests/test_caddy_deploy_provenance.py",
+    "tests/test_cd_attestation_workflow_contract.py",
+}
 FRONTEND_SURFACE_PREFIXES = {
     ".github/actions/npm-ci-with-retry/",
     ".github/actions/python-setup/",
@@ -688,6 +700,8 @@ def _is_blocking_fallback_advisory(entry: CheckEntry, changed_paths: set[str]) -
             changed_paths, DOCKER_SURFACE_PREFIXES
         )
     if entry.workflow_name in FRONTEND_FALLBACK_WORKFLOW_NAMES:
+        if entry.name in CADDY_FALLBACK_CHECK_NAMES:
+            return _path_touches_any(changed_paths, CADDY_SURFACE_PREFIXES)
         return _path_touches_any(changed_paths, FRONTEND_SURFACE_PREFIXES)
     return False
 

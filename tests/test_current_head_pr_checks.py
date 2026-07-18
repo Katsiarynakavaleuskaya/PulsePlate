@@ -244,6 +244,45 @@ def test_fallback_ci_allowlist_matches_canonical_pr_workflow_jobs() -> None:
         ),
         (
             current_head_checks.CheckEntry(
+                name="caddy-contract",
+                source_kind="check_run",
+                state="failed",
+                timestamp="2026-03-12T08:36:42Z",
+                details_url="https://example.invalid/caddy-skipped-unattached",
+                workflow_name="Frontend CI",
+                conclusion="SKIPPED",
+            ),
+            {"constraints.txt"},
+            False,
+        ),
+        (
+            current_head_checks.CheckEntry(
+                name="caddy-contract",
+                source_kind="check_run",
+                state="failed",
+                timestamp="2026-03-12T08:36:42Z",
+                details_url="https://example.invalid/caddy-skipped-attached",
+                workflow_name="Frontend CI",
+                conclusion="SKIPPED",
+            ),
+            {"deploy/Caddyfile.production"},
+            True,
+        ),
+        (
+            current_head_checks.CheckEntry(
+                name="build-and-test",
+                source_kind="check_run",
+                state="failed",
+                timestamp="2026-03-12T08:36:42Z",
+                details_url="https://example.invalid/frontend-constraints",
+                workflow_name="Frontend CI",
+                conclusion="FAILURE",
+            ),
+            {"constraints.txt"},
+            True,
+        ),
+        (
+            current_head_checks.CheckEntry(
                 name="axe smoke",
                 source_kind="check_run",
                 state="pending",
