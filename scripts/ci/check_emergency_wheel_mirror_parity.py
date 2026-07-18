@@ -7,6 +7,7 @@ import argparse
 from dataclasses import dataclass
 from datetime import date
 from html.parser import HTMLParser
+import importlib
 import json
 import os
 from pathlib import Path
@@ -14,14 +15,22 @@ import re
 import socket
 import ssl
 import sys
+from types import ModuleType
 from typing import Sequence
 from urllib.error import HTTPError, URLError
 from urllib.parse import unquote, urlparse
 
-try:
-    from scripts.ci import check_private_python_proxy_health as proxy_health
-except ModuleNotFoundError:  # pragma: no cover - exercised by direct script execution.
-    import check_private_python_proxy_health as proxy_health
+
+def _load_proxy_health() -> ModuleType:
+    module_name = (
+        "scripts.ci.check_private_python_proxy_health"
+        if __package__
+        else "check_private_python_proxy_health"
+    )
+    return importlib.import_module(module_name)
+
+
+proxy_health = _load_proxy_health()
 
 INDEX_ENV_VAR = proxy_health.INDEX_ENV_VAR
 DEFAULT_MANIFEST = Path(__file__).with_name("emergency_python_wheels.json")
@@ -515,20 +524,6 @@ def probe_artifact(
             bytes_read=len(body),
         )
 
-    exact_wheels = proxy_health.exact_pin_wheel_filenames(
-        body=body,
-        normalized_project=artifact.normalized_package,
-        expected_version=artifact.version,
-    )
-    if artifact.filename.lower() not in {filename.lower() for filename in exact_wheels}:
-        return ArtifactResult(
-            artifact=artifact,
-            project_url=project_url,
-            ok=False,
-            reason="mirror_lag_exact_filename_missing",
-            status=status,
-            bytes_read=len(body),
-        )
     try:
         exact_wheel_hashes = _exact_pin_wheel_sha256s(
             body=body,
@@ -545,6 +540,21 @@ def probe_artifact(
             status=status,
             bytes_read=len(body),
             detail=str(exc),
+        )
+    exact_wheels = proxy_health.exact_pin_wheel_filenames(
+        body=body,
+        normalized_project=artifact.normalized_package,
+        expected_version=artifact.version,
+        allowed_netloc=urlparse(project_url).netloc,
+    )
+    if artifact.filename.lower() not in {filename.lower() for filename in exact_wheels}:
+        return ArtifactResult(
+            artifact=artifact,
+            project_url=project_url,
+            ok=False,
+            reason="mirror_lag_exact_filename_missing",
+            status=status,
+            bytes_read=len(body),
         )
     mirrored_sha256 = exact_wheel_hashes.get(artifact.filename.lower())
     if mirrored_sha256 is None:

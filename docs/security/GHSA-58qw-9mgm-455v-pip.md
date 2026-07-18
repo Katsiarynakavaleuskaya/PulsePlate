@@ -11,18 +11,18 @@
 - Remediation strategy: remove vulnerable unsafe `pip` pins from repo-managed
   lock surfaces and block reintroduction of `pip<=26.0.1`.
 
-GitHub reports this advisory for lockfile entries produced by
-`pip-compile --allow-unsafe`. Because the advisory currently has no patched
-`pip` release in the GitHub alert payload, this lane does not repin `pip` to a
-nonexistent safe version. Instead, it removes the unsafe `pip==...` lock entries
-and records a deterministic blocked-version guard.
+GitHub reported this advisory for `pip` entries emitted by the repository's
+former direct lock-generation workflow. Because the alert payload had no
+patched `pip` release, the remediation did not repin `pip` to a nonexistent safe
+version. Current locks are generated only through `make requirements-locks`,
+which excludes `pip` and records Make/profile/source provenance.
 
 ## Repo Evidence
 
-- `requirements-dev.txt:250` (`setuptools==78.1.1`) — unsafe block has no
-  `pip==...` pin (repo policy: lock surfaces must not pin `pip`).
-- `requirements-lock.txt:212` (`setuptools==78.1.1`) — unsafe block has no
-  `pip==26.0.1`-style pin in this lockfile.
+- `requirements-dev.txt` contains the governed normal pin
+  `setuptools==83.0.0` and no `pip==...` pin.
+- `requirements-lock.txt` contains the governed normal pin
+  `setuptools==83.0.0` and no `pip==...` pin.
 - `tests/fixtures/dependency_security_schema.json:15` blocks `pip<=26.0.1`
   in pinned requirement surfaces.
 - GitHub Dependabot alert `#118` maps `pip` in `requirements-dev.txt` to
@@ -38,14 +38,14 @@ and records a deterministic blocked-version guard.
 rg -n "pip==|GHSA-58qw-9mgm-455v|CVE-2026-3219" requirements-dev.txt requirements-lock.txt tests/fixtures/dependency_security_schema.json docs/security docs/orchestration
 .venv/bin/python -m pytest -q tests/test_dependency_security_guard.py
 pre-commit run --all-files
-make verify
+make validate-changed
 ```
 
 ## Notes
 
 - `pip-api`, `pip-audit`, `pip-requirements-parser`, and `pip-tools` stay in
   scope as normal development tooling dependencies.
-- `setuptools==78.1.1` remains pinned in the unsafe package block because it is
-  governed separately by the existing `GHSA-58pv-8j8x-9vj2` security floor.
+- `setuptools==83.0.0` remains a normal governed pin under its separate
+  security floor; there is no tracked unsafe-package footer.
 - This lane is dependency-security only; it does not change runtime behavior,
   OpenAPI, frontend, iOS, Cloudflare, Sentry, Docker, or product code.

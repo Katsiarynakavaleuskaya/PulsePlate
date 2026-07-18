@@ -126,6 +126,8 @@ repos:
         args:
           - --requirement
           - requirements.txt
+          - --no-deps
+          - --disable-pip
           - --strict
           - --timeout
           - '60'

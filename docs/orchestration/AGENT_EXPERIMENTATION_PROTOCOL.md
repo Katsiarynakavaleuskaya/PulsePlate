@@ -325,10 +325,13 @@ PR-1/PR-2/PR-3 gates admit later artifacts.
 - External or retrieved content remains untrusted.
 - Any non-zero provider or network budget is `review-required`, not `auto-safe`.
 - On macOS, strict `network_budget=0` execution must use the capability-probed
-  dispatcher documented in `EXPERIMENT_RUNNER_MACOS_RUNBOOK.md`: Apple
-  Container first, then Docker `--network none`, with selection completed
-  before the run. A backend may not silently fall back, add broad capabilities,
-  or change the packet network budget after execution starts.
+  dispatcher documented in `EXPERIMENT_RUNNER_MACOS_RUNBOOK.md`. Oracle-only
+  governance review requires explicit `--backend apple-container`; `auto`,
+  `docker`, and `native-linux` fail before runtime probing, and Apple capability
+  failure is terminal `capability_mismatch` without Docker fallback. General
+  candidate/negative-control execution may still select Apple Container then
+  Docker `--network none` before the run. No path may silently fall back after
+  execution starts, add broad capabilities, or change the packet network budget.
 - The strict dispatcher rejects non-zero `network_budget` before backend
   selection. Native Linux `unshare` remains available through the existing
   Runner, but is not a strict dispatcher backend until filesystem containment

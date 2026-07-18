@@ -82,7 +82,8 @@ inputs changed, regenerate the lock first through the approved local
 package-proxy environment:
 
 ```bash
-.venv/bin/python -m piptools compile --allow-unsafe --no-emit-index-url --output-file=requirements-evals.txt requirements-evals.in
+export PULSEPLATE_PYTHON_INDEX_URL="https://packages.pulseplate.app/root/pulseplate/+simple/"
+LOCK_PROFILES="evals" make requirements-locks
 ```
 
 ## Usage

@@ -29,13 +29,12 @@ OpenAPI, Docker image construction, or the private Python package source.
 
 ## Resolver evidence
 
-The checked-in runtime and Docker-runtime lock headers record targeted,
-proxy-safe `pip-compile` commands with `--no-emit-index-url`; their exact Click
-and Pillow pins are visible in the same files. After the private proxy stalled
-during the next seeded resolution, the remaining affected locks received only
-the already-resolved exact pins and provenance annotations. Deterministic tests
-enforce the resulting floors, exact Click/Pillow pins, and the repository-wide
-ban on `pip==...` entries across repo-managed lock surfaces.
+The checked-in lock headers record only the governed Make profile and source
+provenance; exact Click and Pillow pins remain visible in the same files. The
+active regeneration path is `make requirements-locks` through the approved
+private proxy. Deterministic tests enforce the resulting floors, exact
+Click/Pillow pins, and the repository-wide ban on `pip==...` entries across
+repo-managed lock surfaces.
 
 Private-proxy responses, interpreter/tool versions, and command transcripts are
 local operator evidence and are intentionally gitignored. They supported the
