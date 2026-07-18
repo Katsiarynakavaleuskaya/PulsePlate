@@ -157,7 +157,9 @@ governance PR number + 1; the governance PR may opt in with
   deduplicated union of `coverage.surfaces[*].receiptRefs`. Every sealed entry
   is path-, media-type-, size-, and hash-verified; missing referenced receipts
   and unreferenced sealed entries fail closed. The bounded review receipt keeps
-  the three canonical artifact hashes plus the full manifest hash.
+  the three canonical artifact hashes plus the full manifest hash. Complete
+  coverage also requires identical manifest/coverage include-exclude scope and
+  no surface with a `needs_follow_up` disposition.
 - If the trusted connector returns its exact review-credit exhaustion response
   for the final review cycle, the seal may use the closed
   `operator_review_credit_exhaustion_override` variant. It requires a prior

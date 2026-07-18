@@ -1536,6 +1536,17 @@ def _build_scan_bundle(
         "artifacts/02_discovery/work_ledger.jsonl",
     }:
         raise ValueError("receipt artifacts must not replace canonical scan artifacts")
+    normalized_surfaces: list[Any] = []
+    for surface in surfaces or []:
+        if not isinstance(surface, dict):
+            normalized_surfaces.append(surface)
+            continue
+        normalized_surface = {
+            "disposition": "no_issue_found",
+            "label": str(surface.get("id") or "Surface"),
+        }
+        normalized_surface.update(surface)
+        normalized_surfaces.append(normalized_surface)
     coverage = {
         "completeness": "complete",
         "deferred": [],
@@ -1548,7 +1559,7 @@ def _build_scan_bundle(
         "openQuestions": [],
         "scanId": SCAN_ID,
         "schemaVersion": "1.0",
-        "surfaces": list(surfaces or []),
+        "surfaces": normalized_surfaces,
     }
     findings = {
         "documentType": "codex-security.findings",
@@ -1601,7 +1612,10 @@ def _build_scan_bundle(
             "findingsRef": "findings.json",
             "id": SCAN_ID,
             "producer": {"name": "codex-security-plugin", "version": "0.1.11"},
-            "scope": {},
+            "scope": {
+                "excludePaths": [],
+                "includePaths": ["."],
+            },
             "sealedAt": "2026-07-15T11:00:00Z",
             "startedAt": "2026-07-15T10:00:00Z",
             "status": "completed",
@@ -1699,6 +1713,148 @@ def test_scan_receipt_accepts_exact_referenced_superset_in_any_order(tmp_path: P
     }
     assert "reviewed_surfaces" not in json.dumps(receipt)
     assert str(tmp_path) not in json.dumps(receipt)
+
+
+def test_scan_receipt_rejects_follow_up_surface_under_complete_coverage(
+    tmp_path: Path,
+) -> None:
+    manifest_path = _build_scan_bundle(
+        tmp_path / "scan",
+        surfaces=[
+            {
+                "disposition": "needs_follow_up",
+                "id": "runtime",
+                "label": "Runtime",
+                "receiptRefs": ["artifacts/02_discovery/work_ledger.jsonl"],
+            }
+        ],
+    )
+
+    with pytest.raises(ReviewEvidenceError, match="cannot contain needs_follow_up"):
+        ingest_codex_security_receipt(
+            manifest_path, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+        )
+
+
+@pytest.mark.parametrize(
+    ("surface_override", "message"),
+    [
+        ({"label": ""}, "label must be a non-empty string"),
+        ({"disposition": "unknown"}, "disposition is unsupported"),
+    ],
+)
+def test_scan_receipt_rejects_malformed_surface_contract(
+    tmp_path: Path,
+    surface_override: dict[str, Any],
+    message: str,
+) -> None:
+    surface = {
+        "id": "runtime",
+        "receiptRefs": ["artifacts/02_discovery/work_ledger.jsonl"],
+        **surface_override,
+    }
+    manifest_path = _build_scan_bundle(
+        tmp_path / hashlib.sha256(message.encode()).hexdigest(),
+        surfaces=[surface],
+    )
+
+    with pytest.raises(ReviewEvidenceError, match=message):
+        ingest_codex_security_receipt(
+            manifest_path, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+        )
+
+
+def test_scan_receipt_requires_coverage_scope_to_match_manifest_scope(
+    tmp_path: Path,
+) -> None:
+    manifest_path = _build_scan_bundle(tmp_path / "scan")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["scan"]["scope"]["includePaths"] = ["app/security"]
+    _write_json(manifest_path, manifest)
+
+    with pytest.raises(ReviewEvidenceError, match="must match the manifest scope"):
+        ingest_codex_security_receipt(
+            manifest_path, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+        )
+
+
+@pytest.mark.parametrize(
+    ("source", "value", "message"),
+    [
+        ("manifest", ".", "must be a bounded array"),
+        ("manifest", ["/absolute"], "safe repository-relative POSIX path"),
+        ("coverage", ["/absolute"], "safe repository-relative POSIX path"),
+    ],
+)
+def test_scan_receipt_rejects_malformed_scope_paths(
+    tmp_path: Path,
+    source: str,
+    value: Any,
+    message: str,
+) -> None:
+    manifest_path = _build_scan_bundle(
+        tmp_path / f"{source}-{hashlib.sha256(message.encode()).hexdigest()}"
+    )
+    if source == "manifest":
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["scan"]["scope"]["includePaths"] = value
+        _write_json(manifest_path, manifest)
+    else:
+        coverage = json.loads((manifest_path.parent / "coverage.json").read_text(encoding="utf-8"))
+        coverage["includePaths"] = value
+        _rewrite_scan_json_artifact(manifest_path, "coverage.json", coverage)
+
+    with pytest.raises(ReviewEvidenceError, match=message):
+        ingest_codex_security_receipt(
+            manifest_path, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+        )
+
+
+@pytest.mark.parametrize(
+    ("value", "message"),
+    [
+        ("not-a-timestamp", "ISO-8601 string"),
+        ("2026-07-15T11:00:00", "include a timezone"),
+    ],
+)
+def test_scan_receipt_rejects_malformed_timestamps(value: str, message: str) -> None:
+    with pytest.raises(ReviewEvidenceError, match=message):
+        evidence_module._parse_timestamp(value, label="scan.startedAt")
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("scope", [], "scope and threatModel must be objects"),
+        ("threatModel", [], "scope and threatModel must be objects"),
+        ("producer", [], "producer must be an object"),
+    ],
+)
+def test_scan_receipt_rejects_malformed_manifest_objects(
+    tmp_path: Path,
+    field: str,
+    value: Any,
+    message: str,
+) -> None:
+    manifest_path = _build_scan_bundle(tmp_path / field)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["scan"][field] = value
+    _write_json(manifest_path, manifest)
+
+    with pytest.raises(ReviewEvidenceError, match=message):
+        ingest_codex_security_receipt(
+            manifest_path, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+        )
+
+
+def test_scan_receipt_rejects_non_object_coverage(tmp_path: Path) -> None:
+    manifest_path = _build_scan_bundle(tmp_path / "scan")
+    _rewrite_scan_json_artifact(manifest_path, "coverage.json", [])
+
+    with pytest.raises(ReviewEvidenceError, match="coverage.json must contain an object"):
+        ingest_codex_security_receipt(
+            manifest_path, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+        )
 
 
 def test_scan_receipt_rejects_tampered_referenced_artifact(tmp_path: Path) -> None:

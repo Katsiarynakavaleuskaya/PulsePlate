@@ -133,9 +133,17 @@ _MAX_SCAN_ARTIFACTS = 256
 _MAX_COVERAGE_SURFACES = 1024
 _MAX_RECEIPT_REFS_PER_SURFACE = 64
 _MAX_RECEIPT_REF_OCCURRENCES = 4096
+_MAX_SCOPE_PATHS = 256
 _MAX_ARTIFACT_PATH_BYTES = 1024
 _MAX_ARTIFACT_PATH_DEPTH = 16
 _MAX_ARTIFACT_COMPONENT_BYTES = 255
+_COVERAGE_DISPOSITIONS = {
+    "reported",
+    "no_issue_found",
+    "rejected",
+    "not_applicable",
+    "needs_follow_up",
+}
 _CANONICAL_SCAN_ARTIFACT_MEDIA_TYPES = {
     "coverage.json": "application/json",
     "findings.json": "application/json",
@@ -792,11 +800,19 @@ def _coverage_receipt_refs(coverage: Mapping[str, Any]) -> set[str]:
         if not isinstance(surface, dict):
             raise ReviewEvidenceError(f"coverage surface {index} must be an object")
         surface_id = surface.get("id")
-        if not isinstance(surface_id, str) or not surface_id:
+        if not isinstance(surface_id, str) or not surface_id.strip():
             raise ReviewEvidenceError(f"coverage surface {index} id must be a non-empty string")
         if surface_id in surface_ids:
             raise ReviewEvidenceError("coverage surface ids must be unique")
         surface_ids.add(surface_id)
+        label = surface.get("label")
+        if not isinstance(label, str) or not label.strip():
+            raise ReviewEvidenceError(f"coverage surface {index} label must be a non-empty string")
+        disposition = surface.get("disposition")
+        if not isinstance(disposition, str) or disposition not in _COVERAGE_DISPOSITIONS:
+            raise ReviewEvidenceError(f"coverage surface {index} disposition is unsupported")
+        if disposition == "needs_follow_up":
+            raise ReviewEvidenceError("complete coverage cannot contain needs_follow_up surfaces")
         refs = surface.get("receiptRefs")
         if not isinstance(refs, list) or len(refs) > _MAX_RECEIPT_REFS_PER_SURFACE:
             raise ReviewEvidenceError(
@@ -812,6 +828,24 @@ def _coverage_receipt_refs(coverage: Mapping[str, Any]) -> set[str]:
             normalized = path.as_posix()
             receipt_refs.add(normalized)
     return receipt_refs
+
+
+def _scan_scope_paths(value: Any, *, label: str) -> tuple[str, ...]:
+    if not isinstance(value, list) or len(value) > _MAX_SCOPE_PATHS:
+        raise ReviewEvidenceError(f"{label} must be a bounded array")
+    normalized: list[str] = []
+    for index, item in enumerate(value):
+        if item == ".":
+            normalized.append(".")
+            continue
+        try:
+            path = _safe_relative_artifact_path(item).as_posix()
+        except ReviewEvidenceError as exc:
+            raise ReviewEvidenceError(
+                f"{label}[{index}] must be a safe repository-relative POSIX path"
+            ) from exc
+        normalized.append(path)
+    return tuple(normalized)
 
 
 def _read_verified_scan_artifact(
@@ -894,6 +928,14 @@ def _ingest_codex_security_receipt_from_descriptor(
         raise ReviewEvidenceError("scan.id must be a lowercase UUID")
     if not isinstance(scan["scope"], dict) or not isinstance(scan["threatModel"], dict):
         raise ReviewEvidenceError("scan scope and threatModel must be objects")
+    scope_include_paths = _scan_scope_paths(
+        scan["scope"].get("includePaths"),
+        label="scan.scope.includePaths",
+    )
+    scope_exclude_paths = _scan_scope_paths(
+        scan["scope"].get("excludePaths"),
+        label="scan.scope.excludePaths",
+    )
 
     producer = scan["producer"]
     if not isinstance(producer, dict):
@@ -972,6 +1014,19 @@ def _ingest_codex_security_receipt_from_descriptor(
         or coverage["openQuestions"] != []
     ):
         raise ReviewEvidenceError("Codex Security coverage is incomplete or inconsistent")
+    coverage_include_paths = _scan_scope_paths(
+        coverage["includePaths"],
+        label="coverage.includePaths",
+    )
+    coverage_exclude_paths = _scan_scope_paths(
+        coverage["excludePaths"],
+        label="coverage.excludePaths",
+    )
+    if (
+        coverage_include_paths != scope_include_paths
+        or coverage_exclude_paths != scope_exclude_paths
+    ):
+        raise ReviewEvidenceError("coverage include/exclude paths must match the manifest scope")
 
     receipt_refs = _coverage_receipt_refs(coverage)
     expected_paths = set(_CANONICAL_SCAN_ARTIFACT_MEDIA_TYPES) | receipt_refs
