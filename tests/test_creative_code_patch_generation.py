@@ -881,6 +881,7 @@ def test_finalize_dispatched_result_retains_trusted_rejection_without_retry(
         ("timeout_without_timeout", "requires timed-out oracle evidence"),
         ("timeout_non_boolean", "failed Experiment Runner validation"),
         ("fractional_returncode", "failed Experiment Runner validation"),
+        ("missing_returncode", "failed Experiment Runner validation"),
         ("missing_oracle_paths", "must bind every candidate path"),
         ("unchanged_result", "does not support unchanged_result"),
     ],
@@ -934,6 +935,8 @@ def test_finalize_dispatched_result_rejects_unbound_dispatch_evidence(
         dispatch_result["oracle_results"][-1]["timed_out"] = "false"
     elif mutation == "fractional_returncode":
         dispatch_result["oracle_results"][-1]["returncode"] = 0.5
+    elif mutation == "missing_returncode":
+        dispatch_result["oracle_results"][-1].pop("returncode")
     elif mutation == "missing_oracle_paths":
         dispatch_result["status"] = "rejected"
         dispatch_result["failure_class"] = "guard_failure"

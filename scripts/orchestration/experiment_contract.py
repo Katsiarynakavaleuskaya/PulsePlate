@@ -890,7 +890,7 @@ def validate_experiment_result(result: dict[str, Any]) -> dict[str, Any]:
         timed_out = oracle_result.get("timed_out", False)
         if not isinstance(timed_out, bool):
             raise ValueError("Each oracle result timed_out must be a boolean.")
-        returncode = oracle_result.get("returncode", 0)
+        returncode = oracle_result.get("returncode")
         if not isinstance(returncode, int) or isinstance(returncode, bool):
             raise ValueError("Each oracle result returncode must be an integer.")
         oracle_results.append(
