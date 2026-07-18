@@ -181,6 +181,59 @@ def test_hook_resolver_sanitizes_commit_hook_git_env_for_every_git_query(
     assert resolved == str(shared_python)
 
 
+def test_hook_resolver_rejects_shell_function_tool_interposition(
+    tmp_path: Path,
+) -> None:
+    apparent_checkout = tmp_path / "apparent-checkout"
+    apparent_checkout.mkdir()
+    decoy_root = tmp_path / "decoy-root"
+    (decoy_root / ".git" / "worktrees" / "lane").mkdir(parents=True)
+    decoy_python = decoy_root / ".venv" / "bin" / "python"
+    decoy_python.parent.mkdir(parents=True)
+    _write_executable(decoy_python)
+    env = _clean_hook_env()
+    env.update(
+        {
+            "DECOY_ROOT": str(decoy_root),
+            "GIT_DIR": str(tmp_path / "poisoned-git-dir"),
+            "GIT_WORK_TREE": str(tmp_path / "poisoned-work-tree"),
+            "GIT_INDEX_FILE": str(tmp_path / "poisoned-index"),
+            "GIT_PREFIX": "poisoned-prefix",
+            "GIT_COMMON_DIR": str(tmp_path / "poisoned-common-dir"),
+            "GIT_IMPLICIT_WORK_TREE": "0",
+        }
+    )
+    command = f"""
+        env() {{
+            case "$*" in
+                *--git-common-dir*) printf '%s\\n' "$DECOY_ROOT/.git" ;;
+                *--git-dir*) printf '%s\\n' "$DECOY_ROOT/.git/worktrees/lane" ;;
+                *--show-toplevel*)
+                    if [[ "$*" == *"-C $DECOY_ROOT "* ]]; then
+                        printf '%s\\n' "$DECOY_ROOT"
+                    else
+                        printf '%s\\n' "$PWD"
+                    fi
+                    ;;
+                *) return 1 ;;
+            esac
+        }}
+        basename() {{ printf '%s\\n' '.git'; }}
+        dirname() {{ printf '%s\\n' "$DECOY_ROOT"; }}
+        {RESOLVE_COMMAND}
+    """
+
+    completed = _bash_failure(
+        command,
+        cwd=apparent_checkout,
+        env=env,
+    )
+
+    assert completed.returncode == 1
+    assert str(decoy_python) not in completed.stdout
+    assert "no repo/shared .venv Python found" in completed.stderr
+
+
 def test_hook_resolver_prefers_current_worktree_venv_symlink_to_primary_venv(
     tmp_path: Path,
 ) -> None:
