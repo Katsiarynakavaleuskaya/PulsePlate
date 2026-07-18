@@ -1794,6 +1794,33 @@ def test_scan_receipt_rejects_matching_partial_git_diff_scope(tmp_path: Path) ->
 
 
 @pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        (
+            "explicitExclusions",
+            [{"path": "app/security/**", "reason": "not reviewed"}],
+        ),
+        ("inventoryStrategy", "manual_subset"),
+        ("mode", "single_file"),
+    ],
+)
+def test_scan_receipt_rejects_selective_coverage_claims(
+    tmp_path: Path,
+    field: str,
+    value: Any,
+) -> None:
+    manifest_path = _build_scan_bundle(tmp_path / field)
+    coverage = json.loads((manifest_path.parent / "coverage.json").read_text(encoding="utf-8"))
+    coverage[field] = value
+    _rewrite_scan_json_artifact(manifest_path, "coverage.json", coverage)
+
+    with pytest.raises(ReviewEvidenceError, match="coverage is incomplete or inconsistent"):
+        ingest_codex_security_receipt(
+            manifest_path, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+        )
+
+
+@pytest.mark.parametrize(
     ("source", "value", "message"),
     [
         ("manifest", ".", "must be a bounded array"),

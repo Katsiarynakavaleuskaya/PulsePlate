@@ -162,6 +162,8 @@ governance PR number + 1; the governance PR may opt in with
   no surface with a `needs_follow_up` disposition. Final Git-diff evidence must
   cover the whole diff with `includePaths: ["."]` and no excluded paths; a
   matching but narrower manifest/coverage scope cannot satisfy merge evidence.
+  Its coverage record must also use `inventoryStrategy: "diff"`,
+  `mode: "branch_diff"`, and no explicit exclusions.
 - If the trusted connector returns its exact review-credit exhaustion response
   for the final review cycle, the seal may use the closed
   `operator_review_credit_exhaustion_override` variant. It requires a prior

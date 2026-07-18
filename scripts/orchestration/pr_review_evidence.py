@@ -1011,6 +1011,9 @@ def _ingest_codex_security_receipt_from_descriptor(
         or coverage["scanId"] != scan_id
         or coverage["completeness"] != "complete"
         or coverage["deferred"] != []
+        or coverage["explicitExclusions"] != []
+        or coverage["inventoryStrategy"] != "diff"
+        or coverage["mode"] != "branch_diff"
         or coverage["openQuestions"] != []
     ):
         raise ReviewEvidenceError("Codex Security coverage is incomplete or inconsistent")
