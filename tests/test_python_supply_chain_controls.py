@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import json
 import os
 import re
@@ -13,7 +14,6 @@ import subprocess
 from packaging.requirements import InvalidRequirement
 from packaging.requirements import Requirement
 from packaging.utils import canonicalize_name
-from packaging.version import Version
 import pytest
 import yaml
 
@@ -953,13 +953,34 @@ def test_constraints_keep_dependency_security_floors_aligned() -> None:
     ):
         assert not _requirement_package_versions(lock_surface, "pyarrow")
     assert _requirement_package_versions(REPO_ROOT / "requirements-data.in", "pyarrow") == {
-        "20.0.0"
+        "25.0.0"
     }
     data_lock_versions = _requirement_package_versions(
         REPO_ROOT / "requirements-data.txt", "pyarrow"
     )
-    assert data_lock_versions
-    assert all(Version(version) >= Version("20.0.0") for version in data_lock_versions)
+    assert data_lock_versions == {"25.0.0"}
+
+
+def test_offline_builders_require_explicit_pyarrow_parquet_engine() -> None:
+    for builder_path in (
+        REPO_ROOT / "scripts" / "build_food_db.py",
+        REPO_ROOT / "scripts" / "build_recipe_db.py",
+    ):
+        tree = ast.parse(builder_path.read_text(encoding="utf-8"), filename=str(builder_path))
+        parquet_calls = [
+            node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "to_parquet"
+        ]
+
+        assert len(parquet_calls) == 1, builder_path
+        keywords = {keyword.arg: keyword.value for keyword in parquet_calls[0].keywords}
+        assert isinstance(keywords.get("engine"), ast.Constant), builder_path
+        assert keywords["engine"].value == "pyarrow", builder_path
+        assert isinstance(keywords.get("index"), ast.Constant), builder_path
+        assert keywords["index"].value is False, builder_path
 
 
 def test_ci_security_job_runs_pip_audit_from_ci_lite_toolchain() -> None:

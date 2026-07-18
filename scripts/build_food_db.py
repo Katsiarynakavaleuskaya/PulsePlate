@@ -226,7 +226,7 @@ class FoodDatabaseBuilder:
             data.append(row)
 
         df = pd.DataFrame(data)
-        df.to_parquet(self.food_parquet, index=False)
+        df.to_parquet(self.food_parquet, engine="pyarrow", index=False)
 
         logging.info(f"  ✅ Parquet saved: {self.food_parquet}")
         logging.info(f"  📊 Records: {len(df)}")
