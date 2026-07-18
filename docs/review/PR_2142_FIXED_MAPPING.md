@@ -134,13 +134,43 @@ Commit: 561207c507d6adf2a274ad1ed1e4f8917d3dbc8a
 Evidence: scripts/ci/check_private_python_proxy_health.py:581-586; tests/test_private_python_proxy_health.py:244-269
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2142#discussion_r3606023723 -> 561207c507d6adf2a274ad1ed1e4f8917d3dbc8a
 
+Disposition: FIXED
+Commit: d1d5b0dda156b25ab9f21801319325f62a78697e
+Evidence: scripts/orchestration/check_review_threads_disposition.py:413-619; tests/test_review_threads_disposition_strict.py:564-704
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2142#discussion_r3606548573 -> d1d5b0dda156b25ab9f21801319325f62a78697e
+
+Disposition: FIXED
+Commit: d1d5b0dda156b25ab9f21801319325f62a78697e
+Evidence: scripts/ci/check_private_python_proxy_health.py:480-534; scripts/ci/compile_locked_python_requirements.py:996-1015,1331-1379; tests/test_private_python_proxy_health.py:169-211; tests/test_python_dependency_surfaces.py:1510-1526
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2142#discussion_r3606548577 -> d1d5b0dda156b25ab9f21801319325f62a78697e
+
+Disposition: FIXED
+Commit: d1d5b0dda156b25ab9f21801319325f62a78697e
+Evidence: scripts/ci/check_private_python_proxy_health.py:619-672; tests/test_private_python_proxy_health.py:295-340
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2142#discussion_r3606548581 -> d1d5b0dda156b25ab9f21801319325f62a78697e
+
+Disposition: FIXED
+Commit: fa2b450de924c807ab53a266f640ed29d66cd883
+Evidence: scripts/orchestration/check_review_threads_disposition.py:508-618; tests/test_review_threads_disposition_strict.py:605-704; live PR proof: 12/12 mapped SHAs timestamped and 0 commit-after-comment violations
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2142#discussion_r3607022338 -> fa2b450de924c807ab53a266f640ed29d66cd883
+
 Disposition: NOT-A-BUG
 Evidence: .github/workflows/ci.yml:411-443; scripts/ci/check_pr_merge_readiness.py:517-519
 Reason: Cross-workflow CodeQL and Docker jobs cannot be expressed as CI job needs; the gate intentionally fails closed and documents a targeted rerun only after exact-current-head substitute checks settle.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2142#discussion_r3596692708
 
+Disposition: NOT-A-BUG
+Evidence: GitHub review 4715185315; every actionable child thread is mapped individually in this artifact.
+Reason: The aggregate CodeRabbit review container adds no independent actionable beyond its child inline threads.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2142#pullrequestreview-4715185315
+
+Disposition: NOT-A-BUG
+Evidence: GitHub review 4715187379; every actionable child thread is mapped individually in this artifact.
+Reason: The aggregate CodeRabbit review container adds no independent actionable beyond its child inline threads.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2142#pullrequestreview-4715187379
+
 ## Review Material Seal
 <!-- PULSEPLATE_PR_REVIEW_SEAL_V1_BEGIN -->
 <!-- pragma: allowlist nextline secret -->
-{"authority":"human_asserted_content_receipt","code_review":{"review_commit_ref":"907220cae44ee75f90ef8ba3ec4dc53d0297456b","review_commit_ref_kind":"repository_commit","review_reference":"https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2142#issuecomment-5007546818","reviewed_material_digest":"sha256:f40c2283d0f2d36348a4938b56487176569c5546661d25e65406b59fda75a64b","status":"completed"},"codex_security":{"authority":"operator_outage_override","base_revision":"b6a3bd2f0b22d2e6c5c93e476e823e891e633a09","created_at":"2026-07-17T21:13:21Z","error_code":"-32001","error_message":"Request timed out","head_revision":"907220cae44ee75f90ef8ba3ec4dc53d0297456b","material_digest":"sha256:f40c2283d0f2d36348a4938b56487176569c5546661d25e65406b59fda75a64b","operator_association":"OWNER","operator_login":"Katsiarynakavaleuskaya","operator_user_id":169792616,"outage_class":"codex_security_mcp_timeout","override_reference":"https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2142#issuecomment-5007527814","scan_id":null,"status":"tooling_unavailable"},"material":{"base_ref_oid":"b6a3bd2f0b22d2e6c5c93e476e823e891e633a09","digest":"sha256:f40c2283d0f2d36348a4938b56487176569c5546661d25e65406b59fda75a64b","material_head_sha":"907220cae44ee75f90ef8ba3ec4dc53d0297456b","merge_base_sha":"b6a3bd2f0b22d2e6c5c93e476e823e891e633a09","policy_version":"pulseplate.material-classification/v1"},"pr_number":2142,"repository":"Katsiarynakavaleuskaya/PulsePlate","schema_version":"pulseplate.pr-review-seal/v1"}
+{"authority":"human_asserted_content_receipt","code_review":{"authority":"operator_review_credit_exhaustion_override","operator_association":"OWNER","operator_login":"Katsiarynakavaleuskaya","operator_review_submitted_at":"2026-07-18T06:39:29Z","operator_user_id":169792616,"outage_class":"codex_review_credits_exhausted","override_created_at":"2026-07-18T06:39:48Z","override_reference":"https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2142#issuecomment-5010268564","prior_review_commit_ref":"d1d5b0dda156b25ab9f21801319325f62a78697e","prior_review_reference":"https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2142#pullrequestreview-4727008156","prior_review_submitted_at":"2026-07-17T23:51:58Z","quota_created_at":"2026-07-18T00:12:09Z","quota_reference":"https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2142#issuecomment-5008708277","review_commit_ref":"d48717b710aa30cce5a7ae3f3d79b00b216ce659","review_commit_ref_kind":"repository_commit","review_reference":"https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2142#pullrequestreview-4727900873","reviewed_material_digest":"sha256:12e51bec8caf451ced9c58b9c157da42d3ae5cf250712255cfb8cfd67958b3d0","status":"tooling_unavailable"},"codex_security":{"authority":"operator_outage_override","base_revision":"94232a0900c5637b893e252b08a93672001153b1","created_at":"2026-07-18T06:39:50Z","error_code":"-32001","error_message":"Request timed out","head_revision":"d48717b710aa30cce5a7ae3f3d79b00b216ce659","material_digest":"sha256:12e51bec8caf451ced9c58b9c157da42d3ae5cf250712255cfb8cfd67958b3d0","operator_association":"OWNER","operator_login":"Katsiarynakavaleuskaya","operator_user_id":169792616,"outage_class":"codex_security_mcp_timeout","override_reference":"https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2142#issuecomment-5010268643","scan_id":null,"status":"tooling_unavailable"},"material":{"base_ref_oid":"94232a0900c5637b893e252b08a93672001153b1","digest":"sha256:12e51bec8caf451ced9c58b9c157da42d3ae5cf250712255cfb8cfd67958b3d0","material_head_sha":"d48717b710aa30cce5a7ae3f3d79b00b216ce659","merge_base_sha":"94232a0900c5637b893e252b08a93672001153b1","policy_version":"pulseplate.material-classification/v1"},"pr_number":2142,"repository":"Katsiarynakavaleuskaya/PulsePlate","schema_version":"pulseplate.pr-review-seal/v1"}
 <!-- PULSEPLATE_PR_REVIEW_SEAL_V1_END -->
