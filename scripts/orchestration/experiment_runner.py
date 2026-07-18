@@ -459,7 +459,11 @@ def _invalid_packet_result(
         failure_class="policy_violation",
         mutated_paths=[],
         oracle_results=[],
-        budget_observations={"runner_error": error},
+        budget_observations={
+            "attempts": 0,
+            "retries_consumed": 0,
+            "runner_error": error,
+        },
         shared_tree_untouched=False,
     )
 

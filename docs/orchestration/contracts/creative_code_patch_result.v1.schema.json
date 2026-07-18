@@ -111,6 +111,25 @@
     },
     {
       "if": {
+        "required": ["failure_class"],
+        "properties": { "failure_class": { "const": "policy_violation" } }
+      },
+      "then": {
+        "properties": {
+          "runner_summary": {
+            "required": ["status", "failure_class"],
+            "properties": {
+              "status": { "const": "rejected" },
+              "failure_class": { "const": "policy_violation" },
+              "attempts": { "enum": [0, 1] },
+              "retries_consumed": { "const": 0 }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
         "required": ["status", "runner_summary"],
         "properties": {
           "status": { "const": "rejected" },
@@ -320,6 +339,18 @@
           "if": {
             "required": ["failure_class"],
             "properties": { "failure_class": { "const": "capability_mismatch" } }
+          },
+          "then": {
+            "properties": {
+              "attempts": { "enum": [0, 1] },
+              "retries_consumed": { "const": 0 }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["failure_class"],
+            "properties": { "failure_class": { "const": "policy_violation" } }
           },
           "then": {
             "properties": {

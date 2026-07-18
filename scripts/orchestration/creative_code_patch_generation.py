@@ -14,6 +14,7 @@ import re
 import shutil
 import stat
 import sys
+import tempfile
 from typing import Any, Iterator, cast
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -499,7 +500,7 @@ def _read_pinned_dispatch_json_object(path: Path) -> dict[str, Any]:
             "trusted dispatch result no-follow reads are unavailable on this platform."
         )
     directory_flags = os.O_RDONLY | directory | nofollow | getattr(os, "O_CLOEXEC", 0)
-    file_flags = os.O_RDONLY | nofollow | getattr(os, "O_CLOEXEC", 0)
+    file_flags = os.O_RDONLY | os.O_NONBLOCK | nofollow | getattr(os, "O_CLOEXEC", 0)
     descriptor = -1
     file_descriptor = -1
     try:
@@ -562,9 +563,36 @@ def _read_pinned_dispatch_json_object(path: Path) -> dict[str, Any]:
 
 
 def _write_json_new(path: Path, payload: Mapping[str, Any]) -> None:
-    if path.exists() or path.is_symlink():
-        raise CreativeCodePatchGenerationError("output artifact already exists.")
-    write_json_atomic(path, dict(payload))
+    """Publish one JSON artifact without replacing a concurrent writer."""
+
+    temp_path: Path | None = None
+    temp_fd, temp_name = tempfile.mkstemp(
+        prefix=f".{path.name}.",
+        suffix=".tmp",
+        dir=path.parent,
+        text=True,
+    )
+    temp_path = Path(temp_name)
+    try:
+        with os.fdopen(temp_fd, "w", encoding="utf-8") as temp_file:
+            json.dump(dict(payload), temp_file, sort_keys=True, indent=2)
+            temp_file.write("\n")
+            temp_file.flush()
+            os.fsync(temp_file.fileno())
+        try:
+            os.link(temp_path, path, follow_symlinks=False)
+        except FileExistsError as exc:
+            raise CreativeCodePatchGenerationError("output artifact already exists.") from exc
+        except OSError as exc:
+            raise CreativeCodePatchGenerationError(
+                "output artifact could not be published without replacement."
+            ) from exc
+    finally:
+        if temp_path is not None:
+            try:
+                temp_path.unlink()
+            except FileNotFoundError:
+                pass
 
 
 @contextmanager
@@ -2073,6 +2101,8 @@ def _validate_stored_gate_sources_after_generation(
 
 def _load_generated_dispatch_context(
     gate: Mapping[str, Any],
+    *,
+    allow_partial_publication: bool = False,
 ) -> tuple[
     Path,
     dict[str, Any],
@@ -2122,7 +2152,10 @@ def _load_generated_dispatch_context(
             raise CreativeCodePatchGenerationError(f"generated run state {key} is stale.")
     if state.get("candidate_patch_generated") is not True:
         raise CreativeCodePatchGenerationError("candidate patch has not been generated.")
-    if state.get("candidate_patch_evaluated") is not False:
+    candidate_patch_evaluated = state.get("candidate_patch_evaluated")
+    if not isinstance(candidate_patch_evaluated, bool):
+        raise CreativeCodePatchGenerationError("candidate patch evaluated state must be boolean.")
+    if candidate_patch_evaluated and not allow_partial_publication:
         raise CreativeCodePatchGenerationError("candidate patch is already evaluated.")
     if state.get("checkout_destroyed") is not True:
         raise CreativeCodePatchGenerationError("generation checkout destruction is not proven.")
@@ -2143,8 +2176,12 @@ def _load_generated_dispatch_context(
             "selected variant no longer matches the validated source bundle."
         )
     candidate_patch, metadata_path, packet_path, result_path = _candidate_artifact_paths(run_dir)
-    if result_path.exists() or result_path.is_symlink():
+    if (result_path.exists() or result_path.is_symlink()) and not allow_partial_publication:
         raise CreativeCodePatchGenerationError("creative-code patch result already exists.")
+    if allow_partial_publication and candidate_patch_evaluated and not result_path.exists():
+        raise CreativeCodePatchGenerationError(
+            "evaluated candidate state requires a published result."
+        )
     for artifact in (candidate_patch, metadata_path, packet_path):
         if not artifact.exists() or not artifact.is_file():
             raise CreativeCodePatchGenerationError(
@@ -2258,9 +2295,18 @@ def _validate_dispatch_result_binding(
         raise CreativeCodePatchGenerationError(
             "trusted dispatch result configured oracle count does not match the packet."
         )
-    if observations.get("attempts") != 1 or observations.get("retries_consumed") != 0:
+    attempts = observations.get("attempts")
+    allowed_attempts = (
+        {0, 1} if failure_class in {"capability_mismatch", "policy_violation"} else {1}
+    )
+    if attempts not in allowed_attempts or observations.get("retries_consumed") != 0:
+        if allowed_attempts == {1}:
+            raise CreativeCodePatchGenerationError(
+                "trusted dispatch result must record one attempt and zero retries."
+            )
         raise CreativeCodePatchGenerationError(
-            "trusted dispatch result must record one attempt and zero retries."
+            "pre-oracle trusted dispatch result must record zero or one attempt "
+            "and zero retries."
         )
     if (
         result["status"] == "accepted" or failure_class in ORACLE_REQUIRED_FAILURE_CLASSES
@@ -2351,7 +2397,10 @@ def _finalize_dispatched_result_locked(
     if receipt_path.exists() or receipt_path.is_symlink():
         raise CreativeCodePatchGenerationError("generation receipt already exists.")
     _require_base_and_tree_for_step(gate["base_commit_sha"])
-    run_dir, state, request, bundle, packet, patch_text = _load_generated_dispatch_context(gate)
+    run_dir, state, request, bundle, packet, patch_text = _load_generated_dispatch_context(
+        gate,
+        allow_partial_publication=True,
+    )
     metadata_path = resolve_run_file(run_dir, creative_code_patch_builder.PATCH_METADATA_FILE)
     metadata = _normalize_patch_metadata(read_json(metadata_path), label="patch metadata")
     selected_variant = read_json(
@@ -2401,6 +2450,17 @@ def _finalize_dispatched_result_locked(
         result=result,
         require_result_file=False,
     )
+    result_path = resolve_run_file(run_dir, creative_code_patch_builder.RESULT_FILE, for_write=True)
+    partial_result_exists = result_path.exists()
+    if partial_result_exists:
+        partial_result = _read_resolved_json_object(
+            result_path,
+            label="partial creative-code patch result",
+        )
+        if partial_result != result:
+            raise CreativeCodePatchGenerationError(
+                "partial creative-code patch result does not match trusted dispatch evidence."
+            )
     _require_base_and_tree_for_step(gate["base_commit_sha"])
     (
         current_run_dir,
@@ -2409,7 +2469,10 @@ def _finalize_dispatched_result_locked(
         current_bundle,
         current_packet,
         current_patch_text,
-    ) = _load_generated_dispatch_context(gate)
+    ) = _load_generated_dispatch_context(
+        gate,
+        allow_partial_publication=True,
+    )
     if (
         current_run_dir != run_dir
         or current_state != state
@@ -2431,7 +2494,20 @@ def _finalize_dispatched_result_locked(
         raise CreativeCodePatchGenerationError(
             "trusted dispatch result changed before result publication."
         )
-    result_path = resolve_run_file(run_dir, creative_code_patch_builder.RESULT_FILE, for_write=True)
+    current_partial_result_exists = result_path.exists()
+    if current_partial_result_exists != partial_result_exists:
+        raise CreativeCodePatchGenerationError(
+            "partial creative-code patch result changed before publication."
+        )
+    if current_partial_result_exists:
+        current_partial_result = _read_resolved_json_object(
+            result_path,
+            label="partial creative-code patch result",
+        )
+        if current_partial_result != result:
+            raise CreativeCodePatchGenerationError(
+                "partial creative-code patch result changed before publication."
+            )
     original_state = dict(state)
     result_written = False
     state_written = False
@@ -2447,14 +2523,20 @@ def _finalize_dispatched_result_locked(
             receipt_path.unlink()
 
     try:
-        _write_json_new(result_path, result)
-        result_written = True
-        state["candidate_patch_evaluated"] = True
-        write_json_atomic(
-            resolve_run_file(run_dir, creative_code_patch_builder.STATE_FILE, for_write=True),
-            state,
-        )
-        state_written = True
+        if not partial_result_exists:
+            _write_json_new(result_path, result)
+            result_written = True
+        if state["candidate_patch_evaluated"] is not True:
+            state["candidate_patch_evaluated"] = True
+            write_json_atomic(
+                resolve_run_file(
+                    run_dir,
+                    creative_code_patch_builder.STATE_FILE,
+                    for_write=True,
+                ),
+                state,
+            )
+            state_written = True
         _write_json_new(receipt_path, receipt)
     except Exception as publication_error:
         rollback_errors: list[str] = []

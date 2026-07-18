@@ -703,6 +703,60 @@ def test_capability_mismatch_rejects_retry_evidence(
         experiment_contract.validate_experiment_result(result)
 
 
+@pytest.mark.parametrize("attempts", [0, 1])
+def test_policy_violation_accepts_terminal_pre_oracle_attempt_counts(attempts: int) -> None:
+    result = _legacy_result()
+    result.update(
+        {
+            "status": "rejected",
+            "failure_class": "policy_violation",
+            "mutated_paths": [],
+            "budget_observations": {
+                "attempts": attempts,
+                "retries_consumed": 0,
+                "runner_error": "candidate rejected before oracle execution",
+            },
+            "promotion_ready": False,
+            "execution_backend": dispatch._execution_backend_payload(
+                _probe("docker", strict=True),
+                passed=True,
+            ),
+        }
+    )
+
+    validated = experiment_contract.validate_experiment_result(result)
+
+    assert validated["budget_observations"]["attempts"] == attempts
+    assert validated["budget_observations"]["retries_consumed"] == 0
+
+
+def test_policy_violation_rejects_retry_evidence() -> None:
+    result = _legacy_result()
+    result.update(
+        {
+            "status": "rejected",
+            "failure_class": "policy_violation",
+            "mutated_paths": [],
+            "budget_observations": {
+                "attempts": 2,
+                "retries_consumed": 1,
+                "runner_error": "candidate rejected before oracle execution",
+            },
+            "promotion_ready": False,
+            "execution_backend": dispatch._execution_backend_payload(
+                _probe("docker", strict=True),
+                passed=True,
+            ),
+        }
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="policy_violation must use attempts 0 or 1 and retries_consumed 0",
+    ):
+        experiment_contract.validate_experiment_result(result)
+
+
 @pytest.mark.parametrize(
     ("preflight_passed", "attempts"),
     [(False, 1), (True, 0)],
@@ -1866,6 +1920,10 @@ def test_sanitize_accepts_rejected_result_with_canonical_attribution_reset() -> 
             "contribution_kind": "none",
             "coauthor_required": False,
             "coauthor_reason": "",
+            "budget_observations": {
+                "attempts": 0,
+                "retries_consumed": 0,
+            },
         }
     )
 
@@ -2496,6 +2554,108 @@ def test_candidate_patch_fingerprint_mismatch_rejects_before_backend_selection(
 
     assert dispatch.main([]) == 2
     assert "Candidate patch fingerprint does not match the packet" in capsys.readouterr().err
+
+
+def test_candidate_patch_without_fingerprint_skips_host_read(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    packet = _packet()
+    packet["runner_mode"] = "candidate_patch"
+    packet["mutable_candidate_surface"] = ["core/rag/orchestration.py"]
+    packet_path = tmp_path / "packet.json"
+    packet_path.write_text(json.dumps(packet), encoding="utf-8")
+    candidate_patch = tmp_path / "candidate.patch"
+    candidate_patch.write_text("legacy patch without fingerprint\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        dispatch,
+        "_parse_args",
+        lambda _argv: SimpleNamespace(
+            command="run",
+            backend="auto",
+            packet="packet.json",
+            candidate_patch="candidate.patch",
+            image=f"pulseplate/experiment-runner:local@{_DIGEST}",
+            output="result.json",
+            contribution_kind="none",
+            coauthor_required=False,
+            coauthor_reason="",
+        ),
+    )
+    monkeypatch.setattr(
+        dispatch,
+        "_require_repo_local_file",
+        lambda raw, **_kwargs: candidate_patch if raw == "candidate.patch" else packet_path,
+    )
+    monkeypatch.setattr(
+        dispatch,
+        "_resolve_local_output",
+        lambda *_args, **_kwargs: tmp_path / "result.json",
+    )
+    monkeypatch.setattr(
+        dispatch,
+        "_read_candidate_patch_for_fingerprint",
+        lambda _path: (_ for _ in ()).throw(
+            AssertionError("legacy patch without fingerprint must not be read")
+        ),
+    )
+    monkeypatch.setattr(
+        dispatch,
+        "select_backend",
+        lambda *_args: (None, [_probe("docker", strict=False)]),
+    )
+
+    assert dispatch.main([]) == 1
+
+
+def test_candidate_patch_fingerprint_read_is_bounded(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    packet = _packet()
+    packet["runner_mode"] = "candidate_patch"
+    packet["mutable_candidate_surface"] = ["core/rag/orchestration.py"]
+    packet["candidate_patch_fingerprint"] = "sha256:" + ("a" * 64)
+    packet_path = tmp_path / "packet.json"
+    packet_path.write_text(json.dumps(packet), encoding="utf-8")
+    candidate_patch = tmp_path / "candidate.patch"
+    candidate_patch.write_bytes(b"x" * (dispatch.MAX_CANDIDATE_PATCH_BYTES + 1))
+
+    monkeypatch.setattr(
+        dispatch,
+        "_parse_args",
+        lambda _argv: SimpleNamespace(
+            command="run",
+            backend="auto",
+            packet="packet.json",
+            candidate_patch="candidate.patch",
+            image=f"pulseplate/experiment-runner:local@{_DIGEST}",
+            output="result.json",
+            contribution_kind="none",
+            coauthor_required=False,
+            coauthor_reason="",
+        ),
+    )
+    monkeypatch.setattr(
+        dispatch,
+        "_require_repo_local_file",
+        lambda raw, **_kwargs: candidate_patch if raw == "candidate.patch" else packet_path,
+    )
+    monkeypatch.setattr(
+        dispatch,
+        "_resolve_local_output",
+        lambda *_args, **_kwargs: tmp_path / "result.json",
+    )
+    monkeypatch.setattr(
+        dispatch,
+        "select_backend",
+        lambda *_args: (_ for _ in ()).throw(AssertionError("backend probe must not run")),
+    )
+
+    assert dispatch.main([]) == 2
+    assert "Candidate patch exceeds the host fingerprint limit" in capsys.readouterr().err
 
 
 @pytest.mark.parametrize("backend", ["auto", "docker", "native-linux"])

@@ -399,7 +399,15 @@ def test_reference_patch_contracts_validate_and_schema_is_closed() -> None:
     assert root_retry_rule["failure_class"] == {"const": "capability_mismatch"}
     assert root_retry_rule["attempts"] == {"enum": [0, 1]}
     assert root_retry_rule["retries_consumed"] == {"const": 0}
-    rejected_pair_rule = result_schema["allOf"][3]
+    assert result_schema["allOf"][3]["if"]["properties"]["failure_class"] == {
+        "const": "policy_violation"
+    }
+    policy_root_rule = result_schema["allOf"][3]["then"]["properties"]["runner_summary"][
+        "properties"
+    ]
+    assert policy_root_rule["attempts"] == {"enum": [0, 1]}
+    assert policy_root_rule["retries_consumed"] == {"const": 0}
+    rejected_pair_rule = result_schema["allOf"][4]
     assert rejected_pair_rule["if"]["properties"]["status"] == {"const": "rejected"}
     assert rejected_pair_rule["if"]["properties"]["runner_summary"]["properties"]["status"] == {
         "const": "rejected"
@@ -420,7 +428,10 @@ def test_reference_patch_contracts_validate_and_schema_is_closed() -> None:
     assert runner_rules[2]["if"]["properties"]["failure_class"] == {"const": "capability_mismatch"}
     assert runner_rules[2]["then"]["properties"]["attempts"] == {"enum": [0, 1]}
     assert runner_rules[2]["then"]["properties"]["retries_consumed"] == {"const": 0}
-    zero_attempt_rule = runner_rules[3]
+    assert runner_rules[3]["if"]["properties"]["failure_class"] == {"const": "policy_violation"}
+    assert runner_rules[3]["then"]["properties"]["attempts"] == {"enum": [0, 1]}
+    assert runner_rules[3]["then"]["properties"]["retries_consumed"] == {"const": 0}
+    zero_attempt_rule = runner_rules[4]
     assert zero_attempt_rule["if"]["required"] == ["failure_class", "attempts"]
     assert zero_attempt_rule["if"]["properties"] == {
         "failure_class": {"const": "capability_mismatch"},

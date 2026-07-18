@@ -66,6 +66,7 @@ CONTAINER_RESULT_DIR = "/repo/artifacts/orchestration/experiments/results"
 CONTAINER_PRIVATE_TMP = Path("/", "tmp").as_posix()
 RESULT_VOLUME_SIZE = "2M"
 MAX_RESULT_BYTES = 2 * 1024 * 1024
+MAX_CANDIDATE_PATCH_BYTES = 2 * 1024 * 1024
 PUBLIC_STATUS_ACCEPTED = "accepted"
 PUBLIC_STATUS_REJECTED = "rejected"
 RUNNER_CAPABILITY_EXIT_CODE = 3
@@ -1310,6 +1311,22 @@ def _resolve_local_output(raw: str, *, root: Path, suffix: str = ".json") -> Pat
     return resolved
 
 
+def _read_candidate_patch_for_fingerprint(path: Path) -> str:
+    """Read a bounded patch only when the packet requires fingerprint verification."""
+
+    try:
+        with path.open("rb") as handle:
+            raw_patch = handle.read(MAX_CANDIDATE_PATCH_BYTES + 1)
+    except OSError as exc:
+        raise ValueError("Candidate patch could not be read.") from exc
+    if len(raw_patch) > MAX_CANDIDATE_PATCH_BYTES:
+        raise ValueError("Candidate patch exceeds the host fingerprint limit.")
+    try:
+        return raw_patch.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ValueError("Candidate patch could not be read.") from exc
+
+
 def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
     _reject_symlink_components(path.parent)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -2042,16 +2059,13 @@ def main(argv: list[str] | None = None) -> int:
                 )
             if candidate_patch is None:
                 raise ValueError("Candidate-patch packets require --candidate-patch.")
-            try:
-                candidate_patch_text = candidate_patch.read_text(encoding="utf-8")
-            except (OSError, UnicodeDecodeError) as exc:
-                raise ValueError("Candidate patch could not be read.") from exc
             expected_patch_fingerprint = packet.get("candidate_patch_fingerprint")
-            if expected_patch_fingerprint is not None and (
-                expected_patch_fingerprint
-                != fingerprint_payload({"candidate_patch": candidate_patch_text})
-            ):
-                raise ValueError("Candidate patch fingerprint does not match the packet.")
+            if expected_patch_fingerprint is not None:
+                candidate_patch_text = _read_candidate_patch_for_fingerprint(candidate_patch)
+                if expected_patch_fingerprint != fingerprint_payload(
+                    {"candidate_patch": candidate_patch_text}
+                ):
+                    raise ValueError("Candidate patch fingerprint does not match the packet.")
         if (
             platform.system() == "Darwin"
             and packet["runner_mode"] == ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE

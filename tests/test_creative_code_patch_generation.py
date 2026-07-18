@@ -806,14 +806,90 @@ def test_finalize_dispatched_result_attempts_every_rollback_after_cleanup_failur
     assert not (gate_path.parent / generation_cli.RECEIPT_FILENAME).exists()
 
 
+@pytest.mark.parametrize("interruption_point", ["state", "receipt"])
+def test_finalize_dispatched_result_recovers_matching_partial_publication(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    interruption_point: str,
+) -> None:
+    repo, base_sha = _init_patch_repo(tmp_path)
+    _patch_modules_to_repo(monkeypatch, repo)
+    run_id = f"dispatch-finalize-recovery-{interruption_point}"
+    gate_path, dispatch_path, packet = _prepare_generated_dispatch_handoff(
+        monkeypatch=monkeypatch,
+        repo=repo,
+        base_sha=base_sha,
+        run_id=run_id,
+    )
+    _write_json(dispatch_path, _trusted_dispatch_result(packet))
+    original_write_json_new = generation_cli._write_json_new
+    original_write_json_atomic = generation_cli.write_json_atomic
+
+    def interrupt_state_write(path: Path, payload: dict[str, Any]) -> None:
+        if (
+            path.name == creative_code_patch_builder.STATE_FILE
+            and payload.get("candidate_patch_evaluated") is True
+        ):
+            raise KeyboardInterrupt
+        original_write_json_atomic(path, payload)
+
+    def interrupt_receipt_write(path: Path, payload: dict[str, Any]) -> None:
+        if path.name == generation_cli.RECEIPT_FILENAME:
+            raise KeyboardInterrupt
+        original_write_json_new(path, payload)
+
+    if interruption_point == "state":
+        monkeypatch.setattr(generation_cli, "write_json_atomic", interrupt_state_write)
+    else:
+        monkeypatch.setattr(generation_cli, "_write_json_new", interrupt_receipt_write)
+
+    with pytest.raises(KeyboardInterrupt):
+        generation_cli.main(
+            [
+                "finalize-dispatched-result",
+                "--gate",
+                str(gate_path),
+                "--dispatch-result",
+                str(dispatch_path),
+            ]
+        )
+
+    monkeypatch.setattr(generation_cli, "write_json_atomic", original_write_json_atomic)
+    monkeypatch.setattr(generation_cli, "_write_json_new", original_write_json_new)
+    capsys.readouterr()
+
+    assert (
+        generation_cli.main(
+            [
+                "finalize-dispatched-result",
+                "--gate",
+                str(gate_path),
+                "--dispatch-result",
+                str(dispatch_path),
+            ]
+        )
+        == 0
+    )
+    receipt_path = gate_path.parent / generation_cli.RECEIPT_FILENAME
+    receipt = validate_generation_receipt(json.loads(receipt_path.read_text(encoding="utf-8")))
+    assert receipt["status"] == "accepted"
+    run_dir = creative_code_patch_workspace.resolve_run_dir(run_id, create=False)
+    state = json.loads(
+        (run_dir / creative_code_patch_builder.STATE_FILE).read_text(encoding="utf-8")
+    )
+    assert state["candidate_patch_evaluated"] is True
+
+
 @pytest.mark.parametrize(
-    ("failure_class", "mutated_paths"),
+    ("failure_class", "mutated_paths", "attempts"),
     [
-        ("guard_failure", None),
-        ("timeout", None),
-        ("oom", None),
-        ("capability_mismatch", []),
-        ("policy_violation", []),
+        ("guard_failure", None, 1),
+        ("timeout", None, 1),
+        ("oom", None, 1),
+        ("capability_mismatch", [], 1),
+        ("policy_violation", [], 0),
+        ("policy_violation", [], 1),
     ],
 )
 def test_finalize_dispatched_result_retains_trusted_rejection_without_retry(
@@ -822,10 +898,11 @@ def test_finalize_dispatched_result_retains_trusted_rejection_without_retry(
     capsys: pytest.CaptureFixture[str],
     failure_class: str,
     mutated_paths: list[str] | None,
+    attempts: int,
 ) -> None:
     repo, base_sha = _init_patch_repo(tmp_path)
     _patch_modules_to_repo(monkeypatch, repo)
-    run_id = f"dispatch-finalize-{failure_class}"
+    run_id = f"dispatch-finalize-{failure_class}-{attempts}"
     gate_path, dispatch_path, packet = _prepare_generated_dispatch_handoff(
         monkeypatch=monkeypatch,
         repo=repo,
@@ -850,6 +927,7 @@ def test_finalize_dispatched_result_retains_trusted_rejection_without_retry(
         dispatch_result["oracle_results"][-1]["timed_out"] = True
     elif failure_class == "oom":
         dispatch_result["oracle_results"][-1]["stderr"] = "out of memory"
+    dispatch_result["budget_observations"]["attempts"] = attempts
     _write_json(dispatch_path, dispatch_result)
 
     assert (
@@ -869,7 +947,7 @@ def test_finalize_dispatched_result_retains_trusted_rejection_without_retry(
     receipt = validate_generation_receipt(json.loads(receipt_path.read_text(encoding="utf-8")))
     assert receipt["status"] == "rejected"
     assert receipt["failure_class"] == failure_class
-    assert receipt["runner_summary"]["attempts"] == 1
+    assert receipt["runner_summary"]["attempts"] == attempts
     assert receipt["runner_summary"]["retries_consumed"] == 0
     assert receipt["promotion_ready"] is False
 
@@ -1157,6 +1235,69 @@ def test_pinned_dispatch_read_rejects_oversized_result(
         match="trusted dispatch result exceeds the maximum size",
     ):
         generation_cli._read_pinned_dispatch_json_object(result_path.resolve(strict=True))
+
+
+def test_pinned_dispatch_read_opens_leaf_nonblocking(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _patch_modules_to_repo(monkeypatch, repo)
+    result_root = repo / "artifacts" / "orchestration" / "experiments" / "results"
+    result_root.mkdir(parents=True)
+    result_path = result_root / "dispatch.json"
+    _write_json(result_path, {"status": "accepted"})
+    real_open = generation_cli.os.open
+    leaf_opened = False
+
+    def assert_nonblocking_leaf(
+        path: str | bytes | Path,
+        flags: int,
+        *args: Any,
+        **kwargs: Any,
+    ) -> int:
+        nonlocal leaf_opened
+        if path == result_path.name:
+            leaf_opened = True
+            assert flags & generation_cli.os.O_NONBLOCK
+        return real_open(path, flags, *args, **kwargs)
+
+    monkeypatch.setattr(generation_cli.os, "open", assert_nonblocking_leaf)
+
+    assert generation_cli._read_pinned_dispatch_json_object(result_path.resolve(strict=True)) == {
+        "status": "accepted"
+    }
+    assert leaf_opened is True
+
+
+def test_write_json_new_preserves_concurrent_target(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    output = tmp_path / "result.json"
+    foreign_payload = {"owner": "concurrent-writer"}
+    real_link = generation_cli.os.link
+
+    def collide_before_link(
+        source: str | bytes | Path,
+        destination: str | bytes | Path,
+        *,
+        follow_symlinks: bool,
+    ) -> None:
+        _write_json(output, foreign_payload)
+        real_link(source, destination, follow_symlinks=follow_symlinks)
+
+    monkeypatch.setattr(generation_cli.os, "link", collide_before_link)
+
+    with pytest.raises(
+        CreativeCodePatchGenerationError,
+        match="output artifact already exists",
+    ):
+        generation_cli._write_json_new(output, {"owner": "finalizer"})
+
+    assert json.loads(output.read_text(encoding="utf-8")) == foreign_payload
+    assert list(tmp_path.glob(".result.json.*.tmp")) == []
 
 
 def test_finalize_dispatched_result_rejects_selected_variant_content_tamper(
@@ -2439,7 +2580,15 @@ def test_generation_schemas_are_closed_and_authority_is_const_false() -> None:
     assert root_retry_rule["failure_class"] == {"const": "capability_mismatch"}
     assert root_retry_rule["attempts"] == {"enum": [0, 1]}
     assert root_retry_rule["retries_consumed"] == {"const": 0}
-    rejected_pair_rule = receipt_schema["allOf"][3]
+    assert receipt_schema["allOf"][3]["if"]["properties"]["failure_class"] == {
+        "const": "policy_violation"
+    }
+    policy_root_rule = receipt_schema["allOf"][3]["then"]["properties"]["runner_summary"][
+        "properties"
+    ]
+    assert policy_root_rule["attempts"] == {"enum": [0, 1]}
+    assert policy_root_rule["retries_consumed"] == {"const": 0}
+    rejected_pair_rule = receipt_schema["allOf"][4]
     assert rejected_pair_rule["if"]["properties"]["status"] == {"const": "rejected"}
     assert rejected_pair_rule["if"]["properties"]["runner_summary"]["properties"]["status"] == {
         "const": "rejected"
@@ -2458,7 +2607,10 @@ def test_generation_schemas_are_closed_and_authority_is_const_false() -> None:
     assert runner_rules[2]["if"]["properties"]["failure_class"] == {"const": "capability_mismatch"}
     assert runner_rules[2]["then"]["properties"]["attempts"] == {"enum": [0, 1]}
     assert runner_rules[2]["then"]["properties"]["retries_consumed"] == {"const": 0}
-    zero_attempt_rule = runner_rules[3]
+    assert runner_rules[3]["if"]["properties"]["failure_class"] == {"const": "policy_violation"}
+    assert runner_rules[3]["then"]["properties"]["attempts"] == {"enum": [0, 1]}
+    assert runner_rules[3]["then"]["properties"]["retries_consumed"] == {"const": 0}
+    zero_attempt_rule = runner_rules[4]
     assert zero_attempt_rule["if"]["required"] == ["failure_class", "attempts"]
     assert zero_attempt_rule["if"]["properties"] == {
         "failure_class": {"const": "capability_mismatch"},

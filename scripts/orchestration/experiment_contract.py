@@ -64,9 +64,9 @@ def validate_failure_retry_observations(
     retries_consumed: Any,
     label: str,
 ) -> None:
-    """Reject retry evidence for terminal non-retryable capability loss."""
+    """Reject retry evidence for terminal pre-oracle failures."""
 
-    if failure_class != "capability_mismatch":
+    if failure_class not in {"capability_mismatch", "policy_violation"}:
         return
     attempts_valid = (
         isinstance(attempts, int) and not isinstance(attempts, bool) and attempts in {0, 1}
@@ -78,7 +78,7 @@ def validate_failure_retry_observations(
     )
     if not attempts_valid or not retries_valid:
         raise ValueError(
-            f"{label} capability_mismatch must use attempts 0 or 1 and " "retries_consumed 0."
+            f"{label} {failure_class} must use attempts 0 or 1 and retries_consumed 0."
         )
 
 
