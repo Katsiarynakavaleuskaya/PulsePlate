@@ -220,6 +220,8 @@ def test_hook_resolver_rejects_shell_function_tool_interposition(
         }}
         basename() {{ printf '%s\\n' '.git'; }}
         dirname() {{ printf '%s\\n' "$DECOY_ROOT"; }}
+        cd() {{ builtin cd -- "$DECOY_ROOT"; }}
+        pwd() {{ printf '%s\\n' "$DECOY_ROOT"; }}
         {RESOLVE_COMMAND}
     """
 

@@ -15,7 +15,7 @@ resolve_repo_python() {
     local git_binary=""
     local candidates=()
 
-    if ! repo_root="$(cd "${repo_root}" 2>/dev/null && pwd -P)"; then
+    if ! repo_root="$(builtin cd -- "${repo_root}" 2>/dev/null && builtin pwd -P)"; then
         echo "ERROR: repo root is not a readable directory: ${1:?repo root required}" >&2
         return 1
     fi
@@ -64,11 +64,19 @@ resolve_repo_python() {
                 "${git_binary}" -C "${repo_root}" rev-parse \
                 --path-format=absolute --git-dir 2>/dev/null
         )" &&
-        git_common_dir="$(cd "${git_common_dir}" 2>/dev/null && pwd -P)" &&
-        checkout_top_level="$(cd "${checkout_top_level}" 2>/dev/null && pwd -P)" &&
-        checkout_git_dir="$(cd "${checkout_git_dir}" 2>/dev/null && pwd -P)" &&
+        git_common_dir="$(
+            builtin cd -- "${git_common_dir}" 2>/dev/null && builtin pwd -P
+        )" &&
+        checkout_top_level="$(
+            builtin cd -- "${checkout_top_level}" 2>/dev/null && builtin pwd -P
+        )" &&
+        checkout_git_dir="$(
+            builtin cd -- "${checkout_git_dir}" 2>/dev/null && builtin pwd -P
+        )" &&
         [[ "${git_common_dir##*/}" == ".git" ]] &&
-        primary_root="$(cd "${git_common_dir}/.." 2>/dev/null && pwd -P)" &&
+        primary_root="$(
+            builtin cd -- "${git_common_dir}/.." 2>/dev/null && builtin pwd -P
+        )" &&
         [[ "${checkout_top_level}" == "${repo_root}" ]] &&
         [[ "${repo_root}" == "${primary_root}" ||
             "${checkout_git_dir}" == "${git_common_dir}/worktrees/"* ]] &&
@@ -84,8 +92,12 @@ resolve_repo_python() {
                 "${git_binary}" -C "${primary_root}" rev-parse \
                 --path-format=absolute --git-common-dir 2>/dev/null
         )" &&
-        primary_top_level="$(cd "${primary_top_level}" 2>/dev/null && pwd -P)" &&
-        primary_common_dir="$(cd "${primary_common_dir}" 2>/dev/null && pwd -P)" &&
+        primary_top_level="$(
+            builtin cd -- "${primary_top_level}" 2>/dev/null && builtin pwd -P
+        )" &&
+        primary_common_dir="$(
+            builtin cd -- "${primary_common_dir}" 2>/dev/null && builtin pwd -P
+        )" &&
         [[ "${primary_top_level}" == "${primary_root}" ]] &&
         [[ "${primary_common_dir}" == "${git_common_dir}" ]]; then
         candidates+=(
