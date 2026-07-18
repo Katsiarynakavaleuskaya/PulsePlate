@@ -805,15 +805,11 @@ def _coverage_receipt_refs(coverage: Mapping[str, Any]) -> set[str]:
         receipt_ref_occurrences += len(refs)
         if receipt_ref_occurrences > _MAX_RECEIPT_REF_OCCURRENCES:
             raise ReviewEvidenceError("coverage receiptRefs exceed the occurrence limit")
-        surface_refs: set[str] = set()
         for value in refs:
             path = _safe_relative_artifact_path(value)
             if len(path.parts) < 2 or path.parts[0] != "artifacts":
                 raise ReviewEvidenceError("coverage receiptRefs must stay under artifacts/")
             normalized = path.as_posix()
-            if normalized in surface_refs:
-                raise ReviewEvidenceError(f"coverage surface {index} receiptRefs must be unique")
-            surface_refs.add(normalized)
             receipt_refs.add(normalized)
     return receipt_refs
 

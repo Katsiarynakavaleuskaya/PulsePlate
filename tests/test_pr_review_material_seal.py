@@ -1755,7 +1755,9 @@ def test_scan_receipt_ignores_unsealed_projection_file(tmp_path: Path) -> None:
     assert receipt["coverage_completeness"] == "complete"
 
 
-def test_scan_receipt_rejects_duplicate_manifest_path_and_surface_ref(tmp_path: Path) -> None:
+def test_scan_receipt_rejects_duplicate_manifest_path_and_deduplicates_surface_ref(
+    tmp_path: Path,
+) -> None:
     manifest_path = _build_scan_bundle(tmp_path / "duplicate-manifest")
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest["scan"]["artifacts"].append(dict(manifest["scan"]["artifacts"][0]))
@@ -1777,12 +1779,12 @@ def test_scan_receipt_rejects_duplicate_manifest_path_and_surface_ref(tmp_path: 
             }
         ],
     )
-    with pytest.raises(ReviewEvidenceError, match="receiptRefs must be unique"):
-        ingest_codex_security_receipt(
-            duplicate_ref_manifest,
-            expected_base_sha=BASE_SHA,
-            expected_head_sha=HEAD_SHA,
-        )
+    receipt = ingest_codex_security_receipt(
+        duplicate_ref_manifest,
+        expected_base_sha=BASE_SHA,
+        expected_head_sha=HEAD_SHA,
+    )
+    assert receipt["coverage_completeness"] == "complete"
 
 
 @pytest.mark.parametrize(
@@ -2010,31 +2012,41 @@ def test_scan_receipt_rejects_non_regular_referenced_artifact(tmp_path: Path) ->
         )
 
 
+@pytest.mark.parametrize(
+    "missing_path",
+    [
+        "coverage.json",
+        "findings.json",
+        "artifacts/02_discovery/work_ledger.jsonl",
+    ],
+)
+def test_scan_receipt_requires_every_canonical_artifact(
+    tmp_path: Path,
+    missing_path: str,
+) -> None:
+    receipt_ref = "artifacts/03_coverage/reviewed_surfaces.md"
+    manifest_path = _build_scan_bundle(
+        tmp_path / missing_path.replace("/", "-"),
+        receipt_artifacts={receipt_ref: b"reviewed\n"},
+        surfaces=[{"id": "runtime", "receiptRefs": [receipt_ref]}],
+    )
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["scan"]["artifacts"] = [
+        artifact for artifact in manifest["scan"]["artifacts"] if artifact["path"] != missing_path
+    ]
+    _write_json(manifest_path, manifest)
+
+    with pytest.raises(ReviewEvidenceError, match="canonical artifact inventory"):
+        ingest_codex_security_receipt(
+            manifest_path,
+            expected_base_sha=BASE_SHA,
+            expected_head_sha=HEAD_SHA,
+        )
+
+
 def test_scan_receipt_rejects_malformed_canonical_and_receipt_metadata(
     tmp_path: Path,
 ) -> None:
-    missing_manifest = _build_scan_bundle(
-        tmp_path / "missing-canonical",
-        receipt_artifacts={"artifacts/02_discovery/report.md": b"receipt\n"},
-        surfaces=[
-            {
-                "id": "runtime",
-                "receiptRefs": ["artifacts/02_discovery/report.md"],
-            }
-        ],
-    )
-    manifest = json.loads(missing_manifest.read_text(encoding="utf-8"))
-    manifest["scan"]["artifacts"] = [
-        artifact
-        for artifact in manifest["scan"]["artifacts"]
-        if artifact["path"] != "findings.json"
-    ]
-    _write_json(missing_manifest, manifest)
-    with pytest.raises(ReviewEvidenceError, match="canonical artifact inventory"):
-        ingest_codex_security_receipt(
-            missing_manifest, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
-        )
-
     media_manifest = _build_scan_superset(tmp_path / "wrong-media")
     manifest = json.loads(media_manifest.read_text(encoding="utf-8"))
     for artifact in manifest["scan"]["artifacts"]:
@@ -2115,6 +2127,46 @@ def test_scan_receipt_rejects_symlinked_manifest(tmp_path: Path) -> None:
     manifest_path.symlink_to(outside)
 
     with pytest.raises(ReviewEvidenceError, match="symlink"):
+        ingest_codex_security_receipt(
+            manifest_path, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+        )
+
+
+def test_scan_receipt_rejects_symlinked_referenced_artifact(tmp_path: Path) -> None:
+    receipt_ref = "artifacts/03_coverage/reviewed_surfaces.md"
+    manifest_path = _build_scan_bundle(
+        tmp_path / "scan",
+        receipt_artifacts={receipt_ref: b"reviewed\n"},
+        surfaces=[{"id": "runtime", "receiptRefs": [receipt_ref]}],
+    )
+    receipt_path = manifest_path.parent.joinpath(*PurePosixPath(receipt_ref).parts)
+    outside = tmp_path / "outside-receipt.md"
+    outside.write_bytes(receipt_path.read_bytes())
+    receipt_path.unlink()
+    receipt_path.symlink_to(outside)
+
+    with pytest.raises(ReviewEvidenceError, match="symlink"):
+        ingest_codex_security_receipt(
+            manifest_path, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+        )
+
+
+def test_scan_receipt_rejects_symlinked_referenced_artifact_parent(tmp_path: Path) -> None:
+    receipt_ref = "artifacts/03_coverage/reviewed_surfaces.md"
+    manifest_path = _build_scan_bundle(
+        tmp_path / "scan",
+        receipt_artifacts={receipt_ref: b"reviewed\n"},
+        surfaces=[{"id": "runtime", "receiptRefs": [receipt_ref]}],
+    )
+    receipt_path = manifest_path.parent.joinpath(*PurePosixPath(receipt_ref).parts)
+    outside_parent = tmp_path / "outside-parent"
+    outside_parent.mkdir()
+    (outside_parent / receipt_path.name).write_bytes(receipt_path.read_bytes())
+    receipt_path.unlink()
+    receipt_path.parent.rmdir()
+    receipt_path.parent.symlink_to(outside_parent, target_is_directory=True)
+
+    with pytest.raises(ReviewEvidenceError, match="parent is missing, unsafe"):
         ingest_codex_security_receipt(
             manifest_path, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
         )
