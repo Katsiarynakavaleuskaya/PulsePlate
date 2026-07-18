@@ -144,6 +144,11 @@ _COVERAGE_DISPOSITIONS = {
     "not_applicable",
     "needs_follow_up",
 }
+_NO_FINDINGS_COVERAGE_DISPOSITIONS = {
+    "no_issue_found",
+    "rejected",
+    "not_applicable",
+}
 _CANONICAL_SCAN_ARTIFACT_MEDIA_TYPES = {
     "coverage.json": "application/json",
     "findings.json": "application/json",
@@ -811,8 +816,10 @@ def _coverage_receipt_refs(coverage: Mapping[str, Any]) -> set[str]:
         disposition = surface.get("disposition")
         if not isinstance(disposition, str) or disposition not in _COVERAGE_DISPOSITIONS:
             raise ReviewEvidenceError(f"coverage surface {index} disposition is unsupported")
-        if disposition == "needs_follow_up":
-            raise ReviewEvidenceError("complete coverage cannot contain needs_follow_up surfaces")
+        if disposition not in _NO_FINDINGS_COVERAGE_DISPOSITIONS:
+            raise ReviewEvidenceError(
+                f"zero-findings coverage cannot contain {disposition} surfaces"
+            )
         refs = surface.get("receiptRefs")
         if not isinstance(refs, list) or len(refs) > _MAX_RECEIPT_REFS_PER_SURFACE:
             raise ReviewEvidenceError(

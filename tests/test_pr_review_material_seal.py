@@ -1715,14 +1715,16 @@ def test_scan_receipt_accepts_exact_referenced_superset_in_any_order(tmp_path: P
     assert str(tmp_path) not in json.dumps(receipt)
 
 
-def test_scan_receipt_rejects_follow_up_surface_under_complete_coverage(
+@pytest.mark.parametrize("disposition", ["needs_follow_up", "reported"])
+def test_scan_receipt_rejects_open_surface_under_zero_findings(
     tmp_path: Path,
+    disposition: str,
 ) -> None:
     manifest_path = _build_scan_bundle(
         tmp_path / "scan",
         surfaces=[
             {
-                "disposition": "needs_follow_up",
+                "disposition": disposition,
                 "id": "runtime",
                 "label": "Runtime",
                 "receiptRefs": ["artifacts/02_discovery/work_ledger.jsonl"],
@@ -1730,7 +1732,7 @@ def test_scan_receipt_rejects_follow_up_surface_under_complete_coverage(
         ],
     )
 
-    with pytest.raises(ReviewEvidenceError, match="cannot contain needs_follow_up"):
+    with pytest.raises(ReviewEvidenceError, match=rf"cannot contain {disposition}"):
         ingest_codex_security_receipt(
             manifest_path, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
         )
