@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import ast
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -63,12 +64,16 @@ assert (
 )
 print("ok")
 """
+    env = os.environ.copy()
+    env["TESTING"] = "true"
 
     completed = subprocess.run(
         [sys.executable, "-c", script],
         cwd=Path(__file__).resolve().parents[1],
+        env=env,
         capture_output=True,
         text=True,
+        timeout=60,
         check=False,
     )
 
@@ -479,6 +484,7 @@ def test_bmi_route_uses_service_visualization_bindings_not_facades(
     )
 
     assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/json")
     assert response.json()["visualization"] == {"available": True, "source": "service"}
     assert facade_calls == []
 
@@ -508,6 +514,7 @@ def test_api_v1_bmi_does_not_call_legacy_visualization(
     )
 
     assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/json")
     assert "visualization" not in response.json()
 
 

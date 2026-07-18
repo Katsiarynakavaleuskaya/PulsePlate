@@ -7,7 +7,10 @@ Focuses on main uncovered blocks: /bmi, /plan, /premium_bmr, /premium_targets en
 from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
+import pytest
 from starlette.types import ASGIApp
+
+from app.services import bmi_compat as bmi_compat_service
 
 
 def _get_app():
@@ -50,35 +53,38 @@ class TestAppComprehensive97:
             data["group"] == "pregnant"
         )  # Canonical engine: pregnant=True + adult age → group="pregnant"
 
-    def test_bmi_endpoint_athlete_with_visualization(self) -> None:
+    def test_bmi_endpoint_athlete_with_visualization(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
         """Test /bmi endpoint for athlete with visualization (lines 680-714)"""
-        with (
-            patch("app.services.bmi_compat.MATPLOTLIB_AVAILABLE", True),
-            patch("app.services.bmi_compat.generate_bmi_visualization") as mock_viz,
-        ):
-            expected_visualization = {"available": True, "chart_url": "test_chart.png"}
-            mock_viz.return_value = expected_visualization
+        expected_visualization = {"available": True, "chart_url": "test_chart.png"}
+        mock_viz = MagicMock(return_value=expected_visualization)
+        monkeypatch.setattr(bmi_compat_service, "MATPLOTLIB_AVAILABLE", True)
+        monkeypatch.setattr(bmi_compat_service, "generate_bmi_visualization", mock_viz)
 
-            response = client.post(
-                "/bmi",
-                json={
-                    "weight_kg": 80,
-                    "height_m": 1.80,
-                    "age": 25,
-                    "gender": "male",
-                    "pregnant": False,
-                    "athlete": True,
-                    "lang": "en",
-                    "include_chart": True,
-                    "waist_cm": 90,
-                },
-            )
-            assert response.status_code == 200
-            data = response.json()
-            assert data["athlete"] is True
-            assert data["group"] == "athlete"
-            assert data["visualization"] == expected_visualization
-            assert "athlete" in data["note"].lower()
+        response = client.post(
+            "/bmi",
+            json={
+                "weight_kg": 80,
+                "height_m": 1.80,
+                "age": 25,
+                "gender": "male",
+                "pregnant": False,
+                "athlete": True,
+                "lang": "en",
+                "include_chart": True,
+                "waist_cm": 90,
+            },
+        )
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/json")
+        data = response.json()
+        assert data["athlete"] is True
+        assert data["group"] == "athlete"
+        assert data["visualization"] == expected_visualization
+        mock_viz.assert_called_once()
+        assert "athlete" in data["note"].lower()
 
     def test_plan_endpoint_russian_language(self):
         """Test /plan endpoint with Russian language (lines 720-765)"""
