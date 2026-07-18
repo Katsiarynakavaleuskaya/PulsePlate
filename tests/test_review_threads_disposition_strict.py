@@ -599,10 +599,10 @@ def test_v1_commit_after_comment_fails_without_server_timestamp() -> None:
     )
 
     assert len(violations) == 1
-    assert "lacks server-side pushedDate, PushEvent" in violations[0]
+    assert "lacks server-side pushedDate or immutable repository push" in violations[0]
 
 
-def test_server_commit_times_use_push_range_and_exact_pr_check_suite(
+def test_server_commit_times_use_repository_activity_and_push_event(
     monkeypatch: "MonkeyPatch",
 ) -> None:
     first_sha = "a" * 40
@@ -625,34 +625,34 @@ def test_server_commit_times_use_push_range_and_exact_pr_check_suite(
         endpoint = command[-1]
         if endpoint == "repos/org/repo/pulls/1":
             return json.dumps({"head": {"ref": "feature", "repo": {"full_name": "org/repo"}}})
+        if endpoint == "repos/org/repo/activity?ref=feature&activity_type=push&per_page=100":
+            return json.dumps(
+                [
+                    [
+                        {
+                            "activity_type": "push",
+                            "timestamp": "2026-02-27T13:00:00Z",
+                            "ref": "refs/heads/feature",
+                            "before": base_sha,
+                            "after": second_sha,
+                        }
+                    ]
+                ]
+            )
         if endpoint == "repos/org/repo/events?per_page=100":
             return json.dumps(
                 [
                     [
                         {
                             "type": "PushEvent",
-                            "created_at": "2026-02-27T13:00:00Z",
+                            "created_at": "2026-02-27T14:00:00Z",
                             "payload": {
                                 "ref": "refs/heads/feature",
-                                "before": base_sha,
-                                "head": second_sha,
+                                "before": second_sha,
+                                "head": third_sha,
                             },
                         }
                     ]
-                ]
-            )
-        if endpoint == f"repos/org/repo/commits/{third_sha}/check-suites?per_page=100":
-            return json.dumps(
-                [
-                    {
-                        "check_suites": [
-                            {
-                                "head_sha": third_sha,
-                                "created_at": "2026-02-27T14:00:00Z",
-                                "pull_requests": [{"number": 1}],
-                            }
-                        ]
-                    }
                 ]
             )
         raise AssertionError(command)
@@ -669,6 +669,39 @@ def test_server_commit_times_use_push_range_and_exact_pr_check_suite(
         second_sha: "2026-02-27T13:00:00Z",
         third_sha: "2026-02-27T14:00:00Z",
     }
+
+
+def test_server_commit_times_fail_closed_without_immutable_push_evidence(
+    monkeypatch: "MonkeyPatch",
+) -> None:
+    sha = "a" * 40
+    snapshot = PrSnapshot(
+        repository="org/repo",
+        pr_number=1,
+        base_sha="b" * 40,
+        head_sha=sha,
+        commits=(PrCommitEvidence(sha, None),),
+    )
+
+    def run(command: list[str]) -> str:
+        endpoint = command[-1]
+        if endpoint == "repos/org/repo/pulls/1":
+            return json.dumps({"head": {"ref": "feature", "repo": {"full_name": "org/repo"}}})
+        if endpoint in {
+            "repos/org/repo/activity?ref=feature&activity_type=push&per_page=100",
+            "repos/org/repo/events?per_page=100",
+        }:
+            return json.dumps([[]])
+        raise AssertionError(command)
+
+    monkeypatch.setattr(_disposition_mod, "_run", run)
+
+    assert _disposition_mod._fetch_server_commit_times(
+        snapshot=snapshot,
+        repository="org/repo",
+        pr_number=1,
+        mapped_shas=frozenset({sha}),
+    ) == {sha: None}
 
 
 def test_real_commit_proof_caches_ancestry(

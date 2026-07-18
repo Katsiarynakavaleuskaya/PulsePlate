@@ -28,6 +28,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping, cast
+from urllib.parse import urlencode
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
@@ -443,8 +444,8 @@ def _check_commit_after_comment(
                 commit_iso = commit_time_by_sha.get(sha)
                 if not commit_iso:
                     raise RuntimeError(
-                        f"commit {sha} lacks server-side pushedDate, PushEvent, "
-                        "or exact-PR check-suite timestamp evidence"
+                        f"commit {sha} lacks server-side pushedDate or immutable "
+                        "repository push timestamp evidence"
                     )
             commit_dt = _parse_iso_datetime(commit_iso)
             if commit_dt <= thread_created:
@@ -501,6 +502,71 @@ def _fetch_server_commit_times(
     ):
         raise RuntimeError("GitHub PR head repository/ref evidence is malformed")
 
+    commit_index = {commit.sha: index for index, commit in enumerate(snapshot.commits)}
+    expected_ref = f"refs/heads/{head_ref}"
+
+    activity_query = urlencode(
+        {
+            "ref": head_ref,
+            "activity_type": "push",
+            "per_page": 100,
+        }
+    )
+    activity_pages = json.loads(
+        _run(
+            [
+                "gh",
+                "api",
+                "--paginate",
+                "--slurp",
+                f"repos/{head_repository}/activity?{activity_query}",
+            ]
+        )
+    )
+    if not isinstance(activity_pages, list):
+        raise RuntimeError("GitHub repository activity response is malformed")
+    for page in activity_pages:
+        if not isinstance(page, list):
+            raise RuntimeError("GitHub repository activity page is malformed")
+        for activity in page:
+            if (
+                not isinstance(activity, dict)
+                or activity.get("activity_type") != "push"
+                or activity.get("ref") != expected_ref
+            ):
+                continue
+            activity_head = str(activity.get("after") or "").lower()
+            activity_before = str(activity.get("before") or "").lower()
+            head_index = commit_index.get(activity_head)
+            if head_index is None:
+                continue
+            if activity_before == snapshot.base_sha:
+                first_index = 0
+            elif activity_before in commit_index:
+                first_index = commit_index[activity_before] + 1
+            else:
+                # The exact activity head remains provable, but an unknown
+                # range boundary cannot timestamp intermediate commits.
+                first_index = head_index
+            if first_index > head_index:
+                continue
+            timestamp = _validated_server_timestamp(
+                activity.get("timestamp"),
+                label="GitHub repository push activity",
+            )
+            for commit in snapshot.commits[first_index : head_index + 1]:
+                if commit.sha not in missing:
+                    continue
+                previous = times.get(commit.sha)
+                if previous is None or _parse_iso_datetime(timestamp) < _parse_iso_datetime(
+                    previous
+                ):
+                    times[commit.sha] = timestamp
+
+    missing = {sha for sha in missing if not times.get(sha)}
+    if not missing:
+        return times
+
     event_pages = json.loads(
         _run(
             [
@@ -514,8 +580,6 @@ def _fetch_server_commit_times(
     )
     if not isinstance(event_pages, list):
         raise RuntimeError("GitHub repository events response is malformed")
-    commit_index = {commit.sha: index for index, commit in enumerate(snapshot.commits)}
-    expected_ref = f"refs/heads/{head_ref}"
     for page in event_pages:
         if not isinstance(page, list):
             raise RuntimeError("GitHub repository events page is malformed")
@@ -552,46 +616,6 @@ def _fetch_server_commit_times(
                     previous
                 ):
                     times[commit.sha] = created_at
-
-    missing = {sha for sha in missing if not times.get(sha)}
-    for sha in sorted(missing):
-        suite_pages = json.loads(
-            _run(
-                [
-                    "gh",
-                    "api",
-                    "--paginate",
-                    "--slurp",
-                    f"repos/{repository}/commits/{sha}/check-suites?per_page=100",
-                ]
-            )
-        )
-        if not isinstance(suite_pages, list):
-            raise RuntimeError("GitHub check-suites response is malformed")
-        observed: list[str] = []
-        for page in suite_pages:
-            if not isinstance(page, dict):
-                raise RuntimeError("GitHub check-suites page is malformed")
-            suites = page.get("check_suites")
-            if not isinstance(suites, list):
-                raise RuntimeError("GitHub check-suites page lacks check_suites")
-            for suite in suites:
-                if not isinstance(suite, dict) or suite.get("head_sha") != sha:
-                    continue
-                pull_requests = suite.get("pull_requests")
-                if not isinstance(pull_requests, list) or not any(
-                    isinstance(pull_request, dict) and pull_request.get("number") == pr_number
-                    for pull_request in pull_requests
-                ):
-                    continue
-                observed.append(
-                    _validated_server_timestamp(
-                        suite.get("created_at"),
-                        label=f"check suite for {sha}",
-                    )
-                )
-        if observed:
-            times[sha] = min(observed, key=_parse_iso_datetime)
     return times
 
 
