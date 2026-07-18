@@ -6,7 +6,7 @@ from __future__ import annotations
 import argparse
 import base64
 from dataclasses import dataclass
-import html
+from html.parser import HTMLParser
 import json
 import netrc
 import os
@@ -17,7 +17,7 @@ import ssl
 import sys
 from typing import Any, Iterable, Iterator, Sequence
 from urllib.error import HTTPError, URLError
-from urllib.parse import quote, unquote, urlparse
+from urllib.parse import quote, unquote, urljoin, urlparse
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 INDEX_ENV_VAR = "PULSEPLATE_PYTHON_INDEX_URL"
@@ -46,11 +46,15 @@ CLOUDFLARE_ORIGIN_MARKERS = (
     "origin is unreachable",
     "web server is down",
 )
-WHEEL_FILENAME_RE = re.compile(
-    r"(?P<filename>[A-Za-z0-9][A-Za-z0-9_.!+~-]*-[^\"'<>\s/]+\.whl)(?=[\"'#<\s]|$)",
-    re.IGNORECASE,
-)
+WHEEL_DISTRIBUTION_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._]*$")
+WHEEL_VERSION_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.!+]*$")
+WHEEL_BUILD_TAG_RE = re.compile(r"^[0-9][A-Za-z0-9]*$")
+WHEEL_TAG_RE = re.compile(r"^[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)*$")
 PYTHON_VERSION_RE = re.compile(r"^(?:cp)?(?P<major>3)(?:\.?)(?P<minor>\d{1,2})$")
+REQUIRES_PYTHON_SPECIFIER_RE = re.compile(
+    r"^(?P<operator>~=|==|!=|<=|>=|<|>)\s*" r"(?P<version>\d+(?:\.\d+){0,2})(?P<wildcard>\.\*)?$"
+)
+SHA256_FRAGMENT_RE = re.compile(r"^sha256=(?P<digest>[0-9a-fA-F]{64})$")
 
 
 class NoRedirect(HTTPRedirectHandler):
@@ -110,6 +114,51 @@ class HealthSummary:
             "host": self.host,
             "results": [result.safe_dict() for result in self.results],
         }
+
+
+@dataclass(frozen=True)
+class _SimplePageAnchor:
+    href: str
+    requires_python: str | None
+
+
+class _SimplePageAnchorParser(HTMLParser):
+    """Collect bounded anchor metadata from an already-bounded Simple API body."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.anchors: list[_SimplePageAnchor] = []
+        self.has_malformed_anchor = False
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag.lower() != "a":
+            return
+
+        href: str | None = None
+        href_seen = False
+        href_is_ambiguous = False
+        requires_python: str | None = None
+        requires_python_seen = False
+        requires_python_is_ambiguous = False
+        for name, value in attrs:
+            normalized_name = name.lower()
+            if normalized_name == "href":
+                if href_seen:
+                    href_is_ambiguous = True
+                    continue
+                href_seen = True
+                href = value
+            elif normalized_name == "data-requires-python":
+                if requires_python_seen:
+                    requires_python_is_ambiguous = True
+                    continue
+                requires_python_seen = True
+                requires_python = value or ""
+        if href_is_ambiguous or requires_python_is_ambiguous:
+            self.has_malformed_anchor = True
+            return
+        if href:
+            self.anchors.append(_SimplePageAnchor(href=href, requires_python=requires_python))
 
 
 def normalize_project_name(project: str) -> str:
@@ -311,27 +360,189 @@ def simple_page_has_project_link(*, body: bytes, normalized_project: str) -> boo
     return "href=" in text and any(marker in text for marker in package_markers)
 
 
+def _parse_simple_page_anchors(
+    body: bytes,
+) -> tuple[tuple[_SimplePageAnchor, ...], bool]:
+    """Parse anchors from the caller's max-byte-bounded response body."""
+    parser = _SimplePageAnchorParser()
+    parser.feed(body.decode("utf-8", errors="ignore"))
+    parser.close()
+    return tuple(parser.anchors), parser.has_malformed_anchor
+
+
+def _artifact_filename_from_href(href: str, *, allowed_netloc: str | None) -> str:
+    """Return a normalized URL-path basename without query or fragment metadata."""
+    try:
+        parsed = urlparse(href)
+    except ValueError:
+        return ""
+    if parsed.scheme:
+        if parsed.scheme.lower() not in {"http", "https"} or not parsed.netloc:
+            return ""
+    if parsed.username is not None or parsed.password is not None:
+        return ""
+    if parsed.netloc and (
+        allowed_netloc is None or parsed.netloc.lower() != allowed_netloc.lower()
+    ):
+        return ""
+    path = parsed.path
+    return unquote(path.rsplit("/", 1)[-1]).lower()
+
+
+def _wheel_matches_exact_pin(
+    filename: str,
+    *,
+    normalized_project: str,
+    expected_version: str,
+) -> bool:
+    """Validate wheel structure and match its distribution/version components."""
+    if not filename.endswith(".whl"):
+        return False
+    parts = filename[:-4].split("-")
+    if len(parts) == 5:
+        distribution, version, python_tag, abi_tag, platform_tag = parts
+    elif len(parts) == 6:
+        distribution, version, build_tag, python_tag, abi_tag, platform_tag = parts
+        if WHEEL_BUILD_TAG_RE.fullmatch(build_tag) is None:
+            return False
+    else:
+        return False
+    if WHEEL_DISTRIBUTION_RE.fullmatch(distribution) is None:
+        return False
+    if WHEEL_VERSION_RE.fullmatch(version) is None:
+        return False
+    if any(WHEEL_TAG_RE.fullmatch(tag) is None for tag in (python_tag, abi_tag, platform_tag)):
+        return False
+    return (
+        normalize_project_name(distribution) == normalized_project
+        and version.lower() == expected_version.lower()
+    )
+
+
+def _exact_pin_wheel_links(
+    *,
+    body: bytes,
+    normalized_project: str,
+    expected_version: str,
+    allowed_netloc: str | None = None,
+) -> tuple[tuple[str, str | None], ...]:
+    """Return exact-version wheel filenames with metadata from their own anchors."""
+    links_by_filename: dict[str, str | None] = {}
+    ambiguous_filenames: set[str] = set()
+    anchors, has_malformed_anchor = _parse_simple_page_anchors(body)
+    if has_malformed_anchor:
+        return ()
+    for anchor in anchors:
+        filename = _artifact_filename_from_href(
+            anchor.href,
+            allowed_netloc=allowed_netloc,
+        )
+        if not _wheel_matches_exact_pin(
+            filename,
+            normalized_project=normalized_project,
+            expected_version=expected_version,
+        ):
+            continue
+        if filename in links_by_filename:
+            ambiguous_filenames.add(filename)
+            continue
+        links_by_filename[filename] = anchor.requires_python
+    return tuple(
+        (filename, requires_python)
+        for filename, requires_python in links_by_filename.items()
+        if filename not in ambiguous_filenames
+    )
+
+
 def exact_pin_wheel_filenames(
     *,
     body: bytes,
     normalized_project: str,
     expected_version: str,
+    allowed_netloc: str | None = None,
 ) -> tuple[str, ...]:
     """Return exact-version wheel filenames advertised on a Simple API project page."""
-    text = html.unescape(body.decode("utf-8", errors="ignore"))
-    expected_prefixes = (
-        f"{normalized_project}-{expected_version}-".lower(),
-        f"{normalized_project.replace('-', '_')}-{expected_version}-".lower(),
-    )
     filenames: list[str] = []
     seen: set[str] = set()
-    for match in WHEEL_FILENAME_RE.finditer(text):
-        filename = unquote(match.group("filename")).lower()
-        if not filename.startswith(expected_prefixes) or filename in seen:
+    for filename, _requires_python in _exact_pin_wheel_links(
+        body=body,
+        normalized_project=normalized_project,
+        expected_version=expected_version,
+        allowed_netloc=allowed_netloc,
+    ):
+        if filename in seen:
             continue
         seen.add(filename)
         filenames.append(filename)
     return tuple(filenames)
+
+
+def trusted_exact_pin_wheel_hashes(
+    *,
+    body: bytes,
+    project_url: str,
+    normalized_project: str,
+    expected_version: str,
+) -> dict[str, str]:
+    """Return exact wheel hashes only when every matching link is proxy-hosted.
+
+    This is the artifact-admission parser used by governed lock compilation.
+    Unlike the health probe's compatibility helpers, it fails closed when an
+    exact-version wheel link leaves the canonical project origin, omits its
+    SHA-256 fragment, or advertises one filename ambiguously.
+    """
+
+    project = urlparse(project_url)
+    if (
+        project.scheme.lower() != "https"
+        or not project.netloc
+        or project.username is not None
+        or project.password is not None
+        or project.query
+        or project.fragment
+    ):
+        raise ValueError("artifact_admission_invalid_project_url")
+
+    anchors, has_malformed_anchor = _parse_simple_page_anchors(body)
+    if has_malformed_anchor:
+        raise ValueError("artifact_admission_malformed_anchor")
+
+    admitted: dict[str, str] = {}
+    for anchor in anchors:
+        try:
+            raw_path = urlparse(anchor.href).path
+        except ValueError as exc:
+            raise ValueError("artifact_admission_malformed_href") from exc
+        filename = unquote(raw_path.rsplit("/", 1)[-1]).lower()
+        if not _wheel_matches_exact_pin(
+            filename,
+            normalized_project=normalized_project,
+            expected_version=expected_version,
+        ):
+            continue
+
+        resolved = urlparse(urljoin(project_url, anchor.href))
+        if (
+            resolved.scheme.lower() != "https"
+            or resolved.netloc.lower() != project.netloc.lower()
+            or resolved.username is not None
+            or resolved.password is not None
+            or resolved.query
+        ):
+            raise ValueError(f"artifact_admission_untrusted_url: {filename}")
+        fragment_match = SHA256_FRAGMENT_RE.fullmatch(resolved.fragment)
+        if fragment_match is None:
+            raise ValueError(f"artifact_admission_missing_sha256: {filename}")
+        digest = fragment_match.group("digest").lower()
+        if filename in admitted:
+            raise ValueError(f"artifact_admission_ambiguous_filename: {filename}")
+        admitted[filename] = digest
+
+    if not admitted:
+        raise ValueError(
+            f"artifact_admission_exact_pin_missing: " f"{normalized_project}=={expected_version}"
+        )
+    return admitted
 
 
 def _platform_tag_is_linux_x86_64(platform_tag: str) -> bool:
@@ -398,24 +609,118 @@ def wheel_is_compatible_with_targets(
     )
 
 
+def _compare_releases(left: tuple[int, ...], right: tuple[int, ...]) -> int:
+    width = max(len(left), len(right))
+    padded_left = left + (0,) * (width - len(left))
+    padded_right = right + (0,) * (width - len(right))
+    return (padded_left > padded_right) - (padded_left < padded_right)
+
+
+def _requires_python_clause_allows_target(
+    clause: str,
+    *,
+    target_release: tuple[int, ...],
+) -> bool:
+    """Evaluate one bounded numeric clause; unsupported PEP 440 syntax fails closed."""
+    match = REQUIRES_PYTHON_SPECIFIER_RE.fullmatch(clause.strip())
+    if match is None:
+        return False
+
+    operator = match.group("operator")
+    required_release = tuple(int(part) for part in match.group("version").split("."))
+    target_floor = target_release + (0,)
+    target_upper = (target_release[0], target_release[1] + 1, 0)
+    wildcard = match.group("wildcard") is not None
+    if wildcard:
+        if operator not in {"==", "!="}:
+            return False
+        shared_prefix = target_release[: len(required_release)] == required_release
+        if len(required_release) <= len(target_release):
+            return shared_prefix if operator == "==" else not shared_prefix
+        intersects_target_minor = required_release[: len(target_release)] == target_release
+        return False if operator == "==" else not intersects_target_minor
+
+    if operator == "==":
+        return False
+    if operator == "!=":
+        return not (
+            _compare_releases(required_release, target_floor) >= 0
+            and _compare_releases(required_release, target_upper) < 0
+        )
+    if operator == "<=":
+        # The target patch is intentionally unknown.  PEP 440 interprets
+        # ``<=3.11`` as ``<=3.11.0``, so an inclusive bound covers the entire
+        # target minor only when it reaches at least the next minor boundary.
+        return _compare_releases(target_upper, required_release) <= 0
+    if operator == ">=":
+        return _compare_releases(target_floor, required_release) >= 0
+    if operator == "<":
+        return _compare_releases(target_upper, required_release) <= 0
+    if operator == ">":
+        return _compare_releases(target_floor, required_release) > 0
+    if operator == "~=":
+        if len(required_release) < 2:
+            return False
+        compatible_prefix = list(required_release[:-1])
+        compatible_prefix[-1] += 1
+        compatible_upper = tuple(compatible_prefix)
+        return (
+            _compare_releases(target_floor, required_release) >= 0
+            and _compare_releases(target_upper, compatible_upper) <= 0
+        )
+    return False
+
+
+def _requires_python_allows_target(
+    requires_python: str | None,
+    *,
+    target_python_tag: str,
+) -> bool:
+    if requires_python is None:
+        return True
+    clauses = [clause.strip() for clause in requires_python.split(",")]
+    if not clauses or any(not clause for clause in clauses):
+        return False
+
+    target_release = (int(target_python_tag[2]), int(target_python_tag[3:]))
+    return all(
+        _requires_python_clause_allows_target(
+            clause,
+            target_release=target_release,
+        )
+        for clause in clauses
+    )
+
+
 def simple_page_has_exact_pin(
     *,
     body: bytes,
     normalized_project: str,
     expected_version: str,
     target_python_versions: Sequence[str] | None = None,
+    allowed_netloc: str | None = None,
 ) -> bool:
-    """Return True when the page advertises a compatible exact-version wheel."""
-    return any(
-        wheel_is_compatible_with_targets(
-            filename,
-            target_python_versions=target_python_versions,
+    """Return True when exact-version wheels cover every requested Python target."""
+    wheel_links = _exact_pin_wheel_links(
+        body=body,
+        normalized_project=normalized_project,
+        expected_version=expected_version,
+        allowed_netloc=allowed_netloc,
+    )
+    target_python_tags = normalize_target_python_versions(target_python_versions)
+    return all(
+        any(
+            wheel_is_compatible_with_targets(
+                filename,
+                target_python_versions=(target_python_tag,),
+            )
+            and _requires_python_allows_target(
+                requires_python,
+                target_python_tag=target_python_tag,
+            )
+            for filename, requires_python in wheel_links
         )
-        for filename in exact_pin_wheel_filenames(
-            body=body,
-            normalized_project=normalized_project,
-            expected_version=expected_version,
-        )
+        for target_python_tag in target_python_tags
     )
 
 
@@ -592,6 +897,7 @@ def probe_project(
             body=body,
             normalized_project=normalized_project,
             expected_version=expected_version,
+            allowed_netloc=urlparse(url).netloc,
         )
         if not exact_wheels:
             if len(body) > max_bytes:
@@ -620,6 +926,7 @@ def probe_project(
             normalized_project=normalized_project,
             expected_version=expected_version,
             target_python_versions=target_python_versions,
+            allowed_netloc=urlparse(url).netloc,
         ):
             targets = ",".join(normalize_target_python_versions(target_python_versions))
             return ProbeResult(

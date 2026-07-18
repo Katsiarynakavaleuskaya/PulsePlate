@@ -7,9 +7,11 @@ import argparse
 import http.client
 import json
 import os
+import re
 import urllib.error
 import urllib.parse
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -25,9 +27,20 @@ class CheckEntry:
     details_url: str
     workflow_name: str
     conclusion: str
+    app_database_id: int | None = None
+    app_slug: str = ""
+
+
+@dataclass(frozen=True)
+class RequiredCheck:
+    """One branch-protection requirement, optionally bound to a GitHub App."""
+
+    name: str
+    app_database_id: int | None = None
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+_MAX_STATUS_CHECK_PAGES = 100
 PENDING_STATUS_CONTEXT_STATES = {"EXPECTED", "PENDING"}
 CANONICAL_FALLBACK_STATUS_CONTEXT_NAMES = {"CI"}
 CANONICAL_FALLBACK_WORKFLOW_NAMES = {"CI"}
@@ -75,6 +88,18 @@ DOCKER_SURFACE_PREFIXES = {
     "trivy/",
 }
 FRONTEND_FALLBACK_WORKFLOW_NAMES = {"Frontend CI"}
+CADDY_FALLBACK_CHECK_NAMES = {"caddy-contract"}
+CADDY_SURFACE_PREFIXES = {
+    ".github/workflows/cd.yml",
+    ".github/workflows/frontend-ci.yml",
+    "deploy/Caddyfile",
+    "deploy/Caddyfile.production",
+    "deploy/docker-compose.staging.yaml",
+    "frontend/Dockerfile.caddy-spa",
+    "scripts/deploy.sh",
+    "tests/test_caddy_deploy_provenance.py",
+    "tests/test_cd_attestation_workflow_contract.py",
+}
 FRONTEND_SURFACE_PREFIXES = {
     ".github/actions/npm-ci-with-retry/",
     ".github/actions/python-setup/",
@@ -168,20 +193,37 @@ def _api_request(
     return json.loads(body)
 
 
-def _extract_pr_context(event_path: Path) -> tuple[int, str]:
-    """Read event payload and return (pr_number, repo)."""
+def _extract_pr_context(event_path: Path) -> tuple[int, str, str]:
+    """Read event payload and return (pr_number, repo, event_head_sha)."""
     payload = json.loads(event_path.read_text(encoding="utf-8"))
     pr = payload.get("pull_request") or {}
     number = int(pr.get("number", 0))
     repo = str((payload.get("repository") or {}).get("full_name", ""))
-    return number, repo
+    head_sha = str((pr.get("head") or {}).get("sha") or "").strip()
+    return number, repo, head_sha
+
+
+def _validated_head_sha(value: Any, *, label: str) -> str:
+    """Return one canonical Git object ID or fail closed."""
+
+    if not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{40}", value):
+        raise ValueError(f"{label} must be a 40-character lowercase commit SHA")
+    return value
 
 
 def _fetch_pr_metadata(
-    pr_number: int, repo: str, token: str
+    pr_number: int,
+    repo: str,
+    token: str,
+    expected_head_sha: str | None = None,
 ) -> tuple[bool, str, str, list[dict[str, Any]]]:
-    """Fetch draft state, merge state, base branch, and raw status-check nodes."""
+    """Fetch one immutable-head snapshot of PR metadata and status-check nodes."""
     owner, name = repo.split("/", maxsplit=1)
+    frozen_head_sha = (
+        _validated_head_sha(expected_head_sha, label="expected head SHA")
+        if expected_head_sha is not None
+        else None
+    )
     query = """
     query($owner: String!, $name: String!, $number: Int!, $cursor: String) {
       repository(owner: $owner, name: $name) {
@@ -189,6 +231,7 @@ def _fetch_pr_metadata(
           isDraft
           mergeStateStatus
           baseRefName
+          headRefOid
           statusCheckRollup {
             contexts(first: 100, after: $cursor) {
               pageInfo {
@@ -205,6 +248,11 @@ def _fetch_pr_metadata(
                   completedAt
                   detailsUrl
                   checkSuite {
+                    createdAt
+                    app {
+                      databaseId
+                      slug
+                    }
                     workflowRun {
                       workflow {
                         name
@@ -226,11 +274,12 @@ def _fetch_pr_metadata(
     }
     """
     cursor: str | None = None
+    seen_cursors: set[str] = set()
     nodes: list[dict[str, Any]] = []
     is_draft = False
     merge_state = ""
     base_ref = ""
-    while True:
+    for _page in range(_MAX_STATUS_CHECK_PAGES):
         response = _api_request(
             "https://api.github.com/graphql",
             token=token,
@@ -245,25 +294,67 @@ def _fetch_pr_metadata(
                 },
             },
         )
-        pr = response.get("data", {}).get("repository", {}).get("pullRequest", {})
-        is_draft = bool(pr.get("isDraft", False))
+        if not isinstance(response, dict) or response.get("errors"):
+            raise ValueError("GraphQL status-check response is malformed")
+        data = response.get("data")
+        repository_data = data.get("repository") if isinstance(data, dict) else None
+        pr = repository_data.get("pullRequest") if isinstance(repository_data, dict) else None
+        if not isinstance(pr, dict):
+            raise ValueError("GraphQL status-check response is missing the pull request")
+        page_head_sha = _validated_head_sha(
+            pr.get("headRefOid"), label="GraphQL pull request headRefOid"
+        )
+        if frozen_head_sha is None:
+            frozen_head_sha = page_head_sha
+        elif page_head_sha != frozen_head_sha:
+            raise ValueError(
+                "SNAPSHOT_CHANGED: statusCheckRollup page does not match the frozen PR head"
+            )
+        raw_is_draft = pr.get("isDraft")
+        if not isinstance(raw_is_draft, bool):
+            raise ValueError("GraphQL pull request isDraft must be boolean")
+        is_draft = raw_is_draft
         merge_state = str(pr.get("mergeStateStatus") or "")
         base_ref = str(pr.get("baseRefName") or "")
-        contexts = (pr.get("statusCheckRollup") or {}).get("contexts") or {}
-        nodes.extend(contexts.get("nodes") or [])
+        rollup = pr.get("statusCheckRollup")
+        contexts = rollup.get("contexts") if isinstance(rollup, dict) else None
+        if not isinstance(contexts, dict):
+            raise ValueError("GraphQL status-check response is missing contexts")
+        page_nodes = contexts.get("nodes")
+        if not isinstance(page_nodes, list) or not all(
+            isinstance(node, dict) for node in page_nodes
+        ):
+            raise ValueError("GraphQL status-check nodes are malformed")
+        nodes.extend(page_nodes)
         page_info = contexts.get("pageInfo") or {}
-        if not page_info.get("hasNextPage", False):
+        if not isinstance(page_info, dict):
+            raise ValueError("GraphQL status-check pageInfo is malformed")
+        has_next_page = page_info.get("hasNextPage")
+        if not isinstance(has_next_page, bool):
+            raise ValueError("GraphQL status-check hasNextPage must be boolean")
+        if not has_next_page:
             break
-        cursor = page_info.get("endCursor")
-        if not cursor:
-            break
+        next_cursor = page_info.get("endCursor")
+        if not isinstance(next_cursor, str) or not next_cursor:
+            raise ValueError("GraphQL status-check pagination cursor is malformed")
+        if next_cursor in seen_cursors:
+            raise ValueError("GraphQL status-check pagination cursor repeated")
+        seen_cursors.add(next_cursor)
+        cursor = next_cursor
+    else:
+        raise ValueError("GraphQL status-check pagination exceeded page limit")
     return is_draft, merge_state, base_ref, nodes
 
 
-def _fetch_required_check_names(repo: str, base_ref: str, token: str) -> tuple[set[str], bool]:
-    """Fetch required check names from branch protection.
+def _fetch_required_check_names(
+    repo: str, base_ref: str, token: str
+) -> tuple[set[RequiredCheck], bool]:
+    """Fetch required check identities from branch protection.
 
-    Returns `(required_names, metadata_available)`.
+    Returns `(required_checks, metadata_available)`. Positive App IDs bind the
+    CheckRun producer. Unbound requirements may be satisfied by either status
+    source, but when both a CheckRun and StatusContext share a required name,
+    GitHub requires both sources to pass.
     `metadata_available=False` means GitHub did not expose branch-protection data,
     so the caller must not treat non-required checks as blocking.
     """
@@ -281,14 +372,49 @@ def _fetch_required_check_names(repo: str, base_ref: str, token: str) -> tuple[s
             return set(), False
         raise
 
-    required: set[str] = set()
-    for item in data.get("contexts") or []:
-        if isinstance(item, str) and item.strip():
-            required.add(item.strip())
-    for item in data.get("checks") or []:
-        context = str((item or {}).get("context") or "").strip()
-        if context:
-            required.add(context)
+    if not isinstance(data, dict):
+        raise ValueError("required status-check response is malformed")
+    raw_checks = data.get("checks")
+    raw_contexts = data.get("contexts")
+    if raw_checks is None:
+        raw_checks = []
+    if raw_contexts is None:
+        raw_contexts = []
+    if not isinstance(raw_checks, list) or not isinstance(raw_contexts, list):
+        raise ValueError("required status-check response lists are malformed")
+
+    required: set[RequiredCheck] = set()
+    check_names: set[str] = set()
+    for item in raw_checks:
+        if not isinstance(item, dict):
+            raise ValueError("required status-check entry is malformed")
+        context = str(item.get("context") or "").strip()
+        if not context:
+            raise ValueError("required status-check context is missing")
+        raw_app_id = item.get("app_id")
+        if raw_app_id is None:
+            app_database_id = None
+        elif isinstance(raw_app_id, int) and not isinstance(raw_app_id, bool):
+            if raw_app_id == -1:
+                app_database_id = None
+            elif raw_app_id > 0:
+                app_database_id = raw_app_id
+            else:
+                raise ValueError(f"required status-check {context!r} has malformed app_id")
+        else:
+            raise ValueError(f"required status-check {context!r} has malformed app_id")
+        required.add(RequiredCheck(context, app_database_id))
+        check_names.add(context)
+
+    # GitHub duplicates modern ``checks`` names into ``contexts``. One
+    # RequiredCheck evaluates CheckRun/StatusContext collisions explicitly, so
+    # retain only genuinely legacy context names here.
+    for item in raw_contexts:
+        if not isinstance(item, str) or not item.strip():
+            raise ValueError("required legacy status context is malformed")
+        context = item.strip()
+        if context not in check_names:
+            required.add(RequiredCheck(context, None))
     return required, True
 
 
@@ -334,25 +460,51 @@ def _normalize_node(node: dict[str, Any]) -> CheckEntry:
         conclusion = str(node.get("conclusion") or "").strip().upper()
         if status in {"QUEUED", "IN_PROGRESS", "PENDING", "REQUESTED", "WAITING"}:
             state = "pending"
-        elif conclusion in {
-            "FAILURE",
-            "TIMED_OUT",
-            "CANCELLED",
-            "ACTION_REQUIRED",
-            "STALE",
-            "STARTUP_FAILURE",
-            "SKIPPED",
-        }:
-            state = "failed"
-        else:
+        elif status == "COMPLETED" and conclusion == "SUCCESS":
             state = "passed"
-        workflow_name = str(
-            (((node.get("checkSuite") or {}).get("workflowRun") or {}).get("workflow") or {}).get(
-                "name"
+        else:
+            state = "failed"
+        check_suite = node.get("checkSuite")
+        if not isinstance(check_suite, dict):
+            raise ValueError(
+                f"CheckRun {name or '<unnamed>'!r} is missing valid checkSuite.createdAt"
             )
-            or ""
-        ).strip()
-        timestamp = str(node.get("completedAt") or node.get("startedAt") or "")
+        workflow_run = check_suite.get("workflowRun")
+        if workflow_run is None:
+            workflow_run = {}
+        if not isinstance(workflow_run, dict):
+            raise ValueError(f"CheckRun {name or '<unnamed>'!r} has malformed workflowRun")
+        workflow = workflow_run.get("workflow")
+        if workflow is None:
+            workflow = {}
+        if not isinstance(workflow, dict):
+            raise ValueError(f"CheckRun {name or '<unnamed>'!r} has malformed workflow")
+        workflow_name = str(workflow.get("name") or "").strip()
+        app = check_suite.get("app")
+        if app is None:
+            app = {}
+        if not isinstance(app, dict):
+            raise ValueError(f"CheckRun {name or '<unnamed>'!r} has malformed app identity")
+        raw_app_database_id = app.get("databaseId")
+        if raw_app_database_id is None:
+            app_database_id = None
+        elif (
+            isinstance(raw_app_database_id, int)
+            and not isinstance(raw_app_database_id, bool)
+            and raw_app_database_id > 0
+        ):
+            app_database_id = raw_app_database_id
+        else:
+            raise ValueError(f"CheckRun {name or '<unnamed>'!r} has malformed app databaseId")
+        app_slug = str(app.get("slug") or "").strip()
+        # Order every CheckRun by one attempt-creation clock. ``startedAt`` is
+        # null while queued and can be later than a newer queued suite when an
+        # older run waits for capacity. Mixing those clocks can select stale
+        # success, so CheckSuite.createdAt is the only ordering authority.
+        timestamp = _normalize_timestamp(
+            check_suite.get("createdAt"),
+            label=f"CheckRun {name or '<unnamed>'!r} checkSuite.createdAt",
+        )
         return CheckEntry(
             name=name,
             source_kind="check_run",
@@ -361,7 +513,12 @@ def _normalize_node(node: dict[str, Any]) -> CheckEntry:
             details_url=str(node.get("detailsUrl") or ""),
             workflow_name=workflow_name,
             conclusion=conclusion,
+            app_database_id=app_database_id,
+            app_slug=app_slug,
         )
+
+    if node_type != "StatusContext":
+        raise ValueError(f"unsupported status-check node type: {node_type or '<missing>'}")
 
     name = str(node.get("context") or "").strip()
     raw_state = str(node.get("state") or "").strip().upper()
@@ -371,27 +528,57 @@ def _normalize_node(node: dict[str, Any]) -> CheckEntry:
         state = "pending"
     else:
         state = "failed"
+    timestamp = _normalize_timestamp(
+        node.get("createdAt"),
+        label=f"StatusContext {name or '<unnamed>'!r} createdAt",
+    )
     return CheckEntry(
         name=name,
         source_kind="status_context",
         state=state,
-        timestamp=str(node.get("createdAt") or ""),
+        timestamp=timestamp,
         details_url=str(node.get("targetUrl") or ""),
         workflow_name="",
         conclusion="",
+        app_database_id=None,
+        app_slug="",
     )
+
+
+def _normalize_timestamp(value: Any, *, label: str) -> str:
+    """Validate one timezone-aware ISO-8601 value and canonicalize it to UTC."""
+
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{label} is missing or invalid")
+    candidate = value.strip()
+    try:
+        parsed = datetime.fromisoformat(candidate.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError(f"{label} is missing or invalid") from exc
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise ValueError(f"{label} is missing or invalid")
+    return parsed.astimezone(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")
 
 
 def _latest_entries(entries: list[CheckEntry]) -> tuple[dict[str, CheckEntry], list[CheckEntry]]:
     """Split latest-per-name entries from superseded historical entries."""
+
+    def attempt_order_key(entry: CheckEntry) -> tuple[str, int, str]:
+        # Equal CheckSuite creation times cannot prove attempt order. Prefer a
+        # blocking or non-SUCCESS CheckRun over exact success so URL
+        # lexicography can never create a false green. Status contexts have no
+        # conclusion field, so their normalized passed state remains exact.
+        exact_success = entry.state == "passed" and (
+            entry.source_kind != "check_run" or entry.conclusion == "SUCCESS"
+        )
+        fail_closed_rank = 0 if exact_success else 1
+        return entry.timestamp, fail_closed_rank, entry.details_url
+
     latest: dict[str, CheckEntry] = {}
     superseded: list[CheckEntry] = []
-    for entry in sorted(entries, key=lambda item: (item.name, item.timestamp, item.details_url)):
+    for entry in sorted(entries, key=lambda item: (item.name, *attempt_order_key(item))):
         previous = latest.get(entry.name)
-        if previous is None or (entry.timestamp, entry.details_url) >= (
-            previous.timestamp,
-            previous.details_url,
-        ):
+        if previous is None or attempt_order_key(entry) >= attempt_order_key(previous):
             if previous is not None:
                 superseded.append(previous)
             latest[entry.name] = entry
@@ -401,16 +588,79 @@ def _latest_entries(entries: list[CheckEntry]) -> tuple[dict[str, CheckEntry], l
 
 
 def _required_snapshot(
-    latest_entries: dict[str, CheckEntry], required_names: set[str]
+    latest_entries: dict[str, CheckEntry] | list[CheckEntry],
+    required_names: set[RequiredCheck] | set[str],
 ) -> list[CheckEntry]:
-    """Build required-check snapshot, inserting pending placeholders when missing."""
+    """Build an identity-aware required snapshot with fail-closed placeholders."""
+
+    entries = (
+        list(latest_entries.values()) if isinstance(latest_entries, dict) else list(latest_entries)
+    )
+    required_checks = {
+        item if isinstance(item, RequiredCheck) else RequiredCheck(item) for item in required_names
+    }
     snapshot: list[CheckEntry] = []
-    for name in sorted(required_names):
-        entry = latest_entries.get(name)
-        if entry is None:
+    for required in sorted(
+        required_checks,
+        key=lambda item: (
+            item.name,
+            item.app_database_id if item.app_database_id is not None else -1,
+        ),
+    ):
+        named_entries = [entry for entry in entries if entry.name == required.name]
+        status_entries = [entry for entry in named_entries if entry.source_kind == "status_context"]
+        if required.app_database_id is not None:
+            check_identity_entries = [
+                entry
+                for entry in entries
+                if entry.source_kind == "check_run"
+                and entry.app_database_id == required.app_database_id
+            ]
+        else:
+            check_identity_entries = [
+                entry for entry in entries if entry.source_kind == "check_run"
+            ]
+        check_entries = [entry for entry in check_identity_entries if entry.name == required.name]
+
+        check_latest, check_superseded = _latest_entries(check_entries)
+        check_latest, _check_superseded = (
+            _suppress_stale_latest_entries_with_newer_workflow_activity(
+                check_identity_entries,
+                check_latest,
+                check_superseded,
+            )
+        )
+        status_latest, _status_superseded = _latest_entries(status_entries)
+
+        required_check_run = check_latest.get(required.name)
+        required_status = status_latest.get(required.name)
+        if required_check_run is None and (required.app_database_id is not None or check_entries):
             snapshot.append(
                 CheckEntry(
-                    name=name,
+                    name=required.name,
+                    source_kind="missing",
+                    state="pending",
+                    timestamp="",
+                    details_url="",
+                    workflow_name="",
+                    conclusion="",
+                    app_database_id=required.app_database_id,
+                )
+            )
+        elif required_check_run is not None:
+            snapshot.append(required_check_run)
+
+        if required_status is not None:
+            snapshot.append(required_status)
+
+        if (
+            required.app_database_id is None
+            and required_check_run is None
+            and required_status is None
+        ):
+            snapshot.append(
+                CheckEntry(
+                    name=required.name,
                     source_kind="missing",
                     state="pending",
                     timestamp="",
@@ -419,8 +669,6 @@ def _required_snapshot(
                     conclusion="",
                 )
             )
-        else:
-            snapshot.append(entry)
     return snapshot
 
 
@@ -452,6 +700,8 @@ def _is_blocking_fallback_advisory(entry: CheckEntry, changed_paths: set[str]) -
             changed_paths, DOCKER_SURFACE_PREFIXES
         )
     if entry.workflow_name in FRONTEND_FALLBACK_WORKFLOW_NAMES:
+        if entry.name in CADDY_FALLBACK_CHECK_NAMES:
+            return _path_touches_any(changed_paths, CADDY_SURFACE_PREFIXES)
         return _path_touches_any(changed_paths, FRONTEND_SURFACE_PREFIXES)
     return False
 
@@ -552,29 +802,35 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     if args.event_path:
-        pr_number, repo = _extract_pr_context(Path(args.event_path))
+        pr_number, repo, expected_head_sha = _extract_pr_context(Path(args.event_path))
     else:
         pr_number = args.pr_number or 0
         repo = args.repo.strip()
+        expected_head_sha = None
 
     if not pr_number or not repo:
         print("current-head-checks: no PR context found; skipping.")
         return 0
 
     try:
-        is_draft, merge_state, base_ref, nodes = _fetch_pr_metadata(pr_number, repo, token)
+        is_draft, merge_state, base_ref, nodes = _fetch_pr_metadata(
+            pr_number, repo, token, expected_head_sha
+        )
         required_names, required_metadata_available = _fetch_required_check_names(
             repo, base_ref, token
         )
+        normalized_entries = [_normalize_node(node) for node in nodes if node]
     except urllib.error.HTTPError as exc:
         print(f"ERROR: failed to query GitHub check state: HTTP {exc.code}")
+        return 1
+    except ValueError as exc:
+        print(f"ERROR: failed to validate GitHub check state: {exc}")
         return 1
 
     if is_draft:
         print("current-head-checks: PR is draft; skipping strict checks.")
         return 0
 
-    normalized_entries = [_normalize_node(node) for node in nodes if node]
     latest, superseded = _latest_entries(normalized_entries)
     latest, superseded = _suppress_stale_latest_entries_with_newer_workflow_activity(
         normalized_entries,
@@ -582,7 +838,9 @@ def main(argv: list[str] | None = None) -> int:
         superseded,
     )
     current_required = (
-        _required_snapshot(latest, required_names) if required_metadata_available else []
+        _required_snapshot(normalized_entries, required_names)
+        if required_metadata_available
+        else []
     )
     advisory_entries = list(latest.values()) if not required_metadata_available else []
     advisory_blocking_entries: list[CheckEntry] = []

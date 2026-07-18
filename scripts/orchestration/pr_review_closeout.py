@@ -17,7 +17,7 @@ import subprocess  # nosec B404: bounded absolute git commands are required (rem
 import sys
 import tempfile
 from pathlib import Path
-from typing import Any, Mapping, cast
+from typing import Any, Mapping
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
@@ -32,6 +32,8 @@ from scripts.orchestration.pr_commit_identity import (  # noqa: E402
     fetch_pr_snapshot,
     is_ancestor,
     verify_codex_review_reference,
+    verify_review_credit_outage_references,
+    verify_security_outage_override_reference,
 )
 from scripts.orchestration.pr_review_evidence import (  # noqa: E402
     MATERIAL_POLICY_VERSION,
@@ -39,14 +41,21 @@ from scripts.orchestration.pr_review_evidence import (  # noqa: E402
     SEAL_SCHEMA_VERSION,
     UNAVAILABLE_REVIEW_REF_CAUSE,
     ReviewEvidenceError,
+    build_review_credit_outage_receipt,
+    build_security_outage_override_receipt,
     compute_material_manifest,
     ingest_codex_security_receipt,
+    is_review_credit_outage_receipt,
+    is_security_outage_override_receipt,
     parse_embedded_review_seal,
     render_embedded_review_seal,
     unavailable_review_ref_fingerprint,
+    validate_review_credit_outage_scope,
+    validate_security_outage_override_scope,
 )
 from scripts.orchestration.review_mapping_artifact import (  # noqa: E402
     NO_ACTIONABLE_LINE,
+    extract_fixed_mapping_section,
     mapping_artifact_path,
     validate_mapping_artifact_text,
 )
@@ -445,7 +454,7 @@ def _render_mapping(state: Mapping[str, Any], seal: Mapping[str, Any]) -> str:
         (
             f"Packet: `{packet}`"
             if packet
-            else "Not applicable: no retained coordinator packet was supplied."
+            else "Exception: no retained coordinator packet was supplied."
         ),
         "",
         "## Experiment Runner Evidence",
@@ -486,6 +495,67 @@ def _render_mapping(state: Mapping[str, Any], seal: Mapping[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _mapping_proof_blocks(markdown: str) -> set[str]:
+    section = extract_fixed_mapping_section(markdown)
+    return {
+        block.strip()
+        for block in section.split("\n\n")
+        if block.strip() and block.strip() != NO_ACTIONABLE_LINE
+    }
+
+
+def _validate_reseal_transition(
+    existing_markdown: str,
+    replacement_markdown: str,
+    *,
+    repository: str,
+    pr_number: int,
+    expected_freeze: Mapping[str, Any],
+) -> str:
+    errors = validate_mapping_artifact_text(existing_markdown)
+    if errors:
+        raise CloseoutError("existing canonical mapping is invalid: " + "; ".join(errors))
+    existing_seal = parse_embedded_review_seal(existing_markdown)
+    if existing_seal["repository"] != repository or existing_seal["pr_number"] != pr_number:
+        raise CloseoutError("existing canonical mapping identity does not match this PR")
+    existing_material = existing_seal["material"]
+    if existing_material["digest"] == expected_freeze["digest"]:
+        raise CloseoutError(
+            "canonical mapping already seals this material; use a structured duplicate reply"
+        )
+    if existing_material["policy_version"] != expected_freeze["policy_version"]:
+        raise CloseoutError(
+            "existing canonical mapping policy_version changed; automatic reseal is unsafe"
+        )
+    base_changed = (
+        existing_material["base_ref_oid"] != expected_freeze["base_ref_oid"]
+        or existing_material["merge_base_sha"] != expected_freeze["merge_base_sha"]
+    )
+    if base_changed:
+        previous_base = str(existing_material["base_ref_oid"])
+        previous_merge_base = str(existing_material["merge_base_sha"])
+        next_base = str(expected_freeze["base_ref_oid"])
+        next_merge_base = str(expected_freeze["merge_base_sha"])
+        previous_head = str(existing_material["material_head_sha"])
+        next_head = str(expected_freeze["material_head_sha"])
+        if (
+            previous_base != previous_merge_base
+            or next_base != next_merge_base
+            or _git("merge-base", previous_base, next_base) != previous_base
+            or _git("merge-base", previous_head, next_head) != previous_head
+        ):
+            raise CloseoutError(
+                "existing canonical mapping base changed without a proven "
+                "fast-forward base/material-head advance"
+            )
+    missing_blocks = sorted(
+        _mapping_proof_blocks(existing_markdown) - _mapping_proof_blocks(replacement_markdown)
+    )
+    if missing_blocks:
+        raise CloseoutError("replacement mapping would drop existing disposition proof")
+    return str(existing_material["material_head_sha"])
+
+
 def _cmd_seal(args: argparse.Namespace) -> None:
     state = _load_state(args.pr_number)
     if state["repository"] != args.repo:
@@ -515,33 +585,115 @@ def _cmd_seal(args: argparse.Namespace) -> None:
     review_prefix = f"https://github.com/{args.repo}/pull/{args.pr_number}#"
     if not review_ref.startswith(review_prefix):
         raise CloseoutError("review-ref must identify the requested GitHub PR")
-    review_evidence = verify_codex_review_reference(
-        review_ref,
-        repository=args.repo,
-        pr_number=args.pr_number,
-        token=token,
-    )
-    review_commit = classify_commit_ref(review_evidence.commit_ref, snapshot, token=token)
-    if (
-        not isinstance(review_commit, RepositoryCommitRef)
-        or review_commit.kind is not CommitRefKind.PR_HEAD
-        or review_commit.sha != snapshot.head_sha
-    ):
-        raise CloseoutError("Codex review must be machine-bound to the exact frozen material head")
-    receipt = ingest_codex_security_receipt(
-        Path(args.scan_manifest),
-        expected_base_sha=manifest.merge_base_sha,
-        expected_head_sha=snapshot.head_sha,
-    )
-    seal = {
-        "authority": RECEIPT_AUTHORITY,
-        "code_review": {
+    if args.review_credit_outage_ref:
+        quota_ref = _required_line(
+            args.review_credit_quota_ref,
+            label="review-credit-quota-ref",
+        )
+        validate_review_credit_outage_scope(
+            repository=args.repo,
+            pr_number=args.pr_number,
+            material_paths=(entry.path for entry in manifest.entries),
+        )
+        credit_evidence = verify_review_credit_outage_references(
+            override_reference=_required_line(
+                args.review_credit_outage_ref,
+                label="review-credit-outage-ref",
+            ),
+            quota_reference=quota_ref,
+            prior_review_reference=_required_line(
+                args.prior_codex_review_ref,
+                label="prior-codex-review-ref",
+            ),
+            operator_review_reference=review_ref,
+            repository=args.repo,
+            pr_number=args.pr_number,
+            token=token,
+            snapshot=snapshot,
+            expected_material_head_sha=snapshot.head_sha,
+            expected_material_digest=manifest.digest,
+        )
+        code_review_receipt = build_review_credit_outage_receipt(
+            material_digest=manifest.digest,
+            material_head_sha=snapshot.head_sha,
+            override_reference=credit_evidence.override_reference,
+            override_created_at=credit_evidence.override_created_at,
+            quota_reference=credit_evidence.quota_reference,
+            quota_created_at=credit_evidence.quota_created_at,
+            prior_review_reference=credit_evidence.prior_review_reference,
+            prior_review_submitted_at=credit_evidence.prior_review_submitted_at,
+            prior_review_commit_ref=credit_evidence.prior_review_commit_ref,
+            operator_review_reference=credit_evidence.operator_review_reference,
+            operator_review_submitted_at=credit_evidence.operator_review_submitted_at,
+            operator_user_id=credit_evidence.operator_user_id,
+            operator_login=credit_evidence.operator_login,
+            operator_association=credit_evidence.operator_association,
+        )
+    else:
+        if args.review_credit_quota_ref or args.prior_codex_review_ref:
+            raise CloseoutError(
+                "--review-credit-quota-ref and --prior-codex-review-ref require "
+                "--review-credit-outage-ref"
+            )
+        review_evidence = verify_codex_review_reference(
+            review_ref,
+            repository=args.repo,
+            pr_number=args.pr_number,
+            token=token,
+            expected_commit_ref=snapshot.head_sha,
+        )
+        review_commit = classify_commit_ref(review_evidence.commit_ref, snapshot, token=token)
+        if (
+            not isinstance(review_commit, RepositoryCommitRef)
+            or review_commit.kind is not CommitRefKind.PR_HEAD
+            or review_commit.sha != snapshot.head_sha
+        ):
+            raise CloseoutError(
+                "Codex review must be machine-bound to the exact frozen material head"
+            )
+        code_review_receipt = {
             "review_commit_ref": review_commit.sha,
             "review_commit_ref_kind": "repository_commit",
             "review_reference": review_ref,
             "reviewed_material_digest": manifest.digest,
             "status": "completed",
-        },
+        }
+    if args.scan_manifest:
+        receipt = ingest_codex_security_receipt(
+            Path(args.scan_manifest),
+            expected_base_sha=manifest.merge_base_sha,
+            expected_head_sha=snapshot.head_sha,
+        )
+    else:
+        validate_security_outage_override_scope(
+            repository=args.repo,
+            pr_number=args.pr_number,
+            material_paths=(entry.path for entry in manifest.entries),
+        )
+        outage_evidence = verify_security_outage_override_reference(
+            _required_line(
+                args.security_outage_override_ref,
+                label="security-outage-override-ref",
+            ),
+            repository=args.repo,
+            pr_number=args.pr_number,
+            token=token,
+            expected_material_head_sha=snapshot.head_sha,
+            expected_material_digest=manifest.digest,
+        )
+        receipt = build_security_outage_override_receipt(
+            base_revision=manifest.merge_base_sha,
+            head_revision=snapshot.head_sha,
+            material_digest=manifest.digest,
+            override_reference=outage_evidence.reference,
+            created_at=outage_evidence.created_at,
+            operator_user_id=outage_evidence.operator_user_id,
+            operator_login=outage_evidence.operator_login,
+            operator_association=outage_evidence.operator_association,
+        )
+    seal = {
+        "authority": RECEIPT_AUTHORITY,
+        "code_review": code_review_receipt,
         "codex_security": receipt,
         "material": expected_freeze,
         "pr_number": args.pr_number,
@@ -553,11 +705,38 @@ def _cmd_seal(args: argparse.Namespace) -> None:
     if errors:
         raise CloseoutError("generated mapping is invalid: " + "; ".join(errors))
     target = mapping_artifact_path(args.pr_number)
-    tracked = _git("ls-tree", "--name-only", "HEAD", str(target.relative_to(REPO_ROOT)))
+    relative_target = str(target.relative_to(REPO_ROOT))
+    tracked = _git("ls-tree", "--name-only", "HEAD", relative_target)
     if tracked:
-        raise CloseoutError(
-            "canonical mapping is already committed; use a structured duplicate reply"
+        committed_blob = _git("rev-parse", f"HEAD:{relative_target}")
+        worktree_blob = _git("hash-object", "--", str(target))
+        if committed_blob != worktree_blob:
+            raise CloseoutError("canonical mapping has uncommitted changes")
+        previous_material_head = _validate_reseal_transition(
+            target.read_text(encoding="utf-8"),
+            markdown,
+            repository=args.repo,
+            pr_number=args.pr_number,
+            expected_freeze=expected_freeze,
         )
+        previous_resolution = classify_commit_ref(
+            previous_material_head,
+            snapshot,
+            token=token,
+        )
+        if (
+            not isinstance(previous_resolution, RepositoryCommitRef)
+            or previous_resolution.kind not in {CommitRefKind.PR_HEAD, CommitRefKind.PR_COMMIT}
+            or not is_ancestor(
+                previous_resolution,
+                RepositoryCommitRef(snapshot.head_sha, CommitRefKind.PR_HEAD),
+                repository=args.repo,
+                token=token,
+            )
+        ):
+            raise CloseoutError(
+                "existing canonical mapping material head is not reachable from live PR head"
+            )
     _atomic_write(target, markdown)
     assert_snapshot_unchanged(snapshot, token=token)
     print(f"CONTENT_BOUND_RECEIPT_VALID {manifest.digest}")
@@ -575,7 +754,7 @@ def validate_live_mapping(*, repository: str, pr_number: int, token: str | None)
     errors = validate_mapping_artifact_text(text)
     if errors:
         raise CloseoutError("invalid mapping artifact: " + "; ".join(errors))
-    seal = cast(dict[str, Any], parse_embedded_review_seal(text))
+    seal: dict[str, Any] = parse_embedded_review_seal(text)
     if seal["repository"] != repository or seal["pr_number"] != pr_number:
         raise CloseoutError("review seal repository/PR identity mismatch")
     if token is None:
@@ -608,32 +787,96 @@ def validate_live_mapping(*, repository: str, pr_number: int, token: str | None)
     review_reference = code_review["review_reference"]
     if not review_reference.startswith(review_prefix):
         raise CloseoutError("code-review reference belongs to another PR")
-    review_evidence = verify_codex_review_reference(
-        review_reference,
-        repository=repository,
-        pr_number=pr_number,
-        token=token,
-    )
-    if (
-        code_review["review_commit_ref_kind"] != "repository_commit"
-        or review_evidence.commit_ref != code_review["review_commit_ref"]
-        or review_evidence.commit_ref != material_head.sha
-    ):
-        raise CloseoutError("Codex review is not bound to the sealed material head")
-    reviewed_manifest = compute_material_manifest(
-        REPO_ROOT,
-        base_ref_oid=snapshot.base_sha,
-        head_ref_oid=review_evidence.commit_ref,
-        pr_number=pr_number,
-    )
-    if reviewed_manifest.digest != material["digest"]:
-        raise CloseoutError("Codex review commit has a different material digest")
+    if is_review_credit_outage_receipt(code_review):
+        validate_review_credit_outage_scope(
+            repository=repository,
+            pr_number=pr_number,
+            material_paths=(entry.path for entry in manifest.entries),
+        )
+        credit_evidence = verify_review_credit_outage_references(
+            override_reference=code_review["override_reference"],
+            quota_reference=code_review["quota_reference"],
+            prior_review_reference=code_review["prior_review_reference"],
+            operator_review_reference=review_reference,
+            repository=repository,
+            pr_number=pr_number,
+            token=token,
+            snapshot=snapshot,
+            expected_material_head_sha=material_head.sha,
+            expected_material_digest=material["digest"],
+        )
+        expected_code_review = build_review_credit_outage_receipt(
+            material_digest=material["digest"],
+            material_head_sha=material_head.sha,
+            override_reference=credit_evidence.override_reference,
+            override_created_at=credit_evidence.override_created_at,
+            quota_reference=credit_evidence.quota_reference,
+            quota_created_at=credit_evidence.quota_created_at,
+            prior_review_reference=credit_evidence.prior_review_reference,
+            prior_review_submitted_at=credit_evidence.prior_review_submitted_at,
+            prior_review_commit_ref=credit_evidence.prior_review_commit_ref,
+            operator_review_reference=credit_evidence.operator_review_reference,
+            operator_review_submitted_at=credit_evidence.operator_review_submitted_at,
+            operator_user_id=credit_evidence.operator_user_id,
+            operator_login=credit_evidence.operator_login,
+            operator_association=credit_evidence.operator_association,
+        )
+        if code_review != expected_code_review:
+            raise CloseoutError("Codex review credit-outage receipt is stale")
+    else:
+        review_evidence = verify_codex_review_reference(
+            review_reference,
+            repository=repository,
+            pr_number=pr_number,
+            token=token,
+            expected_commit_ref=material_head.sha,
+        )
+        if (
+            code_review["review_commit_ref_kind"] != "repository_commit"
+            or review_evidence.commit_ref != code_review["review_commit_ref"]
+            or review_evidence.commit_ref != material_head.sha
+        ):
+            raise CloseoutError("Codex review is not bound to the sealed material head")
+        reviewed_manifest = compute_material_manifest(
+            REPO_ROOT,
+            base_ref_oid=snapshot.base_sha,
+            head_ref_oid=review_evidence.commit_ref,
+            pr_number=pr_number,
+        )
+        if reviewed_manifest.digest != material["digest"]:
+            raise CloseoutError("Codex review commit has a different material digest")
     security_receipt = seal["codex_security"]
     if (
         security_receipt["base_revision"] != manifest.merge_base_sha
         or security_receipt["head_revision"] != material_head.sha
     ):
         raise CloseoutError("Codex Security receipt range is stale")
+    if is_security_outage_override_receipt(security_receipt):
+        validate_security_outage_override_scope(
+            repository=repository,
+            pr_number=pr_number,
+            material_paths=(entry.path for entry in manifest.entries),
+        )
+        outage_evidence = verify_security_outage_override_reference(
+            security_receipt["override_reference"],
+            repository=repository,
+            pr_number=pr_number,
+            token=token,
+            expected_material_head_sha=material_head.sha,
+            expected_material_digest=material["digest"],
+        )
+        expected_receipt = build_security_outage_override_receipt(
+            base_revision=manifest.merge_base_sha,
+            head_revision=material_head.sha,
+            material_digest=material["digest"],
+            override_reference=outage_evidence.reference,
+            created_at=outage_evidence.created_at,
+            operator_user_id=outage_evidence.operator_user_id,
+            operator_login=outage_evidence.operator_login,
+            operator_association=outage_evidence.operator_association,
+        )
+        if security_receipt != expected_receipt:
+            raise CloseoutError("Codex Security operator outage override receipt is stale")
     live_head = RepositoryCommitRef(snapshot.head_sha, CommitRefKind.PR_HEAD)
     if not is_ancestor(
         material_head,
@@ -689,7 +932,12 @@ def _parser() -> argparse.ArgumentParser:
     seal.add_argument("--repo", required=True)
     seal.add_argument("--pr-number", required=True, type=int)
     seal.add_argument("--review-ref", required=True)
-    seal.add_argument("--scan-manifest", required=True)
+    seal.add_argument("--review-credit-outage-ref")
+    seal.add_argument("--review-credit-quota-ref")
+    seal.add_argument("--prior-codex-review-ref")
+    security_evidence = seal.add_mutually_exclusive_group(required=True)
+    security_evidence.add_argument("--scan-manifest")
+    security_evidence.add_argument("--security-outage-override-ref")
     seal.set_defaults(handler=_cmd_seal)
 
     validate = subparsers.add_parser("validate")

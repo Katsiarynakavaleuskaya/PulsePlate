@@ -410,12 +410,21 @@ jobs:
 
   merge_readiness_gate:
     name: Merge readiness gate
-    if: github.event_name == 'pull_request'
+    needs:
+      - changes
+      - pr_body_phase2_gates
+      - private_python_proxy_health
+      - security
+      - trivy_ignore_policy_expiry
+    if: ${{ always() && github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     permissions:
+      actions: read
+      checks: read
       contents: read
       pull-requests: read
+      statuses: read
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -435,7 +444,10 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          python scripts/ci/check_pr_merge_readiness.py --event-path "$GITHUB_EVENT_PATH"
+          # Outage receipts fail closed until exact-current-head security jobs settle.
+          python scripts/ci/check_pr_merge_readiness.py \
+            --event-path "$GITHUB_EVENT_PATH" \
+            --outage-security-wait-seconds 300
 
   private_python_proxy_health:
     name: Private Python proxy health
@@ -610,7 +622,7 @@ jobs:
             --project ruff \
             --project librt \
             --project ast-serialize \
-            --project pgvector
+            --project pgvector --project coverage --project faker
 
       - name: Emergency wheel mirror parity
         run: |

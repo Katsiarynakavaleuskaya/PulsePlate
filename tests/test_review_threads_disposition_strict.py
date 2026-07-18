@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 from typing import TYPE_CHECKING
 
@@ -579,6 +580,206 @@ def test_v1_commit_after_comment_uses_server_timestamp() -> None:
         commit_time_by_sha={sha: "2026-02-27T13:00:00+00:00"},
     )
     assert violations == []
+
+
+def test_v1_commit_after_comment_fails_without_server_timestamp() -> None:
+    sha = "a" * 40
+    thread = ResolvedThreadRef(
+        url="https://github.com/org/repo/pull/1#discussion_r1",
+        source="comment",
+        is_resolved=True,
+        created_at="2026-02-27T12:00:00Z",
+    )
+    section = f"- {thread.url} -> {sha}\nDisposition: FIXED\nCommit: {sha}\n"
+
+    violations = _check_commit_after_comment(
+        [thread],
+        section,
+        commit_time_by_sha={sha: None},
+    )
+
+    assert len(violations) == 1
+    assert "lacks server-side pushedDate or immutable repository push" in violations[0]
+
+
+@pytest.mark.parametrize("activity_timestamp_field", ("timestamp", "pushed_at"))
+def test_server_commit_times_use_repository_activity_and_push_event(
+    monkeypatch: "MonkeyPatch",
+    activity_timestamp_field: str,
+) -> None:
+    first_sha = "a" * 40
+    second_sha = "b" * 40
+    third_sha = "c" * 40
+    base_sha = "d" * 40
+    snapshot = PrSnapshot(
+        repository="org/repo",
+        pr_number=1,
+        base_sha=base_sha,
+        head_sha=third_sha,
+        commits=(
+            PrCommitEvidence(first_sha, None),
+            PrCommitEvidence(second_sha, None),
+            PrCommitEvidence(third_sha, None),
+        ),
+    )
+
+    def run(command: list[str]) -> str:
+        endpoint = command[-1]
+        if endpoint == "repos/org/repo/pulls/1":
+            return json.dumps({"head": {"ref": "feature", "repo": {"full_name": "org/repo"}}})
+        if endpoint == "repos/org/repo/activity?ref=feature&activity_type=push&per_page=100":
+            return json.dumps(
+                [
+                    [
+                        {
+                            "activity_type": "push",
+                            activity_timestamp_field: "2026-02-27T13:00:00Z",
+                            "ref": "refs/heads/feature",
+                            "before": base_sha,
+                            "after": second_sha,
+                        }
+                    ]
+                ]
+            )
+        if endpoint == "repos/org/repo/events?per_page=100":
+            return json.dumps(
+                [
+                    [
+                        {
+                            "type": "PushEvent",
+                            "created_at": "2026-02-27T14:00:00Z",
+                            "payload": {
+                                "ref": "refs/heads/feature",
+                                "before": second_sha,
+                                "head": third_sha,
+                            },
+                        }
+                    ]
+                ]
+            )
+        raise AssertionError(command)
+
+    monkeypatch.setattr(_disposition_mod, "_run", run)
+
+    assert _disposition_mod._fetch_server_commit_times(
+        snapshot=snapshot,
+        repository="org/repo",
+        pr_number=1,
+        mapped_shas=frozenset({first_sha, second_sha, third_sha}),
+    ) == {
+        first_sha: "2026-02-27T13:00:00Z",
+        second_sha: "2026-02-27T13:00:00Z",
+        third_sha: "2026-02-27T14:00:00Z",
+    }
+
+
+def test_repository_activity_push_timestamp_rejects_conflicting_fields() -> None:
+    with pytest.raises(RuntimeError, match="conflicting timestamps"):
+        _disposition_mod._repository_activity_push_timestamp(
+            {
+                "timestamp": "2026-02-27T13:00:00Z",
+                "pushed_at": "2026-02-27T14:00:00Z",
+            }
+        )
+
+
+def test_server_commit_times_fail_closed_without_immutable_push_evidence(
+    monkeypatch: "MonkeyPatch",
+) -> None:
+    sha = "a" * 40
+    snapshot = PrSnapshot(
+        repository="org/repo",
+        pr_number=1,
+        base_sha="b" * 40,
+        head_sha=sha,
+        commits=(PrCommitEvidence(sha, None),),
+    )
+
+    def run(command: list[str]) -> str:
+        endpoint = command[-1]
+        if endpoint == "repos/org/repo/pulls/1":
+            return json.dumps({"head": {"ref": "feature", "repo": {"full_name": "org/repo"}}})
+        if endpoint in {
+            "repos/org/repo/activity?ref=feature&activity_type=push&per_page=100",
+            "repos/org/repo/events?per_page=100",
+        }:
+            return json.dumps([[]])
+        raise AssertionError(command)
+
+    monkeypatch.setattr(_disposition_mod, "_run", run)
+
+    assert _disposition_mod._fetch_server_commit_times(
+        snapshot=snapshot,
+        repository="org/repo",
+        pr_number=1,
+        mapped_shas=frozenset({sha}),
+    ) == {sha: None}
+
+
+def test_real_commit_proof_caches_ancestry(
+    monkeypatch: "MonkeyPatch",
+) -> None:
+    original_sha = "a" * 40
+    fix_sha = "b" * 40
+    head_sha = "c" * 40
+    urls = [
+        "https://github.com/org/repo/pull/1#discussion_r1",
+        "https://github.com/org/repo/pull/1#discussion_r2",
+    ]
+    snapshot = PrSnapshot(
+        repository="org/repo",
+        pr_number=1,
+        base_sha="d" * 40,
+        head_sha=head_sha,
+        commits=(
+            PrCommitEvidence(original_sha, None),
+            PrCommitEvidence(fix_sha, None),
+            PrCommitEvidence(head_sha, None),
+        ),
+    )
+    threads = [
+        ResolvedThreadRef(
+            url=url,
+            source="comment",
+            is_resolved=True,
+            created_at="2026-02-27T12:00:00Z",
+            original_commit_sha=original_sha,
+        )
+        for url in urls
+    ]
+    section = "\n".join(
+        f"- {url} -> {fix_sha}\nDisposition: FIXED\nCommit: {fix_sha}\n" for url in urls
+    )
+    ancestry_calls: list[tuple[str, str]] = []
+
+    monkeypatch.setattr(
+        _disposition_mod,
+        "classify_commit_ref",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("live PR snapshot identities must be reused")
+        ),
+    )
+
+    def ancestor(
+        left: RepositoryCommitRef,
+        right: RepositoryCommitRef,
+        **_kwargs: object,
+    ) -> bool:
+        ancestry_calls.append((left.sha, right.sha))
+        return True
+
+    monkeypatch.setattr(_disposition_mod, "is_ancestor", ancestor)
+    assert (
+        _check_real_commit_proofs(
+            threads,
+            section,
+            snapshot=snapshot,
+            repository="org/repo",
+            token="opaque",
+        )
+        == []
+    )
+    assert ancestry_calls == [(fix_sha, head_sha), (original_sha, fix_sha)]
 
 
 @pytest.mark.parametrize(
