@@ -23,6 +23,7 @@ git config core.hooksPath .githooks
 checkout. Некорректный явно заданный override — terminal error: resolver не
 переходит к следующему кандидату. Основной checkout определяется не по имени
 каталога: resolver канонизирует Git common dir, требует basename `.git` и
+проверяет обратную ссылку worktree admin `gitdir` на текущий checkout, а затем
 повторно проверяет в основном checkout те же canonical top-level и common dir.
 Поэтому linked worktree может находиться в любой вложенной, соседней или
 внешней директории, а bare/separate/подставная `.git` layout отклоняется.
@@ -63,8 +64,9 @@ The exact precedence is a valid absolute regular executable `VENV_PYTHON`
 checkout `.venv`. An invalid explicitly configured override is terminal; the
 resolver does not continue to another candidate. The primary checkout is not
 inferred from a directory name: the resolver canonicalizes Git's common dir,
-requires basename `.git`, and revalidates the same canonical top-level and
-common dir from the primary checkout. Linked worktrees may therefore live in
+requires basename `.git`, verifies the worktree admin `gitdir` backlink to the
+current checkout, and revalidates the same canonical top-level and common dir
+from the primary checkout. Linked worktrees may therefore live in
 nested, sibling, or arbitrary external directories, while bare, separate, and
 decoy `.git` layouts are rejected. Only CI may fall back to system
 `python3`/`python`; local execution fails closed without a trusted interpreter.

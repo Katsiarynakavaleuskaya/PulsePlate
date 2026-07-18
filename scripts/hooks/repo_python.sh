@@ -4,8 +4,13 @@
 resolve_repo_python() {
     local repo_root="${1:?repo root required}"
     local candidate=""
+    local checkout_binding_valid="false"
+    local checkout_git_backlink=""
+    local checkout_git_backlink_parent=""
     local checkout_git_dir=""
     local checkout_top_level=""
+    local checkout_worktree_name=""
+    local checkout_worktrees_prefix=""
     local git_common_dir=""
     local primary_common_dir=""
     local primary_root=""
@@ -77,33 +82,58 @@ resolve_repo_python() {
         primary_root="$(
             builtin cd -- "${git_common_dir}/.." 2>/dev/null && builtin pwd -P
         )" &&
-        [[ "${checkout_top_level}" == "${repo_root}" ]] &&
-        [[ "${repo_root}" == "${primary_root}" ||
-            "${checkout_git_dir}" == "${git_common_dir}/worktrees/"* ]] &&
-        primary_top_level="$(
-            "${env_binary}" -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u GIT_PREFIX \
-                -u GIT_COMMON_DIR -u GIT_IMPLICIT_WORK_TREE \
-                "${git_binary}" -C "${primary_root}" rev-parse \
-                --path-format=absolute --show-toplevel 2>/dev/null
-        )" &&
-        primary_common_dir="$(
-            "${env_binary}" -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u GIT_PREFIX \
-                -u GIT_COMMON_DIR -u GIT_IMPLICIT_WORK_TREE \
-                "${git_binary}" -C "${primary_root}" rev-parse \
-                --path-format=absolute --git-common-dir 2>/dev/null
-        )" &&
-        primary_top_level="$(
-            builtin cd -- "${primary_top_level}" 2>/dev/null && builtin pwd -P
-        )" &&
-        primary_common_dir="$(
-            builtin cd -- "${primary_common_dir}" 2>/dev/null && builtin pwd -P
-        )" &&
-        [[ "${primary_top_level}" == "${primary_root}" ]] &&
-        [[ "${primary_common_dir}" == "${git_common_dir}" ]]; then
-        candidates+=(
-            "${primary_root}/.venv/bin/python"
-            "${primary_root}/.venv/Scripts/python.exe"
-        )
+        [[ "${checkout_top_level}" == "${repo_root}" ]]; then
+        if [[ "${repo_root}" == "${primary_root}" ]]; then
+            checkout_binding_valid="true"
+        else
+            checkout_worktrees_prefix="${git_common_dir}/worktrees/"
+            if [[ "${checkout_git_dir}" == "${checkout_worktrees_prefix}"* &&
+                -f "${repo_root}/.git" && ! -L "${repo_root}/.git" &&
+                -f "${checkout_git_dir}/gitdir" && ! -L "${checkout_git_dir}/gitdir" ]]; then
+                checkout_worktree_name="${checkout_git_dir:${#checkout_worktrees_prefix}}"
+                if [[ -n "${checkout_worktree_name}" &&
+                    "${checkout_worktree_name}" != */* ]] &&
+                    IFS= read -r checkout_git_backlink < "${checkout_git_dir}/gitdir" &&
+                    [[ "${checkout_git_backlink}" == /* &&
+                        "${checkout_git_backlink##*/}" == ".git" &&
+                        -f "${checkout_git_backlink}" &&
+                        ! -L "${checkout_git_backlink}" ]] &&
+                    checkout_git_backlink_parent="$(
+                        builtin cd -- "${checkout_git_backlink%/*}" 2>/dev/null &&
+                            builtin pwd -P
+                    )" &&
+                    [[ "${checkout_git_backlink_parent}" == "${repo_root}" ]]; then
+                    checkout_binding_valid="true"
+                fi
+            fi
+        fi
+
+        if [[ "${checkout_binding_valid}" == "true" ]] &&
+            primary_top_level="$(
+                "${env_binary}" -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u GIT_PREFIX \
+                    -u GIT_COMMON_DIR -u GIT_IMPLICIT_WORK_TREE \
+                    "${git_binary}" -C "${primary_root}" rev-parse \
+                    --path-format=absolute --show-toplevel 2>/dev/null
+            )" &&
+            primary_common_dir="$(
+                "${env_binary}" -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u GIT_PREFIX \
+                    -u GIT_COMMON_DIR -u GIT_IMPLICIT_WORK_TREE \
+                    "${git_binary}" -C "${primary_root}" rev-parse \
+                    --path-format=absolute --git-common-dir 2>/dev/null
+            )" &&
+            primary_top_level="$(
+                builtin cd -- "${primary_top_level}" 2>/dev/null && builtin pwd -P
+            )" &&
+            primary_common_dir="$(
+                builtin cd -- "${primary_common_dir}" 2>/dev/null && builtin pwd -P
+            )" &&
+            [[ "${primary_top_level}" == "${primary_root}" ]] &&
+            [[ "${primary_common_dir}" == "${git_common_dir}" ]]; then
+            candidates+=(
+                "${primary_root}/.venv/bin/python"
+                "${primary_root}/.venv/Scripts/python.exe"
+            )
+        fi
     fi
 
     for candidate in "${candidates[@]}"; do

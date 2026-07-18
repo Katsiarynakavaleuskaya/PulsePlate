@@ -130,6 +130,7 @@ def test_hook_resolver_finds_primary_venv_from_arbitrary_worktree_locations(
         repo / "nested" / "linked" / "lane",
         repo.parent / "sibling-lane",
         tmp_path / "external" / "arbitrary" / "lane",
+        tmp_path / "external with spaces" / "linked lane",
     ]
 
     for worktree in worktrees:
@@ -141,6 +142,15 @@ def test_hook_resolver_finds_primary_venv_from_arbitrary_worktree_locations(
         )
 
         assert resolved == str(shared_python)
+
+    worktree_alias = tmp_path / "external-worktree-alias"
+    worktree_alias.symlink_to(worktrees[-1], target_is_directory=True)
+    alias_command = (
+        f"source {shlex.quote(str(HOOK_RESOLVER))}; "
+        f"resolve_repo_python {shlex.quote(str(worktree_alias))}"
+    )
+
+    assert _bash(alias_command, cwd=repo) == str(shared_python)
 
 
 def test_hook_resolver_sanitizes_commit_hook_git_env_for_every_git_query(
@@ -408,6 +418,41 @@ def test_hook_resolver_rejects_ordinary_non_git_dot_git_decoy(tmp_path: Path) ->
 
     assert completed.returncode == 1
     assert str(shared_python) not in completed.stdout
+
+
+def test_hook_resolver_rejects_forged_linked_worktree_gitdir_file(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(tmp_path, "init", "--quiet", str(repo))
+    _git(repo, "config", "user.email", "pulseplate@pm.me")
+    _git(repo, "config", "user.name", "PulsePlate Hook Resolver")
+    (repo / "README.md").write_text("hook resolver test\n", encoding="utf-8")
+    _git(repo, "add", "README.md")
+    _git(repo, "commit", "--quiet", "-m", "init")
+    shared_python = repo / ".venv" / "bin" / "python"
+    shared_python.parent.mkdir(parents=True)
+    _write_executable(shared_python)
+    real_worktree = tmp_path / "real-linked-worktree"
+    _git(repo, "worktree", "add", "--detach", "--quiet", str(real_worktree), "HEAD")
+    forged_checkout = tmp_path / "forged-checkout"
+    forged_checkout.mkdir()
+    shutil.copy2(real_worktree / ".git", forged_checkout / ".git")
+    symlinked_forged_checkout = tmp_path / "symlinked-forged-checkout"
+    symlinked_forged_checkout.mkdir()
+    (symlinked_forged_checkout / ".git").symlink_to(real_worktree / ".git")
+
+    for checkout in (forged_checkout, symlinked_forged_checkout):
+        completed = _bash_failure(
+            RESOLVE_COMMAND,
+            cwd=checkout,
+            env=_clean_hook_env(),
+        )
+
+        assert completed.returncode == 1
+        assert str(shared_python) not in completed.stdout
+        assert "no repo/shared .venv Python found" in completed.stderr
 
 
 def test_hook_resolver_rejects_separate_git_dir_as_primary_checkout(

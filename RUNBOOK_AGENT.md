@@ -381,13 +381,15 @@ Checked-in hooks call `resolve_repo_python <repo_root>` from
    an invalid explicit override is terminal
 2. the current checkout `.venv`
 3. the primary checkout `.venv`, only after canonical Git common-dir,
-   primary top-level, and same-common-dir validation
+   linked-worktree admin backlink, primary top-level, and same-common-dir
+   validation
 4. system `python3`, then `python`, in CI only
 5. local failure when none of the trusted candidates exists
 
 Linked worktrees may be nested, sibling, or outside the primary checkout.
-Directory naming is not evidence of ownership; bare, separate, or decoy `.git`
-layouts are rejected. If a commit stops with
+Directory naming is not evidence of ownership; the worktree `.git` pointer and
+admin `gitdir` backlink must identify each other. Bare, separate, or decoy
+`.git` layouts are rejected. If a commit stops with
 `ERROR: no repo/shared .venv Python found for local hook execution`, repeat the
 original commit command with an absolute override for that one recovery run.
 For example:
