@@ -4,4 +4,4 @@
 # CPU/local profile via FastEmbed's ONNXRuntime backend.
 # Keep feature-flagged via FEATURE_RAG_VECTOR and deterministic with fixed pins.
 fastembed==0.8.0
-pgvector==0.4.2
+pgvector==0.5.0
