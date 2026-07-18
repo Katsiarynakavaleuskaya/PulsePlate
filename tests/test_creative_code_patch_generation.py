@@ -1018,6 +1018,25 @@ def test_pinned_dispatch_read_rejects_leaf_replaced_by_symlink(
         generation_cli._read_pinned_dispatch_json_object(resolved)
 
 
+def test_pinned_dispatch_read_rejects_oversized_result(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _patch_modules_to_repo(monkeypatch, repo)
+    result_root = repo / "artifacts" / "orchestration" / "experiments" / "results"
+    result_root.mkdir(parents=True)
+    result_path = result_root / "dispatch.json"
+    result_path.write_bytes(b" " * (generation_cli.TRUSTED_DISPATCH_RESULT_MAX_BYTES + 1))
+
+    with pytest.raises(
+        generation_cli.CreativeCodePatchGenerationError,
+        match="trusted dispatch result exceeds the maximum size",
+    ):
+        generation_cli._read_pinned_dispatch_json_object(result_path.resolve(strict=True))
+
+
 def test_finalize_dispatched_result_rejects_selected_variant_content_tamper(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

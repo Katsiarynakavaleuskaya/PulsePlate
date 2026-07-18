@@ -59,6 +59,9 @@ from scripts.orchestration.experiment_contract import (
     validate_failure_retry_observations,
     validate_metrics,
 )
+from scripts.orchestration.experiment_runner_dispatch import (
+    MAX_RESULT_BYTES as TRUSTED_DISPATCH_RESULT_MAX_BYTES,
+)
 from scripts.orchestration.creative_spec_learning_rollup_contract import (
     CreativeSpecLearningRollupError,
     validate_coordinator_advisory_hints,
@@ -510,15 +513,24 @@ def _read_pinned_dispatch_json_object(path: Path) -> dict[str, Any]:
                 descriptor = -1
                 raise
         file_descriptor = os.open(parts[-1], file_flags, dir_fd=descriptor)
-        if not stat.S_ISREG(os.fstat(file_descriptor).st_mode):
+        file_info = os.fstat(file_descriptor)
+        if not stat.S_ISREG(file_info.st_mode):
             raise CreativeCodePatchGenerationError(
                 "trusted dispatch result must be a regular file."
             )
-        with os.fdopen(file_descriptor, "r", encoding="utf-8") as handle:
+        if file_info.st_size > TRUSTED_DISPATCH_RESULT_MAX_BYTES:
+            raise CreativeCodePatchGenerationError(
+                "trusted dispatch result exceeds the maximum size."
+            )
+        with os.fdopen(file_descriptor, "rb") as handle:
             file_descriptor = -1
-            raw = handle.read()
+            raw_bytes = handle.read(TRUSTED_DISPATCH_RESULT_MAX_BYTES + 1)
+        if len(raw_bytes) > TRUSTED_DISPATCH_RESULT_MAX_BYTES:
+            raise CreativeCodePatchGenerationError(
+                "trusted dispatch result exceeds the maximum size."
+            )
         payload = json.loads(
-            raw,
+            raw_bytes.decode("utf-8"),
             object_pairs_hook=_reject_duplicate_json_object_keys,
         )
     except CreativeCodePatchGenerationError:

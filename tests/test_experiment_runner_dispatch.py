@@ -893,6 +893,20 @@ def test_capability_mismatch_is_non_retryable_and_preserves_zero_network() -> No
     assert validated["coauthor_reason"] == ""
 
 
+def test_capability_mismatch_preserves_candidate_patch_fingerprint() -> None:
+    packet = _packet(network_budget=0)
+    packet["runner_mode"] = "candidate_patch"
+    packet["candidate_patch_fingerprint"] = "sha256:" + ("a" * 64)
+
+    result = dispatch._capability_mismatch_result(
+        packet,
+        _image(),
+        _probe("apple-container", strict=False),
+    )
+
+    assert result["candidate_patch_fingerprint"] == packet["candidate_patch_fingerprint"]
+
+
 def test_result_backend_rejects_mutable_or_invalid_digest() -> None:
     result = _legacy_result()
     result["execution_backend"] = {

@@ -1494,6 +1494,8 @@ def _capability_mismatch_result(
             passed=False,
         ),
     }
+    if "candidate_patch_fingerprint" in packet:
+        result["candidate_patch_fingerprint"] = packet["candidate_patch_fingerprint"]
     return _validated_experiment_result(result)
 
 
