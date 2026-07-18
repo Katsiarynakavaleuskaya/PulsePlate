@@ -2314,6 +2314,37 @@ def test_runtime_and_dependent_profiles_require_separate_transactions() -> None:
         )
 
 
+def test_runtime_transaction_normalizes_constraint_paths(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "requirements.txt").write_text(
+        "fastapi==0.138.1\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "requirements-test.in").write_text(
+        "-c ./requirements.txt\npytest==9.1.3\n",
+        encoding="utf-8",
+    )
+    runtime_surface = _surface("runtime")
+    test_surface = _surface("test")
+    monkeypatch.setattr(
+        compiler,
+        "_profile_registry",
+        lambda: {
+            "runtime": runtime_surface,
+            "test": test_surface,
+        },
+    )
+
+    with pytest.raises(RuntimeError, match="compiled and committed before"):
+        compiler._validate_profile_transaction(
+            repo_root=tmp_path,
+            profiles=("runtime", "test"),
+            graph_changes=frozenset(),
+        )
+
+
 def test_graph_change_rejection_happens_before_network_or_input_capture(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

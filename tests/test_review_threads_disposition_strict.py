@@ -602,8 +602,10 @@ def test_v1_commit_after_comment_fails_without_server_timestamp() -> None:
     assert "lacks server-side pushedDate or immutable repository push" in violations[0]
 
 
+@pytest.mark.parametrize("activity_timestamp_field", ("timestamp", "pushed_at"))
 def test_server_commit_times_use_repository_activity_and_push_event(
     monkeypatch: "MonkeyPatch",
+    activity_timestamp_field: str,
 ) -> None:
     first_sha = "a" * 40
     second_sha = "b" * 40
@@ -631,7 +633,7 @@ def test_server_commit_times_use_repository_activity_and_push_event(
                     [
                         {
                             "activity_type": "push",
-                            "timestamp": "2026-02-27T13:00:00Z",
+                            activity_timestamp_field: "2026-02-27T13:00:00Z",
                             "ref": "refs/heads/feature",
                             "before": base_sha,
                             "after": second_sha,
@@ -669,6 +671,16 @@ def test_server_commit_times_use_repository_activity_and_push_event(
         second_sha: "2026-02-27T13:00:00Z",
         third_sha: "2026-02-27T14:00:00Z",
     }
+
+
+def test_repository_activity_push_timestamp_rejects_conflicting_fields() -> None:
+    with pytest.raises(RuntimeError, match="conflicting timestamps"):
+        _disposition_mod._repository_activity_push_timestamp(
+            {
+                "timestamp": "2026-02-27T13:00:00Z",
+                "pushed_at": "2026-02-27T14:00:00Z",
+            }
+        )
 
 
 def test_server_commit_times_fail_closed_without_immutable_push_evidence(

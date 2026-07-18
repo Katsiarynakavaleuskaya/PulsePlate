@@ -63,6 +63,7 @@ REVIEW_CREDIT_OUTAGE_TRUST_BOUNDARY_EXACT_PATHS = frozenset(
         "RUNBOOK_AGENT.md",
         "docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md",
         "scripts/ci/check_current_head_pr_checks.py",
+        "scripts/ci/check_pr_body_phase2_gates.py",
         "scripts/ci/check_pr_merge_readiness.py",
         "scripts/orchestration/check_merge_ready.py",
         "scripts/orchestration/check_review_threads_disposition.py",

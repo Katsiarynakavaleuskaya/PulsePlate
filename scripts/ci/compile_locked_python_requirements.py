@@ -1660,18 +1660,23 @@ def _validate_profile_transaction(
     if "runtime" not in profiles:
         return
     registry = _profile_registry()
+    runtime_lock_path = _validated_repo_file(
+        repo_root,
+        registry["runtime"].lockfile,
+    )
     dependent_profiles: list[str] = []
     for profile in profiles:
         if profile == "runtime":
             continue
         for source in registry[profile].compile_sources:
             source_path = _validated_repo_file(repo_root, source)
-            for raw_line in source_path.read_text(encoding="utf-8").splitlines():
-                line = raw_line.split("#", 1)[0].strip()
-                if line in ("-c requirements.txt", "--constraint requirements.txt"):
-                    dependent_profiles.append(profile)
-                    break
-            if profile in dependent_profiles:
+            referenced_paths = _validate_source_manifest(
+                repo_root,
+                source_path,
+                allow_directives=registry[profile].allow_lock_directives,
+            )
+            if runtime_lock_path in referenced_paths:
+                dependent_profiles.append(profile)
                 break
     if dependent_profiles:
         raise RuntimeError(

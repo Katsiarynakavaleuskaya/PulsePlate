@@ -468,6 +468,29 @@ def _validated_server_timestamp(value: object, *, label: str) -> str:
     return value
 
 
+def _repository_activity_push_timestamp(activity: dict[str, object]) -> str:
+    """Return the immutable push timestamp across GitHub activity schema variants."""
+
+    timestamp = activity.get("timestamp")
+    pushed_at = activity.get("pushed_at")
+    if timestamp is not None and pushed_at is not None:
+        validated_timestamp = _validated_server_timestamp(
+            timestamp,
+            label="GitHub repository push activity timestamp",
+        )
+        validated_pushed_at = _validated_server_timestamp(
+            pushed_at,
+            label="GitHub repository push activity pushed_at",
+        )
+        if _parse_iso_datetime(validated_timestamp) != _parse_iso_datetime(validated_pushed_at):
+            raise RuntimeError("GitHub repository push activity has conflicting timestamps")
+        return validated_pushed_at
+    return _validated_server_timestamp(
+        pushed_at if pushed_at is not None else timestamp,
+        label="GitHub repository push activity",
+    )
+
+
 def _fetch_server_commit_times(
     *,
     snapshot: PrSnapshot,
@@ -550,10 +573,7 @@ def _fetch_server_commit_times(
                 first_index = head_index
             if first_index > head_index:
                 continue
-            timestamp = _validated_server_timestamp(
-                activity.get("timestamp"),
-                label="GitHub repository push activity",
-            )
+            timestamp = _repository_activity_push_timestamp(activity)
             for commit in snapshot.commits[first_index : head_index + 1]:
                 if commit.sha not in missing:
                     continue

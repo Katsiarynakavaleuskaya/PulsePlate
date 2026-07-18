@@ -497,7 +497,11 @@ def _render_mapping(state: Mapping[str, Any], seal: Mapping[str, Any]) -> str:
 
 def _mapping_proof_blocks(markdown: str) -> set[str]:
     section = extract_fixed_mapping_section(markdown)
-    return {block.strip() for block in section.split("\n\n") if block.strip()}
+    return {
+        block.strip()
+        for block in section.split("\n\n")
+        if block.strip() and block.strip() != NO_ACTIONABLE_LINE
+    }
 
 
 def _validate_reseal_transition(

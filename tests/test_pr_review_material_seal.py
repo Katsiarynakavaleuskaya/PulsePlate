@@ -63,6 +63,7 @@ from scripts.orchestration.pr_review_evidence import (
     validated_duplicate_reply_urls,
 )
 from scripts.orchestration.review_mapping_artifact import (
+    NO_ACTIONABLE_LINE,
     parse_canonical_fingerprint_records,
     validate_mapping_artifact_text,
 )
@@ -1069,6 +1070,12 @@ def test_review_credit_outage_receipt_is_distinct_and_material_bound() -> None:
             ("scripts/ci/check_pr_merge_readiness.py",),
             False,
         ),
+        (
+            "Katsiarynakavaleuskaya/PulsePlate",
+            2143,
+            ("scripts/ci/check_pr_body_phase2_gates.py",),
+            False,
+        ),
         ("owner/repo", 42, ("requirements-test.txt",), True),
     ],
 )
@@ -1922,6 +1929,22 @@ def test_embedded_seal_round_trip_is_strict_and_canonical(tmp_path: Path) -> Non
     noncanonical = rendered.replace('"authority":', '"authority" :', 1)
     with pytest.raises(ReviewEvidenceError, match="not canonical"):
         parse_embedded_review_seal(noncanonical)
+
+
+def test_closeout_no_actionable_marker_is_not_persistent_reseal_proof() -> None:
+    existing = (
+        "## Fixed in Commit Mapping\n\n" f"{NO_ACTIONABLE_LINE}\n\n" "## Review Material Seal\n"
+    )
+    proof = (
+        "Disposition: NOT-A-BUG\n"
+        "Evidence: tests/test_example.py:10\n"
+        "Reason: Exact contract remains satisfied.\n"
+        "- https://github.com/owner/repo/pull/42#discussion_r1"
+    )
+    replacement = "## Fixed in Commit Mapping\n\n" f"{proof}\n\n" "## Review Material Seal\n"
+
+    assert closeout_module._mapping_proof_blocks(existing) == set()
+    assert closeout_module._mapping_proof_blocks(replacement) == {proof}
 
 
 def test_closeout_reseal_requires_new_material_and_preserves_existing_proof() -> None:

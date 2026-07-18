@@ -158,6 +158,7 @@ declare -a PYTHON_DEPENDENCY_TESTCLIENT_SURFACE_FILES=(
     "requirements-lock.txt"
     "requirements-test.in"
     "requirements-test.txt"
+    "scripts/ci/compile_locked_python_requirements.py"
     "scripts/ci/check_httpx_testclient_compat.py"
     "scripts/ci/check_python_dependency_surfaces.py"
     "tests/compat/test_starlette_httpx2_testclient_compat.py"

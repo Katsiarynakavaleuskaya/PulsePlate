@@ -292,6 +292,17 @@ def test_exact_pin_accepts_common_compatible_and_wildcard_specifiers() -> None:
     )
 
 
+def test_compatible_release_minor_does_not_imply_patch_level_cap() -> None:
+    assert checker._requires_python_allows_target(
+        "~=3.11",
+        target_python_tag="cp313",
+    )
+    assert not checker._requires_python_allows_target(
+        "~=3.11.0",
+        target_python_tag="cp313",
+    )
+
+
 def test_exact_pin_rejects_inclusive_requires_python_same_minor_upper_bound() -> None:
     body = wheel_page_with_requires_python(
         (

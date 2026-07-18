@@ -1204,6 +1204,7 @@ def test_coverage_canary_runs_in_ci_lite_pre_commit() -> None:
     assert deselect not in runner
     assert '"requirements-ci-lite.in"' in dependency_surface_block
     assert '"requirements-ci-lite.txt"' in dependency_surface_block
+    assert '"scripts/ci/compile_locked_python_requirements.py"' in dependency_surface_block
     assert (
         'EXTRA_TEST_FILES+=("tests/test_python_supply_chain_controls.py")' in dependency_test_block
     )
