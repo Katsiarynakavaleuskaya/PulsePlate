@@ -1778,6 +1778,21 @@ def test_scan_receipt_requires_coverage_scope_to_match_manifest_scope(
         )
 
 
+def test_scan_receipt_rejects_matching_partial_git_diff_scope(tmp_path: Path) -> None:
+    manifest_path = _build_scan_bundle(tmp_path / "scan")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["scan"]["scope"]["includePaths"] = ["scripts/orchestration/pr_review_evidence.py"]
+    _write_json(manifest_path, manifest)
+    coverage = json.loads((manifest_path.parent / "coverage.json").read_text(encoding="utf-8"))
+    coverage["includePaths"] = ["scripts/orchestration/pr_review_evidence.py"]
+    _rewrite_scan_json_artifact(manifest_path, "coverage.json", coverage)
+
+    with pytest.raises(ReviewEvidenceError, match="must cover the complete Git diff"):
+        ingest_codex_security_receipt(
+            manifest_path, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+        )
+
+
 @pytest.mark.parametrize(
     ("source", "value", "message"),
     [

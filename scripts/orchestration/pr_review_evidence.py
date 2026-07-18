@@ -1027,6 +1027,8 @@ def _ingest_codex_security_receipt_from_descriptor(
         or coverage_exclude_paths != scope_exclude_paths
     ):
         raise ReviewEvidenceError("coverage include/exclude paths must match the manifest scope")
+    if scope_include_paths != (".",) or scope_exclude_paths:
+        raise ReviewEvidenceError("final Codex Security receipt must cover the complete Git diff")
 
     receipt_refs = _coverage_receipt_refs(coverage)
     expected_paths = set(_CANONICAL_SCAN_ARTIFACT_MEDIA_TYPES) | receipt_refs
