@@ -372,6 +372,33 @@ This metrics section provides **quantitative targets**; the evaluation contract 
 
 ## Pre-push hygiene checklist (mandatory)
 
+### Linked-worktree hook Python resolution
+
+Checked-in hooks call `resolve_repo_python <repo_root>` from
+`scripts/hooks/repo_python.sh`. Resolution order is exact:
+
+1. a valid absolute regular executable `VENV_PYTHON`, otherwise `DEV_PYTHON`;
+   an invalid explicit override is terminal
+2. the current checkout `.venv`
+3. the primary checkout `.venv`, only after canonical Git common-dir,
+   primary top-level, and same-common-dir validation
+4. system `python3`, then `python`, in CI only
+5. local failure when none of the trusted candidates exists
+
+Linked worktrees may be nested, sibling, or outside the primary checkout.
+Directory naming is not evidence of ownership; bare, separate, or decoy `.git`
+layouts are rejected. If a commit stops with
+`ERROR: no repo/shared .venv Python found for local hook execution`, repeat the
+original commit command with an absolute override for that one recovery run.
+For example:
+
+```bash
+VENV_PYTHON="/absolute/path/to/primary/.venv/bin/python" git commit -m "same commit message"
+```
+
+Do not export the override permanently, disable the hook, or skip it. Repair
+the checkout/venv binding before the next normal commit.
+
 ## GitHub Full-Verify Parity
 
 Agents do not run full local `make verify` by default. If a human explicitly

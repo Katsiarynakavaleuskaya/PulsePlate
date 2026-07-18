@@ -4,9 +4,12 @@
 resolve_repo_python() {
     local repo_root="${1:?repo root required}"
     local candidate=""
+    local checkout_git_dir=""
+    local checkout_top_level=""
     local git_common_dir=""
-    local parent_dir=""
-    local shared_root=""
+    local primary_common_dir=""
+    local primary_root=""
+    local primary_top_level=""
     local raw_python_override="${VENV_PYTHON:-${DEV_PYTHON:-}}"
     local git_binary=""
     local candidates=()
@@ -19,11 +22,11 @@ resolve_repo_python() {
     if [[ -n "${raw_python_override}" ]]; then
         case "${raw_python_override}" in
             /*)
-                if [[ -x "${raw_python_override}" ]]; then
+                if [[ -f "${raw_python_override}" && -x "${raw_python_override}" ]]; then
                     printf '%s\n' "${raw_python_override}"
                     return 0
                 fi
-                echo "ERROR: VENV_PYTHON/DEV_PYTHON is set but is not executable: ${raw_python_override}" >&2
+                echo "ERROR: VENV_PYTHON/DEV_PYTHON is set but is not a regular executable file: ${raw_python_override}" >&2
                 return 1
                 ;;
             *)
@@ -38,40 +41,89 @@ resolve_repo_python() {
         "${repo_root}/.venv/Scripts/python.exe"
     )
 
-    parent_dir="$(dirname "${repo_root}")"
-    git_binary="$(command -v git || true)"
-    if [[ "$(basename "${parent_dir}")" == "worktrees" ]] &&
-        [[ -n "${git_binary}" ]] &&
-        git_common_dir="$(
-            env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u GIT_PREFIX -u GIT_COMMON_DIR \
-                "${git_binary}" -C "${repo_root}" rev-parse --path-format=absolute --git-common-dir 2>/dev/null
-        )"; then
-        shared_root="$(cd "$(dirname "${parent_dir}")" 2>/dev/null && pwd -P)"
-        git_common_dir="$(cd "${git_common_dir}" 2>/dev/null && pwd -P)"
-        case "${git_common_dir}" in
-            "${shared_root}/.git" | "${shared_root}/.git/"*)
+    if git_binary="$(command -v git 2>/dev/null)"; then
+        case "${git_binary}" in
+            /*)
+                if [[ -f "${git_binary}" && -x "${git_binary}" ]] &&
+                    git_common_dir="$(
+                        env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u GIT_PREFIX \
+                            -u GIT_COMMON_DIR -u GIT_IMPLICIT_WORK_TREE \
+                            "${git_binary}" -C "${repo_root}" rev-parse \
+                            --path-format=absolute --git-common-dir 2>/dev/null
+                    )" &&
+                    checkout_top_level="$(
+                        env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u GIT_PREFIX \
+                            -u GIT_COMMON_DIR -u GIT_IMPLICIT_WORK_TREE \
+                            "${git_binary}" -C "${repo_root}" rev-parse \
+                            --path-format=absolute --show-toplevel 2>/dev/null
+                    )" &&
+                    checkout_git_dir="$(
+                        env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u GIT_PREFIX \
+                            -u GIT_COMMON_DIR -u GIT_IMPLICIT_WORK_TREE \
+                            "${git_binary}" -C "${repo_root}" rev-parse \
+                            --path-format=absolute --git-dir 2>/dev/null
+                    )" &&
+                    git_common_dir="$(cd "${git_common_dir}" 2>/dev/null && pwd -P)" &&
+                    checkout_top_level="$(cd "${checkout_top_level}" 2>/dev/null && pwd -P)" &&
+                    checkout_git_dir="$(cd "${checkout_git_dir}" 2>/dev/null && pwd -P)" &&
+                    [[ "$(basename "${git_common_dir}")" == ".git" ]] &&
+                    primary_root="$(cd "$(dirname "${git_common_dir}")" 2>/dev/null && pwd -P)" &&
+                    [[ "${checkout_top_level}" == "${repo_root}" ]] &&
+                    [[ "${repo_root}" == "${primary_root}" ||
+                        "${checkout_git_dir}" == "${git_common_dir}/worktrees/"* ]] &&
+                    primary_top_level="$(
+                        env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u GIT_PREFIX \
+                            -u GIT_COMMON_DIR -u GIT_IMPLICIT_WORK_TREE \
+                            "${git_binary}" -C "${primary_root}" rev-parse \
+                            --path-format=absolute --show-toplevel 2>/dev/null
+                    )" &&
+                    primary_common_dir="$(
+                        env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u GIT_PREFIX \
+                            -u GIT_COMMON_DIR -u GIT_IMPLICIT_WORK_TREE \
+                            "${git_binary}" -C "${primary_root}" rev-parse \
+                            --path-format=absolute --git-common-dir 2>/dev/null
+                    )" &&
+                    primary_top_level="$(cd "${primary_top_level}" 2>/dev/null && pwd -P)" &&
+                    primary_common_dir="$(cd "${primary_common_dir}" 2>/dev/null && pwd -P)" &&
+                    [[ "${primary_top_level}" == "${primary_root}" ]] &&
+                    [[ "${primary_common_dir}" == "${git_common_dir}" ]]; then
                 candidates+=(
-                    "${shared_root}/.venv/bin/python"
-                    "${shared_root}/.venv/Scripts/python.exe"
+                    "${primary_root}/.venv/bin/python"
+                    "${primary_root}/.venv/Scripts/python.exe"
                 )
+                fi
                 ;;
         esac
     fi
 
     for candidate in "${candidates[@]}"; do
-        if [[ -x "${candidate}" ]]; then
+        if [[ -f "${candidate}" && -x "${candidate}" ]]; then
             printf '%s\n' "${candidate}"
             return 0
         fi
     done
 
-    if [[ "${CI:-}" == "true" ]] && command -v python3 >/dev/null 2>&1; then
-        command -v python3
-        return 0
-    fi
-    if [[ "${CI:-}" == "true" ]] && command -v python >/dev/null 2>&1; then
-        command -v python
-        return 0
+    if [[ "${CI:-}" == "true" ]]; then
+        if candidate="$(command -v python3 2>/dev/null)"; then
+            case "${candidate}" in
+                /*)
+                    if [[ -f "${candidate}" && -x "${candidate}" ]]; then
+                        printf '%s\n' "${candidate}"
+                        return 0
+                    fi
+                    ;;
+            esac
+        fi
+        if candidate="$(command -v python 2>/dev/null)"; then
+            case "${candidate}" in
+                /*)
+                    if [[ -f "${candidate}" && -x "${candidate}" ]]; then
+                        printf '%s\n' "${candidate}"
+                        return 0
+                    fi
+                    ;;
+            esac
+        fi
     fi
 
     echo "ERROR: no repo/shared .venv Python found for local hook execution" >&2

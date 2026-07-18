@@ -98,30 +98,20 @@ def _bash_failure(
     )
 
 
-def test_hook_resolver_prefers_shared_root_venv_from_worktree(tmp_path: Path) -> None:
+def test_hook_resolver_prefers_root_checkout_venv(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()
     _git(tmp_path, "init", "--quiet", str(repo))
-    _git(repo, "config", "user.email", "pulseplate@pm.me")
-    _git(repo, "config", "user.name", "PulsePlate Hook Resolver")
-    (repo / "README.md").write_text("hook resolver test\n", encoding="utf-8")
-    _git(repo, "add", "README.md")
-    _git(repo, "commit", "--quiet", "-m", "init")
-    shared_python = repo / ".venv" / "bin" / "python"
-    shared_python.parent.mkdir(parents=True)
-    _write_executable(shared_python)
-    worktree = repo / "worktrees" / "lane"
-    _git(repo, "worktree", "add", "--quiet", str(worktree), "HEAD")
+    checkout_python = repo / ".venv" / "bin" / "python"
+    checkout_python.parent.mkdir(parents=True)
+    _write_executable(checkout_python)
 
-    resolved = _bash(
-        RESOLVE_COMMAND,
-        cwd=worktree,
-    )
+    resolved = _bash(RESOLVE_COMMAND, cwd=repo)
 
-    assert resolved == str(shared_python)
+    assert resolved == str(checkout_python)
 
 
-def test_hook_resolver_ignores_commit_hook_git_env_for_worktree_lookup(
+def test_hook_resolver_finds_primary_venv_from_arbitrary_worktree_locations(
     tmp_path: Path,
 ) -> None:
     repo = tmp_path / "repo"
@@ -135,11 +125,52 @@ def test_hook_resolver_ignores_commit_hook_git_env_for_worktree_lookup(
     shared_python = repo / ".venv" / "bin" / "python"
     shared_python.parent.mkdir(parents=True)
     _write_executable(shared_python)
-    worktree = repo / "worktrees" / "lane"
-    _git(repo, "worktree", "add", "--quiet", str(worktree), "HEAD")
+    worktrees = [
+        repo / "worktrees" / "lane",
+        repo / "nested" / "linked" / "lane",
+        repo.parent / "sibling-lane",
+        tmp_path / "external" / "arbitrary" / "lane",
+    ]
+
+    for worktree in worktrees:
+        _git(repo, "worktree", "add", "--detach", "--quiet", str(worktree), "HEAD")
+
+        resolved = _bash(
+            RESOLVE_COMMAND,
+            cwd=worktree,
+        )
+
+        assert resolved == str(shared_python)
+
+
+def test_hook_resolver_sanitizes_commit_hook_git_env_for_every_git_query(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(tmp_path, "init", "--quiet", str(repo))
+    _git(repo, "config", "user.email", "pulseplate@pm.me")
+    _git(repo, "config", "user.name", "PulsePlate Hook Resolver")
+    (repo / "README.md").write_text("hook resolver test\n", encoding="utf-8")
+    _git(repo, "add", "README.md")
+    _git(repo, "commit", "--quiet", "-m", "init")
+    shared_python = repo / ".venv" / "bin" / "python"
+    shared_python.parent.mkdir(parents=True)
+    _write_executable(shared_python)
+    worktree = tmp_path / "external" / "lane"
+    _git(repo, "worktree", "add", "--detach", "--quiet", str(worktree), "HEAD")
     env = _clean_hook_env()
-    env["GIT_DIR"] = str(repo / ".git")
-    env["GIT_INDEX_FILE"] = str(repo / ".git" / "index")
+    poisoned = str(tmp_path / "poisoned-git-state")
+    env.update(
+        {
+            "GIT_DIR": poisoned,
+            "GIT_WORK_TREE": poisoned,
+            "GIT_INDEX_FILE": poisoned,
+            "GIT_PREFIX": poisoned,
+            "GIT_COMMON_DIR": poisoned,
+            "GIT_IMPLICIT_WORK_TREE": "0",
+        }
+    )
 
     resolved = _bash(
         RESOLVE_COMMAND,
@@ -148,6 +179,67 @@ def test_hook_resolver_ignores_commit_hook_git_env_for_worktree_lookup(
     )
 
     assert resolved == str(shared_python)
+
+
+def test_hook_resolver_prefers_current_worktree_venv_symlink_to_primary_venv(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(tmp_path, "init", "--quiet", str(repo))
+    _git(repo, "config", "user.email", "pulseplate@pm.me")
+    _git(repo, "config", "user.name", "PulsePlate Hook Resolver")
+    (repo / "README.md").write_text("hook resolver test\n", encoding="utf-8")
+    _git(repo, "add", "README.md")
+    _git(repo, "commit", "--quiet", "-m", "init")
+    shared_python = repo / ".venv" / "bin" / "python"
+    shared_python.parent.mkdir(parents=True)
+    _write_executable(shared_python)
+    worktree = tmp_path / "external" / "lane"
+    _git(repo, "worktree", "add", "--detach", "--quiet", str(worktree), "HEAD")
+    local_python = worktree / ".venv" / "bin" / "python"
+    local_python.parent.mkdir(parents=True)
+    local_python.symlink_to(shared_python)
+
+    resolved = _bash(RESOLVE_COMMAND, cwd=worktree)
+
+    assert resolved == str(local_python)
+
+
+def test_hook_resolver_prefers_valid_venv_override(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    checkout_python = repo / ".venv" / "bin" / "python"
+    checkout_python.parent.mkdir(parents=True)
+    _write_executable(checkout_python)
+    dev_override = tmp_path / "dev-python"
+    _write_executable(dev_override)
+    venv_override = tmp_path / "venv-python"
+    _write_executable(venv_override)
+    env = _clean_hook_env()
+    env["DEV_PYTHON"] = str(dev_override)
+    env["VENV_PYTHON"] = str(venv_override)
+
+    resolved = _bash(RESOLVE_COMMAND, cwd=repo, env=env)
+
+    assert resolved == str(venv_override)
+
+
+def test_hook_resolver_uses_valid_dev_override_when_venv_override_is_unset(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    dev_override = tmp_path / "dev-python"
+    _write_executable(dev_override)
+    env = _clean_hook_env()
+    env["DEV_PYTHON"] = str(dev_override)
+
+    resolved = _bash(RESOLVE_COMMAND, cwd=repo, env=env)
+
+    assert resolved == str(dev_override)
 
 
 def test_hook_resolver_rejects_relative_python_override(tmp_path: Path) -> None:
@@ -187,11 +279,145 @@ def test_hook_resolver_rejects_non_executable_absolute_python_override(
     )
 
     assert completed.returncode == 1
-    assert "is set but is not executable" in completed.stderr
+    assert "is set but is not a regular executable file" in completed.stderr
     assert str(shared_python) not in completed.stdout
 
 
-def test_hook_resolver_fails_closed_without_repo_python(tmp_path: Path) -> None:
+def test_hook_resolver_rejects_directory_python_override(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    directory_override = tmp_path / "python-directory"
+    directory_override.mkdir()
+    env = _clean_hook_env()
+    env["VENV_PYTHON"] = str(directory_override)
+
+    completed = _bash_failure(
+        RESOLVE_COMMAND,
+        cwd=repo,
+        env=env,
+    )
+
+    assert completed.returncode == 1
+    assert "is set but is not a regular executable file" in completed.stderr
+
+
+def test_hook_resolver_rejects_directory_checkout_python(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    directory_python = repo / ".venv" / "bin" / "python"
+    directory_python.mkdir(parents=True)
+
+    completed = _bash_failure(
+        RESOLVE_COMMAND,
+        cwd=repo,
+        env=_clean_hook_env(),
+    )
+
+    assert completed.returncode == 1
+    assert "no repo/shared .venv Python found" in completed.stderr
+
+
+def test_hook_resolver_rejects_bare_dot_git_decoy(tmp_path: Path) -> None:
+    decoy_root = tmp_path / "decoy-root"
+    decoy_root.mkdir()
+    _git(tmp_path, "init", "--bare", "--quiet", str(decoy_root / ".git"))
+    shared_python = decoy_root / ".venv" / "bin" / "python"
+    shared_python.parent.mkdir(parents=True)
+    _write_executable(shared_python)
+    apparent_worktree = decoy_root / "linked" / "lane"
+    apparent_worktree.mkdir(parents=True)
+
+    completed = _bash_failure(
+        RESOLVE_COMMAND,
+        cwd=apparent_worktree,
+        env=_clean_hook_env(),
+    )
+
+    assert completed.returncode == 1
+    assert str(shared_python) not in completed.stdout
+
+
+def test_hook_resolver_rejects_ordinary_non_git_dot_git_decoy(tmp_path: Path) -> None:
+    decoy_root = tmp_path / "decoy-root"
+    (decoy_root / ".git").mkdir(parents=True)
+    shared_python = decoy_root / ".venv" / "bin" / "python"
+    shared_python.parent.mkdir(parents=True)
+    _write_executable(shared_python)
+    apparent_worktree = decoy_root / "linked" / "lane"
+    apparent_worktree.mkdir(parents=True)
+
+    completed = _bash_failure(
+        RESOLVE_COMMAND,
+        cwd=apparent_worktree,
+        env=_clean_hook_env(),
+    )
+
+    assert completed.returncode == 1
+    assert str(shared_python) not in completed.stdout
+
+
+def test_hook_resolver_rejects_separate_git_dir_as_primary_checkout(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "separate-worktree"
+    decoy_root = tmp_path / "decoy-root"
+    decoy_root.mkdir()
+    separate_git_dir = decoy_root / ".git"
+    _git(
+        tmp_path,
+        "init",
+        "--quiet",
+        f"--separate-git-dir={separate_git_dir}",
+        str(repo),
+    )
+    decoy_python = decoy_root / ".venv" / "bin" / "python"
+    decoy_python.parent.mkdir(parents=True)
+    _write_executable(decoy_python)
+
+    completed = _bash_failure(
+        RESOLVE_COMMAND,
+        cwd=repo,
+        env=_clean_hook_env(),
+    )
+
+    assert completed.returncode == 1
+    assert str(decoy_python) not in completed.stdout
+
+
+def test_hook_resolver_allows_ambient_python_only_in_ci(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    env = _clean_hook_env()
+    env["CI"] = "true"
+
+    resolved = Path(_bash(RESOLVE_COMMAND, cwd=repo, env=env))
+
+    assert resolved.is_absolute()
+    assert resolved.is_file()
+    assert os.access(resolved, os.X_OK)
+    assert resolved.name in {"python3", "python"}
+
+
+def test_hook_resolver_ci_rejects_shell_function_python_interposition(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    env = _clean_hook_env()
+    env["CI"] = "true"
+    command = f"python3() {{ :; }}; python() {{ :; }}; {RESOLVE_COMMAND}"
+
+    completed = _bash_failure(
+        command,
+        cwd=repo,
+        env=env,
+    )
+
+    assert completed.returncode == 1
+    assert completed.stdout == ""
+    assert "no repo/shared .venv Python found" in completed.stderr
+
+
+def test_hook_resolver_rejects_ambient_python_outside_ci(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()
     env = _clean_hook_env()
