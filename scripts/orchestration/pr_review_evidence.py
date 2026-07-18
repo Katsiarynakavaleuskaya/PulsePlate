@@ -33,6 +33,10 @@ OPERATOR_OUTAGE_ERROR_CODE = "-32001"
 OPERATOR_OUTAGE_ERROR_MESSAGE = "Request timed out"
 OPERATOR_OUTAGE_BOOTSTRAP_REPOSITORY = "Katsiarynakavaleuskaya/PulsePlate"
 OPERATOR_OUTAGE_BOOTSTRAP_PR = 2142
+REVIEW_CREDIT_OUTAGE_AUTHORITY = "operator_review_credit_exhaustion_override"
+REVIEW_CREDIT_OUTAGE_CLASS = "codex_review_credits_exhausted"
+REVIEW_CREDIT_OUTAGE_BOOTSTRAP_REPOSITORY = "Katsiarynakavaleuskaya/PulsePlate"
+REVIEW_CREDIT_OUTAGE_BOOTSTRAP_PR = 2142
 OPERATOR_OUTAGE_TRUST_BOUNDARY_EXACT_PATHS = frozenset(
     {
         ".bandit",
@@ -52,6 +56,25 @@ OPERATOR_OUTAGE_TRUST_BOUNDARY_PREFIXES = (
     ".github/workflows/",
     "scripts/ci/",
     "trivy/",
+)
+REVIEW_CREDIT_OUTAGE_TRUST_BOUNDARY_EXACT_PATHS = frozenset(
+    {
+        "AGENTS.md",
+        "RUNBOOK_AGENT.md",
+        "docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md",
+        "scripts/ci/check_current_head_pr_checks.py",
+        "scripts/ci/check_pr_merge_readiness.py",
+        "scripts/orchestration/check_merge_ready.py",
+        "scripts/orchestration/check_review_threads_disposition.py",
+        "scripts/orchestration/pr_commit_identity.py",
+        "scripts/orchestration/pr_review_closeout.py",
+        "scripts/orchestration/pr_review_evidence.py",
+        "scripts/orchestration/review_mapping_artifact.py",
+    }
+)
+REVIEW_CREDIT_OUTAGE_TRUST_BOUNDARY_PREFIXES = (
+    ".github/actions/",
+    ".github/workflows/",
 )
 SEAL_BEGIN = "\n".join(
     (
@@ -954,6 +977,81 @@ def build_security_outage_override_receipt(
     return receipt
 
 
+def build_review_credit_outage_receipt(
+    *,
+    material_digest: str,
+    material_head_sha: str,
+    override_reference: str,
+    override_created_at: str,
+    quota_reference: str,
+    quota_created_at: str,
+    prior_review_reference: str,
+    prior_review_submitted_at: str,
+    prior_review_commit_ref: str,
+    operator_review_reference: str,
+    operator_review_submitted_at: str,
+    operator_user_id: int,
+    operator_login: str,
+    operator_association: str,
+) -> dict[str, Any]:
+    """Build a closed receipt for one independently evidenced credit outage."""
+
+    receipt = {
+        "authority": REVIEW_CREDIT_OUTAGE_AUTHORITY,
+        "operator_association": operator_association,
+        "operator_login": operator_login,
+        "operator_review_submitted_at": operator_review_submitted_at,
+        "operator_user_id": operator_user_id,
+        "outage_class": REVIEW_CREDIT_OUTAGE_CLASS,
+        "override_created_at": override_created_at,
+        "override_reference": override_reference,
+        "prior_review_commit_ref": prior_review_commit_ref,
+        "prior_review_reference": prior_review_reference,
+        "prior_review_submitted_at": prior_review_submitted_at,
+        "quota_created_at": quota_created_at,
+        "quota_reference": quota_reference,
+        "review_commit_ref": material_head_sha,
+        "review_commit_ref_kind": "repository_commit",
+        "review_reference": operator_review_reference,
+        "reviewed_material_digest": material_digest,
+        "status": "tooling_unavailable",
+    }
+    _validate_code_review_receipt(receipt, material_digest=material_digest)
+    return receipt
+
+
+def is_review_credit_outage_receipt(receipt: Any) -> bool:
+    """Return whether code-review evidence uses the credit-outage variant."""
+
+    return isinstance(receipt, dict) and receipt.get("authority") == REVIEW_CREDIT_OUTAGE_AUTHORITY
+
+
+def validate_review_credit_outage_scope(
+    *, repository: str, pr_number: int, material_paths: Iterable[str]
+) -> None:
+    """Prevent later review-governance changes from authorizing themselves."""
+
+    touched = sorted(
+        {
+            path
+            for path in material_paths
+            if path in REVIEW_CREDIT_OUTAGE_TRUST_BOUNDARY_EXACT_PATHS
+            or path.startswith(REVIEW_CREDIT_OUTAGE_TRUST_BOUNDARY_PREFIXES)
+        }
+    )
+    if not touched:
+        return
+    is_bootstrap = (
+        repository.casefold() == REVIEW_CREDIT_OUTAGE_BOOTSTRAP_REPOSITORY.casefold()
+        and pr_number == REVIEW_CREDIT_OUTAGE_BOOTSTRAP_PR
+    )
+    if not is_bootstrap:
+        raise ReviewEvidenceError(
+            "Codex review credit-outage override cannot authorize trust-boundary changes: "
+            + ", ".join(touched)
+        )
+
+
 def is_security_outage_override_receipt(receipt: Any) -> bool:
     """Return whether a validated receipt uses the operator-outage variant."""
 
@@ -1087,6 +1185,108 @@ def _validate_security_receipt(receipt: Any) -> None:
         _require_digest(value, label=f"codex_security.artifacts.{key}")
 
 
+def _validate_code_review_receipt(receipt: Any, *, material_digest: str) -> None:
+    if not isinstance(receipt, dict):
+        raise ReviewEvidenceError("review seal code_review must be an object")
+    if is_review_credit_outage_receipt(receipt):
+        _require_exact_keys(
+            receipt,
+            {
+                "authority",
+                "operator_association",
+                "operator_login",
+                "operator_review_submitted_at",
+                "operator_user_id",
+                "outage_class",
+                "override_created_at",
+                "override_reference",
+                "prior_review_commit_ref",
+                "prior_review_reference",
+                "prior_review_submitted_at",
+                "quota_created_at",
+                "quota_reference",
+                "review_commit_ref",
+                "review_commit_ref_kind",
+                "review_reference",
+                "reviewed_material_digest",
+                "status",
+            },
+            label="review seal code_review credit outage override",
+        )
+        _require_sha(receipt["review_commit_ref"], label="code_review.review_commit_ref")
+        _require_sha(
+            receipt["prior_review_commit_ref"],
+            label="code_review.prior_review_commit_ref",
+        )
+        _parse_timestamp(
+            receipt["override_created_at"],
+            label="code_review.override_created_at",
+        )
+        _parse_timestamp(
+            receipt["quota_created_at"],
+            label="code_review.quota_created_at",
+        )
+        _parse_timestamp(
+            receipt["prior_review_submitted_at"],
+            label="code_review.prior_review_submitted_at",
+        )
+        _parse_timestamp(
+            receipt["operator_review_submitted_at"],
+            label="code_review.operator_review_submitted_at",
+        )
+        references = (
+            receipt["review_reference"],
+            receipt["override_reference"],
+            receipt["quota_reference"],
+            receipt["prior_review_reference"],
+        )
+        if (
+            receipt["status"] != "tooling_unavailable"
+            or receipt["outage_class"] != REVIEW_CREDIT_OUTAGE_CLASS
+            or receipt["reviewed_material_digest"] != material_digest
+            or receipt["review_commit_ref_kind"] != "repository_commit"
+            or receipt["operator_association"] not in {"OWNER", "MEMBER"}
+            or not isinstance(receipt["operator_user_id"], int)
+            or isinstance(receipt["operator_user_id"], bool)
+            or receipt["operator_user_id"] <= 0
+            or not isinstance(receipt["operator_login"], str)
+            or not 1 <= len(receipt["operator_login"]) <= 100
+            or any(ord(ch) < 32 for ch in receipt["operator_login"])
+            or any(
+                not isinstance(reference, str)
+                or not 1 <= len(reference) <= 500
+                or any(ord(ch) < 32 for ch in reference)
+                for reference in references
+            )
+        ):
+            raise ReviewEvidenceError(
+                "review seal code_review credit outage override is malformed or stale"
+            )
+        return
+
+    _require_exact_keys(
+        receipt,
+        {
+            "review_commit_ref",
+            "review_commit_ref_kind",
+            "review_reference",
+            "reviewed_material_digest",
+            "status",
+        },
+        label="review seal code_review",
+    )
+    if (
+        receipt["status"] != "completed"
+        or receipt["reviewed_material_digest"] != material_digest
+        or receipt["review_commit_ref_kind"] != "repository_commit"
+        or not isinstance(receipt["review_reference"], str)
+        or not 1 <= len(receipt["review_reference"]) <= 500
+        or any(ord(ch) < 32 for ch in receipt["review_reference"])
+    ):
+        raise ReviewEvidenceError("review seal code_review is malformed or stale")
+    _require_sha(receipt["review_commit_ref"], label="code_review.review_commit_ref")
+
+
 def validate_review_seal(seal: Any) -> dict[str, Any]:
     """Validate the closed v1 embedded seal schema and return it unchanged."""
 
@@ -1130,29 +1330,7 @@ def validate_review_seal(seal: Any) -> dict[str, Any]:
     if material["policy_version"] != MATERIAL_POLICY_VERSION:
         raise ReviewEvidenceError("review seal material policy version is unsupported")
     code_review = seal["code_review"]
-    if not isinstance(code_review, dict):
-        raise ReviewEvidenceError("review seal code_review must be an object")
-    _require_exact_keys(
-        code_review,
-        {
-            "review_commit_ref",
-            "review_commit_ref_kind",
-            "review_reference",
-            "reviewed_material_digest",
-            "status",
-        },
-        label="review seal code_review",
-    )
-    if (
-        code_review["status"] != "completed"
-        or code_review["reviewed_material_digest"] != material_digest
-        or code_review["review_commit_ref_kind"] != "repository_commit"
-        or not isinstance(code_review["review_reference"], str)
-        or not 1 <= len(code_review["review_reference"]) <= 500
-        or any(ord(ch) < 32 for ch in code_review["review_reference"])
-    ):
-        raise ReviewEvidenceError("review seal code_review is malformed or stale")
-    _require_sha(code_review["review_commit_ref"], label="code_review.review_commit_ref")
+    _validate_code_review_receipt(code_review, material_digest=material_digest)
     _validate_security_receipt(seal["codex_security"])
     if (
         seal["codex_security"]["base_revision"] != material["merge_base_sha"]

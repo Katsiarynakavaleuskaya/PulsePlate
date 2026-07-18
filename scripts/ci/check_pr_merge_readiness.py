@@ -48,14 +48,18 @@ from scripts.orchestration.pr_commit_identity import (  # noqa: E402
     fetch_review_threads,
     is_ancestor,
     verify_codex_review_reference,
+    verify_review_credit_outage_references,
     verify_security_outage_override_reference,
 )
 from scripts.orchestration.pr_review_evidence import (  # noqa: E402
     ReviewEvidenceError,
+    build_review_credit_outage_receipt,
     build_security_outage_override_receipt,
     compute_material_manifest,
+    is_review_credit_outage_receipt,
     is_security_outage_override_receipt,
     parse_embedded_review_seal,
+    validate_review_credit_outage_scope,
     validate_security_outage_override_scope,
     validated_duplicate_reply_urls,
 )
@@ -560,39 +564,77 @@ def _validate_v1_seal(
     review_prefix = f"https://github.com/{repository}/pull/{pr_number}#"
     if not seal["code_review"]["review_reference"].startswith(review_prefix):
         raise ReviewEvidenceError("code-review reference belongs to another PR")
-    review_evidence = verify_codex_review_reference(
-        seal["code_review"]["review_reference"],
-        repository=repository,
-        pr_number=pr_number,
-        token=token,
-        expected_commit_ref=material["material_head_sha"],
-    )
-    if (
-        review_evidence.commit_ref != seal["code_review"]["review_commit_ref"]
-        or seal["code_review"]["review_commit_ref_kind"] != "repository_commit"
-        or review_evidence.commit_ref != material["material_head_sha"]
-    ):
-        raise ReviewEvidenceError("Codex review is not bound to the sealed material head")
-    review_commit = classify_commit_ref(review_evidence.commit_ref, snapshot, token=token)
-    if not isinstance(review_commit, RepositoryCommitRef) or review_commit.kind not in {
-        CommitRefKind.PR_HEAD,
-        CommitRefKind.PR_COMMIT,
-    }:
-        raise ReviewEvidenceError("Codex review commit is not a real commit in the live PR")
-    reviewed_manifest = compute_material_manifest(
-        REPO_ROOT,
-        base_ref_oid=snapshot.base_sha,
-        head_ref_oid=review_commit.sha,
-        pr_number=pr_number,
-    )
-    if reviewed_manifest.digest != material["digest"]:
-        raise ReviewEvidenceError("Codex review commit has a different material digest")
     material_head = classify_commit_ref(material["material_head_sha"], snapshot, token=token)
     if not isinstance(material_head, RepositoryCommitRef) or material_head.kind not in {
         CommitRefKind.PR_HEAD,
         CommitRefKind.PR_COMMIT,
     }:
         raise ReviewEvidenceError("material head is not a real commit in the live PR")
+    code_review = seal["code_review"]
+    if is_review_credit_outage_receipt(code_review):
+        validate_review_credit_outage_scope(
+            repository=repository,
+            pr_number=pr_number,
+            material_paths=(entry.path for entry in manifest.entries),
+        )
+        credit_evidence = verify_review_credit_outage_references(
+            override_reference=code_review["override_reference"],
+            quota_reference=code_review["quota_reference"],
+            prior_review_reference=code_review["prior_review_reference"],
+            operator_review_reference=code_review["review_reference"],
+            repository=repository,
+            pr_number=pr_number,
+            token=token,
+            snapshot=snapshot,
+            expected_material_head_sha=material_head.sha,
+            expected_material_digest=material["digest"],
+        )
+        expected_code_review = build_review_credit_outage_receipt(
+            material_digest=material["digest"],
+            material_head_sha=material_head.sha,
+            override_reference=credit_evidence.override_reference,
+            override_created_at=credit_evidence.override_created_at,
+            quota_reference=credit_evidence.quota_reference,
+            quota_created_at=credit_evidence.quota_created_at,
+            prior_review_reference=credit_evidence.prior_review_reference,
+            prior_review_submitted_at=credit_evidence.prior_review_submitted_at,
+            prior_review_commit_ref=credit_evidence.prior_review_commit_ref,
+            operator_review_reference=credit_evidence.operator_review_reference,
+            operator_review_submitted_at=credit_evidence.operator_review_submitted_at,
+            operator_user_id=credit_evidence.operator_user_id,
+            operator_login=credit_evidence.operator_login,
+            operator_association=credit_evidence.operator_association,
+        )
+        if code_review != expected_code_review:
+            raise ReviewEvidenceError("Codex review credit-outage receipt is stale")
+    else:
+        review_evidence = verify_codex_review_reference(
+            code_review["review_reference"],
+            repository=repository,
+            pr_number=pr_number,
+            token=token,
+            expected_commit_ref=material["material_head_sha"],
+        )
+        if (
+            review_evidence.commit_ref != code_review["review_commit_ref"]
+            or code_review["review_commit_ref_kind"] != "repository_commit"
+            or review_evidence.commit_ref != material["material_head_sha"]
+        ):
+            raise ReviewEvidenceError("Codex review is not bound to the sealed material head")
+        review_commit = classify_commit_ref(review_evidence.commit_ref, snapshot, token=token)
+        if not isinstance(review_commit, RepositoryCommitRef) or review_commit.kind not in {
+            CommitRefKind.PR_HEAD,
+            CommitRefKind.PR_COMMIT,
+        }:
+            raise ReviewEvidenceError("Codex review commit is not a real commit in the live PR")
+        reviewed_manifest = compute_material_manifest(
+            REPO_ROOT,
+            base_ref_oid=snapshot.base_sha,
+            head_ref_oid=review_commit.sha,
+            pr_number=pr_number,
+        )
+        if reviewed_manifest.digest != material["digest"]:
+            raise ReviewEvidenceError("Codex review commit has a different material digest")
     live_head = RepositoryCommitRef(snapshot.head_sha, CommitRefKind.PR_HEAD)
     if not is_ancestor(
         material_head,
@@ -915,7 +957,12 @@ def main() -> int:
     print("merge-readiness-gate: passed (review governance only).")
     if seal is not None:
         print(f"CONTENT_BOUND_RECEIPT_VALID {seal['material']['digest']}")
-        print(f"MACHINE_BOUND_REVIEW_COMMIT {seal['code_review']['review_commit_ref']}")
+        if is_review_credit_outage_receipt(seal["code_review"]):
+            print(
+                "REVIEW_CREDIT_OUTAGE_OVERRIDE_VALID " f"{seal['code_review']['review_commit_ref']}"
+            )
+        else:
+            print(f"MACHINE_BOUND_REVIEW_COMMIT {seal['code_review']['review_commit_ref']}")
     if duplicate_covered_urls:
         print(f"DUPLICATE_FINDING_REUSED count={len(duplicate_covered_urls)}")
     print(

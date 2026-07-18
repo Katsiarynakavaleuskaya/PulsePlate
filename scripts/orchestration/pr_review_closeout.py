@@ -32,6 +32,7 @@ from scripts.orchestration.pr_commit_identity import (  # noqa: E402
     fetch_pr_snapshot,
     is_ancestor,
     verify_codex_review_reference,
+    verify_review_credit_outage_references,
     verify_security_outage_override_reference,
 )
 from scripts.orchestration.pr_review_evidence import (  # noqa: E402
@@ -40,13 +41,16 @@ from scripts.orchestration.pr_review_evidence import (  # noqa: E402
     SEAL_SCHEMA_VERSION,
     UNAVAILABLE_REVIEW_REF_CAUSE,
     ReviewEvidenceError,
+    build_review_credit_outage_receipt,
     build_security_outage_override_receipt,
     compute_material_manifest,
     ingest_codex_security_receipt,
+    is_review_credit_outage_receipt,
     is_security_outage_override_receipt,
     parse_embedded_review_seal,
     render_embedded_review_seal,
     unavailable_review_ref_fingerprint,
+    validate_review_credit_outage_scope,
     validate_security_outage_override_scope,
 )
 from scripts.orchestration.review_mapping_artifact import (  # noqa: E402
@@ -557,20 +561,79 @@ def _cmd_seal(args: argparse.Namespace) -> None:
     review_prefix = f"https://github.com/{args.repo}/pull/{args.pr_number}#"
     if not review_ref.startswith(review_prefix):
         raise CloseoutError("review-ref must identify the requested GitHub PR")
-    review_evidence = verify_codex_review_reference(
-        review_ref,
-        repository=args.repo,
-        pr_number=args.pr_number,
-        token=token,
-        expected_commit_ref=snapshot.head_sha,
-    )
-    review_commit = classify_commit_ref(review_evidence.commit_ref, snapshot, token=token)
-    if (
-        not isinstance(review_commit, RepositoryCommitRef)
-        or review_commit.kind is not CommitRefKind.PR_HEAD
-        or review_commit.sha != snapshot.head_sha
-    ):
-        raise CloseoutError("Codex review must be machine-bound to the exact frozen material head")
+    if args.review_credit_outage_ref:
+        quota_ref = _required_line(
+            args.review_credit_quota_ref,
+            label="review-credit-quota-ref",
+        )
+        validate_review_credit_outage_scope(
+            repository=args.repo,
+            pr_number=args.pr_number,
+            material_paths=(entry.path for entry in manifest.entries),
+        )
+        credit_evidence = verify_review_credit_outage_references(
+            override_reference=_required_line(
+                args.review_credit_outage_ref,
+                label="review-credit-outage-ref",
+            ),
+            quota_reference=quota_ref,
+            prior_review_reference=_required_line(
+                args.prior_codex_review_ref,
+                label="prior-codex-review-ref",
+            ),
+            operator_review_reference=review_ref,
+            repository=args.repo,
+            pr_number=args.pr_number,
+            token=token,
+            snapshot=snapshot,
+            expected_material_head_sha=snapshot.head_sha,
+            expected_material_digest=manifest.digest,
+        )
+        code_review_receipt = build_review_credit_outage_receipt(
+            material_digest=manifest.digest,
+            material_head_sha=snapshot.head_sha,
+            override_reference=credit_evidence.override_reference,
+            override_created_at=credit_evidence.override_created_at,
+            quota_reference=credit_evidence.quota_reference,
+            quota_created_at=credit_evidence.quota_created_at,
+            prior_review_reference=credit_evidence.prior_review_reference,
+            prior_review_submitted_at=credit_evidence.prior_review_submitted_at,
+            prior_review_commit_ref=credit_evidence.prior_review_commit_ref,
+            operator_review_reference=credit_evidence.operator_review_reference,
+            operator_review_submitted_at=credit_evidence.operator_review_submitted_at,
+            operator_user_id=credit_evidence.operator_user_id,
+            operator_login=credit_evidence.operator_login,
+            operator_association=credit_evidence.operator_association,
+        )
+    else:
+        if args.review_credit_quota_ref or args.prior_codex_review_ref:
+            raise CloseoutError(
+                "--review-credit-quota-ref and --prior-codex-review-ref require "
+                "--review-credit-outage-ref"
+            )
+        review_evidence = verify_codex_review_reference(
+            review_ref,
+            repository=args.repo,
+            pr_number=args.pr_number,
+            token=token,
+            expected_commit_ref=snapshot.head_sha,
+        )
+        review_commit = classify_commit_ref(review_evidence.commit_ref, snapshot, token=token)
+        if (
+            not isinstance(review_commit, RepositoryCommitRef)
+            or review_commit.kind is not CommitRefKind.PR_HEAD
+            or review_commit.sha != snapshot.head_sha
+        ):
+            raise CloseoutError(
+                "Codex review must be machine-bound to the exact frozen material head"
+            )
+        code_review_receipt = {
+            "review_commit_ref": review_commit.sha,
+            "review_commit_ref_kind": "repository_commit",
+            "review_reference": review_ref,
+            "reviewed_material_digest": manifest.digest,
+            "status": "completed",
+        }
     if args.scan_manifest:
         receipt = ingest_codex_security_receipt(
             Path(args.scan_manifest),
@@ -606,13 +669,7 @@ def _cmd_seal(args: argparse.Namespace) -> None:
         )
     seal = {
         "authority": RECEIPT_AUTHORITY,
-        "code_review": {
-            "review_commit_ref": review_commit.sha,
-            "review_commit_ref_kind": "repository_commit",
-            "review_reference": review_ref,
-            "reviewed_material_digest": manifest.digest,
-            "status": "completed",
-        },
+        "code_review": code_review_receipt,
         "codex_security": receipt,
         "material": expected_freeze,
         "pr_number": args.pr_number,
@@ -706,27 +763,64 @@ def validate_live_mapping(*, repository: str, pr_number: int, token: str | None)
     review_reference = code_review["review_reference"]
     if not review_reference.startswith(review_prefix):
         raise CloseoutError("code-review reference belongs to another PR")
-    review_evidence = verify_codex_review_reference(
-        review_reference,
-        repository=repository,
-        pr_number=pr_number,
-        token=token,
-        expected_commit_ref=material_head.sha,
-    )
-    if (
-        code_review["review_commit_ref_kind"] != "repository_commit"
-        or review_evidence.commit_ref != code_review["review_commit_ref"]
-        or review_evidence.commit_ref != material_head.sha
-    ):
-        raise CloseoutError("Codex review is not bound to the sealed material head")
-    reviewed_manifest = compute_material_manifest(
-        REPO_ROOT,
-        base_ref_oid=snapshot.base_sha,
-        head_ref_oid=review_evidence.commit_ref,
-        pr_number=pr_number,
-    )
-    if reviewed_manifest.digest != material["digest"]:
-        raise CloseoutError("Codex review commit has a different material digest")
+    if is_review_credit_outage_receipt(code_review):
+        validate_review_credit_outage_scope(
+            repository=repository,
+            pr_number=pr_number,
+            material_paths=(entry.path for entry in manifest.entries),
+        )
+        credit_evidence = verify_review_credit_outage_references(
+            override_reference=code_review["override_reference"],
+            quota_reference=code_review["quota_reference"],
+            prior_review_reference=code_review["prior_review_reference"],
+            operator_review_reference=review_reference,
+            repository=repository,
+            pr_number=pr_number,
+            token=token,
+            snapshot=snapshot,
+            expected_material_head_sha=material_head.sha,
+            expected_material_digest=material["digest"],
+        )
+        expected_code_review = build_review_credit_outage_receipt(
+            material_digest=material["digest"],
+            material_head_sha=material_head.sha,
+            override_reference=credit_evidence.override_reference,
+            override_created_at=credit_evidence.override_created_at,
+            quota_reference=credit_evidence.quota_reference,
+            quota_created_at=credit_evidence.quota_created_at,
+            prior_review_reference=credit_evidence.prior_review_reference,
+            prior_review_submitted_at=credit_evidence.prior_review_submitted_at,
+            prior_review_commit_ref=credit_evidence.prior_review_commit_ref,
+            operator_review_reference=credit_evidence.operator_review_reference,
+            operator_review_submitted_at=credit_evidence.operator_review_submitted_at,
+            operator_user_id=credit_evidence.operator_user_id,
+            operator_login=credit_evidence.operator_login,
+            operator_association=credit_evidence.operator_association,
+        )
+        if code_review != expected_code_review:
+            raise CloseoutError("Codex review credit-outage receipt is stale")
+    else:
+        review_evidence = verify_codex_review_reference(
+            review_reference,
+            repository=repository,
+            pr_number=pr_number,
+            token=token,
+            expected_commit_ref=material_head.sha,
+        )
+        if (
+            code_review["review_commit_ref_kind"] != "repository_commit"
+            or review_evidence.commit_ref != code_review["review_commit_ref"]
+            or review_evidence.commit_ref != material_head.sha
+        ):
+            raise CloseoutError("Codex review is not bound to the sealed material head")
+        reviewed_manifest = compute_material_manifest(
+            REPO_ROOT,
+            base_ref_oid=snapshot.base_sha,
+            head_ref_oid=review_evidence.commit_ref,
+            pr_number=pr_number,
+        )
+        if reviewed_manifest.digest != material["digest"]:
+            raise CloseoutError("Codex review commit has a different material digest")
     security_receipt = seal["codex_security"]
     if (
         security_receipt["base_revision"] != manifest.merge_base_sha
@@ -814,6 +908,9 @@ def _parser() -> argparse.ArgumentParser:
     seal.add_argument("--repo", required=True)
     seal.add_argument("--pr-number", required=True, type=int)
     seal.add_argument("--review-ref", required=True)
+    seal.add_argument("--review-credit-outage-ref")
+    seal.add_argument("--review-credit-quota-ref")
+    seal.add_argument("--prior-codex-review-ref")
     security_evidence = seal.add_mutually_exclusive_group(required=True)
     security_evidence.add_argument("--scan-manifest")
     security_evidence.add_argument("--security-outage-override-ref")

@@ -616,7 +616,9 @@ Before merge: `unresolved` must be `0`. Resolve all threads in GitHub UI (Conver
 
 1. `pr_review_closeout.py init` creates/resumes the gitignored local draft.
 2. `freeze` proves local HEAD equals the live PR head and records the material
-   digest. Request one manual Codex review for that digest.
+   digest. Request one manual Codex review for that digest. If the trusted
+   connector instead returns its exact review-credit exhaustion response, keep
+   that immutable comment URL and use the bounded credit-outage path below.
 3. Apply actionable fixes. Any material change returns to step 2; governance
    draft/body activity does not.
 4. After the final material freeze, complete the required role pass and one
@@ -633,6 +635,19 @@ Before merge: `unresolved` must be `0`. Resolve all threads in GitHub UI (Conver
    merge gate, current-head check identity parser, CI/security workflows, local
    GitHub Actions, or implementations/policy inputs of the substitute security checks cannot use
    the override. This writes the sole canonical mapping/seal artifact.
+   When code-review credits are exhausted, `--review-ref` must name a subsequent
+   exact-head `OWNER`/`MEMBER` review and `seal` must also receive
+   `--review-credit-outage-ref <canonical owner override comment URL>`,
+   `--review-credit-quota-ref <trusted connector quota comment URL>`, plus
+   `--prior-codex-review-ref <trusted ancestor review URL>`. The quota response
+   must be current, the exact-head review must follow it, and the unedited owner
+   override comment must bind the frozen material head/digest and all three
+   evidence URLs. All evidence must remain within its TTL, use the same
+   `OWNER`/`MEMBER` identity where required, and no unresolved/actionable review
+   item may remain. This is an unavailable-provider receipt, not a Codex
+   no-findings claim. PR `#2142` is the only self-bootstrap; later
+   review/seal/merge verification, current-head check authority, or GitHub
+   workflow/action authority changes cannot use the override.
 6. Commit that artifact once, update the PR body link without a Git commit, and
    run the authenticated strict wrapper.
 7. A later validated duplicate uses the exact structured reply contract and an

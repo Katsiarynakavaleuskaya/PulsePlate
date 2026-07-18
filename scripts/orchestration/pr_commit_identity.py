@@ -55,6 +55,29 @@ _CODEX_SECURITY_OUTAGE_MESSAGE = "Request timed out"
 _CODEX_SECURITY_OUTAGE_STATUS = "TOOLING_UNAVAILABLE"
 _CODEX_SECURITY_OUTAGE_TTL = timedelta(hours=24)
 _CODEX_SECURITY_OUTAGE_CLOCK_SKEW = timedelta(minutes=5)
+_CODEX_REVIEW_CREDIT_OUTAGE_BODIES = frozenset(
+    {
+        (
+            "Codex usage limits have been reached for code reviews. "
+            "Please check with the admins of this repo to increase the limits by adding credits."
+        ),
+        (
+            "Codex usage limits have been reached for code reviews. "
+            "Please check with the admins of this repo to increase the limits by adding credits.\n"
+            "Credits must be used to enable repository wide code reviews."
+        ),
+        (
+            "You have reached your Codex usage limits for code reviews. "
+            "You can see your limits in the "
+            "[Codex usage dashboard](https://chatgpt.com/codex/cloud/settings/usage)."
+        ),
+    }
+)
+_CODEX_REVIEW_CREDIT_OUTAGE_TTL = timedelta(hours=24)
+_CODEX_REVIEW_CREDIT_OUTAGE_CLOCK_SKEW = timedelta(minutes=5)
+_OPERATOR_EXACT_HEAD_REVIEW_PREFIX = "Exact-head bounded review completed for"
+_CODEX_REVIEW_CREDIT_OUTAGE_CLASS = "codex_review_credits_exhausted"
+_CODEX_REVIEW_CREDIT_OUTAGE_STATUS = "TOOLING_UNAVAILABLE"
 
 
 class CommitIdentityError(RuntimeError):
@@ -157,6 +180,26 @@ class SecurityOutageOverrideEvidence:
 
     reference: str
     created_at: str
+    operator_user_id: int
+    operator_login: str
+    operator_association: str
+    material_head_sha: str
+    material_digest: str
+
+
+@dataclass(frozen=True)
+class ReviewCreditOutageEvidence:
+    """Trusted quota response plus an exact-head operator review."""
+
+    override_reference: str
+    override_created_at: str
+    quota_reference: str
+    quota_created_at: str
+    prior_review_reference: str
+    prior_review_submitted_at: str
+    prior_review_commit_ref: str
+    operator_review_reference: str
+    operator_review_submitted_at: str
     operator_user_id: int
     operator_login: str
     operator_association: str
@@ -319,6 +362,50 @@ def render_security_outage_override_comment(
     )
 
 
+def render_review_credit_outage_override_comment(
+    *,
+    pr_number: int,
+    material_head_sha: str,
+    material_digest: str,
+    quota_reference: str,
+    prior_review_reference: str,
+    operator_review_reference: str,
+) -> str:
+    """Render the sole accepted code-review credit-outage operator comment."""
+
+    if pr_number <= 0:
+        raise CommitIdentityError("pr_number must be positive")
+    head = _require_sha(material_head_sha, field="review credit outage material head")
+    digest = _require_material_digest(material_digest)
+    references = (quota_reference, prior_review_reference, operator_review_reference)
+    if any(
+        not isinstance(reference, str)
+        or not 1 <= len(reference) <= 500
+        or "\n" in reference
+        or "\r" in reference
+        for reference in references
+    ):
+        raise CommitIdentityError("review credit outage references must be bounded lines")
+    return "\n".join(
+        (
+            "PulsePlate Codex review credit exhaustion override v1",
+            "",
+            f"Status: {_CODEX_REVIEW_CREDIT_OUTAGE_STATUS}",
+            f"Outage-Class: {_CODEX_REVIEW_CREDIT_OUTAGE_CLASS}",
+            f"PR: #{pr_number}",
+            f"Material-Head: {head}",
+            f"Material-Digest: {digest}",
+            f"Quota-Reference: {quota_reference}",
+            f"Prior-Codex-Review: {prior_review_reference}",
+            f"Operator-Exact-Head-Review: {operator_review_reference}",
+            (
+                "Attestation: This operator override records exhausted review credits; "
+                "it is not a Codex review or a no-findings claim."
+            ),
+        )
+    )
+
+
 def verify_security_outage_override_reference(
     reference: str,
     *,
@@ -410,6 +497,301 @@ def verify_security_outage_override_reference(
         operator_association=association,
         material_head_sha=expected_head,
         material_digest=expected_digest,
+    )
+
+
+def _trusted_codex_app_comment(
+    response: Any,
+    *,
+    reference: str,
+    expected_issue_url: str,
+) -> tuple[str, str, str]:
+    """Validate immutable connector identity and return body plus timestamps."""
+
+    if not isinstance(response, dict):
+        raise CommitIdentityError("GitHub issue-comment response is malformed")
+    user = response.get("user")
+    login = user.get("login") if isinstance(user, dict) else None
+    user_type = user.get("type") if isinstance(user, dict) else None
+    app = response.get("performed_via_github_app")
+    app_owner = app.get("owner") if isinstance(app, dict) else None
+    app_owner_login = app_owner.get("login") if isinstance(app_owner, dict) else None
+    if (
+        login != _CODEX_CONNECTOR_LOGIN
+        or user_type != "Bot"
+        or not isinstance(app, dict)
+        or app.get("id") != _CODEX_CONNECTOR_APP_ID
+        or app.get("slug") != _CODEX_CONNECTOR_APP_SLUG
+        or app_owner_login != _CODEX_CONNECTOR_OWNER
+        or response.get("html_url") != reference
+        or response.get("issue_url") != expected_issue_url
+    ):
+        raise CommitIdentityError("issue-comment reference is not trusted Codex evidence")
+    created_at = _require_iso8601(response.get("created_at"), field="Codex comment created_at")
+    updated_at = _require_iso8601(response.get("updated_at"), field="Codex comment updated_at")
+    if created_at != updated_at:
+        raise CommitIdentityError("Codex issue comment was edited after creation")
+    body = response.get("body")
+    if not isinstance(body, str) or "\r" in body:
+        raise CommitIdentityError("Codex issue-comment body is malformed")
+    return body, created_at, updated_at
+
+
+def verify_review_credit_outage_references(
+    *,
+    override_reference: str,
+    quota_reference: str,
+    prior_review_reference: str,
+    operator_review_reference: str,
+    repository: str,
+    pr_number: int,
+    token: str,
+    snapshot: PrSnapshot,
+    expected_material_head_sha: str,
+    expected_material_digest: str,
+    now: datetime | None = None,
+    request_json: ApiRequest = github_api_request,
+) -> ReviewCreditOutageEvidence:
+    """Prove one bounded credit-exhaustion fallback without claiming Codex review."""
+
+    owner, name = _require_repository(repository)
+    if (
+        snapshot.repository.casefold() != repository.casefold()
+        or snapshot.pr_number != pr_number
+        or pr_number <= 0
+    ):
+        raise CommitIdentityError("review credit outage snapshot identity mismatch")
+    material_head = _require_sha(
+        expected_material_head_sha,
+        field="review credit outage material head",
+    )
+    if material_head not in snapshot.commit_shas:
+        raise CommitIdentityError(
+            "review credit outage material head is absent from the PR commit graph"
+        )
+    material_digest = _require_material_digest(expected_material_digest)
+    quota_pattern = re.compile(
+        rf"^https://github\.com/{re.escape(owner)}/{re.escape(name)}/pull/"
+        rf"{pr_number}#issuecomment-(\d+)$"
+    )
+    quota_match = quota_pattern.fullmatch(quota_reference)
+    if not quota_match:
+        raise CommitIdentityError(
+            "review credit outage evidence must be a GitHub issue comment on the exact PR"
+        )
+    quota_response = request_json(
+        f"{_API_ROOT}/repos/{owner}/{name}/issues/comments/{quota_match.group(1)}",
+        token=token,
+    )
+    quota_body, quota_created_at, _quota_updated_at = _trusted_codex_app_comment(
+        quota_response,
+        reference=quota_reference,
+        expected_issue_url=f"{_API_ROOT}/repos/{owner}/{name}/issues/{pr_number}",
+    )
+    if quota_body not in _CODEX_REVIEW_CREDIT_OUTAGE_BODIES:
+        raise CommitIdentityError("Codex comment is not an exact review-credit outage response")
+
+    current = now or datetime.now(timezone.utc)
+    if current.tzinfo is None:
+        raise CommitIdentityError("review credit outage validation time must include a timezone")
+    quota_created = datetime.fromisoformat(
+        quota_created_at[:-1] + "+00:00" if quota_created_at.endswith("Z") else quota_created_at
+    )
+    if quota_created > current + _CODEX_REVIEW_CREDIT_OUTAGE_CLOCK_SKEW:
+        raise CommitIdentityError("review credit outage timestamp is in the future")
+    if current - quota_created > _CODEX_REVIEW_CREDIT_OUTAGE_TTL:
+        raise CommitIdentityError("review credit outage evidence has expired")
+
+    prior_review = verify_codex_review_reference(
+        prior_review_reference,
+        repository=repository,
+        pr_number=pr_number,
+        token=token,
+        request_json=request_json,
+    )
+    prior_commit = classify_commit_ref(
+        prior_review.commit_ref,
+        snapshot,
+        token=token,
+        request_json=request_json,
+    )
+    if (
+        not isinstance(prior_commit, RepositoryCommitRef)
+        or prior_commit.kind is not CommitRefKind.PR_COMMIT
+        or not is_ancestor(
+            prior_commit,
+            RepositoryCommitRef(
+                material_head,
+                (
+                    CommitRefKind.PR_HEAD
+                    if material_head == snapshot.head_sha
+                    else CommitRefKind.PR_COMMIT
+                ),
+            ),
+            repository=repository,
+            token=token,
+            request_json=request_json,
+        )
+    ):
+        raise CommitIdentityError(
+            "review credit outage requires a trusted Codex review on an ancestor PR commit"
+        )
+    prior_submitted = datetime.fromisoformat(
+        prior_review.submitted_at[:-1] + "+00:00"
+        if prior_review.submitted_at.endswith("Z")
+        else prior_review.submitted_at
+    )
+    if prior_submitted > quota_created:
+        raise CommitIdentityError("trusted prior Codex review postdates the quota response")
+
+    review_pattern = re.compile(
+        rf"^https://github\.com/{re.escape(owner)}/{re.escape(name)}/pull/"
+        rf"{pr_number}#pullrequestreview-(\d+)$"
+    )
+    review_match = review_pattern.fullmatch(operator_review_reference)
+    if not review_match:
+        raise CommitIdentityError("operator fallback must be a GitHub review on the exact PR")
+    operator_response = request_json(
+        f"{_API_ROOT}/repos/{owner}/{name}/pulls/{pr_number}/reviews/" f"{review_match.group(1)}",
+        token=token,
+    )
+    if not isinstance(operator_response, dict):
+        raise CommitIdentityError("GitHub operator review response is malformed")
+    user = operator_response.get("user")
+    operator_user_id = user.get("id") if isinstance(user, dict) else None
+    operator_login = user.get("login") if isinstance(user, dict) else None
+    operator_type = user.get("type") if isinstance(user, dict) else None
+    operator_association = operator_response.get("author_association")
+    operator_submitted_at = _require_iso8601(
+        operator_response.get("submitted_at"),
+        field="operator exact-head review submitted_at",
+    )
+    operator_commit = _require_sha(
+        str(operator_response.get("commit_id") or ""),
+        field="operator exact-head review commit_id",
+    )
+    operator_body = operator_response.get("body")
+    expected_prefix = (
+        f"{_OPERATOR_EXACT_HEAD_REVIEW_PREFIX} `{material_head}`. " "No actionable findings remain."
+    )
+    if (
+        not isinstance(operator_user_id, int)
+        or isinstance(operator_user_id, bool)
+        or operator_user_id <= 0
+        or not isinstance(operator_login, str)
+        or not operator_login
+        or operator_type != "User"
+        or operator_association not in {"OWNER", "MEMBER"}
+        or operator_response.get("state") not in {"COMMENTED", "APPROVED"}
+        or operator_response.get("html_url") != operator_review_reference
+        or operator_commit != material_head
+        or not isinstance(operator_body, str)
+        or "\r" in operator_body
+        or not operator_body.startswith(expected_prefix)
+    ):
+        raise CommitIdentityError(
+            "operator review is not trusted exact-head credit-outage evidence"
+        )
+    operator_submitted = datetime.fromisoformat(
+        operator_submitted_at[:-1] + "+00:00"
+        if operator_submitted_at.endswith("Z")
+        else operator_submitted_at
+    )
+    if operator_submitted < quota_created:
+        raise CommitIdentityError("operator exact-head review predates the quota response")
+
+    override_pattern = re.compile(
+        rf"^https://github\.com/{re.escape(owner)}/{re.escape(name)}/pull/"
+        rf"{pr_number}#issuecomment-(\d+)$"
+    )
+    override_match = override_pattern.fullmatch(override_reference)
+    if not override_match:
+        raise CommitIdentityError(
+            "review credit outage override must be a GitHub issue comment on the exact PR"
+        )
+    override_response = request_json(
+        f"{_API_ROOT}/repos/{owner}/{name}/issues/comments/{override_match.group(1)}",
+        token=token,
+    )
+    if not isinstance(override_response, dict):
+        raise CommitIdentityError("GitHub review credit override response is malformed")
+    override_user = override_response.get("user")
+    override_user_id = override_user.get("id") if isinstance(override_user, dict) else None
+    override_login = override_user.get("login") if isinstance(override_user, dict) else None
+    override_type = override_user.get("type") if isinstance(override_user, dict) else None
+    override_association = override_response.get("author_association")
+    expected_issue_url = f"{_API_ROOT}/repos/{owner}/{name}/issues/{pr_number}"
+    if (
+        not isinstance(override_user_id, int)
+        or isinstance(override_user_id, bool)
+        or override_user_id <= 0
+        or not isinstance(override_login, str)
+        or not override_login
+        or override_type != "User"
+        or override_association not in {"OWNER", "MEMBER"}
+        or override_user_id != operator_user_id
+        or override_login != operator_login
+        or "performed_via_github_app" not in override_response
+        or override_response.get("performed_via_github_app") is not None
+        or override_response.get("html_url") != override_reference
+        or override_response.get("issue_url") != expected_issue_url
+    ):
+        raise CommitIdentityError("issue comment is not trusted review credit outage evidence")
+    override_created_at = _require_iso8601(
+        override_response.get("created_at"),
+        field="review credit outage override created_at",
+    )
+    override_updated_at = _require_iso8601(
+        override_response.get("updated_at"),
+        field="review credit outage override updated_at",
+    )
+    if override_created_at != override_updated_at:
+        raise CommitIdentityError("review credit outage override was edited after creation")
+    expected_override_body = render_review_credit_outage_override_comment(
+        pr_number=pr_number,
+        material_head_sha=material_head,
+        material_digest=material_digest,
+        quota_reference=quota_reference,
+        prior_review_reference=prior_review_reference,
+        operator_review_reference=operator_review_reference,
+    )
+    if (
+        not isinstance(override_response.get("body"), str)
+        or "\r" in override_response["body"]
+        or override_response["body"] != expected_override_body
+    ):
+        raise CommitIdentityError(
+            "review credit outage override body does not match the expected material"
+        )
+    override_created = datetime.fromisoformat(
+        override_created_at[:-1] + "+00:00"
+        if override_created_at.endswith("Z")
+        else override_created_at
+    )
+    if override_created > current + _CODEX_REVIEW_CREDIT_OUTAGE_CLOCK_SKEW:
+        raise CommitIdentityError("review credit outage override timestamp is in the future")
+    if current - override_created > _CODEX_REVIEW_CREDIT_OUTAGE_TTL:
+        raise CommitIdentityError("review credit outage override has expired")
+    if override_created < operator_submitted:
+        raise CommitIdentityError(
+            "review credit outage override predates the exact-head operator review"
+        )
+
+    return ReviewCreditOutageEvidence(
+        override_reference=override_reference,
+        override_created_at=override_created_at,
+        quota_reference=quota_reference,
+        quota_created_at=quota_created_at,
+        prior_review_reference=prior_review.reference,
+        prior_review_submitted_at=prior_review.submitted_at,
+        prior_review_commit_ref=prior_review.commit_ref,
+        operator_review_reference=operator_review_reference,
+        operator_review_submitted_at=operator_submitted_at,
+        operator_user_id=override_user_id,
+        operator_login=override_login,
+        operator_association=override_association,
+        material_head_sha=material_head,
+        material_digest=material_digest,
     )
 
 

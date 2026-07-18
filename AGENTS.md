@@ -216,7 +216,20 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
    check identity parser, any CI/security workflow or local GitHub Action, or an
    implementation/policy input of the substitute security checks cannot authorize themselves with
    this override. It is tooling-unavailability evidence, never
-   a security scan or no-findings claim. The trusted submitted review object's
+   a security scan or no-findings claim. When the official Codex connector
+   reports exhausted code-review credits for the final review cycle, a
+   short-lived review-credit override may replace only the unavailable exact-head
+   connector receipt. It requires the unedited trusted quota response, a prior
+   real Codex review on an ancestor PR commit, and a subsequent exact-head
+   `OWNER`/`MEMBER` review with no remaining actionables. The same operator must
+   then publish one unedited canonical override comment binding the final
+   material head/digest and all three evidence URLs. The receipt binds that
+   operator comment plus the quota and review references. PR `#2142` is the
+   one-time trust-boundary bootstrap; later PRs that change review/seal/merge
+   verification, current-head check authority, or GitHub workflow/action
+   authority cannot authorize themselves with this override. It records
+   review-provider unavailability, never a Codex review or no-findings result.
+   The trusted submitted review object's
    real GitHub `commit_id` must equal the frozen material head. When the official
    Codex connector emits an unedited no-findings issue comment instead, its
    trusted GitHub App identity and reviewed-commit prefix must resolve through

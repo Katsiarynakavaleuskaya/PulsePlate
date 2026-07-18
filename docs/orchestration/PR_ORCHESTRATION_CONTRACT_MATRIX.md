@@ -152,6 +152,17 @@ governance PR number + 1; the governance PR may opt in with
   The embedded scan record is a
   `human_asserted_content_receipt`: CI verifies schema, hashes, coverage, range,
   and content binding but does not claim signed/plugin attestation.
+- If the trusted connector returns its exact review-credit exhaustion response
+  for the final review cycle, the seal may use the closed
+  `operator_review_credit_exhaustion_override` variant. It requires a prior
+  trusted Codex review on an ancestor PR commit and a later exact-head
+  `OWNER`/`MEMBER` review. That same operator must publish one unedited canonical
+  override comment binding the trusted quota response, both review references,
+  the exact head, and the material digest. The receipt is time-limited and
+  records provider unavailability, not Codex review/no-findings. PR `#2142` is
+  the one-time trust-boundary bootstrap; subsequent changes to review/seal/merge
+  verification, current-head check authority, or GitHub workflow/action
+  authority cannot authorize themselves with it.
 - `pr_review_closeout.py` keeps `init`, `freeze`, and `add-disposition` state
   gitignored. `seal` is the only tracked authoring step; mapping and seal publish
   in one batched governance-closeout commit.

@@ -23,6 +23,7 @@ from scripts.orchestration.pr_commit_identity import (
     PrSnapshot,
     ReviewCommentEvidence,
     RepositoryCommitRef,
+    ReviewCreditOutageEvidence,
     ReviewExecutionRef,
     ReviewThreadEvidence,
     SecurityOutageOverrideEvidence,
@@ -31,8 +32,10 @@ from scripts.orchestration.pr_commit_identity import (
     fetch_pr_snapshot,
     fetch_review_threads,
     is_ancestor,
+    render_review_credit_outage_override_comment,
     render_security_outage_override_comment,
     verify_codex_review_reference,
+    verify_review_credit_outage_references,
     verify_security_outage_override_reference,
 )
 from scripts.orchestration import pr_commit_identity as identity_module
@@ -45,14 +48,17 @@ from scripts.orchestration.pr_review_evidence import (
     SEAL_END,
     MaterialManifest,
     ReviewEvidenceError,
+    build_review_credit_outage_receipt,
     build_security_outage_override_receipt,
     compute_material_manifest,
     ingest_codex_security_receipt,
+    is_review_credit_outage_receipt,
     is_security_outage_override_receipt,
     parse_duplicate_disposition_reply,
     parse_embedded_review_seal,
     render_embedded_review_seal,
     unavailable_review_ref_fingerprint,
+    validate_review_credit_outage_scope,
     validate_security_outage_override_scope,
     validated_duplicate_reply_urls,
 )
@@ -730,6 +736,360 @@ def test_codex_no_findings_comment_rejects_unresolved_short_commit() -> None:
             pr_number=42,
             token="opaque",
             request_json=lambda *_a, **_k: _codex_no_findings_comment(reference),
+        )
+
+
+def _review_credit_quota_comment(
+    reference: str,
+    *,
+    body: str | None = None,
+    created_at: str = "2026-07-15T11:05:00Z",
+) -> dict[str, Any]:
+    return {
+        "body": (
+            body
+            if body is not None
+            else (
+                "Codex usage limits have been reached for code reviews. "
+                "Please check with the admins of this repo to increase the limits "
+                "by adding credits.\n"
+                "Credits must be used to enable repository wide code reviews."
+            )
+        ),
+        "created_at": created_at,
+        "html_url": reference,
+        "issue_url": "https://api.github.com/repos/owner/repo/issues/42",
+        "performed_via_github_app": {
+            "id": 1_144_995,
+            "owner": {"login": "openai"},
+            "slug": "chatgpt-codex-connector",
+        },
+        "updated_at": created_at,
+        "user": {"login": "chatgpt-codex-connector[bot]", "type": "Bot"},
+    }
+
+
+def _prior_codex_review(reference: str) -> dict[str, Any]:
+    return {
+        "commit_id": FIX_SHA,
+        "html_url": reference,
+        "state": "COMMENTED",
+        "submitted_at": "2026-07-15T10:30:00Z",
+        "user": {"login": "chatgpt-codex-connector[bot]"},
+    }
+
+
+def _operator_exact_head_review(reference: str) -> dict[str, Any]:
+    return {
+        "author_association": "OWNER",
+        "body": (
+            f"Exact-head bounded review completed for `{HEAD_SHA}`. "
+            "No actionable findings remain.\n\n"
+            "Reviewed the final bounded remediation and focused validation evidence."
+        ),
+        "commit_id": HEAD_SHA,
+        "html_url": reference,
+        "state": "COMMENTED",
+        "submitted_at": "2026-07-15T11:10:00Z",
+        "user": {"id": 123, "login": "owner", "type": "User"},
+    }
+
+
+def _review_credit_override_comment(
+    reference: str,
+    *,
+    quota_reference: str,
+    prior_review_reference: str,
+    operator_review_reference: str,
+    created_at: str = "2026-07-15T11:15:00Z",
+) -> dict[str, Any]:
+    return {
+        "author_association": "OWNER",
+        "body": render_review_credit_outage_override_comment(
+            pr_number=42,
+            material_head_sha=HEAD_SHA,
+            material_digest=DIGEST,
+            quota_reference=quota_reference,
+            prior_review_reference=prior_review_reference,
+            operator_review_reference=operator_review_reference,
+        ),
+        "created_at": created_at,
+        "html_url": reference,
+        "issue_url": "https://api.github.com/repos/owner/repo/issues/42",
+        "performed_via_github_app": None,
+        "updated_at": created_at,
+        "user": {"id": 123, "login": "owner", "type": "User"},
+    }
+
+
+def _review_credit_request_json(
+    override_reference: str,
+    quota_reference: str,
+    prior_review_reference: str,
+    operator_review_reference: str,
+) -> Any:
+    def request_json(url: str, **_kwargs: Any) -> Any:
+        if url.endswith("/issues/comments/456"):
+            return _review_credit_quota_comment(quota_reference)
+        if url.endswith("/issues/comments/654"):
+            return _review_credit_override_comment(
+                override_reference,
+                quota_reference=quota_reference,
+                prior_review_reference=prior_review_reference,
+                operator_review_reference=operator_review_reference,
+            )
+        if url.endswith("/reviews/123"):
+            return _prior_codex_review(prior_review_reference)
+        if url.endswith("/reviews/789"):
+            return _operator_exact_head_review(operator_review_reference)
+        if url.endswith("/commits/" + FIX_SHA):
+            return {"sha": FIX_SHA}
+        if "/compare/" in url:
+            return {
+                "ahead_by": 1,
+                "base_commit": {"sha": FIX_SHA},
+                "behind_by": 0,
+                "commits": [{"sha": HEAD_SHA}],
+                "merge_base_commit": {"sha": FIX_SHA},
+                "status": "ahead",
+            }
+        raise AssertionError(f"unexpected GitHub API URL: {url}")
+
+    return request_json
+
+
+def test_review_credit_outage_requires_trusted_quota_prior_review_and_owner_head() -> None:
+    override_reference = "https://github.com/owner/repo/pull/42#issuecomment-654"
+    quota_reference = "https://github.com/owner/repo/pull/42#issuecomment-456"
+    prior_review_reference = "https://github.com/owner/repo/pull/42#pullrequestreview-123"
+    operator_review_reference = "https://github.com/owner/repo/pull/42#pullrequestreview-789"
+
+    evidence = verify_review_credit_outage_references(
+        override_reference=override_reference,
+        quota_reference=quota_reference,
+        prior_review_reference=prior_review_reference,
+        operator_review_reference=operator_review_reference,
+        repository="owner/repo",
+        pr_number=42,
+        token="opaque",
+        snapshot=_snapshot(),
+        expected_material_head_sha=HEAD_SHA,
+        expected_material_digest=DIGEST,
+        now=datetime(2026, 7, 15, 12, tzinfo=timezone.utc),
+        request_json=_review_credit_request_json(
+            override_reference,
+            quota_reference,
+            prior_review_reference,
+            operator_review_reference,
+        ),
+    )
+
+    assert evidence.override_reference == override_reference
+    assert evidence.material_digest == DIGEST
+    assert evidence.material_head_sha == HEAD_SHA
+    assert evidence.prior_review_commit_ref == FIX_SHA
+    assert evidence.operator_user_id == 123
+    assert evidence.operator_association == "OWNER"
+
+
+@pytest.mark.parametrize(
+    ("mutation", "error"),
+    [
+        (
+            lambda response: response.update(updated_at="2026-07-15T11:06:00Z"),
+            "edited after creation",
+        ),
+        (
+            lambda response: response.update(body="Codex review unavailable"),
+            "not an exact review-credit outage",
+        ),
+        (
+            lambda response: response["performed_via_github_app"].update(id=1),
+            "not trusted Codex evidence",
+        ),
+    ],
+)
+def test_review_credit_outage_rejects_ambiguous_quota_evidence(
+    mutation: Any,
+    error: str,
+) -> None:
+    override_reference = "https://github.com/owner/repo/pull/42#issuecomment-654"
+    quota_reference = "https://github.com/owner/repo/pull/42#issuecomment-456"
+    prior_review_reference = "https://github.com/owner/repo/pull/42#pullrequestreview-123"
+    operator_review_reference = "https://github.com/owner/repo/pull/42#pullrequestreview-789"
+    quota_response = _review_credit_quota_comment(quota_reference)
+    mutation(quota_response)
+    base_request = _review_credit_request_json(
+        override_reference,
+        quota_reference,
+        prior_review_reference,
+        operator_review_reference,
+    )
+
+    def request_json(url: str, **kwargs: Any) -> Any:
+        if url.endswith("/issues/comments/456"):
+            return quota_response
+        return base_request(url, **kwargs)
+
+    with pytest.raises(CommitIdentityError, match=error):
+        verify_review_credit_outage_references(
+            override_reference=override_reference,
+            quota_reference=quota_reference,
+            prior_review_reference=prior_review_reference,
+            operator_review_reference=operator_review_reference,
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            snapshot=_snapshot(),
+            expected_material_head_sha=HEAD_SHA,
+            expected_material_digest=DIGEST,
+            now=datetime(2026, 7, 15, 12, tzinfo=timezone.utc),
+            request_json=request_json,
+        )
+
+
+@pytest.mark.parametrize(
+    ("mutation", "error"),
+    [
+        (
+            lambda response: response.update(updated_at="2026-07-15T11:16:00Z"),
+            "edited after creation",
+        ),
+        (
+            lambda response: response.update(body="operator says proceed"),
+            "body does not match",
+        ),
+        (
+            lambda response: response["user"].update(id=999),
+            "not trusted review credit outage evidence",
+        ),
+        (
+            lambda response: response.update(
+                created_at="2026-07-15T11:09:00Z",
+                updated_at="2026-07-15T11:09:00Z",
+            ),
+            "predates the exact-head operator review",
+        ),
+    ],
+)
+def test_review_credit_outage_rejects_ambiguous_owner_override(
+    mutation: Any,
+    error: str,
+) -> None:
+    override_reference = "https://github.com/owner/repo/pull/42#issuecomment-654"
+    quota_reference = "https://github.com/owner/repo/pull/42#issuecomment-456"
+    prior_review_reference = "https://github.com/owner/repo/pull/42#pullrequestreview-123"
+    operator_review_reference = "https://github.com/owner/repo/pull/42#pullrequestreview-789"
+    override_response = _review_credit_override_comment(
+        override_reference,
+        quota_reference=quota_reference,
+        prior_review_reference=prior_review_reference,
+        operator_review_reference=operator_review_reference,
+    )
+    mutation(override_response)
+    base_request = _review_credit_request_json(
+        override_reference,
+        quota_reference,
+        prior_review_reference,
+        operator_review_reference,
+    )
+
+    def request_json(url: str, **kwargs: Any) -> Any:
+        if url.endswith("/issues/comments/654"):
+            return override_response
+        return base_request(url, **kwargs)
+
+    with pytest.raises(CommitIdentityError, match=error):
+        verify_review_credit_outage_references(
+            override_reference=override_reference,
+            quota_reference=quota_reference,
+            prior_review_reference=prior_review_reference,
+            operator_review_reference=operator_review_reference,
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            snapshot=_snapshot(),
+            expected_material_head_sha=HEAD_SHA,
+            expected_material_digest=DIGEST,
+            now=datetime(2026, 7, 15, 12, tzinfo=timezone.utc),
+            request_json=request_json,
+        )
+
+
+def test_review_credit_outage_receipt_is_distinct_and_material_bound() -> None:
+    receipt = build_review_credit_outage_receipt(
+        material_digest=DIGEST,
+        material_head_sha=HEAD_SHA,
+        override_reference="https://github.com/owner/repo/pull/42#issuecomment-654",
+        override_created_at="2026-07-15T11:15:00Z",
+        quota_reference="https://github.com/owner/repo/pull/42#issuecomment-456",
+        quota_created_at="2026-07-15T11:05:00Z",
+        prior_review_reference=("https://github.com/owner/repo/pull/42#pullrequestreview-123"),
+        prior_review_submitted_at="2026-07-15T10:30:00Z",
+        prior_review_commit_ref=FIX_SHA,
+        operator_review_reference=("https://github.com/owner/repo/pull/42#pullrequestreview-789"),
+        operator_review_submitted_at="2026-07-15T11:10:00Z",
+        operator_user_id=123,
+        operator_login="owner",
+        operator_association="OWNER",
+    )
+
+    assert is_review_credit_outage_receipt(receipt)
+    assert receipt["status"] == "tooling_unavailable"
+    assert receipt["review_commit_ref"] == HEAD_SHA
+    seal = _seal(
+        build_security_outage_override_receipt(
+            base_revision=BASE_SHA,
+            head_revision=HEAD_SHA,
+            material_digest=DIGEST,
+            override_reference=("https://github.com/owner/repo/pull/42#issuecomment-789"),
+            created_at="2026-07-15T11:00:00Z",
+            operator_user_id=123,
+            operator_login="owner",
+            operator_association="OWNER",
+        )
+    )
+    seal["code_review"] = receipt
+    parsed = parse_embedded_review_seal(render_embedded_review_seal(seal))
+    assert parsed["code_review"] == receipt
+
+
+@pytest.mark.parametrize(
+    ("repository", "pr_number", "paths", "allowed"),
+    [
+        (
+            "Katsiarynakavaleuskaya/PulsePlate",
+            2142,
+            ("scripts/ci/check_pr_merge_readiness.py",),
+            True,
+        ),
+        (
+            "Katsiarynakavaleuskaya/PulsePlate",
+            2143,
+            ("scripts/ci/check_pr_merge_readiness.py",),
+            False,
+        ),
+        ("owner/repo", 42, ("requirements-test.txt",), True),
+    ],
+)
+def test_review_credit_outage_scope_blocks_future_self_authorization(
+    repository: str,
+    pr_number: int,
+    paths: tuple[str, ...],
+    allowed: bool,
+) -> None:
+    if allowed:
+        validate_review_credit_outage_scope(
+            repository=repository,
+            pr_number=pr_number,
+            material_paths=paths,
+        )
+        return
+    with pytest.raises(ReviewEvidenceError, match="trust-boundary changes"):
+        validate_review_credit_outage_scope(
+            repository=repository,
+            pr_number=pr_number,
+            material_paths=paths,
         )
 
 
@@ -1431,6 +1791,121 @@ def test_authenticated_closeout_revalidates_operator_outage_override(
 
     assert seal["codex_security"] == receipt
     assert override_calls == [(HEAD_SHA, DIGEST)]
+
+
+def test_authenticated_closeout_revalidates_review_credit_override(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    quota_reference = "https://github.com/owner/repo/pull/42#issuecomment-456"
+    override_reference = "https://github.com/owner/repo/pull/42#issuecomment-654"
+    prior_reference = "https://github.com/owner/repo/pull/42#pullrequestreview-123"
+    operator_reference = "https://github.com/owner/repo/pull/42#pullrequestreview-789"
+    code_review = build_review_credit_outage_receipt(
+        material_digest=DIGEST,
+        material_head_sha=HEAD_SHA,
+        override_reference=override_reference,
+        override_created_at="2026-07-15T11:15:00Z",
+        quota_reference=quota_reference,
+        quota_created_at="2026-07-15T11:05:00Z",
+        prior_review_reference=prior_reference,
+        prior_review_submitted_at="2026-07-15T10:30:00Z",
+        prior_review_commit_ref=FIX_SHA,
+        operator_review_reference=operator_reference,
+        operator_review_submitted_at="2026-07-15T11:10:00Z",
+        operator_user_id=123,
+        operator_login="owner",
+        operator_association="OWNER",
+    )
+    security_receipt = build_security_outage_override_receipt(
+        base_revision=BASE_SHA,
+        head_revision=HEAD_SHA,
+        material_digest=DIGEST,
+        override_reference="https://github.com/owner/repo/pull/42#issuecomment-789",
+        created_at="2026-07-15T11:00:00Z",
+        operator_user_id=123,
+        operator_login="owner",
+        operator_association="OWNER",
+    )
+    seal = _seal(security_receipt)
+    seal["code_review"] = code_review
+    mapping = tmp_path / "PR_42_FIXED_MAPPING.md"
+    mapping.write_text(_mapping_artifact_with_seal(seal), encoding="utf-8")
+    manifest = MaterialManifest(
+        base_ref_oid=BASE_SHA,
+        head_ref_oid=HEAD_SHA,
+        merge_base_sha=BASE_SHA,
+        pr_number=42,
+        entries=(),
+        digest=DIGEST,
+    )
+    monkeypatch.setattr(closeout_module, "mapping_artifact_path", lambda _pr: mapping)
+    monkeypatch.setattr(closeout_module, "fetch_pr_snapshot", lambda *_a, **_k: _snapshot())
+    monkeypatch.setattr(closeout_module, "_git", lambda *_a, **_k: HEAD_SHA)
+    monkeypatch.setattr(
+        closeout_module,
+        "compute_material_manifest",
+        lambda *_a, **_k: manifest,
+    )
+    monkeypatch.setattr(
+        closeout_module,
+        "classify_commit_ref",
+        lambda value, *_a, **_k: RepositoryCommitRef(
+            value,
+            CommitRefKind.PR_HEAD if value == HEAD_SHA else CommitRefKind.PR_COMMIT,
+        ),
+    )
+    credit_calls: list[tuple[str, str]] = []
+
+    def verify_credit(*_args: Any, **kwargs: Any) -> ReviewCreditOutageEvidence:
+        credit_calls.append(
+            (kwargs["expected_material_head_sha"], kwargs["expected_material_digest"])
+        )
+        return ReviewCreditOutageEvidence(
+            override_reference=override_reference,
+            override_created_at="2026-07-15T11:15:00Z",
+            quota_reference=quota_reference,
+            quota_created_at="2026-07-15T11:05:00Z",
+            prior_review_reference=prior_reference,
+            prior_review_submitted_at="2026-07-15T10:30:00Z",
+            prior_review_commit_ref=FIX_SHA,
+            operator_review_reference=operator_reference,
+            operator_review_submitted_at="2026-07-15T11:10:00Z",
+            operator_user_id=123,
+            operator_login="owner",
+            operator_association="OWNER",
+            material_head_sha=HEAD_SHA,
+            material_digest=DIGEST,
+        )
+
+    monkeypatch.setattr(
+        closeout_module,
+        "verify_review_credit_outage_references",
+        verify_credit,
+    )
+    monkeypatch.setattr(
+        closeout_module,
+        "verify_security_outage_override_reference",
+        lambda *_a, **_k: SecurityOutageOverrideEvidence(
+            reference=security_receipt["override_reference"],
+            created_at=security_receipt["created_at"],
+            operator_user_id=123,
+            operator_login="owner",
+            operator_association="OWNER",
+            material_head_sha=HEAD_SHA,
+            material_digest=DIGEST,
+        ),
+    )
+    monkeypatch.setattr(closeout_module, "is_ancestor", lambda *_a, **_k: True)
+    monkeypatch.setattr(closeout_module, "assert_snapshot_unchanged", lambda *_a, **_k: None)
+
+    validated = closeout_module.validate_live_mapping(
+        repository="owner/repo",
+        pr_number=42,
+        token="opaque",
+    )
+
+    assert validated["code_review"] == code_review
+    assert credit_calls == [(HEAD_SHA, DIGEST)]
 
 
 def test_embedded_seal_round_trip_is_strict_and_canonical(tmp_path: Path) -> None:

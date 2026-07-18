@@ -20,12 +20,14 @@ from scripts.orchestration.pr_commit_identity import (
     PrCommitEvidence,
     PrSnapshot,
     RepositoryCommitRef,
+    ReviewCreditOutageEvidence,
     SecurityOutageOverrideEvidence,
 )
 from scripts.orchestration.pr_review_evidence import (
     MATERIAL_POLICY_VERSION,
     RECEIPT_AUTHORITY,
     ReviewEvidenceError,
+    build_review_credit_outage_receipt,
     build_security_outage_override_receipt,
     compute_material_manifest,
     render_embedded_review_seal,
@@ -999,6 +1001,125 @@ def test_ci_gate_revalidates_live_operator_outage_override(
     assert validated["codex_security"]["status"] == "tooling_unavailable"
     assert override_calls == [(material_head, frozen.digest)]
     assert check_calls == [governance_head]
+
+
+def test_ci_gate_revalidates_review_credit_outage_against_material_head(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init", "-q")
+    (repo / "README.md").write_text("base\n", encoding="utf-8")
+    base_sha = _commit(repo, "base")
+    source = repo / "src" / "policy.py"
+    source.parent.mkdir(parents=True)
+    source.write_text("ENFORCED = True\n", encoding="utf-8")
+    material_head = _commit(repo, "material")
+    frozen = compute_material_manifest(
+        repo, base_ref_oid=base_sha, head_ref_oid=material_head, pr_number=42
+    )
+    quota_reference = "https://github.com/owner/repo/pull/42#issuecomment-456"
+    override_reference = "https://github.com/owner/repo/pull/42#issuecomment-654"
+    prior_reference = "https://github.com/owner/repo/pull/42#pullrequestreview-123"
+    operator_reference = "https://github.com/owner/repo/pull/42#pullrequestreview-789"
+    code_review = build_review_credit_outage_receipt(
+        material_digest=frozen.digest,
+        material_head_sha=material_head,
+        override_reference=override_reference,
+        override_created_at="2026-07-16T11:15:00Z",
+        quota_reference=quota_reference,
+        quota_created_at="2026-07-16T11:05:00Z",
+        prior_review_reference=prior_reference,
+        prior_review_submitted_at="2026-07-16T10:30:00Z",
+        prior_review_commit_ref=base_sha,
+        operator_review_reference=operator_reference,
+        operator_review_submitted_at="2026-07-16T11:10:00Z",
+        operator_user_id=123,
+        operator_login="owner",
+        operator_association="OWNER",
+    )
+    seal = {
+        "authority": RECEIPT_AUTHORITY,
+        "code_review": code_review,
+        "codex_security": _receipt(base_sha, material_head),
+        "material": {
+            "base_ref_oid": base_sha,
+            "digest": frozen.digest,
+            "material_head_sha": material_head,
+            "merge_base_sha": frozen.merge_base_sha,
+            "policy_version": MATERIAL_POLICY_VERSION,
+        },
+        "pr_number": 42,
+        "repository": "owner/repo",
+        "schema_version": "pulseplate.pr-review-seal/v1",
+    }
+    artifact = _artifact_with_seal(seal)
+    mapping = repo / "docs" / "review" / "PR_42_FIXED_MAPPING.md"
+    mapping.parent.mkdir(parents=True)
+    mapping.write_text(artifact, encoding="utf-8")
+    governance_head = _commit(repo, "governance closeout")
+    snapshot = PrSnapshot(
+        repository="owner/repo",
+        pr_number=42,
+        base_sha=base_sha,
+        head_sha=governance_head,
+        commits=(
+            PrCommitEvidence(material_head, None),
+            PrCommitEvidence(governance_head, None),
+        ),
+    )
+    monkeypatch.setattr(merge_gate, "REPO_ROOT", repo)
+    monkeypatch.setattr(
+        merge_gate,
+        "classify_commit_ref",
+        lambda value, *_a, **_k: RepositoryCommitRef(
+            value,
+            CommitRefKind.PR_HEAD if value == governance_head else CommitRefKind.PR_COMMIT,
+        ),
+    )
+    monkeypatch.setattr(merge_gate, "is_ancestor", lambda *_a, **_k: True)
+    verified_heads: list[str] = []
+
+    def verify_credit(*_args: Any, **kwargs: Any) -> ReviewCreditOutageEvidence:
+        verified_heads.append(kwargs["expected_material_head_sha"])
+        return ReviewCreditOutageEvidence(
+            override_reference=override_reference,
+            override_created_at="2026-07-16T11:15:00Z",
+            quota_reference=quota_reference,
+            quota_created_at="2026-07-16T11:05:00Z",
+            prior_review_reference=prior_reference,
+            prior_review_submitted_at="2026-07-16T10:30:00Z",
+            prior_review_commit_ref=base_sha,
+            operator_review_reference=operator_reference,
+            operator_review_submitted_at="2026-07-16T11:10:00Z",
+            operator_user_id=123,
+            operator_login="owner",
+            operator_association="OWNER",
+            material_head_sha=material_head,
+            material_digest=frozen.digest,
+        )
+
+    monkeypatch.setattr(
+        merge_gate,
+        "verify_review_credit_outage_references",
+        verify_credit,
+    )
+    monkeypatch.setattr(
+        merge_gate,
+        "verify_codex_review_reference",
+        lambda *_a, **_k: pytest.fail("normal Codex review path must not run"),
+    )
+
+    validated = merge_gate._validate_v1_seal(
+        artifact_text=artifact,
+        repository="owner/repo",
+        pr_number=42,
+        snapshot=snapshot,
+        token="opaque",
+    )
+
+    assert validated["code_review"]["status"] == "tooling_unavailable"
+    assert verified_heads == [material_head]
 
 
 def test_merge_readiness_main_blocks_missing_mapping(
