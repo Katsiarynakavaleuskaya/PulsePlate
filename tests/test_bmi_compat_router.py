@@ -3,6 +3,8 @@ from __future__ import annotations
 import asyncio
 import ast
 from pathlib import Path
+import subprocess
+import sys
 from typing import Any
 
 from fastapi.testclient import TestClient
@@ -23,6 +25,57 @@ from app.routers.bmi_compat import BMI_COMPAT_ROUTE_SPECS, router
 from app.schemas.bmi_compat import BMIRequest, BMIRequestV1
 import app.services.bmi_compat as bmi_compat_service
 import legacy_app
+
+
+@pytest.mark.parametrize(
+    "imports",
+    [
+        """
+import bmi_visualization
+import app.services.bmi_compat as bmi_compat_service
+import app as app_package
+import legacy_app
+""",
+        """
+import bmi_visualization
+import app as app_package
+import legacy_app
+import app.services.bmi_compat as bmi_compat_service
+""",
+    ],
+    ids=["service-first", "facades-first"],
+)
+def test_bmi_visualization_compat_exports_survive_clean_import_orders(
+    imports: str,
+) -> None:
+    script = imports + """
+assert (
+    bmi_compat_service.generate_bmi_visualization
+    is bmi_visualization.generate_bmi_visualization
+)
+assert app_package.generate_bmi_visualization is bmi_visualization.generate_bmi_visualization
+assert legacy_app.generate_bmi_visualization is bmi_visualization.generate_bmi_visualization
+assert (
+    bmi_compat_service.MATPLOTLIB_AVAILABLE
+    == app_package.MATPLOTLIB_AVAILABLE
+    == legacy_app.MATPLOTLIB_AVAILABLE
+    == bmi_visualization.MATPLOTLIB_AVAILABLE
+)
+print("ok")
+"""
+
+    completed = subprocess.run(
+        [sys.executable, "-c", script],
+        cwd=Path(__file__).resolve().parents[1],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed.returncode == 0, (
+        f"stdout:\n{completed.stdout[-4000:]}\n" f"stderr:\n{completed.stderr[-4000:]}"
+    )
+    assert completed.stdout.strip() == "ok"
 
 
 def _post_routes_for(path: str) -> list[Any]:
