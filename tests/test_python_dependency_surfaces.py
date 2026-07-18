@@ -1067,9 +1067,17 @@ def test_private_proxy_environment_is_canonical_and_sanitized(
         "SSL_CERT_FILE",
         "REQUESTS_CA_BUNDLE",
         "CURL_CA_BUNDLE",
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "ALL_PROXY",
+        "NO_PROXY",
+        "http_proxy",
+        "https_proxy",
+        "all_proxy",
+        "no_proxy",
     ),
 )
-def test_private_proxy_environment_rejects_ambient_constraint_and_ca_controls(
+def test_private_proxy_environment_rejects_ambient_constraint_ca_and_proxy_controls(
     variable: str,
     tmp_path: Path,
 ) -> None:

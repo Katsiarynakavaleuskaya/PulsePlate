@@ -671,7 +671,7 @@ def verify_review_credit_outage_references(
         field="operator exact-head review commit_id",
     )
     operator_body = operator_response.get("body")
-    expected_prefix = (
+    expected_body = (
         f"{_OPERATOR_EXACT_HEAD_REVIEW_PREFIX} `{material_head}`. " "No actionable findings remain."
     )
     if (
@@ -687,7 +687,7 @@ def verify_review_credit_outage_references(
         or operator_commit != material_head
         or not isinstance(operator_body, str)
         or "\r" in operator_body
-        or not operator_body.startswith(expected_prefix)
+        or operator_body != expected_body
     ):
         raise CommitIdentityError(
             "operator review is not trusted exact-head credit-outage evidence"

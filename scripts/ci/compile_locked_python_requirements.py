@@ -82,7 +82,11 @@ EXACT_UPGRADE_RE = re.compile(
     r"^(?P<name>[A-Za-z0-9][A-Za-z0-9._-]*)==" r"(?P<version>[A-Za-z0-9][A-Za-z0-9._+!~-]*)$"
 )
 AMBIENT_RESOLVER_ENV_VARS = (
+    "ALL_PROXY",
+    "HTTP_PROXY",
+    "HTTPS_PROXY",
     "NETRC",
+    "NO_PROXY",
     "PIP_INDEX_URL",
     "PIP_EXTRA_INDEX_URL",
     "PIP_CONFIG_FILE",
@@ -109,6 +113,10 @@ AMBIENT_RESOLVER_ENV_VARS = (
     "UV_FIND_LINKS",
     "UV_NO_INDEX",
     "UV_INSECURE_HOST",
+    "all_proxy",
+    "http_proxy",
+    "https_proxy",
+    "no_proxy",
 )
 PASSTHROUGH_ENV_VARS = (
     "HOME",
@@ -765,7 +773,7 @@ def _reject_ambient_resolver_overrides(environment: Mapping[str, str]) -> None:
     )
     if overrides:
         raise RuntimeError(
-            "Ambient pip/uv resolver controls are forbidden for lock compilation: "
+            "Ambient resolver/network controls are forbidden for lock compilation: "
             + ", ".join(overrides)
         )
 

@@ -785,8 +785,7 @@ def _operator_exact_head_review(reference: str) -> dict[str, Any]:
         "author_association": "OWNER",
         "body": (
             f"Exact-head bounded review completed for `{HEAD_SHA}`. "
-            "No actionable findings remain.\n\n"
-            "Reviewed the final bounded remediation and focused validation evidence."
+            "No actionable findings remain."
         ),
         "commit_id": HEAD_SHA,
         "html_url": reference,
@@ -891,6 +890,45 @@ def test_review_credit_outage_requires_trusted_quota_prior_review_and_owner_head
     assert evidence.prior_review_commit_ref == FIX_SHA
     assert evidence.operator_user_id == 123
     assert evidence.operator_association == "OWNER"
+
+
+def test_review_credit_outage_rejects_actionable_operator_review_suffix() -> None:
+    override_reference = "https://github.com/owner/repo/pull/42#issuecomment-654"
+    quota_reference = "https://github.com/owner/repo/pull/42#issuecomment-456"
+    prior_review_reference = "https://github.com/owner/repo/pull/42#pullrequestreview-123"
+    operator_review_reference = "https://github.com/owner/repo/pull/42#pullrequestreview-789"
+    operator_review = _operator_exact_head_review(operator_review_reference)
+    operator_review["body"] += "\n\nP2: unresolved review finding"
+    base_request = _review_credit_request_json(
+        override_reference,
+        quota_reference,
+        prior_review_reference,
+        operator_review_reference,
+    )
+
+    def request_json(url: str, **kwargs: Any) -> Any:
+        if url.endswith("/reviews/789"):
+            return operator_review
+        return base_request(url, **kwargs)
+
+    with pytest.raises(
+        CommitIdentityError,
+        match="operator review is not trusted exact-head credit-outage evidence",
+    ):
+        verify_review_credit_outage_references(
+            override_reference=override_reference,
+            quota_reference=quota_reference,
+            prior_review_reference=prior_review_reference,
+            operator_review_reference=operator_review_reference,
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            snapshot=_snapshot(),
+            expected_material_head_sha=HEAD_SHA,
+            expected_material_digest=DIGEST,
+            now=datetime(2026, 7, 15, 12, tzinfo=timezone.utc),
+            request_json=request_json,
+        )
 
 
 @pytest.mark.parametrize(
@@ -1074,6 +1112,12 @@ def test_review_credit_outage_receipt_is_distinct_and_material_bound() -> None:
             "Katsiarynakavaleuskaya/PulsePlate",
             2143,
             ("scripts/ci/check_pr_body_phase2_gates.py",),
+            False,
+        ),
+        (
+            "Katsiarynakavaleuskaya/PulsePlate",
+            2143,
+            ("docs/orchestration/REVIEW_SOURCE_DEGRADATION_POLICY.md",),
             False,
         ),
         ("owner/repo", 42, ("requirements-test.txt",), True),
