@@ -1795,6 +1795,20 @@ def test_scan_receipt_rejects_matching_partial_git_diff_scope(tmp_path: Path) ->
         )
 
 
+def test_scan_receipt_rejects_unsupported_manifest_scope_fields(tmp_path: Path) -> None:
+    manifest_path = _build_scan_bundle(tmp_path / "scan")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["scan"]["scope"]["explicitExclusions"] = [
+        {"pattern": "app/security/**", "reason": "not reviewed"}
+    ]
+    _write_json(manifest_path, manifest)
+
+    with pytest.raises(ReviewEvidenceError, match="scope contains unsupported fields"):
+        ingest_codex_security_receipt(
+            manifest_path, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+        )
+
+
 @pytest.mark.parametrize(
     ("field", "value"),
     [
@@ -2186,6 +2200,7 @@ def test_scan_receipt_uses_stable_root_descriptor_for_referenced_artifacts(
         manifest_path, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
     )
 
+    assert swapped, "test setup did not swap the scan root"
     assert receipt["coverage_completeness"] == "complete"
 
 

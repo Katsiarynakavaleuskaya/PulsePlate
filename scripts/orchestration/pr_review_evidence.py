@@ -137,6 +137,18 @@ _MAX_SCOPE_PATHS = 256
 _MAX_ARTIFACT_PATH_BYTES = 1024
 _MAX_ARTIFACT_PATH_DEPTH = 16
 _MAX_ARTIFACT_COMPONENT_BYTES = 255
+_SCAN_SCOPE_KEYS = frozenset(
+    {
+        "artifactsReviewed",
+        "context",
+        "excludePaths",
+        "includePaths",
+        "limitations",
+        "runtimeStatus",
+        "summary",
+        "validationMode",
+    }
+)
 _COVERAGE_DISPOSITIONS = {
     "reported",
     "no_issue_found",
@@ -935,12 +947,16 @@ def _ingest_codex_security_receipt_from_descriptor(
         raise ReviewEvidenceError("scan.id must be a lowercase UUID")
     if not isinstance(scan["scope"], dict) or not isinstance(scan["threatModel"], dict):
         raise ReviewEvidenceError("scan scope and threatModel must be objects")
+    scope = scan["scope"]
+    unknown_scope_keys = sorted(set(scope) - _SCAN_SCOPE_KEYS)
+    if unknown_scope_keys:
+        raise ReviewEvidenceError(f"scan scope contains unsupported fields: {unknown_scope_keys!r}")
     scope_include_paths = _scan_scope_paths(
-        scan["scope"].get("includePaths"),
+        scope.get("includePaths"),
         label="scan.scope.includePaths",
     )
     scope_exclude_paths = _scan_scope_paths(
-        scan["scope"].get("excludePaths"),
+        scope.get("excludePaths"),
         label="scan.scope.excludePaths",
     )
 

@@ -166,7 +166,9 @@ governance PR number + 1; the governance PR may opt in with
   `mode: "branch_diff"`, and no explicit exclusions. Because this receipt
   variant requires an empty `findings.json`, each surface disposition must be
   closed as `no_issue_found`, `rejected`, or `not_applicable`; `reported` and
-  `needs_follow_up` are inconsistent and fail closed.
+  `needs_follow_up` are inconsistent and fail closed. Manifest scope accepts
+  only the v1 include/exclude fields and documented descriptive metadata;
+  unsupported fields, including a second exclusion channel, fail closed.
 - If the trusted connector returns its exact review-credit exhaustion response
   for the final review cycle, the seal may use the closed
   `operator_review_credit_exhaustion_override` variant. It requires a prior
