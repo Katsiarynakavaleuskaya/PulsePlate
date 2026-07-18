@@ -13,3 +13,10 @@ checks, unresolved review threads, or actionable bot comments.
 This policy cannot replace GitHub review-thread truth, CodeRabbit/Sourcery/Cubic
 dispositions, `docs/review/PR_<N>_FIXED_MAPPING.md`, PR body mirror governance,
 current-head CI, or strict merge-readiness checks.
+
+The material-seal review-credit outage variant is a separate, machine-validated
+exception. It requires a current trusted immutable connector quota response, a
+prior trusted Codex review on an ancestor PR commit, a subsequent exact-head
+`OWNER`/`MEMBER` review, and an unedited canonical override comment from that
+same operator binding the exact head, material digest, and all evidence URLs. A
+`source_degraded` record alone never activates that exception.

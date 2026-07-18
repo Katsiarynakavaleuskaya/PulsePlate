@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import html
 from pathlib import Path
 import socket
 from urllib.error import HTTPError
@@ -25,8 +26,21 @@ def source_page(project: str, version: str) -> bytes:
     ).encode()
 
 
-def wheel_page(filename: str) -> bytes:
-    return (f'<html><body><a href="../../+f/abc/{filename}">{filename}</a></body></html>').encode()
+def wheel_page(*filenames: str) -> bytes:
+    links = "".join(f'<a href="../../+f/abc/{filename}">{filename}</a>' for filename in filenames)
+    return f"<html><body>{links}</body></html>".encode()
+
+
+def wheel_page_with_requires_python(*links: tuple[str, str | None]) -> bytes:
+    anchors: list[str] = []
+    for filename, requires_python in links:
+        requires_python_attr = (
+            ""
+            if requires_python is None
+            else f' data-requires-python="{html.escape(requires_python, quote=True)}"'
+        )
+        anchors.append(f'<a href="../../+f/abc/{filename}"{requires_python_attr}>wheel</a>')
+    return f"<html><body>{''.join(anchors)}</body></html>".encode()
 
 
 def test_validate_index_url_rejects_unsafe_sources() -> None:
@@ -95,6 +109,406 @@ def test_wheel_compatibility_rejects_invalid_target_version() -> None:
             "aiosqlite-0.22.1-py3-none-any.whl",
             target_python_versions=["python-3.11"],
         )
+
+
+def test_exact_pin_requires_wheel_coverage_for_every_requested_target() -> None:
+    assert checker.wheel_is_compatible_with_targets(
+        "coverage-7.15.1-cp313-cp313-manylinux_2_28_x86_64.whl",
+        target_python_versions=["3.11", "3.12", "3.13"],
+    )
+    assert not checker.simple_page_has_exact_pin(
+        body=wheel_page("coverage-7.15.1-cp313-cp313-manylinux_2_28_x86_64.whl"),
+        normalized_project="coverage",
+        expected_version="7.15.1",
+        target_python_versions=["3.11", "3.12", "3.13"],
+    )
+
+
+def test_exact_pin_accepts_separate_wheel_for_each_requested_target() -> None:
+    assert checker.simple_page_has_exact_pin(
+        body=wheel_page(
+            "coverage-7.15.1-cp311-cp311-manylinux_2_28_x86_64.whl",
+            "coverage-7.15.1-cp312-cp312-manylinux_2_28_x86_64.whl",
+            "coverage-7.15.1-cp313-cp313-manylinux_2_28_x86_64.whl",
+        ),
+        normalized_project="coverage",
+        expected_version="7.15.1",
+        target_python_versions=["3.11", "3.12", "3.13"],
+    )
+
+
+def test_exact_pin_wheel_identity_comes_only_from_real_anchor_hrefs() -> None:
+    comment_wheel = "coverage-7.15.1-cp311-cp311-manylinux_2_28_x86_64.whl"
+    text_wheel = "coverage-7.15.1-cp312-cp312-manylinux_2_28_x86_64.whl"
+    metadata_wheel = "coverage-7.15.1-cp313-cp313-manylinux_2_28_x86_64.whl"
+    real_wheel = "coverage-7.15.1-py3-none-any.whl"
+    body = (
+        "<html><body>"
+        f'<!-- <a href="../../+f/abc/{comment_wheel}">comment</a> -->'
+        f"<p>{text_wheel}</p>"
+        f'<a data-core-metadata="{metadata_wheel}" '
+        f'href="../../+f/abc/{metadata_wheel}.metadata">{metadata_wheel}</a>'
+        f'<a href="../../+f/abc/coverage-7.15.0-py3-none-any.whl">{text_wheel}</a>'
+        f'<a href="../../+f/abc/{real_wheel}?download=1#sha256={"a" * 64}">opaque</a>'
+        "</body></html>"
+    ).encode()
+
+    assert checker.exact_pin_wheel_filenames(
+        body=body,
+        normalized_project="coverage",
+        expected_version="7.15.1",
+    ) == (real_wheel,)
+
+
+def test_trusted_exact_pin_hashes_require_proxy_origin_and_sha256() -> None:
+    filename = "coverage-7.15.1-py3-none-any.whl"
+    digest = "a" * 64
+    project_url = f"{APPROVED_INDEX}coverage/"
+    body = (f'<a href="../../+f/abc/{filename}#sha256={digest}">{filename}</a>').encode()
+
+    assert checker.trusted_exact_pin_wheel_hashes(
+        body=body,
+        project_url=project_url,
+        normalized_project="coverage",
+        expected_version="7.15.1",
+    ) == {filename: digest}
+
+    external = (
+        f'<a href="https://files.pythonhosted.org/{filename}#sha256={digest}">' f"{filename}</a>"
+    ).encode()
+    with pytest.raises(ValueError, match="artifact_admission_untrusted_url"):
+        checker.trusted_exact_pin_wheel_hashes(
+            body=external,
+            project_url=project_url,
+            normalized_project="coverage",
+            expected_version="7.15.1",
+        )
+
+    unhashed = f'<a href="../../+f/abc/{filename}">{filename}</a>'.encode()
+    with pytest.raises(ValueError, match="artifact_admission_missing_sha256"):
+        checker.trusted_exact_pin_wheel_hashes(
+            body=unhashed,
+            project_url=project_url,
+            normalized_project="coverage",
+            expected_version="7.15.1",
+        )
+
+
+def test_trusted_exact_pin_hashes_reject_ambiguous_filename() -> None:
+    filename = "coverage-7.15.1-py3-none-any.whl"
+    project_url = f"{APPROVED_INDEX}coverage/"
+    body = (
+        f'<a href="../../+f/one/{filename}#sha256={"a" * 64}">one</a>'
+        f'<a href="../../+f/two/{filename}#sha256={"b" * 64}">two</a>'
+    ).encode()
+
+    with pytest.raises(ValueError, match="artifact_admission_ambiguous_filename"):
+        checker.trusted_exact_pin_wheel_hashes(
+            body=body,
+            project_url=project_url,
+            normalized_project="coverage",
+            expected_version="7.15.1",
+        )
+
+
+def test_exact_pin_requires_python_is_bound_to_each_wheel_link() -> None:
+    body = wheel_page_with_requires_python(
+        (
+            "coverage-7.15.1-cp311-cp311-manylinux_2_28_x86_64.whl",
+            ">=3.12",
+        ),
+        (
+            "coverage-7.15.1-cp312-cp312-manylinux_2_28_x86_64.whl",
+            ">=3.12,<3.13",
+        ),
+        (
+            "coverage-7.15.1-cp313-cp313-manylinux_2_28_x86_64.whl",
+            ">=3.13,<3.14",
+        ),
+    )
+
+    assert not checker.simple_page_has_exact_pin(
+        body=body,
+        normalized_project="coverage",
+        expected_version="7.15.1",
+        target_python_versions=["3.11", "3.12", "3.13"],
+    )
+
+
+def test_exact_pin_accepts_missing_and_compound_requires_python_metadata() -> None:
+    missing_metadata_body = wheel_page_with_requires_python(
+        ("coverage-7.15.1-py3-none-any.whl", None),
+    )
+    assert checker.simple_page_has_exact_pin(
+        body=missing_metadata_body,
+        normalized_project="coverage",
+        expected_version="7.15.1",
+        target_python_versions=["3.11", "3.12", "3.13"],
+    )
+
+    compound_metadata_body = wheel_page_with_requires_python(
+        (
+            "coverage-7.15.1-cp311-cp311-manylinux_2_28_x86_64.whl",
+            ">=3.11,<3.12",
+        ),
+        (
+            "coverage-7.15.1-cp312-cp312-manylinux_2_28_x86_64.whl",
+            ">=3.12,<3.13",
+        ),
+        (
+            "coverage-7.15.1-cp313-cp313-manylinux_2_28_x86_64.whl",
+            ">=3.13,<3.14",
+        ),
+    )
+    assert checker.simple_page_has_exact_pin(
+        body=compound_metadata_body,
+        normalized_project="coverage",
+        expected_version="7.15.1",
+        target_python_versions=["3.11", "3.12", "3.13"],
+    )
+
+
+def test_exact_pin_accepts_common_compatible_and_wildcard_specifiers() -> None:
+    body = wheel_page_with_requires_python(
+        (
+            "coverage-7.15.1-cp311-cp311-manylinux_2_28_x86_64.whl",
+            "~=3.11",
+        ),
+        (
+            "coverage-7.15.1-cp312-cp312-manylinux_2_28_x86_64.whl",
+            "==3.12.*",
+        ),
+        (
+            "coverage-7.15.1-cp313-cp313-manylinux_2_28_x86_64.whl",
+            "!=3.12.*",
+        ),
+    )
+
+    assert checker.simple_page_has_exact_pin(
+        body=body,
+        normalized_project="coverage",
+        expected_version="7.15.1",
+        target_python_versions=["3.11", "3.12", "3.13"],
+    )
+
+
+def test_compatible_release_minor_does_not_imply_patch_level_cap() -> None:
+    assert checker._requires_python_allows_target(
+        "~=3.11",
+        target_python_tag="cp313",
+    )
+    assert not checker._requires_python_allows_target(
+        "~=3.11.0",
+        target_python_tag="cp313",
+    )
+
+
+def test_exact_pin_rejects_inclusive_requires_python_same_minor_upper_bound() -> None:
+    body = wheel_page_with_requires_python(
+        (
+            "coverage-7.15.1-cp313-cp313-manylinux_2_28_x86_64.whl",
+            "<=3.13",
+        ),
+    )
+
+    assert not checker.simple_page_has_exact_pin(
+        body=body,
+        normalized_project="coverage",
+        expected_version="7.15.1",
+        target_python_versions=["3.13"],
+    )
+    assert checker._requires_python_allows_target(
+        "<=3.14",
+        target_python_tag="cp313",
+    )
+    assert not checker._requires_python_allows_target(
+        "<=3.12",
+        target_python_tag="cp313",
+    )
+    assert not checker._requires_python_allows_target(
+        "<=3.13.1",
+        target_python_tag="cp313",
+    )
+    assert not checker._requires_python_allows_target(
+        "<=3.13",
+        target_python_tag="cp313",
+    )
+
+
+def test_requires_python_minor_target_rejects_patch_specific_constraints() -> None:
+    assert not checker._requires_python_allows_target(
+        "==3.11.0.*",
+        target_python_tag="cp311",
+    )
+    assert not checker._requires_python_allows_target(
+        "!=3.11.0.*",
+        target_python_tag="cp311",
+    )
+    assert not checker._requires_python_allows_target(
+        "<3.11.1",
+        target_python_tag="cp311",
+    )
+    assert not checker._requires_python_allows_target(
+        ">=3.11.1",
+        target_python_tag="cp311",
+    )
+
+
+def test_exact_pin_parses_distribution_component_and_rejects_extra_hyphen() -> None:
+    valid_legacy = wheel_page("Zope.Interface-7.2-py3-none-any.whl")
+    malformed = wheel_page("pytest-xdist-3.8.0-py3-none-any.whl")
+
+    assert checker.exact_pin_wheel_filenames(
+        body=valid_legacy,
+        normalized_project="zope-interface",
+        expected_version="7.2",
+    ) == ("zope.interface-7.2-py3-none-any.whl",)
+    assert (
+        checker.exact_pin_wheel_filenames(
+            body=malformed,
+            normalized_project="pytest-xdist",
+            expected_version="3.8.0",
+        )
+        == ()
+    )
+
+
+def test_exact_pin_rejects_duplicate_decoded_filename_links() -> None:
+    filename = "coverage-7.15.1-cp311-cp311-manylinux_2_28_x86_64.whl"
+    body = wheel_page_with_requires_python(
+        (filename, ">=4"),
+        (filename, None),
+    )
+
+    assert (
+        checker.exact_pin_wheel_filenames(
+            body=body,
+            normalized_project="coverage",
+            expected_version="7.15.1",
+        )
+        == ()
+    )
+    assert not checker.simple_page_has_exact_pin(
+        body=body,
+        normalized_project="coverage",
+        expected_version="7.15.1",
+        target_python_versions=["3.11"],
+    )
+
+
+def test_exact_pin_rejects_external_absolute_or_scheme_relative_wheel_urls() -> None:
+    filename = "coverage-7.15.1-cp311-cp311-manylinux_2_28_x86_64.whl"
+    for href in (
+        f"https://files.pythonhosted.org/packages/{filename}",
+        f"//files.pythonhosted.org/packages/{filename}",
+    ):
+        body = f'<a href="{href}">wheel</a>'.encode()
+        assert not checker.simple_page_has_exact_pin(
+            body=body,
+            normalized_project="coverage",
+            expected_version="7.15.1",
+            target_python_versions=["3.11"],
+            allowed_netloc="packages.pulseplate.app",
+        )
+
+    same_host_body = (
+        f'<a href="https://packages.pulseplate.app/root/pulseplate/+f/{filename}">wheel</a>'
+    ).encode()
+    assert checker.simple_page_has_exact_pin(
+        body=same_host_body,
+        normalized_project="coverage",
+        expected_version="7.15.1",
+        target_python_versions=["3.11"],
+        allowed_netloc="packages.pulseplate.app",
+    )
+
+
+def test_exact_pin_rejects_absolute_scheme_without_authority() -> None:
+    filename = "coverage-7.15.1-cp311-cp311-manylinux_2_28_x86_64.whl"
+    body = f'<a href="https:///path/{filename}">wheel</a>'.encode()
+
+    assert not checker.simple_page_has_exact_pin(
+        body=body,
+        normalized_project="coverage",
+        expected_version="7.15.1",
+        target_python_versions=["3.11"],
+        allowed_netloc="packages.pulseplate.app",
+    )
+
+
+def test_malformed_anchor_poisoning_cannot_be_bypassed_by_later_valid_link() -> None:
+    filename = "coverage-7.15.1-cp311-cp311-manylinux_2_28_x86_64.whl"
+    body = (
+        f'<a href="../../+f/one/{filename}" '
+        f'href="../../+f/two/{filename}">malformed</a>'
+        f'<a href="../../+f/three/{filename}">valid</a>'
+    ).encode()
+
+    assert (
+        checker.exact_pin_wheel_filenames(
+            body=body,
+            normalized_project="coverage",
+            expected_version="7.15.1",
+        )
+        == ()
+    )
+    assert not checker.simple_page_has_exact_pin(
+        body=body,
+        normalized_project="coverage",
+        expected_version="7.15.1",
+        target_python_versions=["3.11"],
+    )
+
+
+def test_exact_pin_rejects_duplicate_anchor_identity_or_python_metadata() -> None:
+    filename = "coverage-7.15.1-cp311-cp311-manylinux_2_28_x86_64.whl"
+    duplicate_href_body = (
+        f'<a href="../../+f/abc/{filename}" ' f'href="../../+f/other/{filename}">wheel</a>'
+    ).encode()
+    assert (
+        checker.exact_pin_wheel_filenames(
+            body=duplicate_href_body,
+            normalized_project="coverage",
+            expected_version="7.15.1",
+        )
+        == ()
+    )
+
+    duplicate_requires_python_body = (
+        f'<a href="../../+f/abc/{filename}" '
+        'data-requires-python="&gt;=3.11" '
+        'data-requires-python="&lt;3.12">wheel</a>'
+    ).encode()
+    assert (
+        checker.exact_pin_wheel_filenames(
+            body=duplicate_requires_python_body,
+            normalized_project="coverage",
+            expected_version="7.15.1",
+        )
+        == ()
+    )
+    assert not checker.simple_page_has_exact_pin(
+        body=duplicate_requires_python_body,
+        normalized_project="coverage",
+        expected_version="7.15.1",
+        target_python_versions=["3.11"],
+    )
+
+
+@pytest.mark.parametrize(
+    "filename",
+    (
+        "cryptography-48.0.1-cp39-abi3-manylinux_2_28_x86_64.whl",
+        "cryptography-48.0.1-py3-none-any.whl",
+    ),
+)
+def test_exact_pin_preserves_abi3_and_universal_wheel_coverage(filename: str) -> None:
+    assert checker.simple_page_has_exact_pin(
+        body=wheel_page(filename),
+        normalized_project="cryptography",
+        expected_version="48.0.1",
+        target_python_versions=["3.11", "3.12", "3.13"],
+    )
 
 
 def test_parse_exact_pins_normalizes_names(tmp_path: Path) -> None:

@@ -205,9 +205,36 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#agent-consistency-preflight
    them repository-addressable; unavailable/API-unknown refs must never enter
    ancestry checks.
 9. **Material identity:** one Codex review and one completed final Codex Security
-   diff scan bind to one material digest. The trusted submitted review object's
-   real GitHub `commit_id` must equal the frozen material head; a synthetic
-   execution ref is never review proof. Every path is material except the exact
+   diff scan bind to one material digest. When Codex Security is systemically
+   unavailable with MCP `-32001 Request timed out`, a short-lived fail-closed
+   operator-outage override may replace only the plugin receipt: it must be an
+   unedited exact-material GitHub comment from an `OWNER` or `MEMBER`, bind the
+   immutable GitHub user id plus PR/head/material digest, declare `scan_id: none`,
+   and be revalidated with the current-head security bundle from its trusted
+   GitHub Apps/workflows before merge. The bootstrap exception is PR `#2142`
+   only; later PRs that change the override verifier, merge gate, current-head
+   check identity parser, any CI/security workflow or local GitHub Action, or an
+   implementation/policy input of the substitute security checks cannot authorize themselves with
+   this override. It is tooling-unavailability evidence, never
+   a security scan or no-findings claim. When the official Codex connector
+   reports exhausted code-review credits for the final review cycle, a
+   short-lived review-credit override may replace only the unavailable exact-head
+   connector receipt. It requires the unedited trusted quota response, a prior
+   real Codex review on an ancestor PR commit, and a subsequent exact-head
+   `OWNER`/`MEMBER` review with no remaining actionables. The same operator must
+   then publish one unedited canonical override comment binding the final
+   material head/digest and all three evidence URLs. The receipt binds that
+   operator comment plus the quota and review references. PR `#2142` is the
+   one-time trust-boundary bootstrap; later PRs that change review/seal/merge
+   verification, current-head check authority, or GitHub workflow/action
+   authority cannot authorize themselves with this override. It records
+   review-provider unavailability, never a Codex review or no-findings result.
+   The trusted submitted review object's
+   real GitHub `commit_id` must equal the frozen material head. When the official
+   Codex connector emits an unedited no-findings issue comment instead, its
+   trusted GitHub App identity and reviewed-commit prefix must resolve through
+   the Commit API to that same full frozen head. A synthetic execution ref is
+   never review proof. Every path is material except the exact
    current-PR mapping artifact. PR-body edits are outside Git. Any later code,
    test, workflow, dependency, policy, contract, or other docs change invalidates
    the seal and reopens review/final scan.
@@ -573,7 +600,9 @@ All non-trivial PR work must follow this coordinator-owned lifecycle:
 2. **Open non-draft by default**: open PRs as ready-for-review once the branch has a coherent scope, initial PR body, and canonical artifact path. Draft PRs require an explicit operator exception because they suppress or delay bot review and current-head merge verification.
 3. **Push cycle**: before each push, run `pre-commit run --all-files` and the applicable local gates; after each push, watch the **current-head** CI state, not stale historical runs.
 4. **Review cycle**: freeze the material state, request one Codex review, apply
-   any material fix and refreeze, then run one final security scan. Keep
+   any material fix and refreeze, then run one final security scan. A systemic
+   MCP `-32001` outage may use only the authenticated, expiring operator-outage
+   evidence variant described above; do not fabricate or relabel a scan receipt. Keep
    dispositions in the gitignored closeout draft and publish one generated
    mapping/seal commit. The PR body keeps one artifact link; a validated
    same-digest duplicate uses a structured thread reply only.
@@ -747,7 +776,7 @@ make diff-cov   # Diff-coverage ≥97% on changed lines
 - Do not pin `pip` to an exact version in the Dockerfile (e.g., `pip==24.2`). Exact pins can fail when the build environment cannot resolve the version from PyPI index (proxy/index/TLS issues).
 - Prefer using base image pip without upgrade, or upgrade without version pin if upgrade is required.
 - If a pip version constraint is required, use a version range and document the reason + CI verification.
-- **Security fixes for Python dependencies must be done via `requirements.in`/`requirements.txt`, not via ad-hoc `pip install -U ...` in Dockerfile.** We allow unsafe packages (setuptools/pip/wheel) in lockfiles via `pip-compile --allow-unsafe` so security fixes live in `requirements.txt` and Dockerfile remains simple (no upgrade/install steps).
+- **Security fixes for Python dependencies must be done via the owning `requirements*.in` surface and `make requirements-locks`, not via ad-hoc `pip install -U ...` in Dockerfile.** The Make target requires the approved private proxy, excludes `pip` from generated locks, and preserves explicit security-floor packages such as `setuptools`; Dockerfile remains free of dependency upgrade/install steps.
 - **Python 3.13+ compatibility:** If CI/main uses Python 3.13+, then `greenlet` must be `>=3.1.0,<4.0.0` (greenlet 3.1.0+ adds Python 3.13 support; 3.0.x may fail to build/run on 3.13).
 - Smoke tests must build the image on the current base image; any Python base image bumps → verify tooling compatibility (pip/setuptools/wheel).
 
@@ -2036,11 +2065,11 @@ git grep -nE "spec_from_file_location|exec_module|sys\.modules\[" -- scripts || 
 - If a package is yanked on public PyPI, any `==` pin on it must be replaced with a `>=` floor
   pointing to the next non-yanked patch/minor version in **all** `requirements*.in` surfaces.
 - After updating `.in` files, regenerate **every** affected `requirements*.txt` lockfile via
-  `pip-compile` so that no yanked version remains in any lock surface.
+  `LOCK_PROFILES="<profiles>" make requirements-locks` so that no yanked version remains in any lock surface.
 - Each yanked-package override must carry an explicit inline comment in the `.in` file with:
   the yanked version, the reason (if known), and a link to the PR or issue that introduced the
   change. Example: `# numpy: 2.4.0 was yanked on public PyPI; using >=2.4.1`.
-- `pip-compile` output must be checked for yanked warnings; a clean run with no yanked warnings
+- The governed Make output must be checked for yanked warnings; a clean run with no yanked warnings
   is required before the PR can be marked ready.
 
 ---

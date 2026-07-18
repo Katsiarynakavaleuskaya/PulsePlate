@@ -250,6 +250,35 @@ def test_active_manifest_rejects_public_simple_page_artifact_href(
     assert [result.reason for result in summary.results] == ["simple_page_artifact_host_unapproved"]
 
 
+def test_active_manifest_accepts_same_host_absolute_artifact_href(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    manifest = _write_manifest(tmp_path, _active_payload())
+
+    def fake_fetch(url: str, **_kwargs: object) -> tuple[int, bytes]:
+        return (
+            200,
+            (
+                f'<html><a href="{url.replace("+simple/", "+f/abc/")}'
+                f'{WHEEL_FILENAME}#sha256={"a" * 64}">wheel</a></html>'
+            ).encode(),
+        )
+
+    monkeypatch.setattr(parity.proxy_health, "fetch_project_page", fake_fetch)
+
+    summary = parity.check_parity(
+        manifest=manifest,
+        index_url=APPROVED_INDEX_URL,
+        timeout_seconds=1.0,
+        max_bytes=10_000,
+        target_python_versions=("cp311",),
+    )
+
+    assert summary.ok is True
+    assert [result.reason for result in summary.results] == ["ok"]
+
+
 def test_active_manifest_requires_abi_wheels_for_each_target_python(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

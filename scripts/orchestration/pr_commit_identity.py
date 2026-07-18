@@ -13,7 +13,7 @@ import json
 import re
 import urllib.parse
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any, Callable, Mapping
 
@@ -28,6 +28,56 @@ _MAX_REVIEW_THREADS = 10_000
 _MAX_REVIEW_COMMENTS = 10_000
 _SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 _ISO_8601_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$")
+_CODEX_CONNECTOR_LOGIN = "chatgpt-codex-connector[bot]"
+_CODEX_CONNECTOR_APP_ID = 1_144_995
+_CODEX_CONNECTOR_APP_SLUG = "chatgpt-codex-connector"
+_CODEX_CONNECTOR_OWNER = "openai"
+_CODEX_REVIEWED_COMMIT_RE = re.compile(r"^\*\*Reviewed commit:\*\* `(?P<commit>[0-9a-f]{10})`$")
+_CODEX_NO_FINDINGS_SUMMARY_PREFIX = "Codex Review: Didn't find any major issues."
+_CODEX_NO_FINDINGS_DETAILS = """<details> <summary>ℹ️ About Codex in GitHub</summary>
+<br/>
+
+[Your team has set up Codex to review pull requests in this repo](https://chatgpt.com/codex/cloud/settings/general). Reviews are triggered when you
+- Open a pull request for review
+- Mark a draft as ready
+- Comment "@codex review".
+
+If Codex has suggestions, it will comment; otherwise it will react with 👍.
+
+
+
+Codex can also answer questions or update the PR. Try commenting "@codex address that feedback".
+</details>"""
+_MATERIAL_DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
+_CODEX_SECURITY_OUTAGE_CLASS = "codex_security_mcp_timeout"
+_CODEX_SECURITY_OUTAGE_CODE = "-32001"
+_CODEX_SECURITY_OUTAGE_MESSAGE = "Request timed out"
+_CODEX_SECURITY_OUTAGE_STATUS = "TOOLING_UNAVAILABLE"
+_CODEX_SECURITY_OUTAGE_TTL = timedelta(hours=24)
+_CODEX_SECURITY_OUTAGE_CLOCK_SKEW = timedelta(minutes=5)
+_CODEX_REVIEW_CREDIT_OUTAGE_BODIES = frozenset(
+    {
+        (
+            "Codex usage limits have been reached for code reviews. "
+            "Please check with the admins of this repo to increase the limits by adding credits."
+        ),
+        (
+            "Codex usage limits have been reached for code reviews. "
+            "Please check with the admins of this repo to increase the limits by adding credits.\n"
+            "Credits must be used to enable repository wide code reviews."
+        ),
+        (
+            "You have reached your Codex usage limits for code reviews. "
+            "You can see your limits in the "
+            "[Codex usage dashboard](https://chatgpt.com/codex/cloud/settings/usage)."
+        ),
+    }
+)
+_CODEX_REVIEW_CREDIT_OUTAGE_TTL = timedelta(hours=24)
+_CODEX_REVIEW_CREDIT_OUTAGE_CLOCK_SKEW = timedelta(minutes=5)
+_OPERATOR_EXACT_HEAD_REVIEW_PREFIX = "Exact-head bounded review completed for"
+_CODEX_REVIEW_CREDIT_OUTAGE_CLASS = "codex_review_credits_exhausted"
+_CODEX_REVIEW_CREDIT_OUTAGE_STATUS = "TOOLING_UNAVAILABLE"
 
 
 class CommitIdentityError(RuntimeError):
@@ -122,6 +172,39 @@ class CodexReviewEvidence:
     reference: str
     submitted_at: str
     commit_ref: str
+
+
+@dataclass(frozen=True)
+class SecurityOutageOverrideEvidence:
+    """Authenticated, exact-material operator evidence for a bounded MCP outage."""
+
+    reference: str
+    created_at: str
+    operator_user_id: int
+    operator_login: str
+    operator_association: str
+    material_head_sha: str
+    material_digest: str
+
+
+@dataclass(frozen=True)
+class ReviewCreditOutageEvidence:
+    """Trusted quota response plus an exact-head operator review."""
+
+    override_reference: str
+    override_created_at: str
+    quota_reference: str
+    quota_created_at: str
+    prior_review_reference: str
+    prior_review_submitted_at: str
+    prior_review_commit_ref: str
+    operator_review_reference: str
+    operator_review_submitted_at: str
+    operator_user_id: int
+    operator_login: str
+    operator_association: str
+    material_head_sha: str
+    material_digest: str
 
 
 @dataclass(frozen=True)
@@ -243,6 +326,475 @@ def _require_repository(repository: str) -> tuple[str, str]:
     return parts[0], parts[1]
 
 
+def _require_material_digest(value: str) -> str:
+    normalized = value.strip()
+    if not _MATERIAL_DIGEST_RE.fullmatch(normalized):
+        raise CommitIdentityError("material digest must use sha256:<64 lowercase hex>")
+    return normalized
+
+
+def render_security_outage_override_comment(
+    *, pr_number: int, material_head_sha: str, material_digest: str
+) -> str:
+    """Render the sole accepted operator-outage comment body."""
+
+    if pr_number <= 0:
+        raise CommitIdentityError("pr_number must be positive")
+    head = _require_sha(material_head_sha, field="operator override material head")
+    digest = _require_material_digest(material_digest)
+    return "\n".join(
+        (
+            "PulsePlate Codex Security operator outage override v1",
+            "",
+            f"Status: {_CODEX_SECURITY_OUTAGE_STATUS}",
+            f"Outage-Class: {_CODEX_SECURITY_OUTAGE_CLASS}",
+            f"MCP-Error-Code: {_CODEX_SECURITY_OUTAGE_CODE}",
+            f"MCP-Error-Message: {_CODEX_SECURITY_OUTAGE_MESSAGE}",
+            "Scan-ID: none",
+            f"PR: #{pr_number}",
+            f"Material-Head: {head}",
+            f"Material-Digest: {digest}",
+            (
+                "Attestation: This operator override records tool unavailability; "
+                "it is not a security scan or a no-findings claim."
+            ),
+        )
+    )
+
+
+def render_review_credit_outage_override_comment(
+    *,
+    pr_number: int,
+    material_head_sha: str,
+    material_digest: str,
+    quota_reference: str,
+    prior_review_reference: str,
+    operator_review_reference: str,
+) -> str:
+    """Render the sole accepted code-review credit-outage operator comment."""
+
+    if pr_number <= 0:
+        raise CommitIdentityError("pr_number must be positive")
+    head = _require_sha(material_head_sha, field="review credit outage material head")
+    digest = _require_material_digest(material_digest)
+    references = (quota_reference, prior_review_reference, operator_review_reference)
+    if any(
+        not isinstance(reference, str)
+        or not 1 <= len(reference) <= 500
+        or "\n" in reference
+        or "\r" in reference
+        for reference in references
+    ):
+        raise CommitIdentityError("review credit outage references must be bounded lines")
+    return "\n".join(
+        (
+            "PulsePlate Codex review credit exhaustion override v1",
+            "",
+            f"Status: {_CODEX_REVIEW_CREDIT_OUTAGE_STATUS}",
+            f"Outage-Class: {_CODEX_REVIEW_CREDIT_OUTAGE_CLASS}",
+            f"PR: #{pr_number}",
+            f"Material-Head: {head}",
+            f"Material-Digest: {digest}",
+            f"Quota-Reference: {quota_reference}",
+            f"Prior-Codex-Review: {prior_review_reference}",
+            f"Operator-Exact-Head-Review: {operator_review_reference}",
+            (
+                "Attestation: This operator override records exhausted review credits; "
+                "it is not a Codex review or a no-findings claim."
+            ),
+        )
+    )
+
+
+def verify_security_outage_override_reference(
+    reference: str,
+    *,
+    repository: str,
+    pr_number: int,
+    token: str,
+    expected_material_head_sha: str,
+    expected_material_digest: str,
+    now: datetime | None = None,
+    request_json: ApiRequest = github_api_request,
+) -> SecurityOutageOverrideEvidence:
+    """Verify one short-lived, unedited GitHub operator outage override."""
+
+    owner, name = _require_repository(repository)
+    if pr_number <= 0:
+        raise CommitIdentityError("pr_number must be positive")
+    expected_head = _require_sha(
+        expected_material_head_sha, field="operator override material head"
+    )
+    expected_digest = _require_material_digest(expected_material_digest)
+    pattern = re.compile(
+        rf"^https://github\.com/{re.escape(owner)}/{re.escape(name)}/pull/"
+        rf"{pr_number}#issuecomment-(\d+)$"
+    )
+    match = pattern.fullmatch(reference)
+    if not match:
+        raise CommitIdentityError(
+            "security outage override must be a GitHub issue comment on the exact PR"
+        )
+
+    response = request_json(
+        f"{_API_ROOT}/repos/{owner}/{name}/issues/comments/{match.group(1)}",
+        token=token,
+    )
+    if not isinstance(response, dict):
+        raise CommitIdentityError("GitHub operator comment response is malformed")
+    user = response.get("user")
+    user_id = user.get("id") if isinstance(user, dict) else None
+    login = user.get("login") if isinstance(user, dict) else None
+    user_type = user.get("type") if isinstance(user, dict) else None
+    association = response.get("author_association")
+    expected_issue_url = f"{_API_ROOT}/repos/{owner}/{name}/issues/{pr_number}"
+    if (
+        not isinstance(login, str)
+        or not login
+        or not isinstance(user_id, int)
+        or isinstance(user_id, bool)
+        or user_id <= 0
+        or user_type != "User"
+        or association not in {"OWNER", "MEMBER"}
+        or "performed_via_github_app" not in response
+        or response.get("performed_via_github_app") is not None
+        or response.get("html_url") != reference
+        or response.get("issue_url") != expected_issue_url
+    ):
+        raise CommitIdentityError("issue comment is not trusted operator outage evidence")
+
+    created_at = _require_iso8601(response.get("created_at"), field="operator override created_at")
+    updated_at = _require_iso8601(response.get("updated_at"), field="operator override updated_at")
+    if created_at != updated_at:
+        raise CommitIdentityError("operator outage override was edited after creation")
+    body = response.get("body")
+    expected_body = render_security_outage_override_comment(
+        pr_number=pr_number,
+        material_head_sha=expected_head,
+        material_digest=expected_digest,
+    )
+    if not isinstance(body, str) or "\r" in body or body != expected_body:
+        raise CommitIdentityError(
+            "operator outage override body does not exactly match the expected material"
+        )
+
+    created = datetime.fromisoformat(
+        created_at[:-1] + "+00:00" if created_at.endswith("Z") else created_at
+    )
+    current = now or datetime.now(timezone.utc)
+    if current.tzinfo is None:
+        raise CommitIdentityError("operator override validation time must include a timezone")
+    if created > current + _CODEX_SECURITY_OUTAGE_CLOCK_SKEW:
+        raise CommitIdentityError("operator outage override timestamp is in the future")
+    if current - created > _CODEX_SECURITY_OUTAGE_TTL:
+        raise CommitIdentityError("operator outage override has expired")
+
+    return SecurityOutageOverrideEvidence(
+        reference=reference,
+        created_at=created_at,
+        operator_user_id=user_id,
+        operator_login=login,
+        operator_association=association,
+        material_head_sha=expected_head,
+        material_digest=expected_digest,
+    )
+
+
+def _trusted_codex_app_comment(
+    response: Any,
+    *,
+    reference: str,
+    expected_issue_url: str,
+) -> tuple[str, str, str]:
+    """Validate immutable connector identity and return body plus timestamps."""
+
+    if not isinstance(response, dict):
+        raise CommitIdentityError("GitHub issue-comment response is malformed")
+    user = response.get("user")
+    login = user.get("login") if isinstance(user, dict) else None
+    user_type = user.get("type") if isinstance(user, dict) else None
+    app = response.get("performed_via_github_app")
+    app_owner = app.get("owner") if isinstance(app, dict) else None
+    app_owner_login = app_owner.get("login") if isinstance(app_owner, dict) else None
+    if (
+        login != _CODEX_CONNECTOR_LOGIN
+        or user_type != "Bot"
+        or not isinstance(app, dict)
+        or app.get("id") != _CODEX_CONNECTOR_APP_ID
+        or app.get("slug") != _CODEX_CONNECTOR_APP_SLUG
+        or app_owner_login != _CODEX_CONNECTOR_OWNER
+        or response.get("html_url") != reference
+        or response.get("issue_url") != expected_issue_url
+    ):
+        raise CommitIdentityError("issue-comment reference is not trusted Codex evidence")
+    created_at = _require_iso8601(response.get("created_at"), field="Codex comment created_at")
+    updated_at = _require_iso8601(response.get("updated_at"), field="Codex comment updated_at")
+    if created_at != updated_at:
+        raise CommitIdentityError("Codex issue comment was edited after creation")
+    body = response.get("body")
+    if not isinstance(body, str) or "\r" in body:
+        raise CommitIdentityError("Codex issue-comment body is malformed")
+    return body, created_at, updated_at
+
+
+def verify_review_credit_outage_references(
+    *,
+    override_reference: str,
+    quota_reference: str,
+    prior_review_reference: str,
+    operator_review_reference: str,
+    repository: str,
+    pr_number: int,
+    token: str,
+    snapshot: PrSnapshot,
+    expected_material_head_sha: str,
+    expected_material_digest: str,
+    now: datetime | None = None,
+    request_json: ApiRequest = github_api_request,
+) -> ReviewCreditOutageEvidence:
+    """Prove one bounded credit-exhaustion fallback without claiming Codex review."""
+
+    owner, name = _require_repository(repository)
+    if (
+        snapshot.repository.casefold() != repository.casefold()
+        or snapshot.pr_number != pr_number
+        or pr_number <= 0
+    ):
+        raise CommitIdentityError("review credit outage snapshot identity mismatch")
+    material_head = _require_sha(
+        expected_material_head_sha,
+        field="review credit outage material head",
+    )
+    if material_head not in snapshot.commit_shas:
+        raise CommitIdentityError(
+            "review credit outage material head is absent from the PR commit graph"
+        )
+    material_digest = _require_material_digest(expected_material_digest)
+    quota_pattern = re.compile(
+        rf"^https://github\.com/{re.escape(owner)}/{re.escape(name)}/pull/"
+        rf"{pr_number}#issuecomment-(\d+)$"
+    )
+    quota_match = quota_pattern.fullmatch(quota_reference)
+    if not quota_match:
+        raise CommitIdentityError(
+            "review credit outage evidence must be a GitHub issue comment on the exact PR"
+        )
+    quota_response = request_json(
+        f"{_API_ROOT}/repos/{owner}/{name}/issues/comments/{quota_match.group(1)}",
+        token=token,
+    )
+    quota_body, quota_created_at, _quota_updated_at = _trusted_codex_app_comment(
+        quota_response,
+        reference=quota_reference,
+        expected_issue_url=f"{_API_ROOT}/repos/{owner}/{name}/issues/{pr_number}",
+    )
+    if quota_body not in _CODEX_REVIEW_CREDIT_OUTAGE_BODIES:
+        raise CommitIdentityError("Codex comment is not an exact review-credit outage response")
+
+    current = now or datetime.now(timezone.utc)
+    if current.tzinfo is None:
+        raise CommitIdentityError("review credit outage validation time must include a timezone")
+    quota_created = datetime.fromisoformat(
+        quota_created_at[:-1] + "+00:00" if quota_created_at.endswith("Z") else quota_created_at
+    )
+    if quota_created > current + _CODEX_REVIEW_CREDIT_OUTAGE_CLOCK_SKEW:
+        raise CommitIdentityError("review credit outage timestamp is in the future")
+    if current - quota_created > _CODEX_REVIEW_CREDIT_OUTAGE_TTL:
+        raise CommitIdentityError("review credit outage evidence has expired")
+
+    prior_review = verify_codex_review_reference(
+        prior_review_reference,
+        repository=repository,
+        pr_number=pr_number,
+        token=token,
+        request_json=request_json,
+    )
+    prior_commit = classify_commit_ref(
+        prior_review.commit_ref,
+        snapshot,
+        token=token,
+        request_json=request_json,
+    )
+    if (
+        not isinstance(prior_commit, RepositoryCommitRef)
+        or prior_commit.kind is not CommitRefKind.PR_COMMIT
+        or not is_ancestor(
+            prior_commit,
+            RepositoryCommitRef(
+                material_head,
+                (
+                    CommitRefKind.PR_HEAD
+                    if material_head == snapshot.head_sha
+                    else CommitRefKind.PR_COMMIT
+                ),
+            ),
+            repository=repository,
+            token=token,
+            request_json=request_json,
+        )
+    ):
+        raise CommitIdentityError(
+            "review credit outage requires a trusted Codex review on an ancestor PR commit"
+        )
+    prior_submitted = datetime.fromisoformat(
+        prior_review.submitted_at[:-1] + "+00:00"
+        if prior_review.submitted_at.endswith("Z")
+        else prior_review.submitted_at
+    )
+    if prior_submitted > quota_created:
+        raise CommitIdentityError("trusted prior Codex review postdates the quota response")
+
+    review_pattern = re.compile(
+        rf"^https://github\.com/{re.escape(owner)}/{re.escape(name)}/pull/"
+        rf"{pr_number}#pullrequestreview-(\d+)$"
+    )
+    review_match = review_pattern.fullmatch(operator_review_reference)
+    if not review_match:
+        raise CommitIdentityError("operator fallback must be a GitHub review on the exact PR")
+    operator_response = request_json(
+        f"{_API_ROOT}/repos/{owner}/{name}/pulls/{pr_number}/reviews/" f"{review_match.group(1)}",
+        token=token,
+    )
+    if not isinstance(operator_response, dict):
+        raise CommitIdentityError("GitHub operator review response is malformed")
+    user = operator_response.get("user")
+    operator_user_id = user.get("id") if isinstance(user, dict) else None
+    operator_login = user.get("login") if isinstance(user, dict) else None
+    operator_type = user.get("type") if isinstance(user, dict) else None
+    operator_association = operator_response.get("author_association")
+    operator_submitted_at = _require_iso8601(
+        operator_response.get("submitted_at"),
+        field="operator exact-head review submitted_at",
+    )
+    operator_commit = _require_sha(
+        str(operator_response.get("commit_id") or ""),
+        field="operator exact-head review commit_id",
+    )
+    operator_body = operator_response.get("body")
+    expected_body = (
+        f"{_OPERATOR_EXACT_HEAD_REVIEW_PREFIX} `{material_head}`. " "No actionable findings remain."
+    )
+    if (
+        not isinstance(operator_user_id, int)
+        or isinstance(operator_user_id, bool)
+        or operator_user_id <= 0
+        or not isinstance(operator_login, str)
+        or not operator_login
+        or operator_type != "User"
+        or operator_association not in {"OWNER", "MEMBER"}
+        or operator_response.get("state") not in {"COMMENTED", "APPROVED"}
+        or operator_response.get("html_url") != operator_review_reference
+        or operator_commit != material_head
+        or not isinstance(operator_body, str)
+        or "\r" in operator_body
+        or operator_body != expected_body
+    ):
+        raise CommitIdentityError(
+            "operator review is not trusted exact-head credit-outage evidence"
+        )
+    operator_submitted = datetime.fromisoformat(
+        operator_submitted_at[:-1] + "+00:00"
+        if operator_submitted_at.endswith("Z")
+        else operator_submitted_at
+    )
+    if operator_submitted < quota_created:
+        raise CommitIdentityError("operator exact-head review predates the quota response")
+
+    override_pattern = re.compile(
+        rf"^https://github\.com/{re.escape(owner)}/{re.escape(name)}/pull/"
+        rf"{pr_number}#issuecomment-(\d+)$"
+    )
+    override_match = override_pattern.fullmatch(override_reference)
+    if not override_match:
+        raise CommitIdentityError(
+            "review credit outage override must be a GitHub issue comment on the exact PR"
+        )
+    override_response = request_json(
+        f"{_API_ROOT}/repos/{owner}/{name}/issues/comments/{override_match.group(1)}",
+        token=token,
+    )
+    if not isinstance(override_response, dict):
+        raise CommitIdentityError("GitHub review credit override response is malformed")
+    override_user = override_response.get("user")
+    override_user_id = override_user.get("id") if isinstance(override_user, dict) else None
+    override_login = override_user.get("login") if isinstance(override_user, dict) else None
+    override_type = override_user.get("type") if isinstance(override_user, dict) else None
+    override_association = override_response.get("author_association")
+    expected_issue_url = f"{_API_ROOT}/repos/{owner}/{name}/issues/{pr_number}"
+    if (
+        not isinstance(override_user_id, int)
+        or isinstance(override_user_id, bool)
+        or override_user_id <= 0
+        or not isinstance(override_login, str)
+        or not override_login
+        or override_type != "User"
+        or override_association not in {"OWNER", "MEMBER"}
+        or override_user_id != operator_user_id
+        or override_login != operator_login
+        or "performed_via_github_app" not in override_response
+        or override_response.get("performed_via_github_app") is not None
+        or override_response.get("html_url") != override_reference
+        or override_response.get("issue_url") != expected_issue_url
+    ):
+        raise CommitIdentityError("issue comment is not trusted review credit outage evidence")
+    override_created_at = _require_iso8601(
+        override_response.get("created_at"),
+        field="review credit outage override created_at",
+    )
+    override_updated_at = _require_iso8601(
+        override_response.get("updated_at"),
+        field="review credit outage override updated_at",
+    )
+    if override_created_at != override_updated_at:
+        raise CommitIdentityError("review credit outage override was edited after creation")
+    expected_override_body = render_review_credit_outage_override_comment(
+        pr_number=pr_number,
+        material_head_sha=material_head,
+        material_digest=material_digest,
+        quota_reference=quota_reference,
+        prior_review_reference=prior_review_reference,
+        operator_review_reference=operator_review_reference,
+    )
+    if (
+        not isinstance(override_response.get("body"), str)
+        or "\r" in override_response["body"]
+        or override_response["body"] != expected_override_body
+    ):
+        raise CommitIdentityError(
+            "review credit outage override body does not match the expected material"
+        )
+    override_created = datetime.fromisoformat(
+        override_created_at[:-1] + "+00:00"
+        if override_created_at.endswith("Z")
+        else override_created_at
+    )
+    if override_created > current + _CODEX_REVIEW_CREDIT_OUTAGE_CLOCK_SKEW:
+        raise CommitIdentityError("review credit outage override timestamp is in the future")
+    if current - override_created > _CODEX_REVIEW_CREDIT_OUTAGE_TTL:
+        raise CommitIdentityError("review credit outage override has expired")
+    if override_created < operator_submitted:
+        raise CommitIdentityError(
+            "review credit outage override predates the exact-head operator review"
+        )
+
+    return ReviewCreditOutageEvidence(
+        override_reference=override_reference,
+        override_created_at=override_created_at,
+        quota_reference=quota_reference,
+        quota_created_at=quota_created_at,
+        prior_review_reference=prior_review.reference,
+        prior_review_submitted_at=prior_review.submitted_at,
+        prior_review_commit_ref=prior_review.commit_ref,
+        operator_review_reference=operator_review_reference,
+        operator_review_submitted_at=operator_submitted_at,
+        operator_user_id=override_user_id,
+        operator_login=override_login,
+        operator_association=override_association,
+        material_head_sha=material_head,
+        material_digest=material_digest,
+    )
+
+
 def _require_graphql_object(response: Any) -> dict[str, Any]:
     if not isinstance(response, dict):
         raise CommitIdentityError("GitHub GraphQL response must be an object")
@@ -265,6 +817,17 @@ def _require_iso8601(value: Any, *, field: str) -> str:
     if parsed.tzinfo is None:
         raise CommitIdentityError(f"{field} must include a timezone")
     return value
+
+
+def _normalize_codex_comment_details(value: str) -> str:
+    """Ignore connector-only whitespace while preserving exact nonblank content."""
+
+    normalized: list[str] = []
+    for raw_line in value.splitlines():
+        line = raw_line.rstrip(" \t")
+        if line:
+            normalized.append(line)
+    return "\n".join(normalized)
 
 
 def _parse_pr_page(
@@ -476,17 +1039,23 @@ def is_ancestor(
     ):
         raise TypeError("ancestry requires two RepositoryCommitRef values")
     owner, name = _require_repository(repository)
-    url = (
+    compare_url = (
         f"{_API_ROOT}/repos/{owner}/{name}/compare/"
         f"{urllib.parse.quote(ancestor.sha, safe='')}..."
         f"{urllib.parse.quote(descendant.sha, safe='')}"
     )
-    try:
-        response = request_json(url, token=token)
-    except GitHubHttpError as exc:
-        raise CommitIdentityError(f"Compare API failed with HTTP {exc.status}") from exc
-    if not isinstance(response, dict):
-        raise CommitIdentityError("Compare API response is malformed")
+
+    def fetch_compare_page(page: int) -> dict[str, Any]:
+        url = f"{compare_url}?per_page=1&page={page}"
+        try:
+            response = request_json(url, token=token)
+        except GitHubHttpError as exc:
+            raise CommitIdentityError(f"Compare API failed with HTTP {exc.status}") from exc
+        if not isinstance(response, dict):
+            raise CommitIdentityError("Compare API response is malformed")
+        return response
+
+    response = fetch_compare_page(1)
     status = response.get("status")
     ahead_by = response.get("ahead_by")
     behind_by = response.get("behind_by")
@@ -505,8 +1074,12 @@ def is_ancestor(
         or isinstance(behind_by, bool)
         or ahead_by < 0
         or behind_by < 0
+        or not isinstance(total_commits, int)
+        or isinstance(total_commits, bool)
+        or total_commits < len(commits)
     ):
         raise CommitIdentityError("Compare API response does not bind the requested commits")
+
     if status in {"behind", "diverged"}:
         return False
     if status not in {"ahead", "identical"}:
@@ -515,53 +1088,45 @@ def is_ancestor(
         raise CommitIdentityError("Compare API response does not bind the requested commits")
     if status == "identical" and ancestor.sha != descendant.sha:
         raise CommitIdentityError("Compare API response does not bind the requested commits")
+    if status == "identical" and (total_commits != 0 or commits or ahead_by != 0 or behind_by != 0):
+        raise CommitIdentityError("Compare API response does not bind the requested commits")
+    if status == "identical":
+        return True
+
     if (
-        not isinstance(total_commits, int)
-        or isinstance(total_commits, bool)
-        or total_commits < len(commits)
-        or (status == "identical" and total_commits != 0)
-        or (status == "ahead" and ahead_by != total_commits)
+        not 1 <= ahead_by <= _MAX_PR_COMMITS
+        or behind_by != 0
+        or total_commits != ahead_by
+        or len(commits) != 1
     ):
         raise CommitIdentityError("Compare API response does not bind the requested commits")
-    if status == "ahead":
-        terminal_commits = commits
-        if total_commits > len(commits):
-            terminal_url = f"{url}?per_page=1&page={total_commits}"
-            try:
-                terminal_response = request_json(terminal_url, token=token)
-            except GitHubHttpError as exc:
-                raise CommitIdentityError(
-                    f"Compare API terminal page failed with HTTP {exc.status}"
-                ) from exc
-            if not isinstance(terminal_response, dict):
-                raise CommitIdentityError("Compare API terminal page response is malformed")
-            terminal_base = terminal_response.get("base_commit")
-            terminal_merge_base = terminal_response.get("merge_base_commit")
-            terminal_page_commits = terminal_response.get("commits")
-            if (
-                terminal_response.get("status") != status
-                or terminal_response.get("ahead_by") != ahead_by
-                or terminal_response.get("behind_by") != behind_by
-                or terminal_response.get("total_commits") != total_commits
-                or not isinstance(terminal_base, dict)
-                or terminal_base.get("sha") != ancestor.sha
-                or not isinstance(terminal_merge_base, dict)
-                or terminal_merge_base.get("sha") != ancestor.sha
-                or not isinstance(terminal_page_commits, list)
-                or len(terminal_page_commits) != 1
-            ):
-                raise CommitIdentityError(
-                    "Compare API terminal page does not bind the requested commits"
-                )
-            terminal_commits = terminal_page_commits
-        last_commit = terminal_commits[-1] if terminal_commits else None
-        if not isinstance(last_commit, dict) or last_commit.get("sha") != descendant.sha:
-            raise CommitIdentityError("Compare API response does not bind the requested commits")
-    if status == "identical":
-        return ahead_by == 0 and behind_by == 0
-    if status == "ahead":
-        return ahead_by >= 1 and behind_by == 0
-    raise CommitIdentityError("Compare API returned unknown ancestry status")
+
+    terminal_commits = commits
+    if total_commits > 1:
+        terminal_response = fetch_compare_page(total_commits)
+        terminal_base = terminal_response.get("base_commit")
+        terminal_merge_base = terminal_response.get("merge_base_commit")
+        terminal_page_commits = terminal_response.get("commits")
+        if (
+            terminal_response.get("status") != status
+            or terminal_response.get("ahead_by") != ahead_by
+            or terminal_response.get("behind_by") != behind_by
+            or terminal_response.get("total_commits") != total_commits
+            or not isinstance(terminal_base, dict)
+            or terminal_base.get("sha") != ancestor.sha
+            or not isinstance(terminal_merge_base, dict)
+            or terminal_merge_base.get("sha") != ancestor.sha
+            or not isinstance(terminal_page_commits, list)
+            or len(terminal_page_commits) != 1
+        ):
+            raise CommitIdentityError(
+                "Compare API terminal page does not bind the requested commits"
+            )
+        terminal_commits = terminal_page_commits
+    last_commit = terminal_commits[-1]
+    if not isinstance(last_commit, dict) or last_commit.get("sha") != descendant.sha:
+        raise CommitIdentityError("Compare API response does not bind the requested commits")
+    return True
 
 
 def verify_codex_review_reference(
@@ -570,43 +1135,131 @@ def verify_codex_review_reference(
     repository: str,
     pr_number: int,
     token: str,
+    expected_commit_ref: str | None = None,
     request_json: ApiRequest = github_api_request,
 ) -> CodexReviewEvidence:
-    """Prove that a seal reference names one submitted trusted Codex PR review."""
+    """Prove that a seal reference names trusted exact-head Codex review evidence."""
 
     owner, name = _require_repository(repository)
-    pattern = re.compile(
+    expected_commit = (
+        _require_sha(expected_commit_ref, field="expected Codex review commit")
+        if expected_commit_ref is not None
+        else None
+    )
+    review_pattern = re.compile(
         rf"^https://github\.com/{re.escape(owner)}/{re.escape(name)}/pull/"
         rf"{pr_number}#pullrequestreview-(\d+)$"
     )
-    match = pattern.fullmatch(reference)
-    if not match:
-        raise CommitIdentityError("code-review reference must be a GitHub PR review URL")
-    review_id = match.group(1)
+    review_match = review_pattern.fullmatch(reference)
+    if review_match:
+        review_id = review_match.group(1)
+        response = request_json(
+            f"{_API_ROOT}/repos/{owner}/{name}/pulls/{pr_number}/reviews/{review_id}",
+            token=token,
+        )
+        if not isinstance(response, dict):
+            raise CommitIdentityError("GitHub review response is malformed")
+        user = response.get("user")
+        login = user.get("login") if isinstance(user, dict) else None
+        state = response.get("state")
+        submitted_at = response.get("submitted_at")
+        commit_id = response.get("commit_id")
+        html_url = response.get("html_url")
+        if (
+            login != _CODEX_CONNECTOR_LOGIN
+            or state not in {"COMMENTED", "APPROVED"}
+            or html_url != reference
+        ):
+            raise CommitIdentityError(
+                "code-review reference is not a submitted trusted Codex review"
+            )
+        submitted = _require_iso8601(submitted_at, field="Codex review submitted_at")
+        commit_ref = _require_sha(str(commit_id or ""), field="Codex review commit_id")
+        if expected_commit is not None and commit_ref != expected_commit:
+            raise CommitIdentityError("Codex review does not match the expected material commit")
+        return CodexReviewEvidence(
+            reference=reference,
+            submitted_at=submitted,
+            commit_ref=commit_ref,
+        )
+
+    comment_pattern = re.compile(
+        rf"^https://github\.com/{re.escape(owner)}/{re.escape(name)}/pull/"
+        rf"{pr_number}#issuecomment-(\d+)$"
+    )
+    comment_match = comment_pattern.fullmatch(reference)
+    if not comment_match:
+        raise CommitIdentityError(
+            "code-review reference must be a GitHub PR review or Codex no-findings comment URL"
+        )
+    if expected_commit is None:
+        raise CommitIdentityError(
+            "Codex no-findings comment requires an expected full material commit"
+        )
+    comment_id = comment_match.group(1)
     response = request_json(
-        f"{_API_ROOT}/repos/{owner}/{name}/pulls/{pr_number}/reviews/{review_id}",
+        f"{_API_ROOT}/repos/{owner}/{name}/issues/comments/{comment_id}",
         token=token,
     )
     if not isinstance(response, dict):
-        raise CommitIdentityError("GitHub review response is malformed")
+        raise CommitIdentityError("GitHub issue-comment response is malformed")
     user = response.get("user")
     login = user.get("login") if isinstance(user, dict) else None
-    state = response.get("state")
-    submitted_at = response.get("submitted_at")
-    commit_id = response.get("commit_id")
-    html_url = response.get("html_url")
+    user_type = user.get("type") if isinstance(user, dict) else None
+    app = response.get("performed_via_github_app")
+    app_owner = app.get("owner") if isinstance(app, dict) else None
+    app_owner_login = app_owner.get("login") if isinstance(app_owner, dict) else None
+    created_at = response.get("created_at")
+    updated_at = response.get("updated_at")
     if (
-        login != "chatgpt-codex-connector[bot]"
-        or state not in {"COMMENTED", "APPROVED"}
-        or html_url != reference
+        login != _CODEX_CONNECTOR_LOGIN
+        or user_type != "Bot"
+        or not isinstance(app, dict)
+        or app.get("id") != _CODEX_CONNECTOR_APP_ID
+        or app.get("slug") != _CODEX_CONNECTOR_APP_SLUG
+        or app_owner_login != _CODEX_CONNECTOR_OWNER
+        or response.get("html_url") != reference
     ):
-        raise CommitIdentityError("code-review reference is not a submitted trusted Codex review")
-    submitted = _require_iso8601(submitted_at, field="Codex review submitted_at")
-    commit_ref = _require_sha(str(commit_id or ""), field="Codex review commit_id")
+        raise CommitIdentityError("issue-comment reference is not trusted Codex evidence")
+    submitted = _require_iso8601(created_at, field="Codex comment created_at")
+    edited_at = _require_iso8601(updated_at, field="Codex comment updated_at")
+    if submitted != edited_at:
+        raise CommitIdentityError("Codex no-findings comment was edited after creation")
+    body = response.get("body")
+    if not isinstance(body, str) or "\r" in body:
+        raise CommitIdentityError("Codex no-findings comment body is malformed")
+    sections = body.split("\n\n", 2)
+    if (
+        len(sections) != 3
+        or "\n" in sections[0]
+        or not sections[0].startswith(_CODEX_NO_FINDINGS_SUMMARY_PREFIX)
+        or _normalize_codex_comment_details(sections[2])
+        != _normalize_codex_comment_details(_CODEX_NO_FINDINGS_DETAILS)
+    ):
+        raise CommitIdentityError("issue-comment is not an exact Codex no-findings response")
+    commit_matches = list(_CODEX_REVIEWED_COMMIT_RE.finditer(sections[1]))
+    if len(commit_matches) != 1 or commit_matches[0].group(0) != sections[1]:
+        raise CommitIdentityError("Codex no-findings comment has invalid commit evidence")
+    reviewed_prefix = commit_matches[0].group("commit")
+    if not expected_commit.startswith(reviewed_prefix):
+        raise CommitIdentityError("Codex no-findings comment does not match the material commit")
+    resolved_commit = request_json(
+        f"{_API_ROOT}/repos/{owner}/{name}/commits/{reviewed_prefix}",
+        token=token,
+    )
+    if not isinstance(resolved_commit, dict):
+        raise CommitIdentityError("GitHub commit response is malformed")
+    resolved_sha = _require_sha(
+        str(resolved_commit.get("sha") or ""), field="resolved Codex review commit"
+    )
+    if resolved_sha != expected_commit:
+        raise CommitIdentityError(
+            "Codex no-findings commit marker does not resolve to the material commit"
+        )
     return CodexReviewEvidence(
         reference=reference,
         submitted_at=submitted,
-        commit_ref=commit_ref,
+        commit_ref=expected_commit,
     )
 
 

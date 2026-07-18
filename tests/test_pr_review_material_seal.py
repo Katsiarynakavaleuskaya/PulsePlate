@@ -5,10 +5,12 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 from argparse import Namespace
-from pathlib import Path
+from datetime import datetime, timedelta, timezone
+from pathlib import Path, PurePosixPath
 from typing import Any, cast
 
 import pytest
@@ -21,14 +23,20 @@ from scripts.orchestration.pr_commit_identity import (
     PrSnapshot,
     ReviewCommentEvidence,
     RepositoryCommitRef,
+    ReviewCreditOutageEvidence,
     ReviewExecutionRef,
     ReviewThreadEvidence,
+    SecurityOutageOverrideEvidence,
     assert_snapshot_unchanged,
     classify_commit_ref,
     fetch_pr_snapshot,
     fetch_review_threads,
     is_ancestor,
+    render_review_credit_outage_override_comment,
+    render_security_outage_override_comment,
     verify_codex_review_reference,
+    verify_review_credit_outage_references,
+    verify_security_outage_override_reference,
 )
 from scripts.orchestration import pr_commit_identity as identity_module
 from scripts.orchestration import pr_review_closeout as closeout_module
@@ -40,15 +48,22 @@ from scripts.orchestration.pr_review_evidence import (
     SEAL_END,
     MaterialManifest,
     ReviewEvidenceError,
+    build_review_credit_outage_receipt,
+    build_security_outage_override_receipt,
     compute_material_manifest,
     ingest_codex_security_receipt,
+    is_review_credit_outage_receipt,
+    is_security_outage_override_receipt,
     parse_duplicate_disposition_reply,
     parse_embedded_review_seal,
     render_embedded_review_seal,
     unavailable_review_ref_fingerprint,
+    validate_review_credit_outage_scope,
+    validate_security_outage_override_scope,
     validated_duplicate_reply_urls,
 )
 from scripts.orchestration.review_mapping_artifact import (
+    NO_ACTIONABLE_LINE,
     parse_canonical_fingerprint_records,
     validate_mapping_artifact_text,
 )
@@ -327,7 +342,7 @@ def test_compare_accepts_only_bound_ancestor_response() -> None:
             "ahead_by": 1,
             "behind_by": 0,
             "base_commit": {"sha": FIX_SHA},
-            "head_commit": {"sha": HEAD_SHA},
+            "head_commit": {"sha": OUTSIDE_SHA},
             "merge_base_commit": {"sha": FIX_SHA},
             "commits": [{"sha": HEAD_SHA}],
             "total_commits": 1,
@@ -364,6 +379,43 @@ def test_compare_accepts_current_api_shape_without_head_commit() -> None:
         token="opaque",
         request_json=request_json,
     )
+
+
+def test_compare_fetches_the_last_page_to_bind_a_distant_descendant() -> None:
+    ancestor = RepositoryCommitRef(FIX_SHA, CommitRefKind.PR_COMMIT)
+    descendant = RepositoryCommitRef(HEAD_SHA, CommitRefKind.PR_HEAD)
+    requested_urls: list[str] = []
+
+    def request_json(url: str, **_kwargs: Any) -> Any:
+        requested_urls.append(url)
+        commit_sha = HEAD_SHA if "page=257" in url else OUTSIDE_SHA
+        return {
+            "status": "ahead",
+            "ahead_by": 257,
+            "behind_by": 0,
+            "base_commit": {"sha": FIX_SHA},
+            "commits": [{"sha": commit_sha}],
+            "merge_base_commit": {"sha": FIX_SHA},
+            "total_commits": 257,
+        }
+
+    assert is_ancestor(
+        ancestor,
+        descendant,
+        repository="owner/repo",
+        token="opaque",
+        request_json=request_json,
+    )
+    assert requested_urls == [
+        (
+            "https://api.github.com/repos/owner/repo/compare/"
+            f"{FIX_SHA}...{HEAD_SHA}?per_page=1&page=1"
+        ),
+        (
+            "https://api.github.com/repos/owner/repo/compare/"
+            f"{FIX_SHA}...{HEAD_SHA}?per_page=1&page=257"
+        ),
+    ]
 
 
 @pytest.mark.parametrize("head_commit", [None, {"sha": OUTSIDE_SHA}, {"sha": HEAD_SHA}])
@@ -453,8 +505,10 @@ def test_compare_identical_requires_the_same_requested_sha() -> None:
 
 def test_compare_identical_accepts_same_sha_without_head_commit() -> None:
     commit = RepositoryCommitRef(HEAD_SHA, CommitRefKind.PR_HEAD)
+    requested_urls: list[str] = []
 
-    def request_json(*_args: Any, **_kwargs: Any) -> Any:
+    def request_json(url: str, **_kwargs: Any) -> Any:
+        requested_urls.append(url)
         return {
             "status": "identical",
             "ahead_by": 0,
@@ -472,6 +526,28 @@ def test_compare_identical_accepts_same_sha_without_head_commit() -> None:
         token="opaque",
         request_json=request_json,
     )
+    assert requested_urls == [
+        (
+            "https://api.github.com/repos/owner/repo/compare/"
+            f"{HEAD_SHA}...{HEAD_SHA}?per_page=1&page=1"
+        )
+    ]
+
+
+def test_compare_identical_api_failure_remains_unproven() -> None:
+    commit = RepositoryCommitRef(HEAD_SHA, CommitRefKind.PR_HEAD)
+
+    def request_json(*_args: Any, **_kwargs: Any) -> Any:
+        raise GitHubHttpError(503, "Service Unavailable")
+
+    with pytest.raises(CommitIdentityError, match="Compare API failed with HTTP 503"):
+        is_ancestor(
+            commit,
+            commit,
+            repository="owner/repo",
+            token="opaque",
+            request_json=request_json,
+        )
 
 
 @pytest.mark.parametrize(
@@ -505,7 +581,9 @@ def test_compare_non_ancestor_statuses_return_false(status: str, merge_base_sha:
 @pytest.mark.parametrize(
     ("commits", "total_commits", "ahead_by"),
     [
+        (None, 1, 1),
         ([], 1, 1),
+        ([{"sha": OUTSIDE_SHA}], 1, 1),
         ([{"sha": HEAD_SHA}], 1, 2),
         ("not-a-list", 1, 1),
     ],
@@ -584,6 +662,16 @@ def test_codex_review_reference_requires_exact_trusted_submitted_review() -> Non
     )
     assert evidence.commit_ref == HEAD_SHA
 
+    with pytest.raises(CommitIdentityError, match="expected material commit"):
+        verify_codex_review_reference(
+            reference,
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            expected_commit_ref=OUTSIDE_SHA,
+            request_json=request_json,
+        )
+
     with pytest.raises(CommitIdentityError, match="submitted trusted Codex"):
         verify_codex_review_reference(
             reference,
@@ -598,6 +686,950 @@ def test_codex_review_reference_requires_exact_trusted_submitted_review() -> Non
                 "user": {"login": "spoofed[bot]"},
             },
         )
+
+
+def _codex_no_findings_body(
+    commit_prefix: str = HEAD_SHA[:10],
+    *,
+    summary: str = "Codex Review: Didn't find any major issues. Breezy!",
+) -> str:
+    return f"""{summary}
+
+**Reviewed commit:** `{commit_prefix}`
+
+<details> <summary>ℹ️ About Codex in GitHub</summary>
+<br/>
+
+[Your team has set up Codex to review pull requests in this repo](https://chatgpt.com/codex/cloud/settings/general). Reviews are triggered when you
+- Open a pull request for review
+- Mark a draft as ready
+- Comment "@codex review".
+
+If Codex has suggestions, it will comment; otherwise it will react with 👍.
+
+
+
+Codex can also answer questions or update the PR. Try commenting "@codex address that feedback".
+
+</details>"""
+
+
+def _codex_no_findings_comment(reference: str, *, body: str | None = None) -> dict[str, Any]:
+    return {
+        "body": _codex_no_findings_body() if body is None else body,
+        "created_at": "2026-07-15T11:00:00Z",
+        "html_url": reference,
+        "performed_via_github_app": {
+            "id": 1_144_995,
+            "owner": {"login": "openai"},
+            "slug": "chatgpt-codex-connector",
+        },
+        "updated_at": "2026-07-15T11:00:00Z",
+        "user": {"login": "chatgpt-codex-connector[bot]", "type": "Bot"},
+    }
+
+
+def test_codex_no_findings_comment_is_bound_to_expected_full_head() -> None:
+    reference = "https://github.com/owner/repo/pull/42#issuecomment-456"
+    requested_urls: list[str] = []
+
+    def request_json(url: str, **_kwargs: Any) -> Any:
+        requested_urls.append(url)
+        if url.endswith("/commits/" + HEAD_SHA[:10]):
+            return {"sha": HEAD_SHA}
+        return _codex_no_findings_comment(reference)
+
+    evidence = verify_codex_review_reference(
+        reference,
+        repository="owner/repo",
+        pr_number=42,
+        token="opaque",
+        expected_commit_ref=HEAD_SHA,
+        request_json=request_json,
+    )
+
+    assert evidence.commit_ref == HEAD_SHA
+    assert evidence.submitted_at == "2026-07-15T11:00:00Z"
+    assert requested_urls == [
+        "https://api.github.com/repos/owner/repo/issues/comments/456",
+        f"https://api.github.com/repos/owner/repo/commits/{HEAD_SHA[:10]}",
+    ]
+
+
+@pytest.mark.parametrize(
+    "summary",
+    [
+        "Codex Review: Didn't find any major issues. Breezy!",
+        "Codex Review: Didn't find any major issues. Nice work!",
+        "Codex Review: Didn't find any major issues. Can't wait for the next one!",
+    ],
+)
+def test_codex_no_findings_comment_accepts_connector_summary_variants(summary: str) -> None:
+    reference = "https://github.com/owner/repo/pull/42#issuecomment-456"
+
+    def request_json(url: str, **_kwargs: Any) -> Any:
+        if url.endswith("/commits/" + HEAD_SHA[:10]):
+            return {"sha": HEAD_SHA}
+        return _codex_no_findings_comment(
+            reference,
+            body=_codex_no_findings_body(summary=summary),
+        )
+
+    evidence = verify_codex_review_reference(
+        reference,
+        repository="owner/repo",
+        pr_number=42,
+        token="opaque",
+        expected_commit_ref=HEAD_SHA,
+        request_json=request_json,
+    )
+
+    assert evidence.commit_ref == HEAD_SHA
+
+
+@pytest.mark.parametrize(
+    ("mutate", "error"),
+    [
+        (
+            lambda response: response["user"].update(login="spoofed[bot]"),
+            "not trusted Codex evidence",
+        ),
+        (
+            lambda response: response["user"].update(type="User"),
+            "not trusted Codex evidence",
+        ),
+        (
+            lambda response: response["performed_via_github_app"].update(id=1),
+            "not trusted Codex evidence",
+        ),
+        (
+            lambda response: response["performed_via_github_app"].update(slug="spoofed"),
+            "not trusted Codex evidence",
+        ),
+        (
+            lambda response: response["performed_via_github_app"]["owner"].update(login="spoofed"),
+            "not trusted Codex evidence",
+        ),
+        (
+            lambda response: response.update(
+                html_url="https://github.com/owner/repo/pull/43#issuecomment-456"
+            ),
+            "not trusted Codex evidence",
+        ),
+        (
+            lambda response: response.update(updated_at="2026-07-15T11:01:00Z"),
+            "edited after creation",
+        ),
+        (
+            lambda response: response.update(
+                body=response["body"].replace(
+                    "Didn't find any major issues. Breezy!", "Found a major issue."
+                )
+            ),
+            "not an exact Codex no-findings response",
+        ),
+        (
+            lambda response: response.update(
+                body=response["body"].replace(
+                    "Didn't find any major issues.",
+                    "Didn't find major issues.",
+                )
+            ),
+            "not an exact Codex no-findings response",
+        ),
+        (
+            lambda response: response.update(
+                body=response["body"].replace(HEAD_SHA[:10], "ABCDEF1234")
+            ),
+            "invalid commit evidence",
+        ),
+        (
+            lambda response: response.update(
+                body=response["body"].replace(
+                    f"**Reviewed commit:** `{HEAD_SHA[:10]}`",
+                    (
+                        f"**Reviewed commit:** `{HEAD_SHA[:10]}`\n"
+                        f"**Reviewed commit:** `{HEAD_SHA[:10]}`"
+                    ),
+                )
+            ),
+            "invalid commit evidence",
+        ),
+    ],
+)
+def test_codex_no_findings_comment_rejects_untrusted_or_ambiguous_evidence(
+    mutate: Any, error: str
+) -> None:
+    reference = "https://github.com/owner/repo/pull/42#issuecomment-456"
+    response = _codex_no_findings_comment(reference)
+    mutate(response)
+
+    with pytest.raises(CommitIdentityError, match=error):
+        verify_codex_review_reference(
+            reference,
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            expected_commit_ref=HEAD_SHA,
+            request_json=lambda *_a, **_k: response,
+        )
+
+
+def test_codex_no_findings_comment_requires_exact_full_head_binding() -> None:
+    reference = "https://github.com/owner/repo/pull/42#issuecomment-456"
+    response = _codex_no_findings_comment(
+        reference,
+        body=_codex_no_findings_body(OUTSIDE_SHA[:10]),
+    )
+
+    with pytest.raises(CommitIdentityError, match="does not match the material commit"):
+        verify_codex_review_reference(
+            reference,
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            expected_commit_ref=HEAD_SHA,
+            request_json=lambda *_a, **_k: response,
+        )
+
+
+def test_codex_no_findings_comment_rejects_unresolved_short_commit() -> None:
+    reference = "https://github.com/owner/repo/pull/42#issuecomment-456"
+
+    def request_json(url: str, **_kwargs: Any) -> Any:
+        if "/commits/" in url:
+            return {"sha": OUTSIDE_SHA}
+        return _codex_no_findings_comment(reference)
+
+    with pytest.raises(CommitIdentityError, match="does not resolve to the material commit"):
+        verify_codex_review_reference(
+            reference,
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            expected_commit_ref=HEAD_SHA,
+            request_json=request_json,
+        )
+
+    with pytest.raises(CommitIdentityError, match="requires an expected full material commit"):
+        verify_codex_review_reference(
+            reference,
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            request_json=lambda *_a, **_k: _codex_no_findings_comment(reference),
+        )
+
+
+def _review_credit_quota_comment(
+    reference: str,
+    *,
+    body: str | None = None,
+    created_at: str = "2026-07-15T11:05:00Z",
+) -> dict[str, Any]:
+    return {
+        "body": (
+            body
+            if body is not None
+            else (
+                "Codex usage limits have been reached for code reviews. "
+                "Please check with the admins of this repo to increase the limits "
+                "by adding credits.\n"
+                "Credits must be used to enable repository wide code reviews."
+            )
+        ),
+        "created_at": created_at,
+        "html_url": reference,
+        "issue_url": "https://api.github.com/repos/owner/repo/issues/42",
+        "performed_via_github_app": {
+            "id": 1_144_995,
+            "owner": {"login": "openai"},
+            "slug": "chatgpt-codex-connector",
+        },
+        "updated_at": created_at,
+        "user": {"login": "chatgpt-codex-connector[bot]", "type": "Bot"},
+    }
+
+
+def _prior_codex_review(reference: str) -> dict[str, Any]:
+    return {
+        "commit_id": FIX_SHA,
+        "html_url": reference,
+        "state": "COMMENTED",
+        "submitted_at": "2026-07-15T10:30:00Z",
+        "user": {"login": "chatgpt-codex-connector[bot]"},
+    }
+
+
+def _operator_exact_head_review(reference: str) -> dict[str, Any]:
+    return {
+        "author_association": "OWNER",
+        "body": (
+            f"Exact-head bounded review completed for `{HEAD_SHA}`. "
+            "No actionable findings remain."
+        ),
+        "commit_id": HEAD_SHA,
+        "html_url": reference,
+        "state": "COMMENTED",
+        "submitted_at": "2026-07-15T11:10:00Z",
+        "user": {"id": 123, "login": "owner", "type": "User"},
+    }
+
+
+def _review_credit_override_comment(
+    reference: str,
+    *,
+    quota_reference: str,
+    prior_review_reference: str,
+    operator_review_reference: str,
+    created_at: str = "2026-07-15T11:15:00Z",
+) -> dict[str, Any]:
+    return {
+        "author_association": "OWNER",
+        "body": render_review_credit_outage_override_comment(
+            pr_number=42,
+            material_head_sha=HEAD_SHA,
+            material_digest=DIGEST,
+            quota_reference=quota_reference,
+            prior_review_reference=prior_review_reference,
+            operator_review_reference=operator_review_reference,
+        ),
+        "created_at": created_at,
+        "html_url": reference,
+        "issue_url": "https://api.github.com/repos/owner/repo/issues/42",
+        "performed_via_github_app": None,
+        "updated_at": created_at,
+        "user": {"id": 123, "login": "owner", "type": "User"},
+    }
+
+
+def _review_credit_request_json(
+    override_reference: str,
+    quota_reference: str,
+    prior_review_reference: str,
+    operator_review_reference: str,
+) -> Any:
+    def request_json(url: str, **_kwargs: Any) -> Any:
+        if url.endswith("/issues/comments/456"):
+            return _review_credit_quota_comment(quota_reference)
+        if url.endswith("/issues/comments/654"):
+            return _review_credit_override_comment(
+                override_reference,
+                quota_reference=quota_reference,
+                prior_review_reference=prior_review_reference,
+                operator_review_reference=operator_review_reference,
+            )
+        if url.endswith("/reviews/123"):
+            return _prior_codex_review(prior_review_reference)
+        if url.endswith("/reviews/789"):
+            return _operator_exact_head_review(operator_review_reference)
+        if url.endswith("/commits/" + FIX_SHA):
+            return {"sha": FIX_SHA}
+        if "/compare/" in url:
+            return {
+                "ahead_by": 1,
+                "base_commit": {"sha": FIX_SHA},
+                "behind_by": 0,
+                "commits": [{"sha": HEAD_SHA}],
+                "merge_base_commit": {"sha": FIX_SHA},
+                "status": "ahead",
+                "total_commits": 1,
+            }
+        raise AssertionError(f"unexpected GitHub API URL: {url}")
+
+    return request_json
+
+
+def test_review_credit_outage_requires_trusted_quota_prior_review_and_owner_head() -> None:
+    override_reference = "https://github.com/owner/repo/pull/42#issuecomment-654"
+    quota_reference = "https://github.com/owner/repo/pull/42#issuecomment-456"
+    prior_review_reference = "https://github.com/owner/repo/pull/42#pullrequestreview-123"
+    operator_review_reference = "https://github.com/owner/repo/pull/42#pullrequestreview-789"
+
+    evidence = verify_review_credit_outage_references(
+        override_reference=override_reference,
+        quota_reference=quota_reference,
+        prior_review_reference=prior_review_reference,
+        operator_review_reference=operator_review_reference,
+        repository="owner/repo",
+        pr_number=42,
+        token="opaque",
+        snapshot=_snapshot(),
+        expected_material_head_sha=HEAD_SHA,
+        expected_material_digest=DIGEST,
+        now=datetime(2026, 7, 15, 12, tzinfo=timezone.utc),
+        request_json=_review_credit_request_json(
+            override_reference,
+            quota_reference,
+            prior_review_reference,
+            operator_review_reference,
+        ),
+    )
+
+    assert evidence.override_reference == override_reference
+    assert evidence.material_digest == DIGEST
+    assert evidence.material_head_sha == HEAD_SHA
+    assert evidence.prior_review_commit_ref == FIX_SHA
+    assert evidence.operator_user_id == 123
+    assert evidence.operator_association == "OWNER"
+
+
+def test_review_credit_outage_rejects_actionable_operator_review_suffix() -> None:
+    override_reference = "https://github.com/owner/repo/pull/42#issuecomment-654"
+    quota_reference = "https://github.com/owner/repo/pull/42#issuecomment-456"
+    prior_review_reference = "https://github.com/owner/repo/pull/42#pullrequestreview-123"
+    operator_review_reference = "https://github.com/owner/repo/pull/42#pullrequestreview-789"
+    operator_review = _operator_exact_head_review(operator_review_reference)
+    operator_review["body"] += "\n\nP2: unresolved review finding"
+    base_request = _review_credit_request_json(
+        override_reference,
+        quota_reference,
+        prior_review_reference,
+        operator_review_reference,
+    )
+
+    def request_json(url: str, **kwargs: Any) -> Any:
+        if url.endswith("/reviews/789"):
+            return operator_review
+        return base_request(url, **kwargs)
+
+    with pytest.raises(
+        CommitIdentityError,
+        match="operator review is not trusted exact-head credit-outage evidence",
+    ):
+        verify_review_credit_outage_references(
+            override_reference=override_reference,
+            quota_reference=quota_reference,
+            prior_review_reference=prior_review_reference,
+            operator_review_reference=operator_review_reference,
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            snapshot=_snapshot(),
+            expected_material_head_sha=HEAD_SHA,
+            expected_material_digest=DIGEST,
+            now=datetime(2026, 7, 15, 12, tzinfo=timezone.utc),
+            request_json=request_json,
+        )
+
+
+@pytest.mark.parametrize(
+    ("mutation", "error"),
+    [
+        (
+            lambda response: response.update(updated_at="2026-07-15T11:06:00Z"),
+            "edited after creation",
+        ),
+        (
+            lambda response: response.update(body="Codex review unavailable"),
+            "not an exact review-credit outage",
+        ),
+        (
+            lambda response: response["performed_via_github_app"].update(id=1),
+            "not trusted Codex evidence",
+        ),
+    ],
+)
+def test_review_credit_outage_rejects_ambiguous_quota_evidence(
+    mutation: Any,
+    error: str,
+) -> None:
+    override_reference = "https://github.com/owner/repo/pull/42#issuecomment-654"
+    quota_reference = "https://github.com/owner/repo/pull/42#issuecomment-456"
+    prior_review_reference = "https://github.com/owner/repo/pull/42#pullrequestreview-123"
+    operator_review_reference = "https://github.com/owner/repo/pull/42#pullrequestreview-789"
+    quota_response = _review_credit_quota_comment(quota_reference)
+    mutation(quota_response)
+    base_request = _review_credit_request_json(
+        override_reference,
+        quota_reference,
+        prior_review_reference,
+        operator_review_reference,
+    )
+
+    def request_json(url: str, **kwargs: Any) -> Any:
+        if url.endswith("/issues/comments/456"):
+            return quota_response
+        return base_request(url, **kwargs)
+
+    with pytest.raises(CommitIdentityError, match=error):
+        verify_review_credit_outage_references(
+            override_reference=override_reference,
+            quota_reference=quota_reference,
+            prior_review_reference=prior_review_reference,
+            operator_review_reference=operator_review_reference,
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            snapshot=_snapshot(),
+            expected_material_head_sha=HEAD_SHA,
+            expected_material_digest=DIGEST,
+            now=datetime(2026, 7, 15, 12, tzinfo=timezone.utc),
+            request_json=request_json,
+        )
+
+
+@pytest.mark.parametrize(
+    ("mutation", "error"),
+    [
+        (
+            lambda response: response.update(updated_at="2026-07-15T11:16:00Z"),
+            "edited after creation",
+        ),
+        (
+            lambda response: response.update(body="operator says proceed"),
+            "body does not match",
+        ),
+        (
+            lambda response: response["user"].update(id=999),
+            "not trusted review credit outage evidence",
+        ),
+        (
+            lambda response: response.update(
+                created_at="2026-07-15T11:09:00Z",
+                updated_at="2026-07-15T11:09:00Z",
+            ),
+            "predates the exact-head operator review",
+        ),
+    ],
+)
+def test_review_credit_outage_rejects_ambiguous_owner_override(
+    mutation: Any,
+    error: str,
+) -> None:
+    override_reference = "https://github.com/owner/repo/pull/42#issuecomment-654"
+    quota_reference = "https://github.com/owner/repo/pull/42#issuecomment-456"
+    prior_review_reference = "https://github.com/owner/repo/pull/42#pullrequestreview-123"
+    operator_review_reference = "https://github.com/owner/repo/pull/42#pullrequestreview-789"
+    override_response = _review_credit_override_comment(
+        override_reference,
+        quota_reference=quota_reference,
+        prior_review_reference=prior_review_reference,
+        operator_review_reference=operator_review_reference,
+    )
+    mutation(override_response)
+    base_request = _review_credit_request_json(
+        override_reference,
+        quota_reference,
+        prior_review_reference,
+        operator_review_reference,
+    )
+
+    def request_json(url: str, **kwargs: Any) -> Any:
+        if url.endswith("/issues/comments/654"):
+            return override_response
+        return base_request(url, **kwargs)
+
+    with pytest.raises(CommitIdentityError, match=error):
+        verify_review_credit_outage_references(
+            override_reference=override_reference,
+            quota_reference=quota_reference,
+            prior_review_reference=prior_review_reference,
+            operator_review_reference=operator_review_reference,
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            snapshot=_snapshot(),
+            expected_material_head_sha=HEAD_SHA,
+            expected_material_digest=DIGEST,
+            now=datetime(2026, 7, 15, 12, tzinfo=timezone.utc),
+            request_json=request_json,
+        )
+
+
+def test_review_credit_outage_receipt_is_distinct_and_material_bound() -> None:
+    receipt = build_review_credit_outage_receipt(
+        material_digest=DIGEST,
+        material_head_sha=HEAD_SHA,
+        override_reference="https://github.com/owner/repo/pull/42#issuecomment-654",
+        override_created_at="2026-07-15T11:15:00Z",
+        quota_reference="https://github.com/owner/repo/pull/42#issuecomment-456",
+        quota_created_at="2026-07-15T11:05:00Z",
+        prior_review_reference=("https://github.com/owner/repo/pull/42#pullrequestreview-123"),
+        prior_review_submitted_at="2026-07-15T10:30:00Z",
+        prior_review_commit_ref=FIX_SHA,
+        operator_review_reference=("https://github.com/owner/repo/pull/42#pullrequestreview-789"),
+        operator_review_submitted_at="2026-07-15T11:10:00Z",
+        operator_user_id=123,
+        operator_login="owner",
+        operator_association="OWNER",
+    )
+
+    assert is_review_credit_outage_receipt(receipt)
+    assert receipt["status"] == "tooling_unavailable"
+    assert receipt["review_commit_ref"] == HEAD_SHA
+    seal = _seal(
+        build_security_outage_override_receipt(
+            base_revision=BASE_SHA,
+            head_revision=HEAD_SHA,
+            material_digest=DIGEST,
+            override_reference=("https://github.com/owner/repo/pull/42#issuecomment-789"),
+            created_at="2026-07-15T11:00:00Z",
+            operator_user_id=123,
+            operator_login="owner",
+            operator_association="OWNER",
+        )
+    )
+    seal["code_review"] = receipt
+    parsed = parse_embedded_review_seal(render_embedded_review_seal(seal))
+    assert parsed["code_review"] == receipt
+
+
+@pytest.mark.parametrize(
+    ("repository", "pr_number", "paths", "allowed"),
+    [
+        (
+            "Katsiarynakavaleuskaya/PulsePlate",
+            2142,
+            ("scripts/ci/check_pr_merge_readiness.py",),
+            True,
+        ),
+        (
+            "Katsiarynakavaleuskaya/PulsePlate",
+            2143,
+            ("scripts/ci/check_pr_merge_readiness.py",),
+            False,
+        ),
+        (
+            "Katsiarynakavaleuskaya/PulsePlate",
+            2143,
+            ("scripts/ci/check_pr_body_phase2_gates.py",),
+            False,
+        ),
+        (
+            "Katsiarynakavaleuskaya/PulsePlate",
+            2143,
+            ("docs/orchestration/REVIEW_SOURCE_DEGRADATION_POLICY.md",),
+            False,
+        ),
+        (
+            "Katsiarynakavaleuskaya/PulsePlate",
+            2143,
+            ("scripts/ci/ci_risk_profile.py",),
+            False,
+        ),
+        ("owner/repo", 42, ("requirements-test.txt",), True),
+    ],
+)
+def test_review_credit_outage_scope_blocks_future_self_authorization(
+    repository: str,
+    pr_number: int,
+    paths: tuple[str, ...],
+    allowed: bool,
+) -> None:
+    if allowed:
+        validate_review_credit_outage_scope(
+            repository=repository,
+            pr_number=pr_number,
+            material_paths=paths,
+        )
+        return
+    with pytest.raises(ReviewEvidenceError, match="trust-boundary changes"):
+        validate_review_credit_outage_scope(
+            repository=repository,
+            pr_number=pr_number,
+            material_paths=paths,
+        )
+
+
+def _security_outage_comment(
+    reference: str,
+    *,
+    body: str | None = None,
+    created_at: str = "2026-07-15T11:00:00Z",
+) -> dict[str, Any]:
+    return {
+        "author_association": "OWNER",
+        "body": (
+            body
+            if body is not None
+            else render_security_outage_override_comment(
+                pr_number=42,
+                material_head_sha=HEAD_SHA,
+                material_digest=DIGEST,
+            )
+        ),
+        "created_at": created_at,
+        "html_url": reference,
+        "issue_url": "https://api.github.com/repos/owner/repo/issues/42",
+        "performed_via_github_app": None,
+        "updated_at": created_at,
+        "user": {"id": 123, "login": "owner", "type": "User"},
+    }
+
+
+def test_security_outage_override_is_bound_to_exact_operator_and_material() -> None:
+    reference = "https://github.com/owner/repo/pull/42#issuecomment-789"
+    evidence = verify_security_outage_override_reference(
+        reference,
+        repository="owner/repo",
+        pr_number=42,
+        token="opaque",
+        expected_material_head_sha=HEAD_SHA,
+        expected_material_digest=DIGEST,
+        now=datetime(2026, 7, 15, 12, tzinfo=timezone.utc),
+        request_json=lambda *_a, **_k: _security_outage_comment(reference),
+    )
+
+    assert evidence.operator_login == "owner"
+    assert evidence.operator_user_id == 123
+    assert evidence.operator_association == "OWNER"
+    assert evidence.material_head_sha == HEAD_SHA
+    assert evidence.material_digest == DIGEST
+
+
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        lambda response: response.update(author_association="COLLABORATOR"),
+        lambda response: response["user"].update(type="Bot"),
+        lambda response: response["user"].pop("id"),
+        lambda response: response["user"].update(id=0),
+        lambda response: response.pop("performed_via_github_app"),
+        lambda response: response.update(performed_via_github_app={"id": 1}),
+        lambda response: response.update(
+            issue_url="https://api.github.com/repos/owner/repo/issues/43"
+        ),
+        lambda response: response.update(updated_at="2026-07-15T11:01:00Z"),
+        lambda response: response.update(body=response["body"] + "\nextra"),
+        lambda response: response.update(
+            body=response["body"].replace("codex_security_mcp_timeout", "unknown")
+        ),
+        lambda response: response.update(body=response["body"].replace("-32001", "-32002")),
+        lambda response: response.update(
+            body=response["body"].replace("Scan-ID: none", "Scan-ID: scan-123")
+        ),
+        lambda response: response.update(body=response["body"].replace(HEAD_SHA, OUTSIDE_SHA)),
+        lambda response: response.update(
+            body=response["body"].replace(DIGEST, "sha256:" + "f" * 64)
+        ),
+    ],
+)
+def test_security_outage_override_rejects_untrusted_or_ambiguous_comment(
+    mutate: Any,
+) -> None:
+    reference = "https://github.com/owner/repo/pull/42#issuecomment-789"
+    response = _security_outage_comment(reference)
+    mutate(response)
+
+    with pytest.raises(CommitIdentityError):
+        verify_security_outage_override_reference(
+            reference,
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            expected_material_head_sha=HEAD_SHA,
+            expected_material_digest=DIGEST,
+            now=datetime(2026, 7, 15, 12, tzinfo=timezone.utc),
+            request_json=lambda *_a, **_k: response,
+        )
+
+
+def test_security_outage_override_rejects_expired_or_deleted_comment() -> None:
+    reference = "https://github.com/owner/repo/pull/42#issuecomment-789"
+    with pytest.raises(CommitIdentityError, match="expired"):
+        verify_security_outage_override_reference(
+            reference,
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            expected_material_head_sha=HEAD_SHA,
+            expected_material_digest=DIGEST,
+            now=datetime(2026, 7, 16, 12, 0, 1, tzinfo=timezone.utc),
+            request_json=lambda *_a, **_k: _security_outage_comment(reference),
+        )
+
+    with pytest.raises(GitHubHttpError, match="HTTP 404"):
+        verify_security_outage_override_reference(
+            reference,
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            expected_material_head_sha=HEAD_SHA,
+            expected_material_digest=DIGEST,
+            now=datetime(2026, 7, 15, 12, tzinfo=timezone.utc),
+            request_json=lambda *_a, **_k: (_ for _ in ()).throw(GitHubHttpError(404, "Not Found")),
+        )
+
+
+def test_security_outage_receipt_is_distinct_and_material_bound() -> None:
+    receipt = build_security_outage_override_receipt(
+        base_revision=BASE_SHA,
+        head_revision=HEAD_SHA,
+        material_digest=DIGEST,
+        override_reference="https://github.com/owner/repo/pull/42#issuecomment-789",
+        created_at="2026-07-15T11:00:00Z",
+        operator_user_id=123,
+        operator_login="owner",
+        operator_association="OWNER",
+    )
+
+    assert is_security_outage_override_receipt(receipt)
+    assert receipt["scan_id"] is None
+    assert receipt["status"] == "tooling_unavailable"
+    assert "findings_count" not in receipt
+    assert (
+        parse_embedded_review_seal(render_embedded_review_seal(_seal(receipt)))["codex_security"]
+        == receipt
+    )
+
+
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        lambda receipt: receipt.update(outage_class="unknown"),
+        lambda receipt: receipt.update(error_code="-32002"),
+        lambda receipt: receipt.update(scan_id="123e4567-e89b-42d3-a456-426614174000"),
+        lambda receipt: receipt.update(operator_user_id=0),
+        lambda receipt: receipt.update(operator_user_id=True),
+        lambda receipt: receipt.update(extra="unexpected"),
+        lambda receipt: receipt.pop("material_digest"),
+        lambda receipt: receipt.update(material_digest="sha256:" + "f" * 64),
+    ],
+)
+def test_security_outage_receipt_rejects_unknown_or_open_shapes(mutate: Any) -> None:
+    receipt = build_security_outage_override_receipt(
+        base_revision=BASE_SHA,
+        head_revision=HEAD_SHA,
+        material_digest=DIGEST,
+        override_reference="https://github.com/owner/repo/pull/42#issuecomment-789",
+        created_at="2026-07-15T11:00:00Z",
+        operator_user_id=123,
+        operator_login="owner",
+        operator_association="OWNER",
+    )
+    mutate(receipt)
+
+    with pytest.raises(ReviewEvidenceError):
+        render_embedded_review_seal(_seal(receipt))
+
+
+@pytest.mark.parametrize(
+    ("repository", "pr_number", "paths", "allowed"),
+    [
+        (
+            "Katsiarynakavaleuskaya/PulsePlate",
+            2142,
+            ("scripts/ci/check_pr_merge_readiness.py",),
+            True,
+        ),
+        (
+            "Katsiarynakavaleuskaya/PulsePlate",
+            2143,
+            ("scripts/ci/check_pr_merge_readiness.py",),
+            False,
+        ),
+        (
+            "Katsiarynakavaleuskaya/PulsePlate",
+            2143,
+            ("scripts/orchestration/check_merge_ready.py",),
+            False,
+        ),
+        (
+            "owner/repo",
+            2142,
+            ("scripts/ci/check_pr_merge_readiness.py",),
+            False,
+        ),
+        (
+            "owner/repo",
+            42,
+            ("scripts/ci/check_private_python_proxy_health.py",),
+            False,
+        ),
+        (
+            "owner/repo",
+            42,
+            (".github/actions/python-setup/action.yml",),
+            False,
+        ),
+        ("owner/repo", 42, ("scripts/ci_pip_audit.sh",), False),
+        ("owner/repo", 42, (".bandit",), False),
+        ("owner/repo", 42, (".bandit.yaml",), False),
+        ("owner/repo", 42, ("trivy/ignore-policy.rego",), False),
+        ("owner/repo", 42, ("requirements-test.txt",), False),
+    ],
+)
+def test_security_outage_override_scope_blocks_future_self_authorization(
+    repository: str,
+    pr_number: int,
+    paths: tuple[str, ...],
+    allowed: bool,
+) -> None:
+    if allowed:
+        validate_security_outage_override_scope(
+            repository=repository,
+            pr_number=pr_number,
+            material_paths=paths,
+        )
+        return
+
+    with pytest.raises(ReviewEvidenceError, match="trust-boundary changes"):
+        validate_security_outage_override_scope(
+            repository=repository,
+            pr_number=pr_number,
+            material_paths=paths,
+        )
+
+
+def test_security_outage_trust_boundary_covers_security_dependency_inputs() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    audit_script = (repo_root / "scripts/ci_pip_audit.sh").read_text(encoding="utf-8")
+    audited_manifests = set(re.findall(r'manifests(?:\+)?=\("([^"]+)"\)', audit_script))
+    audited_inputs = {
+        f"{path.removesuffix('.txt')}.in"
+        for path in audited_manifests
+        if (repo_root / f"{path.removesuffix('.txt')}.in").is_file()
+    }
+    dependency_basenames = {
+        "Gemfile",
+        "Gemfile.lock",
+        "Package.resolved",
+        "Package.swift",
+        "package-lock.json",
+        "package.json",
+        "pyproject.toml",
+    }
+    tracked_dependency_paths = {
+        path
+        for path in _git(repo_root, "ls-files").splitlines()
+        if PurePosixPath(path).name in dependency_basenames
+        or re.fullmatch(
+            r"requirements(?:-[a-z0-9][a-z0-9-]*)?\.(?:in|txt)",
+            PurePosixPath(path).name,
+        )
+    }
+    protected_paths = tracked_dependency_paths | {"constraints.txt"}
+
+    assert audited_manifests
+    assert audited_manifests | audited_inputs <= protected_paths
+    assert {
+        "frontend/package-lock.json",
+        "frontend/package.json",
+        "ios/Gemfile",
+        "ios/Gemfile.lock",
+        "ios/Package.resolved",
+        "ios/Package.swift",
+        "package-lock.json",
+        "package.json",
+        "pyproject.toml",
+        "requirements-ci-lite.in",
+        "constraints.txt",
+        "requirements-ci-lite.txt",
+        "requirements-test.in",
+        "requirements-test.txt",
+        "requirements-dev.in",
+        "requirements-dev.txt",
+        "requirements-lock.txt",
+        "requirements-all.txt",
+    } <= protected_paths
+    for path in sorted(protected_paths):
+        with pytest.raises(ReviewEvidenceError, match="trust-boundary changes"):
+            validate_security_outage_override_scope(
+                repository="owner/repo",
+                pr_number=42,
+                material_paths=(path,),
+            )
 
 
 def _git(repo: Path, *args: str, env: dict[str, str] | None = None) -> str:
@@ -888,11 +1920,10 @@ def test_authenticated_closeout_validation_rejects_nonexistent_review(
         entries=(),
         digest=DIGEST,
     )
-    verifier_calls = 0
+    verifier_expected_commits: list[str | None] = []
 
-    def reject_review(*_args: Any, **_kwargs: Any) -> Any:
-        nonlocal verifier_calls
-        verifier_calls += 1
+    def reject_review(*_args: Any, **kwargs: Any) -> Any:
+        verifier_expected_commits.append(kwargs.get("expected_commit_ref"))
         raise CommitIdentityError("GitHub review not found")
 
     monkeypatch.setattr(closeout_module, "mapping_artifact_path", lambda _pr: mapping)
@@ -919,7 +1950,201 @@ def test_authenticated_closeout_validation_rejects_nonexistent_review(
             token="opaque",
         )
 
-    assert verifier_calls == 1
+    assert verifier_expected_commits == [HEAD_SHA]
+
+
+def test_authenticated_closeout_revalidates_operator_outage_override(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    receipt = build_security_outage_override_receipt(
+        base_revision=BASE_SHA,
+        head_revision=HEAD_SHA,
+        material_digest=DIGEST,
+        override_reference="https://github.com/owner/repo/pull/42#issuecomment-789",
+        created_at="2026-07-15T11:00:00Z",
+        operator_user_id=123,
+        operator_login="owner",
+        operator_association="OWNER",
+    )
+    mapping = tmp_path / "PR_42_FIXED_MAPPING.md"
+    mapping.write_text(_mapping_artifact_with_seal(_seal(receipt)), encoding="utf-8")
+    manifest = MaterialManifest(
+        base_ref_oid=BASE_SHA,
+        head_ref_oid=HEAD_SHA,
+        merge_base_sha=BASE_SHA,
+        pr_number=42,
+        entries=(),
+        digest=DIGEST,
+    )
+    monkeypatch.setattr(closeout_module, "mapping_artifact_path", lambda _pr: mapping)
+    monkeypatch.setattr(closeout_module, "fetch_pr_snapshot", lambda *_a, **_k: _snapshot())
+    monkeypatch.setattr(closeout_module, "_git", lambda *_a, **_k: HEAD_SHA)
+    monkeypatch.setattr(
+        closeout_module,
+        "compute_material_manifest",
+        lambda *_a, **_k: manifest,
+    )
+    monkeypatch.setattr(
+        closeout_module,
+        "classify_commit_ref",
+        lambda value, *_a, **_k: RepositoryCommitRef(value, CommitRefKind.PR_HEAD),
+    )
+    monkeypatch.setattr(
+        closeout_module,
+        "verify_codex_review_reference",
+        lambda *_a, **_k: identity_module.CodexReviewEvidence(
+            reference="https://github.com/owner/repo/pull/42#pullrequestreview-1",
+            submitted_at="2026-07-15T11:00:00Z",
+            commit_ref=HEAD_SHA,
+        ),
+    )
+    override_calls: list[tuple[str, str]] = []
+
+    def verify_override(*_args: Any, **kwargs: Any) -> SecurityOutageOverrideEvidence:
+        override_calls.append(
+            (kwargs["expected_material_head_sha"], kwargs["expected_material_digest"])
+        )
+        return SecurityOutageOverrideEvidence(
+            reference=receipt["override_reference"],
+            created_at=receipt["created_at"],
+            operator_user_id=receipt["operator_user_id"],
+            operator_login=receipt["operator_login"],
+            operator_association=receipt["operator_association"],
+            material_head_sha=HEAD_SHA,
+            material_digest=DIGEST,
+        )
+
+    monkeypatch.setattr(
+        closeout_module,
+        "verify_security_outage_override_reference",
+        verify_override,
+    )
+    monkeypatch.setattr(closeout_module, "is_ancestor", lambda *_a, **_k: True)
+    monkeypatch.setattr(closeout_module, "assert_snapshot_unchanged", lambda *_a, **_k: None)
+
+    seal = closeout_module.validate_live_mapping(
+        repository="owner/repo",
+        pr_number=42,
+        token="opaque",
+    )
+
+    assert seal["codex_security"] == receipt
+    assert override_calls == [(HEAD_SHA, DIGEST)]
+
+
+def test_authenticated_closeout_revalidates_review_credit_override(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    quota_reference = "https://github.com/owner/repo/pull/42#issuecomment-456"
+    override_reference = "https://github.com/owner/repo/pull/42#issuecomment-654"
+    prior_reference = "https://github.com/owner/repo/pull/42#pullrequestreview-123"
+    operator_reference = "https://github.com/owner/repo/pull/42#pullrequestreview-789"
+    code_review = build_review_credit_outage_receipt(
+        material_digest=DIGEST,
+        material_head_sha=HEAD_SHA,
+        override_reference=override_reference,
+        override_created_at="2026-07-15T11:15:00Z",
+        quota_reference=quota_reference,
+        quota_created_at="2026-07-15T11:05:00Z",
+        prior_review_reference=prior_reference,
+        prior_review_submitted_at="2026-07-15T10:30:00Z",
+        prior_review_commit_ref=FIX_SHA,
+        operator_review_reference=operator_reference,
+        operator_review_submitted_at="2026-07-15T11:10:00Z",
+        operator_user_id=123,
+        operator_login="owner",
+        operator_association="OWNER",
+    )
+    security_receipt = build_security_outage_override_receipt(
+        base_revision=BASE_SHA,
+        head_revision=HEAD_SHA,
+        material_digest=DIGEST,
+        override_reference="https://github.com/owner/repo/pull/42#issuecomment-789",
+        created_at="2026-07-15T11:00:00Z",
+        operator_user_id=123,
+        operator_login="owner",
+        operator_association="OWNER",
+    )
+    seal = _seal(security_receipt)
+    seal["code_review"] = code_review
+    mapping = tmp_path / "PR_42_FIXED_MAPPING.md"
+    mapping.write_text(_mapping_artifact_with_seal(seal), encoding="utf-8")
+    manifest = MaterialManifest(
+        base_ref_oid=BASE_SHA,
+        head_ref_oid=HEAD_SHA,
+        merge_base_sha=BASE_SHA,
+        pr_number=42,
+        entries=(),
+        digest=DIGEST,
+    )
+    monkeypatch.setattr(closeout_module, "mapping_artifact_path", lambda _pr: mapping)
+    monkeypatch.setattr(closeout_module, "fetch_pr_snapshot", lambda *_a, **_k: _snapshot())
+    monkeypatch.setattr(closeout_module, "_git", lambda *_a, **_k: HEAD_SHA)
+    monkeypatch.setattr(
+        closeout_module,
+        "compute_material_manifest",
+        lambda *_a, **_k: manifest,
+    )
+    monkeypatch.setattr(
+        closeout_module,
+        "classify_commit_ref",
+        lambda value, *_a, **_k: RepositoryCommitRef(
+            value,
+            CommitRefKind.PR_HEAD if value == HEAD_SHA else CommitRefKind.PR_COMMIT,
+        ),
+    )
+    credit_calls: list[tuple[str, str]] = []
+
+    def verify_credit(*_args: Any, **kwargs: Any) -> ReviewCreditOutageEvidence:
+        credit_calls.append(
+            (kwargs["expected_material_head_sha"], kwargs["expected_material_digest"])
+        )
+        return ReviewCreditOutageEvidence(
+            override_reference=override_reference,
+            override_created_at="2026-07-15T11:15:00Z",
+            quota_reference=quota_reference,
+            quota_created_at="2026-07-15T11:05:00Z",
+            prior_review_reference=prior_reference,
+            prior_review_submitted_at="2026-07-15T10:30:00Z",
+            prior_review_commit_ref=FIX_SHA,
+            operator_review_reference=operator_reference,
+            operator_review_submitted_at="2026-07-15T11:10:00Z",
+            operator_user_id=123,
+            operator_login="owner",
+            operator_association="OWNER",
+            material_head_sha=HEAD_SHA,
+            material_digest=DIGEST,
+        )
+
+    monkeypatch.setattr(
+        closeout_module,
+        "verify_review_credit_outage_references",
+        verify_credit,
+    )
+    monkeypatch.setattr(
+        closeout_module,
+        "verify_security_outage_override_reference",
+        lambda *_a, **_k: SecurityOutageOverrideEvidence(
+            reference=security_receipt["override_reference"],
+            created_at=security_receipt["created_at"],
+            operator_user_id=123,
+            operator_login="owner",
+            operator_association="OWNER",
+            material_head_sha=HEAD_SHA,
+            material_digest=DIGEST,
+        ),
+    )
+    monkeypatch.setattr(closeout_module, "is_ancestor", lambda *_a, **_k: True)
+    monkeypatch.setattr(closeout_module, "assert_snapshot_unchanged", lambda *_a, **_k: None)
+
+    validated = closeout_module.validate_live_mapping(
+        repository="owner/repo",
+        pr_number=42,
+        token="opaque",
+    )
+
+    assert validated["code_review"] == code_review
+    assert credit_calls == [(HEAD_SHA, DIGEST)]
 
 
 def test_embedded_seal_round_trip_is_strict_and_canonical(tmp_path: Path) -> None:
@@ -930,11 +2155,202 @@ def test_embedded_seal_round_trip_is_strict_and_canonical(tmp_path: Path) -> Non
     )
     rendered = render_embedded_review_seal(_seal(receipt))
 
+    assert rendered.splitlines()[1] == "<!-- pragma: allowlist nextline secret -->"
     assert parse_embedded_review_seal(rendered) == _seal(receipt)
 
     noncanonical = rendered.replace('"authority":', '"authority" :', 1)
     with pytest.raises(ReviewEvidenceError, match="not canonical"):
         parse_embedded_review_seal(noncanonical)
+
+
+def test_closeout_no_actionable_marker_is_not_persistent_reseal_proof() -> None:
+    existing = (
+        "## Fixed in Commit Mapping\n\n" f"{NO_ACTIONABLE_LINE}\n\n" "## Review Material Seal\n"
+    )
+    proof = (
+        "Disposition: NOT-A-BUG\n"
+        "Evidence: tests/test_example.py:10\n"
+        "Reason: Exact contract remains satisfied.\n"
+        "- https://github.com/owner/repo/pull/42#discussion_r1"
+    )
+    replacement = "## Fixed in Commit Mapping\n\n" f"{proof}\n\n" "## Review Material Seal\n"
+
+    assert closeout_module._mapping_proof_blocks(existing) == set()
+    assert closeout_module._mapping_proof_blocks(replacement) == {proof}
+
+
+def test_closeout_reseal_requires_new_material_and_preserves_existing_proof() -> None:
+    old_receipt = build_security_outage_override_receipt(
+        base_revision=BASE_SHA,
+        head_revision=HEAD_SHA,
+        material_digest=DIGEST,
+        override_reference="https://github.com/owner/repo/pull/42#issuecomment-1",
+        created_at="2026-07-15T11:00:00Z",
+        operator_user_id=123,
+        operator_login="owner",
+        operator_association="OWNER",
+    )
+    new_digest = "sha256:" + "b" * 64
+    new_receipt = build_security_outage_override_receipt(
+        base_revision=BASE_SHA,
+        head_revision=OUTSIDE_SHA,
+        material_digest=new_digest,
+        override_reference="https://github.com/owner/repo/pull/42#issuecomment-2",
+        created_at="2026-07-15T12:00:00Z",
+        operator_user_id=123,
+        operator_login="owner",
+        operator_association="OWNER",
+    )
+    old_seal = _seal(old_receipt)
+    new_seal = _seal(new_receipt)
+    new_seal["code_review"]["review_commit_ref"] = OUTSIDE_SHA
+    new_seal["code_review"]["reviewed_material_digest"] = new_digest
+    new_seal["material"]["digest"] = new_digest
+    new_seal["material"]["material_head_sha"] = OUTSIDE_SHA
+    existing_disposition = {
+        "commit": FIX_SHA,
+        "disposition": "FIXED",
+        "evidence": "tests/test_example.py:10",
+        "url": "https://github.com/owner/repo/pull/42#discussion_r1",
+    }
+    new_disposition = {
+        "commit": OUTSIDE_SHA,
+        "disposition": "FIXED",
+        "evidence": "tests/test_example.py:20",
+        "url": "https://github.com/owner/repo/pull/42#discussion_r2",
+    }
+    state = {
+        "dispositions": [existing_disposition],
+        "experiment_result": None,
+        "packet": None,
+        "pr_number": 42,
+    }
+    existing = closeout_module._render_mapping(state, old_seal)
+    replacement = closeout_module._render_mapping(
+        {**state, "dispositions": [existing_disposition, new_disposition]},
+        new_seal,
+    )
+    expected_freeze = new_seal["material"]
+
+    assert (
+        closeout_module._validate_reseal_transition(
+            existing,
+            replacement,
+            repository="owner/repo",
+            pr_number=42,
+            expected_freeze=expected_freeze,
+        )
+        == HEAD_SHA
+    )
+    with pytest.raises(closeout_module.CloseoutError, match="already seals this material"):
+        closeout_module._validate_reseal_transition(
+            replacement,
+            replacement,
+            repository="owner/repo",
+            pr_number=42,
+            expected_freeze=expected_freeze,
+        )
+    with pytest.raises(
+        closeout_module.CloseoutError,
+        match="drop existing disposition proof",
+    ):
+        closeout_module._validate_reseal_transition(
+            existing,
+            closeout_module._render_mapping(
+                {**state, "dispositions": [new_disposition]},
+                new_seal,
+            ),
+            repository="owner/repo",
+            pr_number=42,
+            expected_freeze=expected_freeze,
+        )
+
+
+def test_closeout_reseal_allows_only_proven_fast_forward_base_advance(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    next_base = "6" * 40
+    next_head = "7" * 40
+    old_seal = _seal(
+        build_security_outage_override_receipt(
+            base_revision=BASE_SHA,
+            head_revision=HEAD_SHA,
+            material_digest=DIGEST,
+            override_reference="https://github.com/owner/repo/pull/42#issuecomment-1",
+            created_at="2026-07-15T11:00:00Z",
+            operator_user_id=123,
+            operator_login="owner",
+            operator_association="OWNER",
+        )
+    )
+    next_digest = "sha256:" + "c" * 64
+    new_seal = _seal(
+        build_security_outage_override_receipt(
+            base_revision=next_base,
+            head_revision=next_head,
+            material_digest=next_digest,
+            override_reference="https://github.com/owner/repo/pull/42#issuecomment-2",
+            created_at="2026-07-15T12:00:00Z",
+            operator_user_id=123,
+            operator_login="owner",
+            operator_association="OWNER",
+        )
+    )
+    new_seal["code_review"]["review_commit_ref"] = next_head
+    new_seal["code_review"]["reviewed_material_digest"] = next_digest
+    new_seal["material"].update(
+        {
+            "base_ref_oid": next_base,
+            "digest": next_digest,
+            "material_head_sha": next_head,
+            "merge_base_sha": next_base,
+        }
+    )
+    state = {
+        "dispositions": [],
+        "experiment_result": None,
+        "packet": None,
+        "pr_number": 42,
+    }
+    existing = closeout_module._render_mapping(state, old_seal)
+    replacement = closeout_module._render_mapping(state, new_seal)
+    merge_bases = {
+        (BASE_SHA, next_base): BASE_SHA,
+        (HEAD_SHA, next_head): HEAD_SHA,
+    }
+    monkeypatch.setattr(
+        closeout_module,
+        "_git",
+        lambda command, left, right: (
+            merge_bases[(left, right)]
+            if command == "merge-base"
+            else pytest.fail(f"unexpected git command: {command}")
+        ),
+    )
+
+    assert (
+        closeout_module._validate_reseal_transition(
+            existing,
+            replacement,
+            repository="owner/repo",
+            pr_number=42,
+            expected_freeze=new_seal["material"],
+        )
+        == HEAD_SHA
+    )
+
+    merge_bases[(BASE_SHA, next_base)] = OUTSIDE_SHA
+    with pytest.raises(
+        closeout_module.CloseoutError,
+        match="without a proven fast-forward",
+    ):
+        closeout_module._validate_reseal_transition(
+            existing,
+            replacement,
+            repository="owner/repo",
+            pr_number=42,
+            expected_freeze=new_seal["material"],
+        )
 
 
 def test_embedded_seal_rejects_duplicate_keys() -> None:
@@ -1706,6 +3122,7 @@ def test_closeout_renderer_round_trips_fingerprint_record(tmp_path: Path) -> Non
         "pr_number": 42,
     }
     rendered = closeout_module._render_mapping(state, _seal(receipt))
+    assert "Exception: no retained coordinator packet was supplied." in rendered
     assert validate_mapping_artifact_text(rendered) == []
     records = parse_canonical_fingerprint_records(rendered, pr_number=42)
     assert records[fingerprint].verified_fix == FIX_SHA
@@ -1906,3 +3323,40 @@ def test_closeout_init_is_atomic_and_idempotent(
     first = closeout_module._state_path(42).read_bytes()
     closeout_module._cmd_init(args)
     assert closeout_module._state_path(42).read_bytes() == first
+
+
+def test_closeout_seal_requires_exactly_one_security_evidence_input() -> None:
+    parser = closeout_module._parser()
+    common = [
+        "seal",
+        "--repo",
+        "owner/repo",
+        "--pr-number",
+        "42",
+        "--review-ref",
+        "https://github.com/owner/repo/pull/42#issuecomment-456",
+    ]
+
+    with pytest.raises(SystemExit):
+        parser.parse_args(common)
+    with pytest.raises(SystemExit):
+        parser.parse_args(
+            [
+                *common,
+                "--scan-manifest",
+                "/tmp/scan-manifest.json",
+                "--security-outage-override-ref",
+                "https://github.com/owner/repo/pull/42#issuecomment-789",
+            ]
+        )
+
+    scan_args = parser.parse_args([*common, "--scan-manifest", "/tmp/scan-manifest.json"])
+    override_args = parser.parse_args(
+        [
+            *common,
+            "--security-outage-override-ref",
+            "https://github.com/owner/repo/pull/42#issuecomment-789",
+        ]
+    )
+    assert scan_args.security_outage_override_ref is None
+    assert override_args.scan_manifest is None
