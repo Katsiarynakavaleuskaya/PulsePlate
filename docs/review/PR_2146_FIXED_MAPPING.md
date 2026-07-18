@@ -19,6 +19,20 @@ Commit: 17beb0e59ba6564f00fb7416f4426815cf6dd2ba
 Evidence: tests/test_python_supply_chain_controls.py:955 asserts the 25.0.0 floor, lines 958-961 enforce the <26.0.0 ceiling, and focused supply-chain pytest passed.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2146#discussion_r3608655570 -> 17beb0e59ba6564f00fb7416f4426815cf6dd2ba
 
+Disposition: NOT-A-BUG
+Evidence: GitHub reports live PR head 626f6bacc418ad0f273f6fe002cd6ac46273f3fb; git merge-base --is-ancestor 17beb0e59ba6564f00fb7416f4426815cf6dd2ba 626f6bacc418ad0f273f6fe002cd6ac46273f3fb exits 0, while the Commit API cannot resolve reviewer ref 86950ac1cc9f2ca3025cc8357fd4f47fae2c8448.
+Reason: The cited 86950ac1cc9f2ca3025cc8357fd4f47fae2c8448 is an unavailable reviewer execution ref, not the live PR head; the material seal is reachable from the real head.
+Fingerprint: sha256:682837e66f6f8a599a1a678843685c1026b5201c66981709ba6ef2d283e65fcf
+Cause: unavailable_review_ref_ancestry
+Material-Digest: sha256:dbd27d0dd58f2ed5e9b56e3f46189c139480963cb46a984adcd881af620d4a8e
+Verified-Fix: 626f6bacc418ad0f273f6fe002cd6ac46273f3fb
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2146#discussion_r3608971162
+
+Disposition: NOT-A-BUG
+Evidence: The sole actionable child is https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2146#discussion_r3608655570, fixed by 17beb0e59ba6564f00fb7416f4426815cf6dd2ba and mapped separately; tests/test_python_supply_chain_controls.py:968-987 intentionally enforces the fail-closed single literal call contract.
+Reason: The aggregate Sourcery wrapper adds no independent actionable; its general AST-flexibility suggestions conflict with this lane explicit-engine regression invariant.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2146#pullrequestreview-4728779576
+
 ## Review Material Seal
 <!-- PULSEPLATE_PR_REVIEW_SEAL_V1_BEGIN -->
 <!-- pragma: allowlist nextline secret -->
