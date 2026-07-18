@@ -955,6 +955,10 @@ def test_constraints_keep_dependency_security_floors_aligned() -> None:
     assert _requirement_package_versions(REPO_ROOT / "requirements-data.in", "pyarrow") == {
         "25.0.0"
     }
+    assert _requirement_package_specifiers(REPO_ROOT / "requirements-data.in", "pyarrow") == {
+        (">=", "25.0.0"),
+        ("<", "26.0.0"),
+    }
     data_lock_versions = _requirement_package_versions(
         REPO_ROOT / "requirements-data.txt", "pyarrow"
     )
