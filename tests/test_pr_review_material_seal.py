@@ -1120,6 +1120,12 @@ def test_review_credit_outage_receipt_is_distinct_and_material_bound() -> None:
             ("docs/orchestration/REVIEW_SOURCE_DEGRADATION_POLICY.md",),
             False,
         ),
+        (
+            "Katsiarynakavaleuskaya/PulsePlate",
+            2143,
+            ("scripts/ci/ci_risk_profile.py",),
+            False,
+        ),
         ("owner/repo", 42, ("requirements-test.txt",), True),
     ],
 )
