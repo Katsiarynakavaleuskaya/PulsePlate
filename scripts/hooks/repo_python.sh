@@ -48,8 +48,8 @@ resolve_repo_python() {
         "${repo_root}/.venv/Scripts/python.exe"
     )
 
-    if env_binary="$(command -v env 2>/dev/null)" &&
-        git_binary="$(command -v git 2>/dev/null)" &&
+    if env_binary="$(builtin command -v env 2>/dev/null)" &&
+        git_binary="$(builtin command -v git 2>/dev/null)" &&
         [[ "${env_binary}" == /* && -f "${env_binary}" && -x "${env_binary}" &&
             "${git_binary}" == /* && -f "${git_binary}" && -x "${git_binary}" ]] &&
         git_common_dir="$(
@@ -151,7 +151,7 @@ resolve_repo_python() {
     done
 
     if [[ "${CI:-}" == "true" ]]; then
-        if candidate="$(command -v python3 2>/dev/null)"; then
+        if candidate="$(builtin command -v python3 2>/dev/null)"; then
             case "${candidate}" in
                 /*)
                     if [[ -f "${candidate}" && -x "${candidate}" ]]; then
@@ -161,7 +161,7 @@ resolve_repo_python() {
                     ;;
             esac
         fi
-        if candidate="$(command -v python 2>/dev/null)"; then
+        if candidate="$(builtin command -v python 2>/dev/null)"; then
             case "${candidate}" in
                 /*)
                     if [[ -f "${candidate}" && -x "${candidate}" ]]; then

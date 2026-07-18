@@ -286,6 +286,44 @@ def test_hook_resolver_rejects_shell_function_tool_interposition(
     assert "no repo/shared .venv Python found" in completed.stderr
 
 
+def test_hook_resolver_ignores_command_function_tool_lookup_interposition(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(tmp_path, "init", "--quiet", str(repo))
+    _git(repo, "config", "user.email", "pulseplate@pm.me")
+    _git(repo, "config", "user.name", "PulsePlate Hook Resolver")
+    (repo / "README.md").write_text("hook resolver test\n", encoding="utf-8")
+    _git(repo, "add", "README.md")
+    _git(repo, "commit", "--quiet", "-m", "init")
+    shared_python = repo / ".venv" / "bin" / "python"
+    shared_python.parent.mkdir(parents=True)
+    _write_executable(shared_python)
+    worktree = tmp_path / "external-linked-lane"
+    _git(repo, "worktree", "add", "--detach", "--quiet", str(worktree), "HEAD")
+    fake_env = tmp_path / "fake-env"
+    fake_git = tmp_path / "fake-git"
+    _write_executable(fake_env)
+    _write_executable(fake_git)
+    env = _clean_hook_env()
+    env.update({"FAKE_ENV": str(fake_env), "FAKE_GIT": str(fake_git)})
+    command = f"""
+        command() {{
+            case "$*" in
+                "-v env") printf '%s\\n' "$FAKE_ENV" ;;
+                "-v git") printf '%s\\n' "$FAKE_GIT" ;;
+                *) return 1 ;;
+            esac
+        }}
+        {RESOLVE_COMMAND}
+    """
+
+    resolved = _bash(command, cwd=worktree, env=env)
+
+    assert resolved == str(shared_python)
+
+
 def test_hook_resolver_prefers_current_worktree_venv_symlink_to_primary_venv(
     tmp_path: Path,
 ) -> None:
@@ -555,6 +593,42 @@ def test_hook_resolver_ci_rejects_shell_function_python_interposition(
     assert completed.returncode == 1
     assert completed.stdout == ""
     assert "no repo/shared .venv Python found" in completed.stderr
+
+
+def test_hook_resolver_ci_ignores_command_function_python_lookup_interposition(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    fake_python3 = tmp_path / "fake-python3"
+    fake_python = tmp_path / "fake-python"
+    _write_executable(fake_python3)
+    _write_executable(fake_python)
+    env = _clean_hook_env()
+    env.update(
+        {
+            "CI": "true",
+            "FAKE_PYTHON3": str(fake_python3),
+            "FAKE_PYTHON": str(fake_python),
+        }
+    )
+    command = f"""
+        command() {{
+            case "$*" in
+                "-v python3") printf '%s\\n' "$FAKE_PYTHON3" ;;
+                "-v python") printf '%s\\n' "$FAKE_PYTHON" ;;
+                *) return 1 ;;
+            esac
+        }}
+        {RESOLVE_COMMAND}
+    """
+
+    resolved = Path(_bash(command, cwd=repo, env=env))
+
+    assert resolved not in {fake_python3, fake_python}
+    assert resolved.is_absolute()
+    assert resolved.is_file()
+    assert os.access(resolved, os.X_OK)
 
 
 def test_hook_resolver_rejects_ambient_python_outside_ci(tmp_path: Path) -> None:
