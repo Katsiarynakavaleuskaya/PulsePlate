@@ -165,7 +165,10 @@ governance PR number + 1; the governance PR may opt in with
   authority cannot authorize themselves with it.
 - `pr_review_closeout.py` keeps `init`, `freeze`, and `add-disposition` state
   gitignored. `seal` is the only tracked authoring step; mapping and seal publish
-  in one batched governance-closeout commit.
+  in one batched governance-closeout commit. Resealing after a base sync is
+  accepted only when Git proves both the base and the previously sealed material
+  head advanced by ancestry and the replacement preserves every disposition
+  proof block.
 
 Evidence:
 - `scripts/orchestration/review_mapping_artifact.py:44`

@@ -2011,6 +2011,93 @@ def test_closeout_reseal_requires_new_material_and_preserves_existing_proof() ->
         )
 
 
+def test_closeout_reseal_allows_only_proven_fast_forward_base_advance(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    next_base = "6" * 40
+    next_head = "7" * 40
+    old_seal = _seal(
+        build_security_outage_override_receipt(
+            base_revision=BASE_SHA,
+            head_revision=HEAD_SHA,
+            material_digest=DIGEST,
+            override_reference="https://github.com/owner/repo/pull/42#issuecomment-1",
+            created_at="2026-07-15T11:00:00Z",
+            operator_user_id=123,
+            operator_login="owner",
+            operator_association="OWNER",
+        )
+    )
+    next_digest = "sha256:" + "c" * 64
+    new_seal = _seal(
+        build_security_outage_override_receipt(
+            base_revision=next_base,
+            head_revision=next_head,
+            material_digest=next_digest,
+            override_reference="https://github.com/owner/repo/pull/42#issuecomment-2",
+            created_at="2026-07-15T12:00:00Z",
+            operator_user_id=123,
+            operator_login="owner",
+            operator_association="OWNER",
+        )
+    )
+    new_seal["code_review"]["review_commit_ref"] = next_head
+    new_seal["code_review"]["reviewed_material_digest"] = next_digest
+    new_seal["material"].update(
+        {
+            "base_ref_oid": next_base,
+            "digest": next_digest,
+            "material_head_sha": next_head,
+            "merge_base_sha": next_base,
+        }
+    )
+    state = {
+        "dispositions": [],
+        "experiment_result": None,
+        "packet": None,
+        "pr_number": 42,
+    }
+    existing = closeout_module._render_mapping(state, old_seal)
+    replacement = closeout_module._render_mapping(state, new_seal)
+    merge_bases = {
+        (BASE_SHA, next_base): BASE_SHA,
+        (HEAD_SHA, next_head): HEAD_SHA,
+    }
+    monkeypatch.setattr(
+        closeout_module,
+        "_git",
+        lambda command, left, right: (
+            merge_bases[(left, right)]
+            if command == "merge-base"
+            else pytest.fail(f"unexpected git command: {command}")
+        ),
+    )
+
+    assert (
+        closeout_module._validate_reseal_transition(
+            existing,
+            replacement,
+            repository="owner/repo",
+            pr_number=42,
+            expected_freeze=new_seal["material"],
+        )
+        == HEAD_SHA
+    )
+
+    merge_bases[(BASE_SHA, next_base)] = OUTSIDE_SHA
+    with pytest.raises(
+        closeout_module.CloseoutError,
+        match="without a proven fast-forward",
+    ):
+        closeout_module._validate_reseal_transition(
+            existing,
+            replacement,
+            repository="owner/repo",
+            pr_number=42,
+            expected_freeze=new_seal["material"],
+        )
+
+
 def test_embedded_seal_rejects_duplicate_keys() -> None:
     text = f'{SEAL_BEGIN}\n{{"authority":"x","authority":"y"}}\n{SEAL_END}'
 

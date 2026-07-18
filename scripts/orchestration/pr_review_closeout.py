@@ -519,10 +519,30 @@ def _validate_reseal_transition(
         raise CloseoutError(
             "canonical mapping already seals this material; use a structured duplicate reply"
         )
-    for field in ("base_ref_oid", "merge_base_sha", "policy_version"):
-        if existing_material[field] != expected_freeze[field]:
+    if existing_material["policy_version"] != expected_freeze["policy_version"]:
+        raise CloseoutError(
+            "existing canonical mapping policy_version changed; automatic reseal is unsafe"
+        )
+    base_changed = (
+        existing_material["base_ref_oid"] != expected_freeze["base_ref_oid"]
+        or existing_material["merge_base_sha"] != expected_freeze["merge_base_sha"]
+    )
+    if base_changed:
+        previous_base = str(existing_material["base_ref_oid"])
+        previous_merge_base = str(existing_material["merge_base_sha"])
+        next_base = str(expected_freeze["base_ref_oid"])
+        next_merge_base = str(expected_freeze["merge_base_sha"])
+        previous_head = str(existing_material["material_head_sha"])
+        next_head = str(expected_freeze["material_head_sha"])
+        if (
+            previous_base != previous_merge_base
+            or next_base != next_merge_base
+            or _git("merge-base", previous_base, next_base) != previous_base
+            or _git("merge-base", previous_head, next_head) != previous_head
+        ):
             raise CloseoutError(
-                f"existing canonical mapping {field} changed; automatic reseal is unsafe"
+                "existing canonical mapping base changed without a proven "
+                "fast-forward base/material-head advance"
             )
     missing_blocks = sorted(
         _mapping_proof_blocks(existing_markdown) - _mapping_proof_blocks(replacement_markdown)
