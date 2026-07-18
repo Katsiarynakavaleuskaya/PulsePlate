@@ -6,6 +6,7 @@ resolve_repo_python() {
     local candidate=""
     local checkout_binding_valid="false"
     local checkout_git_backlink=""
+    local checkout_git_backlink_path=""
     local checkout_git_backlink_parent=""
     local checkout_git_dir=""
     local checkout_top_level=""
@@ -93,17 +94,23 @@ resolve_repo_python() {
                 checkout_worktree_name="${checkout_git_dir:${#checkout_worktrees_prefix}}"
                 if [[ -n "${checkout_worktree_name}" &&
                     "${checkout_worktree_name}" != */* ]] &&
-                    IFS= read -r checkout_git_backlink < "${checkout_git_dir}/gitdir" &&
-                    [[ "${checkout_git_backlink}" == /* &&
-                        "${checkout_git_backlink##*/}" == ".git" &&
-                        -f "${checkout_git_backlink}" &&
-                        ! -L "${checkout_git_backlink}" ]] &&
-                    checkout_git_backlink_parent="$(
-                        builtin cd -- "${checkout_git_backlink%/*}" 2>/dev/null &&
-                            builtin pwd -P
-                    )" &&
-                    [[ "${checkout_git_backlink_parent}" == "${repo_root}" ]]; then
-                    checkout_binding_valid="true"
+                    IFS= read -r checkout_git_backlink < "${checkout_git_dir}/gitdir"; then
+                    case "${checkout_git_backlink}" in
+                        /*) checkout_git_backlink_path="${checkout_git_backlink}" ;;
+                        *)
+                            checkout_git_backlink_path="${checkout_git_dir}/${checkout_git_backlink}"
+                            ;;
+                    esac
+                    if [[ "${checkout_git_backlink_path##*/}" == ".git" &&
+                        -f "${checkout_git_backlink_path}" &&
+                        ! -L "${checkout_git_backlink_path}" ]] &&
+                        checkout_git_backlink_parent="$(
+                            builtin cd -- "${checkout_git_backlink_path%/*}" 2>/dev/null &&
+                                builtin pwd -P
+                        )" &&
+                        [[ "${checkout_git_backlink_parent}" == "${repo_root}" ]]; then
+                        checkout_binding_valid="true"
+                    fi
                 fi
             fi
         fi

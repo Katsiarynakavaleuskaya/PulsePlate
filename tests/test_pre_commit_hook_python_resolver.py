@@ -191,6 +191,46 @@ def test_hook_resolver_sanitizes_commit_hook_git_env_for_every_git_query(
     assert resolved == str(shared_python)
 
 
+def test_hook_resolver_accepts_relative_reciprocal_worktree_metadata(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "primary checkout"
+    repo.mkdir()
+    _git(tmp_path, "init", "--quiet", str(repo))
+    _git(repo, "config", "user.email", "pulseplate@pm.me")
+    _git(repo, "config", "user.name", "PulsePlate Hook Resolver")
+    (repo / "README.md").write_text("hook resolver test\n", encoding="utf-8")
+    _git(repo, "add", "README.md")
+    _git(repo, "commit", "--quiet", "-m", "init")
+    shared_python = repo / ".venv" / "bin" / "python"
+    shared_python.parent.mkdir(parents=True)
+    _write_executable(shared_python)
+    worktree = tmp_path / "external relative linked lane"
+    _git(repo, "worktree", "add", "--detach", "--quiet", str(worktree), "HEAD")
+    checkout_git_dir = Path(
+        _git(
+            worktree,
+            "rev-parse",
+            "--path-format=absolute",
+            "--git-dir",
+        ).stdout.strip()
+    )
+    relative_admin_dir = os.path.relpath(checkout_git_dir, start=worktree)
+    (worktree / ".git").write_text(
+        f"gitdir: {relative_admin_dir}\n",
+        encoding="utf-8",
+    )
+    relative_backlink = os.path.relpath(worktree / ".git", start=checkout_git_dir)
+    (checkout_git_dir / "gitdir").write_text(
+        f"{relative_backlink}\n",
+        encoding="utf-8",
+    )
+
+    resolved = _bash(RESOLVE_COMMAND, cwd=worktree)
+
+    assert resolved == str(shared_python)
+
+
 def test_hook_resolver_rejects_shell_function_tool_interposition(
     tmp_path: Path,
 ) -> None:
