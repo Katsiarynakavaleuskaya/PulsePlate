@@ -869,8 +869,8 @@ def test_finalize_dispatched_result_retains_trusted_rejection_without_retry(
     ("mutation", "message"),
     [
         ("experiment_id", "experiment_id does not match"),
-        ("missing_backend", "execution backend provenance"),
-        ("native_linux_backend", "failed Experiment Runner validation"),
+        ("missing_backend", "passed container backend provenance"),
+        ("native_linux_backend", "passed container backend provenance"),
         ("candidate_marker", "candidate marker is invalid"),
         ("patch_fingerprint", "candidate patch fingerprint does not match"),
         ("retry", "one attempt and zero retries"),
@@ -908,7 +908,13 @@ def test_finalize_dispatched_result_rejects_unbound_dispatch_evidence(
     elif mutation == "missing_backend":
         dispatch_result.pop("execution_backend")
     elif mutation == "native_linux_backend":
-        dispatch_result["execution_backend"]["name"] = "native-linux"
+        dispatch_result["execution_backend"].update(
+            {
+                "name": "native-linux",
+                "guest_platform": "linux_arm64",
+                "network_isolation": "linux_unshare",
+            }
+        )
     elif mutation == "candidate_marker":
         dispatch_result["candidate_patch"] = ".experiment-runner-input/other.patch"
     elif mutation == "patch_fingerprint":
@@ -970,6 +976,69 @@ def test_finalize_dispatched_result_rejects_unbound_dispatch_evidence(
         (run_dir / creative_code_patch_builder.STATE_FILE).read_text(encoding="utf-8")
     )
     assert state["candidate_patch_evaluated"] is False
+
+
+def test_dispatch_binding_requires_complete_passing_metric_regression_oracles() -> None:
+    patch_fingerprint = "sha256:" + ("a" * 64)
+    packet = {
+        "experiment_id": "metric-regression-test",
+        "candidate_patch_fingerprint": patch_fingerprint,
+        "mutable_candidate_surface": ["core/rag/orchestration.py"],
+        "immutable_oracles": [
+            {"command": "pytest -q tests/test_first.py"},
+            {"command": "pytest -q tests/test_second.py"},
+        ],
+        "budgets": {"wall_clock_seconds": 60},
+    }
+    result = _trusted_dispatch_result(
+        packet,
+        status="rejected",
+        failure_class="metric_regression",
+    )
+    result["oracle_results"] = result["oracle_results"][:1]
+    result["budget_observations"]["oracle_commands_executed"] = 1
+
+    with pytest.raises(
+        generation_cli.CreativeCodePatchGenerationError,
+        match="requires every configured oracle to pass",
+    ):
+        generation_cli._validate_dispatch_result_binding(
+            dispatch_result=result,
+            packet=packet,
+            changed_paths=["core/rag/orchestration.py"],
+            patch_fingerprint=patch_fingerprint,
+        )
+
+
+@pytest.mark.parametrize("failure_class", ["guard_failure", "oom"])
+def test_dispatch_binding_requires_timeout_failure_class_for_timed_out_oracle(
+    failure_class: str,
+) -> None:
+    patch_fingerprint = "sha256:" + ("a" * 64)
+    packet = {
+        "experiment_id": f"{failure_class}-timeout-test",
+        "candidate_patch_fingerprint": patch_fingerprint,
+        "mutable_candidate_surface": ["core/rag/orchestration.py"],
+        "immutable_oracles": [{"command": "pytest -q tests/test_first.py"}],
+        "budgets": {"wall_clock_seconds": 60},
+    }
+    result = _trusted_dispatch_result(
+        packet,
+        status="rejected",
+        failure_class=failure_class,
+    )
+    result["oracle_results"][0]["timed_out"] = True
+
+    with pytest.raises(
+        generation_cli.CreativeCodePatchGenerationError,
+        match="must use the timeout failure class",
+    ):
+        generation_cli._validate_dispatch_result_binding(
+            dispatch_result=result,
+            packet=packet,
+            changed_paths=["core/rag/orchestration.py"],
+            patch_fingerprint=patch_fingerprint,
+        )
 
 
 def test_resolve_dispatch_result_rejects_symlinked_canonical_root(

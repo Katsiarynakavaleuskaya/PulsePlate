@@ -60,6 +60,7 @@ from scripts.orchestration.experiment_contract import (
     validate_metrics,
 )
 from scripts.orchestration.experiment_runner_dispatch import (
+    CONTAINER_BACKENDS as TRUSTED_DISPATCH_BACKENDS,
     MAX_RESULT_BYTES as TRUSTED_DISPATCH_RESULT_MAX_BYTES,
 )
 from scripts.orchestration.creative_spec_learning_rollup_contract import (
@@ -2209,9 +2210,13 @@ def _validate_dispatch_result_binding(
             "trusted dispatch result candidate patch fingerprint does not match."
         )
     backend = result.get("execution_backend")
-    if not isinstance(backend, dict) or backend.get("preflight_status") != "passed":
+    if (
+        not isinstance(backend, dict)
+        or backend.get("preflight_status") != "passed"
+        or backend.get("name") not in TRUSTED_DISPATCH_BACKENDS
+    ):
         raise CreativeCodePatchGenerationError(
-            "trusted dispatch result requires passed execution backend provenance."
+            "trusted dispatch result requires passed container backend provenance."
         )
     if result["experiment_id"] != packet["experiment_id"]:
         raise CreativeCodePatchGenerationError(
@@ -2264,22 +2269,28 @@ def _validate_dispatch_result_binding(
             raise CreativeCodePatchGenerationError(
                 "oracle-derived trusted dispatch rejection requires executed oracle evidence."
             )
-        if failure_class == "timeout" and not any(
-            item["timed_out"] for item in result["oracle_results"]
-        ):
-            raise CreativeCodePatchGenerationError(
-                "timeout trusted dispatch rejection requires timed-out oracle evidence."
-            )
-        if (
-            failure_class != "timeout"
-            and failure_class in FAILING_ORACLE_REQUIRED_FAILURE_CLASSES
-            and not any(
+        if failure_class == "metric_regression":
+            if oracle_commands != configured_commands or any(
                 item["returncode"] != 0 or item["timed_out"] for item in result["oracle_results"]
-            )
-        ):
-            raise CreativeCodePatchGenerationError(
-                "oracle-derived trusted dispatch rejection requires failing oracle evidence."
-            )
+            ):
+                raise CreativeCodePatchGenerationError(
+                    "metric_regression trusted dispatch rejection requires every "
+                    "configured oracle to pass."
+                )
+        elif failure_class == "timeout":
+            if not any(item["timed_out"] for item in result["oracle_results"]):
+                raise CreativeCodePatchGenerationError(
+                    "timeout trusted dispatch rejection requires timed-out oracle evidence."
+                )
+        elif failure_class in FAILING_ORACLE_REQUIRED_FAILURE_CLASSES:
+            if any(item["timed_out"] for item in result["oracle_results"]):
+                raise CreativeCodePatchGenerationError(
+                    "timed-out oracle evidence must use the timeout failure class."
+                )
+            if not any(item["returncode"] != 0 for item in result["oracle_results"]):
+                raise CreativeCodePatchGenerationError(
+                    "oracle-derived trusted dispatch rejection requires failing oracle evidence."
+                )
     if result["shared_tree_untouched"] is not True:
         raise CreativeCodePatchGenerationError(
             "trusted dispatch result must prove the shared tree was untouched."
