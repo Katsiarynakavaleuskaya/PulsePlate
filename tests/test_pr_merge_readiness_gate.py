@@ -422,11 +422,9 @@ def test_operator_outage_override_rejects_newer_queued_security_attempt(
             expected_head_sha=OUTAGE_HEAD_SHA,
         )
     message = str(exc_info.value)
-    assert "This gate does not wait or repair named checks" in message
-    assert "let pending checks settle" in message
     assert (
-        "resolve every missing, failed, or untrusted check before rerunning only "
-        "the failed Merge readiness gate" in message
+        "Pending or not-yet-visible exact-head checks may be retried only "
+        "within the bounded CI wait" in message
     )
 
 
@@ -598,10 +596,95 @@ def test_operator_outage_override_rejects_non_successful_security_checks(
             token="opaque",
             expected_head_sha=OUTAGE_HEAD_SHA,
         )
-    assert (
-        "resolve every missing, failed, or untrusted check before rerunning only "
-        "the failed Merge readiness gate" in str(exc_info.value)
+    assert "failed or untrusted checks remain terminal" in str(exc_info.value)
+
+
+def test_operator_outage_wait_retries_pending_checks_until_success(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    attempts: list[int] = []
+    sleeps: list[float] = []
+
+    def validate(**_kwargs: Any) -> None:
+        attempts.append(len(attempts) + 1)
+        if len(attempts) < 3:
+            raise merge_gate._OutageSecurityChecksPending("security=pending/status")
+
+    monkeypatch.setattr(merge_gate, "_validate_operator_outage_security_checks", validate)
+    monkeypatch.setattr(merge_gate.time, "monotonic", lambda: 0.0)
+    monkeypatch.setattr(merge_gate.time, "sleep", sleeps.append)
+
+    merge_gate._wait_for_operator_outage_security_checks(
+        repository="owner/repo",
+        pr_number=42,
+        token="opaque",
+        expected_head_sha=OUTAGE_HEAD_SHA,
+        security_required=True,
+        timeout_seconds=30,
+        poll_interval_seconds=5,
     )
+
+    assert attempts == [1, 2, 3]
+    assert sleeps == [5.0, 5.0]
+
+
+def test_operator_outage_wait_does_not_retry_terminal_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    attempts: list[int] = []
+
+    def validate(**_kwargs: Any) -> None:
+        attempts.append(1)
+        raise ReviewEvidenceError("security=failed/FAILURE")
+
+    monkeypatch.setattr(merge_gate, "_validate_operator_outage_security_checks", validate)
+    monkeypatch.setattr(
+        merge_gate.time,
+        "sleep",
+        lambda _seconds: pytest.fail("terminal failures must not be retried"),
+    )
+
+    with pytest.raises(ReviewEvidenceError, match="security=failed/FAILURE"):
+        merge_gate._wait_for_operator_outage_security_checks(
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            expected_head_sha=OUTAGE_HEAD_SHA,
+            security_required=True,
+            timeout_seconds=30,
+        )
+
+    assert attempts == [1]
+
+
+def test_operator_outage_wait_times_out_fail_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clock = iter((0.0, 6.0))
+
+    monkeypatch.setattr(
+        merge_gate,
+        "_validate_operator_outage_security_checks",
+        lambda **_kwargs: (_ for _ in ()).throw(
+            merge_gate._OutageSecurityChecksPending("security-scan=missing")
+        ),
+    )
+    monkeypatch.setattr(merge_gate.time, "monotonic", lambda: next(clock))
+    monkeypatch.setattr(
+        merge_gate.time,
+        "sleep",
+        lambda _seconds: pytest.fail("expired waits must not sleep"),
+    )
+
+    with pytest.raises(ReviewEvidenceError, match="timed out.*after 5s"):
+        merge_gate._wait_for_operator_outage_security_checks(
+            repository="owner/repo",
+            pr_number=42,
+            token="opaque",
+            expected_head_sha=OUTAGE_HEAD_SHA,
+            security_required=True,
+            timeout_seconds=5,
+        )
 
 
 def test_operator_outage_override_rejects_missing_security_check(
@@ -1168,6 +1251,15 @@ def test_merge_readiness_checkout_uses_exact_pr_head_and_no_credentials() -> Non
     workflow_path = Path(__file__).resolve().parents[1] / ".github" / "workflows" / "ci.yml"
     workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
     job = workflow["jobs"]["merge_readiness_gate"]
+    assert job["needs"] == [
+        "changes",
+        "pr_body_phase2_gates",
+        "private_python_proxy_health",
+        "security",
+        "trivy_ignore_policy_expiry",
+    ]
+    assert job["if"] == "${{ always() && github.event_name == 'pull_request' }}"
+    assert job["timeout-minutes"] == 15
     assert job["permissions"] == {
         "actions": "read",
         "checks": "read",
@@ -1187,6 +1279,7 @@ def test_merge_readiness_checkout_uses_exact_pr_head_and_no_credentials() -> Non
     )
     run = enforcement["run"]
     assert '--event-path "$GITHUB_EVENT_PATH"' in run
+    assert "--outage-security-wait-seconds 300" in run
     assert "--defer-outage-security-checks" not in run
 
 

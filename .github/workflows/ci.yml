@@ -410,9 +410,15 @@ jobs:
 
   merge_readiness_gate:
     name: Merge readiness gate
-    if: github.event_name == 'pull_request'
+    needs:
+      - changes
+      - pr_body_phase2_gates
+      - private_python_proxy_health
+      - security
+      - trivy_ignore_policy_expiry
+    if: ${{ always() && github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     permissions:
       actions: read
       checks: read
@@ -440,7 +446,8 @@ jobs:
           set -euo pipefail
           # Outage receipts fail closed until exact-current-head security jobs settle.
           python scripts/ci/check_pr_merge_readiness.py \
-            --event-path "$GITHUB_EVENT_PATH"
+            --event-path "$GITHUB_EVENT_PATH" \
+            --outage-security-wait-seconds 300
 
   private_python_proxy_health:
     name: Private Python proxy health

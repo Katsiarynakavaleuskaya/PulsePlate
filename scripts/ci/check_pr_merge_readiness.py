@@ -15,6 +15,7 @@ import re
 import shutil
 import subprocess  # nosec B404: bounded absolute git identity checks are required (remove-by: 2026-09-30, ref: PR-governance-material-seal)
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -130,6 +131,10 @@ class ActionableItem:
     created_at: str
     kind: str
     review_id: int | None = None
+
+
+class _OutageSecurityChecksPending(ReviewEvidenceError):
+    """Exact-head substitute checks are not terminal yet."""
 
 
 def _strip_fenced_code_blocks(text: str) -> str:
@@ -466,11 +471,12 @@ def _validate_operator_outage_security_checks(
         latest,
         superseded,
     )
-    failures: list[str] = []
+    terminal_failures: list[str] = []
+    pending_failures: list[str] = []
     for name, expected_identity in sorted(_OUTAGE_OVERRIDE_REQUIRED_CHECK_IDENTITIES.items()):
         candidates = [entry for entry in entries if entry.name == name]
         if not candidates:
-            failures.append(f"{name}=missing")
+            pending_failures.append(f"{name}=missing")
             continue
         expected_workflow, expected_app_id, expected_app_slug = expected_identity
         untrusted = [
@@ -494,11 +500,11 @@ def _validate_operator_outage_security_checks(
                 }
             )
             rendered = ";".join("/".join(item) for item in producers)
-            failures.append(f"{name}=untrusted-producer({rendered})")
+            terminal_failures.append(f"{name}=untrusted-producer({rendered})")
             continue
         entry = latest.get(name)
         if entry is None:  # Defensive: candidates were present above.
-            failures.append(f"{name}=missing-latest")
+            pending_failures.append(f"{name}=missing-latest")
             continue
         if (
             name == "security"
@@ -513,15 +519,69 @@ def _validate_operator_outage_security_checks(
         else:
             passed = entry.state == "passed"
         if not passed:
-            failures.append(f"{name}={entry.state}/{entry.conclusion or 'status'}")
+            failure = f"{name}={entry.state}/{entry.conclusion or 'status'}"
+            if entry.state == "pending":
+                pending_failures.append(failure)
+            else:
+                terminal_failures.append(failure)
+    failures = terminal_failures + pending_failures
     if failures:
-        raise ReviewEvidenceError(
+        error_type = (
+            _OutageSecurityChecksPending
+            if pending_failures and not terminal_failures
+            else ReviewEvidenceError
+        )
+        raise error_type(
             "operator outage override requires successful current-head security checks: "
             + ", ".join(failures)
-            + ". This gate does not wait or repair named checks; let pending checks "
-            "settle and resolve every missing, failed, or untrusted check before "
-            "rerunning only the failed Merge readiness gate."
+            + ". Pending or not-yet-visible exact-head checks may be retried only "
+            "within the bounded CI wait; failed or untrusted checks remain terminal."
         )
+
+
+def _wait_for_operator_outage_security_checks(
+    *,
+    repository: str,
+    pr_number: int,
+    token: str,
+    expected_head_sha: str,
+    security_required: bool,
+    timeout_seconds: int,
+    poll_interval_seconds: int = 15,
+) -> None:
+    """Wait only for transient exact-head substitute-check states, then fail closed."""
+
+    if timeout_seconds < 0:
+        raise ValueError("outage security wait must be non-negative")
+    if poll_interval_seconds <= 0:
+        raise ValueError("outage security poll interval must be positive")
+
+    deadline = time.monotonic() + timeout_seconds
+    attempt = 1
+    while True:
+        try:
+            _validate_operator_outage_security_checks(
+                repository=repository,
+                pr_number=pr_number,
+                token=token,
+                expected_head_sha=expected_head_sha,
+                security_required=security_required,
+            )
+            return
+        except _OutageSecurityChecksPending as exc:
+            remaining = deadline - time.monotonic()
+            if timeout_seconds == 0 or remaining <= 0:
+                raise ReviewEvidenceError(
+                    "operator outage override timed out waiting for exact-head "
+                    f"security checks after {timeout_seconds}s: {exc}"
+                ) from exc
+            sleep_seconds = min(float(poll_interval_seconds), remaining)
+            print(
+                "merge-readiness-gate: exact-head security checks are still "
+                f"settling; retrying in {sleep_seconds:.0f}s (attempt {attempt})."
+            )
+            time.sleep(sleep_seconds)
+            attempt += 1
 
 
 def _operator_outage_security_required(material_paths: Iterable[str]) -> bool:
@@ -537,6 +597,7 @@ def _validate_v1_seal(
     pr_number: int,
     snapshot: PrSnapshot,
     token: str,
+    outage_security_wait_seconds: int = 0,
 ) -> dict[str, Any]:
     raw_seal = parse_embedded_review_seal(artifact_text)
     if not isinstance(raw_seal, dict):
@@ -675,7 +736,7 @@ def _validate_v1_seal(
         )
         if security_receipt != expected_receipt:
             raise ReviewEvidenceError("Codex Security operator outage override receipt is stale")
-        _validate_operator_outage_security_checks(
+        _wait_for_operator_outage_security_checks(
             repository=repository,
             pr_number=pr_number,
             token=token,
@@ -683,6 +744,7 @@ def _validate_v1_seal(
             security_required=_operator_outage_security_required(
                 entry.path for entry in manifest.entries
             ),
+            timeout_seconds=outage_security_wait_seconds,
         )
     return seal
 
@@ -769,7 +831,18 @@ def main() -> int:
         "--repo",
         help="Repo full name owner/repo for local/agent run (e.g. Katsiarynakavaleuskaya/PulsePlate).",
     )
+    parser.add_argument(
+        "--outage-security-wait-seconds",
+        type=int,
+        default=0,
+        help=(
+            "Bounded CI wait for transient exact-head substitute security checks. "
+            "Failed or untrusted checks are never retried."
+        ),
+    )
     args = parser.parse_args()
+    if args.outage_security_wait_seconds < 0:
+        parser.error("--outage-security-wait-seconds must be non-negative")
     # Mutually exclusive: CI mode (--event-path) vs local/agent mode (--pr-number + --repo).
     if args.event_path and (args.pr_number is not None or (args.repo or "").strip()):
         parser.error("Use either --event-path (CI) or --pr-number and --repo (local), not both.")
@@ -882,6 +955,7 @@ def main() -> int:
                     pr_number=pr_number,
                     snapshot=snapshot,
                     token=token,
+                    outage_security_wait_seconds=args.outage_security_wait_seconds,
                 )
                 _prove_v1_fixed_commits(
                     mapping_entries=mapping_entries,
