@@ -20,12 +20,12 @@ Evidence: tests/test_python_supply_chain_controls.py:955 asserts the 25.0.0 floo
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2146#discussion_r3608655570 -> 17beb0e59ba6564f00fb7416f4426815cf6dd2ba
 
 Disposition: NOT-A-BUG
-Evidence: GitHub reports live PR head 626f6bacc418ad0f273f6fe002cd6ac46273f3fb; git merge-base --is-ancestor 17beb0e59ba6564f00fb7416f4426815cf6dd2ba 626f6bacc418ad0f273f6fe002cd6ac46273f3fb exits 0, while the Commit API cannot resolve reviewer ref 86950ac1cc9f2ca3025cc8357fd4f47fae2c8448.
+Evidence: GitHub reports live PR head 61b09cff15e2f4e80675eb08525566cc84b0e510; git merge-base --is-ancestor 17beb0e59ba6564f00fb7416f4426815cf6dd2ba 61b09cff15e2f4e80675eb08525566cc84b0e510 exits 0, while the Commit API cannot resolve reviewer ref 86950ac1cc9f2ca3025cc8357fd4f47fae2c8448.
 Reason: The cited 86950ac1cc9f2ca3025cc8357fd4f47fae2c8448 is an unavailable reviewer execution ref, not the live PR head; the material seal is reachable from the real head.
-Fingerprint: sha256:682837e66f6f8a599a1a678843685c1026b5201c66981709ba6ef2d283e65fcf
+Fingerprint: sha256:2092979535eca048a1efb6f07d09c024704a5f2963db8dddd365730f9ae0c3a4
 Cause: unavailable_review_ref_ancestry
 Material-Digest: sha256:dbd27d0dd58f2ed5e9b56e3f46189c139480963cb46a984adcd881af620d4a8e
-Verified-Fix: 626f6bacc418ad0f273f6fe002cd6ac46273f3fb
+Verified-Fix: 17beb0e59ba6564f00fb7416f4426815cf6dd2ba
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2146#discussion_r3608971162
 
 Disposition: NOT-A-BUG
