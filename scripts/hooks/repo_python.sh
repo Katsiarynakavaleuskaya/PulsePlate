@@ -60,7 +60,18 @@ _resolve_repo_python_clean() {
 
     if [[ -n "${raw_python_override}" ]]; then
         case "${raw_python_override}" in
-            /*)
+            /* | [A-Za-z]:/*)
+                case "${raw_python_override}" in
+                    [A-Za-z]:/*)
+                        case "${OSTYPE:-}" in
+                            msys* | cygwin*) ;;
+                            *)
+                                echo "ERROR: VENV_PYTHON/DEV_PYTHON must be an absolute executable path for hooks: ${raw_python_override}" >&2
+                                return 1
+                                ;;
+                        esac
+                        ;;
+                esac
                 if [[ -f "${raw_python_override}" && -x "${raw_python_override}" ]]; then
                     printf '%s\n' "${raw_python_override}"
                     return 0
@@ -129,6 +140,16 @@ _resolve_repo_python_clean() {
                     IFS= read -r checkout_git_backlink < "${checkout_git_dir}/gitdir"; then
                     case "${checkout_git_backlink}" in
                         /*) checkout_git_backlink_path="${checkout_git_backlink}" ;;
+                        [A-Za-z]:/*)
+                            case "${OSTYPE:-}" in
+                                msys* | cygwin*)
+                                    checkout_git_backlink_path="${checkout_git_backlink}"
+                                    ;;
+                                *)
+                                    checkout_git_backlink_path="${checkout_git_dir}/${checkout_git_backlink}"
+                                    ;;
+                            esac
+                            ;;
                         *)
                             checkout_git_backlink_path="${checkout_git_dir}/${checkout_git_backlink}"
                             ;;

@@ -246,6 +246,46 @@ def test_hook_resolver_accepts_relative_reciprocal_worktree_metadata(
     assert resolved == str(shared_python)
 
 
+def test_hook_resolver_accepts_git_bash_drive_absolute_worktree_backlink(
+    tmp_path: Path,
+) -> None:
+    drive_root = tmp_path / "C:"
+    repo = drive_root / "primary"
+    repo.mkdir(parents=True)
+    _git(tmp_path, "init", "--quiet", str(repo))
+    _git(repo, "config", "user.email", "pulseplate@pm.me")
+    _git(repo, "config", "user.name", "PulsePlate Hook Resolver")
+    (repo / "README.md").write_text("hook resolver test\n", encoding="utf-8")
+    _git(repo, "add", "README.md")
+    _git(repo, "commit", "--quiet", "-m", "init")
+    shared_python = repo / ".venv" / "Scripts" / "python.exe"
+    shared_python.parent.mkdir(parents=True)
+    _write_executable(shared_python)
+    worktree = drive_root / "lane"
+    _git(repo, "worktree", "add", "--detach", "--quiet", str(worktree), "HEAD")
+    checkout_git_dir = Path(
+        _git(
+            worktree,
+            "rev-parse",
+            "--path-format=absolute",
+            "--git-dir",
+        ).stdout.strip()
+    )
+    (checkout_git_dir / "gitdir").write_text(
+        "C:/lane/.git\n",
+        encoding="utf-8",
+    )
+    command = (
+        f"source {shlex.quote(str(HOOK_RESOLVER))}; "
+        "OSTYPE=msys; "
+        '_resolve_repo_python_clean "C:/lane"'
+    )
+
+    resolved = _bash(command, cwd=tmp_path)
+
+    assert resolved == str(shared_python)
+
+
 def test_hook_resolver_rejects_shell_function_tool_interposition(
     tmp_path: Path,
 ) -> None:
@@ -695,6 +735,43 @@ def test_hook_resolver_uses_valid_dev_override_when_venv_override_is_unset(
     resolved = _bash(RESOLVE_COMMAND, cwd=repo, env=env)
 
     assert resolved == str(dev_override)
+
+
+def test_hook_resolver_accepts_git_bash_drive_absolute_override(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    drive_python = tmp_path / "C:" / "repo" / ".venv" / "Scripts" / "python.exe"
+    drive_python.parent.mkdir(parents=True)
+    _write_executable(drive_python)
+    command = (
+        f"source {shlex.quote(str(HOOK_RESOLVER))}; "
+        "OSTYPE=msys; "
+        'VENV_PYTHON="C:/repo/.venv/Scripts/python.exe"; '
+        "_resolve_repo_python_clean repo"
+    )
+
+    resolved = _bash(command, cwd=tmp_path)
+
+    assert resolved == "C:/repo/.venv/Scripts/python.exe"
+
+
+def test_hook_resolver_rejects_drive_override_outside_git_bash(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    drive_python = tmp_path / "C:" / "repo" / ".venv" / "Scripts" / "python.exe"
+    drive_python.parent.mkdir(parents=True)
+    _write_executable(drive_python)
+    command = (
+        f"source {shlex.quote(str(HOOK_RESOLVER))}; "
+        "OSTYPE=darwin; "
+        'VENV_PYTHON="C:/repo/.venv/Scripts/python.exe"; '
+        "_resolve_repo_python_clean repo"
+    )
+
+    completed = _bash_failure(command, cwd=tmp_path, env=_clean_hook_env())
+
+    assert completed.returncode == 1
+    assert "must be an absolute executable path" in completed.stderr
 
 
 def test_hook_resolver_rejects_relative_python_override(tmp_path: Path) -> None:
