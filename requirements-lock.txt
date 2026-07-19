@@ -333,7 +333,7 @@ psycopg[binary]==3.3.3
     # via
     #   -c requirements.txt
     #   -r requirements.in
-psycopg-binary==3.3.3
+psycopg-binary==3.3.4
     # via
     #   -c requirements.txt
     #   psycopg
