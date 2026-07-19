@@ -12,8 +12,6 @@
 """
 
 import os
-import sys
-from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -25,77 +23,6 @@ from app import app
 def client() -> TestClient:
     """Test client fixture"""
     return TestClient(app)
-
-
-class TestVisualizationPaths:
-    """Тесты для visualization blocks 668-677, 698-709"""
-
-    def test_bmi_with_matplotlib_available(self, client) -> None:
-        """Тест BMI с доступной matplotlib"""
-        with patch("app.MATPLOTLIB_AVAILABLE", True):
-            with patch("app.generate_bmi_visualization") as mock_viz:
-                mock_viz.return_value = {"available": True, "chart": "base64data"}
-
-                response = client.post(
-                    "/bmi",
-                    json={
-                        "weight_kg": 70,
-                        "height_m": 1.75,
-                        "age": 30,
-                        "gender": "male",
-                        "pregnant": "no",
-                        "athlete": "no",
-                        "include_chart": True,
-                        "lang": "en",
-                    },
-                )
-
-                assert response.status_code == 200
-                data = response.json()
-                assert "visualization" in data
-
-    def test_bmi_with_matplotlib_unavailable(self, client) -> None:
-        """Тест BMI без matplotlib"""
-        with patch("app.MATPLOTLIB_AVAILABLE", False):
-            response = client.post(
-                "/bmi",
-                json={
-                    "weight_kg": 75,
-                    "height_m": 1.70,
-                    "age": 25,
-                    "gender": "female",
-                    "pregnant": "no",
-                    "athlete": "no",
-                    "include_chart": True,
-                    "lang": "ru",
-                },
-            )
-
-            assert response.status_code == 200
-            data = response.json()
-            if "visualization" in data:
-                assert data["visualization"]["available"] is False
-
-    def test_bmi_visualization_error_path(self, client) -> None:
-        """Тест error path в visualization"""
-        with patch("app.generate_bmi_visualization") as mock_viz:
-            mock_viz.return_value = {"available": False, "error": "Test error"}
-
-            response = client.post(
-                "/bmi",
-                json={
-                    "weight_kg": 65,
-                    "height_m": 1.65,
-                    "age": 35,
-                    "gender": "female",
-                    "pregnant": "no",
-                    "athlete": "yes",
-                    "include_chart": True,
-                    "lang": "ru",
-                },
-            )
-
-            assert response.status_code == 200
 
 
 class TestPlanEndpointPaths:

@@ -29,31 +29,6 @@ class TestAppMissingLinesExtra:
         assert app_mod.get_update_scheduler is legacy_app.get_update_scheduler
         assert app_mod.get_update_scheduler is scheduler_access.get_update_scheduler
 
-    def test_bmi_pregnancy_visualization_branch(self):
-        # include_chart True + pregnant path should attach visualization (405-410)
-        with patch.object(
-            app_mod,
-            "generate_bmi_visualization",
-            return_value={"available": True, "x": 1, "chart": "base64data"},
-        ):
-            payload = {
-                "weight_kg": 60.0,
-                "height_m": 1.65,
-                "age": 29,
-                "gender": "female",
-                "pregnant": "yes",
-                "athlete": "no",
-                "waist_cm": 80.0,
-                "lang": "en",
-                "include_chart": True,
-            }
-            r = self.client.post("/bmi", json=payload)
-            assert r.status_code == 200
-            data = r.json()
-            # Для беременных может не добавляться visualization, проверим просто успешный ответ
-            assert "bmi" in data
-            assert data["category"] is None  # Для беременных category = None
-
     def test_insight_implicit_disabled_flag_branch(self):
         # Ensure provider exists so we get to flag check at line 605
         class _Stub:

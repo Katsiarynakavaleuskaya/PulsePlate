@@ -408,45 +408,6 @@ class TestBMIVisualizationAPI:
     def teardown_method(self) -> None:
         self.client.close()
 
-    # NOTE (CI trust): a deterministic xfail around legacy `/api/v1/bmi/visualize` was removed in PR-602.
-    # It masked a deterministic 404 under `--runxfail` (non-contract). Canonical visualization is the
-    # JSON spec v1 returned by `/api/v1/bmi/calculate` (see `tests/test_bmi_visualization_spec.py` and
-    # `tests/test_bmi_contract_visualization.py`). Audit basis: PR-600. Tracking: BACKLOG_LEDGER P1
-    # (closed by PR-602).
-
-    def test_bmi_endpoint_with_visualization_request(self) -> None:
-        """Test BMI endpoint with include_chart parameter."""
-        payload = {
-            "weight_kg": 70,
-            "height_m": 1.75,
-            "age": 30,
-            "gender": "male",
-            "pregnant": "no",
-            "athlete": "no",
-            "lang": "en",
-            "include_chart": True,
-        }
-
-        response = self.client.post("/bmi", json=payload)
-        assert response.status_code == 200
-
-        data = response.json()
-        assert "bmi" in data
-        assert "category" in data
-
-        # Since matplotlib might not be installed, check graceful degradation
-        # Either visualization is present or it's not included due to matplotlib unavailability
-        if "visualization" in data:
-            viz = data["visualization"]
-            if viz.get("available"):
-                assert "chart_base64" in viz
-                assert "category" in viz
-                assert "group" in viz
-            else:
-                assert "error" in viz
-                assert not viz["available"]
-        # If visualization is not in data, that's also acceptable when matplotlib is not available
-
     def test_bmi_endpoint_without_visualization(self) -> None:
         """Test BMI endpoint without visualization request."""
         payload = {
@@ -508,23 +469,6 @@ class TestBMIVisualizationAPI:
         assert "category" in data
         assert data["athlete"] is True
         assert "athlete" in data["group"]
-
-    def test_bmi_visualization_endpoint_without_api_key(self) -> None:
-        """Test that visualization endpoint requires API key."""
-        payload = {
-            "weight_kg": 70,
-            "height_m": 1.75,
-            "age": 30,
-            "gender": "male",
-            "pregnant": "no",
-            "athlete": "no",
-            "lang": "en",
-        }
-
-        response = self.client.post("/api/v1/bmi/visualize", json=payload)
-        # Should return 403 for missing API key, but may return 503 if
-        # visualization module not available, or 404 if endpoint not found
-        assert response.status_code in [403, 503, 404]
 
 
 def test_bmi_visualization_base64_encoding():

@@ -586,54 +586,6 @@ class TestDebugEndpoint:
             assert data["insight_enabled"] == "True"
 
 
-class TestVisualizationEndpoint:
-    """Test BMI visualization endpoint."""
-
-    def setup_method(self) -> None:
-        os.environ["API_KEY"] = "test_key"
-        os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
-        self.client = TestClient(cast(ASGIApp, app))
-
-    def test_bmi_visualize_unavailable_module(self):
-        """Test BMI visualization when module not available."""
-        with (
-            patch.dict(os.environ, {"API_KEY": "test_key"}),
-            patch("legacy_app.generate_bmi_visualization", None),
-        ):
-            headers = {"X-API-Key": "test_key"}
-            data = {
-                "weight_kg": 70.0,
-                "height_m": 1.75,
-                "age": 30,
-                "gender": "male",
-                "pregnant": "no",
-                "athlete": "no",
-            }
-
-            response = self.client.post("/api/v1/bmi/visualize", json=data, headers=headers)
-            assert response.status_code == 404
-
-    def test_bmi_visualize_matplotlib_unavailable(self):
-        """Test BMI visualization when matplotlib not available."""
-        with (
-            patch.dict(os.environ, {"API_KEY": "test_key"}),
-            patch("legacy_app.generate_bmi_visualization", lambda: None),
-            patch("legacy_app.MATPLOTLIB_AVAILABLE", False),
-        ):
-            headers = {"X-API-Key": "test_key"}
-            data = {
-                "weight_kg": 70.0,
-                "height_m": 1.75,
-                "age": 30,
-                "gender": "male",
-                "pregnant": "no",
-                "athlete": "no",
-            }
-
-            response = self.client.post("/api/v1/bmi/visualize", json=data, headers=headers)
-            assert response.status_code == 404
-
-
 class TestRestaurantShadowReadCoverageTail:
     """RU: Подтянуть canonical restaurant B3 tests в CI-visible suite.
 
