@@ -92,18 +92,22 @@ def validate_capability_zero_attempt_observations(
 ) -> None:
     """Reject execution evidence when a terminal pre-oracle failure stopped the run."""
 
-    if (
-        failure_class not in {"capability_mismatch", "policy_violation"}
-        or not isinstance(attempts, int)
-        or isinstance(attempts, bool)
-        or attempts != 0
-    ):
+    if not isinstance(attempts, int) or isinstance(attempts, bool):
+        return
+    if failure_class == "capability_mismatch" and attempts != 0:
+        return
+    if failure_class == "policy_violation" and attempts not in {0, 1}:
+        return
+    if failure_class not in {"capability_mismatch", "policy_violation"}:
         return
     if mutated_path_count != 0:
-        raise ValueError(f"{label} {failure_class} with attempts 0 must use mutated_path_count 0.")
+        raise ValueError(
+            f"{label} {failure_class} with attempts {attempts} " "must use mutated_path_count 0."
+        )
     if oracle_commands_executed != 0:
         raise ValueError(
-            f"{label} {failure_class} with attempts 0 must use oracle_commands_executed 0."
+            f"{label} {failure_class} with attempts {attempts} "
+            "must use oracle_commands_executed 0."
         )
 
 

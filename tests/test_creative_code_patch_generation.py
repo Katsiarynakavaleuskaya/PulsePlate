@@ -755,6 +755,55 @@ def test_finalize_dispatched_result_preserves_foreign_receipt_on_collision(
     assert not (run_dir / creative_code_patch_builder.RESULT_FILE).exists()
 
 
+def test_finalize_dispatched_result_preserves_replaced_result_during_rollback(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo, base_sha = _init_patch_repo(tmp_path)
+    _patch_modules_to_repo(monkeypatch, repo)
+    run_id = "dispatch-finalize-replaced-result"
+    gate_path, dispatch_path, packet = _prepare_generated_dispatch_handoff(
+        monkeypatch=monkeypatch,
+        repo=repo,
+        base_sha=base_sha,
+        run_id=run_id,
+    )
+    _write_json(dispatch_path, _trusted_dispatch_result(packet))
+    run_dir = creative_code_patch_workspace.resolve_run_dir(run_id, create=False)
+    result_path = run_dir / creative_code_patch_builder.RESULT_FILE
+    foreign_result = {"owner": "another-publication"}
+    original_write_json_new = generation_cli._write_json_new
+
+    def replace_result_before_receipt_failure(path: Path, payload: dict[str, Any]) -> None:
+        if path.name == generation_cli.RECEIPT_FILENAME:
+            _write_json(result_path, foreign_result)
+            raise CreativeCodePatchGenerationError("simulated receipt publication failure")
+        original_write_json_new(path, payload)
+
+    monkeypatch.setattr(
+        generation_cli,
+        "_write_json_new",
+        replace_result_before_receipt_failure,
+    )
+
+    assert (
+        generation_cli.main(
+            [
+                "finalize-dispatched-result",
+                "--gate",
+                str(gate_path),
+                "--dispatch-result",
+                str(dispatch_path),
+            ]
+        )
+        == 1
+    )
+    assert "simulated receipt publication failure" in capsys.readouterr().err
+    assert json.loads(result_path.read_text(encoding="utf-8")) == foreign_result
+    assert not (gate_path.parent / generation_cli.RECEIPT_FILENAME).exists()
+
+
 def test_finalize_dispatched_result_attempts_every_rollback_after_cleanup_failure(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -965,6 +1014,45 @@ def test_finalize_dispatched_result_retains_trusted_rejection_without_retry(
     assert receipt["promotion_ready"] is False
 
 
+def test_finalize_dispatched_result_rejects_oversized_candidate_patch_before_decode(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo, base_sha = _init_patch_repo(tmp_path)
+    _patch_modules_to_repo(monkeypatch, repo)
+    run_id = "dispatch-finalize-oversized-patch"
+    gate_path, dispatch_path, packet = _prepare_generated_dispatch_handoff(
+        monkeypatch=monkeypatch,
+        repo=repo,
+        base_sha=base_sha,
+        run_id=run_id,
+    )
+    run_dir = creative_code_patch_workspace.resolve_run_dir(run_id, create=False)
+    request = json.loads(
+        (run_dir / creative_code_patch_builder.REQUEST_FILE).read_text(encoding="utf-8")
+    )
+    candidate_patch = run_dir / creative_code_patch_builder.CANDIDATE_PATCH_FILE
+    candidate_patch.write_bytes(b"x" * (request["budgets"]["max_patch_bytes"] + 1))
+    _write_json(dispatch_path, _trusted_dispatch_result(packet))
+
+    assert (
+        generation_cli.main(
+            [
+                "finalize-dispatched-result",
+                "--gate",
+                str(gate_path),
+                "--dispatch-result",
+                str(dispatch_path),
+            ]
+        )
+        == 1
+    )
+    assert "candidate patch exceeds the maximum size" in capsys.readouterr().err
+    assert not (run_dir / creative_code_patch_builder.RESULT_FILE).exists()
+    assert not (gate_path.parent / generation_cli.RECEIPT_FILENAME).exists()
+
+
 @pytest.mark.parametrize(
     ("mutation", "message"),
     [
@@ -981,6 +1069,9 @@ def test_finalize_dispatched_result_retains_trusted_rejection_without_retry(
         ("timeout_without_timeout", "requires terminal timed-out oracle evidence"),
         ("timeout_zero_returncode", "requires a nonzero terminal return code"),
         ("oom_without_oom_evidence", "requires OOM-specific evidence"),
+        ("guard_with_oom_evidence", "must use the oom failure class"),
+        ("missing_executed_oracle_count", "executed oracle count must match"),
+        ("mismatched_executed_oracle_count", "failed Experiment Runner validation"),
         ("capability_missing_error", "requires the canonical runner signal"),
         ("capability_unknown_preflight_blocker", "requires a supported blocker code"),
         ("capability_nonstring_preflight_blocker", "requires a supported blocker code"),
@@ -1054,6 +1145,15 @@ def test_finalize_dispatched_result_rejects_unbound_dispatch_evidence(
         dispatch_result["status"] = "rejected"
         dispatch_result["failure_class"] = "oom"
         dispatch_result["oracle_results"][-1]["returncode"] = 1
+    elif mutation == "guard_with_oom_evidence":
+        dispatch_result["status"] = "rejected"
+        dispatch_result["failure_class"] = "guard_failure"
+        dispatch_result["oracle_results"][-1]["returncode"] = 1
+        dispatch_result["oracle_results"][-1]["stderr"] = "out of memory"
+    elif mutation == "missing_executed_oracle_count":
+        dispatch_result["budget_observations"].pop("oracle_commands_executed")
+    elif mutation == "mismatched_executed_oracle_count":
+        dispatch_result["budget_observations"]["oracle_commands_executed"] = 0
     elif mutation == "capability_missing_error":
         dispatch_result["status"] = "rejected"
         dispatch_result["failure_class"] = "capability_mismatch"
@@ -1697,6 +1797,34 @@ def test_receipt_validator_rejects_unknown_failures_and_incoherent_runner_status
             _reset_receipt_identity(zero_attempt_tamper)
             with pytest.raises(CreativeCodePatchGenerationError, match=message):
                 validate_generation_receipt(zero_attempt_tamper)
+
+    for field, message in (
+        (
+            "mutated_path_count",
+            "policy_violation with attempts 1 must use mutated_path_count 0",
+        ),
+        (
+            "oracle_commands_executed",
+            "policy_violation with attempts 1 must use oracle_commands_executed 0",
+        ),
+    ):
+        one_attempt_policy_tamper = deepcopy(reference)
+        one_attempt_policy_tamper["status"] = "rejected"
+        one_attempt_policy_tamper["failure_class"] = "policy_violation"
+        one_attempt_policy_tamper["runner_summary"].update(
+            {
+                "status": "rejected",
+                "failure_class": "policy_violation",
+                "mutated_path_count": 0,
+                "oracle_commands_executed": 0,
+                "attempts": 1,
+                "retries_consumed": 0,
+            }
+        )
+        one_attempt_policy_tamper["runner_summary"][field] = 1
+        _reset_receipt_identity(one_attempt_policy_tamper)
+        with pytest.raises(CreativeCodePatchGenerationError, match=message):
+            validate_generation_receipt(one_attempt_policy_tamper)
 
     for attempts, mutated_path_count, oracle_commands_executed in (
         (0, 0, 0),

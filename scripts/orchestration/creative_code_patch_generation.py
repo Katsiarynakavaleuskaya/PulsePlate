@@ -27,6 +27,7 @@ from scripts.orchestration import creative_spec_patch_admission as admission_cli
 from scripts.orchestration.creative_code_patch_contract import (
     CreativeCodePatchContractError,
     FAILURE_CLASSES,
+    HARD_MAX_PATCH_BYTES,
     build_creative_code_patch_result,
     classify_failure_class_coherence,
     classify_terminal_outcome_coherence,
@@ -462,14 +463,14 @@ def _read_json_object(path: Path, *, label: str) -> dict[str, Any]:
     return payload
 
 
-def _read_pinned_json_object(
+def _read_pinned_bytes(
     path: Path,
     *,
     trusted_root: Path,
     label: str,
     max_bytes: int,
-) -> dict[str, Any]:
-    """Read one contained JSON object through root-relative no-follow descriptors."""
+) -> bytes:
+    """Read one bounded file through root-relative no-follow descriptors."""
 
     try:
         root_relative = trusted_root.relative_to(REPO_ROOT)
@@ -518,13 +519,9 @@ def _read_pinned_json_object(
             raw_bytes = handle.read(max_bytes + 1)
         if len(raw_bytes) > max_bytes:
             raise CreativeCodePatchGenerationError(f"{label} exceeds the maximum size.")
-        payload = json.loads(
-            raw_bytes.decode("utf-8"),
-            object_pairs_hook=_reject_duplicate_json_object_keys,
-        )
     except CreativeCodePatchGenerationError:
         raise
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError, NotImplementedError) as exc:
+    except (OSError, NotImplementedError) as exc:
         raise CreativeCodePatchGenerationError(f"unable to read {label} safely.") from exc
     finally:
         active_error = sys.exc_info()[1]
@@ -540,6 +537,32 @@ def _read_pinned_json_object(
             raise CreativeCodePatchGenerationError(
                 f"{label} descriptor cleanup failed."
             ) from close_error
+    return raw_bytes
+
+
+def _read_pinned_json_object(
+    path: Path,
+    *,
+    trusted_root: Path,
+    label: str,
+    max_bytes: int,
+) -> dict[str, Any]:
+    """Read one contained JSON object through root-relative no-follow descriptors."""
+
+    try:
+        payload = json.loads(
+            _read_pinned_bytes(
+                path,
+                trusted_root=trusted_root,
+                label=label,
+                max_bytes=max_bytes,
+            ).decode("utf-8"),
+            object_pairs_hook=_reject_duplicate_json_object_keys,
+        )
+    except CreativeCodePatchGenerationError:
+        raise
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise CreativeCodePatchGenerationError(f"unable to read {label} safely.") from exc
     if not isinstance(payload, dict):
         raise CreativeCodePatchGenerationError(f"{label} must be a JSON object.")
     return payload
@@ -1924,9 +1947,14 @@ def _validate_receipt_linked_artifacts(receipt: Mapping[str, Any]) -> None:
     if result_path.name != creative_code_patch_builder.RESULT_FILE:
         raise CreativeCodePatchGenerationError("result_ref must point to result.json.")
     try:
-        patch_text = candidate_patch.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError) as exc:
-        raise CreativeCodePatchGenerationError("candidate patch could not be read.") from exc
+        patch_text = _read_pinned_bytes(
+            candidate_patch,
+            trusted_root=run_dir,
+            label="candidate patch",
+            max_bytes=HARD_MAX_PATCH_BYTES,
+        ).decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise CreativeCodePatchGenerationError("candidate patch must use valid UTF-8.") from exc
     actual_patch_summary = {
         "patch_fingerprint": fingerprint_payload({"candidate_patch": patch_text}),
         "patch_bytes": len(patch_text.encode("utf-8")),
@@ -2189,9 +2217,14 @@ def _load_generated_dispatch_context(
                 f"generated dispatch intake is missing {artifact.name}."
             )
     try:
-        patch_text = candidate_patch.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError) as exc:
-        raise CreativeCodePatchGenerationError("candidate patch could not be read.") from exc
+        patch_text = _read_pinned_bytes(
+            candidate_patch,
+            trusted_root=run_dir,
+            label="candidate patch",
+            max_bytes=request["budgets"]["max_patch_bytes"],
+        ).decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise CreativeCodePatchGenerationError("candidate patch must use valid UTF-8.") from exc
     metadata = _normalize_patch_metadata(read_json(metadata_path), label="patch metadata")
     actual_summary = {
         "patch_fingerprint": fingerprint_payload({"candidate_patch": patch_text}),
@@ -2303,6 +2336,12 @@ def _validate_dispatch_result_binding(
         raise CreativeCodePatchGenerationError(
             "trusted dispatch result configured oracle count does not match the packet."
         )
+    if (
+        result["status"] == "accepted" or failure_class in ORACLE_REQUIRED_FAILURE_CLASSES
+    ) and observations.get("oracle_commands_executed") != len(result["oracle_results"]):
+        raise CreativeCodePatchGenerationError(
+            "trusted dispatch result executed oracle count must match oracle evidence."
+        )
     attempts = observations.get("attempts")
     allowed_attempts = (
         {0, 1} if failure_class in {"capability_mismatch", "policy_violation"} else {1}
@@ -2393,15 +2432,20 @@ def _validate_dispatch_result_binding(
                     "oracle-derived trusted dispatch rejection requires failing terminal oracle "
                     "evidence."
                 )
+            terminal_oracle_output = f"{terminal_oracle['stdout']}\n{terminal_oracle['stderr']}"
+            terminal_oracle_has_oom_evidence = any(
+                pattern.search(terminal_oracle_output) for pattern in OOM_PATTERNS
+            )
             if failure_class == "oom":
-                if not any(
-                    pattern.search(f"{terminal_oracle['stdout']}\n{terminal_oracle['stderr']}")
-                    for pattern in OOM_PATTERNS
-                ):
+                if not terminal_oracle_has_oom_evidence:
                     raise CreativeCodePatchGenerationError(
                         "oom trusted dispatch rejection requires OOM-specific evidence "
                         "from the terminal failing oracle."
                     )
+            elif failure_class == "guard_failure" and terminal_oracle_has_oom_evidence:
+                raise CreativeCodePatchGenerationError(
+                    "OOM terminal evidence must use the oom failure class."
+                )
     if result["shared_tree_untouched"] is not True:
         raise CreativeCodePatchGenerationError(
             "trusted dispatch result must prove the shared tree was untouched."
@@ -2550,6 +2594,18 @@ def _finalize_dispatched_result_locked(
         if current_receipt == receipt:
             receipt_path.unlink()
 
+    def remove_matching_result() -> None:
+        if not result_written or not result_path.exists() or result_path.is_symlink():
+            return
+        current_result = _read_pinned_json_object(
+            result_path,
+            trusted_root=run_dir,
+            label="rollback creative-code patch result",
+            max_bytes=TRUSTED_DISPATCH_RESULT_MAX_BYTES,
+        )
+        if current_result == result:
+            result_path.unlink()
+
     try:
         if not partial_result_exists:
             _write_json_new(result_path, result)
@@ -2590,11 +2646,7 @@ def _finalize_dispatched_result_locked(
             ),
             (
                 "result removal",
-                lambda: (
-                    result_path.unlink()
-                    if result_written and result_path.exists() and not result_path.is_symlink()
-                    else None
-                ),
+                remove_matching_result,
             ),
         )
         for label, rollback in rollback_actions:
