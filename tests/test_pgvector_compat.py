@@ -378,14 +378,36 @@ def test_ci_compatibility_proof_is_selected_and_merge_blocking() -> None:
         "  private_python_proxy_health:",
         maxsplit=1,
     )[0]
+    security_job = workflow.split("  security:", maxsplit=1)[1].split(
+        "  openapi-sync:",
+        maxsplit=1,
+    )[0]
     compat_job = workflow.split("  pgvector_compat:", maxsplit=1)[1].split(
         "  # Fast testing for feature branches",
         maxsplit=1,
     )[0]
 
-    assert "'.github/workflows/ci.yml'" in filter_contract
-    assert "pgvector_compat" in merge_gate.split("needs:", maxsplit=1)[1].splitlines()[0]
-    assert "needs.pgvector_compat.result" in merge_gate
+    direct_proof_inputs = (
+        ".github/workflows/ci.yml",
+        "constraints.txt",
+        "requirements-ci-lite.txt",
+        "requirements-test.txt",
+        "scripts/ci/emergency_python_wheels.json",
+        "scripts/ci/install_locked_python_requirements.py",
+        "tests/test_pgvector_compat.py",
+        "tests/test_vector_rag.py",
+        "tests/test_db_rls.py",
+    )
+    assert all(f"'{path}'" in filter_contract for path in direct_proof_inputs)
+
+    merge_gate_needs = merge_gate.split("needs:", maxsplit=1)[1].splitlines()[0]
+    security_needs = security_job.split("needs:", maxsplit=1)[1].splitlines()[0]
+    assert "security" in merge_gate_needs
+    assert "pgvector_compat" not in merge_gate_needs
+    assert "pgvector_compat" in security_needs
+    assert "needs.changes.outputs.pgvector_compat == 'true'" in security_job
+    assert "needs.pgvector_compat.result" in security_job
+    assert '"true:success"|"false:skipped"' in security_job
     assert (
         "pgvector/pgvector:0.8.2-pg15-bookworm"
         "@sha256:bd12d6788a617f4147d5a2ae0b56d07921398adabfe5a033bd3f50c245df55a1" in compat_job

@@ -74,7 +74,7 @@ jobs:
               - 'ios/**'
               - '.github/workflows/**'
               - '.github/actions/**'
-            pgvector_compat: ['.github/workflows/ci.yml', 'requirements-rag-vector.in', 'requirements-rag-vector.txt', 'requirements-rag-vector-cpu.in', 'requirements-rag-vector-cpu.txt', 'requirements-test.in', 'requirements-test.txt', 'core/rag/vector_rag.py', 'core/db_rls.py', 'alembic/versions/202602280001_add_rag_feedback_tables.py', 'alembic/versions/202602280002_enable_pgvector_extension.py', 'alembic/versions/202602280003_convert_embedding_to_vector768.py', 'alembic/versions/202603100101_enable_rag_user_rls.py', 'alembic/versions/202603110001_harden_rag_subject_principal_bigint.py', 'tests/test_pgvector_compat.py']
+            pgvector_compat: ['.github/workflows/ci.yml', 'constraints.txt', 'requirements-ci-lite.txt', 'requirements-rag-vector.in', 'requirements-rag-vector.txt', 'requirements-rag-vector-cpu.in', 'requirements-rag-vector-cpu.txt', 'requirements-test.in', 'requirements-test.txt', 'scripts/ci/emergency_python_wheels.json', 'scripts/ci/install_locked_python_requirements.py', 'core/rag/vector_rag.py', 'core/db_rls.py', 'alembic/versions/202602280001_add_rag_feedback_tables.py', 'alembic/versions/202602280002_enable_pgvector_extension.py', 'alembic/versions/202602280003_convert_embedding_to_vector768.py', 'alembic/versions/202603100101_enable_rag_user_rls.py', 'alembic/versions/202603110001_harden_rag_subject_principal_bigint.py', 'tests/test_pgvector_compat.py', 'tests/test_vector_rag.py', 'tests/test_db_rls.py']
       - name: Build CI risk profile
         id: risk_profile
         if: github.event_name == 'pull_request' || (github.event_name == 'push' && (startsWith(github.ref, 'refs/heads/feat/') || startsWith(github.ref, 'refs/heads/fix/') || startsWith(github.ref, 'refs/heads/feature/')))
@@ -411,11 +411,9 @@ jobs:
 
   merge_readiness_gate:
     name: Merge readiness gate
-    # Specialized compatibility proof is selected by the changes output.
-    # Merge readiness accepts a skipped job only when the proof is not selected.
-    # A selected job must succeed before generic readiness evaluation.
-    # Keep this dependency explicit so workflow failures cannot become advisory.
-    needs: [changes, pr_body_phase2_gates, private_python_proxy_health, pgvector_compat, security, trivy_ignore_policy_expiry]
+    # Security is the stable blocking dependency and transitively requires the
+    # specialized compatibility proof when the changes output selects it.
+    needs: [changes, pr_body_phase2_gates, private_python_proxy_health, security, trivy_ignore_policy_expiry]
     if: ${{ always() && github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -444,7 +442,6 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          case "${{ needs.changes.outputs.pgvector_compat }}:${{ needs.pgvector_compat.result }}" in "true:success"|"false:skipped") ;; *) echo "::error::pgvector-compat has an invalid selection/result pair"; exit 1 ;; esac
           # Outage receipts fail closed until exact-current-head security jobs settle.
           python scripts/ci/check_pr_merge_readiness.py \
             --event-path "$GITHUB_EVENT_PATH" \
@@ -674,11 +671,14 @@ jobs:
           SKIP: no-commit-to-branch
 
   security:
-    needs: [changes, private_python_proxy_health]
-    if: github.event_name != 'pull_request' || needs.changes.outputs.run_security == 'true'
+    needs: [changes, private_python_proxy_health, pgvector_compat]
+    if: ${{ always() && (github.event_name != 'pull_request' || needs.changes.outputs.run_security == 'true' || needs.changes.outputs.pgvector_compat == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
+      - name: Enforce pgvector compatibility proof result
+        if: github.event_name == 'pull_request'
+        run: 'case "${{ needs.changes.outputs.pgvector_compat }}:${{ needs.pgvector_compat.result }}" in "true:success"|"false:skipped") exit 0 ;; *) echo "::error::pgvector-compat has an invalid selection/result pair"; exit 1 ;; esac'
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
