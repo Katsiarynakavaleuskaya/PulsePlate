@@ -382,7 +382,7 @@ def test_ci_compatibility_proof_is_selected_and_merge_blocking() -> None:
         "  openapi-sync:",
         maxsplit=1,
     )[0]
-    compat_job = workflow.split("  pgvector_compat:", maxsplit=1)[1].split(
+    compat_job = workflow.split("\n  pgvector_compat:\n", maxsplit=1)[1].split(
         "  # Fast testing for feature branches",
         maxsplit=1,
     )[0]
