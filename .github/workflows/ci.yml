@@ -38,6 +38,7 @@ jobs:
       pull-requests: read
     outputs:
       ios: ${{ steps.filter.outputs.ios }}
+      pgvector_compat: ${{ steps.filter.outputs.pgvector_compat }}
       docs_only: ${{ steps.risk_profile.outputs.docs_only }}
       frontend_only: ${{ steps.risk_profile.outputs.frontend_only }}
       ios_only: ${{ steps.risk_profile.outputs.ios_only }}
@@ -73,7 +74,7 @@ jobs:
               - 'ios/**'
               - '.github/workflows/**'
               - '.github/actions/**'
-
+            pgvector_compat: ['.github/workflows/ci.yml', 'requirements-rag-vector.in', 'requirements-rag-vector.txt', 'requirements-rag-vector-cpu.in', 'requirements-rag-vector-cpu.txt', 'requirements-test.in', 'requirements-test.txt', 'core/rag/vector_rag.py', 'core/db_rls.py', 'alembic/versions/202602280001_add_rag_feedback_tables.py', 'alembic/versions/202602280002_enable_pgvector_extension.py', 'alembic/versions/202602280003_convert_embedding_to_vector768.py', 'alembic/versions/202603100101_enable_rag_user_rls.py', 'alembic/versions/202603110001_harden_rag_subject_principal_bigint.py', 'tests/test_pgvector_compat.py']
       - name: Build CI risk profile
         id: risk_profile
         if: github.event_name == 'pull_request' || (github.event_name == 'push' && (startsWith(github.ref, 'refs/heads/feat/') || startsWith(github.ref, 'refs/heads/fix/') || startsWith(github.ref, 'refs/heads/feature/')))
@@ -410,12 +411,11 @@ jobs:
 
   merge_readiness_gate:
     name: Merge readiness gate
-    needs:
-      - changes
-      - pr_body_phase2_gates
-      - private_python_proxy_health
-      - security
-      - trivy_ignore_policy_expiry
+    # Specialized compatibility proof is selected by the changes output.
+    # Merge readiness accepts a skipped job only when the proof is not selected.
+    # A selected job must succeed before generic readiness evaluation.
+    # Keep this dependency explicit so workflow failures cannot become advisory.
+    needs: [changes, pr_body_phase2_gates, private_python_proxy_health, pgvector_compat, security, trivy_ignore_policy_expiry]
     if: ${{ always() && github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -444,6 +444,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
+          case "${{ needs.changes.outputs.pgvector_compat }}:${{ needs.pgvector_compat.result }}" in "true:success"|"false:skipped") ;; *) echo "::error::pgvector-compat has an invalid selection/result pair"; exit 1 ;; esac
           # Outage receipts fail closed until exact-current-head security jobs settle.
           python scripts/ci/check_pr_merge_readiness.py \
             --event-path "$GITHUB_EVENT_PATH" \
@@ -609,7 +610,7 @@ jobs:
             --requirements-file requirements.txt \
             --requirements-file requirements-ci-lite.txt \
             --requirements-file requirements-test.txt \
-            --requirements-file requirements-dev.txt \
+            --requirements-file requirements-dev.txt --requirements-file requirements-rag-vector.txt --requirements-file requirements-rag-vector-cpu.txt \
             --python-version 3.11 \
             --python-version 3.12 \
             --python-version 3.13 \
@@ -642,7 +643,6 @@ jobs:
           if [[ -n "${RUNNER_TEMP:-}" && -f "$marker" ]]; then
             rm -f "$HOME/.netrc" "$marker"
           fi
-
   lint:
     needs: [private_python_proxy_health]
     runs-on: ubuntu-latest
@@ -1076,6 +1076,90 @@ jobs:
             tests/contract-results*.xml
           if-no-files-found: ignore
           retention-days: 7
+
+  pgvector_compat:
+    name: pgvector-compat
+    needs: [changes, private_python_proxy_health]
+    if: github.event_name == 'pull_request' && needs.changes.outputs.pgvector_compat == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    services:
+      postgres:
+        image: pgvector/pgvector:0.8.2-pg15-bookworm@sha256:bd12d6788a617f4147d5a2ae0b56d07921398adabfe5a033bd3f50c245df55a1
+        env:
+          POSTGRES_USER: pgvector_compat
+          POSTGRES_PASSWORD: pgvector_compat_test_password  # pragma: allowlist secret
+          POSTGRES_DB: pgvector_compat
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U pgvector_compat -d pgvector_compat"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      APP_ENV: test
+      ENVIRONMENT: test
+      PGVECTOR_COMPAT_DATABASE_URL: postgresql+psycopg://pgvector_compat:pgvector_compat_test_password@localhost:5432/pgvector_compat  # pragma: allowlist secret
+      PGVECTOR_COMPAT_REQUIRED: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Setup Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.13.6"
+          cache: "pip"
+          cache-dependency-path: |
+            requirements-ci-lite.txt
+            requirements-test.txt
+
+      - name: Install locked ci-test dependencies
+        run: |
+          set -euo pipefail
+          index_url="${PULSEPLATE_PYTHON_INDEX_URL:-}"
+          trusted_host="${PULSEPLATE_PYTHON_TRUSTED_HOST:-}"
+          if [[ -z "$index_url" ]]; then
+            echo "::error::Set credential-free PULSEPLATE_PYTHON_INDEX_URL for pgvector compatibility."
+            exit 1
+          fi
+          case "$index_url" in
+            *://*@*)
+              echo "::error::PULSEPLATE_PYTHON_INDEX_URL must be credential-free."
+              exit 1
+              ;;
+          esac
+          case "$index_url$trusted_host" in
+            *$'\n'*|*$'\r'*)
+              echo "::error::Python package proxy settings must be single-line values."
+              exit 1
+              ;;
+          esac
+          install_args=()
+          if [[ -n "$trusted_host" ]]; then
+            install_args+=(--trusted-host "$trusted_host")
+          fi
+          python scripts/ci/install_locked_python_requirements.py \
+            --python-executable python \
+            --constraints-file constraints.txt \
+            --emergency-wheel-manifest scripts/ci/emergency_python_wheels.json \
+            --requirements-profile ci-test \
+            --install-mode direct-proxy \
+            --index-url "$index_url" \
+            "${install_args[@]}"
+
+      - name: Prove pgvector binding, extension, and RLS compatibility
+        run: |
+          set -euo pipefail
+          python -m pytest -q \
+            tests/test_pgvector_compat.py \
+            tests/test_vector_rag.py \
+            tests/test_db_rls.py
 
   # Fast testing for feature branches (single Python version)
   test-feature:
