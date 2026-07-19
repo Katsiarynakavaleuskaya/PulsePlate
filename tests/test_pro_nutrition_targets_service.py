@@ -211,7 +211,16 @@ def test_safety_validator_fails_closed_with_stable_detail(
     assert "validator-secret" not in str(raised.value.detail)
 
 
-@pytest.mark.parametrize(("lang", "prefix"), [("ru", "Для "), ("es", "Para ")])
+@pytest.mark.parametrize(
+    ("lang", "prefix"),
+    [
+        ("ru", "Для "),
+        ("ru_RU", "Для "),
+        ("es", "Para "),
+        ("ES", "Para "),
+        ("es-MX", "Para "),
+    ],
+)
 def test_nutrient_gaps_uses_profile_language_for_food_first_recommendations(
     lang: str,
     prefix: str,

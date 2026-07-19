@@ -21,6 +21,7 @@ from app.schemas.premium_contracts import (
 )
 from app.services.intervention_trigger_engine import build_targets_next_action
 from core.bmr import FALLBACK_BMR_KCAL_PER_KG_PER_DAY
+from core.i18n import normalize_lang
 from core.nutrition_utils import alias_micros, clamp_daily_kcal, ensure_priority_micros
 from core.utils import get_activity_factor
 
@@ -379,7 +380,7 @@ def analyze_nutrient_gaps_response(req: NutrientGapsRequest) -> NutrientGapsResp
         food_recommendations = nutrition_recommendations.generate_deficiency_recommendations(
             coverage,
             profile,
-            req.user_profile.lang,
+            normalize_lang(req.user_profile.lang),
         )
 
         adequate_nutrients = sum(

@@ -288,7 +288,10 @@ def test_premium_gaps_rejects_nested_infinite_weight_before_core_calls(
     assert core_calls == []
 
 
-@pytest.mark.parametrize("path", [_TARGETS_PATH, _STRICT_TARGETS_PATH, _GAPS_PATH])
+@pytest.mark.parametrize(
+    "path",
+    [_TARGETS_PATH, _STRICT_TARGETS_PATH, _GAPS_PATH],
+)
 @pytest.mark.parametrize("headers", [{}, _headers("wrong-key")])
 def test_targets_and_gaps_api_key_guard_is_exact_403(
     client: TestClient,
@@ -300,3 +303,50 @@ def test_targets_and_gaps_api_key_guard_is_exact_403(
     response = client.post(path, headers=headers, json=payload)
 
     assert response.status_code == 403
+
+
+@pytest.mark.parametrize(
+    ("headers", "status_code", "detail", "authenticate"),
+    [
+        pytest.param(
+            {},
+            401,
+            "API key required for PRO tier access",
+            "ApiKey",
+            id="missing",
+        ),
+        pytest.param(
+            _headers("wrong-key"),
+            403,
+            "API key does not have PRO tier access",
+            None,
+            id="wrong",
+        ),
+    ],
+)
+def test_pro_targets_guard_rejects_before_core_builder(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    headers: dict[str, str],
+    status_code: int,
+    detail: str,
+    authenticate: str | None,
+) -> None:
+    core_calls: list[str] = []
+
+    def _unexpected_builder(_profile: object) -> object:
+        core_calls.append("builder")
+        raise AssertionError("builder must not run before PRO authorization")
+
+    monkeypatch.setattr(
+        service.nutrition_recommendations,
+        "build_nutrition_targets",
+        _unexpected_builder,
+    )
+
+    response = client.post(_PRO_TARGETS_PATH, headers=headers, json=_profile())
+
+    assert response.status_code == status_code
+    assert response.json() == {"detail": detail}
+    assert response.headers.get("www-authenticate") == authenticate
+    assert core_calls == []
