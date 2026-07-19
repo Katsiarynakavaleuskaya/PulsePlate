@@ -10,7 +10,7 @@ anyio==4.12.0
     # via
     #   -c requirements.txt
     #   httpx2
-coverage[toml]==7.15.1
+coverage[toml]==7.15.2
     # via
     #   -r requirements-test.in
     #   pytest-cov
@@ -26,7 +26,7 @@ httpcore2==2.3.0
     # via httpx2
 httpx2==2.3.0
     # via -r requirements-test.in
-hypothesis==6.156.6
+hypothesis==6.156.9
     # via -r requirements-test.in
 idna==3.15
     # via
