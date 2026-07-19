@@ -6,10 +6,10 @@ import logging
 import math
 import time
 from collections.abc import Callable
+from typing import Any, cast
 
 from fastapi import HTTPException, status
 
-import core.menu_engine as menu_engine
 import core.recommendations as nutrition_recommendations
 import core.targets as nutrition_targets
 from app.schemas.premium_contracts import (
@@ -39,6 +39,14 @@ INVALID_NUTRIENT_GAPS_INPUT_DETAIL = "Invalid nutrient gap input"
 LifeStageWarningFactory = Callable[
     [int, nutrition_targets.LifeStage, str],
     list[dict[str, str]],
+]
+TargetsBuilder = Callable[
+    [nutrition_targets.UserProfile],
+    nutrition_targets.NutritionTargets,
+]
+NutrientGapsAnalyzer = Callable[
+    [nutrition_targets.NutritionTargets, dict[str, float]],
+    dict[str, dict[str, Any]],
 ]
 
 _DEFAULT_LIFE_STAGE_MESSAGES: dict[str, dict[str, str]] = {
@@ -99,6 +107,14 @@ def _validate_consumed_nutrients(consumed_nutrients: dict[str, float]) -> None:
         )
 
 
+def _resolve_nutrient_gaps_analyzer() -> NutrientGapsAnalyzer | None:
+    """Resolve the optional gaps backend without coupling targets startup to it."""
+
+    from core.menu_engine import analyze_nutrient_gaps
+
+    return cast(NutrientGapsAnalyzer | None, analyze_nutrient_gaps)
+
+
 def fallback_targets_response(
     req: WHOTargetsRequest,
     *,
@@ -110,6 +126,7 @@ def fallback_targets_response(
     """Build the established bounded response when target calculation is unavailable."""
 
     warning_factory = life_stage_warning_factory or nutrition_targets._life_stage_warnings
+    normalized_lang = normalize_lang(req.lang)
 
     base_bmr = FALLBACK_BMR_KCAL_PER_KG_PER_DAY * req.weight_kg
     activity_factor = get_activity_factor(req.activity)
@@ -147,7 +164,7 @@ def fallback_targets_response(
     life_stage_code = (req.life_stage or "").lower()
     factory_warnings: list[dict[str, str]] = []
     try:
-        factory_warnings = warning_factory(req.age, req.life_stage, req.lang or "en")
+        factory_warnings = warning_factory(req.age, req.life_stage, normalized_lang)
     except Exception:
         logger.exception("Life-stage warning generation failed; using stable fallback copy")
 
@@ -156,7 +173,7 @@ def fallback_targets_response(
         factory_warnings = [
             {
                 "code": life_stage_code,
-                "message": message_map.get(req.lang, message_map["en"]),
+                "message": message_map.get(normalized_lang, message_map["en"]),
             }
         ]
 
@@ -232,11 +249,17 @@ def generate_who_targets_response(
     req: WHOTargetsRequest,
     *,
     allow_backend_fallback: bool = True,
+    targets_builder: TargetsBuilder | None = None,
 ) -> WHOTargetsResponse:
     """Generate canonical WHO targets with bounded fallback and safe errors."""
 
+    normalized_lang = normalize_lang(req.lang)
     try:
-        builder = nutrition_recommendations.build_nutrition_targets
+        builder = (
+            targets_builder
+            if targets_builder is not None
+            else nutrition_recommendations.build_nutrition_targets
+        )
         if not callable(builder):
             if not allow_backend_fallback:
                 raise HTTPException(
@@ -296,7 +319,7 @@ def generate_who_targets_response(
         life_stage_warnings = nutrition_targets._life_stage_warnings(
             age=req.age,
             life_stage=req.life_stage,
-            lang=req.lang,
+            lang=normalized_lang,
         )
         for warning in _validated_safety_warnings(targets):
             life_stage_warnings.append({"code": "safety", "message": warning})
@@ -340,7 +363,7 @@ def analyze_nutrient_gaps_response(req: NutrientGapsRequest) -> NutrientGapsResp
     try:
         _validate_consumed_nutrients(req.consumed_nutrients)
 
-        analyzer = menu_engine.analyze_nutrient_gaps
+        analyzer = _resolve_nutrient_gaps_analyzer()
         if not callable(analyzer):
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

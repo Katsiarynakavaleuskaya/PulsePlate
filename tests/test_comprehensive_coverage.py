@@ -649,6 +649,7 @@ class TestComprehensiveCoverage:
                 headers={"X-API-Key": "test_key"},
             )
             assert response.status_code == 500
+            assert response.headers["content-type"].startswith("application/json")
             assert response.json() == {"detail": "WHO targets calculation failed"}
 
     def test_nutrient_gaps_endpoint_success(self) -> None:
@@ -758,6 +759,7 @@ class TestComprehensiveCoverage:
             )
             # With exception in score_nutrient_coverage, should return 500
             assert response.status_code == 500
+            assert response.headers["content-type"].startswith("application/json")
             assert response.json() == {"detail": "Nutrient gap analysis failed"}
 
 

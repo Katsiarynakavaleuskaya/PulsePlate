@@ -495,4 +495,5 @@ class TestAppComprehensive97:
                         headers={"X-API-Key": "test_key"},
                     )
                     assert response.status_code == 500
+                    assert response.headers["content-type"].startswith("application/json")
                     assert response.json() == {"detail": "WHO targets safety validation failed"}

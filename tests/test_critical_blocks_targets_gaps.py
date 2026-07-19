@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
 
 import pytest
 from fastapi.testclient import TestClient
@@ -19,9 +20,10 @@ _AUTH_HEADER_VALUE = "targets-gaps-test-value"
 
 
 @pytest.fixture
-def client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
+def client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
     monkeypatch.setenv("API_KEY", _AUTH_HEADER_VALUE)
-    return TestClient(app)
+    with TestClient(app) as test_client:
+        yield test_client
 
 
 def _headers(key: str = _AUTH_HEADER_VALUE) -> dict[str, str]:
@@ -78,6 +80,7 @@ def test_premium_targets_real_profiles_return_exact_contract(
     response = client.post(_TARGETS_PATH, headers=_headers(), json=profile)
 
     assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/json")
     payload = response.json()
     assert 1200 <= payload["kcal_daily"] <= 5000
     assert payload["macros"]["protein_g"] > 0
@@ -101,6 +104,7 @@ def test_premium_targets_invalid_payloads_are_exact_422(
     response = client.post(_TARGETS_PATH, headers=_headers(), json=invalid_profile)
 
     assert response.status_code == 422
+    assert response.headers["content-type"].startswith("application/json")
     assert response.json()["detail"]
 
 
@@ -128,6 +132,7 @@ def test_pro_targets_rejects_infinite_height_before_core_builder(
     )
 
     assert response.status_code == 422
+    assert response.headers["content-type"].startswith("application/json")
     assert any(error["loc"] == ["body", "height_cm"] for error in response.json()["detail"])
     assert core_calls == []
 
@@ -156,6 +161,7 @@ def test_pro_targets_rejects_huge_weight_before_core_builder(
     )
 
     assert response.status_code == 422
+    assert response.headers["content-type"].startswith("application/json")
     assert any(error["loc"] == ["body", "weight_kg"] for error in response.json()["detail"])
     assert core_calls == []
 
@@ -168,6 +174,7 @@ def test_pro_targets_finite_measurements_still_work(client: TestClient) -> None:
     )
 
     assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/json")
     assert response.json()["kcal_daily"] > 0
 
 
@@ -182,6 +189,7 @@ def test_targets_missing_builder_preserves_alias_divergence(
 
     assert canonical_alias.status_code == 200
     assert strict_legacy.status_code == 503
+    assert strict_legacy.headers["content-type"].startswith("application/json")
     assert strict_legacy.json() == {"detail": service.WHO_TARGETS_UNAVAILABLE_DETAIL}
 
 
@@ -198,6 +206,7 @@ def test_premium_gaps_real_profiles_use_localized_food_first_recommendations(
     )
 
     assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/json")
     payload = response.json()
     assert payload["gaps"]["iron_mg"]["priority"] == "high"
     assert payload["food_recommendations"]
@@ -209,11 +218,12 @@ def test_premium_gaps_unavailable_analyzer_is_exact_503(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(service.menu_engine, "analyze_nutrient_gaps", None)
+    monkeypatch.setattr(service, "_resolve_nutrient_gaps_analyzer", lambda: None)
 
     response = client.post(_GAPS_PATH, headers=_headers(), json=_gaps_payload())
 
     assert response.status_code == 503
+    assert response.headers["content-type"].startswith("application/json")
     assert response.json() == {"detail": service.NUTRIENT_GAPS_UNAVAILABLE_DETAIL}
 
 
@@ -239,6 +249,7 @@ def test_premium_gaps_rejects_invalid_consumed_values_as_exact_400(
     )
 
     assert response.status_code == 400
+    assert response.headers["content-type"].startswith("application/json")
     assert response.json() == {"detail": service.INVALID_NUTRIENT_GAPS_INPUT_DETAIL}
 
 
@@ -250,6 +261,7 @@ def test_premium_gaps_invalid_profile_is_exact_422(client: TestClient) -> None:
     )
 
     assert response.status_code == 422
+    assert response.headers["content-type"].startswith("application/json")
     assert response.json()["detail"]
 
 
@@ -269,9 +281,9 @@ def test_premium_gaps_rejects_nested_infinite_weight_before_core_calls(
         _unexpected_core_call,
     )
     monkeypatch.setattr(
-        service.menu_engine,
-        "analyze_nutrient_gaps",
-        _unexpected_core_call,
+        service,
+        "_resolve_nutrient_gaps_analyzer",
+        lambda: _unexpected_core_call,
     )
     payload = _gaps_payload(weight_kg=float("inf"))
 
@@ -282,6 +294,7 @@ def test_premium_gaps_rejects_nested_infinite_weight_before_core_calls(
     )
 
     assert response.status_code == 422
+    assert response.headers["content-type"].startswith("application/json")
     assert any(
         error["loc"] == ["body", "user_profile", "weight_kg"] for error in response.json()["detail"]
     )
@@ -347,6 +360,7 @@ def test_pro_targets_guard_rejects_before_core_builder(
     response = client.post(_PRO_TARGETS_PATH, headers=headers, json=_profile())
 
     assert response.status_code == status_code
+    assert response.headers["content-type"].startswith("application/json")
     assert response.json() == {"detail": detail}
     assert response.headers.get("www-authenticate") == authenticate
     assert core_calls == []

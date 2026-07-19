@@ -2,7 +2,7 @@ import asyncio
 import math
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, Dict, Optional
+from typing import Any, Dict, NoReturn, Optional
 
 import pytest
 from fastapi.testclient import TestClient
@@ -401,15 +401,22 @@ def test_unified_db_cache_load_error_and_save_throttle(
     db._save_cache()  # should return early without error
 
 
-def test_unified_db_off_exception_and_invalid_ids(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+def test_unified_db_off_exception_and_invalid_ids(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
     async def _exercise() -> None:
         db = UnifiedFoodDatabase(cache_dir=str(tmp_path))
 
         class OffMock:
-            async def search_products(self, *args: Any, **kwargs: Any):  # noqa: D401
+            async def search_products(
+                self,
+                *args: Any,
+                **kwargs: Any,
+            ) -> NoReturn:  # noqa: D401
                 raise RuntimeError("OFF boom")
 
-            async def get_product_details(self, code: str):  # noqa: D401
+            async def get_product_details(self, code: str) -> NoReturn:  # noqa: D401
                 raise RuntimeError("detail boom")
 
             async def close(self) -> None:

@@ -10,6 +10,7 @@ detection.
 
 from __future__ import annotations
 
+import math
 from typing import Optional
 
 from .nutrition_constants import (
@@ -69,12 +70,17 @@ def alias_micros(values: dict[str, float]) -> dict[str, float]:
 
 
 def ensure_priority_micros(values: dict[str, float]) -> dict[str, float]:
-    """Add mandatory positive defaults in place and return the same mapping."""
+    """Default invalid mandatory values and present aliases in place."""
 
     for nutrient, default_value in MANDATORY_MICRO_DEFAULTS.items():
         current_value = values.get(nutrient)
-        if current_value is None or current_value <= 0:
-            values[nutrient] = default_value
+        if current_value is not None and math.isfinite(current_value) and current_value > 0:
+            continue
+
+        values[nutrient] = default_value
+        for alias in MICRO_ALIAS_MAP.get(nutrient, ()):
+            if alias in values:
+                values[alias] = default_value
     return values
 
 

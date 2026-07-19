@@ -104,6 +104,60 @@ def test_generate_targets_value_error_uses_documented_fallback(
     assert any(warning["code"] == "life_stage" for warning in response.warnings)
 
 
+@pytest.mark.parametrize(
+    ("lang", "message"),
+    [
+        (
+            "es-MX",
+            "Embarazo: los requisitos difieren; consulte guías especializadas.",
+        ),
+        (
+            "ru_RU",
+            "Беременность: нормы отличаются; обратитесь к специализированным рекомендациям.",
+        ),
+    ],
+)
+def test_generate_targets_success_normalizes_life_stage_warning_locale(
+    lang: str,
+    message: str,
+) -> None:
+    response = service.generate_who_targets_response(_profile(lang=lang, life_stage="pregnant"))
+
+    assert {"code": "pregnant", "message": message} in response.warnings
+
+
+@pytest.mark.parametrize(
+    ("lang", "message"),
+    [
+        (
+            "es-MX",
+            "Embarazo: los requisitos difieren; consulte guías especializadas.",
+        ),
+        (
+            "ru_RU",
+            "Беременность: нормы отличаются; обратитесь к специализированным рекомендациям.",
+        ),
+    ],
+)
+def test_generate_targets_fallback_normalizes_life_stage_warning_locale(
+    monkeypatch: pytest.MonkeyPatch,
+    lang: str,
+    message: str,
+) -> None:
+    def _reject_profile(_profile: object) -> object:
+        raise ValueError("profile cannot be calculated")
+
+    monkeypatch.setattr(
+        service.nutrition_recommendations,
+        "build_nutrition_targets",
+        _reject_profile,
+    )
+
+    response = service.generate_who_targets_response(_profile(lang=lang, life_stage="pregnant"))
+
+    assert {"code": "pregnant", "message": message} in response.warnings
+
+
 def test_generate_targets_unexpected_failure_is_stable_and_does_not_leak(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -259,9 +313,9 @@ def test_nutrient_gaps_rejects_invalid_consumed_values_before_core_calls(
         _unexpected_core_call,
     )
     monkeypatch.setattr(
-        service.menu_engine,
-        "analyze_nutrient_gaps",
-        _unexpected_core_call,
+        service,
+        "_resolve_nutrient_gaps_analyzer",
+        lambda: _unexpected_core_call,
     )
     request = _gaps_request()
     request.consumed_nutrients = {"iron_mg": invalid_value}
@@ -304,7 +358,11 @@ def test_nutrient_gaps_errors_use_stable_safe_envelopes(
     def _raise(_targets: object, _consumed: object) -> object:
         raise error
 
-    monkeypatch.setattr(service.menu_engine, "analyze_nutrient_gaps", _raise)
+    monkeypatch.setattr(
+        service,
+        "_resolve_nutrient_gaps_analyzer",
+        lambda: _raise,
+    )
 
     with pytest.raises(HTTPException) as raised:
         service.analyze_nutrient_gaps_response(_gaps_request())
@@ -337,7 +395,7 @@ def test_nutrient_gaps_builder_value_error_remains_stable_400(
 def test_nutrient_gaps_missing_dependencies_are_exact_503(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(service.menu_engine, "analyze_nutrient_gaps", None)
+    monkeypatch.setattr(service, "_resolve_nutrient_gaps_analyzer", lambda: None)
 
     with pytest.raises(HTTPException) as missing_analyzer:
         service.analyze_nutrient_gaps_response(_gaps_request())
@@ -351,6 +409,26 @@ def test_nutrient_gaps_missing_dependencies_are_exact_503(
         service.analyze_nutrient_gaps_response(_gaps_request())
     assert missing_builder.value.status_code == 503
     assert missing_builder.value.detail == service.NUTRITION_TARGETS_UNAVAILABLE_DETAIL
+
+
+def test_nutrient_gaps_resolver_import_error_is_stable_503(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _missing_analyzer() -> service.NutrientGapsAnalyzer:
+        raise ImportError("private-optional-backend-name")
+
+    monkeypatch.setattr(
+        service,
+        "_resolve_nutrient_gaps_analyzer",
+        _missing_analyzer,
+    )
+
+    with pytest.raises(HTTPException) as raised:
+        service.analyze_nutrient_gaps_response(_gaps_request())
+
+    assert raised.value.status_code == 503
+    assert raised.value.detail == service.NUTRIENT_GAPS_UNAVAILABLE_DETAIL
+    assert "private-optional-backend-name" not in str(raised.value.detail)
 
 
 def _function_node(path: Path, function_name: str) -> ast.AsyncFunctionDef:
@@ -395,6 +473,19 @@ def test_targets_and_gaps_runtime_owners_do_not_resolve_through_legacy_facades()
     service_path = _REPO_ROOT / "app/services/pro_nutrition_targets.py"
     service_tree = ast.parse(service_path.read_text(encoding="utf-8"))
     _assert_no_legacy_or_sys_modules(service_tree)
+    module_scope_imports = {
+        alias.name
+        for node in _module_scope_nodes(service_tree)
+        if isinstance(node, ast.Import)
+        for alias in node.names
+    }
+    module_scope_imports.update(
+        node.module
+        for node in _module_scope_nodes(service_tree)
+        if isinstance(node, ast.ImportFrom) and node.module is not None
+    )
+    assert "core.menu_engine" not in module_scope_imports
+    assert {"core.recommendations", "core.targets"} <= module_scope_imports
 
     pro_router = _REPO_ROOT / "app/routers/pro_nutrition_contracts.py"
     legacy_router = _REPO_ROOT / "app/routers/legacy_premium_nutrition.py"
@@ -418,6 +509,149 @@ def test_ensure_priority_micros_preserves_legacy_in_place_identity() -> None:
 
     assert result is micros
     assert micros["iodine_ug"] == 150.0
+
+
+@pytest.mark.parametrize(
+    "invalid_value",
+    [
+        pytest.param(float("nan"), id="nan"),
+        pytest.param(float("inf"), id="positive-infinity"),
+        pytest.param(float("-inf"), id="negative-infinity"),
+    ],
+)
+def test_ensure_priority_micros_defaults_non_finite_value_and_present_alias(
+    invalid_value: float,
+) -> None:
+    micros = {"iodine_ug": invalid_value, "iodine": 75.0}
+
+    result = ensure_priority_micros(micros)
+
+    assert result is micros
+    assert micros == {"iodine_ug": 150.0, "iodine": 150.0}
+
+
+def test_ensure_priority_micros_does_not_add_absent_alias() -> None:
+    micros = {"iodine_ug": float("nan")}
+
+    result = ensure_priority_micros(micros)
+
+    assert result is micros
+    assert micros == {"iodine_ug": 150.0}
+    assert "iodine" not in micros
+
+
+def test_ensure_priority_micros_preserves_finite_values_and_alias() -> None:
+    micros = {"iodine_ug": 175.0, "iodine": 160.0}
+
+    result = ensure_priority_micros(micros)
+
+    assert result is micros
+    assert micros == {"iodine_ug": 175.0, "iodine": 160.0}
+
+
+def test_plate_alignment_passes_and_service_honors_resolved_targets_builder(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target = SimpleNamespace(
+        kcal_daily=2250,
+        macros=SimpleNamespace(
+            protein_g=120,
+            fat_g=70,
+            carbs_g=280,
+            fiber_g=30,
+        ),
+        water_ml_daily=2200,
+        micros=SimpleNamespace(
+            get_priority_nutrients=lambda: {
+                "iron_mg": 18.0,
+                "calcium_mg": 1000.0,
+            }
+        ),
+        activity=SimpleNamespace(
+            moderate_aerobic_min=150,
+            strength_sessions=2,
+            steps_daily=8000,
+        ),
+        calculation_date="2026-07-20",
+    )
+    resolved_calls: list[object] = []
+    resolved_builders: list[object] = []
+
+    def _resolved_builder(profile: object) -> object:
+        resolved_calls.append(profile)
+        return target
+
+    def _unexpected_canonical_builder(_profile: object) -> object:
+        raise AssertionError("Plate override must not use the canonical default builder")
+
+    def _generate_with_observation(
+        request: WHOTargetsRequest,
+        *,
+        allow_backend_fallback: bool = True,
+        targets_builder: service.TargetsBuilder | None = None,
+    ) -> object:
+        resolved_builders.append(targets_builder)
+        return service.generate_who_targets_response(
+            request,
+            allow_backend_fallback=allow_backend_fallback,
+            targets_builder=targets_builder,
+        )
+
+    monkeypatch.setattr(legacy_app, "targets_disabled", lambda: False)
+    monkeypatch.setattr(
+        legacy_app,
+        "_resolve_build_targets_callable",
+        lambda: _resolved_builder,
+    )
+    monkeypatch.setattr(
+        legacy_app,
+        "_generate_who_targets_response",
+        _generate_with_observation,
+    )
+    monkeypatch.setattr(
+        service.nutrition_recommendations,
+        "build_nutrition_targets",
+        _unexpected_canonical_builder,
+    )
+    monkeypatch.setattr(
+        service.nutrition_recommendations,
+        "validate_targets_safety",
+        lambda _targets: [],
+    )
+    request = legacy_app.PlateRequest(
+        sex="female",
+        age=34,
+        height_cm=168,
+        weight_kg=62,
+        activity="light",
+        goal="maintain",
+        life_stage="adult",
+        lang="en",
+    )
+
+    macros, kcal, aligned = legacy_app.align_macros_with_targets(
+        request,
+        {
+            "macros": {
+                "protein_g": 80,
+                "fat_g": 50,
+                "carbs_g": 200,
+                "fiber_g": 20,
+            }
+        },
+        [],
+    )
+
+    assert resolved_builders == [_resolved_builder]
+    assert len(resolved_calls) == 1
+    assert macros == {
+        "protein_g": 120,
+        "fat_g": 70,
+        "carbs_g": 280,
+        "fiber_g": 30,
+    }
+    assert kcal == 2250
+    assert aligned is True
 
 
 def test_legacy_targets_gaps_and_shared_helpers_are_exact_aliases() -> None:

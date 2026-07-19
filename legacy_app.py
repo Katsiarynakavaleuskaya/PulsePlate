@@ -81,8 +81,10 @@ from app.services import recipe_store
 from app.services.food_store import get_food
 from app.services.pro_nutrition_targets import (
     analyze_nutrient_gaps_response,
-    fallback_targets_response as _fallback_targets_response,
     generate_who_targets_response as _generate_who_targets_response,
+)
+from app.services.pro_nutrition_targets import (  # noqa: F401 - compatibility re-export
+    fallback_targets_response as _fallback_targets_response,
 )
 from app.services.scheduler_access import (  # noqa: F401 - compatibility re-export
     get_update_scheduler as get_update_scheduler,
@@ -100,11 +102,13 @@ from core.log_retention import (
 )
 from core.db import get_session
 from core.i18n import Language, normalize_lang, t
-from core.nutrition_utils import (
+from core.nutrition_utils import (  # noqa: F401 - compatibility re-exports
     MANDATORY_MICRO_DEFAULTS,
     MAX_DAILY_KCAL,
     MICRO_ALIAS_MAP,
     MIN_DAILY_KCAL,
+)
+from core.nutrition_utils import (
     alias_micros as _alias_micros,
     clamp_daily_kcal as _clamp_daily_kcal,
     ensure_priority_micros as _ensure_priority_micros,
@@ -1623,7 +1627,11 @@ def align_macros_with_targets(
                 life_stage=req.life_stage,
                 lang=req.lang,
             )
-            targets_resp = _generate_who_targets_response(targets_req)
+            targets_builder = _resolve_build_targets_callable()
+            targets_resp = _generate_who_targets_response(
+                targets_req,
+                targets_builder=targets_builder,
+            )
 
             for macro_name in ("protein_g", "fat_g", "carbs_g", "fiber_g"):
                 if macro_name not in macros_aligned:
