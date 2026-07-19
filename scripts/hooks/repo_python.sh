@@ -1,7 +1,38 @@
 #!/usr/bin/env bash
 # Resolve the Python interpreter that owns PulsePlate's locked developer deps.
 
+if [[ -n "${BASH_VERSION:-}" ]]; then
+    _REPO_PYTHON_RESOLVER_SOURCE="${BASH_SOURCE[0]}"
+elif [[ -n "${ZSH_VERSION:-}" ]]; then
+    _REPO_PYTHON_RESOLVER_SOURCE="${(%):-%N}"
+else
+    echo "ERROR: repo Python resolver must be sourced from Bash or zsh" >&2
+    return 1 2>/dev/null || exit 1
+fi
+
+case "${_REPO_PYTHON_RESOLVER_SOURCE}" in
+    /*) ;;
+    *) _REPO_PYTHON_RESOLVER_SOURCE="${PWD%/}/${_REPO_PYTHON_RESOLVER_SOURCE}" ;;
+esac
+
+# Run the resolver body in a clean Bash process. Exported shell functions can
+# shadow even `builtin`, so in-process lookup is not a trustworthy boundary.
 resolve_repo_python() {
+    /usr/bin/env -i \
+        PATH="${PATH:-}" \
+        HOME="${HOME:-}" \
+        XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-}" \
+        VENV_PYTHON="${VENV_PYTHON:-}" \
+        DEV_PYTHON="${DEV_PYTHON:-}" \
+        CI="${CI:-}" \
+        bash --noprofile --norc -c '
+            source "$1"
+            _resolve_repo_python_clean "$2"
+        ' pulseplate-repo-python \
+        "${_REPO_PYTHON_RESOLVER_SOURCE}" "${1:?repo root required}"
+}
+
+_resolve_repo_python_clean() {
     local repo_root="${1:?repo root required}"
     local candidate=""
     local checkout_binding_valid="false"

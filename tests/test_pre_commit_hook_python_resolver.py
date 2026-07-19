@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-import shutil
 import shlex
+import shutil
 import subprocess
+import sys
 import textwrap
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -96,6 +97,20 @@ def _bash_failure(
         text=True,
         check=False,
     )
+
+
+def _zsh(command: str, *, cwd: Path, env: dict[str, str] | None = None) -> str:
+    zsh_binary = shutil.which("zsh")
+    assert zsh_binary is not None, "zsh is required for hook resolver tests"
+    completed = subprocess.run(
+        [zsh_binary, "-lc", command],
+        cwd=str(cwd),
+        env=env or _clean_hook_env(),
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return completed.stdout.strip()
 
 
 def test_hook_resolver_prefers_root_checkout_venv(tmp_path: Path) -> None:
@@ -320,6 +335,177 @@ def test_hook_resolver_ignores_command_function_tool_lookup_interposition(
     """
 
     resolved = _bash(command, cwd=worktree, env=env)
+
+    assert resolved == str(shared_python)
+
+
+def test_hook_resolver_ignores_builtin_function_tool_lookup_interposition(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(tmp_path, "init", "--quiet", str(repo))
+    _git(repo, "config", "user.email", "pulseplate@pm.me")
+    _git(repo, "config", "user.name", "PulsePlate Hook Resolver")
+    (repo / "README.md").write_text("hook resolver test\n", encoding="utf-8")
+    _git(repo, "add", "README.md")
+    _git(repo, "commit", "--quiet", "-m", "init")
+    shared_python = repo / ".venv" / "bin" / "python"
+    shared_python.parent.mkdir(parents=True)
+    _write_executable(shared_python)
+    worktree = tmp_path / "external-linked-lane"
+    _git(repo, "worktree", "add", "--detach", "--quiet", str(worktree), "HEAD")
+
+    decoy_root = tmp_path / "decoy-root"
+    decoy_admin_dir = decoy_root / ".git" / "worktrees" / "lane"
+    decoy_admin_dir.mkdir(parents=True)
+    (decoy_admin_dir / "gitdir").write_text(
+        f"{worktree / '.git'}\n",
+        encoding="utf-8",
+    )
+    decoy_python = decoy_root / ".venv" / "bin" / "python"
+    decoy_python.parent.mkdir(parents=True)
+    _write_executable(decoy_python)
+    fake_env = tmp_path / "fake-env"
+    fake_env.write_text(
+        textwrap.dedent("""\
+            #!/bin/sh
+            case "$*" in
+                *--git-common-dir*) printf '%s\\n' "$DECOY_ROOT/.git" ;;
+                *--git-dir*) printf '%s\\n' "$DECOY_ROOT/.git/worktrees/lane" ;;
+                *--show-toplevel*)
+                    case "$*" in
+                        *"-C $DECOY_ROOT "*) printf '%s\\n' "$DECOY_ROOT" ;;
+                        *) printf '%s\\n' "$REAL_WORKTREE" ;;
+                    esac
+                    ;;
+                *) exit 1 ;;
+            esac
+            """),
+        encoding="utf-8",
+    )
+    fake_env.chmod(0o755)
+    fake_git = tmp_path / "fake-git"
+    _write_executable(fake_git)
+    env = _clean_hook_env()
+    env.update(
+        {
+            "DECOY_ROOT": str(decoy_root),
+            "FAKE_ENV": str(fake_env),
+            "FAKE_GIT": str(fake_git),
+            "REAL_WORKTREE": str(worktree),
+        }
+    )
+    command = f"""
+        builtin() {{
+            case "$*" in
+                "command -v env") printf '%s\\n' "$FAKE_ENV" ;;
+                "command -v git") printf '%s\\n' "$FAKE_GIT" ;;
+                "cd -- "*) FAKE_BUILTIN_CWD="$3" ;;
+                "pwd -P") printf '%s\\n' "${{FAKE_BUILTIN_CWD:-$PWD}}" ;;
+                *) return 1 ;;
+            esac
+        }}
+        export -f builtin
+        {RESOLVE_COMMAND}
+    """
+
+    resolved = _bash(command, cwd=worktree, env=env)
+
+    assert resolved == str(shared_python)
+    assert resolved != str(decoy_python)
+
+
+def test_hook_resolver_keeps_relative_source_binding_after_chdir(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    checkout_python = repo / ".venv" / "bin" / "python"
+    checkout_python.parent.mkdir(parents=True)
+    _write_executable(checkout_python)
+    invocation_dir = tmp_path / "invocation"
+    invocation_dir.mkdir()
+    relative_resolver = os.path.relpath(HOOK_RESOLVER, start=REPO_ROOT)
+    command = (
+        f"source {shlex.quote(relative_resolver)}; "
+        f"cd {shlex.quote(str(invocation_dir))}; "
+        f"resolve_repo_python {shlex.quote(str(repo))}"
+    )
+
+    resolved = _bash(command, cwd=REPO_ROOT)
+
+    assert resolved == str(checkout_python)
+
+
+def test_hook_resolver_supports_direct_source_from_zsh_after_chdir(
+    tmp_path: Path,
+) -> None:
+    if shutil.which("zsh") is None:
+        assert sys.platform != "darwin", "zsh must be available on macOS"
+        resolver_source = HOOK_RESOLVER.read_text(encoding="utf-8")
+        assert 'elif [[ -n "${ZSH_VERSION:-}" ]]; then' in resolver_source
+        assert '_REPO_PYTHON_RESOLVER_SOURCE="${(%):-%N}"' in resolver_source
+        return
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    checkout_python = repo / ".venv" / "bin" / "python"
+    checkout_python.parent.mkdir(parents=True)
+    _write_executable(checkout_python)
+    invocation_dir = tmp_path / "invocation"
+    invocation_dir.mkdir()
+    relative_resolver = os.path.relpath(HOOK_RESOLVER, start=REPO_ROOT)
+    command = (
+        "function bash() { return 98; }; "
+        f"source {shlex.quote(relative_resolver)}; "
+        f"cd {shlex.quote(str(invocation_dir))}; "
+        f"resolve_repo_python {shlex.quote(str(repo))}"
+    )
+
+    resolved = _zsh(command, cwd=REPO_ROOT)
+
+    assert resolved == str(checkout_python)
+
+
+def test_hook_resolver_preserves_home_for_git_configuration(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(tmp_path, "init", "--quiet", str(repo))
+    _git(repo, "config", "user.email", "pulseplate@pm.me")
+    _git(repo, "config", "user.name", "PulsePlate Hook Resolver")
+    (repo / "README.md").write_text("hook resolver test\n", encoding="utf-8")
+    _git(repo, "add", "README.md")
+    _git(repo, "commit", "--quiet", "-m", "init")
+    shared_python = repo / ".venv" / "bin" / "python"
+    shared_python.parent.mkdir(parents=True)
+    _write_executable(shared_python)
+    worktree = tmp_path / "external-linked-lane"
+    _git(repo, "worktree", "add", "--detach", "--quiet", str(worktree), "HEAD")
+
+    expected_home = tmp_path / "hook-home"
+    expected_home.mkdir()
+    real_git = shutil.which("git")
+    assert real_git is not None
+    fake_bin = tmp_path / "fake-bin"
+    fake_bin.mkdir()
+    git_wrapper = fake_bin / "git"
+    git_wrapper.write_text(
+        textwrap.dedent(f"""\
+            #!/bin/sh
+            if [ "${{HOME:-}}" != {shlex.quote(str(expected_home))} ]; then
+                exit 97
+            fi
+            exec {shlex.quote(real_git)} "$@"
+            """),
+        encoding="utf-8",
+    )
+    git_wrapper.chmod(0o755)
+    env = _clean_hook_env()
+    env["HOME"] = str(expected_home)
+    env["PATH"] = f"{fake_bin}{os.pathsep}{env['PATH']}"
+
+    resolved = _bash(RESOLVE_COMMAND, cwd=worktree, env=env)
 
     assert resolved == str(shared_python)
 
@@ -575,7 +761,7 @@ def test_hook_resolver_allows_ambient_python_only_in_ci(tmp_path: Path) -> None:
     assert resolved.name in {"python3", "python"}
 
 
-def test_hook_resolver_ci_rejects_shell_function_python_interposition(
+def test_hook_resolver_ci_ignores_shell_function_python_interposition(
     tmp_path: Path,
 ) -> None:
     repo = tmp_path / "repo"
@@ -584,15 +770,12 @@ def test_hook_resolver_ci_rejects_shell_function_python_interposition(
     env["CI"] = "true"
     command = f"python3() {{ :; }}; python() {{ :; }}; {RESOLVE_COMMAND}"
 
-    completed = _bash_failure(
-        command,
-        cwd=repo,
-        env=env,
-    )
+    resolved = Path(_bash(command, cwd=repo, env=env))
 
-    assert completed.returncode == 1
-    assert completed.stdout == ""
-    assert "no repo/shared .venv Python found" in completed.stderr
+    assert resolved.is_absolute()
+    assert resolved.is_file()
+    assert os.access(resolved, os.X_OK)
+    assert resolved.name in {"python3", "python"}
 
 
 def test_hook_resolver_ci_ignores_command_function_python_lookup_interposition(
