@@ -74,7 +74,7 @@ def _bash(command: str, *, cwd: Path, env: dict[str, str] | None = None) -> str:
     bash_binary = shutil.which("bash")
     assert bash_binary is not None, "bash binary is required for hook resolver tests"
     completed = subprocess.run(
-        [bash_binary, "-lc", command],
+        [bash_binary, "-c", command],
         cwd=str(cwd),
         env=env or _clean_hook_env(),
         capture_output=True,
@@ -90,7 +90,7 @@ def _bash_failure(
     bash_binary = shutil.which("bash")
     assert bash_binary is not None, "bash binary is required for hook resolver tests"
     return subprocess.run(
-        [bash_binary, "-lc", command],
+        [bash_binary, "-c", command],
         cwd=str(cwd),
         env=env,
         capture_output=True,
@@ -434,8 +434,12 @@ def test_hook_resolver_ignores_caller_path_bash_interposition(tmp_path: Path) ->
     fake_bash.chmod(0o755)
     env = _clean_hook_env()
     env["PATH"] = f"{fake_bin}{os.pathsep}{env['PATH']}"
+    command = (
+        f'[[ "$(builtin command -v bash)" == {shlex.quote(str(fake_bash))} ]]; '
+        f"{RESOLVE_COMMAND}"
+    )
 
-    resolved = _bash(RESOLVE_COMMAND, cwd=repo, env=env)
+    resolved = _bash(command, cwd=repo, env=env)
 
     assert resolved == str(checkout_python)
     assert resolved != str(decoy_python)
@@ -523,8 +527,13 @@ def test_hook_resolver_ignores_caller_path_git_identity_tools(
     fake_git.chmod(0o755)
     env = _clean_hook_env()
     env["PATH"] = f"{fake_bin}{os.pathsep}{env['PATH']}"
+    command = (
+        f'[[ "$(builtin command -v env)" == {shlex.quote(str(fake_env))} ]]; '
+        f'[[ "$(builtin command -v git)" == {shlex.quote(str(fake_git))} ]]; '
+        f"{RESOLVE_COMMAND}"
+    )
 
-    resolved = _bash(RESOLVE_COMMAND, cwd=worktree, env=env)
+    resolved = _bash(command, cwd=worktree, env=env)
 
     assert resolved == str(shared_python)
     assert resolved != str(decoy_python)
