@@ -1055,6 +1055,12 @@ def is_ancestor(
             raise CommitIdentityError("Compare API response is malformed")
         return response
 
+    def optional_head_matches(response: dict[str, Any]) -> bool:
+        if "head_commit" not in response:
+            return True
+        head_commit = response["head_commit"]
+        return isinstance(head_commit, dict) and head_commit.get("sha") == descendant.sha
+
     response = fetch_compare_page(1)
     status = response.get("status")
     ahead_by = response.get("ahead_by")
@@ -1067,6 +1073,7 @@ def is_ancestor(
         not isinstance(base_commit, dict)
         or not isinstance(merge_base_commit, dict)
         or base_commit.get("sha") != ancestor.sha
+        or not optional_head_matches(response)
         or not isinstance(commits, list)
         or not isinstance(ahead_by, int)
         or isinstance(ahead_by, bool)
@@ -1107,15 +1114,25 @@ def is_ancestor(
         terminal_base = terminal_response.get("base_commit")
         terminal_merge_base = terminal_response.get("merge_base_commit")
         terminal_page_commits = terminal_response.get("commits")
+        terminal_ahead_by = terminal_response.get("ahead_by")
+        terminal_behind_by = terminal_response.get("behind_by")
+        terminal_total_commits = terminal_response.get("total_commits")
         if (
             terminal_response.get("status") != status
-            or terminal_response.get("ahead_by") != ahead_by
-            or terminal_response.get("behind_by") != behind_by
-            or terminal_response.get("total_commits") != total_commits
+            or not isinstance(terminal_ahead_by, int)
+            or isinstance(terminal_ahead_by, bool)
+            or terminal_ahead_by != ahead_by
+            or not isinstance(terminal_behind_by, int)
+            or isinstance(terminal_behind_by, bool)
+            or terminal_behind_by != behind_by
+            or not isinstance(terminal_total_commits, int)
+            or isinstance(terminal_total_commits, bool)
+            or terminal_total_commits != total_commits
             or not isinstance(terminal_base, dict)
             or terminal_base.get("sha") != ancestor.sha
             or not isinstance(terminal_merge_base, dict)
             or terminal_merge_base.get("sha") != ancestor.sha
+            or not optional_head_matches(terminal_response)
             or not isinstance(terminal_page_commits, list)
             or len(terminal_page_commits) != 1
         ):
