@@ -3917,6 +3917,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         self._function_default_bindings[synthetic] = {}
         if self.scope.scope_kind != "module":
             self._function_definition_scopes[synthetic] = self.scope
+        self._visit_function(synthetic)
 
     def _build_class_mro(
         self,

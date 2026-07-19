@@ -1847,6 +1847,19 @@ def test_api_key_ownership_guard_preserves_late_bound_aliases(source: str) -> No
     ) == ["app/main.py: legacy API-key dependency attribute access is forbidden: get_api_key"]
 
 
+def test_api_key_ownership_guard_inspects_deferred_lambda_body() -> None:
+    legacy_source = "from app.routers.api_key import _get_api_key_dynamic, get_api_key\n"
+    source = textwrap.dedent("""
+        import legacy_app as legacy
+        dependency = lambda: legacy.get_api_key
+        """)
+
+    assert legacy_guard.validate_api_key_dependency_ownership(
+        legacy_source,
+        {"app/main.py": source},
+    ) == ["app/main.py: legacy API-key dependency attribute access is forbidden: get_api_key"]
+
+
 @pytest.mark.parametrize("operator", ["and", "or"])
 def test_api_key_ownership_guard_joins_boolean_short_circuit_state(operator: str) -> None:
     legacy_source = "from app.routers.api_key import _get_api_key_dynamic, get_api_key\n"
@@ -6176,6 +6189,15 @@ def test_legacy_growth_guard_applies_local_class_decorator_result() -> None:
         """)
 
     assert len(legacy_guard.validate_legacy_growth(source)) == 1
+
+
+def test_legacy_growth_guard_inspects_deferred_lambda_route_registration() -> None:
+    source = 'deferred = lambda: app.get("/api/v1/deferred-lambda")(handler)\n'
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/deferred-lambda"
+    ]
 
 
 @pytest.mark.parametrize(
