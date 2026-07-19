@@ -3131,6 +3131,8 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 import_module_aliases=frozenset(),
                 static_string_bindings=strings,
             )
+            if constructor == "builtins.object":
+                return _KNOWN_NON_APP_REFERENCE
             if self.preserve_route_method_conflicts and constructor == "pulseplate.app.middleware":
                 return f"{_MIDDLEWARE_DECORATOR_REFERENCE_PREFIX}{_first_arg_label(node)}"
             if constructor in {"fastapi.FastAPI", "fastapi.applications.FastAPI"}:
@@ -3495,13 +3497,6 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
     def _is_definitely_non_app_value(self, node: ast.AST) -> bool:
         if isinstance(node, (ast.Constant, ast.JoinedStr, ast.Lambda)):
             return True
-        if (
-            isinstance(node, ast.Call)
-            and not node.args
-            and not node.keywords
-            and self._resolve_reference(node.func) == "builtins.object"
-        ):
-            return True
         if isinstance(node, (ast.List, ast.Tuple, ast.Set)):
             return all(
                 not isinstance(element, ast.Starred) and self._is_definitely_non_app_value(element)
@@ -3577,6 +3572,40 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         }:
             return current
         return None
+
+    def _is_module_object_namespace_target(self, target: ast.AST) -> bool:
+        return (
+            isinstance(target, ast.Subscript)
+            and _is_namespace_mapping(target.value)
+            and self._resolve_string(target.slice) == "object"
+        )
+
+    def _is_builtins_object_attribute_target(self, target: ast.AST) -> bool:
+        if not isinstance(target, ast.Attribute):
+            return False
+        references = self.scope.visible_references()
+        return (
+            _static_module_reference(
+                target,
+                module_aliases=references,
+                import_module_aliases=frozenset(),
+                static_string_bindings=self.scope.visible_strings(),
+            )
+            == "builtins.object"
+        )
+
+    def _bind_object_rebinding_target(self, target: ast.AST) -> bool:
+        if not (
+            self._is_module_object_namespace_target(target)
+            or self._is_builtins_object_attribute_target(target)
+        ):
+            return False
+        self._bind_name(
+            "object",
+            reference=None,
+            string=None,
+        )
+        return True
 
     def _bind_target_value(
         self,
@@ -5035,6 +5064,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         value_mapping = self._resolve_mapping(node.value)
         for target in node.targets:
             self._invalidate_mapping_target(target)
+            self._bind_object_rebinding_target(target)
             self._bind_target_value(
                 target,
                 node.value,
@@ -5055,6 +5085,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         self.visit(node.value)
         value_mapping = self._resolve_mapping(node.value)
         self._invalidate_mapping_target(node.target)
+        self._bind_object_rebinding_target(node.target)
         self._bind_target_value(
             node.target,
             node.value,

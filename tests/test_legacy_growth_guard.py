@@ -4130,6 +4130,36 @@ def test_legacy_growth_guard_clears_dynamic_app_after_builtin_object_rebinding()
     assert legacy_guard.validate_legacy_growth(source) == []
 
 
+def test_legacy_growth_guard_keeps_globals_object_rebinding_fail_closed() -> None:
+    source = textwrap.dedent("""
+        app = resolve_app()
+        globals()["object"] = lambda: app
+        app = object()
+        app.get("/api/v1/globals-object-rebind")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/globals-object-rebind"
+    ]
+
+
+def test_legacy_growth_guard_keeps_builtins_object_rebinding_fail_closed() -> None:
+    source = textwrap.dedent("""
+        import builtins
+
+        app = resolve_app()
+        builtins.object = lambda: app
+        app = object()
+        app.get("/api/v1/builtins-object-rebind")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/builtins-object-rebind"
+    ]
+
+
 def test_legacy_growth_guard_keeps_shadowed_object_call_fail_closed() -> None:
     source = textwrap.dedent("""
         app = resolve_app()
