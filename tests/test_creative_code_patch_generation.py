@@ -983,6 +983,7 @@ def test_finalize_dispatched_result_retains_trusted_rejection_without_retry(
         ("oom_without_oom_evidence", "requires OOM-specific evidence"),
         ("capability_missing_error", "requires the canonical runner signal"),
         ("capability_unknown_preflight_blocker", "requires a supported blocker code"),
+        ("capability_nonstring_preflight_blocker", "requires a supported blocker code"),
         ("metric_regression_without_metrics", "without structured metric evidence"),
         ("policy_without_error", "requires explanatory runner evidence"),
         ("accepted_runner_error", "must not carry runner_error"),
@@ -1059,7 +1060,10 @@ def test_finalize_dispatched_result_rejects_unbound_dispatch_evidence(
         dispatch_result["mutated_paths"] = []
         dispatch_result["oracle_results"] = []
         dispatch_result["budget_observations"]["oracle_commands_executed"] = 0
-    elif mutation == "capability_unknown_preflight_blocker":
+    elif mutation in {
+        "capability_unknown_preflight_blocker",
+        "capability_nonstring_preflight_blocker",
+    }:
         dispatch_result["status"] = "rejected"
         dispatch_result["failure_class"] = "capability_mismatch"
         dispatch_result["mutated_paths"] = []
@@ -1068,7 +1072,11 @@ def test_finalize_dispatched_result_rejects_unbound_dispatch_evidence(
             {
                 "attempts": 0,
                 "oracle_commands_executed": 0,
-                "runner_error": "unknown_preflight_blocker",
+                "runner_error": (
+                    ["runtime_cli_missing"]
+                    if mutation == "capability_nonstring_preflight_blocker"
+                    else "unknown_preflight_blocker"
+                ),
             }
         )
         dispatch_result["execution_backend"].update(

@@ -2333,7 +2333,10 @@ def _validate_dispatch_result_binding(
     if failure_class == "capability_mismatch":
         runner_error = observations.get("runner_error")
         if preflight_status == "failed":
-            if runner_error not in TRUSTED_DISPATCH_PREFLIGHT_BLOCKERS:
+            if (
+                not isinstance(runner_error, str)
+                or runner_error not in TRUSTED_DISPATCH_PREFLIGHT_BLOCKERS
+            ):
                 raise CreativeCodePatchGenerationError(
                     "failed-preflight capability_mismatch requires a supported blocker code."
                 )
