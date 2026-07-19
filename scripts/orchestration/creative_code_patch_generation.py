@@ -461,43 +461,34 @@ def _read_json_object(path: Path, *, label: str) -> dict[str, Any]:
     return payload
 
 
-def _read_resolved_json_object(path: Path, *, label: str) -> dict[str, Any]:
-    """Read a JSON object from a path whose containment was already validated."""
+def _read_pinned_json_object(
+    path: Path,
+    *,
+    trusted_root: Path,
+    label: str,
+    max_bytes: int,
+) -> dict[str, Any]:
+    """Read one contained JSON object through root-relative no-follow descriptors."""
 
     try:
-        payload = json.loads(
-            path.read_text(encoding="utf-8"),
-            object_pairs_hook=_reject_duplicate_json_object_keys,
-        )
-    except CreativeCodePatchGenerationError:
-        raise
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise CreativeCodePatchGenerationError(f"unable to read {label}.") from exc
-    if not isinstance(payload, dict):
-        raise CreativeCodePatchGenerationError(f"{label} must be a JSON object.")
-    return payload
-
-
-def _read_pinned_dispatch_json_object(path: Path) -> dict[str, Any]:
-    """Read a trusted dispatch result through a no-follow, root-relative descriptor."""
-
-    result_root = REPO_ROOT / "artifacts" / "orchestration" / "experiments" / "results"
-    try:
-        relative = path.relative_to(result_root)
+        root_relative = trusted_root.relative_to(REPO_ROOT)
+        relative = path.relative_to(trusted_root)
     except ValueError as exc:
         raise CreativeCodePatchGenerationError(
-            "trusted dispatch result must stay under experiment results."
+            f"{label} must stay under its trusted root."
         ) from exc
     parts = relative.parts
-    if not parts or any(part in {"", ".", ".."} for part in parts):
-        raise CreativeCodePatchGenerationError(
-            "trusted dispatch result must use a safe relative path."
-        )
+    if (
+        not parts
+        or any(part in {"", ".", ".."} for part in parts)
+        or any(part in {"", ".", ".."} for part in root_relative.parts)
+    ):
+        raise CreativeCodePatchGenerationError(f"{label} must use a safe relative path.")
     nofollow = getattr(os, "O_NOFOLLOW", None)
     directory = getattr(os, "O_DIRECTORY", None)
     if not isinstance(nofollow, int) or not isinstance(directory, int):
         raise CreativeCodePatchGenerationError(
-            "trusted dispatch result no-follow reads are unavailable on this platform."
+            f"{label} no-follow reads are unavailable on this platform."
         )
     directory_flags = os.O_RDONLY | directory | nofollow | getattr(os, "O_CLOEXEC", 0)
     file_flags = os.O_RDONLY | os.O_NONBLOCK | nofollow | getattr(os, "O_CLOEXEC", 0)
@@ -505,8 +496,7 @@ def _read_pinned_dispatch_json_object(path: Path) -> dict[str, Any]:
     file_descriptor = -1
     try:
         descriptor = os.open(REPO_ROOT, directory_flags)
-        root_parts = ("artifacts", "orchestration", "experiments", "results")
-        for component in (*root_parts, *parts[:-1]):
+        for component in (*root_relative.parts, *parts[:-1]):
             child = os.open(component, directory_flags, dir_fd=descriptor)
             previous = descriptor
             descriptor = child
@@ -519,20 +509,14 @@ def _read_pinned_dispatch_json_object(path: Path) -> dict[str, Any]:
         file_descriptor = os.open(parts[-1], file_flags, dir_fd=descriptor)
         file_info = os.fstat(file_descriptor)
         if not stat.S_ISREG(file_info.st_mode):
-            raise CreativeCodePatchGenerationError(
-                "trusted dispatch result must be a regular file."
-            )
-        if file_info.st_size > TRUSTED_DISPATCH_RESULT_MAX_BYTES:
-            raise CreativeCodePatchGenerationError(
-                "trusted dispatch result exceeds the maximum size."
-            )
+            raise CreativeCodePatchGenerationError(f"{label} must be a regular file.")
+        if file_info.st_size > max_bytes:
+            raise CreativeCodePatchGenerationError(f"{label} exceeds the maximum size.")
         with os.fdopen(file_descriptor, "rb") as handle:
             file_descriptor = -1
-            raw_bytes = handle.read(TRUSTED_DISPATCH_RESULT_MAX_BYTES + 1)
-        if len(raw_bytes) > TRUSTED_DISPATCH_RESULT_MAX_BYTES:
-            raise CreativeCodePatchGenerationError(
-                "trusted dispatch result exceeds the maximum size."
-            )
+            raw_bytes = handle.read(max_bytes + 1)
+        if len(raw_bytes) > max_bytes:
+            raise CreativeCodePatchGenerationError(f"{label} exceeds the maximum size.")
         payload = json.loads(
             raw_bytes.decode("utf-8"),
             object_pairs_hook=_reject_duplicate_json_object_keys,
@@ -540,9 +524,7 @@ def _read_pinned_dispatch_json_object(path: Path) -> dict[str, Any]:
     except CreativeCodePatchGenerationError:
         raise
     except (OSError, UnicodeDecodeError, json.JSONDecodeError, NotImplementedError) as exc:
-        raise CreativeCodePatchGenerationError(
-            "unable to read trusted dispatch result safely."
-        ) from exc
+        raise CreativeCodePatchGenerationError(f"unable to read {label} safely.") from exc
     finally:
         active_error = sys.exc_info()[1]
         close_error: OSError | None = None
@@ -555,11 +537,29 @@ def _read_pinned_dispatch_json_object(path: Path) -> dict[str, Any]:
                         close_error = exc
         if active_error is None and close_error is not None:
             raise CreativeCodePatchGenerationError(
-                "trusted dispatch result descriptor cleanup failed."
+                f"{label} descriptor cleanup failed."
             ) from close_error
     if not isinstance(payload, dict):
-        raise CreativeCodePatchGenerationError("trusted dispatch result must be a JSON object.")
+        raise CreativeCodePatchGenerationError(f"{label} must be a JSON object.")
     return payload
+
+
+def _read_pinned_dispatch_json_object(path: Path) -> dict[str, Any]:
+    """Read a trusted dispatch result through a no-follow, root-relative descriptor."""
+
+    result_root = REPO_ROOT / "artifacts" / "orchestration" / "experiments" / "results"
+    try:
+        path.relative_to(result_root)
+    except ValueError as exc:
+        raise CreativeCodePatchGenerationError(
+            "trusted dispatch result must stay under experiment results."
+        ) from exc
+    return _read_pinned_json_object(
+        path,
+        trusted_root=result_root,
+        label="trusted dispatch result",
+        max_bytes=TRUSTED_DISPATCH_RESULT_MAX_BYTES,
+    )
 
 
 def _write_json_new(path: Path, payload: Mapping[str, Any]) -> None:
@@ -2248,14 +2248,19 @@ def _validate_dispatch_result_binding(
         raise CreativeCodePatchGenerationError(
             "trusted dispatch result candidate patch fingerprint does not match."
         )
+    failure_class = result["failure_class"]
     backend = result.get("execution_backend")
+    preflight_status = backend.get("preflight_status") if isinstance(backend, dict) else None
     if (
         not isinstance(backend, dict)
-        or backend.get("preflight_status") != "passed"
         or backend.get("name") not in TRUSTED_DISPATCH_BACKENDS
+        or (
+            preflight_status != "passed"
+            and not (failure_class == "capability_mismatch" and preflight_status == "failed")
+        )
     ):
         raise CreativeCodePatchGenerationError(
-            "trusted dispatch result requires passed container backend provenance."
+            "trusted dispatch result requires valid container backend provenance."
         )
     if result["experiment_id"] != packet["experiment_id"]:
         raise CreativeCodePatchGenerationError(
@@ -2266,7 +2271,6 @@ def _validate_dispatch_result_binding(
         raise CreativeCodePatchGenerationError(
             "trusted dispatch result mutated paths do not match the generated candidate."
         )
-    failure_class = result["failure_class"]
     if failure_class == "unchanged_result":
         raise CreativeCodePatchGenerationError(
             "trusted dispatch finalization does not support unchanged_result for a generated patch."
@@ -2453,9 +2457,11 @@ def _finalize_dispatched_result_locked(
     result_path = resolve_run_file(run_dir, creative_code_patch_builder.RESULT_FILE, for_write=True)
     partial_result_exists = result_path.exists()
     if partial_result_exists:
-        partial_result = _read_resolved_json_object(
+        partial_result = _read_pinned_json_object(
             result_path,
+            trusted_root=run_dir,
             label="partial creative-code patch result",
+            max_bytes=TRUSTED_DISPATCH_RESULT_MAX_BYTES,
         )
         if partial_result != result:
             raise CreativeCodePatchGenerationError(
@@ -2500,9 +2506,11 @@ def _finalize_dispatched_result_locked(
             "partial creative-code patch result changed before publication."
         )
     if current_partial_result_exists:
-        current_partial_result = _read_resolved_json_object(
+        current_partial_result = _read_pinned_json_object(
             result_path,
+            trusted_root=run_dir,
             label="partial creative-code patch result",
+            max_bytes=TRUSTED_DISPATCH_RESULT_MAX_BYTES,
         )
         if current_partial_result != result:
             raise CreativeCodePatchGenerationError(
@@ -2515,9 +2523,11 @@ def _finalize_dispatched_result_locked(
     def remove_matching_receipt() -> None:
         if not receipt_path.exists() or receipt_path.is_symlink():
             return
-        current_receipt = _read_resolved_json_object(
+        current_receipt = _read_pinned_json_object(
             receipt_path,
+            trusted_root=receipt_path.parent,
             label="rollback generation receipt",
+            max_bytes=TRUSTED_DISPATCH_RESULT_MAX_BYTES,
         )
         if current_receipt == receipt:
             receipt_path.unlink()

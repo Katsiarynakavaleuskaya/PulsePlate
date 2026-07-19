@@ -887,6 +887,7 @@ def test_finalize_dispatched_result_recovers_matching_partial_publication(
         ("guard_failure", None, 1),
         ("timeout", None, 1),
         ("oom", None, 1),
+        ("capability_mismatch", [], 0),
         ("capability_mismatch", [], 1),
         ("policy_violation", [], 0),
         ("policy_violation", [], 1),
@@ -928,6 +929,8 @@ def test_finalize_dispatched_result_retains_trusted_rejection_without_retry(
     elif failure_class == "oom":
         dispatch_result["oracle_results"][-1]["stderr"] = "out of memory"
     dispatch_result["budget_observations"]["attempts"] = attempts
+    if failure_class == "capability_mismatch" and attempts == 0:
+        dispatch_result["execution_backend"]["preflight_status"] = "failed"
     _write_json(dispatch_path, dispatch_result)
 
     assert (
@@ -956,8 +959,8 @@ def test_finalize_dispatched_result_retains_trusted_rejection_without_retry(
     ("mutation", "message"),
     [
         ("experiment_id", "experiment_id does not match"),
-        ("missing_backend", "passed container backend provenance"),
-        ("native_linux_backend", "passed container backend provenance"),
+        ("missing_backend", "valid container backend provenance"),
+        ("native_linux_backend", "valid container backend provenance"),
         ("candidate_marker", "candidate marker is invalid"),
         ("patch_fingerprint", "candidate patch fingerprint does not match"),
         ("retry", "one attempt and zero retries"),
@@ -1235,6 +1238,34 @@ def test_pinned_dispatch_read_rejects_oversized_result(
         match="trusted dispatch result exceeds the maximum size",
     ):
         generation_cli._read_pinned_dispatch_json_object(result_path.resolve(strict=True))
+
+
+def test_pinned_run_read_rejects_symlinked_partial_result(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _patch_modules_to_repo(monkeypatch, repo)
+    run_dir = creative_code_patch_workspace.resolve_run_dir(
+        "dispatch-partial-result-symlink",
+        create=True,
+    )
+    external_result = tmp_path / "external-result.json"
+    _write_json(external_result, {"status": "accepted"})
+    result_path = run_dir / creative_code_patch_builder.RESULT_FILE
+    result_path.symlink_to(external_result)
+
+    with pytest.raises(
+        generation_cli.CreativeCodePatchGenerationError,
+        match="unable to read partial creative-code patch result safely",
+    ):
+        generation_cli._read_pinned_json_object(
+            result_path,
+            trusted_root=run_dir,
+            label="partial creative-code patch result",
+            max_bytes=generation_cli.TRUSTED_DISPATCH_RESULT_MAX_BYTES,
+        )
 
 
 def test_pinned_dispatch_read_opens_leaf_nonblocking(
