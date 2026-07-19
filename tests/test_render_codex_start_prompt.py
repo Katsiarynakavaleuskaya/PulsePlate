@@ -169,8 +169,22 @@ def test_packet_prompt_enforces_mandatory_tail_for_partial_requested_order() -> 
         "Role order: agent-coordinator, qa-engineer-agent, bug-hunter, security-auditor" in prompt
     )
     assert "Role order: agent-coordinator, security-auditor, bug-hunter" not in prompt
-    assert "single pass per material diff" in prompt
-    assert "fixed mapping and targeted gates" in prompt
+    assert "one manual Codex Security request" in prompt
+    assert "single pass per material diff" not in prompt
+    assert "security-relevant diff changes" not in prompt
+
+    role_index = prompt.index("run the role-only post-open pass in order")
+    fixes_index = prompt.index("Fix or disposition every finding")
+    freeze_index = prompt.index("freeze the exact material")
+    review_index = prompt.index("Run exact-head `pulseplate-pr-review`")
+    security_index = prompt.index("one manual Codex Security request")
+    assert role_index < fixes_index < freeze_index < review_index < security_index
+    assert "performs no automatic retry" in prompt
+    assert "repository makes no plugin call" in prompt
+    assert "cannot prove global cross-machine request consumption" in prompt
+    assert "--review-ref <exact-head-review-URL>" in prompt
+    assert "`record-final-security-outcome`" in prompt
+    assert "created after that terminal outcome" in prompt
 
 
 def test_packet_prompt_normalizes_requested_order_when_security_precedes_bug_hunter() -> None:

@@ -146,9 +146,13 @@ derivable from existing inputs:
 - `pr_phase = "none"`
 - `pr_lifecycle_contract` is additive lifecycle metadata derived from the
   explicit `pr_phase`; `post_open_review` must surface the canonical
-  `qa-engineer-agent -> bug-hunter -> security-auditor` lane, Codex Security
-  diff scan / finding discovery, `pulseplate-pr-review`, and current-head
-  preparation contract
+  role-only `qa-engineer-agent -> bug-hunter -> security-auditor` lane plus
+  versioned `final_material_review_gates`. The final gates run only after
+  fixes, local/current-head gates, and material freeze: exact-head
+  `pulseplate-pr-review` first, then one operator-issued manual Codex Security
+  request prepared by the read-only `prepare-final-security --review-ref
+  <exact-head-review-URL>` command. Its terminal outcome is recorded before any
+  later trusted operator approval can authorize an additional request.
 - `design_lane_mode = "disabled"` only when the task has no explicit design
   trigger; otherwise the packet must resolve to one of:
   - `read_only`

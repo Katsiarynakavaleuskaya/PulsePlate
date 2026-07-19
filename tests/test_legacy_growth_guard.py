@@ -1847,6 +1847,30 @@ def test_api_key_ownership_guard_preserves_late_bound_aliases(source: str) -> No
     ) == ["app/main.py: legacy API-key dependency attribute access is forbidden: get_api_key"]
 
 
+@pytest.mark.parametrize(
+    "deferred",
+    [
+        "dependency = lambda alias=legacy: alias.get_api_key",
+        (
+            "def expose(alias):\n"
+            "    return alias.get_api_key\n"
+            "dependency = lambda: expose(legacy)"
+        ),
+    ],
+    ids=["default-binding", "helper-replay"],
+)
+def test_api_key_ownership_guard_inspects_deferred_lambda_execution(
+    deferred: str,
+) -> None:
+    legacy_source = "from app.routers.api_key import _get_api_key_dynamic, get_api_key\n"
+    source = "import legacy_app as legacy\n" f"{deferred}\n"
+
+    assert legacy_guard.validate_api_key_dependency_ownership(
+        legacy_source,
+        {"app/main.py": source},
+    ) == ["app/main.py: legacy API-key dependency attribute access is forbidden: get_api_key"]
+
+
 @pytest.mark.parametrize("operator", ["and", "or"])
 def test_api_key_ownership_guard_joins_boolean_short_circuit_state(operator: str) -> None:
     legacy_source = "from app.routers.api_key import _get_api_key_dynamic, get_api_key\n"
@@ -4086,6 +4110,68 @@ def test_legacy_growth_guard_converges_for_nested_loop_function_bindings() -> No
     ]
 
 
+def test_legacy_growth_guard_converges_for_self_nested_iterable_provenance() -> None:
+    source = textwrap.dedent("""
+        def install(target):
+            target.get("/api/v1/not-called-from-self-nested-list")(handler)
+
+        items = [install]
+        for _ in values:
+            items = [items]
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+def test_iterable_provenance_normalization_is_bounded_idempotent_and_fail_closed() -> None:
+    binding = legacy_guard._ResolvedBinding(
+        reference="pulseplate.app.get",
+        string=None,
+    )
+    for _ in range(20):
+        binding = legacy_guard._ResolvedBinding(
+            reference=legacy_guard._KNOWN_NON_APP_REFERENCE,
+            string=None,
+            iterable_element=binding,
+        )
+
+    normalized = legacy_guard._normalize_resolved_binding(binding)
+    cursor = normalized
+    node_count = 1
+    while cursor.iterable_element is not None:
+        cursor = cursor.iterable_element
+        node_count += 1
+
+    assert node_count <= legacy_guard._MAX_ITERABLE_ELEMENT_BINDING_DEPTH + 2
+    assert cursor.reference == legacy_guard._POSSIBLE_APP_CALL_REFERENCE
+    assert legacy_guard._normalize_resolved_binding(normalized) == normalized
+    assert legacy_guard._ApiKeyLookupVisitor._argument_binding_may_register(normalized)
+
+
+def test_legacy_growth_guard_keeps_deep_iterable_overflow_fail_closed() -> None:
+    source = textwrap.dedent("""
+        def consume(level0):
+            for level1 in level0:
+                for level2 in level1:
+                    for level3 in level2:
+                        for level4 in level3:
+                            for level5 in level4:
+                                for level6 in level5:
+                                    for level7 in level6:
+                                        for level8 in level7:
+                                            for level9 in level8:
+                                                level9("/api/v1/deep-provenance")(handler)
+
+        deep = [[[[[[[[[app.get]]]]]]]]]
+        consume(deep)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:dynamic:/api/v1/deep-provenance"
+    ]
+
+
 @pytest.mark.parametrize(
     "safe_rebinding",
     [
@@ -4122,6 +4208,215 @@ def test_legacy_growth_guard_keeps_unknown_name_app_rebinding_fail_closed() -> N
 
 def test_legacy_growth_guard_clears_dynamic_app_after_builtin_object_rebinding() -> None:
     source = textwrap.dedent("""
+        app = resolve_app()
+        app = object()
+        app.get("/api/v1/not-a-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+def test_legacy_growth_guard_keeps_globals_object_rebinding_fail_closed() -> None:
+    source = textwrap.dedent("""
+        app = resolve_app()
+        globals()["object"] = lambda: app
+        app = object()
+        app.get("/api/v1/globals-object-rebind")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/globals-object-rebind"
+    ]
+
+
+@pytest.mark.parametrize(
+    "constructor",
+    ["object()", "builtins.object()"],
+    ids=["implicit-builtin", "direct-builtin-attribute"],
+)
+def test_legacy_growth_guard_keeps_poisoned_builtins_object_fail_closed(
+    constructor: str,
+) -> None:
+    source = textwrap.dedent(f"""
+        import builtins
+
+        app = resolve_app()
+        builtins.object = lambda: app
+        app = {constructor}
+        app.get("/api/v1/builtins-object-rebind")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/builtins-object-rebind"
+    ]
+
+
+@pytest.mark.parametrize(
+    "foreign_target",
+    [
+        'vars(some_obj)["object"]',
+        'some_obj.__dict__["object"]',
+    ],
+    ids=["vars-object", "foreign-dunder-dict"],
+)
+def test_legacy_growth_guard_does_not_poison_object_for_foreign_namespaces(
+    foreign_target: str,
+) -> None:
+    source = textwrap.dedent(f"""
+        class Box:
+            pass
+
+        some_obj = Box()
+        {foreign_target} = lambda: app
+        app = object()
+        app.get("/api/v1/not-a-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+@pytest.mark.parametrize(
+    "setup, mutation",
+    [
+        (
+            "def globals():\n    return {}\n",
+            'globals()["object"] = lambda: app',
+        ),
+        (
+            "def vars(_value=None):\n    return {}\nbox = object()\n",
+            'vars(box)["object"] = lambda: app',
+        ),
+        (
+            "class Fake:\n    pass\n" "fake = Fake()\n" "fake.modules = {__name__: Fake()}\n",
+            'fake.modules[__name__].__dict__["object"] = lambda: app',
+        ),
+    ],
+    ids=["shadowed-globals", "shadowed-vars", "foreign-modules-shape"],
+)
+def test_legacy_growth_guard_requires_proven_object_namespace(
+    setup: str,
+    mutation: str,
+) -> None:
+    source = (
+        f"{setup}\n" f"{mutation}\n" "app = object()\n" 'app.get("/api/v1/not-a-route")(handler)\n'
+    )
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        'globals()["object"] = lambda: app',
+        "builtins.object = lambda: app",
+    ],
+    ids=["globals", "builtins"],
+)
+def test_legacy_growth_guard_propagates_object_poisoning_from_called_helper(
+    mutation: str,
+) -> None:
+    source = textwrap.dedent(f"""
+        import builtins
+
+        app = resolve_app()
+
+        def mutate():
+            {mutation}
+
+        mutate()
+        app = object()
+        app.get("/api/v1/helper-object-rebind")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/helper-object-rebind"
+    ]
+
+
+@pytest.mark.parametrize(
+    "target",
+    [
+        'globals()["object"], other',
+        '[globals()["object"], other]',
+    ],
+    ids=["tuple", "list"],
+)
+def test_legacy_growth_guard_recurses_into_destructured_object_targets(
+    target: str,
+) -> None:
+    source = textwrap.dedent(f"""
+        app = resolve_app()
+        {target} = (lambda: app), None
+        app = object()
+        app.get("/api/v1/destructured-object-rebind")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/destructured-object-rebind"
+    ]
+
+
+@pytest.mark.parametrize(
+    "setup, mutation",
+    [
+        ("", '*globals()["object"], other = [lambda: app], None'),
+        ("", 'for globals()["object"] in [lambda: app]:\n    pass'),
+        (
+            "from contextlib import nullcontext\n",
+            'with nullcontext(lambda: app) as globals()["object"]:\n    pass',
+        ),
+        (
+            "import builtins\nnamespace = vars(builtins)\n",
+            'namespace["object"] = lambda: app',
+        ),
+        (
+            "import builtins\n",
+            'setattr(builtins, "object", lambda: app)',
+        ),
+        (
+            "import builtins\n",
+            'vars(builtins).__setitem__("object", lambda: app)',
+        ),
+    ],
+    ids=[
+        "starred-target",
+        "for-target",
+        "with-target",
+        "namespace-alias",
+        "setattr",
+        "mapping-mutator",
+    ],
+)
+def test_legacy_growth_guard_poisoning_covers_real_mutation_paths(
+    setup: str,
+    mutation: str,
+) -> None:
+    source = (
+        f"{setup}\n"
+        "app = resolve_app()\n"
+        f"{mutation}\n"
+        "app = object()\n"
+        'app.get("/api/v1/object-mutation-path")(handler)\n'
+    )
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/object-mutation-path"
+    ]
+
+
+def test_legacy_growth_guard_propagates_module_object_deletion_from_called_helper() -> None:
+    source = textwrap.dedent("""
+        globals()["object"] = lambda: app
+
+        def restore():
+            del globals()["object"]
+
+        restore()
         app = resolve_app()
         app = object()
         app.get("/api/v1/not-a-route")(handler)
@@ -6070,6 +6365,94 @@ def test_legacy_growth_guard_replays_invoked_partial_helpers(
     ]
 
 
+def test_legacy_growth_guard_preserves_unresolved_partial_vararg_shape() -> None:
+    source = textwrap.dedent("""
+        from functools import partial
+
+        def install(*registrars):
+            for registrar in registrars:
+                registrar("/api/v1/partial-star")(handler)
+
+        seed = [app.get]
+        run = partial(install, *seed)
+        run()
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:dynamic:/api/v1/partial-star"
+    ]
+
+
+@pytest.mark.parametrize(
+    "dispatch",
+    [
+        'registrars["route"]("/api/v1/partial-kwargs")(handler)',
+        ('[(route("/api/v1/partial-kwargs")(handler)) ' "for route in registrars.values()]"),
+        ('[(route("/api/v1/partial-kwargs")(handler)) ' "for _name, route in registrars.items()]"),
+    ],
+    ids=["subscript", "values", "items"],
+)
+def test_legacy_growth_guard_preserves_unresolved_partial_kwarg_value_shape(
+    dispatch: str,
+) -> None:
+    source = (
+        "from functools import partial\n\n"
+        "def install(**registrars):\n"
+        f"    {dispatch}\n\n"
+        'seed = {"route": app.get}\n'
+        "run = partial(install, **seed)\n"
+        "run()\n"
+    )
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:dynamic:/api/v1/partial-kwargs"
+    ]
+
+
+def test_legacy_growth_guard_preserves_items_key_value_shape() -> None:
+    source = textwrap.dedent("""
+        def inspect(**registrars):
+            for name, route in registrars.items():
+                name("/api/v1/not-a-route")(handler)
+                route("/api/v1/items-value")(handler)
+
+        inspect(route=app.get)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: " "registration:dynamic:/api/v1/items-value"
+    ]
+
+
+@pytest.mark.parametrize(
+    "invocation",
+    [
+        "install(*[safe])",
+        'install(**{"route": safe})',
+    ],
+    ids=["known-safe-varargs", "known-safe-kwargs"],
+)
+def test_legacy_growth_guard_keeps_known_safe_variadic_values_non_sensitive(
+    invocation: str,
+) -> None:
+    source = textwrap.dedent(f"""
+        def safe(*args, **kwargs):
+            return None
+
+        def install(*registrars, **routes):
+            for registrar in registrars:
+                registrar(handler)
+            for route in routes.values():
+                route("/api/v1/not-a-route")(handler)
+
+        {invocation}
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
 @pytest.mark.parametrize(
     "execution",
     [
@@ -6189,6 +6572,51 @@ def test_legacy_growth_guard_applies_local_class_decorator_result() -> None:
 )
 def test_legacy_growth_guard_replays_invoked_lambda_helpers(source: str) -> None:
     assert len(legacy_guard.validate_legacy_growth(source)) == 1
+
+
+def test_legacy_growth_guard_seeds_deferred_lambda_defaults() -> None:
+    source = "deferred = lambda target=app: " 'target.get("/api/v1/lambda-default")(handler)\n'
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: " "registration:get:/api/v1/lambda-default"
+    ]
+
+
+def test_legacy_growth_guard_replays_helpers_inside_deferred_lambda() -> None:
+    source = textwrap.dedent("""
+        def install(registrar):
+            registrar("/api/v1/lambda-helper")(handler)
+
+        deferred = lambda: install(app.get)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:dynamic:/api/v1/lambda-helper"
+    ]
+
+
+def test_legacy_growth_guard_consumes_generator_expression_returned_by_lambda() -> None:
+    source = "deferred = lambda: " '(app.get("/api/v1/lambda-generator")(handler) for _ in [1])\n'
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/lambda-generator"
+    ]
+
+
+def test_legacy_growth_guard_deduplicates_invoked_lambda_definition_finding() -> None:
+    source = 'deferred = lambda: app.get("/api/v1/lambda-once")(handler)\n' "deferred()\n"
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: " "registration:get:/api/v1/lambda-once"
+    ]
+
+
+def test_legacy_growth_guard_keeps_safe_deferred_lambda_non_sensitive() -> None:
+    source = "deferred = lambda value=object(): value\n"
+
+    assert legacy_guard.validate_legacy_growth(source) == []
 
 
 @pytest.mark.parametrize(

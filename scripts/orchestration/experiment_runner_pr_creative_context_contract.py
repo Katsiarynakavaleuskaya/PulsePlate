@@ -27,9 +27,15 @@ from scripts.orchestration.creative_pilot_workspace_contract import (
     validate_hypothesis_packet_v2,
 )
 from scripts.orchestration.agent_consistency_loader import load_inventory_agents
+from scripts.orchestration.requested_agents import (
+    FINAL_MATERIAL_ONLY,
+    codex_security_invocation_policy,
+)
 
 SCHEMA_VERSION = "1.0"
 POLICY_VERSION = "experiment-runner-pr-creative-context-v1"
+CONTEXT_MAP_SCHEMA_VERSION = "3.0"
+CONTEXT_MAP_POLICY_VERSION = "experiment-runner-pr-creative-context-v3"
 OPERATOR_MODEL_INTAKE_POLICY_VERSION = "creative-hypothesis-operator-intake-v1"
 COORDINATOR_DISPATCH_POLICY_VERSION = "creative-hypothesis-coordinator-dispatch-v1"
 
@@ -188,8 +194,10 @@ COORDINATOR_DISPATCH_AUTHORITY_FALSE_KEYS = AUTHORITY_FALSE_KEYS | frozenset(
 COORDINATOR_DISPATCH_AUTHORITY_KEYS = (
     COORDINATOR_DISPATCH_AUTHORITY_TRUE_KEYS | COORDINATOR_DISPATCH_AUTHORITY_FALSE_KEYS
 )
-CODEX_REVIEW_SINGLE_RUN_POLICY = "single_pass_per_material_diff"
-CODEX_SECURITY_RERUN_ALLOWED_REASONS = (
+CODEX_REVIEW_SINGLE_RUN_POLICY = "final_material_manual_request"
+CODEX_SECURITY_RERUN_ALLOWED_REASONS = ("trusted_operator_approval",)
+LEGACY_CODEX_REVIEW_SINGLE_RUN_POLICY = "single_pass_per_material_diff"
+LEGACY_CODEX_SECURITY_RERUN_ALLOWED_REASONS = (
     "security_relevant_diff_changed",
     "coordinator_evidence_backed_reroute",
     "operator_explicit_request",
@@ -245,6 +253,24 @@ CLASSIFICATION_KEYS = frozenset(
     {"eligible", "creative_decision", "reason_code", "activation_source", "eligible_surface"}
 )
 CODEX_SECURITY_REVIEW_KEYS = frozenset(
+    {
+        "additional_invocation",
+        "automatic_budget",
+        "automatic_retries",
+        "global_cross_machine_consumption_provable",
+        "local_state_is_global_authority",
+        "policy",
+        "repository_invokes_plugin",
+        "requires_frozen_material",
+        "sealed_scan_ref",
+        "sealed_scan_fingerprint",
+        "scope",
+        "timing",
+        "timeout_or_incomplete_consumes_request",
+        "rerun_allowed_reasons",
+    }
+)
+LEGACY_CODEX_SECURITY_REVIEW_KEYS = frozenset(
     {
         "policy",
         "sealed_scan_ref",
@@ -963,13 +989,14 @@ def _artifact_identity(
     artifact_type: str,
     upstream_ids: tuple[str, ...] = (),
     policy_version: str = POLICY_VERSION,
+    schema_version: str = SCHEMA_VERSION,
 ) -> tuple[str, str]:
     fingerprint = fingerprint_payload(dict(payload))
     return (
         build_asset_id(
             asset_type=artifact_type,
             rail="orchestration",
-            version=SCHEMA_VERSION,
+            version=schema_version,
             policy_version=policy_version,
             fingerprint=fingerprint,
             upstream_ids=upstream_ids,
@@ -977,7 +1004,7 @@ def _artifact_identity(
         build_idempotency_key(
             asset_type=artifact_type,
             rail="orchestration",
-            version=SCHEMA_VERSION,
+            version=schema_version,
             policy_version=policy_version,
             fingerprint=fingerprint,
             upstream_ids=upstream_ids,
@@ -1156,6 +1183,11 @@ def build_creative_protocol_context_map(
         marker_enabled=marker_enabled,
         manual_enabled=manual_enabled,
     )
+    if security_relevant_diff_changed:
+        raise ExperimentRunnerCreativeContextContractError(
+            "security_relevant_diff_changed is retired and cannot authorize a scan rerun."
+        )
+    codex_security_policy = codex_security_invocation_policy()
     source = {
         "repository": repository,
         "pr_number": pr_number,
@@ -1166,9 +1198,9 @@ def build_creative_protocol_context_map(
         "generated_at_utc": generated_at_utc,
     }
     body: dict[str, Any] = {
-        "schema_version": SCHEMA_VERSION,
+        "schema_version": CONTEXT_MAP_SCHEMA_VERSION,
         "artifact_type": CONTEXT_MAP_TYPE,
-        "policy_version": POLICY_VERSION,
+        "policy_version": CONTEXT_MAP_POLICY_VERSION,
         "source": source,
         "classification": classification,
         "changed_paths": normalized_changed_paths,
@@ -1182,15 +1214,21 @@ def build_creative_protocol_context_map(
         "cross_domain_candidate_refs": normalized_cross_domain_refs,
         "codex_security_review": {
             "policy": CODEX_REVIEW_SINGLE_RUN_POLICY,
+            "timing": FINAL_MATERIAL_ONLY,
+            **codex_security_policy,
             "sealed_scan_ref": sealed_codex_security_scan_ref,
             "sealed_scan_fingerprint": sealed_codex_security_scan_fingerprint,
-            "security_relevant_diff_changed": security_relevant_diff_changed,
             "rerun_allowed_reasons": list(CODEX_SECURITY_RERUN_ALLOWED_REASONS),
         },
         "authority": default_creative_context_authority(),
         "sanitized": True,
     }
-    context_id, idempotency_key = _artifact_identity(body, artifact_type=CONTEXT_MAP_TYPE)
+    context_id, idempotency_key = _artifact_identity(
+        body,
+        artifact_type=CONTEXT_MAP_TYPE,
+        policy_version=CONTEXT_MAP_POLICY_VERSION,
+        schema_version=CONTEXT_MAP_SCHEMA_VERSION,
+    )
     return validate_creative_protocol_context_map(
         {
             **body,
@@ -1201,6 +1239,36 @@ def build_creative_protocol_context_map(
 
 
 def validate_creative_protocol_context_map(payload: Mapping[str, Any]) -> dict[str, Any]:
+    """Validate the current final-material context-map contract."""
+
+    return _validate_creative_protocol_context_map(
+        payload,
+        schema_version=CONTEXT_MAP_SCHEMA_VERSION,
+        policy_version=CONTEXT_MAP_POLICY_VERSION,
+        review_normalizer=_normalize_codex_security_review,
+    )
+
+
+def validate_creative_protocol_context_map_v1(
+    payload: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Replay the immutable historical v1 per-diff context-map contract."""
+
+    return _validate_creative_protocol_context_map(
+        payload,
+        schema_version=SCHEMA_VERSION,
+        policy_version=POLICY_VERSION,
+        review_normalizer=_normalize_legacy_codex_security_review,
+    )
+
+
+def _validate_creative_protocol_context_map(
+    payload: Mapping[str, Any],
+    *,
+    schema_version: str,
+    policy_version: str,
+    review_normalizer: Callable[[Any], dict[str, Any]],
+) -> dict[str, Any]:
     label = "CreativeProtocolContextMap"
     _require_exact_keys(payload, CONTEXT_MAP_KEYS, label=label)
     classification = _normalize_classification(payload["classification"])
@@ -1220,9 +1288,19 @@ def validate_creative_protocol_context_map(payload: Mapping[str, Any]) -> dict[s
             "eligible context maps require a concrete code, test, workflow, or contract surface."
         )
     normalized = {
-        "schema_version": _require_const(payload, "schema_version", SCHEMA_VERSION, label=label),
+        "schema_version": _require_const(
+            payload,
+            "schema_version",
+            schema_version,
+            label=label,
+        ),
         "artifact_type": _require_const(payload, "artifact_type", CONTEXT_MAP_TYPE, label=label),
-        "policy_version": _require_const(payload, "policy_version", POLICY_VERSION, label=label),
+        "policy_version": _require_const(
+            payload,
+            "policy_version",
+            policy_version,
+            label=label,
+        ),
         "context_id": _require_id(payload, "context_id", label=label),
         "idempotency_key": _require_id(payload, "idempotency_key", label=label),
         "source": _normalize_source(payload["source"]),
@@ -1266,7 +1344,7 @@ def validate_creative_protocol_context_map(payload: Mapping[str, Any]) -> dict[s
             label="cross_domain_candidate_refs",
             allow_empty=True,
         ),
-        "codex_security_review": _normalize_codex_security_review(payload["codex_security_review"]),
+        "codex_security_review": review_normalizer(payload["codex_security_review"]),
         "authority": _normalize_authority(payload["authority"]),
         "sanitized": _require_bool(payload, "sanitized", expected=True, label=label),
     }
@@ -1275,6 +1353,8 @@ def validate_creative_protocol_context_map(payload: Mapping[str, Any]) -> dict[s
         id_key="context_id",
         idempotency_key="idempotency_key",
         artifact_type=CONTEXT_MAP_TYPE,
+        policy_version=policy_version,
+        schema_version=schema_version,
     )
     reject_unsafe_creative_context_value(normalized, label=label)
     return normalized
@@ -1338,13 +1418,107 @@ def _normalize_codex_security_review(raw_review: Any) -> dict[str, Any]:
         CODEX_REVIEW_SINGLE_RUN_POLICY,
         label="codex_security_review",
     )
+    invocation_policy = codex_security_invocation_policy()
+    timing = _require_const(
+        raw_review,
+        "timing",
+        FINAL_MATERIAL_ONLY,
+        label="codex_security_review",
+    )
+    for key in ("scope", "additional_invocation"):
+        _require_const(
+            raw_review,
+            key,
+            invocation_policy[key],
+            label="codex_security_review",
+        )
+    for key in ("automatic_budget", "automatic_retries"):
+        value = _require_int(
+            raw_review,
+            key,
+            min_value=0,
+            max_value=1,
+            label="codex_security_review",
+        )
+        if value != invocation_policy[key]:
+            raise ExperimentRunnerCreativeContextContractError(
+                f"codex_security_review.{key} must equal {invocation_policy[key]!r}."
+            )
+    for key in (
+        "requires_frozen_material",
+        "timeout_or_incomplete_consumes_request",
+        "repository_invokes_plugin",
+        "global_cross_machine_consumption_provable",
+        "local_state_is_global_authority",
+    ):
+        _require_bool(
+            raw_review,
+            key,
+            expected=cast(bool, invocation_policy[key]),
+            label="codex_security_review",
+        )
     raw_reasons = raw_review["rerun_allowed_reasons"]
     if (
         not isinstance(raw_reasons, list)
         or tuple(raw_reasons) != CODEX_SECURITY_RERUN_ALLOWED_REASONS
     ):
         raise ExperimentRunnerCreativeContextContractError(
-            "codex_security_review.rerun_allowed_reasons must match the single-pass policy."
+            "codex_security_review.rerun_allowed_reasons must require explicit "
+            "operator approval."
+        )
+    return {
+        "additional_invocation": invocation_policy["additional_invocation"],
+        "automatic_budget": invocation_policy["automatic_budget"],
+        "automatic_retries": invocation_policy["automatic_retries"],
+        "global_cross_machine_consumption_provable": invocation_policy[
+            "global_cross_machine_consumption_provable"
+        ],
+        "local_state_is_global_authority": invocation_policy["local_state_is_global_authority"],
+        "policy": policy,
+        "repository_invokes_plugin": invocation_policy["repository_invokes_plugin"],
+        "requires_frozen_material": invocation_policy["requires_frozen_material"],
+        "sealed_scan_ref": _normalize_optional_artifact_ref(
+            raw_review["sealed_scan_ref"],
+            label="codex_security_review.sealed_scan_ref",
+        ),
+        "sealed_scan_fingerprint": _require_optional_sha256(
+            raw_review["sealed_scan_fingerprint"],
+            label="codex_security_review.sealed_scan_fingerprint",
+        ),
+        "scope": invocation_policy["scope"],
+        "timing": timing,
+        "timeout_or_incomplete_consumes_request": invocation_policy[
+            "timeout_or_incomplete_consumes_request"
+        ],
+        "rerun_allowed_reasons": list(CODEX_SECURITY_RERUN_ALLOWED_REASONS),
+    }
+
+
+def _normalize_legacy_codex_security_review(raw_review: Any) -> dict[str, Any]:
+    """Validate historical v1 evidence without generating the retired policy."""
+
+    if not isinstance(raw_review, Mapping):
+        raise ExperimentRunnerCreativeContextContractError(
+            "codex_security_review must be a JSON object."
+        )
+    _require_exact_keys(
+        raw_review,
+        LEGACY_CODEX_SECURITY_REVIEW_KEYS,
+        label="codex_security_review",
+    )
+    policy = _require_const(
+        raw_review,
+        "policy",
+        LEGACY_CODEX_REVIEW_SINGLE_RUN_POLICY,
+        label="codex_security_review",
+    )
+    raw_reasons = raw_review["rerun_allowed_reasons"]
+    if (
+        not isinstance(raw_reasons, list)
+        or tuple(raw_reasons) != LEGACY_CODEX_SECURITY_RERUN_ALLOWED_REASONS
+    ):
+        raise ExperimentRunnerCreativeContextContractError(
+            "historical codex_security_review.rerun_allowed_reasons do not match v1."
         )
     return {
         "policy": policy,
@@ -1362,7 +1536,7 @@ def _normalize_codex_security_review(raw_review: Any) -> dict[str, Any]:
             expected=None,
             label="codex_security_review",
         ),
-        "rerun_allowed_reasons": list(CODEX_SECURITY_RERUN_ALLOWED_REASONS),
+        "rerun_allowed_reasons": list(LEGACY_CODEX_SECURITY_RERUN_ALLOWED_REASONS),
     }
 
 
@@ -2894,8 +3068,10 @@ def validate_creative_protocol_context_map_versioned(
     """Dispatch context validation without making strict v1 permissive."""
 
     version = (payload.get("schema_version"), payload.get("policy_version"))
-    if version == (SCHEMA_VERSION, POLICY_VERSION):
+    if version == (CONTEXT_MAP_SCHEMA_VERSION, CONTEXT_MAP_POLICY_VERSION):
         return validate_creative_protocol_context_map(payload)
+    if version == (SCHEMA_VERSION, POLICY_VERSION):
+        return validate_creative_protocol_context_map_v1(payload)
     if version == (PILOT_SCHEMA_VERSION, PILOT_POLICY_VERSION):
         try:
             validated = validate_context_map_v2(payload)
@@ -2920,9 +3096,12 @@ def validate_creative_hypothesis_packet_versioned(
 
     version = (payload.get("schema_version"), payload.get("policy_version"))
     if version == (SCHEMA_VERSION, POLICY_VERSION):
-        if context_map is not None and context_map.get("schema_version") != SCHEMA_VERSION:
+        if context_map is not None and context_map.get("schema_version") not in {
+            SCHEMA_VERSION,
+            CONTEXT_MAP_SCHEMA_VERSION,
+        }:
             raise ExperimentRunnerCreativeContextContractError(
-                "v1 hypothesis packet requires v1 context."
+                "v1 hypothesis packet requires a supported PR creative-context map."
             )
         return validate_creative_hypothesis_packet(payload)
     if version == (PILOT_SCHEMA_VERSION, PILOT_POLICY_VERSION):
@@ -2971,6 +3150,7 @@ def _validate_identity(
     artifact_type: str,
     upstream_ids: tuple[str, ...] = (),
     policy_version: str = POLICY_VERSION,
+    schema_version: str = SCHEMA_VERSION,
 ) -> None:
     body = dict(normalized)
     observed_id = str(body.pop(id_key))
@@ -2980,6 +3160,7 @@ def _validate_identity(
         artifact_type=artifact_type,
         upstream_ids=upstream_ids,
         policy_version=policy_version,
+        schema_version=schema_version,
     )
     if observed_id != expected_id:
         raise ExperimentRunnerCreativeContextContractError(f"{id_key} does not match content.")

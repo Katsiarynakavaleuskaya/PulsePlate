@@ -545,17 +545,16 @@ Rules:
   push, or claim readiness until the role has run in order or the coordinator
   records an explicit disposition with evidence in the packet/runbook.
 - Coordinator-owned PR lanes must include the canonical mandatory post-open
-  `qa-engineer-agent -> bug-hunter -> security-auditor` pass, followed by a
-  Codex Security diff scan / finding discovery when the Codex Security plugin is
-  available and `pulseplate-pr-review`. These post-open passes do not replace
-  pre-open role agents. This post-open chain is a single required pass for the
-  lane, not an unbounded loop. Later review or bot comments must be handled by
-  fixing or dispositioning the specific finding in `docs/review/PR_<N>_FIXED_MAPPING.md`
-  and rerunning targeted gates. Request Codex review manually after material
-  freeze and run the final Codex Security diff scan only after all material
-  fixes. Do not restart the full role/review/scan chain unless the material
-  digest changed, a run failed or was incomplete, the coordinator records a
-  new evidence-backed routing update, or the operator explicitly overrides it.
+  `qa-engineer-agent -> bug-hunter -> security-auditor` role pass. These role
+  agents do not replace pre-open roles or the separate final-material gates.
+
+**Final-material Codex Security budget invariant (hard):**
+- The repeatable post-open pass is role-only: `qa-engineer-agent -> bug-hunter -> security-auditor`.
+- After fixes, required local gates, current-head CI, and material freeze, run exact-head `pulseplate-pr-review`, then request exactly one final manual Codex Security scan for that frozen material.
+- Lifecycle metadata records `scope=per_pr`, `automatic_budget=1`, `automatic_retries=0`, `requires_frozen_material=true`, and `additional_invocation=trusted_operator_approval`. Because `repository_invokes_plugin=false`, `automatic_budget=1` is the single operational request ceiling, not repository dispatch authority.
+- `pr_review_closeout.py prepare-final-security --review-ref <exact-head-review-URL>` proves the preceding exact-head review but performs no plugin call or GitHub mutation. Its atomic state is checkout-local advisory duplicate prevention only; it cannot grant authority or prove global cross-machine consumption. After the operator-issued request, `record-final-security-outcome` records `completed`, `timeout`, `safety_block`, or `incomplete`; every outcome consumes the operational request. Every additional preparation or request requires a fresh, unedited GitHub comment from an `OWNER` or `MEMBER`, created after the prior terminal outcome and bound to the exact repository, PR, full head SHA, and material digest.
+- Any material change invalidates the freeze, exact-head review, and scan evidence; merge evidence still requires one real completed scan on the exact final digest. A PR that changes security-governance, seal, merge-gate, current-head authority, CI/security workflow or action authority, or substitute-security policy inputs must not use the outage override to authorize itself.
+- Before opening the PR, the operator must positively confirm that external Codex Security `opened` / `synchronize` auto-triggers are disabled. Repository code cannot enforce that provider setting; without confirmation, stop before PR open.
 
 ### Mandatory PR Orchestration Gates
 
@@ -584,13 +583,10 @@ For every non-trivial PR:
   blockers, not a valid `Not applicable` reason. If the result materially shapes
   code, tests, docs, mapping, or commit decisions, use the governed co-author
   trailer.
-- After PR open, execute the declared post-open role agents, Codex Security diff
-  scan / finding discovery, and `pulseplate-pr-review` once for the lane. Fix or
-  disposition every finding before updating fixed mapping or claiming readiness.
-  Do not treat later review comments as permission to restart the full
-  scan/review chain automatically; use fixed-mapping disposition plus targeted
-  validation unless a new security-relevant diff or explicit coordinator/operator
-  override reopens that loop.
+- After PR open, execute the declared role-only post-open pass. Fix or
+  disposition every finding before material freeze, then follow the
+  final-material budget invariant above; do not automatically restart either
+  final gate.
 
 ### PR Handling Lifecycle (Coordinator-Owned)
 

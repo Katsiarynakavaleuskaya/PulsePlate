@@ -55,10 +55,16 @@ Rules:
 - Missing execution of a bootstrap-assigned role is a hard gate for PR work:
   packet creation is provenance only and never counts as role execution.
 - The canonical post-open `qa-engineer-agent -> bug-hunter -> security-auditor`
-  lane remains mandatory for PR work, followed by Codex Security diff scan /
-  finding discovery when the plugin is available and `pulseplate-pr-review`.
+  role-only lane remains mandatory for PR work.
 Source of truth: the active lane packet or runbook at the canonical packet path for the current
 lane, which contains the enforced role-agent sequence for that task or PR.
+
+The global final-material Codex Security budget invariant is defined only in
+root `AGENTS.md`. Operationally, this runbook orders the final gates as
+freeze → exact-head `pulseplate-pr-review` → local `prepare-final-security` →
+one operator-issued manual scan. The preparation command never invokes the
+plugin, and no timeout, safety block, or incomplete result is retried without
+fresh exact-material `OWNER`/`MEMBER` approval.
 
 **Usage:**
 ```text
@@ -118,8 +124,8 @@ instructions still match the live contract:
 - For PR lifecycle packets, bootstrap may now accept `--pr-phase`:
   - `pre_open` for pre-PR scope lock without review-lane synthesis
   - `post_open_review` after PR creation to surface the mandatory
-    `qa-engineer-agent -> bug-hunter -> security-auditor` lane, Codex Security
-    diff-scan expectation, and `pulseplate-pr-review`
+    `qa-engineer-agent -> bug-hunter -> security-auditor` role-only lane plus
+    the separate final-material review/security contract
   - `merge_ready` for explicit current-head merge-preparation packets
 - `post_open_review` remains deterministic once invoked; it is not a raw-session
   or host-runtime auto-trigger by itself.
@@ -519,13 +525,17 @@ Use this as the canonical operating loop from branch creation to merge window:
 3. **Post-open review entry**
    - Once the PR exists, run the mandatory post-open reviewer path declared by the lane packet/runbook before calling the lane stable
    - When the lane declares `qa-engineer-agent -> bug-hunter -> security-auditor`, that pass happens after PR open, not as a substitute for pre-PR local gates
-   - Finish all implementation/docs/tests, then freeze the material digest with
-     `pr_review_closeout.py freeze`. The coordinator posts one manual
-     `@codex review` for that digest. A material fix invalidates the freeze and
-     returns here.
-   - After the final freeze, run the declared
-     `qa-engineer-agent -> bug-hunter -> security-auditor` pass, one Codex
-     Security diff scan / finding discovery, and `pulseplate-pr-review`.
+   - Fix every finding, run the required local gates and current-head CI, then
+     freeze the material digest with `pr_review_closeout.py freeze`
+   - Run exact-head `pulseplate-pr-review` for that frozen digest; any material
+     fix invalidates the freeze and returns to fixes, gates, CI, freeze, and review
+   - Run `pr_review_closeout.py prepare-final-security --repo <owner/name>
+     --pr-number <N> --review-ref <exact-head-review-URL>`, then have the
+     operator make the one final manual Codex Security request; the command
+     itself never invokes the plugin
+   - Record its terminal state with `record-final-security-outcome --outcome
+     <completed|timeout|safety_block|incomplete> --evidence-ref <ref>`. A later
+     approval comment must be newer than this terminal record.
 4. **Before each push**
    - Run `pre-commit run --all-files`
    - Run the required local narrow gates for the touched scope:
@@ -650,10 +660,14 @@ Before merge: `unresolved` must be `0`. Resolve all threads in GitHub UI (Conver
    that immutable comment URL and use the bounded credit-outage path below.
 3. Apply actionable fixes. Any material change returns to step 2; governance
    draft/body activity does not.
-4. After the final material freeze, complete the required role pass and one
-   final Codex Security diff scan. If the plugin is systemically unavailable
-   with MCP `-32001 Request timed out`, use the bounded operator-outage path only
-   after an explicit operator decision; it is not scan or no-findings evidence.
+4. After the final material freeze and exact-head `pulseplate-pr-review`, run
+   `prepare-final-security --review-ref <exact-head-review-URL>` and have the
+   operator make the one final manual
+   Codex Security request. Any timeout, safety block, or incomplete result
+   is recorded with `record-final-security-outcome` and consumes that request;
+   do not retry without a fresh, later exact-material
+   `OWNER`/`MEMBER` approval. A self-modifying security-governance PR must not
+   use the bounded operator-outage path to authorize itself.
 5. Record dispositions with `add-disposition`, then run `seal --review-ref ...`
    with exactly one of `--scan-manifest ...` or
    `--security-outage-override-ref <exact GitHub comment URL>`. The override

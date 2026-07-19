@@ -1950,6 +1950,8 @@ def validate_legacy_growth(
     return errors
 
 
+_MAX_ITERABLE_ELEMENT_BINDING_DEPTH = 8
+
 _FunctionNode = ast.FunctionDef | ast.AsyncFunctionDef
 _DescriptorBinding = tuple[_FunctionNode, str]
 
@@ -1973,6 +1975,41 @@ class _ResolvedBinding:
     class_references: frozenset[str] = frozenset()
     descriptors: frozenset[_DescriptorBinding] = frozenset()
     iterable_element: _ResolvedBinding | None = None
+
+
+def _normalize_resolved_binding(
+    binding: _ResolvedBinding,
+    *,
+    remaining_depth: int = _MAX_ITERABLE_ELEMENT_BINDING_DEPTH,
+) -> _ResolvedBinding:
+    """Bound recursive provenance without turning overflow into a false-safe value."""
+
+    nested = binding.iterable_element
+    if nested is None:
+        return binding
+    normalized_nested = (
+        _ResolvedBinding(
+            reference=_POSSIBLE_APP_CALL_REFERENCE,
+            string=_DYNAMIC_STRING_BINDING,
+        )
+        if remaining_depth <= 0
+        else _normalize_resolved_binding(
+            nested,
+            remaining_depth=remaining_depth - 1,
+        )
+    )
+    if normalized_nested == nested:
+        return binding
+    return _ResolvedBinding(
+        reference=binding.reference,
+        string=binding.string,
+        callables=binding.callables,
+        deferred_calls=binding.deferred_calls,
+        mapping=binding.mapping,
+        class_references=binding.class_references,
+        descriptors=binding.descriptors,
+        iterable_element=normalized_nested,
+    )
 
 
 @dataclass(frozen=True)
@@ -2208,7 +2245,7 @@ class _LexicalBindings:
         if iterable_element is None:
             self.iterable_elements.pop(name, None)
         else:
-            self.iterable_elements[name] = iterable_element
+            self.iterable_elements[name] = _normalize_resolved_binding(iterable_element)
         if runtime_binding:
             self.bound_names.add(name)
             self.possibly_bound_names.add(name)
@@ -2242,21 +2279,24 @@ class _TerminalControlBindings:
     raise_scopes: list[_LexicalBindings]
 
 
+def _iter_function_parameters(arguments: ast.arguments) -> tuple[ast.arg, ...]:
+    """Return every Python parameter exactly once in declaration order."""
+
+    return (
+        *arguments.posonlyargs,
+        *arguments.args,
+        *([arguments.vararg] if arguments.vararg is not None else []),
+        *arguments.kwonlyargs,
+        *([arguments.kwarg] if arguments.kwarg is not None else []),
+    )
+
+
 def _function_local_binding_names(
     node: ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda,
 ) -> frozenset[str]:
     """Return Python-local binders without descending into nested scopes."""
 
-    names = {
-        argument.arg
-        for argument in (
-            *node.args.posonlyargs,
-            *node.args.args,
-            *node.args.kwonlyargs,
-            *([node.args.vararg] if node.args.vararg is not None else []),
-            *([node.args.kwarg] if node.args.kwarg is not None else []),
-        )
-    }
+    names = {argument.arg for argument in _iter_function_parameters(node.args)}
     global_names: set[str] = set()
     nonlocal_names: set[str] = set()
 
@@ -2463,6 +2503,11 @@ _MAPPING_APP_VALUE_REFERENCE = "<mapping:possible-app>"
 _KNOWN_NON_APP_REFERENCE = "<known:non-app>"
 _CLASS_REFERENCE_PREFIX = "<class:"
 _INSTANCE_REFERENCE_PREFIX = "<instance:"
+_BUILTINS_OBJECT_STATE_NAME = "<state:builtins.object>"
+_SAFE_BUILTINS_OBJECT_REFERENCE = "<safe:builtins.object>"
+_POISONED_BUILTINS_OBJECT_REFERENCE = "<poisoned:builtins.object>"
+_BUILTINS_NAMESPACE_REFERENCE = "<namespace:builtins>"
+_MODULE_NAMESPACE_REFERENCE = "<namespace:module>"
 _MAX_LOOP_BINDING_ITERATIONS = 32
 _MAX_TOTAL_LOOP_BINDING_ITERATIONS = 128
 _MAPPING_MUTATOR_METHODS = frozenset(
@@ -2536,6 +2581,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         self._deferred_generator_outer_bindings: dict[_FunctionNode, _ResolvedBinding] = {}
         self._consumed_deferred_calls: set[_DeferredFunctionCall] = set()
         self._lambda_function_bindings: dict[int, _FunctionNode] = {}
+        self._definition_time_function_scans: set[_FunctionNode] = set()
         self._class_member_callables: dict[tuple[str, str], frozenset[_FunctionNode]] = {}
         self._class_member_descriptors: dict[tuple[str, str], frozenset[_DescriptorBinding]] = {}
         self._class_member_presence: dict[tuple[str, str], bool] = {}
@@ -2563,7 +2609,17 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         self._remaining_loop_iterations = _MAX_TOTAL_LOOP_BINDING_ITERATIONS
         self.scope = _LexicalBindings(parent=None)
         self.scope.bind("getattr", reference="builtins.getattr", string=None)
+        self.scope.bind("globals", reference="builtins.globals", string=None)
         self.scope.bind("object", reference="builtins.object", string=None)
+        self.scope.bind("setattr", reference="builtins.setattr", string=None)
+        self.scope.bind("delattr", reference="builtins.delattr", string=None)
+        self.scope.bind("vars", reference="builtins.vars", string=None)
+        self.scope.bind(
+            _BUILTINS_OBJECT_STATE_NAME,
+            reference=_SAFE_BUILTINS_OBJECT_REFERENCE,
+            string=None,
+            runtime_binding=False,
+        )
         self.scope.bind("classmethod", reference="builtins.classmethod", string=None)
         self.scope.bind("staticmethod", reference="builtins.staticmethod", string=None)
         for name, reference in (initial_references or {}).items():
@@ -3499,7 +3555,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             isinstance(node, ast.Call)
             and not node.args
             and not node.keywords
-            and self._resolve_reference(node.func) == "builtins.object"
+            and self._is_proven_builtin_object_callable(node.func)
         ):
             return True
         if isinstance(node, (ast.List, ast.Tuple, ast.Set)):
@@ -3515,6 +3571,214 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 for key, value in zip(node.keys, node.values, strict=True)
             )
         return False
+
+    def _module_scope(self) -> _LexicalBindings:
+        scope = self.scope
+        while scope.parent is not None:
+            scope = scope.parent
+        return scope
+
+    def _builtins_object_is_safe(self) -> bool:
+        return (
+            self._module_scope().resolve_reference(_BUILTINS_OBJECT_STATE_NAME)
+            == _SAFE_BUILTINS_OBJECT_REFERENCE
+        )
+
+    def _is_proven_builtin_object_callable(self, node: ast.AST) -> bool:
+        if self._resolve_reference(node) != "builtins.object":
+            return False
+        if isinstance(node, ast.Name):
+            if node.id == "object":
+                return (
+                    self._module_scope().resolve_reference("object") == "builtins.object"
+                    and self._builtins_object_is_safe()
+                )
+            return self.scope.resolve_reference(node.id) == "builtins.object"
+        if isinstance(node, ast.Attribute) and node.attr == "object":
+            return (
+                self._resolve_reference(node.value) == "builtins"
+                and self._builtins_object_is_safe()
+            )
+        return False
+
+    def _is_proven_current_module_object(self, node: ast.AST) -> bool:
+        if (
+            not _is_current_module_object_shape(node)
+            or not isinstance(node, ast.Subscript)
+            or not isinstance(node.value, ast.Attribute)
+        ):
+            return False
+        return self._resolve_reference(node.value.value) == "sys"
+
+    def _object_namespace_mapping_kind(self, node: ast.AST) -> str | None:
+        reference = self._resolve_reference(node)
+        if reference == _BUILTINS_NAMESPACE_REFERENCE:
+            return "builtins"
+        if reference == _MODULE_NAMESPACE_REFERENCE:
+            return "module"
+        if isinstance(node, ast.Attribute) and node.attr == "__dict__":
+            owner_reference = self._resolve_reference(node.value)
+            if owner_reference == "builtins":
+                return "builtins"
+            if self._is_proven_current_module_object(node.value):
+                return "module"
+            return None
+        if not isinstance(node, ast.Call) or node.keywords:
+            return None
+        function_reference = self._resolve_reference(node.func)
+        if function_reference == "builtins.globals":
+            return "module" if not node.args else None
+        if function_reference != "builtins.vars":
+            return None
+        if not node.args:
+            return "module" if self.scope.scope_kind == "module" else None
+        if len(node.args) != 1:
+            return None
+        owner = node.args[0]
+        if self._resolve_reference(owner) == "builtins":
+            return "builtins"
+        if self._is_proven_current_module_object(owner):
+            return "module"
+        return None
+
+    def _object_namespace_target_kind(self, target: ast.AST) -> str | None:
+        if isinstance(target, ast.Attribute) and target.attr == "object":
+            if self._resolve_reference(target.value) == "builtins":
+                return "builtins"
+            if self._is_proven_current_module_object(target.value):
+                return "module"
+            return None
+        if not isinstance(target, ast.Subscript):
+            return None
+        namespace_kind = self._object_namespace_mapping_kind(target.value)
+        if namespace_kind is None:
+            return None
+        member_name = self._resolve_string(target.slice)
+        if member_name in {
+            "object",
+            None,
+            _DYNAMIC_STRING_BINDING,
+        }:
+            return namespace_kind
+        return None
+
+    def _record_object_namespace_target(
+        self,
+        target: ast.AST,
+        *,
+        deletion: bool = False,
+    ) -> bool:
+        if isinstance(target, ast.Starred):
+            return self._record_object_namespace_target(target.value, deletion=deletion)
+        if isinstance(target, (ast.Tuple, ast.List)):
+            recorded = False
+            for child in target.elts:
+                recorded = (
+                    self._record_object_namespace_target(child, deletion=deletion) or recorded
+                )
+            return recorded
+        namespace_kind = self._object_namespace_target_kind(target)
+        if namespace_kind is None:
+            return False
+        module_scope = self._module_scope()
+        if namespace_kind == "builtins":
+            module_scope.bind(
+                _BUILTINS_OBJECT_STATE_NAME,
+                reference=_POISONED_BUILTINS_OBJECT_REFERENCE,
+                string=None,
+                runtime_binding=False,
+            )
+            if module_scope.resolve_reference("object") == "builtins.object":
+                module_scope.bind("object", reference=None, string=None)
+            return True
+        module_scope.bind(
+            "object",
+            reference=("builtins.object" if deletion and self._builtins_object_is_safe() else None),
+            string=None,
+        )
+        return True
+
+    def _record_object_namespace_kind(
+        self,
+        namespace_kind: str,
+        *,
+        deletion: bool = False,
+    ) -> None:
+        module_scope = self._module_scope()
+        if namespace_kind == "builtins":
+            module_scope.bind(
+                _BUILTINS_OBJECT_STATE_NAME,
+                reference=_POISONED_BUILTINS_OBJECT_REFERENCE,
+                string=None,
+                runtime_binding=False,
+            )
+            if module_scope.resolve_reference("object") == "builtins.object":
+                module_scope.bind("object", reference=None, string=None)
+            return
+        if namespace_kind != "module":
+            raise LegacyGrowthAnalysisError(
+                f"{self.filename}: unsupported object namespace kind: {namespace_kind}"
+            )
+        module_scope.bind(
+            "object",
+            reference=("builtins.object" if deletion and self._builtins_object_is_safe() else None),
+            string=None,
+        )
+
+    def _record_object_namespace_call_mutation(self, node: ast.Call) -> None:
+        function_reference = self._resolve_reference(node.func)
+        if function_reference in {"builtins.setattr", "builtins.delattr"}:
+            if len(node.args) < 2 or node.keywords:
+                return
+            owner = node.args[0]
+            owner_reference = self._resolve_reference(owner)
+            namespace_kind = (
+                "builtins"
+                if owner_reference == "builtins"
+                else ("module" if self._is_proven_current_module_object(owner) else None)
+            )
+            if namespace_kind is None:
+                return
+            member_name = self._resolve_string(node.args[1])
+            if member_name not in {"object", None, _DYNAMIC_STRING_BINDING}:
+                return
+            self._record_object_namespace_kind(
+                namespace_kind,
+                deletion=function_reference == "builtins.delattr",
+            )
+            return
+
+        if not isinstance(node.func, ast.Attribute):
+            return
+        namespace_kind = self._object_namespace_mapping_kind(node.func.value)
+        if namespace_kind is None:
+            return
+        method = node.func.attr
+        if method in {"clear", "popitem"}:
+            self._record_object_namespace_kind(namespace_kind)
+            return
+        if method in {"__delitem__", "__setitem__", "pop", "setdefault"}:
+            if not node.args:
+                self._record_object_namespace_kind(namespace_kind)
+                return
+            member_name = self._resolve_string(node.args[0])
+            if member_name not in {"object", None, _DYNAMIC_STRING_BINDING}:
+                return
+            self._record_object_namespace_kind(
+                namespace_kind,
+                deletion=method in {"__delitem__", "pop"},
+            )
+            return
+        if method != "update":
+            return
+        keys: set[str | None] = {keyword.arg for keyword in node.keywords}
+        for argument in node.args:
+            if not isinstance(argument, ast.Dict):
+                keys.add(None)
+                continue
+            keys.update(None if key is None else self._resolve_string(key) for key in argument.keys)
+        if keys & {"object", None, _DYNAMIC_STRING_BINDING}:
+            self._record_object_namespace_kind(namespace_kind)
 
     def _preserve_sensitive_reference(
         self,
@@ -3629,6 +3893,35 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             )
 
     def _bind_iteration_target(self, target: ast.expr, iterable: ast.AST) -> None:
+        self._record_object_namespace_target(target)
+        if (
+            isinstance(iterable, ast.Call)
+            and isinstance(iterable.func, ast.Attribute)
+            and iterable.func.attr == "items"
+            and not iterable.args
+            and not iterable.keywords
+            and isinstance(target, (ast.Tuple, ast.List))
+            and len(target.elts) == 2
+        ):
+            value_binding = self._resolve_mapping_value_binding(iterable.func.value)
+            if value_binding is not None:
+                self._bind_targets(
+                    [target.elts[0]],
+                    reference=_KNOWN_NON_APP_REFERENCE,
+                    string=_DYNAMIC_STRING_BINDING,
+                )
+                self._bind_targets(
+                    [target.elts[1]],
+                    reference=value_binding.reference,
+                    string=value_binding.string,
+                    callables=value_binding.callables,
+                    deferred_calls=value_binding.deferred_calls,
+                    mapping=value_binding.mapping,
+                    class_references=value_binding.class_references,
+                    descriptors=value_binding.descriptors,
+                    iterable_element=value_binding.iterable_element,
+                )
+                return
         iterable_element = self._resolve_iterable_element_binding(iterable)
         if iterable_element is not None and not isinstance(
             iterable,
@@ -3698,13 +3991,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         for default in (*node.args.defaults, *node.args.kw_defaults):
             if default is not None:
                 self.visit(default)
-        for argument in (
-            *node.args.posonlyargs,
-            *node.args.args,
-            *node.args.kwonlyargs,
-            *([node.args.vararg] if node.args.vararg is not None else []),
-            *([node.args.kwarg] if node.args.kwarg is not None else []),
-        ):
+        for argument in _iter_function_parameters(node.args):
             if argument.annotation is not None and not self._postponed_annotations:
                 self.visit(argument.annotation)
         if node.returns is not None and not self._postponed_annotations:
@@ -3885,10 +4172,25 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         self._exception_scope_collectors = []
         self._return_binding_collectors = []
         self._function_late_bindings.append(function_late_bindings)
-        self._replay_calls_enabled = False
+        definition_time_scan = node in self._definition_time_function_scans
+        if definition_time_scan:
+            for name, binding in default_bindings.items():
+                self._bind_resolved_name(name, binding)
+        newly_iterated_generator_ids = {
+            id(candidate)
+            for candidate in ast.walk(node)
+            if definition_time_scan
+            and isinstance(candidate, ast.GeneratorExp)
+            and id(candidate) not in self._iterated_call_ids
+        }
+        self._iterated_call_ids.update(newly_iterated_generator_ids)
+        self._replay_calls_enabled = (
+            previous_replay_calls_enabled if definition_time_scan else False
+        )
         try:
             self._visit_statements(node.body)
         finally:
+            self._iterated_call_ids.difference_update(newly_iterated_generator_ids)
             self._function_late_bindings.pop()
             self.scope = previous
             self._loop_controls = previous_loop_controls
@@ -3906,17 +4208,23 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
     def visit_Lambda(self, node: ast.Lambda) -> None:
         if not self.analyze_function_bodies:
             return
-        synthetic = ast.FunctionDef(
-            name="<lambda>",
-            args=node.args,
-            body=[ast.Return(value=node.body)],
-            decorator_list=[],
-        )
-        ast.copy_location(synthetic, node)
-        self._lambda_function_bindings[id(node)] = synthetic
-        self._function_default_bindings[synthetic] = {}
+        synthetic = self._lambda_function_bindings.get(id(node))
+        if synthetic is None:
+            synthetic = ast.FunctionDef(
+                name="<lambda>",
+                args=node.args,
+                body=[ast.Return(value=node.body)],
+                decorator_list=[],
+            )
+            ast.copy_location(synthetic, node)
+            self._lambda_function_bindings[id(node)] = synthetic
         if self.scope.scope_kind != "module":
             self._function_definition_scopes[synthetic] = self.scope
+        self._definition_time_function_scans.add(synthetic)
+        try:
+            self._visit_function(synthetic)
+        finally:
+            self._definition_time_function_scans.remove(synthetic)
 
     def _build_class_mro(
         self,
@@ -4599,6 +4907,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         for item in node.items:
             self.visit(item.context_expr)
             if item.optional_vars is not None:
+                self._record_object_namespace_target(item.optional_vars)
                 binding = self._resolve_with_enter_binding(item.context_expr)
                 for name in _assignment_target_names(item.optional_vars):
                     reference = (
@@ -4952,6 +5261,35 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
     def visit_YieldFrom(self, node: ast.YieldFrom) -> None:
         self._visit_iterated_expression(node.value)
 
+    def _resolve_mapping_value_binding(
+        self,
+        node: ast.AST,
+    ) -> _ResolvedBinding | None:
+        stored = (
+            self.scope.resolve_iterable_element(node.id) if isinstance(node, ast.Name) else None
+        )
+        if stored is not None:
+            return stored
+        mapping = self._resolve_mapping(node)
+        if mapping is not None:
+            if not mapping.entries:
+                return _ResolvedBinding(None, None)
+            return self._join_resolved_bindings([entry.binding for entry in mapping.entries])
+        reference = self._resolve_reference(node)
+        if reference in {
+            _MAPPING_APP_VALUE_REFERENCE,
+            _MAPPING_SENSITIVE_VALUE_REFERENCE,
+        }:
+            return _ResolvedBinding(
+                reference=(
+                    _POSSIBLE_APP_REFERENCE
+                    if reference == _MAPPING_APP_VALUE_REFERENCE
+                    else _POSSIBLE_APP_CALL_REFERENCE
+                ),
+                string=_DYNAMIC_STRING_BINDING,
+            )
+        return None
+
     def _resolve_iterable_element_binding(
         self,
         node: ast.AST,
@@ -4965,6 +5303,14 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             return self._resolve_iterable_element_binding(node.value)
         if isinstance(node, ast.Name):
             return self.scope.resolve_iterable_element(node.id)
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr in {"items", "values"}
+            and not node.args
+            and not node.keywords
+        ):
+            return self._resolve_mapping_value_binding(node.func.value)
         if isinstance(node, (ast.List, ast.Tuple, ast.Set)) and node.elts:
             element_bindings: list[_ResolvedBinding] = []
             for element in node.elts:
@@ -5035,6 +5381,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         value_mapping = self._resolve_mapping(node.value)
         for target in node.targets:
             self._invalidate_mapping_target(target)
+            self._record_object_namespace_target(target)
             self._bind_target_value(
                 target,
                 node.value,
@@ -5055,6 +5402,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         self.visit(node.value)
         value_mapping = self._resolve_mapping(node.value)
         self._invalidate_mapping_target(node.target)
+        self._record_object_namespace_target(node.target)
         self._bind_target_value(
             node.target,
             node.value,
@@ -5070,6 +5418,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         if target_mapping is not None:
             self._invalidate_mapping(target_mapping)
         self._invalidate_mapping_target(node.target)
+        self._record_object_namespace_target(node.target)
         if isinstance(node.target, ast.Name):
             self._bind_name(
                 node.target.id,
@@ -5097,6 +5446,10 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
 
     def visit_Delete(self, node: ast.Delete) -> None:
         for target in node.targets:
+            namespace_target_recorded = self._record_object_namespace_target(
+                target,
+                deletion=True,
+            )
             names = _assignment_target_names(target)
             if not names:
                 self.visit(target)
@@ -5112,7 +5465,12 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 restores_module_builtin = self.scope.scope_kind == "module" or (
                     outward_target is not None and outward_target.scope_kind == "module"
                 )
-                if restores_module_builtin and name == "object":
+                if (
+                    restores_module_builtin
+                    and name == "object"
+                    and not namespace_target_recorded
+                    and self._builtins_object_is_safe()
+                ):
                     self.scope.bind(
                         name,
                         reference="builtins.object",
@@ -5177,6 +5535,46 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         return _ResolvedBinding(
             reference=_POSSIBLE_APP_CALL_REFERENCE,
             string=_DYNAMIC_STRING_BINDING,
+        )
+
+    def _variadic_iterable_binding(
+        self,
+        elements: Sequence[_ResolvedBinding],
+    ) -> _ResolvedBinding:
+        if not elements:
+            return _ResolvedBinding(
+                reference=_KNOWN_NON_APP_REFERENCE,
+                string=None,
+            )
+        element = self._join_resolved_bindings(elements)
+        return _ResolvedBinding(
+            reference=(
+                _ITERABLE_SENSITIVE_ELEMENT_REFERENCE
+                if self._argument_binding_may_register(element)
+                else _KNOWN_NON_APP_REFERENCE
+            ),
+            string=None,
+            iterable_element=element,
+        )
+
+    def _variadic_mapping_binding(
+        self,
+        values: Sequence[_ResolvedBinding],
+    ) -> _ResolvedBinding:
+        if not values:
+            return _ResolvedBinding(
+                reference=_KNOWN_NON_APP_REFERENCE,
+                string=None,
+            )
+        value = self._join_resolved_bindings(values)
+        return _ResolvedBinding(
+            reference=(
+                _MAPPING_SENSITIVE_VALUE_REFERENCE
+                if self._argument_binding_may_register(value)
+                else _KNOWN_NON_APP_REFERENCE
+            ),
+            string=None,
+            iterable_element=value,
         )
 
     def _join_resolved_bindings(
@@ -5271,7 +5669,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         keyword_bindings: list[tuple[str, _ResolvedBinding]] = []
         if positional_override is None:
             positional_bindings: list[_ResolvedBinding] = []
-            unresolved_positional = False
+            unresolved_positional_bindings: list[_ResolvedBinding] = []
             for call_argument in call.args:
                 if not isinstance(call_argument, ast.Starred):
                     evaluator.visit(call_argument)
@@ -5285,9 +5683,12 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                         positional_bindings.append(evaluator._capture_argument_binding(element))
                 else:
                     evaluator.visit(call_argument.value)
-                    unresolved_positional = True
+                    unresolved_positional_bindings.append(
+                        evaluator._resolve_iterable_element_binding(call_argument.value)
+                        or evaluator._conservative_argument_binding()
+                    )
 
-            unresolved_keywords = False
+            unresolved_keyword_value_bindings: list[_ResolvedBinding] = []
             for keyword in call.keywords:
                 if keyword.arg is not None:
                     evaluator.visit(keyword.value)
@@ -5323,11 +5724,16 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     keyword_bindings.extend(static_dict_bindings.items())
                 else:
                     evaluator.visit(keyword.value)
-                    unresolved_keywords = True
+                    unresolved_keyword_value_bindings.append(
+                        evaluator._resolve_mapping_value_binding(keyword.value)
+                        or evaluator._conservative_argument_binding()
+                    )
         else:
             positional_bindings = list(positional_override)
-            unresolved_positional = False
-            unresolved_keywords = False
+            unresolved_positional_bindings = []
+            unresolved_keyword_value_bindings = []
+        unresolved_positional = bool(unresolved_positional_bindings)
+        unresolved_keywords = bool(unresolved_keyword_value_bindings)
 
         receiver_options: set[bool] = set()
         call_descriptor_kinds = {
@@ -5431,24 +5837,18 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     resolved[parameter.arg] = _ResolvedBinding(None, None)
 
             if function.args.vararg is not None:
-                resolved[function.args.vararg.arg] = (
-                    self._conservative_argument_binding()
-                    if unresolved_positional
-                    or any(
-                        self._argument_binding_may_register(binding)
-                        for binding in overflow_positional_bindings
-                    )
-                    else _ResolvedBinding(None, None)
+                resolved[function.args.vararg.arg] = self._variadic_iterable_binding(
+                    [
+                        *overflow_positional_bindings,
+                        *unresolved_positional_bindings,
+                    ]
                 )
             if function.args.kwarg is not None:
-                resolved[function.args.kwarg.arg] = (
-                    self._conservative_argument_binding()
-                    if unresolved_keywords
-                    or any(
-                        self._argument_binding_may_register(binding)
-                        for binding in unexpected_keyword_bindings
-                    )
-                    else _ResolvedBinding(None, None)
+                resolved[function.args.kwarg.arg] = self._variadic_mapping_binding(
+                    [
+                        *unexpected_keyword_bindings,
+                        *unresolved_keyword_value_bindings,
+                    ]
                 )
             return resolved
 
@@ -5476,14 +5876,16 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             or node.keywords
             or any(isinstance(argument, ast.Starred) for argument in node.args)
         ):
-            return {
-                parameter.arg: self._conservative_argument_binding()
-                for parameter in (
-                    *template.function.args.posonlyargs,
-                    *template.function.args.args,
-                    *template.function.args.kwonlyargs,
-                )
-            }
+            conservative = self._conservative_argument_binding()
+            resolved: dict[str, _ResolvedBinding] = {}
+            for parameter in _iter_function_parameters(template.function.args):
+                if parameter is template.function.args.vararg:
+                    resolved[parameter.arg] = self._variadic_iterable_binding([conservative])
+                elif parameter is template.function.args.kwarg:
+                    resolved[parameter.arg] = self._variadic_mapping_binding([conservative])
+                else:
+                    resolved[parameter.arg] = conservative
+            return resolved
         positional = [
             *template.partial_positional,
             *(self._capture_argument_binding(argument) for argument in node.args),
@@ -5748,6 +6150,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         )
 
     def visit_Call(self, node: ast.Call) -> None:
+        self._record_object_namespace_call_mutation(node)
         escaped_mappings = [
             mapping
             for argument in node.args
@@ -5807,6 +6210,16 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         prepared_targets = set(initial_arguments)
 
         wrapper_reference = self._resolve_reference(node.func)
+        namespace_kind = self._object_namespace_mapping_kind(node)
+        if namespace_kind is not None:
+            self._call_result_bindings[id(node)] = _ResolvedBinding(
+                reference=(
+                    _BUILTINS_NAMESPACE_REFERENCE
+                    if namespace_kind == "builtins"
+                    else _MODULE_NAMESPACE_REFERENCE
+                ),
+                string=None,
+            )
         wrapped_call = node.args[0] if node.args and isinstance(node.args[0], ast.Call) else None
         executes_async = wrapper_reference in {
             "asyncio.run",

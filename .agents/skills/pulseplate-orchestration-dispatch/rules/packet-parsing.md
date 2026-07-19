@@ -40,13 +40,11 @@ indicates the mandatory post-open pass. This pair:
 - Always appears last in the dispatch sequence
 - Is never parallelized with other agents
 - Is never skipped regardless of packet scope
-- Runs once as required lane evidence. New review comments after that pass do
-  not restart the full post-open role/Codex Security/`pulseplate-pr-review`
-  chain; they are fixed or dispositioned in `docs/review/PR_<N>_FIXED_MAPPING.md`
-  and validated with targeted gates. Reopen the full chain only when the diff
-  gains new security-relevant surface, the coordinator records a new
-  evidence-backed routing update, or the operator explicitly requests another
-  pass.
+- Runs as role-only lane evidence. Codex Security and
+  `pulseplate-pr-review` are final-material gates, not dispatch entries. After
+  fixes and freeze, exact-head review precedes one operator-issued scan; no
+  material change or incomplete result creates an automatic retry, and any
+  additional request requires fresh exact-material trusted operator approval.
 
 ## Validation
 

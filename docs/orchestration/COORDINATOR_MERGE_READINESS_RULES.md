@@ -130,8 +130,9 @@ This lifecycle is mandatory operating behavior, not just a recommendation. The f
   evidence/backlog proof.
 - Bootstrap role-agent evidence showing the packet/runbook role order was run
   in order; post-open PR review must include
-  `qa-engineer-agent -> bug-hunter -> security-auditor`, Codex Security diff
-  scan / finding discovery, and `pulseplate-pr-review` before readiness.
+  the role-only `qa-engineer-agent -> bug-hunter -> security-auditor` pass,
+  followed after fixes/gates/freeze by exact-head `pulseplate-pr-review` and
+  one operator-issued final manual Codex Security scan before readiness.
 - `## Lane Start Provenance` with a bootstrap packet or a narrow documented
   exception. `start_pr_lane.sh` may be listed as supplemental evidence, but not
   as the only proof. Missing provenance is diagnostic dry-run in this wave and

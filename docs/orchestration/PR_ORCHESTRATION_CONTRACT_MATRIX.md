@@ -121,6 +121,14 @@ JSON block `PULSEPLATE_PR_REVIEW_SEAL_V1`. The activation boundary is the
 governance PR number + 1; the governance PR may opt in with
 `Review-Seal-Version: v1`.
 
+Root `AGENTS.md` owns the global final-material scan budget. This matrix owns
+the field-level projection: `scope=per_pr`, `automatic_budget=1`,
+`automatic_retries=0`, `requires_frozen_material=true`,
+`additional_invocation=trusted_operator_approval`, and
+`repository_invokes_plugin=false`. The final gates are exact-head
+`pulseplate-pr-review` followed by one operator-issued scan; the local
+preparation state is advisory and cannot prove global consumption.
+
 ### Material review seal v1
 
 - The gate snapshots live base/head, fully paginates the PR commit connection,
@@ -192,11 +200,12 @@ Artifact-only governance findings are fixed in the canonical artifact itself, bu
 - PR lifecycle packets may distinguish `post_open_review` from `merge_ready`,
   but both phases still use current-head truth and the canonical artifact
   `docs/review/PR_<N>_FIXED_MAPPING.md`
-- `post_open_review` is the packet-level phase where the canonical
-  `qa-engineer-agent -> bug-hunter -> security-auditor` lane is synthesized,
-  with Codex Security diff scan / finding discovery as the plugin scan that
-  follows role review plus `pulseplate-pr-review`; `merge_ready` keeps the
-  current-head merge-wrapper contract explicit without widening the review lane
+- `post_open_review` is the packet-level phase where the canonical role-only
+  `qa-engineer-agent -> bug-hunter -> security-auditor` lane is synthesized.
+  Final-material gates remain outside role dispatch: exact-head
+  `pulseplate-pr-review` precedes the one operator-issued Codex Security scan;
+  `merge_ready` keeps the current-head merge-wrapper contract explicit without
+  widening either lane.
 
 Evidence:
 - `scripts/ci/check_pr_merge_readiness.py:1`
@@ -285,7 +294,8 @@ Canonical lane matrix:
 | Local / PR process | `pulseplate-premortem-risk-review` | Hard gate | Every non-trivial PR must run premortem on the actual diff before PR open; findings are creative future-state risk forecasts for user/business/project/security/governance impact, but require FIXED / NOT-A-BUG / DEFERRED evidence; FIXED for code/runtime/schema/security/workflow/orchestration/CI/governance risks requires enforceable closure in the PR, not docs-only risk recording |
 | Local / PR process | `pulseplate-agent-learning-loop` | Conditional hard gate | Required when operator-triggered or when repeated failure/successful-iteration patterns appear; use redacted `agent_learning_record.v1` with `pattern_kind`, bounded `learning_metrics`, proposal-only authority, and reviewed repo-diff promotion before canonical instruction changes |
 | Local / PR process | Experiment Runner oracle evidence | Hard gate | Every non-trivial PR must create oracle-only evidence by default; artifact load/write failures are infrastructure blockers, and material contribution requires governed attribution |
-| Post-open review | `qa-engineer-agent -> bug-hunter -> security-auditor` plus Codex Security plus `pulseplate-pr-review` | Hard gate | After material freeze, role passes, one final Codex Security diff scan / finding discovery, and `pulseplate-pr-review` must complete for that digest; rerun only after material change, failed/incomplete run, coordinator reroute, or explicit operator override |
+| Post-open role review | `qa-engineer-agent -> bug-hunter -> security-auditor` | Hard gate | Run once after PR open; every actionable must be fixed or dispositioned before final material freeze |
+| Final-material review | exact-head `pulseplate-pr-review` then one operator-issued manual Codex Security request | Hard gate | Both bind to the frozen final digest; repository code makes no plugin call or automatic retry, and every additional request requires fresh exact-material `OWNER`/`MEMBER` approval |
 | GitHub PR CI | Full/heavy verification signal | Hard gate | Current-head CI must be green for `lint`, required/current-head checks for the touched PR surface, relevant `test-main` matrix, `diff-coverage` ≥97%, applicable security/governance checks, and merge-readiness; this replaces default local full `make verify` on agent machines |
 | GitHub PR CI | Operator-approved machine-heavy deferral | Hard gate | PR body and fixed mapping document the deferral, the narrow local bundle passes, canonical current-head CI parity is green, relevant `test-main` matrix passes when selected, `diff-coverage` ≥97% is preserved when selected, and security/governance checks remain strict |
 | Local / CI  | `python scripts/orchestration/check_merge_ready.py ...` | Hard gate | Wrapper must pass Phase 2 + review governance + current-head required checks + disposition proof |

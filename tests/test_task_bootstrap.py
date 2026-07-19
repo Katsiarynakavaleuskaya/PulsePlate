@@ -223,16 +223,32 @@ def test_task_bootstrap_adds_automation_metadata_defaults() -> None:
     }
     assert packet["pr_phase"] == "none"
     assert packet["pr_lifecycle_contract"] == {
+        "contract_version": "pulseplate.pr-lifecycle/v2",
         "requires_pr": False,
         "post_open_review_required": False,
         "review_lane": [],
         "post_open_codex_security_scan_required": False,
         "post_open_codex_security_scan": "",
+        "post_open_codex_security_scan_timing": "",
         "post_open_pulseplate_pr_review_required": False,
         "post_open_pulseplate_pr_review": "",
+        "post_open_pulseplate_pr_review_timing": "",
+        "final_material_review_gates": [],
+        "final_material_review_timing": "",
         "post_open_review_chain_policy": "",
         "post_open_review_rerun_allowed_reasons": [],
         "post_open_later_comments_handling": "",
+        "codex_security_invocation_policy": {
+            "scope": "per_pr",
+            "automatic_budget": 1,
+            "automatic_retries": 0,
+            "requires_frozen_material": True,
+            "additional_invocation": "trusted_operator_approval",
+            "timeout_or_incomplete_consumes_request": True,
+            "repository_invokes_plugin": False,
+            "global_cross_machine_consumption_provable": False,
+            "local_state_is_global_authority": False,
+        },
         "artifact_template": "",
         "current_head_required": False,
         "current_head_truth": "not-applicable",
@@ -889,20 +905,38 @@ def test_task_bootstrap_enables_post_open_review_lane_for_pr_phase() -> None:
     assert packet["automation_flags"]["pr_lifecycle_enabled"] is True
     assert packet["pr_phase"] == "post_open_review"
     assert packet["pr_lifecycle_contract"] == {
+        "contract_version": "pulseplate.pr-lifecycle/v2",
         "requires_pr": True,
         "post_open_review_required": True,
         "review_lane": ["qa-engineer-agent", "bug-hunter", "security-auditor"],
         "post_open_codex_security_scan_required": True,
         "post_open_codex_security_scan": "Codex Security diff scan / finding discovery",
+        "post_open_codex_security_scan_timing": "final_material_only",
         "post_open_pulseplate_pr_review_required": True,
         "post_open_pulseplate_pr_review": "pulseplate-pr-review",
-        "post_open_review_chain_policy": "single_pass_per_material_diff",
+        "post_open_pulseplate_pr_review_timing": "final_material_only",
+        "final_material_review_gates": [
+            "pulseplate-pr-review",
+            "Codex Security diff scan / finding discovery",
+        ],
+        "final_material_review_timing": "final_material_only",
+        "post_open_review_chain_policy": "post_open_roles_then_final_material_gates",
         "post_open_review_rerun_allowed_reasons": [
-            "security_relevant_diff_changed",
             "coordinator_evidence_backed_reroute",
             "operator_explicit_request",
         ],
         "post_open_later_comments_handling": "fixed_mapping_and_targeted_gates",
+        "codex_security_invocation_policy": {
+            "scope": "per_pr",
+            "automatic_budget": 1,
+            "automatic_retries": 0,
+            "requires_frozen_material": True,
+            "additional_invocation": "trusted_operator_approval",
+            "timeout_or_incomplete_consumes_request": True,
+            "repository_invokes_plugin": False,
+            "global_cross_machine_consumption_provable": False,
+            "local_state_is_global_authority": False,
+        },
         "artifact_template": "docs/review/PR_<N>_FIXED_MAPPING.md",
         "current_head_required": True,
         "current_head_truth": "latest-current-head",
@@ -1157,16 +1191,32 @@ def test_task_bootstrap_sets_merge_ready_contract_without_post_open_lane() -> No
     assert packet["automation_flags"]["pr_lifecycle_enabled"] is True
     assert packet["pr_phase"] == "merge_ready"
     assert packet["pr_lifecycle_contract"] == {
+        "contract_version": "pulseplate.pr-lifecycle/v2",
         "requires_pr": True,
         "post_open_review_required": False,
         "review_lane": [],
         "post_open_codex_security_scan_required": False,
         "post_open_codex_security_scan": "",
+        "post_open_codex_security_scan_timing": "",
         "post_open_pulseplate_pr_review_required": False,
         "post_open_pulseplate_pr_review": "",
+        "post_open_pulseplate_pr_review_timing": "",
+        "final_material_review_gates": [],
+        "final_material_review_timing": "",
         "post_open_review_chain_policy": "",
         "post_open_review_rerun_allowed_reasons": [],
         "post_open_later_comments_handling": "",
+        "codex_security_invocation_policy": {
+            "scope": "per_pr",
+            "automatic_budget": 1,
+            "automatic_retries": 0,
+            "requires_frozen_material": True,
+            "additional_invocation": "trusted_operator_approval",
+            "timeout_or_incomplete_consumes_request": True,
+            "repository_invokes_plugin": False,
+            "global_cross_machine_consumption_provable": False,
+            "local_state_is_global_authority": False,
+        },
         "artifact_template": "docs/review/PR_<N>_FIXED_MAPPING.md",
         "current_head_required": True,
         "current_head_truth": "latest-current-head",
@@ -2733,16 +2783,32 @@ def test_main_passes_design_lane_flags(
             },
             "pr_phase": "none",
             "pr_lifecycle_contract": {
+                "contract_version": "pulseplate.pr-lifecycle/v2",
                 "requires_pr": False,
                 "post_open_review_required": False,
                 "review_lane": [],
                 "post_open_codex_security_scan_required": False,
                 "post_open_codex_security_scan": "",
+                "post_open_codex_security_scan_timing": "",
                 "post_open_pulseplate_pr_review_required": False,
                 "post_open_pulseplate_pr_review": "",
+                "post_open_pulseplate_pr_review_timing": "",
+                "final_material_review_gates": [],
+                "final_material_review_timing": "",
                 "post_open_review_chain_policy": "",
                 "post_open_review_rerun_allowed_reasons": [],
                 "post_open_later_comments_handling": "",
+                "codex_security_invocation_policy": {
+                    "scope": "per_pr",
+                    "automatic_budget": 1,
+                    "automatic_retries": 0,
+                    "requires_frozen_material": True,
+                    "additional_invocation": "trusted_operator_approval",
+                    "timeout_or_incomplete_consumes_request": True,
+                    "repository_invokes_plugin": False,
+                    "global_cross_machine_consumption_provable": False,
+                    "local_state_is_global_authority": False,
+                },
                 "artifact_template": "",
                 "current_head_required": False,
                 "current_head_truth": "not-applicable",
@@ -2945,3 +3011,46 @@ def test_build_task_packet_honored_primary_when_requested_matches_routed_primary
     dm = _disposition_map(packet)
     assert dm["agent-coordinator"]["status"] == REQUESTED_AGENT_STATUS_HONORED_PRIMARY
     assert packet["primary_agent"] == "agent-coordinator"
+
+
+def test_final_material_security_budget_has_one_global_source_and_scoped_projections() -> None:
+    marker = "**Final-material Codex Security budget invariant (hard):**"
+    root_agents = (REPO_ROOT / "AGENTS.md").read_text(encoding="utf-8")
+    runbook = (REPO_ROOT / "RUNBOOK_AGENT.md").read_text(encoding="utf-8")
+    scoped_agents = (REPO_ROOT / "docs/orchestration/AGENTS.md").read_text(encoding="utf-8")
+    matrix = (REPO_ROOT / "docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md").read_text(
+        encoding="utf-8"
+    )
+
+    assert root_agents.count(marker) == 1
+    assert marker not in runbook
+    assert marker not in scoped_agents
+    assert marker not in matrix
+    for projection in (runbook, scoped_agents, matrix):
+        assert "root `agents.md`" in projection.casefold()
+        assert "pulseplate-pr-review" in projection
+    assert "automatic_budget=1" in matrix
+    assert "repository_invokes_plugin=false" in matrix
+
+
+def test_active_orchestration_surfaces_forbid_per_diff_security_reruns() -> None:
+    paths = (
+        REPO_ROOT / "AGENTS.md",
+        REPO_ROOT / "RUNBOOK_AGENT.md",
+        REPO_ROOT / "docs/orchestration/AGENTS.md",
+        REPO_ROOT / "docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md",
+        REPO_ROOT / "docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md",
+        REPO_ROOT / ".agents/skills/pulseplate-orchestration-dispatch/AGENTS.md",
+        REPO_ROOT / ".agents/skills/pulseplate-orchestration-dispatch/rules/packet-parsing.md",
+    )
+    forbidden = (
+        "single pass per material diff",
+        "single_pass_per_material_diff",
+        "scan_artifact_failed_or_incomplete",
+        "security_relevant_diff_changed",
+    )
+
+    for path in paths:
+        text = path.read_text(encoding="utf-8")
+        for phrase in forbidden:
+            assert phrase not in text, f"{path}: stale security lifecycle phrase {phrase!r}"

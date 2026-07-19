@@ -45,14 +45,23 @@ ROLE_DISPATCH_GUIDANCE = (
     "flags. Do not treat task_bootstrap.py packet creation as role-agent execution."
 )
 POST_OPEN_REVIEW_GUIDANCE = (
-    "After the PR opens, run the mandatory post-open review gate in order: "
-    "`qa-engineer-agent -> bug-hunter -> security-auditor`, then run Codex "
-    "Security diff scan / finding discovery and `pulseplate-pr-review`. Fix "
-    "or disposition every finding before merge-readiness checks. This is a "
-    "single pass per material diff; later comments go through fixed mapping "
-    "and targeted gates unless the security-relevant diff changes, the "
-    "coordinator records an evidence-backed reroute, or the operator "
-    "explicitly requests a rerun."
+    "After the PR opens, run the role-only post-open pass in order: "
+    "`qa-engineer-agent -> bug-hunter -> security-auditor`. Fix or disposition "
+    "every finding, run the scoped local gates, and confirm current-head checks. "
+    "When all material fixes are complete, freeze the exact material with "
+    "`pr_review_closeout.py freeze`. Run exact-head `pulseplate-pr-review` "
+    "against that frozen material; any material fix invalidates the freeze and "
+    "returns to fixes, local/current-head gates, freeze, and exact-head review. "
+    "Only after that review is complete, run `pr_review_closeout.py "
+    "prepare-final-security --repo <owner/name> --pr-number <N> --review-ref "
+    "<exact-head-review-URL>` and have the "
+    "operator make one manual Codex Security request for the frozen material. "
+    "The repository makes no plugin call, performs no automatic retry, and "
+    "cannot prove global cross-machine request consumption. A timeout or "
+    "incomplete scan consumes the operational request and must be recorded with "
+    "`record-final-security-outcome`; every further request requires a fresh "
+    "explicit OWNER/MEMBER operator approval comment created after that terminal "
+    "outcome."
 )
 
 

@@ -99,12 +99,15 @@ from scripts.orchestration.routing_graph_loader import (
     require_bootstrap_lane_activation,
 )
 from scripts.orchestration.requested_agents import (
+    FINAL_MATERIAL_ONLY,
+    FINAL_MATERIAL_REVIEW_GATES,
     IMPLEMENTATION_OWNER_SLUGS,
     MANDATORY_POST_OPEN_ORDER,
     POST_OPEN_BUG_HUNTER_AGENT,
     POST_OPEN_CODEX_SECURITY_SCAN,
     POST_OPEN_PULSEPLATE_PR_REVIEW,
     POST_OPEN_QA_AGENT,
+    codex_security_invocation_policy,
     normalize_requested_agents,
 )
 from scripts.orchestration.skill_router import flatten_recommended_skills, route_skills
@@ -153,9 +156,9 @@ PR_REVIEW_ARTIFACT_TEMPLATE = "docs/review/PR_<N>_FIXED_MAPPING.md"
 MERGE_READINESS_ENTRYPOINT = "scripts/orchestration/check_merge_ready.py"
 ROLE_DISPATCH_MANIFEST_ENTRYPOINT = "scripts/orchestration/role_dispatch_bridge.py"
 ROLE_DISPATCH_COMPATIBILITY_ENTRYPOINTS = ("scripts/orchestration/qoder_dispatch_bridge.py",)
-POST_OPEN_REVIEW_CHAIN_POLICY = "single_pass_per_material_diff"
+PR_LIFECYCLE_CONTRACT_VERSION = "pulseplate.pr-lifecycle/v2"
+POST_OPEN_REVIEW_CHAIN_POLICY = "post_open_roles_then_final_material_gates"
 POST_OPEN_REVIEW_RERUN_ALLOWED_REASONS: tuple[str, ...] = (
-    "security_relevant_diff_changed",
     "coordinator_evidence_backed_reroute",
     "operator_explicit_request",
 )
@@ -622,33 +625,40 @@ def _build_pr_lifecycle_contract(pr_phase: str) -> dict[str, Any]:
 
     requires_pr = pr_phase in {PR_PHASE_POST_OPEN_REVIEW, PR_PHASE_MERGE_READY}
     requires_current_head = requires_pr
-    if pr_phase == PR_PHASE_POST_OPEN_REVIEW:
+    post_open_review = pr_phase == PR_PHASE_POST_OPEN_REVIEW
+    if post_open_review:
         review_lane = list(POST_OPEN_REVIEW_LANE)
     else:
         review_lane = []
     return {
+        "contract_version": PR_LIFECYCLE_CONTRACT_VERSION,
         "requires_pr": requires_pr,
-        "post_open_review_required": pr_phase == PR_PHASE_POST_OPEN_REVIEW,
+        "post_open_review_required": post_open_review,
         "review_lane": review_lane,
-        "post_open_codex_security_scan_required": pr_phase == PR_PHASE_POST_OPEN_REVIEW,
+        "post_open_codex_security_scan_required": post_open_review,
         "post_open_codex_security_scan": (
-            POST_OPEN_CODEX_SECURITY_SCAN if pr_phase == PR_PHASE_POST_OPEN_REVIEW else ""
+            POST_OPEN_CODEX_SECURITY_SCAN if post_open_review else ""
         ),
-        "post_open_pulseplate_pr_review_required": (pr_phase == PR_PHASE_POST_OPEN_REVIEW),
+        "post_open_codex_security_scan_timing": (FINAL_MATERIAL_ONLY if post_open_review else ""),
+        "post_open_pulseplate_pr_review_required": post_open_review,
         "post_open_pulseplate_pr_review": (
-            POST_OPEN_PULSEPLATE_PR_REVIEW if pr_phase == PR_PHASE_POST_OPEN_REVIEW else ""
+            POST_OPEN_PULSEPLATE_PR_REVIEW if post_open_review else ""
         ),
+        "post_open_pulseplate_pr_review_timing": (FINAL_MATERIAL_ONLY if post_open_review else ""),
+        "final_material_review_gates": (
+            list(FINAL_MATERIAL_REVIEW_GATES) if post_open_review else []
+        ),
+        "final_material_review_timing": (FINAL_MATERIAL_ONLY if post_open_review else ""),
         "post_open_review_chain_policy": (
-            POST_OPEN_REVIEW_CHAIN_POLICY if pr_phase == PR_PHASE_POST_OPEN_REVIEW else ""
+            POST_OPEN_REVIEW_CHAIN_POLICY if post_open_review else ""
         ),
         "post_open_review_rerun_allowed_reasons": (
-            list(POST_OPEN_REVIEW_RERUN_ALLOWED_REASONS)
-            if pr_phase == PR_PHASE_POST_OPEN_REVIEW
-            else []
+            list(POST_OPEN_REVIEW_RERUN_ALLOWED_REASONS) if post_open_review else []
         ),
         "post_open_later_comments_handling": (
-            POST_OPEN_LATER_COMMENTS_HANDLING if pr_phase == PR_PHASE_POST_OPEN_REVIEW else ""
+            POST_OPEN_LATER_COMMENTS_HANDLING if post_open_review else ""
         ),
+        "codex_security_invocation_policy": codex_security_invocation_policy(),
         "artifact_template": PR_REVIEW_ARTIFACT_TEMPLATE if requires_pr else "",
         "current_head_required": requires_current_head,
         "current_head_truth": "latest-current-head" if requires_current_head else "not-applicable",

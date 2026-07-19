@@ -9,6 +9,7 @@ and the content-bound security receipt can be published in one closeout commit.
 from __future__ import annotations
 
 import argparse
+import fcntl
 import json
 import os
 import re
@@ -16,8 +17,10 @@ import shutil
 import subprocess  # nosec B404: bounded absolute git commands are required (remove-by: 2026-09-30, ref: PR-governance-material-seal)
 import sys
 import tempfile
+from contextlib import contextmanager
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Iterator, Mapping
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
@@ -30,6 +33,7 @@ from scripts.orchestration.pr_commit_identity import (  # noqa: E402
     assert_snapshot_unchanged,
     classify_commit_ref,
     fetch_pr_snapshot,
+    github_api_request,
     is_ancestor,
     verify_codex_review_reference,
     verify_review_credit_outage_references,
@@ -61,6 +65,7 @@ from scripts.orchestration.review_mapping_artifact import (  # noqa: E402
 )
 
 DRAFT_SCHEMA_VERSION = "pulseplate.pr-review-closeout-draft/v1"
+FINAL_SECURITY_PREPARATION_SCHEMA_VERSION = "pulseplate.final-security-preparation/v2"
 STATE_ROOT = REPO_ROOT / "artifacts" / "orchestration" / "pr_review_closeout"
 BACKLOG_LEDGER_PATH = REPO_ROOT / "docs" / "roadmap" / "BACKLOG_LEDGER.md"
 VALID_DISPOSITIONS = frozenset({"FIXED", "NOT-A-BUG", "DEFERRED"})
@@ -72,6 +77,9 @@ _BACKLOG_REFERENCE_RE = re.compile(
 _BACKLOG_FIELD_RE = re.compile(
     r"^  - (?P<label>Owner|Priority|Target PR|Reason(?: \(EN\))?|Links|DoD):\s*(?P<value>.*)$"
 )
+_MATERIAL_DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
+_APPROVAL_CLOCK_SKEW = timedelta(minutes=5)
+FINAL_SECURITY_ATTEMPT_OUTCOMES = frozenset({"completed", "incomplete", "safety_block", "timeout"})
 
 
 class CloseoutError(RuntimeError):
@@ -93,6 +101,14 @@ def _state_dir(pr_number: int) -> Path:
 
 def _state_path(pr_number: int) -> Path:
     return _state_dir(pr_number) / "draft.json"
+
+
+def _final_security_state_path(pr_number: int) -> Path:
+    return _state_dir(pr_number) / "final_security_preparations.json"
+
+
+def _final_security_lock_path(pr_number: int) -> Path:
+    return _state_dir(pr_number) / ".final_security_preparations.lock"
 
 
 def _canonical_json(value: Any) -> str:
@@ -156,6 +172,162 @@ def _load_state(pr_number: int) -> dict[str, Any]:
         raise CloseoutError("local draft repository is malformed")
     if not isinstance(state["dispositions"], list):
         raise CloseoutError("local draft dispositions must be a list")
+    return state
+
+
+def _utc_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _parse_utc_timestamp(value: object, *, field: str) -> datetime:
+    if not isinstance(value, str) or not value:
+        raise CloseoutError(f"{field} must be an ISO-8601 timestamp")
+    try:
+        parsed = datetime.fromisoformat(value[:-1] + "+00:00" if value.endswith("Z") else value)
+    except ValueError as exc:
+        raise CloseoutError(f"{field} must be an ISO-8601 timestamp") from exc
+    if parsed.tzinfo is None:
+        raise CloseoutError(f"{field} must include a timezone")
+    return parsed.astimezone(timezone.utc)
+
+
+def _format_utc_timestamp(value: datetime) -> str:
+    if value.tzinfo is None:
+        raise CloseoutError("preparation timestamp must include a timezone")
+    return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+@contextmanager
+def _final_security_lock(pr_number: int) -> Iterator[None]:
+    path = _final_security_lock_path(pr_number)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a+", encoding="utf-8") as handle:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
+
+def _validated_final_security_approval(value: object) -> dict[str, Any] | None:
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise CloseoutError("final-security operator approval record is malformed")
+    expected = {
+        "author_association",
+        "author_login",
+        "author_user_id",
+        "comment_id",
+        "created_at",
+        "reference",
+    }
+    if set(value) != expected:
+        raise CloseoutError("final-security operator approval record has unknown fields")
+    if (
+        not isinstance(value["author_user_id"], int)
+        or isinstance(value["author_user_id"], bool)
+        or value["author_user_id"] <= 0
+        or not isinstance(value["comment_id"], int)
+        or isinstance(value["comment_id"], bool)
+        or value["comment_id"] <= 0
+        or not isinstance(value["author_login"], str)
+        or not value["author_login"]
+        or value["author_association"] not in {"OWNER", "MEMBER"}
+        or not isinstance(value["reference"], str)
+        or not value["reference"]
+    ):
+        raise CloseoutError("final-security operator approval identity is malformed")
+    _parse_utc_timestamp(value["created_at"], field="operator approval created_at")
+    return dict(value)
+
+
+def _load_final_security_state(*, repository: str, pr_number: int) -> dict[str, Any] | None:
+    path = _final_security_state_path(pr_number)
+    try:
+        raw = path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return None
+    try:
+        state = json.loads(raw)
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise CloseoutError(f"final-security preparation state is malformed: {path}") from exc
+    expected = {"preparations", "pr_number", "repository", "schema_version"}
+    if not isinstance(state, dict) or set(state) != expected:
+        raise CloseoutError("final-security preparation state has unknown or missing fields")
+    if (
+        state["schema_version"] != FINAL_SECURITY_PREPARATION_SCHEMA_VERSION
+        or state["repository"] != repository
+        or state["pr_number"] != pr_number
+        or not isinstance(state["preparations"], list)
+        or not state["preparations"]
+    ):
+        raise CloseoutError("final-security preparation state identity is malformed")
+    expected_record_fields = {
+        "attempt_completed_at",
+        "attempt_outcome",
+        "attempt_status",
+        "material_digest",
+        "material_head_sha",
+        "operator_approval",
+        "outcome_evidence_ref",
+        "pr_number",
+        "prepared_at",
+        "repository",
+        "review_commit_sha",
+        "review_reference",
+        "review_submitted_at",
+    }
+    for index, record in enumerate(state["preparations"]):
+        if not isinstance(record, dict) or set(record) != expected_record_fields:
+            raise CloseoutError("final-security preparation record has unknown or missing fields")
+        if (
+            record["repository"] != repository
+            or record["pr_number"] != pr_number
+            or not isinstance(record["material_head_sha"], str)
+            or _SHA_RE.fullmatch(record["material_head_sha"]) is None
+            or not isinstance(record["material_digest"], str)
+            or _MATERIAL_DIGEST_RE.fullmatch(record["material_digest"]) is None
+            or record["attempt_status"] not in {"reserved", "completed"}
+            or not isinstance(record["review_commit_sha"], str)
+            or _SHA_RE.fullmatch(record["review_commit_sha"]) is None
+            or record["review_commit_sha"] != record["material_head_sha"]
+            or not isinstance(record["review_reference"], str)
+            or not record["review_reference"]
+        ):
+            raise CloseoutError("final-security preparation record identity is malformed")
+        _parse_utc_timestamp(record["prepared_at"], field="preparation prepared_at")
+        _parse_utc_timestamp(
+            record["review_submitted_at"],
+            field="preparation review_submitted_at",
+        )
+        if record["attempt_status"] == "reserved":
+            if any(
+                record[field] is not None
+                for field in (
+                    "attempt_completed_at",
+                    "attempt_outcome",
+                    "outcome_evidence_ref",
+                )
+            ):
+                raise CloseoutError("reserved final-security attempt has terminal fields")
+        else:
+            if record["attempt_outcome"] not in FINAL_SECURITY_ATTEMPT_OUTCOMES:
+                raise CloseoutError("completed final-security attempt has invalid outcome")
+            _parse_utc_timestamp(
+                record["attempt_completed_at"],
+                field="preparation attempt_completed_at",
+            )
+            if (
+                not isinstance(record["outcome_evidence_ref"], str)
+                or not record["outcome_evidence_ref"]
+            ):
+                raise CloseoutError("completed final-security attempt lacks outcome evidence")
+        approval = _validated_final_security_approval(record["operator_approval"])
+        if index == 0 and approval is not None:
+            raise CloseoutError("first final-security preparation must not claim operator approval")
+        if index > 0 and approval is None:
+            raise CloseoutError("later final-security preparation lacks operator approval")
     return state
 
 
@@ -359,6 +531,340 @@ def _cmd_freeze(args: argparse.Namespace) -> None:
     assert_snapshot_unchanged(snapshot, token=_token())
     _write_state(state)
     print(f"MATERIAL_FROZEN {manifest.digest}")
+
+
+def render_final_security_approval_comment(
+    *,
+    repository: str,
+    pr_number: int,
+    material_head_sha: str,
+    material_digest: str,
+) -> str:
+    """Render the exact operator approval body for one additional preparation."""
+
+    return (
+        "Codex Security rerun approved: "
+        f"repo={repository}; pr={pr_number}; head={material_head_sha}; "
+        f"material_digest={material_digest}"
+    )
+
+
+def _verify_final_material_review(
+    reference: str,
+    *,
+    repository: str,
+    pr_number: int,
+    material_head_sha: str,
+    token: str,
+) -> dict[str, str]:
+    """Bind the preparation gate to one trusted exact-head Codex review."""
+
+    review = verify_codex_review_reference(
+        reference,
+        repository=repository,
+        pr_number=pr_number,
+        token=token,
+        expected_commit_ref=material_head_sha,
+    )
+    snapshot = fetch_pr_snapshot(repository, pr_number, token=token)
+    commit = classify_commit_ref(review.commit_ref, snapshot, token=token)
+    if (
+        not isinstance(commit, RepositoryCommitRef)
+        or commit.kind is not CommitRefKind.PR_HEAD
+        or commit.sha != material_head_sha
+    ):
+        raise CloseoutError("final-material review is not bound to the live exact head")
+    submitted_at = _format_utc_timestamp(
+        _parse_utc_timestamp(
+            review.submitted_at,
+            field="final-material review submitted_at",
+        )
+    )
+    return {
+        "review_commit_sha": commit.sha,
+        "review_reference": reference,
+        "review_submitted_at": submitted_at,
+    }
+
+
+def _verify_final_security_approval(
+    reference: str,
+    *,
+    repository: str,
+    pr_number: int,
+    material_head_sha: str,
+    material_digest: str,
+    previous_attempt_completed_at: str,
+    used_references: set[str],
+    token: str,
+    now: datetime,
+) -> dict[str, Any]:
+    owner, name = repository.split("/", maxsplit=1)
+    pattern = re.compile(
+        rf"^https://github\.com/{re.escape(owner)}/{re.escape(name)}/pull/"
+        rf"{pr_number}#issuecomment-(\d+)$"
+    )
+    match = pattern.fullmatch(reference)
+    if match is None:
+        raise CloseoutError(
+            "operator approval must be an issue comment on the exact repository and PR"
+        )
+    if reference in used_references:
+        raise CloseoutError("operator approval comment was already consumed locally")
+    comment_id = int(match.group(1))
+    if comment_id <= 0:
+        raise CloseoutError("operator approval comment id must be positive")
+    api_url = f"https://api.github.com/repos/{owner}/{name}/issues/comments/{comment_id}"
+    response = github_api_request(api_url, token=token)
+    if not isinstance(response, dict):
+        raise CloseoutError("GitHub operator approval response is malformed")
+    user = response.get("user")
+    user_id = user.get("id") if isinstance(user, dict) else None
+    login = user.get("login") if isinstance(user, dict) else None
+    user_type = user.get("type") if isinstance(user, dict) else None
+    association = response.get("author_association")
+    response_id = response.get("id")
+    expected_issue_url = f"https://api.github.com/repos/{owner}/{name}/issues/{pr_number}"
+    if (
+        not isinstance(response_id, int)
+        or isinstance(response_id, bool)
+        or response_id != comment_id
+        or response.get("url") != api_url
+        or response.get("html_url") != reference
+        or response.get("issue_url") != expected_issue_url
+        or not isinstance(user_id, int)
+        or isinstance(user_id, bool)
+        or user_id <= 0
+        or not isinstance(login, str)
+        or not login
+        or user_type != "User"
+        or association not in {"OWNER", "MEMBER"}
+        or "performed_via_github_app" not in response
+        or response.get("performed_via_github_app") is not None
+    ):
+        raise CloseoutError("issue comment is not trusted operator approval evidence")
+    created_at = response.get("created_at")
+    updated_at = response.get("updated_at")
+    if not isinstance(created_at, str) or updated_at != created_at:
+        raise CloseoutError("operator approval comment was edited after creation")
+    created = _parse_utc_timestamp(created_at, field="operator approval created_at")
+    updated = _parse_utc_timestamp(updated_at, field="operator approval updated_at")
+    if created != updated:
+        raise CloseoutError("operator approval comment was edited after creation")
+    previous_attempt_completed = _parse_utc_timestamp(
+        previous_attempt_completed_at,
+        field="previous attempt completed_at",
+    )
+    if created <= previous_attempt_completed:
+        raise CloseoutError(
+            "operator approval comment must be newer than the prior completed attempt"
+        )
+    if created > now.astimezone(timezone.utc) + _APPROVAL_CLOCK_SKEW:
+        raise CloseoutError("operator approval comment timestamp is in the future")
+    expected_body = render_final_security_approval_comment(
+        repository=repository,
+        pr_number=pr_number,
+        material_head_sha=material_head_sha,
+        material_digest=material_digest,
+    )
+    body = response.get("body")
+    if not isinstance(body, str) or body != expected_body:
+        raise CloseoutError("operator approval body does not exactly match the frozen material")
+    return {
+        "author_association": association,
+        "author_login": login,
+        "author_user_id": user_id,
+        "comment_id": comment_id,
+        "created_at": _format_utc_timestamp(created),
+        "reference": reference,
+    }
+
+
+def _cmd_prepare_final_security(args: argparse.Namespace) -> None:
+    repository = args.repo.strip()
+    if not _REPOSITORY_RE.fullmatch(repository):
+        raise CloseoutError("--repo must be owner/name")
+    state = _load_state(args.pr_number)
+    if state["repository"] != repository:
+        raise CloseoutError("--repo does not match local draft")
+    freeze = state["freeze"]
+    if not isinstance(freeze, dict):
+        raise CloseoutError("run freeze before preparing final security")
+
+    token = _token()
+    snapshot = fetch_pr_snapshot(repository, args.pr_number, token=token)
+    _require_clean_live_head(snapshot.head_sha)
+    manifest = compute_material_manifest(
+        REPO_ROOT,
+        base_ref_oid=snapshot.base_sha,
+        head_ref_oid=snapshot.head_sha,
+        pr_number=args.pr_number,
+    )
+    expected_freeze = {
+        "base_ref_oid": snapshot.base_sha,
+        "digest": manifest.digest,
+        "material_head_sha": snapshot.head_sha,
+        "merge_base_sha": manifest.merge_base_sha,
+        "policy_version": MATERIAL_POLICY_VERSION,
+    }
+    if freeze != expected_freeze:
+        raise CloseoutError(
+            "material state changed after freeze; freeze and exact-head review again"
+        )
+    review_reference = _required_line(args.review_ref, label="review-ref")
+    review_record = _verify_final_material_review(
+        review_reference,
+        repository=repository,
+        pr_number=args.pr_number,
+        material_head_sha=snapshot.head_sha,
+        token=token,
+    )
+    assert_snapshot_unchanged(snapshot, token=token)
+
+    approval_reference = _single_line(
+        args.operator_approval_ref,
+        label="operator-approval-ref",
+        required=False,
+    )
+    with _final_security_lock(args.pr_number):
+        preparation_state = _load_final_security_state(
+            repository=repository,
+            pr_number=args.pr_number,
+        )
+        preparations = preparation_state["preparations"] if preparation_state is not None else []
+        if not preparations and approval_reference is not None:
+            raise CloseoutError(
+                "--operator-approval-ref is only valid after the first local preparation"
+            )
+        if preparations and approval_reference is None:
+            raise CloseoutError(
+                "final security was already prepared in this checkout; a fresh "
+                "OWNER/MEMBER --operator-approval-ref is required"
+            )
+        if preparations and preparations[-1]["attempt_status"] != "completed":
+            raise CloseoutError(
+                "the prior final-security attempt is still reserved; record its "
+                "terminal outcome before requesting another preparation"
+            )
+
+        now = _utc_now()
+        if now.tzinfo is None:
+            raise CloseoutError("preparation time must include a timezone")
+        approval: dict[str, Any] | None = None
+        if preparations:
+            used_references = {
+                str(record["operator_approval"]["reference"])
+                for record in preparations
+                if isinstance(record.get("operator_approval"), dict)
+            }
+            approval = _verify_final_security_approval(
+                approval_reference or "",
+                repository=repository,
+                pr_number=args.pr_number,
+                material_head_sha=snapshot.head_sha,
+                material_digest=manifest.digest,
+                previous_attempt_completed_at=str(preparations[-1]["attempt_completed_at"]),
+                used_references=used_references,
+                token=token,
+                now=now,
+            )
+        assert_snapshot_unchanged(snapshot, token=token)
+        record = {
+            "attempt_completed_at": None,
+            "attempt_outcome": None,
+            "attempt_status": "reserved",
+            "material_digest": manifest.digest,
+            "material_head_sha": snapshot.head_sha,
+            "operator_approval": approval,
+            "outcome_evidence_ref": None,
+            "pr_number": args.pr_number,
+            "prepared_at": _format_utc_timestamp(now),
+            "repository": repository,
+            **review_record,
+        }
+        if preparation_state is None:
+            preparation_state = {
+                "preparations": [],
+                "pr_number": args.pr_number,
+                "repository": repository,
+                "schema_version": FINAL_SECURITY_PREPARATION_SCHEMA_VERSION,
+            }
+        preparation_state["preparations"].append(record)
+        _atomic_write(
+            _final_security_state_path(args.pr_number),
+            _canonical_json(preparation_state) + "\n",
+        )
+
+    print(
+        "FINAL_SECURITY_PREPARED "
+        f"repo={repository} pr={args.pr_number} head={snapshot.head_sha} "
+        f"material_digest={manifest.digest}"
+    )
+    print(
+        "LOCAL_ADVISORY_ONLY: no Codex Security plugin call or GitHub mutation was made; "
+        "checkout-local state is not global authority and cannot prove cross-machine "
+        "request consumption."
+    )
+    print(
+        "REQUEST_POLICY: automatic_budget=1 automatic_retries=0; timeout/incomplete "
+        "consumes the request; every later local preparation requires a fresh unedited "
+        "OWNER/MEMBER approval comment."
+    )
+    print(
+        "NEXT: after the operator-issued request reaches a terminal outcome, run "
+        "`record-final-security-outcome` before any approved additional preparation."
+    )
+
+
+def _cmd_record_final_security_outcome(args: argparse.Namespace) -> None:
+    repository = args.repo.strip()
+    if not _REPOSITORY_RE.fullmatch(repository):
+        raise CloseoutError("--repo must be owner/name")
+    outcome = args.outcome.strip()
+    if outcome not in FINAL_SECURITY_ATTEMPT_OUTCOMES:
+        raise CloseoutError("unsupported final-security outcome")
+    evidence_ref = _required_line(args.evidence_ref, label="evidence-ref")
+    now = _utc_now()
+    if now.tzinfo is None:
+        raise CloseoutError("attempt completion time must include a timezone")
+
+    with _final_security_lock(args.pr_number):
+        state = _load_final_security_state(
+            repository=repository,
+            pr_number=args.pr_number,
+        )
+        if state is None:
+            raise CloseoutError("prepare final security before recording an outcome")
+        record = state["preparations"][-1]
+        if record["attempt_status"] != "reserved":
+            raise CloseoutError("latest final-security attempt already has a terminal outcome")
+        prepared_at = _parse_utc_timestamp(
+            record["prepared_at"],
+            field="preparation prepared_at",
+        )
+        if now < prepared_at:
+            raise CloseoutError("attempt completion time cannot predate preparation")
+        record.update(
+            {
+                "attempt_completed_at": _format_utc_timestamp(now),
+                "attempt_outcome": outcome,
+                "attempt_status": "completed",
+                "outcome_evidence_ref": evidence_ref,
+            }
+        )
+        _atomic_write(
+            _final_security_state_path(args.pr_number),
+            _canonical_json(state) + "\n",
+        )
+
+    print(
+        "FINAL_SECURITY_OUTCOME_RECORDED "
+        f"repo={repository} pr={args.pr_number} outcome={outcome}"
+    )
+    print(
+        "LOCAL_ADVISORY_ONLY: this terminal record consumes the checkout-local "
+        "reservation but is not scan or global-provider evidence."
+    )
 
 
 def _cmd_add_disposition(args: argparse.Namespace) -> None:
@@ -914,6 +1420,24 @@ def _parser() -> argparse.ArgumentParser:
     freeze.add_argument("--repo", required=True)
     freeze.add_argument("--pr-number", required=True, type=int)
     freeze.set_defaults(handler=_cmd_freeze)
+
+    prepare_final_security = subparsers.add_parser("prepare-final-security")
+    prepare_final_security.add_argument("--repo", required=True)
+    prepare_final_security.add_argument("--pr-number", required=True, type=int)
+    prepare_final_security.add_argument("--review-ref", required=True)
+    prepare_final_security.add_argument("--operator-approval-ref")
+    prepare_final_security.set_defaults(handler=_cmd_prepare_final_security)
+
+    record_final_security = subparsers.add_parser("record-final-security-outcome")
+    record_final_security.add_argument("--repo", required=True)
+    record_final_security.add_argument("--pr-number", required=True, type=int)
+    record_final_security.add_argument(
+        "--outcome",
+        required=True,
+        choices=sorted(FINAL_SECURITY_ATTEMPT_OUTCOMES),
+    )
+    record_final_security.add_argument("--evidence-ref", required=True)
+    record_final_security.set_defaults(handler=_cmd_record_final_security_outcome)
 
     disposition = subparsers.add_parser("add-disposition")
     disposition.add_argument("--pr-number", required=True, type=int)

@@ -8,8 +8,14 @@ Scope: `docs/orchestration/**`
 - PR-local orchestration packets are the canonical field-level contract for their lane. Higher-level chain docs should keep only the invariant and link back to the packet.
 - Repo-global post-open review gates supersede historical scoped lane shorthand:
   every current non-trivial PR must run
-  `qa-engineer-agent -> bug-hunter -> security-auditor -> Codex Security diff scan / finding discovery -> pulseplate-pr-review`
+  `qa-engineer-agent -> bug-hunter -> security-auditor`
   unless the coordinator records an explicit evidence-backed disposition.
+
+The repo-global final-material scan budget is owned by root `AGENTS.md`; do not
+duplicate or weaken it in scoped orchestration docs. Local packets and schemas
+must project the role-only post-open pass separately from exact-head
+`pulseplate-pr-review` and the single operator-issued final security request.
+
 - For the design-agent runtime realignment bridge:
   - primary: `agent-coordinator`
   - secondary: `cursor-specialist-agent`

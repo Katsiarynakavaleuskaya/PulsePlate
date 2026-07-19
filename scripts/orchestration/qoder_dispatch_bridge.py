@@ -58,6 +58,8 @@ PR_PHASES = (
     PR_PHASE_POST_OPEN_REVIEW,
     PR_PHASE_MERGE_READY,
 )
+MANIFEST_SCHEMA_VERSION = "2.0"
+MANIFEST_CONTRACT_VERSION = "pulseplate.role-dispatch-manifest/v2"
 
 # ---------------------------------------------------------------------------
 # Optional imports with graceful fallback
@@ -1043,7 +1045,8 @@ def build_dispatch_manifest(
         )
 
     manifest: Dict[str, Any] = {
-        "schema_version": "1.0",
+        "schema_version": MANIFEST_SCHEMA_VERSION,
+        "manifest_contract_version": MANIFEST_CONTRACT_VERSION,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "packet_source": packet_source or "",
         "mode": mode,
@@ -1053,9 +1056,24 @@ def build_dispatch_manifest(
         "parallel_execution_reason": (
             "Role-agent dispatch is a hard gate and must follow dispatch_sequence order."
         ),
+        "post_open_role_gates": list(MANDATORY_POST_OPEN_ORDER),
         "mandatory_post_open": list(MANDATORY_POST_OPEN_ORDER),
         "mandatory_post_open_gates": list(MANDATORY_POST_OPEN_GATES),
         "mandatory_post_open_role_agents": list(MANDATORY_POST_OPEN_ORDER),
+        "compatibility_aliases": {
+            "mandatory_post_open": {
+                "canonical_fields": ["post_open_role_gates"],
+                "fail_closed": True,
+            },
+            "mandatory_post_open_role_agents": {
+                "canonical_fields": ["post_open_role_gates"],
+                "fail_closed": True,
+            },
+            "mandatory_post_open_gates": {
+                "canonical_fields": ["post_open_role_gates"],
+                "fail_closed": True,
+            },
+        },
         "missing_agents": missing_agents,
     }
     if creative_pilot_context is not None:

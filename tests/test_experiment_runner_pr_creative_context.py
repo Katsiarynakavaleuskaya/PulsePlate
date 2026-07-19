@@ -24,6 +24,8 @@ from scripts.orchestration.experiment_runner_pr_creative_context_contract import
     COORDINATOR_DISPATCH_AUTHORITY_TRUE_KEYS,
     COORDINATOR_DISPATCH_POLICY_VERSION,
     COORDINATOR_DISPATCH_TYPE,
+    CONTEXT_MAP_POLICY_VERSION,
+    CONTEXT_MAP_SCHEMA_VERSION,
     CONTEXT_MAP_TYPE,
     CONSUMPTION_SUMMARY_TYPE,
     HYPOTHESIS_PACKET_TYPE,
@@ -68,6 +70,10 @@ SCHEMA_FILES = {
         POLICY_VERSION,
     ),
     "creative_protocol_context_map.v1.schema.json": (CONTEXT_MAP_TYPE, POLICY_VERSION),
+    "creative_protocol_context_map.v3.schema.json": (
+        CONTEXT_MAP_TYPE,
+        CONTEXT_MAP_POLICY_VERSION,
+    ),
     "creative_hypothesis_packet.v1.schema.json": (HYPOTHESIS_PACKET_TYPE, POLICY_VERSION),
     "creative_hypothesis_agent_routing.v1.schema.json": (AGENT_ROUTING_TYPE, POLICY_VERSION),
     "creative_hypothesis_agent_consumption_summary.v1.schema.json": (
@@ -83,6 +89,9 @@ SCHEMA_FILES = {
         COORDINATOR_DISPATCH_TYPE,
         COORDINATOR_DISPATCH_POLICY_VERSION,
     ),
+}
+SCHEMA_VERSION_BY_FILE = {
+    "creative_protocol_context_map.v3.schema.json": CONTEXT_MAP_SCHEMA_VERSION,
 }
 
 
@@ -275,6 +284,111 @@ def test_valid_artifact_chain_enforces_creative_authority_boundary() -> None:
         validated_dispatch["authority"][key] is False
         for key in COORDINATOR_DISPATCH_AUTHORITY_FALSE_KEYS
     )
+
+
+def test_context_map_requires_one_manual_final_material_security_request() -> None:
+    context = _context()
+    review = context["codex_security_review"]
+    assert isinstance(review, dict)
+
+    assert review == {
+        "additional_invocation": "trusted_operator_approval",
+        "automatic_budget": 1,
+        "automatic_retries": 0,
+        "global_cross_machine_consumption_provable": False,
+        "local_state_is_global_authority": False,
+        "policy": "final_material_manual_request",
+        "repository_invokes_plugin": False,
+        "requires_frozen_material": True,
+        "rerun_allowed_reasons": ["trusted_operator_approval"],
+        "scope": "per_pr",
+        "sealed_scan_fingerprint": SHA256,
+        "sealed_scan_ref": (
+            "artifacts/orchestration/experiments/creative_context/codex-security.json"
+        ),
+        "timeout_or_incomplete_consumes_request": True,
+        "timing": "final_material_only",
+    }
+    assert "security_relevant_diff_changed" not in review["rerun_allowed_reasons"]
+    assert "scan_artifact_failed_or_incomplete" not in review["rerun_allowed_reasons"]
+    assert context["authority"]["call_provider"] is False
+
+    plugin_call = deepcopy(context)
+    plugin_review = plugin_call["codex_security_review"]
+    assert isinstance(plugin_review, dict)
+    plugin_review["repository_invokes_plugin"] = True
+    with pytest.raises(
+        ExperimentRunnerCreativeContextContractError,
+        match="repository_invokes_plugin must be False",
+    ):
+        validate_artifact_by_type(CONTEXT_MAP_TYPE, plugin_call)
+
+    per_diff_rerun = deepcopy(context)
+    per_diff_review = per_diff_rerun["codex_security_review"]
+    assert isinstance(per_diff_review, dict)
+    per_diff_review["rerun_allowed_reasons"] = ["security_relevant_diff_changed"]
+    with pytest.raises(
+        ExperimentRunnerCreativeContextContractError,
+        match="explicit operator approval",
+    ):
+        validate_artifact_by_type(CONTEXT_MAP_TYPE, per_diff_rerun)
+
+    with pytest.raises(
+        ExperimentRunnerCreativeContextContractError,
+        match="retired and cannot authorize",
+    ):
+        build_creative_protocol_context_map(
+            changed_paths=["scripts/orchestration/task_bootstrap.py"],
+            security_relevant_diff_changed=True,
+        )
+
+
+def test_context_map_schema_matches_final_material_security_policy() -> None:
+    review = _context()["codex_security_review"]
+    assert isinstance(review, dict)
+    schema = _schema("creative_protocol_context_map.v3.schema.json")
+    review_schema = schema["$defs"]["codex_security_review"]
+
+    assert set(review_schema["required"]) == set(review)
+    for key, property_schema in review_schema["properties"].items():
+        if "const" in property_schema:
+            assert review[key] == property_schema["const"]
+
+
+def test_historical_context_map_v1_remains_replayable() -> None:
+    current = _context()
+    legacy_body = {
+        **current,
+        "schema_version": SCHEMA_VERSION,
+        "policy_version": POLICY_VERSION,
+        "codex_security_review": {
+            "policy": "single_pass_per_material_diff",
+            "sealed_scan_ref": None,
+            "sealed_scan_fingerprint": None,
+            "security_relevant_diff_changed": False,
+            "rerun_allowed_reasons": [
+                "security_relevant_diff_changed",
+                "coordinator_evidence_backed_reroute",
+                "operator_explicit_request",
+                "scan_artifact_failed_or_incomplete",
+            ],
+        },
+    }
+    legacy_body.pop("context_id")
+    legacy_body.pop("idempotency_key")
+    context_id, idempotency_key = _artifact_identity(
+        legacy_body,
+        artifact_type=CONTEXT_MAP_TYPE,
+    )
+    legacy = {
+        **legacy_body,
+        "context_id": context_id,
+        "idempotency_key": idempotency_key,
+    }
+
+    assert validate_artifact_by_type(CONTEXT_MAP_TYPE, legacy) == legacy
+    assert _context()["schema_version"] == CONTEXT_MAP_SCHEMA_VERSION
+    assert _context()["policy_version"] == CONTEXT_MAP_POLICY_VERSION
 
 
 @pytest.mark.parametrize("hypothesis_count", [3, 5])
@@ -1308,7 +1422,10 @@ def test_schema_files_pin_artifact_type_and_policy_version() -> None:
     for filename, (artifact_type, policy_version) in SCHEMA_FILES.items():
         schema = _schema(filename)
         assert schema["additionalProperties"] is False
-        assert schema["properties"]["schema_version"]["const"] == SCHEMA_VERSION
+        assert schema["properties"]["schema_version"]["const"] == SCHEMA_VERSION_BY_FILE.get(
+            filename,
+            SCHEMA_VERSION,
+        )
         assert schema["properties"]["artifact_type"]["const"] == artifact_type
         assert schema["properties"]["policy_version"]["const"] == policy_version
         assert schema["properties"]["sanitized"]["const"] is True
@@ -1501,11 +1618,11 @@ def test_coordinator_dispatch_schema_enforces_handoff_only() -> None:
 
 def test_context_and_packet_schemas_pin_reason_codes_and_artifact_path_ban() -> None:
     for filename in (
-        "creative_protocol_context_map.v1.schema.json",
+        "creative_protocol_context_map.v3.schema.json",
         "creative_hypothesis_packet.v1.schema.json",
     ):
         schema = _schema(filename)
-        if filename == "creative_protocol_context_map.v1.schema.json":
+        if filename == "creative_protocol_context_map.v3.schema.json":
             reason_schema = schema["$defs"]["classification"]["properties"]["reason_code"]
         else:
             reason_schema = schema["properties"]["reason_code"]
@@ -1521,7 +1638,7 @@ def test_context_and_packet_schemas_pin_reason_codes_and_artifact_path_ban() -> 
 
 def test_artifact_ref_schemas_reject_traversal_segments() -> None:
     for filename in (
-        "creative_protocol_context_map.v1.schema.json",
+        "creative_protocol_context_map.v3.schema.json",
         "experiment_runner_pr_oracle_attachment.v1.schema.json",
     ):
         schema = _schema(filename)

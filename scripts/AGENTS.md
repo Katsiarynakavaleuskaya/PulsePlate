@@ -41,10 +41,10 @@
   write branches, push, open PRs, edit PR bodies, post comments, resolve review
   threads, edit fixed mappings, claim readiness, merge, release, call providers,
   call product runtime, use semantic cache, or mutate GitHub App / Slack
-  settings. The post-open Codex Security / review chain is
-  single-pass-per-material-diff; later comments use fixed mapping and targeted
-  gates unless the security-relevant diff changes, the coordinator records an
-  evidence-backed reroute, or the operator explicitly requests another run.
+  settings. The repeatable post-open pass is role-only. Final-material
+  `pulseplate-pr-review` precedes one operator-issued manual Codex Security
+  request; repository code performs no plugin call or automatic retry, and
+  every additional request requires fresh explicit operator approval.
 - Approved creative-hypothesis specification bridge artifacts stay local under
   `artifacts/orchestration/creative_code/spec_bridge/`. The
   `creative_hypothesis_spec_bridge.py` CLI may only consume validated
