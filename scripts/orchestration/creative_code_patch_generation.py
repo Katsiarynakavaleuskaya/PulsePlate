@@ -62,6 +62,7 @@ from scripts.orchestration.experiment_contract import (
 )
 from scripts.orchestration.experiment_runner import OOM_PATTERNS
 from scripts.orchestration.experiment_runner_dispatch import (
+    BLOCKER_CODES as TRUSTED_DISPATCH_PREFLIGHT_BLOCKERS,
     CONTAINER_BACKENDS as TRUSTED_DISPATCH_BACKENDS,
     MAX_RESULT_BYTES as TRUSTED_DISPATCH_RESULT_MAX_BYTES,
     RUNNER_CAPABILITY_ERROR as TRUSTED_DISPATCH_CAPABILITY_ERROR,
@@ -2251,16 +2252,19 @@ def _validate_dispatch_result_binding(
     failure_class = result["failure_class"]
     backend = result.get("execution_backend")
     preflight_status = backend.get("preflight_status") if isinstance(backend, dict) else None
-    if (
-        not isinstance(backend, dict)
-        or backend.get("name") not in TRUSTED_DISPATCH_BACKENDS
-        or (
-            preflight_status != "passed"
-            and not (failure_class == "capability_mismatch" and preflight_status == "failed")
-        )
+    preflight_passed_container = (
+        isinstance(backend, dict)
+        and backend.get("name") in TRUSTED_DISPATCH_BACKENDS
+        and preflight_status == "passed"
+    )
+    failed_preflight_capability = (
+        failure_class == "capability_mismatch" and preflight_status == "failed"
+    )
+    if not isinstance(backend, dict) or not (
+        preflight_passed_container or failed_preflight_capability
     ):
         raise CreativeCodePatchGenerationError(
-            "trusted dispatch result requires valid container backend provenance."
+            "trusted dispatch result requires valid backend provenance."
         )
     if result["experiment_id"] != packet["experiment_id"]:
         raise CreativeCodePatchGenerationError(
@@ -2326,13 +2330,17 @@ def _validate_dispatch_result_binding(
         raise CreativeCodePatchGenerationError(
             "pre-oracle trusted dispatch rejection must not claim mutation or oracle evidence."
         )
-    if (
-        failure_class == "capability_mismatch"
-        and observations.get("runner_error") != TRUSTED_DISPATCH_CAPABILITY_ERROR
-    ):
-        raise CreativeCodePatchGenerationError(
-            "capability_mismatch trusted dispatch rejection requires the canonical runner signal."
-        )
+    if failure_class == "capability_mismatch":
+        runner_error = observations.get("runner_error")
+        if preflight_status == "failed":
+            if runner_error not in TRUSTED_DISPATCH_PREFLIGHT_BLOCKERS:
+                raise CreativeCodePatchGenerationError(
+                    "failed-preflight capability_mismatch requires a supported blocker code."
+                )
+        elif runner_error != TRUSTED_DISPATCH_CAPABILITY_ERROR:
+            raise CreativeCodePatchGenerationError(
+                "post-preflight capability_mismatch requires the canonical runner signal."
+            )
     if failure_class == "policy_violation":
         runner_error = observations.get("runner_error")
         if not isinstance(runner_error, str) or not runner_error.strip():
@@ -2376,14 +2384,20 @@ def _validate_dispatch_result_binding(
                 raise CreativeCodePatchGenerationError(
                     "oracle-derived trusted dispatch rejection requires failing oracle evidence."
                 )
-            if failure_class == "oom" and not any(
-                pattern.search(f"{item['stdout']}\n{item['stderr']}")
-                for item in result["oracle_results"]
-                for pattern in OOM_PATTERNS
-            ):
-                raise CreativeCodePatchGenerationError(
-                    "oom trusted dispatch rejection requires OOM-specific oracle evidence."
+            if failure_class == "oom":
+                first_failing_oracle = next(
+                    item for item in result["oracle_results"] if item["returncode"] != 0
                 )
+                if not any(
+                    pattern.search(
+                        f"{first_failing_oracle['stdout']}\n{first_failing_oracle['stderr']}"
+                    )
+                    for pattern in OOM_PATTERNS
+                ):
+                    raise CreativeCodePatchGenerationError(
+                        "oom trusted dispatch rejection requires OOM-specific evidence "
+                        "from the first failing oracle."
+                    )
     if result["shared_tree_untouched"] is not True:
         raise CreativeCodePatchGenerationError(
             "trusted dispatch result must prove the shared tree was untouched."

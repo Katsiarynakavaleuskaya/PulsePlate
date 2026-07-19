@@ -920,7 +920,11 @@ def test_finalize_dispatched_result_retains_trusted_rejection_without_retry(
         dispatch_result["oracle_results"] = []
         dispatch_result["budget_observations"]["oracle_commands_executed"] = 0
         dispatch_result["budget_observations"]["runner_error"] = (
-            generation_cli.TRUSTED_DISPATCH_CAPABILITY_ERROR
+            (
+                "runtime_cli_missing"
+                if attempts == 0
+                else generation_cli.TRUSTED_DISPATCH_CAPABILITY_ERROR
+            )
             if failure_class == "capability_mismatch"
             else "Oracle command is not permitted by the runner policy."
         )
@@ -930,7 +934,13 @@ def test_finalize_dispatched_result_retains_trusted_rejection_without_retry(
         dispatch_result["oracle_results"][-1]["stderr"] = "out of memory"
     dispatch_result["budget_observations"]["attempts"] = attempts
     if failure_class == "capability_mismatch" and attempts == 0:
-        dispatch_result["execution_backend"]["preflight_status"] = "failed"
+        dispatch_result["execution_backend"].update(
+            {
+                "name": "native-linux",
+                "network_isolation": "linux_unshare",
+                "preflight_status": "failed",
+            }
+        )
     _write_json(dispatch_path, dispatch_result)
 
     assert (
@@ -959,8 +969,8 @@ def test_finalize_dispatched_result_retains_trusted_rejection_without_retry(
     ("mutation", "message"),
     [
         ("experiment_id", "experiment_id does not match"),
-        ("missing_backend", "valid container backend provenance"),
-        ("native_linux_backend", "valid container backend provenance"),
+        ("missing_backend", "valid backend provenance"),
+        ("native_linux_backend", "valid backend provenance"),
         ("candidate_marker", "candidate marker is invalid"),
         ("patch_fingerprint", "candidate patch fingerprint does not match"),
         ("retry", "one attempt and zero retries"),
@@ -970,8 +980,9 @@ def test_finalize_dispatched_result_retains_trusted_rejection_without_retry(
         ("all_pass_rejection", "requires failing oracle evidence"),
         ("timeout_without_timeout", "requires timed-out oracle evidence"),
         ("timeout_zero_returncode", "requires a nonzero return code"),
-        ("oom_without_oom_evidence", "requires OOM-specific oracle evidence"),
+        ("oom_without_oom_evidence", "requires OOM-specific evidence"),
         ("capability_missing_error", "requires the canonical runner signal"),
+        ("capability_unknown_preflight_blocker", "requires a supported blocker code"),
         ("metric_regression_without_metrics", "without structured metric evidence"),
         ("policy_without_error", "requires explanatory runner evidence"),
         ("accepted_runner_error", "must not carry runner_error"),
@@ -1048,6 +1059,25 @@ def test_finalize_dispatched_result_rejects_unbound_dispatch_evidence(
         dispatch_result["mutated_paths"] = []
         dispatch_result["oracle_results"] = []
         dispatch_result["budget_observations"]["oracle_commands_executed"] = 0
+    elif mutation == "capability_unknown_preflight_blocker":
+        dispatch_result["status"] = "rejected"
+        dispatch_result["failure_class"] = "capability_mismatch"
+        dispatch_result["mutated_paths"] = []
+        dispatch_result["oracle_results"] = []
+        dispatch_result["budget_observations"].update(
+            {
+                "attempts": 0,
+                "oracle_commands_executed": 0,
+                "runner_error": "unknown_preflight_blocker",
+            }
+        )
+        dispatch_result["execution_backend"].update(
+            {
+                "name": "native-linux",
+                "network_isolation": "linux_unshare",
+                "preflight_status": "failed",
+            }
+        )
     elif mutation == "metric_regression_without_metrics":
         dispatch_result["status"] = "rejected"
         dispatch_result["failure_class"] = "metric_regression"
@@ -1166,6 +1196,43 @@ def test_dispatch_binding_requires_timeout_failure_class_for_timed_out_oracle(
     with pytest.raises(
         generation_cli.CreativeCodePatchGenerationError,
         match="must use the timeout failure class",
+    ):
+        generation_cli._validate_dispatch_result_binding(
+            dispatch_result=result,
+            packet=packet,
+            changed_paths=["core/rag/orchestration.py"],
+            patch_fingerprint=patch_fingerprint,
+        )
+
+
+def test_dispatch_binding_rejects_oom_marker_after_first_failing_oracle() -> None:
+    patch_fingerprint = "sha256:" + ("a" * 64)
+    packet = {
+        "experiment_id": "oom-first-failure-test",
+        "candidate_patch_fingerprint": patch_fingerprint,
+        "mutable_candidate_surface": ["core/rag/orchestration.py"],
+        "immutable_oracles": [
+            {"command": "pytest -q tests/test_first.py"},
+            {"command": "pytest -q tests/test_second.py"},
+        ],
+        "budgets": {"wall_clock_seconds": 60},
+    }
+    result = _trusted_dispatch_result(
+        packet,
+        status="rejected",
+        failure_class="oom",
+    )
+    result["oracle_results"][0]["returncode"] = 1
+    result["oracle_results"][1].update(
+        {
+            "returncode": 0,
+            "stderr": "out of memory",
+        }
+    )
+
+    with pytest.raises(
+        generation_cli.CreativeCodePatchGenerationError,
+        match="from the first failing oracle",
     ):
         generation_cli._validate_dispatch_result_binding(
             dispatch_result=result,
