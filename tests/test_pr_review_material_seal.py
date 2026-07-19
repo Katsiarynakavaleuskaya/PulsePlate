@@ -3263,6 +3263,32 @@ def _record_final_security_outcome(
     )
 
 
+def test_final_security_lock_fails_closed_without_posix_backend(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(closeout_module, "STATE_ROOT", tmp_path)
+
+    def missing_backend(name: str) -> Any:
+        assert name == "fcntl"
+        raise ImportError("fcntl unavailable")
+
+    monkeypatch.setattr(closeout_module.importlib, "import_module", missing_backend)
+    backend = closeout_module._load_posix_locking_backend()
+    assert backend is None
+    monkeypatch.setattr(closeout_module, "_FCNTL", backend)
+
+    with pytest.raises(
+        closeout_module.CloseoutError,
+        match=r"requires POSIX fcntl\.flock support",
+    ):
+        with closeout_module._final_security_lock(42):
+            pytest.fail("missing locking backend must not enter the critical section")
+
+    assert not closeout_module._state_dir(42).exists()
+    assert not closeout_module._final_security_lock_path(42).exists()
+
+
 def test_prepare_final_security_first_request_is_local_advisory_and_idempotency_guarded(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

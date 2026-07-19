@@ -9,7 +9,7 @@ and the content-bound security receipt can be published in one closeout commit.
 from __future__ import annotations
 
 import argparse
-import fcntl
+import importlib
 import json
 import os
 import re
@@ -21,6 +21,16 @@ from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Iterator, Mapping
+
+
+def _load_posix_locking_backend() -> Any | None:
+    try:
+        return importlib.import_module("fcntl")
+    except ImportError:
+        return None
+
+
+_FCNTL = _load_posix_locking_backend()
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
@@ -199,14 +209,16 @@ def _format_utc_timestamp(value: datetime) -> str:
 
 @contextmanager
 def _final_security_lock(pr_number: int) -> Iterator[None]:
+    if _FCNTL is None:
+        raise CloseoutError("final-security attempt reservation requires POSIX fcntl.flock support")
     path = _final_security_lock_path(pr_number)
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a+", encoding="utf-8") as handle:
-        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        _FCNTL.flock(handle.fileno(), _FCNTL.LOCK_EX)
         try:
             yield
         finally:
-            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+            _FCNTL.flock(handle.fileno(), _FCNTL.LOCK_UN)
 
 
 def _validated_final_security_approval(value: object) -> dict[str, Any] | None:
