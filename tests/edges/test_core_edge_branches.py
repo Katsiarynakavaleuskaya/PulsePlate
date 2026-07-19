@@ -1,3 +1,4 @@
+import asyncio
 import math
 from pathlib import Path
 from types import SimpleNamespace
@@ -400,31 +401,31 @@ def test_unified_db_cache_load_error_and_save_throttle(
     db._save_cache()  # should return early without error
 
 
-@pytest.mark.asyncio
-async def test_unified_db_off_exception_and_invalid_ids(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-):
-    db = UnifiedFoodDatabase(cache_dir=str(tmp_path))
+def test_unified_db_off_exception_and_invalid_ids(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    async def _exercise() -> None:
+        db = UnifiedFoodDatabase(cache_dir=str(tmp_path))
 
-    class OffMock:
-        async def search_products(self, *args: Any, **kwargs: Any):  # noqa: D401
-            raise RuntimeError("OFF boom")
+        class OffMock:
+            async def search_products(self, *args: Any, **kwargs: Any):  # noqa: D401
+                raise RuntimeError("OFF boom")
 
-        async def get_product_details(self, code: str):  # noqa: D401
-            raise RuntimeError("detail boom")
+            async def get_product_details(self, code: str):  # noqa: D401
+                raise RuntimeError("detail boom")
 
-        async def close(self) -> None:
-            return None
+            async def close(self) -> None:
+                return None
 
-    db.off_client = OffMock()
-    # Force OFF path by preferring openfoodfacts and ensure empty result on exception
-    res = await db.search_food("milk", prefer_source="openfoodfacts")
-    assert res == []
+        db.off_client = OffMock()
+        # Force OFF path by preferring openfoodfacts and ensure empty result on exception
+        res = await db.search_food("milk", prefer_source="openfoodfacts")
+        assert res == []
 
-    # Invalid USDA id path
-    assert await db.get_food_by_id("usda", "abc") is None
-    # OFF detail exception path
-    assert await db.get_food_by_id("openfoodfacts", "123") is None
+        # Invalid USDA id path
+        assert await db.get_food_by_id("usda", "abc") is None
+        # OFF detail exception path
+        assert await db.get_food_by_id("openfoodfacts", "123") is None
+
+    asyncio.run(_exercise())
 
 
 def test_product_finder_error_paths_and_csv(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
