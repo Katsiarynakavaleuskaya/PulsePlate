@@ -2465,6 +2465,7 @@ _CLASS_REFERENCE_PREFIX = "<class:"
 _INSTANCE_REFERENCE_PREFIX = "<instance:"
 _MAX_LOOP_BINDING_ITERATIONS = 32
 _MAX_TOTAL_LOOP_BINDING_ITERATIONS = 128
+_MAX_ITERABLE_ELEMENT_BINDING_DEPTH = 8
 _MAPPING_MUTATOR_METHODS = frozenset(
     {
         "__delitem__",
@@ -4975,7 +4976,9 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 element_bindings.append(
                     nested if nested is not None else self._conservative_argument_binding()
                 )
-            return self._join_resolved_bindings(element_bindings)
+            return self._limit_iterable_element_depth(
+                self._join_resolved_bindings(element_bindings)
+            )
         return None
 
     def _capture_iterable_element_binding(self, node: ast.AST) -> _ResolvedBinding:
@@ -5179,6 +5182,42 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             string=_DYNAMIC_STRING_BINDING,
         )
 
+    @staticmethod
+    def _limit_iterable_element_depth(
+        binding: _ResolvedBinding,
+        *,
+        remaining_depth: int = _MAX_ITERABLE_ELEMENT_BINDING_DEPTH,
+    ) -> _ResolvedBinding:
+        nested = binding.iterable_element
+        if nested is None:
+            return binding
+        if remaining_depth <= 0:
+            return _ResolvedBinding(
+                reference=binding.reference,
+                string=binding.string,
+                callables=binding.callables,
+                deferred_calls=binding.deferred_calls,
+                mapping=binding.mapping,
+                class_references=binding.class_references,
+                descriptors=binding.descriptors,
+            )
+        limited_nested = _ApiKeyLookupVisitor._limit_iterable_element_depth(
+            nested,
+            remaining_depth=remaining_depth - 1,
+        )
+        if limited_nested is nested:
+            return binding
+        return _ResolvedBinding(
+            reference=binding.reference,
+            string=binding.string,
+            callables=binding.callables,
+            deferred_calls=binding.deferred_calls,
+            mapping=binding.mapping,
+            class_references=binding.class_references,
+            descriptors=binding.descriptors,
+            iterable_element=limited_nested,
+        )
+
     def _join_resolved_bindings(
         self,
         bindings: Sequence[_ResolvedBinding],
@@ -5205,20 +5244,24 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         active_scope = self.scope
         self._merge_outcomes(merged, outcomes)
         self.scope = active_scope
-        return _ResolvedBinding(
-            reference=merged.references.get(marker),
-            string=merged.strings.get(marker),
-            callables=merged.callables.get(marker, frozenset()),
-            deferred_calls=merged.deferred_calls.get(marker, frozenset()),
-            mapping=(
-                bindings[0].mapping
-                if bindings[0].mapping is not None
-                and all(binding.mapping is bindings[0].mapping for binding in bindings)
-                else None
-            ),
-            class_references=frozenset().union(*(binding.class_references for binding in bindings)),
-            descriptors=frozenset().union(*(binding.descriptors for binding in bindings)),
-            iterable_element=merged.iterable_elements.get(marker),
+        return self._limit_iterable_element_depth(
+            _ResolvedBinding(
+                reference=merged.references.get(marker),
+                string=merged.strings.get(marker),
+                callables=merged.callables.get(marker, frozenset()),
+                deferred_calls=merged.deferred_calls.get(marker, frozenset()),
+                mapping=(
+                    bindings[0].mapping
+                    if bindings[0].mapping is not None
+                    and all(binding.mapping is bindings[0].mapping for binding in bindings)
+                    else None
+                ),
+                class_references=frozenset().union(
+                    *(binding.class_references for binding in bindings)
+                ),
+                descriptors=frozenset().union(*(binding.descriptors for binding in bindings)),
+                iterable_element=merged.iterable_elements.get(marker),
+            )
         )
 
     @staticmethod

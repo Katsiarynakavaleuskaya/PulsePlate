@@ -4086,6 +4086,19 @@ def test_legacy_growth_guard_converges_for_nested_loop_function_bindings() -> No
     ]
 
 
+def test_legacy_growth_guard_converges_for_self_nested_iterable_provenance() -> None:
+    source = textwrap.dedent("""
+        def install(target):
+            target.get("/api/v1/not-called-from-self-nested-list")(handler)
+
+        items = [install]
+        for _ in values:
+            items = [items]
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
 @pytest.mark.parametrize(
     "safe_rebinding",
     [
