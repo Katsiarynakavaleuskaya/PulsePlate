@@ -156,14 +156,19 @@ resume seam revalidates:
 - a dispatch result contained under
   `artifacts/orchestration/experiments/results/`, with no symlink traversal;
 - normal candidate runner mode, the stable `candidate.patch` marker, exact
-  experiment ID, passed execution-backend preflight provenance, one attempt,
-  zero retries, packet-identical budgets and oracle commands, bounded mutated
+  experiment ID, packet-identical budgets and oracle commands, bounded mutated
   paths, no promotion/material-attribution claim, and an untouched shared tree;
+  results that reached execution require passed container-backend preflight
+  provenance and one attempt, while a supported failed-preflight
+  `capability_mismatch` requires failed backend provenance, zero attempts, zero
+  mutations, and zero oracle executions; a pre-oracle `policy_violation` may
+  record zero or one attempt, but its zero-attempt form likewise forbids mutation
+  and oracle evidence; terminal pre-oracle failures always require zero retries;
   the packet, dispatch result, and canonical creative-code result must carry one
   recomputed patch fingerprint;
 - every configured oracle passing before an accepted result can be published.
 - every oracle-derived rejection binding the candidate paths and retaining the
-  executed failure evidence required by its failure class.
+  terminal first-failing oracle evidence required by its failure class.
 
 The resume seam acquires a cooperative fd-backed per-run lock before final
 revalidation and publication. A concurrent finalizer fails closed before it can

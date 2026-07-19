@@ -2368,38 +2368,39 @@ def _validate_dispatch_result_binding(
             raise CreativeCodePatchGenerationError(
                 "oracle-derived trusted dispatch rejection requires executed oracle evidence."
             )
+        prior_oracles = result["oracle_results"][:-1]
+        terminal_oracle = result["oracle_results"][-1]
+        if any(item["returncode"] != 0 or item["timed_out"] for item in prior_oracles):
+            raise CreativeCodePatchGenerationError(
+                "oracle-derived trusted dispatch rejection must stop at the first failing oracle."
+            )
         if failure_class == "timeout":
-            timed_out_oracles = [item for item in result["oracle_results"] if item["timed_out"]]
-            if not timed_out_oracles:
+            if not terminal_oracle["timed_out"]:
                 raise CreativeCodePatchGenerationError(
-                    "timeout trusted dispatch rejection requires timed-out oracle evidence."
+                    "timeout trusted dispatch rejection requires terminal timed-out oracle evidence."
                 )
-            if any(item["returncode"] == 0 for item in timed_out_oracles):
+            if terminal_oracle["returncode"] == 0:
                 raise CreativeCodePatchGenerationError(
-                    "timeout trusted dispatch rejection requires a nonzero return code."
+                    "timeout trusted dispatch rejection requires a nonzero terminal return code."
                 )
         elif failure_class in FAILING_ORACLE_REQUIRED_FAILURE_CLASSES:
-            if any(item["timed_out"] for item in result["oracle_results"]):
+            if terminal_oracle["timed_out"]:
                 raise CreativeCodePatchGenerationError(
                     "timed-out oracle evidence must use the timeout failure class."
                 )
-            if not any(item["returncode"] != 0 for item in result["oracle_results"]):
+            if terminal_oracle["returncode"] == 0:
                 raise CreativeCodePatchGenerationError(
-                    "oracle-derived trusted dispatch rejection requires failing oracle evidence."
+                    "oracle-derived trusted dispatch rejection requires failing terminal oracle "
+                    "evidence."
                 )
             if failure_class == "oom":
-                first_failing_oracle = next(
-                    item for item in result["oracle_results"] if item["returncode"] != 0
-                )
                 if not any(
-                    pattern.search(
-                        f"{first_failing_oracle['stdout']}\n{first_failing_oracle['stderr']}"
-                    )
+                    pattern.search(f"{terminal_oracle['stdout']}\n{terminal_oracle['stderr']}")
                     for pattern in OOM_PATTERNS
                 ):
                     raise CreativeCodePatchGenerationError(
                         "oom trusted dispatch rejection requires OOM-specific evidence "
-                        "from the first failing oracle."
+                        "from the terminal failing oracle."
                     )
     if result["shared_tree_untouched"] is not True:
         raise CreativeCodePatchGenerationError(

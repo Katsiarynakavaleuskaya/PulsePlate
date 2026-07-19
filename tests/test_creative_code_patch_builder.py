@@ -434,7 +434,7 @@ def test_reference_patch_contracts_validate_and_schema_is_closed() -> None:
     zero_attempt_rule = runner_rules[4]
     assert zero_attempt_rule["if"]["required"] == ["failure_class", "attempts"]
     assert zero_attempt_rule["if"]["properties"] == {
-        "failure_class": {"const": "capability_mismatch"},
+        "failure_class": {"enum": ["capability_mismatch", "policy_violation"]},
         "attempts": {"const": 0},
     }
     assert zero_attempt_rule["then"]["properties"] == {
@@ -718,29 +718,25 @@ def test_patch_result_rejects_capability_mismatch_retry_tamper() -> None:
 
 
 @pytest.mark.parametrize(
-    ("field", "message"),
+    ("failure_class", "field"),
     [
-        (
-            "mutated_path_count",
-            "capability_mismatch with attempts 0 must use mutated_path_count 0",
-        ),
-        (
-            "oracle_commands_executed",
-            "capability_mismatch with attempts 0 must use oracle_commands_executed 0",
-        ),
+        ("capability_mismatch", "mutated_path_count"),
+        ("capability_mismatch", "oracle_commands_executed"),
+        ("policy_violation", "mutated_path_count"),
+        ("policy_violation", "oracle_commands_executed"),
     ],
 )
-def test_patch_result_rejects_zero_attempt_capability_execution_evidence(
+def test_patch_result_rejects_zero_attempt_pre_oracle_execution_evidence(
+    failure_class: str,
     field: str,
-    message: str,
 ) -> None:
     tampered = _reference_result()
     tampered["status"] = "rejected"
-    tampered["failure_class"] = "capability_mismatch"
+    tampered["failure_class"] = failure_class
     tampered["runner_summary"].update(
         {
             "status": "rejected",
-            "failure_class": "capability_mismatch",
+            "failure_class": failure_class,
             "mutated_path_count": 0,
             "oracle_commands_executed": 0,
             "attempts": 0,
@@ -752,7 +748,10 @@ def test_patch_result_rejects_zero_attempt_capability_execution_evidence(
     tampered["result_id"] = result_id
     tampered["idempotency_key"] = idempotency_key
 
-    with pytest.raises(CreativeCodePatchContractError, match=message):
+    with pytest.raises(
+        CreativeCodePatchContractError,
+        match=f"{failure_class} with attempts 0 must use {field} 0",
+    ):
         validate_creative_code_patch_result(tampered)
 
 

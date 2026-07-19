@@ -977,9 +977,9 @@ def test_finalize_dispatched_result_retains_trusted_rejection_without_retry(
         ("extra_path", "mutated paths do not match"),
         ("oracle_command", "oracle commands do not match"),
         ("material_attribution", "must not claim promotion or material attribution"),
-        ("all_pass_rejection", "requires failing oracle evidence"),
-        ("timeout_without_timeout", "requires timed-out oracle evidence"),
-        ("timeout_zero_returncode", "requires a nonzero return code"),
+        ("all_pass_rejection", "requires failing terminal oracle evidence"),
+        ("timeout_without_timeout", "requires terminal timed-out oracle evidence"),
+        ("timeout_zero_returncode", "requires a nonzero terminal return code"),
         ("oom_without_oom_evidence", "requires OOM-specific evidence"),
         ("capability_missing_error", "requires the canonical runner signal"),
         ("capability_unknown_preflight_blocker", "requires a supported blocker code"),
@@ -1213,10 +1213,20 @@ def test_dispatch_binding_requires_timeout_failure_class_for_timed_out_oracle(
         )
 
 
-def test_dispatch_binding_rejects_oom_marker_after_first_failing_oracle() -> None:
+@pytest.mark.parametrize(
+    ("failure_class", "terminal_update"),
+    [
+        ("timeout", {"returncode": 1, "timed_out": True}),
+        ("oom", {"returncode": 1, "stderr": "out of memory"}),
+    ],
+)
+def test_dispatch_binding_rejects_evidence_after_first_failing_oracle(
+    failure_class: str,
+    terminal_update: dict[str, object],
+) -> None:
     patch_fingerprint = "sha256:" + ("a" * 64)
     packet = {
-        "experiment_id": "oom-first-failure-test",
+        "experiment_id": f"{failure_class}-first-failure-test",
         "candidate_patch_fingerprint": patch_fingerprint,
         "mutable_candidate_surface": ["core/rag/orchestration.py"],
         "immutable_oracles": [
@@ -1228,19 +1238,14 @@ def test_dispatch_binding_rejects_oom_marker_after_first_failing_oracle() -> Non
     result = _trusted_dispatch_result(
         packet,
         status="rejected",
-        failure_class="oom",
+        failure_class=failure_class,
     )
     result["oracle_results"][0]["returncode"] = 1
-    result["oracle_results"][1].update(
-        {
-            "returncode": 0,
-            "stderr": "out of memory",
-        }
-    )
+    result["oracle_results"][1].update(terminal_update)
 
     with pytest.raises(
         generation_cli.CreativeCodePatchGenerationError,
-        match="from the first failing oracle",
+        match="must stop at the first failing oracle",
     ):
         generation_cli._validate_dispatch_result_binding(
             dispatch_result=result,
@@ -1664,33 +1669,34 @@ def test_receipt_validator_rejects_unknown_failures_and_incoherent_runner_status
     ):
         validate_generation_receipt(capability_retry_tamper)
 
-    for field, message in (
-        (
-            "mutated_path_count",
-            "capability_mismatch with attempts 0 must use mutated_path_count 0",
-        ),
-        (
-            "oracle_commands_executed",
-            "capability_mismatch with attempts 0 must use oracle_commands_executed 0",
-        ),
-    ):
-        zero_attempt_tamper = deepcopy(reference)
-        zero_attempt_tamper["status"] = "rejected"
-        zero_attempt_tamper["failure_class"] = "capability_mismatch"
-        zero_attempt_tamper["runner_summary"].update(
-            {
-                "status": "rejected",
-                "failure_class": "capability_mismatch",
-                "mutated_path_count": 0,
-                "oracle_commands_executed": 0,
-                "attempts": 0,
-                "retries_consumed": 0,
-            }
-        )
-        zero_attempt_tamper["runner_summary"][field] = 1
-        _reset_receipt_identity(zero_attempt_tamper)
-        with pytest.raises(CreativeCodePatchGenerationError, match=message):
-            validate_generation_receipt(zero_attempt_tamper)
+    for failure_class in ("capability_mismatch", "policy_violation"):
+        for field, message in (
+            (
+                "mutated_path_count",
+                f"{failure_class} with attempts 0 must use mutated_path_count 0",
+            ),
+            (
+                "oracle_commands_executed",
+                f"{failure_class} with attempts 0 must use oracle_commands_executed 0",
+            ),
+        ):
+            zero_attempt_tamper = deepcopy(reference)
+            zero_attempt_tamper["status"] = "rejected"
+            zero_attempt_tamper["failure_class"] = failure_class
+            zero_attempt_tamper["runner_summary"].update(
+                {
+                    "status": "rejected",
+                    "failure_class": failure_class,
+                    "mutated_path_count": 0,
+                    "oracle_commands_executed": 0,
+                    "attempts": 0,
+                    "retries_consumed": 0,
+                }
+            )
+            zero_attempt_tamper["runner_summary"][field] = 1
+            _reset_receipt_identity(zero_attempt_tamper)
+            with pytest.raises(CreativeCodePatchGenerationError, match=message):
+                validate_generation_receipt(zero_attempt_tamper)
 
     for attempts, mutated_path_count, oracle_commands_executed in (
         (0, 0, 0),
@@ -2719,7 +2725,7 @@ def test_generation_schemas_are_closed_and_authority_is_const_false() -> None:
     zero_attempt_rule = runner_rules[4]
     assert zero_attempt_rule["if"]["required"] == ["failure_class", "attempts"]
     assert zero_attempt_rule["if"]["properties"] == {
-        "failure_class": {"const": "capability_mismatch"},
+        "failure_class": {"enum": ["capability_mismatch", "policy_violation"]},
         "attempts": {"const": 0},
     }
     assert zero_attempt_rule["then"]["properties"] == {

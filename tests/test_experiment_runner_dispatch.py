@@ -730,6 +730,46 @@ def test_policy_violation_accepts_terminal_pre_oracle_attempt_counts(attempts: i
     assert validated["budget_observations"]["retries_consumed"] == 0
 
 
+@pytest.mark.parametrize(
+    ("mutated_paths", "oracle_results", "message"),
+    [
+        (
+            ["core/rag/orchestration.py"],
+            [],
+            "policy_violation with attempts 0 must use mutated_path_count 0",
+        ),
+        (
+            [],
+            [{"command": "pytest -q", "returncode": 1, "timed_out": False}],
+            "policy_violation with attempts 0 must use oracle_commands_executed 0",
+        ),
+    ],
+)
+def test_policy_violation_zero_attempts_reject_execution_evidence(
+    mutated_paths: list[str],
+    oracle_results: list[dict[str, object]],
+    message: str,
+) -> None:
+    result = _legacy_result()
+    result.update(
+        {
+            "status": "rejected",
+            "failure_class": "policy_violation",
+            "mutated_paths": mutated_paths,
+            "oracle_results": oracle_results,
+            "budget_observations": {
+                "attempts": 0,
+                "retries_consumed": 0,
+                "runner_error": "candidate rejected before oracle execution",
+            },
+            "promotion_ready": False,
+        }
+    )
+
+    with pytest.raises(ValueError, match=message):
+        experiment_contract.validate_experiment_result(result)
+
+
 def test_policy_violation_rejects_retry_evidence() -> None:
     result = _legacy_result()
     result.update(

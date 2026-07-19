@@ -416,7 +416,9 @@
           "if": {
             "required": ["failure_class", "attempts"],
             "properties": {
-              "failure_class": { "const": "capability_mismatch" },
+              "failure_class": {
+                "enum": ["capability_mismatch", "policy_violation"]
+              },
               "attempts": { "const": 0 }
             }
           },
