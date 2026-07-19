@@ -10,16 +10,17 @@ from __future__ import annotations
 import ast
 import json
 import os
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
-from importlib.metadata import version
+from importlib import import_module
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
+from types import ModuleType
 from typing import NoReturn
 from uuid import uuid4
 
 import pytest
-from pgvector.sqlalchemy import VECTOR
 from sqlalchemy import (
     BigInteger,
     Column,
@@ -38,12 +39,14 @@ from sqlalchemy.engine import Engine, make_url
 from sqlalchemy.exc import DBAPIError, SQLAlchemyError
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import NullPool
+from sqlalchemy.types import UserDefinedType
 
 from core.db_rls import apply_user_rls_context
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PGVECTOR_COMPAT_DATABASE_URL = "PGVECTOR_COMPAT_DATABASE_URL"
 PGVECTOR_COMPAT_REQUIRED = "PGVECTOR_COMPAT_REQUIRED"
+PGVECTOR_BINDING_FEATURE = "pgvector_binding_ci_lite"
 PGVECTOR_DATABASE_FEATURE = "pgvector_compat_database"
 EXPECTED_BINDING_VERSION = "0.5.0"
 EXPECTED_EXTENSION_VERSION = "0.8.2"
@@ -53,16 +56,42 @@ TENANT_TWO = 202
 
 
 def require_feature(feature_key: str, reason: str) -> NoReturn:
-    """Use the repository skip protocol for the optional local database."""
+    """Use the repository skip protocol for optional compatibility dependencies."""
 
-    assert feature_key == PGVECTOR_DATABASE_FEATURE
+    assert feature_key in {PGVECTOR_BINDING_FEATURE, PGVECTOR_DATABASE_FEATURE}
     pytest.skip(f"feature_disabled:{feature_key} {reason}")
+
+
+def _skip_or_fail_binding(reason: str) -> NoReturn:
+    if os.getenv("PRE_COMMIT", "").strip() == "1":
+        require_feature(PGVECTOR_BINDING_FEATURE, reason)
+    pytest.fail(reason)
 
 
 def _skip_or_fail_database(reason: str, *, required: bool) -> NoReturn:
     if required:
         pytest.fail(reason)
     require_feature(PGVECTOR_DATABASE_FEATURE, reason)
+
+
+def _vector_type(
+    dimensions: int,
+    *,
+    module_loader: Callable[[str], ModuleType] = import_module,
+) -> UserDefinedType:
+    try:
+        module = module_loader("pgvector.sqlalchemy")
+    except ModuleNotFoundError as exc:
+        if not exc.name or not exc.name.startswith("pgvector"):
+            raise
+        _skip_or_fail_binding("pgvector is unavailable in the ci-lite pre-commit environment")
+
+    vector_factory = getattr(module, "VECTOR", None)
+    if vector_factory is None:
+        pytest.fail("pgvector.sqlalchemy.VECTOR is unavailable")
+    vector_type = vector_factory(dimensions)
+    assert isinstance(vector_type, UserDefinedType)
+    return vector_type
 
 
 def _active_requirements(path: Path) -> set[str]:
@@ -213,7 +242,7 @@ def pgvector_database() -> Iterator[_CompatDatabase]:
             Column("user_id", BigInteger, nullable=False),
             Column("content", Text, nullable=False),
             Column("source", Text, nullable=False),
-            Column("embedding", VECTOR(3), nullable=False),
+            Column("embedding", _vector_type(3), nullable=False),
             schema=schema,
         )
         database = _CompatDatabase(
@@ -243,7 +272,11 @@ def _visible_sources(session: Session, table: Table) -> list[str]:
 
 
 def test_installed_pgvector_binding_is_exactly_0_5_0() -> None:
-    assert version("pgvector") == EXPECTED_BINDING_VERSION
+    try:
+        installed_version = version("pgvector")
+    except PackageNotFoundError:
+        _skip_or_fail_binding("pgvector is unavailable in the ci-lite pre-commit environment")
+    assert installed_version == EXPECTED_BINDING_VERSION
 
 
 def test_source_and_lock_files_own_pgvector_and_test_numpy() -> None:
@@ -307,7 +340,7 @@ def test_runtime_pgvector_imports_use_supported_modules() -> None:
 
 
 def test_vector_type_accepts_list_bind_and_result_values() -> None:
-    vector_type = VECTOR(3)
+    vector_type = _vector_type(3)
     bind_processor = vector_type.bind_processor(postgresql.dialect())
     result_processor = vector_type.result_processor(postgresql.dialect(), None)
 
@@ -318,6 +351,24 @@ def test_vector_type_accepts_list_bind_and_result_values() -> None:
     result = result_processor(encoded)
     assert isinstance(result, list)
     assert result == pytest.approx([1.0, 0.0, 0.0])
+
+
+def test_ci_lite_missing_binding_uses_protocol_skip_and_other_lanes_fail(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def missing_pgvector(_: str) -> ModuleType:
+        raise ModuleNotFoundError("No module named 'pgvector'", name="pgvector")
+
+    monkeypatch.setenv("PRE_COMMIT", "1")
+    with pytest.raises(
+        pytest.skip.Exception,
+        match="feature_disabled:pgvector_binding_ci_lite",
+    ):
+        _vector_type(3, module_loader=missing_pgvector)
+
+    monkeypatch.delenv("PRE_COMMIT")
+    with pytest.raises(pytest.fail.Exception, match="ci-lite pre-commit"):
+        _vector_type(3, module_loader=missing_pgvector)
 
 
 def test_ci_compatibility_proof_is_selected_and_merge_blocking() -> None:
@@ -385,7 +436,7 @@ def test_real_vector_list_round_trip_and_cosine_distance_order(
     pgvector_database: _CompatDatabase,
 ) -> None:
     database = pgvector_database
-    query_vector = bindparam("query_vector", type_=VECTOR(3))
+    query_vector = bindparam("query_vector", type_=_vector_type(3))
     distance = database.table.c.embedding.cosine_distance(query_vector).label("distance")
     statement = select(
         database.table.c.id,
