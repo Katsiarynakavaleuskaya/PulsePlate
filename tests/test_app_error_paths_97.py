@@ -53,16 +53,6 @@ class TestAppErrorPaths97:
         app.stop_background_updates()
         mock_stop.assert_called_once()
 
-    def test_reset_safety_failure_count(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Test reset_safety_failure_count resets the global counter."""
-        import app
-
-        # Increment counter (simulate failures)
-        monkeypatch.setattr(app, "_safety_failure_count", 5)
-
-        app.reset_safety_failure_count()
-        assert app._safety_failure_count == 0
-
     def test_reset_targets_cache(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test reset_targets_cache clears the cache."""
         import app

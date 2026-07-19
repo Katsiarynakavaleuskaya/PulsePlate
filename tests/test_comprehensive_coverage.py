@@ -562,7 +562,7 @@ class TestComprehensiveCoverage:
 
     def test_who_targets_endpoint_success(self) -> None:
         """Test WHO targets endpoint success case."""
-        with patch("app.build_nutrition_targets") as mock_build_targets:
+        with patch("core.recommendations.build_nutrition_targets") as mock_build_targets:
             mock_targets = MagicMock()
             mock_targets.kcal_daily = 2000
             mock_targets.macros.protein_g = 100
@@ -607,7 +607,7 @@ class TestComprehensiveCoverage:
     def test_who_targets_endpoint_value_error(self) -> None:
         """Test WHO targets endpoint with ValueError returns fallback (200)."""
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
-        with patch("app.build_nutrition_targets") as mock_build_targets:
+        with patch("core.recommendations.build_nutrition_targets") as mock_build_targets:
             mock_build_targets.side_effect = ValueError("Invalid input")
 
             payload = {
@@ -630,9 +630,9 @@ class TestComprehensiveCoverage:
             assert "kcal_daily" in data
 
     def test_who_targets_endpoint_general_exception(self) -> None:
-        """Test WHO targets endpoint with general exception returns fallback (200)."""
+        """Unexpected target-builder failures return a stable 500 envelope."""
         os.environ["FEATURE_PREMIUM_NUTRITION"] = "true"
-        with patch("app.build_nutrition_targets") as mock_build_targets:
+        with patch("core.recommendations.build_nutrition_targets") as mock_build_targets:
             mock_build_targets.side_effect = Exception("Test error")
 
             payload = {
@@ -648,17 +648,14 @@ class TestComprehensiveCoverage:
                 json=payload,
                 headers={"X-API-Key": "test_key"},
             )
-            # Endpoint now returns 200 with fallback targets when build_nutrition_targets fails
-            assert response.status_code == 200
-            data = response.json()
-            assert "macros" in data
-            assert "kcal_daily" in data
+            assert response.status_code == 500
+            assert response.json() == {"detail": "WHO targets calculation failed"}
 
     def test_nutrient_gaps_endpoint_success(self) -> None:
         """Test nutrient gaps endpoint success case."""
         with (
-            patch("app.analyze_nutrient_gaps") as mock_analyze,
-            patch("app.build_nutrition_targets") as mock_build_targets,
+            patch("core.menu_engine.analyze_nutrient_gaps") as mock_analyze,
+            patch("core.recommendations.build_nutrition_targets") as mock_build_targets,
         ):
             mock_targets = MagicMock()
             mock_targets.kcal_daily = 2000
@@ -731,8 +728,7 @@ class TestComprehensiveCoverage:
         response = self.client.post(
             "/api/v1/premium/gaps", json=payload, headers={"X-API-Key": "test_key"}
         )
-        # With Pydantic validation, this will be a 422 (unprocessable entity) rather than 400
-        assert response.status_code in [400, 422]
+        assert response.status_code == 422
 
     def test_nutrient_gaps_endpoint_general_exception(self) -> None:
         """Test nutrient gaps endpoint with general exception.
@@ -762,8 +758,7 @@ class TestComprehensiveCoverage:
             )
             # With exception in score_nutrient_coverage, should return 500
             assert response.status_code == 500
-            data = response.json()
-            assert "detail" in data
+            assert response.json() == {"detail": "Nutrient gap analysis failed"}
 
 
 if __name__ == "__main__":

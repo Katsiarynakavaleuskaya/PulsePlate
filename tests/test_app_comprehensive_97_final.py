@@ -278,7 +278,7 @@ class TestAppComprehensive97:
         assert response.status_code == 500
         assert "BMR calculation failed" in response.json()["detail"]
 
-    @patch("app.build_nutrition_targets")
+    @patch("core.recommendations.build_nutrition_targets")
     def test_premium_targets_endpoint_success(self, mock_targets):
         """Test /premium_targets endpoint success path (lines 1265-1339)"""
         # Mock nutrition targets
@@ -297,7 +297,10 @@ class TestAppComprehensive97:
 
         mock_targets.return_value = mock_targets_obj
 
-        with patch("core.targets._life_stage_warnings", return_value=[]):
+        with (
+            patch("core.targets._life_stage_warnings", return_value=[]),
+            patch("core.recommendations.validate_targets_safety", return_value=[]),
+        ):
             response = client.post(
                 "/premium_targets",
                 json={
@@ -319,7 +322,7 @@ class TestAppComprehensive97:
 
     def test_premium_targets_endpoint_not_available(self):
         """Test /premium_targets when feature not available (lines 1271-1274)"""
-        with patch("app.build_nutrition_targets", None):
+        with patch("core.recommendations.build_nutrition_targets", None):
             response = client.post(
                 "/premium_targets",
                 json={
@@ -335,7 +338,7 @@ class TestAppComprehensive97:
             )
             assert response.status_code == 503
 
-    @patch("app.build_nutrition_targets")
+    @patch("core.recommendations.build_nutrition_targets")
     def test_premium_targets_with_safety_warnings(self, mock_targets):
         """Test /premium_targets with safety validation (lines 1305-1320)"""
         mock_targets_obj = MagicMock()
@@ -456,7 +459,7 @@ class TestAppComprehensive97:
 
     def test_premium_targets_import_error_handling(self):
         """Test premium_targets safety validation import error handling (lines 1315-1320)"""
-        with patch("app.build_nutrition_targets") as mock_targets:
+        with patch("core.recommendations.build_nutrition_targets") as mock_targets:
             mock_targets_obj = MagicMock()
             mock_targets_obj.kcal_daily = 2000
             mock_targets_obj.macros.protein_g = 150
@@ -491,5 +494,5 @@ class TestAppComprehensive97:
                         },
                         headers={"X-API-Key": "test_key"},
                     )
-                    assert response.status_code == 200
-                    # Should work even without safety validation
+                    assert response.status_code == 500
+                    assert response.json() == {"detail": "WHO targets safety validation failed"}

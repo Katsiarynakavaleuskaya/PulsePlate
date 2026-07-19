@@ -21,6 +21,62 @@ from .nutrition_constants import (
     PROTEIN_MIN_PERCENT,
 )
 
+MIN_DAILY_KCAL = 1200
+MAX_DAILY_KCAL = 5000
+
+MICRO_ALIAS_MAP: dict[str, tuple[str, ...]] = {
+    "iron_mg": ("iron", "fe"),
+    "calcium_mg": ("calcium", "ca"),
+    "magnesium_mg": ("magnesium",),
+    "potassium_mg": ("potassium", "k"),
+    "iodine_ug": ("iodine",),
+}
+
+MANDATORY_MICRO_DEFAULTS: dict[str, float] = {"iodine_ug": 150.0}
+
+
+def clamp_daily_kcal(kcal_value: int | float) -> int:
+    """Clamp daily kcal to the established API safety bounds."""
+
+    return max(MIN_DAILY_KCAL, min(int(kcal_value), MAX_DAILY_KCAL))
+
+
+def alias_micros(values: dict[str, float]) -> dict[str, float]:
+    """Return normalized micronutrients with compatibility aliases."""
+
+    if not isinstance(values, dict):
+        raise TypeError(f"values must be a dict, got {type(values).__name__}")
+
+    validated_values: dict[str, float] = {}
+    for key, value in values.items():
+        try:
+            validated_values[key] = float(value)
+        except (TypeError, ValueError):
+            raise ValueError(
+                f"Value for key '{key}' must be numeric or numeric string "
+                f"(convertible to float), got {type(value).__name__} "
+                f"with value: {value!r}"
+            ) from None
+
+    result = validated_values.copy()
+    for primary, aliases in MICRO_ALIAS_MAP.items():
+        if primary not in validated_values:
+            continue
+        primary_value = validated_values[primary]
+        for alias in aliases:
+            result.setdefault(alias, primary_value)
+    return result
+
+
+def ensure_priority_micros(values: dict[str, float]) -> dict[str, float]:
+    """Add mandatory positive defaults in place and return the same mapping."""
+
+    for nutrient, default_value in MANDATORY_MICRO_DEFAULTS.items():
+        current_value = values.get(nutrient)
+        if current_value is None or current_value <= 0:
+            values[nutrient] = default_value
+    return values
+
 
 def calculate_macro_percentages(
     protein_g: float, fat_g: float, carbs_g: float

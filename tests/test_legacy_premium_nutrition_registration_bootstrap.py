@@ -319,7 +319,7 @@ def test_legacy_premium_bmr_wrapper_delegates_to_legacy_app(
     assert captured["request"] is req
 
 
-def test_legacy_premium_targets_wrapper_delegates_to_legacy_app(
+def test_legacy_premium_targets_wrapper_delegates_to_canonical_service(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     legacy_module = resolve_legacy_app()
@@ -333,25 +333,29 @@ def test_legacy_premium_targets_wrapper_delegates_to_legacy_app(
     expected = _who_targets_response()
     captured: dict[str, object] = {}
 
-    async def _fake_legacy_handler(
+    def _fake_service(
         received: app_main._legacy_module.WHOTargetsRequest,
+        *,
+        allow_backend_fallback: bool,
     ) -> app_main._legacy_module.WHOTargetsResponse:
         captured["request"] = received
+        captured["allow_backend_fallback"] = allow_backend_fallback
         return expected
 
     monkeypatch.setattr(
-        resolve_legacy_app(),
-        "premium_targets_legacy",
-        _fake_legacy_handler,
+        legacy_premium_nutrition,
+        "generate_who_targets_response",
+        _fake_service,
     )
 
     response = asyncio.run(legacy_premium_nutrition.premium_targets_legacy(req))
 
     assert response is expected
     assert captured["request"] is req
+    assert captured["allow_backend_fallback"] is False
 
 
-def test_legacy_premium_api_targets_wrapper_delegates_to_legacy_app(
+def test_legacy_premium_api_targets_wrapper_delegates_to_canonical_service(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     payload = {
@@ -364,21 +368,25 @@ def test_legacy_premium_api_targets_wrapper_delegates_to_legacy_app(
     expected = _who_targets_response()
     captured: dict[str, object] = {}
 
-    async def _fake_legacy_handler(
-        received: dict[str, object],
+    def _fake_service(
+        received: app_main._legacy_module.WHOTargetsRequest,
     ) -> app_main._legacy_module.WHOTargetsResponse:
         captured["request"] = received
         return expected
 
-    monkeypatch.setattr(resolve_legacy_app(), "api_who_targets", _fake_legacy_handler)
+    monkeypatch.setattr(
+        legacy_premium_nutrition,
+        "generate_who_targets_response",
+        _fake_service,
+    )
 
     response = asyncio.run(legacy_premium_nutrition.api_who_targets(payload))
 
     assert response is expected
-    assert captured["request"] is payload
+    assert captured["request"] == app_main._legacy_module.WHOTargetsRequest.model_validate(payload)
 
 
-def test_legacy_premium_gaps_wrapper_delegates_to_legacy_app(
+def test_legacy_premium_gaps_wrapper_delegates_to_canonical_service(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     legacy_module = resolve_legacy_app()
@@ -399,13 +407,17 @@ def test_legacy_premium_gaps_wrapper_delegates_to_legacy_app(
     )
     captured: dict[str, object] = {}
 
-    async def _fake_legacy_handler(
+    def _fake_service(
         received: app_main._legacy_module.NutrientGapsRequest,
     ) -> app_main._legacy_module.NutrientGapsResponse:
         captured["request"] = received
         return expected
 
-    monkeypatch.setattr(resolve_legacy_app(), "api_nutrient_gaps", _fake_legacy_handler)
+    monkeypatch.setattr(
+        legacy_premium_nutrition,
+        "analyze_nutrient_gaps_response",
+        _fake_service,
+    )
 
     response = asyncio.run(legacy_premium_nutrition.api_nutrient_gaps(req))
 

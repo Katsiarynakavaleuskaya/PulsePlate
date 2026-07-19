@@ -69,8 +69,8 @@ def test_generate_who_targets_response_sets_next_best_action(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """RU/EN: Smoke-cover canonical WHO-targets post-processing after builder success."""
-    import app as app_module
     import legacy_app
+    from app.services import pro_nutrition_targets as service
 
     targets = SimpleNamespace(
         kcal_daily=2150,
@@ -80,8 +80,16 @@ def test_generate_who_targets_response_sets_next_best_action(
         activity=SimpleNamespace(moderate_aerobic_min=150, strength_sessions=2, steps_daily=8000),
         calculation_date="2025-01-01",
     )
-    monkeypatch.setattr(legacy_app, "build_nutrition_targets", lambda _profile: targets)
-    monkeypatch.setattr(app_module, "build_nutrition_targets", lambda _profile: targets)
+    monkeypatch.setattr(
+        service.nutrition_recommendations,
+        "build_nutrition_targets",
+        lambda _profile: targets,
+    )
+    monkeypatch.setattr(
+        service.nutrition_recommendations,
+        "validate_targets_safety",
+        lambda _targets: [],
+    )
 
     request = legacy_app.WHOTargetsRequest(
         sex="female",

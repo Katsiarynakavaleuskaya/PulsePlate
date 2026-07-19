@@ -59,6 +59,8 @@ from app.schemas.premium_contracts import (
     Activity,
     DietFlag,
     Goal,
+    NutrientGapsRequest,
+    NutrientGapsResponse,
     PlateRequest,
     PlateResponse,
     Sex,
@@ -77,7 +79,11 @@ from app.schemas.legacy_premium_weekly_plan import (  # noqa: F401
 )
 from app.services import recipe_store
 from app.services.food_store import get_food
-from app.services.intervention_trigger_engine import build_targets_next_action
+from app.services.pro_nutrition_targets import (
+    analyze_nutrient_gaps_response,
+    fallback_targets_response as _fallback_targets_response,
+    generate_who_targets_response as _generate_who_targets_response,
+)
 from app.services.scheduler_access import (  # noqa: F401 - compatibility re-export
     get_update_scheduler as get_update_scheduler,
 )
@@ -94,6 +100,15 @@ from core.log_retention import (
 )
 from core.db import get_session
 from core.i18n import Language, normalize_lang, t
+from core.nutrition_utils import (
+    MANDATORY_MICRO_DEFAULTS,
+    MAX_DAILY_KCAL,
+    MICRO_ALIAS_MAP,
+    MIN_DAILY_KCAL,
+    alias_micros as _alias_micros,
+    clamp_daily_kcal as _clamp_daily_kcal,
+    ensure_priority_micros as _ensure_priority_micros,
+)
 from core.targets import FIBER_MIN_G
 from core.utils import get_activity_factor, resolve_attr
 from core.data_sanitizer import MissingOptionalDependencyError
@@ -191,15 +206,6 @@ bmi_pro_legacy_alias_router: Optional[APIRouter] = None
 # Preserve import-time references so later monkeypatching does not mask availability checks
 _BASELINE_CALCULATE_ALL_BMR = calculate_all_bmr
 _BASELINE_CALCULATE_ALL_TDEE = calculate_all_tdee
-
-MIN_DAILY_KCAL = 1200
-MAX_DAILY_KCAL = 5000
-
-
-def _clamp_daily_kcal(kcal_value: int | float) -> int:
-    """Clamp daily kcal to conservative API safety bounds."""
-    return max(MIN_DAILY_KCAL, min(int(kcal_value), MAX_DAILY_KCAL))
-
 
 try:
     from core.food_apis.scheduler import (
@@ -396,51 +402,6 @@ bmi_logger = logging.getLogger("app.bmi")
 
 # Initialize log retention manager
 _log_retention_manager: Optional[LogRetentionManager] = None
-_DEFAULT_LIFE_STAGE_MESSAGES: dict[str, dict[str, str]] = {
-    "teen": {
-        "ru": "Подростковая группа: используйте специализированные нормы.",
-        "en": "Teen life stage: use age-appropriate references.",
-        "es": "Etapa adolescente: use referencias apropiadas para la edad.",
-    },
-    "pregnant": {
-        "ru": "Беременность: нормы отличаются; обратитесь к специализированным рекомендациям.",
-        "en": "Pregnancy: requirements differ; consult specialized guidelines.",
-        "es": "Embarazo: los requisitos difieren; consulte guías especializadas.",
-    },
-    "lactating": {
-        "ru": "Лактация: повышенные потребности в нутриентах.",
-        "en": "Lactation: increased nutrient requirements.",
-        "es": "Lactancia: requisitos de nutrientes aumentados.",
-    },
-    "elderly": {
-        "ru": "51+: возможна иная потребность в микронутриентах.",
-        "en": "Age 51+: micronutrient needs may differ.",
-        "es": "51+: las necesidades de micronutrientes pueden diferir.",
-    },
-    "child": {
-        "ru": "Детский возраст: используйте педиатрические нормы.",
-        "en": "Child age: use pediatric references.",
-        "es": "Edad infantil: use referencias pediátricas.",
-    },
-}
-
-# Circuit breaker for safety validation failures
-# Thread-safe implementation to prevent race conditions during parallel test execution
-_MAX_SAFETY_FAILURES = int(os.getenv("MAX_SAFETY_FAILURES", "10"))
-_safety_failure_count = 0
-_safety_failure_lock = threading.Lock()
-
-
-def reset_safety_failure_count() -> None:
-    """Reset safety failure counter (useful for test isolation)."""
-    import sys as _sys
-
-    global _safety_failure_count
-    with _safety_failure_lock:
-        _safety_failure_count = 0
-        pkg = _sys.modules.get("app")
-        if pkg is not None:
-            setattr(pkg, "_safety_failure_count", 0)
 
 
 def reset_targets_cache() -> None:
@@ -1113,17 +1074,6 @@ if "repair_week_plan" not in globals():
         from core.menu_engine import repair_week_plan
 
         globals()["repair_week_plan"] = repair_week_plan
-MICRO_ALIAS_MAP: Dict[str, tuple[str, ...]] = {
-    # Map primary micronutrient keys to common aliases for backward compatibility
-    # Format: primary_key -> (alias1, alias2, ...)
-    "iron_mg": ("iron", "fe"),
-    "calcium_mg": ("calcium", "ca"),
-    "magnesium_mg": ("magnesium",),
-    "potassium_mg": ("potassium", "k"),
-    "iodine_ug": ("iodine",),
-}
-
-
 # Mapping from DB nutrient keys (from foods table) to alias format (expected by _alias_micros)
 DB_TO_ALIAS_NUTRIENT_MAP: Dict[str, str] = {
     "Fe_mg": "iron_mg",
@@ -1430,67 +1380,6 @@ async def _aggregate_day_micronutrients(meals: List[Dict[str, Any]]) -> Dict[str
 _plate_deps._aggregate_day_micronutrients = _aggregate_day_micronutrients
 
 
-def _alias_micros(values: Dict[str, float]) -> Dict[str, float]:
-    """Expose micronutrients under common aliases for downstream consumers.
-
-    Maps primary keys (e.g., "iron_mg") to their common aliases (e.g., "iron", "fe")
-    to support multiple naming conventions without duplicating data.
-
-    This function does not modify the input dictionary but returns a new dictionary
-    with aliases added. All values (including aliases) are converted to float before
-    being returned. Original input types are normalized to float in the returned dict.
-
-    Args:
-        values: Dictionary mapping nutrient names to numeric values.
-
-    Returns:
-        Dict[str, float]: A new dictionary mapping strings to float values, containing
-        the original values plus alias mappings. All values in the returned dictionary
-        are of type float, regardless of the original input types.
-
-    Raises:
-        TypeError: If values is not a dict
-    """
-    if not isinstance(values, dict):
-        raise TypeError(f"values must be a dict, got {type(values).__name__}")
-
-    # Validate and coerce all values to float, identifying invalid entries
-    validated_values = {}
-    for key, val in values.items():
-        try:
-            validated_values[key] = float(val)
-        except (TypeError, ValueError):
-            raise ValueError(
-                f"Value for key '{key}' must be numeric or numeric string "
-                f"(convertible to float), got {type(val).__name__} with value: {repr(val)}"
-            )
-
-    # Create a shallow copy with validated float values to avoid mutating the input
-    result = validated_values.copy()
-
-    # Apply aliases to the validated copy
-    for primary, aliases in MICRO_ALIAS_MAP.items():
-        if primary not in validated_values:
-            continue
-        primary_value = validated_values[primary]
-        for alias in aliases:
-            result.setdefault(alias, primary_value)
-    return result
-
-
-MANDATORY_MICRO_DEFAULTS: Dict[str, float] = {"iodine_ug": 150.0}
-
-
-def _ensure_priority_micros(values: Dict[str, float]) -> Dict[str, float]:
-    """Ensure mandatory micronutrient keys are present with sane defaults."""
-
-    for nutrient, default_value in MANDATORY_MICRO_DEFAULTS.items():
-        current_value = values.get(nutrient)
-        if current_value is None or current_value <= 0:
-            values[nutrient] = default_value
-    return values
-
-
 # WHO-Based Nutrition Models
 #
 # NOTE (PR-633): `TargetsIn` is canonical in `app.schemas.nutrition_targets` (import-safe).
@@ -1498,25 +1387,6 @@ def _ensure_priority_micros(values: Dict[str, float]) -> Dict[str, float]:
 #
 # NOTE: Legacy weekly-plan contracts are now owned by
 # `app.schemas.legacy_premium_weekly_plan`; `legacy_app` only re-exports them.
-
-
-class NutrientGapsRequest(BaseModel):
-    """RU: Запрос на анализ дефицитов нутриентов.
-    EN: Request for nutrient gap analysis.
-    """
-
-    consumed_nutrients: Dict[str, float]  # Actual daily intake
-    user_profile: WHOTargetsRequest  # User profile for targets
-
-
-class NutrientGapsResponse(BaseModel):
-    """RU: Ответ с анализом дефицитов и рекомендациями.
-    EN: Response with gap analysis and recommendations.
-    """
-
-    gaps: Dict[str, Dict[str, Any]]  # Detailed gap analysis
-    food_recommendations: List[str]  # Food-based solutions
-    adherence_score: float  # Overall adequacy score
 
 
 class WeeklyPlanFlexibleRequest(BaseModel):
@@ -2465,287 +2335,12 @@ async def premium_bmr_legacy(req: BMRRequestLegacy) -> BMRResponse:
         raise HTTPException(status_code=500, detail=f"BMR calculation failed: {str(e)}") from e
 
 
-def _fallback_targets_response(
-    req: WHOTargetsRequest,
-    *,
-    reason: str,
-    include_extra_iodine: bool = False,
-    life_stage_warning_factory: Optional[Callable[..., list[dict[str, str]]]] = None,
-    include_generic_life_stage_note: bool = False,
-) -> WHOTargetsResponse:
-    """Build a deterministic fallback response for WHO targets."""
-
-    if life_stage_warning_factory is None:
-        with suppress(ImportError):
-            from core.targets import _life_stage_warnings as _ls_warnings
-
-            life_stage_warning_factory = _ls_warnings
-
-    base_bmr = FALLBACK_BMR_KCAL_PER_KG_PER_DAY * req.weight_kg
-    activity_factor = get_activity_factor(req.activity)
-    tdee = int(base_bmr * activity_factor)
-
-    if req.goal == "loss":
-        pct = req.deficit_pct if req.deficit_pct is not None else 15.0
-        kcal_daily = int(tdee * (1.0 - pct / 100.0))
-    elif req.goal == "gain":
-        pct = req.surplus_pct if req.surplus_pct is not None else 10.0
-        kcal_daily = int(tdee * (1.0 + pct / 100.0))
-    else:
-        kcal_daily = tdee
-    kcal_daily = _clamp_daily_kcal(kcal_daily)
-
-    protein_g = int(round(1.6 * req.weight_kg))
-    fat_g = int(round(0.9 * req.weight_kg))
-    used_kcal = protein_g * 4 + fat_g * 9
-    carbs_g = max(0, int(round((kcal_daily - used_kcal) / 4)))
-    fiber_g = 25
-
-    water_ml = int(req.weight_kg * 35)
-
-    priority_micros: dict[str, float] = {
-        "iron_mg": 8.0 if req.sex == "male" else 18.0,
-        "calcium_mg": 1000.0,
-        "vitamin_c_mg": 90.0 if req.sex == "male" else 75.0,
-        "folate_ug": 400.0,
-        "vitamin_d_iu": 600.0,
-        "magnesium_mg": 400.0,
-        "potassium_mg": 3500.0,
-        "b12_ug": 2.4,
-    }
-    if include_extra_iodine:
-        priority_micros["iodine_ug"] = 150.0
-    priority_micros = _ensure_priority_micros(_alias_micros(priority_micros))
-
-    activity_weekly = {
-        "moderate_aerobic_min": 150,
-        "strength_sessions": 2,
-        "steps_daily": 8000,
-    }
-
-    warnings: list[dict[str, str]] = []
-    special_life_stage = (req.life_stage or "").lower() in {
-        "pregnant",
-        "lactating",
-        "teen",
-        "child",
-        "elderly",
-    }
-    life_stage_code = (req.life_stage or "").lower()
-    factory_warnings: list[dict[str, str]] = []
-    if life_stage_warning_factory is not None:
-        try:
-            # Pass positional arguments to match Callable[[int, Optional[str], str], ...] signature
-            # req.life_stage is Literal[...] which is compatible with Optional[str] in the type annotation
-            factory_warnings = life_stage_warning_factory(
-                req.age, req.life_stage or "adult", req.lang or "en"
-            )
-        except Exception:
-            factory_warnings = []
-    if not factory_warnings and life_stage_code in _DEFAULT_LIFE_STAGE_MESSAGES:
-        msg_map = _DEFAULT_LIFE_STAGE_MESSAGES[life_stage_code]
-        factory_warnings = [
-            {
-                "code": life_stage_code,
-                "message": msg_map.get(req.lang, msg_map["en"]),
-            }
-        ]
-    warnings.extend(factory_warnings)
-
-    if req.life_stage in ("pregnant", "lactating"):
-        if not warnings and include_generic_life_stage_note:
-            warnings.append(
-                {
-                    "code": "life_stage",
-                    "message": "Special nutrition considerations apply",
-                }
-            )
-    if special_life_stage and reason:
-        has_life_stage_warning = any(w.get("code") == "life_stage" for w in warnings)
-        if not has_life_stage_warning:
-            warnings.append({"code": "life_stage", "message": reason})
-
-    ui_labels = build_who_targets_ui_labels(req.lang)
-    next_best_action = build_targets_next_action(kcal_daily=int(kcal_daily))
-
-    return WHOTargetsResponse(
-        kcal_daily=int(kcal_daily),
-        macros={
-            "protein_g": protein_g,
-            "fat_g": fat_g,
-            "carbs_g": carbs_g,
-            "fiber_g": fiber_g,
-        },
-        water_ml=water_ml,
-        priority_micros=priority_micros,
-        activity_weekly=activity_weekly,
-        calculation_date=time.strftime("%Y-%m-%d"),
-        warnings=warnings,
-        ui_labels=ui_labels,
-        next_best_action=next_best_action,
-    )
-
-
-def _generate_who_targets_response(
-    req: WHOTargetsRequest, *, allow_backend_fallback: bool = True
-) -> WHOTargetsResponse:
-    """Shared implementation for WHO targets endpoints."""
-    try:
-        import sys as _sys
-
-        _build_targets = _resolve_build_targets_callable()
-        if not callable(_build_targets):
-            if not allow_backend_fallback:
-                raise HTTPException(
-                    status_code=503, detail="WHO nutrition targets feature not available"
-                )
-
-            life_stage_warning_factory = None
-            with suppress(ImportError):
-                from core.targets import _life_stage_warnings as _ls_warnings
-
-                life_stage_warning_factory = _ls_warnings
-
-            return _fallback_targets_response(
-                req,
-                reason="WHO targets fallback used because the calculation backend is unavailable.",
-                include_generic_life_stage_note=True,
-                life_stage_warning_factory=life_stage_warning_factory,
-            )
-
-        from core.targets import UserProfile, _life_stage_warnings
-
-        profile = UserProfile(
-            sex=req.sex,
-            age=req.age,
-            height_cm=req.height_cm,
-            weight_kg=req.weight_kg,
-            activity=req.activity,
-            goal=req.goal,
-            deficit_pct=req.deficit_pct,
-            surplus_pct=req.surplus_pct,
-            bodyfat=req.bodyfat,
-            diet_flags=set(req.diet_flags or []),
-            life_stage=req.life_stage,
-        )
-
-        try:
-            targets = _build_targets(profile)
-        except (ValueError, Exception) as exc:
-            logger.warning(
-                "build_nutrition_targets failed for profile (returning fallback targets): %s",
-                exc,
-            )
-            return _fallback_targets_response(
-                req,
-                reason="WHO targets fallback used because profile validation failed.",
-                include_extra_iodine=True,
-                life_stage_warning_factory=_life_stage_warnings,
-            )
-
-        life_stage_warnings = _life_stage_warnings(
-            age=req.age, life_stage=req.life_stage, lang=req.lang
-        )
-
-        _rec_mod = _sys.modules.get("core.recommendations")
-        if _rec_mod is not None and hasattr(_rec_mod, "validate_targets_safety"):
-            global _safety_failure_count
-            try:
-                safety_warnings = _rec_mod.validate_targets_safety(targets)
-                if isinstance(safety_warnings, list) and safety_warnings:
-                    for warning in safety_warnings:
-                        if isinstance(warning, str):
-                            life_stage_warnings.append({"code": "safety", "message": warning})
-                with _safety_failure_lock:
-                    if _safety_failure_count > 0:
-                        _safety_failure_count = 0
-            except (ImportError, AttributeError) as exc:
-                logger.debug(
-                    "Safety validation unavailable; continuing without safety warnings: %s",
-                    exc,
-                )
-                with _safety_failure_lock:
-                    _safety_failure_count += 1
-                    if _safety_failure_count >= _MAX_SAFETY_FAILURES:
-                        logger.error(
-                            "Safety validation failed %d consecutive times; "
-                            "module may be unavailable or misconfigured",
-                            _safety_failure_count,
-                        )
-            except (ValueError, TypeError) as exc:
-                logger.warning(
-                    "Safety validation failed with invalid data; "
-                    "continuing without safety warnings: %s",
-                    exc,
-                )
-                with _safety_failure_lock:
-                    _safety_failure_count += 1
-                    if _safety_failure_count >= _MAX_SAFETY_FAILURES:
-                        logger.error(
-                            "Safety validation failed %d consecutive times; check input data quality",
-                            _safety_failure_count,
-                        )
-
-        kcal_daily = _clamp_daily_kcal(targets.kcal_daily)
-        next_best_action = build_targets_next_action(kcal_daily=kcal_daily)
-
-        return WHOTargetsResponse(
-            kcal_daily=kcal_daily,
-            macros={
-                "protein_g": targets.macros.protein_g,
-                "fat_g": targets.macros.fat_g,
-                "carbs_g": targets.macros.carbs_g,
-                "fiber_g": targets.macros.fiber_g,
-            },
-            water_ml=targets.water_ml_daily,
-            priority_micros=_ensure_priority_micros(
-                _alias_micros(dict(targets.micros.get_priority_nutrients()))
-            ),
-            activity_weekly={
-                "moderate_aerobic_min": targets.activity.moderate_aerobic_min,
-                "strength_sessions": targets.activity.strength_sessions,
-                "steps_daily": targets.activity.steps_daily,
-            },
-            calculation_date=targets.calculation_date,
-            warnings=life_stage_warnings,
-            ui_labels=build_who_targets_ui_labels(req.lang),
-            next_best_action=next_best_action,
-        )
-    except HTTPException:
-        raise
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=f"Invalid input: {str(e)}") from e
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"WHO targets calculation failed: {str(e)}"
-        ) from e
-
-
 async def premium_targets_legacy(req: WHOTargetsRequest) -> WHOTargetsResponse:
     """Legacy endpoint for WHO targets (backwards compatibility).
 
     Protected with API key authentication to match the new /api/v1/premium/targets endpoint.
     """
-    import builtins
-    import sys as _sys
-
-    try:
-        reset_targets_cache()
-        module_getattr = globals().get("getattr", builtins.getattr)
-        pkg_app = _sys.modules.get("app")
-        pkg_getattr = getattr(pkg_app, "getattr", builtins.getattr) if pkg_app else builtins.getattr
-        if (
-            module_getattr is not builtins.getattr
-            or pkg_getattr is not builtins.getattr
-            or _resolve_build_targets_callable() is None
-        ):
-            raise HTTPException(
-                status_code=503, detail="WHO nutrition targets feature not available"
-            )
-        return _generate_who_targets_response(req, allow_backend_fallback=False)
-    except TypeError:
-        # Safely handle monkeypatched getattr returning None in tests
-        raise HTTPException(status_code=503, detail="WHO nutrition targets feature not available")
+    return _generate_who_targets_response(req, allow_backend_fallback=False)
 
 
 # WHO-Based Nutrition Endpoints
@@ -2765,10 +2360,7 @@ async def api_who_targets(payload: Dict[str, Any] = Body(...)) -> WHOTargetsResp
 
         raise HTTPException(status_code=422, detail=jsonable_encoder(exc.errors())) from exc
 
-    from app.routers.pro_nutrition_contracts import pro_nutrition_targets
-
-    resp: WHOTargetsResponse = await pro_nutrition_targets(req)
-    return resp
+    return _generate_who_targets_response(req)
 
 
 async def api_nutrient_gaps(req: NutrientGapsRequest) -> NutrientGapsResponse:
@@ -2785,75 +2377,7 @@ async def api_nutrient_gaps(req: NutrientGapsRequest) -> NutrientGapsResponse:
 
     Perfect for food diary analysis and meal optimization.
     """
-    try:
-        import sys as _sys
-
-        _module = _sys.modules[__name__]
-        _analyze_gaps = getattr(_module, "analyze_nutrient_gaps", None)
-        if _analyze_gaps is None:
-            raise HTTPException(
-                status_code=503, detail="Nutrient gap analysis feature not available"
-            )
-
-        # Build targets from profile
-        from core.targets import UserProfile
-
-        profile = UserProfile(
-            sex=req.user_profile.sex,
-            age=req.user_profile.age,
-            height_cm=req.user_profile.height_cm,
-            weight_kg=req.user_profile.weight_kg,
-            activity=req.user_profile.activity,
-            goal=req.user_profile.goal,
-            deficit_pct=req.user_profile.deficit_pct,
-            surplus_pct=req.user_profile.surplus_pct,
-            bodyfat=req.user_profile.bodyfat,
-            diet_flags=set(req.user_profile.diet_flags or []),
-            life_stage=req.user_profile.life_stage,
-        )
-
-        _build_targets = getattr(_module, "build_nutrition_targets", None)
-        if _build_targets is None:
-            raise HTTPException(
-                status_code=503,
-                detail="Nutrition targets calculation feature not available",
-            )
-
-        targets = _build_targets(profile)
-
-        # Analyze gaps
-        gaps = _analyze_gaps(targets, req.consumed_nutrients)
-
-        # Generate food recommendations
-        from core.recommendations import (
-            generate_deficiency_recommendations,
-            score_nutrient_coverage,
-        )
-
-        coverage = score_nutrient_coverage(req.consumed_nutrients, targets)
-        food_recommendations = generate_deficiency_recommendations(coverage, profile)
-
-        # Calculate adherence score
-        total_nutrients = len(coverage)
-        # sourcery skip: simplify-constant-sum
-        adequate_nutrients = sum(1 for cov in coverage.values() if cov.coverage_percent >= 80)
-        adherence_score = (adequate_nutrients / total_nutrients * 100) if total_nutrients > 0 else 0
-
-        return NutrientGapsResponse(
-            gaps=gaps,
-            food_recommendations=food_recommendations,
-            adherence_score=round(adherence_score, 1),
-        )
-
-    except HTTPException:
-        # Re-raise HTTP exceptions as-is
-        raise
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=f"Invalid input: {str(e)}") from e
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Nutrient gap analysis failed: {str(e)}"
-        ) from e
+    return analyze_nutrient_gaps_response(req)
 
 
 async def debug_env() -> JSONResponse:
