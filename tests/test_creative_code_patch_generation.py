@@ -1072,6 +1072,10 @@ def test_finalize_dispatched_result_retains_trusted_rejection_without_retry(
             if failure_class == "capability_mismatch"
             else "Oracle command is not permitted by the runner policy."
         )
+    if failure_class == "capability_mismatch":
+        dispatch_result["candidate_patch"] = (
+            generation_cli.TRUSTED_DISPATCH_PREFLIGHT_CANDIDATE_PATCH_REF
+        )
     elif failure_class == "timeout":
         dispatch_result["oracle_results"][-1]["timed_out"] = True
     elif failure_class == "oom":
@@ -1154,7 +1158,9 @@ def test_finalize_dispatched_result_rejects_oversized_candidate_patch_before_dec
         ("experiment_id", "experiment_id does not match"),
         ("missing_backend", "valid backend provenance"),
         ("native_linux_backend", "valid backend provenance"),
-        ("candidate_marker", "candidate marker is invalid"),
+        ("candidate_marker", "runner-emitted candidate marker"),
+        ("executed_preflight_marker", "runner-emitted candidate marker"),
+        ("capability_runner_marker", "preflight candidate marker"),
         ("patch_fingerprint", "candidate patch fingerprint does not match"),
         ("retry", "one attempt and zero retries"),
         ("extra_path", "mutated paths do not match"),
@@ -1170,6 +1176,13 @@ def test_finalize_dispatched_result_rejects_oversized_candidate_patch_before_dec
         ("capability_missing_error", "requires the canonical runner signal"),
         ("capability_unknown_preflight_blocker", "requires a supported blocker code"),
         ("capability_nonstring_preflight_blocker", "requires a supported blocker code"),
+        (
+            "capability_impossible_network_blocker",
+            "inconsistent with the configured zero network budget",
+        ),
+        ("missing_candidate_changed_files", "candidate changed-file count must match"),
+        ("mismatched_candidate_changed_files", "candidate changed-file count must match"),
+        ("boolean_candidate_changed_files", "candidate changed-file count must match"),
         ("metric_regression_without_metrics", "without structured metric evidence"),
         ("policy_without_error", "failed Experiment Runner validation"),
         ("accepted_runner_error", "must not carry runner_error"),
@@ -1214,6 +1227,21 @@ def test_finalize_dispatched_result_rejects_unbound_dispatch_evidence(
         )
     elif mutation == "candidate_marker":
         dispatch_result["candidate_patch"] = ".experiment-runner-input/other.patch"
+    elif mutation == "executed_preflight_marker":
+        dispatch_result["candidate_patch"] = (
+            generation_cli.TRUSTED_DISPATCH_PREFLIGHT_CANDIDATE_PATCH_REF
+        )
+    elif mutation == "capability_runner_marker":
+        dispatch_result["status"] = "rejected"
+        dispatch_result["failure_class"] = "capability_mismatch"
+        dispatch_result["mutated_paths"] = []
+        dispatch_result["oracle_results"] = []
+        dispatch_result["budget_observations"].update(
+            {
+                "oracle_commands_executed": 0,
+                "runner_error": generation_cli.TRUSTED_DISPATCH_CAPABILITY_ERROR,
+            }
+        )
     elif mutation == "patch_fingerprint":
         dispatch_result["candidate_patch_fingerprint"] = "sha256:" + ("f" * 64)
     elif mutation == "retry":
@@ -1255,9 +1283,13 @@ def test_finalize_dispatched_result_rejects_unbound_dispatch_evidence(
         dispatch_result["mutated_paths"] = []
         dispatch_result["oracle_results"] = []
         dispatch_result["budget_observations"]["oracle_commands_executed"] = 0
+        dispatch_result["candidate_patch"] = (
+            generation_cli.TRUSTED_DISPATCH_PREFLIGHT_CANDIDATE_PATCH_REF
+        )
     elif mutation in {
         "capability_unknown_preflight_blocker",
         "capability_nonstring_preflight_blocker",
+        "capability_impossible_network_blocker",
     }:
         dispatch_result["status"] = "rejected"
         dispatch_result["failure_class"] = "capability_mismatch"
@@ -1270,9 +1302,16 @@ def test_finalize_dispatched_result_rejects_unbound_dispatch_evidence(
                 "runner_error": (
                     ["runtime_cli_missing"]
                     if mutation == "capability_nonstring_preflight_blocker"
-                    else "unknown_preflight_blocker"
+                    else (
+                        "strict_network_budget_required"
+                        if mutation == "capability_impossible_network_blocker"
+                        else "unknown_preflight_blocker"
+                    )
                 ),
             }
+        )
+        dispatch_result["candidate_patch"] = (
+            generation_cli.TRUSTED_DISPATCH_PREFLIGHT_CANDIDATE_PATCH_REF
         )
         dispatch_result["execution_backend"].update(
             {
@@ -1281,6 +1320,12 @@ def test_finalize_dispatched_result_rejects_unbound_dispatch_evidence(
                 "preflight_status": "failed",
             }
         )
+    elif mutation == "missing_candidate_changed_files":
+        dispatch_result["budget_observations"].pop("candidate_changed_files")
+    elif mutation == "mismatched_candidate_changed_files":
+        dispatch_result["budget_observations"]["candidate_changed_files"] = 0
+    elif mutation == "boolean_candidate_changed_files":
+        dispatch_result["budget_observations"]["candidate_changed_files"] = True
     elif mutation == "metric_regression_without_metrics":
         dispatch_result["status"] = "rejected"
         dispatch_result["failure_class"] = "metric_regression"

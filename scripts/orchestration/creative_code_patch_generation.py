@@ -86,12 +86,8 @@ CREATIVE_CODE_ROOT = REPO_ROOT / "artifacts" / "orchestration" / "creative_code"
 PATCH_GENERATION_ROOT = CREATIVE_CODE_ROOT / "patch_generation"
 GATE_FILENAME = "generation_gate.json"
 RECEIPT_FILENAME = "generation_receipt.json"
-TRUSTED_DISPATCH_CANDIDATE_PATCH_REFS = frozenset(
-    {
-        "candidate.patch",
-        ".experiment-runner-input/candidate.patch",
-    }
-)
+TRUSTED_DISPATCH_PREFLIGHT_CANDIDATE_PATCH_REF = "candidate.patch"
+TRUSTED_DISPATCH_RUNNER_CANDIDATE_PATCH_REF = ".experiment-runner-input/candidate.patch"
 ORACLE_REQUIRED_FAILURE_CLASSES = frozenset(
     {"timeout", "oom", "metric_regression", "guard_failure"}
 )
@@ -2287,10 +2283,6 @@ def _validate_dispatch_result_binding(
         raise CreativeCodePatchGenerationError(
             "trusted dispatch result must use candidate_patch runner mode."
         )
-    if result["candidate_patch"] not in TRUSTED_DISPATCH_CANDIDATE_PATCH_REFS:
-        raise CreativeCodePatchGenerationError(
-            "trusted dispatch result candidate marker is invalid."
-        )
     if (
         result["promotion_ready"] is not False
         or result["contribution_kind"] != "none"
@@ -2308,6 +2300,25 @@ def _validate_dispatch_result_binding(
             "trusted dispatch result candidate patch fingerprint does not match."
         )
     failure_class = result["failure_class"]
+    runner_emitted_result = (
+        result["status"] == "accepted"
+        or failure_class in ORACLE_REQUIRED_FAILURE_CLASSES
+        or failure_class == "policy_violation"
+    )
+    if (
+        failure_class == "capability_mismatch"
+        and result["candidate_patch"] != TRUSTED_DISPATCH_PREFLIGHT_CANDIDATE_PATCH_REF
+    ):
+        raise CreativeCodePatchGenerationError(
+            "capability dispatch evidence requires the preflight candidate marker."
+        )
+    if (
+        runner_emitted_result
+        and result["candidate_patch"] != TRUSTED_DISPATCH_RUNNER_CANDIDATE_PATCH_REF
+    ):
+        raise CreativeCodePatchGenerationError(
+            "executed dispatch evidence requires the runner-emitted candidate marker."
+        )
     backend = result.get("execution_backend")
     preflight_status = backend.get("preflight_status") if isinstance(backend, dict) else None
     preflight_passed_container = (
@@ -2361,12 +2372,21 @@ def _validate_dispatch_result_binding(
         raise CreativeCodePatchGenerationError(
             "trusted dispatch result configured oracle count does not match the packet."
         )
-    if (
-        result["status"] == "accepted" or failure_class in ORACLE_REQUIRED_FAILURE_CLASSES
-    ) and observations.get("oracle_commands_executed") != len(result["oracle_results"]):
-        raise CreativeCodePatchGenerationError(
-            "trusted dispatch result executed oracle count must match oracle evidence."
-        )
+    if result["status"] == "accepted" or failure_class in ORACLE_REQUIRED_FAILURE_CLASSES:
+        candidate_changed_files = observations.get("candidate_changed_files")
+        if (
+            not isinstance(candidate_changed_files, int)
+            or isinstance(candidate_changed_files, bool)
+            or candidate_changed_files != len(changed_paths)
+        ):
+            raise CreativeCodePatchGenerationError(
+                "executed dispatch evidence candidate changed-file count must match "
+                "the finalized candidate."
+            )
+        if observations.get("oracle_commands_executed") != len(result["oracle_results"]):
+            raise CreativeCodePatchGenerationError(
+                "trusted dispatch result executed oracle count must match oracle evidence."
+            )
     attempts = observations.get("attempts")
     allowed_attempts = (
         {0, 1} if failure_class in {"capability_mismatch", "policy_violation"} else {1}
@@ -2397,6 +2417,14 @@ def _validate_dispatch_result_binding(
     if failure_class == "capability_mismatch":
         runner_error = observations.get("runner_error")
         if preflight_status == "failed":
+            if (
+                runner_error == "strict_network_budget_required"
+                and packet["budgets"].get("network_budget") == 0
+            ):
+                raise CreativeCodePatchGenerationError(
+                    "strict-network capability evidence is inconsistent with "
+                    "the configured zero network budget."
+                )
             if (
                 not isinstance(runner_error, str)
                 or runner_error not in TRUSTED_DISPATCH_PREFLIGHT_BLOCKERS
