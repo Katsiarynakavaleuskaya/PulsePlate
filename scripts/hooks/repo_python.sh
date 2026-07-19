@@ -12,6 +12,14 @@ fi
 
 case "${_REPO_PYTHON_RESOLVER_SOURCE}" in
     /*) ;;
+    [A-Za-z]:/*)
+        case "${OSTYPE:-}" in
+            msys* | cygwin*) ;;
+            *)
+                _REPO_PYTHON_RESOLVER_SOURCE="${PWD%/}/${_REPO_PYTHON_RESOLVER_SOURCE}"
+                ;;
+        esac
+        ;;
     *) _REPO_PYTHON_RESOLVER_SOURCE="${PWD%/}/${_REPO_PYTHON_RESOLVER_SOURCE}" ;;
 esac
 

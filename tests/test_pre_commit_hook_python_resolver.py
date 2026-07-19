@@ -475,7 +475,8 @@ def test_hook_resolver_ignores_caller_path_bash_interposition(tmp_path: Path) ->
     env = _clean_hook_env()
     env["PATH"] = f"{fake_bin}{os.pathsep}{env['PATH']}"
     command = (
-        f'[[ "$(builtin command -v bash)" == {shlex.quote(str(fake_bash))} ]]; '
+        f'[[ "$(builtin command -v bash)" == {shlex.quote(str(fake_bash))} ]] '
+        "|| exit 96; "
         f"{RESOLVE_COMMAND}"
     )
 
@@ -490,6 +491,50 @@ def test_hook_resolver_fixed_tool_path_covers_unix_and_git_bash() -> None:
 
     assert 'PATH="/usr/bin:/bin:/mingw64/bin:/mingw32/bin"' in resolver_source
     assert "/bin/bash --noprofile --norc" in resolver_source
+
+
+def test_hook_resolver_preserves_git_bash_drive_absolute_source_binding(
+    tmp_path: Path,
+) -> None:
+    drive_repo = tmp_path / "C:" / "repo"
+    resolver_copy = drive_repo / "scripts" / "hooks" / "repo_python.sh"
+    resolver_copy.parent.mkdir(parents=True)
+    shutil.copy2(HOOK_RESOLVER, resolver_copy)
+    checkout_python = drive_repo / ".venv" / "Scripts" / "python.exe"
+    checkout_python.parent.mkdir(parents=True)
+    _write_executable(checkout_python)
+    drive_source = "C:/repo/scripts/hooks/repo_python.sh"
+    command = (
+        "OSTYPE=msys; "
+        f"source {shlex.quote(drive_source)}; "
+        f'[[ "$_REPO_PYTHON_RESOLVER_SOURCE" == {shlex.quote(drive_source)} ]] '
+        "|| exit 96; "
+        'resolve_repo_python "C:/repo"'
+    )
+
+    resolved = _bash(command, cwd=tmp_path)
+
+    assert resolved == str(checkout_python)
+
+
+def test_hook_resolver_keeps_drive_source_relative_outside_git_bash(
+    tmp_path: Path,
+) -> None:
+    drive_repo = tmp_path / "C:" / "repo"
+    resolver_copy = drive_repo / "scripts" / "hooks" / "repo_python.sh"
+    resolver_copy.parent.mkdir(parents=True)
+    shutil.copy2(HOOK_RESOLVER, resolver_copy)
+    drive_source = "C:/repo/scripts/hooks/repo_python.sh"
+    expected_source = str(tmp_path / drive_source)
+    command = (
+        "OSTYPE=darwin; "
+        f"source {shlex.quote(drive_source)}; "
+        'printf "%s\\n" "$_REPO_PYTHON_RESOLVER_SOURCE"'
+    )
+
+    resolved = _bash(command, cwd=tmp_path)
+
+    assert resolved == expected_source
 
 
 def test_hook_resolver_ignores_caller_path_git_identity_tools(
@@ -568,8 +613,10 @@ def test_hook_resolver_ignores_caller_path_git_identity_tools(
     env = _clean_hook_env()
     env["PATH"] = f"{fake_bin}{os.pathsep}{env['PATH']}"
     command = (
-        f'[[ "$(builtin command -v env)" == {shlex.quote(str(fake_env))} ]]; '
-        f'[[ "$(builtin command -v git)" == {shlex.quote(str(fake_git))} ]]; '
+        f'[[ "$(builtin command -v env)" == {shlex.quote(str(fake_env))} ]] '
+        "|| exit 96; "
+        f'[[ "$(builtin command -v git)" == {shlex.quote(str(fake_git))} ]] '
+        "|| exit 97; "
         f"{RESOLVE_COMMAND}"
     )
 
