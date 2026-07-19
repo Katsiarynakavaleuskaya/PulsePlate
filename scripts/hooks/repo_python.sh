@@ -19,13 +19,14 @@ esac
 # shadow even `builtin`, so in-process lookup is not a trustworthy boundary.
 resolve_repo_python() {
     /usr/bin/env -i \
-        PATH="${PATH:-}" \
+        PATH="/usr/bin:/bin:/mingw64/bin:/mingw32/bin" \
+        _REPO_PYTHON_CI_PATH="${PATH:-}" \
         HOME="${HOME:-}" \
         XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-}" \
         VENV_PYTHON="${VENV_PYTHON:-}" \
         DEV_PYTHON="${DEV_PYTHON:-}" \
         CI="${CI:-}" \
-        bash --noprofile --norc -c '
+        /bin/bash --noprofile --norc -c '
             source "$1"
             _resolve_repo_python_clean "$2"
         ' pulseplate-repo-python \
@@ -182,7 +183,9 @@ _resolve_repo_python_clean() {
     done
 
     if [[ "${CI:-}" == "true" ]]; then
-        if candidate="$(builtin command -v python3 2>/dev/null)"; then
+        if candidate="$(
+            PATH="${_REPO_PYTHON_CI_PATH:-}" builtin command -v python3 2>/dev/null
+        )"; then
             case "${candidate}" in
                 /*)
                     if [[ -f "${candidate}" && -x "${candidate}" ]]; then
@@ -192,7 +195,9 @@ _resolve_repo_python_clean() {
                     ;;
             esac
         fi
-        if candidate="$(builtin command -v python 2>/dev/null)"; then
+        if candidate="$(
+            PATH="${_REPO_PYTHON_CI_PATH:-}" builtin command -v python 2>/dev/null
+        )"; then
             case "${candidate}" in
                 /*)
                     if [[ -f "${candidate}" && -x "${candidate}" ]]; then

@@ -416,6 +416,122 @@ def test_hook_resolver_ignores_builtin_function_tool_lookup_interposition(
     assert resolved != str(decoy_python)
 
 
+def test_hook_resolver_ignores_caller_path_bash_interposition(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    checkout_python = repo / ".venv" / "bin" / "python"
+    checkout_python.parent.mkdir(parents=True)
+    _write_executable(checkout_python)
+    decoy_python = tmp_path / "decoy-python"
+    _write_executable(decoy_python)
+    fake_bin = tmp_path / "fake-bin"
+    fake_bin.mkdir()
+    fake_bash = fake_bin / "bash"
+    fake_bash.write_text(
+        f"#!/bin/sh\nprintf '%s\\n' {shlex.quote(str(decoy_python))}\n",
+        encoding="utf-8",
+    )
+    fake_bash.chmod(0o755)
+    env = _clean_hook_env()
+    env["PATH"] = f"{fake_bin}{os.pathsep}{env['PATH']}"
+
+    resolved = _bash(RESOLVE_COMMAND, cwd=repo, env=env)
+
+    assert resolved == str(checkout_python)
+    assert resolved != str(decoy_python)
+
+
+def test_hook_resolver_fixed_tool_path_covers_unix_and_git_bash() -> None:
+    resolver_source = HOOK_RESOLVER.read_text(encoding="utf-8")
+
+    assert 'PATH="/usr/bin:/bin:/mingw64/bin:/mingw32/bin"' in resolver_source
+    assert "/bin/bash --noprofile --norc" in resolver_source
+
+
+def test_hook_resolver_ignores_caller_path_git_identity_tools(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(tmp_path, "init", "--quiet", str(repo))
+    _git(repo, "config", "user.email", "pulseplate@pm.me")
+    _git(repo, "config", "user.name", "PulsePlate Hook Resolver")
+    (repo / "README.md").write_text("hook resolver test\n", encoding="utf-8")
+    _git(repo, "add", "README.md")
+    _git(repo, "commit", "--quiet", "-m", "init")
+    shared_python = repo / ".venv" / "bin" / "python"
+    shared_python.parent.mkdir(parents=True)
+    _write_executable(shared_python)
+    worktree = tmp_path / "external-linked-lane"
+    _git(repo, "worktree", "add", "--detach", "--quiet", str(worktree), "HEAD")
+
+    decoy_root = tmp_path / "decoy-root"
+    decoy_admin_dir = decoy_root / ".git" / "worktrees" / "lane"
+    decoy_admin_dir.mkdir(parents=True)
+    (decoy_admin_dir / "gitdir").write_text(
+        f"{worktree / '.git'}\n",
+        encoding="utf-8",
+    )
+    decoy_python = decoy_root / ".venv" / "bin" / "python"
+    decoy_python.parent.mkdir(parents=True)
+    _write_executable(decoy_python)
+
+    fake_bin = tmp_path / "fake-bin"
+    fake_bin.mkdir()
+    fake_bash = fake_bin / "bash"
+    fake_bash.write_text(
+        '#!/bin/sh\nexec /bin/bash "$@"\n',
+        encoding="utf-8",
+    )
+    fake_bash.chmod(0o755)
+    fake_env_called = tmp_path / "fake-env-called"
+    fake_env = fake_bin / "env"
+    fake_env.write_text(
+        textwrap.dedent(f"""\
+            #!/bin/sh
+            : > {shlex.quote(str(fake_env_called))}
+            while [ "$#" -gt 1 ] && [ "$1" = "-u" ]; do
+                shift 2
+            done
+            exec "$@"
+            """),
+        encoding="utf-8",
+    )
+    fake_env.chmod(0o755)
+    fake_git_called = tmp_path / "fake-git-called"
+    fake_git = fake_bin / "git"
+    fake_git.write_text(
+        textwrap.dedent(f"""\
+            #!/bin/sh
+            : > {shlex.quote(str(fake_git_called))}
+            DECOY_ROOT={shlex.quote(str(decoy_root))}
+            REAL_WORKTREE={shlex.quote(str(worktree))}
+            case "$*" in
+                *--git-common-dir*) printf '%s\\n' "$DECOY_ROOT/.git" ;;
+                *--git-dir*) printf '%s\\n' "$DECOY_ROOT/.git/worktrees/lane" ;;
+                *--show-toplevel*)
+                    case "$*" in
+                        *"-C $DECOY_ROOT "*) printf '%s\\n' "$DECOY_ROOT" ;;
+                        *) printf '%s\\n' "$REAL_WORKTREE" ;;
+                    esac
+                    ;;
+                *) exit 1 ;;
+            esac
+            """),
+        encoding="utf-8",
+    )
+    fake_git.chmod(0o755)
+    env = _clean_hook_env()
+    env["PATH"] = f"{fake_bin}{os.pathsep}{env['PATH']}"
+
+    resolved = _bash(RESOLVE_COMMAND, cwd=worktree, env=env)
+
+    assert resolved == str(shared_python)
+    assert resolved != str(decoy_python)
+    assert not fake_env_called.exists()
+    assert not fake_git_called.exists()
+
+
 def test_hook_resolver_keeps_relative_source_binding_after_chdir(
     tmp_path: Path,
 ) -> None:
@@ -485,18 +601,15 @@ def test_hook_resolver_preserves_home_for_git_configuration(tmp_path: Path) -> N
 
     expected_home = tmp_path / "hook-home"
     expected_home.mkdir()
-    real_git = shutil.which("git")
-    assert real_git is not None
     fake_bin = tmp_path / "fake-bin"
     fake_bin.mkdir()
+    fake_git_called = tmp_path / "fake-git-called"
     git_wrapper = fake_bin / "git"
     git_wrapper.write_text(
         textwrap.dedent(f"""\
             #!/bin/sh
-            if [ "${{HOME:-}}" != {shlex.quote(str(expected_home))} ]; then
-                exit 97
-            fi
-            exec {shlex.quote(real_git)} "$@"
+            : > {shlex.quote(str(fake_git_called))}
+            exit 97
             """),
         encoding="utf-8",
     )
@@ -508,6 +621,10 @@ def test_hook_resolver_preserves_home_for_git_configuration(tmp_path: Path) -> N
     resolved = _bash(RESOLVE_COMMAND, cwd=worktree, env=env)
 
     assert resolved == str(shared_python)
+    assert not fake_git_called.exists()
+    resolver_source = HOOK_RESOLVER.read_text(encoding="utf-8")
+    assert 'HOME="${HOME:-}"' in resolver_source
+    assert 'XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-}"' in resolver_source
 
 
 def test_hook_resolver_prefers_current_worktree_venv_symlink_to_primary_venv(
