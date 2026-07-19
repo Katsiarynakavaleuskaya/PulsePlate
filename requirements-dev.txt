@@ -160,7 +160,7 @@ pip-audit==2.10.1
     # via -r requirements-dev.in
 pip-requirements-parser==32.0.1
     # via pip-audit
-pip-tools==7.5.3
+pip-tools==7.6.0
     # via -r requirements-dev.in
 platformdirs==4.5.1
     # via
@@ -241,11 +241,6 @@ rich==14.3.3
     #   pip-audit
 ruff==0.15.21
     # via -r requirements-dev.in
-setuptools==83.0.0
-    # via
-    #   -c requirements.txt
-    #   -r requirements-dev.in
-    #   pip-tools
 sortedcontainers==2.4.0
     # via
     #   cyclonedx-python-lib
@@ -282,4 +277,12 @@ yamllint==1.38.0
     # via -r requirements-dev.in
 
 # The following packages are considered to be unsafe in a requirements file:
-# pip
+pip==26.1.2
+    # via
+    #   pip-api
+    #   pip-tools
+setuptools==83.0.0
+    # via
+    #   -c requirements.txt
+    #   -r requirements-dev.in
+    #   pip-tools
