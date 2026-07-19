@@ -1634,6 +1634,7 @@ def _sanitize_result(
     result: dict[str, Any],
     probe: BackendProbe,
     *,
+    expected_candidate_patch_fingerprint: str | None = None,
     requested_contribution_kind: str = "none",
     requested_coauthor_required: bool = False,
     requested_coauthor_reason: str = "",
@@ -1644,6 +1645,11 @@ def _sanitize_result(
         validated = _validated_experiment_result(result_with_trusted_backend)
     except (TypeError, ValueError) as exc:
         raise DispatchError("result_validation_failed") from exc
+    if (
+        expected_candidate_patch_fingerprint is not None
+        and validated.get("candidate_patch_fingerprint") != expected_candidate_patch_fingerprint
+    ):
+        raise DispatchError("result_validation_failed")
     sanitized = _redact_result_value(validated)
     if not isinstance(sanitized, dict):
         raise DispatchError("result_redaction_failed")
@@ -1866,6 +1872,7 @@ def _invoke_container_runner(
         return _sanitize_result(
             payload,
             probe,
+            expected_candidate_patch_fingerprint=packet.get("candidate_patch_fingerprint"),
             requested_contribution_kind=contribution_kind,
             requested_coauthor_required=coauthor_required,
             requested_coauthor_reason=coauthor_reason,

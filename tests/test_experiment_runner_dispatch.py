@@ -1885,6 +1885,26 @@ def test_sanitize_result_rejects_malformed_oracle_before_transform() -> None:
         dispatch._sanitize_result(result, _probe("apple-container", strict=True))
 
 
+@pytest.mark.parametrize(
+    "result_fingerprint",
+    [None, "sha256:" + ("b" * 64)],
+)
+def test_sanitize_result_rejects_unbound_candidate_patch_fingerprint(
+    result_fingerprint: str | None,
+) -> None:
+    expected_fingerprint = "sha256:" + ("a" * 64)
+    result = _legacy_result()
+    if result_fingerprint is not None:
+        result["candidate_patch_fingerprint"] = result_fingerprint
+
+    with pytest.raises(dispatch.DispatchError, match="result_validation_failed"):
+        dispatch._sanitize_result(
+            result,
+            _probe("apple-container", strict=True),
+            expected_candidate_patch_fingerprint=expected_fingerprint,
+        )
+
+
 def test_sanitize_result_preserves_safe_post_preflight_capability_mismatch() -> None:
     trusted_probe = _probe("apple-container", strict=True)
     trusted_backend = dispatch._execution_backend_payload(trusted_probe, passed=True)
@@ -2355,6 +2375,7 @@ def test_container_runner_attribution_argv_has_backend_parity_and_default_omissi
     packet_path = tmp_path / "packet.json"
     packet_path.write_text(json.dumps(_packet()), encoding="utf-8")
     captured_commands: list[list[str]] = []
+    captured_sanitize_kwargs: list[dict[str, Any]] = []
 
     monkeypatch.setattr(dispatch, "_resolve_cli", lambda _name: "/usr/local/bin/runtime")
     monkeypatch.setattr(
@@ -2380,11 +2401,16 @@ def test_container_runner_attribution_argv_has_backend_parity_and_default_omissi
     monkeypatch.setattr(dispatch, "_cleanup_container", lambda *_args: True)
     monkeypatch.setattr(dispatch, "_collect_result_volume", lambda **_kwargs: {})
     monkeypatch.setattr(dispatch, "_cleanup_container_resources", lambda **_kwargs: True)
-    monkeypatch.setattr(
-        dispatch,
-        "_sanitize_result",
-        lambda payload, _probe, **_kwargs: payload,
-    )
+
+    def capture_sanitize_result(
+        payload: dict[str, Any],
+        _probe: dispatch.BackendProbe,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        captured_sanitize_kwargs.append(kwargs)
+        return payload
+
+    monkeypatch.setattr(dispatch, "_sanitize_result", capture_sanitize_result)
 
     reason = "Material oracle review shaped the commit decision."
     dispatch._invoke_container_runner(
@@ -2431,6 +2457,7 @@ def test_container_runner_attribution_argv_has_backend_parity_and_default_omissi
     candidate_packet = _packet()
     candidate_packet["runner_mode"] = "candidate_patch"
     candidate_packet["mutable_candidate_surface"] = ["core/rag/orchestration.py"]
+    candidate_packet["candidate_patch_fingerprint"] = "sha256:" + ("a" * 64)
     packet_path.write_text(json.dumps(candidate_packet), encoding="utf-8")
     candidate_patch = tmp_path / "candidate.patch"
     candidate_patch.write_text("", encoding="utf-8")
@@ -2446,6 +2473,9 @@ def test_container_runner_attribution_argv_has_backend_parity_and_default_omissi
     assert "--contribution-kind" not in default_candidate_command
     assert "--coauthor-required" not in default_candidate_command
     assert "--coauthor-reason" not in default_candidate_command
+    assert [
+        kwargs["expected_candidate_patch_fingerprint"] for kwargs in captured_sanitize_kwargs
+    ] == [None, None, candidate_packet["candidate_patch_fingerprint"]]
 
 
 @pytest.mark.parametrize("backend", ["apple-container", "docker"])
