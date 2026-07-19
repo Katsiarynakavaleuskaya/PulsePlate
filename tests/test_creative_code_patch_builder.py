@@ -408,6 +408,7 @@ def test_reference_patch_contracts_validate_and_schema_is_closed() -> None:
     assert policy_root_rule["attempts"] == {"enum": [0, 1]}
     assert policy_root_rule["retries_consumed"] == {"const": 0}
     assert policy_root_rule["runner_error_present"] == {"const": True}
+    assert policy_root_rule["runner_error_fingerprint"] == {"$ref": "#/$defs/sha256"}
     rejected_pair_rule = result_schema["allOf"][4]
     assert rejected_pair_rule["if"]["properties"]["status"] == {"const": "rejected"}
     assert rejected_pair_rule["if"]["properties"]["runner_summary"]["properties"]["status"] == {
@@ -433,6 +434,9 @@ def test_reference_patch_contracts_validate_and_schema_is_closed() -> None:
     assert runner_rules[3]["then"]["properties"]["attempts"] == {"enum": [0, 1]}
     assert runner_rules[3]["then"]["properties"]["retries_consumed"] == {"const": 0}
     assert runner_rules[3]["then"]["properties"]["runner_error_present"] == {"const": True}
+    assert runner_rules[3]["then"]["properties"]["runner_error_fingerprint"] == {
+        "$ref": "#/$defs/sha256"
+    }
     pre_oracle_execution_rule = runner_rules[4]
     assert pre_oracle_execution_rule["if"]["required"] == ["failure_class", "attempts"]
     assert pre_oracle_execution_rule["if"]["anyOf"] == [
