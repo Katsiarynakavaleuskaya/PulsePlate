@@ -1220,6 +1220,7 @@ def validate_creative_code_patch_result(payload: dict[str, Any]) -> dict[str, An
                 failure_class=observed_failure,
                 attempts=runner_summary["attempts"],
                 retries_consumed=runner_summary["retries_consumed"],
+                runner_error_present=runner_summary["runner_error_present"],
                 label=failure_label,
             )
         except ValueError as exc:

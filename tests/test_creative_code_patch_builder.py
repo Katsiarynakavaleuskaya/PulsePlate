@@ -407,6 +407,7 @@ def test_reference_patch_contracts_validate_and_schema_is_closed() -> None:
     ]
     assert policy_root_rule["attempts"] == {"enum": [0, 1]}
     assert policy_root_rule["retries_consumed"] == {"const": 0}
+    assert policy_root_rule["runner_error_present"] == {"const": True}
     rejected_pair_rule = result_schema["allOf"][4]
     assert rejected_pair_rule["if"]["properties"]["status"] == {"const": "rejected"}
     assert rejected_pair_rule["if"]["properties"]["runner_summary"]["properties"]["status"] == {
@@ -431,6 +432,7 @@ def test_reference_patch_contracts_validate_and_schema_is_closed() -> None:
     assert runner_rules[3]["if"]["properties"]["failure_class"] == {"const": "policy_violation"}
     assert runner_rules[3]["then"]["properties"]["attempts"] == {"enum": [0, 1]}
     assert runner_rules[3]["then"]["properties"]["retries_consumed"] == {"const": 0}
+    assert runner_rules[3]["then"]["properties"]["runner_error_present"] == {"const": True}
     pre_oracle_execution_rule = runner_rules[4]
     assert pre_oracle_execution_rule["if"]["required"] == ["failure_class", "attempts"]
     assert pre_oracle_execution_rule["if"]["anyOf"] == [
@@ -723,6 +725,33 @@ def test_patch_result_rejects_capability_mismatch_retry_tamper() -> None:
         validate_creative_code_patch_result(compound_tamper)
 
 
+def test_patch_result_requires_policy_violation_runner_error_proof() -> None:
+    tampered = _reference_result()
+    tampered["status"] = "rejected"
+    tampered["failure_class"] = "policy_violation"
+    tampered["runner_summary"].update(
+        {
+            "status": "rejected",
+            "failure_class": "policy_violation",
+            "mutated_path_count": 0,
+            "oracle_commands_executed": 0,
+            "attempts": 1,
+            "retries_consumed": 0,
+            "runner_error_present": False,
+            "runner_error_fingerprint": None,
+        }
+    )
+    result_id, idempotency_key = creative_code_patch_contract._build_result_identity(tampered)
+    tampered["result_id"] = result_id
+    tampered["idempotency_key"] = idempotency_key
+
+    with pytest.raises(
+        CreativeCodePatchContractError,
+        match="policy_violation requires non-empty runner_error evidence",
+    ):
+        validate_creative_code_patch_result(tampered)
+
+
 @pytest.mark.parametrize(
     ("failure_class", "field"),
     [
@@ -749,6 +778,15 @@ def test_patch_result_rejects_zero_attempt_pre_oracle_execution_evidence(
             "retries_consumed": 0,
         }
     )
+    if failure_class == "policy_violation":
+        tampered["runner_summary"].update(
+            {
+                "runner_error_present": True,
+                "runner_error_fingerprint": fingerprint_payload(
+                    {"runner_error": "candidate rejected before oracle execution"}
+                ),
+            }
+        )
     tampered["runner_summary"][field] = 1
     result_id, idempotency_key = creative_code_patch_contract._build_result_identity(tampered)
     tampered["result_id"] = result_id

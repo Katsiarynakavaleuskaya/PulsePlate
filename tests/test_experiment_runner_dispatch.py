@@ -730,6 +730,43 @@ def test_policy_violation_accepts_terminal_pre_oracle_attempt_counts(attempts: i
     assert validated["budget_observations"]["retries_consumed"] == 0
 
 
+@pytest.mark.parametrize(
+    ("include_runner_error", "runner_error"),
+    [
+        (False, None),
+        (True, None),
+        (True, ""),
+        (True, "   "),
+    ],
+)
+def test_policy_violation_requires_nonempty_runner_error(
+    include_runner_error: bool,
+    runner_error: str | None,
+) -> None:
+    result = _legacy_result()
+    budget_observations: dict[str, object] = {
+        "attempts": 1,
+        "retries_consumed": 0,
+    }
+    if include_runner_error:
+        budget_observations["runner_error"] = runner_error
+    result.update(
+        {
+            "status": "rejected",
+            "failure_class": "policy_violation",
+            "mutated_paths": [],
+            "budget_observations": budget_observations,
+            "promotion_ready": False,
+        }
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="policy_violation requires non-empty runner_error evidence",
+    ):
+        experiment_contract.validate_experiment_result(result)
+
+
 @pytest.mark.parametrize("attempts", [0, 1])
 @pytest.mark.parametrize(
     ("mutated_paths", "oracle_results", "message_suffix"),
@@ -1968,6 +2005,7 @@ def test_sanitize_accepts_rejected_result_with_canonical_attribution_reset() -> 
             "budget_observations": {
                 "attempts": 0,
                 "retries_consumed": 0,
+                "runner_error": "candidate rejected before oracle execution",
             },
         }
     )

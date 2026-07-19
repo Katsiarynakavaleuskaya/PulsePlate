@@ -81,6 +81,11 @@ def _valid_experiment_result_payload(*, status: str = "accepted") -> dict[str, o
             "wall_clock_seconds": 1,
             "attempts": 1 if status == "accepted" else 0,
             "retries_consumed": 0,
+            **(
+                {"runner_error": "candidate rejected before oracle execution"}
+                if status == "rejected"
+                else {}
+            ),
         },
         "shared_tree_untouched": True,
         "promotion_ready": False,

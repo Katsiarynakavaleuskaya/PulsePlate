@@ -62,9 +62,10 @@ def validate_failure_retry_observations(
     failure_class: str | None,
     attempts: Any,
     retries_consumed: Any,
+    runner_error_present: Any,
     label: str,
 ) -> None:
-    """Reject retry evidence for terminal pre-oracle failures."""
+    """Reject incomplete evidence for terminal pre-oracle failures."""
 
     if failure_class not in {"capability_mismatch", "policy_violation"}:
         return
@@ -80,6 +81,8 @@ def validate_failure_retry_observations(
         raise ValueError(
             f"{label} {failure_class} must use attempts 0 or 1 and retries_consumed 0."
         )
+    if failure_class == "policy_violation" and runner_error_present is not True:
+        raise ValueError(f"{label} policy_violation requires non-empty runner_error evidence.")
 
 
 def validate_capability_zero_attempt_observations(
@@ -933,6 +936,10 @@ def validate_experiment_result(result: dict[str, Any]) -> dict[str, Any]:
         failure_class=failure_class,
         attempts=budget_observations.get("attempts"),
         retries_consumed=budget_observations.get("retries_consumed"),
+        runner_error_present=bool(
+            isinstance(budget_observations.get("runner_error"), str)
+            and budget_observations["runner_error"].strip()
+        ),
         label="Experiment result budget_observations",
     )
 

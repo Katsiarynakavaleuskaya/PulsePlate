@@ -164,7 +164,8 @@
               "status": { "const": "rejected" },
               "failure_class": { "const": "policy_violation" },
               "attempts": { "enum": [0, 1] },
-              "retries_consumed": { "const": 0 }
+              "retries_consumed": { "const": 0 },
+              "runner_error_present": { "const": true }
             }
           }
         }
@@ -408,7 +409,8 @@
           "then": {
             "properties": {
               "attempts": { "enum": [0, 1] },
-              "retries_consumed": { "const": 0 }
+              "retries_consumed": { "const": 0 },
+              "runner_error_present": { "const": true }
             }
           }
         },

@@ -529,6 +529,49 @@ def test_finalize_dispatched_result_writes_canonical_result_and_receipt(
     )
 
 
+@pytest.mark.parametrize("checkout_kind", ["directory", "symlink"])
+def test_finalize_dispatched_result_rechecks_checkout_destruction(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    checkout_kind: str,
+) -> None:
+    repo, base_sha = _init_patch_repo(tmp_path)
+    _patch_modules_to_repo(monkeypatch, repo)
+    run_id = f"dispatch-finalize-live-checkout-{checkout_kind}"
+    gate_path, dispatch_path, packet = _prepare_generated_dispatch_handoff(
+        monkeypatch=monkeypatch,
+        repo=repo,
+        base_sha=base_sha,
+        run_id=run_id,
+    )
+    _write_json(dispatch_path, _trusted_dispatch_result(packet))
+    run_dir = creative_code_patch_workspace.resolve_run_dir(run_id, create=False)
+    checkout_path = run_dir / creative_code_patch_workspace.CHECKOUT_DIRNAME
+    if checkout_kind == "directory":
+        checkout_path.mkdir()
+    else:
+        foreign_checkout = repo / "foreign-generation-checkout"
+        foreign_checkout.mkdir()
+        checkout_path.symlink_to(foreign_checkout, target_is_directory=True)
+
+    assert (
+        generation_cli.main(
+            [
+                "finalize-dispatched-result",
+                "--gate",
+                str(gate_path),
+                "--dispatch-result",
+                str(dispatch_path),
+            ]
+        )
+        == 1
+    )
+    assert "generation checkout still exists" in capsys.readouterr().err
+    assert not (run_dir / creative_code_patch_builder.RESULT_FILE).exists()
+    assert not (gate_path.parent / generation_cli.RECEIPT_FILENAME).exists()
+
+
 def test_finalize_dispatched_result_rejects_cooperative_lock_contention(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -801,6 +844,56 @@ def test_finalize_dispatched_result_preserves_replaced_result_during_rollback(
     )
     assert "simulated receipt publication failure" in capsys.readouterr().err
     assert json.loads(result_path.read_text(encoding="utf-8")) == foreign_result
+    assert not (gate_path.parent / generation_cli.RECEIPT_FILENAME).exists()
+
+
+def test_finalize_dispatched_result_preserves_replaced_state_during_rollback(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo, base_sha = _init_patch_repo(tmp_path)
+    _patch_modules_to_repo(monkeypatch, repo)
+    run_id = "dispatch-finalize-replaced-state"
+    gate_path, dispatch_path, packet = _prepare_generated_dispatch_handoff(
+        monkeypatch=monkeypatch,
+        repo=repo,
+        base_sha=base_sha,
+        run_id=run_id,
+    )
+    _write_json(dispatch_path, _trusted_dispatch_result(packet))
+    run_dir = creative_code_patch_workspace.resolve_run_dir(run_id, create=False)
+    state_path = run_dir / creative_code_patch_builder.STATE_FILE
+    original_write_json_new = generation_cli._write_json_new
+
+    def replace_state_before_receipt_failure(path: Path, payload: dict[str, Any]) -> None:
+        if path.name == generation_cli.RECEIPT_FILENAME:
+            foreign_state = json.loads(state_path.read_text(encoding="utf-8"))
+            creative_code_patch_workspace.write_json_atomic(state_path, foreign_state)
+            raise CreativeCodePatchGenerationError("simulated receipt publication failure")
+        original_write_json_new(path, payload)
+
+    monkeypatch.setattr(
+        generation_cli,
+        "_write_json_new",
+        replace_state_before_receipt_failure,
+    )
+
+    assert (
+        generation_cli.main(
+            [
+                "finalize-dispatched-result",
+                "--gate",
+                str(gate_path),
+                "--dispatch-result",
+                str(dispatch_path),
+            ]
+        )
+        == 1
+    )
+    assert "simulated receipt publication failure" in capsys.readouterr().err
+    assert json.loads(state_path.read_text(encoding="utf-8"))["candidate_patch_evaluated"] is True
+    assert not (run_dir / creative_code_patch_builder.RESULT_FILE).exists()
     assert not (gate_path.parent / generation_cli.RECEIPT_FILENAME).exists()
 
 
@@ -1078,7 +1171,7 @@ def test_finalize_dispatched_result_rejects_oversized_candidate_patch_before_dec
         ("capability_unknown_preflight_blocker", "requires a supported blocker code"),
         ("capability_nonstring_preflight_blocker", "requires a supported blocker code"),
         ("metric_regression_without_metrics", "without structured metric evidence"),
-        ("policy_without_error", "requires explanatory runner evidence"),
+        ("policy_without_error", "failed Experiment Runner validation"),
         ("accepted_runner_error", "must not carry runner_error"),
         ("guard_runner_error", "must not carry runner_error"),
         ("timeout_non_boolean", "failed Experiment Runner validation"),
@@ -1771,6 +1864,28 @@ def test_receipt_validator_rejects_unknown_failures_and_incoherent_runner_status
     ):
         validate_generation_receipt(capability_retry_tamper)
 
+    policy_without_runner_error = deepcopy(reference)
+    policy_without_runner_error["status"] = "rejected"
+    policy_without_runner_error["failure_class"] = "policy_violation"
+    policy_without_runner_error["runner_summary"].update(
+        {
+            "status": "rejected",
+            "failure_class": "policy_violation",
+            "mutated_path_count": 0,
+            "oracle_commands_executed": 0,
+            "attempts": 1,
+            "retries_consumed": 0,
+            "runner_error_present": False,
+            "runner_error_fingerprint": None,
+        }
+    )
+    _reset_receipt_identity(policy_without_runner_error)
+    with pytest.raises(
+        CreativeCodePatchGenerationError,
+        match="policy_violation requires non-empty runner_error evidence",
+    ):
+        validate_generation_receipt(policy_without_runner_error)
+
     for failure_class in ("capability_mismatch", "policy_violation"):
         for field, message in (
             (
@@ -1795,6 +1910,15 @@ def test_receipt_validator_rejects_unknown_failures_and_incoherent_runner_status
                     "retries_consumed": 0,
                 }
             )
+            if failure_class == "policy_violation":
+                zero_attempt_tamper["runner_summary"].update(
+                    {
+                        "runner_error_present": True,
+                        "runner_error_fingerprint": fingerprint_payload(
+                            {"runner_error": "candidate rejected before oracle execution"}
+                        ),
+                    }
+                )
             zero_attempt_tamper["runner_summary"][field] = 1
             _reset_receipt_identity(zero_attempt_tamper)
             with pytest.raises(CreativeCodePatchGenerationError, match=message):
@@ -1821,6 +1945,10 @@ def test_receipt_validator_rejects_unknown_failures_and_incoherent_runner_status
                 "oracle_commands_executed": 0,
                 "attempts": 1,
                 "retries_consumed": 0,
+                "runner_error_present": True,
+                "runner_error_fingerprint": fingerprint_payload(
+                    {"runner_error": "candidate rejected before oracle execution"}
+                ),
             }
         )
         one_attempt_policy_tamper["runner_summary"][field] = 1
@@ -2831,6 +2959,7 @@ def test_generation_schemas_are_closed_and_authority_is_const_false() -> None:
     ]
     assert policy_root_rule["attempts"] == {"enum": [0, 1]}
     assert policy_root_rule["retries_consumed"] == {"const": 0}
+    assert policy_root_rule["runner_error_present"] == {"const": True}
     rejected_pair_rule = receipt_schema["allOf"][4]
     assert rejected_pair_rule["if"]["properties"]["status"] == {"const": "rejected"}
     assert rejected_pair_rule["if"]["properties"]["runner_summary"]["properties"]["status"] == {
@@ -2853,6 +2982,7 @@ def test_generation_schemas_are_closed_and_authority_is_const_false() -> None:
     assert runner_rules[3]["if"]["properties"]["failure_class"] == {"const": "policy_violation"}
     assert runner_rules[3]["then"]["properties"]["attempts"] == {"enum": [0, 1]}
     assert runner_rules[3]["then"]["properties"]["retries_consumed"] == {"const": 0}
+    assert runner_rules[3]["then"]["properties"]["runner_error_present"] == {"const": True}
     pre_oracle_execution_rule = runner_rules[4]
     assert pre_oracle_execution_rule["if"]["required"] == ["failure_class", "attempts"]
     assert pre_oracle_execution_rule["if"]["anyOf"] == [

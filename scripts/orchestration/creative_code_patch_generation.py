@@ -38,6 +38,7 @@ from scripts.orchestration.creative_code_patch_contract import (
     validate_creative_code_patch_run_sidecars,
 )
 from scripts.orchestration.creative_code_patch_workspace import (
+    CHECKOUT_DIRNAME,
     CreativeCodePatchWorkspaceError,
     read_json,
     resolve_existing_run_dir,
@@ -566,6 +567,24 @@ def _read_pinned_json_object(
     if not isinstance(payload, dict):
         raise CreativeCodePatchGenerationError(f"{label} must be a JSON object.")
     return payload
+
+
+def _regular_file_identity(path: Path, *, label: str) -> tuple[int, int, int, int, int]:
+    """Return a no-follow identity for one regular publication artifact."""
+
+    try:
+        file_info = path.stat(follow_symlinks=False)
+    except OSError as exc:
+        raise CreativeCodePatchGenerationError(f"unable to inspect {label}.") from exc
+    if not stat.S_ISREG(file_info.st_mode):
+        raise CreativeCodePatchGenerationError(f"{label} must be a regular file.")
+    return (
+        file_info.st_dev,
+        file_info.st_ino,
+        file_info.st_size,
+        file_info.st_mtime_ns,
+        file_info.st_ctime_ns,
+    )
 
 
 def _read_pinned_dispatch_json_object(path: Path) -> dict[str, Any]:
@@ -1514,6 +1533,7 @@ def validate_generation_receipt(payload: Mapping[str, Any]) -> dict[str, Any]:
                 failure_class=observed_failure,
                 attempts=runner_summary["attempts"],
                 retries_consumed=runner_summary["retries_consumed"],
+                runner_error_present=runner_summary["runner_error_present"],
                 label=failure_label,
             )
         except ValueError as exc:
@@ -2188,6 +2208,11 @@ def _load_generated_dispatch_context(
         raise CreativeCodePatchGenerationError("candidate patch is already evaluated.")
     if state.get("checkout_destroyed") is not True:
         raise CreativeCodePatchGenerationError("generation checkout destruction is not proven.")
+    checkout_path = run_dir / CHECKOUT_DIRNAME
+    if checkout_path.exists() or checkout_path.is_symlink():
+        raise CreativeCodePatchGenerationError(
+            "generation checkout still exists despite destruction proof."
+        )
     workspace = state.get("workspace")
     if not isinstance(workspace, dict) or workspace.get("origin_removed") is not True:
         raise CreativeCodePatchGenerationError("generation checkout origin removal is not proven.")
@@ -2582,6 +2607,12 @@ def _finalize_dispatched_result_locked(
     result_written = False
     receipt_written = False
     state_written = False
+    published_state_identity: tuple[int, int, int, int, int] | None = None
+    state_path = resolve_run_file(
+        run_dir,
+        creative_code_patch_builder.STATE_FILE,
+        for_write=True,
+    )
 
     def remove_matching_receipt() -> None:
         if not receipt_written or not receipt_path.exists() or receipt_path.is_symlink():
@@ -2607,19 +2638,38 @@ def _finalize_dispatched_result_locked(
         if current_result == result:
             result_path.unlink()
 
+    def restore_matching_state() -> None:
+        if (
+            not state_written
+            or published_state_identity is None
+            or not state_path.exists()
+            or state_path.is_symlink()
+        ):
+            return
+        if _regular_file_identity(state_path, label="rollback state") != published_state_identity:
+            return
+        current_state = _read_pinned_json_object(
+            state_path,
+            trusted_root=run_dir,
+            label="rollback state",
+            max_bytes=TRUSTED_DISPATCH_RESULT_MAX_BYTES,
+        )
+        if current_state != state:
+            return
+        if _regular_file_identity(state_path, label="rollback state") != published_state_identity:
+            return
+        write_json_atomic(state_path, original_state)
+
     try:
         if not partial_result_exists:
             _write_json_new(result_path, result)
             result_written = True
         if state["candidate_patch_evaluated"] is not True:
             state["candidate_patch_evaluated"] = True
-            write_json_atomic(
-                resolve_run_file(
-                    run_dir,
-                    creative_code_patch_builder.STATE_FILE,
-                    for_write=True,
-                ),
-                state,
+            write_json_atomic(state_path, state)
+            published_state_identity = _regular_file_identity(
+                state_path,
+                label="published state",
             )
             state_written = True
         _write_json_new(receipt_path, receipt)
@@ -2633,18 +2683,7 @@ def _finalize_dispatched_result_locked(
             ),
             (
                 "state restoration",
-                lambda: (
-                    write_json_atomic(
-                        resolve_run_file(
-                            run_dir,
-                            creative_code_patch_builder.STATE_FILE,
-                            for_write=True,
-                        ),
-                        original_state,
-                    )
-                    if state_written
-                    else None
-                ),
+                restore_matching_state,
             ),
             (
                 "result removal",
