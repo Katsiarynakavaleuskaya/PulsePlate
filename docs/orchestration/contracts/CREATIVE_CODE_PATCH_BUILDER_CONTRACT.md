@@ -155,11 +155,13 @@ resume seam revalidates:
   fingerprint fields;
 - a dispatch result contained under
   `artifacts/orchestration/experiments/results/`, with no symlink traversal;
-- normal candidate runner mode, the stable `candidate.patch` marker, exact
-  experiment ID, packet-identical budgets and oracle commands, bounded mutated
-  paths, no promotion/material-attribution claim, and an untouched shared tree;
-  results that reached execution require passed container-backend preflight
-  provenance and one attempt, while a supported failed-preflight
+- normal candidate runner mode, exact experiment ID, packet-identical budgets
+  and oracle commands, bounded mutated paths, no promotion/material-attribution
+  claim, and an untouched shared tree; failed-preflight capability evidence uses
+  the stable preflight marker `candidate.patch`, while results that reached the
+  container runner use `.experiment-runner-input/candidate.patch`, require
+  passed container-backend preflight provenance with a supported guest, and
+  record one attempt; a supported failed-preflight
   `capability_mismatch` requires failed backend provenance, zero attempts, zero
   mutations, and zero oracle executions; a pre-oracle `policy_violation` may
   record zero or one attempt, but its zero-attempt form likewise forbids mutation

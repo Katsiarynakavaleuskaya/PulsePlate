@@ -1534,6 +1534,10 @@ def validate_generation_receipt(payload: Mapping[str, Any]) -> dict[str, Any]:
             )
         except ValueError as exc:
             raise CreativeCodePatchGenerationError(str(exc)) from exc
+    if failure_class == "policy_violation" and runner_summary["runner_error_fingerprint"] is None:
+        raise CreativeCodePatchGenerationError(
+            "policy_violation requires a bound runner_error_fingerprint."
+        )
     try:
         validate_capability_zero_attempt_observations(
             failure_class=runner_summary["failure_class"],
@@ -2321,6 +2325,14 @@ def _validate_dispatch_result_binding(
         )
     backend = result.get("execution_backend")
     preflight_status = backend.get("preflight_status") if isinstance(backend, dict) else None
+    if (
+        isinstance(backend, dict)
+        and preflight_status == "passed"
+        and backend.get("guest_platform") == "linux_unsupported"
+    ):
+        raise CreativeCodePatchGenerationError(
+            "passed-preflight dispatch evidence requires a supported guest platform."
+        )
     preflight_passed_container = (
         isinstance(backend, dict)
         and backend.get("name") in TRUSTED_DISPATCH_BACKENDS

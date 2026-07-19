@@ -1158,6 +1158,7 @@ def test_finalize_dispatched_result_rejects_oversized_candidate_patch_before_dec
         ("experiment_id", "experiment_id does not match"),
         ("missing_backend", "valid backend provenance"),
         ("native_linux_backend", "valid backend provenance"),
+        ("passed_preflight_unsupported_guest", "requires a supported guest platform"),
         ("candidate_marker", "runner-emitted candidate marker"),
         ("executed_preflight_marker", "runner-emitted candidate marker"),
         ("capability_runner_marker", "preflight candidate marker"),
@@ -1225,6 +1226,11 @@ def test_finalize_dispatched_result_rejects_unbound_dispatch_evidence(
                 "network_isolation": "linux_unshare",
             }
         )
+    elif mutation == "passed_preflight_unsupported_guest":
+        dispatch_result["status"] = "rejected"
+        dispatch_result["failure_class"] = "guard_failure"
+        dispatch_result["oracle_results"][-1]["returncode"] = 1
+        dispatch_result["execution_backend"]["guest_platform"] = "linux_unsupported"
     elif mutation == "candidate_marker":
         dispatch_result["candidate_patch"] = ".experiment-runner-input/other.patch"
     elif mutation == "executed_preflight_marker":
@@ -1930,6 +1936,28 @@ def test_receipt_validator_rejects_unknown_failures_and_incoherent_runner_status
         match="policy_violation requires non-empty runner_error evidence",
     ):
         validate_generation_receipt(policy_without_runner_error)
+
+    policy_without_runner_error_fingerprint = deepcopy(reference)
+    policy_without_runner_error_fingerprint["status"] = "rejected"
+    policy_without_runner_error_fingerprint["failure_class"] = "policy_violation"
+    policy_without_runner_error_fingerprint["runner_summary"].update(
+        {
+            "status": "rejected",
+            "failure_class": "policy_violation",
+            "mutated_path_count": 0,
+            "oracle_commands_executed": 0,
+            "attempts": 1,
+            "retries_consumed": 0,
+            "runner_error_present": True,
+            "runner_error_fingerprint": None,
+        }
+    )
+    _reset_receipt_identity(policy_without_runner_error_fingerprint)
+    with pytest.raises(
+        CreativeCodePatchGenerationError,
+        match="policy_violation requires a bound runner_error_fingerprint",
+    ):
+        validate_generation_receipt(policy_without_runner_error_fingerprint)
 
     for failure_class in ("capability_mismatch", "policy_violation"):
         for field, message in (
@@ -3005,6 +3033,7 @@ def test_generation_schemas_are_closed_and_authority_is_const_false() -> None:
     assert policy_root_rule["attempts"] == {"enum": [0, 1]}
     assert policy_root_rule["retries_consumed"] == {"const": 0}
     assert policy_root_rule["runner_error_present"] == {"const": True}
+    assert policy_root_rule["runner_error_fingerprint"] == {"$ref": "#/$defs/sha256"}
     rejected_pair_rule = receipt_schema["allOf"][4]
     assert rejected_pair_rule["if"]["properties"]["status"] == {"const": "rejected"}
     assert rejected_pair_rule["if"]["properties"]["runner_summary"]["properties"]["status"] == {
@@ -3028,6 +3057,9 @@ def test_generation_schemas_are_closed_and_authority_is_const_false() -> None:
     assert runner_rules[3]["then"]["properties"]["attempts"] == {"enum": [0, 1]}
     assert runner_rules[3]["then"]["properties"]["retries_consumed"] == {"const": 0}
     assert runner_rules[3]["then"]["properties"]["runner_error_present"] == {"const": True}
+    assert runner_rules[3]["then"]["properties"]["runner_error_fingerprint"] == {
+        "$ref": "#/$defs/sha256"
+    }
     pre_oracle_execution_rule = runner_rules[4]
     assert pre_oracle_execution_rule["if"]["required"] == ["failure_class", "attempts"]
     assert pre_oracle_execution_rule["if"]["anyOf"] == [
