@@ -3,7 +3,6 @@ Additional tests to improve coverage to 97%+.
 """
 
 import os
-import sys
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -12,7 +11,6 @@ from fastapi.testclient import TestClient
 # Import the FastAPI app from app.py file
 from app import app
 from app.middleware.api_tiers import TEST_KEY_VIP
-import legacy_app
 
 
 class TestCoverageImprovement:
@@ -47,47 +45,6 @@ class TestCoverageImprovement:
         # Test favicon endpoint
         response = self.client.get("/favicon.ico")
         assert response.status_code == 204
-
-    def test_bmi_visualize_endpoint_uncovered_paths(self) -> None:
-        """Test uncovered paths in bmi_visualize_endpoint."""
-        # Test when matplotlib is not available
-        with patch.object(legacy_app, "generate_bmi_visualization", None):
-            data = {
-                "weight_kg": 70.0,
-                "height_m": 1.75,
-                "age": 30,
-                "gender": "male",
-                "pregnant": "no",
-                "athlete": "no",
-                "lang": "en",
-            }
-
-            response = self.client.post(
-                "/api/v1/bmi/visualize", json=data, headers={"X-API-Key": "test_key"}
-            )
-            assert response.status_code == 404
-
-        # Test when MATPLOTLIB_AVAILABLE is False
-        with (
-            patch.object(
-                legacy_app, "generate_bmi_visualization", lambda **kwargs: {"available": False}
-            ),
-            patch.object(legacy_app, "MATPLOTLIB_AVAILABLE", False),
-        ):
-            data = {
-                "weight_kg": 70.0,
-                "height_m": 1.75,
-                "age": 30,
-                "gender": "male",
-                "pregnant": "no",
-                "athlete": "no",
-                "lang": "en",
-            }
-
-            response = self.client.post(
-                "/api/v1/bmi/visualize", json=data, headers={"X-API-Key": "test_key"}
-            )
-            assert response.status_code == 404
 
     def test_insight_endpoints_uncovered_paths(self) -> None:
         """Test uncovered paths in insight endpoints."""

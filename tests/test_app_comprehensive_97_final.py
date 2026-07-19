@@ -7,7 +7,10 @@ Focuses on main uncovered blocks: /bmi, /plan, /premium_bmr, /premium_targets en
 from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
+import pytest
 from starlette.types import ASGIApp
+
+from app.services import bmi_compat as bmi_compat_service
 
 
 def _get_app():
@@ -25,9 +28,8 @@ client = TestClient(_get_app())
 class TestAppComprehensive97:
     """Test suite targeting 97% coverage for main.py"""
 
-    def test_bmi_endpoint_with_visualization(self):
-        """Test /bmi endpoint with include_chart=True (lines 653-714)"""
-        # Test pregnant case with visualization
+    def test_bmi_endpoint_pregnancy_behavior(self) -> None:
+        """Test the pregnant BMI response without invoking optional visualization."""
         response = client.post(
             "/bmi",
             json={
@@ -38,7 +40,7 @@ class TestAppComprehensive97:
                 "pregnant": True,
                 "athlete": False,
                 "lang": "en",
-                "include_chart": True,
+                "include_chart": False,
                 "waist_cm": 80,
             },
         )
@@ -51,58 +53,38 @@ class TestAppComprehensive97:
             data["group"] == "pregnant"
         )  # Canonical engine: pregnant=True + adult age → group="pregnant"
 
-    def test_bmi_endpoint_athlete_with_visualization(self):
+    def test_bmi_endpoint_athlete_with_visualization(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
         """Test /bmi endpoint for athlete with visualization (lines 680-714)"""
-        with patch("app.generate_bmi_visualization") as mock_viz:
-            mock_viz.return_value = {"available": True, "chart_url": "test_chart.png"}
+        expected_visualization = {"available": True, "chart_url": "test_chart.png"}
+        mock_viz = MagicMock(return_value=expected_visualization)
+        monkeypatch.setattr(bmi_compat_service, "MATPLOTLIB_AVAILABLE", True)
+        monkeypatch.setattr(bmi_compat_service, "generate_bmi_visualization", mock_viz)
 
-            response = client.post(
-                "/bmi",
-                json={
-                    "weight_kg": 80,
-                    "height_m": 1.80,
-                    "age": 25,
-                    "gender": "male",
-                    "pregnant": False,
-                    "athlete": True,
-                    "lang": "en",
-                    "include_chart": True,
-                    "waist_cm": 90,
-                },
-            )
-            assert response.status_code == 200
-            data = response.json()
-            assert data["athlete"] is True
-            assert data["group"] == "athlete"
-            assert "visualization" in data
-            assert "athlete" in data["note"].lower()
-
-    def test_bmi_endpoint_visualization_not_available(self):
-        """Test BMI endpoint when visualization include_chart is True"""
         response = client.post(
             "/bmi",
             json={
-                "weight_kg": 70,
-                "height_m": 1.70,
-                "age": 30,
+                "weight_kg": 80,
+                "height_m": 1.80,
+                "age": 25,
                 "gender": "male",
                 "pregnant": False,
-                "athlete": False,
+                "athlete": True,
                 "lang": "en",
                 "include_chart": True,
+                "waist_cm": 90,
             },
         )
-
         assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/json")
         data = response.json()
-        assert data["bmi"] == 24.2
-        assert data["category"] == "Normal weight"
-
-        # Check visualization response is included
-        assert "visualization" in data
-        viz_data = data["visualization"]
-        # Either an available visualization with chart data or an error/unavailable state
-        assert isinstance(viz_data.get("available"), bool)
+        assert data["athlete"] is True
+        assert data["group"] == "athlete"
+        assert data["visualization"] == expected_visualization
+        mock_viz.assert_called_once()
+        assert "athlete" in data["note"].lower()
 
     def test_plan_endpoint_russian_language(self):
         """Test /plan endpoint with Russian language (lines 720-765)"""

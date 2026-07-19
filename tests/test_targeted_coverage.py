@@ -3,8 +3,6 @@ Targeted tests to improve coverage for specific missing lines in main.py.
 """
 
 import os
-import sys
-from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -29,26 +27,6 @@ class TestTargetedCoverage:
             del os.environ["API_KEY"]
         # Remove feature flag to prevent env leakage
         os.environ.pop("FEATURE_PREMIUM_NUTRITION", None)
-
-    def test_bmi_endpoint_visualization_error_path(self) -> None:
-        """Test BMI endpoint visualization error path - covers lines 346-351."""
-        data = {
-            "weight_kg": 70.0,
-            "height_m": 1.75,
-            "age": 30,
-            "gender": "male",
-            "pregnant": "no",
-            "athlete": "no",
-            "waist_cm": 85.0,
-            "include_chart": True,
-            "lang": "en",
-        }
-
-        # Mock generate_bmi_visualization to return unavailable visualization
-        with patch("app.generate_bmi_visualization") as mock_viz:
-            mock_viz.return_value = {"available": False, "error": "Test error"}
-            response = self.client.post("/bmi", json=data)
-            assert response.status_code == 200
 
     def test_bmi_endpoint_waist_risk_path(self) -> None:
         """Test BMI endpoint waist risk path - covers lines 384, 396, 402."""

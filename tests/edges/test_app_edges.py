@@ -1,5 +1,4 @@
 import asyncio
-from typing import Any
 
 import pytest
 
@@ -48,29 +47,6 @@ def test_admin_status_scheduler_branches(monkeypatch: pytest.MonkeyPatch) -> Non
     monkeypatch.setattr(admin_operations, "get_update_scheduler", _ok_scheduler)
     out = asyncio.run(appmod.admin_status())
     assert out["status"] == "ok" and out["scheduler"] == "available"
-
-
-def test_add_visualization_if_requested_fallback(monkeypatch: pytest.MonkeyPatch):
-    import app as appmod
-    import bmi_visualization as vizmod
-
-    class Req:
-        include_chart = True
-        age = 30
-        gender = "male"
-        pregnant = False
-        athlete = False
-        lang = "en"
-
-    def fake_viz(**kwargs: Any):  # noqa: D401
-        return {"available": False}
-
-    # Patch the default provider used inside add_visualization_if_requested
-    monkeypatch.setattr(vizmod, "generate_bmi_visualization", fake_viz)
-
-    result: dict[str, Any] = {"bmi": 22.0}
-    appmod.add_visualization_if_requested(result, Req())
-    assert "visualization" in result
 
 
 def test_export_pdf_generic_missing_function(monkeypatch: pytest.MonkeyPatch) -> None:

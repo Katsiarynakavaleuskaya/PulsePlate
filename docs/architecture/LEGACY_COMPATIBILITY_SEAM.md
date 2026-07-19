@@ -72,6 +72,15 @@ and unknown downstream errors are logged server-side and exposed only through
 the stable generic `500` envelope. Route auth, VIP/FitChef execution, OpenAPI,
 and application identity remain unchanged.
 
+Legacy matplotlib/base64 BMI rendering remains owned by
+`bmi_visualization.py`. `app/services/bmi_compat.py` is the sole runtime
+consumer for the hidden `/bmi` compatibility route and owns the legacy response
+normalization around that renderer. Public `app` and `legacy_app.py`
+visualization symbols remain import compatibility only; rebinding either
+facade must not influence runtime renderer selection. The structured
+`BMIScaleV1Spec` path in `app/services/bmi_visualization.py` is a separate
+canonical contract and is not part of this compatibility seam.
+
 The current policy is compatibility first:
 
 - keep existing legacy routes callable when current clients still depend on
@@ -120,6 +129,7 @@ Forbidden in `legacy_app.py`:
 | Public OpenAPI policy and builder | `app/bootstrap/openapi.py` | Validate before mutation; install after complete route bootstrap; stale/foreign state fails closed. |
 | Admin scheduler access | `app/services/scheduler_access.py` | Lazy typed delegation only; core owns singleton/lifecycle and compatibility exports preserve service-callable identity. |
 | Legacy weekly-menu builder access | `core/menu_engine.py` + `app/services/legacy_premium_weekly_plan.py` | Core owns the builder; the service provides lazy exact-callable access and response normalization; facade exports are compatibility only. |
+| Legacy BMI visualization access | `bmi_visualization.py` + `app/services/bmi_compat.py` | The renderer owns chart generation; the service consumes local bindings and normalizes compatibility responses; facade exports are compatibility only. |
 | Domain logic | `core/` and `app/services/` | Backend truth stays outside route shims. |
 | Public API contract | Backend OpenAPI gates | Legacy aliases must not become client contract truth. |
 

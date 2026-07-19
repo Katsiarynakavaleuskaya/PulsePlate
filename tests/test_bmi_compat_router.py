@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import ast
+import os
 from pathlib import Path
+import subprocess
 import sys
 from typing import Any
 
@@ -10,6 +12,7 @@ from fastapi.testclient import TestClient
 import pytest
 from pydantic import ValidationError
 
+import app as app_package
 import app.main as app_main
 from app.effective_routes import (
     is_api_route_candidate,
@@ -22,6 +25,62 @@ from app.effective_routes import (
 from app.routers.bmi_compat import BMI_COMPAT_ROUTE_SPECS, router
 from app.schemas.bmi_compat import BMIRequest, BMIRequestV1
 import app.services.bmi_compat as bmi_compat_service
+import legacy_app
+
+
+@pytest.mark.parametrize(
+    "imports",
+    [
+        """
+import bmi_visualization
+import app.services.bmi_compat as bmi_compat_service
+import app as app_package
+import legacy_app
+""",
+        """
+import bmi_visualization
+import app as app_package
+import legacy_app
+import app.services.bmi_compat as bmi_compat_service
+""",
+    ],
+    ids=["service-first", "facades-first"],
+)
+def test_bmi_visualization_compat_exports_survive_clean_import_orders(
+    imports: str,
+) -> None:
+    script = imports + """
+assert (
+    bmi_compat_service.generate_bmi_visualization
+    is bmi_visualization.generate_bmi_visualization
+)
+assert app_package.generate_bmi_visualization is bmi_visualization.generate_bmi_visualization
+assert legacy_app.generate_bmi_visualization is bmi_visualization.generate_bmi_visualization
+assert (
+    bmi_compat_service.MATPLOTLIB_AVAILABLE
+    == app_package.MATPLOTLIB_AVAILABLE
+    == legacy_app.MATPLOTLIB_AVAILABLE
+    == bmi_visualization.MATPLOTLIB_AVAILABLE
+)
+print("ok")
+"""
+    env = os.environ.copy()
+    env["TESTING"] = "true"
+
+    completed = subprocess.run(
+        [sys.executable, "-c", script],
+        cwd=Path(__file__).resolve().parents[1],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+
+    assert completed.returncode == 0, (
+        f"stdout:\n{completed.stdout[-4000:]}\n" f"stderr:\n{completed.stderr[-4000:]}"
+    )
+    assert completed.stdout.strip() == "ok"
 
 
 def _post_routes_for(path: str) -> list[Any]:
@@ -97,6 +156,35 @@ def test_bmi_compat_router_does_not_import_legacy_app() -> None:
             violations.append(f"from legacy_app import ... at line {node.lineno}")
 
     assert violations == []
+
+
+def test_bmi_compat_service_uses_only_local_visualization_bindings() -> None:
+    source_path = Path("app/services/bmi_compat.py")
+    source = source_path.read_text(encoding="utf-8")
+    tree = ast.parse(source, filename=str(source_path))
+
+    forbidden_imports: list[str] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            forbidden_imports.extend(
+                alias.name for alias in node.names if alias.name in {"sys", "legacy_app"}
+            )
+        elif isinstance(node, ast.ImportFrom) and node.module == "core.utils":
+            forbidden_imports.extend(
+                alias.name for alias in node.names if alias.name == "resolve_attr"
+            )
+
+    referenced_names = {node.id for node in ast.walk(tree) if isinstance(node, ast.Name)}
+    string_literals = {
+        node.value
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Constant) and isinstance(node.value, str)
+    }
+
+    assert forbidden_imports == []
+    assert referenced_names.isdisjoint({"sys", "resolve_attr", "legacy_app", "_app_top_module"})
+    assert "sys.modules" not in source
+    assert {"legacy_app", "_app_top_module"}.isdisjoint(string_literals)
 
 
 @pytest.mark.parametrize(
@@ -236,12 +324,42 @@ def test_bmi_request_v1_rejects_low_bmi_and_accepts_existing_model_instance() ->
     assert BMIRequestV1.model_validate(req) is req
 
 
-def test_visualization_fails_closed_when_matplotlib_flag_is_unavailable(
+def test_visualization_is_skipped_when_chart_is_not_requested(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    result = {"bmi": 22.5}
+    req = BMIRequest(weight_kg=70.0, height_m=1.75, include_chart=False)
+
+    def _unexpected_visualization(**_: Any) -> dict[str, Any]:
+        pytest.fail("visualization generator must not run when include_chart is false")
+
+    monkeypatch.setattr(bmi_compat_service, "MATPLOTLIB_AVAILABLE", True)
+    monkeypatch.setattr(
+        bmi_compat_service,
+        "generate_bmi_visualization",
+        _unexpected_visualization,
+    )
+
+    bmi_compat_service.add_visualization_if_requested(result, req)
+
+    assert result == {"bmi": 22.5}
+
+
+def test_visualization_fails_closed_when_local_matplotlib_flag_is_unavailable(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     result = {"bmi": 22.5}
     req = BMIRequest(weight_kg=70.0, height_m=1.75, include_chart=True)
-    monkeypatch.setattr(sys.modules["app"], "MATPLOTLIB_AVAILABLE", False, raising=False)
+
+    def _unexpected_visualization(**_: Any) -> dict[str, Any]:
+        pytest.fail("visualization generator must not run when matplotlib is unavailable")
+
+    monkeypatch.setattr(bmi_compat_service, "MATPLOTLIB_AVAILABLE", False)
+    monkeypatch.setattr(
+        bmi_compat_service,
+        "generate_bmi_visualization",
+        _unexpected_visualization,
+    )
 
     bmi_compat_service.add_visualization_if_requested(result, req)
 
@@ -251,41 +369,153 @@ def test_visualization_fails_closed_when_matplotlib_flag_is_unavailable(
     }
 
 
-@pytest.mark.parametrize(
-    ("viz_result", "expected"),
-    [
-        ({"available": True, "image": "encoded"}, {"available": True, "image": "encoded"}),
-        (
-            {"available": False},
-            {
-                "error": "Visualization not available - generation failed",
-                "available": False,
-            },
-        ),
-    ],
-)
-def test_visualization_uses_resolved_generator_and_preserves_failure_shape(
+def test_visualization_uses_local_generator_and_preserves_truthy_payload(
     monkeypatch: pytest.MonkeyPatch,
-    viz_result: dict[str, Any],
-    expected: dict[str, Any],
 ) -> None:
     result = {"bmi": 22.5}
-    req = BMIRequest(weight_kg=70.0, height_m=1.75, include_chart=True)
+    req = BMIRequest(
+        weight_kg=70.0,
+        height_m=1.75,
+        age=31,
+        gender="female",
+        pregnant=True,
+        athlete=True,
+        lang="ru",
+        include_chart=True,
+    )
+    captured: dict[str, Any] = {}
+    viz_result = {"available": 1, "image": "encoded"}
 
-    def _fake_visualization(**_: Any) -> dict[str, Any]:
+    def _fake_visualization(**kwargs: Any) -> dict[str, Any]:
+        captured.update(kwargs)
         return viz_result
 
     monkeypatch.setattr(bmi_compat_service, "MATPLOTLIB_AVAILABLE", True)
-    monkeypatch.setattr(sys.modules["app"], "MATPLOTLIB_AVAILABLE", True, raising=False)
     monkeypatch.setattr(
         bmi_compat_service,
-        "resolve_attr",
-        lambda *_args, **_kwargs: _fake_visualization,
+        "generate_bmi_visualization",
+        _fake_visualization,
     )
 
     bmi_compat_service.add_visualization_if_requested(result, req)
 
-    assert result["visualization"] == expected
+    assert captured == {
+        "bmi": 22.5,
+        "age": 31,
+        "gender": "female",
+        "pregnant": True,
+        "athlete": True,
+        "lang": "ru",
+    }
+    assert result["visualization"] == viz_result
+
+
+def test_visualization_normalizes_renderer_failure_without_internal_detail(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    result = {"bmi": 22.5}
+    req = BMIRequest(weight_kg=70.0, height_m=1.75, include_chart=True)
+
+    def _failed_visualization(**_: Any) -> dict[str, Any]:
+        return {
+            "available": False,
+            "error": "internal-renderer-secret: /private/runtime/path",
+        }
+
+    monkeypatch.setattr(bmi_compat_service, "MATPLOTLIB_AVAILABLE", True)
+    monkeypatch.setattr(
+        bmi_compat_service,
+        "generate_bmi_visualization",
+        _failed_visualization,
+    )
+
+    bmi_compat_service.add_visualization_if_requested(result, req)
+
+    assert result["visualization"] == {
+        "error": "Visualization not available - generation failed",
+        "available": False,
+    }
+    assert "internal-renderer-secret" not in str(result)
+
+
+def test_bmi_route_uses_service_visualization_bindings_not_facades(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    facade_calls: list[str] = []
+
+    def _facade_visualization(**_: Any) -> dict[str, Any]:
+        facade_calls.append("called")
+        return {"available": True, "source": "facade"}
+
+    def _service_visualization(**_: Any) -> dict[str, Any]:
+        return {"available": True, "source": "service"}
+
+    monkeypatch.setattr(app_package, "MATPLOTLIB_AVAILABLE", False, raising=False)
+    monkeypatch.setattr(
+        app_package,
+        "generate_bmi_visualization",
+        _facade_visualization,
+        raising=False,
+    )
+    monkeypatch.setattr(legacy_app, "MATPLOTLIB_AVAILABLE", False, raising=False)
+    monkeypatch.setattr(
+        legacy_app,
+        "generate_bmi_visualization",
+        _facade_visualization,
+        raising=False,
+    )
+    monkeypatch.setattr(bmi_compat_service, "MATPLOTLIB_AVAILABLE", True)
+    monkeypatch.setattr(
+        bmi_compat_service,
+        "generate_bmi_visualization",
+        _service_visualization,
+    )
+
+    response = client.post(
+        "/bmi",
+        json={
+            "weight_kg": 70.0,
+            "height_m": 1.75,
+            "age": 30,
+            "gender": "male",
+            "include_chart": True,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/json")
+    assert response.json()["visualization"] == {"available": True, "source": "service"}
+    assert facade_calls == []
+
+
+def test_api_v1_bmi_does_not_call_legacy_visualization(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _unexpected_visualization(**_: Any) -> dict[str, Any]:
+        pytest.fail("/api/v1/bmi must not call the legacy visualization generator")
+
+    monkeypatch.setattr(bmi_compat_service, "MATPLOTLIB_AVAILABLE", True)
+    monkeypatch.setattr(
+        bmi_compat_service,
+        "generate_bmi_visualization",
+        _unexpected_visualization,
+    )
+
+    response = client.post(
+        "/api/v1/bmi",
+        json={
+            "weight_kg": 70.0,
+            "height_cm": 175.0,
+            "age": 30,
+            "gender": "male",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/json")
+    assert "visualization" not in response.json()
 
 
 def test_localized_legacy_result_preserves_pregnancy_note() -> None:

@@ -3,7 +3,6 @@
 """
 
 import os
-import sys
 from unittest.mock import patch
 
 import pytest
@@ -89,39 +88,6 @@ class TestMetricsFallbacks:
 
         response = client.get("/metrics")
         assert response.status_code == 200
-
-
-class TestVisualizationFallbacks:
-    """Тесты fallback'ов визуализации"""
-
-    def test_bmi_without_matplotlib(self):
-        """Тест BMI без matplotlib"""
-        with patch("app.MATPLOTLIB_AVAILABLE", False):
-            client = TestClient(app)
-
-            # Используем правильный формат данных для BMIRequest
-            response = client.post(
-                "/bmi",
-                json={
-                    "weight_kg": 70.0,
-                    "height_m": 1.70,
-                    "age": 30,
-                    "gender": "male",
-                    "lang": "en",
-                },
-            )
-            # 422 это нормально для валидации, 200 если прошло
-            assert response.status_code in [200, 422]
-
-    def test_bmi_without_visualization_function(self):
-        """Тест BMI без функции визуализации"""
-        with patch("app.generate_bmi_visualization", None):
-            client = TestClient(app)
-
-            response = client.post(
-                "/bmi", json={"weight_kg": 70.0, "height_m": 1.70, "age": 30, "gender": "male"}
-            )
-            assert response.status_code in [200, 422]
 
 
 class TestBasicEndpoints:

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from decimal import Decimal
 import logging
-import sys
 from typing import Any
 
 from fastapi import HTTPException
@@ -19,7 +18,6 @@ from bmi_visualization import MATPLOTLIB_AVAILABLE, generate_bmi_visualization
 from core.bmi.compat_plan import legacy_plan_category
 from core.bmi.engine import HEALTHY_BMI_RANGE, _normalize_bool_flag
 from core.i18n import Language, normalize_lang, t
-from core.utils import resolve_attr
 
 logger = logging.getLogger(__name__)
 bmi_logger = logging.getLogger("app.bmi")
@@ -30,44 +28,28 @@ def add_visualization_if_requested(result: dict[str, Any], req: BMIRequest) -> N
     if not req.include_chart:
         return
 
-    pkg_flag = getattr(sys.modules.get("app"), "MATPLOTLIB_AVAILABLE", MATPLOTLIB_AVAILABLE)
-
-    legacy_module = sys.modules.get("legacy_app")
-    legacy_flag = getattr(legacy_module, "MATPLOTLIB_AVAILABLE", MATPLOTLIB_AVAILABLE)
-
-    if not pkg_flag or not legacy_flag or not MATPLOTLIB_AVAILABLE:
+    if not MATPLOTLIB_AVAILABLE:
         result["visualization"] = {
             "error": "Visualization not available - matplotlib not installed",
             "available": False,
         }
         return
 
-    candidates = [
-        sys.modules.get("_app_top_module"),
-        sys.modules.get("app"),
-        legacy_module,
-        sys.modules.get(__name__),
-    ]
-    if viz_func := resolve_attr(
-        "generate_bmi_visualization",
-        generate_bmi_visualization,
-        candidates,
-    ):
-        viz_result = viz_func(
-            bmi=result["bmi"],
-            age=req.age,
-            gender=req.gender,
-            pregnant=req.pregnant,
-            athlete=req.athlete,
-            lang=req.lang,
-        )
-        if viz_result.get("available"):
-            result["visualization"] = viz_result
-        else:
-            result["visualization"] = {
-                "error": "Visualization not available - generation failed",
-                "available": False,
-            }
+    viz_result = generate_bmi_visualization(
+        bmi=result["bmi"],
+        age=req.age,
+        gender=req.gender,
+        pregnant=req.pregnant,
+        athlete=req.athlete,
+        lang=req.lang,
+    )
+    if viz_result.get("available"):
+        result["visualization"] = viz_result
+    else:
+        result["visualization"] = {
+            "error": "Visualization not available - generation failed",
+            "available": False,
+        }
 
 
 def _localized_legacy_bmi_result(
