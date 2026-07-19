@@ -1727,7 +1727,7 @@ def test_receipt_validator_rejects_unknown_failures_and_incoherent_runner_status
     _reset_receipt_identity(top_level_capability_retry_tamper)
     with pytest.raises(
         CreativeCodePatchGenerationError,
-        match="capability_mismatch receipts require a rejected runner summary",
+        match="terminal pre-oracle rejected receipts require a rejected runner summary",
     ):
         validate_generation_receipt(top_level_capability_retry_tamper)
 
@@ -1779,15 +1779,16 @@ def test_receipt_validator_rejects_unknown_failures_and_incoherent_runner_status
     _reset_receipt_identity(wrapper_rejection)
     assert validate_generation_receipt(wrapper_rejection) == wrapper_rejection
 
-    capability_without_runner_proof = deepcopy(reference)
-    capability_without_runner_proof["status"] = "rejected"
-    capability_without_runner_proof["failure_class"] = "capability_mismatch"
-    _reset_receipt_identity(capability_without_runner_proof)
-    with pytest.raises(
-        CreativeCodePatchGenerationError,
-        match="capability_mismatch receipts require a rejected runner summary",
-    ):
-        validate_generation_receipt(capability_without_runner_proof)
+    for failure_class in ("capability_mismatch", "policy_violation"):
+        pre_oracle_without_runner_proof = deepcopy(reference)
+        pre_oracle_without_runner_proof["status"] = "rejected"
+        pre_oracle_without_runner_proof["failure_class"] = failure_class
+        _reset_receipt_identity(pre_oracle_without_runner_proof)
+        with pytest.raises(
+            CreativeCodePatchGenerationError,
+            match="terminal pre-oracle rejected receipts require a rejected runner summary",
+        ):
+            validate_generation_receipt(pre_oracle_without_runner_proof)
 
 
 def test_validate_artifacts_rejects_tampered_receipt_gate_ref_with_recomputed_identity(

@@ -585,20 +585,21 @@ def test_patch_result_rejects_incoherent_runner_status_and_preserves_wrapper_rej
 
     assert validate_creative_code_patch_result(wrapper_rejection) == wrapper_rejection
 
-    capability_without_runner_proof = _reference_result()
-    capability_without_runner_proof["status"] = "rejected"
-    capability_without_runner_proof["failure_class"] = "capability_mismatch"
-    result_id, idempotency_key = creative_code_patch_contract._build_result_identity(
-        capability_without_runner_proof
-    )
-    capability_without_runner_proof["result_id"] = result_id
-    capability_without_runner_proof["idempotency_key"] = idempotency_key
+    for failure_class in ("capability_mismatch", "policy_violation"):
+        pre_oracle_without_runner_proof = _reference_result()
+        pre_oracle_without_runner_proof["status"] = "rejected"
+        pre_oracle_without_runner_proof["failure_class"] = failure_class
+        result_id, idempotency_key = creative_code_patch_contract._build_result_identity(
+            pre_oracle_without_runner_proof
+        )
+        pre_oracle_without_runner_proof["result_id"] = result_id
+        pre_oracle_without_runner_proof["idempotency_key"] = idempotency_key
 
-    with pytest.raises(
-        CreativeCodePatchContractError,
-        match="capability_mismatch results require a rejected runner summary",
-    ):
-        validate_creative_code_patch_result(capability_without_runner_proof)
+        with pytest.raises(
+            CreativeCodePatchContractError,
+            match="terminal pre-oracle rejected results require a rejected runner summary",
+        ):
+            validate_creative_code_patch_result(pre_oracle_without_runner_proof)
 
 
 @pytest.mark.parametrize(
@@ -690,7 +691,7 @@ def test_patch_result_rejects_capability_mismatch_retry_tamper() -> None:
 
     with pytest.raises(
         CreativeCodePatchContractError,
-        match="capability_mismatch results require a rejected runner summary",
+        match="terminal pre-oracle rejected results require a rejected runner summary",
     ):
         validate_creative_code_patch_result(top_level_tamper)
 

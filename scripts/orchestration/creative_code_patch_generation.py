@@ -1474,9 +1474,9 @@ def validate_generation_receipt(payload: Mapping[str, Any]) -> dict[str, Any]:
         )
     if coherence_violation == "accepted_without_workspace_proof":
         raise CreativeCodePatchGenerationError("accepted receipt requires full workspace proof.")
-    if coherence_violation == "rejected_capability_without_runner_proof":
+    if coherence_violation == "rejected_pre_oracle_without_runner_proof":
         raise CreativeCodePatchGenerationError(
-            "capability_mismatch receipts require a rejected runner summary."
+            "terminal pre-oracle rejected receipts require a rejected runner summary."
         )
     if coherence_violation == "rejected_failure_mismatch":
         raise CreativeCodePatchGenerationError(
