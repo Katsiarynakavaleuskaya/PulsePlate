@@ -6071,6 +6071,38 @@ def test_legacy_growth_guard_replays_invoked_partial_helpers(
 
 
 @pytest.mark.parametrize(
+    ("helper", "seed", "binding"),
+    [
+        (
+            "def install(*registrars):\n"
+            "    for registrar in registrars:\n"
+            "        registrar(handler)\n",
+            "seed = [app.middleware(\"http\")]\n",
+            "run = partial(install, *seed)\n",
+        ),
+        (
+            "def install(**registrars):\n" "    registrars[\"registrar\"](handler)\n",
+            "seed = {\"registrar\": app.middleware(\"http\")}\n",
+            "run = partial(install, **seed)\n",
+        ),
+    ],
+    ids=["varargs", "kwargs"],
+)
+def test_legacy_growth_guard_handles_unresolved_partial_variadic_helpers(
+    helper: str,
+    seed: str,
+    binding: str,
+) -> None:
+    source = (
+        "from functools import partial\n\n" f"{helper}" f"{seed}" f"{binding}" "run()\n"
+    )
+
+    errors = legacy_guard.validate_legacy_growth(source)
+
+    assert isinstance(errors, list)
+
+
+@pytest.mark.parametrize(
     "execution",
     [
         '    asyncio.gather(install(app.middleware("http")))',

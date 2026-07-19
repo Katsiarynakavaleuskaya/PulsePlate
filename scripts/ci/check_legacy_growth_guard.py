@@ -5481,7 +5481,9 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 for parameter in (
                     *template.function.args.posonlyargs,
                     *template.function.args.args,
+                    *([template.function.args.vararg] if template.function.args.vararg else []),
                     *template.function.args.kwonlyargs,
+                    *([template.function.args.kwarg] if template.function.args.kwarg else []),
                 )
             }
         positional = [
