@@ -431,17 +431,22 @@ def test_reference_patch_contracts_validate_and_schema_is_closed() -> None:
     assert runner_rules[3]["if"]["properties"]["failure_class"] == {"const": "policy_violation"}
     assert runner_rules[3]["then"]["properties"]["attempts"] == {"enum": [0, 1]}
     assert runner_rules[3]["then"]["properties"]["retries_consumed"] == {"const": 0}
-    zero_attempt_rule = runner_rules[4]
-    assert zero_attempt_rule["if"]["required"] == ["failure_class", "attempts"]
-    assert zero_attempt_rule["if"]["properties"] == {
-        "failure_class": {"enum": ["capability_mismatch", "policy_violation"]},
-        "attempts": {"const": 0},
-    }
-    assert zero_attempt_rule["then"]["properties"] == {
+    pre_oracle_execution_rule = runner_rules[4]
+    assert pre_oracle_execution_rule["if"]["required"] == ["failure_class", "attempts"]
+    assert pre_oracle_execution_rule["if"]["anyOf"] == [
+        {
+            "properties": {
+                "failure_class": {"const": "capability_mismatch"},
+                "attempts": {"const": 0},
+            }
+        },
+        {"properties": {"failure_class": {"const": "policy_violation"}}},
+    ]
+    assert pre_oracle_execution_rule["then"]["properties"] == {
         "mutated_path_count": {"const": 0},
         "oracle_commands_executed": {"const": 0},
     }
-    assert "oracle_commands_configured" not in zero_attempt_rule["then"]["properties"]
+    assert "oracle_commands_configured" not in pre_oracle_execution_rule["then"]["properties"]
     assert (
         result_schema["$defs"]["authority"]["properties"]["candidate_patch_generated"]["const"]
         is True

@@ -362,12 +362,19 @@
         {
           "if": {
             "required": ["failure_class", "attempts"],
-            "properties": {
-              "failure_class": {
-                "enum": ["capability_mismatch", "policy_violation"]
+            "anyOf": [
+              {
+                "properties": {
+                  "failure_class": { "const": "capability_mismatch" },
+                  "attempts": { "const": 0 }
+                }
               },
-              "attempts": { "const": 0 }
-            }
+              {
+                "properties": {
+                  "failure_class": { "const": "policy_violation" }
+                }
+              }
+            ]
           },
           "then": {
             "properties": {

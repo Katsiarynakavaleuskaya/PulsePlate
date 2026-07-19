@@ -2580,10 +2580,11 @@ def _finalize_dispatched_result_locked(
             )
     original_state = dict(state)
     result_written = False
+    receipt_written = False
     state_written = False
 
     def remove_matching_receipt() -> None:
-        if not receipt_path.exists() or receipt_path.is_symlink():
+        if not receipt_written or not receipt_path.exists() or receipt_path.is_symlink():
             return
         current_receipt = _read_pinned_json_object(
             receipt_path,
@@ -2622,6 +2623,7 @@ def _finalize_dispatched_result_locked(
             )
             state_written = True
         _write_json_new(receipt_path, receipt)
+        receipt_written = True
     except Exception as publication_error:
         rollback_errors: list[str] = []
         rollback_actions = (

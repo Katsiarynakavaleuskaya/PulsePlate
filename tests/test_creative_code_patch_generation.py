@@ -804,7 +804,7 @@ def test_finalize_dispatched_result_preserves_replaced_result_during_rollback(
     assert not (gate_path.parent / generation_cli.RECEIPT_FILENAME).exists()
 
 
-def test_finalize_dispatched_result_attempts_every_rollback_after_cleanup_failure(
+def test_finalize_dispatched_result_preserves_unconfirmed_receipt_during_rollback(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
@@ -852,7 +852,9 @@ def test_finalize_dispatched_result_attempts_every_rollback_after_cleanup_failur
     assert "rollback was incomplete: state restoration: OSError" in capsys.readouterr().err
     run_dir = creative_code_patch_workspace.resolve_run_dir(run_id, create=False)
     assert not (run_dir / creative_code_patch_builder.RESULT_FILE).exists()
-    assert not (gate_path.parent / generation_cli.RECEIPT_FILENAME).exists()
+    receipt_path = gate_path.parent / generation_cli.RECEIPT_FILENAME
+    assert receipt_path.exists()
+    assert json.loads(receipt_path.read_text(encoding="utf-8"))["status"] == "accepted"
 
 
 @pytest.mark.parametrize("interruption_point", ["state", "receipt"])
@@ -2851,17 +2853,22 @@ def test_generation_schemas_are_closed_and_authority_is_const_false() -> None:
     assert runner_rules[3]["if"]["properties"]["failure_class"] == {"const": "policy_violation"}
     assert runner_rules[3]["then"]["properties"]["attempts"] == {"enum": [0, 1]}
     assert runner_rules[3]["then"]["properties"]["retries_consumed"] == {"const": 0}
-    zero_attempt_rule = runner_rules[4]
-    assert zero_attempt_rule["if"]["required"] == ["failure_class", "attempts"]
-    assert zero_attempt_rule["if"]["properties"] == {
-        "failure_class": {"enum": ["capability_mismatch", "policy_violation"]},
-        "attempts": {"const": 0},
-    }
-    assert zero_attempt_rule["then"]["properties"] == {
+    pre_oracle_execution_rule = runner_rules[4]
+    assert pre_oracle_execution_rule["if"]["required"] == ["failure_class", "attempts"]
+    assert pre_oracle_execution_rule["if"]["anyOf"] == [
+        {
+            "properties": {
+                "failure_class": {"const": "capability_mismatch"},
+                "attempts": {"const": 0},
+            }
+        },
+        {"properties": {"failure_class": {"const": "policy_violation"}}},
+    ]
+    assert pre_oracle_execution_rule["then"]["properties"] == {
         "mutated_path_count": {"const": 0},
         "oracle_commands_executed": {"const": 0},
     }
-    assert "oracle_commands_configured" not in zero_attempt_rule["then"]["properties"]
+    assert "oracle_commands_configured" not in pre_oracle_execution_rule["then"]["properties"]
 
 
 def test_generation_cli_exposes_no_promotion_or_github_commands() -> None:
