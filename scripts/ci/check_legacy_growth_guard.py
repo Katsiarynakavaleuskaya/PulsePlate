@@ -6227,6 +6227,61 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             mapping_site=synthetic_site,
         )
 
+    def _replace_mapping_aliases(
+        self,
+        mapping: _StaticMapping,
+        replacement: _ResolvedBinding,
+    ) -> None:
+        if replacement.mapping is None:
+            raise LegacyGrowthAnalysisError(
+                f"{self.filename}: replacement mapping binding lost its mapping shape"
+            )
+        scope: _LexicalBindings | None = self.scope
+        while scope is not None:
+            for name, candidate in tuple(scope.mappings.items()):
+                if candidate is not mapping:
+                    continue
+                scope.mappings[name] = replacement.mapping
+                if replacement.reference is None:
+                    scope.references.pop(name, None)
+                else:
+                    scope.references[name] = replacement.reference
+                if replacement.iterable_element is None:
+                    scope.iterable_elements.pop(name, None)
+                else:
+                    scope.iterable_elements[name] = replacement.iterable_element
+            scope = scope.parent
+
+    def _mapping_after_known_pop(
+        self,
+        mapping: _StaticMapping,
+        key_node: ast.AST,
+        site: ast.AST,
+    ) -> _ResolvedBinding | None:
+        removed_key = _literal_value(key_node)
+        if removed_key is _UNRESOLVED_LITERAL_VALUE:
+            return None
+        remaining: list[_StaticMappingEntry] = []
+        removed = False
+        for entry in mapping.entries:
+            if entry.key is None:
+                return None
+            candidate = _literal_value(entry.key)
+            if candidate is _UNRESOLVED_LITERAL_VALUE:
+                return None
+            if candidate == removed_key:
+                removed = True
+                continue
+            remaining.append(entry)
+        if not removed:
+            return None
+        synthetic_site = ast.copy_location(ast.Dict(keys=[], values=[]), site)
+        return self._variadic_mapping_binding(
+            [entry.binding for entry in remaining],
+            mapping_entries=remaining,
+            mapping_site=synthetic_site,
+        )
+
     def _dict_constructor_binding(
         self,
         node: ast.Call,
@@ -6267,6 +6322,38 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     binding=self._capture_argument_binding(keyword.value),
                 )
             )
+        synthetic_site = ast.copy_location(ast.Dict(keys=[], values=[]), node)
+        return self._variadic_mapping_binding(
+            [entry.binding for entry in entries],
+            mapping_entries=entries,
+            mapping_site=synthetic_site,
+        )
+
+    def _dict_fromkeys_binding(
+        self,
+        node: ast.Call,
+        positional_arguments: Sequence[ast.expr],
+        unresolved_positional_sources: Sequence[ast.expr],
+    ) -> _ResolvedBinding | None:
+        if (
+            unresolved_positional_sources
+            or not 1 <= len(positional_arguments) <= 2
+            or node.keywords
+        ):
+            return None
+        keys = positional_arguments[0]
+        value_binding = (
+            self._capture_argument_binding(positional_arguments[1])
+            if len(positional_arguments) == 2
+            else _ResolvedBinding(reference=_KNOWN_NON_APP_REFERENCE, string=None)
+        )
+        entries: list[_StaticMappingEntry] = []
+        if isinstance(keys, (ast.List, ast.Tuple, ast.Set)) and all(
+            not isinstance(element, ast.Starred) for element in keys.elts
+        ):
+            entries.extend(_StaticMappingEntry(key=key, binding=value_binding) for key in keys.elts)
+        else:
+            entries.append(_StaticMappingEntry(key=None, binding=value_binding))
         synthetic_site = ast.copy_location(ast.Dict(keys=[], values=[]), node)
         return self._variadic_mapping_binding(
             [entry.binding for entry in entries],
@@ -7245,6 +7332,12 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 positional_arguments,
                 unresolved_positional_sources,
             )
+        if projected_result is None and wrapper_reference == "builtins.dict.fromkeys":
+            projected_result = self._dict_fromkeys_binding(
+                node,
+                positional_arguments,
+                unresolved_positional_sources,
+            )
         if projected_result is None and wrapper_reference in _ZIPPING_ITERABLE_BUILTIN_REFERENCES:
             projected_result = self._zip_result_binding(
                 positional_arguments,
@@ -7499,7 +7592,29 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             if keyword.arg is not None
             if (mapping := self._resolve_mapping(keyword.value)) is not None
         )
+        rewritten_mappings: set[_StaticMapping] = set()
+        if (
+            mutated_mapping is not None
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "pop"
+            and positional_arguments
+            and not unresolved_positional_sources
+            and mapping_lookup_receiver is not None
+            and mapping_lookup_receiver.mapping is mutated_mapping
+            and self._mapping_invalidation_counts.get(mutated_mapping, 0)
+            == mapping_lookup_receiver.invalidation_count
+        ):
+            replacement = self._mapping_after_known_pop(
+                mutated_mapping,
+                positional_arguments[0],
+                node,
+            )
+            if replacement is not None:
+                self._replace_mapping_aliases(mutated_mapping, replacement)
+                rewritten_mappings.add(mutated_mapping)
         for mapping in set(escaped_mappings):
+            if mapping in rewritten_mappings:
+                continue
             self._invalidate_mapping(
                 mapping,
                 known_empty=mapping in known_empty_mappings,
