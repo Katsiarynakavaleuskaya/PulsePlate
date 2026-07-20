@@ -13,30 +13,16 @@ POST_OPEN_BUG_HUNTER_AGENT = "bug-hunter"
 POST_OPEN_SECURITY_AUDITOR_AGENT = "security-auditor"
 POST_OPEN_CODEX_SECURITY_SCAN = "Codex Security diff scan / finding discovery"
 POST_OPEN_PULSEPLATE_PR_REVIEW = "pulseplate-pr-review"
-FINAL_MATERIAL_ONLY = "final_material_only"
 
 MANDATORY_POST_OPEN_ORDER: tuple[str, ...] = (
     POST_OPEN_QA_AGENT,
     POST_OPEN_BUG_HUNTER_AGENT,
     POST_OPEN_SECURITY_AUDITOR_AGENT,
 )
-# Role-dispatch manifests intentionally expose only repeatable role-agent gates.
-# Final-material review and security gates live in the PR lifecycle contract.
-MANDATORY_POST_OPEN_GATES: tuple[str, ...] = MANDATORY_POST_OPEN_ORDER
-FINAL_MATERIAL_REVIEW_GATES: tuple[str, ...] = (
-    POST_OPEN_PULSEPLATE_PR_REVIEW,
+MANDATORY_POST_OPEN_GATES: tuple[str, ...] = (
+    *MANDATORY_POST_OPEN_ORDER,
     POST_OPEN_CODEX_SECURITY_SCAN,
-)
-CODEX_SECURITY_INVOCATION_POLICY_ITEMS: tuple[tuple[str, object], ...] = (
-    ("scope", "per_pr"),
-    ("automatic_budget", 1),
-    ("automatic_retries", 0),
-    ("requires_frozen_material", True),
-    ("additional_invocation", "trusted_operator_approval"),
-    ("timeout_or_incomplete_consumes_request", True),
-    ("repository_invokes_plugin", False),
-    ("global_cross_machine_consumption_provable", False),
-    ("local_state_is_global_authority", False),
+    POST_OPEN_PULSEPLATE_PR_REVIEW,
 )
 IMPLEMENTATION_OWNER_SLUGS: frozenset[str] = frozenset(
     (
@@ -50,12 +36,6 @@ IMPLEMENTATION_OWNER_SLUGS: frozenset[str] = frozenset(
         "security-auditor",
     )
 )
-
-
-def codex_security_invocation_policy() -> dict[str, object]:
-    """Return a fresh, stable projection of the manual final-security policy."""
-
-    return dict(CODEX_SECURITY_INVOCATION_POLICY_ITEMS)
 
 
 def normalize_requested_agents(requested_agents: list[str] | tuple[str, ...]) -> list[str]:

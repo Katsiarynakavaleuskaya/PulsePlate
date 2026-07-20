@@ -592,14 +592,14 @@ For non-trivial PRs:
 2. do not normalize pre-open requested role order or explicit `--roles` fallback
    dispatch into the post-open `qa-engineer-agent -> bug-hunter -> security-auditor`
    tail
-3. scoped `AGENTS.md` files must preserve the repo-global separation between
-   the repeatable role-only post-open pass and the final-material
-   `pulseplate-pr-review` / Codex Security gates
+3. scoped `AGENTS.md` files must not narrow the repo-global post-open review
+   gate; use a superseding repo-global reference when historical lane bullets
+   would otherwise omit `security-auditor`, Codex Security, or
+   `pulseplate-pr-review`
 4. run `pulseplate-premortem-risk-review` and Experiment Runner oracle-only
    evidence before PR open
-5. after PR open, run `qa-engineer-agent -> bug-hunter -> security-auditor`;
-   after fixes, gates, CI, and freeze, run exact-head `pulseplate-pr-review`
-   followed by one operator-issued final manual Codex Security request
+5. after PR open, run `qa-engineer-agent -> bug-hunter -> security-auditor`,
+   Codex Security diff scan / finding discovery, and `pulseplate-pr-review`
 6. when a recurring governance rule emerges, update the smallest authoritative
    instruction surfaces in the same PR: scoped/root `AGENTS.md`, `RUNBOOK_AGENT.md`,
    workflow/contract docs, and this lessons file

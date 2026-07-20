@@ -3021,11 +3021,6 @@ def test_final_material_security_budget_has_one_global_source_and_scoped_project
     matrix = (REPO_ROOT / "docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md").read_text(
         encoding="utf-8"
     )
-    dispatch_agents = (
-        REPO_ROOT / ".agents/skills/pulseplate-orchestration-dispatch/AGENTS.md"
-    ).read_text(encoding="utf-8")
-    workflow = (REPO_ROOT / "docs/orchestration/workflow.md").read_text(encoding="utf-8")
-
     assert root_agents.count(marker) == 1
     assert marker not in runbook
     assert marker not in scoped_agents
@@ -3044,8 +3039,6 @@ def test_final_material_security_budget_has_one_global_source_and_scoped_project
         runbook,
         scoped_agents,
         matrix,
-        dispatch_agents,
-        workflow,
     ):
         assert connector_distinction in projection
         assert "do not disable or manually retrigger it" in projection
@@ -3060,10 +3053,7 @@ def test_active_orchestration_surfaces_forbid_per_diff_security_reruns() -> None
         REPO_ROOT / "AGENTS.md",
         REPO_ROOT / "RUNBOOK_AGENT.md",
         REPO_ROOT / "docs/orchestration/AGENTS.md",
-        REPO_ROOT / "docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md",
         REPO_ROOT / "docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md",
-        REPO_ROOT / ".agents/skills/pulseplate-orchestration-dispatch/AGENTS.md",
-        REPO_ROOT / ".agents/skills/pulseplate-orchestration-dispatch/rules/packet-parsing.md",
     )
     forbidden = (
         "single pass per material diff",

@@ -45,14 +45,11 @@ Full mapping: `rules/role-mapping.md`
 - An agent with `depends_on_previous: true` MUST wait for its predecessor
 - The post-open mandatory pass is always sequential: qa-engineer → bug-hunter
 - Coordinator (first) and QA pass (last) are never parallelized with others
-- The repeatable post-open dispatch is role-only:
-  `qa-engineer-agent -> bug-hunter -> security-auditor`. Final-material
-  `pulseplate-pr-review` and Codex Security are not agent roles and must not
-  appear in repeatable manifests. After freeze, run exact-head review followed
-  by one operator-issued scan; any additional request requires fresh
-  exact-material trusted operator approval.
-
-GitHub Codex Connector review is separate from the locally invoked Codex Security plugin. Leave the Connector automatic: do not disable or manually retrigger it, and do not wait indefinitely when silence or rate limiting means no receipt. The expensive Codex Security plugin is invoked manually exactly once only after final material freeze and exact-head `pulseplate-pr-review`, with no automatic retry.
+- The post-open role/security/review chain is one required pass per PR lane. Do
+  not rerun the full chain for each new review comment. Later comments are
+  handled through `docs/review/PR_<N>_FIXED_MAPPING.md` disposition and targeted
+  validation unless a new security-relevant diff, coordinator routing update, or
+  explicit operator instruction reopens the chain.
 
 ## Error Handling
 

@@ -196,13 +196,11 @@ Rules:
   shared repository writes, branch/push/PR creation, ready-for-review,
   review-thread resolution, merge, release, public multi-tenant use,
   semantic-cache use, or Slack/GitHub authority expansion.
-- The post-open repeatable lane is role-only:
-  `qa-engineer-agent -> bug-hunter -> security-auditor`. After fixes, scoped
-  gates, current-head CI, and material freeze, run exact-head
-  `pulseplate-pr-review`, then one operator-issued final Codex Security scan.
-  No material change, timeout, safety block, incomplete result, or later comment
-  authorizes an automatic security retry; every additional request requires a
-  fresh exact-material trusted operator approval.
+- The post-open `qa-engineer-agent -> bug-hunter -> security-auditor -> Codex
+  Security -> pulseplate-pr-review` chain is a single pass per material diff.
+  Later comments use fixed mapping and targeted gates unless the
+  security-relevant diff changes, the coordinator records an evidence-backed
+  reroute, or the operator explicitly requests a rerun.
 
 ---
 

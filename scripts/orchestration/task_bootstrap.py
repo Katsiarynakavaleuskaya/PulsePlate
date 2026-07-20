@@ -99,15 +99,12 @@ from scripts.orchestration.routing_graph_loader import (
     require_bootstrap_lane_activation,
 )
 from scripts.orchestration.requested_agents import (
-    FINAL_MATERIAL_ONLY,
-    FINAL_MATERIAL_REVIEW_GATES,
     IMPLEMENTATION_OWNER_SLUGS,
     MANDATORY_POST_OPEN_ORDER,
     POST_OPEN_BUG_HUNTER_AGENT,
     POST_OPEN_CODEX_SECURITY_SCAN,
     POST_OPEN_PULSEPLATE_PR_REVIEW,
     POST_OPEN_QA_AGENT,
-    codex_security_invocation_policy,
     normalize_requested_agents,
 )
 from scripts.orchestration.skill_router import flatten_recommended_skills, route_skills
@@ -157,6 +154,11 @@ MERGE_READINESS_ENTRYPOINT = "scripts/orchestration/check_merge_ready.py"
 ROLE_DISPATCH_MANIFEST_ENTRYPOINT = "scripts/orchestration/role_dispatch_bridge.py"
 ROLE_DISPATCH_COMPATIBILITY_ENTRYPOINTS = ("scripts/orchestration/qoder_dispatch_bridge.py",)
 PR_LIFECYCLE_CONTRACT_VERSION = "pulseplate.pr-lifecycle/v2"
+FINAL_MATERIAL_ONLY = "final_material_only"
+FINAL_MATERIAL_REVIEW_GATES: tuple[str, ...] = (
+    POST_OPEN_PULSEPLATE_PR_REVIEW,
+    POST_OPEN_CODEX_SECURITY_SCAN,
+)
 POST_OPEN_REVIEW_CHAIN_POLICY = "post_open_roles_then_final_material_gates"
 POST_OPEN_REVIEW_RERUN_ALLOWED_REASONS: tuple[str, ...] = (
     "coordinator_evidence_backed_reroute",
@@ -620,6 +622,22 @@ def _normalize_pr_phase(pr_phase: str) -> str:
     return normalized_phase
 
 
+def _codex_security_invocation_policy() -> dict[str, Any]:
+    """Return the per-PR final-security request budget."""
+
+    return {
+        "scope": "per_pr",
+        "automatic_budget": 1,
+        "automatic_retries": 0,
+        "requires_frozen_material": True,
+        "additional_invocation": "trusted_operator_approval",
+        "timeout_or_incomplete_consumes_request": True,
+        "repository_invokes_plugin": False,
+        "global_cross_machine_consumption_provable": False,
+        "local_state_is_global_authority": False,
+    }
+
+
 def _build_pr_lifecycle_contract(pr_phase: str) -> dict[str, Any]:
     """Return deterministic packet metadata for the requested PR phase."""
 
@@ -658,7 +676,7 @@ def _build_pr_lifecycle_contract(pr_phase: str) -> dict[str, Any]:
         "post_open_later_comments_handling": (
             POST_OPEN_LATER_COMMENTS_HANDLING if post_open_review else ""
         ),
-        "codex_security_invocation_policy": codex_security_invocation_policy(),
+        "codex_security_invocation_policy": _codex_security_invocation_policy(),
         "artifact_template": PR_REVIEW_ARTIFACT_TEMPLATE if requires_pr else "",
         "current_head_required": requires_current_head,
         "current_head_truth": "latest-current-head" if requires_current_head else "not-applicable",

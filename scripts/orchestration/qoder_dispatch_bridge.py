@@ -38,7 +38,6 @@ if str(REPO_ROOT) not in sys.path:
 
 from scripts.orchestration.requested_agents import (
     IMPLEMENTATION_OWNER_SLUGS,
-    MANDATORY_POST_OPEN_GATES,
     MANDATORY_POST_OPEN_ORDER,
     normalize_implementation_owner_slugs,
 )
@@ -1058,7 +1057,7 @@ def build_dispatch_manifest(
         ),
         "post_open_role_gates": list(MANDATORY_POST_OPEN_ORDER),
         "mandatory_post_open": list(MANDATORY_POST_OPEN_ORDER),
-        "mandatory_post_open_gates": list(MANDATORY_POST_OPEN_GATES),
+        "mandatory_post_open_gates": list(MANDATORY_POST_OPEN_ORDER),
         "mandatory_post_open_role_agents": list(MANDATORY_POST_OPEN_ORDER),
         "compatibility_aliases": {
             "mandatory_post_open": {
