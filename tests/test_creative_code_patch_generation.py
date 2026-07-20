@@ -1282,6 +1282,8 @@ def test_finalize_dispatched_result_rejects_oversized_generated_metadata_sidecar
         ("boolean_candidate_changed_files", "candidate changed-file count must match"),
         ("missing_source_checkout_proof", "clean candidate base checkout"),
         ("mismatched_source_checkout_head", "clean candidate base checkout"),
+        ("policy_missing_source_checkout_proof", "clean candidate base checkout"),
+        ("capability_missing_source_checkout_proof", "clean candidate base checkout"),
         ("metric_regression_without_metrics", "without structured metric evidence"),
         ("policy_without_error", "failed Experiment Runner validation"),
         ("accepted_runner_error", "must not carry runner_error"),
@@ -1438,6 +1440,33 @@ def test_finalize_dispatched_result_rejects_unbound_dispatch_evidence(
         dispatch_result["budget_observations"].pop("source_checkout_head_sha")
     elif mutation == "mismatched_source_checkout_head":
         dispatch_result["budget_observations"]["source_checkout_head_sha"] = "f" * 40
+    elif mutation == "policy_missing_source_checkout_proof":
+        dispatch_result["status"] = "rejected"
+        dispatch_result["failure_class"] = "policy_violation"
+        dispatch_result["mutated_paths"] = []
+        dispatch_result["oracle_results"] = []
+        dispatch_result["budget_observations"].update(
+            {
+                "oracle_commands_executed": 0,
+                "runner_error": "policy denied candidate execution",
+            }
+        )
+        dispatch_result["budget_observations"].pop("source_checkout_head_sha")
+    elif mutation == "capability_missing_source_checkout_proof":
+        dispatch_result["status"] = "rejected"
+        dispatch_result["failure_class"] = "capability_mismatch"
+        dispatch_result["mutated_paths"] = []
+        dispatch_result["oracle_results"] = []
+        dispatch_result["candidate_patch"] = (
+            generation_cli.TRUSTED_DISPATCH_PREFLIGHT_CANDIDATE_PATCH_REF
+        )
+        dispatch_result["budget_observations"].update(
+            {
+                "oracle_commands_executed": 0,
+                "runner_error": generation_cli.TRUSTED_DISPATCH_CAPABILITY_ERROR,
+            }
+        )
+        dispatch_result["budget_observations"].pop("source_checkout_head_sha")
     elif mutation == "metric_regression_without_metrics":
         dispatch_result["status"] = "rejected"
         dispatch_result["failure_class"] = "metric_regression"

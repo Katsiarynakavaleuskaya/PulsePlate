@@ -1594,6 +1594,8 @@ def _post_preflight_capability_mismatch_result(
     packet: dict[str, Any],
     image: ImageReference,
     probe: BackendProbe,
+    *,
+    candidate_checkout_proof: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build the sole publishable result for the runner's owned capability signal."""
 
@@ -1629,6 +1631,8 @@ def _post_preflight_capability_mismatch_result(
     }
     if "candidate_patch_fingerprint" in packet:
         result["candidate_patch_fingerprint"] = packet["candidate_patch_fingerprint"]
+    if candidate_checkout_proof:
+        result["budget_observations"].update(candidate_checkout_proof)
     return _validated_experiment_result(result)
 
 
@@ -1930,7 +1934,12 @@ def _invoke_container_runner(
         if not cleanup_completed:
             raise DispatchError("container_cleanup_failed")
         if runner_capability_signal:
-            return _post_preflight_capability_mismatch_result(packet, image, probe)
+            return _post_preflight_capability_mismatch_result(
+                packet,
+                image,
+                probe,
+                candidate_checkout_proof=candidate_checkout_proof,
+            )
         if payload is None:
             raise DispatchError("result_extraction_failed")
         return _sanitize_result(

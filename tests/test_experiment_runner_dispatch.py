@@ -2044,6 +2044,28 @@ def test_sanitize_result_preserves_safe_post_preflight_capability_mismatch() -> 
     assert "<redacted>" in sanitized["budget_observations"]["runner_error"]
 
 
+def test_post_preflight_capability_result_preserves_candidate_checkout_proof() -> None:
+    packet = _packet(network_budget=0)
+    packet["runner_mode"] = "candidate_patch"
+    packet["base_commit_sha"] = "a" * 40
+    packet["candidate_patch_fingerprint"] = "sha256:" + ("b" * 64)
+    checkout_proof = {
+        "source_checkout_head_sha": packet["base_commit_sha"],
+        "source_checkout_clean": True,
+    }
+
+    result = dispatch._post_preflight_capability_mismatch_result(
+        packet,
+        _image(),
+        _probe("apple-container", strict=True),
+        candidate_checkout_proof=checkout_proof,
+    )
+
+    assert result["budget_observations"] | checkout_proof == result["budget_observations"]
+    assert result["budget_observations"]["source_checkout_head_sha"] == packet["base_commit_sha"]
+    assert result["budget_observations"]["source_checkout_clean"] is True
+
+
 def test_sanitize_result_injects_trusted_backend_before_capability_validation() -> None:
     trusted_probe = _probe("apple-container", strict=True)
     result = _legacy_result()

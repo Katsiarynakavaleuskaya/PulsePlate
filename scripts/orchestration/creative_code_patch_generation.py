@@ -2407,7 +2407,10 @@ def _validate_dispatch_result_binding(
         raise CreativeCodePatchGenerationError(
             "trusted dispatch result configured oracle count does not match the packet."
         )
-    if result["status"] == "accepted" or failure_class in ORACLE_REQUIRED_FAILURE_CLASSES:
+    checkout_proof_required = runner_emitted_result or (
+        failure_class == "capability_mismatch" and preflight_status == "passed"
+    )
+    if checkout_proof_required:
         if (
             observations.get("source_checkout_head_sha") != packet["base_commit_sha"]
             or observations.get("source_checkout_clean") is not True
