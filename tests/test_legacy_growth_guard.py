@@ -4259,8 +4259,16 @@ def test_legacy_growth_guard_keeps_poisoned_builtins_object_fail_closed(
         "__builtins__.object = lambda: app",
         '__builtins__["object"] = lambda: app',
         '__import__("builtins").object = lambda: app',
+        '__import__(*["builtins"]).object = lambda: app',
+        '__import__(**{"name": "builtins"}).object = lambda: app',
     ],
-    ids=["dunder-builtins-attribute", "dunder-builtins-mapping", "builtin-importer"],
+    ids=[
+        "dunder-builtins-attribute",
+        "dunder-builtins-mapping",
+        "builtin-importer",
+        "starred-builtin-importer",
+        "unpacked-keyword-builtin-importer",
+    ],
 )
 def test_legacy_growth_guard_tracks_implicit_builtins_namespace_poisoning(
     mutation: str,
@@ -6493,18 +6501,40 @@ def test_legacy_growth_guard_preserves_mapping_values_through_builtin_wrappers(
     ]
 
 
-@pytest.mark.parametrize("selector", ["max", "min"])
+@pytest.mark.parametrize(
+    ("selector", "default_arguments"),
+    [
+        ("max", "default=app.get"),
+        ("min", "default=app.get"),
+        ("max", '**{"default": app.get}'),
+        ("min", '**{"default": app.get}'),
+    ],
+    ids=["max-explicit", "min-explicit", "max-unpacked", "min-unpacked"],
+)
 def test_legacy_growth_guard_preserves_builtin_selector_default(
     selector: str,
+    default_arguments: str,
 ) -> None:
     source = textwrap.dedent(f"""
-        route = {selector}([], default=app.get)
+        route = {selector}([], {default_arguments})
         route("/api/v1/selector-default-route")(handler)
         """)
 
     assert legacy_guard.validate_legacy_growth(source) == [
         "legacy_app.py: unexpected legacy route growth: "
         "registration:get:/api/v1/selector-default-route"
+    ]
+
+
+def test_legacy_growth_guard_keeps_unresolved_selector_kwargs_fail_closed() -> None:
+    source = textwrap.dedent("""
+        route = max([], **resolve_options())
+        route("/api/v1/unresolved-selector-default")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:dynamic:/api/v1/unresolved-selector-default"
     ]
 
 
@@ -6549,7 +6579,7 @@ def test_legacy_growth_guard_keeps_safe_wrapped_and_unpacked_values_non_sensitiv
             route("/api/v1/not-a-route")(handler)
             for wrapped in list(registrars.values()):
                 wrapped("/api/v1/not-a-route")(handler)
-            selected = max([], default=safe)
+            selected = max([], **{"default": safe})
             selected("/api/v1/not-a-route")(handler)
 
         inspect(*[safe], route=safe)

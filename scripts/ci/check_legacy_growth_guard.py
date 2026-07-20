@@ -3032,6 +3032,31 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         if isinstance(target, (ast.Attribute, ast.Subscript)):
             self._invalidate_mapping_aliases(target.value)
 
+    def _resolve_unpacked_keyword_binding(
+        self,
+        node: ast.AST,
+        keyword_name: str,
+    ) -> tuple[_ResolvedBinding | None, bool]:
+        mapping = self._resolve_mapping(node)
+        if mapping is not None:
+            return _static_mapping_binding(mapping, keyword_name)
+        if not isinstance(node, ast.Dict):
+            return None, True
+        later_entry_may_override = False
+        for key, value in reversed(tuple(zip(node.keys, node.values, strict=True))):
+            if key is None:
+                later_entry_may_override = True
+                continue
+            resolved_key = self._resolve_string(key)
+            if resolved_key in {None, _DYNAMIC_STRING_BINDING}:
+                later_entry_may_override = True
+                continue
+            if resolved_key == keyword_name:
+                if later_entry_may_override:
+                    return None, True
+                return self._capture_argument_binding(value), False
+        return (None, True) if later_entry_may_override else (None, False)
+
     def _resolve_reference(self, node: ast.AST) -> str | None:
         if id(node) in self._call_result_bindings:
             return self._call_result_bindings[id(node)].reference
@@ -3111,22 +3136,39 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 )
         if isinstance(node, ast.Call):
             importer_reference = self._resolve_reference(node.func)
-            positional_module = (
-                node.args[0] if node.args and not isinstance(node.args[0], ast.Starred) else None
-            )
-            keyword_modules = [keyword.value for keyword in node.keywords if keyword.arg == "name"]
+            module_strings: list[str | None] = []
+            module_argument_unresolved = False
+            if node.args:
+                first_argument = node.args[0]
+                if isinstance(first_argument, ast.Starred):
+                    unpacked = first_argument.value
+                    if (
+                        isinstance(unpacked, (ast.List, ast.Tuple))
+                        and len(unpacked.elts) == 1
+                        and not isinstance(unpacked.elts[0], ast.Starred)
+                    ):
+                        module_strings.append(self._resolve_string(unpacked.elts[0]))
+                    else:
+                        module_argument_unresolved = True
+                else:
+                    module_strings.append(self._resolve_string(first_argument))
+            for keyword in node.keywords:
+                if keyword.arg == "name":
+                    module_strings.append(self._resolve_string(keyword.value))
+                elif keyword.arg is None:
+                    binding, unresolved = self._resolve_unpacked_keyword_binding(
+                        keyword.value,
+                        "name",
+                    )
+                    if binding is not None:
+                        module_strings.append(binding.string)
+                    module_argument_unresolved = module_argument_unresolved or unresolved
             if (
                 importer_reference == "builtins.__import__"
-                and not (positional_module is not None and keyword_modules)
-                and len(keyword_modules) <= 1
+                and not module_argument_unresolved
+                and module_strings == ["builtins"]
             ):
-                module_expr = (
-                    positional_module
-                    if positional_module is not None
-                    else (keyword_modules[0] if keyword_modules else None)
-                )
-                if module_expr is not None and self._resolve_string(module_expr) == "builtins":
-                    return "builtins"
+                return "builtins"
             class_references = self._resolve_class_references(node.func)
             if len(class_references) == 1:
                 return next(iter(class_references)).replace(
@@ -6395,16 +6437,21 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                         else self._join_resolved_bindings([projected_result, default_binding])
                     )
             if wrapper_reference in {"builtins.max", "builtins.min"}:
-                default_values = [
-                    keyword.value for keyword in node.keywords if keyword.arg == "default"
-                ]
-                if default_values:
-                    default_binding = self._join_resolved_bindings(
-                        [
-                            self._capture_argument_binding(default_value)
-                            for default_value in default_values
-                        ]
-                    )
+                default_bindings: list[_ResolvedBinding] = []
+                for keyword in node.keywords:
+                    if keyword.arg == "default":
+                        default_bindings.append(self._capture_argument_binding(keyword.value))
+                    elif keyword.arg is None:
+                        binding, unresolved = self._resolve_unpacked_keyword_binding(
+                            keyword.value,
+                            "default",
+                        )
+                        if binding is not None:
+                            default_bindings.append(binding)
+                        if unresolved:
+                            default_bindings.append(self._conservative_argument_binding())
+                if default_bindings:
+                    default_binding = self._join_resolved_bindings(default_bindings)
                     projected_result = (
                         default_binding
                         if projected_result is None
