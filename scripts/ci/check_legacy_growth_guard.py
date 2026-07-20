@@ -3967,7 +3967,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
 
     def _object_namespace_mapping_kind(self, node: ast.AST) -> str | None:
         reference = self._resolve_reference(node)
-        if self._is_builtin_namespace_reference(reference):
+        if self._is_builtin_namespace_reference(reference) or reference == "builtins.__dict__":
             return "builtins"
         if reference == _MODULE_NAMESPACE_REFERENCE:
             return "module"
@@ -7049,6 +7049,15 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         prepared_targets = set(initial_arguments)
 
         wrapper_reference = self._resolve_reference(node.func)
+        if (
+            not node.args
+            and not node.keywords
+            and self._is_proven_builtin_object_callable(node.func)
+        ):
+            self._call_result_bindings[id(node)] = _ResolvedBinding(
+                reference=_KNOWN_NON_APP_REFERENCE,
+                string=None,
+            )
         unbound_mapping_receiver = (
             self._capture_mapping_receiver(positional_arguments[0])
             if (
@@ -7056,6 +7065,21 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 and len(positional_arguments) >= 2
                 and not unresolved_positional_sources
             )
+            else None
+        )
+        unbound_iterator_method = (
+            wrapper_reference.removeprefix("builtins.dict.")
+            if (
+                wrapper_reference in {"builtins.dict.items", "builtins.dict.values"}
+                and len(positional_arguments) == 1
+                and not unresolved_positional_sources
+                and not node.keywords
+            )
+            else None
+        )
+        unbound_iterator_receiver = (
+            self._capture_mapping_receiver(positional_arguments[0])
+            if unbound_iterator_method is not None
             else None
         )
         mapping_copy = (
@@ -7190,6 +7214,19 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 default=(positional_arguments[2] if len(positional_arguments) >= 3 else None),
                 receiver=unbound_mapping_receiver,
             )
+        if (
+            projected_result is None
+            and unbound_iterator_receiver is not None
+            and unbound_iterator_receiver.possible_value is not None
+        ):
+            iterator_element = unbound_iterator_receiver.possible_value
+            if unbound_iterator_method == "items":
+                iterator_element = _ResolvedBinding(
+                    reference=_INDEXED_PAIR_ELEMENT_REFERENCE,
+                    string=None,
+                    iterable_element=iterator_element,
+                )
+            projected_result = self._variadic_iterable_binding([iterator_element])
         if projected_result is None and mapping_copy is not None:
             projected_result = self._copied_mapping_binding(mapping_copy, node)
         if (

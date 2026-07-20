@@ -917,6 +917,7 @@ def test_task_bootstrap_enables_post_open_review_lane_for_pr_phase() -> None:
         "post_open_pulseplate_pr_review_timing": "final_material_only",
         "final_material_review_gates": [
             "pulseplate-pr-review",
+            "trusted exact-head GitHub Codex Connector review",
             "Codex Security diff scan / finding discovery",
         ],
         "final_material_review_timing": "final_material_only",

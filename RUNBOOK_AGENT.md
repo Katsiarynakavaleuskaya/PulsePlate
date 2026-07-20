@@ -61,12 +61,13 @@ lane, which contains the enforced role-agent sequence for that task or PR.
 
 The global final-material Codex Security budget invariant is defined only in
 root `AGENTS.md`. Operationally, this runbook orders the final gates as
-freeze → exact-head `pulseplate-pr-review` → local `prepare-final-security` →
+freeze → exact-head `pulseplate-pr-review` self-review → trusted exact-head
+GitHub Codex Connector review evidence → local `prepare-final-security` →
 one operator-issued manual scan. The preparation command never invokes the
 plugin, and no timeout, safety block, or incomplete result is retried without
 fresh exact-material `OWNER`/`MEMBER` approval.
 
-GitHub Codex Connector review is separate from the locally invoked Codex Security plugin. Leave the Connector automatic: do not disable or manually retrigger it, and do not wait indefinitely when silence or rate limiting means no receipt. The expensive Codex Security plugin is invoked manually exactly once only after final material freeze and exact-head `pulseplate-pr-review`, with no automatic retry.
+GitHub Codex Connector review is separate from the locally invoked Codex Security plugin. Leave the Connector automatic: do not disable or manually retrigger it, and do not wait indefinitely when silence or rate limiting means no receipt. The expensive Codex Security plugin is invoked manually exactly once only after final material freeze and trusted exact-head Connector review, with no automatic retry.
 
 **Usage:**
 ```text
@@ -531,14 +532,16 @@ Use this as the canonical operating loop from branch creation to merge window:
    - Once the PR exists, run the mandatory post-open reviewer path declared by the lane packet/runbook before calling the lane stable
    - When the lane declares `qa-engineer-agent -> bug-hunter -> security-auditor`, that pass happens after PR open, not as a substitute for pre-PR local gates
    - Let the automatic GitHub Codex Connector observe each published diff; its
-     response is separate from the repo-native exact-head review and from the
-     manually invoked Codex Security plugin; do not trigger or retrigger it
-     manually.
+     trusted exact-head response is the final-review evidence and remains
+     separate from the role-only pass and manually invoked Codex Security
+     plugin; do not trigger or retrigger it manually.
    - Fix every finding, run the required local gates and current-head CI, then
      freeze the material digest with `pr_review_closeout.py freeze`
-   - Satisfy the final review-evidence slot with exactly one of a completed
-     exact-head `pulseplate-pr-review` or an unedited trusted terminal GitHub
-     Codex Connector rate/usage-limit receipt with `review_claim=none`; do not
+   - Run the repo-native exact-head `pulseplate-pr-review` as the local
+     self-review; it does not itself satisfy the trusted review-evidence slot
+   - Satisfy that slot with exactly one of a completed
+     trusted exact-head GitHub Codex Connector review or an unedited trusted
+     terminal Connector rate/usage-limit receipt with `review_claim=none`; do not
      retry or obtain a substitute review for the terminal unavailable path
    - Run `pr_review_closeout.py prepare-final-security --repo <owner/name>
      --pr-number <N>` with the matching `--review-ref <exact-head-review-URL>`
@@ -674,9 +677,11 @@ Before merge: `unresolved` must be `0`. Resolve all threads in GitHub UI (Conver
    not retrigger the review.
 3. Apply actionable fixes. Any material change returns to step 2; governance
    draft/body activity does not.
-4. After the final role pass, current-head gates, and material freeze, satisfy
-   the final review-evidence slot with exactly one of a completed exact-head
-   `pulseplate-pr-review` or an unedited trusted terminal GitHub Codex Connector
+4. After the final role pass, current-head gates, and material freeze, run the
+   repo-native exact-head `pulseplate-pr-review` as the local self-review; it
+   does not itself satisfy the trusted review-evidence slot. Satisfy that slot
+   with exactly one of a completed trusted
+   exact-head GitHub Codex Connector review or an unedited trusted terminal Connector
    rate/usage-limit receipt with `review_claim=none`; the unavailable path
    requires no retry or substitute review. Run `prepare-final-security` with
    the matching `--review-ref <exact-head-review-URL>` or

@@ -12361,7 +12361,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 <a id="ledger-p1-legacy-guard-final-security-carryover"></a>
 - [ ] P1: Consolidate legacy-growth guard hardening and final-security budget governance
   - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1 (CI trust boundary and paid-review cost control)
+  - Priority: P1
   - Target PR: this PR (`codex/legacy-guard-final-security-hardening`)
   - Status: In progress on 19 July 2026; replaces the incomplete PRs #2158,
     #2159, #2160, and #2161 without cherry-picking their implementations.

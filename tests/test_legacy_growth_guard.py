@@ -10201,6 +10201,53 @@ def test_legacy_growth_guard_preserves_poisoned_object_helper_return() -> None:
     ]
 
 
+def test_legacy_growth_guard_tracks_imported_builtins_dictionary_mutation() -> None:
+    source = textwrap.dedent("""
+        from builtins import __dict__ as namespace
+
+        namespace["object"] = lambda: app
+        value = object()
+        value.get("/api/v1/imported-builtins-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/imported-builtins-route"
+    ]
+
+
+def test_legacy_growth_guard_captures_rhs_before_object_target_mutation() -> None:
+    source = textwrap.dedent("""
+        globals()["object"], value = (lambda: app), object()
+        value.get("/api/v1/not-a-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+@pytest.mark.parametrize(
+    "loop",
+    [
+        (
+            "for route in dict.values(routes):\n"
+            '    route("/api/v1/unbound-iterator-route")(handler)'
+        ),
+        (
+            "for _name, route in dict.items(routes):\n"
+            '    route("/api/v1/unbound-iterator-route")(handler)'
+        ),
+    ],
+    ids=["values", "items"],
+)
+def test_legacy_growth_guard_preserves_unbound_dict_iterator_values(loop: str) -> None:
+    source = 'routes = {"route": app.get}\n' f"{loop}\n"
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/unbound-iterator-route"
+    ]
+
+
 @pytest.mark.parametrize(
     ("lookup", "method"),
     [
