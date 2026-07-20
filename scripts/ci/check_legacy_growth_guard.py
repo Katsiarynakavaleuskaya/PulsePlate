@@ -5850,15 +5850,35 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
     def visit_AugAssign(self, node: ast.AugAssign) -> None:
         self.visit(node.target)
         self.visit(node.value)
+        target_reference = self._resolve_reference(node.target)
+        namespace_kind = (
+            self._object_namespace_mapping_kind(node.target)
+            if isinstance(node.op, ast.BitOr)
+            else None
+        )
         target_mapping = self._resolve_mapping(node.target)
         if target_mapping is not None:
             self._invalidate_mapping(target_mapping)
         self._invalidate_mapping_target(node.target)
         self._record_object_namespace_target(node.target)
+        if namespace_kind is not None:
+            keys = (
+                {None if key is None else self._resolve_string(key) for key in node.value.keys}
+                if isinstance(node.value, ast.Dict)
+                else {None}
+            )
+            if keys & {"object", None, _DYNAMIC_STRING_BINDING}:
+                self._record_object_namespace_kind(namespace_kind)
         if isinstance(node.target, ast.Name):
+            preserved_reference = self._possible_sensitive_reference(node.target.id)
+            if namespace_kind is not None and target_reference in {
+                _BUILTINS_NAMESPACE_REFERENCE,
+                _MODULE_NAMESPACE_REFERENCE,
+            }:
+                preserved_reference = target_reference
             self._bind_name(
                 node.target.id,
-                reference=self._possible_sensitive_reference(node.target.id),
+                reference=preserved_reference,
                 string=None,
             )
 

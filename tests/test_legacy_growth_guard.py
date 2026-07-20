@@ -4604,6 +4604,63 @@ def test_legacy_growth_guard_keeps_update_like_mutator_controls_clean(
     assert legacy_guard.validate_legacy_growth(source) == []
 
 
+@pytest.mark.parametrize(
+    "namespace",
+    ["builtins.__dict__", "sys.modules[__name__].__dict__"],
+    ids=["builtins", "current-module"],
+)
+def test_legacy_growth_guard_tracks_namespace_alias_augmented_union(
+    namespace: str,
+) -> None:
+    source = (
+        "import builtins\n"
+        "import sys\n\n"
+        "app = resolve_app()\n"
+        f"namespace = {namespace}\n"
+        'namespace |= {"safe_name": lambda: None}\n'
+        'namespace |= {"object": lambda: app}\n'
+        "app = object()\n"
+        'app.get("/api/v1/namespace-alias-augmented-union")(handler)\n'
+    )
+    expected = [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/namespace-alias-augmented-union"
+    ]
+
+    assert legacy_guard.validate_legacy_growth(source) == expected
+    assert legacy_guard.validate_legacy_growth(source) == expected
+
+
+@pytest.mark.parametrize(
+    ("setup", "namespace", "key"),
+    [
+        ("import builtins", "builtins.__dict__", "safe_name"),
+        (
+            "import sys",
+            "sys.modules[__name__].__dict__",
+            "safe_name",
+        ),
+        ("class Box:\n    pass\nbox = Box()", "box.__dict__", "object"),
+    ],
+    ids=["builtins-safe-key", "module-safe-key", "foreign-namespace"],
+)
+def test_legacy_growth_guard_keeps_augmented_union_controls_clean(
+    setup: str,
+    namespace: str,
+    key: str,
+) -> None:
+    source = (
+        f"{setup}\n\n"
+        f"namespace = {namespace}\n"
+        "app = resolve_app()\n"
+        f"namespace |= {{{key!r}: lambda: app}}\n"
+        "app = object()\n"
+        'app.get("/api/v1/not-a-route")(handler)\n'
+    )
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
 def test_legacy_growth_guard_keeps_foreign_aliased_mutator_clean() -> None:
     source = textwrap.dedent("""
         class Box:
