@@ -4254,6 +4254,59 @@ def test_legacy_growth_guard_keeps_poisoned_builtins_object_fail_closed(
 
 
 @pytest.mark.parametrize(
+    ("use_captured", "expected_error"),
+    [
+        (
+            'route_app = captured()\nroute_app.get("/api/v1/captured-object-route")(handler)',
+            "legacy_app.py: unexpected legacy route growth: "
+            "registration:get:/api/v1/captured-object-route",
+        ),
+        (
+            "router = captured()\napp.include_router(router)",
+            "legacy_app.py: unexpected legacy route growth: " "registration:include_router:router",
+        ),
+        (
+            "def invoke(factory):\n"
+            "    return factory()\n"
+            "route_app = invoke(captured)\n"
+            'route_app.get("/api/v1/helper-captured-object-route")(handler)',
+            "legacy_app.py: unexpected legacy route growth: "
+            "registration:get:/api/v1/helper-captured-object-route",
+        ),
+    ],
+    ids=["route", "router", "helper"],
+)
+def test_legacy_growth_guard_preserves_poisoned_object_capture_provenance(
+    use_captured: str,
+    expected_error: str,
+) -> None:
+    source = textwrap.dedent("""
+        import builtins
+
+        app = resolve_app()
+        original_object = builtins.object
+        builtins.object = lambda: app
+        captured = builtins.object
+        builtins.object = original_object
+        """) + f"{use_captured}\n"
+
+    assert legacy_guard.validate_legacy_growth(source) == [expected_error]
+
+
+def test_legacy_growth_guard_keeps_safe_object_capture_after_namespace_poisoning() -> None:
+    source = textwrap.dedent("""
+        import builtins
+
+        app = resolve_app()
+        captured = builtins.object
+        builtins.object = lambda: app
+        captured().get("/api/v1/not-a-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+@pytest.mark.parametrize(
     "mutation",
     [
         "__builtins__.object = lambda: app",

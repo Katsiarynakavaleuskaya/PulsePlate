@@ -2557,6 +2557,8 @@ _INSTANCE_REFERENCE_PREFIX = "<instance:"
 _BUILTINS_OBJECT_STATE_NAME = "<state:builtins.object>"
 _SAFE_BUILTINS_OBJECT_REFERENCE = "<safe:builtins.object>"
 _POISONED_BUILTINS_OBJECT_REFERENCE = "<poisoned:builtins.object>"
+_CAPTURED_SAFE_BUILTINS_OBJECT_REFERENCE = "<captured-safe:builtins.object>"
+_CAPTURED_POSSIBLE_APP_FACTORY_REFERENCE = "<captured-possible-app-factory>"
 _BUILTINS_NAMESPACE_REFERENCE = "<namespace:builtins>"
 _POSSIBLE_BUILTINS_NAMESPACE_REFERENCE = "<possible:namespace:builtins>"
 _MODULE_NAMESPACE_REFERENCE = "<namespace:module>"
@@ -3227,6 +3229,8 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 if namespace_kind == "module":
                     return f"{_MODULE_NAMESPACE_REFERENCE}.{node.attr}"
         if isinstance(node, ast.Call):
+            if self._resolve_reference(node.func) == _CAPTURED_POSSIBLE_APP_FACTORY_REFERENCE:
+                return _POSSIBLE_APP_REFERENCE
             importer_reference = self._resolve_reference(node.func)
             module_strings: list[str | None] = []
             positional_arguments, unresolved_positional_sources = (
@@ -3880,7 +3884,10 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         )
 
     def _is_proven_builtin_object_callable(self, node: ast.AST) -> bool:
-        if self._resolve_reference(node) != "builtins.object":
+        reference = self._resolve_reference(node)
+        if reference == _CAPTURED_SAFE_BUILTINS_OBJECT_REFERENCE:
+            return True
+        if reference != "builtins.object":
             return False
         if isinstance(node, ast.Name):
             if node.id == "object":
@@ -3895,6 +3902,17 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 and self._builtins_object_is_safe()
             )
         return False
+
+    def _capture_reference_provenance(
+        self,
+        node: ast.AST,
+        reference: str | None,
+    ) -> str | None:
+        if reference != "builtins.object":
+            return reference
+        if self._is_proven_builtin_object_callable(node):
+            return _CAPTURED_SAFE_BUILTINS_OBJECT_REFERENCE
+        return _CAPTURED_POSSIBLE_APP_FACTORY_REFERENCE
 
     def _is_proven_current_module_object(self, node: ast.AST) -> bool:
         if (
@@ -4254,6 +4272,10 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         resolved_string = self._resolve_string(value)
         resolved_reference = self._resolve_reference(value)
         resolved_reference = self._namespace_mapping_binding_reference(
+            value,
+            resolved_reference,
+        )
+        resolved_reference = self._capture_reference_provenance(
             value,
             resolved_reference,
         )
@@ -5850,6 +5872,12 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 continue
             local_name = alias.asname or alias.name
             reference = f"{node.module}.{alias.name}" if node.module is not None else None
+            if reference == "builtins.object":
+                reference = (
+                    _CAPTURED_SAFE_BUILTINS_OBJECT_REFERENCE
+                    if self._builtins_object_is_safe()
+                    else _CAPTURED_POSSIBLE_APP_FACTORY_REFERENCE
+                )
             self._bind_name(local_name, reference=reference, string=None)
 
     def visit_Assign(self, node: ast.Assign) -> None:
@@ -6015,6 +6043,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
     ) -> _ResolvedBinding:
         reference = self._resolve_reference(value)
         reference = self._namespace_mapping_binding_reference(value, reference)
+        reference = self._capture_reference_provenance(value, reference)
         string = self._resolve_string(value)
         unresolved_dynamic = reference is None and isinstance(
             value,
@@ -6178,6 +6207,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 _POSSIBLE_APP_REFERENCE,
                 _POSSIBLE_ROUTER_REFERENCE,
                 _POSSIBLE_APP_CALL_REFERENCE,
+                _CAPTURED_POSSIBLE_APP_FACTORY_REFERENCE,
                 _POSSIBLE_MIDDLEWARE_DECORATOR_REFERENCE,
             }
             or (
