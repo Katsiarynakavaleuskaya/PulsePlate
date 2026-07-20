@@ -2500,6 +2500,7 @@ _ITERABLE_SENSITIVE_ELEMENT_REFERENCE = "<iterable:possible-app-call>"
 _ITERABLE_APP_ELEMENT_REFERENCE = "<iterable:possible-app>"
 _MAPPING_SENSITIVE_VALUE_REFERENCE = "<mapping:possible-app-call>"
 _MAPPING_APP_VALUE_REFERENCE = "<mapping:possible-app>"
+_INDEXED_PAIR_ELEMENT_REFERENCE = "<iterable:indexed-pair>"
 _KNOWN_NON_APP_REFERENCE = "<known:non-app>"
 _CLASS_REFERENCE_PREFIX = "<class:"
 _INSTANCE_REFERENCE_PREFIX = "<instance:"
@@ -2541,6 +2542,7 @@ _ITERABLE_ELEMENT_BUILTIN_REFERENCES = frozenset(
         "builtins.next",
     }
 )
+_INDEXING_ITERABLE_BUILTIN_REFERENCES = frozenset({"builtins.enumerate"})
 
 
 class LegacyGrowthAnalysisError(RuntimeError):
@@ -2638,7 +2640,9 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             {
                 reference.removeprefix("builtins.")
                 for reference in (
-                    _ITERABLE_PRESERVING_BUILTIN_REFERENCES | _ITERABLE_ELEMENT_BUILTIN_REFERENCES
+                    _ITERABLE_PRESERVING_BUILTIN_REFERENCES
+                    | _ITERABLE_ELEMENT_BUILTIN_REFERENCES
+                    | _INDEXING_ITERABLE_BUILTIN_REFERENCES
                 )
             }
         ):
@@ -3211,6 +3215,14 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             return reference
         if isinstance(node, ast.Subscript):
             container_reference = self._resolve_reference(node.value)
+            if container_reference == _INDEXED_PAIR_ELEMENT_REFERENCE:
+                index = _literal_value(node.slice)
+                if index == 0:
+                    return _KNOWN_NON_APP_REFERENCE
+                indexed_value = self._resolve_iterable_element_binding(node.value)
+                if index == 1 and indexed_value is not None:
+                    return indexed_value.reference
+                return _POSSIBLE_APP_CALL_REFERENCE
             if container_reference in {
                 _POSSIBLE_APP_CALL_REFERENCE,
                 _POSSIBLE_MIDDLEWARE_DECORATOR_REFERENCE,
@@ -3657,6 +3669,32 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             iterable_element=binding.iterable_element,
         )
 
+    def _bind_indexed_pair_target(
+        self,
+        target: ast.expr,
+        pair_binding: _ResolvedBinding,
+    ) -> bool:
+        if (
+            pair_binding.reference != _INDEXED_PAIR_ELEMENT_REFERENCE
+            or pair_binding.iterable_element is None
+            or not isinstance(target, (ast.Tuple, ast.List))
+            or len(target.elts) != 2
+        ):
+            return False
+        self._bind_targets(
+            [target.elts[0]],
+            reference=_KNOWN_NON_APP_REFERENCE,
+            string=None,
+        )
+        value_target = target.elts[1]
+        value_binding = (
+            self._variadic_iterable_binding([pair_binding.iterable_element])
+            if isinstance(value_target, ast.Starred)
+            else pair_binding.iterable_element
+        )
+        self._bind_targets_from_resolved_binding([value_target], value_binding)
+        return True
+
     def _is_definitely_non_app_value(self, node: ast.AST) -> bool:
         if isinstance(node, (ast.Constant, ast.JoinedStr, ast.Lambda)):
             return True
@@ -3972,6 +4010,9 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 )
             return
         if isinstance(target, (ast.Tuple, ast.List)):
+            value_binding = self._capture_argument_binding(value)
+            if self._bind_indexed_pair_target(target, value_binding):
+                return
             iterable_element = self._resolve_iterable_element_binding(value)
             if iterable_element is not None:
                 for child_target in target.elts:
@@ -4046,6 +4087,11 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 )
                 return
         iterable_element = self._resolve_iterable_element_binding(iterable)
+        if iterable_element is not None and self._bind_indexed_pair_target(
+            target,
+            iterable_element,
+        ):
+            return
         if iterable_element is not None and not isinstance(
             iterable,
             (ast.List, ast.Tuple, ast.Set),
@@ -5413,6 +5459,42 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             )
         return None
 
+    def _resolve_mapping_lookup_call_binding(
+        self,
+        node: ast.Call,
+    ) -> _ResolvedBinding | None:
+        if (
+            not isinstance(node.func, ast.Attribute)
+            or node.func.attr not in {"__getitem__", "get", "pop", "setdefault"}
+            or not node.args
+            or isinstance(node.args[0], ast.Starred)
+        ):
+            return None
+        owner = node.func.value
+        possible_value = self._resolve_mapping_value_binding(owner)
+        if possible_value is None:
+            return None
+        default_binding = (
+            self._capture_argument_binding(node.args[1])
+            if len(node.args) >= 2 and not isinstance(node.args[1], ast.Starred)
+            else None
+        )
+        mapping = self._resolve_mapping(owner)
+        key = _literal_value(node.args[0])
+        if mapping is not None and key is not _UNRESOLVED_LITERAL_VALUE:
+            selected, unresolved = _static_mapping_binding(mapping, key)
+            if selected is not None and not unresolved:
+                return selected
+            if not unresolved:
+                return default_binding or _ResolvedBinding(
+                    reference=_KNOWN_NON_APP_REFERENCE,
+                    string=None,
+                )
+        candidates = [possible_value]
+        if default_binding is not None:
+            candidates.append(default_binding)
+        return self._join_resolved_bindings(candidates)
+
     def _resolve_iterable_element_binding(
         self,
         node: ast.AST,
@@ -6372,6 +6454,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             in {
                 "builtins.all",
                 "builtins.any",
+                "builtins.enumerate",
                 "builtins.list",
                 "builtins.frozenset",
                 "builtins.max",
@@ -6387,6 +6470,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             in {
                 "all",
                 "any",
+                "enumerate",
                 "frozenset",
                 "list",
                 "max",
@@ -6417,12 +6501,33 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 self._awaited_call_ids.remove(id(gathered_call))
             if iterated_argument is not None and not iterated_argument_was_marked:
                 self._iterated_call_ids.remove(id(iterated_argument))
-        projected_result: _ResolvedBinding | None = None
-        if node.args and wrapper_reference in _ITERABLE_PRESERVING_BUILTIN_REFERENCES:
+        projected_result = self._resolve_mapping_lookup_call_binding(node)
+        if (
+            projected_result is None
+            and node.args
+            and wrapper_reference in _INDEXING_ITERABLE_BUILTIN_REFERENCES
+        ):
+            element = self._resolve_iterable_element_binding(node.args[0])
+            if element is not None:
+                indexed_element = _ResolvedBinding(
+                    reference=_INDEXED_PAIR_ELEMENT_REFERENCE,
+                    string=None,
+                    iterable_element=element,
+                )
+                projected_result = self._variadic_iterable_binding([indexed_element])
+        elif (
+            projected_result is None
+            and node.args
+            and wrapper_reference in _ITERABLE_PRESERVING_BUILTIN_REFERENCES
+        ):
             element = self._resolve_iterable_element_binding(node.args[0])
             if element is not None:
                 projected_result = self._variadic_iterable_binding([element])
-        elif node.args and wrapper_reference in _ITERABLE_ELEMENT_BUILTIN_REFERENCES:
+        elif (
+            projected_result is None
+            and node.args
+            and wrapper_reference in _ITERABLE_ELEMENT_BUILTIN_REFERENCES
+        ):
             if wrapper_reference in {"builtins.max", "builtins.min"} and len(node.args) != 1:
                 projected_result = self._join_resolved_bindings(
                     [self._capture_argument_binding(argument) for argument in node.args]

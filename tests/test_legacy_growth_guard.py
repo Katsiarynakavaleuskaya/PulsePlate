@@ -6502,6 +6502,88 @@ def test_legacy_growth_guard_preserves_mapping_values_through_builtin_wrappers(
 
 
 @pytest.mark.parametrize(
+    "lookup",
+    [
+        'routes.get("route")',
+        'routes.pop("route")',
+        'routes.setdefault("route")',
+        'routes.__getitem__("route")',
+    ],
+    ids=["get", "pop", "setdefault", "dunder-getitem"],
+)
+def test_legacy_growth_guard_preserves_mapping_value_lookup_results(
+    lookup: str,
+) -> None:
+    source = textwrap.dedent(f"""
+        def install(**routes):
+            route = {lookup}
+            route("/api/v1/mapping-lookup-route")(handler)
+
+        install(route=app.get)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:dynamic:/api/v1/mapping-lookup-route"
+    ]
+
+
+def test_legacy_growth_guard_uses_proven_mapping_get_default_for_missing_key() -> None:
+    source = textwrap.dedent("""
+        routes = {"other": app.get}
+        route = routes.get("route", safe)
+        route("/api/v1/not-a-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+@pytest.mark.parametrize(
+    "dispatch",
+    [
+        (
+            "for _index, route in enumerate(routes.values()):\n"
+            '        route("/api/v1/enumerated-route")(handler)'
+        ),
+        (
+            "pairs = list(enumerate(routes.values()))\n"
+            "    for _index, route in pairs:\n"
+            '        route("/api/v1/enumerated-route")(handler)'
+        ),
+        (
+            "pair = next(iter(enumerate(routes.values())))\n"
+            "    _index, route = pair\n"
+            '    route("/api/v1/enumerated-route")(handler)'
+        ),
+        (
+            "pair = next(iter(enumerate(routes.values())))\n"
+            "    route = pair[1]\n"
+            '    route("/api/v1/enumerated-route")(handler)'
+        ),
+    ],
+    ids=["direct", "list-alias", "next-destructure", "next-subscript"],
+)
+def test_legacy_growth_guard_preserves_enumerated_mapping_value_shape(
+    dispatch: str,
+) -> None:
+    source = "def install(**routes):\n" f"    {dispatch}\n\n" "install(route=app.get)\n"
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:dynamic:/api/v1/enumerated-route"
+    ]
+
+
+def test_legacy_growth_guard_keeps_safe_enumerated_values_non_sensitive() -> None:
+    source = textwrap.dedent("""
+        for _index, route in list(enumerate([safe])):
+            route("/api/v1/not-a-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+@pytest.mark.parametrize(
     ("selector", "default_arguments"),
     [
         ("max", "default=app.get"),
