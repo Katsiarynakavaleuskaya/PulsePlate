@@ -678,7 +678,14 @@ jobs:
     steps:
       - name: Enforce pgvector compatibility proof result
         if: github.event_name == 'pull_request'
-        run: 'case "${{ needs.changes.outputs.pgvector_compat }}:${{ needs.pgvector_compat.result }}" in "true:success"|"false:skipped") exit 0 ;; *) echo "::error::pgvector-compat has an invalid selection/result pair"; exit 1 ;; esac'
+        env:
+          PGVECTOR_SELECTION: ${{ needs.changes.outputs.pgvector_compat }}
+          PGVECTOR_RESULT: ${{ needs.pgvector_compat.result }}
+        run: |
+          case "${PGVECTOR_SELECTION}:${PGVECTOR_RESULT}" in
+            "true:success"|"false:skipped") exit 0 ;;
+            *) echo "::error::pgvector-compat has an invalid selection/result pair"; exit 1 ;;
+          esac
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:

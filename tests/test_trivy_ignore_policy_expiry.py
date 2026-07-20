@@ -5,6 +5,8 @@ import os
 from pathlib import Path
 import re
 
+import pytest
+
 from scripts.ci.check_trivy_ignore_policy_expiry import evaluate_policy_file
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -117,7 +119,11 @@ def _repository_gemfile_locks(repo_root: Path) -> list[Path]:
     """Return repository lockfiles without descending into local-only trees."""
 
     lockfiles: list[Path] = []
-    for root, dirnames, filenames in os.walk(repo_root):
+
+    def raise_traversal_error(error: OSError) -> None:
+        raise error
+
+    for root, dirnames, filenames in os.walk(repo_root, onerror=raise_traversal_error):
         dirnames[:] = sorted(dirname for dirname in dirnames if dirname not in LOCAL_ONLY_SCAN_DIRS)
         if "Gemfile.lock" in filenames:
             lockfiles.append(Path(root) / "Gemfile.lock")
@@ -445,6 +451,18 @@ def test_gemfile_scan_preserves_retained_local_artifacts(tmp_path: Path) -> None
     lockfiles = _repository_gemfile_locks(tmp_path)
 
     assert [path.relative_to(tmp_path).as_posix() for path in lockfiles] == ["ios/Gemfile.lock"]
+
+
+def test_gemfile_scan_fails_closed_on_traversal_error(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    def deny_traversal(_path: object) -> None:
+        raise PermissionError("lockfile traversal denied")
+
+    monkeypatch.setattr(os, "scandir", deny_traversal)
+
+    with pytest.raises(PermissionError, match="lockfile traversal denied"):
+        _repository_gemfile_locks(tmp_path)
 
 
 def test_zlib_suppression_requires_exact_pkgid_scope() -> None:
