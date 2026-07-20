@@ -1211,10 +1211,22 @@ def test_finalize_dispatched_result_rejects_symlinked_partial_result(
     assert not (gate_path.parent / generation_cli.RECEIPT_FILENAME).exists()
 
 
-def test_finalize_dispatched_result_rejects_oversized_generated_metadata_sidecar(
+@pytest.mark.parametrize(
+    ("filename", "label"),
+    [
+        (creative_code_patch_builder.STATE_FILE, "generated run state"),
+        (creative_code_patch_builder.REQUEST_FILE, "generated run request"),
+        (creative_code_patch_builder.SOURCE_BUNDLE_FILE, "generated source bundle"),
+        (creative_code_patch_builder.SELECTED_VARIANT_FILE, "generated selected variant"),
+        (creative_code_patch_builder.PATCH_METADATA_FILE, "patch metadata"),
+    ],
+)
+def test_finalize_dispatched_result_rejects_oversized_generated_sidecar(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
+    filename: str,
+    label: str,
 ) -> None:
     repo, base_sha = _init_patch_repo(tmp_path)
     _patch_modules_to_repo(monkeypatch, repo)
@@ -1226,8 +1238,8 @@ def test_finalize_dispatched_result_rejects_oversized_generated_metadata_sidecar
         run_id=run_id,
     )
     run_dir = creative_code_patch_workspace.resolve_run_dir(run_id, create=False)
-    metadata_path = run_dir / creative_code_patch_builder.PATCH_METADATA_FILE
-    metadata_path.write_bytes(b"x" * (generation_cli.TRUSTED_DISPATCH_RESULT_MAX_BYTES + 1))
+    sidecar_path = run_dir / filename
+    sidecar_path.write_bytes(b"x" * (generation_cli.GENERATED_SIDECAR_JSON_MAX_BYTES + 1))
     _write_json(dispatch_path, _trusted_dispatch_result(packet))
 
     assert (
@@ -1242,7 +1254,7 @@ def test_finalize_dispatched_result_rejects_oversized_generated_metadata_sidecar
         )
         == 1
     )
-    assert "patch metadata exceeds the maximum size" in capsys.readouterr().err
+    assert f"{label} exceeds the maximum size" in capsys.readouterr().err
     assert not (run_dir / creative_code_patch_builder.RESULT_FILE).exists()
     assert not (gate_path.parent / generation_cli.RECEIPT_FILENAME).exists()
 

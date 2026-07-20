@@ -923,13 +923,25 @@ def _load_prepared_run(
     if builder_prepare["run_id"] != run_id:
         raise CreativeCodePatchGenerationError("run_id does not match prepared admission.")
     run_dir = resolve_run_dir(run_id, create=False)
-    state = read_json(resolve_run_file(run_dir, creative_code_patch_builder.STATE_FILE))
-    run_request = read_json(resolve_run_file(run_dir, creative_code_patch_builder.REQUEST_FILE))
-    run_bundle = read_json(
-        resolve_run_file(run_dir, creative_code_patch_builder.SOURCE_BUNDLE_FILE)
+    state = _read_generated_sidecar_json_object(
+        resolve_run_file(run_dir, creative_code_patch_builder.STATE_FILE),
+        run_dir=run_dir,
+        label="generated run state",
     )
-    selected_variant = read_json(
-        resolve_run_file(run_dir, creative_code_patch_builder.SELECTED_VARIANT_FILE)
+    run_request = _read_generated_sidecar_json_object(
+        resolve_run_file(run_dir, creative_code_patch_builder.REQUEST_FILE),
+        run_dir=run_dir,
+        label="generated run request",
+    )
+    run_bundle = _read_generated_sidecar_json_object(
+        resolve_run_file(run_dir, creative_code_patch_builder.SOURCE_BUNDLE_FILE),
+        run_dir=run_dir,
+        label="generated source bundle",
+    )
+    selected_variant = _read_generated_sidecar_json_object(
+        resolve_run_file(run_dir, creative_code_patch_builder.SELECTED_VARIANT_FILE),
+        run_dir=run_dir,
+        label="generated selected variant",
     )
     if (
         not isinstance(state, dict)
@@ -2173,31 +2185,39 @@ def _load_generated_dispatch_context(
 
     request, bundle = _validate_stored_gate_sources_after_generation(gate)
     run_dir = resolve_existing_run_dir(str(gate["run_id"]))
-    state = read_json(resolve_run_file(run_dir, creative_code_patch_builder.STATE_FILE))
-    run_request = read_json(resolve_run_file(run_dir, creative_code_patch_builder.REQUEST_FILE))
-    run_bundle = read_json(
-        resolve_run_file(run_dir, creative_code_patch_builder.SOURCE_BUNDLE_FILE)
+    state = _read_generated_sidecar_json_object(
+        resolve_run_file(run_dir, creative_code_patch_builder.STATE_FILE),
+        run_dir=run_dir,
+        label="generated run state",
     )
-    selected_variant = read_json(
-        resolve_run_file(run_dir, creative_code_patch_builder.SELECTED_VARIANT_FILE)
+    run_request = _read_generated_sidecar_json_object(
+        resolve_run_file(run_dir, creative_code_patch_builder.REQUEST_FILE),
+        run_dir=run_dir,
+        label="generated run request",
+    )
+    run_bundle = _read_generated_sidecar_json_object(
+        resolve_run_file(run_dir, creative_code_patch_builder.SOURCE_BUNDLE_FILE),
+        run_dir=run_dir,
+        label="generated source bundle",
+    )
+    selected_variant = _read_generated_sidecar_json_object(
+        resolve_run_file(run_dir, creative_code_patch_builder.SELECTED_VARIANT_FILE),
+        run_dir=run_dir,
+        label="generated selected variant",
     )
     if not all(
         isinstance(payload, dict) for payload in (state, run_request, run_bundle, selected_variant)
     ):
         raise CreativeCodePatchGenerationError("generated run artifacts must be JSON objects.")
     normalized_run_request = validate_creative_code_patch_build_request(
-        cast(dict[str, Any], run_request),
-        source_bundle=cast(dict[str, Any], run_bundle),
+        run_request,
+        source_bundle=run_bundle,
     )
-    normalized_run_bundle = validate_creative_code_specification_bundle(
-        cast(dict[str, Any], run_bundle)
-    )
+    normalized_run_bundle = validate_creative_code_specification_bundle(run_bundle)
     if normalized_run_request != request or normalized_run_bundle != bundle:
         raise CreativeCodePatchGenerationError(
             "generated run request or source bundle no longer matches the gate."
         )
-    state = cast(dict[str, Any], state)
-    selected_variant = cast(dict[str, Any], selected_variant)
     expected_state_fields = {
         "run_id": gate["run_id"],
         "request_id": gate["request_id"],

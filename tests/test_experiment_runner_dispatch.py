@@ -2052,6 +2052,7 @@ def test_post_preflight_capability_result_preserves_candidate_checkout_proof() -
     checkout_proof = {
         "source_checkout_head_sha": packet["base_commit_sha"],
         "source_checkout_clean": True,
+        "candidate_changed_files": 1,
     }
 
     result = dispatch._post_preflight_capability_mismatch_result(
@@ -2064,6 +2065,7 @@ def test_post_preflight_capability_result_preserves_candidate_checkout_proof() -
     assert result["budget_observations"] | checkout_proof == result["budget_observations"]
     assert result["budget_observations"]["source_checkout_head_sha"] == packet["base_commit_sha"]
     assert result["budget_observations"]["source_checkout_clean"] is True
+    assert result["budget_observations"]["candidate_changed_files"] == 1
 
 
 def test_sanitize_result_rejects_malformed_observations_with_checkout_proof() -> None:
@@ -2259,7 +2261,14 @@ def test_container_runner_pins_packet_and_patch_before_execution(
         "_require_candidate_checkout",
         lambda _packet, *, root: None,
     )
-    candidate_patch_text = "original candidate patch\n"
+    candidate_patch_text = (
+        "diff --git a/core/rag/orchestration.py b/core/rag/orchestration.py\n"
+        "--- a/core/rag/orchestration.py\n"
+        "+++ b/core/rag/orchestration.py\n"
+        "@@ -1 +1 @@\n"
+        "-old\n"
+        "+new\n"
+    )
     packet = _packet()
     packet["runner_mode"] = "candidate_patch"
     packet["mutable_candidate_surface"] = ["core/rag/orchestration.py"]

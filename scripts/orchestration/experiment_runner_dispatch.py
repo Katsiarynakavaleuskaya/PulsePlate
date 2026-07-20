@@ -45,6 +45,10 @@ from scripts.orchestration.experiment_contract import (
     validate_experiment_packet,
     validate_experiment_result,
 )
+from scripts.orchestration.experiment_runner import (
+    ExperimentRunnerError,
+    _extract_mutated_paths,
+)
 
 CAPABILITY_SCHEMA_VERSION = "1.0"
 CAPABILITY_ARTIFACT_TYPE = "experiment_runner_backend_capability.v1"
@@ -1464,7 +1468,12 @@ def _require_candidate_checkout(packet: dict[str, Any], *, root: Path) -> None:
         raise DispatchError("result_validation_failed")
 
 
-def _candidate_checkout_proof(packet: dict[str, Any], *, root: Path) -> dict[str, Any]:
+def _candidate_checkout_proof(
+    packet: dict[str, Any],
+    *,
+    root: Path,
+    candidate_patch_text: str | None = None,
+) -> dict[str, Any]:
     """Return sanitized checkout proof for fingerprinted candidate dispatch."""
 
     if packet["runner_mode"] == ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE:
@@ -1472,10 +1481,16 @@ def _candidate_checkout_proof(packet: dict[str, Any], *, root: Path) -> dict[str
     expected_base = packet.get("base_commit_sha")
     if expected_base is None:
         return {}
-    return {
+    proof = {
         "source_checkout_head_sha": expected_base,
         "source_checkout_clean": True,
     }
+    if candidate_patch_text is not None:
+        try:
+            proof["candidate_changed_files"] = len(_extract_mutated_paths(candidate_patch_text))
+        except ExperimentRunnerError as exc:
+            raise DispatchError("result_validation_failed") from exc
+    return proof
 
 
 def _execution_backend_payload(probe: BackendProbe, *, passed: bool) -> dict[str, str]:
@@ -1805,7 +1820,6 @@ def _invoke_container_runner(
     if expected_packet is not None and packet != expected_packet:
         raise DispatchError("result_validation_failed")
     _require_candidate_checkout(packet, root=REPO_ROOT)
-    candidate_checkout_proof = _candidate_checkout_proof(packet, root=REPO_ROOT)
     candidate_patch_text: str | None = None
     if candidate_patch is not None:
         candidate_patch_text = _read_candidate_patch_for_fingerprint(candidate_patch)
@@ -1814,6 +1828,10 @@ def _invoke_container_runner(
             fingerprint_payload({"candidate_patch": candidate_patch_text})
         ):
             raise DispatchError("result_validation_failed")
+    candidate_checkout_proof = _candidate_checkout_proof(
+        packet,
+        root=REPO_ROOT,
+    )
     with tempfile.TemporaryDirectory(prefix="pp-er-run-") as raw_temp:
         temp_root = Path(raw_temp)
         snapshot = temp_root / "repo"
@@ -1934,11 +1952,16 @@ def _invoke_container_runner(
         if not cleanup_completed:
             raise DispatchError("container_cleanup_failed")
         if runner_capability_signal:
+            capability_checkout_proof = _candidate_checkout_proof(
+                packet,
+                root=REPO_ROOT,
+                candidate_patch_text=candidate_patch_text,
+            )
             return _post_preflight_capability_mismatch_result(
                 packet,
                 image,
                 probe,
-                candidate_checkout_proof=candidate_checkout_proof,
+                candidate_checkout_proof=capability_checkout_proof,
             )
         if payload is None:
             raise DispatchError("result_extraction_failed")
