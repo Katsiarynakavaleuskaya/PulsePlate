@@ -17,7 +17,7 @@ import os
 import pytest
 from fastapi.testclient import TestClient
 
-import app as app_mod
+from app.services import pro_nutrition_plate
 
 # Import the FastAPI app from the app package
 from app import app
@@ -265,8 +265,6 @@ class TestEnhancedPlateAPI:
     ) -> None:
         """Cover macro coercion fallback when float conversion fails for a custom macro value."""
 
-        import legacy_app
-
         class FloatFailIntOk:
             def __float__(self) -> float:
                 raise TypeError("float conversion disabled for coverage path")
@@ -287,7 +285,11 @@ class TestEnhancedPlateAPI:
                 True,
             )
 
-        monkeypatch.setattr(legacy_app, "align_macros_with_targets", _mock_align)
+        monkeypatch.setattr(
+            pro_nutrition_plate,
+            "align_macros_with_targets",
+            _mock_align,
+        )
 
         payload = {
             "sex": "female",
@@ -312,7 +314,11 @@ class TestEnhancedPlateAPI:
         def _raise_sensitive_value_error(*_args: object, **_kwargs: object) -> dict[str, object]:
             raise ValueError("secret provider trace at /srv/pulseplate/plate.py")
 
-        monkeypatch.setattr(app_mod, "make_plate", _raise_sensitive_value_error)
+        monkeypatch.setattr(
+            pro_nutrition_plate.nutrition_plate,
+            "make_plate",
+            _raise_sensitive_value_error,
+        )
 
         payload = {
             "sex": "female",
@@ -330,6 +336,42 @@ class TestEnhancedPlateAPI:
         assert response.headers.get("content-type", "").startswith("application/json")
         assert response.json()["detail"] == INVALID_PREMIUM_PLATE_INPUT_DETAIL
         assert "/srv/pulseplate/plate.py" not in response.text
+
+    def test_plate_non_finite_day_micros_is_safe_500_at_http_boundary(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Non-finite dependency output never reaches JSON serialization."""
+
+        def _non_finite_day_micros(
+            _meals: list[dict[str, object]],
+        ) -> dict[str, float]:
+            return {"private_dependency_nutrient": float("nan")}
+
+        monkeypatch.setattr(
+            pro_nutrition_plate,
+            "_aggregate_day_micronutrients",
+            _non_finite_day_micros,
+        )
+        payload = {
+            "sex": "female",
+            "age": 30,
+            "height_cm": 170,
+            "weight_kg": 65,
+            "activity": "moderate",
+            "goal": "maintain",
+        }
+
+        response = client.post(
+            "/api/v1/premium/plate",
+            json=payload,
+            headers={"X-API-Key": "test_key"},
+        )
+
+        assert response.status_code == 500
+        assert response.json() == {"detail": ENHANCED_PLATE_GENERATION_FAILED_DETAIL}
+        assert "private_dependency_nutrient" not in response.text
+        assert "nan" not in response.text.lower()
 
     def test_plate_goal_specific_differences(self) -> None:
         """Test different goals produce appropriate macro distributions."""
@@ -420,10 +462,8 @@ class TestEnhancedPlateAPI:
             "goal": "maintain",
         }
 
-        # Test without API key
         response = client.post("/api/v1/premium/plate", json=payload)
-        # Behavior depends on whether API_KEY is set in environment
-        assert response.status_code in [200, 403]
+        assert response.status_code == 403
 
     def test_plate_meal_suggestions_structure(self) -> None:
         """Test meal suggestions have proper structure."""

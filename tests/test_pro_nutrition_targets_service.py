@@ -14,8 +14,10 @@ import legacy_app
 from app.schemas.premium_contracts import (
     NutrientGapsRequest,
     NutrientGapsResponse,
+    PlateRequest,
     WHOTargetsRequest,
 )
+from app.services import pro_nutrition_plate as plate_service
 from app.services import pro_nutrition_targets as service
 from core.bmr import FALLBACK_BMR_KCAL_PER_KG_PER_DAY
 from core.nutrition_utils import (
@@ -597,17 +599,6 @@ def test_plate_alignment_passes_and_service_honors_resolved_targets_builder(
             targets_builder=targets_builder,
         )
 
-    monkeypatch.setattr(legacy_app, "targets_disabled", lambda: False)
-    monkeypatch.setattr(
-        legacy_app,
-        "_resolve_build_targets_callable",
-        lambda: _resolved_builder,
-    )
-    monkeypatch.setattr(
-        legacy_app,
-        "_generate_who_targets_response",
-        _generate_with_observation,
-    )
     monkeypatch.setattr(
         service.nutrition_recommendations,
         "build_nutrition_targets",
@@ -618,7 +609,7 @@ def test_plate_alignment_passes_and_service_honors_resolved_targets_builder(
         "validate_targets_safety",
         lambda _targets: [],
     )
-    request = legacy_app.PlateRequest(
+    request = PlateRequest(
         sex="female",
         age=34,
         height_cm=168,
@@ -629,7 +620,7 @@ def test_plate_alignment_passes_and_service_honors_resolved_targets_builder(
         lang="en",
     )
 
-    macros, kcal, aligned = legacy_app.align_macros_with_targets(
+    macros, kcal, aligned = plate_service.align_macros_with_targets(
         request,
         {
             "macros": {
@@ -639,7 +630,8 @@ def test_plate_alignment_passes_and_service_honors_resolved_targets_builder(
                 "fiber_g": 20,
             }
         },
-        [],
+        targets_builder=_resolved_builder,
+        targets_response_factory=_generate_with_observation,
     )
 
     assert resolved_builders == [_resolved_builder]

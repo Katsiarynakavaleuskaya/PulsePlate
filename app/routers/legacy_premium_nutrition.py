@@ -23,6 +23,7 @@ from app.schemas.premium_contracts import (
     WHOTargetsRequest,
     WHOTargetsResponse,
 )
+from app.services.pro_nutrition_plate import generate_plate_response
 from app.services.pro_nutrition_targets import (
     analyze_nutrient_gaps_response,
     generate_who_targets_response,
@@ -52,10 +53,7 @@ router = APIRouter()
 )
 async def api_premium_plate(req: PlateRequest) -> PlateResponse:
     """[DEPRECATED] Alias for canonical `POST /api/v1/pro/nutrition/plate`."""
-    from legacy_app import api_premium_plate as _legacy_api_premium_plate
-
-    resp: PlateResponse = await _legacy_api_premium_plate(req)
-    return resp
+    return await generate_plate_response(req)
 
 
 @router.post(
