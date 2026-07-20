@@ -135,6 +135,8 @@ _ZERO_SHA = "0" * 40
 _MAX_MANIFEST_BYTES = 2 * 1024 * 1024
 _MAX_JSON_ARTIFACT_BYTES = 8 * 1024 * 1024
 _MAX_LEDGER_BYTES = 32 * 1024 * 1024
+_MAX_SCAN_ARTIFACTS = 64
+_MAX_TOTAL_SCAN_ARTIFACT_BYTES = 64 * 1024 * 1024
 _DUPLICATE_REPLY_KEYS = (
     "Disposition",
     "Fingerprint",
@@ -634,8 +636,10 @@ def compute_material_manifest(
 def _safe_relative_artifact_path(value: Any) -> PurePosixPath:
     if not isinstance(value, str) or not value or "\\" in value:
         raise ReviewEvidenceError("scan artifact path must be a non-empty POSIX path")
+    if any(part in {"", ".", ".."} for part in value.split("/")):
+        raise ReviewEvidenceError("scan artifact path escapes the scan root")
     path = PurePosixPath(value)
-    if path.is_absolute() or any(part in {"", ".", ".."} for part in path.parts):
+    if path.is_absolute() or not path.parts:
         raise ReviewEvidenceError("scan artifact path escapes the scan root")
     if any(ord(character) < 32 or ord(character) == 127 for character in value):
         raise ReviewEvidenceError("scan artifact path contains control characters")
@@ -680,13 +684,11 @@ def _open_scan_root(root: Path) -> int:
         raise ReviewEvidenceError("scan root could not be opened safely") from exc
 
 
-def _read_contained_artifact_from_descriptor(
+def _open_contained_artifact_descriptor(
     root_descriptor: int,
     relative: PurePosixPath,
-    *,
-    max_bytes: int,
-) -> bytes:
-    """Read beneath one immutable scan-root descriptor without following symlinks."""
+) -> int:
+    """Open one regular-file candidate beneath an immutable scan-root descriptor."""
 
     descriptor = os.dup(root_descriptor)
     try:
@@ -709,19 +711,80 @@ def _read_contained_artifact_from_descriptor(
         try:
             file_descriptor = os.open(
                 relative.parts[-1],
-                os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0),
+                os.O_RDONLY
+                | getattr(os, "O_CLOEXEC", 0)
+                | getattr(os, "O_NOFOLLOW", 0)
+                | getattr(os, "O_NONBLOCK", 0),
                 dir_fd=descriptor,
             )
         except OSError as exc:
             raise ReviewEvidenceError(
                 "scan artifact path contains a symlink or is missing"
             ) from exc
-        try:
-            return _read_regular_descriptor(
-                file_descriptor, max_bytes=max_bytes, label=str(relative)
+        return file_descriptor
+    finally:
+        os.close(descriptor)
+
+
+def _read_contained_artifact_from_descriptor(
+    root_descriptor: int,
+    relative: PurePosixPath,
+    *,
+    max_bytes: int,
+) -> bytes:
+    """Read beneath one immutable scan-root descriptor without following symlinks."""
+
+    descriptor = _open_contained_artifact_descriptor(root_descriptor, relative)
+    try:
+        return _read_regular_descriptor(descriptor, max_bytes=max_bytes, label=str(relative))
+    finally:
+        os.close(descriptor)
+
+
+def _hash_contained_artifact_from_descriptor(
+    root_descriptor: int,
+    relative: PurePosixPath,
+    *,
+    max_bytes: int,
+) -> tuple[str, int]:
+    """Hash one contained regular file without retaining its payload in memory."""
+
+    descriptor = _open_contained_artifact_descriptor(root_descriptor, relative)
+    try:
+        before = os.fstat(descriptor)
+        if not stat.S_ISREG(before.st_mode):
+            raise ReviewEvidenceError(f"{relative} must be a regular file")
+        if before.st_size > max_bytes:
+            raise ReviewEvidenceError(f"{relative} exceeds size limit")
+        digest = hashlib.sha256()
+        bytes_read = 0
+        while bytes_read <= max_bytes:
+            chunk = os.read(
+                descriptor,
+                min(1024 * 1024, max_bytes + 1 - bytes_read),
             )
-        finally:
-            os.close(file_descriptor)
+            if not chunk:
+                break
+            digest.update(chunk)
+            bytes_read += len(chunk)
+        after = os.fstat(descriptor)
+        before_identity = (
+            before.st_dev,
+            before.st_ino,
+            before.st_size,
+            before.st_mtime_ns,
+        )
+        after_identity = (
+            after.st_dev,
+            after.st_ino,
+            after.st_size,
+            after.st_mtime_ns,
+        )
+        if bytes_read > max_bytes:
+            raise ReviewEvidenceError(f"{relative} exceeds size limit")
+        if before_identity != after_identity or bytes_read != before.st_size:
+            raise ReviewEvidenceError(f"{relative} changed while it was read")
+        return digest.hexdigest(), bytes_read
     finally:
         os.close(descriptor)
 
@@ -783,7 +846,8 @@ def _ingest_codex_security_receipt_from_descriptor(
             "status",
             "target",
             "threatModel",
-        },
+        }
+        | ({"hardening"} if "hardening" in scan else set()),
         label="scan",
     )
     if scan["status"] != "completed":
@@ -798,6 +862,13 @@ def _ingest_codex_security_receipt_from_descriptor(
         raise ReviewEvidenceError("scan.id must be a lowercase UUID")
     if not isinstance(scan["scope"], dict) or not isinstance(scan["threatModel"], dict):
         raise ReviewEvidenceError("scan scope and threatModel must be objects")
+    if "hardening" in scan:
+        hardening = scan["hardening"]
+        if not isinstance(hardening, dict):
+            raise ReviewEvidenceError("scan.hardening must be an object")
+        _require_exact_keys(hardening, {"portfolioPath"}, label="scan.hardening")
+        if hardening["portfolioPath"] != "hardening/hardening.md":
+            raise ReviewEvidenceError("scan.hardening must use the canonical portfolio path")
 
     producer = scan["producer"]
     if not isinstance(producer, dict):
@@ -815,7 +886,8 @@ def _ingest_codex_security_receipt_from_descriptor(
         raise ReviewEvidenceError("scan.target must be an object")
     _require_exact_keys(
         target,
-        {"baseRevision", "displayName", "headRevision", "kind", "snapshotDigest", "targetId"},
+        {"baseRevision", "displayName", "headRevision", "kind", "snapshotDigest", "targetId"}
+        | ({"remote"} if "remote" in target else set()),
         label="scan.target",
     )
     if (
@@ -828,12 +900,19 @@ def _ingest_codex_security_receipt_from_descriptor(
         or not re.fullmatch(r"target_sha256_[0-9a-f]{64}", target["targetId"])
     ):
         raise ReviewEvidenceError("scan target does not match the expected Git diff")
+    if (
+        "remote" in target
+        and target["remote"] != "https://github.com/Katsiarynakavaleuskaya/PulsePlate"
+    ):
+        raise ReviewEvidenceError("scan.target.remote must use the canonical PulsePlate repository")
 
     if scan["coverageRef"] != "coverage.json" or scan["findingsRef"] != "findings.json":
         raise ReviewEvidenceError("scan coverage/findings refs must use canonical filenames")
     artifacts = scan["artifacts"]
-    if not isinstance(artifacts, list) or len(artifacts) != 3:
-        raise ReviewEvidenceError("scan must list exactly three canonical artifacts")
+    if not isinstance(artifacts, list) or len(artifacts) < 3:
+        raise ReviewEvidenceError("scan must list the three canonical artifacts")
+    if len(artifacts) > _MAX_SCAN_ARTIFACTS:
+        raise ReviewEvidenceError("scan artifact count exceeds limit")
     artifact_specs: dict[str, tuple[str, str]] = {}
     for artifact in artifacts:
         if not isinstance(artifact, dict):
@@ -846,28 +925,44 @@ def _ingest_codex_security_receipt_from_descriptor(
             raise ReviewEvidenceError("scan artifact paths must be unique")
         if not isinstance(digest, str) or not _RAW_DIGEST_RE.fullmatch(digest):
             raise ReviewEvidenceError("scan artifact sha256 is malformed")
-        if not isinstance(media_type, str):
-            raise ReviewEvidenceError("scan artifact mediaType must be a string")
+        if not isinstance(media_type, str) or not media_type:
+            raise ReviewEvidenceError("scan artifact mediaType must be a non-empty string")
         artifact_specs[path] = (media_type, digest)
     expected_paths = {
         "coverage.json": "application/json",
         "findings.json": "application/json",
         "artifacts/02_discovery/work_ledger.jsonl": "application/octet-stream",
     }
-    if {path: spec[0] for path, spec in artifact_specs.items()} != expected_paths:
-        raise ReviewEvidenceError("scan artifact inventory does not match the v1 contract")
+    for path, media_type in expected_paths.items():
+        if artifact_specs.get(path, (None, None))[0] != media_type:
+            raise ReviewEvidenceError(
+                "scan artifact inventory does not contain the v1 canonical artifacts"
+            )
 
-    artifact_raw: dict[str, bytes] = {}
+    canonical_payloads: dict[str, bytes] = {}
+    total_artifact_bytes = 0
     for path, (_media_type, expected_digest) in artifact_specs.items():
         limit = _MAX_LEDGER_BYTES if path.endswith(".jsonl") else _MAX_JSON_ARTIFACT_BYTES
-        raw = _read_contained_artifact_from_descriptor(
-            root_descriptor, PurePosixPath(path), max_bytes=limit
-        )
-        if hashlib.sha256(raw).hexdigest() != expected_digest:
+        if path in {"coverage.json", "findings.json"}:
+            raw = _read_contained_artifact_from_descriptor(
+                root_descriptor, PurePosixPath(path), max_bytes=limit
+            )
+            actual_digest = hashlib.sha256(raw).hexdigest()
+            artifact_bytes = len(raw)
+            canonical_payloads[path] = raw
+        else:
+            actual_digest, artifact_bytes = _hash_contained_artifact_from_descriptor(
+                root_descriptor,
+                PurePosixPath(path),
+                max_bytes=limit,
+            )
+        total_artifact_bytes += artifact_bytes
+        if total_artifact_bytes > _MAX_TOTAL_SCAN_ARTIFACT_BYTES:
+            raise ReviewEvidenceError("scan artifact aggregate size exceeds limit")
+        if actual_digest != expected_digest:
             raise ReviewEvidenceError(f"scan artifact hash mismatch for {path}")
-        artifact_raw[path] = raw
 
-    coverage = _load_json_bytes(artifact_raw["coverage.json"], label="coverage.json")
+    coverage = _load_json_bytes(canonical_payloads["coverage.json"], label="coverage.json")
     if not isinstance(coverage, dict):
         raise ReviewEvidenceError("coverage.json must contain an object")
     _require_exact_keys(
@@ -898,7 +993,7 @@ def _ingest_codex_security_receipt_from_descriptor(
     ):
         raise ReviewEvidenceError("Codex Security coverage is incomplete or inconsistent")
 
-    findings = _load_json_bytes(artifact_raw["findings.json"], label="findings.json")
+    findings = _load_json_bytes(canonical_payloads["findings.json"], label="findings.json")
     if not isinstance(findings, dict):
         raise ReviewEvidenceError("findings.json must contain an object")
     _require_exact_keys(
