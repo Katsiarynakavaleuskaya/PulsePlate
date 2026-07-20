@@ -22,6 +22,7 @@ from app.schemas.premium_contracts import (
     PlateRequest,
     WHOTargetsRequest,
 )
+from app.services import pro_nutrition_plate as plate_service
 from app.services import pro_nutrition_targets as service
 from core.nutrition_utils import alias_micros, clamp_daily_kcal, ensure_priority_micros
 
@@ -466,9 +467,7 @@ def test_nutrition_helpers_reject_bad_shapes_and_sync_present_aliases() -> None:
     assert micros == {"iodine_ug": 150.0, "iodine": 150.0}
 
 
-def test_plate_alignment_uses_resolved_builder_override(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_plate_alignment_uses_resolved_builder_override() -> None:
     canonical_builder = service.nutrition_recommendations.build_nutrition_targets
     calls: list[object] = []
 
@@ -476,12 +475,6 @@ def test_plate_alignment_uses_resolved_builder_override(
         calls.append(profile)
         return canonical_builder(profile)
 
-    monkeypatch.setattr(legacy_app, "targets_disabled", lambda: False)
-    monkeypatch.setattr(
-        legacy_app,
-        "_resolve_build_targets_callable",
-        lambda: _resolved_builder,
-    )
     request = PlateRequest(
         sex="female",
         age=34,
@@ -493,7 +486,7 @@ def test_plate_alignment_uses_resolved_builder_override(
         lang="en",
     )
 
-    macros, kcal, aligned = legacy_app.align_macros_with_targets(
+    macros, kcal, aligned = plate_service.align_macros_with_targets(
         request,
         {
             "macros": {
@@ -503,7 +496,7 @@ def test_plate_alignment_uses_resolved_builder_override(
                 "fiber_g": 20,
             }
         },
-        [],
+        targets_builder=_resolved_builder,
     )
 
     assert len(calls) == 1

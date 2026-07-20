@@ -254,20 +254,25 @@ def test_legacy_premium_plate_wrapper_delegates_inside_route_family_ci_suite(
         layout=[],
         meals=[],
     )
-    captured: dict[str, object] = {}
+    captured: list[object] = []
 
-    async def _fake_legacy_handler(
+    async def _fake_canonical_service(
         received: app_main._legacy_module.PlateRequest,
     ) -> app_main._legacy_module.PlateResponse:
-        captured["request"] = received
+        captured.append(received)
         return expected
 
-    monkeypatch.setattr(resolve_legacy_app(), "api_premium_plate", _fake_legacy_handler)
+    monkeypatch.setattr(
+        legacy_premium_nutrition,
+        "generate_plate_response",
+        _fake_canonical_service,
+    )
 
     response = asyncio.run(legacy_premium_nutrition.api_premium_plate(req))
 
     assert response is expected
-    assert captured["request"] is req
+    assert len(captured) == 1
+    assert captured[0] is req
 
 
 def test_legacy_premium_api_bmr_wrapper_delegates_inside_route_family_ci_suite(

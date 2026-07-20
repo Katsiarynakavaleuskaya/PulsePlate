@@ -51,6 +51,19 @@ class PlateRequest(BaseModel):
     life_stage: LifeStage = "adult"
     lang: str = "en"
 
+    @field_validator("height_cm", "weight_kg", mode="before")
+    @classmethod
+    def _reject_non_finite_measurement(cls, value: Any) -> Any:
+        try:
+            numeric_value = float(value)
+        except OverflowError:
+            return "non-finite measurement"
+        except (TypeError, ValueError):
+            return value
+        if not math.isfinite(numeric_value):
+            return "non-finite measurement"
+        return value
+
 
 class VisualShape(BaseModel):
     """RU: Примитив для фронтенда. EN: Primitive for frontend visualization."""

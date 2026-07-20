@@ -1,17 +1,20 @@
 from __future__ import annotations
 
+import asyncio
+from decimal import Decimal
 import json
 from types import SimpleNamespace
 from typing import Any, Dict, List
 
+import numpy as np
 import pytest
 
-import app
+from app.services import pro_nutrition_plate as plate_service
 
 
 def test_convert_db_nutrients_to_alias_format_success() -> None:
     data = {"Fe_mg": 2.5, "Ca_mg": 150, "custom": 3}
-    result = app._convert_db_nutrients_to_alias_format(data)
+    result = plate_service._convert_db_nutrients_to_alias_format(data)
     assert result["iron_mg"] == 2.5
     assert result["calcium_mg"] == 150
     assert result["custom"] == 3
@@ -19,12 +22,90 @@ def test_convert_db_nutrients_to_alias_format_success() -> None:
 
 def test_convert_db_nutrients_none_value() -> None:
     with pytest.raises(ValueError):
-        app._convert_db_nutrients_to_alias_format({"Fe_mg": None})
+        plate_service._convert_db_nutrients_to_alias_format({"Fe_mg": None})
 
 
 def test_convert_db_nutrients_invalid_value() -> None:
     with pytest.raises(ValueError):
-        app._convert_db_nutrients_to_alias_format({"Fe_mg": object()})
+        plate_service._convert_db_nutrients_to_alias_format({"Fe_mg": object()})
+
+
+@pytest.mark.parametrize(
+    "non_finite_value",
+    [
+        float("nan"),
+        float("inf"),
+        float("-inf"),
+        Decimal("NaN"),
+        Decimal("Infinity"),
+        Decimal("-Infinity"),
+    ],
+    ids=[
+        "float-nan",
+        "float-positive-infinity",
+        "float-negative-infinity",
+        "decimal-nan",
+        "decimal-positive-infinity",
+        "decimal-negative-infinity",
+    ],
+)
+def test_convert_db_nutrients_rejects_non_finite_values(
+    non_finite_value: Any,
+) -> None:
+    with pytest.raises(plate_service._NonFinitePlateDependencyOutputError):
+        plate_service._convert_db_nutrients_to_alias_format({"Fe_mg": non_finite_value})
+
+
+@pytest.mark.parametrize(
+    "non_finite_value",
+    [np.float16("nan"), np.float32("inf"), np.float32("-inf")],
+    ids=["float16-nan", "float32-positive-infinity", "float32-negative-infinity"],
+)
+def test_finite_dependency_guard_rejects_numpy_scalars(
+    non_finite_value: Any,
+) -> None:
+    with pytest.raises(plate_service._NonFinitePlateDependencyOutputError):
+        plate_service._ensure_finite_dependency_output(non_finite_value)
+
+
+def test_aggregate_meal_micronutrients_rejects_non_finite_food_value(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _food_from_db(
+        _func: object,
+        *_args: object,
+        **_kwargs: object,
+    ) -> dict[str, float]:
+        return {"per_g": 100.0, "Fe_mg": float("inf")}
+
+    monkeypatch.setattr(plate_service.asyncio, "to_thread", _food_from_db)
+
+    with pytest.raises(plate_service._NonFinitePlateDependencyOutputError):
+        asyncio.run(
+            plate_service._aggregate_meal_micronutrients(
+                [{"food_id": "db-food", "grams": 100}],
+                meal_title="Meal",
+            )
+        )
+
+
+@pytest.mark.parametrize(
+    "non_finite_value",
+    [float("-inf"), Decimal("NaN"), Decimal("Infinity")],
+    ids=["float-negative-infinity", "decimal-nan", "decimal-infinity"],
+)
+def test_aggregate_day_micronutrients_rejects_existing_non_finite_meal_micros(
+    non_finite_value: Any,
+) -> None:
+    meals = [
+        {
+            "title": "Meal",
+            "micros": {"iron_mg": non_finite_value},
+        }
+    ]
+
+    with pytest.raises(plate_service._NonFinitePlateDependencyOutputError):
+        asyncio.run(plate_service._aggregate_day_micronutrients(meals))
 
 
 @pytest.mark.asyncio
@@ -55,7 +136,7 @@ async def test_aggregate_meal_micronutrients_various(monkeypatch: pytest.MonkeyP
             raise RuntimeError("boom")
         return foods.get(food_id)
 
-    monkeypatch.setattr(app.asyncio, "to_thread", fake_to_thread)
+    monkeypatch.setattr(plate_service.asyncio, "to_thread", fake_to_thread)
 
     ingredients = [
         {"grams": 10},  # missing food_id -> skip
@@ -69,7 +150,10 @@ async def test_aggregate_meal_micronutrients_various(monkeypatch: pytest.MonkeyP
         {"food_id": "valid", "grams": 25},  # valid path
     ]
 
-    result = await app._aggregate_meal_micronutrients(ingredients, meal_title="Test")
+    result = await plate_service._aggregate_meal_micronutrients(
+        ingredients,
+        meal_title="Test",
+    )
     assert "iron_mg" in result
     assert collected_calls  # ensured to_thread invoked
 
@@ -86,50 +170,80 @@ def test_get_recipe_ingredients_for_meal_parses(monkeypatch: pytest.MonkeyPatch)
     }
 
     monkeypatch.setattr(
-        app.recipe_store, "search_recipes", lambda title, limit=1: [{"recipe_id": "r1"}]
+        plate_service.recipe_store,
+        "search_recipes",
+        lambda title, limit=1: [{"recipe_id": "r1"}],
     )
-    monkeypatch.setattr(app.recipe_store, "get_recipe", lambda recipe_id: recipe_data)
+    monkeypatch.setattr(
+        plate_service.recipe_store,
+        "get_recipe",
+        lambda recipe_id: recipe_data,
+    )
 
-    ingredients = app._get_recipe_ingredients_for_meal("Soup")
+    ingredients = plate_service._get_recipe_ingredients_for_meal("Soup")
     assert len(ingredients) == 3
     assert ingredients[0]["food_id"] == "f1"
     assert ingredients[2]["grams"] == 25
 
 
 def test_get_recipe_ingredients_for_meal_no_recipe(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(app.recipe_store, "search_recipes", lambda *args, **kwargs: [])
-    assert app._get_recipe_ingredients_for_meal("None") == []
+    monkeypatch.setattr(
+        plate_service.recipe_store,
+        "search_recipes",
+        lambda *args, **kwargs: [],
+    )
+    assert plate_service._get_recipe_ingredients_for_meal("None") == []
 
 
 def test_get_recipe_ingredients_missing_recipe_id(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(app.recipe_store, "search_recipes", lambda *args, **kwargs: [{}])
-    assert app._get_recipe_ingredients_for_meal("Soup") == []
+    monkeypatch.setattr(
+        plate_service.recipe_store,
+        "search_recipes",
+        lambda *args, **kwargs: [{}],
+    )
+    assert plate_service._get_recipe_ingredients_for_meal("Soup") == []
 
 
 def test_get_recipe_ingredients_recipe_not_found(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        app.recipe_store, "search_recipes", lambda *args, **kwargs: [{"recipe_id": "r1"}]
+        plate_service.recipe_store,
+        "search_recipes",
+        lambda *args, **kwargs: [{"recipe_id": "r1"}],
     )
-    monkeypatch.setattr(app.recipe_store, "get_recipe", lambda recipe_id: None)
-    assert app._get_recipe_ingredients_for_meal("Soup") == []
+    monkeypatch.setattr(
+        plate_service.recipe_store,
+        "get_recipe",
+        lambda recipe_id: None,
+    )
+    assert plate_service._get_recipe_ingredients_for_meal("Soup") == []
 
 
 def test_get_recipe_ingredients_missing_json(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        app.recipe_store, "search_recipes", lambda *args, **kwargs: [{"recipe_id": "r1"}]
+        plate_service.recipe_store,
+        "search_recipes",
+        lambda *args, **kwargs: [{"recipe_id": "r1"}],
     )
-    monkeypatch.setattr(app.recipe_store, "get_recipe", lambda recipe_id: {})
-    assert app._get_recipe_ingredients_for_meal("Soup") == []
+    monkeypatch.setattr(
+        plate_service.recipe_store,
+        "get_recipe",
+        lambda recipe_id: {},
+    )
+    assert plate_service._get_recipe_ingredients_for_meal("Soup") == []
 
 
 def test_get_recipe_ingredients_invalid_json(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        app.recipe_store, "search_recipes", lambda *args, **kwargs: [{"recipe_id": "r1"}]
+        plate_service.recipe_store,
+        "search_recipes",
+        lambda *args, **kwargs: [{"recipe_id": "r1"}],
     )
     monkeypatch.setattr(
-        app.recipe_store, "get_recipe", lambda recipe_id: {"ingredients_json": "{}"}
+        plate_service.recipe_store,
+        "get_recipe",
+        lambda recipe_id: {"ingredients_json": "{}"},
     )
-    assert app._get_recipe_ingredients_for_meal("Soup") == []
+    assert plate_service._get_recipe_ingredients_for_meal("Soup") == []
 
 
 @pytest.mark.asyncio
@@ -153,34 +267,39 @@ async def test_aggregate_day_micronutrients(monkeypatch: pytest.MonkeyPatch) -> 
     async def fake_to_thread(func, *args, **kwargs):
         return func(*args, **kwargs)
 
-    # Import legacy_app directly to patch at the source
-    import legacy_app
-
-    monkeypatch.setattr(legacy_app.asyncio, "to_thread", fake_to_thread)
-    monkeypatch.setattr(legacy_app, "_get_recipe_ingredients_for_meal", fake_lookup)
-    monkeypatch.setattr(legacy_app, "_aggregate_meal_micronutrients", fake_aggregate)
+    monkeypatch.setattr(plate_service.asyncio, "to_thread", fake_to_thread)
+    monkeypatch.setattr(
+        plate_service,
+        "_get_recipe_ingredients_for_meal",
+        fake_lookup,
+    )
+    monkeypatch.setattr(
+        plate_service,
+        "_aggregate_meal_micronutrients",
+        fake_aggregate,
+    )
 
     meals = [
         {"title": "Meal A", "micros": {"iron_mg": 0.5}},
         {"title": "Meal B"},  # No micros/ingredients, will trigger lookup + aggregation
     ]
 
-    result = await app._aggregate_day_micronutrients(meals)
+    result = await plate_service._aggregate_day_micronutrients(meals)
     # Meal A: 0.5, Meal B: 1.0 (from fake_aggregate) = 1.5 total
     assert result["iron_mg"] == pytest.approx(1.5)
 
 
 def test_alias_micros_type_error() -> None:
     with pytest.raises(TypeError):
-        app._alias_micros(["not", "a", "dict"])  # type: ignore[arg-type]
+        plate_service.alias_micros(["not", "a", "dict"])  # type: ignore[arg-type]
 
 
 def test_alias_micros_value_error() -> None:
     with pytest.raises(ValueError):
-        app._alias_micros({"iron_mg": object()})
+        plate_service.alias_micros({"iron_mg": object()})
 
 
 def test_alias_micros_aliases() -> None:
-    result = app._alias_micros({"iron_mg": 2})
+    result = plate_service.alias_micros({"iron_mg": 2})
     assert result["iron"] == 2.0
     assert result["fe"] == 2.0

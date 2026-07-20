@@ -53,15 +53,9 @@ class TestAppErrorPaths97:
         app.stop_background_updates()
         mock_stop.assert_called_once()
 
-    def test_reset_targets_cache(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Test reset_targets_cache clears the cache."""
-        import app
+    def test_plate_service_has_no_mutable_global_registry(self) -> None:
+        """Canonical Plate dependencies are call-scoped, not process-global."""
+        from app.services import pro_nutrition_plate
 
-        # Set cache values
-        monkeypatch.setattr(app, "_targets_disabled_cache", True)
-        monkeypatch.setattr(app, "_targets_disabled_cache_time", 123.0)
-
-        app.reset_targets_cache()
-
-        assert app._targets_disabled_cache is None
-        assert app._targets_disabled_cache_time == 0.0
+        assert not hasattr(pro_nutrition_plate, "_plate_deps")
+        assert not hasattr(pro_nutrition_plate, "_targets_disabled_cache")

@@ -6,6 +6,7 @@ from collections.abc import Callable
 
 import pytest
 from fastapi import Depends, FastAPI
+from fastapi.testclient import TestClient
 
 import app.main as app_main
 from app.bootstrap.route_family import route_has_dependency_call
@@ -206,7 +207,7 @@ def _who_targets_response() -> app_main._legacy_module.WHOTargetsResponse:
     )
 
 
-def test_legacy_premium_plate_wrapper_delegates_to_legacy_app(
+def test_legacy_premium_plate_wrapper_delegates_to_canonical_service(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     legacy_module = resolve_legacy_app()
@@ -227,18 +228,51 @@ def test_legacy_premium_plate_wrapper_delegates_to_legacy_app(
     )
     captured: dict[str, object] = {}
 
-    async def _fake_legacy_handler(
+    async def _fake_service(
         received: app_main._legacy_module.PlateRequest,
     ) -> app_main._legacy_module.PlateResponse:
         captured["request"] = received
         return expected
 
-    monkeypatch.setattr(resolve_legacy_app(), "api_premium_plate", _fake_legacy_handler)
+    monkeypatch.setattr(
+        legacy_premium_nutrition,
+        "generate_plate_response",
+        _fake_service,
+    )
 
     response = asyncio.run(legacy_premium_nutrition.api_premium_plate(req))
 
     assert response is expected
     assert captured["request"] is req
+
+
+@pytest.mark.parametrize("field_name", ["height_cm", "weight_kg"])
+def test_retained_plate_rejects_raw_non_finite_measurement_with_exact_422(
+    client: TestClient,
+    field_name: str,
+) -> None:
+    height_cm = "1e309" if field_name == "height_cm" else "168"
+    weight_kg = "1e309" if field_name == "weight_kg" else "62"
+    raw_payload = (
+        '{"sex":"female","age":34,'
+        f'"height_cm":{height_cm},"weight_kg":{weight_kg},'
+        '"activity":"light","goal":"maintain"}'
+    )
+
+    response = client.post(
+        "/api/v1/premium/plate",
+        content=raw_payload,
+        headers={
+            "X-API-Key": "test_key",
+            "Content-Type": "application/json",
+        },
+    )
+
+    assert response.status_code == 422
+    detail = response.json()["detail"]
+    assert len(detail) == 1
+    assert detail[0]["loc"] == ["body", field_name]
+    assert detail[0]["type"] == "float_parsing"
 
 
 def test_legacy_premium_api_bmr_wrapper_delegates_to_legacy_app(
