@@ -88,6 +88,7 @@ GATE_FILENAME = "generation_gate.json"
 RECEIPT_FILENAME = "generation_receipt.json"
 TRUSTED_DISPATCH_PREFLIGHT_CANDIDATE_PATCH_REF = "candidate.patch"
 TRUSTED_DISPATCH_RUNNER_CANDIDATE_PATCH_REF = ".experiment-runner-input/candidate.patch"
+GENERATED_SIDECAR_JSON_MAX_BYTES = TRUSTED_DISPATCH_RESULT_MAX_BYTES
 ORACLE_REQUIRED_FAILURE_CLASSES = frozenset(
     {"timeout", "oom", "metric_regression", "guard_failure"}
 )
@@ -1251,8 +1252,15 @@ def _build_receipt(
         ),
         source_bundle=source_bundle,
     )
-    metadata = _normalize_patch_metadata(read_json(patch_metadata), label="patch metadata")
-    experiment_packet_payload = _read_experiment_packet(experiment_packet)
+    metadata = _normalize_patch_metadata(
+        _read_generated_sidecar_json_object(
+            patch_metadata,
+            run_dir=run_dir,
+            label="patch metadata",
+        ),
+        label="patch metadata",
+    )
+    experiment_packet_payload = _read_experiment_packet(experiment_packet, trusted_root=run_dir)
     _validate_experiment_packet_matches_result(
         experiment_packet_payload=experiment_packet_payload,
         request=request,
@@ -1861,8 +1869,16 @@ def _validate_receipt_matches_gate(
             raise CreativeCodePatchGenerationError(f"generation receipt {key} does not match gate.")
 
 
-def _read_experiment_packet(path: Path) -> dict[str, Any]:
-    raw_packet = read_json(path)
+def _read_experiment_packet(path: Path, *, trusted_root: Path | None = None) -> dict[str, Any]:
+    if trusted_root is None:
+        raw_packet = read_json(path)
+    else:
+        raw_packet = _read_pinned_json_object(
+            path,
+            trusted_root=trusted_root,
+            label="experiment packet",
+            max_bytes=GENERATED_SIDECAR_JSON_MAX_BYTES,
+        )
     if not isinstance(raw_packet, dict):
         raise CreativeCodePatchGenerationError("experiment packet must be a JSON object.")
     try:
@@ -1871,6 +1887,30 @@ def _read_experiment_packet(path: Path) -> dict[str, Any]:
         raise CreativeCodePatchGenerationError(str(exc)) from exc
     _reject_payload_safety(packet, label="experiment_packet")
     return cast(dict[str, Any], packet)
+
+
+def _read_generated_sidecar_json_object(path: Path, *, run_dir: Path, label: str) -> dict[str, Any]:
+    return _read_pinned_json_object(
+        path,
+        trusted_root=run_dir,
+        label=label,
+        max_bytes=GENERATED_SIDECAR_JSON_MAX_BYTES,
+    )
+
+
+def _budget_observations_match_packet(
+    observed: Any,
+    expected: Mapping[str, Any],
+) -> bool:
+    if not isinstance(observed, dict) or set(observed) != set(expected):
+        return False
+    for key, expected_value in expected.items():
+        observed_value = observed.get(key)
+        if type(observed_value) is not type(expected_value):
+            return False
+        if observed_value != expected_value:
+            return False
+    return True
 
 
 def _validate_receipt_linked_artifacts(receipt: Mapping[str, Any]) -> None:
@@ -2195,6 +2235,10 @@ def _load_generated_dispatch_context(
     candidate_patch, metadata_path, packet_path, result_path = _candidate_artifact_paths(run_dir)
     if (result_path.exists() or result_path.is_symlink()) and not allow_partial_publication:
         raise CreativeCodePatchGenerationError("creative-code patch result already exists.")
+    if allow_partial_publication and result_path.is_symlink():
+        raise CreativeCodePatchGenerationError(
+            "partial creative-code patch result must be a regular file."
+        )
     if allow_partial_publication and candidate_patch_evaluated and not result_path.exists():
         raise CreativeCodePatchGenerationError(
             "evaluated candidate state requires a published result."
@@ -2213,7 +2257,14 @@ def _load_generated_dispatch_context(
         ).decode("utf-8")
     except UnicodeDecodeError as exc:
         raise CreativeCodePatchGenerationError("candidate patch must use valid UTF-8.") from exc
-    metadata = _normalize_patch_metadata(read_json(metadata_path), label="patch metadata")
+    metadata = _normalize_patch_metadata(
+        _read_generated_sidecar_json_object(
+            metadata_path,
+            run_dir=run_dir,
+            label="patch metadata",
+        ),
+        label="patch metadata",
+    )
     actual_summary = {
         "patch_fingerprint": fingerprint_payload({"candidate_patch": patch_text}),
         "patch_bytes": len(patch_text.encode("utf-8")),
@@ -2223,7 +2274,7 @@ def _load_generated_dispatch_context(
         raise CreativeCodePatchGenerationError("candidate patch metadata is stale.")
     if state.get("patch_metadata") != metadata:
         raise CreativeCodePatchGenerationError("generated run state patch metadata is stale.")
-    packet = _read_experiment_packet(packet_path)
+    packet = _read_experiment_packet(packet_path, trusted_root=run_dir)
     if packet.get("candidate_patch_fingerprint") != actual_summary["patch_fingerprint"]:
         raise CreativeCodePatchGenerationError(
             "experiment packet candidate patch fingerprint is stale."
@@ -2339,7 +2390,10 @@ def _validate_dispatch_result_binding(
             "oracle-evaluated trusted dispatch result must bind every candidate path."
         )
     observations = result["budget_observations"]
-    if observations.get("configured_budgets") != packet["budgets"]:
+    if not _budget_observations_match_packet(
+        observations.get("configured_budgets"),
+        packet["budgets"],
+    ):
         raise CreativeCodePatchGenerationError(
             "trusted dispatch result configured budgets do not match the packet."
         )
@@ -2348,6 +2402,13 @@ def _validate_dispatch_result_binding(
             "trusted dispatch result configured oracle count does not match the packet."
         )
     if result["status"] == "accepted" or failure_class in ORACLE_REQUIRED_FAILURE_CLASSES:
+        if (
+            observations.get("source_checkout_head_sha") != packet["base_commit_sha"]
+            or observations.get("source_checkout_clean") is not True
+        ):
+            raise CreativeCodePatchGenerationError(
+                "executed dispatch evidence must bind the clean candidate base checkout."
+            )
         candidate_changed_files = observations.get("candidate_changed_files")
         if (
             not isinstance(candidate_changed_files, int)
@@ -2496,9 +2557,18 @@ def _finalize_dispatched_result_locked(
         allow_partial_publication=True,
     )
     metadata_path = resolve_run_file(run_dir, creative_code_patch_builder.PATCH_METADATA_FILE)
-    metadata = _normalize_patch_metadata(read_json(metadata_path), label="patch metadata")
-    selected_variant = read_json(
-        resolve_run_file(run_dir, creative_code_patch_builder.SELECTED_VARIANT_FILE)
+    metadata = _normalize_patch_metadata(
+        _read_generated_sidecar_json_object(
+            metadata_path,
+            run_dir=run_dir,
+            label="patch metadata",
+        ),
+        label="patch metadata",
+    )
+    selected_variant = _read_generated_sidecar_json_object(
+        resolve_run_file(run_dir, creative_code_patch_builder.SELECTED_VARIANT_FILE),
+        run_dir=run_dir,
+        label="selected variant",
     )
     if not isinstance(selected_variant, dict):
         raise CreativeCodePatchGenerationError("selected variant must be a JSON object.")

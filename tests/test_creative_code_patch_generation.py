@@ -225,6 +225,8 @@ def _trusted_dispatch_result(
             "oracle_commands_configured": len(configured_commands),
             "oracle_commands_executed": len(oracle_results),
             "candidate_changed_files": len(packet["mutable_candidate_surface"]),
+            "source_checkout_head_sha": packet["base_commit_sha"],
+            "source_checkout_clean": True,
             "attempts": 1,
             "retries_consumed": 0,
         },
@@ -1175,6 +1177,76 @@ def test_finalize_dispatched_result_rejects_oversized_candidate_patch_before_dec
     assert not (gate_path.parent / generation_cli.RECEIPT_FILENAME).exists()
 
 
+def test_finalize_dispatched_result_rejects_symlinked_partial_result(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo, base_sha = _init_patch_repo(tmp_path)
+    _patch_modules_to_repo(monkeypatch, repo)
+    run_id = "dispatch-finalize-symlinked-partial-result"
+    gate_path, dispatch_path, packet = _prepare_generated_dispatch_handoff(
+        monkeypatch=monkeypatch,
+        repo=repo,
+        base_sha=base_sha,
+        run_id=run_id,
+    )
+    _write_json(dispatch_path, _trusted_dispatch_result(packet))
+    run_dir = creative_code_patch_workspace.resolve_run_dir(run_id, create=False)
+    (run_dir / creative_code_patch_builder.RESULT_FILE).symlink_to(dispatch_path)
+
+    assert (
+        generation_cli.main(
+            [
+                "finalize-dispatched-result",
+                "--gate",
+                str(gate_path),
+                "--dispatch-result",
+                str(dispatch_path),
+            ]
+        )
+        == 1
+    )
+    assert "artifact file must not be a symlink" in capsys.readouterr().err
+    assert not (gate_path.parent / generation_cli.RECEIPT_FILENAME).exists()
+
+
+def test_finalize_dispatched_result_rejects_oversized_generated_metadata_sidecar(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo, base_sha = _init_patch_repo(tmp_path)
+    _patch_modules_to_repo(monkeypatch, repo)
+    run_id = "dispatch-finalize-oversized-metadata"
+    gate_path, dispatch_path, packet = _prepare_generated_dispatch_handoff(
+        monkeypatch=monkeypatch,
+        repo=repo,
+        base_sha=base_sha,
+        run_id=run_id,
+    )
+    run_dir = creative_code_patch_workspace.resolve_run_dir(run_id, create=False)
+    metadata_path = run_dir / creative_code_patch_builder.PATCH_METADATA_FILE
+    metadata_path.write_bytes(b"x" * (generation_cli.TRUSTED_DISPATCH_RESULT_MAX_BYTES + 1))
+    _write_json(dispatch_path, _trusted_dispatch_result(packet))
+
+    assert (
+        generation_cli.main(
+            [
+                "finalize-dispatched-result",
+                "--gate",
+                str(gate_path),
+                "--dispatch-result",
+                str(dispatch_path),
+            ]
+        )
+        == 1
+    )
+    assert "patch metadata exceeds the maximum size" in capsys.readouterr().err
+    assert not (run_dir / creative_code_patch_builder.RESULT_FILE).exists()
+    assert not (gate_path.parent / generation_cli.RECEIPT_FILENAME).exists()
+
+
 @pytest.mark.parametrize(
     ("mutation", "message"),
     [
@@ -1204,9 +1276,12 @@ def test_finalize_dispatched_result_rejects_oversized_candidate_patch_before_dec
             "capability_impossible_network_blocker",
             "inconsistent with the configured zero network budget",
         ),
+        ("float_configured_budget", "configured budgets do not match"),
         ("missing_candidate_changed_files", "candidate changed-file count must match"),
         ("mismatched_candidate_changed_files", "candidate changed-file count must match"),
         ("boolean_candidate_changed_files", "candidate changed-file count must match"),
+        ("missing_source_checkout_proof", "clean candidate base checkout"),
+        ("mismatched_source_checkout_head", "clean candidate base checkout"),
         ("metric_regression_without_metrics", "without structured metric evidence"),
         ("policy_without_error", "failed Experiment Runner validation"),
         ("accepted_runner_error", "must not carry runner_error"),
@@ -1349,12 +1424,20 @@ def test_finalize_dispatched_result_rejects_unbound_dispatch_evidence(
                 "preflight_status": "failed",
             }
         )
+    elif mutation == "float_configured_budget":
+        dispatch_result["budget_observations"]["configured_budgets"]["wall_clock_seconds"] = float(
+            packet["budgets"]["wall_clock_seconds"]
+        )
     elif mutation == "missing_candidate_changed_files":
         dispatch_result["budget_observations"].pop("candidate_changed_files")
     elif mutation == "mismatched_candidate_changed_files":
         dispatch_result["budget_observations"]["candidate_changed_files"] = 0
     elif mutation == "boolean_candidate_changed_files":
         dispatch_result["budget_observations"]["candidate_changed_files"] = True
+    elif mutation == "missing_source_checkout_proof":
+        dispatch_result["budget_observations"].pop("source_checkout_head_sha")
+    elif mutation == "mismatched_source_checkout_head":
+        dispatch_result["budget_observations"]["source_checkout_head_sha"] = "f" * 40
     elif mutation == "metric_regression_without_metrics":
         dispatch_result["status"] = "rejected"
         dispatch_result["failure_class"] = "metric_regression"
@@ -1427,6 +1510,7 @@ def test_dispatch_binding_rejects_metric_regression_without_structured_metrics()
     packet = {
         "experiment_id": "metric-regression-test",
         "candidate_patch_fingerprint": patch_fingerprint,
+        "base_commit_sha": "c" * 40,
         "mutable_candidate_surface": ["core/rag/orchestration.py"],
         "immutable_oracles": [
             {"command": "pytest -q tests/test_first.py"},
@@ -1459,6 +1543,7 @@ def test_dispatch_binding_requires_timeout_failure_class_for_timed_out_oracle(
     packet = {
         "experiment_id": f"{failure_class}-timeout-test",
         "candidate_patch_fingerprint": patch_fingerprint,
+        "base_commit_sha": "c" * 40,
         "mutable_candidate_surface": ["core/rag/orchestration.py"],
         "immutable_oracles": [{"command": "pytest -q tests/test_first.py"}],
         "budgets": {"wall_clock_seconds": 60},
@@ -1497,6 +1582,7 @@ def test_dispatch_binding_rejects_evidence_after_first_failing_oracle(
     packet = {
         "experiment_id": f"{failure_class}-first-failure-test",
         "candidate_patch_fingerprint": patch_fingerprint,
+        "base_commit_sha": "c" * 40,
         "mutable_candidate_surface": ["core/rag/orchestration.py"],
         "immutable_oracles": [
             {"command": "pytest -q tests/test_first.py"},

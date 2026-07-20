@@ -1464,6 +1464,20 @@ def _require_candidate_checkout(packet: dict[str, Any], *, root: Path) -> None:
         raise DispatchError("result_validation_failed")
 
 
+def _candidate_checkout_proof(packet: dict[str, Any], *, root: Path) -> dict[str, Any]:
+    """Return sanitized checkout proof for fingerprinted candidate dispatch."""
+
+    if packet["runner_mode"] == ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE:
+        return {}
+    expected_base = packet.get("base_commit_sha")
+    if expected_base is None:
+        return {}
+    return {
+        "source_checkout_head_sha": expected_base,
+        "source_checkout_clean": True,
+    }
+
+
 def _execution_backend_payload(probe: BackendProbe, *, passed: bool) -> dict[str, str]:
     if probe.image_digest is None:
         raise ValueError("Execution backend provenance requires an image digest.")
@@ -1654,12 +1668,17 @@ def _sanitize_result(
     probe: BackendProbe,
     *,
     expected_candidate_patch_fingerprint: str | None = None,
+    candidate_checkout_proof: dict[str, Any] | None = None,
     requested_contribution_kind: str = "none",
     requested_coauthor_required: bool = False,
     requested_coauthor_reason: str = "",
 ) -> dict[str, Any]:
     trusted_backend = _execution_backend_payload(probe, passed=True)
     result_with_trusted_backend = {**result, "execution_backend": trusted_backend}
+    if candidate_checkout_proof:
+        budget_observations = dict(result_with_trusted_backend.get("budget_observations", {}))
+        budget_observations.update(candidate_checkout_proof)
+        result_with_trusted_backend["budget_observations"] = budget_observations
     try:
         validated = _validated_experiment_result(result_with_trusted_backend)
     except (TypeError, ValueError) as exc:
@@ -1673,6 +1692,10 @@ def _sanitize_result(
     if not isinstance(sanitized, dict):
         raise DispatchError("result_redaction_failed")
     sanitized["execution_backend"] = trusted_backend
+    if candidate_checkout_proof:
+        budget_observations = dict(sanitized.get("budget_observations", {}))
+        budget_observations.update(candidate_checkout_proof)
+        sanitized["budget_observations"] = budget_observations
     oracle_results = []
     for raw_oracle in sanitized.get("oracle_results", []):
         oracle = dict(raw_oracle)
@@ -1778,6 +1801,7 @@ def _invoke_container_runner(
     if expected_packet is not None and packet != expected_packet:
         raise DispatchError("result_validation_failed")
     _require_candidate_checkout(packet, root=REPO_ROOT)
+    candidate_checkout_proof = _candidate_checkout_proof(packet, root=REPO_ROOT)
     candidate_patch_text: str | None = None
     if candidate_patch is not None:
         candidate_patch_text = _read_candidate_patch_for_fingerprint(candidate_patch)
@@ -1913,6 +1937,7 @@ def _invoke_container_runner(
             payload,
             probe,
             expected_candidate_patch_fingerprint=packet.get("candidate_patch_fingerprint"),
+            candidate_checkout_proof=candidate_checkout_proof,
             requested_contribution_kind=contribution_kind,
             requested_coauthor_required=coauthor_required,
             requested_coauthor_reason=coauthor_reason,
