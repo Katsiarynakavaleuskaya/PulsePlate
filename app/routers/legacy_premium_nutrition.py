@@ -96,13 +96,18 @@ async def api_who_targets(payload: dict[str, Any] = Body(...)) -> WHOTargetsResp
     except ValidationError as exc:
         raise HTTPException(status_code=422, detail=jsonable_encoder(exc.errors())) from exc
 
-    return generate_who_targets_response(req)
+    response: WHOTargetsResponse = generate_who_targets_response(req)
+    return response
 
 
 @router.post("/premium_targets", dependencies=[Depends(_get_api_key_dynamic)])
 async def premium_targets_legacy(req: WHOTargetsRequest) -> WHOTargetsResponse:
     """Legacy WHO targets alias."""
-    return generate_who_targets_response(req, allow_backend_fallback=False)
+    response: WHOTargetsResponse = generate_who_targets_response(
+        req,
+        allow_backend_fallback=False,
+    )
+    return response
 
 
 @router.post(
@@ -112,4 +117,5 @@ async def premium_targets_legacy(req: WHOTargetsRequest) -> WHOTargetsResponse:
 )
 async def api_nutrient_gaps(req: NutrientGapsRequest) -> NutrientGapsResponse:
     """Legacy-compatible nutrient gap analysis endpoint."""
-    return analyze_nutrient_gaps_response(req)
+    response: NutrientGapsResponse = analyze_nutrient_gaps_response(req)
+    return response
