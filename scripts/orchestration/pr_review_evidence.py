@@ -19,6 +19,11 @@ from datetime import datetime
 from pathlib import Path, PurePosixPath
 from typing import Any, Iterable, Mapping
 
+from scripts.orchestration.review_source_status import (
+    TERMINAL_NONBLOCKING_STATUSES,
+    review_source_policy_projection,
+)
+
 MATERIAL_SCHEMA_VERSION = "pulseplate.material-diff/v1"
 MATERIAL_POLICY_VERSION = "pulseplate.material-classification/v1"
 MATERIAL_DOMAIN = b"pulseplate-material-diff/v1\0"
@@ -37,6 +42,9 @@ REVIEW_CREDIT_OUTAGE_AUTHORITY = "operator_review_credit_exhaustion_override"
 REVIEW_CREDIT_OUTAGE_CLASS = "codex_review_credits_exhausted"
 REVIEW_CREDIT_OUTAGE_BOOTSTRAP_REPOSITORY = "Katsiarynakavaleuskaya/PulsePlate"
 REVIEW_CREDIT_OUTAGE_BOOTSTRAP_PR = 2142
+REVIEW_SOURCE_UNAVAILABILITY_SCHEMA_VERSION = "pulseplate.codex-review-source-unavailability/v1"
+REVIEW_SOURCE_UNAVAILABILITY_AUTHORITY = "trusted_codex_review_source_unavailability"
+REVIEW_SOURCE_UNAVAILABILITY_SOURCE = "codex_review"
 OPERATOR_OUTAGE_TRUST_BOUNDARY_EXACT_PATHS = frozenset(
     {
         ".bandit",
@@ -1023,6 +1031,52 @@ def build_review_credit_outage_receipt(
     return receipt
 
 
+def build_review_source_unavailability_receipt(
+    *,
+    material_digest: str,
+    material_head_sha: str,
+    quota_reference: str,
+    quota_created_at: str,
+    quota_body_sha256: str,
+    source_status: str,
+) -> dict[str, Any]:
+    """Build a material-context receipt for one trusted terminal quota response."""
+
+    policy = review_source_policy_projection()
+    terminal = policy["terminal_unavailability"]
+    if not isinstance(terminal, dict):
+        raise ReviewEvidenceError("review-source policy projection is malformed")
+    receipt = {
+        "authority": REVIEW_SOURCE_UNAVAILABILITY_AUTHORITY,
+        "binding_kind": "seal_context_only",
+        "blocking": terminal["blocking"],
+        "fallback_required": terminal["fallback_required"],
+        "material_digest": material_digest,
+        "material_head_sha": material_head_sha,
+        "quota_body_sha256": quota_body_sha256,
+        "quota_created_at": quota_created_at,
+        "quota_reference": quota_reference,
+        "review_claim": terminal["review_claim"],
+        "schema_version": REVIEW_SOURCE_UNAVAILABILITY_SCHEMA_VERSION,
+        "source": REVIEW_SOURCE_UNAVAILABILITY_SOURCE,
+        "source_degraded": terminal["source_degraded"],
+        "source_status": source_status,
+        "status": "tooling_unavailable",
+    }
+    _validate_code_review_receipt(receipt, material_digest=material_digest)
+    return receipt
+
+
+def is_review_source_unavailability_receipt(receipt: Any) -> bool:
+    """Return whether code-review evidence uses the tagged quota variant."""
+
+    return (
+        isinstance(receipt, dict)
+        and receipt.get("schema_version") == REVIEW_SOURCE_UNAVAILABILITY_SCHEMA_VERSION
+        and receipt.get("authority") == REVIEW_SOURCE_UNAVAILABILITY_AUTHORITY
+    )
+
+
 def is_review_credit_outage_receipt(receipt: Any) -> bool:
     """Return whether code-review evidence uses the credit-outage variant."""
 
@@ -1032,7 +1086,7 @@ def is_review_credit_outage_receipt(receipt: Any) -> bool:
 def validate_review_credit_outage_scope(
     *, repository: str, pr_number: int, material_paths: Iterable[str]
 ) -> None:
-    """Prevent later review-governance changes from authorizing themselves."""
+    """Keep the historical credit-outage receipt live-valid only for PR #2142."""
 
     touched = sorted(
         {
@@ -1042,17 +1096,19 @@ def validate_review_credit_outage_scope(
             or path.startswith(REVIEW_CREDIT_OUTAGE_TRUST_BOUNDARY_PREFIXES)
         }
     )
-    if not touched:
-        return
     is_bootstrap = (
         repository.casefold() == REVIEW_CREDIT_OUTAGE_BOOTSTRAP_REPOSITORY.casefold()
         and pr_number == REVIEW_CREDIT_OUTAGE_BOOTSTRAP_PR
     )
-    if not is_bootstrap:
-        raise ReviewEvidenceError(
-            "Codex review credit-outage override cannot authorize trust-boundary changes: "
-            + ", ".join(touched)
-        )
+    if is_bootstrap:
+        return
+    touched_suffix = " Material paths: " + ", ".join(touched) + "." if touched else ""
+    raise ReviewEvidenceError(
+        "Historical Codex review credit-outage receipts are live-valid only for "
+        f"{REVIEW_CREDIT_OUTAGE_BOOTSTRAP_REPOSITORY} PR "
+        f"#{REVIEW_CREDIT_OUTAGE_BOOTSTRAP_PR}; later PRs cannot authenticate "
+        f"the legacy receipt.{touched_suffix}"
+    )
 
 
 def is_security_outage_override_receipt(receipt: Any) -> bool:
@@ -1191,6 +1247,67 @@ def _validate_security_receipt(receipt: Any) -> None:
 def _validate_code_review_receipt(receipt: Any, *, material_digest: str) -> None:
     if not isinstance(receipt, dict):
         raise ReviewEvidenceError("review seal code_review must be an object")
+    has_source_schema = receipt.get("schema_version") == REVIEW_SOURCE_UNAVAILABILITY_SCHEMA_VERSION
+    has_source_authority = receipt.get("authority") == REVIEW_SOURCE_UNAVAILABILITY_AUTHORITY
+    if has_source_schema != has_source_authority:
+        raise ReviewEvidenceError("review seal code_review tagged-union identity is ambiguous")
+    if has_source_schema:
+        _require_exact_keys(
+            receipt,
+            {
+                "authority",
+                "binding_kind",
+                "blocking",
+                "fallback_required",
+                "material_digest",
+                "material_head_sha",
+                "quota_body_sha256",
+                "quota_created_at",
+                "quota_reference",
+                "review_claim",
+                "schema_version",
+                "source",
+                "source_degraded",
+                "source_status",
+                "status",
+            },
+            label="review seal code_review source unavailability",
+        )
+        _require_sha(
+            receipt["material_head_sha"],
+            label="code_review.material_head_sha",
+        )
+        _require_digest(
+            receipt["material_digest"],
+            label="code_review.material_digest",
+        )
+        _require_digest(
+            receipt["quota_body_sha256"],
+            label="code_review.quota_body_sha256",
+        )
+        _parse_timestamp(
+            receipt["quota_created_at"],
+            label="code_review.quota_created_at",
+        )
+        if (
+            receipt["material_digest"] != material_digest
+            or receipt["source"] != REVIEW_SOURCE_UNAVAILABILITY_SOURCE
+            or not isinstance(receipt["source_status"], str)
+            or receipt["source_status"] not in TERMINAL_NONBLOCKING_STATUSES
+            or receipt["status"] != "tooling_unavailable"
+            or receipt["binding_kind"] != "seal_context_only"
+            or receipt["review_claim"] != "none"
+            or receipt["source_degraded"] is not True
+            or receipt["fallback_required"] is not False
+            or receipt["blocking"] is not False
+            or not isinstance(receipt["quota_reference"], str)
+            or not 1 <= len(receipt["quota_reference"]) <= 500
+            or any(ord(ch) < 32 for ch in receipt["quota_reference"])
+        ):
+            raise ReviewEvidenceError(
+                "review seal code_review source unavailability is malformed or stale"
+            )
+        return
     if is_review_credit_outage_receipt(receipt):
         _require_exact_keys(
             receipt,
@@ -1334,6 +1451,12 @@ def validate_review_seal(seal: Any) -> dict[str, Any]:
         raise ReviewEvidenceError("review seal material policy version is unsupported")
     code_review = seal["code_review"]
     _validate_code_review_receipt(code_review, material_digest=material_digest)
+    if is_review_source_unavailability_receipt(code_review) and (
+        code_review["material_head_sha"] != material["material_head_sha"]
+    ):
+        raise ReviewEvidenceError(
+            "review-source unavailability receipt does not match sealed material head"
+        )
     _validate_security_receipt(seal["codex_security"])
     if (
         seal["codex_security"]["base_revision"] != material["merge_base_sha"]
