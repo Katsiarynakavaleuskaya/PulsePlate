@@ -1921,6 +1921,18 @@ def test_scan_receipt_rejects_supplemental_artifact_hash_drift(tmp_path: Path) -
         )
 
 
+def test_scan_receipt_rejects_empty_supplemental_artifact_media_type(tmp_path: Path) -> None:
+    manifest_path = _build_v011_scan_bundle(tmp_path / "scan")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["scan"]["artifacts"][3]["mediaType"] = ""
+    _write_json(manifest_path, manifest)
+
+    with pytest.raises(ReviewEvidenceError, match="mediaType must be a non-empty string"):
+        ingest_codex_security_receipt(
+            manifest_path, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+        )
+
+
 @pytest.mark.parametrize(
     "path", ["artifacts/02_discovery/finding_discovery_report.md", "../outside.txt"]
 )

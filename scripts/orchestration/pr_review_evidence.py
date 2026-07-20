@@ -920,8 +920,8 @@ def _ingest_codex_security_receipt_from_descriptor(
             raise ReviewEvidenceError("scan artifact paths must be unique")
         if not isinstance(digest, str) or not _RAW_DIGEST_RE.fullmatch(digest):
             raise ReviewEvidenceError("scan artifact sha256 is malformed")
-        if not isinstance(media_type, str):
-            raise ReviewEvidenceError("scan artifact mediaType must be a string")
+        if not isinstance(media_type, str) or not media_type:
+            raise ReviewEvidenceError("scan artifact mediaType must be a non-empty string")
         artifact_specs[path] = (media_type, digest)
     expected_paths = {
         "coverage.json": "application/json",
