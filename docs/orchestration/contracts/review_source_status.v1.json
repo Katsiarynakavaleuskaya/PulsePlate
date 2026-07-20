@@ -35,5 +35,27 @@
     "reason": { "type": "string" },
     "evidence": { "type": "string" }
   },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "enum": [
+              "rate_limited",
+              "usage_limit_reached"
+            ]
+          }
+        },
+        "required": ["status"]
+      },
+      "then": {
+        "properties": {
+          "source_degraded": { "const": true },
+          "fallback_required": { "const": false },
+          "blocking": { "const": false }
+        }
+      }
+    }
+  ],
   "additionalProperties": false
 }
