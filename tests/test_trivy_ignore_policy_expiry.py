@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date
+import os
 from pathlib import Path
 import re
 
@@ -394,18 +395,23 @@ def test_faraday_fastlane_doc_records_scanner_lag_removal() -> None:
 
 def test_faraday_1_10_6_is_only_locked_in_ios_fastlane_lockfile() -> None:
     ignored_dirs = {".git", ".venv", "node_modules", "worktrees"}
-    matching_lockfiles = []
+    matching_lockfiles: list[str] = []
 
-    for lockfile in REPO_ROOT.rglob("Gemfile.lock"):
-        relative = lockfile.relative_to(REPO_ROOT)
-        if ignored_dirs.intersection(relative.parts):
+    # Prune volatile dependency trees before descent. Python 3.11's ``Path.rglob``
+    # can raise FileNotFoundError when a parallel OpenAPI test replaces
+    # ``frontend/node_modules`` with ``npm ci``.
+    for root, dirnames, filenames in os.walk(REPO_ROOT):
+        dirnames[:] = sorted(dirname for dirname in dirnames if dirname not in ignored_dirs)
+        if "Gemfile.lock" not in filenames:
             continue
+        lockfile = Path(root) / "Gemfile.lock"
+        relative = lockfile.relative_to(REPO_ROOT)
         lockfile_text = lockfile.read_text(encoding="utf-8")
         assert "    faraday (1.10.5)" not in lockfile_text
         if "    faraday (1.10.6)" in lockfile_text:
             matching_lockfiles.append(relative.as_posix())
 
-    assert matching_lockfiles == ["ios/Gemfile.lock"]
+    assert sorted(matching_lockfiles) == ["ios/Gemfile.lock"]
 
 
 def test_zlib_suppression_requires_exact_pkgid_scope() -> None:
