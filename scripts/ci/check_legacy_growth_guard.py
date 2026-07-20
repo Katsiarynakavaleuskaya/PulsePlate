@@ -2621,6 +2621,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         self._outward_binding_targets: list[dict[str, _LexicalBindings]] = []
         self._awaited_call_ids: set[int] = set()
         self._iterated_call_ids: set[int] = set()
+        self._deferred_mapping_mutator_attribute_ids: set[int] = set()
         self._call_result_bindings: dict[int, _ResolvedBinding] = {}
         self._deferred_call_bindings: dict[int, frozenset[_DeferredFunctionCall]] = {}
         self._return_binding_collectors: list[list[_ResolvedBinding]] = []
@@ -5690,7 +5691,10 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 f"{self.filename}: legacy API-key dependency attribute access is forbidden: "
                 f"{node.attr}"
             )
-        if node.attr in _MAPPING_MUTATOR_METHODS:
+        if (
+            node.attr in _MAPPING_MUTATOR_METHODS
+            and id(node) not in self._deferred_mapping_mutator_attribute_ids
+        ):
             self._invalidate_mapping_aliases(node.value)
         self.generic_visit(node)
 
@@ -6368,12 +6372,16 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             if keyword.arg is not None
             if (mapping := self._resolve_mapping(keyword.value)) is not None
         )
-        if (
-            isinstance(node.func, ast.Attribute)
-            and node.func.attr in _MAPPING_MUTATOR_METHODS
-            and (mutated_mapping := self._resolve_mapping(node.func.value)) is not None
-        ):
+        mutated_mapping = (
+            self._resolve_mapping(node.func.value)
+            if (isinstance(node.func, ast.Attribute) and node.func.attr in _MAPPING_MUTATOR_METHODS)
+            else None
+        )
+        if mutated_mapping is not None:
             escaped_mappings.append(mutated_mapping)
+        defer_mapping_mutation = (
+            isinstance(node.func, ast.Attribute) and mutated_mapping is not None
+        )
         if (
             isinstance(node.func, ast.Attribute)
             and node.func.attr in {"get", "__getitem__"}
@@ -6414,7 +6422,6 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         initial_arguments = {target: arguments for target, arguments in initial_replay_inputs}
         prepared_targets = set(initial_arguments)
 
-        pre_visit_mapping_lookup = self._resolve_mapping_lookup_call_binding(node)
         wrapper_reference = self._resolve_reference(node.func)
         namespace_kind = self._object_namespace_mapping_kind(node)
         if namespace_kind is not None:
@@ -6493,18 +6500,20 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         )
         if iterated_argument is not None:
             self._iterated_call_ids.add(id(iterated_argument))
+        if defer_mapping_mutation:
+            self._deferred_mapping_mutator_attribute_ids.add(id(node.func))
         try:
             self.generic_visit(node)
         finally:
+            if defer_mapping_mutation:
+                self._deferred_mapping_mutator_attribute_ids.remove(id(node.func))
             if wrapped_call is not None and executes_async:
                 self._awaited_call_ids.remove(id(wrapped_call))
             for gathered_call in newly_awaited_gather_calls:
                 self._awaited_call_ids.remove(id(gathered_call))
             if iterated_argument is not None and not iterated_argument_was_marked:
                 self._iterated_call_ids.remove(id(iterated_argument))
-        projected_result = pre_visit_mapping_lookup
-        if projected_result is None:
-            projected_result = self._resolve_mapping_lookup_call_binding(node)
+        projected_result = self._resolve_mapping_lookup_call_binding(node)
         if (
             projected_result is None
             and node.args

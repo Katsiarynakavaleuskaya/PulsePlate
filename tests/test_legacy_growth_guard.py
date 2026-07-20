@@ -6567,6 +6567,53 @@ def test_legacy_growth_guard_uses_pre_mutation_mapping_lookup_result(
 
 
 @pytest.mark.parametrize(
+    "lookup",
+    [
+        'routes.get("route", (lambda: safe)())',
+        'routes.get("route", choose())',
+        'routes.pop("route", (lambda: safe)())',
+        'routes.setdefault("route", (lambda: safe)())',
+    ],
+    ids=["get-lambda", "get-helper", "pop-lambda", "setdefault-lambda"],
+)
+def test_legacy_growth_guard_replays_safe_mapping_lookup_defaults(lookup: str) -> None:
+    source = textwrap.dedent(f"""
+        def safe(*args, **kwargs):
+            return None
+
+        def choose():
+            return safe
+
+        routes = {{}}
+        route = {lookup}
+        route("/api/v1/not-a-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+def test_legacy_growth_guard_invalidates_mapping_during_default_replay() -> None:
+    source = textwrap.dedent("""
+        def safe(*args, **kwargs):
+            return None
+
+        routes = {"route": safe}
+
+        def poison():
+            routes["route"] = app.get
+            return safe
+
+        route = routes.pop("route", poison())
+        route("/api/v1/default-mutated-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:dynamic:/api/v1/default-mutated-route"
+    ]
+
+
+@pytest.mark.parametrize(
     "dispatch",
     [
         (
