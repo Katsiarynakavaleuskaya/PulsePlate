@@ -2630,6 +2630,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         self._awaited_call_ids: set[int] = set()
         self._iterated_call_ids: set[int] = set()
         self._deferred_mapping_mutator_attribute_ids: set[int] = set()
+        self._previsited_call_receiver_attribute_ids: set[int] = set()
         self._call_result_bindings: dict[int, _ResolvedBinding] = {}
         self._deferred_call_bindings: dict[int, frozenset[_DeferredFunctionCall]] = {}
         self._return_binding_collectors: list[list[_ResolvedBinding]] = []
@@ -5471,12 +5472,8 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             )
         return None
 
-    def _resolve_mapping_lookup_call_binding(
-        self,
-        node: ast.Call,
-        *,
-        receiver: _MappingLookupReceiver | None = None,
-    ) -> _ResolvedBinding | None:
+    @staticmethod
+    def _mapping_lookup_attribute(node: ast.Call) -> ast.Attribute | None:
         if (
             not isinstance(node.func, ast.Attribute)
             or node.func.attr not in {"__getitem__", "get", "pop", "setdefault"}
@@ -5484,7 +5481,18 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             or isinstance(node.args[0], ast.Starred)
         ):
             return None
-        owner = node.func.value
+        return node.func
+
+    def _resolve_mapping_lookup_call_binding(
+        self,
+        node: ast.Call,
+        *,
+        receiver: _MappingLookupReceiver | None = None,
+    ) -> _ResolvedBinding | None:
+        attribute = self._mapping_lookup_attribute(node)
+        if attribute is None:
+            return None
+        owner = attribute.value
         if receiver is not None:
             if (
                 receiver.mapping is not None
@@ -5523,17 +5531,13 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         self,
         node: ast.Call,
     ) -> _MappingLookupReceiver | None:
-        if (
-            not isinstance(node.func, ast.Attribute)
-            or node.func.attr not in {"__getitem__", "get", "pop", "setdefault"}
-            or not node.args
-            or isinstance(node.args[0], ast.Starred)
-        ):
+        attribute = self._mapping_lookup_attribute(node)
+        if attribute is None:
             return None
-        mapping = self._resolve_mapping(node.func.value)
+        mapping = self._resolve_mapping(attribute.value)
         return _MappingLookupReceiver(
             mapping=mapping,
-            possible_value=self._resolve_mapping_value_binding(node.func.value),
+            possible_value=self._resolve_mapping_value_binding(attribute.value),
             invalidation_count=(
                 self._mapping_invalidation_counts.get(mapping, 0) if mapping is not None else 0
             ),
@@ -5739,7 +5743,8 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             and id(node) not in self._deferred_mapping_mutator_attribute_ids
         ):
             self._invalidate_mapping_aliases(node.value)
-        self.generic_visit(node)
+        if id(node) not in self._previsited_call_receiver_attribute_ids:
+            self.generic_visit(node)
 
     def visit_Subscript(self, node: ast.Subscript) -> None:
         if self._is_legacy_namespace_reference(self._resolve_reference(node.value)):
@@ -6402,6 +6407,9 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         )
 
     def visit_Call(self, node: ast.Call) -> None:
+        mapping_lookup_attribute = self._mapping_lookup_attribute(node)
+        if mapping_lookup_attribute is not None:
+            self.visit(mapping_lookup_attribute.value)
         self._record_object_namespace_call_mutation(node)
         escaped_mappings = [
             mapping
@@ -6546,9 +6554,13 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             self._iterated_call_ids.add(id(iterated_argument))
         if defer_mapping_mutation:
             self._deferred_mapping_mutator_attribute_ids.add(id(node.func))
+        if mapping_lookup_attribute is not None:
+            self._previsited_call_receiver_attribute_ids.add(id(mapping_lookup_attribute))
         try:
             self.generic_visit(node)
         finally:
+            if mapping_lookup_attribute is not None:
+                self._previsited_call_receiver_attribute_ids.remove(id(mapping_lookup_attribute))
             if defer_mapping_mutation:
                 self._deferred_mapping_mutator_attribute_ids.remove(id(node.func))
             if wrapped_call is not None and executes_async:

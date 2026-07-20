@@ -6653,6 +6653,66 @@ def test_legacy_growth_guard_binds_mapping_owner_before_default_replay(
     assert legacy_guard.validate_legacy_growth(source) == expected
 
 
+@pytest.mark.parametrize("method", ["get", "pop", "setdefault"])
+@pytest.mark.parametrize(
+    "receiver",
+    ["make_routes()", '(lambda: {"route": app.get})()'],
+    ids=["helper", "lambda"],
+)
+def test_legacy_growth_guard_evaluates_mapping_receiver_before_arguments(
+    method: str,
+    receiver: str,
+) -> None:
+    source = textwrap.dedent(f"""
+        def safe(*args, **kwargs):
+            return None
+
+        def make_routes():
+            return {{"route": app.get}}
+
+        route = {receiver}.{method}("route", safe)
+        route("/api/v1/receiver-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: " "registration:get:/api/v1/receiver-route"
+    ]
+
+
+@pytest.mark.parametrize("method", ["get", "pop", "setdefault"])
+def test_legacy_growth_guard_preserves_default_for_empty_mapping_receiver(
+    method: str,
+) -> None:
+    source = textwrap.dedent(f"""
+        def make_routes():
+            return {{}}
+
+        route = make_routes().{method}("route", app.get)
+        route("/api/v1/receiver-default-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/receiver-default-route"
+    ]
+
+
+@pytest.mark.parametrize("method", ["get", "pop", "setdefault"])
+def test_legacy_growth_guard_ignores_unreachable_receiver_default(method: str) -> None:
+    source = textwrap.dedent(f"""
+        def safe(*args, **kwargs):
+            return None
+
+        def make_routes():
+            return {{"route": safe}}
+
+        route = make_routes().{method}("route", app.get)
+        route("/api/v1/not-a-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
 @pytest.mark.parametrize(
     "dispatch",
     [
