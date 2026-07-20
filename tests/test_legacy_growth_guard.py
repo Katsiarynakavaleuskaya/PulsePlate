@@ -7284,6 +7284,30 @@ def test_legacy_growth_guard_uses_proven_mapping_get_default_for_missing_key() -
     assert legacy_guard.validate_legacy_growth(source) == []
 
 
+@pytest.mark.parametrize("pairs", ['[("other", app.get)]', '(("other", app.get),)'])
+def test_legacy_growth_guard_preserves_keys_from_dict_pair_iterables(pairs: str) -> None:
+    source = textwrap.dedent(f"""
+        routes = dict({pairs})
+        route = routes.get("route", safe)
+        route("/api/v1/not-a-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+def test_legacy_growth_guard_preserves_registrar_from_dict_pair_iterable() -> None:
+    source = textwrap.dedent("""
+        routes = dict([("route", app.get)])
+        route = routes.get("route", safe)
+        route("/api/v1/pair-iterable-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/pair-iterable-route"
+    ]
+
+
 def test_legacy_growth_guard_preserves_variadic_mapping_keys_for_missing_lookup() -> None:
     source = textwrap.dedent("""
         def safe(path):
@@ -10413,6 +10437,18 @@ def test_legacy_growth_guard_ignores_unreachable_empty_zip_body() -> None:
             "dynamic",
         ),
         (
+            ('routes = {"route": app.get}\n' 'route = dict.pop(routes, "route")'),
+            "get",
+        ),
+        (
+            ('routes = {"route": app.get}\n' 'route = dict.setdefault(routes, "route")'),
+            "get",
+        ),
+        (
+            ('routes = {"route": app.get}\n' 'route = dict.__getitem__(routes, "route")'),
+            "get",
+        ),
+        (
             ('routes = {"route": app.get}\n' "cloned = routes.copy()\n" 'route = cloned["route"]'),
             "get",
         ),
@@ -10421,7 +10457,15 @@ def test_legacy_growth_guard_ignores_unreachable_empty_zip_body() -> None:
             "get",
         ),
     ],
-    ids=["dict-constructor", "unbound-get", "mapping-copy", "popitem"],
+    ids=[
+        "dict-constructor",
+        "unbound-get",
+        "unbound-pop",
+        "unbound-setdefault",
+        "unbound-dunder-getitem",
+        "mapping-copy",
+        "popitem",
+    ],
 )
 def test_legacy_growth_guard_preserves_static_mapping_projections(
     lookup: str,

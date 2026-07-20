@@ -6341,12 +6341,16 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         if positional_arguments:
             source_mapping = self._resolve_mapping(positional_arguments[0])
             if source_mapping is None:
-                entries.append(
-                    _StaticMappingEntry(
-                        key=None,
-                        binding=self._conservative_argument_binding(),
+                pair_entries = self._static_pair_mapping_entries(positional_arguments[0])
+                if pair_entries is None:
+                    entries.append(
+                        _StaticMappingEntry(
+                            key=None,
+                            binding=self._conservative_argument_binding(),
+                        )
                     )
-                )
+                else:
+                    entries.extend(pair_entries)
             else:
                 entries.extend(source_mapping.entries)
         for keyword in node.keywords:
@@ -6375,6 +6379,27 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             mapping_entries=entries,
             mapping_site=synthetic_site,
         )
+
+    def _static_pair_mapping_entries(
+        self,
+        source: ast.AST,
+    ) -> list[_StaticMappingEntry] | None:
+        if not isinstance(source, (ast.List, ast.Set, ast.Tuple)):
+            return None
+        entries: list[_StaticMappingEntry] = []
+        for element in source.elts:
+            if not isinstance(element, (ast.List, ast.Tuple)) or len(element.elts) != 2:
+                return None
+            key, value = element.elts
+            if isinstance(key, ast.Starred) or isinstance(value, ast.Starred):
+                return None
+            entries.append(
+                _StaticMappingEntry(
+                    key=key,
+                    binding=self._capture_argument_binding(value),
+                )
+            )
+        return entries
 
     def _dict_fromkeys_binding(
         self,
@@ -7216,7 +7241,13 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         unbound_mapping_receiver = (
             self._capture_mapping_receiver(positional_arguments[0])
             if (
-                wrapper_reference == "builtins.dict.get"
+                wrapper_reference
+                in {
+                    "builtins.dict.__getitem__",
+                    "builtins.dict.get",
+                    "builtins.dict.pop",
+                    "builtins.dict.setdefault",
+                }
                 and len(positional_arguments) >= 2
                 and not unresolved_positional_sources
             )
