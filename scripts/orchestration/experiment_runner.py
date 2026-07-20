@@ -523,6 +523,19 @@ def _create_temp_checkout(root: Path) -> tuple[tempfile.TemporaryDirectory[str],
     return temp_dir, checkout_root
 
 
+def _require_candidate_base_commit(packet: dict[str, Any]) -> None:
+    """Bind a fingerprinted direct runner invocation to its packet base."""
+
+    expected_base = packet.get("base_commit_sha")
+    if expected_base is None:
+        return
+    current_head = _run_git(["rev-parse", "HEAD"], cwd=REPO_ROOT).stdout.strip()
+    if current_head != expected_base:
+        raise PolicyViolationError(
+            "Experiment packet base_commit_sha does not match current repository HEAD."
+        )
+
+
 def _apply_candidate_patch(checkout_root: Path, patch_text: str) -> None:
     """Verify patch applicability before applying it inside the isolated checkout."""
 
@@ -767,6 +780,7 @@ def evaluate_candidate(packet: dict[str, Any], candidate_patch_path: Path) -> di
                     "Candidate patch fingerprint does not match the experiment packet."
                 )
             candidate_patch_fingerprint = actual_patch_fingerprint
+            _require_candidate_base_commit(packet)
         mutated_paths = _extract_mutated_paths(patch_text)
         budget_observations["candidate_changed_files"] = len(mutated_paths)
         if not mutated_paths:

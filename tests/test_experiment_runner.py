@@ -2574,3 +2574,46 @@ def test_evaluate_candidate_applies_validated_patch_text_not_mutated_patch_file(
     assert result["status"] == "accepted"
     assert result["failure_class"] is None
     assert result["mutated_paths"] == ["core/rag/allowed.py"]
+
+
+def test_evaluate_candidate_rejects_fingerprinted_packet_at_wrong_base(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Direct candidate evaluation must not run against a stale packet base."""
+
+    repo = _init_repo(tmp_path)
+    _configure_runner_repo(monkeypatch, repo)
+    patch_path = _write_patch(
+        repo,
+        "core/rag/allowed.py",
+        "def candidate_value() -> int:\n" "    return 2\n",
+        tmp_path / "candidate.patch",
+    )
+    patch_text = patch_path.read_text(encoding="utf-8")
+    packet = _base_packet(
+        mutable_path="core/rag/allowed.py",
+        oracle_command='python3 -c "raise SystemExit(0)"',
+    )
+    packet["candidate_patch_fingerprint"] = experiment_runner.fingerprint_payload(
+        {"candidate_patch": patch_text}
+    )
+    packet["base_commit_sha"] = "0" * 40
+    validated_packet = _validate_packet(packet)
+    monkeypatch.setattr(
+        experiment_runner,
+        "_evaluate_attempt",
+        lambda **_kwargs: pytest.fail("stale-base packets must fail before evaluation"),
+    )
+
+    result = experiment_runner.evaluate_candidate(validated_packet, patch_path)
+
+    assert result["status"] == "rejected"
+    assert result["failure_class"] == "policy_violation"
+    assert result["mutated_paths"] == []
+    assert result["oracle_results"] == []
+    assert result["budget_observations"]["attempts"] == 0
+    assert (
+        result["budget_observations"]["runner_error"]
+        == "Experiment packet base_commit_sha does not match current repository HEAD."
+    )
