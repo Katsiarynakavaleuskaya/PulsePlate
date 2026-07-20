@@ -3864,6 +3864,32 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             return "module"
         return None
 
+    def _namespace_mapping_binding_reference(
+        self,
+        node: ast.AST,
+        reference: str | None,
+    ) -> str | None:
+        if reference in {
+            _BUILTINS_NAMESPACE_REFERENCE,
+            _MODULE_NAMESPACE_REFERENCE,
+        }:
+            return reference
+        is_dunder_dict = isinstance(node, ast.Attribute) and node.attr == "__dict__"
+        is_namespace_builtin_call = isinstance(node, ast.Call) and self._resolve_reference(
+            node.func
+        ) in {
+            "builtins.globals",
+            "builtins.vars",
+        }
+        if not is_dunder_dict and not is_namespace_builtin_call:
+            return reference
+        namespace_kind = self._object_namespace_mapping_kind(node)
+        if namespace_kind == "builtins":
+            return _BUILTINS_NAMESPACE_REFERENCE
+        if namespace_kind == "module":
+            return _MODULE_NAMESPACE_REFERENCE
+        return reference
+
     def _object_namespace_target_kind(self, target: ast.AST) -> str | None:
         if isinstance(target, ast.Attribute) and target.attr == "object":
             if self._is_builtin_namespace_reference(self._resolve_reference(target.value)):
@@ -4121,6 +4147,10 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 return
         resolved_string = self._resolve_string(value)
         resolved_reference = self._resolve_reference(value)
+        resolved_reference = self._namespace_mapping_binding_reference(
+            value,
+            resolved_reference,
+        )
         callables = self._resolve_callables(value)
         deferred_calls = self._resolve_deferred_calls(value)
         mapping = self._resolve_mapping(value)
@@ -5856,6 +5886,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         conservative: bool = False,
     ) -> _ResolvedBinding:
         reference = self._resolve_reference(value)
+        reference = self._namespace_mapping_binding_reference(value, reference)
         string = self._resolve_string(value)
         unresolved_dynamic = reference is None and isinstance(
             value,

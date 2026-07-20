@@ -4435,20 +4435,27 @@ def test_legacy_growth_guard_propagates_object_poisoning_from_called_helper(
 
 
 @pytest.mark.parametrize(
-    ("helper_result", "mutation"),
+    ("setup", "helper_result", "mutation"),
     [
-        ("builtins", 'setattr(expose(), "object", lambda: app)'),
-        ("builtins", "expose().object = lambda: app"),
-        ("vars(builtins)", 'expose()["object"] = lambda: app'),
+        ("import builtins", "builtins", 'setattr(expose(), "object", lambda: app)'),
+        ("import builtins", "builtins", "expose().object = lambda: app"),
+        ("import builtins", "vars(builtins)", 'expose()["object"] = lambda: app'),
+        ("import builtins", "builtins.__dict__", 'expose()["object"] = lambda: app'),
+        (
+            "import builtins; import sys",
+            "sys.modules[__name__].__dict__",
+            'expose()["object"] = lambda: app',
+        ),
     ],
-    ids=["setattr", "attribute", "mapping"],
+    ids=["setattr", "attribute", "mapping", "builtins-dunder-dict", "module-dunder-dict"],
 )
 def test_legacy_growth_guard_replays_helper_returned_builtin_namespace(
+    setup: str,
     helper_result: str,
     mutation: str,
 ) -> None:
     source = textwrap.dedent(f"""
-        import builtins
+        {setup}
 
         def expose():
             return {helper_result}
@@ -4476,8 +4483,13 @@ def test_legacy_growth_guard_replays_helper_returned_builtin_namespace(
             "vars(box)",
             'expose()["object"] = lambda: app',
         ),
+        (
+            "class Box:\n    pass\nbox = Box()",
+            "box.__dict__",
+            'expose()["object"] = lambda: app',
+        ),
     ],
-    ids=["foreign-module", "arbitrary-object-mapping"],
+    ids=["foreign-module", "arbitrary-object-mapping", "foreign-dunder-dict"],
 )
 def test_legacy_growth_guard_does_not_poison_helper_returned_foreign_namespace(
     setup: str,
