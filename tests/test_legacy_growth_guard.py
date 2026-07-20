@@ -7284,6 +7284,21 @@ def test_legacy_growth_guard_uses_proven_mapping_get_default_for_missing_key() -
     assert legacy_guard.validate_legacy_growth(source) == []
 
 
+def test_legacy_growth_guard_preserves_variadic_mapping_keys_for_missing_lookup() -> None:
+    source = textwrap.dedent("""
+        def safe(path):
+            return lambda handler: handler
+
+        def install(**routes):
+            route = routes.get("route", safe)
+            route("/api/v1/not-a-route")(handler)
+
+        install(other=app.get)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
 @pytest.mark.parametrize(
     ("mapping", "lookup"),
     [
@@ -7570,6 +7585,19 @@ def test_legacy_growth_guard_preserves_zipped_mapping_value_shape(
     assert legacy_guard.validate_legacy_growth(source) == [
         "legacy_app.py: unexpected legacy route growth: "
         "registration:dynamic:/api/v1/zipped-route"
+    ]
+
+
+def test_legacy_growth_guard_detects_indexed_pair_subscript_callee() -> None:
+    source = textwrap.dedent("""
+        routes = {"route": app.get}
+        for pair in zip(["route"], routes.values()):
+            pair[1]("/api/v1/zipped-subscript-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:dynamic:/api/v1/zipped-subscript-route"
     ]
 
 

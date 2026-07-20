@@ -788,6 +788,15 @@ def _static_module_reference(
             static_string_bindings=static_string_bindings,
         )
         if parent in {
+            _INDEXED_PAIR_ELEMENT_REFERENCE,
+            _REVERSED_INDEXED_PAIR_ELEMENT_REFERENCE,
+        }:
+            index = _literal_value(node.slice)
+            sensitive_index = 1 if parent == _INDEXED_PAIR_ELEMENT_REFERENCE else 0
+            if index == 1 - sensitive_index:
+                return _KNOWN_NON_APP_REFERENCE
+            return _POSSIBLE_APP_CALL_REFERENCE
+        if parent in {
             _POSSIBLE_APP_CALL_REFERENCE,
             _POSSIBLE_MIDDLEWARE_DECORATOR_REFERENCE,
             _ITERABLE_SENSITIVE_ELEMENT_REFERENCE,
@@ -6094,11 +6103,26 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
     def _variadic_mapping_binding(
         self,
         values: Sequence[_ResolvedBinding],
+        *,
+        mapping_entries: Sequence[_StaticMappingEntry] | None = None,
+        mapping_site: ast.Dict | None = None,
     ) -> _ResolvedBinding:
+        mapping: _StaticMapping | None = None
+        if mapping_entries is not None:
+            if mapping_site is None:
+                raise LegacyGrowthAnalysisError(
+                    f"{self.filename}: variadic mapping entries require a binding site"
+                )
+            candidate = _StaticMapping(
+                site=mapping_site,
+                entries=tuple(mapping_entries),
+            )
+            mapping = self._mapping_snapshot_intern.setdefault(candidate, candidate)
         if not values:
             return _ResolvedBinding(
                 reference=_KNOWN_NON_APP_REFERENCE,
                 string=None,
+                mapping=mapping,
             )
         value = self._join_resolved_bindings(values)
         return _ResolvedBinding(
@@ -6108,6 +6132,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 else _KNOWN_NON_APP_REFERENCE
             ),
             string=None,
+            mapping=mapping,
             iterable_element=value,
         )
 
@@ -6380,6 +6405,8 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             if unresolved_keyword_value_bindings
             else None
         )
+        variadic_mapping_site = ast.Dict(keys=[], values=[])
+        ast.copy_location(variadic_mapping_site, call)
 
         def resolve_variant(
             variant: Sequence[_ResolvedBinding],
@@ -6392,12 +6419,12 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     assignments.setdefault(name, []).append(binding)
                 else:
                     overflow_positional_bindings.append(binding)
-            unexpected_keyword_bindings: list[_ResolvedBinding] = []
+            unexpected_keyword_bindings: list[tuple[str, _ResolvedBinding]] = []
             for name, binding in keyword_bindings:
                 if name in keyword_parameters:
                     assignments.setdefault(name, []).append(binding)
                 else:
-                    unexpected_keyword_bindings.append(binding)
+                    unexpected_keyword_bindings.append((name, binding))
 
             if overflow_positional_bindings and function.args.vararg is None:
                 return None
@@ -6467,11 +6494,24 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     overflow_positional_bindings
                 )
             if function.args.kwarg is not None:
+                mapping_entries = [
+                    _StaticMappingEntry(
+                        key=ast.Constant(value=name),
+                        binding=binding,
+                    )
+                    for name, binding in unexpected_keyword_bindings
+                ]
+                mapping_entries.extend(
+                    _StaticMappingEntry(key=None, binding=binding)
+                    for binding in unresolved_keyword_value_bindings
+                )
                 resolved[function.args.kwarg.arg] = self._variadic_mapping_binding(
                     [
-                        *unexpected_keyword_bindings,
+                        *(binding for _name, binding in unexpected_keyword_bindings),
                         *unresolved_keyword_value_bindings,
-                    ]
+                    ],
+                    mapping_entries=mapping_entries,
+                    mapping_site=variadic_mapping_site,
                 )
             return resolved
 
