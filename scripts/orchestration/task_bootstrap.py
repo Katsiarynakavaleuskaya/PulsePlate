@@ -155,10 +155,10 @@ ROLE_DISPATCH_MANIFEST_ENTRYPOINT = "scripts/orchestration/role_dispatch_bridge.
 ROLE_DISPATCH_COMPATIBILITY_ENTRYPOINTS = ("scripts/orchestration/qoder_dispatch_bridge.py",)
 PR_LIFECYCLE_CONTRACT_VERSION = "pulseplate.pr-lifecycle/v2"
 FINAL_MATERIAL_ONLY = "final_material_only"
-FINAL_MATERIAL_TRUSTED_REVIEW = "trusted exact-head GitHub Codex Connector review"
+FINAL_REVIEW_GATE_LABEL = "trusted exact-head GitHub Codex Connector review"
 FINAL_MATERIAL_REVIEW_GATES: tuple[str, ...] = (
     POST_OPEN_PULSEPLATE_PR_REVIEW,
-    FINAL_MATERIAL_TRUSTED_REVIEW,
+    FINAL_REVIEW_GATE_LABEL,
     POST_OPEN_CODEX_SECURITY_SCAN,
 )
 POST_OPEN_REVIEW_CHAIN_POLICY = "post_open_roles_then_final_material_gates"
