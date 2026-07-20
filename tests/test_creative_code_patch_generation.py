@@ -2876,6 +2876,37 @@ def test_generation_gate_rejects_stale_base_before_generate(
     assert not (run_dir / creative_code_patch_builder.CANDIDATE_PATCH_FILE).exists()
 
 
+def test_generation_gate_rejects_topic_head_before_generate(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo, base_sha = _init_patch_repo(tmp_path)
+    _patch_modules_to_repo(monkeypatch, repo)
+    run_id = "topic-head-before-generate"
+    admission_path = _prepare_admission(repo=repo, base_sha=base_sha, run_id=run_id)
+    gate_path = _write_gate(repo=repo, admission_path=admission_path, run_id=run_id)
+    called = {"codex": False}
+
+    def fail_run_codex_exec(**_kwargs: Any) -> dict[str, int]:
+        called["codex"] = True
+        raise AssertionError("generation must not start from a topic branch head")
+
+    monkeypatch.setattr(creative_code_patch_builder, "run_codex_exec", fail_run_codex_exec)
+    (repo / "core" / "rag" / "topic.py").write_text("value = 2\n", encoding="utf-8")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "--quiet", "-m", "advance topic")
+
+    assert generation_cli.main(["generate-candidate", "--gate", str(gate_path)]) == 1
+    assert (
+        "shared checkout HEAD must match candidate base before generation"
+        in capsys.readouterr().err
+    )
+    assert called["codex"] is False
+    run_dir = creative_code_patch_workspace.resolve_run_dir(run_id, create=False)
+    assert not (run_dir / creative_code_patch_builder.CANDIDATE_PATCH_FILE).exists()
+
+
 def test_generation_gate_rejects_dirty_shared_tree(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

@@ -44,6 +44,7 @@ from scripts.orchestration.creative_code_patch_workspace import (
     resolve_existing_run_dir,
     resolve_run_dir,
     resolve_run_file,
+    run_git,
     shared_tree_status,
     verify_origin_main_base,
     write_json_atomic,
@@ -1223,6 +1224,11 @@ def _validate_gate_context(gate_path: Path) -> tuple[Path, dict[str, Any]]:
 
 def _require_base_and_tree_for_step(base_commit_sha: str) -> None:
     verify_origin_main_base(base_commit_sha)
+    shared_head = run_git(["rev-parse", "HEAD"], cwd=REPO_ROOT).stdout.strip()
+    if shared_head != base_commit_sha:
+        raise CreativeCodePatchGenerationError(
+            "shared checkout HEAD must match candidate base before generation."
+        )
     _require_clean_shared_tree()
 
 
