@@ -4098,7 +4098,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     deletion=method in {"__delitem__", "pop"},
                 )
             return
-        if method != "update":
+        if method not in {"__init__", "__ior__", "update"}:
             return
         keys: set[str | None] = {keyword.arg for keyword in node.keywords}
         for argument in node.args:
