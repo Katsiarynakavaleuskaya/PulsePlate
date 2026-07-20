@@ -10,13 +10,31 @@ Schema: `docs/orchestration/contracts/review_source_status.v1.json`.
 itself. Blocking comes only from explicit fallback findings, failed required
 checks, unresolved review threads, or actionable bot comments.
 
+Exact `rate_limited` and `usage_limit_reached` statuses are terminal
+review-source unavailability: `source_degraded=true`,
+`fallback_required=false`, and `blocking=false`. No retry, substitute review,
+prior review, operator override, or TTL is required. The trusted evidence has
+`review_claim=none`; it proves only that the configured source was unavailable
+at the recorded attempt. The exact negative projection is
+`retry_required=false`, `substitute_review_required=false`,
+`prior_review_required=false`, `operator_override_required=false`, and
+`ttl_required=false`.
+
 This policy cannot replace GitHub review-thread truth, CodeRabbit/Sourcery/Cubic
 dispositions, `docs/review/PR_<N>_FIXED_MAPPING.md`, PR body mirror governance,
 current-head CI, or strict merge-readiness checks.
 
-The material-seal review-credit outage variant is a separate, machine-validated
-exception. It requires a current trusted immutable connector quota response, a
-prior trusted Codex review on an ancestor PR commit, a subsequent exact-head
-`OWNER`/`MEMBER` review, and an unedited canonical override comment from that
-same operator binding the exact head, material digest, and all evidence URLs. A
-`source_degraded` record alone never activates that exception.
+For a material seal, `--review-source-unavailable-ref` accepts only a canonical
+same-repository, same-PR, unedited issue-comment URL from the trusted Codex
+GitHub App. The verifier authenticates the bot and App identity, exact
+`html_url`/`issue_url`, immutable timestamp, and exact known quota body, then
+recomputes the UTF-8 body SHA-256 on every validation. Unknown or changed text
+fails closed. The receipt binds the immutable evidence to the current material
+head/digest as `seal_context_only`; a later material change requires resealing,
+but the same immutable comment may be reverified and reused.
+
+Historical compatibility: the PR `#2142`
+`operator_review_credit_exhaustion_override` receipt remains parseable and
+is live-authenticated only for PR `#2142`. Its multi-reference authoring flags
+are no longer active CLI options for later PRs and do not define current quota
+handling.

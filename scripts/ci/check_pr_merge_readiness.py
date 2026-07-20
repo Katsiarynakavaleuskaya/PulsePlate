@@ -49,15 +49,18 @@ from scripts.orchestration.pr_commit_identity import (  # noqa: E402
     fetch_review_threads,
     is_ancestor,
     verify_codex_review_reference,
+    verify_codex_review_source_unavailability_reference,
     verify_review_credit_outage_references,
     verify_security_outage_override_reference,
 )
 from scripts.orchestration.pr_review_evidence import (  # noqa: E402
     ReviewEvidenceError,
     build_review_credit_outage_receipt,
+    build_review_source_unavailability_receipt,
     build_security_outage_override_receipt,
     compute_material_manifest,
     is_review_credit_outage_receipt,
+    is_review_source_unavailability_receipt,
     is_security_outage_override_receipt,
     parse_embedded_review_seal,
     validate_review_credit_outage_scope,
@@ -622,9 +625,6 @@ def _validate_v1_seal(
         or material["digest"] != manifest.digest
     ):
         raise ReviewEvidenceError("review seal does not match the live material digest")
-    review_prefix = f"https://github.com/{repository}/pull/{pr_number}#"
-    if not seal["code_review"]["review_reference"].startswith(review_prefix):
-        raise ReviewEvidenceError("code-review reference belongs to another PR")
     material_head = classify_commit_ref(material["material_head_sha"], snapshot, token=token)
     if not isinstance(material_head, RepositoryCommitRef) or material_head.kind not in {
         CommitRefKind.PR_HEAD,
@@ -632,7 +632,37 @@ def _validate_v1_seal(
     }:
         raise ReviewEvidenceError("material head is not a real commit in the live PR")
     code_review = seal["code_review"]
-    if is_review_credit_outage_receipt(code_review):
+    if is_review_source_unavailability_receipt(code_review):
+        unavailable_manifest = compute_material_manifest(
+            REPO_ROOT,
+            base_ref_oid=snapshot.base_sha,
+            head_ref_oid=material_head.sha,
+            pr_number=pr_number,
+        )
+        if unavailable_manifest.digest != material["digest"]:
+            raise ReviewEvidenceError(
+                "review-source unavailable material head has a different material digest"
+            )
+        source_evidence = verify_codex_review_source_unavailability_reference(
+            code_review["quota_reference"],
+            repository=repository,
+            pr_number=pr_number,
+            token=token,
+        )
+        expected_code_review = build_review_source_unavailability_receipt(
+            material_digest=material["digest"],
+            material_head_sha=material_head.sha,
+            quota_reference=source_evidence.reference,
+            quota_created_at=source_evidence.created_at,
+            quota_body_sha256=source_evidence.body_sha256,
+            source_status=source_evidence.source_status,
+        )
+        if code_review != expected_code_review:
+            raise ReviewEvidenceError("Codex review-source unavailability receipt is stale")
+    elif is_review_credit_outage_receipt(code_review):
+        review_prefix = f"https://github.com/{repository}/pull/{pr_number}#"
+        if not code_review["review_reference"].startswith(review_prefix):
+            raise ReviewEvidenceError("code-review reference belongs to another PR")
         validate_review_credit_outage_scope(
             repository=repository,
             pr_number=pr_number,
@@ -669,6 +699,9 @@ def _validate_v1_seal(
         if code_review != expected_code_review:
             raise ReviewEvidenceError("Codex review credit-outage receipt is stale")
     else:
+        review_prefix = f"https://github.com/{repository}/pull/{pr_number}#"
+        if not code_review["review_reference"].startswith(review_prefix):
+            raise ReviewEvidenceError("code-review reference belongs to another PR")
         review_evidence = verify_codex_review_reference(
             code_review["review_reference"],
             repository=repository,
@@ -1031,7 +1064,9 @@ def main() -> int:
     print("merge-readiness-gate: passed (review governance only).")
     if seal is not None:
         print(f"CONTENT_BOUND_RECEIPT_VALID {seal['material']['digest']}")
-        if is_review_credit_outage_receipt(seal["code_review"]):
+        if is_review_source_unavailability_receipt(seal["code_review"]):
+            print("REVIEW_SOURCE_UNAVAILABLE_VALID " f"{seal['code_review']['source_status']}")
+        elif is_review_credit_outage_receipt(seal["code_review"]):
             print(
                 "REVIEW_CREDIT_OUTAGE_OVERRIDE_VALID " f"{seal['code_review']['review_commit_ref']}"
             )
