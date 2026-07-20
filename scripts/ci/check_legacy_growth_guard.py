@@ -2604,6 +2604,7 @@ def _namespace_mutator_method(reference: str | None) -> str | None:
         f"{_BUILTINS_NAMESPACE_REFERENCE}.",
         f"{_MODULE_NAMESPACE_REFERENCE}.",
         _POSSIBLE_NAMESPACE_MUTATOR_REFERENCE_PREFIX,
+        "builtins.dict.",
     ):
         if reference.startswith(prefix):
             return reference.removeprefix(prefix)

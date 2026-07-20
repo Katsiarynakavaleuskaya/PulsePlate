@@ -4783,6 +4783,84 @@ def test_legacy_growth_guard_requires_proven_builtin_dict_mutator() -> None:
     assert legacy_guard.validate_legacy_growth(source) == []
 
 
+@pytest.mark.parametrize(
+    "binding",
+    [
+        (
+            'if os.getenv("USE_MUTATOR"):\n'
+            "    mutate = dict.__ior__\n"
+            "else:\n"
+            "    mutate = lambda *_args: None"
+        ),
+        ("mutate = (dict.update " 'if os.getenv("USE_MUTATOR") else (lambda *_args: None))'),
+    ],
+    ids=["statement-ior", "expression-update"],
+)
+@pytest.mark.parametrize(
+    "namespace",
+    ["builtins.__dict__", "sys.modules[__name__].__dict__"],
+    ids=["builtins", "current-module"],
+)
+def test_legacy_growth_guard_joins_unbound_dict_namespace_mutators(
+    binding: str,
+    namespace: str,
+) -> None:
+    source = (
+        "import builtins\n"
+        "import os\n"
+        "import sys\n\n"
+        "app = resolve_app()\n"
+        f"{binding}\n"
+        f'mutate({namespace}, {{"object": lambda: app}})\n'
+        "app = object()\n"
+        'app.get("/api/v1/joined-unbound-dict-mutator")(handler)\n'
+    )
+    expected = [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/joined-unbound-dict-mutator"
+    ]
+
+    assert legacy_guard.validate_legacy_growth(source) == expected
+    assert legacy_guard.validate_legacy_growth(source) == expected
+
+
+@pytest.mark.parametrize(
+    ("setup", "namespace", "key"),
+    [
+        ("import builtins", "builtins.__dict__", "safe_name"),
+        ("class Box:\n    pass\nbox = Box()", "box.__dict__", "object"),
+        (
+            "class FakeDict:\n"
+            "    @staticmethod\n"
+            "    def __ior__(_namespace, _value):\n"
+            "        return None\n"
+            "dict = FakeDict\n"
+            "import builtins",
+            "builtins.__dict__",
+            "object",
+        ),
+    ],
+    ids=["safe-key", "foreign-namespace", "shadowed-dict"],
+)
+def test_legacy_growth_guard_keeps_unbound_dict_mutator_joins_clean(
+    setup: str,
+    namespace: str,
+    key: str,
+) -> None:
+    source = (
+        f"{setup}\n"
+        "import os\n\n"
+        "mutate = (dict.__ior__ "
+        'if os.getenv("USE_MUTATOR") else (lambda *_args: None))\n'
+        "app = resolve_app()\n"
+        f"mutate({namespace}, {{{key!r}: lambda: app}})\n"
+        "app = object()\n"
+        'app.get("/api/v1/not-a-route")(handler)\n'
+    )
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
 def test_legacy_growth_guard_keeps_foreign_aliased_mutator_clean() -> None:
     source = textwrap.dedent("""
         class Box:
