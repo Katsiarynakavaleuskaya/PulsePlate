@@ -1956,6 +1956,32 @@ _FunctionNode = ast.FunctionDef | ast.AsyncFunctionDef
 _DescriptorBinding = tuple[_FunctionNode, str]
 
 
+def _expand_static_positional_arguments(
+    arguments: Sequence[ast.expr],
+    *,
+    remaining_depth: int = _MAX_ITERABLE_ELEMENT_BINDING_DEPTH,
+) -> tuple[tuple[ast.expr, ...], tuple[ast.expr, ...]]:
+    """Flatten bounded literal ``*args`` while retaining unresolved sources."""
+
+    expanded: list[ast.expr] = []
+    unresolved: list[ast.expr] = []
+    for argument in arguments:
+        if not isinstance(argument, ast.Starred):
+            expanded.append(argument)
+            continue
+        value = argument.value
+        if remaining_depth <= 0 or not isinstance(value, (ast.List, ast.Tuple)):
+            unresolved.append(value)
+            continue
+        nested, nested_unresolved = _expand_static_positional_arguments(
+            value.elts,
+            remaining_depth=remaining_depth - 1,
+        )
+        expanded.extend(nested)
+        unresolved.extend(nested_unresolved)
+    return tuple(expanded), tuple(unresolved)
+
+
 @dataclass(frozen=True)
 class _DeferredFunctionCall:
     function: _FunctionNode
@@ -2508,6 +2534,7 @@ _ITERABLE_APP_ELEMENT_REFERENCE = "<iterable:possible-app>"
 _MAPPING_SENSITIVE_VALUE_REFERENCE = "<mapping:possible-app-call>"
 _MAPPING_APP_VALUE_REFERENCE = "<mapping:possible-app>"
 _INDEXED_PAIR_ELEMENT_REFERENCE = "<iterable:indexed-pair>"
+_REVERSED_INDEXED_PAIR_ELEMENT_REFERENCE = "<iterable:reversed-indexed-pair>"
 _KNOWN_NON_APP_REFERENCE = "<known:non-app>"
 _CLASS_REFERENCE_PREFIX = "<class:"
 _INSTANCE_REFERENCE_PREFIX = "<instance:"
@@ -2550,6 +2577,7 @@ _ITERABLE_ELEMENT_BUILTIN_REFERENCES = frozenset(
     }
 )
 _INDEXING_ITERABLE_BUILTIN_REFERENCES = frozenset({"builtins.enumerate"})
+_ZIPPING_ITERABLE_BUILTIN_REFERENCES = frozenset({"builtins.zip"})
 
 
 class LegacyGrowthAnalysisError(RuntimeError):
@@ -2653,6 +2681,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     _ITERABLE_PRESERVING_BUILTIN_REFERENCES
                     | _ITERABLE_ELEMENT_BUILTIN_REFERENCES
                     | _INDEXING_ITERABLE_BUILTIN_REFERENCES
+                    | _ZIPPING_ITERABLE_BUILTIN_REFERENCES
                 )
             }
         ):
@@ -3154,21 +3183,12 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         if isinstance(node, ast.Call):
             importer_reference = self._resolve_reference(node.func)
             module_strings: list[str | None] = []
-            module_argument_unresolved = False
-            if node.args:
-                first_argument = node.args[0]
-                if isinstance(first_argument, ast.Starred):
-                    unpacked = first_argument.value
-                    if (
-                        isinstance(unpacked, (ast.List, ast.Tuple))
-                        and len(unpacked.elts) == 1
-                        and not isinstance(unpacked.elts[0], ast.Starred)
-                    ):
-                        module_strings.append(self._resolve_string(unpacked.elts[0]))
-                    else:
-                        module_argument_unresolved = True
-                else:
-                    module_strings.append(self._resolve_string(first_argument))
+            positional_arguments, unresolved_positional_sources = (
+                _expand_static_positional_arguments(node.args)
+            )
+            module_argument_unresolved = bool(unresolved_positional_sources)
+            if positional_arguments:
+                module_strings.append(self._resolve_string(positional_arguments[0]))
             for keyword in node.keywords:
                 if keyword.arg == "name":
                     module_strings.append(self._resolve_string(keyword.value))
@@ -3228,12 +3248,16 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             return reference
         if isinstance(node, ast.Subscript):
             container_reference = self._resolve_reference(node.value)
-            if container_reference == _INDEXED_PAIR_ELEMENT_REFERENCE:
+            if container_reference in {
+                _INDEXED_PAIR_ELEMENT_REFERENCE,
+                _REVERSED_INDEXED_PAIR_ELEMENT_REFERENCE,
+            }:
                 index = _literal_value(node.slice)
-                if index == 0:
+                sensitive_index = 1 if container_reference == _INDEXED_PAIR_ELEMENT_REFERENCE else 0
+                if index == 1 - sensitive_index:
                     return _KNOWN_NON_APP_REFERENCE
                 indexed_value = self._resolve_iterable_element_binding(node.value)
-                if index == 1 and indexed_value is not None:
+                if index == sensitive_index and indexed_value is not None:
                     return indexed_value.reference
                 return _POSSIBLE_APP_CALL_REFERENCE
             if container_reference in {
@@ -3688,18 +3712,23 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         pair_binding: _ResolvedBinding,
     ) -> bool:
         if (
-            pair_binding.reference != _INDEXED_PAIR_ELEMENT_REFERENCE
+            pair_binding.reference
+            not in {
+                _INDEXED_PAIR_ELEMENT_REFERENCE,
+                _REVERSED_INDEXED_PAIR_ELEMENT_REFERENCE,
+            }
             or pair_binding.iterable_element is None
             or not isinstance(target, (ast.Tuple, ast.List))
             or len(target.elts) != 2
         ):
             return False
+        sensitive_index = 1 if pair_binding.reference == _INDEXED_PAIR_ELEMENT_REFERENCE else 0
         self._bind_targets(
-            [target.elts[0]],
+            [target.elts[1 - sensitive_index]],
             reference=_KNOWN_NON_APP_REFERENCE,
             string=None,
         )
-        value_target = target.elts[1]
+        value_target = target.elts[sensitive_index]
         value_binding = (
             self._variadic_iterable_binding([pair_binding.iterable_element])
             if isinstance(value_target, ast.Starred)
@@ -5474,11 +5503,11 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
 
     @staticmethod
     def _mapping_lookup_attribute(node: ast.Call) -> ast.Attribute | None:
+        positional_arguments, unresolved_sources = _expand_static_positional_arguments(node.args)
         if (
             not isinstance(node.func, ast.Attribute)
             or node.func.attr not in {"__getitem__", "get", "pop", "setdefault"}
-            or not node.args
-            or isinstance(node.args[0], ast.Starred)
+            or not (positional_arguments or unresolved_sources)
         ):
             return None
         return node.func
@@ -5491,6 +5520,11 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
     ) -> _ResolvedBinding | None:
         attribute = self._mapping_lookup_attribute(node)
         if attribute is None:
+            return None
+        positional_arguments, unresolved_sources = _expand_static_positional_arguments(node.args)
+        if unresolved_sources:
+            return self._conservative_argument_binding()
+        if not positional_arguments:
             return None
         owner = attribute.value
         if receiver is not None:
@@ -5508,11 +5542,11 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         if possible_value is None:
             return None
         default_binding = (
-            self._capture_argument_binding(node.args[1])
-            if len(node.args) >= 2 and not isinstance(node.args[1], ast.Starred)
+            self._capture_argument_binding(positional_arguments[1])
+            if len(positional_arguments) >= 2
             else None
         )
-        key = _literal_value(node.args[0])
+        key = _literal_value(positional_arguments[0])
         if mapping is not None and key is not _UNRESOLVED_LITERAL_VALUE:
             selected, unresolved = _static_mapping_binding(mapping, key)
             if selected is not None and not unresolved:
@@ -5834,6 +5868,44 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             iterable_element=value,
         )
 
+    def _zip_result_binding(
+        self,
+        arguments: Sequence[ast.expr],
+        unresolved_sources: Sequence[ast.expr],
+    ) -> _ResolvedBinding:
+        elements = [
+            self._resolve_iterable_element_binding(argument)
+            or self._conservative_argument_binding()
+            for argument in arguments
+        ]
+        elements.extend(
+            self._resolve_iterable_element_binding(source) or self._conservative_argument_binding()
+            for source in unresolved_sources
+        )
+        if len(elements) == 2:
+            first_sensitive = self._argument_binding_may_register(elements[0])
+            second_sensitive = self._argument_binding_may_register(elements[1])
+            if first_sensitive != second_sensitive:
+                sensitive_index = 0 if first_sensitive else 1
+                pair_element = _ResolvedBinding(
+                    reference=(
+                        _REVERSED_INDEXED_PAIR_ELEMENT_REFERENCE
+                        if sensitive_index == 0
+                        else _INDEXED_PAIR_ELEMENT_REFERENCE
+                    ),
+                    string=None,
+                    iterable_element=elements[sensitive_index],
+                )
+                return self._variadic_iterable_binding([pair_element])
+            if not first_sensitive:
+                pair_element = _ResolvedBinding(
+                    reference=_INDEXED_PAIR_ELEMENT_REFERENCE,
+                    string=None,
+                    iterable_element=elements[1],
+                )
+                return self._variadic_iterable_binding([pair_element])
+        return self._variadic_iterable_binding(elements)
+
     def _join_resolved_bindings(
         self,
         bindings: Sequence[_ResolvedBinding],
@@ -5927,23 +5999,16 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         if positional_override is None:
             positional_bindings: list[_ResolvedBinding] = []
             unresolved_positional_bindings: list[_ResolvedBinding] = []
-            for call_argument in call.args:
-                if not isinstance(call_argument, ast.Starred):
-                    evaluator.visit(call_argument)
-                    positional_bindings.append(evaluator._capture_argument_binding(call_argument))
-                    continue
-                if isinstance(call_argument.value, (ast.List, ast.Tuple)) and not any(
-                    isinstance(element, ast.Starred) for element in call_argument.value.elts
-                ):
-                    for element in call_argument.value.elts:
-                        evaluator.visit(element)
-                        positional_bindings.append(evaluator._capture_argument_binding(element))
-                else:
-                    evaluator.visit(call_argument.value)
-                    unresolved_positional_bindings.append(
-                        evaluator._resolve_iterable_element_binding(call_argument.value)
-                        or evaluator._conservative_argument_binding()
-                    )
+            expanded_arguments, unresolved_sources = _expand_static_positional_arguments(call.args)
+            for call_argument in expanded_arguments:
+                evaluator.visit(call_argument)
+                positional_bindings.append(evaluator._capture_argument_binding(call_argument))
+            for unresolved_source in unresolved_sources:
+                evaluator.visit(unresolved_source)
+                unresolved_positional_bindings.append(
+                    evaluator._resolve_iterable_element_binding(unresolved_source)
+                    or evaluator._conservative_argument_binding()
+                )
 
             unresolved_keyword_value_bindings: list[_ResolvedBinding] = []
             for keyword in call.keywords:
@@ -6407,6 +6472,9 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         )
 
     def visit_Call(self, node: ast.Call) -> None:
+        positional_arguments, unresolved_positional_sources = _expand_static_positional_arguments(
+            node.args
+        )
         mapping_lookup_attribute = self._mapping_lookup_attribute(node)
         if mapping_lookup_attribute is not None:
             self.visit(mapping_lookup_attribute.value)
@@ -6546,7 +6614,11 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             self._awaited_call_ids.add(id(wrapped_call))
         for gathered_call in newly_awaited_gather_calls:
             self._awaited_call_ids.add(id(gathered_call))
-        iterated_argument = node.args[0] if node.args and consumes_iterable else None
+        iterated_argument = (
+            positional_arguments[0]
+            if positional_arguments and not unresolved_positional_sources and consumes_iterable
+            else None
+        )
         iterated_argument_was_marked = (
             iterated_argument is not None and id(iterated_argument) in self._iterated_call_ids
         )
@@ -6573,12 +6645,21 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             node,
             receiver=mapping_lookup_receiver,
         )
-        if (
+        if projected_result is None and wrapper_reference in _ZIPPING_ITERABLE_BUILTIN_REFERENCES:
+            projected_result = self._zip_result_binding(
+                positional_arguments,
+                unresolved_positional_sources,
+            )
+        elif (
             projected_result is None
-            and node.args
+            and (positional_arguments or unresolved_positional_sources)
             and wrapper_reference in _INDEXING_ITERABLE_BUILTIN_REFERENCES
         ):
-            element = self._resolve_iterable_element_binding(node.args[0])
+            element = (
+                self._conservative_argument_binding()
+                if unresolved_positional_sources
+                else self._resolve_iterable_element_binding(positional_arguments[0])
+            )
             if element is not None:
                 indexed_element = _ResolvedBinding(
                     reference=_INDEXED_PAIR_ELEMENT_REFERENCE,
@@ -6588,25 +6669,34 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 projected_result = self._variadic_iterable_binding([indexed_element])
         elif (
             projected_result is None
-            and node.args
+            and (positional_arguments or unresolved_positional_sources)
             and wrapper_reference in _ITERABLE_PRESERVING_BUILTIN_REFERENCES
         ):
-            element = self._resolve_iterable_element_binding(node.args[0])
+            element = (
+                self._conservative_argument_binding()
+                if unresolved_positional_sources
+                else self._resolve_iterable_element_binding(positional_arguments[0])
+            )
             if element is not None:
                 projected_result = self._variadic_iterable_binding([element])
         elif (
             projected_result is None
-            and node.args
+            and (positional_arguments or unresolved_positional_sources)
             and wrapper_reference in _ITERABLE_ELEMENT_BUILTIN_REFERENCES
         ):
-            if wrapper_reference in {"builtins.max", "builtins.min"} and len(node.args) != 1:
+            if unresolved_positional_sources:
+                projected_result = self._conservative_argument_binding()
+            elif (
+                wrapper_reference in {"builtins.max", "builtins.min"}
+                and len(positional_arguments) != 1
+            ):
                 projected_result = self._join_resolved_bindings(
-                    [self._capture_argument_binding(argument) for argument in node.args]
+                    [self._capture_argument_binding(argument) for argument in positional_arguments]
                 )
             else:
-                projected_result = self._resolve_iterable_element_binding(node.args[0])
-                if wrapper_reference == "builtins.next" and len(node.args) >= 2:
-                    default_binding = self._capture_argument_binding(node.args[1])
+                projected_result = self._resolve_iterable_element_binding(positional_arguments[0])
+                if wrapper_reference == "builtins.next" and len(positional_arguments) >= 2:
+                    default_binding = self._capture_argument_binding(positional_arguments[1])
                     projected_result = (
                         default_binding
                         if projected_result is None
@@ -6773,11 +6863,26 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 else:
                     deferred = self._resolve_deferred_calls(argument)
                 self._replay_deferred_calls(deferred, execution="await")
-        if consumes_iterable and node.args:
+        if consumes_iterable and positional_arguments:
             self._replay_deferred_calls(
-                self._resolve_deferred_calls(node.args[0]),
+                self._resolve_deferred_calls(positional_arguments[0]),
                 execution="iterate",
             )
+        if consumes_iterable:
+            for source in unresolved_positional_sources:
+                self._replay_deferred_calls(
+                    self._resolve_deferred_calls(source),
+                    execution="iterate",
+                )
+        if (
+            wrapper_reference in _ZIPPING_ITERABLE_BUILTIN_REFERENCES
+            and id(node) in self._iterated_call_ids
+        ):
+            for argument in positional_arguments:
+                self._replay_deferred_calls(
+                    self._resolve_deferred_calls(argument),
+                    execution="iterate",
+                )
         escaped_mappings.extend(
             mapping
             for argument in node.args

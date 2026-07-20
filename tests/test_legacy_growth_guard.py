@@ -4260,6 +4260,7 @@ def test_legacy_growth_guard_keeps_poisoned_builtins_object_fail_closed(
         '__builtins__["object"] = lambda: app',
         '__import__("builtins").object = lambda: app',
         '__import__(*["builtins"]).object = lambda: app',
+        '__import__(*(*["builtins"],)).object = lambda: app',
         '__import__(**{"name": "builtins"}).object = lambda: app',
     ],
     ids=[
@@ -4267,6 +4268,7 @@ def test_legacy_growth_guard_keeps_poisoned_builtins_object_fail_closed(
         "dunder-builtins-mapping",
         "builtin-importer",
         "starred-builtin-importer",
+        "nested-starred-builtin-importer",
         "unpacked-keyword-builtin-importer",
     ],
 )
@@ -6528,6 +6530,68 @@ def test_legacy_growth_guard_preserves_mapping_value_lookup_results(
     ]
 
 
+@pytest.mark.parametrize("method", ["get", "pop", "setdefault"])
+def test_legacy_growth_guard_expands_static_mapping_lookup_arguments(method: str) -> None:
+    source = textwrap.dedent(f"""
+        def safe(*args, **kwargs):
+            return None
+
+        routes = {{"route": app.get}}
+        route = routes.{method}(*("route", safe))
+        route("/api/v1/static-star-lookup-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/static-star-lookup-route"
+    ]
+
+
+@pytest.mark.parametrize("method", ["get", "pop", "setdefault"])
+def test_legacy_growth_guard_keeps_safe_static_mapping_lookup_clean(method: str) -> None:
+    source = textwrap.dedent(f"""
+        def safe(*args, **kwargs):
+            return None
+
+        routes = {{"route": safe}}
+        route = routes.{method}(*("route", app.get))
+        route("/api/v1/not-a-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+def test_legacy_growth_guard_keeps_unresolved_mapping_lookup_star_fail_closed() -> None:
+    source = textwrap.dedent("""
+        routes = {"route": safe}
+        route = routes.get(*resolve_arguments())
+        route("/api/v1/unresolved-star-lookup")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:dynamic:/api/v1/unresolved-star-lookup"
+    ]
+
+
+def test_legacy_growth_guard_bounds_nested_static_star_expansion() -> None:
+    nested_arguments = '*["route"]'
+    for _depth in range(10):
+        nested_arguments = f"*({nested_arguments},)"
+    source = textwrap.dedent(f"""
+        routes = {{"route": safe}}
+        route = routes.get({nested_arguments})
+        route("/api/v1/deep-star-lookup")(handler)
+        """)
+    expected = [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:dynamic:/api/v1/deep-star-lookup"
+    ]
+
+    assert legacy_guard.validate_legacy_growth(source) == expected
+    assert legacy_guard.validate_legacy_growth(source) == expected
+
+
 def test_legacy_growth_guard_uses_proven_mapping_get_default_for_missing_key() -> None:
     source = textwrap.dedent("""
         routes = {"other": app.get}
@@ -6756,6 +6820,96 @@ def test_legacy_growth_guard_keeps_safe_enumerated_values_non_sensitive() -> Non
         """)
 
     assert legacy_guard.validate_legacy_growth(source) == []
+
+
+def test_legacy_growth_guard_expands_static_enumerate_arguments() -> None:
+    source = textwrap.dedent("""
+        routes = {"route": app.get}
+        for _index, route in enumerate(*[routes.values()]):
+            route("/api/v1/static-star-enumerate")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/static-star-enumerate"
+    ]
+
+
+def test_legacy_growth_guard_keeps_safe_static_enumerate_clean() -> None:
+    source = textwrap.dedent("""
+        for _index, route in enumerate(*[[safe]]):
+            route("/api/v1/not-a-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+def test_legacy_growth_guard_keeps_unresolved_enumerate_star_fail_closed() -> None:
+    source = textwrap.dedent("""
+        for _index, route in enumerate(*resolve_iterables()):
+            route("/api/v1/unresolved-star-enumerate")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:dynamic:/api/v1/unresolved-star-enumerate"
+    ]
+
+
+@pytest.mark.parametrize(
+    "dispatch",
+    [
+        (
+            "for _index, route in zip((0,), routes.values()):\n"
+            '        route("/api/v1/zipped-route")(handler)'
+        ),
+        (
+            "for route, _index in zip(routes.values(), (0,)):\n"
+            '        route("/api/v1/zipped-route")(handler)'
+        ),
+        (
+            "pairs = list(zip((0,), routes.values()))\n"
+            "    for _index, route in pairs:\n"
+            '        route("/api/v1/zipped-route")(handler)'
+        ),
+        (
+            "pair = next(iter(zip((0,), routes.values())))\n"
+            "    route = pair[1]\n"
+            '    route("/api/v1/zipped-route")(handler)'
+        ),
+    ],
+    ids=["direct", "reversed", "list-alias", "next-subscript"],
+)
+def test_legacy_growth_guard_preserves_zipped_mapping_value_shape(
+    dispatch: str,
+) -> None:
+    source = "def install(**routes):\n" f"    {dispatch}\n\n" "install(route=app.get)\n"
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:dynamic:/api/v1/zipped-route"
+    ]
+
+
+def test_legacy_growth_guard_keeps_safe_zipped_values_non_sensitive() -> None:
+    source = textwrap.dedent("""
+        for _index, route in list(zip((0,), [safe])):
+            route("/api/v1/not-a-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+def test_legacy_growth_guard_keeps_unresolved_zip_star_fail_closed() -> None:
+    source = textwrap.dedent("""
+        for _index, route in zip(*resolve_iterables()):
+            route("/api/v1/unresolved-star-zip")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:dynamic:/api/v1/unresolved-star-zip"
+    ]
 
 
 @pytest.mark.parametrize(
