@@ -2104,6 +2104,36 @@ def _static_mapping_binding(
     return (None, True) if later_entry_may_override else (None, False)
 
 
+def _effective_static_mapping_entries(
+    entries: Sequence[_StaticMappingEntry],
+) -> tuple[_StaticMappingEntry, ...]:
+    """Keep last-write-wins values for statically repeated mapping keys."""
+
+    effective_reversed: list[_StaticMappingEntry] = []
+    seen_keys: list[object] = []
+    for entry in reversed(entries):
+        if entry.key is None:
+            effective_reversed.append(entry)
+            continue
+        candidate = _literal_value(entry.key)
+        if candidate is _UNRESOLVED_LITERAL_VALUE:
+            effective_reversed.append(entry)
+            continue
+        duplicate = False
+        for seen in seen_keys:
+            try:
+                if candidate == seen:
+                    duplicate = True
+                    break
+            except (TypeError, ValueError):
+                continue
+        if duplicate:
+            continue
+        seen_keys.append(candidate)
+        effective_reversed.append(entry)
+    return tuple(reversed(effective_reversed))
+
+
 class _LexicalBindings:
     """Statement-ordered bindings for one Python lexical scope."""
 
@@ -3122,6 +3152,22 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             return self._mapping_literal_snapshots.get(id(node))
         if isinstance(node, ast.Name):
             return self.scope.resolve_mapping(node.id)
+        if isinstance(node, ast.BinOp) and isinstance(node.op, ast.BitOr):
+            existing = self._mapping_literal_snapshots.get(id(node))
+            if existing is not None:
+                return existing
+            left = self._resolve_mapping(node.left)
+            right = self._resolve_mapping(node.right)
+            if left is None or right is None:
+                return None
+            site = ast.copy_location(ast.Dict(keys=[], values=[]), node)
+            candidate = _StaticMapping(
+                site=site,
+                entries=_effective_static_mapping_entries((*left.entries, *right.entries)),
+            )
+            snapshot = self._mapping_snapshot_intern.setdefault(candidate, candidate)
+            self._mapping_literal_snapshots[id(node)] = snapshot
+            return snapshot
         if isinstance(node, ast.Subscript):
             binding, _unresolved = self._resolve_mapping_subscript_binding(node)
             return binding.mapping if binding is not None else None
@@ -5757,9 +5803,10 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             return stored
         mapping = self._resolve_mapping(node)
         if mapping is not None:
-            if not mapping.entries:
+            entries = _effective_static_mapping_entries(mapping.entries)
+            if not entries:
                 return _ResolvedBinding(None, None)
-            return self._join_resolved_bindings([entry.binding for entry in mapping.entries])
+            return self._join_resolved_bindings([entry.binding for entry in entries])
         reference = self._resolve_reference(node)
         if reference in {
             _MAPPING_APP_VALUE_REFERENCE,
@@ -6376,11 +6423,32 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             and self._is_proven_nonempty_iterable(positional_arguments[0])
         )
 
+    def _is_proven_empty_iterable(self, node: ast.AST) -> bool:
+        if isinstance(node, (ast.List, ast.Tuple, ast.Set)):
+            return not node.elts
+        if isinstance(node, ast.Dict):
+            return not node.keys
+        if not isinstance(node, ast.Call) or node.keywords:
+            return False
+        positional_arguments, unresolved_sources = _expand_static_positional_arguments(node.args)
+        return (
+            self._resolve_reference(node.func) == "builtins.iter"
+            and not unresolved_sources
+            and len(positional_arguments) == 1
+            and self._is_proven_empty_iterable(positional_arguments[0])
+        )
+
     def _zip_result_binding(
         self,
         arguments: Sequence[ast.expr],
         unresolved_sources: Sequence[ast.expr],
     ) -> _ResolvedBinding:
+        if not unresolved_sources and any(
+            self._is_proven_empty_iterable(argument) for argument in arguments
+        ):
+            return self._variadic_iterable_binding(
+                [_ResolvedBinding(reference=_KNOWN_NON_APP_REFERENCE, string=None)]
+            )
         elements = [
             self._resolve_iterable_element_binding(argument)
             or self._conservative_argument_binding()
@@ -7401,18 +7469,22 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     )
             if wrapper_reference in {"builtins.max", "builtins.min"}:
                 default_bindings: list[_ResolvedBinding] = []
-                for keyword in node.keywords:
-                    if keyword.arg == "default":
-                        default_bindings.append(self._capture_argument_binding(keyword.value))
-                    elif keyword.arg is None:
-                        binding, unresolved = self._resolve_unpacked_keyword_binding(
-                            keyword.value,
-                            "default",
-                        )
-                        if binding is not None:
-                            default_bindings.append(binding)
-                        if unresolved:
-                            default_bindings.append(self._conservative_argument_binding())
+                if not (
+                    len(positional_arguments) == 1
+                    and self._is_proven_nonempty_iterable(positional_arguments[0])
+                ):
+                    for keyword in node.keywords:
+                        if keyword.arg == "default":
+                            default_bindings.append(self._capture_argument_binding(keyword.value))
+                        elif keyword.arg is None:
+                            binding, unresolved = self._resolve_unpacked_keyword_binding(
+                                keyword.value,
+                                "default",
+                            )
+                            if binding is not None:
+                                default_bindings.append(binding)
+                            if unresolved:
+                                default_bindings.append(self._conservative_argument_binding())
                 if default_bindings:
                     default_binding = self._join_resolved_bindings(default_bindings)
                     projected_result = (

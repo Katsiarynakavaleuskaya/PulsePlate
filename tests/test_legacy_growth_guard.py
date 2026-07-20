@@ -10304,6 +10304,102 @@ def test_legacy_growth_guard_preserves_other_keys_after_known_key_pop() -> None:
 
 
 @pytest.mark.parametrize(
+    ("right", "expected"),
+    [
+        (
+            "{}",
+            [
+                "legacy_app.py: unexpected legacy route growth: "
+                "registration:get:/api/v1/dict-union-route"
+            ],
+        ),
+        ('{"route": safe_register}', []),
+    ],
+    ids=["preserved", "overwritten-safe"],
+)
+def test_legacy_growth_guard_preserves_dict_union_mapping(
+    right: str,
+    expected: list[str],
+) -> None:
+    source = textwrap.dedent(f"""
+        def safe_register(*args, **kwargs):
+            return None
+
+        routes = {{"route": app.get}}
+        cloned = routes | {right}
+        route = cloned["route"]
+        route("/api/v1/dict-union-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == expected
+
+
+@pytest.mark.parametrize("selector", ["max", "min"])
+def test_legacy_growth_guard_ignores_unreachable_selector_default(selector: str) -> None:
+    source = textwrap.dedent(f"""
+        def safe_register(*args, **kwargs):
+            return None
+
+        route = {selector}([safe_register], default=app.get)
+        route("/api/v1/not-a-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+def test_legacy_growth_guard_keeps_reachable_selector_default_fail_closed() -> None:
+    source = textwrap.dedent("""
+        route = max([], default=app.get)
+        route("/api/v1/empty-selector-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/empty-selector-route"
+    ]
+
+
+@pytest.mark.parametrize(
+    ("mapping", "expected"),
+    [
+        ('{"route": app.get, "route": safe_register}', []),
+        (
+            '{"route": safe_register, "route": app.get}',
+            [
+                "legacy_app.py: unexpected legacy route growth: "
+                "registration:get:/api/v1/repeated-key-route"
+            ],
+        ),
+    ],
+    ids=["overwritten-safe", "overwritten-sensitive"],
+)
+def test_legacy_growth_guard_uses_last_static_mapping_value(
+    mapping: str,
+    expected: list[str],
+) -> None:
+    source = textwrap.dedent(f"""
+        def safe_register(*args, **kwargs):
+            return None
+
+        routes = {mapping}
+        for route in routes.values():
+            route("/api/v1/repeated-key-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == expected
+
+
+def test_legacy_growth_guard_ignores_unreachable_empty_zip_body() -> None:
+    source = textwrap.dedent("""
+        routes = {"route": app.get}
+        for _name, route in zip([], routes.values()):
+            route("/api/v1/not-a-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+@pytest.mark.parametrize(
     ("lookup", "method"),
     [
         ('routes = dict(route=app.get)\nroute = routes["route"]', "get"),
