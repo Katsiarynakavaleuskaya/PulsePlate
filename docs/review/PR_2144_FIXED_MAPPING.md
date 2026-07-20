@@ -435,22 +435,22 @@ Evidence: The review finding set was addressed by the trusted-dispatch hardening
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2144#pullrequestreview-4728830558 -> 67a047d4f472e91c5e4bc5b15a0d24cb3db288f9
 
 Disposition: NOT-A-BUG
-Evidence: scripts/orchestration/creative_code_patch_generation.py validates oracle-derived rejection evidence before accepting a dispatch result.
+Evidence: scripts/orchestration/creative_code_patch_generation.py:2511-2563 validates complete oracle-derived rejection evidence; tests/test_creative_code_patch_generation.py exercises the timeout, OOM, and first-failing-oracle controls.
 Reason: The proposed gap is already enforced by the canonical rejection-evidence validation path.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2144#discussion_r3595597927
 
 Disposition: NOT-A-BUG
-Evidence: The candidate patch fingerprint is bound to canonical patch metadata and revalidated during finalization.
+Evidence: scripts/orchestration/creative_code_patch_generation.py:2304,2340-2345,2687-2691 binds the candidate fingerprint to packet, result, and final publication; tests/test_creative_code_patch_generation.py:1364-1368 covers mismatch rejection.
 Reason: The existing fingerprint binding already prevents the substitution described by the comment.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2144#discussion_r3595597932
 
 Disposition: NOT-A-BUG
-Evidence: Candidate dispatch validation rejects promotion and material-attribution authority outside the closed result contract.
+Evidence: scripts/orchestration/creative_code_patch_generation.py:2331-2338 rejects promotion and material-attribution authority; tests/test_creative_code_patch_generation.py:1276,1369-1370 covers both forbidden claims.
 Reason: The suggested authority widening is already forbidden by the closed dispatch contract.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2144#discussion_r3595597941
 
 Disposition: NOT-A-BUG
-Evidence: The canonical validator rejects inconsistent native-linux backend evidence before trusted finalization.
+Evidence: scripts/orchestration/creative_code_patch_generation.py:2377-2389 validates backend provenance before finalization; tests/test_creative_code_patch_generation.py:1332-1340 covers native-linux evidence consistency.
 Reason: The proposed acceptance path in this comment is not reachable under the canonical validator.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/2144#discussion_r3596543775
 
