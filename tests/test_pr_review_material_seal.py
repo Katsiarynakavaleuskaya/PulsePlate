@@ -1958,6 +1958,77 @@ def test_scan_receipt_rejects_duplicate_supplemental_artifact_path(tmp_path: Pat
         )
 
 
+def test_scan_receipt_rejects_excessive_artifact_count(tmp_path: Path) -> None:
+    manifest_path = _build_v011_scan_bundle(tmp_path / "scan")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    supplemental_count = (
+        evidence_module._MAX_SCAN_ARTIFACTS + 1 - len(manifest["scan"]["artifacts"])
+    )
+    manifest["scan"]["artifacts"].extend(
+        {
+            "mediaType": "application/octet-stream",
+            "path": f"artifacts/extra/{index}.bin",
+            "sha256": "0" * 64,
+        }
+        for index in range(supplemental_count)
+    )
+    _write_json(manifest_path, manifest)
+
+    with pytest.raises(ReviewEvidenceError, match="artifact count exceeds limit"):
+        ingest_codex_security_receipt(
+            manifest_path, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+        )
+
+
+def test_scan_receipt_rejects_excessive_aggregate_artifact_bytes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest_path = _build_v011_scan_bundle(tmp_path / "scan")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    aggregate_bytes = sum(
+        (manifest_path.parent / artifact["path"]).stat().st_size
+        for artifact in manifest["scan"]["artifacts"]
+    )
+    monkeypatch.setattr(
+        evidence_module,
+        "_MAX_TOTAL_SCAN_ARTIFACT_BYTES",
+        aggregate_bytes - 1,
+    )
+
+    with pytest.raises(ReviewEvidenceError, match="aggregate size exceeds limit"):
+        ingest_codex_security_receipt(
+            manifest_path, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+        )
+
+
+def test_scan_receipt_streams_non_json_artifacts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest_path = _build_v011_scan_bundle(tmp_path / "scan")
+    original_reader = evidence_module._read_contained_artifact_from_descriptor
+
+    def reject_buffered_non_json(descriptor: int, relative: Any, *, max_bytes: int) -> bytes:
+        if str(relative) not in {
+            "scan-manifest.json",
+            "coverage.json",
+            "findings.json",
+        }:
+            raise AssertionError(f"buffered non-JSON artifact: {relative}")
+        return original_reader(descriptor, relative, max_bytes=max_bytes)
+
+    monkeypatch.setattr(
+        evidence_module,
+        "_read_contained_artifact_from_descriptor",
+        reject_buffered_non_json,
+    )
+
+    receipt = ingest_codex_security_receipt(
+        manifest_path, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+    )
+
+    assert receipt["findings_count"] == 0
+
+
 def test_scan_receipt_rejects_symlinked_artifact(tmp_path: Path) -> None:
     manifest_path = _build_scan_bundle(tmp_path / "scan")
     coverage_path = manifest_path.parent / "coverage.json"
