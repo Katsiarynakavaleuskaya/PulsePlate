@@ -4560,6 +4560,93 @@ def test_legacy_growth_guard_keeps_foreign_aliased_mutator_clean() -> None:
 
 
 @pytest.mark.parametrize(
+    "binding",
+    [
+        (
+            'if os.getenv("USE_MUTATOR"):\n'
+            "    mutate = builtins.__dict__.__setitem__\n"
+            "else:\n"
+            "    mutate = lambda *_args: None"
+        ),
+        (
+            "mutate = lambda *_args: None\n"
+            'if os.getenv("USE_MUTATOR"):\n'
+            "    mutate = builtins.__dict__.__setitem__"
+        ),
+        (
+            "mutate = (sys.modules[__name__].__dict__.__setitem__ "
+            'if os.getenv("USE_MUTATOR") else (lambda *_args: None))'
+        ),
+        (
+            "mutate = (builtins.__dict__.__setitem__ "
+            'if os.getenv("USE_MUTATOR") '
+            "else sys.modules[__name__].__dict__.__setitem__)"
+        ),
+    ],
+    ids=["if-else", "one-armed-if", "module-if-expression", "cross-namespace"],
+)
+def test_legacy_growth_guard_joins_aliased_namespace_mutators(
+    binding: str,
+) -> None:
+    source = (
+        "import builtins\n"
+        "import os\n"
+        "import sys\n\n"
+        "app = resolve_app()\n"
+        f"{binding}\n"
+        'mutate("object", lambda: app)\n'
+        "app = object()\n"
+        'app.get("/api/v1/joined-namespace-mutator")(handler)\n'
+    )
+    expected = [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/joined-namespace-mutator"
+    ]
+
+    assert legacy_guard.validate_legacy_growth(source) == expected
+    assert legacy_guard.validate_legacy_growth(source) == expected
+
+
+@pytest.mark.parametrize(
+    ("setup", "binding", "key"),
+    [
+        (
+            "import builtins\nimport os",
+            (
+                'mutate = (builtins.__dict__.__setitem__ if os.getenv("USE_MUTATOR") '
+                "else (lambda *_args: None))"
+            ),
+            "safe_name",
+        ),
+        (
+            "import os\nclass Box:\n    pass\nbox = Box()",
+            (
+                'mutate = (box.__dict__.__setitem__ if os.getenv("USE_MUTATOR") '
+                "else (lambda *_args: None))"
+            ),
+            "object",
+        ),
+    ],
+    ids=["safe-key", "foreign-namespace"],
+)
+def test_legacy_growth_guard_keeps_safe_namespace_mutator_joins_clean(
+    setup: str,
+    binding: str,
+    key: str,
+) -> None:
+    source = (
+        f"{setup}\n\n"
+        "app = resolve_app()\n"
+        f"{binding}\n"
+        f'mutate("{key}", lambda: app)\n'
+        "app = object()\n"
+        'app.get("/api/v1/not-a-route")(handler)\n'
+    )
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+@pytest.mark.parametrize(
     "target",
     [
         'globals()["object"], other',

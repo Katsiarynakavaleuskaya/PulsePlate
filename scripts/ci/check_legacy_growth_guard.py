@@ -2560,6 +2560,7 @@ _POISONED_BUILTINS_OBJECT_REFERENCE = "<poisoned:builtins.object>"
 _BUILTINS_NAMESPACE_REFERENCE = "<namespace:builtins>"
 _POSSIBLE_BUILTINS_NAMESPACE_REFERENCE = "<possible:namespace:builtins>"
 _MODULE_NAMESPACE_REFERENCE = "<namespace:module>"
+_POSSIBLE_NAMESPACE_MUTATOR_REFERENCE_PREFIX = "<possible:namespace-mutator>."
 _MAX_LOOP_BINDING_ITERATIONS = 32
 _MAX_TOTAL_LOOP_BINDING_ITERATIONS = 128
 _MAPPING_MUTATOR_METHODS = frozenset(
@@ -2593,6 +2594,21 @@ _ITERABLE_ELEMENT_BUILTIN_REFERENCES = frozenset(
         "builtins.next",
     }
 )
+
+
+def _namespace_mutator_method(reference: str | None) -> str | None:
+    if reference is None:
+        return None
+    for prefix in (
+        f"{_BUILTINS_NAMESPACE_REFERENCE}.",
+        f"{_MODULE_NAMESPACE_REFERENCE}.",
+        _POSSIBLE_NAMESPACE_MUTATOR_REFERENCE_PREFIX,
+    ):
+        if reference.startswith(prefix):
+            return reference.removeprefix(prefix)
+    return None
+
+
 _INDEXING_ITERABLE_BUILTIN_REFERENCES = frozenset({"builtins.enumerate"})
 _ZIPPING_ITERABLE_BUILTIN_REFERENCES = frozenset({"builtins.zip"})
 
@@ -3513,6 +3529,23 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             values = [outcome.references.get(name) for outcome in outcomes]
             if all(value == values[0] for value in values) and values[0] is not None:
                 joined_references[name] = values[0]
+            elif namespace_mutator_values := {
+                value
+                for value in values
+                if value is not None and _namespace_mutator_method(value) is not None
+            }:
+                if len(namespace_mutator_values) == 1:
+                    joined_references[name] = next(iter(namespace_mutator_values))
+                else:
+                    methods = {
+                        method
+                        for value in namespace_mutator_values
+                        if (method := _namespace_mutator_method(value)) is not None
+                    }
+                    method = next(iter(methods)) if len(methods) == 1 else "*"
+                    joined_references[name] = (
+                        f"{_POSSIBLE_NAMESPACE_MUTATOR_REFERENCE_PREFIX}{method}"
+                    )
             elif self.preserve_lifecycle_conflicts and any(
                 value
                 in {
@@ -4020,38 +4053,48 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             )
             return
 
-        mapping_namespace_kind: str | None = None
-        method = ""
-        for candidate_kind, namespace_reference in (
-            ("builtins", _BUILTINS_NAMESPACE_REFERENCE),
-            ("module", _MODULE_NAMESPACE_REFERENCE),
-        ):
-            prefix = f"{namespace_reference}."
-            if function_reference is not None and function_reference.startswith(prefix):
-                mapping_namespace_kind = candidate_kind
-                method = function_reference.removeprefix(prefix)
-                break
-        if mapping_namespace_kind is None:
+        mapping_namespace_kinds: tuple[str, ...] = ()
+        method = _namespace_mutator_method(function_reference)
+        if method is not None:
+            if function_reference is not None and function_reference.startswith(
+                f"{_BUILTINS_NAMESPACE_REFERENCE}."
+            ):
+                mapping_namespace_kinds = ("builtins",)
+            elif function_reference is not None and function_reference.startswith(
+                f"{_MODULE_NAMESPACE_REFERENCE}."
+            ):
+                mapping_namespace_kinds = ("module",)
+            else:
+                mapping_namespace_kinds = ("builtins", "module")
+        if not mapping_namespace_kinds:
             if not isinstance(node.func, ast.Attribute):
                 return
-            mapping_namespace_kind = self._object_namespace_mapping_kind(node.func.value)
-            if mapping_namespace_kind is None:
+            direct_namespace_kind = self._object_namespace_mapping_kind(node.func.value)
+            if direct_namespace_kind is None:
                 return
+            mapping_namespace_kinds = (direct_namespace_kind,)
             method = node.func.attr
+        if method == "*":
+            for namespace_kind in mapping_namespace_kinds:
+                self._record_object_namespace_kind(namespace_kind)
+            return
         if method in {"clear", "popitem"}:
-            self._record_object_namespace_kind(mapping_namespace_kind)
+            for namespace_kind in mapping_namespace_kinds:
+                self._record_object_namespace_kind(namespace_kind)
             return
         if method in {"__delitem__", "__setitem__", "pop", "setdefault"}:
             if not node.args:
-                self._record_object_namespace_kind(mapping_namespace_kind)
+                for namespace_kind in mapping_namespace_kinds:
+                    self._record_object_namespace_kind(namespace_kind)
                 return
             member_name = self._resolve_string(node.args[0])
             if member_name not in {"object", None, _DYNAMIC_STRING_BINDING}:
                 return
-            self._record_object_namespace_kind(
-                mapping_namespace_kind,
-                deletion=method in {"__delitem__", "pop"},
-            )
+            for namespace_kind in mapping_namespace_kinds:
+                self._record_object_namespace_kind(
+                    namespace_kind,
+                    deletion=method in {"__delitem__", "pop"},
+                )
             return
         if method != "update":
             return
@@ -4062,7 +4105,8 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 continue
             keys.update(None if key is None else self._resolve_string(key) for key in argument.keys)
         if keys & {"object", None, _DYNAMIC_STRING_BINDING}:
-            self._record_object_namespace_kind(mapping_namespace_kind)
+            for namespace_kind in mapping_namespace_kinds:
+                self._record_object_namespace_kind(namespace_kind)
 
     def _preserve_sensitive_reference(
         self,
