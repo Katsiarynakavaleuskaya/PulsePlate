@@ -628,6 +628,11 @@ def _evaluate_locked(*, run_id: str) -> dict[str, Any]:
     if result_file.exists():
         raise CreativeCodePatchBuilderError("candidate patch result already exists.")
     normalized_request = validate_creative_code_patch_build_request(request, source_bundle=bundle)
+    shared_head = run_git(["rev-parse", "HEAD"], cwd=REPO_ROOT).stdout.strip()
+    if shared_head != normalized_request["base_commit_sha"]:
+        raise CreativeCodePatchBuilderError(
+            "shared checkout HEAD must match candidate base before evaluate."
+        )
     metadata = read_json(resolve_run_file(run_dir, PATCH_METADATA_FILE))
     if not isinstance(metadata, dict):
         raise CreativeCodePatchBuilderError("patch metadata must be a JSON object.")

@@ -114,6 +114,10 @@ def _require_matching_experiment(packet: dict[str, Any], result: dict[str, Any])
         raise ExperimentPromotionError(
             "Experiment packet and result must reference the same runner_mode."
         )
+    if packet.get("candidate_patch_fingerprint") != result.get("candidate_patch_fingerprint"):
+        raise ExperimentPromotionError(
+            "Experiment packet and result must reference the same " "candidate_patch_fingerprint."
+        )
 
 
 def _result_policy(packet: dict[str, Any], result: dict[str, Any]) -> str:

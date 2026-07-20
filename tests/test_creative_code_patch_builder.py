@@ -1477,6 +1477,32 @@ def test_evaluate_writes_sanitized_result_without_runner_leaks(
     assert "diff --git leak" not in encoded
 
 
+def test_evaluate_rejects_shared_head_drift_before_runner_or_result_write(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo, base_sha = _init_patch_repo(tmp_path)
+    _patch_modules_to_repo(monkeypatch, repo)
+    run_id = "eval-shared-head-drift"
+    run_dir = _write_generated_run(run_id=run_id, base_sha=base_sha)
+    (repo / "README.md").write_text("advanced shared head\n", encoding="utf-8")
+    _git(repo, "add", "README.md")
+    _git(repo, "commit", "--quiet", "-m", "advance shared head")
+
+    def fail_if_called(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        raise AssertionError("evaluate_candidate must not run after shared HEAD drift")
+
+    monkeypatch.setattr(creative_code_patch_builder, "evaluate_candidate", fail_if_called)
+
+    with pytest.raises(CreativeCodePatchBuilderError, match="HEAD must match candidate base"):
+        creative_code_patch_builder.evaluate(run_id=run_id)
+
+    assert not (run_dir / creative_code_patch_builder.EXPERIMENT_PACKET_FILE).exists()
+    assert not (run_dir / creative_code_patch_builder.RESULT_FILE).exists()
+    state = json.loads((run_dir / creative_code_patch_builder.STATE_FILE).read_text())
+    assert state.get("candidate_patch_evaluated") is not True
+
+
 def test_evaluate_supplies_cv_context_for_cv_candidate(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
