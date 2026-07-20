@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import argparse
 from collections.abc import Mapping
+from contextlib import contextmanager
 import os
 from pathlib import Path
 import sys
 import tempfile
-from typing import Any, TypeGuard
+from typing import Any, Iterator, TypeGuard
 
 from core.evidence.fingerprints import fingerprint_payload
 from scripts.orchestration.creative_code_patch_contract import (
@@ -26,6 +27,7 @@ from scripts.orchestration.creative_code_patch_workspace import (
     CreativeCodePatchWorkspaceError,
     cleanup_run_dir,
     destroy_generation_checkout,
+    exclusive_patch_run_lock,
     generation_checkout,
     prepare_generation_checkout,
     read_json,
@@ -71,6 +73,17 @@ class CreativeCodePatchBuilderError(ValueError):
 
 
 RUNNER_CAPABILITY_ERROR = "Experiment Runner capability unavailable; trusted dispatch is required."
+
+
+@contextmanager
+def _exclusive_evaluate_lock(run_dir: Path) -> Iterator[None]:
+    """Serialize builder evaluation with trusted-dispatch finalization."""
+
+    try:
+        with exclusive_patch_run_lock(run_dir, label="creative-code patch evaluation"):
+            yield
+    except CreativeCodePatchWorkspaceError as exc:
+        raise CreativeCodePatchBuilderError(str(exc)) from exc
 
 
 def _load_run_state(run_id: str) -> tuple[Path, dict[str, Any], dict[str, Any], dict[str, Any]]:
@@ -604,7 +617,7 @@ def _verified_patch_metadata(
     return patch_file, sorted(changed_paths), current_fingerprint, current_bytes, current_lines
 
 
-def evaluate(*, run_id: str) -> dict[str, Any]:
+def _evaluate_locked(*, run_id: str) -> dict[str, Any]:
     """Evaluate the generated candidate patch with Experiment Runner candidate mode."""
 
     run_dir, state, request, bundle = _load_run_state(run_id)
@@ -674,6 +687,14 @@ def evaluate(*, run_id: str) -> dict[str, Any]:
     write_json_atomic(resolve_run_file(run_dir, RESULT_FILE, for_write=True), result)
     write_json_atomic(resolve_run_file(run_dir, STATE_FILE, for_write=True), state)
     return result
+
+
+def evaluate(*, run_id: str) -> dict[str, Any]:
+    """Evaluate one generated candidate while holding the shared run lock."""
+
+    run_dir = resolve_run_dir(run_id, create=False)
+    with _exclusive_evaluate_lock(run_dir):
+        return _evaluate_locked(run_id=run_id)
 
 
 def main(argv: list[str] | None = None) -> int:

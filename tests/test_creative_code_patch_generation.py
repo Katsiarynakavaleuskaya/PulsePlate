@@ -606,13 +606,36 @@ def test_finalize_dispatched_result_rejects_cooperative_lock_contention(
     capsys.readouterr()
 
 
+def test_builder_evaluation_shares_finalize_run_lock(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo, base_sha = _init_patch_repo(tmp_path)
+    _patch_modules_to_repo(monkeypatch, repo)
+    run_id = "dispatch-builder-lock-contention"
+    _prepare_generated_dispatch_handoff(
+        monkeypatch=monkeypatch,
+        repo=repo,
+        base_sha=base_sha,
+        run_id=run_id,
+    )
+    run_dir = creative_code_patch_workspace.resolve_run_dir(run_id, create=False)
+
+    with generation_cli._exclusive_finalize_lock(run_dir):
+        with pytest.raises(
+            creative_code_patch_builder.CreativeCodePatchBuilderError,
+            match="evaluation is already in progress",
+        ):
+            creative_code_patch_builder.evaluate(run_id=run_id)
+
+
 def test_finalize_lock_reports_unavailable_platform_and_open_failure(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
     run_dir = tmp_path / "run"
     run_dir.mkdir()
-    real_import = generation_cli.importlib.import_module
+    real_import = creative_code_patch_workspace.importlib.import_module
 
     def missing_fcntl(name: str) -> object:
         if name == "fcntl":
@@ -620,7 +643,7 @@ def test_finalize_lock_reports_unavailable_platform_and_open_failure(
         return real_import(name)
 
     with monkeypatch.context() as context:
-        context.setattr(generation_cli.importlib, "import_module", missing_fcntl)
+        context.setattr(creative_code_patch_workspace.importlib, "import_module", missing_fcntl)
         with pytest.raises(
             CreativeCodePatchGenerationError,
             match="locking is unavailable",
@@ -633,7 +656,7 @@ def test_finalize_lock_reports_unavailable_platform_and_open_failure(
 
     with monkeypatch.context() as context:
         context.setattr(
-            generation_cli.os,
+            creative_code_patch_workspace.os,
             "open",
             deny_open,
         )

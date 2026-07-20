@@ -1746,6 +1746,7 @@ def _invoke_container_runner(
     packet_path: Path,
     candidate_patch: Path | None,
     output_name: str,
+    expected_packet: dict[str, Any] | None = None,
     contribution_kind: str = "none",
     coauthor_required: bool = False,
     coauthor_reason: str = "",
@@ -1754,6 +1755,17 @@ def _invoke_container_runner(
     cli = _resolve_cli(cli_name)
     if cli is None:
         raise PreRunCapabilityError("runtime_cli_missing")
+    packet = validate_experiment_packet(_read_packet(packet_path))
+    if expected_packet is not None and packet != expected_packet:
+        raise DispatchError("result_validation_failed")
+    candidate_patch_text: str | None = None
+    if candidate_patch is not None:
+        candidate_patch_text = _read_candidate_patch_for_fingerprint(candidate_patch)
+        expected_patch_fingerprint = packet.get("candidate_patch_fingerprint")
+        if expected_patch_fingerprint is not None and expected_patch_fingerprint != (
+            fingerprint_payload({"candidate_patch": candidate_patch_text})
+        ):
+            raise DispatchError("result_validation_failed")
     with tempfile.TemporaryDirectory(prefix="pp-er-run-") as raw_temp:
         temp_root = Path(raw_temp)
         snapshot = temp_root / "repo"
@@ -1764,9 +1776,15 @@ def _invoke_container_runner(
         (snapshot / CONTAINER_RESULT_DIR.removeprefix(f"{CONTAINER_REPO}/")).mkdir(
             parents=True, exist_ok=True
         )
-        shutil.copyfile(packet_path, input_dir / "packet.json")
-        if candidate_patch is not None:
-            shutil.copyfile(candidate_patch, input_dir / "candidate.patch")
+        (input_dir / "packet.json").write_text(
+            json.dumps(packet, sort_keys=True),
+            encoding="utf-8",
+        )
+        if candidate_patch_text is not None:
+            (input_dir / "candidate.patch").write_text(
+                candidate_patch_text,
+                encoding="utf-8",
+            )
         command = [
             CONTAINER_PYTHON,
             f"{CONTAINER_REPO}/scripts/orchestration/experiment_runner.py",
@@ -1808,7 +1826,6 @@ def _invoke_container_runner(
                     raise DispatchError("result_volume_failed")
             except DispatchError as exc:
                 raise PreRunCapabilityError(exc.code) from exc
-            packet = validate_experiment_packet(json.loads(packet_path.read_text(encoding="utf-8")))
             timeout = int(packet["budgets"]["wall_clock_seconds"]) + 60
             try:
                 completed = _run(
@@ -2106,6 +2123,7 @@ def main(argv: list[str] | None = None) -> int:
                     packet_path=packet_path,
                     candidate_patch=candidate_patch,
                     output_name=output_path.name,
+                    expected_packet=packet,
                     contribution_kind=contribution_kind,
                     coauthor_required=coauthor_required,
                     coauthor_reason=coauthor_reason,

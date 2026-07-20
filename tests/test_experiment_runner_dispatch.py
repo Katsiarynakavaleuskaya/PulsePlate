@@ -2114,6 +2114,65 @@ def test_container_runner_converts_only_owned_exit_three_after_cleanup(
     assert experiment_contract.validate_experiment_result(result) == result
 
 
+def test_container_runner_pins_packet_and_patch_before_execution(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    candidate_patch_text = "original candidate patch\n"
+    packet = _packet()
+    packet["runner_mode"] = "candidate_patch"
+    packet["mutable_candidate_surface"] = ["core/rag/orchestration.py"]
+    packet["candidate_patch_fingerprint"] = fingerprint_payload(
+        {"candidate_patch": candidate_patch_text}
+    )
+    packet = experiment_contract.validate_experiment_packet(packet)
+    packet_path = tmp_path / "packet.json"
+    packet_path.write_text(json.dumps(packet), encoding="utf-8")
+    candidate_patch = tmp_path / "candidate.patch"
+    candidate_patch.write_text(candidate_patch_text, encoding="utf-8")
+    captured: dict[str, str] = {}
+    _configure_container_runner_exit(
+        monkeypatch,
+        returncode=dispatch.RUNNER_CAPABILITY_EXIT_CODE,
+    )
+
+    def mutate_sources(_root: Path, destination: Path) -> str:
+        destination.mkdir()
+        changed_packet = dict(packet)
+        changed_packet["experiment_id"] = "changed-after-pin"
+        packet_path.write_text(json.dumps(changed_packet), encoding="utf-8")
+        candidate_patch.write_text("changed after pin\n", encoding="utf-8")
+        return ""
+
+    def capture_container_argv(**kwargs: Any) -> list[str]:
+        input_dir = kwargs["input_dir"]
+        captured["packet"] = (input_dir / "packet.json").read_text(encoding="utf-8")
+        captured["candidate_patch"] = (input_dir / "candidate.patch").read_text(encoding="utf-8")
+        return ["/usr/local/bin/runtime", "run"]
+
+    monkeypatch.setattr(dispatch, "_create_snapshot", mutate_sources)
+    monkeypatch.setattr(dispatch, "_container_run_argv", capture_container_argv)
+    monkeypatch.setattr(
+        dispatch,
+        "_collect_result_volume",
+        lambda **_kwargs: pytest.fail("capability signal must not collect a result artifact"),
+    )
+
+    result = dispatch._invoke_container_runner(
+        probe=_probe("apple-container", strict=True),
+        image=_image(),
+        packet_path=packet_path,
+        candidate_patch=candidate_patch,
+        output_name="result.json",
+        expected_packet=packet,
+    )
+
+    assert json.loads(captured["packet"]) == packet
+    assert captured["candidate_patch"] == candidate_patch_text
+    assert result["experiment_id"] == packet["experiment_id"]
+    assert result["candidate_patch_fingerprint"] == packet["candidate_patch_fingerprint"]
+
+
 @pytest.mark.parametrize("returncode", [1, 4])
 def test_container_runner_rejects_non_owned_nonzero_exit(
     monkeypatch: pytest.MonkeyPatch,
@@ -2457,7 +2516,7 @@ def test_container_runner_attribution_argv_has_backend_parity_and_default_omissi
     candidate_packet = _packet()
     candidate_packet["runner_mode"] = "candidate_patch"
     candidate_packet["mutable_candidate_surface"] = ["core/rag/orchestration.py"]
-    candidate_packet["candidate_patch_fingerprint"] = "sha256:" + ("a" * 64)
+    candidate_packet["candidate_patch_fingerprint"] = fingerprint_payload({"candidate_patch": ""})
     packet_path.write_text(json.dumps(candidate_packet), encoding="utf-8")
     candidate_patch = tmp_path / "candidate.patch"
     candidate_patch.write_text("", encoding="utf-8")

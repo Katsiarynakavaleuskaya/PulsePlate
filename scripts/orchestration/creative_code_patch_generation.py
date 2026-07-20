@@ -6,7 +6,6 @@ from __future__ import annotations
 import argparse
 from collections.abc import Mapping
 from contextlib import contextmanager
-import importlib
 import json
 import os
 from pathlib import Path, PurePosixPath
@@ -40,6 +39,7 @@ from scripts.orchestration.creative_code_patch_contract import (
 from scripts.orchestration.creative_code_patch_workspace import (
     CHECKOUT_DIRNAME,
     CreativeCodePatchWorkspaceError,
+    exclusive_patch_run_lock,
     read_json,
     resolve_existing_run_dir,
     resolve_run_dir,
@@ -639,47 +639,10 @@ def _exclusive_finalize_lock(run_dir: Path) -> Iterator[None]:
     """Serialize cooperative finalizers for one generated patch run."""
 
     try:
-        fcntl_module = importlib.import_module("fcntl")
-    except ModuleNotFoundError as exc:
-        raise CreativeCodePatchGenerationError(
-            "trusted dispatch finalization locking is unavailable on this platform."
-        ) from exc
-    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
-    flags |= getattr(os, "O_CLOEXEC", 0)
-    lock_fd = -1
-    try:
-        try:
-            lock_fd = os.open(run_dir, flags)
-        except OSError as exc:
-            raise CreativeCodePatchGenerationError(
-                "trusted dispatch finalization lock could not be acquired."
-            ) from exc
-        try:
-            fcntl_module.flock(
-                lock_fd,
-                fcntl_module.LOCK_EX | fcntl_module.LOCK_NB,
-            )
-        except BlockingIOError as exc:
-            raise CreativeCodePatchGenerationError(
-                "trusted dispatch finalization is already in progress."
-            ) from exc
-        except OSError as exc:
-            raise CreativeCodePatchGenerationError(
-                "trusted dispatch finalization lock could not be acquired."
-            ) from exc
-        yield
-    finally:
-        active_error = sys.exc_info()[1]
-        cleanup_error: OSError | None = None
-        if lock_fd >= 0:
-            try:
-                os.close(lock_fd)
-            except OSError as exc:
-                cleanup_error = exc
-        if active_error is None and cleanup_error is not None:
-            raise CreativeCodePatchGenerationError(
-                "trusted dispatch finalization lock cleanup failed."
-            ) from cleanup_error
+        with exclusive_patch_run_lock(run_dir, label="trusted dispatch finalization"):
+            yield
+    except CreativeCodePatchWorkspaceError as exc:
+        raise CreativeCodePatchGenerationError(str(exc)) from exc
 
 
 def _resolve_existing_receipt_ref(ref: str, *, label: str) -> Path:
