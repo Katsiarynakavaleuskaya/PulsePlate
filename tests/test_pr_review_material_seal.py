@@ -1957,6 +1957,47 @@ def test_scan_receipt_rejects_unsafe_supplemental_artifact_paths(tmp_path: Path,
         )
 
 
+def test_scan_receipt_rejects_dot_supplemental_artifact_path(tmp_path: Path) -> None:
+    manifest_path = _build_v011_scan_bundle(tmp_path / "scan")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["scan"]["artifacts"][3]["path"] = "."
+    _write_json(manifest_path, manifest)
+
+    with pytest.raises(ReviewEvidenceError, match="escapes the scan root"):
+        ingest_codex_security_receipt(
+            manifest_path, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+        )
+
+
+def test_scan_receipt_rejects_fifo_supplemental_artifact_without_blocking(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest_path = _build_v011_scan_bundle(tmp_path / "scan")
+    fifo_path = manifest_path.parent / "artifacts" / "05_findings" / "validation_summary.md"
+    fifo_path.unlink()
+    os.mkfifo(fifo_path)
+    original_open = evidence_module.os.open
+    nonblocking_flag = os.O_NONBLOCK
+
+    def require_nonblocking_fifo_open(
+        path: Any,
+        flags: int,
+        mode: int = 0o777,
+        *,
+        dir_fd: int | None = None,
+    ) -> int:
+        if path == fifo_path.name:
+            assert flags & nonblocking_flag
+        return original_open(path, flags, mode, dir_fd=dir_fd)
+
+    monkeypatch.setattr(evidence_module.os, "open", require_nonblocking_fifo_open)
+
+    with pytest.raises(ReviewEvidenceError, match="must be a regular file"):
+        ingest_codex_security_receipt(
+            manifest_path, expected_base_sha=BASE_SHA, expected_head_sha=HEAD_SHA
+        )
+
+
 def test_scan_receipt_rejects_duplicate_supplemental_artifact_path(tmp_path: Path) -> None:
     manifest_path = _build_v011_scan_bundle(tmp_path / "scan")
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))

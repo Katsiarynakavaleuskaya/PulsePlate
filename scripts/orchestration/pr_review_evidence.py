@@ -636,8 +636,10 @@ def compute_material_manifest(
 def _safe_relative_artifact_path(value: Any) -> PurePosixPath:
     if not isinstance(value, str) or not value or "\\" in value:
         raise ReviewEvidenceError("scan artifact path must be a non-empty POSIX path")
+    if any(part in {"", ".", ".."} for part in value.split("/")):
+        raise ReviewEvidenceError("scan artifact path escapes the scan root")
     path = PurePosixPath(value)
-    if path.is_absolute() or any(part in {"", ".", ".."} for part in path.parts):
+    if path.is_absolute() or not path.parts:
         raise ReviewEvidenceError("scan artifact path escapes the scan root")
     if any(ord(character) < 32 or ord(character) == 127 for character in value):
         raise ReviewEvidenceError("scan artifact path contains control characters")
@@ -709,7 +711,10 @@ def _open_contained_artifact_descriptor(
         try:
             file_descriptor = os.open(
                 relative.parts[-1],
-                os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0),
+                os.O_RDONLY
+                | getattr(os, "O_CLOEXEC", 0)
+                | getattr(os, "O_NOFOLLOW", 0)
+                | getattr(os, "O_NONBLOCK", 0),
                 dir_fd=descriptor,
             )
         except OSError as exc:
