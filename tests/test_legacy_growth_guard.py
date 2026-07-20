@@ -4608,6 +4608,59 @@ def test_legacy_growth_guard_joins_aliased_namespace_mutators(
 
 
 @pytest.mark.parametrize(
+    "mutator",
+    [
+        "builtins.__dict__.__setitem__",
+        "sys.modules[__name__].__dict__.__setitem__",
+    ],
+    ids=["builtins", "current-module"],
+)
+def test_legacy_growth_guard_keeps_other_sensitive_reference_at_mutator_join(
+    mutator: str,
+) -> None:
+    source = (
+        "import builtins\n"
+        "import os\n"
+        "import sys\n\n"
+        "app = resolve_app()\n"
+        'if os.getenv("USE_MUTATOR"):\n'
+        f"    action = {mutator}\n"
+        "else:\n"
+        "    action = app.add_api_route\n"
+        'action("/api/v1/mixed-sensitive-join", handler)\n'
+    )
+    expected = [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:dynamic:/api/v1/mixed-sensitive-join"
+    ]
+
+    assert legacy_guard.validate_legacy_growth(source) == expected
+    assert legacy_guard.validate_legacy_growth(source) == expected
+
+
+def test_legacy_growth_guard_keeps_mutator_at_non_callable_app_join() -> None:
+    source = (
+        "import builtins\n"
+        "import os\n\n"
+        "app = resolve_app()\n"
+        'if os.getenv("USE_MUTATOR"):\n'
+        "    action = builtins.__dict__.__setitem__\n"
+        "else:\n"
+        "    action = app\n"
+        'action("object", lambda: app)\n'
+        "app = object()\n"
+        'app.get("/api/v1/app-object-mutator-join")(handler)\n'
+    )
+    expected = [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/app-object-mutator-join"
+    ]
+
+    assert legacy_guard.validate_legacy_growth(source) == expected
+    assert legacy_guard.validate_legacy_growth(source) == expected
+
+
+@pytest.mark.parametrize(
     ("setup", "binding", "key"),
     [
         (

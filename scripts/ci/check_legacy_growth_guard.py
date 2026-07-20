@@ -3534,7 +3534,9 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 for value in values
                 if value is not None and _namespace_mutator_method(value) is not None
             }:
-                if len(namespace_mutator_values) == 1:
+                if any(_is_registration_callable_reference(value) for value in values):
+                    joined_references[name] = _POSSIBLE_APP_CALL_REFERENCE
+                elif len(namespace_mutator_values) == 1:
                     joined_references[name] = next(iter(namespace_mutator_values))
                 else:
                     methods = {
