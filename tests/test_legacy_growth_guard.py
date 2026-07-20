@@ -4661,6 +4661,128 @@ def test_legacy_growth_guard_keeps_augmented_union_controls_clean(
     assert legacy_guard.validate_legacy_growth(source) == []
 
 
+def test_legacy_growth_guard_joins_protected_namespace_aliases() -> None:
+    source = (
+        "import builtins\n"
+        "import os\n"
+        "import sys\n\n"
+        "app = resolve_app()\n"
+        "namespace = (\n"
+        "    builtins.__dict__\n"
+        '    if os.getenv("USE_BUILTINS")\n'
+        "    else sys.modules[__name__].__dict__\n"
+        ")\n"
+        'namespace |= {"safe_name": lambda: None}\n'
+        'namespace |= {"object": lambda: app}\n'
+        "app = object()\n"
+        'app.get("/api/v1/joined-protected-namespace")(handler)\n'
+    )
+    expected = [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/joined-protected-namespace"
+    ]
+
+    assert legacy_guard.validate_legacy_growth(source) == expected
+    assert legacy_guard.validate_legacy_growth(source) == expected
+
+
+def test_legacy_growth_guard_keeps_safe_protected_namespace_join_clean() -> None:
+    source = (
+        "import builtins\n"
+        "import os\n"
+        "import sys\n\n"
+        "namespace = (\n"
+        "    builtins.__dict__\n"
+        '    if os.getenv("USE_BUILTINS")\n'
+        "    else sys.modules[__name__].__dict__\n"
+        ")\n"
+        "app = resolve_app()\n"
+        'namespace |= {"safe_name": lambda: app}\n'
+        "app = object()\n"
+        'app.get("/api/v1/not-a-route")(handler)\n'
+    )
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+@pytest.mark.parametrize("method", ["__init__", "__ior__"])
+@pytest.mark.parametrize(
+    "namespace",
+    ["builtins.__dict__", "sys.modules[__name__].__dict__"],
+    ids=["builtins", "current-module"],
+)
+@pytest.mark.parametrize("aliased", [False, True], ids=["direct", "alias"])
+def test_legacy_growth_guard_tracks_unbound_dict_namespace_mutators(
+    method: str,
+    namespace: str,
+    aliased: bool,
+) -> None:
+    target = f"dict.{method}"
+    mutation = (
+        f"mutate = {target}\n" f'mutate({namespace}, {{"object": lambda: app}})'
+        if aliased
+        else f'{target}({namespace}, {{"object": lambda: app}})'
+    )
+    source = (
+        "import builtins\n"
+        "import sys\n\n"
+        "app = resolve_app()\n"
+        f"{mutation}\n"
+        "app = object()\n"
+        'app.get("/api/v1/unbound-dict-namespace-mutator")(handler)\n'
+    )
+    expected = [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/unbound-dict-namespace-mutator"
+    ]
+
+    assert legacy_guard.validate_legacy_growth(source) == expected
+    assert legacy_guard.validate_legacy_growth(source) == expected
+
+
+@pytest.mark.parametrize("method", ["__init__", "__ior__"])
+@pytest.mark.parametrize(
+    ("setup", "namespace", "key"),
+    [
+        ("import builtins", "builtins.__dict__", "safe_name"),
+        ("class Box:\n    pass\nbox = Box()", "box.__dict__", "object"),
+    ],
+    ids=["safe-key", "foreign-namespace"],
+)
+def test_legacy_growth_guard_keeps_unbound_dict_mutator_controls_clean(
+    method: str,
+    setup: str,
+    namespace: str,
+    key: str,
+) -> None:
+    source = (
+        f"{setup}\n\n"
+        "app = resolve_app()\n"
+        f"dict.{method}({namespace}, {{{key!r}: lambda: app}})\n"
+        "app = object()\n"
+        'app.get("/api/v1/not-a-route")(handler)\n'
+    )
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+def test_legacy_growth_guard_requires_proven_builtin_dict_mutator() -> None:
+    source = (
+        "class FakeDict:\n"
+        "    @staticmethod\n"
+        "    def __ior__(_namespace, _value):\n"
+        "        return None\n\n"
+        "dict = FakeDict\n"
+        "import builtins\n\n"
+        "app = resolve_app()\n"
+        'dict.__ior__(builtins.__dict__, {"object": lambda: app})\n'
+        "app = object()\n"
+        'app.get("/api/v1/not-a-route")(handler)\n'
+    )
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
 def test_legacy_growth_guard_keeps_foreign_aliased_mutator_clean() -> None:
     source = textwrap.dedent("""
         class Box:

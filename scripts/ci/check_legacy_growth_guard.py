@@ -2560,6 +2560,7 @@ _POISONED_BUILTINS_OBJECT_REFERENCE = "<poisoned:builtins.object>"
 _BUILTINS_NAMESPACE_REFERENCE = "<namespace:builtins>"
 _POSSIBLE_BUILTINS_NAMESPACE_REFERENCE = "<possible:namespace:builtins>"
 _MODULE_NAMESPACE_REFERENCE = "<namespace:module>"
+_POSSIBLE_OBJECT_NAMESPACE_REFERENCE = "<possible:namespace:object>"
 _POSSIBLE_NAMESPACE_MUTATOR_REFERENCE_PREFIX = "<possible:namespace-mutator>."
 _MAX_LOOP_BINDING_ITERATIONS = 32
 _MAX_TOTAL_LOOP_BINDING_ITERATIONS = 128
@@ -2703,6 +2704,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         self.scope.bind("__import__", reference="builtins.__import__", string=None)
         self.scope.bind("getattr", reference="builtins.getattr", string=None)
         self.scope.bind("globals", reference="builtins.globals", string=None)
+        self.scope.bind("dict", reference="builtins.dict", string=None)
         self.scope.bind("object", reference="builtins.object", string=None)
         self.scope.bind("setattr", reference="builtins.setattr", string=None)
         self.scope.bind("delattr", reference="builtins.delattr", string=None)
@@ -3194,6 +3196,10 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             owner_reference = self._resolve_reference(node.value)
             if owner_reference == _KNOWN_NON_APP_REFERENCE:
                 return None
+            if owner_reference == "builtins" and node.attr == "dict":
+                return "builtins.dict"
+            if owner_reference == "builtins.dict" and node.attr in _MAPPING_MUTATOR_METHODS:
+                return f"builtins.dict.{node.attr}"
             if node.attr == "__call__" and _is_registration_callable_reference(owner_reference):
                 return owner_reference
             if owner_reference in {"pulseplate.app", _POSSIBLE_APP_REFERENCE}:
@@ -3413,9 +3419,13 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         outcomes: list[_LexicalBindings] = []
         for node in nodes:
             outcome = active_scope.clone()
+            reference = self._resolve_reference(node)
             outcome.bind(
                 marker,
-                reference=self._resolve_reference(node),
+                reference=self._namespace_mapping_binding_reference(
+                    node,
+                    reference,
+                ),
                 string=self._resolve_string(node),
             )
             outcomes.append(outcome)
@@ -3527,8 +3537,27 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         joined_references: dict[str, str] = {}
         for name in reference_names:
             values = [outcome.references.get(name) for outcome in outcomes]
+            namespace_values = {
+                value
+                for value in values
+                if value
+                in {
+                    _BUILTINS_NAMESPACE_REFERENCE,
+                    _POSSIBLE_BUILTINS_NAMESPACE_REFERENCE,
+                    _MODULE_NAMESPACE_REFERENCE,
+                    _POSSIBLE_OBJECT_NAMESPACE_REFERENCE,
+                }
+            }
             if all(value == values[0] for value in values) and values[0] is not None:
                 joined_references[name] = values[0]
+            elif namespace_values and all(
+                value is None or value in namespace_values for value in values
+            ):
+                joined_references[name] = (
+                    next(iter(namespace_values))
+                    if len(namespace_values) == 1
+                    else _POSSIBLE_OBJECT_NAMESPACE_REFERENCE
+                )
             elif namespace_mutator_values := {
                 value
                 for value in values
@@ -3840,6 +3869,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             "builtins",
             _BUILTINS_NAMESPACE_REFERENCE,
             _POSSIBLE_BUILTINS_NAMESPACE_REFERENCE,
+            _POSSIBLE_OBJECT_NAMESPACE_REFERENCE,
         }
 
     def _builtins_object_is_safe(self) -> bool:
@@ -4056,8 +4086,19 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             return
 
         mapping_namespace_kinds: tuple[str, ...] = ()
+        arguments: Sequence[ast.expr] = node.args
         method = _namespace_mutator_method(function_reference)
-        if method is not None:
+        dict_method_prefix = "builtins.dict."
+        if function_reference is not None and function_reference.startswith(dict_method_prefix):
+            method = function_reference.removeprefix(dict_method_prefix)
+            if method not in _MAPPING_MUTATOR_METHODS or not arguments:
+                return
+            direct_namespace_kind = self._object_namespace_mapping_kind(arguments[0])
+            if direct_namespace_kind is None:
+                return
+            mapping_namespace_kinds = (direct_namespace_kind,)
+            arguments = arguments[1:]
+        elif method is not None:
             if function_reference is not None and function_reference.startswith(
                 f"{_BUILTINS_NAMESPACE_REFERENCE}."
             ):
@@ -4085,11 +4126,11 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 self._record_object_namespace_kind(namespace_kind)
             return
         if method in {"__delitem__", "__setitem__", "pop", "setdefault"}:
-            if not node.args:
+            if not arguments:
                 for namespace_kind in mapping_namespace_kinds:
                     self._record_object_namespace_kind(namespace_kind)
                 return
-            member_name = self._resolve_string(node.args[0])
+            member_name = self._resolve_string(arguments[0])
             if member_name not in {"object", None, _DYNAMIC_STRING_BINDING}:
                 return
             for namespace_kind in mapping_namespace_kinds:
@@ -4101,7 +4142,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         if method not in {"__init__", "__ior__", "update"}:
             return
         keys: set[str | None] = {keyword.arg for keyword in node.keywords}
-        for argument in node.args:
+        for argument in arguments:
             if not isinstance(argument, ast.Dict):
                 keys.add(None)
                 continue
@@ -5873,7 +5914,9 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             preserved_reference = self._possible_sensitive_reference(node.target.id)
             if namespace_kind is not None and target_reference in {
                 _BUILTINS_NAMESPACE_REFERENCE,
+                _POSSIBLE_BUILTINS_NAMESPACE_REFERENCE,
                 _MODULE_NAMESPACE_REFERENCE,
+                _POSSIBLE_OBJECT_NAMESPACE_REFERENCE,
             }:
                 preserved_reference = target_reference
             self._bind_name(
