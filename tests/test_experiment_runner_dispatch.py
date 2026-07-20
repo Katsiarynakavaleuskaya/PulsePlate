@@ -608,10 +608,27 @@ def test_candidate_checkout_requires_clean_matching_base(tmp_path: Path) -> None
     base_sha = _run_isolated_git(
         git, "rev-parse", "HEAD", cwd=source, capture_output=True
     ).stdout.strip()
-    packet = {"runner_mode": "candidate_patch", "base_commit_sha": base_sha}
+    packet = {
+        "runner_mode": "candidate_patch",
+        "candidate_patch_fingerprint": "sha256:" + ("a" * 64),
+        "base_commit_sha": base_sha,
+    }
 
     dispatch._require_candidate_checkout(packet, root=source)
     dispatch._require_candidate_checkout({"runner_mode": "candidate_patch"}, root=source)
+    with pytest.raises(dispatch.DispatchError, match="result_validation_failed"):
+        dispatch._require_candidate_checkout(
+            {
+                "runner_mode": "candidate_patch",
+                "candidate_patch_fingerprint": "sha256:" + ("a" * 64),
+            },
+            root=source,
+        )
+    with pytest.raises(dispatch.DispatchError, match="result_validation_failed"):
+        dispatch._require_candidate_checkout(
+            {"runner_mode": "candidate_patch", "base_commit_sha": base_sha},
+            root=source,
+        )
 
     tracked.write_text("dirty\n", encoding="utf-8")
     with pytest.raises(dispatch.DispatchError, match="result_validation_failed"):
@@ -635,7 +652,11 @@ def test_candidate_checkout_rejects_non_base_head(tmp_path: Path) -> None:
     _run_isolated_git(git, "add", "tracked.txt", cwd=source)
     _run_isolated_git(git, "commit", "--quiet", "-m", "init", cwd=source)
 
-    packet = {"runner_mode": "candidate_patch", "base_commit_sha": "0" * 40}
+    packet = {
+        "runner_mode": "candidate_patch",
+        "candidate_patch_fingerprint": "sha256:" + ("a" * 64),
+        "base_commit_sha": "0" * 40,
+    }
 
     with pytest.raises(dispatch.DispatchError, match="result_validation_failed"):
         dispatch._require_candidate_checkout(packet, root=source)
@@ -653,6 +674,20 @@ def test_experiment_packet_rejects_invalid_or_oracle_base_binding() -> None:
     oracle["base_commit_sha"] = "a" * 40
     with pytest.raises(ValueError, match="must not bind a candidate base"):
         experiment_contract.validate_experiment_packet(oracle)
+
+    fingerprint_only = _packet()
+    fingerprint_only["runner_mode"] = "candidate_patch"
+    fingerprint_only["mutable_candidate_surface"] = ["core/rag/orchestration.py"]
+    fingerprint_only["candidate_patch_fingerprint"] = "sha256:" + ("a" * 64)
+    with pytest.raises(ValueError, match="must bind candidate_patch_fingerprint"):
+        experiment_contract.validate_experiment_packet(fingerprint_only)
+
+    base_only = _packet()
+    base_only["runner_mode"] = "candidate_patch"
+    base_only["mutable_candidate_surface"] = ["core/rag/orchestration.py"]
+    base_only["base_commit_sha"] = "a" * 40
+    with pytest.raises(ValueError, match="must bind candidate_patch_fingerprint"):
+        experiment_contract.validate_experiment_packet(base_only)
 
 
 def test_repo_local_input_rejects_absolute_and_traversal(tmp_path: Path) -> None:
@@ -1094,7 +1129,9 @@ def test_capability_mismatch_is_non_retryable_and_preserves_zero_network() -> No
 def test_capability_mismatch_preserves_candidate_patch_fingerprint() -> None:
     packet = _packet(network_budget=0)
     packet["runner_mode"] = "candidate_patch"
+    packet["mutable_candidate_surface"] = ["core/rag/orchestration.py"]
     packet["candidate_patch_fingerprint"] = "sha256:" + ("a" * 64)
+    packet["base_commit_sha"] = "a" * 40
 
     result = dispatch._capability_mismatch_result(
         packet,
@@ -2192,6 +2229,7 @@ def test_container_runner_pins_packet_and_patch_before_execution(
     packet["candidate_patch_fingerprint"] = fingerprint_payload(
         {"candidate_patch": candidate_patch_text}
     )
+    packet["base_commit_sha"] = "a" * 40
     packet = experiment_contract.validate_experiment_packet(packet)
     packet_path = tmp_path / "packet.json"
     packet_path.write_text(json.dumps(packet), encoding="utf-8")
@@ -2589,6 +2627,7 @@ def test_container_runner_attribution_argv_has_backend_parity_and_default_omissi
     candidate_packet["runner_mode"] = "candidate_patch"
     candidate_packet["mutable_candidate_surface"] = ["core/rag/orchestration.py"]
     candidate_packet["candidate_patch_fingerprint"] = fingerprint_payload({"candidate_patch": ""})
+    candidate_packet["base_commit_sha"] = "a" * 40
     packet_path.write_text(json.dumps(candidate_packet), encoding="utf-8")
     candidate_patch = tmp_path / "candidate.patch"
     candidate_patch.write_text("", encoding="utf-8")
@@ -2760,6 +2799,7 @@ def test_candidate_patch_fingerprint_mismatch_rejects_before_backend_selection(
     packet["candidate_patch_fingerprint"] = fingerprint_payload(
         {"candidate_patch": "expected patch\n"}
     )
+    packet["base_commit_sha"] = "a" * 40
     packet_path = tmp_path / "packet.json"
     packet_path.write_text(json.dumps(packet), encoding="utf-8")
     candidate_patch = tmp_path / "candidate.patch"
@@ -2862,6 +2902,7 @@ def test_candidate_patch_fingerprint_read_is_bounded(
     packet["runner_mode"] = "candidate_patch"
     packet["mutable_candidate_surface"] = ["core/rag/orchestration.py"]
     packet["candidate_patch_fingerprint"] = "sha256:" + ("a" * 64)
+    packet["base_commit_sha"] = "a" * 40
     packet_path = tmp_path / "packet.json"
     packet_path.write_text(json.dumps(packet), encoding="utf-8")
     candidate_patch = tmp_path / "candidate.patch"

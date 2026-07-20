@@ -1451,8 +1451,11 @@ def _require_candidate_checkout(packet: dict[str, Any], *, root: Path) -> None:
     if packet["runner_mode"] == ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE:
         return
     expected_base = packet.get("base_commit_sha")
+    patch_fingerprint = packet.get("candidate_patch_fingerprint")
     tracked_status = _git(["status", "--short", "--untracked-files=no"], cwd=root).stdout
     if tracked_status:
+        raise DispatchError("result_validation_failed")
+    if (expected_base is None) != (patch_fingerprint is None):
         raise DispatchError("result_validation_failed")
     if expected_base is None:
         return

@@ -815,6 +815,11 @@ def validate_experiment_packet(packet: dict[str, Any]) -> dict[str, Any]:
             raise ValueError(
                 "Oracle-only experiment packets must not bind a candidate base commit."
             )
+    if (candidate_patch_fingerprint is None) != (base_commit_sha is None):
+        raise ValueError(
+            "Candidate experiment packets must bind candidate_patch_fingerprint "
+            "and base_commit_sha together."
+        )
 
     normalized = dict(packet)
     normalized["schema_version"] = schema_version
