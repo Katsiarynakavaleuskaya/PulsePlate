@@ -2542,6 +2542,7 @@ _BUILTINS_OBJECT_STATE_NAME = "<state:builtins.object>"
 _SAFE_BUILTINS_OBJECT_REFERENCE = "<safe:builtins.object>"
 _POISONED_BUILTINS_OBJECT_REFERENCE = "<poisoned:builtins.object>"
 _BUILTINS_NAMESPACE_REFERENCE = "<namespace:builtins>"
+_POSSIBLE_BUILTINS_NAMESPACE_REFERENCE = "<possible:namespace:builtins>"
 _MODULE_NAMESPACE_REFERENCE = "<namespace:module>"
 _MAX_LOOP_BINDING_ITERATIONS = 32
 _MAX_TOTAL_LOOP_BINDING_ITERATIONS = 128
@@ -3206,6 +3207,15 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 and module_strings == ["builtins"]
             ):
                 return "builtins"
+            if importer_reference == "builtins.__import__" and (
+                module_argument_unresolved
+                or module_strings
+                in [
+                    [None],
+                    [_DYNAMIC_STRING_BINDING],
+                ]
+            ):
+                return _POSSIBLE_BUILTINS_NAMESPACE_REFERENCE
             class_references = self._resolve_class_references(node.func)
             if len(class_references) == 1:
                 return next(iter(class_references)).replace(
@@ -3801,13 +3811,20 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
 
     def _object_namespace_mapping_kind(self, node: ast.AST) -> str | None:
         reference = self._resolve_reference(node)
-        if reference in {"builtins", _BUILTINS_NAMESPACE_REFERENCE}:
+        if reference in {
+            "builtins",
+            _BUILTINS_NAMESPACE_REFERENCE,
+            _POSSIBLE_BUILTINS_NAMESPACE_REFERENCE,
+        }:
             return "builtins"
         if reference == _MODULE_NAMESPACE_REFERENCE:
             return "module"
         if isinstance(node, ast.Attribute) and node.attr == "__dict__":
             owner_reference = self._resolve_reference(node.value)
-            if owner_reference == "builtins":
+            if owner_reference in {
+                "builtins",
+                _POSSIBLE_BUILTINS_NAMESPACE_REFERENCE,
+            }:
                 return "builtins"
             if self._is_proven_current_module_object(node.value):
                 return "module"
@@ -3824,7 +3841,10 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         if len(node.args) != 1:
             return None
         owner = node.args[0]
-        if self._resolve_reference(owner) == "builtins":
+        if self._resolve_reference(owner) in {
+            "builtins",
+            _POSSIBLE_BUILTINS_NAMESPACE_REFERENCE,
+        }:
             return "builtins"
         if self._is_proven_current_module_object(owner):
             return "module"
@@ -3832,7 +3852,10 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
 
     def _object_namespace_target_kind(self, target: ast.AST) -> str | None:
         if isinstance(target, ast.Attribute) and target.attr == "object":
-            if self._resolve_reference(target.value) == "builtins":
+            if self._resolve_reference(target.value) in {
+                "builtins",
+                _POSSIBLE_BUILTINS_NAMESPACE_REFERENCE,
+            }:
                 return "builtins"
             if self._is_proven_current_module_object(target.value):
                 return "module"
@@ -3923,7 +3946,11 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             owner_reference = self._resolve_reference(owner)
             namespace_kind = (
                 "builtins"
-                if owner_reference == "builtins"
+                if owner_reference
+                in {
+                    "builtins",
+                    _POSSIBLE_BUILTINS_NAMESPACE_REFERENCE,
+                }
                 else ("module" if self._is_proven_current_module_object(owner) else None)
             )
             if namespace_kind is None:

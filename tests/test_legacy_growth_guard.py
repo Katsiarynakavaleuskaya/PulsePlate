@@ -4288,6 +4288,52 @@ def test_legacy_growth_guard_tracks_implicit_builtins_namespace_poisoning(
     ]
 
 
+def test_legacy_growth_guard_keeps_unresolved_builtin_import_fail_closed() -> None:
+    source = textwrap.dedent("""
+        app = resolve_app()
+        __import__(*resolve_import_arguments()).object = lambda: app
+        app = object()
+        app.get("/api/v1/unresolved-builtin-import")(handler)
+        """)
+    expected = [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/unresolved-builtin-import"
+    ]
+
+    assert legacy_guard.validate_legacy_growth(source) == expected
+    assert legacy_guard.validate_legacy_growth(source) == expected
+
+
+def test_legacy_growth_guard_keeps_deep_builtin_import_star_fail_closed() -> None:
+    nested_arguments = '*["builtins"]'
+    for _depth in range(10):
+        nested_arguments = f"*({nested_arguments},)"
+    source = textwrap.dedent(f"""
+        app = resolve_app()
+        __import__({nested_arguments}).object = lambda: app
+        app = object()
+        app.get("/api/v1/deep-builtin-import")(handler)
+        """)
+    expected = [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/deep-builtin-import"
+    ]
+
+    assert legacy_guard.validate_legacy_growth(source) == expected
+    assert legacy_guard.validate_legacy_growth(source) == expected
+
+
+def test_legacy_growth_guard_keeps_exact_foreign_import_namespace_clean() -> None:
+    source = textwrap.dedent("""
+        app = resolve_app()
+        __import__(*["types"]).object = lambda: app
+        app = object()
+        app.get("/api/v1/not-a-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
 def test_legacy_growth_guard_does_not_trust_shadowed_builtin_importer() -> None:
     source = textwrap.dedent("""
         class Box:
