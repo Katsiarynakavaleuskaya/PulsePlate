@@ -32,7 +32,8 @@ router = APIRouter(
 )
 async def pro_nutrition_targets(req: WHOTargetsRequest) -> WHOTargetsResponse:
     """Canonical targets endpoint for PRO tier."""
-    return generate_who_targets_response(req)
+    response: WHOTargetsResponse = generate_who_targets_response(req)
+    return response
 
 
 @router.post(

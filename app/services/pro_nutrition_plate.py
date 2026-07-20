@@ -332,7 +332,7 @@ async def _aggregate_day_micronutrients(
                 "potassium_mg": 1200.0,
             }
         )
-    result = ensure_priority_micros(aliased)
+    result: dict[str, float] = ensure_priority_micros(aliased)
     _ensure_finite_dependency_output(result)
     return result
 
@@ -626,7 +626,8 @@ def sanitize_plate_data(plate_data_raw: dict[str, Any]) -> dict[str, Any]:
                 logger.warning("Invalid Plate fiber; using canonical minimum")
                 normalized_macros["fiber_g"] = int(round(FIBER_MIN_G))
         plate_data["macros"] = normalized_macros
-    return sanity_filter_plate_data(plate_data)
+    sanitized_plate_data: dict[str, Any] = sanity_filter_plate_data(plate_data)
+    return sanitized_plate_data
 
 
 def _iter_exception_chain(err: BaseException) -> Iterator[BaseException]:
