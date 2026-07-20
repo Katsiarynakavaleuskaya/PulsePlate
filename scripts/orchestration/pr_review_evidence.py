@@ -783,7 +783,8 @@ def _ingest_codex_security_receipt_from_descriptor(
             "status",
             "target",
             "threatModel",
-        },
+        }
+        | ({"hardening"} if "hardening" in scan else set()),
         label="scan",
     )
     if scan["status"] != "completed":
@@ -798,6 +799,13 @@ def _ingest_codex_security_receipt_from_descriptor(
         raise ReviewEvidenceError("scan.id must be a lowercase UUID")
     if not isinstance(scan["scope"], dict) or not isinstance(scan["threatModel"], dict):
         raise ReviewEvidenceError("scan scope and threatModel must be objects")
+    if "hardening" in scan:
+        hardening = scan["hardening"]
+        if not isinstance(hardening, dict):
+            raise ReviewEvidenceError("scan.hardening must be an object")
+        _require_exact_keys(hardening, {"portfolioPath"}, label="scan.hardening")
+        if hardening["portfolioPath"] != "hardening/hardening.md":
+            raise ReviewEvidenceError("scan.hardening must use the canonical portfolio path")
 
     producer = scan["producer"]
     if not isinstance(producer, dict):
@@ -815,7 +823,8 @@ def _ingest_codex_security_receipt_from_descriptor(
         raise ReviewEvidenceError("scan.target must be an object")
     _require_exact_keys(
         target,
-        {"baseRevision", "displayName", "headRevision", "kind", "snapshotDigest", "targetId"},
+        {"baseRevision", "displayName", "headRevision", "kind", "snapshotDigest", "targetId"}
+        | ({"remote"} if "remote" in target else set()),
         label="scan.target",
     )
     if (
@@ -828,12 +837,17 @@ def _ingest_codex_security_receipt_from_descriptor(
         or not re.fullmatch(r"target_sha256_[0-9a-f]{64}", target["targetId"])
     ):
         raise ReviewEvidenceError("scan target does not match the expected Git diff")
+    if (
+        "remote" in target
+        and target["remote"] != "https://github.com/Katsiarynakavaleuskaya/PulsePlate"
+    ):
+        raise ReviewEvidenceError("scan.target.remote must use the canonical PulsePlate repository")
 
     if scan["coverageRef"] != "coverage.json" or scan["findingsRef"] != "findings.json":
         raise ReviewEvidenceError("scan coverage/findings refs must use canonical filenames")
     artifacts = scan["artifacts"]
-    if not isinstance(artifacts, list) or len(artifacts) != 3:
-        raise ReviewEvidenceError("scan must list exactly three canonical artifacts")
+    if not isinstance(artifacts, list) or len(artifacts) < 3:
+        raise ReviewEvidenceError("scan must list the three canonical artifacts")
     artifact_specs: dict[str, tuple[str, str]] = {}
     for artifact in artifacts:
         if not isinstance(artifact, dict):
@@ -854,8 +868,11 @@ def _ingest_codex_security_receipt_from_descriptor(
         "findings.json": "application/json",
         "artifacts/02_discovery/work_ledger.jsonl": "application/octet-stream",
     }
-    if {path: spec[0] for path, spec in artifact_specs.items()} != expected_paths:
-        raise ReviewEvidenceError("scan artifact inventory does not match the v1 contract")
+    for path, media_type in expected_paths.items():
+        if artifact_specs.get(path, (None, None))[0] != media_type:
+            raise ReviewEvidenceError(
+                "scan artifact inventory does not contain the v1 canonical artifacts"
+            )
 
     artifact_raw: dict[str, bytes] = {}
     for path, (_media_type, expected_digest) in artifact_specs.items():
