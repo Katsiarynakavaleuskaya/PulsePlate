@@ -6539,6 +6539,34 @@ def test_legacy_growth_guard_uses_proven_mapping_get_default_for_missing_key() -
 
 
 @pytest.mark.parametrize(
+    ("mapping", "lookup"),
+    [
+        ('{"route": safe}', 'routes.pop("route")'),
+        ('{"route": safe}', 'routes.setdefault("route", app.get)'),
+        ('{"other": app.get}', 'routes.pop("route", safe)'),
+        ('{"other": app.get}', 'routes.setdefault("route", safe)'),
+    ],
+    ids=[
+        "pop-present-safe-value",
+        "setdefault-present-safe-value",
+        "pop-missing-safe-default",
+        "setdefault-missing-safe-default",
+    ],
+)
+def test_legacy_growth_guard_uses_pre_mutation_mapping_lookup_result(
+    mapping: str,
+    lookup: str,
+) -> None:
+    source = textwrap.dedent(f"""
+        routes = {mapping}
+        route = {lookup}
+        route("/api/v1/not-a-route")(handler)
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+@pytest.mark.parametrize(
     "dispatch",
     [
         (

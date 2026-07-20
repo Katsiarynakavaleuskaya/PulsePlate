@@ -6414,6 +6414,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         initial_arguments = {target: arguments for target, arguments in initial_replay_inputs}
         prepared_targets = set(initial_arguments)
 
+        pre_visit_mapping_lookup = self._resolve_mapping_lookup_call_binding(node)
         wrapper_reference = self._resolve_reference(node.func)
         namespace_kind = self._object_namespace_mapping_kind(node)
         if namespace_kind is not None:
@@ -6501,7 +6502,9 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 self._awaited_call_ids.remove(id(gathered_call))
             if iterated_argument is not None and not iterated_argument_was_marked:
                 self._iterated_call_ids.remove(id(iterated_argument))
-        projected_result = self._resolve_mapping_lookup_call_binding(node)
+        projected_result = pre_visit_mapping_lookup
+        if projected_result is None:
+            projected_result = self._resolve_mapping_lookup_call_binding(node)
         if (
             projected_result is None
             and node.args
