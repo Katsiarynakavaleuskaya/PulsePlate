@@ -69,7 +69,6 @@ numpy==2.4.6
     #   -c requirements.txt
     #   fastembed
     #   onnxruntime
-    #   pgvector
 onnxruntime==1.27.0
     # via fastembed
 packaging==25.0
@@ -77,7 +76,7 @@ packaging==25.0
     #   -c requirements.txt
     #   huggingface-hub
     #   onnxruntime
-pgvector==0.4.2
+pgvector==0.5.0
     # via -r requirements-rag-vector-cpu.in
 pillow==12.3.0
     # via

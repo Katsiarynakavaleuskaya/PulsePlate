@@ -19,6 +19,11 @@ from datetime import datetime
 from pathlib import Path, PurePosixPath
 from typing import Any, Iterable, Mapping
 
+from scripts.orchestration.review_source_status import (
+    TERMINAL_NONBLOCKING_STATUSES,
+    review_source_policy_projection,
+)
+
 MATERIAL_SCHEMA_VERSION = "pulseplate.material-diff/v1"
 MATERIAL_POLICY_VERSION = "pulseplate.material-classification/v1"
 MATERIAL_DOMAIN = b"pulseplate-material-diff/v1\0"
@@ -37,6 +42,9 @@ REVIEW_CREDIT_OUTAGE_AUTHORITY = "operator_review_credit_exhaustion_override"
 REVIEW_CREDIT_OUTAGE_CLASS = "codex_review_credits_exhausted"
 REVIEW_CREDIT_OUTAGE_BOOTSTRAP_REPOSITORY = "Katsiarynakavaleuskaya/PulsePlate"
 REVIEW_CREDIT_OUTAGE_BOOTSTRAP_PR = 2142
+REVIEW_SOURCE_UNAVAILABILITY_SCHEMA_VERSION = "pulseplate.codex-review-source-unavailability/v1"
+REVIEW_SOURCE_UNAVAILABILITY_AUTHORITY = "trusted_codex_review_source_unavailability"
+REVIEW_SOURCE_UNAVAILABILITY_SOURCE = "codex_review"
 OPERATOR_OUTAGE_TRUST_BOUNDARY_EXACT_PATHS = frozenset(
     {
         ".bandit",
@@ -127,6 +135,8 @@ _ZERO_SHA = "0" * 40
 _MAX_MANIFEST_BYTES = 2 * 1024 * 1024
 _MAX_JSON_ARTIFACT_BYTES = 8 * 1024 * 1024
 _MAX_LEDGER_BYTES = 32 * 1024 * 1024
+_MAX_SCAN_ARTIFACTS = 64
+_MAX_TOTAL_SCAN_ARTIFACT_BYTES = 64 * 1024 * 1024
 _DUPLICATE_REPLY_KEYS = (
     "Disposition",
     "Fingerprint",
@@ -626,8 +636,10 @@ def compute_material_manifest(
 def _safe_relative_artifact_path(value: Any) -> PurePosixPath:
     if not isinstance(value, str) or not value or "\\" in value:
         raise ReviewEvidenceError("scan artifact path must be a non-empty POSIX path")
+    if any(part in {"", ".", ".."} for part in value.split("/")):
+        raise ReviewEvidenceError("scan artifact path escapes the scan root")
     path = PurePosixPath(value)
-    if path.is_absolute() or any(part in {"", ".", ".."} for part in path.parts):
+    if path.is_absolute() or not path.parts:
         raise ReviewEvidenceError("scan artifact path escapes the scan root")
     if any(ord(character) < 32 or ord(character) == 127 for character in value):
         raise ReviewEvidenceError("scan artifact path contains control characters")
@@ -672,13 +684,11 @@ def _open_scan_root(root: Path) -> int:
         raise ReviewEvidenceError("scan root could not be opened safely") from exc
 
 
-def _read_contained_artifact_from_descriptor(
+def _open_contained_artifact_descriptor(
     root_descriptor: int,
     relative: PurePosixPath,
-    *,
-    max_bytes: int,
-) -> bytes:
-    """Read beneath one immutable scan-root descriptor without following symlinks."""
+) -> int:
+    """Open one regular-file candidate beneath an immutable scan-root descriptor."""
 
     descriptor = os.dup(root_descriptor)
     try:
@@ -701,19 +711,80 @@ def _read_contained_artifact_from_descriptor(
         try:
             file_descriptor = os.open(
                 relative.parts[-1],
-                os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0),
+                os.O_RDONLY
+                | getattr(os, "O_CLOEXEC", 0)
+                | getattr(os, "O_NOFOLLOW", 0)
+                | getattr(os, "O_NONBLOCK", 0),
                 dir_fd=descriptor,
             )
         except OSError as exc:
             raise ReviewEvidenceError(
                 "scan artifact path contains a symlink or is missing"
             ) from exc
-        try:
-            return _read_regular_descriptor(
-                file_descriptor, max_bytes=max_bytes, label=str(relative)
+        return file_descriptor
+    finally:
+        os.close(descriptor)
+
+
+def _read_contained_artifact_from_descriptor(
+    root_descriptor: int,
+    relative: PurePosixPath,
+    *,
+    max_bytes: int,
+) -> bytes:
+    """Read beneath one immutable scan-root descriptor without following symlinks."""
+
+    descriptor = _open_contained_artifact_descriptor(root_descriptor, relative)
+    try:
+        return _read_regular_descriptor(descriptor, max_bytes=max_bytes, label=str(relative))
+    finally:
+        os.close(descriptor)
+
+
+def _hash_contained_artifact_from_descriptor(
+    root_descriptor: int,
+    relative: PurePosixPath,
+    *,
+    max_bytes: int,
+) -> tuple[str, int]:
+    """Hash one contained regular file without retaining its payload in memory."""
+
+    descriptor = _open_contained_artifact_descriptor(root_descriptor, relative)
+    try:
+        before = os.fstat(descriptor)
+        if not stat.S_ISREG(before.st_mode):
+            raise ReviewEvidenceError(f"{relative} must be a regular file")
+        if before.st_size > max_bytes:
+            raise ReviewEvidenceError(f"{relative} exceeds size limit")
+        digest = hashlib.sha256()
+        bytes_read = 0
+        while bytes_read <= max_bytes:
+            chunk = os.read(
+                descriptor,
+                min(1024 * 1024, max_bytes + 1 - bytes_read),
             )
-        finally:
-            os.close(file_descriptor)
+            if not chunk:
+                break
+            digest.update(chunk)
+            bytes_read += len(chunk)
+        after = os.fstat(descriptor)
+        before_identity = (
+            before.st_dev,
+            before.st_ino,
+            before.st_size,
+            before.st_mtime_ns,
+        )
+        after_identity = (
+            after.st_dev,
+            after.st_ino,
+            after.st_size,
+            after.st_mtime_ns,
+        )
+        if bytes_read > max_bytes:
+            raise ReviewEvidenceError(f"{relative} exceeds size limit")
+        if before_identity != after_identity or bytes_read != before.st_size:
+            raise ReviewEvidenceError(f"{relative} changed while it was read")
+        return digest.hexdigest(), bytes_read
     finally:
         os.close(descriptor)
 
@@ -775,7 +846,8 @@ def _ingest_codex_security_receipt_from_descriptor(
             "status",
             "target",
             "threatModel",
-        },
+        }
+        | ({"hardening"} if "hardening" in scan else set()),
         label="scan",
     )
     if scan["status"] != "completed":
@@ -790,6 +862,13 @@ def _ingest_codex_security_receipt_from_descriptor(
         raise ReviewEvidenceError("scan.id must be a lowercase UUID")
     if not isinstance(scan["scope"], dict) or not isinstance(scan["threatModel"], dict):
         raise ReviewEvidenceError("scan scope and threatModel must be objects")
+    if "hardening" in scan:
+        hardening = scan["hardening"]
+        if not isinstance(hardening, dict):
+            raise ReviewEvidenceError("scan.hardening must be an object")
+        _require_exact_keys(hardening, {"portfolioPath"}, label="scan.hardening")
+        if hardening["portfolioPath"] != "hardening/hardening.md":
+            raise ReviewEvidenceError("scan.hardening must use the canonical portfolio path")
 
     producer = scan["producer"]
     if not isinstance(producer, dict):
@@ -807,7 +886,8 @@ def _ingest_codex_security_receipt_from_descriptor(
         raise ReviewEvidenceError("scan.target must be an object")
     _require_exact_keys(
         target,
-        {"baseRevision", "displayName", "headRevision", "kind", "snapshotDigest", "targetId"},
+        {"baseRevision", "displayName", "headRevision", "kind", "snapshotDigest", "targetId"}
+        | ({"remote"} if "remote" in target else set()),
         label="scan.target",
     )
     if (
@@ -820,12 +900,19 @@ def _ingest_codex_security_receipt_from_descriptor(
         or not re.fullmatch(r"target_sha256_[0-9a-f]{64}", target["targetId"])
     ):
         raise ReviewEvidenceError("scan target does not match the expected Git diff")
+    if (
+        "remote" in target
+        and target["remote"] != "https://github.com/Katsiarynakavaleuskaya/PulsePlate"
+    ):
+        raise ReviewEvidenceError("scan.target.remote must use the canonical PulsePlate repository")
 
     if scan["coverageRef"] != "coverage.json" or scan["findingsRef"] != "findings.json":
         raise ReviewEvidenceError("scan coverage/findings refs must use canonical filenames")
     artifacts = scan["artifacts"]
-    if not isinstance(artifacts, list) or len(artifacts) != 3:
-        raise ReviewEvidenceError("scan must list exactly three canonical artifacts")
+    if not isinstance(artifacts, list) or len(artifacts) < 3:
+        raise ReviewEvidenceError("scan must list the three canonical artifacts")
+    if len(artifacts) > _MAX_SCAN_ARTIFACTS:
+        raise ReviewEvidenceError("scan artifact count exceeds limit")
     artifact_specs: dict[str, tuple[str, str]] = {}
     for artifact in artifacts:
         if not isinstance(artifact, dict):
@@ -838,28 +925,44 @@ def _ingest_codex_security_receipt_from_descriptor(
             raise ReviewEvidenceError("scan artifact paths must be unique")
         if not isinstance(digest, str) or not _RAW_DIGEST_RE.fullmatch(digest):
             raise ReviewEvidenceError("scan artifact sha256 is malformed")
-        if not isinstance(media_type, str):
-            raise ReviewEvidenceError("scan artifact mediaType must be a string")
+        if not isinstance(media_type, str) or not media_type:
+            raise ReviewEvidenceError("scan artifact mediaType must be a non-empty string")
         artifact_specs[path] = (media_type, digest)
     expected_paths = {
         "coverage.json": "application/json",
         "findings.json": "application/json",
         "artifacts/02_discovery/work_ledger.jsonl": "application/octet-stream",
     }
-    if {path: spec[0] for path, spec in artifact_specs.items()} != expected_paths:
-        raise ReviewEvidenceError("scan artifact inventory does not match the v1 contract")
+    for path, media_type in expected_paths.items():
+        if artifact_specs.get(path, (None, None))[0] != media_type:
+            raise ReviewEvidenceError(
+                "scan artifact inventory does not contain the v1 canonical artifacts"
+            )
 
-    artifact_raw: dict[str, bytes] = {}
+    canonical_payloads: dict[str, bytes] = {}
+    total_artifact_bytes = 0
     for path, (_media_type, expected_digest) in artifact_specs.items():
         limit = _MAX_LEDGER_BYTES if path.endswith(".jsonl") else _MAX_JSON_ARTIFACT_BYTES
-        raw = _read_contained_artifact_from_descriptor(
-            root_descriptor, PurePosixPath(path), max_bytes=limit
-        )
-        if hashlib.sha256(raw).hexdigest() != expected_digest:
+        if path in {"coverage.json", "findings.json"}:
+            raw = _read_contained_artifact_from_descriptor(
+                root_descriptor, PurePosixPath(path), max_bytes=limit
+            )
+            actual_digest = hashlib.sha256(raw).hexdigest()
+            artifact_bytes = len(raw)
+            canonical_payloads[path] = raw
+        else:
+            actual_digest, artifact_bytes = _hash_contained_artifact_from_descriptor(
+                root_descriptor,
+                PurePosixPath(path),
+                max_bytes=limit,
+            )
+        total_artifact_bytes += artifact_bytes
+        if total_artifact_bytes > _MAX_TOTAL_SCAN_ARTIFACT_BYTES:
+            raise ReviewEvidenceError("scan artifact aggregate size exceeds limit")
+        if actual_digest != expected_digest:
             raise ReviewEvidenceError(f"scan artifact hash mismatch for {path}")
-        artifact_raw[path] = raw
 
-    coverage = _load_json_bytes(artifact_raw["coverage.json"], label="coverage.json")
+    coverage = _load_json_bytes(canonical_payloads["coverage.json"], label="coverage.json")
     if not isinstance(coverage, dict):
         raise ReviewEvidenceError("coverage.json must contain an object")
     _require_exact_keys(
@@ -890,7 +993,7 @@ def _ingest_codex_security_receipt_from_descriptor(
     ):
         raise ReviewEvidenceError("Codex Security coverage is incomplete or inconsistent")
 
-    findings = _load_json_bytes(artifact_raw["findings.json"], label="findings.json")
+    findings = _load_json_bytes(canonical_payloads["findings.json"], label="findings.json")
     if not isinstance(findings, dict):
         raise ReviewEvidenceError("findings.json must contain an object")
     _require_exact_keys(
@@ -1023,6 +1126,52 @@ def build_review_credit_outage_receipt(
     return receipt
 
 
+def build_review_source_unavailability_receipt(
+    *,
+    material_digest: str,
+    material_head_sha: str,
+    quota_reference: str,
+    quota_created_at: str,
+    quota_body_sha256: str,
+    source_status: str,
+) -> dict[str, Any]:
+    """Build a material-context receipt for one trusted terminal quota response."""
+
+    policy = review_source_policy_projection()
+    terminal = policy["terminal_unavailability"]
+    if not isinstance(terminal, dict):
+        raise ReviewEvidenceError("review-source policy projection is malformed")
+    receipt = {
+        "authority": REVIEW_SOURCE_UNAVAILABILITY_AUTHORITY,
+        "binding_kind": "seal_context_only",
+        "blocking": terminal["blocking"],
+        "fallback_required": terminal["fallback_required"],
+        "material_digest": material_digest,
+        "material_head_sha": material_head_sha,
+        "quota_body_sha256": quota_body_sha256,
+        "quota_created_at": quota_created_at,
+        "quota_reference": quota_reference,
+        "review_claim": terminal["review_claim"],
+        "schema_version": REVIEW_SOURCE_UNAVAILABILITY_SCHEMA_VERSION,
+        "source": REVIEW_SOURCE_UNAVAILABILITY_SOURCE,
+        "source_degraded": terminal["source_degraded"],
+        "source_status": source_status,
+        "status": "tooling_unavailable",
+    }
+    _validate_code_review_receipt(receipt, material_digest=material_digest)
+    return receipt
+
+
+def is_review_source_unavailability_receipt(receipt: Any) -> bool:
+    """Return whether code-review evidence uses the tagged quota variant."""
+
+    return (
+        isinstance(receipt, dict)
+        and receipt.get("schema_version") == REVIEW_SOURCE_UNAVAILABILITY_SCHEMA_VERSION
+        and receipt.get("authority") == REVIEW_SOURCE_UNAVAILABILITY_AUTHORITY
+    )
+
+
 def is_review_credit_outage_receipt(receipt: Any) -> bool:
     """Return whether code-review evidence uses the credit-outage variant."""
 
@@ -1032,7 +1181,7 @@ def is_review_credit_outage_receipt(receipt: Any) -> bool:
 def validate_review_credit_outage_scope(
     *, repository: str, pr_number: int, material_paths: Iterable[str]
 ) -> None:
-    """Prevent later review-governance changes from authorizing themselves."""
+    """Keep the historical credit-outage receipt live-valid only for PR #2142."""
 
     touched = sorted(
         {
@@ -1042,17 +1191,19 @@ def validate_review_credit_outage_scope(
             or path.startswith(REVIEW_CREDIT_OUTAGE_TRUST_BOUNDARY_PREFIXES)
         }
     )
-    if not touched:
-        return
     is_bootstrap = (
         repository.casefold() == REVIEW_CREDIT_OUTAGE_BOOTSTRAP_REPOSITORY.casefold()
         and pr_number == REVIEW_CREDIT_OUTAGE_BOOTSTRAP_PR
     )
-    if not is_bootstrap:
-        raise ReviewEvidenceError(
-            "Codex review credit-outage override cannot authorize trust-boundary changes: "
-            + ", ".join(touched)
-        )
+    if is_bootstrap:
+        return
+    touched_suffix = " Material paths: " + ", ".join(touched) + "." if touched else ""
+    raise ReviewEvidenceError(
+        "Historical Codex review credit-outage receipts are live-valid only for "
+        f"{REVIEW_CREDIT_OUTAGE_BOOTSTRAP_REPOSITORY} PR "
+        f"#{REVIEW_CREDIT_OUTAGE_BOOTSTRAP_PR}; later PRs cannot authenticate "
+        f"the legacy receipt.{touched_suffix}"
+    )
 
 
 def is_security_outage_override_receipt(receipt: Any) -> bool:
@@ -1191,6 +1342,67 @@ def _validate_security_receipt(receipt: Any) -> None:
 def _validate_code_review_receipt(receipt: Any, *, material_digest: str) -> None:
     if not isinstance(receipt, dict):
         raise ReviewEvidenceError("review seal code_review must be an object")
+    has_source_schema = receipt.get("schema_version") == REVIEW_SOURCE_UNAVAILABILITY_SCHEMA_VERSION
+    has_source_authority = receipt.get("authority") == REVIEW_SOURCE_UNAVAILABILITY_AUTHORITY
+    if has_source_schema != has_source_authority:
+        raise ReviewEvidenceError("review seal code_review tagged-union identity is ambiguous")
+    if has_source_schema:
+        _require_exact_keys(
+            receipt,
+            {
+                "authority",
+                "binding_kind",
+                "blocking",
+                "fallback_required",
+                "material_digest",
+                "material_head_sha",
+                "quota_body_sha256",
+                "quota_created_at",
+                "quota_reference",
+                "review_claim",
+                "schema_version",
+                "source",
+                "source_degraded",
+                "source_status",
+                "status",
+            },
+            label="review seal code_review source unavailability",
+        )
+        _require_sha(
+            receipt["material_head_sha"],
+            label="code_review.material_head_sha",
+        )
+        _require_digest(
+            receipt["material_digest"],
+            label="code_review.material_digest",
+        )
+        _require_digest(
+            receipt["quota_body_sha256"],
+            label="code_review.quota_body_sha256",
+        )
+        _parse_timestamp(
+            receipt["quota_created_at"],
+            label="code_review.quota_created_at",
+        )
+        if (
+            receipt["material_digest"] != material_digest
+            or receipt["source"] != REVIEW_SOURCE_UNAVAILABILITY_SOURCE
+            or not isinstance(receipt["source_status"], str)
+            or receipt["source_status"] not in TERMINAL_NONBLOCKING_STATUSES
+            or receipt["status"] != "tooling_unavailable"
+            or receipt["binding_kind"] != "seal_context_only"
+            or receipt["review_claim"] != "none"
+            or receipt["source_degraded"] is not True
+            or receipt["fallback_required"] is not False
+            or receipt["blocking"] is not False
+            or not isinstance(receipt["quota_reference"], str)
+            or not 1 <= len(receipt["quota_reference"]) <= 500
+            or any(ord(ch) < 32 for ch in receipt["quota_reference"])
+        ):
+            raise ReviewEvidenceError(
+                "review seal code_review source unavailability is malformed or stale"
+            )
+        return
     if is_review_credit_outage_receipt(receipt):
         _require_exact_keys(
             receipt,
@@ -1334,6 +1546,12 @@ def validate_review_seal(seal: Any) -> dict[str, Any]:
         raise ReviewEvidenceError("review seal material policy version is unsupported")
     code_review = seal["code_review"]
     _validate_code_review_receipt(code_review, material_digest=material_digest)
+    if is_review_source_unavailability_receipt(code_review) and (
+        code_review["material_head_sha"] != material["material_head_sha"]
+    ):
+        raise ReviewEvidenceError(
+            "review-source unavailability receipt does not match sealed material head"
+        )
     _validate_security_receipt(seal["codex_security"])
     if (
         seal["codex_security"]["base_revision"] != material["merge_base_sha"]
