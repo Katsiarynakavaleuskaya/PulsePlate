@@ -129,6 +129,8 @@ the field-level projection: `scope=per_pr`, `automatic_budget=1`,
 `pulseplate-pr-review` followed by one operator-issued scan; the local
 preparation state is advisory and cannot prove global consumption.
 
+GitHub Codex Connector review is separate from the locally invoked Codex Security plugin. Leave the Connector automatic: do not disable or manually retrigger it, and do not wait indefinitely when silence or rate limiting means no receipt. The expensive Codex Security plugin is invoked manually exactly once only after final material freeze and exact-head `pulseplate-pr-review`, with no automatic retry.
+
 ### Material review seal v1
 
 - The gate snapshots live base/head, fully paginates the PR commit connection,

@@ -66,6 +66,8 @@ one operator-issued manual scan. The preparation command never invokes the
 plugin, and no timeout, safety block, or incomplete result is retried without
 fresh exact-material `OWNER`/`MEMBER` approval.
 
+GitHub Codex Connector review is separate from the locally invoked Codex Security plugin. Leave the Connector automatic: do not disable or manually retrigger it, and do not wait indefinitely when silence or rate limiting means no receipt. The expensive Codex Security plugin is invoked manually exactly once only after final material freeze and exact-head `pulseplate-pr-review`, with no automatic retry.
+
 **Usage:**
 ```text
 Use the agent-coordinator subagent to [task description]
@@ -516,9 +518,9 @@ Use this as the canonical operating loop from branch creation to merge window:
    - Read `AGENTS.md`, `RUNBOOK_AGENT.md`, and the nearest scoped `AGENTS.md`
    - Decide scope, risk, and which sub-agents or helpers are needed before edits
 2. **Open non-draft by default**
-   - For lanes using the material review seal, first disable automatic
-     synchronize-triggered Codex review in the external GitHub integration.
-     Repository code cannot enforce that external setting.
+   - Keep the automatic GitHub Codex Connector configuration unchanged; do not
+     manually retrigger it or hold the lane open indefinitely for a rate-limited
+     or silent Connector response.
    - Open the PR ready-for-review once scope, artifact strategy, and initial local gates are coherent so bots and current-head checks run
    - Use draft only with an explicit operator exception when review/check suppression is intentional
    - Create or confirm the canonical artifact path `docs/review/PR_<N>_FIXED_MAPPING.md`

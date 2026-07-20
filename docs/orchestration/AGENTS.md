@@ -16,6 +16,8 @@ duplicate or weaken it in scoped orchestration docs. Local packets and schemas
 must project the role-only post-open pass separately from exact-head
 `pulseplate-pr-review` and the single operator-issued final security request.
 
+GitHub Codex Connector review is separate from the locally invoked Codex Security plugin. Leave the Connector automatic: do not disable or manually retrigger it, and do not wait indefinitely when silence or rate limiting means no receipt. The expensive Codex Security plugin is invoked manually exactly once only after final material freeze and exact-head `pulseplate-pr-review`, with no automatic retry.
+
 - For the design-agent runtime realignment bridge:
   - primary: `agent-coordinator`
   - secondary: `cursor-specialist-agent`

@@ -3021,6 +3021,10 @@ def test_final_material_security_budget_has_one_global_source_and_scoped_project
     matrix = (REPO_ROOT / "docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md").read_text(
         encoding="utf-8"
     )
+    dispatch_agents = (
+        REPO_ROOT / ".agents/skills/pulseplate-orchestration-dispatch/AGENTS.md"
+    ).read_text(encoding="utf-8")
+    workflow = (REPO_ROOT / "docs/orchestration/workflow.md").read_text(encoding="utf-8")
 
     assert root_agents.count(marker) == 1
     assert marker not in runbook
@@ -3031,6 +3035,24 @@ def test_final_material_security_budget_has_one_global_source_and_scoped_project
         assert "pulseplate-pr-review" in projection
     assert "automatic_budget=1" in matrix
     assert "repository_invokes_plugin=false" in matrix
+    connector_distinction = (
+        "GitHub Codex Connector review is separate from the locally invoked "
+        "Codex Security plugin."
+    )
+    for projection in (
+        root_agents,
+        runbook,
+        scoped_agents,
+        matrix,
+        dispatch_agents,
+        workflow,
+    ):
+        assert connector_distinction in projection
+        assert "do not disable or manually retrigger it" in projection
+        assert "do not wait indefinitely" in projection
+        assert "invoked manually exactly once" in projection
+    assert "external Codex Security `opened` / `synchronize` auto-triggers" not in root_agents
+    assert "synchronize-triggered Codex review" not in runbook
 
 
 def test_active_orchestration_surfaces_forbid_per_diff_security_reruns() -> None:

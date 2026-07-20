@@ -4435,6 +4435,69 @@ def test_legacy_growth_guard_propagates_object_poisoning_from_called_helper(
 
 
 @pytest.mark.parametrize(
+    ("helper_result", "mutation"),
+    [
+        ("builtins", 'setattr(expose(), "object", lambda: app)'),
+        ("builtins", "expose().object = lambda: app"),
+        ("vars(builtins)", 'expose()["object"] = lambda: app'),
+    ],
+    ids=["setattr", "attribute", "mapping"],
+)
+def test_legacy_growth_guard_replays_helper_returned_builtin_namespace(
+    helper_result: str,
+    mutation: str,
+) -> None:
+    source = textwrap.dedent(f"""
+        import builtins
+
+        def expose():
+            return {helper_result}
+
+        app = resolve_app()
+        {mutation}
+        app = object()
+        app.get("/api/v1/helper-namespace-rebind")(handler)
+        """)
+    expected = [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:get:/api/v1/helper-namespace-rebind"
+    ]
+
+    assert legacy_guard.validate_legacy_growth(source) == expected
+    assert legacy_guard.validate_legacy_growth(source) == expected
+
+
+@pytest.mark.parametrize(
+    ("setup", "helper_result", "mutation"),
+    [
+        ("import types", "types", 'setattr(expose(), "object", lambda: app)'),
+        (
+            "class Box:\n    pass\nbox = Box()",
+            "vars(box)",
+            'expose()["object"] = lambda: app',
+        ),
+    ],
+    ids=["foreign-module", "arbitrary-object-mapping"],
+)
+def test_legacy_growth_guard_does_not_poison_helper_returned_foreign_namespace(
+    setup: str,
+    helper_result: str,
+    mutation: str,
+) -> None:
+    source = (
+        f"{setup}\n\n"
+        "def expose():\n"
+        f"    return {helper_result}\n\n"
+        "app = resolve_app()\n"
+        f"{mutation}\n"
+        "app = object()\n"
+        'app.get("/api/v1/not-a-route")(handler)\n'
+    )
+
+    assert legacy_guard.validate_legacy_growth(source) == []
+
+
+@pytest.mark.parametrize(
     "target",
     [
         'globals()["object"], other',
@@ -6993,6 +7056,72 @@ def test_legacy_growth_guard_keeps_unresolved_selector_kwargs_fail_closed() -> N
         "legacy_app.py: unexpected legacy route growth: "
         "registration:dynamic:/api/v1/unresolved-selector-default"
     ]
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        """
+        def safe(*args, **kwargs):
+            return None
+
+        def install(registrar=safe):
+            registrar("/api/v1/unresolved-star-default")(handler)
+
+        install(*resolve_args())
+        """,
+        """
+        def safe(*args, **kwargs):
+            return None
+
+        def install(prefix, registrar=safe):
+            registrar("/api/v1/unresolved-star-default")(handler)
+
+        install("prefix", *resolve_args())
+        """,
+        """
+        def safe(*args, **kwargs):
+            return None
+
+        def install(*, registrar=safe):
+            registrar("/api/v1/unresolved-star-default")(handler)
+
+        install(**resolve_options())
+        """,
+    ],
+    ids=["positional-default", "explicit-prefix", "keyword-only-default"],
+)
+def test_legacy_growth_guard_joins_unresolved_calls_with_defaults(source: str) -> None:
+    expected = [
+        "legacy_app.py: unexpected legacy route growth: "
+        "registration:dynamic:/api/v1/unresolved-star-default"
+    ]
+
+    assert legacy_guard.validate_legacy_growth(textwrap.dedent(source)) == expected
+
+
+@pytest.mark.parametrize(
+    "invocation",
+    [
+        "install(safe, *resolve_args())",
+        "install(registrar=safe, **resolve_options())",
+    ],
+    ids=["explicit-positional", "explicit-keyword"],
+)
+def test_legacy_growth_guard_keeps_explicit_registrar_ahead_of_unresolved_values(
+    invocation: str,
+) -> None:
+    source = textwrap.dedent(f"""
+        def safe(*args, **kwargs):
+            return None
+
+        def install(registrar=safe, *args, **kwargs):
+            registrar("/api/v1/not-a-route")(handler)
+
+        {invocation}
+        """)
+
+    assert legacy_guard.validate_legacy_growth(source) == []
 
 
 def test_legacy_growth_guard_preserves_variadic_shape_through_tuple_unpacking() -> None:

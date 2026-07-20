@@ -1956,6 +1956,31 @@ _FunctionNode = ast.FunctionDef | ast.AsyncFunctionDef
 _DescriptorBinding = tuple[_FunctionNode, str]
 
 
+def _expand_ordered_static_positional_arguments(
+    arguments: Sequence[ast.expr],
+    *,
+    remaining_depth: int = _MAX_ITERABLE_ELEMENT_BINDING_DEPTH,
+) -> tuple[tuple[ast.expr, bool], ...]:
+    """Flatten bounded literal ``*args`` without discarding argument order."""
+
+    ordered: list[tuple[ast.expr, bool]] = []
+    for argument in arguments:
+        if not isinstance(argument, ast.Starred):
+            ordered.append((argument, False))
+            continue
+        value = argument.value
+        if remaining_depth <= 0 or not isinstance(value, (ast.List, ast.Tuple)):
+            ordered.append((value, True))
+            continue
+        ordered.extend(
+            _expand_ordered_static_positional_arguments(
+                value.elts,
+                remaining_depth=remaining_depth - 1,
+            )
+        )
+    return tuple(ordered)
+
+
 def _expand_static_positional_arguments(
     arguments: Sequence[ast.expr],
     *,
@@ -1963,23 +1988,14 @@ def _expand_static_positional_arguments(
 ) -> tuple[tuple[ast.expr, ...], tuple[ast.expr, ...]]:
     """Flatten bounded literal ``*args`` while retaining unresolved sources."""
 
-    expanded: list[ast.expr] = []
-    unresolved: list[ast.expr] = []
-    for argument in arguments:
-        if not isinstance(argument, ast.Starred):
-            expanded.append(argument)
-            continue
-        value = argument.value
-        if remaining_depth <= 0 or not isinstance(value, (ast.List, ast.Tuple)):
-            unresolved.append(value)
-            continue
-        nested, nested_unresolved = _expand_static_positional_arguments(
-            value.elts,
-            remaining_depth=remaining_depth - 1,
-        )
-        expanded.extend(nested)
-        unresolved.extend(nested_unresolved)
-    return tuple(expanded), tuple(unresolved)
+    ordered = _expand_ordered_static_positional_arguments(
+        arguments,
+        remaining_depth=remaining_depth,
+    )
+    return (
+        tuple(argument for argument, unresolved in ordered if not unresolved),
+        tuple(argument for argument, unresolved in ordered if unresolved),
+    )
 
 
 @dataclass(frozen=True)
@@ -3777,6 +3793,14 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             scope = scope.parent
         return scope
 
+    @staticmethod
+    def _is_builtin_namespace_reference(reference: str | None) -> bool:
+        return reference in {
+            "builtins",
+            _BUILTINS_NAMESPACE_REFERENCE,
+            _POSSIBLE_BUILTINS_NAMESPACE_REFERENCE,
+        }
+
     def _builtins_object_is_safe(self) -> bool:
         return (
             self._module_scope().resolve_reference(_BUILTINS_OBJECT_STATE_NAME)
@@ -3811,20 +3835,13 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
 
     def _object_namespace_mapping_kind(self, node: ast.AST) -> str | None:
         reference = self._resolve_reference(node)
-        if reference in {
-            "builtins",
-            _BUILTINS_NAMESPACE_REFERENCE,
-            _POSSIBLE_BUILTINS_NAMESPACE_REFERENCE,
-        }:
+        if self._is_builtin_namespace_reference(reference):
             return "builtins"
         if reference == _MODULE_NAMESPACE_REFERENCE:
             return "module"
         if isinstance(node, ast.Attribute) and node.attr == "__dict__":
             owner_reference = self._resolve_reference(node.value)
-            if owner_reference in {
-                "builtins",
-                _POSSIBLE_BUILTINS_NAMESPACE_REFERENCE,
-            }:
+            if self._is_builtin_namespace_reference(owner_reference):
                 return "builtins"
             if self._is_proven_current_module_object(node.value):
                 return "module"
@@ -3841,10 +3858,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         if len(node.args) != 1:
             return None
         owner = node.args[0]
-        if self._resolve_reference(owner) in {
-            "builtins",
-            _POSSIBLE_BUILTINS_NAMESPACE_REFERENCE,
-        }:
+        if self._is_builtin_namespace_reference(self._resolve_reference(owner)):
             return "builtins"
         if self._is_proven_current_module_object(owner):
             return "module"
@@ -3852,10 +3866,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
 
     def _object_namespace_target_kind(self, target: ast.AST) -> str | None:
         if isinstance(target, ast.Attribute) and target.attr == "object":
-            if self._resolve_reference(target.value) in {
-                "builtins",
-                _POSSIBLE_BUILTINS_NAMESPACE_REFERENCE,
-            }:
+            if self._is_builtin_namespace_reference(self._resolve_reference(target.value)):
                 return "builtins"
             if self._is_proven_current_module_object(target.value):
                 return "module"
@@ -3873,6 +3884,23 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         }:
             return namespace_kind
         return None
+
+    def _visit_object_namespace_target_expressions(self, target: ast.AST) -> None:
+        """Evaluate assignment-target owners before classifying their namespace."""
+
+        if isinstance(target, ast.Starred):
+            self._visit_object_namespace_target_expressions(target.value)
+            return
+        if isinstance(target, (ast.Tuple, ast.List)):
+            for child in target.elts:
+                self._visit_object_namespace_target_expressions(child)
+            return
+        if isinstance(target, ast.Attribute):
+            self.visit(target.value)
+            return
+        if isinstance(target, ast.Subscript):
+            self.visit(target.value)
+            self.visit(target.slice)
 
     def _record_object_namespace_target(
         self,
@@ -3946,11 +3974,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             owner_reference = self._resolve_reference(owner)
             namespace_kind = (
                 "builtins"
-                if owner_reference
-                in {
-                    "builtins",
-                    _POSSIBLE_BUILTINS_NAMESPACE_REFERENCE,
-                }
+                if self._is_builtin_namespace_reference(owner_reference)
                 else ("module" if self._is_proven_current_module_object(owner) else None)
             )
             if namespace_kind is None:
@@ -4126,6 +4150,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             )
 
     def _bind_iteration_target(self, target: ast.expr, iterable: ast.AST) -> None:
+        self._visit_object_namespace_target_expressions(target)
         self._record_object_namespace_target(target)
         if (
             isinstance(iterable, ast.Call)
@@ -5145,6 +5170,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         for item in node.items:
             self.visit(item.context_expr)
             if item.optional_vars is not None:
+                self._visit_object_namespace_target_expressions(item.optional_vars)
                 self._record_object_namespace_target(item.optional_vars)
                 binding = self._resolve_with_enter_binding(item.context_expr)
                 for name in _assignment_target_names(item.optional_vars):
@@ -5694,6 +5720,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         self.visit(node.value)
         value_mapping = self._resolve_mapping(node.value)
         for target in node.targets:
+            self._visit_object_namespace_target_expressions(target)
             self._invalidate_mapping_target(target)
             self._record_object_namespace_target(target)
             self._bind_target_value(
@@ -5715,6 +5742,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             return
         self.visit(node.value)
         value_mapping = self._resolve_mapping(node.value)
+        self._visit_object_namespace_target_expressions(node.target)
         self._invalidate_mapping_target(node.target)
         self._record_object_namespace_target(node.target)
         self._bind_target_value(
@@ -5760,13 +5788,13 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
 
     def visit_Delete(self, node: ast.Delete) -> None:
         for target in node.targets:
+            self._visit_object_namespace_target_expressions(target)
             namespace_target_recorded = self._record_object_namespace_target(
                 target,
                 deletion=True,
             )
             names = _assignment_target_names(target)
             if not names:
-                self.visit(target)
                 self._invalidate_mapping_target(target)
                 continue
             for name in names:
@@ -6023,21 +6051,25 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         evaluator.visit(callable_expr)
 
         keyword_bindings: list[tuple[str, _ResolvedBinding]] = []
+        positional_segments: list[tuple[_ResolvedBinding, bool]] = []
+        unresolved_keyword_value_bindings: list[_ResolvedBinding] = []
         if positional_override is None:
-            positional_bindings: list[_ResolvedBinding] = []
-            unresolved_positional_bindings: list[_ResolvedBinding] = []
-            expanded_arguments, unresolved_sources = _expand_static_positional_arguments(call.args)
-            for call_argument in expanded_arguments:
+            for call_argument, unresolved in _expand_ordered_static_positional_arguments(call.args):
                 evaluator.visit(call_argument)
-                positional_bindings.append(evaluator._capture_argument_binding(call_argument))
-            for unresolved_source in unresolved_sources:
-                evaluator.visit(unresolved_source)
-                unresolved_positional_bindings.append(
-                    evaluator._resolve_iterable_element_binding(unresolved_source)
-                    or evaluator._conservative_argument_binding()
+                positional_segments.append(
+                    (
+                        (
+                            (
+                                evaluator._resolve_iterable_element_binding(call_argument)
+                                or evaluator._conservative_argument_binding()
+                            )
+                            if unresolved
+                            else evaluator._capture_argument_binding(call_argument)
+                        ),
+                        unresolved,
+                    )
                 )
 
-            unresolved_keyword_value_bindings: list[_ResolvedBinding] = []
             for keyword in call.keywords:
                 if keyword.arg is not None:
                     evaluator.visit(keyword.value)
@@ -6078,10 +6110,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                         or evaluator._conservative_argument_binding()
                     )
         else:
-            positional_bindings = list(positional_override)
-            unresolved_positional_bindings = []
-            unresolved_keyword_value_bindings = []
-        unresolved_positional = bool(unresolved_positional_bindings)
+            positional_segments.extend((binding, False) for binding in positional_override)
         unresolved_keywords = bool(unresolved_keyword_value_bindings)
 
         receiver_options: set[bool] = set()
@@ -6105,18 +6134,63 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         if not receiver_options:
             receiver_options.add(False)
 
-        positional_variants = [
-            [
-                *([_ResolvedBinding(None, None)] if inject_receiver else []),
-                *positional_bindings,
-            ]
-            for inject_receiver in sorted(receiver_options)
-        ]
-
         positional_parameters = [*function.args.posonlyargs, *function.args.args]
         keyword_parameters = {parameter.arg for parameter in function.args.args}
         keyword_parameters.update(parameter.arg for parameter in function.args.kwonlyargs)
         default_bindings = self._function_default_bindings.get(function, {})
+        positional_capacity = len(positional_parameters) + 1
+
+        def append_positional_binding(
+            state: tuple[_ResolvedBinding, ...],
+            binding: _ResolvedBinding,
+        ) -> tuple[_ResolvedBinding, ...]:
+            if len(state) < positional_capacity:
+                return (*state, binding)
+            return (
+                *state[:-1],
+                self._join_resolved_bindings([state[-1], binding]),
+            )
+
+        def merge_positional_states(
+            states: Sequence[tuple[_ResolvedBinding, ...]],
+        ) -> list[tuple[_ResolvedBinding, ...]]:
+            grouped: dict[int, list[tuple[_ResolvedBinding, ...]]] = {}
+            for state in states:
+                grouped.setdefault(len(state), []).append(state)
+            return [
+                tuple(
+                    self._join_resolved_bindings([state[index] for state in candidates])
+                    for index in range(length)
+                )
+                for length, candidates in sorted(grouped.items())
+            ]
+
+        positional_variants: list[tuple[_ResolvedBinding, ...]] = [
+            ((_ResolvedBinding(None, None),) if inject_receiver and positional_capacity > 0 else ())
+            for inject_receiver in sorted(receiver_options)
+        ]
+        for binding, unresolved in positional_segments:
+            if not unresolved:
+                positional_variants = merge_positional_states(
+                    [append_positional_binding(variant, binding) for variant in positional_variants]
+                )
+                continue
+            expanded_variants: list[tuple[_ResolvedBinding, ...]] = []
+            for variant in positional_variants:
+                expanded_variants.append(variant)
+                candidate = variant
+                while len(candidate) < positional_capacity:
+                    candidate = append_positional_binding(candidate, binding)
+                    expanded_variants.append(candidate)
+                if len(candidate) == positional_capacity:
+                    expanded_variants.append(append_positional_binding(candidate, binding))
+            positional_variants = merge_positional_states(expanded_variants)
+
+        unresolved_keyword_binding = (
+            self._join_resolved_bindings(unresolved_keyword_value_bindings)
+            if unresolved_keyword_value_bindings
+            else None
+        )
 
         def resolve_variant(
             variant: Sequence[_ResolvedBinding],
@@ -6145,9 +6219,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
             for parameter in positional_parameters:
                 if assignments.get(parameter.arg) or parameter.arg in default_bindings:
                     continue
-                may_be_supplied = unresolved_positional or (
-                    parameter in function.args.args and unresolved_keywords
-                )
+                may_be_supplied = parameter in function.args.args and unresolved_keywords
                 if not may_be_supplied:
                     return None
             for parameter in function.args.kwonlyargs:
@@ -6163,12 +6235,19 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     resolved[parameter.arg] = candidates[0]
                 elif len(candidates) > 1:
                     resolved[parameter.arg] = self._conservative_argument_binding()
+                elif parameter in function.args.args and unresolved_keyword_binding is not None:
+                    resolved[parameter.arg] = (
+                        self._join_resolved_bindings(
+                            [
+                                default_bindings[parameter.arg],
+                                unresolved_keyword_binding,
+                            ]
+                        )
+                        if parameter.arg in default_bindings
+                        else unresolved_keyword_binding
+                    )
                 elif parameter.arg in default_bindings:
                     resolved[parameter.arg] = default_bindings[parameter.arg]
-                elif unresolved_positional or (
-                    parameter in function.args.args and unresolved_keywords
-                ):
-                    resolved[parameter.arg] = self._conservative_argument_binding()
                 else:
                     resolved[parameter.arg] = _ResolvedBinding(None, None)
 
@@ -6178,19 +6257,25 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                     resolved[parameter.arg] = candidates[0]
                 elif len(candidates) > 1:
                     resolved[parameter.arg] = self._conservative_argument_binding()
+                elif unresolved_keyword_binding is not None:
+                    resolved[parameter.arg] = (
+                        self._join_resolved_bindings(
+                            [
+                                default_bindings[parameter.arg],
+                                unresolved_keyword_binding,
+                            ]
+                        )
+                        if parameter.arg in default_bindings
+                        else unresolved_keyword_binding
+                    )
                 elif parameter.arg in default_bindings:
                     resolved[parameter.arg] = default_bindings[parameter.arg]
-                elif unresolved_keywords:
-                    resolved[parameter.arg] = self._conservative_argument_binding()
                 else:
                     resolved[parameter.arg] = _ResolvedBinding(None, None)
 
             if function.args.vararg is not None:
                 resolved[function.args.vararg.arg] = self._variadic_iterable_binding(
-                    [
-                        *overflow_positional_bindings,
-                        *unresolved_positional_bindings,
-                    ]
+                    overflow_positional_bindings
                 )
             if function.args.kwarg is not None:
                 resolved[function.args.kwarg.arg] = self._variadic_mapping_binding(
@@ -6505,7 +6590,6 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
         mapping_lookup_attribute = self._mapping_lookup_attribute(node)
         if mapping_lookup_attribute is not None:
             self.visit(mapping_lookup_attribute.value)
-        self._record_object_namespace_call_mutation(node)
         escaped_mappings = [
             mapping
             for argument in node.args
@@ -6668,6 +6752,7 @@ class _ApiKeyLookupVisitor(ast.NodeVisitor):
                 self._awaited_call_ids.remove(id(gathered_call))
             if iterated_argument is not None and not iterated_argument_was_marked:
                 self._iterated_call_ids.remove(id(iterated_argument))
+        self._record_object_namespace_call_mutation(node)
         projected_result = self._resolve_mapping_lookup_call_binding(
             node,
             receiver=mapping_lookup_receiver,

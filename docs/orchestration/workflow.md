@@ -153,6 +153,7 @@ derivable from existing inputs:
   request prepared by the read-only `prepare-final-security --review-ref
   <exact-head-review-URL>` command. Its terminal outcome is recorded before any
   later trusted operator approval can authorize an additional request.
+- GitHub Codex Connector review is separate from the locally invoked Codex Security plugin. Leave the Connector automatic: do not disable or manually retrigger it, and do not wait indefinitely when silence or rate limiting means no receipt. The expensive Codex Security plugin is invoked manually exactly once only after final material freeze and exact-head `pulseplate-pr-review`, with no automatic retry.
 - `design_lane_mode = "disabled"` only when the task has no explicit design
   trigger; otherwise the packet must resolve to one of:
   - `read_only`
